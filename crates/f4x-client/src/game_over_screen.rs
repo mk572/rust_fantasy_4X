@@ -4,12 +4,13 @@
 //! fame, time, the Spell of Mastery), the final score and a bar of `score / 40` up to 200. A click
 //! or Esc goes on: the score is entered in the Hall of Fame (task 88) and the table is shown.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::endgame::EndKind;
 use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::hall_of_fame::{self, Entry};
 use crate::view::{App, Screen, HUMAN};
 
@@ -61,14 +62,13 @@ impl App {
         let name = wizard.map_or_else(String::new, |w| w.name());
         let race = wizard.and_then(|w| w.capital_race());
         let race_icon = race.map_or(0, |r| 15 + r.index());
-        self.bm_text_outlined(view, 3, &name, 160.0, 3.0, Align::Center);
+        self.draw_styled(view, &Style::outlined(3).center(), &name, 160.0, 3.0);
         let score = self.game.score(HUMAN);
 
         // One point for each spell known, a book each (fifty at most).
-        self.bm_text(
+        self.draw_styled(
             view,
-            2,
-            ink,
+            &Style::nearest(2, ink),
             &self.text_with(
                 "end.spells",
                 &Args::new()
@@ -77,7 +77,6 @@ impl App {
             ),
             X,
             15.0,
-            Align::Left,
         );
         let (mut x, mut y) = (X, 25.0);
         for i in 0..score.spells.min(50) {
@@ -88,10 +87,9 @@ impl App {
             }
         }
         // Half a point for each thousand citizens.
-        self.bm_text(
+        self.draw_styled(
             view,
-            2,
-            ink,
+            &Style::nearest(2, ink),
             &self.text_with(
                 "end.townsfolk",
                 &Args::new()
@@ -100,7 +98,6 @@ impl App {
             ),
             X,
             37.0,
-            Align::Left,
         );
         let (mut x, mut y) = (X, 46.0);
         for i in 0..score.townsfolk.min(100) {
@@ -121,14 +118,12 @@ impl App {
         let args = Args::new()
             .count("n", count)
             .count("points", score.conquests);
-        self.bm_text(
+        self.draw_styled(
             view,
-            2,
-            ink,
+            &Style::nearest(2, ink),
             &self.text_with("end.banished", &args),
             X,
             78.0,
-            Align::Left,
         );
         for (i, id) in banished.iter().take(4).enumerate() {
             let portrait = self
@@ -140,17 +135,15 @@ impl App {
         // Fame, time and the Spell of Mastery.
         self.draw_pic(&lay, "halofam", 31, 0, X, 123.0);
         let fame = self.game.fame(HUMAN);
-        self.bm_text(
+        self.draw_styled(
             view,
-            2,
-            ink,
+            &Style::nearest(2, ink),
             &self.text_with(
                 "end.fame",
                 &Args::new().count("n", fame).count("points", score.fame),
             ),
             X + 18.0,
             128.0,
-            Align::Left,
         );
         self.draw_pic(&lay, "halofam", 29, 0, X, 142.0);
         let sign = if score.time >= 0 { "+" } else { "" };
@@ -160,26 +153,22 @@ impl App {
                 .count("year", over.turn / 12 + 1400)
                 .text("points", format!("{sign}{}", score.time)),
         );
-        self.bm_text(view, 2, ink, &time, X + 18.0, 147.0, Align::Left);
+        self.draw_styled(view, &Style::nearest(2, ink), &time, X + 18.0, 147.0);
         self.draw_pic(&lay, "halofam", 32, 0, X, 161.0);
-        self.bm_text(
+        self.draw_styled(
             view,
-            2,
-            ink,
+            &Style::nearest(2, ink),
             &self.text_with("end.mastery", &Args::new().count("points", score.mastery)),
             X + 18.0,
             166.0,
-            Align::Left,
         );
         let total = score.total();
-        self.bm_text(
+        self.draw_styled(
             view,
-            2,
-            ink,
+            &Style::nearest(2, ink),
             &self.text_with("end.final_score", &Args::new().count("n", total)),
             X,
             180.0,
-            Align::Left,
         );
         // The bar: a frame, and green for each forty points.
         let frame = lay.rect((47.0, 189.0, 205.0, 9.0));

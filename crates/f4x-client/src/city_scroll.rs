@@ -6,7 +6,8 @@
 //! own buildings are shown as they are.
 
 use crate::audio::Track;
-use crate::frame::{Align, Layout};
+use crate::font::Style;
+use crate::frame::Layout;
 use crate::input::Input;
 use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
@@ -156,7 +157,7 @@ impl App {
             "spell.city_scroll_title",
             &Args::new().text("size", size).text("city", name),
         );
-        self.bm_text_outlined(view, 5, &title, 160.0, 44.0, Align::Center);
+        self.draw_styled(view, &Style::outlined(5).center(), &title, 160.0, 44.0);
         let spell_name = self
             .game
             .content()
@@ -173,7 +174,7 @@ impl App {
                 .text("spell", spell_name);
             self.text_with("spell.rival_casts", &args)
         };
-        self.bm_text_outlined(view, 4, &line, 160.0, 164.0, Align::Center);
+        self.draw_styled(view, &Style::outlined(4).center(), &line, 160.0, 164.0);
         self.clipped((CITYSCAPE.0, CITYSCAPE.1, 205.0, 96.0), |app| {
             let city_lay = crate::city_screen::Layout {
                 ox: lay.origin.x,

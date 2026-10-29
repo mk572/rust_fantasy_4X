@@ -7,13 +7,14 @@
 //! original's (`win`, `lose`, `conquest`, `wizlab`, `vortex`, `cmbtfx`); without them a scene shows
 //! its caption on black and runs as long.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::player::PlayerId;
 use f4x_core::text::{Args, Gender};
 use macroquad::prelude::*;
 
 use crate::audio::Track;
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::{App, HUMAN};
 
 /// Ticks of the original's clock in a second.
@@ -363,7 +364,7 @@ impl App {
 
     fn scene_caption(&mut self, lay: &Layout, text: &str, y: f32) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        self.bm_text_outlined(view, 5, text, 160.0, y, Align::Center);
+        self.draw_styled(view, &Style::outlined(5).center(), text, 160.0, y);
     }
 
     fn draw_win(&mut self, lay: &Layout, wizard: usize, stage: u32) {
@@ -500,13 +501,12 @@ impl App {
         self.scene_pic(lay, "vortex", 0, f, (x + 8.0, y + 8.0));
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         for (i, line) in self.bm_wrap(4, caption, 165.0).iter().enumerate() {
-            self.bm_text_outlined(
+            self.draw_styled(
                 view,
-                4,
+                &Style::outlined(4),
                 line,
                 x + 7.0,
                 y + 114.0 + 11.0 * i as f32,
-                Align::Left,
             );
         }
     }

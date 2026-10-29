@@ -9,6 +9,7 @@
 
 use std::collections::{HashMap, VecDeque};
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::battle::ai::next_command;
 use f4x_core::battle::map::{distance, Pos, Wall, GRID_H, GRID_W};
@@ -1528,14 +1529,12 @@ impl App {
         }
         self.draw_spellbook(&lay, view, input);
         if spells.is_empty() {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                Color::new(0.2, 0.12, 0.05, 1.0),
+                &Style::nearest(1, Color::new(0.2, 0.12, 0.05, 1.0)),
                 &self.text("battle.no_spell"),
                 60.0,
                 80.0,
-                Align::Left,
             );
         }
         // Clicking a spell.
@@ -2059,13 +2058,12 @@ impl App {
         };
         bar(bar_rect, frac, color);
         let ts = scale.floor().max(1.0);
-        self.bm_text_outlined(
+        self.draw_styled(
             (0.0, 0.0, ts),
-            1,
+            &Style::outlined(1),
             &u.figures.to_string(),
             (bar_rect.x + bar_rect.w + 2.0) / ts,
             (bar_rect.y - 3.0 * scale) / ts,
-            Align::Left,
         );
     }
 

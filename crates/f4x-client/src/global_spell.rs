@@ -4,6 +4,7 @@
 //! cast. With Spell Animations off the mirror shows the spell's picture at once, with the line
 //! "You have completed casting..." under it.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
@@ -12,7 +13,7 @@ use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
 use crate::audio::Track;
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
 use crate::view::App;
@@ -141,14 +142,20 @@ impl App {
             .clone();
         let line = (x + 62.0, y + 133.0);
         if !animated {
-            self.bm_text_outlined(view, 5, &words, line.0, line.1, Align::Center);
+            self.draw_styled(view, &Style::outlined(5).center(), &words, line.0, line.1);
             self.draw_pic(lay, "backgrnd", 18, 0, x, y);
             self.draw_pic(lay, &cast.picture.0, cast.picture.1, 0, x + 10.0, y + 8.0);
-            self.bm_text_outlined(view, 5, &name, line.0, line.1 + 20.0, Align::Center);
+            self.draw_styled(
+                view,
+                &Style::outlined(5).center(),
+                &name,
+                line.0,
+                line.1 + 20.0,
+            );
             return;
         }
         if stage < 34 {
-            self.bm_text_outlined(view, 5, &words, line.0, line.1, Align::Center);
+            self.draw_styled(view, &Style::outlined(5).center(), &words, line.0, line.1);
         }
         let inside = (x + 12.0, y + 12.0);
         if stage < 14 {
@@ -180,7 +187,7 @@ impl App {
         } else {
             self.draw_pic(lay, "backgrnd", 18, 0, x, y);
             self.draw_pic(lay, &cast.picture.0, cast.picture.1, 0, x + 10.0, y + 8.0);
-            self.bm_text_outlined(view, 5, &name, line.0, line.1, Align::Center);
+            self.draw_styled(view, &Style::outlined(5).center(), &name, line.0, line.1);
         }
     }
 

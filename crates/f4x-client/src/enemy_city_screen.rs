@@ -4,13 +4,13 @@
 //! out), its enchantments and its cityscape. A click anywhere or Esc leaves. Positions are the
 //! original's.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::city_screen::Layout;
-use crate::frame::Align;
 use crate::view::{App, Screen, HUMAN};
 
 /// The window's left edge (`x_start`; the picture is drawn one pixel left of it).
@@ -61,7 +61,7 @@ impl App {
                 .text("size", self.city_size_name(city))
                 .text("city", self.city_name(city)),
         );
-        self.bm_text_outlined(view, 5, &title, X + 106.0, 3.0, Align::Center);
+        self.draw_styled(view, &Style::outlined(5).center(), &title, X + 106.0, 3.0);
         let (race_name, race_index) = self
             .game
             .city_race(city)
@@ -72,9 +72,9 @@ impl App {
                 )
             })
             .unwrap_or_default();
-        self.bm_text(view, 1, orange, &race_name, X + 6.0, 19.0, Align::Left);
+        self.draw_styled(view, &Style::nearest(1, orange), &race_name, X + 6.0, 19.0);
         let units = self.text("enemy_city.units");
-        self.bm_text(view, 1, orange, &units, X + 6.0, 43.0, Align::Left);
+        self.draw_styled(view, &Style::nearest(1, orange), &units, X + 6.0, 43.0);
 
         // The citizens, farmers then workers then rebels.
         let total = (eco.farmers + eco.workers + eco.rebels).max(1) as f32;
@@ -108,7 +108,7 @@ impl App {
                 if ui::hit(lay.rect(ux, uy, 20.0, 18.0), true, input).hovered() {
                     let name = self.game.units().unit_def(unit).map(|d| d.name.clone());
                     if let Some(name) = name {
-                        self.bm_text(view, 1, orange, &name, X + 36.0, 43.0, Align::Left);
+                        self.draw_styled(view, &Style::nearest(1, orange), &name, X + 36.0, 43.0);
                     }
                     if input.mouse_pressed(MouseButton::Right) {
                         self.open_unit_sheet(unit);
@@ -118,21 +118,19 @@ impl App {
             }
         } else {
             let none = self.text("enemy_city.no_report");
-            self.bm_text(view, 1, orange, &none, X + 54.0, 64.0, Align::Left);
+            self.draw_styled(view, &Style::nearest(1, orange), &none, X + 54.0, 64.0);
         }
 
         // The enchantments, in the colour of whoever cast them.
         for (k, &(spell, caster)) in self.game.city_enchantments(city).iter().take(6).enumerate() {
             let name = self.game.content().rules.spells.get(spell).name.clone();
             let colour = self.banner_color(caster.0);
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                colour,
+                &Style::nearest(1, colour),
                 &name,
                 X + 139.0,
                 51.0 + 6.5 * k as f32,
-                Align::Left,
             );
         }
         self.draw_city_buildings_at(city, lay, X + 4.0, 101.0, input);

@@ -5,6 +5,7 @@
 //! screen is left. A click anywhere or Esc leaves, a click on a garrison unit selects the stack
 //! on the map, a right-click on one opens its sheet. Positions are the original's.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::modal::{keep, Modal};
 use crate::ui;
@@ -12,7 +13,7 @@ use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::{App, Screen, HUMAN};
 
 /// The window's top-left corner.
@@ -160,20 +161,24 @@ impl App {
                 &Args::new().text("city", self.city_name(city)),
             )
         };
-        self.bm_text_outlined(view, 5, &title, wx + 124.0, wy + 6.0, Align::Center);
+        self.draw_styled(
+            view,
+            &Style::outlined(5).center(),
+            &title,
+            wx + 124.0,
+            wy + 6.0,
+        );
         let race = self
             .game
             .city_race(city)
             .map(|r| self.game.content().rules.races.get(r).name.clone())
             .unwrap_or_default();
-        self.bm_text(
+        self.draw_styled(
             view,
-            1,
-            Color::new(0.95, 0.7, 0.2, 1.0),
+            &Style::nearest(1, Color::new(0.95, 0.7, 0.2, 1.0)),
             &race,
             wx + 6.0,
             wy + 23.0,
-            Align::Left,
         );
 
         // The garrison (a new outpost shows none) and the enchantments.
@@ -311,7 +316,7 @@ impl App {
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
         self.draw_pic(lay, "backgrnd", 33, 0, x, y);
-        self.bm_text(view, 4, gold, title, x + 10.0, y + 6.0, Align::Left);
+        self.draw_styled(view, &Style::nearest(4, gold), title, x + 10.0, y + 6.0);
         for c in input.typed() {
             if !c.is_control() && name.chars().count() < f4x_core::city::NAME_LEN {
                 name.push(c);
@@ -320,14 +325,12 @@ impl App {
         if input.key_pressed(KeyCode::Backspace) {
             name.pop();
         }
-        self.bm_text(
+        self.draw_styled(
             view,
-            4,
-            light,
+            &Style::nearest(4, light),
             &format!("{name}_"),
             x + 16.0,
             y + 21.0,
-            Align::Left,
         );
         input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::KpEnter)
     }

@@ -5,13 +5,14 @@
 //! Picture, Name, Picks, Spells, Race, Banner. Esc goes one step back. Positions are the
 //! original's. The rules behind the choices are the core's (`WizardBuild`).
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::create_screen::{CreateState, Step};
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::{App, Screen};
 
 /// Left-column buttons of the wizard lists: `x`, first `y`, step; the right column follows.
@@ -83,7 +84,7 @@ impl App {
     /// The wizard's name under the portrait (`(77, 119)`), the portrait, and the title.
     pub(crate) fn ng_frame(&mut self, lay: &Layout, title: &str, portrait: Option<usize>) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        self.bm_text_outlined(view, 5, title, 242.0, 1.0, Align::Center);
+        self.draw_styled(view, &Style::outlined(5).center(), title, 242.0, 1.0);
         if let Some(p) = portrait {
             self.draw_pic(lay, "wizards", p, 0, 24.0, 10.0);
         }
@@ -91,9 +92,9 @@ impl App {
 
     pub(crate) fn ng_name(&mut self, lay: &Layout, name: &str) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        self.bm_text(view, 4, SHADOW, name, 78.0, 120.0, Align::Center);
-        self.bm_text(view, 4, SHADOW, name, 77.0, 120.0, Align::Center);
-        self.bm_text(view, 4, LIGHT, name, 77.0, 119.0, Align::Center);
+        self.draw_styled(view, &Style::nearest(4, SHADOW).center(), name, 78.0, 120.0);
+        self.draw_styled(view, &Style::nearest(4, SHADOW).center(), name, 77.0, 120.0);
+        self.draw_styled(view, &Style::nearest(4, LIGHT).center(), name, 77.0, 119.0);
     }
 
     /// The books on the shelf at `(36, 135)`, eight pixels each, realms in the given order.
@@ -141,8 +142,8 @@ impl App {
         let gold = Color::new(0.95, 0.7, 0.2, 1.0);
         for (i, line) in lines.iter().enumerate() {
             let y = start + i as f32 * 7.0;
-            self.bm_text(view, 0, SHADOW, line, 13.0, y + 1.0, Align::Left);
-            self.bm_text(view, 0, gold, line, 12.0, y, Align::Left);
+            self.draw_styled(view, &Style::nearest(0, SHADOW), line, 13.0, y + 1.0);
+            self.draw_styled(view, &Style::nearest(0, gold), line, 12.0, y);
         }
     }
 
@@ -170,14 +171,12 @@ impl App {
         self.draw_pic(lay, "newgame", 45, 0, x, y + 112.0);
         let top = y + 56.0 - lines.len() as f32 * 4.0;
         for (i, line) in lines.iter().enumerate() {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                LIGHT,
+                &Style::nearest(1, LIGHT).center(),
                 line,
                 x + 93.0,
                 top + i as f32 * 8.0,
-                Align::Center,
             );
         }
         if closable
@@ -251,15 +250,19 @@ impl App {
         draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::new(0.1, 0.07, 0.05, 1.0));
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let label = self.text("create.back");
-        self.bm_text(view, 3, SHADOW, &label, left + 16.0, 187.0, Align::Center);
-        self.bm_text(
+        self.draw_styled(
             view,
-            3,
-            if hover { GOLD_INK } else { LIGHT },
+            &Style::nearest(3, SHADOW).center(),
+            &label,
+            left + 16.0,
+            187.0,
+        );
+        self.draw_styled(
+            view,
+            &Style::nearest(3, if hover { GOLD_INK } else { LIGHT }).center(),
             &label,
             left + 15.0,
             186.0,
-            Align::Center,
         );
         if state.clicked() {
             self.create_back();
@@ -326,7 +329,7 @@ impl App {
         } else {
             "create.select_wizard"
         });
-        self.bm_text_outlined(view, 5, &title, 242.0, 1.0, Align::Center);
+        self.draw_styled(view, &Style::outlined(5).center(), &title, 242.0, 1.0);
         let clicked = input.mouse_pressed(MouseButton::Left) && self.ng_input();
         let mut chosen = None;
         let mut over = None;
@@ -354,16 +357,20 @@ impl App {
                 .get(i)
                 .map_or_else(|| self.text("create.custom"), |d| d.1.clone());
             let cx = x0 + 34.0 + shift;
-            self.bm_text(
+            self.draw_styled(
                 view,
-                3,
-                SHADOW,
+                &Style::nearest(3, SHADOW).center(),
                 &name,
                 cx + 1.0,
                 y + 4.0 + shift + 1.0,
-                Align::Center,
             );
-            self.bm_text(view, 3, LIGHT, &name, cx, y + 3.0 + shift, Align::Center);
+            self.draw_styled(
+                view,
+                &Style::nearest(3, LIGHT).center(),
+                &name,
+                cx,
+                y + 3.0 + shift,
+            );
         }
         // The wizard under the mouse.
         let shown = self.create.hover;
@@ -388,8 +395,8 @@ impl App {
                         .collect();
                     if let Some(first) = names.first() {
                         let text = format!("{first}{}", self.text("ui.full_stop"));
-                        self.bm_text(view, 0, SHADOW, &text, 13.0, 181.0, Align::Left);
-                        self.bm_text(view, 0, GOLD_INK, &text, 12.0, 180.0, Align::Left);
+                        self.draw_styled(view, &Style::nearest(0, SHADOW), &text, 13.0, 181.0);
+                        self.draw_styled(view, &Style::nearest(0, GOLD_INK), &text, 12.0, 180.0);
                     }
                 }
             }
@@ -423,7 +430,7 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         self.draw_pic(lay, "newgame", 40, 0, 181.0, 17.0);
         let title = self.text("create.wizard_name");
-        self.bm_text_outlined(view, 5, &title, 242.0, 1.0, Align::Center);
+        self.draw_styled(view, &Style::outlined(5).center(), &title, 242.0, 1.0);
         let portrait = self.create.build.portrait.map(usize::from);
         if let Some(p) = portrait {
             self.draw_pic(lay, "wizards", p, 0, 24.0, 10.0);
@@ -459,21 +466,19 @@ impl App {
                 "create.gender_hint",
                 &Args::new().named("wizard", &typed, self.create.build.gender),
             );
-            self.bm_text(view, 0, LIGHT, &hint, 196.0, 52.0, Align::Left);
+            self.draw_styled(view, &Style::nearest(0, LIGHT), &hint, 196.0, 52.0);
         }
         let cursor = if ((get_time() * 2.0) as u32).is_multiple_of(2) {
             "_"
         } else {
             " "
         };
-        self.bm_text(
+        self.draw_styled(
             view,
-            3,
-            LIGHT,
+            &Style::nearest(3, LIGHT),
             &format!("{typed}{cursor}"),
             196.0,
             38.0,
-            Align::Left,
         );
         // OK, where it stands on the other steps; Enter does the same.
         self.draw_pic(lay, "newgame", 42, 0, 252.0, 182.0);
@@ -556,8 +561,20 @@ impl App {
         let clicked = input.mouse_pressed(MouseButton::Left) && live;
         let (arcanian_title, myrran_title) =
             (self.text("create.arcanian"), self.text("create.myrran"));
-        self.bm_text(view, 3, title, &arcanian_title, 199.0, 25.0, Align::Center);
-        self.bm_text(view, 3, title, &myrran_title, 199.0, 134.0, Align::Center);
+        self.draw_styled(
+            view,
+            &Style::nearest(3, title).center(),
+            &arcanian_title,
+            199.0,
+            25.0,
+        );
+        self.draw_styled(
+            view,
+            &Style::nearest(3, title).center(),
+            &myrran_title,
+            199.0,
+            134.0,
+        );
         let mut chosen = None;
         let mut refused = false;
         let mut hovered = None;
@@ -577,16 +594,14 @@ impl App {
                 } else {
                     LIGHT
                 };
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    2,
-                    Color::new(0.0, 0.0, 0.0, 1.0),
+                    &Style::nearest(2, Color::new(0.0, 0.0, 0.0, 1.0)),
                     &names[race],
                     189.0,
                     y + 1.0,
-                    Align::Left,
                 );
-                self.bm_text(view, 2, ink, &names[race], 178.0, y, Align::Left);
+                self.draw_styled(view, &Style::nearest(2, ink), &names[race], 178.0, y);
                 if picked {
                     self.draw_pic(lay, "newgame", 52, 0, 169.0, y);
                 }
@@ -639,40 +654,34 @@ impl App {
         let Some(race) = race else {
             let hint = self.text("create.race_hint");
             for (i, line) in self.bm_wrap(0, &hint, w - 8.0).iter().enumerate() {
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    0,
-                    GREY_INK,
+                    &Style::nearest(0, GREY_INK),
                     line,
                     x + 4.0,
                     top + 5.0 + 7.0 * i as f32,
-                    Align::Left,
                 );
             }
             return;
         };
-        self.bm_text(
+        self.draw_styled(
             view,
-            1,
-            Color::new(1.0, 0.95, 0.6, 1.0),
+            &Style::nearest(1, Color::new(1.0, 0.95, 0.6, 1.0)),
             &names[race],
             x + 4.0,
             top + 4.0,
-            Align::Left,
         );
         let text = match race_summary_key(&ids[race]) {
             Some(key) => self.text(key),
             None => String::new(),
         };
         for (i, line) in self.bm_wrap(0, &text, w - 8.0).iter().enumerate() {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                0,
-                LIGHT,
+                &Style::nearest(0, LIGHT),
                 line,
                 x + 4.0,
                 top + 15.0 + 7.0 * i as f32,
-                Align::Left,
             );
         }
     }

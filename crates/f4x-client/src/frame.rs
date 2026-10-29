@@ -6,7 +6,7 @@
 //! resource panels and the Next Turn button. The original pictures come from the local art
 //! set; without it the same layout is drawn in flat colours.
 
-use crate::font::{Effect, Ink, Style};
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
@@ -279,16 +279,20 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, s);
         let style = if gold > 9999 || mana > 9999 { 0 } else { 1 };
         for (value, right, unit) in [(gold, 265.0, "GP"), (mana, 303.0, "MP")] {
-            self.bm_text_shadowed(
+            self.draw_styled(
                 view,
-                style,
+                &Style::flat(style, WHITE).shadow().right(),
                 &value.to_string(),
                 right,
                 68.0,
-                WHITE,
-                Align::Right,
             );
-            self.bm_text_shadowed(view, 0, unit, right + 3.0, 68.0, WHITE, Align::Left);
+            self.draw_styled(
+                view,
+                &Style::flat(0, WHITE).shadow(),
+                unit,
+                right + 3.0,
+                68.0,
+            );
         }
 
         self.draw_world_event(&lay);
@@ -328,24 +332,6 @@ impl App {
                 }
             }
         }
-    }
-
-    /// Text with a one-pixel black shadow down and to the right.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn bm_text_shadowed(
-        &mut self,
-        view: (f32, f32, f32),
-        style: usize,
-        text: &str,
-        x: f32,
-        y: f32,
-        color: Color,
-        align: Align,
-    ) {
-        let look = Style::new(style, Ink::Flat(color))
-            .effect(Effect::Shadow)
-            .align(align);
-        self.draw_styled(view, &look, text, x, y);
     }
 
     /// The gold, food and mana panels, the locked action buttons and the Next Turn button: the
@@ -564,60 +550,7 @@ pub enum Align {
     Right,
 }
 
-impl App {
-    /// Bitmap text in white with a one-pixel black outline, as the original draws its
-    /// gold, mana and income figures.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn bm_text_outlined(
-        &mut self,
-        view: (f32, f32, f32),
-        style: usize,
-        text: &str,
-        x: f32,
-        y: f32,
-        align: Align,
-    ) {
-        let look = Style::new(style, Ink::Nearest(WHITE))
-            .effect(Effect::Outline)
-            .align(align);
-        self.draw_styled(view, &look, text, x, y);
-    }
-
-    /// Like [`App::bm_text`] but in one of the font's sixteen colour sets by number (the
-    /// original's `Set_Font_Style` picks the set directly).
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn bm_text_set(
-        &mut self,
-        view: (f32, f32, f32),
-        style: usize,
-        set: usize,
-        text: &str,
-        x: f32,
-        y: f32,
-        align: Align,
-    ) -> f32 {
-        let look = Style::new(style, Ink::Set(set)).align(align);
-        self.draw_styled(view, &look, text, x, y)
-    }
-
-    /// Text in one of the original's bitmap fonts, placed at `(x, y)` in the original's
-    /// pixels (top-left, centre or right edge by `align`) under a view of `(origin x, origin y,
-    /// scale)`. Falls back to the plain font when the original fonts were not extracted.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn bm_text(
-        &mut self,
-        view: (f32, f32, f32),
-        style: usize,
-        color: Color,
-        text: &str,
-        x: f32,
-        y: f32,
-        align: Align,
-    ) -> f32 {
-        let look = Style::new(style, Ink::Nearest(color)).align(align);
-        self.draw_styled(view, &look, text, x, y)
-    }
-}
+impl App {}
 
 /// What was clicked on the frame this frame.
 #[derive(Debug, Default, Clone, Copy)]

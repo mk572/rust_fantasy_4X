@@ -7,10 +7,11 @@
 //! closes the pop-up cannot reach a button below. With Expanding Help on, the box grows out of the
 //! area that was asked about, with lines from the area's corners to the box's.
 
+use crate::font::Style;
 use crate::input::Input;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
 use crate::view::{App, Screen};
@@ -402,14 +403,14 @@ impl App {
                 );
                 draw_triangle(a, b, c, mark);
             }
-            self.bm_text(view, 4, red, &heading, left + MARGIN, y, Align::Left);
+            self.draw_styled(view, &Style::nearest(4, red), &heading, left + MARGIN, y);
             y += title;
             for text in body {
                 if let Some(heading) = text.strip_prefix('\u{1}') {
-                    self.bm_text(view, 4, red, heading, left + MARGIN, y, Align::Left);
+                    self.draw_styled(view, &Style::nearest(4, red), heading, left + MARGIN, y);
                     y += title;
                 } else {
-                    self.bm_text(view, 1, ink, &text, left + MARGIN, y, Align::Left);
+                    self.draw_styled(view, &Style::nearest(1, ink), &text, left + MARGIN, y);
                     y += line;
                 }
             }

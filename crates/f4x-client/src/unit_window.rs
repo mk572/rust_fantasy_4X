@@ -3,6 +3,7 @@
 //! to nine unit pictures in a grid of three, the Done, Patrol, Wait and Build buttons and the
 //! stack's moves. A click on a picture picks that unit, a right-click opens its sheet.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::game::Command;
@@ -11,7 +12,7 @@ use f4x_core::text::Args;
 use f4x_core::unit::Standby;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, FrameClick, Layout};
+use crate::frame::{FrameClick, Layout};
 use crate::view::{App, HUMAN};
 
 /// The top left of the first picture, and the step between pictures (`Unit_Window_Picture_Coords`).
@@ -208,7 +209,7 @@ impl App {
                 None
             };
             if let Some(mark) = mark {
-                self.bm_text_outlined(view, 1, mark, at.0 + 2.0, at.1 + 2.0, Align::Left);
+                self.draw_styled(view, &Style::outlined(1), mark, at.0 + 2.0, at.1 + 2.0);
             }
             let rect = lay.rect((at.0 - 1.0, at.1 - 1.0, STEP.0 - 1.0, STEP.1 - 1.0));
             let state = ui::hit(rect, true, input);
@@ -269,7 +270,7 @@ impl App {
                 },
                 &args,
             );
-            self.bm_text_outlined(view, 1, &text, 246.0, 167.0, Align::Left);
+            self.draw_styled(view, &Style::outlined(1), &text, 246.0, 167.0);
         }
     }
 

@@ -4,6 +4,7 @@
 //! it, or why none can be founded. A click on the map centres it there, and Cancel, C or Escape
 //! (or a right-click) leave.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::city::FoundCityError;
 use f4x_core::feature::def::FeatureKind;
@@ -12,7 +13,7 @@ use f4x_core::map::Position;
 use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::{App, HUMAN};
 
 const CANCEL_AT: (f32, f32) = (263.0, 181.0);
@@ -251,39 +252,35 @@ impl App {
             leave = true;
         }
         let title = self.text("surveyor.title");
-        self.bm_text_set(view, 4, 1, &title, 280.0, 80.0, Align::Center);
+        self.draw_styled(view, &Style::set(4, 1).center(), &title, 280.0, 80.0);
         let text = self
             .tile_under_mouse(input)
             .and_then(|pos| self.describe_square(pos));
         if let Some(t) = text {
-            self.bm_text_set(view, 1, 1, &t.terrain, 280.0, 91.0, Align::Center);
+            self.draw_styled(view, &Style::set(1, 1).center(), &t.terrain, 280.0, 91.0);
             for (i, line) in t.effects.iter().enumerate() {
-                self.bm_text_set(
+                self.draw_styled(
                     view,
-                    0,
-                    0,
+                    &Style::set(0, 0).center(),
                     line,
                     280.0,
                     98.0 + 7.0 * i as f32,
-                    Align::Center,
                 );
             }
             for (i, line) in t.special.iter().enumerate() {
                 let set = usize::from(i == 0);
-                self.bm_text_set(
+                self.draw_styled(
                     view,
-                    1,
-                    set,
+                    &Style::set(1, set).center(),
                     line,
                     280.0,
                     114.0 + 7.0 * i as f32,
-                    Align::Center,
                 );
             }
             if !t.detail.is_empty() {
                 let y = 121.0 + 7.0 * t.special.len().saturating_sub(1) as f32;
                 for (i, line) in self.bm_wrap(0, &t.detail, 66.0).iter().enumerate() {
-                    self.bm_text_set(view, 0, 0, line, 247.0, y + 7.0 * i as f32, Align::Left);
+                    self.draw_styled(view, &Style::set(0, 0), line, 247.0, y + 7.0 * i as f32);
                 }
             }
             if let Some((size, prod, gold)) = t.resources {
@@ -295,17 +292,35 @@ impl App {
                     self.text("surveyor.prod_bonus"),
                     self.text("surveyor.gold_bonus"),
                 );
-                self.bm_text_set(view, 1, 1, &resources, 280.0, 143.0, Align::Center);
-                self.bm_text_set(view, 0, 0, &max_pop, 245.0, 151.0, Align::Left);
-                self.bm_text_set(view, 0, 0, &size.to_string(), 306.0, 151.0, Align::Right);
-                self.bm_text_set(view, 0, 0, &prod_bonus, 245.0, 158.0, Align::Left);
-                self.bm_text_set(view, 0, 0, &format!("+{prod}%"), 312.0, 158.0, Align::Right);
-                self.bm_text_set(view, 0, 0, &gold_bonus, 245.0, 165.0, Align::Left);
-                self.bm_text_set(view, 0, 0, &format!("+{gold}%"), 312.0, 165.0, Align::Right);
+                self.draw_styled(view, &Style::set(1, 1).center(), &resources, 280.0, 143.0);
+                self.draw_styled(view, &Style::set(0, 0), &max_pop, 245.0, 151.0);
+                self.draw_styled(
+                    view,
+                    &Style::set(0, 0).right(),
+                    &size.to_string(),
+                    306.0,
+                    151.0,
+                );
+                self.draw_styled(view, &Style::set(0, 0), &prod_bonus, 245.0, 158.0);
+                self.draw_styled(
+                    view,
+                    &Style::set(0, 0).right(),
+                    &format!("+{prod}%"),
+                    312.0,
+                    158.0,
+                );
+                self.draw_styled(view, &Style::set(0, 0), &gold_bonus, 245.0, 165.0);
+                self.draw_styled(
+                    view,
+                    &Style::set(0, 0).right(),
+                    &format!("+{gold}%"),
+                    312.0,
+                    165.0,
+                );
             } else if let Some(why) = t.blocked {
                 let message = why;
                 for (i, line) in self.bm_wrap(0, &message, 67.0).iter().enumerate() {
-                    self.bm_text_set(view, 0, 0, line, 246.0, 143.0 + 7.0 * i as f32, Align::Left);
+                    self.draw_styled(view, &Style::set(0, 0), line, 246.0, 143.0 + 7.0 * i as f32);
                 }
             }
         }

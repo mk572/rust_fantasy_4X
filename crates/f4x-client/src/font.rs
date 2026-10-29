@@ -1,7 +1,7 @@
 //! The one way the client draws text in the original's bitmap fonts: a [`Style`] (font,
 //! ink, effect, alignment) and [`App::draw_styled`], which draws it, and one word wrapper,
-//! [`App::bm_wrap`]. The named entry points of `frame.rs` (`bm_text`, `bm_text_set`,
-//! `bm_text_shadowed`, `bm_text_outlined`) only build a style.
+//! [`App::bm_wrap`]. A screen builds a style (`Style::nearest(font, colour).center()`) and
+//! hands it to `draw_styled`.
 
 use macroquad::prelude::*;
 
@@ -63,8 +63,7 @@ pub(crate) struct Style {
 }
 
 impl Style {
-    /// Left-aligned and plain.
-    pub(crate) fn new(font: usize, ink: Ink) -> Style {
+    fn new(font: usize, ink: Ink) -> Style {
         Style {
             font,
             ink,
@@ -73,8 +72,40 @@ impl Style {
         }
     }
 
+    /// The font's colour set closest to `color`; left-aligned and plain.
+    pub(crate) fn nearest(font: usize, color: Color) -> Style {
+        Style::new(font, Ink::Nearest(color))
+    }
+
+    /// One of the font's colour sets by number.
+    pub(crate) fn set(font: usize, set: usize) -> Style {
+        Style::new(font, Ink::Set(set))
+    }
+
+    /// One flat colour.
+    pub(crate) fn flat(font: usize, color: Color) -> Style {
+        Style::new(font, Ink::Flat(color))
+    }
+
+    /// White with a black outline, as the original's gold, mana and income figures.
+    pub(crate) fn outlined(font: usize) -> Style {
+        Style::nearest(font, WHITE).effect(Effect::Outline)
+    }
+
+    pub(crate) fn shadow(self) -> Style {
+        self.effect(Effect::Shadow)
+    }
+
     pub(crate) fn effect(self, effect: Effect) -> Style {
         Style { effect, ..self }
+    }
+
+    pub(crate) fn center(self) -> Style {
+        self.align(Align::Center)
+    }
+
+    pub(crate) fn right(self) -> Style {
+        self.align(Align::Right)
     }
 
     pub(crate) fn align(self, align: Align) -> Style {
@@ -201,10 +232,13 @@ mod tests {
 
     #[test]
     fn a_style_is_left_aligned_and_plain_until_told_otherwise() {
-        let style = Style::new(2, Ink::Set(1));
+        let style = Style::set(2, 1);
         assert_eq!((style.effect, style.align), (Effect::Plain, Align::Left));
-        let style = style.effect(Effect::Shadow).align(Align::Right);
+        let style = style.shadow().right();
         assert_eq!((style.effect, style.align), (Effect::Shadow, Align::Right));
+        assert_eq!(style.center().align, Align::Center);
+        assert_eq!(Style::outlined(3).effect, Effect::Outline);
+        assert_eq!(Style::flat(1, WHITE).ink, Ink::Flat(WHITE));
     }
 
     #[test]

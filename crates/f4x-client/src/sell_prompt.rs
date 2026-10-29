@@ -4,13 +4,14 @@
 //! to sell back the ... for ... gold?" (`CityScr.c`, help topic 303); a building another one
 //! needs is refused with a notice. Yes sends `Command::SellBuilding`.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::rules::BuildingId;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::ui;
 use crate::view::App;
 
@@ -294,8 +295,14 @@ impl App {
         for (i, l) in lines.iter().enumerate() {
             let at = y + 10.0 + line * i as f32;
             let cx = x + 10.0 + 83.0;
-            self.bm_text(view, 4, shadow, l, cx + 1.0, at + 1.0, Align::Center);
-            self.bm_text(view, 4, light, l, cx, at, Align::Center);
+            self.draw_styled(
+                view,
+                &Style::nearest(4, shadow).center(),
+                l,
+                cx + 1.0,
+                at + 1.0,
+            );
+            self.draw_styled(view, &Style::nearest(4, light).center(), l, cx, at);
         }
         input.mouse_pressed(MouseButton::Left)
             || input.mouse_pressed(MouseButton::Right)

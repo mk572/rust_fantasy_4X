@@ -5,11 +5,12 @@
 
 use std::path::Path;
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::{App, Screen};
 
 /// Where the table is kept.
@@ -114,7 +115,7 @@ impl App {
         let gold = Color::new(0.95, 0.85, 0.5, 1.0);
         let ink = Color::new(0.95, 0.8, 0.45, 1.0);
         let title = self.text("hall.title");
-        self.bm_text_outlined(view, 5, &title, 160.0, 7.0, Align::Center);
+        self.draw_styled(view, &Style::outlined(5).center(), &title, 160.0, 7.0);
         let (x, mut y) = (72.0, 42.0);
         for (i, e) in self.hall.clone().iter().enumerate() {
             let rank = if i == 0 {
@@ -122,25 +123,23 @@ impl App {
             } else {
                 self.text_with("hall.rank", &Args::new().count("n", i + 1))
             };
-            self.bm_text(view, 2, gold, &rank, x, y, Align::Right);
+            self.draw_styled(view, &Style::nearest(2, gold).right(), &rank, x, y);
             let who = self.text_with(
                 "hall.of_the",
                 &Args::new()
                     .text("name", &e.name)
                     .text("race", plural(&self.game.content().rules.races, &e.race)),
             );
-            self.bm_text(view, 2, ink, &who, x + 9.0, y, Align::Left);
-            self.bm_text(
+            self.draw_styled(view, &Style::nearest(2, ink), &who, x + 9.0, y);
+            self.draw_styled(
                 view,
-                2,
-                ink,
+                &Style::nearest(2, ink).right(),
                 &e.score.to_string(),
                 x + 170.0,
                 y,
-                Align::Right,
             );
             let share = format!("({}%)", percent(e.score));
-            self.bm_text(view, 2, ink, &share, x + 198.0, y, Align::Right);
+            self.draw_styled(view, &Style::nearest(2, ink).right(), &share, x + 198.0, y);
             y += 13.0;
         }
         if input.key_pressed(KeyCode::Escape)

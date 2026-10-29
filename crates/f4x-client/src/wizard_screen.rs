@@ -4,6 +4,7 @@
 //! F9 shows your own; a right-click on a rival's gem on the magic screen shows theirs. Esc or a
 //! click leaves. Positions are the original's, measured from the panel's top-left.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::diplomacy::relation_key;
 use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
@@ -11,7 +12,7 @@ use f4x_core::text::Args;
 use f4x_core::wizard::magic::Retort;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::{App, Screen, HUMAN};
 
 /// Where the panel's top-left sits on the 320 by 200 screen, and its size.
@@ -151,7 +152,13 @@ impl App {
         if let Some(entry) = wizard_picture {
             self.draw_pic(&lay, "lilwiz", entry, 0, px + 11.0, py + 11.0);
         }
-        self.bm_text(view, 4, gold, &name, px + 114.0, py + 11.0, Align::Center);
+        self.draw_styled(
+            view,
+            &Style::nearest(4, gold).center(),
+            &name,
+            px + 114.0,
+            py + 11.0,
+        );
 
         if ui.who != HUMAN {
             let relation = self.text(relation_key(self.game.relation(HUMAN, ui.who)));
@@ -177,42 +184,36 @@ impl App {
             .enumerate()
             {
                 let y = py + 25.0 + 8.0 * i as f32;
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    1,
-                    light,
+                    &Style::nearest(1, light),
                     &self.text_with(
                         "wizard.row",
                         &Args::new().text("label", label).text("value", value),
                     ),
                     px + 59.0,
                     y,
-                    Align::Left,
                 );
             }
         }
 
         // Gold and mana, then the shelf of books.
-        self.bm_text(
+        self.draw_styled(
             view,
-            1,
-            light,
+            &Style::nearest(1, light).right(),
             &wallet.gold.to_string(),
             px + 31.0,
             py + 75.0,
-            Align::Right,
         );
-        self.bm_text(
+        self.draw_styled(
             view,
-            1,
-            light,
+            &Style::nearest(1, light).right(),
             &wallet.mana.to_string(),
             px + 159.0,
             py + 75.0,
-            Align::Right,
         );
-        self.bm_text(view, 0, gold, "GP", px + 34.0, py + 75.0, Align::Left);
-        self.bm_text(view, 0, gold, "MP", px + 162.0, py + 75.0, Align::Left);
+        self.draw_styled(view, &Style::nearest(0, gold), "GP", px + 34.0, py + 75.0);
+        self.draw_styled(view, &Style::nearest(0, gold), "MP", px + 162.0, py + 75.0);
         let books = book_entries(|r| owned_books.get(r).map_or(0, |&n| i32::from(n)));
         let left = px + 90.0 - books.len() as f32 * BOOK_STEP / 2.0;
         for (i, &entry) in books.iter().enumerate() {
@@ -227,24 +228,20 @@ impl App {
         }
         let fame = self.game.fame(ui.who);
         if fame > 0 {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                2,
-                light,
+                &Style::nearest(2, light).right(),
                 &fame.to_string(),
                 px + 79.0,
                 py + 96.0,
-                Align::Right,
             );
             let fame_word = self.text("wizard.fame");
-            self.bm_text(
+            self.draw_styled(
                 view,
-                2,
-                light,
+                &Style::nearest(2, light),
                 &fame_word,
                 px + 85.0,
                 py + 96.0,
-                Align::Left,
             );
         }
 
@@ -267,19 +264,23 @@ impl App {
         };
         for (text, x, line) in pieces {
             let y = start_y + RETORT_LINE * line as f32;
-            self.bm_text(view, 1, light, &text, px + 13.0 + x, y, Align::Left);
+            self.draw_styled(view, &Style::nearest(1, light), &text, px + 13.0 + x, y);
         }
         let heroes = self.text("wizard.heroes");
-        self.bm_text(view, 2, gold, &heroes, px + 74.0, py + 131.0, Align::Left);
+        self.draw_styled(
+            view,
+            &Style::nearest(2, gold),
+            &heroes,
+            px + 74.0,
+            py + 131.0,
+        );
         for (i, hero) in self.game.wizard_heroes(ui.who).iter().enumerate() {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                light,
+                &Style::nearest(1, light),
                 hero,
                 px + 13.0,
                 py + 142.0 + 8.0 * i as f32,
-                Align::Left,
             );
         }
     }

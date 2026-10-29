@@ -1,6 +1,7 @@
 //! The city screen: economy, buildings, worked area and the production list, drawn on
 //! the original screen layout (320x200) when the art is available.
 
+use crate::font::Style;
 use crate::frame::Disabled;
 use crate::input::Input;
 use crate::ui;
@@ -12,7 +13,6 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::art::{TILE_H, TILE_W};
-use crate::frame::Align;
 use crate::sell_prompt::SellPrompt;
 use crate::ui::GOLD;
 use crate::view::{App, Screen, HUMAN};
@@ -349,14 +349,12 @@ impl App {
                 .text("city", &name),
         );
         let view = Self::view(lay);
-        self.bm_text(
+        self.draw_styled(
             view,
-            5,
-            Color::new(0.95, 0.85, 0.5, 1.0),
+            &Style::nearest(5, Color::new(0.95, 0.85, 0.5, 1.0)).center(),
             &title,
             105.0,
             0.0,
-            Align::Center,
         );
         // A click on the name asks for a new one.
         if ui::hit(lay.rect(0.0, 0.0, 210.0, 17.0), !self.choosing, input).clicked() {
@@ -376,13 +374,12 @@ impl App {
                 race_name += &self.text(mark);
             }
         }
-        self.bm_text(view, 3, orange, &race_name, 6.0, 19.0, Align::Left);
+        self.draw_styled(view, &Style::nearest(3, orange), &race_name, 6.0, 19.0);
         let people = pop.figures * 1000 + pop.tens * 10;
         let grow = eco.growth_tens * 10;
-        self.bm_text(
+        self.draw_styled(
             view,
-            3,
-            orange,
+            &Style::nearest(3, orange).right(),
             &self.text_with(
                 "city.population",
                 &Args::new()
@@ -391,7 +388,6 @@ impl App {
             ),
             207.0,
             19.0,
-            Align::Right,
         );
         // The citizens: farmers, then workers, then rebels. Clicking one changes its job.
         let farmers = self.game.city_farmers(city);
@@ -493,7 +489,7 @@ impl App {
                 } else {
                     ink
                 };
-                self.bm_text(view, 1, color, &note, 134.0, y, Align::Right);
+                self.draw_styled(view, &Style::nearest(1, color).right(), &note, 134.0, y);
             }
         }
         self.draw_city_enchantments(city, lay, input);
@@ -555,14 +551,12 @@ impl App {
                 continue;
             }
             let i = (row - self.city_spell_first) as f32;
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                Color::new(0.85, 0.85, 0.8, 1.0),
+                &Style::nearest(1, Color::new(0.85, 0.85, 0.8, 1.0)),
                 line,
                 first.0 + shift,
                 first.1 + shift + i * 7.0,
-                Align::Left,
             );
         }
         for (row, &(spell, caster)) in list
@@ -583,14 +577,12 @@ impl App {
                 );
             }
             let color = self.banner_color(caster.0);
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                color,
+                &Style::nearest(1, color),
                 &name,
                 first.0 + shift,
                 first.1 + shift + i * 7.0,
-                Align::Left,
             );
             let rect = lay.rect(first.0, first.1 + i * 7.0, 60.0, 7.0);
             let on_row = ui::hit(rect, true, input).hovered();
@@ -1002,7 +994,13 @@ impl App {
             _ => None,
         };
         if let Some(n) = name {
-            self.bm_text(view, 3, WHITE, &n, x0 + 102.0, y0 + 84.0, Align::Center);
+            self.draw_styled(
+                view,
+                &Style::nearest(3, WHITE).center(),
+                &n,
+                x0 + 102.0,
+                y0 + 84.0,
+            );
         }
         mouse_over
     }
@@ -1307,14 +1305,12 @@ impl App {
                 let lines = self.bm_wrap(1, &name, 44.0);
                 let top = 179.0 - 6.0 * lines.len().saturating_sub(1) as f32;
                 for (i, line) in lines.iter().enumerate() {
-                    self.bm_text(
+                    self.draw_styled(
                         view,
-                        1,
-                        white,
+                        &Style::nearest(1, white),
                         line,
                         216.0,
                         top + 6.0 * i as f32,
-                        Align::Left,
                     );
                 }
                 let cost = self.game.economy().item_cost(city, item);
@@ -1325,17 +1321,15 @@ impl App {
                         // the word after it.
                         let turns = remaining.div_ceil(eco.production as u32);
                         let gold = Color::new(0.95, 0.7, 0.2, 1.0);
-                        self.bm_text(
+                        self.draw_styled(
                             view,
-                            1,
-                            gold,
+                            &Style::nearest(1, gold).right(),
                             &turns.to_string(),
                             286.0,
                             140.0,
-                            Align::Right,
                         );
                         let word = self.text_with("city.turns", &Args::new().count("n", turns));
-                        self.bm_text(view, 1, gold, &word, 291.0, 140.0, Align::Left);
+                        self.draw_styled(view, &Style::nearest(1, gold), &word, 291.0, 140.0);
                     }
                     self.draw_production_coins(lay, prod.progress, cost);
                 } else {
@@ -1348,28 +1342,24 @@ impl App {
                         self.text("city.increases_growth")
                     };
                     for (i, line) in self.bm_wrap(1, &text, 50.0).iter().enumerate() {
-                        self.bm_text(
+                        self.draw_styled(
                             view,
-                            1,
-                            white,
+                            &Style::nearest(1, white),
                             line,
                             262.0,
                             159.0 + 6.0 * i as f32,
-                            Align::Left,
                         );
                     }
                 }
                 self.draw_product_picture(lay, city, item);
             }
             None => {
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    3,
-                    GRAY,
+                    &Style::nearest(3, GRAY).center(),
                     &self.text("city.nothing"),
                     246.0,
                     177.0,
-                    Align::Center,
                 );
             }
         }

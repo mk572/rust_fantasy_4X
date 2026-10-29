@@ -3,6 +3,7 @@
 //! spell just learned. Four spells to a page, each with its cost, how long it takes and what it
 //! does, on the original's open-book picture (`scroll.lbx`).
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::modal::{keep, kind, priority, Modal};
 use crate::ui;
@@ -12,7 +13,7 @@ use f4x_core::text::Args;
 use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::spellbook::BookPage;
 use crate::view::{App, Screen, HUMAN};
 
@@ -216,13 +217,12 @@ impl App {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_big_book(&lay, view, None);
         let prompt = Color::new(1.0, 0.95, 0.8, 1.0);
-        self.bm_text_outlined(
+        self.draw_styled(
             view,
-            5,
+            &Style::outlined(5),
             &self.text("bigbook.choose_research"),
             43.0,
             183.0,
-            Align::Left,
         );
         let _ = prompt;
     }
@@ -300,14 +300,12 @@ impl App {
                 .get(page_i - 1)
                 .is_none_or(|p| p.title != page.title);
         if !right || starts_realm {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                5,
-                Color::new(0.45, 0.2, 0.1, 1.0),
+                &Style::nearest(5, Color::new(0.45, 0.2, 0.1, 1.0)).center(),
                 &page.title,
                 title.0,
                 title.1,
-                Align::Center,
             );
         }
         let research_page = page_i >= self.big_ui.first_research
@@ -357,7 +355,7 @@ impl App {
         } else {
             faint
         });
-        self.bm_text(view, 4, color, &def.name, x, y, Align::Left);
+        self.draw_styled(view, &Style::nearest(4, color), &def.name, x, y);
         let line = if research_page {
             let bonus = self.game.wizard(HUMAN).map_or(0, |m| {
                 m.research_bonus(self.game.content().rules.spells.get(spell))
@@ -397,7 +395,7 @@ impl App {
                 &Args::new().count("cost", cost).count("turns", turns),
             )
         };
-        self.bm_text(view, 0, color, &line, x, y + 11.0, Align::Left);
+        self.draw_styled(view, &Style::nearest(0, color), &line, x, y + 11.0);
         let text = self.spell_text(spell);
         let line_h = self.art.text_height(0) + 1.0;
         for (n, l) in self
@@ -406,14 +404,12 @@ impl App {
             .take(3)
             .enumerate()
         {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                0,
-                color,
+                &Style::nearest(0, color),
                 &l,
                 x,
                 y + 17.0 + line_h * n as f32,
-                Align::Left,
             );
         }
     }
@@ -496,9 +492,15 @@ impl App {
         }
         let args = self.wizard_arg(Args::new(), "wizard", notice.caster);
         let started_line = self.text_with("bigbook.mastery_started", &args);
-        self.bm_text_outlined(view, 5, &started_line, 160.0, 160.0, Align::Center);
+        self.draw_styled(
+            view,
+            &Style::outlined(5).center(),
+            &started_line,
+            160.0,
+            160.0,
+        );
         let name = self.text("bigbook.mastery_name");
-        self.bm_text_outlined(view, 5, &name, 160.0, 180.0, Align::Center);
+        self.draw_styled(view, &Style::outlined(5).center(), &name, 160.0, 180.0);
         Some(notice)
     }
 }

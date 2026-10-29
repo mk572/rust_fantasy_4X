@@ -8,6 +8,7 @@
 //! `Command::ScrapItem`); a move to a hero somewhere else asks to pay its mana first.
 //! Positions are the original's.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::game::Command;
@@ -17,7 +18,7 @@ use f4x_core::rules::SlotKind;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::{App, Screen, HUMAN};
 
 /// The window's top-left corner.
@@ -191,7 +192,7 @@ impl App {
         );
         self.draw_pic(lay, "items", usize::from(item.icon), 0, x, y);
         let name = item.display_name(self.game.content());
-        self.bm_text_outlined(view, 1, &name, x + 20.0, y + 4.0, Align::Left);
+        self.draw_styled(view, &Style::outlined(1), &name, x + 20.0, y + 4.0);
     }
 
     /// Draw a triangle arrow of the scroll buttons at `at` (11 by 18) pointing left (`dir < 0`)
@@ -253,27 +254,23 @@ impl App {
                 self.draw_pic(&lay, "portrait", p, 0, x1 + 1.0, y1 + 1.0);
             }
             let name = self.game.units().hero_name(hero).unwrap_or_default();
-            self.bm_text_outlined(view, 1, &name, x1 + 37.0, y1, Align::Left);
+            self.draw_styled(view, &Style::outlined(1), &name, x1 + 37.0, y1);
             if held {
                 if self.same_location(hero) {
-                    self.bm_text(
+                    self.draw_styled(
                         view,
-                        1,
-                        Color::new(0.6, 0.9, 0.5, 1.0),
+                        &Style::nearest(1, Color::new(0.6, 0.9, 0.5, 1.0)),
                         &self.text("item.same_location"),
                         x1 + 37.0,
                         y1 + 7.0,
-                        Align::Left,
                     );
                 } else {
-                    self.bm_text(
+                    self.draw_styled(
                         view,
-                        1,
-                        Color::new(0.95, 0.5, 0.4, 1.0),
+                        &Style::nearest(1, Color::new(0.95, 0.5, 0.4, 1.0)),
                         &self.text("item.teleport"),
                         x1 + 37.0,
                         y1 + 7.0,
-                        Align::Left,
                     );
                 }
             }
@@ -323,7 +320,13 @@ impl App {
                 }
             }
             let label = format!("{}/{}", page + 1, hero_pages);
-            self.bm_text_outlined(view, 1, &label, wx + 111.0, wy + 147.0, Align::Center);
+            self.draw_styled(
+                view,
+                &Style::outlined(1).center(),
+                &label,
+                wx + 111.0,
+                wy + 147.0,
+            );
         }
 
         // The vault: four slots of it at a time, with an arrow on each side to scroll a page.
@@ -358,24 +361,22 @@ impl App {
             .player(HUMAN)
             .map_or((0, 0), |p| (p.treasury().gold, p.treasury().mana));
         let style = if gold > 19999 || mana > 19999 { 0 } else { 1 };
-        self.bm_text_outlined(
+        self.draw_styled(
             view,
-            style,
+            &Style::outlined(style).right(),
             &gold.to_string(),
             wx + 166.0,
             wy + 164.0,
-            Align::Right,
         );
-        self.bm_text_outlined(
+        self.draw_styled(
             view,
-            style,
+            &Style::outlined(style).right(),
             &mana.to_string(),
             wx + 200.0,
             wy + 164.0,
-            Align::Right,
         );
-        self.bm_text_outlined(view, 0, "GP", wx + 169.0, wy + 164.0, Align::Left);
-        self.bm_text_outlined(view, 0, "MP", wx + 203.0, wy + 164.0, Align::Left);
+        self.draw_styled(view, &Style::outlined(0), "GP", wx + 169.0, wy + 164.0);
+        self.draw_styled(view, &Style::outlined(0), "MP", wx + 203.0, wy + 164.0);
         let alchemy = !held && self.item_button(&lay, 7, wx + 219.0, wy + 155.0, input);
         let ok = !held && self.item_button(&lay, 8, wx + 219.0, wy + 175.0, input);
         if left && ui::hit(lay.rect((wx + 9.0, wy + 155.0, 39.0, 34.0)), true, input).hovered() {
@@ -397,7 +398,7 @@ impl App {
             }
         }
         if let Some(message) = self.item_ui.message.clone() {
-            self.bm_text_outlined(view, 1, &message, 160.0, 150.0, Align::Center);
+            self.draw_styled(view, &Style::outlined(1).center(), &message, 160.0, 150.0);
         }
         self.item_modals(&lay, input);
 
@@ -473,14 +474,12 @@ impl App {
             );
             let lines = self.bm_wrap(1, &text, 160.0);
             for (i, line) in lines.iter().enumerate() {
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    1,
-                    Color::new(0.93, 0.88, 0.68, 1.0),
+                    &Style::nearest(1, Color::new(0.93, 0.88, 0.68, 1.0)).center(),
                     line,
                     160.0,
                     80.0 + i as f32 * 8.0,
-                    Align::Center,
                 );
             }
             if input.key_pressed(KeyCode::Y) || input.key_pressed(KeyCode::Enter) {

@@ -2,13 +2,14 @@
 //! `AdvsrScr.c`. Both are full pictures from `reload.lbx` (entry 0 and 1) with the wizards'
 //! figures drawn over them; Esc or a click leaves.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::text::Args;
 use f4x_core::wizard::astrology::HISTORY_TURNS;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::{App, Screen, HUMAN};
 
 const MONTHS: [&str; 12] = [
@@ -58,14 +59,12 @@ impl App {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.08, 0.07, 0.06, 1.0));
         }
         let gold = Color::new(0.95, 0.85, 0.5, 1.0);
-        self.bm_text(
+        self.draw_styled(
             view,
-            4,
-            gold,
+            &Style::nearest(4, gold).center(),
             &self.text("advisor.history_title"),
             160.0,
             10.0,
-            Align::Center,
         );
         let turn = self.game.turn as usize;
         let date = self.text_with(
@@ -74,7 +73,7 @@ impl App {
                 .text("month", self.text(MONTHS[turn % 12]))
                 .count("year", 1400 + turn / 12),
         );
-        self.bm_text(view, 2, WHITE, &date, 309.0, 11.0, Align::Right);
+        self.draw_styled(view, &Style::nearest(2, WHITE).right(), &date, 309.0, 11.0);
 
         // The time line, with a tick every year and the year written every fifth.
         let thick = lay.scale;
@@ -104,14 +103,12 @@ impl App {
                 line((x, 182.0), (x, 184.0), grey);
                 let year = 1400 + t / 12;
                 if year % 5 == 0 {
-                    self.bm_text(
+                    self.draw_styled(
                         view,
-                        1,
-                        WHITE,
+                        &Style::nearest(1, WHITE),
                         &year.to_string(),
                         x + 6.0,
                         186.0,
-                        Align::Left,
                     );
                 }
             }
@@ -139,14 +136,12 @@ impl App {
                 }
                 last = Some(at);
             }
-            self.bm_text(
+            self.draw_styled(
                 view,
-                3,
-                colour,
+                &Style::nearest(3, colour),
                 &name,
                 10.0,
                 23.0 + row as f32 * 9.0,
-                Align::Left,
             );
         }
         self.leave_on_click_or_escape(input);
@@ -163,14 +158,12 @@ impl App {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.08, 0.07, 0.06, 1.0));
         }
         let gold = Color::new(0.95, 0.85, 0.5, 1.0);
-        self.bm_text(
+        self.draw_styled(
             view,
-            4,
-            gold,
+            &Style::nearest(4, gold).center(),
             &self.text("advisor.status_title"),
             sx + 138.0,
             sy + 10.0,
-            Align::Center,
         );
         let rows = [
             self.text("advisor.army_strength"),
@@ -178,14 +171,12 @@ impl App {
             self.text("advisor.spell_research"),
         ];
         for (i, text) in rows.iter().enumerate() {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                2,
-                WHITE,
+                &Style::nearest(2, WHITE).center(),
                 text,
                 sx + 138.0,
                 sy + 23.0 + 49.0 * i as f32,
-                Align::Center,
             );
         }
 
@@ -201,7 +192,7 @@ impl App {
             let colour = self.art.banner_color(banner);
             for (section, score) in [a.strength, a.power, a.research].into_iter().enumerate() {
                 let y = sy + 35.0 + 49.0 * section as f32 + row as f32 * 7.0;
-                self.bm_text(view, 0, WHITE, &name, sx + 14.0, y, Align::Left);
+                self.draw_styled(view, &Style::nearest(0, WHITE), &name, sx + 14.0, y);
                 let bar = lay.rect((sx + 64.0, y + 1.0, score.clamp(0, 200) as f32 + 1.0, 2.0));
                 draw_rectangle(bar.x, bar.y, bar.w, bar.h, colour);
                 let shade = lay.rect((sx + 64.0, y + 3.0, score.clamp(0, 200) as f32 + 1.0, 1.0));
@@ -327,7 +318,13 @@ impl App {
             }
         }
         if let Some((sx, sy, name)) = hovered {
-            self.bm_text(view, 0, WHITE, &name, sx + 2.0, sy - 6.0, Align::Center);
+            self.draw_styled(
+                view,
+                &Style::nearest(0, WHITE).center(),
+                &name,
+                sx + 2.0,
+                sy - 6.0,
+            );
         }
 
         let title = self.text(if plane == Plane::Arcanus {
@@ -335,14 +332,12 @@ impl App {
         } else {
             "advisor.myrror_plane"
         });
-        self.bm_text(
+        self.draw_styled(
             view,
-            5,
-            Color::new(0.2, 0.1, 0.05, 1.0),
+            &Style::nearest(5, Color::new(0.2, 0.1, 0.05, 1.0)).center(),
             &title,
             160.0,
             12.0,
-            Align::Center,
         );
         // The legend: a flag and name for each wizard met, then the independents.
         let mut row = 0.0;
@@ -364,26 +359,22 @@ impl App {
                 let r = lay.rect((261.0, 81.0 + row * 9.0, 7.0, 6.0));
                 draw_rectangle(r.x, r.y, r.w, r.h, self.art.banner_color(banner));
             }
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                Color::new(0.2, 0.1, 0.05, 1.0),
+                &Style::nearest(1, Color::new(0.2, 0.1, 0.05, 1.0)),
                 &name,
                 269.0,
                 82.0 + row * 9.0,
-                Align::Left,
             );
             row += 1.0;
         }
         self.draw_pic(&lay, "reload", 8, 0, 260.0, 80.0 + row * 9.0);
-        self.bm_text(
+        self.draw_styled(
             view,
-            1,
-            Color::new(0.2, 0.1, 0.05, 1.0),
+            &Style::nearest(1, Color::new(0.2, 0.1, 0.05, 1.0)),
             &self.text("advisor.neutral"),
             269.0,
             82.0 + row * 9.0,
-            Align::Left,
         );
 
         // Keys and clicks.

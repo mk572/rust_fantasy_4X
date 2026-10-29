@@ -4,13 +4,14 @@
 //! Monsters" for the neutral ones) and the unit's melee, range, armour, hits and moves. It is
 //! read only: a click or Escape closes it.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::modal::{keep, Modal};
 use f4x_core::map::Position;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::App;
 
 /// The window's left edge, its width, and the height of a unit's row.
@@ -124,14 +125,12 @@ impl App {
             self.text_with("unit_list.units_of", &Args::new().text("owner", name))
         };
         let banner = self.banner_color(owner.map_or(f4x_core::player::MONSTERS.0, |o| o.0));
-        self.bm_text(
+        self.draw_styled(
             view,
-            4,
-            banner,
+            &Style::nearest(4, banner).center(),
             &title,
             LEFT + 118.0,
             top + 7.0,
-            Align::Center,
         );
 
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
@@ -141,14 +140,12 @@ impl App {
             let Some(sheet) = self.overland_sheet(unit) else {
                 continue;
             };
-            self.bm_text(
+            self.draw_styled(
                 view,
-                2,
-                light,
+                &Style::nearest(2, light),
                 &sheet.name,
                 LEFT + 32.0,
                 y + 5.0,
-                Align::Left,
             );
             let ranged = sheet.ranged.unwrap_or_default();
             let stats = [
@@ -163,7 +160,13 @@ impl App {
                     continue;
                 }
                 let x = LEFT + 140.0 + 20.0 * k as f32;
-                self.bm_text(view, 1, light, &value.to_string(), x, y + 7.0, Align::Right);
+                self.draw_styled(
+                    view,
+                    &Style::nearest(1, light).right(),
+                    &value.to_string(),
+                    x,
+                    y + 7.0,
+                );
                 self.draw_pic(&lay, "unitview", 13 + icon, 0, x + 1.0, y + 5.0);
             }
         }

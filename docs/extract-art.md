@@ -192,17 +192,19 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   pixels for styles 0 to 7.
 - In the client (`art.rs`, `frame.rs`): `Art::text_width`, `Art::nearest_font_set(style, colour)`
   (the set whose average colour is closest to the colour wanted) and `Art::draw_bitmap_text`;
-  the helper to use on a screen is `App::bm_text(view, style, colour, text, x, y, Align)`, where
-  `view` is `(origin x, origin y, scale)` of the 320 by 200 layout and `x, y` are in the
-  original's pixels. `bm_text_outlined` adds the one-pixel black outline the original draws on
-  gold and mana figures. Without the fonts both fall back to the plain font.
+  the one function to use on a screen is `App::draw_styled(view, &Style, text, x, y)` (`font.rs`),
+  where `view` is `(origin x, origin y, scale)` of the 320 by 200 layout and `x, y` are in the
+  original's pixels. A `Style` is built with `Style::nearest(font, colour)`, `Style::set(font, n)`,
+  `Style::flat(font, colour)` or `Style::outlined(font)` (the one-pixel black outline the original
+  draws on gold and mana figures), then `.shadow()`, `.center()` or `.right()`. Without the fonts
+  `Style::nearest` falls back to the plain font.
 - The original picks a style with `Set_Font_Style(n)` (also `Set_Font_Style_Outline`, `_Shadow_Down`
   and the other variants, which add an outline or shadow) and colours with `Set_Font_Colors_15`;
   the style number in ReMoM is the style number here. Which style a label uses is read from the
   screen's draw function in ReMoM. The client mostly uses styles 1 and 3, and 5 for titles; task
   118 moves the rest over.
 - Not done: `Print_Paragraph` word wrap and justification (task 118), and the outline, shadow and
-  colour-table variants of the font calls (only the outline of `bm_text_outlined`).
+  colour-table variants of the font calls (only `Style::outlined` and `.shadow()`).
 
 ## 6. Banner colours
 

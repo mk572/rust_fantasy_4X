@@ -2,12 +2,12 @@
 //! effects in force on the field and each wizard's own spells, over the battle. Any key or
 //! click closes it.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::battle::info::{BattleInfo, InfoItem};
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::Align;
 use crate::view::App;
 
 /// The window's left edge, and the cell columns, in the original's 320 by 200 pixels.
@@ -150,25 +150,21 @@ impl App {
                 11.0
             };
             if let Some(name) = &info.opponent_name {
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    TEXT_STYLE,
-                    TEXT,
+                    &Style::nearest(TEXT_STYLE, TEXT).center(),
                     &self.text_with("battle.spells_of", &Args::new().text("wizard", name)),
                     LEFT + 54.0,
                     lay.top + heading,
-                    Align::Center,
                 );
             }
             if let Some(name) = &info.viewer_name {
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    TEXT_STYLE,
-                    TEXT,
+                    &Style::nearest(TEXT_STYLE, TEXT).center(),
                     &self.text_with("battle.spells_of", &Args::new().text("wizard", name)),
                     LEFT + 170.0,
                     lay.top + heading,
-                    Align::Center,
                 );
             }
         }
@@ -215,14 +211,12 @@ impl App {
                 );
             }
             let name = self.text(item.key);
-            self.bm_text(
+            self.draw_styled(
                 view,
-                TEXT_STYLE,
-                TEXT,
+                &Style::nearest(TEXT_STYLE, TEXT),
                 &name,
                 x + 20.0,
                 y + 5.0,
-                Align::Left,
             );
         }
 

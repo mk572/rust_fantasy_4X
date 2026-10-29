@@ -6,6 +6,7 @@
 //! may be razed: the "Raze City" setting asks before the scroll; with it off, R on the scroll
 //! asks. A click, Enter or Esc rolls it up.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::{Command, Event};
 use f4x_core::map::Position;
@@ -414,7 +415,13 @@ impl App {
                 Align::Left
             };
             let x = if l.centred { 160.0 } else { l.x };
-            self.bm_text(view, l.style, l.colour, &l.text, x, l.y, align);
+            self.draw_styled(
+                view,
+                &Style::nearest(l.style, l.colour).align(align),
+                &l.text,
+                x,
+                l.y,
+            );
         }
         let waited = r.asking;
         if r.asking {

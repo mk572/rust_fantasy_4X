@@ -4,12 +4,13 @@
 //! experience gives is higher than the one it last noted; so does this, from the level each of the
 //! human's heroes had at the last turn. A click or a key closes it.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::audio::{music, Track};
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::modal::{keep, kind, Modal};
 use crate::unit_sheet::special_picture;
 use crate::view::{App, HUMAN};
@@ -144,7 +145,7 @@ impl App {
             "levelup.title",
             &Args::new().text("name", sheet.name.clone()),
         );
-        self.bm_text(view, 4, gold, &title, bx + 48.0, by + 9.0, Align::Left);
+        self.draw_styled(view, &Style::nearest(4, gold), &title, bx + 48.0, by + 9.0);
         let mut gains = vec![
             ("levelup.hit_points", bx + 47.0, by + 24.0),
             ("levelup.resistance", bx + 47.0, by + 34.0),
@@ -158,7 +159,7 @@ impl App {
         for (key, x, y) in gains {
             self.draw_pic(&lay, "itemisc", 26, 0, x, y + 1.0);
             let text = self.text_with(key, &Args::new().count("n", 1));
-            self.bm_text(view, 2, light, &text, x + 8.0, y, Align::Left);
+            self.draw_styled(view, &Style::nearest(2, light), &text, x + 8.0, y);
         }
         let (mut x, mut y) = (bx + 13.0, by + 48.0);
         for (i, line) in lines.iter().enumerate() {
@@ -166,7 +167,13 @@ impl App {
                 let (lbx, entry) = special_picture(icon);
                 self.draw_pic(&lay, lbx, entry, 0, x, y);
             }
-            self.bm_text(view, 2, light, &line.name, x + 19.0, y + 5.0, Align::Left);
+            self.draw_styled(
+                view,
+                &Style::nearest(2, light),
+                &line.name,
+                x + 19.0,
+                y + 5.0,
+            );
             // Two to a row: the first on the right of the first row, then left and right in turn.
             x = bx + 13.0;
             if i % 2 == 0 {

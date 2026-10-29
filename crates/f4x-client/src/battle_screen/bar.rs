@@ -5,6 +5,7 @@
 //! window with the stats of the unit under the pointer.
 
 use super::*;
+use crate::font::Style;
 use crate::frame::Layout;
 use crate::input::Input;
 
@@ -342,7 +343,7 @@ impl App {
             .collect();
         for (i, text) in lines.iter().enumerate() {
             let at = (4.0, 3.0 + line * i as f32);
-            self.bm_text_shadowed(view, 1, text, at.0, at.1, LIGHTGRAY, Align::Left);
+            self.draw_styled(view, &Style::flat(1, LIGHTGRAY).shadow(), text, at.0, at.1);
         }
         self.draw_scanned_unit(battle, hovered, view);
         self.draw_unit_specials(battle, my_turn, input);

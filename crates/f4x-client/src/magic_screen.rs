@@ -9,6 +9,7 @@
 //! Alchemy button opens the gold-and-power exchange. Spells are cast from the spell book
 //! (`spellbook.rs`) and chosen for research in the big book (`bigbook.rs`).
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::game::Command;
@@ -18,7 +19,7 @@ use f4x_core::text::Args;
 use f4x_core::wizard::magic::Retort;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::ui::button;
 use crate::view::{App, Screen, HUMAN};
 
@@ -317,32 +318,26 @@ impl App {
         };
         let researching_spell = self.game.wizard(HUMAN).and_then(|m| m.researching());
         let casting_spell = self.game.wizard(HUMAN).and_then(|m| m.casting());
-        self.bm_text(
+        self.draw_styled(
             view,
-            2,
-            gold,
+            &Style::nearest(2, gold).right(),
             &self.text_with("magic.mp", &Args::new().count("n", split.mana)),
             54.0,
             160.0,
-            Align::Right,
         );
-        self.bm_text(
+        self.draw_styled(
             view,
-            2,
-            gold,
+            &Style::nearest(2, gold).right(),
             &self.text_with("magic.rp", &Args::new().count("n", income.research)),
             101.0,
             160.0,
-            Align::Right,
         );
-        self.bm_text(
+        self.draw_styled(
             view,
-            2,
-            gold,
+            &Style::nearest(2, gold).right(),
             &self.text_with("magic.sp", &Args::new().count("n", split.skill)),
             148.0,
             160.0,
-            Align::Right,
         );
 
         let skill = self.game.wizard(HUMAN).map_or(0, |m| m.casting_skill());
@@ -382,10 +377,10 @@ impl App {
         ];
         for (i, (l1, v1, l2, v2)) in rows.into_iter().enumerate() {
             let y = 177.0 + 8.0 * i as f32;
-            self.bm_text(view, 1, light, &l1, 5.0, y, Align::Left);
-            self.bm_text(view, 1, light, &v1, 90.0, y, Align::Right);
-            self.bm_text(view, 1, light, &l2, 100.0, y, Align::Left);
-            self.bm_text(view, 1, light, &v2, 156.0, y, Align::Left);
+            self.draw_styled(view, &Style::nearest(1, light), &l1, 5.0, y);
+            self.draw_styled(view, &Style::nearest(1, light).right(), &v1, 90.0, y);
+            self.draw_styled(view, &Style::nearest(1, light), &l2, 100.0, y);
+            self.draw_styled(view, &Style::nearest(1, light), &v2, 156.0, y);
         }
         let _ = lay;
     }
@@ -427,14 +422,12 @@ impl App {
                 .and_then(|entry| self.draw_pic(lay, "lilwiz", entry, 0, x, 4.0));
             let rel = self.game.relation(HUMAN, id);
             let word = self.text(f4x_core::diplomacy::relation_key(rel));
-            self.bm_text_set(
+            self.draw_styled(
                 view,
-                0,
-                3,
+                &Style::set(0, 3).center(),
                 &word,
                 45.0 + 77.0 * i as f32,
                 53.0,
-                Align::Center,
             );
             // The treaty with you, then those with the other wizards shown: a scroll for a
             // pact, a peace symbol for an alliance, crossed swords for war, in its banner colour.
@@ -506,7 +499,7 @@ impl App {
             } else {
                 (171.0, 80.0 + 10.0 * i as f32, 2)
             };
-            self.bm_text(view, style, color, &name, x, y, Align::Left);
+            self.draw_styled(view, &Style::nearest(style, color), &name, x, y);
             let rect = if two_columns {
                 lay.rect((x - 2.0, y - 1.0, 65.0, 8.0))
             } else {
@@ -518,7 +511,7 @@ impl App {
         }
         if list.len() > 18 {
             let more = self.text("magic.more");
-            self.bm_text(view, 0, WHITE, &more, 286.0, 163.0, Align::Left);
+            self.draw_styled(view, &Style::nearest(0, WHITE), &more, 286.0, 163.0);
             if active && ui::hit(lay.rect((286.0, 163.0, 21.0, 7.0)), true, input).clicked() {
                 self.magic_ui.first += 18;
                 if self.magic_ui.first >= list.len() {
@@ -567,26 +560,34 @@ impl App {
         } else {
             (amount / divisor, amount)
         };
-        self.bm_text(
+        self.draw_styled(
             view,
-            1,
-            light,
+            &Style::nearest(1, light).right(),
             &gold_amount.to_string(),
             px + 28.0,
             py + 26.0,
-            Align::Right,
         );
-        self.bm_text(view, 1, light, "GP", px + 40.0, py + 26.0, Align::Right);
-        self.bm_text(
+        self.draw_styled(
             view,
-            1,
-            light,
+            &Style::nearest(1, light).right(),
+            "GP",
+            px + 40.0,
+            py + 26.0,
+        );
+        self.draw_styled(
+            view,
+            &Style::nearest(1, light).right(),
             &power_amount.to_string(),
             px + 130.0,
             py + 26.0,
-            Align::Right,
         );
-        self.bm_text(view, 1, light, "PP", px + 142.0, py + 26.0, Align::Right);
+        self.draw_styled(
+            view,
+            &Style::nearest(1, light).right(),
+            "PP",
+            px + 142.0,
+            py + 26.0,
+        );
         // Cancel, the arrow that turns the exchange, and OK.
         let click = |app: &mut App, entry: usize, x: f32, y: f32| {
             let r = app.draw_pic(lay, "magic", entry, 0, x, y);

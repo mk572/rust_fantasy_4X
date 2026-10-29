@@ -3,6 +3,7 @@
 //! the Info window's pictures (`compix` 56 to 58) cut to size, and set in the original's font.
 
 use super::*;
+use crate::font::Style;
 use crate::frame::Layout;
 use crate::input::Input;
 use crate::ui;
@@ -177,7 +178,7 @@ impl App {
             }
             let text_x = if icon.is_some() { x + 19.0 } else { x + 2.0 };
             let colour = if clickable && !usable { dim } else { colour };
-            self.bm_text(view, 1, colour, &text, text_x, y + 6.0, Align::Left);
+            self.draw_styled(view, &Style::nearest(1, colour), &text, text_x, y + 6.0);
             if hover && input.mouse_pressed(MouseButton::Left) {
                 match row {
                     Row::Spell(spell, _) => cast = Some(*spell),

@@ -5,13 +5,14 @@
 //! map; a right-click opens the unit's sheet. U and D (or the arrows, or the wheel) scroll, Esc
 //! or OK leaves. Positions are the original's.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Disabled, Layout};
+use crate::frame::{Disabled, Layout};
 use crate::view::{App, Screen, HUMAN};
 
 /// Rows of stacks on the screen.
@@ -101,12 +102,24 @@ impl App {
             .wizard(HUMAN)
             .map_or_else(String::new, |w| w.name());
         let title = self.text_with("army.title", &Args::new().text("owner", owner));
-        self.bm_text_outlined(view, 4, &title, 160.0, 7.0, Align::Center);
+        self.draw_styled(view, &Style::outlined(4).center(), &title, 160.0, 7.0);
         let upkeep_label = self.text("army.upkeep");
-        self.bm_text(view, 1, light, &upkeep_label, 30.0, 162.0, Align::Center);
+        self.draw_styled(
+            view,
+            &Style::nearest(1, light).center(),
+            &upkeep_label,
+            30.0,
+            162.0,
+        );
         let upkeep = self.army_upkeep();
         for (value, y) in upkeep.into_iter().zip([173.0, 183.0, 192.0]) {
-            self.bm_text(view, 1, light, &value.to_string(), 45.0, y, Align::Center);
+            self.draw_styled(
+                view,
+                &Style::nearest(1, light).center(),
+                &value.to_string(),
+                45.0,
+                y,
+            );
         }
 
         // Scrolling: the arrows, U and D, the wheel.
@@ -166,7 +179,7 @@ impl App {
             .copied();
         if let Some(unit) = scanned {
             let name = self.army_unit_name(unit).to_uppercase();
-            self.bm_text(view, 1, gold, &name, 188.0, 161.0, Align::Center);
+            self.draw_styled(view, &Style::nearest(1, gold).center(), &name, 188.0, 161.0);
             let names: Vec<String> = self
                 .game
                 .units()
@@ -177,14 +190,12 @@ impl App {
                 .collect();
             let step = if names.len() < 4 { 7.0 } else { 6.0 };
             for (i, n) in names.iter().enumerate() {
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    1,
-                    light,
+                    &Style::nearest(1, light),
                     n,
                     144.0,
                     172.0 + step * i as f32,
-                    Align::Left,
                 );
             }
             if let Some(at) = self.game.units().unit_position(unit) {

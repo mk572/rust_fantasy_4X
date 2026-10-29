@@ -4,13 +4,14 @@
 //! and the next offer comes after it. Without the local art the pictures are missing and the
 //! text and buttons are still drawn.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::player::offer::Offer;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::modal::{keep, kind, Modal};
 use crate::unit_sheet::Source;
 use crate::view::{App, Screen, HUMAN};
@@ -207,7 +208,7 @@ impl App {
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         let mut at = y + 9.0;
         for line in self.bm_wrap(4, &text, 182.0) {
-            self.bm_text(view, 4, gold, &line, x + 57.0, at, Align::Left);
+            self.draw_styled(view, &Style::nearest(4, gold), &line, x + 57.0, at);
             at += self.art.text_height(4) + 2.0;
         }
         self.draw_item_card(lay, item, x + 14.0, y + 65.0);
@@ -266,20 +267,24 @@ impl App {
             ),
             Offer::Item { .. } | Offer::Resale { .. } => String::new(),
         };
-        self.bm_text(view, 4, gold, &title, wx + 103.0, wy - 14.0, Align::Center);
+        self.draw_styled(
+            view,
+            &Style::nearest(4, gold).center(),
+            &title,
+            wx + 103.0,
+            wy - 14.0,
+        );
 
         let naming = self.offer_ui.naming;
         if naming {
             // `Hire_Hero_Popup_Draw`: the name box (`backgrnd` 33) with its prompt and the name.
             self.draw_pic(lay, "backgrnd", 33, 0, wx + 29.0, wy + 55.0);
-            self.bm_text(
+            self.draw_styled(
                 view,
-                4,
-                gold,
+                &Style::nearest(4, gold).center(),
                 &self.text("offer.name_hero"),
                 wx + 104.0,
                 wy + 58.0,
-                Align::Center,
             );
             for c in input.typed() {
                 if !c.is_control() && self.offer_ui.name.chars().count() < NAME_LEN {
@@ -290,17 +295,21 @@ impl App {
                 self.offer_ui.name.pop();
             }
             let shown = format!("{}_", self.offer_ui.name);
-            self.bm_text(view, 4, light, &shown, wx + 45.0, wy + 75.0, Align::Left);
+            self.draw_styled(
+                view,
+                &Style::nearest(4, light),
+                &shown,
+                wx + 45.0,
+                wy + 75.0,
+            );
         }
         if !affordable {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                Color::new(1.0, 0.4, 0.3, 1.0),
+                &Style::nearest(1, Color::new(1.0, 0.4, 0.3, 1.0)),
                 &self.text("offer.not_enough_gold"),
                 wx + 221.0,
                 wy + 128.0,
-                Align::Left,
             );
         }
         let free_hero = matches!(offer, Offer::Hero { price: 0, .. });
@@ -338,7 +347,7 @@ impl App {
         self.draw_pic(lay, "itemisc", 25, 0, x, y);
         self.draw_pic(lay, "items", usize::from(item.icon), 0, x + 9.0, y + 6.0);
         let name = item.display_name(self.game.content());
-        self.bm_text(view, 4, gold, &name, x + 31.0, y + 12.0, Align::Left);
+        self.draw_styled(view, &Style::nearest(4, gold), &name, x + 31.0, y + 12.0);
         let rules = self.game.content().rules.clone();
         let b = item.bonus;
         let mut lines: Vec<String> = Vec::new();
@@ -388,7 +397,7 @@ impl App {
         for (i, line) in lines.iter().enumerate() {
             let at = y + top + i as f32 * space;
             self.draw_pic(lay, "itemisc", 26, 0, x + 11.0, y + 34.0 + i as f32 * space);
-            self.bm_text(view, 2, light, line, x + 20.0, at - 1.0, Align::Left);
+            self.draw_styled(view, &Style::nearest(2, light), line, x + 20.0, at - 1.0);
         }
     }
 }

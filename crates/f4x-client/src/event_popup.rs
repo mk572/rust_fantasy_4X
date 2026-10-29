@@ -4,6 +4,7 @@
 //! the wizard's strongest realm on the left, the text, and the event's picture in a frame at
 //! the right end. A click or a key closes it, and the next one follows.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::DispelSite;
 use f4x_core::text::Args;
@@ -12,7 +13,7 @@ use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
 use crate::audio::{music, Track};
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::modal::{keep, kind, Modal};
 use crate::view::{App, HUMAN};
 
@@ -402,8 +403,14 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let black = Color::new(0.0, 0.0, 0.0, 1.0);
         for (dx, dy) in [(-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0), (1.0, 1.0)] {
-            self.bm_text(view, 0, black, &name, 280.0 + dx, y + dy, Align::Center);
+            self.draw_styled(
+                view,
+                &Style::nearest(0, black).center(),
+                &name,
+                280.0 + dx,
+                y + dy,
+            );
         }
-        self.bm_text(view, 0, colour, &name, 280.0, y, Align::Center);
+        self.draw_styled(view, &Style::nearest(0, colour).center(), &name, 280.0, y);
     }
 }

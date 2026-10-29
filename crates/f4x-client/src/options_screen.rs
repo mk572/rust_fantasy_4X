@@ -1,12 +1,13 @@
 //! The new-game options step: difficulty, opponents, land size and node strength, shown
 //! before the wizard is made (the original's `Newgame_Screen_0`).
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::setting::SettingsDef;
 use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::ui::{self, button, GOLD, PANEL};
 use crate::view::{App, Screen};
 
@@ -131,23 +132,19 @@ impl App {
             let hover = ui::hit(lay.rect((250.0, y - 1.0, 66.0, 17.0)), true, input).hovered();
             let shift = if hover { 1.0 } else { 0.0 };
             self.draw_pic(&lay, "newgame", 4 + i, 0, 251.0 + shift, y + shift);
-            self.bm_text(
+            self.draw_styled(
                 view,
-                3,
-                shadow,
+                &Style::nearest(3, shadow).center(),
                 &label,
                 283.0 + shift,
                 text_y + 1.0 + shift,
-                Align::Center,
             );
-            self.bm_text(
+            self.draw_styled(
                 view,
-                3,
-                font,
+                &Style::nearest(3, font).center(),
                 &label,
                 282.0 + shift,
                 text_y + shift,
-                Align::Center,
             );
             if hover && clicked {
                 changed = Some(i);
@@ -183,25 +180,21 @@ impl App {
             } else {
                 font
             };
-            self.bm_text(view, 3, shadow, &name, 168.0, y + 1.0, Align::Left);
-            self.bm_text(view, 3, gold, &name, 167.0, y, Align::Left);
-            self.bm_text(
+            self.draw_styled(view, &Style::nearest(3, shadow), &name, 168.0, y + 1.0);
+            self.draw_styled(view, &Style::nearest(3, gold), &name, 167.0, y);
+            self.draw_styled(
                 view,
-                3,
-                shadow,
+                &Style::nearest(3, shadow).center(),
                 &value,
                 283.0 + shift,
                 y + 1.0 + shift,
-                Align::Center,
             );
-            self.bm_text(
+            self.draw_styled(
                 view,
-                3,
-                ink,
+                &Style::nearest(3, ink).center(),
                 &value,
                 282.0 + shift,
                 y + shift,
-                Align::Center,
             );
             if hover && clicked {
                 changed = Some(4 + i);
@@ -222,14 +215,12 @@ impl App {
             let text = self.text_with("options.crowded", &Args::new().count("n", each));
             let red = Color::new(1.0, 0.45, 0.4, 1.0);
             for (i, line) in self.bm_wrap(1, &text, 150.0).iter().enumerate() {
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    1,
-                    red,
+                    &Style::nearest(1, red),
                     line,
                     167.0,
                     170.0 + 8.0 * i as f32,
-                    Align::Left,
                 );
             }
         }

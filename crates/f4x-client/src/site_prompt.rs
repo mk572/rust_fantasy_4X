@@ -5,6 +5,7 @@
 //! site shows the first box without buttons on arrival. The boxes come one after another over
 //! the map, in the order the events arrived.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::feature::lair::Loot;
 use f4x_core::game::Command;
@@ -13,7 +14,7 @@ use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::audio::{music, Track};
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::modal::{keep, kind, Modal};
 use crate::view::{App, Screen};
 
@@ -429,16 +430,14 @@ impl App {
         let light = Color::new(0.97, 0.95, 0.85, 1.0);
         for (i, (indent, text)) in lines.iter().enumerate() {
             let at = y + line * i as f32;
-            self.bm_text(
+            self.draw_styled(
                 view,
-                4,
-                shadow,
+                &Style::nearest(4, shadow),
                 text,
                 x + indent + 1.0,
                 at + 1.0,
-                Align::Left,
             );
-            self.bm_text(view, 4, light, text, x + indent, at, Align::Left);
+            self.draw_styled(view, &Style::nearest(4, light), text, x + indent, at);
         }
     }
 

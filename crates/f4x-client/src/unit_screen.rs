@@ -6,6 +6,7 @@
 //! has the Dismiss and OK buttons on a second panel (`unitview` 2) to the right; in battle it
 //! is the panel alone. Positions are the original's, from the panel's top-left (`UnitStat.c`).
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::battle::Battle;
@@ -13,7 +14,7 @@ use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::unit_sheet::{hit_cells, special_picture, stat_cells, Cell, Row, Sheet, Source};
 use crate::view::{App, Screen};
 
@@ -224,14 +225,12 @@ impl App {
                     .position(|&u| matches!(sheet.source, Source::Overland(s) if s == u))
                     .map_or(0, |i| i + 1);
                 let view = (lay.origin.x, lay.origin.y, lay.scale);
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    1,
-                    Color::new(0.95, 0.93, 0.85, 1.0),
+                    &Style::nearest(1, Color::new(0.95, 0.93, 0.85, 1.0)).center(),
                     &format!("{at}/{n}"),
                     px + 246.5,
                     py + 108.0,
-                    Align::Center,
                 );
                 let back = self.red_button_sized(&lay, "<", px + 222.0, py + 121.0, 24.0, input);
                 let forward = self.red_button_sized(&lay, ">", px + 247.0, py + 121.0, 24.0, input);
@@ -334,25 +333,35 @@ impl App {
         let name_x = px + ox + 51.0;
         match &sheet.race {
             Some(race) => {
-                let w = self.bm_text(view, 4, gold, race, name_x, py + name_y, Align::Left);
-                self.bm_text(
+                let w = self.draw_styled(view, &Style::nearest(4, gold), race, name_x, py + name_y);
+                self.draw_styled(
                     view,
-                    4,
-                    gold,
+                    &Style::nearest(4, gold),
                     &sheet.name,
                     name_x + w + 5.0,
                     py + name_y,
-                    Align::Left,
                 );
             }
             None => {
-                self.bm_text(view, 4, gold, &sheet.name, name_x, py + name_y, Align::Left);
+                self.draw_styled(
+                    view,
+                    &Style::nearest(4, gold),
+                    &sheet.name,
+                    name_x,
+                    py + name_y,
+                );
             }
         }
 
         // Moves, and upkeep or damage.
         let moves = self.text("unit.moves");
-        self.bm_text(view, 1, light, &moves, name_x, py + moves_y, Align::Left);
+        self.draw_styled(
+            view,
+            &Style::nearest(1, light),
+            &moves,
+            name_x,
+            py + moves_y,
+        );
         for i in 0..sheet.moves {
             self.draw_stat_icon(
                 lay,
@@ -364,7 +373,13 @@ impl App {
         }
         if let Some([gold_up, mana_up, food_up]) = sheet.upkeep {
             let word = self.text("army.upkeep");
-            self.bm_text(view, 1, light, &word, name_x, py + upkeep_y, Align::Left);
+            self.draw_styled(
+                view,
+                &Style::nearest(1, light),
+                &word,
+                name_x,
+                py + upkeep_y,
+            );
             let (mut x, y) = (px + ox + 85.0, py + upkeep_y - 1.0);
             // Gold, then mana, then food, each a small icon from `backgrnd`.
             for (count, entry) in [(gold_up, 42), (mana_up, 43), (food_up, 40)] {
@@ -375,15 +390,19 @@ impl App {
             }
         } else if let Some(damage) = sheet.damage {
             let word = self.text("unit.damage");
-            self.bm_text(view, 1, light, &word, name_x, py + upkeep_y, Align::Left);
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                light,
+                &Style::nearest(1, light),
+                &word,
+                name_x,
+                py + upkeep_y,
+            );
+            self.draw_styled(
+                view,
+                &Style::nearest(1, light).right(),
                 &damage.to_string(),
                 px + 90.0,
                 py + upkeep_y,
-                Align::Right,
             );
         }
 
@@ -395,7 +414,13 @@ impl App {
             (self.text("unit.resist"), 79.0, Some(sheet.resist)),
         ];
         for (label, y, row) in rows {
-            self.bm_text(view, 4, gold, &label, px + ox + 8.0, py + y, Align::Left);
+            self.draw_styled(
+                view,
+                &Style::nearest(4, gold),
+                &label,
+                px + ox + 8.0,
+                py + y,
+            );
             if let Some(row) = row {
                 for cell in stat_cells(row, row_length) {
                     self.draw_cell(lay, row.icon, cell, px + ox + 49.0, py + y);
@@ -403,7 +428,13 @@ impl App {
             }
         }
         let hits = self.text("unit.hits");
-        self.bm_text(view, 4, gold, &hits, px + ox + 8.0, py + 90.0, Align::Left);
+        self.draw_styled(
+            view,
+            &Style::nearest(4, gold),
+            &hits,
+            px + ox + 8.0,
+            py + 90.0,
+        );
         let bonus = sheet.hits.gold;
         for cell in hit_cells(sheet.hits.value, bonus, sheet.hurt, row_length) {
             self.draw_cell(lay, sheet.hits.icon, cell, px + ox + 49.0, py + 90.0);
@@ -423,14 +454,12 @@ impl App {
                 let (lbx, entry) = special_picture(icon);
                 self.draw_pic(lay, lbx, entry, 0, x, y);
             }
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                light,
+                &Style::nearest(1, light),
                 &special.name,
                 x + 19.0,
                 y + 5.0,
-                Align::Left,
             );
             let asking = self.sheet_ui.confirm || self.sheet_ui.turn_off.is_some();
             if let (true, false, Some(spell), Source::Overland(unit)) =
@@ -657,14 +686,12 @@ impl App {
         } else {
             Color::new(0.6, 0.6, 0.6, 1.0)
         };
-        self.bm_text(
+        self.draw_styled(
             view,
-            1,
-            color,
+            &Style::nearest(1, color).center(),
             label,
             x + w / 2.0,
             y + 3.0 + f32::from(u8::from(down)),
-            Align::Center,
         );
         state.clicked()
     }

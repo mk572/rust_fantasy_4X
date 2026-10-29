@@ -3,13 +3,14 @@
 //! a road can be built, red where it cannot) with the turns each takes, and OK builds the whole
 //! path with `Command::BuildRoad`. Cancel, Escape or a right-click leave the mode.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Disabled, Layout};
+use crate::frame::{Disabled, Layout};
 use crate::ui::{self, button, GOLD};
 use crate::view::App;
 
@@ -260,8 +261,8 @@ impl App {
         }
         self.draw_pic(&lay, "main", 48, 0, 240.0, 173.0);
         let (road, building) = (self.text("road.title"), self.text("road.building"));
-        self.bm_text_set(view, 4, 1, &road, 280.0, 80.0, Align::Center);
-        self.bm_text_set(view, 4, 1, &building, 280.0, 90.0, Align::Center);
+        self.draw_styled(view, &Style::set(4, 1).center(), &road, 280.0, 80.0);
+        self.draw_styled(view, &Style::set(4, 1).center(), &building, 280.0, 90.0);
         let message = if sum.blocked {
             self.text("road.blocked")
         } else if sum.turns > 0 {
@@ -270,7 +271,7 @@ impl App {
             String::new()
         };
         for (i, line) in self.bm_wrap(1, &message, 60.0).iter().enumerate() {
-            self.bm_text_set(view, 1, 0, line, 250.0, 106.0 + i as f32 * 9.0, Align::Left);
+            self.draw_styled(view, &Style::set(1, 0), line, 250.0, 106.0 + i as f32 * 9.0);
         }
         let ok = self.pic_button(&lay, ("main", 46), OK_AT, (can, Disabled::Fade(0.5)), input);
         let cancel = self.pic_button_on(&lay, ("main", 41), CANCEL_AT, input);

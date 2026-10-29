@@ -11,13 +11,14 @@ use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::text::Args;
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::wizard::WizardBuild;
 use macroquad::prelude::*;
 
 use crate::art::{Art, TILE_H, TILE_W};
-use crate::frame::{spot, Align};
+use crate::frame::spot;
 use crate::modal::{keep, Modal};
 use crate::options_screen::OptionsState;
 use crate::preferences::Pref;
@@ -2345,7 +2346,7 @@ impl App {
             let k = t.x / TILE_W;
             let name = city.name.clone();
             let (cx, cy) = ((at.x + t.x / 2.0) / k, (at.y + t.y) / k - 2.0);
-            self.bm_text_outlined((0.0, 0.0, k), 1, &name, cx, cy, Align::Center);
+            self.draw_styled((0.0, 0.0, k), &Style::outlined(1).center(), &name, cx, cy);
         }
         self.draw_units(&screen_of, &visible, width, t);
         gl.flush();
@@ -2476,7 +2477,7 @@ impl App {
         if units.len() > 1 {
             let view = (at.x, at.y, k);
             let count = units.len().to_string();
-            self.bm_text_outlined(view, 1, &count, 19.0, 11.0, Align::Right);
+            self.draw_styled(view, &Style::outlined(1).right(), &count, 19.0, 11.0);
         }
     }
 
@@ -2533,14 +2534,20 @@ impl App {
         let shown: Vec<String> = self.log.iter().rev().take(5).cloned().collect();
         for (i, text) in shown.iter().enumerate() {
             let at = bottom - line * (i + 1) as f32;
-            self.bm_text_shadowed(view, 1, text, spot::MAP.0 + 4.0, at, messages, Align::Left);
+            self.draw_styled(
+                view,
+                &Style::flat(1, messages).shadow(),
+                text,
+                spot::MAP.0 + 4.0,
+                at,
+            );
         }
     }
 
     /// One line of the overlay on the map, in the original's small font, and the next row.
     fn overlay_line(&mut self, view: (f32, f32, f32), y: &mut f32, text: &str, color: Color) {
         let at = (spot::MAP.0 + 4.0, spot::MAP.1 + *y);
-        self.bm_text_shadowed(view, 1, text, at.0, at.1, color, Align::Left);
+        self.draw_styled(view, &Style::flat(1, color).shadow(), text, at.0, at.1);
         *y += self.art.text_height(1) + 2.0;
     }
 

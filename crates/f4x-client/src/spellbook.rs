@@ -4,6 +4,7 @@
 //! Cast"). Clicking a spell starts casting it; one that needs a target is aimed on the map.
 //! The big book (the library and research) is in `bigbook.rs`.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::game::Command;
@@ -12,7 +13,7 @@ use f4x_core::rules::{CastContext, SpellId, SpellTarget};
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::{App, Screen, HUMAN};
 
 /// A spell waiting for the player to click its target on the map.
@@ -648,7 +649,7 @@ impl App {
             } else {
                 Color::new(0.85, 0.72, 0.45, 1.0)
             };
-            self.bm_text(view, 1, ink, &line, 97.0, 187.0, Align::Center);
+            self.draw_styled(view, &Style::nearest(1, ink).center(), &line, 97.0, 187.0);
             let line = self.text(self.book_ui.sort.text_key());
             let hover = ui::hit(lay.rect((200.0, 184.0, 116.0, 12.0)), true, input).hovered();
             let ink = if hover {
@@ -656,7 +657,7 @@ impl App {
             } else {
                 Color::new(0.85, 0.72, 0.45, 1.0)
             };
-            self.bm_text(view, 1, ink, &line, 258.0, 187.0, Align::Center);
+            self.draw_styled(view, &Style::nearest(1, ink).center(), &line, 258.0, 187.0);
         }
     }
 
@@ -684,14 +685,12 @@ impl App {
                 .get(page_i - 1)
                 .is_none_or(|p| p.title != page.title);
         if !right || starts_realm {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                4,
-                Color::new(0.45, 0.2, 0.1, 1.0),
+                &Style::nearest(4, Color::new(0.45, 0.2, 0.1, 1.0)).center(),
                 &page.title,
                 title.0,
                 title.1,
-                Align::Center,
             );
         }
         for (i, &spell) in page.spells.iter().enumerate() {
@@ -746,15 +745,13 @@ impl App {
         // The spell being cast glows (palette index 198 cycling, `SmlBook_Draw`).
         let hot = crate::cycle::SMALL_BOOK.colour(get_time());
         let color = if casting.is_some() { hot } else { ink };
-        self.bm_text(view, 1, color, &def.name, x, y, Align::Left);
-        self.bm_text(
+        self.draw_styled(view, &Style::nearest(1, color), &def.name, x, y);
+        self.draw_styled(
             view,
-            1,
-            color,
+            &Style::nearest(1, color).right(),
             &format!("{} MP", cost.max(0)),
             x + 121.0,
             y,
-            Align::Right,
         );
         // Turns to cast: a symbol for each, twenty to a row; no symbols for an instant spell.
         let skill = self.game.wizard(HUMAN).map_or(0, |m| m.casting_skill());
@@ -783,10 +780,10 @@ impl App {
             );
             if instant && !crafting {
                 let word = self.text("spell.instant");
-                self.bm_text(view, 1, ink, &word, x + 9.0, y + 7.0, Align::Left);
+                self.draw_styled(view, &Style::nearest(1, ink), &word, x + 9.0, y + 7.0);
             } else if instant {
                 let word = self.text("spell.special");
-                self.bm_text(view, 1, ink, &word, x + 9.0, y + 7.0, Align::Left);
+                self.draw_styled(view, &Style::nearest(1, ink), &word, x + 9.0, y + 7.0);
             } else {
                 self.draw_pic_tinted(
                     lay,
@@ -831,13 +828,13 @@ impl App {
         let ink = Color::new(0.2, 0.12, 0.05, 1.0);
         let grey = Color::new(0.55, 0.5, 0.45, 1.0);
         let color = if entry.icons == 0 { grey } else { ink };
-        self.bm_text(view, 1, color, name, x, y, Align::Left);
+        self.draw_styled(view, &Style::nearest(1, color), name, x, y);
         let cost = if entry.cost == 0 {
             "?".to_string()
         } else {
             format!("{}{} MP", entry.cost, if entry.extra { "+" } else { "" })
         };
-        self.bm_text(view, 1, color, &cost, x + 121.0, y, Align::Right);
+        self.draw_styled(view, &Style::nearest(1, color).right(), &cost, x + 121.0, y);
         let symbol = ["nature", "sorcery", "chaos", "life", "death", "arcane"]
             .iter()
             .position(|r| *r == realm)

@@ -6,6 +6,7 @@
 //! are the core's (`item::crafting`: what may be chosen, what it costs, `Command::CraftItem`);
 //! this file holds the choices. Positions are the original's.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::game::{Command, Event};
@@ -17,7 +18,7 @@ use f4x_core::rules::{CastContext, ItemKind, ItemPowerDef};
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::{App, Screen, HUMAN};
 
 /// The kinds in the order of the buttons (`SPELLSCR.LBX` entries 14 to 23).
@@ -307,14 +308,12 @@ impl App {
         } else {
             self.craft_name(&ui)
         };
-        self.bm_text(
+        self.draw_styled(
             view,
-            1,
-            Color::new(0.95, 0.88, 0.6, 1.0),
+            &Style::nearest(1, Color::new(0.95, 0.88, 0.6, 1.0)),
             &shown,
             33.0,
             15.0,
-            Align::Left,
         );
 
         // The powers.
@@ -359,14 +358,14 @@ impl App {
                         "item.name_charges",
                         &Args::new().text("spell", &spell).count("n", n as i32),
                     );
-                    self.bm_text(view, 3, color, &line, x, y, Align::Left);
+                    self.draw_styled(view, &Style::nearest(3, color), &line, x, y);
                 } else if col == 2 {
-                    self.bm_text(view, 3, color, &power.name, x, y, Align::Left);
+                    self.draw_styled(view, &Style::nearest(3, color), &power.name, x, y);
                 } else {
                     // "+2 Attack": the number right-aligned, the rest after it.
                     let (num, rest) = power.name.split_once(' ').unwrap_or(("", &power.name));
-                    self.bm_text(view, 3, color, num, x + 10.0, y, Align::Right);
-                    self.bm_text(view, 3, color, rest, x + 14.0, y, Align::Left);
+                    self.draw_styled(view, &Style::nearest(3, color).right(), num, x + 10.0, y);
+                    self.draw_styled(view, &Style::nearest(3, color), rest, x + 14.0, y);
                 }
                 let width = if col == 2 { 98.0 } else { 78.0 };
                 if ui::hit(lay.rect((x, y - 2.0, width, 9.0)), click, input).clicked() {
@@ -391,26 +390,22 @@ impl App {
         let price = self.craft_price(&ui);
         let cost_label = self.text("craft.cost");
         let ink = Color::new(0.95, 0.88, 0.6, 1.0);
-        let at = self.bm_text(view, 1, ink, &cost_label, 198.0, 185.0, Align::Left);
-        self.bm_text(
+        let at = self.draw_styled(view, &Style::nearest(1, ink), &cost_label, 198.0, 185.0);
+        self.draw_styled(
             view,
-            1,
-            ink,
+            &Style::nearest(1, ink),
             &price.to_string(),
             198.0 + at + 4.0,
             185.0,
-            Align::Left,
         );
         let ok_rect = self.draw_pic(&lay, "spellscr", 24, 0, 281.0, 180.0);
         if let Some(message) = &ui.message {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                Color::new(1.0, 0.5, 0.4, 1.0),
+                &Style::nearest(1, Color::new(1.0, 0.5, 0.4, 1.0)).center(),
                 message,
                 160.0,
                 170.0,
-                Align::Center,
             );
         }
         let ok = !busy
@@ -496,14 +491,12 @@ impl App {
         let click = input.mouse_pressed(MouseButton::Left);
         self.draw_pic(lay, "spells", 0, 0, bx, by);
         let title = self.text("craft.choose_spell");
-        self.bm_text(
+        self.draw_styled(
             view,
-            4,
-            Color::new(0.95, 0.88, 0.6, 1.0),
+            &Style::nearest(4, Color::new(0.95, 0.88, 0.6, 1.0)).center(),
             &title,
             160.0,
             2.0,
-            Align::Center,
         );
         let Some(pick) = ui.spells.as_mut() else {
             return;
@@ -532,14 +525,12 @@ impl App {
                 by + 7.0 + (i % 14) as f32 * 10.0,
             );
             let picked = pick.chosen.as_ref().is_some_and(|(at, _)| *at == i);
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                if picked { lit } else { ink },
+                &Style::nearest(1, if picked { lit } else { ink }),
                 name,
                 x,
                 y,
-                Align::Left,
             );
             if pick.chosen.is_none()
                 && ui::hit(lay.rect((x - 2.0, y - 1.0, 105.0, 10.0)), click, input).clicked()
@@ -559,14 +550,12 @@ impl App {
             let charges_y = by + row * 10.0 - 4.0;
             self.draw_pic(lay, "spellscr", 37, 0, charges_x, charges_y);
             let word = self.text("craft.charges");
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                Color::new(0.95, 0.88, 0.6, 1.0),
+                &Style::nearest(1, Color::new(0.95, 0.88, 0.6, 1.0)).center(),
                 &word,
                 bx + 204.0 - 140.0 * col as f32,
                 by + row * 10.0 + 1.0,
-                Align::Center,
             );
             for n in 0..MAX_CHARGES {
                 let (x, y) = (

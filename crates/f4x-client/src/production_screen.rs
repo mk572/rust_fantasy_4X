@@ -5,13 +5,14 @@
 //! A click on another item picks it, a click on the picked one, or OK, starts it; Cancel and
 //! Esc leave. Positions are the original's.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::{App, HUMAN};
 
 /// Rows a column shows (the original's lists are cut to fit).
@@ -108,14 +109,12 @@ impl App {
                     Color::new(0.35, 0.78, 0.76, 1.0)
                 };
                 let name = self.item_name(*item);
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    2,
-                    color,
+                    &Style::nearest(2, color),
                     &name,
                     x + 2.0 + column as f32,
                     y + 1.0,
-                    Align::Left,
                 );
                 let tab = lay.rect((x, y, 74.0, 11.0));
                 if !waiting && ui::hit(tab, true, input).clicked() {
@@ -185,8 +184,14 @@ impl App {
                     price = format!("{cost}({})", def.cost);
                 }
                 let word = self.text("production.cost");
-                self.bm_text(view, 1, white, &word, px + 55.0, py + 34.0, Align::Left);
-                self.bm_text(view, 1, white, &price, px + 77.0, py + 34.0, Align::Left);
+                self.draw_styled(view, &Style::nearest(1, white), &word, px + 55.0, py + 34.0);
+                self.draw_styled(
+                    view,
+                    &Style::nearest(1, white),
+                    &price,
+                    px + 77.0,
+                    py + 34.0,
+                );
             }
             _ => self.draw_building_panel(city, item, cost, lay),
         }
@@ -235,18 +240,16 @@ impl App {
         let name_x = px + 4.0 + 51.0;
         if self.art.text_width(4, &name) > 100.0 {
             for (i, line) in self.bm_wrap(4, &name, 100.0).iter().enumerate() {
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    4,
-                    gold,
+                    &Style::nearest(4, gold),
                     line,
                     name_x,
                     py + 7.0 + 8.0 * i as f32,
-                    Align::Left,
                 );
             }
         } else {
-            self.bm_text(view, 4, gold, &name, name_x, py + 11.0, Align::Left);
+            self.draw_styled(view, &Style::nearest(4, gold), &name, name_x, py + 11.0);
         }
         let rules = &self.game.content().rules;
         let (upkeep, id) = match item {
@@ -255,21 +258,25 @@ impl App {
         };
         if id.is_some() {
             let word = self.text("production.cost");
-            self.bm_text(view, 1, white, &word, px + 55.0, py + 34.0, Align::Left);
-            self.bm_text(
+            self.draw_styled(view, &Style::nearest(1, white), &word, px + 55.0, py + 34.0);
+            self.draw_styled(
                 view,
-                1,
-                white,
+                &Style::nearest(1, white),
                 &cost.to_string(),
                 px + 77.0,
                 py + 34.0,
-                Align::Left,
             );
         }
         let word = self.text("production.maintenance");
-        self.bm_text(view, 4, gold, &word, px + 12.0, py + 47.0, Align::Left);
+        self.draw_styled(view, &Style::nearest(4, gold), &word, px + 12.0, py + 47.0);
         if upkeep == 0 {
-            self.bm_text(view, 2, white, "0", px + 96.0, py + 48.0, Align::Right);
+            self.draw_styled(
+                view,
+                &Style::nearest(2, white).right(),
+                "0",
+                px + 96.0,
+                py + 48.0,
+            );
         } else {
             for i in 0..upkeep {
                 self.draw_pic(
@@ -284,7 +291,7 @@ impl App {
         }
         let allows = self.production_allows(city, id);
         let word = self.text("production.allows");
-        self.bm_text(view, 4, gold, &word, px + 12.0, py + 58.0, Align::Left);
+        self.draw_styled(view, &Style::nearest(4, gold), &word, px + 12.0, py + 58.0);
         if !allows.is_empty() {
             let and = self.text("production.and");
             let mut text = allows[..allows.len() - 1].join(", ");
@@ -294,14 +301,12 @@ impl App {
             text.push_str(&allows[allows.len() - 1]);
             text.push('.');
             for (i, line) in self.bm_wrap(2, &text, 100.0).iter().enumerate() {
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    2,
-                    white,
+                    &Style::nearest(2, white),
                     line,
                     px + 64.0,
                     py + 59.0 + 7.0 * i as f32,
-                    Align::Left,
                 );
             }
         }
@@ -315,14 +320,12 @@ impl App {
         };
         if let Some(text) = description {
             for (i, line) in self.bm_wrap(4, &text, 147.0).iter().enumerate() {
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    4,
-                    gold,
+                    &Style::nearest(4, gold),
                     line,
                     px + 13.0,
                     py + 107.0 + 9.0 * i as f32,
-                    Align::Left,
                 );
             }
         }

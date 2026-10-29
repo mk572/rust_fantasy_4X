@@ -6,7 +6,8 @@
 //! ours keeps the one palette.
 
 use crate::audio::Track;
-use crate::frame::{Align, Layout};
+use crate::font::Style;
+use crate::frame::Layout;
 use crate::input::Input;
 use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
@@ -185,7 +186,13 @@ impl App {
         });
         let front = self.art.frames("spellscr", 11).max(1);
         self.draw_pic(&lay, "spellscr", 11, stage % front, x + 64.0, y + 80.0);
-        self.bm_text_outlined(view, 4, &scene.label, x + 90.0, y + 117.0, Align::Center);
+        self.draw_styled(
+            view,
+            &Style::outlined(4).center(),
+            &scene.label,
+            x + 90.0,
+            y + 117.0,
+        );
         Some(scene)
     }
 }

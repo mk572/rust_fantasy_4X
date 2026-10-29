@@ -4,13 +4,14 @@
 //! Escape, Enter or a click rolls it up; U, D, the arrows or the wheel scroll a long one.
 //! The "End of Turn Summary" switch of the Settings page turns it off.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::{Event, LossCause};
 use f4x_core::rules::SpellTarget;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
@@ -322,36 +323,30 @@ impl App {
             if frame + 1 >= ROD_FRAMES {
                 let mut y = start;
                 if scroll.sections.is_empty() {
-                    app.bm_text(
+                    app.draw_styled(
                         view,
-                        4,
-                        Color::new(0.4, 0.05, 0.02, 1.0),
+                        &Style::nearest(4, Color::new(0.4, 0.05, 0.02, 1.0)).center(),
                         &app.text("chancellor.nothing"),
                         158.0,
                         y,
-                        Align::Center,
                     );
                 }
                 for s in &scroll.sections {
-                    app.bm_text(
+                    app.draw_styled(
                         view,
-                        4,
-                        Color::new(0.4, 0.05, 0.02, 1.0),
+                        &Style::nearest(4, Color::new(0.4, 0.05, 0.02, 1.0)).center(),
                         &s.title,
                         165.0,
                         y,
-                        Align::Center,
                     );
                     y += HEADING_STEP;
                     for line in &s.lines {
-                        app.bm_text(
+                        app.draw_styled(
                             view,
-                            1,
-                            Color::new(0.2, 0.1, 0.04, 1.0),
+                            &Style::nearest(1, Color::new(0.2, 0.1, 0.04, 1.0)),
                             line,
                             70.0,
                             y,
-                            Align::Left,
                         );
                         y += LINE_STEP;
                     }

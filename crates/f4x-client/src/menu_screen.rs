@@ -9,6 +9,7 @@
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::game::save::LoadError;
@@ -227,14 +228,12 @@ impl App {
             draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.0, Color::new(0.8, 0.65, 0.3, 1.0));
             let view = (lay.origin.x, lay.origin.y, lay.scale);
             let color = if enabled { WHITE } else { GRAY };
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                color,
+                &Style::nearest(1, color).align(crate::frame::Align::Center),
                 label,
                 rect.0 + rect.2 / 2.0,
                 rect.1 + 1.5,
-                crate::frame::Align::Center,
             );
         }
         state.clicked()
@@ -260,14 +259,12 @@ impl App {
             self.draw_pic(&lay, "mainscrn", 5, 0, 0.0, 41.0);
         } else {
             let view = (lay.origin.x, lay.origin.y, lay.scale);
-            self.bm_text(
+            self.draw_styled(
                 view,
-                5,
-                GOLD,
+                &Style::nearest(5, GOLD).align(crate::frame::Align::Center),
                 &self.text("menu.title"),
                 160.0,
                 60.0,
-                crate::frame::Align::Center,
             );
         }
 
@@ -311,14 +308,12 @@ impl App {
         if !self.menu.message.is_empty() {
             let view = (lay.origin.x, lay.origin.y, lay.scale);
             let msg = self.menu.message.clone();
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                RED,
+                &Style::nearest(1, RED).align(crate::frame::Align::Center),
                 &msg,
                 160.0,
                 130.0,
-                crate::frame::Align::Center,
             );
         }
 
@@ -348,14 +343,12 @@ impl App {
         if self.draw_pic(&lay, "load", 0, 0, 0.0, 0.0).is_none() {
             let r = lay.rect((0.0, 0.0, 320.0, 200.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.08, 0.07, 0.06, 1.0));
-            self.bm_text(
+            self.draw_styled(
                 view,
-                5,
-                GOLD,
+                &Style::nearest(5, GOLD).align(crate::frame::Align::Center),
                 &self.text("menu.load_save"),
                 160.0,
                 20.0,
-                crate::frame::Align::Center,
             );
         }
 
@@ -381,14 +374,12 @@ impl App {
             } else {
                 Color::new(0.85, 0.8, 0.6, 1.0)
             };
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                color,
+                &Style::nearest(1, color).align(crate::frame::Align::Left),
                 &slot.label(self.texts(), n),
                 45.0,
                 y + 1.0,
-                crate::frame::Align::Left,
             );
             if ui::hit(r, true, input).clicked() {
                 if self.menu.selected != Some(n) {
@@ -463,25 +454,21 @@ impl App {
         ) || input.key_pressed(KeyCode::Escape);
 
         if self.menu.confirm_overwrite {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                GOLD,
+                &Style::nearest(1, GOLD).align(crate::frame::Align::Center),
                 &self.text("menu.confirm_overwrite"),
                 160.0,
                 155.0,
-                crate::frame::Align::Center,
             );
         } else if !self.menu.message.is_empty() {
             let msg = self.menu.message.clone();
-            self.bm_text(
+            self.draw_styled(
                 view,
-                1,
-                RED,
+                &Style::nearest(1, RED).align(crate::frame::Align::Center),
                 &msg,
                 160.0,
                 155.0,
-                crate::frame::Align::Center,
             );
         }
 

@@ -8,6 +8,7 @@
 //! A proposal is put to the core and the wizard answers at once (`f4x_ai::answer_proposals`),
 //! as it does on this screen in the original.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::diplomacy::{relation_level, ProposalKind, Stage, Treaty};
@@ -18,7 +19,7 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::diplomacy_text as say;
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::view::{App, Screen, HUMAN};
 
 /// Where the pictures go (`Diplomacy_Screen_Draw`, the portrait animation and the eyes).
@@ -895,14 +896,12 @@ impl App {
         let line_height = self.art.text_height(MESSAGE_STYLE) + 1.0;
         let mut y = TEXT_Y;
         for line in self.diplo_wrap(MESSAGE_STYLE, &text, TEXT_W) {
-            self.bm_text_set(
+            self.draw_styled(
                 view,
-                MESSAGE_STYLE,
-                MESSAGE_SET,
+                &Style::set(MESSAGE_STYLE, MESSAGE_SET),
                 &line,
                 TEXT_X,
                 y,
-                Align::Left,
             );
             y += line_height;
         }
@@ -948,14 +947,12 @@ impl App {
                     );
                 }
                 if r.enabled {
-                    self.bm_text_set(
+                    self.draw_styled(
                         view,
-                        MENU_STYLE,
-                        MENU_SET,
+                        &Style::set(MENU_STYLE, MENU_SET),
                         &r.label,
                         TEXT_X,
                         ry,
-                        Align::Left,
                     );
                 } else {
                     // The set the original dims them with is too dark to read on this background:

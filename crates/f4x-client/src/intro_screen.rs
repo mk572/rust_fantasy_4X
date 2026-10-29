@@ -9,11 +9,12 @@
 //! The show is made as a list of beats up front (`beats`), one picture held for a number of the
 //! original's 55 ms ticks at a darkness, so the timing can be tested without a window.
 
+use crate::font::Style;
 use crate::input::Input;
 use macroquad::prelude::*;
 
 use crate::audio::{fx, Key};
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::preferences::Pref;
 use crate::view::{App, Screen};
 
@@ -203,7 +204,13 @@ impl App {
         if beat.copyright {
             let view = (lay.origin.x, lay.origin.y, lay.scale);
             let text = self.text("intro.copyright");
-            self.bm_text(view, 0, WHITE, &text, 160.0, 192.0, Align::Center);
+            self.draw_styled(
+                view,
+                &Style::nearest(0, WHITE).center(),
+                &text,
+                160.0,
+                192.0,
+            );
         }
     }
 }

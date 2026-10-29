@@ -4,13 +4,14 @@
 //! Mirror. The list box is the original's `Selection_Box` (`GENDRAW.c`), also used by the Tax
 //! Collector. History and Astrologer are screens of their own here.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::modal::{keep, kind, Modal};
 use crate::view::{App, Screen, HUMAN};
 
@@ -361,23 +362,19 @@ impl App {
 
         let mid = (x1 + x2) / 2.0;
         let shadow = Color::new(0.0, 0.0, 0.0, 1.0);
-        self.bm_text(
+        self.draw_styled(
             view,
-            4,
-            shadow,
+            &Style::nearest(4, shadow).center(),
             &sel.title,
             mid + 1.0,
             y1 + 5.0,
-            Align::Center,
         );
-        self.bm_text(
+        self.draw_styled(
             view,
-            4,
-            Color::new(0.95, 0.85, 0.5, 1.0),
+            &Style::nearest(4, Color::new(0.95, 0.85, 0.5, 1.0)).center(),
             &sel.title,
             mid,
             y1 + 4.0,
-            Align::Center,
         );
         for (i, row) in sel.rows.iter().enumerate() {
             let y = y1 + TOP_HEIGHT + ROW_HEIGHT * i as f32 + 2.0;
@@ -387,9 +384,9 @@ impl App {
                 Color::new(0.8, 0.62, 0.3, 1.0)
             };
             let x = x1 + SIDE_WIDTH + 4.0;
-            self.bm_text(view, 4, colour, &row.left, x, y, Align::Left);
+            self.draw_styled(view, &Style::nearest(4, colour), &row.left, x, y);
             if !row.right.is_empty() {
-                self.bm_text(view, 4, colour, &row.right, x + row.tab, y, Align::Left);
+                self.draw_styled(view, &Style::nearest(4, colour), &row.right, x + row.tab, y);
             }
         }
 

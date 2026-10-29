@@ -3,6 +3,7 @@
 //! Without an answer the turn change lets go of the newest. A second page appears when released
 //! heroes bring more items home than the armory holds: which to disband for mana.
 
+use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::player::shortfall::{ItemOverflow, TreasuryShortfall};
@@ -441,8 +442,14 @@ impl App {
         let gold = Color::new(0.95, 0.78, 0.30, 1.0);
         let red = Color::new(0.85, 0.20, 0.15, 1.0);
         let say = |app: &mut App, color: Color, text: &str, x: f32, y: f32, align: Align| {
-            app.bm_text(view, 4, shadow, text, x + 1.0, y + 1.0, align);
-            app.bm_text(view, 4, color, text, x, y, align);
+            app.draw_styled(
+                view,
+                &Style::nearest(4, shadow).align(align),
+                text,
+                x + 1.0,
+                y + 1.0,
+            );
+            app.draw_styled(view, &Style::nearest(4, color).align(align), text, x, y);
         };
         let middle = bx + bw / 2.0;
         say(

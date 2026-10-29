@@ -5,6 +5,7 @@
 //! rare). The pick rules are the core's (`WizardBuild`, `retort_available`, `retort_cost`);
 //! this file is the pictures and the clicks. Positions are the original's.
 
+use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::content::Content;
@@ -15,7 +16,7 @@ use f4x_core::wizard::{retort_available, retort_cost, ALL_RETORTS, MAX_RETORTS};
 use macroquad::prelude::*;
 
 use crate::create_screen::Step;
-use crate::frame::{Align, Layout};
+use crate::frame::Layout;
 use crate::newgame_flow::{book_base, GOLD_INK, GREY_INK, LIGHT, SHADOW};
 use crate::view::App;
 
@@ -203,8 +204,8 @@ impl App {
                 GREY_INK
             };
             let name = self.retort_name(retort);
-            self.bm_text(view, 0, SHADOW, &name, x + 1.0, y + 1.0, Align::Left);
-            self.bm_text(view, 0, ink, &name, x, y, Align::Left);
+            self.draw_styled(view, &Style::nearest(0, SHADOW), &name, x + 1.0, y + 1.0);
+            self.draw_styled(view, &Style::nearest(0, ink), &name, x, y);
             if known {
                 let mark = [165.0, 204.0, 254.0][col];
                 self.draw_pic(lay, "newgame", 52, 0, mark, y + 1.0);
@@ -223,8 +224,20 @@ impl App {
         let count = self.text_with("picks.left", &Args::new().count("n", left));
         // ReMoM prints the light text first and the shadow over it, which buries the words;
         // the shadow goes underneath.
-        self.bm_text(view, 3, SHADOW, &count, 222.0, 186.0, Align::Center);
-        self.bm_text(view, 3, LIGHT, &count, 221.0, 185.0, Align::Center);
+        self.draw_styled(
+            view,
+            &Style::nearest(3, SHADOW).center(),
+            &count,
+            222.0,
+            186.0,
+        );
+        self.draw_styled(
+            view,
+            &Style::nearest(3, LIGHT).center(),
+            &count,
+            221.0,
+            185.0,
+        );
         let name = self.create.build.name.clone();
         self.ng_name(lay, &name);
         self.ng_abilities(lay);
@@ -309,14 +322,12 @@ impl App {
             let hint = self.text("picks.spell_hint");
             let lines = self.bm_wrap(0, &hint, w - 8.0);
             for (i, line) in lines.iter().enumerate() {
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    0,
-                    GREY_INK,
+                    &Style::nearest(0, GREY_INK),
                     line,
                     x + 4.0,
                     top + 6.0 + 7.0 * i as f32,
-                    Align::Left,
                 );
             }
             return;
@@ -327,14 +338,12 @@ impl App {
             .help
             .topic_for(&f4x_core::help::spell_subject(&def.id))
             .map_or_else(|| self.text("picks.no_spell_help"), |t| t.text.clone());
-        self.bm_text(
+        self.draw_styled(
             view,
-            1,
-            Color::new(1.0, 0.95, 0.6, 1.0),
+            &Style::nearest(1, Color::new(1.0, 0.95, 0.6, 1.0)),
             &name,
             x + 4.0,
             top + 5.0,
-            Align::Left,
         );
         let rows = (((bottom - top - 2.0) - 17.0) / 7.0).floor().max(1.0) as usize;
         let mut lines = self.bm_wrap(0, &text, w - 8.0);
@@ -345,14 +354,12 @@ impl App {
             }
         }
         for (i, line) in lines.iter().enumerate() {
-            self.bm_text(
+            self.draw_styled(
                 view,
-                0,
-                LIGHT,
+                &Style::nearest(0, LIGHT),
                 line,
                 x + 4.0,
                 top + 15.0 + 7.0 * i as f32,
-                Align::Left,
             );
         }
     }
@@ -383,8 +390,14 @@ impl App {
             "picks.select_spells",
             &Args::new().text("realm", &realm_name),
         );
-        self.bm_text(view, 4, SHADOW, &title, 242.0, 7.0, Align::Center);
-        self.bm_text(view, 4, ink, &title, 241.0, 6.0, Align::Center);
+        self.draw_styled(
+            view,
+            &Style::nearest(4, SHADOW).center(),
+            &title,
+            242.0,
+            7.0,
+        );
+        self.draw_styled(view, &Style::nearest(4, ink).center(), &title, 241.0, 6.0);
         let books = self.create.build.books.clone();
         self.ng_shelf(lay, &REALM_ORDER, &|r| books.get(r).copied().unwrap_or(0));
         let live = self.ng_input();
@@ -402,17 +415,15 @@ impl App {
                 Rarity::Rare => "picks.rare",
                 Rarity::VeryRare => "picks.very_rare",
             });
-            self.bm_text(
+            self.draw_styled(
                 view,
-                3,
-                ink,
+                &Style::nearest(3, ink),
                 &self.text_with(
                     "picks.rarity_row",
                     &Args::new().text("rarity", label).count("n", want),
                 ),
                 167.0,
                 26.0 + 51.0 * s as f32,
-                Align::Left,
             );
             // The commons are listed in the original's order (the realm's default list), the rest in the
             // order of the rules.
@@ -432,20 +443,18 @@ impl App {
                 let y = top + 7.0 * row as f32 + 1.0;
                 let name = self.game.content().rules.spells.get(*id).name.clone();
                 let selected = self.create.build.spells.contains(id);
-                self.bm_text(view, 0, SHADOW, &name, x + 1.0, y + 1.0, Align::Left);
+                self.draw_styled(view, &Style::nearest(0, SHADOW), &name, x + 1.0, y + 1.0);
                 let colour = if selected {
                     Color::new(1.0, 0.95, 0.6, 1.0)
                 } else {
                     GREY_INK
                 };
-                self.bm_text(
+                self.draw_styled(
                     view,
-                    0,
-                    if selected { colour } else { LIGHT },
+                    &Style::nearest(0, if selected { colour } else { LIGHT }),
                     &name,
                     x,
                     y,
-                    Align::Left,
                 );
                 if selected {
                     self.draw_pic(lay, "newgame", 52, 0, 169.0 + 74.0 * col as f32, y);
@@ -480,8 +489,20 @@ impl App {
         let count = self.text_with("picks.left", &Args::new().count("n", remaining));
         // ReMoM prints the light text first and the shadow over it, which buries the words;
         // the shadow goes underneath.
-        self.bm_text(view, 3, SHADOW, &count, 222.0, 186.0, Align::Center);
-        self.bm_text(view, 3, LIGHT, &count, 221.0, 185.0, Align::Center);
+        self.draw_styled(
+            view,
+            &Style::nearest(3, SHADOW).center(),
+            &count,
+            222.0,
+            186.0,
+        );
+        self.draw_styled(
+            view,
+            &Style::nearest(3, LIGHT).center(),
+            &count,
+            221.0,
+            185.0,
+        );
         let name = self.create.build.name.clone();
         self.ng_name(lay, &name);
         self.ng_abilities(lay);
