@@ -7,6 +7,7 @@
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use crate::ui;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
@@ -77,145 +78,7 @@ impl App {
     }
 
     pub(crate) fn open_army_list(&mut self) {
-        self.army_ui = ArmyUi::default();
-        self.screen = Screen::ArmyList;
-    }
-
-    pub(crate) fn army_screen(&mut self, input: &Input) {
-        let stacks = self.army_stacks();
-        let lay = Layout::new();
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        if self.draw_pic(&lay, "armylist", 0, 0, 0.0, 0.0).is_none() {
-            let r = lay.rect((0.0, 0.0, 320.0, 200.0));
-            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.2, 0.2, 0.3, 1.0));
-        }
-        let count = stacks.len();
-        let mut ui = self.army_ui;
-        ui.first = ui.first.min(count.saturating_sub(ROWS));
-
-        // Title and upkeep.
-        let owner = self
-            .game
-            .wizard(HUMAN)
-            .map_or_else(String::new, |w| w.name());
-        let title = self.text_with("army.title", &Args::new().text("owner", owner));
-        self.draw_styled(view, &Style::outlined(4).center(), &title, 160.0, 7.0);
-        let upkeep_label = self.text("army.upkeep");
-        self.draw_styled(
-            view,
-            &Style::nearest(1, light).center(),
-            &upkeep_label,
-            30.0,
-            162.0,
-        );
-        let upkeep = self.army_upkeep();
-        for (value, y) in upkeep.into_iter().zip([173.0, 183.0, 192.0]) {
-            self.draw_styled(
-                view,
-                &Style::nearest(1, light).center(),
-                &value.to_string(),
-                45.0,
-                y,
-            );
-        }
-
-        // Scrolling: the arrows, U and D, the wheel.
-        let can_up = ui.first > 0;
-        let can_down = ui.first + ROWS < count;
-        let mut scroll = 0i32;
-        for x in [250.0, 60.0] {
-            if self.army_button(&lay, 1, x, 26.0, can_up, input) {
-                scroll -= 1;
-            }
-            if self.army_button(&lay, 2, x, 139.0, can_down, input) {
-                scroll += 1;
-            }
-        }
-        if input.key_pressed(KeyCode::U) {
-            scroll -= 1;
-        }
-        if input.key_pressed(KeyCode::D) {
-            scroll += 1;
-        }
-        scroll -= input.mouse_wheel().1.signum() as i32;
-        ui.first = (ui.first as i32 + scroll.signum()).clamp(0, count.saturating_sub(ROWS) as i32)
-            as usize;
-
-        // The stacks.
-        let mut left = None;
-        let mut right = None;
-        for row in 0..ROWS {
-            let Some(stack) = stacks.get(ui.first + row) else {
-                break;
-            };
-            for (i, &unit) in stack.iter().take(9).enumerate() {
-                let (x, y) = (START.0 + STEP.0 * i as f32, START.1 + STEP.1 * row as f32);
-                let cell = lay.rect((x + 1.0, y + 1.0, 18.0, 15.0));
-                let state = ui::hit(cell, true, input);
-                if state.hovered() {
-                    ui.scanned = (ui.first + row, i);
-                    if state.clicked() {
-                        left = Some(unit);
-                    }
-                    if input.mouse_pressed(MouseButton::Right) {
-                        right = Some(unit);
-                    }
-                }
-                self.draw_army_unit(&lay, unit, x, y);
-                if ui.scanned == (ui.first + row, i) {
-                    let h = lay.rect((x + 1.0, y + 2.0, 18.0, 14.0));
-                    draw_rectangle(h.x, h.y, h.w, h.h, Color::new(1.0, 1.0, 1.0, 0.25));
-                }
-            }
-        }
-
-        // The unit under the mouse: its name, its lasting spells and where it is.
-        let scanned = stacks
-            .get(ui.scanned.0)
-            .and_then(|s| s.get(ui.scanned.1))
-            .copied();
-        if let Some(unit) = scanned {
-            let name = self.army_unit_name(unit).to_uppercase();
-            self.draw_styled(view, &Style::nearest(1, gold).center(), &name, 188.0, 161.0);
-            let names: Vec<String> = self
-                .game
-                .units()
-                .unit_enchantments(unit)
-                .into_iter()
-                .take(4)
-                .map(|(s, _)| self.game.content().rules.spells.get(s).name.clone())
-                .collect();
-            let step = if names.len() < 4 { 7.0 } else { 6.0 };
-            for (i, n) in names.iter().enumerate() {
-                self.draw_styled(
-                    view,
-                    &Style::nearest(1, light),
-                    n,
-                    144.0,
-                    172.0 + step * i as f32,
-                );
-            }
-            if let Some(at) = self.game.units().unit_position(unit) {
-                self.draw_reduced_map(&lay, at, MAP);
-            }
-        }
-
-        // Buttons and leaving.
-        let items = self.army_button(&lay, 3, 273.0, 163.0, true, input);
-        let ok = self.army_button(&lay, 4, 273.0, 182.0, true, input);
-        self.army_ui = ui;
-        if items {
-            self.open_item_screen();
-        } else if ok || input.key_pressed(KeyCode::Escape) {
-            self.screen = Screen::Map;
-        } else if let Some(unit) = left {
-            self.army_go_to(unit);
-        } else if let Some(unit) = right {
-            self.open_unit_sheet(unit);
-        }
+        self.open_page(Screen::ArmyList, ArmyUi::default());
     }
 
     /// Select the unit's stack and show it on the map.
@@ -340,6 +203,145 @@ impl App {
             Disabled::Fade(0.5)
         };
         self.pic_button(lay, ("armylist", entry), (x, y), (enabled, disabled), input)
+    }
+}
+
+impl Page for ArmyUi {
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        let stacks = app.army_stacks();
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let light = Color::new(0.95, 0.93, 0.85, 1.0);
+        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        if app.draw_pic(&lay, "armylist", 0, 0, 0.0, 0.0).is_none() {
+            let r = lay.rect((0.0, 0.0, 320.0, 200.0));
+            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.2, 0.2, 0.3, 1.0));
+        }
+        let count = stacks.len();
+        let mut ui = *self;
+        ui.first = ui.first.min(count.saturating_sub(ROWS));
+
+        // Title and upkeep.
+        let owner = app
+            .game
+            .wizard(HUMAN)
+            .map_or_else(String::new, |w| w.name());
+        let title = app.text_with("army.title", &Args::new().text("owner", owner));
+        app.draw_styled(view, &Style::outlined(4).center(), &title, 160.0, 7.0);
+        let upkeep_label = app.text("army.upkeep");
+        app.draw_styled(
+            view,
+            &Style::nearest(1, light).center(),
+            &upkeep_label,
+            30.0,
+            162.0,
+        );
+        let upkeep = app.army_upkeep();
+        for (value, y) in upkeep.into_iter().zip([173.0, 183.0, 192.0]) {
+            app.draw_styled(
+                view,
+                &Style::nearest(1, light).center(),
+                &value.to_string(),
+                45.0,
+                y,
+            );
+        }
+
+        // Scrolling: the arrows, U and D, the wheel.
+        let can_up = ui.first > 0;
+        let can_down = ui.first + ROWS < count;
+        let mut scroll = 0i32;
+        for x in [250.0, 60.0] {
+            if app.army_button(&lay, 1, x, 26.0, can_up, input) {
+                scroll -= 1;
+            }
+            if app.army_button(&lay, 2, x, 139.0, can_down, input) {
+                scroll += 1;
+            }
+        }
+        if input.key_pressed(KeyCode::U) {
+            scroll -= 1;
+        }
+        if input.key_pressed(KeyCode::D) {
+            scroll += 1;
+        }
+        scroll -= input.mouse_wheel().1.signum() as i32;
+        ui.first = (ui.first as i32 + scroll.signum()).clamp(0, count.saturating_sub(ROWS) as i32)
+            as usize;
+
+        // The stacks.
+        let mut left = None;
+        let mut right = None;
+        for row in 0..ROWS {
+            let Some(stack) = stacks.get(ui.first + row) else {
+                break;
+            };
+            for (i, &unit) in stack.iter().take(9).enumerate() {
+                let (x, y) = (START.0 + STEP.0 * i as f32, START.1 + STEP.1 * row as f32);
+                let cell = lay.rect((x + 1.0, y + 1.0, 18.0, 15.0));
+                let state = ui::hit(cell, true, input);
+                if state.hovered() {
+                    ui.scanned = (ui.first + row, i);
+                    if state.clicked() {
+                        left = Some(unit);
+                    }
+                    if input.mouse_pressed(MouseButton::Right) {
+                        right = Some(unit);
+                    }
+                }
+                app.draw_army_unit(&lay, unit, x, y);
+                if ui.scanned == (ui.first + row, i) {
+                    let h = lay.rect((x + 1.0, y + 2.0, 18.0, 14.0));
+                    draw_rectangle(h.x, h.y, h.w, h.h, Color::new(1.0, 1.0, 1.0, 0.25));
+                }
+            }
+        }
+
+        // The unit under the mouse: its name, its lasting spells and where it is.
+        let scanned = stacks
+            .get(ui.scanned.0)
+            .and_then(|s| s.get(ui.scanned.1))
+            .copied();
+        if let Some(unit) = scanned {
+            let name = app.army_unit_name(unit).to_uppercase();
+            app.draw_styled(view, &Style::nearest(1, gold).center(), &name, 188.0, 161.0);
+            let names: Vec<String> = app
+                .game
+                .units()
+                .unit_enchantments(unit)
+                .into_iter()
+                .take(4)
+                .map(|(s, _)| app.game.content().rules.spells.get(s).name.clone())
+                .collect();
+            let step = if names.len() < 4 { 7.0 } else { 6.0 };
+            for (i, n) in names.iter().enumerate() {
+                app.draw_styled(
+                    view,
+                    &Style::nearest(1, light),
+                    n,
+                    144.0,
+                    172.0 + step * i as f32,
+                );
+            }
+            if let Some(at) = app.game.units().unit_position(unit) {
+                app.draw_reduced_map(&lay, at, MAP);
+            }
+        }
+
+        // Buttons and leaving.
+        let items = app.army_button(&lay, 3, 273.0, 163.0, true, input);
+        let ok = app.army_button(&lay, 4, 273.0, 182.0, true, input);
+        *self = ui;
+        if items {
+            app.open_item_screen();
+        } else if ok || input.key_pressed(KeyCode::Escape) {
+            app.screen = Screen::Map;
+        } else if let Some(unit) = left {
+            app.army_go_to(unit);
+        } else if let Some(unit) = right {
+            app.open_unit_sheet(unit);
+        }
     }
 }
 

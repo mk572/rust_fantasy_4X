@@ -6,6 +6,7 @@
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use crate::ui;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -77,8 +78,7 @@ pub(crate) fn scrolled(first: usize, delta: i32, count: usize) -> usize {
 
 impl App {
     pub(crate) fn open_city_list(&mut self) {
-        self.city_list_ui = CityListUi::default();
-        self.screen = Screen::CityList;
+        self.open_page(Screen::CityList, CityListUi::default());
     }
 
     fn city_rows(&self) -> Vec<Row> {
@@ -116,52 +116,72 @@ impl App {
             .collect()
     }
 
-    pub(crate) fn city_list_screen(&mut self, input: &Input) {
-        let rows = self.city_rows();
+    /// The OK button (`reload.lbx` 22, two frames); true when clicked.
+    fn city_list_ok(&mut self, lay: &Layout, input: &Input) -> bool {
+        self.pic_button_on(lay, ("reload", 22), (239.0, 182.0), input)
+    }
+
+    /// Go to a city: its screen (an outpost's for an outpost), with the production menu open
+    /// for a right-click.
+    fn city_list_open(&mut self, row: &Row, production: bool) {
+        let at = self.city_position(row.city);
+        self.center_on(at);
+        if row.outpost {
+            self.open_outpost(row.city, false);
+        } else {
+            self.choosing = production;
+            self.screen = Screen::City(row.city);
+        }
+    }
+}
+
+impl Page for CityListUi {
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        let rows = app.city_rows();
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        if self.draw_pic(&lay, "reload", 21, 0, 0.0, 0.0).is_none() {
+        if app.draw_pic(&lay, "reload", 21, 0, 0.0, 0.0).is_none() {
             let r = lay.rect((0.0, 0.0, 320.0, 200.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.2, 0.2, 0.3, 1.0));
         }
         let count = rows.len();
-        let mut ui = self.city_list_ui;
+        let mut ui = *self;
         ui.first = ui.first.min(count.saturating_sub(ROWS));
 
         // The title, the column heads and the reserves.
-        let owner = self
+        let owner = app
             .game
             .wizard(HUMAN)
             .map_or_else(String::new, |w| w.name());
-        self.draw_styled(
+        app.draw_styled(
             view,
             &Style::outlined(4).center(),
-            &self.text_with("cities.title", &Args::new().text("owner", owner)),
+            &app.text_with("cities.title", &Args::new().text("owner", owner)),
             160.0,
             3.0,
         );
         for (head, x) in HEADS {
-            let head = self.text(head);
-            self.draw_styled(view, &Style::nearest(1, gold), &head, x, 17.0);
+            let head = app.text(head);
+            app.draw_styled(view, &Style::nearest(1, gold), &head, x, 17.0);
         }
-        let (reserve_gold, reserve_mana) = self
+        let (reserve_gold, reserve_mana) = app
             .game
             .player(HUMAN)
             .map_or((0, 0), |p| (p.treasury().gold, p.treasury().mana));
-        self.draw_styled(
+        app.draw_styled(
             view,
             &Style::nearest(1, light).center(),
-            &self.text_with("cities.reserve_gold", &Args::new().count("n", reserve_gold)),
+            &app.text_with("cities.reserve_gold", &Args::new().count("n", reserve_gold)),
             242.0,
             172.0,
         );
-        self.draw_styled(
+        app.draw_styled(
             view,
             &Style::nearest(1, light).center(),
-            &self.text_with("cities.reserve_mana", &Args::new().count("n", reserve_mana)),
+            &app.text_with("cities.reserve_mana", &Args::new().count("n", reserve_mana)),
             276.0,
             172.0,
         );
@@ -172,10 +192,10 @@ impl App {
         let mut scroll = 0i32;
         if count > ROWS {
             for x in [11.0, 299.0] {
-                if self.army_button(&lay, 1, x, 26.0, can_up, input) {
+                if app.army_button(&lay, 1, x, 26.0, can_up, input) {
                     scroll -= 1;
                 }
-                if self.army_button(&lay, 2, x, 139.0, can_down, input) {
+                if app.army_button(&lay, 2, x, 139.0, can_down, input) {
                     scroll += 1;
                 }
             }
@@ -211,32 +231,32 @@ impl App {
                 draw_rectangle(h.x, h.y, h.w, h.h, Color::new(1.0, 1.0, 1.0, 0.25));
             }
             let ty = y + 1.0;
-            self.draw_styled(view, &Style::nearest(1, light), &row.name, 31.0, ty);
-            self.draw_styled(view, &Style::nearest(1, light), &row.race, 87.0, ty);
-            self.draw_styled(
+            app.draw_styled(view, &Style::nearest(1, light), &row.name, 31.0, ty);
+            app.draw_styled(view, &Style::nearest(1, light), &row.race, 87.0, ty);
+            app.draw_styled(
                 view,
                 &Style::nearest(1, light).right(),
                 &row.pop.to_string(),
                 RIGHTS[0],
                 ty,
             );
-            self.draw_styled(
+            app.draw_styled(
                 view,
                 &Style::nearest(1, light).right(),
                 &row.gold.to_string(),
                 RIGHTS[1],
                 ty,
             );
-            self.draw_styled(
+            app.draw_styled(
                 view,
                 &Style::nearest(1, light).right(),
                 &row.production.to_string(),
                 RIGHTS[2],
                 ty,
             );
-            self.draw_styled(view, &Style::nearest(1, light), &row.building, 196.0, ty);
+            app.draw_styled(view, &Style::nearest(1, light), &row.building, 196.0, ty);
             let time = row.turns.map_or_else(|| "-".to_string(), |t| t.to_string());
-            self.draw_styled(
+            app.draw_styled(
                 view,
                 &Style::nearest(1, light).right(),
                 &time,
@@ -247,20 +267,20 @@ impl App {
 
         // The city under the mouse: its name, its enchantments and where it is.
         if let Some(row) = rows.get(ui.first + ui.scanned) {
-            self.draw_styled(
+            app.draw_styled(
                 view,
                 &Style::nearest(1, gold),
                 &row.name.to_uppercase(),
                 99.0,
                 158.0,
             );
-            let list: Vec<_> = self.game.city_enchantments(row.city);
+            let list: Vec<_> = app.game.city_enchantments(row.city);
             let rules_names: Vec<(String, u8)> = list
                 .iter()
                 .take(8)
                 .map(|&(s, caster)| {
                     (
-                        self.game.content().rules.spells.get(s).name.clone(),
+                        app.game.content().rules.spells.get(s).name.clone(),
                         caster.0,
                     )
                 })
@@ -272,41 +292,23 @@ impl App {
                 } else {
                     (100.0, 168.0 + 7.0 * k as f32)
                 };
-                let colour = self.banner_color(*caster);
-                self.draw_styled(view, &Style::nearest(style, colour), name, x, y);
+                let colour = app.banner_color(*caster);
+                app.draw_styled(view, &Style::nearest(style, colour), name, x, y);
             }
-            let at = self.city_position(row.city);
-            self.draw_reduced_map(&lay, at, MAP);
+            let at = app.city_position(row.city);
+            app.draw_reduced_map(&lay, at, MAP);
         }
 
-        let leave = self.city_list_ok(&lay, input)
+        let leave = app.city_list_ok(&lay, input)
             || input.key_pressed(KeyCode::Escape)
             || input.key_pressed(KeyCode::O);
-        self.city_list_ui = ui;
+        *self = ui;
         if leave {
-            self.screen = Screen::Map;
+            app.screen = Screen::Map;
         } else if let Some(i) = left {
-            self.city_list_open(&rows[i], false);
+            app.city_list_open(&rows[i], false);
         } else if let Some(i) = right {
-            self.city_list_open(&rows[i], true);
-        }
-    }
-
-    /// The OK button (`reload.lbx` 22, two frames); true when clicked.
-    fn city_list_ok(&mut self, lay: &Layout, input: &Input) -> bool {
-        self.pic_button_on(lay, ("reload", 22), (239.0, 182.0), input)
-    }
-
-    /// Go to a city: its screen (an outpost's for an outpost), with the production menu open
-    /// for a right-click.
-    fn city_list_open(&mut self, row: &Row, production: bool) {
-        let at = self.city_position(row.city);
-        self.center_on(at);
-        if row.outpost {
-            self.open_outpost(row.city, false);
-        } else {
-            self.choosing = production;
-            self.screen = Screen::City(row.city);
+            app.city_list_open(&rows[i], true);
         }
     }
 }

@@ -199,8 +199,6 @@ pub struct App {
     /// Steps the units on the map are still sliding through (task 298).
     pub(crate) slides: Vec<crate::map_slide::Slide>,
     /// The army list's scroll and the unit under the mouse.
-    pub(crate) army_ui: crate::army_screen::ArmyUi,
-    pub(crate) city_list_ui: crate::city_list_screen::CityListUi,
     pub(crate) outpost_ui: crate::outpost_screen::OutpostUi,
     /// Items have just been awarded to the human wizard: the item screen opens when the boxes
     /// before it are closed (`Process_Item_Pool`: a lair's treasure, a gift, the merchant's item
@@ -393,8 +391,6 @@ impl App {
             battle_ui: Default::default(),
             sheet_ui: Default::default(),
             slides: Vec::new(),
-            army_ui: Default::default(),
-            city_list_ui: Default::default(),
             outpost_ui: Default::default(),
             test_sea: false,
             item_pool_pending: false,
@@ -1515,8 +1511,8 @@ impl App {
             Screen::Magic => self.magic_screen(input),
             Screen::Wizard => self.wizard_screen(input),
             Screen::UnitSheet => self.unit_sheet_screen(input),
-            Screen::ArmyList => self.army_screen(input),
-            Screen::CityList => self.city_list_screen(input),
+            Screen::ArmyList => self.page_frame(input),
+            Screen::CityList => self.page_frame(input),
             Screen::Outpost(city) => self.outpost_screen(city, input),
             Screen::EnemyCity => self.page_frame(input),
             Screen::HallOfFame => self.page_frame(input),

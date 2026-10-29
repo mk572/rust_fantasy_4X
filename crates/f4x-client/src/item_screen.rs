@@ -409,7 +409,7 @@ impl App {
                 slider: 3,
             });
         } else if !busy && !held && (ok || input.key_pressed(KeyCode::Escape)) {
-            self.screen = Screen::ArmyList;
+            self.open_page(Screen::ArmyList, crate::army_screen::ArmyUi::default());
         }
         let _ = ink;
     }
