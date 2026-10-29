@@ -46,7 +46,11 @@ fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
 fn named_in_code(areas: &[String]) -> BTreeSet<String> {
     let mut files = Vec::new();
     for krate in std::fs::read_dir(root().join("crates")).unwrap() {
-        sources(&krate.unwrap().path().join("src"), &mut files);
+        // Only the crate folders; stray files such as macOS's `.DS_Store` are not crates.
+        let path = krate.unwrap().path();
+        if path.is_dir() {
+            sources(&path.join("src"), &mut files);
+        }
     }
     let mut found = BTreeSet::new();
     for file in files {

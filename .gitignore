@@ -10,3 +10,4 @@ __pycache__/
 /models-local
 /.venv
 /tools/*/target
+.DS_Store
