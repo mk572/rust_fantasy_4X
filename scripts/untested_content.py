@@ -6,7 +6,8 @@ quoted string in the test code of the workspace: whole files named `tests.rs` or
 folder, and the part of any other source file from its `#[cfg(test)]` on. An id that is only
 named in the content or in ordinary code is untested here. A loop over the whole content covers
 an id without naming it; such an id still shows up, so read the list as "to look at", not as
-"broken" (task 302, part 4).
+"broken" (task 302, part 4). The kinds in `WALKED` are checked row by row against the original's
+table (task 404) and count as covered.
 """
 import argparse
 import re
@@ -17,6 +18,9 @@ FILES = [
     "spells", "units", "buildings", "abilities", "items", "item_powers", "heroes", "lairs",
     "features", "races", "terrain", "level_paths",
 ]
+# Content kinds whose every row is compared with the original's table by a test that walks the
+# whole file (`crates/f4x-data/tests/original_content.rs`, task 404): all ids are covered.
+WALKED = {"units", "buildings", "items", "item_powers"}
 ID = re.compile(r'\(\s*id:\s*"([^"]+)"')
 
 
@@ -63,7 +67,7 @@ def main() -> int:
         if not path.exists():
             continue
         ids = ids_of(path)
-        missing = [i for i in ids if f'"{i}"' not in tests]
+        missing = [] if name in WALKED else [i for i in ids if f'"{i}"' not in tests]
         print(f"{name:<12} {len(ids):>5} {len(missing):>9}")
         if args.names and missing:
             print("    " + ", ".join(missing))

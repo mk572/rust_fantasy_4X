@@ -32,6 +32,12 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 | 401 | Client | Portrait picker for a spell that targets a wizard |
 | 402 | Client | Banner with the spell's name in combat |
 | 403 | Art | Identify the unused spell effect pictures |
+| 405 | Test | Regression tests on prepared saves |
+| 406 | Client | First UI click-flow tests (fled notice, prompts) |
+| 407 | Core | Table of mechanics and fields the original does not have |
+| 408 | Core | Find tests that pass without asserting |
+| 409 | Core | Note what each test protects; delete tests of our own inventions |
+| 410 | Data | Food consumption of a unit as a field of the unit table |
 
 ## Descriptions
 
@@ -58,3 +64,15 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 **402. Banner with the spell's name in combat.** The original shows the name of the spell being cast over the battle. Add it as a short banner (a modal or a battle overlay that does not stop the animation clock, to be decided) with the spell's name from the rules. Listed in `screen_list.md` section 8.
 
 **403. Identify the unused spell effect pictures.** After Magic Vortex took `cmbtfx` 18 (role `Vortex`), these entries of the original's effect files are extracted but named by no row of `content/spell_art.ron`: `cmbtfx` 7 (14 frames, a purple crystal), 12 (8 frames, a green heart), 26 (8 frames, a small blue flame), 27 to 32 (single frames of 179x146, 82x36 and four of 179x136) and `specfx` 43. They sit loose in `assets-local/art/cmbtfx/` and `art/specfx/`. Find which spell or screen each belongs to (the order of the spell list in the original's effect table, the combat spells that still show a tint or a realm picture, `docs/overland_spell_animations.md`), add the rows with a role (`Role` in `f4x-data`'s `spell_art.rs`) and wire them where the picture is meant to play, or record in `docs/extract-art.md` that nothing in the game loads one. Check each with a screenshot.
+
+**405. Regression tests on prepared saves.** `docs/rust_coding_rules.md` asks for regression tests on the whole game, without the client, but `saves/` is empty and no crate has them. Pick a few prepared saves (an early game, a mid game with a war, a game with several global enchantments), apply a fixed command list for each, and compare the resulting state with a stored target, so that an unintended change in gameplay fails a test. Say in the test how to refresh the target on purpose. Run them with `cargo test --workspace` if they take under a second or two each, else behind `--ignored`.
+
+**406. First UI click-flow tests.** Task 395 supplies the seams (input snapshot, modal stack); this task uses them for the first real tests: the fled notice (task 398) opens on `UnitsLostFleeing` for the human only and closes on a click or a key; the quit and resign questions; a click on a disabled button does nothing; Esc closes a prompt. Add the tests next to the screens they cover and note in `rust_coding_rules.md` how to write one. Do 395 first.
+
+**407. Table of mechanics and fields the original does not have.** Part (1) of the old task 302. List the mechanics, data fields and rules in the core and the data crates that no part of the original needs (check against ReMoM and the manual), as a table in `docs/` with one line each: where it lives, what uses it, and the decision (remove code and tests, or keep with the reason written down). Report the table before deleting anything. Removal goes into tasks of their own.
+
+**408. Find tests that pass without asserting.** Part (3) of the old task 302, what the first part (the registry refusing a repeated id, the scout test) did not cover. Grep the test code for guarded `if let` and `match` that skip the assertion on `None`, loops over a list that may be empty, and `for` over a registry filtered to nothing; make each assert that it ran (`expect`, a count check) or delete it.
+
+**409. Note what each test protects, and delete the ones that protect only our own inventions.** Part (5) of the old task 302: after 407 and 408, go through the tests of the core, mark each with one line of what rule of the original it protects, and delete those that protect only a mechanic we invented (after 407's decision). Report the list before deleting.
+
+**410. Food consumption of a unit as a field of the unit table.** The food a unit eats is a rule in the code (every normal unit eats 1 food, heroes and summoned creatures eat none), not a number of the unit. `Upkeep` in `units.ron` already has a `food` field, which the data leaves empty, so a mod cannot say that a unit eats more, less or nothing. Put the food in the unit table: set `food` in the `upkeep` of every unit that eats (the normal units with 1; check the original's rule for the units it exempts, and `docs/design.md`), make the city's food balance and the unit's upkeep read that field instead of the unit's kind, and drop the kind-based rule. Cover it with a test that walks every unit (as the tests of task 404 do): a unit eats what its row says, and the totals of a saved game do not change. Note the new field in `docs/ecs-structure.md` or the modding notes if there are any.

@@ -1,0 +1,37 @@
+index	name	cost	upkeep	req1	req2	replaces	xp
+0	None	0	0	-1	-1	0	0
+1	Trade Goods	0	0	0	0	0	0
+2	Housing	0	0	0	0	0	0
+3	Barracks	30	0	0	0	0	0
+4	Armory	80	2	8	3	3	0
+5	Fighters Guild	200	3	4	0	0	20
+6	Armorers Guild	350	4	5	0	5	0
+7	War College	500	5	20	6	6	60
+8	Smithy	40	1	0	0	0	0
+9	Stables	80	2	8	0	0	0
+10	Animists Guild	300	5	23	9	0	0
+11	Fantastic Stable	600	6	6	10	9	0
+12	Ship Wrights Guild	100	1	110	0	0	0
+13	Ship Yard	200	2	15	12	12	0
+14	Maritime Guild	400	4	4	13	13	0
+15	Sawmill	100	2	101	0	0	0
+16	Library	60	1	32	0	0	0
+17	Sages Guild	120	2	16	0	0	0
+18	Oracle	500	4	24	20	0	0
+19	Alchemists Guild	250	3	17	0	0	0
+20	University	300	3	17	0	16	0
+21	Wizards Guild	1000	5	19	20	19	0
+22	Shrine	100	1	32	0	0	0
+23	Temple	200	2	22	0	22	0
+24	Parthenon	400	3	23	0	23	0
+25	Cathedral	800	4	24	0	24	0
+26	Marketplace	100	1	8	0	0	0
+27	Bank	250	3	26	20	26	0
+28	Merchants Guild	600	5	13	27	27	0
+29	Granary	40	1	32	0	0	0
+30	Farmers Market	100	2	29	26	29	0
+31	Foresters Guild	200	2	15	0	0	0
+32	Builders Hall	60	1	0	0	0	0
+33	Mechanicians Guild	600	5	34	20	0	0
+34	Miners Guild	300	3	200	32	0	0
+35	City Walls	150	2	32	0	0	0

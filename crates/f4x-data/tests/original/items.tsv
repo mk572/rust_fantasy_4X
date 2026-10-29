@@ -1,0 +1,251 @@
+index	name	type	cost	attack	to_hit	defense	moves	resist	spell_skill	spell_save	charges	powers	flag
+0	Black Asp	0	250	1	0	0	0	0	0	0	0	512	0
+1	Sword of Mallana	0	200	1	0	1	0	0	0	0	0	0	0
+2	Sword of Stealth	0	1000	3	0	3	0	0	0	0	0	4194304	1
+3	Dragon Slayer	0	500	2	0	0	0	0	0	0	0	1048576	1
+4	Monster Masher	0	2400	0	2	0	0	0	0	0	0	4456449	1
+5	Sword of Mephisto	0	2900	3	0	2	0	0	0	0	0	2099200	1
+6	White Lightning	0	2200	0	3	2	0	0	0	0	0	4	1
+7	Ultimate Defense	0	2000	0	0	3	0	0	0	0	0	2622464	1
+8	Stoning Sword	0	1550	2	3	0	0	0	0	0	0	4096	1
+9	Living Sword	0	1100	2	0	2	0	0	0	0	0	134218752	1
+10	Pummel Mace	1	550	1	1	0	0	0	0	0	0	0	1
+11	Mauler	1	850	4	1	0	0	0	0	0	0	0	1
+12	Skull Smasher	1	1100	3	2	0	0	0	0	0	0	0	1
+13	Deathbringer	1	500	0	0	0	0	0	0	0	0	65536	1
+14	Storm Mace	1	1600	3	0	0	0	0	5	0	0	1048580	1
+15	Dracken Mace	1	2300	3	2	0	0	0	0	0	0	17301504	1
+16	Fangs Avenger	1	2100	4	2	1	0	0	0	0	0	1	1
+17	World Ender	1	4950	4	0	0	0	0	0	0	0	8390672	1
+18	Morphains Friend	1	1800	4	0	0	0	0	0	0	0	529408	1
+19	Orc Smasher	1	4950	4	0	0	0	0	0	0	0	8390672	1
+20	Flaming Axe	2	750	4	0	0	0	0	0	0	0	1048576	1
+21	Axe of the Caster	2	1700	0	0	0	0	0	10	0	1	0	1
+22	Hacker	2	900	6	0	0	0	0	0	0	0	0	1
+23	Axe of Haste	2	2850	1	0	0	0	0	0	0	0	540672	1
+24	Power Axe	2	1200	6	0	0	0	0	0	0	0	134217728	1
+25	Axe of Chaotic Death	2	3050	5	0	0	0	0	0	0	0	67584	1
+26	Phantastic Axe	2	5400	6	0	0	0	0	0	0	0	8390672	1
+27	Axe of Stone	2	600	4	0	0	0	0	0	0	0	4096	1
+28	The Beheader	2	700	3	1	0	0	0	0	0	0	0	1
+29	Axe of Light	2	2200	0	0	0	0	0	10	0	0	2622464	1
+30	Living Bow	3	650	1	0	0	0	0	0	0	0	1024	1
+31	The Regulator	3	900	4	1	1	0	0	0	0	0	0	1
+32	Mithril Longbow	3	750	0	0	1	0	0	10	0	0	262144	1
+33	Silver Shortbow	3	2700	5	3	1	0	0	0	0	0	4	1
+34	The Master Crossbow	3	5100	0	0	0	0	0	0	0	0	25167888	1
+35	Bow of Magic Immunity	3	1300	0	0	0	0	0	0	0	0	525312	1
+36	Bow of Hazard	3	2950	4	3	0	0	0	0	0	0	1048592	1
+37	The Undertaker	3	1500	0	2	0	0	0	5	0	0	65536	1
+38	Elvish Longbow	3	1000	4	0	1	0	0	0	0	0	1310720	1
+39	Life Bow	3	1750	6	0	3	0	0	0	0	0	5120	1
+40	The Mangler	4	400	2	0	0	0	0	0	0	0	0	0
+41	Staff Of Magic Mastery	4	800	3	0	0	0	0	5	1	0	0	0
+42	Stick of the Mage	4	1500	1	0	3	0	0	15	0	0	4096	1
+43	Guardian Staff	4	800	0	0	2	0	0	0	0	0	2	1
+44	Flaming Staff	4	1650	5	0	0	0	0	10	1	0	1048576	1
+45	Chaotic Staff of Fire	4	3050	4	0	2	0	0	0	0	0	1050624	1
+46	The Destructor	4	3900	0	0	0	0	0	20	4	0	17301504	1
+47	Staff of Pain	4	3100	6	3	0	0	0	0	0	0	4	1
+48	Staff Of Confusion	4	3500	0	0	0	0	0	0	0	4	268436496	1
+49	Staff of Superiority	4	8200	0	0	0	0	0	20	0	4	8390656	1
+50	The Branch of Magic	5	250	1	0	0	0	0	0	0	0	0	0
+51	Wand of Immunity	5	400	0	0	0	0	0	0	1	0	256	0
+52	Wand of Arcanus	5	750	1	1	0	0	0	0	0	0	256	1
+53	Wand of Enhancement	5	900	2	1	0	0	0	0	1	0	256	1
+54	Wand of Fiery Death	5	1050	1	1	0	0	0	0	0	0	1048832	1
+55	Wand of Elros	5	1000	2	0	0	0	0	10	2	0	256	1
+56	White Lightning	5	1450	1	0	0	0	0	5	2	0	4	1
+57	Wand of Balmoth	5	1600	2	1	0	0	0	5	0	0	524288	1
+58	Wand of the Guardian	5	1800	1	0	0	0	0	0	0	0	4114	1
+59	Wand of Doom	5	3800	0	0	0	0	0	0	0	0	8978448	1
+60	Elven Ring of Health	6	150	1	0	1	0	0	0	0	0	0	0
+61	Amulet of Battle	6	350	2	0	2	1	0	0	0	0	0	0
+62	Ring of Power	6	550	0	0	2	1	2	5	0	0	0	0
+63	Amulet of Resistance	6	950	3	0	1	0	5	0	0	0	512	1
+64	Devils Eye of Fear	6	1150	1	2	1	0	0	0	0	0	8	1
+65	Band of Chivalry	6	1400	0	0	4	0	3	0	1	0	524288	1
+66	Trinket of Strength	6	1600	4	0	4	0	5	0	0	0	134217728	1
+67	Orb of Righteous Sight	6	1950	2	2	0	0	0	0	0	0	1077936128	1
+68	Cross of Blessed Death	6	2600	4	2	0	0	0	0	0	0	2181038080	1
+69	Magical Crystal of Power	6	3650	0	0	0	0	0	0	0	0	2152202272	1
+70	Shield of Demos	7	200	0	0	1	0	1	0	0	0	0	0
+71	Shield of Evasion	7	400	0	0	1	2	1	0	0	0	0	0
+72	Shield of Eros	7	600	0	0	3	1	3	0	0	0	0	0
+73	Blessed Shield of Defense	7	850	0	0	3	0	4	0	0	0	33554432	1
+74	Shield of Elements	7	1100	0	0	2	3	0	0	0	0	1024	1
+75	Shield of Guardian Defense	7	1450	0	0	6	1	1	0	0	0	2	1
+76	Shield of Enduring Fear	7	1650	0	0	6	0	4	0	0	0	8200	1
+77	Shield of the Undead	7	2300	0	0	0	2	6	0	0	0	32	1
+78	Shield of Transformation	7	2050	0	0	1	0	0	0	0	0	524320	1
+79	Supreme Shield of Death	7	4100	0	0	6	4	0	0	0	0	2147483680	1
+80	Chain Mail of Defense	8	250	0	0	1	1	0	0	0	0	0	0
+81	Chain Mail of Resistance	8	400	0	0	2	0	3	0	0	0	0	0
+82	Chain Mail of Movement	8	600	0	0	2	3	0	0	0	0	0	1
+83	Chain Mail of Balance	8	850	0	0	4	2	3	0	0	0	0	1
+84	Blessed Mail of Resistance	8	1050	0	0	4	2	0	0	0	0	33816576	1
+85	Chain Mail of Endurance	8	1300	0	0	3	4	0	0	0	0	8192	1
+86	Chain Mail of Immunity	8	1650	0	0	5	1	3	0	0	0	524288	1
+87	Chain Mail of Absorbtion	8	1950	0	0	5	0	2	0	0	0	2147483648	1
+88	Chain of Super Resistance	8	2000	0	0	6	0	6	0	0	0	262656	1
+89	Mithril Mail of Talos	8	3100	0	0	6	0	6	0	0	0	2181038080	1
+90	Plate Mail of Defense	9	400	0	0	1	0	1	0	0	0	0	0
+91	Plate Mail of Resistance	9	700	0	0	1	0	4	0	0	0	0	1
+92	Plate Mail of Movement	9	950	0	0	3	3	1	0	0	0	0	1
+93	Plate Mail of Diversity	9	1200	0	0	4	2	4	0	0	0	0	1
+94	Plate Mail of Blessed Fear	9	1250	0	0	4	0	3	0	0	0	33554440	1
+95	Righteous Plate of Evasion	9	1500	0	0	3	3	2	0	0	0	1073741824	1
+96	Plate of Enduring Immunity	9	1750	0	0	4	2	0	0	0	0	532480	1
+97	Elemental Transformation	9	2150	0	0	2	0	1	0	0	0	1056	1
+98	Plate of Divine Protection	9	2450	0	0	5	0	0	0	0	0	2147483650	1
+99	Plate of Omnipotence	9	4200	0	0	6	0	0	0	0	0	2148007968	1
+100	Blade of Blood	0	5200	0	0	0	0	0	0	0	0	8404997	1
+101	Bane Blade	0	800	1	1	1	0	0	5	0	0	0	1
+102	Sword of Immunity	0	2050	1	2	0	0	0	10	0	0	524288	1
+103	Sting	0	2350	3	3	1	0	0	0	0	0	4	1
+104	Great Sword of Arkanna	0	1500	0	0	3	0	0	0	0	0	17040384	1
+105	Right Hand 0f Justice	0	1150	2	1	1	0	0	0	0	0	2097152	1
+106	Vlads Impaler	0	2350	1	3	0	0	0	5	0	0	1	1
+107	Merlins Nails	1	1250	3	0	1	0	0	10	0	0	16777216	1
+108	Intimidator	1	1600	1	3	1	0	0	5	0	0	0	1
+109	Whirlwind	1	1750	2	3	1	0	0	0	0	0	134217728	1
+110	Thors Hammer	1	2950	4	3	0	0	0	0	0	0	2097156	1
+111	Hand of God	1	3050	0	0	1	0	0	10	0	0	2113536	1
+112	Club of Chaos	1	2650	2	1	1	0	0	0	0	0	2048	1
+113	Fist of Destruction	1	1550	1	0	0	0	0	0	0	0	65552	1
+114	Edge of the Elements	2	1400	3	2	0	0	0	5	0	0	512	1
+115	Double Axe of Pain	2	1750	4	2	0	0	0	5	0	0	1048576	1
+116	Executioners Friend	2	1700	6	2	0	0	0	0	0	0	0	1
+117	Knight Chopper	2	950	1	0	0	0	0	0	0	0	1	1
+118	Tree Tamer	2	1000	3	0	0	0	0	0	0	0	134283264	1
+119	Inquisitor	2	1900	2	2	0	0	0	10	0	0	2097152	1
+120	The Resistor	2	950	5	0	0	0	0	0	0	0	262656	1
+121	Hells Bolt	3	1400	2	2	2	0	0	0	0	0	1048576	1
+122	Bow of the Golden Horde	3	1400	5	1	0	0	0	5	0	0	4096	1
+123	Ray of Light	3	2400	1	0	1	0	0	0	0	0	278528	1
+124	Gideons Harp	3	1650	0	1	1	0	0	10	0	0	524288	1
+125	The Hartshone	3	1050	3	0	2	0	0	0	0	0	5120	1
+126	The Deathstorm	3	1400	1	2	1	0	0	10	0	0	0	1
+127	The Devils Instrument	3	1900	0	0	2	0	0	5	0	0	524292	1
+128	The Enlightener	4	800	1	0	1	0	0	5	2	0	0	0
+129	The Traveller	4	1500	1	0	1	0	0	0	0	3	268435456	1
+130	Staff of Horus	4	3200	2	1	0	0	0	20	4	0	0	1
+131	The Pummeler	4	2750	5	2	0	0	0	0	1	0	16	1
+132	Word of God	4	1650	2	1	1	0	0	0	0	4	0	1
+133	The Protector	4	1750	4	0	0	0	0	5	0	0	1026	1
+134	The Ossifier	4	1350	2	0	0	0	0	10	3	0	4096	1
+135	Wand of Lesser Might	5	850	1	1	0	0	0	5	0	0	0	1
+136	Wand of Infinite Magic	5	900	2	0	0	0	0	10	2	0	0	1
+137	The Mighty Wand of Zod	5	1250	1	1	0	0	0	10	2	0	0	1
+138	The Wand of Glenda	5	1450	1	1	0	0	0	10	0	0	2	1
+139	Wand of Ultimate Might	5	2700	2	0	0	0	0	10	0	2	0	1
+140	Amulet of Lesser Shielding	6	400	0	0	1	1	2	0	1	0	0	0
+141	Cloak of Armor	6	950	0	0	2	2	3	0	3	0	0	1
+142	Ring of Dasmiff	6	1350	3	2	0	1	0	0	0	0	131072	1
+143	Orb of Fear	6	1550	0	0	2	0	0	15	3	0	8	1
+144	Helm of Trollish Might	6	2650	3	2	0	1	0	0	0	0	64	1
+145	Shield of the Fool	7	300	0	0	1	1	1	0	0	0	0	0
+146	Shield of Thiron	7	700	0	0	2	0	0	0	0	0	1024	1
+147	Shield of Quatis	7	1050	0	0	4	3	3	0	0	0	0	1
+148	Shield of the Wraith	7	1600	0	0	2	2	0	0	0	0	32	1
+149	Shield of the Gods	7	1900	0	0	3	2	3	0	0	0	2147483648	1
+150	Chain of Magical Health	8	300	0	0	1	1	1	0	0	0	0	0
+151	Morthogs Chainmail	8	500	0	0	2	2	2	0	0	0	0	0
+152	Mithril Chainmail	8	900	0	0	3	3	3	0	0	0	0	1
+153	Chainmail of Speed	8	1800	0	0	4	4	4	0	0	0	8192	1
+154	Chainmail of the Elements	8	1950	0	0	5	3	6	0	0	0	512	1
+155	Champions Platemail	9	500	0	0	1	1	1	0	0	0	0	0
+156	Armor of the Warrior	9	1100	0	0	2	1	2	0	0	0	1073741824	1
+157	Bloodmail	9	1300	0	0	3	2	2	0	0	0	1024	1
+158	Silvermail	9	1400	0	0	3	3	2	0	0	0	2	1
+159	Plate of Ultimax	9	2000	0	0	3	2	2	0	0	0	2147483648	1
+160	Sword of Cannae	0	200	1	0	1	0	0	0	0	0	0	0
+161	Flaming Sword of Death	0	550	1	0	2	0	0	0	0	0	1048576	1
+162	Joshuas Sword	0	700	2	1	2	0	0	0	0	0	0	1
+163	The Revenge of Orculs	0	1700	3	3	3	0	0	0	0	0	0	1
+164	The Defender	0	2700	3	3	3	0	0	0	0	0	16	1
+165	Cannes Mace	1	200	1	0	1	0	0	0	0	0	0	0
+166	Irons Mace	1	1000	1	2	1	0	0	0	0	0	0	1
+167	Jans Hammer	1	1700	4	3	1	0	0	0	0	0	0	1
+168	Axe of Severe Pain	2	150	1	0	0	0	0	0	0	0	0	0
+169	The Axe of Uncaring	2	300	3	0	0	0	0	0	0	0	0	0
+170	Axe of the Apostles	2	2200	6	2	0	0	0	0	0	0	2097152	1
+171	The Peacemaker	2	2150	1	2	0	0	0	0	0	0	17301504	1
+172	The Kick Axe	2	4000	6	2	0	0	0	0	0	0	134234112	1
+173	The Archer	3	1050	2	2	1	0	0	0	0	0	0	1
+174	The Telecaster	3	1350	4	2	2	0	0	0	0	0	0	1
+175	Bow of The Dervish	3	2150	6	3	1	0	0	0	0	0	0	1
+176	Elemental Staff of Nature	4	900	1	0	1	0	0	0	0	0	1024	1
+177	Planar Staff	4	1350	2	0	1	0	0	10	0	0	268435456	1
+178	Golden Staff of Sharee	4	1750	5	2	2	0	0	0	0	0	0	1
+179	Purple Rain of Death	4	2150	5	2	2	0	0	0	0	0	65536	1
+180	The Conjurers Friend	5	450	1	0	0	0	0	5	0	0	0	0
+181	Wand of the Mind	5	850	1	0	0	0	0	5	0	2	0	1
+182	Wand of the Mage	5	1200	2	1	0	0	0	10	1	0	0	1
+183	Wand of the Beast	5	3050	1	0	0	0	0	0	0	4	0	1
+184	Pin of Health	6	600	1	1	1	0	1	0	0	0	0	1
+185	Jafars Orb of Sight	6	850	1	0	1	0	0	5	0	0	4194304	1
+186	Gauntlet of Eastwood	6	1000	2	1	1	0	0	10	0	0	0	1
+187	Bracer of Invulnerability	6	1450	2	0	2	0	0	0	0	0	2147483648	1
+188	Helm of Everlasting	6	1750	2	0	2	0	0	0	0	0	64	1
+189	Helm of the Tides	6	2100	4	2	0	0	0	15	0	0	256	1
+190	Shield of Speed	7	600	0	0	2	3	0	0	0	0	0	1
+191	Vans Shield	7	850	0	0	3	2	4	0	0	0	0	1
+192	Shield of Brooke	7	1850	0	0	5	3	6	0	0	0	0	1
+193	The Wind Shield	7	2200	0	0	6	1	6	0	0	0	2	1
+194	Holy Shield	7	3000	0	0	6	4	6	0	0	0	1073741824	1
+195	Mail of Arcanus	8	300	0	0	1	1	1	0	0	0	0	0
+196	Chain of Tyrolia	8	650	0	0	4	1	2	0	0	0	0	1
+197	Giddeons Plate	9	1000	0	0	3	2	2	0	0	0	8192	0
+198	Plate of the Elements	9	1200	0	0	4	1	4	0	0	0	512	1
+199	Plate of Immunity	9	3150	0	0	5	4	6	0	0	0	524288	1
+200	Golden Axe of Rath	2	2400	6	2	0	0	0	10	0	0	134217728	1
+201	Suit of Power	9	2900	0	0	6	4	6	0	0	0	8192	1
+202	The Great Wand	5	1150	1	1	0	0	0	5	0	0	536870912	1
+203	Elvish Scalemail	8	300	0	0	1	1	1	0	0	0	0	0
+204	Uhl Khakhaas	4	900	1	1	1	0	0	0	1	0	0	1
+205	Uhl Dover	3	650	1	1	2	0	0	0	0	0	0	1
+206	Idspispopd	1	600	1	1	1	0	0	0	0	0	0	1
+207	Ehr Rhee	6	700	0	1	1	1	2	0	0	0	0	1
+208	Mae Govannon	0	1200	1	0	1	0	0	5	0	0	4	1
+209	Zir Daun	7	150	0	0	1	0	0	0	0	0	0	0
+210	Lor Goth	9	800	0	0	2	1	3	0	0	0	512	0
+211	Mail of Pobox	8	1400	0	0	3	3	3	0	0	0	1024	1
+212	Protection of Ramses	7	2100	0	0	6	4	0	0	0	0	8200	1
+213	Bird of Paradise	6	2750	0	0	0	0	0	0	0	0	3355967488	1
+214	Kraken Wand	5	1100	2	0	0	0	0	10	0	0	65536	1
+215	Theodores Liberator	4	9100	6	0	0	0	0	20	4	4	0	1
+216	Crossbow of Power	3	900	6	0	0	0	0	0	0	0	0	1
+217	Laik Kenegul	0	850	3	0	1	0	0	0	0	0	134479872	1
+218	Peppermace of Gates	1	1150	3	2	1	0	0	0	0	0	0	1
+219	Axe of Vivisection	2	850	4	1	0	0	0	0	0	0	0	1
+220	The Inquisition	1	1700	4	3	1	0	0	0	0	0	0	1
+221	White Flicker	3	4300	6	3	3	0	0	0	0	0	2048	1
+222	Staff of the Constellation	5	2300	0	0	0	0	0	10	2	0	16777232	1
+223	The Resistor	7	1900	0	0	3	4	6	0	0	0	0	1
+224	Plate of Eandor	9	700	0	0	3	1	2	0	0	0	0	0
+225	Blood Plate of Lucifer	9	1550	0	0	5	3	2	0	0	0	33554432	1
+226	Disc of Advancement	7	2500	0	0	6	4	6	0	0	0	0	1
+227	Wand of the Grey Wizard	5	2300	0	0	0	0	0	0	0	2	285736960	1
+228	Little Flicker	3	1900	2	0	0	0	0	10	0	0	1048592	1
+229	Freyas Friend	1	1350	3	0	1	0	0	0	0	0	18874368	1
+230	Vampiric Vanquisher	2	2450	4	2	0	0	0	10	0	0	1	1
+231	Sword of Medusa	0	750	2	0	2	0	0	0	0	0	1052672	1
+232	Zlotakian Staff of Magic	4	3100	0	0	0	0	0	0	0	3	17041920	1
+233	Orions Belt	6	550	2	0	2	2	2	0	0	0	0	0
+234	Bracer of Mrad	6	1950	4	0	4	3	6	0	0	0	0	1
+235	Wraithe Shirt	8	1850	0	0	4	0	0	0	0	0	262176	1
+236	Ziggmunds Armor	9	1800	0	0	0	0	6	0	0	0	1107296256	1
+237	Ring of the Mad Mage	6	3100	4	0	0	0	0	15	0	0	2148007936	1
+238	Gabriels Axe	2	3700	6	2	0	0	0	0	0	0	10485760	1
+239	Maul of Bathory	1	3750	4	0	0	0	0	0	0	0	17409	1
+240	Sword of Pendulum	0	3700	0	0	0	0	0	0	0	0	25165829	1
+241	Shield of Ultimate Defense	7	2000	0	0	6	0	6	0	0	0	262656	1
+242	Tammas Staff of Negation	4	2300	0	0	0	0	0	0	0	0	822607872	1
+243	Mace of Disintegration	1	1100	0	0	0	0	0	0	0	0	16	1
+244	Sword of Renfield	0	1400	2	0	2	0	0	0	0	0	134217729	1
+245	Staff of Odin	4	4000	0	3	3	0	0	20	0	0	524288	1
+246	Gem of the Aerie	6	1800	4	0	0	0	0	15	0	0	10	1
+247	The Scarlet Bow	3	500	3	0	3	0	0	0	0	0	0	0
+248	Raindancer	0	1300	3	2	2	0	0	0	0	0	512	1
+249	Light Mail Shirt	8	500	0	0	3	0	3	0	0	0	0	0

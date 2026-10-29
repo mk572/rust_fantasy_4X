@@ -1,0 +1,67 @@
+index	name	kinds	cost	group	realm	books	mask
+0	+1 Attack	127	50	0	0	1	0
+1	+2 Attack	127	100	0	0	2	0
+2	+3 Attack	95	200	0	0	3	0
+3	+4 Attack	94	350	0	0	4	0
+4	+5 Attack	28	550	0	0	5	0
+5	+6 Attack	28	800	0	0	6	0
+6	+1 Defense	987	50	2	0	1	0
+7	+2 Defense	985	100	2	0	2	0
+8	+3 Defense	985	200	2	0	3	0
+9	+4 Defense	960	350	2	0	4	0
+10	+5 Defense	896	550	2	0	5	0
+11	+6 Defense	896	800	2	0	5	0
+12	+1 To Hit	127	400	1	0	1	0
+13	+2 To Hit	95	800	1	0	2	0
+14	+3 To Hit	27	1200	1	0	3	0
+15	+1 Movement	960	100	5	0	1	0
+16	+2 Movement	960	200	5	0	2	0
+17	+3 Movement	960	400	5	0	3	0
+18	+4 Movement	896	800	5	0	4	0
+19	+1 Resistance	960	50	6	0	1	0
+20	+2 Resistance	960	100	6	0	2	0
+21	+3 Resistance	960	200	6	0	3	0
+22	+4 Resistance	960	350	6	0	4	0
+23	+5 Resistance	960	550	6	0	5	0
+24	+6 Resistance	960	800	6	0	6	0
+25	+5 Spell Skill	127	200	3	0	5	0
+26	+10 Spell Skill	127	400	3	0	10	0
+27	+15 Spell Skill	80	800	3	0	15	0
+28	+20 Spell Skill	16	1600	3	0	20	0
+29	-1 Spell Save	112	100	4	0	1	0
+30	-2 Spell Save	112	200	4	0	2	0
+31	-3 Spell Save	80	400	4	0	3	0
+32	-4 Spell Save	80	800	4	0	4	0
+33	Flaming	63	300	9	2	2	1048576
+34	Lightning	63	800	9	2	5	4
+35	Chaos	31	2000	9	2	6	2048
+36	Destruction	63	1000	9	2	5	16
+37	Vampiric	7	800	9	4	5	1
+38	Death	63	400	9	4	3	65536
+39	Power Drain	63	500	9	4	4	16777216
+40	Holy Avenger	7	500	9	3	3	2097152
+41	True Sight	64	500	9	3	6	4194304
+42	Resist Elements	1023	100	7	0	2	512
+43	Elemental Armor	1023	500	7	0	4	1024
+44	Giant Strength	71	300	9	0	3	134217728
+45	Stoning	63	150	9	0	2	4096
+46	Phantasmal	63	1500	9	1	6	8388608
+47	Guardian Wind	1008	400	9	1	3	2
+48	Haste	15	2000	9	1	7	16384
+49	Resist Magic	1023	200	8	1	2	262144
+50	Magic Immunity	1023	700	8	1	5	524288
+51	Wraithform	960	1200	9	4	4	32
+52	Cloak of Fear	960	200	9	4	2	8
+53	Bless	960	200	9	3	2	33554432
+54	Righteousness	960	500	9	3	4	1073741824
+55	Invulnerability	960	1200	9	3	5	2147483648
+56	Endurance	960	200	9	3	2	8192
+57	Planar Travel	112	500	9	3	5	268435456
+58	Lion Heart	64	1000	9	3	6	67108864
+59	Water Walking	64	100	9	0	2	256
+60	Regeneration	64	1500	9	0	6	64
+61	Pathfinding	64	200	9	0	3	128
+62	Merging	112	300	9	0	22	536870912
+63	Flight	64	200	9	1	3	131072
+64	Invisibility	64	1000	9	1	5	32768
+65	Spell Charges	48	1000	9	0	0	0
