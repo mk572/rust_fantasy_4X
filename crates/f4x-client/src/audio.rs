@@ -448,19 +448,6 @@ impl App {
         if self.game_over_pending() {
             return None;
         }
-        if let Some(c) = self.global_casts.front() {
-            let entry = self
-                .game
-                .content()
-                .rules
-                .spells
-                .get(c.spell())
-                .id
-                .as_str()
-                .to_owned();
-            let entry = self.audio.table.global_music.get(&entry).copied()?;
-            return Some(Track::piece(u16::from(entry)));
-        }
         if let Some(track) = self.modals.music() {
             return Some(track);
         }

@@ -35,6 +35,7 @@ pub(crate) mod kind {
     pub(crate) const ATTACK: &str = "attack";
     pub(crate) const LEVEL_UP: &str = "level_up";
     pub(crate) const EVENT: &str = "event";
+    pub(crate) const GLOBAL_CAST: &str = "global_cast";
 }
 
 pub(crate) trait Modal {

@@ -174,8 +174,6 @@ pub struct App {
     pub(crate) item_pool_warning: bool,
     /// The buildings the human's cities finished, to be announced, oldest first.
     /// The spells that fizzled or were dispelled, to be announced.
-    /// Global enchantments cast and not yet shown in the mirror (`global_spell.rs`).
-    pub(crate) global_casts: crate::global_spell::GlobalCasts,
     pub(crate) spell_notices: std::collections::VecDeque<crate::event_popup::SpellNotice>,
     pub(crate) built_notices:
         std::collections::VecDeque<(hecs::Entity, f4x_core::rules::BuildingId)>,
@@ -396,7 +394,6 @@ impl App {
             build_in: None,
             end_scenes: Default::default(),
             end_scene_queued: false,
-            global_casts: Default::default(),
             spell_notices: Default::default(),
             targeting: None,
             turn_pending: 0,
@@ -1460,12 +1457,6 @@ impl App {
             && self.turn_events.is_none()
         {
             self.check_hero_levels();
-        }
-        if matches!(self.screen, Screen::Map)
-            && !self.game.in_battle()
-            && self.global_cast_frame(input)
-        {
-            return true;
         }
         if matches!(self.screen, Screen::Map)
             && !self.game.in_battle()

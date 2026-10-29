@@ -4,8 +4,6 @@
 //! cast. With Spell Animations off the mirror shows the spell's picture at once, with the line
 //! "You have completed casting..." under it.
 
-use std::collections::VecDeque;
-
 use crate::input::Input;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
@@ -13,7 +11,9 @@ use f4x_core::text::Args;
 use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
+use crate::audio::Track;
 use crate::frame::{Align, Layout};
+use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
 use crate::view::App;
 
@@ -32,13 +32,21 @@ pub(crate) struct GlobalCast {
     spell: SpellId,
     /// The picture in the mirror (`Role::Global` of the spell in `content/spell_art.ron`).
     picture: (String, usize),
+    /// The spell's own piece of music, when it has one.
+    music: Option<Track>,
     /// When it began, once it has.
     started: Option<f64>,
 }
 
-impl GlobalCast {
-    pub(crate) fn spell(&self) -> SpellId {
-        self.spell
+impl Modal for GlobalCast {
+    fn kind(&self) -> &'static str {
+        kind::GLOBAL_CAST
+    }
+    fn music(&self) -> Option<Track> {
+        self.music
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.global_cast_frame(*self, input))
     }
 }
 
@@ -53,15 +61,26 @@ fn any_input(input: &Input) -> bool {
 impl App {
     /// Remember a cast to show, if the spell is a global enchantment with a picture.
     pub(crate) fn announce_global_cast(&mut self, player: PlayerId, spell: SpellId) {
+        self.enqueue_global_cast(player, spell, None);
+    }
+
+    fn enqueue_global_cast(&mut self, player: PlayerId, spell: SpellId, started: Option<f64>) {
         let id = &self.game.content().rules.spells.get(spell).id;
         let Some(picture) = self.art.spell_picture(id, &Role::Global) else {
             return;
         };
-        self.global_casts.push_back(GlobalCast {
+        let music = self
+            .audio
+            .table
+            .global_music
+            .get(id.as_str())
+            .map(|&entry| Track::piece(u16::from(entry)));
+        self.modals.enqueue(GlobalCast {
             player,
             spell,
             picture,
-            started: None,
+            music,
+            started,
         });
     }
 
@@ -71,32 +90,24 @@ impl App {
             eprintln!("unknown spell {id}");
             return;
         };
-        self.announce_global_cast(PlayerId(by), spell);
-        if let Some(cast) = self.global_casts.back_mut() {
-            cast.started = Some(get_time() - seconds);
-        }
+        self.enqueue_global_cast(PlayerId(by), spell, Some(get_time() - seconds));
     }
 
-    /// The oldest global cast not yet shown, over the map until it ends. Returns whether it took
-    /// the frame.
-    pub(crate) fn global_cast_frame(&mut self, input: &Input) -> bool {
-        let Some(cast) = self.global_casts.front_mut() else {
-            return false;
-        };
+    /// A global cast over the screen until it ends.
+    pub(crate) fn global_cast_frame(
+        &mut self,
+        mut cast: GlobalCast,
+        input: &Input,
+    ) -> Option<GlobalCast> {
         let started = *cast.started.get_or_insert_with(get_time);
-        let cast = cast.clone();
         let stage = ((get_time() - started) / STAGE) as usize;
         if stage >= STAGES || any_input(input) {
-            self.global_casts.pop_front();
-            return true;
+            return None;
         }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
         let lay = Layout::new();
         let animated = self.prefs.get(Pref::SpellAnimations);
         self.draw_mirror(&lay, &cast, stage, animated);
-        true
+        Some(cast)
     }
 
     fn draw_mirror(&mut self, lay: &Layout, cast: &GlobalCast, stage: usize, animated: bool) {
@@ -198,6 +209,3 @@ impl App {
         );
     }
 }
-
-/// The queue of casts to show.
-pub(crate) type GlobalCasts = VecDeque<GlobalCast>;
