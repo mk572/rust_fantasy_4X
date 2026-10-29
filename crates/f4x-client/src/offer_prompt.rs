@@ -11,8 +11,9 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
+use crate::modal::{keep, kind, Modal};
 use crate::unit_sheet::Source;
-use crate::view::{App, HUMAN};
+use crate::view::{App, Screen, HUMAN};
 
 /// What the box remembers between frames.
 #[derive(Default)]
@@ -66,7 +67,30 @@ const POWER_LINES: [(&str, &str); 32] = [
     ("giant_strength", "item_power.giant_strength"),
 ];
 
+/// The first offer made to the human wizard; the offers themselves live in the game.
+pub(crate) struct OfferAsk;
+
+impl Modal for OfferAsk {
+    fn kind(&self) -> &'static str {
+        kind::OFFER
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.offer_prompt_frame(input).then_some(OfferAsk))
+    }
+}
+
 impl App {
+    /// Open the box for the offers that wait, over the map.
+    pub(crate) fn queue_offer(&mut self) {
+        if !self.game.in_battle()
+            && matches!(self.screen, Screen::Map)
+            && !self.modals.has(kind::OFFER)
+            && !self.game.offers(HUMAN).is_empty()
+        {
+            self.modals.enqueue(OfferAsk);
+        }
+    }
+
     /// For screenshots and checks: give the human wizard the fame, gold and turn an offer
     /// needs and make the offer (`hero`, `mercenaries` or `item`).
     pub fn open_test_offer(&mut self, kind: &str) {
@@ -117,9 +141,6 @@ impl App {
             self.offer_ui.shown = Some(offer.clone());
             self.sheet_ui.first = 0;
         }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
         let lay = Layout::new();
         let affordable = self
             .game

@@ -1431,6 +1431,7 @@ impl App {
             return true;
         }
         self.queue_proposal();
+        self.queue_offer();
         if !self.modals.is_empty() && !matches!(self.screen, Screen::Console) {
             return self.modal_frame(input);
         }
@@ -1455,13 +1456,6 @@ impl App {
             && self.turn_events.is_none()
         {
             self.check_hero_levels();
-        }
-        // The offers made at the turn change wait over the map until they are answered.
-        if matches!(self.screen, Screen::Map)
-            && !self.game.in_battle()
-            && self.offer_prompt_frame(input)
-        {
-            return true;
         }
         if matches!(self.screen, Screen::Map)
             && !self.game.in_battle()
