@@ -5,9 +5,11 @@
 //! screen is left. A click anywhere or Esc leaves, a click on a garrison unit selects the stack
 //! on the map, a right-click on one opens its sheet. Positions are the original's.
 
+use crate::audio::{music, Track};
 use crate::font::Style;
 use crate::input::Input;
 use crate::modal::{keep, Modal};
+use crate::page::Page;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::text::Args;
@@ -24,8 +26,9 @@ const SCAPE: (f32, f32, f32, f32) = (215.0, 80.0, 72.0, 66.0);
 const NAME_BOX: (f32, f32) = (85.0, 100.0);
 
 /// What the screen remembers while it is open.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub(crate) struct OutpostUi {
+    pub city: hecs::Entity,
     /// A freshly founded outpost: "New Outpost Founded", no garrison shown.
     pub new: bool,
     /// The name box is up; `name` is what has been typed.
@@ -56,7 +59,8 @@ impl Modal for CapitalName {
 impl App {
     /// Show an outpost; `new` for one just founded, which is named first.
     pub(crate) fn open_outpost(&mut self, city: hecs::Entity, new: bool) {
-        self.outpost_ui = OutpostUi {
+        let ui = OutpostUi {
+            city,
             new,
             naming: new,
             name: if new {
@@ -67,7 +71,7 @@ impl App {
         };
         self.city_spell_first = 0;
         self.sell_prompt = None;
-        self.screen = Screen::Outpost(city);
+        self.open_page(Screen::Outpost, ui);
     }
 
     /// For the screenshot check: show the wizard's first city as an outpost.
@@ -108,135 +112,6 @@ impl App {
             18.0,
             16.0,
         )
-    }
-
-    pub(crate) fn outpost_screen(&mut self, city: hecs::Entity, input: &Input) {
-        let at = self.city_position(city);
-        if self.game.economy().city_at(at) != Some(city) {
-            self.screen = Screen::Map;
-            return;
-        }
-        let lay = Layout::new();
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let (wx, wy) = WINDOW;
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
-        let ui = self.outpost_ui.clone();
-
-        // The map stays under the window, as the original's does.
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        let r = lay.rect((wx, wy, 250.0, 100.0));
-        if self.draw_pic(&lay, "backgrnd", 32, 0, wx, wy).is_none() {
-            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.25, 0.2, 0.3, 1.0));
-        }
-        self.draw_outpost_scape(&lay, city);
-
-        // The houses: bright for those grown, dark for the rest.
-        let pop = self.game.city_population(city);
-        let house_type = self
-            .game
-            .city_race(city)
-            .map_or(0, |r| {
-                self.game.content().rules.races.get(r).house_type as usize
-            })
-            .min(2);
-        for i in 0..10 {
-            let entry = if i < houses(pop.tens) { 34 } else { 37 } + house_type;
-            self.draw_pic(
-                &lay,
-                "backgrnd",
-                entry,
-                0,
-                wx + 8.0 + i as f32 * 14.0,
-                wy + 31.0,
-            );
-        }
-
-        // The header and the race.
-        let title = if ui.new {
-            self.text("outpost.founded")
-        } else {
-            self.text_with(
-                "outpost.of",
-                &Args::new().text("city", self.city_name(city)),
-            )
-        };
-        self.draw_styled(
-            view,
-            &Style::outlined(5).center(),
-            &title,
-            wx + 124.0,
-            wy + 6.0,
-        );
-        let race = self
-            .game
-            .city_race(city)
-            .map(|r| self.game.content().rules.races.get(r).name.clone())
-            .unwrap_or_default();
-        self.draw_styled(
-            view,
-            &Style::nearest(1, Color::new(0.95, 0.7, 0.2, 1.0)),
-            &race,
-            wx + 6.0,
-            wy + 23.0,
-        );
-
-        // The garrison (a new outpost shows none) and the enchantments.
-        let units: Vec<_> = if ui.new {
-            Vec::new()
-        } else {
-            self.game
-                .units()
-                .units_at(at)
-                .into_iter()
-                .take(10)
-                .collect()
-        };
-        let (mut left, mut right) = (None, None);
-        for (slot, &unit) in units.iter().enumerate() {
-            let (x, y, w, h) = Self::outpost_slot(slot);
-            self.draw_army_unit(&lay, unit, x - 1.0, y - 1.0);
-            let state = ui::hit(lay.rect((x, y, w, h)), true, input);
-            if state.hovered() {
-                if state.clicked() {
-                    left = Some(unit);
-                }
-                if input.mouse_pressed(MouseButton::Right) {
-                    right = Some(unit);
-                }
-            }
-        }
-        // The enchantments page and turn off as the city screen's do; a click on one is not the
-        // click that leaves. A question opened by a click waits a frame before it draws.
-        let asking = self.sell_prompt.is_some();
-        let city_lay = crate::city_screen::Layout::new();
-        let on_list = self.city_enchantment_list(
-            city,
-            city_lay,
-            (wx + 114.0, wy + 54.0),
-            0.0,
-            !asking,
-            input,
-        );
-        if asking {
-            self.draw_sell_prompt(input);
-            return;
-        }
-        if ui.naming {
-            self.outpost_name_box(&lay, city, input);
-            return;
-        }
-        if let Some(unit) = right {
-            self.open_unit_sheet(unit);
-        } else if input.key_pressed(KeyCode::Escape)
-            || (input.mouse_pressed(MouseButton::Left) && !on_list)
-        {
-            if left.is_some() && self.game.economy().city_owner(city) == Some(HUMAN) {
-                self.select_at(at);
-            }
-            self.screen = Screen::Map;
-        }
-        let _ = light;
     }
 
     /// The reduced cityscape: the ground, hills or mountains to the north, a house.
@@ -285,21 +160,6 @@ impl App {
         });
         let f = lay.rect(SCAPE);
         draw_rectangle_lines(f.x, f.y, f.w, f.h, 1.0, BLACK);
-    }
-
-    /// `Change_City_Name_Popup`: the box with "New Outpost" and a field for the name. Enter
-    /// keeps what is typed (an empty name keeps the one the game chose).
-    fn outpost_name_box(&mut self, lay: &Layout, city: hecs::Entity, input: &Input) {
-        let mut name = std::mem::take(&mut self.outpost_ui.name);
-        let prompt = self.text("outpost.name_prompt");
-        let done = self.name_box(lay, NAME_BOX, &prompt, &mut name, input);
-        self.outpost_ui.name = name;
-        if done {
-            let name = std::mem::take(&mut self.outpost_ui.name);
-            let events = self.game.apply(Command::RenameCity { city, name });
-            self.note(events);
-            self.outpost_ui.naming = false;
-        }
     }
 
     /// The original's name box (`outpost_name_background`, `backgrnd` 33) with `title` at `at`:
@@ -368,9 +228,161 @@ impl App {
     }
 }
 
+impl Page for OutpostUi {
+    fn music(&self) -> Option<Track> {
+        self.new.then(|| Track::piece(music::NEW_OUTPOST))
+    }
+
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        let city = self.city;
+        let at = app.city_position(city);
+        if app.game.economy().city_at(at) != Some(city) {
+            app.screen = Screen::Map;
+            return;
+        }
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let (wx, wy) = WINDOW;
+        let light = Color::new(0.95, 0.93, 0.85, 1.0);
+        let ui = self.clone();
+
+        // The map stays under the window, as the original's does.
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        app.draw_map();
+        let r = lay.rect((wx, wy, 250.0, 100.0));
+        if app.draw_pic(&lay, "backgrnd", 32, 0, wx, wy).is_none() {
+            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.25, 0.2, 0.3, 1.0));
+        }
+        app.draw_outpost_scape(&lay, city);
+
+        // The houses: bright for those grown, dark for the rest.
+        let pop = app.game.city_population(city);
+        let house_type = app
+            .game
+            .city_race(city)
+            .map_or(0, |r| {
+                app.game.content().rules.races.get(r).house_type as usize
+            })
+            .min(2);
+        for i in 0..10 {
+            let entry = if i < houses(pop.tens) { 34 } else { 37 } + house_type;
+            app.draw_pic(
+                &lay,
+                "backgrnd",
+                entry,
+                0,
+                wx + 8.0 + i as f32 * 14.0,
+                wy + 31.0,
+            );
+        }
+
+        // The header and the race.
+        let title = if ui.new {
+            app.text("outpost.founded")
+        } else {
+            app.text_with("outpost.of", &Args::new().text("city", app.city_name(city)))
+        };
+        app.draw_styled(
+            view,
+            &Style::outlined(5).center(),
+            &title,
+            wx + 124.0,
+            wy + 6.0,
+        );
+        let race = app
+            .game
+            .city_race(city)
+            .map(|r| app.game.content().rules.races.get(r).name.clone())
+            .unwrap_or_default();
+        app.draw_styled(
+            view,
+            &Style::nearest(1, Color::new(0.95, 0.7, 0.2, 1.0)),
+            &race,
+            wx + 6.0,
+            wy + 23.0,
+        );
+
+        // The garrison (a new outpost shows none) and the enchantments.
+        let units: Vec<_> = if ui.new {
+            Vec::new()
+        } else {
+            app.game.units().units_at(at).into_iter().take(10).collect()
+        };
+        let (mut left, mut right) = (None, None);
+        for (slot, &unit) in units.iter().enumerate() {
+            let (x, y, w, h) = App::outpost_slot(slot);
+            app.draw_army_unit(&lay, unit, x - 1.0, y - 1.0);
+            let state = ui::hit(lay.rect((x, y, w, h)), true, input);
+            if state.hovered() {
+                if state.clicked() {
+                    left = Some(unit);
+                }
+                if input.mouse_pressed(MouseButton::Right) {
+                    right = Some(unit);
+                }
+            }
+        }
+        // The enchantments page and turn off as the city screen's do; a click on one is not the
+        // click that leaves. A question opened by a click waits a frame before it draws.
+        let asking = app.sell_prompt.is_some();
+        let city_lay = crate::city_screen::Layout::new();
+        let on_list =
+            app.city_enchantment_list(city, city_lay, (wx + 114.0, wy + 54.0), 0.0, !asking, input);
+        if asking {
+            app.draw_sell_prompt(input);
+            return;
+        }
+        if ui.naming {
+            self.name_box(app, &lay, input);
+            return;
+        }
+        if let Some(unit) = right {
+            app.open_unit_sheet(unit);
+        } else if input.key_pressed(KeyCode::Escape)
+            || (input.mouse_pressed(MouseButton::Left) && !on_list)
+        {
+            if left.is_some() && app.game.economy().city_owner(city) == Some(HUMAN) {
+                app.select_at(at);
+            }
+            app.screen = Screen::Map;
+        }
+        let _ = light;
+    }
+}
+
+impl OutpostUi {
+    /// `Change_City_Name_Popup`: the box with "New Outpost" and a field for the name. Enter
+    /// keeps what is typed (an empty name keeps the one the game chose).
+    fn name_box(&mut self, app: &mut App, lay: &Layout, input: &Input) {
+        let city = self.city;
+        let mut name = std::mem::take(&mut self.name);
+        let prompt = app.text("outpost.name_prompt");
+        let done = app.name_box(lay, NAME_BOX, &prompt, &mut name, input);
+        self.name = name;
+        if done {
+            let name = std::mem::take(&mut self.name);
+            let events = app.game.apply(Command::RenameCity { city, name });
+            app.note(events);
+            self.naming = false;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_freshly_founded_outpost_plays_its_piece() {
+        let ui = |new| OutpostUi {
+            city: hecs::Entity::DANGLING,
+            new,
+            naming: new,
+            name: String::new(),
+        };
+        assert!(ui(true).music().is_some());
+        assert!(ui(false).music().is_none());
+    }
 
     #[test]
     fn a_house_is_lit_for_each_hundred_people_and_never_more_than_ten() {

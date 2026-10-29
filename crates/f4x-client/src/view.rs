@@ -80,7 +80,7 @@ pub enum Screen {
     /// The list of the wizard's cities (`city_list_screen.rs`).
     CityList,
     /// An outpost (`outpost_screen.rs`).
-    Outpost(hecs::Entity),
+    Outpost,
     /// Another wizard's city (`enemy_city_screen.rs`).
     EnemyCity,
     /// The table of best games (`hall_of_fame.rs`).
@@ -199,7 +199,6 @@ pub struct App {
     /// Steps the units on the map are still sliding through (task 298).
     pub(crate) slides: Vec<crate::map_slide::Slide>,
     /// The army list's scroll and the unit under the mouse.
-    pub(crate) outpost_ui: crate::outpost_screen::OutpostUi,
     /// Items have just been awarded to the human wizard: the item screen opens when the boxes
     /// before it are closed (`Process_Item_Pool`: a lair's treasure, a gift, the merchant's item
     /// bought, an item made).
@@ -391,7 +390,6 @@ impl App {
             battle_ui: Default::default(),
             sheet_ui: Default::default(),
             slides: Vec::new(),
-            outpost_ui: Default::default(),
             test_sea: false,
             item_pool_pending: false,
             page: None,
@@ -1513,7 +1511,7 @@ impl App {
             Screen::UnitSheet => self.unit_sheet_screen(input),
             Screen::ArmyList => self.page_frame(input),
             Screen::CityList => self.page_frame(input),
-            Screen::Outpost(city) => self.outpost_screen(city, input),
+            Screen::Outpost => self.page_frame(input),
             Screen::EnemyCity => self.page_frame(input),
             Screen::HallOfFame => self.page_frame(input),
             Screen::Items => self.item_screen(input),

@@ -433,17 +433,11 @@ impl App {
 
     /// The short piece that belongs to the box on top, if one is up.
     fn piece_track(&self) -> Option<Track> {
-        if !matches!(
-            self.screen,
-            Screen::Map | Screen::Magic | Screen::Outpost(_)
-        ) {
+        if !matches!(self.screen, Screen::Map | Screen::Magic | Screen::Outpost) {
             return None;
         }
-        if let Screen::Outpost(_) = self.screen {
-            return self
-                .outpost_ui
-                .new
-                .then(|| Track::piece(music::NEW_OUTPOST));
+        if let Screen::Outpost = self.screen {
+            return self.page.as_ref().and_then(|page| page.music());
         }
         if self.game_over_pending() {
             return None;

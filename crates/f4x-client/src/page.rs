@@ -3,11 +3,17 @@
 //! the screen changes. The `Screen` variant still names which screen is up; the page is the
 //! state and the code of it, taken out of the `App` for the frame as a modal is.
 
+use crate::audio::Track;
 use crate::input::Input;
 use crate::view::{App, Screen};
 
 pub(crate) trait Page {
     /// One frame: draw the screen and take the input. Changing `app.screen` leaves it.
+    /// The piece that plays while this screen is up, if it has one.
+    fn music(&self) -> Option<Track> {
+        None
+    }
+
     fn frame(&mut self, app: &mut App, input: &Input);
 }
 

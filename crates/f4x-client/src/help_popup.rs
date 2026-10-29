@@ -114,7 +114,7 @@ impl App {
             Screen::History => 9,
             Screen::Astrologer => 10,
             Screen::EnemyCity => 14,
-            Screen::Outpost(_) => 17,
+            Screen::Outpost => 17,
             Screen::UnitSheet => 13,
             Screen::MainMenu => 25,
             Screen::Slots => 26,
