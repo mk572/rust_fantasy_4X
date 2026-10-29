@@ -449,7 +449,19 @@ impl App {
 }
 
 /// A wizard has started casting the Spell of Mastery.
-pub(crate) struct MasteryNotice(pub(crate) f4x_core::player::PlayerId);
+pub(crate) struct MasteryNotice {
+    caster: f4x_core::player::PlayerId,
+    started: Option<f64>,
+}
+
+impl MasteryNotice {
+    pub(crate) fn new(caster: f4x_core::player::PlayerId) -> Self {
+        Self {
+            caster,
+            started: None,
+        }
+    }
+}
 
 impl Modal for MasteryNotice {
     fn kind(&self) -> &'static str {
@@ -466,46 +478,52 @@ impl Modal for MasteryNotice {
     }
 }
 
+/// Two ticks of the original's 55 ms timer a stage.
+const MASTERY_STAGE: f64 = 0.11;
+/// `Cast_Spell_Of_Mastery` runs 200 stages.
+const MASTERY_STAGES: usize = 200;
+/// `SPELLSCR.LBX` animations of the vortex and the stage each one starts at (`67` from the
+/// beginning, then `68`, `69` and `70` at stages 17, 33 and 49).
+const MASTERY_PICTURES: [(usize, usize); 4] = [(67, 0), (68, 17), (69, 33), (70, 49)];
+
 impl App {
-    /// "<wizard> has started casting the Spell of Mastery" over a black screen, as the original
-    /// does (`Cast_Spell_Of_Mastery`; its swirling animation is local art not drawn here yet,
-    /// task 287); any key or click goes on.
+    /// For screenshots: the announcement of a cast by player `by`, `seconds` in.
+    pub fn open_test_mastery(&mut self, by: u8, seconds: f64) {
+        self.modals.enqueue(MasteryNotice {
+            caster: f4x_core::player::PlayerId(by),
+            started: Some(get_time() - seconds),
+        });
+    }
+
+    /// "<wizard> has started casting the Spell of Mastery" over the vortex animation on a black
+    /// screen (`Cast_Spell_Of_Mastery`): the vortex changes at stages 17, 33 and 49 and the two
+    /// lines stay in outlined font 5 at y 160 and 180. It ends after 200 stages, or on a key or click.
     pub(crate) fn mastery_notice_frame(
         &mut self,
-        MasteryNotice(caster): MasteryNotice,
+        mut notice: MasteryNotice,
         input: &Input,
     ) -> Option<MasteryNotice> {
-        let lay = Layout::new();
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        clear_background(Color::new(0.02, 0.0, 0.06, 1.0));
-        let args = self.wizard_arg(Args::new(), "wizard", caster);
-        let ink = Color::new(0.95, 0.85, 0.6, 1.0);
-        self.bm_text(
-            view,
-            5,
-            ink,
-            &self.text_with("bigbook.mastery_started", &args),
-            160.0,
-            90.0,
-            Align::Center,
-        );
-        self.bm_text(
-            view,
-            5,
-            ink,
-            &self.text("bigbook.mastery_name"),
-            160.0,
-            110.0,
-            Align::Center,
-        );
-        if input.mouse_pressed(MouseButton::Left)
-            || input.key_pressed(KeyCode::Enter)
-            || input.key_pressed(KeyCode::Escape)
-            || input.key_pressed(KeyCode::Space)
-        {
+        let started = *notice.started.get_or_insert_with(get_time);
+        let stage = ((get_time() - started) / MASTERY_STAGE) as usize;
+        if stage >= MASTERY_STAGES || crate::global_spell::any_input(input) {
             return None;
         }
-        Some(MasteryNotice(caster))
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        clear_background(BLACK);
+        let &(entry, first) = MASTERY_PICTURES
+            .iter()
+            .rev()
+            .find(|(_, from)| stage >= *from)
+            .unwrap_or(&MASTERY_PICTURES[0]);
+        let frames = self.art.frames("spellscr", entry).max(1);
+        self.draw_pic(&lay, "spellscr", entry, (stage - first) % frames, 0.0, 0.0);
+        let args = self.wizard_arg(Args::new(), "wizard", notice.caster);
+        let started_line = self.text_with("bigbook.mastery_started", &args);
+        self.bm_text_outlined(view, 5, &started_line, 160.0, 160.0, Align::Center);
+        let name = self.text("bigbook.mastery_name");
+        self.bm_text_outlined(view, 5, &name, 160.0, 180.0, Align::Center);
+        Some(notice)
     }
 }
 

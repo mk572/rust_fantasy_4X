@@ -196,6 +196,8 @@ struct Options {
     global_by: u8,
     global_at: f64,
     learn_at: f64,
+    /// With `--shot`, show the Spell of Mastery announcement of `--global-by`, `--global-at` seconds in.
+    mastery: bool,
     /// With `--shot`, show the box of a spell that fizzled.
     fizzle: bool,
     /// With `--shot`, show the box that announces a hero's new level.
@@ -303,6 +305,7 @@ fn parse_args() -> Result<Options, String> {
         global_by: 0,
         global_at: 0.0,
         learn_at: 0.0,
+        mastery: false,
         fizzle: false,
         level_up: false,
         dispelled: None,
@@ -365,6 +368,7 @@ fn parse_args() -> Result<Options, String> {
             "--event" => o.event = Some(value("--event")?),
             "--dispelled" => o.dispelled = Some(value("--dispelled")?),
             "--fizzle" => o.fizzle = true,
+            "--mastery" => o.mastery = true,
             "--level-up" => o.level_up = true,
             "--built" => o.built = Some(value("--built")?),
             "--city-fx" => o.city_fx = Some(value("--city-fx")?),
@@ -509,7 +513,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|conquest|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--attack-box] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|conquest|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--attack-box] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -707,6 +711,9 @@ async fn main() {
             "field" => f4x_core::game::DispelSite::Field,
             _ => f4x_core::game::DispelSite::City,
         });
+    }
+    if options.mastery {
+        app.open_test_mastery(options.global_by, options.global_at);
     }
     if options.fizzle {
         app.open_test_fizzle();

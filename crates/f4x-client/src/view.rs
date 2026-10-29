@@ -884,7 +884,8 @@ impl App {
                     Some(self.text_with("log.earthquake", &args))
                 }
                 Event::MasteryStarted { caster } => {
-                    self.modals.enqueue(crate::bigbook::MasteryNotice(caster));
+                    self.modals
+                        .enqueue(crate::bigbook::MasteryNotice::new(caster));
                     let args = self.wizard_arg(Args::new(), "wizard", caster);
                     Some(self.text_with("log.mastery_started", &args))
                 }
