@@ -22,43 +22,6 @@ const UNITS_X: f32 = 240.0;
 /// A city holds at most this many units.
 const GARRISON_LIMIT: usize = 9;
 
-/// Our description of each building (the keys are in `content/text/en/building.ron`).
-const DESCRIPTIONS: [(&str, &str); 33] = [
-    ("barracks", "building.barracks"),
-    ("armory", "building.armory"),
-    ("fighters_guild", "building.fighters_guild"),
-    ("armorers_guild", "building.armorers_guild"),
-    ("war_college", "building.war_college"),
-    ("smithy", "building.smithy"),
-    ("stables", "building.stables"),
-    ("animists_guild", "building.animists_guild"),
-    ("fantastic_stable", "building.fantastic_stable"),
-    ("ship_wrights_guild", "building.ship_wrights_guild"),
-    ("ship_yard", "building.ship_yard"),
-    ("maritime_guild", "building.maritime_guild"),
-    ("sawmill", "building.sawmill"),
-    ("library", "building.library"),
-    ("sages_guild", "building.sages_guild"),
-    ("oracle", "building.oracle"),
-    ("alchemists_guild", "building.alchemists_guild"),
-    ("university", "building.university"),
-    ("wizards_guild", "building.wizards_guild"),
-    ("shrine", "building.shrine"),
-    ("temple", "building.temple"),
-    ("parthenon", "building.parthenon"),
-    ("cathedral", "building.cathedral"),
-    ("marketplace", "building.marketplace"),
-    ("bank", "building.bank"),
-    ("merchants_guild", "building.merchants_guild"),
-    ("granary", "building.granary"),
-    ("farmers_market", "building.farmers_market"),
-    ("foresters_guild", "building.foresters_guild"),
-    ("builders_hall", "building.builders_hall"),
-    ("mechanicians_guild", "building.mechanicians_guild"),
-    ("miners_guild", "building.miners_guild"),
-    ("city_walls", "building.city_walls"),
-];
-
 /// What the production screen remembers while it is open.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ProductionUi {
@@ -345,13 +308,10 @@ impl App {
             }
         }
         let description = match item {
-            ProductionItem::Building(b) => {
-                let id = self.game.content().rules.buildings.get(b).id.clone();
-                DESCRIPTIONS
-                    .iter()
-                    .find(|(building, _)| *building == id)
-                    .map(|(_, key)| self.text(key))
-            }
+            ProductionItem::Building(b) => Some(f4x_core::city::description::building_description(
+                self.game.content(),
+                b,
+            )),
             ProductionItem::TradeGoods => Some(self.text("city.converts_to_gold")),
             _ => Some(self.text("city.increases_growth")),
         };

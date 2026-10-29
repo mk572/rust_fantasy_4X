@@ -1096,6 +1096,69 @@ mod tests {
     }
 
     #[test]
+    fn every_building_description_gives_its_effects_with_their_numbers() {
+        use f4x_core::city::description::{building_description, effect_key};
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        let content = load_content(&dir).unwrap();
+        for (id, def) in content.rules.buildings.iter() {
+            let text = building_description(&content, id);
+            for rule in &def.effects {
+                let (_, n) = effect_key(rule)
+                    .unwrap_or_else(|| panic!("{} has an effect without a sentence", def.id));
+                assert!(
+                    text.contains(&n.to_string()),
+                    "the description of {} leaves out {n}: {text}",
+                    def.id
+                );
+            }
+            assert!(
+                !text.contains('{'),
+                "{} has an unfilled slot: {text}",
+                def.id
+            );
+            if !def.requires.is_empty() {
+                assert!(text.contains("Needs"), "{}: {text}", def.id);
+            }
+        }
+    }
+
+    #[test]
+    fn each_townsfolk_topic_names_the_buildings_its_race_cannot_build() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        let help = load_help(&dir).unwrap();
+        let content = load_content(&dir).unwrap();
+        let topics = [
+            ("barbarian", 279),
+            ("beastmen", 280),
+            ("dark_elf", 281),
+            ("draconian", 282),
+            ("dwarven", 283),
+            ("gnoll", 284),
+            ("halfling", 285),
+            ("high_elf", 286),
+            ("high_men", 287),
+            ("klackon", 288),
+            ("lizardman", 289),
+            ("nomad", 290),
+            ("orc", 291),
+            ("troll", 292),
+        ];
+        assert_eq!(topics.len(), content.rules.races.iter().count());
+        for (race, index) in topics {
+            let topic = help.topic(index).unwrap();
+            for (_, b) in content.rules.buildings.iter() {
+                if !b.races.is_empty() && !b.races.iter().any(|r| r == race) {
+                    assert!(
+                        topic.text.contains(&b.name),
+                        "topic {index} ({race}) does not name the {}",
+                        b.name
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn the_shipped_help_is_consistent_and_every_topic_is_opened_by_an_area() {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
         let help = load_help(&dir).unwrap();

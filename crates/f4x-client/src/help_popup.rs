@@ -35,6 +35,8 @@ pub(crate) struct HelpRequest {
     topic: u16,
     /// A second topic shown under the first (the weapon of the melee row).
     extra: Option<u16>,
+    /// A title and text of its own, in place of a topic's (a building's description).
+    own: Option<(String, String)>,
     from: (f32, f32, f32, f32),
 }
 
@@ -72,6 +74,9 @@ pub(crate) struct HelpUi {
     /// For the screenshot check (`--help X,Y`): ask about this point at once, and skip the
     /// growing.
     pub probe: Option<(i32, i32)>,
+    /// The name and description of the building under the mouse on the city screen, set while
+    /// that screen is drawn.
+    pub building: Option<(String, String)>,
 }
 
 /// The topic of the melee row on the unit sheet.
@@ -128,6 +133,7 @@ impl App {
         self.help_ui.request = Some(HelpRequest {
             topic: topic.index,
             extra: None,
+            own: None,
             from,
         });
         true
@@ -136,6 +142,23 @@ impl App {
     /// Look for a right-click on a help area. Called once a frame, before the screen reacts.
     pub(crate) fn watch_for_help(&mut self, input: &Input) {
         let probe = self.help_ui.probe;
+        if input.mouse_pressed(MouseButton::Right) && matches!(self.screen, Screen::City(_)) {
+            if let Some(own) = self.help_ui.building.take() {
+                let lay = Layout::new();
+                let (mx, my) = input.mouse_position();
+                let (x, y) = (
+                    (mx - lay.origin.x) / lay.scale,
+                    (my - lay.origin.y) / lay.scale,
+                );
+                self.help_ui.request = Some(HelpRequest {
+                    topic: 0,
+                    extra: None,
+                    own: Some(own),
+                    from: (x - 2.0, y - 2.0, 4.0, 4.0),
+                });
+                return;
+            }
+        }
         if !(input.mouse_pressed(MouseButton::Right) || probe.is_some())
             || self.help.topics.is_empty()
         {
@@ -163,6 +186,7 @@ impl App {
                 self.help_ui.request = Some(HelpRequest {
                     topic,
                     extra: None,
+                    own: None,
                     from,
                 });
                 return;
@@ -193,6 +217,7 @@ impl App {
             self.help_ui.request = Some(HelpRequest {
                 topic: topic.index,
                 extra,
+                own: None,
                 from: (
                     rect.0 as f32,
                     rect.1 as f32,
@@ -208,12 +233,24 @@ impl App {
         let Some(request) = self.help_ui.request.take() else {
             return;
         };
-        let Some(topic) = self.help.topic(request.topic) else {
-            return;
-        };
-        let mut parts = vec![topic.clone()];
-        if let Some(more) = topic.include.and_then(|i| self.help.topic(i)) {
-            parts.push(more.clone());
+        let mut parts = Vec::new();
+        if let Some((title, text)) = request.own.clone() {
+            parts.push(f4x_core::help::HelpTopic {
+                index: 0,
+                title,
+                text,
+                picture: None,
+                include: None,
+                subject: None,
+            });
+        } else {
+            let Some(topic) = self.help.topic(request.topic) else {
+                return;
+            };
+            parts.push(topic.clone());
+            if let Some(more) = topic.include.and_then(|i| self.help.topic(i)) {
+                parts.push(more.clone());
+            }
         }
         if let Some(weapon) = request.extra.and_then(|i| self.help.topic(i)) {
             parts.push(weapon.clone());

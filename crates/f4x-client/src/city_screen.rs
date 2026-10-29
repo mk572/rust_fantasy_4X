@@ -987,6 +987,7 @@ impl App {
         gl.quad_gl.scissor(None);
 
         // The name of the building under the mouse.
+        self.help_ui.building = None;
         let name = match mouse_over {
             Some(cs::FORTRESS) => Some(self.text("city.fortress")),
             Some(cs::SUMMONING_CIRCLE) => Some(self.text("city.summoning_circle")),
@@ -996,9 +997,15 @@ impl App {
                 .content()
                 .rules
                 .buildings
-                .defs()
-                .get((i - 3) as usize)
-                .map(|b| b.name.clone()),
+                .iter()
+                .nth((i - 3) as usize)
+                .map(|(id, b)| {
+                    // A right-click on it opens its description.
+                    let content = self.game.content();
+                    let text = f4x_core::city::description::building_description(content, id);
+                    self.help_ui.building = Some((b.name.clone(), text));
+                    b.name.clone()
+                }),
             _ => None,
         };
         if let Some(n) = name {
