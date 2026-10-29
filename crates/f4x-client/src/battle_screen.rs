@@ -26,7 +26,7 @@ use crate::art::FigureEffect;
 use crate::battle_anim::{self, Anim, Visual};
 use crate::battle_ground::Piece;
 use crate::frame::{Align, Layout};
-use crate::ui::{bar, button, GOLD, PANEL};
+use crate::ui::{self, bar, button, GOLD, PANEL};
 use crate::view::{App, Screen, HUMAN};
 
 /// Native size of a cell and the step between neighbouring squares.
@@ -1511,20 +1511,17 @@ impl App {
         let forward =
             input.key_pressed(KeyCode::Right) || input.key_pressed(KeyCode::F) || wheel < 0.0;
         let back = input.key_pressed(KeyCode::Left) || input.key_pressed(KeyCode::B) || wheel > 0.0;
-        let clicked = input.mouse_pressed(MouseButton::Left);
-        let in_rect = |x: f32, y: f32, w: f32, h: f32| {
-            lay.rect((x, y, w, h))
-                .contains(input.mouse_position().into())
-        };
-        if (forward || (clicked && in_rect(274.0, 14.0, 14.0, 13.0))) && left + 2 < pages {
+        let click_in =
+            |x: f32, y: f32, w: f32, h: f32| ui::hit(lay.rect((x, y, w, h)), true, input).clicked();
+        if (forward || click_in(274.0, 14.0, 14.0, 13.0)) && left + 2 < pages {
             self.turn_book_page(false, true, input);
             return;
         }
-        if (back || (clicked && in_rect(29.0, 14.0, 14.0, 13.0))) && left >= 2 {
+        if (back || click_in(29.0, 14.0, 14.0, 13.0)) && left >= 2 {
             self.turn_book_page(false, false, input);
             return;
         }
-        if clicked && in_rect(175.0, 166.0, 19.0, 30.0) {
+        if click_in(175.0, 166.0, 19.0, 30.0) {
             self.battle_ui.spell_list = false;
             self.battle_ui.spell_unit = None;
             return;
@@ -1548,7 +1545,7 @@ impl App {
             };
             let x0 = if side == 0 { 32.0 } else { 164.0 };
             for (i, &id) in page.spells.iter().enumerate() {
-                if clicked && in_rect(x0, 29.0 + 22.0 * i as f32, 121.0, 17.0) {
+                if click_in(x0, 29.0 + 22.0 * i as f32, 121.0, 17.0) {
                     if let Some(spell) = spells.iter().find(|s| s.spell == id && s.castable) {
                         self.pick_spell(spell);
                         return;

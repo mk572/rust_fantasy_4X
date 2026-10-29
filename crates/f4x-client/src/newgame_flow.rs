@@ -6,6 +6,7 @@
 //! original's. The rules behind the choices are the core's (`WizardBuild`).
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -239,7 +240,8 @@ impl App {
             165.0
         };
         let r = lay.rect((left, 182.0, 30.0, 14.0));
-        let hover = r.contains(input.mouse_position().into());
+        let state = ui::hit(r, self.ng_input(), input);
+        let hover = state.hovered();
         let fill = if hover {
             Color::new(0.34, 0.24, 0.15, 1.0)
         } else {
@@ -259,7 +261,7 @@ impl App {
             186.0,
             Align::Center,
         );
-        if hover && self.ng_input() && input.mouse_pressed(MouseButton::Left) {
+        if state.clicked() {
             self.create_back();
         }
     }
@@ -479,10 +481,7 @@ impl App {
         if !self.ng_input() {
             return;
         }
-        let ok_clicked = input.mouse_pressed(MouseButton::Left)
-            && lay
-                .rect((251.0, 181.0, 32.0, 16.0))
-                .contains(input.mouse_position().into());
+        let ok_clicked = ui::hit(lay.rect((251.0, 181.0, 32.0, 16.0)), true, input).clicked();
         if ok_clicked || input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::KpEnter) {
             if self.create.build.name.trim().is_empty() {
                 let fallback = portrait

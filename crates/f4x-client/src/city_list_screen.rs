@@ -299,14 +299,7 @@ impl App {
 
     /// The OK button (`reload.lbx` 22, two frames); true when clicked.
     fn city_list_ok(&mut self, lay: &Layout, input: &Input) -> bool {
-        let Some(tex) = self.art.picture("reload", 22, 0).cloned() else {
-            return false;
-        };
-        let r = lay.rect((239.0, 182.0, tex.width(), tex.height()));
-        let hover = r.contains(input.mouse_position().into());
-        let frame = usize::from(hover && input.mouse_down(MouseButton::Left));
-        self.draw_pic(lay, "reload", 22, frame, 239.0, 182.0);
-        hover && input.mouse_pressed(MouseButton::Left)
+        self.pic_button_on(lay, ("reload", 22), (239.0, 182.0), input)
     }
 
     /// Go to a city: its screen (an outpost's for an outpost), with the production menu open

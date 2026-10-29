@@ -1,7 +1,9 @@
 //! The city screen: economy, buildings, worked area and the production list, drawn on
 //! the original screen layout (320x200) when the art is available.
 
+use crate::frame::Disabled;
 use crate::input::Input;
+use crate::ui;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
@@ -357,12 +359,7 @@ impl App {
             Align::Center,
         );
         // A click on the name asks for a new one.
-        if input.mouse_pressed(MouseButton::Left)
-            && !self.choosing
-            && lay
-                .rect(0.0, 0.0, 210.0, 17.0)
-                .contains(input.mouse_position().into())
-        {
+        if ui::hit(lay.rect(0.0, 0.0, 210.0, 17.0), !self.choosing, input).clicked() {
             self.city_naming = Some(name.clone());
         }
         let orange = Color::new(0.95, 0.7, 0.2, 1.0);
@@ -534,18 +531,16 @@ impl App {
         if total > PAGE {
             let last = total - 1;
             let up = lay.rect(first.0 + 62.0, first.1 - 1.0, 12.0, 12.0);
-            hit |= input.mouse_pressed(MouseButton::Left)
-                && up.contains(input.mouse_position().into());
-            if self.pic_button(lay, 15, first.0 + 62.0, first.1 - 1.0, enabled, input) {
+            hit |= ui::hit(up, true, input).clicked();
+            if self.backgrnd_button(lay, 15, first.0 + 62.0, first.1 - 1.0, enabled, input) {
                 self.city_spell_first = match self.city_spell_first {
                     0 => last / PAGE * PAGE,
                     n => n.saturating_sub(PAGE),
                 };
             }
             let down = lay.rect(first.0 + 62.0, first.1 + 34.0, 12.0, 12.0);
-            hit |= input.mouse_pressed(MouseButton::Left)
-                && down.contains(input.mouse_position().into());
-            if self.pic_button(lay, 16, first.0 + 62.0, first.1 + 34.0, enabled, input) {
+            hit |= ui::hit(down, true, input).clicked();
+            if self.backgrnd_button(lay, 16, first.0 + 62.0, first.1 + 34.0, enabled, input) {
                 self.city_spell_first += PAGE;
                 if self.city_spell_first > last {
                     self.city_spell_first = 0;
@@ -1027,12 +1022,8 @@ impl App {
         let tile = vec2(TILE_W * lay.scale, TILE_H * lay.scale);
         let anim = (get_time() * 4.0) as usize;
         // A click on the map shows or hides each square's food and production.
-        if input.mouse_pressed(MouseButton::Left)
-            && !self.choosing
-            && lay
-                .rect(215.0, 4.0, 5.0 * TILE_W, 5.0 * TILE_H)
-                .contains(input.mouse_position().into())
-        {
+        let map = lay.rect(215.0, 4.0, 5.0 * TILE_W, 5.0 * TILE_H);
+        if ui::hit(map, !self.choosing, input).clicked() {
             self.city_area_figures = !self.city_area_figures;
         }
         let gaia = self
@@ -1390,7 +1381,7 @@ impl App {
             .map_or(0, |p| p.treasury().gold);
         let price = self.game.economy().buy_cost(city);
         // Clickable whenever the item can be bought; too little gold is answered with a box.
-        if self.pic_button(
+        if self.backgrnd_button(
             lay,
             7,
             214.0,
@@ -1407,16 +1398,16 @@ impl App {
                 });
             }
         }
-        if self.pic_button(lay, 8, 247.0, 188.0, !self.choosing, input) {
+        if self.backgrnd_button(lay, 8, 247.0, 188.0, !self.choosing, input) {
             self.open_production(city);
         }
-        if self.pic_button(lay, 9, 286.0, 188.0, !self.choosing, input) {
+        if self.backgrnd_button(lay, 9, 286.0, 188.0, !self.choosing, input) {
             self.screen = Screen::Map;
         }
     }
 
     /// One of the original's two-frame buttons from `backgrnd.lbx`; true when clicked.
-    fn pic_button(
+    fn backgrnd_button(
         &mut self,
         lay: Layout,
         entry: usize,
@@ -1425,33 +1416,12 @@ impl App {
         enabled: bool,
         input: &Input,
     ) -> bool {
-        let Some(tex) = self.art.picture("backgrnd", entry, 0).cloned() else {
-            return false;
+        let lay = crate::frame::Layout {
+            scale: lay.scale,
+            origin: vec2(lay.ox, lay.oy),
         };
-        let r = lay.rect(x, y, tex.width(), tex.height());
-        let hover = r.contains(input.mouse_position().into());
-        let down = enabled && hover && input.mouse_down(MouseButton::Left);
-        let frame = usize::from(down);
-        let tex = self
-            .art
-            .picture("backgrnd", entry, frame)
-            .cloned()
-            .unwrap_or(tex);
-        draw_texture_ex(
-            &tex,
-            r.x,
-            r.y,
-            if enabled {
-                WHITE
-            } else {
-                Color::new(1.0, 1.0, 1.0, 0.45)
-            },
-            DrawTextureParams {
-                dest_size: Some(vec2(r.w, r.h)),
-                ..Default::default()
-            },
-        );
-        enabled && hover && input.mouse_pressed(MouseButton::Left)
+        let look = (enabled, Disabled::Fade(0.45));
+        self.pic_button(&lay, ("backgrnd", entry), (x, y), look, input)
     }
 
     /// Everything the city may start building: buildings, then units, then the two specials.

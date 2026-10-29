@@ -10,6 +10,7 @@
 //! (`spellbook.rs`) and chosen for research in the big book (`bigbook.rs`).
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
 use f4x_core::rules::SpellId;
@@ -188,10 +189,7 @@ impl App {
         // The Alchemy and OK buttons.
         let alchemy = self.draw_pic(&lay, "magic", 13, 0, 232.0, 181.0);
         let ok = self.draw_pic(&lay, "magic", 14, 0, 291.0, 181.0);
-        let hit = |r: Option<Rect>| {
-            r.is_some_and(|r| r.contains(input.mouse_position().into()))
-                && input.mouse_pressed(MouseButton::Left)
-        };
+        let hit = |r: Option<Rect>| r.is_some_and(|r| ui::hit(r, true, input).clicked());
         if !modal {
             if hit(alchemy)
                 || (alchemy.is_none()
@@ -518,23 +516,14 @@ impl App {
             } else {
                 lay.rect((x - 2.0, y - 1.0, 120.0, 9.0))
             };
-            if active
-                && owner == HUMAN
-                && input.mouse_pressed(MouseButton::Left)
-                && rect.contains(input.mouse_position().into())
-            {
+            if active && owner == HUMAN && ui::hit(rect, true, input).clicked() {
                 self.magic_ui.turn_off = Some(spell);
             }
         }
         if list.len() > 18 {
             let more = self.text("magic.more");
             self.bm_text(view, 0, WHITE, &more, 286.0, 163.0, Align::Left);
-            if active
-                && input.mouse_pressed(MouseButton::Left)
-                && lay
-                    .rect((286.0, 163.0, 21.0, 7.0))
-                    .contains(input.mouse_position().into())
-            {
+            if active && ui::hit(lay.rect((286.0, 163.0, 21.0, 7.0)), true, input).clicked() {
                 self.magic_ui.first += 18;
                 if self.magic_ui.first >= list.len() {
                     self.magic_ui.first = 0;
@@ -609,8 +598,7 @@ impl App {
         // Cancel, the arrow that turns the exchange, and OK.
         let click = |app: &mut App, entry: usize, x: f32, y: f32| {
             let r = app.draw_pic(lay, "magic", entry, 0, x, y);
-            r.is_some_and(|r| r.contains(input.mouse_position().into()))
-                && input.mouse_pressed(MouseButton::Left)
+            r.is_some_and(|r| ui::hit(r, true, input).clicked())
         };
         let cancel = click(self, 53, px + 13.0, py + 39.0);
         let turn = click(

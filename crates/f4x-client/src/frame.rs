@@ -12,7 +12,7 @@ use f4x_core::text::Args;
 use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
-use crate::ui::GOLD;
+use crate::ui::{self, GOLD};
 use crate::view::{App, HUMAN};
 
 pub const ORIGINAL_W: f32 = 320.0;
@@ -39,6 +39,15 @@ pub mod spot {
 pub struct Layout {
     pub scale: f32,
     pub origin: Vec2,
+}
+
+/// How a picture button looks when it is disabled.
+#[derive(Clone, Copy)]
+pub(crate) enum Disabled {
+    /// The picture faded to this opacity.
+    Fade(f32),
+    /// This frame of the picture (the original's greyed second frame).
+    Frame(usize),
 }
 
 /// The window's size; the tests, which have no window, get a fixed one.
@@ -128,6 +137,44 @@ impl App {
     ) -> Option<Rect> {
         let (lbx, entry) = self.art.shared_picture(role)?;
         self.draw_pic(lay, &lbx, entry, frame, x, y)
+    }
+
+    /// A picture button that is always enabled (`pic_button` without a disabled look).
+    pub(crate) fn pic_button_on(
+        &mut self,
+        lay: &Layout,
+        pic: (&str, usize),
+        at: (f32, f32),
+        input: &Input,
+    ) -> bool {
+        self.pic_button(lay, pic, at, (true, Disabled::Frame(0)), input)
+    }
+
+    /// A picture button of the original: frame 0 at rest, frame 1 while the left button is held
+    /// on it, and `disabled` when it is not enabled. True on the frame it is clicked.
+    pub(crate) fn pic_button(
+        &mut self,
+        lay: &Layout,
+        (lbx, entry): (&str, usize),
+        (x, y): (f32, f32),
+        (enabled, disabled): (bool, Disabled),
+        input: &Input,
+    ) -> bool {
+        let Some(tex) = self.art_picture(lbx, entry, 0) else {
+            return false;
+        };
+        let state = ui::hit(lay.rect((x, y, tex.width(), tex.height())), enabled, input);
+        let (mut frame, mut tint) = (usize::from(state.held()), WHITE);
+        match (enabled, disabled) {
+            (false, Disabled::Frame(f)) => frame = f,
+            (false, Disabled::Fade(alpha)) => tint = Color::new(1.0, 1.0, 1.0, alpha),
+            _ => {}
+        }
+        if self.art_picture(lbx, entry, frame).is_none() {
+            frame = 0;
+        }
+        self.draw_pic_tinted(lay, lbx, entry, frame, x, y, tint);
+        state.clicked()
     }
 
     /// `draw_pic` multiplied by a colour (a faded one shows a disabled control).

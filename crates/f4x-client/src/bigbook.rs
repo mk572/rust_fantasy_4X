@@ -5,6 +5,7 @@
 
 use crate::input::Input;
 use crate::modal::{keep, kind, priority, Modal};
+use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::rules::SpellId;
 use f4x_core::text::Args;
@@ -177,18 +178,13 @@ impl App {
         }
         let pages = self.big_ui.pages.len();
         let left = self.big_ui.left;
-        let clicked = input.mouse_pressed(MouseButton::Left);
-        let in_rect = |x: f32, y: f32, w: f32, h: f32| {
-            lay.rect((x, y, w, h))
-                .contains(input.mouse_position().into())
-        };
+        let click_in =
+            |x: f32, y: f32, w: f32, h: f32| ui::hit(lay.rect((x, y, w, h)), true, input).clicked();
         let (_, wheel) = input.mouse_wheel();
-        let forward = (clicked && in_rect(290.0, 7.0, 16.0, 16.0))
-            || input.key_pressed(KeyCode::Right)
-            || wheel < 0.0;
-        let back = (clicked && in_rect(15.0, 7.0, 16.0, 16.0))
-            || input.key_pressed(KeyCode::Left)
-            || wheel > 0.0;
+        let forward =
+            click_in(290.0, 7.0, 16.0, 16.0) || input.key_pressed(KeyCode::Right) || wheel < 0.0;
+        let back =
+            click_in(15.0, 7.0, 16.0, 16.0) || input.key_pressed(KeyCode::Left) || wheel > 0.0;
         if forward && left + 2 < pages {
             self.turn_book_page(true, true, input);
             return;
@@ -198,7 +194,7 @@ impl App {
         } else if input.key_pressed(KeyCode::Escape)
             || input.key_pressed(KeyCode::F3)
             || input.mouse_pressed(MouseButton::Right)
-            || (clicked && in_rect(0.0, 25.0, 320.0, 175.0))
+            || click_in(0.0, 25.0, 320.0, 175.0)
         {
             self.screen = Screen::Map;
             return;

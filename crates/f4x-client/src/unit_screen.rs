@@ -7,6 +7,7 @@
 //! is the panel alone. Positions are the original's, from the panel's top-left (`UnitStat.c`).
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::battle::Battle;
 use f4x_core::game::Command;
 use f4x_core::text::Args;
@@ -256,8 +257,7 @@ impl App {
         }
         // A click away from the panel leaves too.
         let panel = lay.rect((px, py, if in_battle { 218.0 } else { 282.0 }, 184.0));
-        if input.mouse_pressed(MouseButton::Left) && !panel.contains(input.mouse_position().into())
-        {
+        if input.mouse_pressed(MouseButton::Left) && !ui::hit(panel, true, input).hovered() {
             leave = true;
         }
         if leave {
@@ -437,9 +437,7 @@ impl App {
                 (special.removable, asking, special.spell, sheet.source)
             {
                 let line = lay.rect((x - 1.0, y - 1.0, 105.0, 17.0));
-                if input.mouse_pressed(MouseButton::Left)
-                    && line.contains(input.mouse_position().into())
-                {
+                if ui::hit(line, true, input).clicked() {
                     let drowned = self.game.drowned_if_off(unit, spell);
                     self.sheet_ui.turn_off = Some(TurnOff {
                         spell,
@@ -589,15 +587,7 @@ impl App {
 
     /// The up and down arrows of the abilities list (`unitview` 3 and 4); true when clicked.
     fn arrow_button(&mut self, lay: &Layout, entry: usize, x: f32, y: f32, input: &Input) -> bool {
-        let down = self.art.picture("unitview", entry, 0).cloned();
-        let Some(tex) = down else {
-            return false;
-        };
-        let r = lay.rect((x, y, tex.width(), tex.height()));
-        let hover = r.contains(input.mouse_position().into());
-        let frame = usize::from(hover && input.mouse_down(MouseButton::Left));
-        self.draw_pic(lay, "unitview", entry, frame, x, y);
-        hover && input.mouse_pressed(MouseButton::Left)
+        self.pic_button_on(lay, ("unitview", entry), (x, y), input)
     }
 
     /// A red button of the original (`backgrnd` 24) with its label; true when clicked.
@@ -648,8 +638,8 @@ impl App {
     ) -> bool {
         let h = 12.0;
         let r = lay.rect((x, y, w, h));
-        let hover = enabled && r.contains(input.mouse_position().into());
-        let down = hover && input.mouse_down(MouseButton::Left);
+        let state = ui::hit(r, enabled, input);
+        let down = state.held();
         let tint = if enabled {
             WHITE
         } else {
@@ -676,6 +666,6 @@ impl App {
             y + 3.0 + f32::from(u8::from(down)),
             Align::Center,
         );
-        hover && input.mouse_pressed(MouseButton::Left)
+        state.clicked()
     }
 }

@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::game::save::LoadError;
 use f4x_core::text::{Args, Texts};
 use f4x_data::save::{summarize_save, SaveError, SaveSummary};
@@ -194,19 +195,20 @@ impl App {
         input: &Input,
     ) -> bool {
         let r = lay.rect(rect);
-        let hover = r.contains(input.mouse_position().into());
+        let state = ui::hit(r, enabled, input);
+        let hover = state.hovered();
         let tint = if enabled {
             WHITE
         } else {
             Color::new(1.0, 1.0, 1.0, 0.4)
         };
         let (shift, frame) = (
-            if hover_shift && hover && enabled && input.mouse_down(MouseButton::Left) {
+            if hover_shift && state.held() {
                 1.0
             } else {
                 0.0
             },
-            usize::from(!(hover_frame && hover && enabled)),
+            usize::from(!(hover_frame && hover)),
         );
         let drawn = art.and_then(|(lbx, entry, x, y)| {
             let frames_ok = self.art.picture(lbx, entry, frame).is_some();
@@ -235,7 +237,7 @@ impl App {
                 crate::frame::Align::Center,
             );
         }
-        enabled && hover && input.mouse_pressed(MouseButton::Left)
+        state.clicked()
     }
 
     /// Draw and run the start menu. False when the player quits.
@@ -388,7 +390,7 @@ impl App {
                 y + 1.0,
                 crate::frame::Align::Left,
             );
-            if r.contains(input.mouse_position().into()) && input.mouse_pressed(MouseButton::Left) {
+            if ui::hit(r, true, input).clicked() {
                 if self.menu.selected != Some(n) {
                     self.menu.confirm_overwrite = false;
                     self.menu.message.clear();

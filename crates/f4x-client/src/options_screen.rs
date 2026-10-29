@@ -263,14 +263,7 @@ impl App {
         y: f32,
         input: &Input,
     ) -> bool {
-        let Some(tex) = self.art.picture("newgame", entry, 0).cloned() else {
-            return false;
-        };
-        let r = lay.rect((x, y, tex.width(), tex.height()));
-        let hover = r.contains(input.mouse_position().into());
-        let frame = usize::from(hover && input.mouse_down(MouseButton::Left));
-        self.draw_pic(lay, "newgame", entry, frame, x, y);
-        hover && input.mouse_pressed(MouseButton::Left)
+        self.pic_button_on(lay, ("newgame", entry), (x, y), input)
     }
 }
 

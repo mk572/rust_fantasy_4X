@@ -6,6 +6,7 @@
 //! Esc leave. Positions are the original's.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use macroquad::prelude::*;
@@ -117,10 +118,7 @@ impl App {
                     Align::Left,
                 );
                 let tab = lay.rect((x, y, 74.0, 11.0));
-                if !waiting
-                    && input.mouse_pressed(MouseButton::Left)
-                    && tab.contains(input.mouse_position().into())
-                {
+                if !waiting && ui::hit(tab, true, input).clicked() {
                     clicked = Some((*item, blocked));
                 }
             }

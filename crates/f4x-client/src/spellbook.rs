@@ -5,6 +5,7 @@
 //! The big book (the library and research) is in `bigbook.rs`.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::rules::exec::Target;
 use f4x_core::rules::{CastContext, SpellId, SpellTarget};
@@ -503,34 +504,31 @@ impl App {
             self.turn_book_page(false, false, input);
             return;
         }
-        let in_rect = |x: f32, y: f32, w: f32, h: f32| {
-            lay.rect((x, y, w, h))
-                .contains(input.mouse_position().into())
-        };
-        let clicked = input.mouse_pressed(MouseButton::Left);
-        if clicked && in_rect(29.0, 14.0, 14.0, 13.0) && left >= 2 {
+        let click_in =
+            |x: f32, y: f32, w: f32, h: f32| ui::hit(lay.rect((x, y, w, h)), true, input).clicked();
+        if click_in(29.0, 14.0, 14.0, 13.0) && left >= 2 {
             self.turn_book_page(false, false, input);
             return;
         }
-        if clicked && in_rect(274.0, 14.0, 14.0, 13.0) && left + 2 < pages {
+        if click_in(274.0, 14.0, 14.0, 13.0) && left + 2 < pages {
             self.turn_book_page(false, true, input);
             return;
         }
         // The ribbon at the bottom, Escape, V or a click outside the book close it.
-        let ribbon = clicked && in_rect(175.0, 166.0, 19.0, 30.0);
+        let ribbon = click_in(175.0, 166.0, 19.0, 30.0);
         if ribbon || input.key_pressed(KeyCode::Escape) || input.key_pressed(KeyCode::V) {
             self.book_ui.last_left = self.book_ui.left;
             self.screen = Screen::Map;
             return;
         }
         // The sort line at the right of the bookmark (or the S key) changes the order.
-        if (clicked && in_rect(200.0, 184.0, 116.0, 12.0)) || input.key_pressed(KeyCode::S) {
+        if click_in(200.0, 184.0, 116.0, 12.0) || input.key_pressed(KeyCode::S) {
             self.book_ui.sort = self.book_ui.sort.next();
             self.refilter_book();
             return;
         }
         // The filter line at the foot of the left page (or the Tab key) changes what is listed.
-        if (clicked && in_rect(32.0, 184.0, 130.0, 12.0)) || input.key_pressed(KeyCode::Tab) {
+        if click_in(32.0, 184.0, 130.0, 12.0) || input.key_pressed(KeyCode::Tab) {
             self.book_ui.filter = self.book_ui.filter.next();
             self.refilter_book();
             return;
@@ -543,7 +541,7 @@ impl App {
             };
             let x0 = if side == 0 { 32.0 } else { 164.0 };
             for (i, &spell) in page.spells.iter().enumerate() {
-                if clicked && in_rect(x0, 29.0 + 22.0 * i as f32, 121.0, 17.0) {
+                if click_in(x0, 29.0 + 22.0 * i as f32, 121.0, 17.0) {
                     if self.book_spell_usable(spell) {
                         self.book_ui.last_left = left;
                         self.choose_spell_to_cast(spell);
@@ -644,9 +642,7 @@ impl App {
         }
         if self.book_ui.combat.is_none() {
             let line = self.text(self.book_ui.filter.text_key());
-            let hover = lay
-                .rect((32.0, 184.0, 130.0, 12.0))
-                .contains(input.mouse_position().into());
+            let hover = ui::hit(lay.rect((32.0, 184.0, 130.0, 12.0)), true, input).hovered();
             let ink = if hover {
                 Color::new(1.0, 0.95, 0.6, 1.0)
             } else {
@@ -654,9 +650,7 @@ impl App {
             };
             self.bm_text(view, 1, ink, &line, 97.0, 187.0, Align::Center);
             let line = self.text(self.book_ui.sort.text_key());
-            let hover = lay
-                .rect((200.0, 184.0, 116.0, 12.0))
-                .contains(input.mouse_position().into());
+            let hover = ui::hit(lay.rect((200.0, 184.0, 116.0, 12.0)), true, input).hovered();
             let ink = if hover {
                 Color::new(1.0, 0.95, 0.6, 1.0)
             } else {

@@ -10,7 +10,7 @@ use f4x_core::map::Position;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
+use crate::frame::{Align, Disabled, Layout};
 use crate::view::{App, Screen, HUMAN};
 
 /// Rows of stacks on the screen.
@@ -322,23 +322,12 @@ impl App {
         enabled: bool,
         input: &Input,
     ) -> bool {
-        let Some(tex) = self.art.picture("armylist", entry, 0).cloned() else {
-            return false;
-        };
-        let r = lay.rect((x, y, tex.width(), tex.height()));
-        let hover = enabled && r.contains(input.mouse_position().into());
-        let frame = if !enabled && entry <= 2 {
-            1
+        let disabled = if entry <= 2 {
+            Disabled::Frame(1)
         } else {
-            usize::from(hover && input.mouse_down(MouseButton::Left))
+            Disabled::Fade(0.5)
         };
-        let tint = if enabled || entry <= 2 {
-            WHITE
-        } else {
-            Color::new(1.0, 1.0, 1.0, 0.5)
-        };
-        self.draw_pic_tinted(lay, "armylist", entry, frame, x, y, tint);
-        hover && input.mouse_pressed(MouseButton::Left)
+        self.pic_button(lay, ("armylist", entry), (x, y), (enabled, disabled), input)
     }
 }
 

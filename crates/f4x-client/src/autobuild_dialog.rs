@@ -2,6 +2,7 @@
 //! city screen. Left-click a row for the next value, right-click for the previous one.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::city::autobuild::{BuildPlan, Focus, Mix};
 use f4x_core::game::Command;
 use f4x_core::text::{Args, Texts};
@@ -64,8 +65,8 @@ impl App {
         let plan = self.game.autobuild_of(city).map(|a| a.plan);
         let own = self.game.autobuild_of(city).is_some();
         let r = lay.rect(x, y, width, 10.0);
-        let hover = r.contains(input.mouse_position().into());
-        let fill = if hover {
+        let state = ui::hit(r, true, input);
+        let fill = if state.hovered() {
             Color::new(0.4, 0.3, 0.15, 1.0)
         } else {
             Color::new(0.18, 0.14, 0.09, 1.0)
@@ -82,7 +83,7 @@ impl App {
             5.0 * lay.scale,
             if own { WHITE } else { LIGHTGRAY },
         );
-        if hover && input.mouse_pressed(MouseButton::Left) {
+        if state.clicked() {
             self.choosing = false;
             self.autobuild_dialog = Some(AutoDialog {
                 plan: plan.unwrap_or_default(),

@@ -185,14 +185,7 @@ impl App {
             self.draw_pic(lay, "compix", locked, 0, at.0, at.1);
             return false;
         }
-        let size = self.art_picture("compix", entry, 0).map(|t| t.size());
-        let hover = size.is_some_and(|s| {
-            lay.rect((at.0, at.1, s.x, s.y))
-                .contains(input.mouse_position().into())
-        });
-        let down = hover && input.mouse_down(MouseButton::Left);
-        self.draw_pic(lay, "compix", entry, usize::from(down), at.0, at.1);
-        hover && input.mouse_pressed(MouseButton::Left)
+        self.pic_button_on(lay, ("compix", entry), at, input)
     }
 
     pub(super) fn draw_battle_panel(
