@@ -9,7 +9,9 @@ use f4x_core::rules::BuildingId;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
+use crate::audio::{music, Track};
 use crate::frame::Layout;
+use crate::modal::{keep, kind, Modal};
 use crate::view::{App, HUMAN};
 
 /// The top of the box (`Notify2(160, 60, ...)`).
@@ -30,6 +32,24 @@ pub(crate) struct BuildIn {
     pub started: Option<f64>,
 }
 
+/// A finished building of the human wizard's, to be announced.
+pub(crate) struct BuiltNotice {
+    city: hecs::Entity,
+    building: BuildingId,
+}
+
+impl Modal for BuiltNotice {
+    fn kind(&self) -> &'static str {
+        kind::BUILT
+    }
+    fn music(&self) -> Option<Track> {
+        Some(Track::piece(music::BUILDING_FINISHED))
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.built_popup_frame(*self, input))
+    }
+}
+
 impl App {
     /// For screenshots and checks: announce this building (an id) as if the first city had just
     /// finished it.
@@ -41,25 +61,22 @@ impl App {
         let Some(city) = self.game.economy().cities().first().map(|c| c.0) else {
             return;
         };
-        self.built_notices.push_back((city, building));
+        self.modals.enqueue(BuiltNotice { city, building });
     }
 
     /// Remember a finished building of the human wizard's, to be announced.
     pub(crate) fn announce_built(&mut self, city: hecs::Entity, building: BuildingId) {
         if self.game.economy().city_owner(city) == Some(HUMAN) {
-            self.built_notices.push_back((city, building));
+            self.modals.enqueue(BuiltNotice { city, building });
         }
     }
 
-    /// The oldest finished building not yet announced, over the map until it is closed.
-    /// Returns whether the box took the frame.
-    pub(crate) fn built_popup_frame(&mut self, input: &Input) -> bool {
-        let Some(&(city, building)) = self.built_notices.front() else {
-            return false;
-        };
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
+    /// The box of a finished building over the screen until it is closed.
+    pub(crate) fn built_popup_frame(
+        &mut self,
+        BuiltNotice { city, building }: BuiltNotice,
+        input: &Input,
+    ) -> Option<BuiltNotice> {
         let lay = Layout::new();
         let def = self.game.content().rules.buildings.get(building);
         let walls = def.id == "city_walls";
@@ -97,14 +114,14 @@ impl App {
             input,
         );
         if closed {
-            self.built_notices.pop_front();
             self.build_in = Some(BuildIn {
                 city,
                 building,
                 started: None,
             });
+            return None;
         }
-        true
+        Some(BuiltNotice { city, building })
     }
 
     /// The part of a picture's first frame that is not transparent: left, top, width, height

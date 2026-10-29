@@ -451,9 +451,6 @@ impl App {
         if let Some(track) = self.modals.music() {
             return Some(track);
         }
-        if !self.built_notices.is_empty() {
-            return Some(Track::piece(music::BUILDING_FINISHED));
-        }
         None
     }
 

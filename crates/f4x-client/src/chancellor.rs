@@ -11,6 +11,7 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
+use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 
@@ -29,6 +30,15 @@ pub(crate) struct Chancellor {
     pub opened: f64,
     /// How far the text is scrolled up, in the original's pixels.
     pub scrolled: f32,
+}
+
+impl Modal for Chancellor {
+    fn kind(&self) -> &'static str {
+        kind::CHANCELLOR
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.chancellor_frame(*self, input))
+    }
 }
 
 /// The paper's place and size, and the text's start inside it (the original's pixels).
@@ -190,7 +200,7 @@ impl App {
     /// Show the scroll for a turn's news, when the switch is on and there is any.
     pub(crate) fn open_chancellor(&mut self, sections: Vec<Section>) {
         if self.prefs.get(Pref::EndOfTurnSummary) && !sections.is_empty() {
-            self.chancellor = Some(Chancellor {
+            self.modals.enqueue(Chancellor {
                 sections,
                 opened: get_time(),
                 scrolled: 0.0,
@@ -205,7 +215,7 @@ impl App {
         if let Some(warning) = self.shortfall_forecast() {
             sections.insert(0, warning);
         }
-        self.chancellor = Some(Chancellor {
+        self.modals.open(Chancellor {
             sections,
             opened: get_time(),
             scrolled: 0.0,
@@ -267,22 +277,20 @@ impl App {
                 lines: growth,
             },
         ];
-        self.open_chancellor(sections);
         // Already unrolled, so a screenshot shows the text.
-        if let Some(c) = self.chancellor.as_mut() {
-            c.opened = get_time() - 5.0;
-        }
+        self.modals.open(Chancellor {
+            sections,
+            opened: get_time() - 5.0,
+            scrolled: 0.0,
+        });
     }
 
-    /// Draw the scroll over the map and handle its keys; true while it is up.
-    pub(crate) fn chancellor_frame(&mut self, input: &Input) -> bool {
-        let Some(mut scroll) = self.chancellor.take() else {
-            return false;
-        };
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
-
+    /// Draw the scroll over the screen and handle its keys; it stays while it is returned.
+    pub(crate) fn chancellor_frame(
+        &mut self,
+        mut scroll: Chancellor,
+        input: &Input,
+    ) -> Option<Chancellor> {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let frame = (((get_time() - scroll.opened) / FRAME_SECONDS) as usize).min(ROD_FRAMES - 1);
@@ -359,10 +367,7 @@ impl App {
             || input.key_pressed(KeyCode::KpEnter)
             || input.mouse_pressed(MouseButton::Left)
             || input.mouse_pressed(MouseButton::Right);
-        if !leave {
-            self.chancellor = Some(scroll);
-        }
-        true
+        (!leave).then_some(scroll)
     }
 
     /// Run `draw` with everything outside `r` (screen pixels) cut away.

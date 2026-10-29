@@ -38,6 +38,8 @@ pub(crate) mod kind {
     pub(crate) const GLOBAL_CAST: &str = "global_cast";
     pub(crate) const SPELL_NOTICE: &str = "spell_notice";
     pub(crate) const OFFER: &str = "offer";
+    pub(crate) const BUILT: &str = "built";
+    pub(crate) const CHANCELLOR: &str = "chancellor";
 }
 
 pub(crate) trait Modal {
@@ -100,6 +102,12 @@ impl ModalStack {
             .iter()
             .chain(&self.waiting)
             .any(|m| m.kind() == kind)
+    }
+
+    /// Drop every modal of this kind, open or waiting.
+    pub(crate) fn remove(&mut self, kind: &str) {
+        self.open.retain(|m| m.kind() != kind);
+        self.waiting.retain(|m| m.kind() != kind);
     }
 
     /// The piece of the modal that is on top, or else of the one that waits first.

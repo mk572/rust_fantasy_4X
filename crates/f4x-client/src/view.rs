@@ -96,8 +96,6 @@ pub struct App {
     params: GenParams,
     /// The new-game options chosen before the wizard is made.
     pub(crate) options: OptionsState,
-    /// The Chancellor's scroll, up after a turn change (task 272).
-    pub(crate) chancellor: Option<crate::chancellor::Chancellor>,
     /// The player's preferences (the Settings screen), shared by every game.
     pub(crate) prefs: crate::preferences::Preferences,
     /// The sounds and the music (`audio.rs`).
@@ -172,10 +170,6 @@ pub struct App {
     pub(crate) diplomsg: std::collections::HashMap<u16, Vec<String>>,
     /// Heroes died and their items were awarded: the warning box comes before the item screen.
     pub(crate) item_pool_warning: bool,
-    /// The buildings the human's cities finished, to be announced, oldest first.
-    /// The spells that fizzled or were dispelled, to be announced.
-    pub(crate) built_notices:
-        std::collections::VecDeque<(hecs::Entity, f4x_core::rules::BuildingId)>,
     /// The full-screen scenes waiting to be played, oldest first (`end_scene.rs`), and whether the
     /// scene of the game's end is among them already.
     pub(crate) end_scenes: std::collections::VecDeque<crate::end_scene::Scene>,
@@ -353,7 +347,6 @@ impl App {
             audio: crate::audio::Audio::silent(),
             hero_levels: Default::default(),
             levels_turn: u32::MAX,
-            chancellor: None,
             list_box: None,
             vizier_ask: false,
             cart_plane: Plane::Arcanus,
@@ -391,7 +384,6 @@ impl App {
             event_texts: Vec::new(),
             diplomsg: Default::default(),
             item_pool_warning: false,
-            built_notices: Default::default(),
             build_in: None,
             end_scenes: Default::default(),
             end_scene_queued: false,
@@ -1272,7 +1264,7 @@ impl App {
                 self.resume_turn();
             }
         }
-        self.chancellor = None;
+        self.modals.remove(crate::modal::kind::CHANCELLOR);
     }
 
     pub fn select_first_stack(&mut self) {
@@ -1456,18 +1448,6 @@ impl App {
             && self.turn_events.is_none()
         {
             self.check_hero_levels();
-        }
-        if matches!(self.screen, Screen::Map)
-            && !self.game.in_battle()
-            && self.chancellor_frame(input)
-        {
-            return true;
-        }
-        if matches!(self.screen, Screen::Map)
-            && !self.game.in_battle()
-            && self.built_popup_frame(input)
-        {
-            return true;
         }
         if matches!(self.screen, Screen::Map)
             && !self.game.in_battle()
