@@ -360,7 +360,9 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 - **The other side** is played by `battle/ai.rs` after a short delay per order: each unit attacks
   an adjacent enemy, else shoots, else walks to the reachable square nearest the closest enemy,
   else is done. This is a placeholder for the real battle AI (task 46).
-- `--battle` together with `--shot FILE` opens a test fight for screenshots.
+- `--battle` together with `--shot FILE` opens a test fight for screenshots. `--battle-field vortex` adds a Magic Vortex (the
+  original's whirlwind, `cmbtfx` 18, role `Vortex` in `spell_art.ron`; the cast picture is `cmbtfx` 25);
+  `--shot-after 0.45` takes the shot once its animation has moved past the first, small frame.
 
 ## 7. Differences from the original and open work
 

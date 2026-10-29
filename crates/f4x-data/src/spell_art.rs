@@ -19,6 +19,8 @@ pub enum Role {
     /// The spell's own picture, playing where it lands (in a battle, on the map or on a wizard's
     /// portrait) or fixed in a box.
     Cast,
+    /// The figure that stands on a square of the battlefield after the spell (Magic Vortex).
+    Vortex,
     /// The picture of a global enchantment in the diplomacy mirror.
     Global,
     /// What Call Chaos does to a unit: outcome 1 to 7 of its eight (0 does nothing).

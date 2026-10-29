@@ -646,6 +646,18 @@ impl App {
                     u.combat_spells.push((spell, f4x_core::player::PlayerId(0)));
                 }
             }
+            "vortex" => {
+                if let Some(cell) = (9..13)
+                    .flat_map(|y| (8..12).map(move |x| (x, y)))
+                    .find(|&cell| !battle.is_occupied(cell))
+                {
+                    battle.vortices.push(f4x_core::battle::vortex::Vortex {
+                        cell,
+                        owner: Side::Attacker,
+                        steered: false,
+                    });
+                }
+            }
             "mud" => {
                 for y in 8..13 {
                     for x in 8..13 {
@@ -1774,12 +1786,34 @@ impl App {
         }
         self.draw_missile(battle, (ox, oy, scale));
         self.draw_spell_fx((ox, oy, scale));
-        // Magic vortices: a swirl of rings, the steered one marked.
+        // Magic vortices: the original's whirlwind (without the art, a swirl of rings), the
+        // steered one marked.
+        let vortex_art = self
+            .art
+            .spell_picture("magic_vortex", &f4x_data::spell_art::Role::Vortex);
         for (i, v) in battle.vortices.iter().enumerate() {
             let (sx, sy) = at(v.cell);
             let (cx, cy) = (sx + CELL_W * scale / 2.0, sy + CELL_H * scale / 2.0);
             let spin = get_time() as f32 * 3.0;
-            for k in 0..4 {
+            let figure = vortex_art.as_ref().and_then(|(lbx, entry)| {
+                let frames = self.art.frames(lbx, *entry).max(1);
+                let frame = (get_time() / 0.1) as usize % frames;
+                self.art.picture(lbx, *entry, frame)
+            });
+            if let Some(tex) = figure {
+                // Where a small spell picture stands on its square (`spell_point`).
+                draw_texture_ex(
+                    tex,
+                    sx,
+                    sy - 17.0 * scale,
+                    WHITE,
+                    DrawTextureParams {
+                        dest_size: Some(tex.size() * scale),
+                        ..Default::default()
+                    },
+                );
+            }
+            for k in 0..if figure.is_some() { 0 } else { 4 } {
                 let r = (CELL_H * 0.9 - 3.0 * k as f32) * scale / 1.5;
                 let a = spin + k as f32 * 1.1;
                 draw_circle_lines(

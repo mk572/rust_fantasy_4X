@@ -86,7 +86,7 @@
         "life_drain": [(lbx: "cmbtfx", entry: 6, role: Cast)],
         "life_force": [(lbx: "specfx", entry: 31, role: Global)],
         "lightning_bolt": [(lbx: "cmbtfx", entry: 24, role: Cast)],
-        "magic_vortex": [(lbx: "cmbtfx", entry: 25, role: Cast)],
+        "magic_vortex": [(lbx: "cmbtfx", entry: 25, role: Cast), (lbx: "cmbtfx", entry: 18, role: Vortex)],
         "meteor_storm": [(lbx: "specfx", entry: 28, role: Global)],
         "mind_storm": [(lbx: "cmbtfx", entry: 21, role: Cast)],
         "nature_awareness": [(lbx: "specfx", entry: 22, role: Global)],
