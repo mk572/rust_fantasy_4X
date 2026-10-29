@@ -95,7 +95,7 @@
                 raider_percent: 0,
                 start_reveal_radius: 2.5,
             ),
-            rules: (safe_flee: (human: true, ai: true)),
+            rules: (safe_flee: (human: true, ai: true), settlers_free: false), // settlers_free: true = Settlers cost no citizen
             events: (random_events: false, pressure_percent: 50, frequency: Normal),
             scoring: (score_percent: 50),
         ),
@@ -133,7 +133,7 @@
                 raider_percent: 17,
                 start_reveal_radius: 2.5,
             ),
-            rules: (safe_flee: (human: true, ai: true)),
+            rules: (safe_flee: (human: true, ai: true), settlers_free: false), // settlers_free: true = Settlers cost no citizen
             events: (random_events: true, pressure_percent: 66, frequency: Normal),
             scoring: (score_percent: 75),
         ),
@@ -171,7 +171,7 @@
                 raider_percent: 33,
                 start_reveal_radius: 2.5,
             ),
-            rules: (safe_flee: (human: false, ai: false)),
+            rules: (safe_flee: (human: false, ai: false), settlers_free: false), // settlers_free: true = Settlers cost no citizen
             events: (random_events: true, pressure_percent: 75, frequency: Normal),
             scoring: (score_percent: 100),
         ),
@@ -209,7 +209,7 @@
                 raider_percent: 50,
                 start_reveal_radius: 2.5,
             ),
-            rules: (safe_flee: (human: false, ai: false)),
+            rules: (safe_flee: (human: false, ai: false), settlers_free: false), // settlers_free: true = Settlers cost no citizen
             events: (random_events: true, pressure_percent: 80, frequency: Normal),
             scoring: (score_percent: 200),
         ),
@@ -247,7 +247,7 @@
                 raider_percent: 67,
                 start_reveal_radius: 2.5,
             ),
-            rules: (safe_flee: (human: false, ai: false)),
+            rules: (safe_flee: (human: false, ai: false), settlers_free: false), // settlers_free: true = Settlers cost no citizen
             events: (random_events: true, pressure_percent: 100, frequency: Normal),
             scoring: (score_percent: 300),
         ),

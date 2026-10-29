@@ -31,6 +31,7 @@
     "refuse_wizard.production_error_nothing_to_buy": "The city has nothing to buy.",
     "refuse_wizard.production_error_not_enough_gold": "You do not have enough gold.",
     "refuse_wizard.production_error_not_coastal": "Only a coastal city can build ships.",
+    "refuse_wizard.production_error_too_small": "A city needs two citizens to build Settlers.",
     "refuse_wizard.production_error_not_built": "The city has no such building.",
     "refuse_wizard.production_error_already_sold": "The city has sold a building this turn already.",
     "refuse_wizard.hero_error_unknown": "There is no such hero.",

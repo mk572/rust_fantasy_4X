@@ -139,6 +139,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | rules | `max_city_size` | 5..=40 | 25 | `rules.ron` |
 | rules | `min_city_distance` | 1..=8 | 4 | `rules.ron` |
 | rules | `safe_flee` | `Split<bool>` | Intro, Easy: on | `battle/game.rs::overland_aftermath` (4.7) |
+| rules | `settlers_free` | bool | off | `city/production.rs`: off, a city needs two citizens to build Settlers (`ProductionError::TooSmall`) and loses one when they are done, as in the original; on, Settlers cost production only |
 | victory | `spell_of_mastery` | on / off | on | always on |
 | victory | `spell_of_return` | `Off` / `HumanOnly` / `All` | `All` | always all |
 | victory | `hardcore` | bool | off | `PLANNED.md` 8 |

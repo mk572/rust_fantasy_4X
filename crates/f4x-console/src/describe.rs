@@ -113,7 +113,7 @@ pub fn event(game: &Game, e: &Event) -> String {
         }
         Event::ProductionBlocked { city, item: i } => {
             format!(
-                "{} cannot finish {}: nine units stand in the city",
+                "{} cannot finish {} yet: the city is full or too small",
                 city_name(game, *city),
                 item(game, *i)
             )

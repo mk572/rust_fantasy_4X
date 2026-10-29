@@ -47,6 +47,8 @@ pub enum ProductionError {
     NotBuilt,
     /// The city has sold a building this turn already.
     AlreadySold,
+    /// Settlers need a city of two citizens: one stays.
+    TooSmall,
 }
 
 impl ProductionError {
@@ -62,6 +64,7 @@ impl ProductionError {
             Self::NotCoastal => "refuse_wizard.production_error_not_coastal",
             Self::NotBuilt => "refuse_wizard.production_error_not_built",
             Self::AlreadySold => "refuse_wizard.production_error_already_sold",
+            Self::TooSmall => "refuse_wizard.production_error_too_small",
         }
     }
 }
@@ -167,6 +170,15 @@ impl Economy<'_> {
                     && !self.city_is_coastal(city)
                 {
                     return Err(ProductionError::NotCoastal);
+                }
+                if self.costs_a_citizen(u)
+                    && self
+                        .world
+                        .get::<&super::economy::Population>(city)
+                        .map_or(0, |p| p.figures)
+                        < 2
+                {
+                    return Err(ProductionError::TooSmall);
                 }
                 self.requirements_met(&built, &def.requires)
             }
@@ -513,7 +525,11 @@ impl Game {
         else {
             return None;
         };
-        if self.units().units_at(at).len() < crate::unit::MAX_STACK {
+        let ProductionItem::Unit(u) = item else {
+            return None;
+        };
+        let too_small = self.economy().costs_a_citizen(u) && self.city_population(city).figures < 2;
+        if self.units().units_at(at).len() < crate::unit::MAX_STACK && !too_small {
             return None;
         }
         let _ = self.world.insert_one(city, p);
@@ -557,6 +573,16 @@ impl Game {
             }
             ProductionItem::Unit(u) => {
                 let (xp, weapons) = self.economy().new_unit_start(city, owner);
+                if self.economy().costs_a_citizen(u) {
+                    let pop = self.city_population(city);
+                    let _ = self.world.insert_one(
+                        city,
+                        super::economy::Population {
+                            figures: pop.figures.saturating_sub(1).max(1),
+                            ..pop
+                        },
+                    );
+                }
                 let unit = self.spawn_unit(owner, at, u);
                 self.doom_mastery_mutates(unit, owner);
                 let _ = self.world.insert_one(unit, Experience(xp));

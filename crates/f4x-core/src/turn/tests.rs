@@ -1359,3 +1359,41 @@ fn a_finished_unit_waits_while_nine_units_stand_in_the_city() {
     );
     assert!(g.economy().city_production(city).progress >= cost);
 }
+
+#[test]
+fn settlers_cost_a_citizen_unless_the_setting_makes_them_free() {
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), "elf", 3);
+    let settlers = g.content.rules.units.id_of("settler").unwrap();
+    let item = ProductionItem::Unit(settlers);
+    assert!(g.economy().costs_a_citizen(settlers));
+    g.world
+        .insert_one(
+            city,
+            crate::city::economy::Population {
+                figures: 1,
+                tens: 0,
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        g.economy().can_build(city, item),
+        Err(ProductionError::TooSmall)
+    );
+    g.world
+        .insert_one(
+            city,
+            crate::city::economy::Population {
+                figures: 3,
+                tens: 0,
+            },
+        )
+        .unwrap();
+    assert_eq!(g.economy().can_build(city, item), Ok(()));
+    g.set_production(city, item).unwrap();
+    let cost = g.economy().item_cost(city, item);
+    g.apply_production(city, cost as i32);
+    assert_eq!(g.city_population(city).figures, 2);
+    g.settings.rules.settlers_free = true;
+    assert!(!g.economy().costs_a_citizen(settlers));
+}

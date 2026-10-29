@@ -228,6 +228,10 @@ impl Eq for Radius {}
 pub struct RuleSettings {
     /// A fleeing side loses nobody (the original: the player on turn, Intro and Easy).
     pub safe_flee: Split<bool>,
+    /// Settlers cost no citizen. Off: a city needs two citizens to build Settlers and loses one
+    /// when they are finished (the original's rule).
+    #[serde(default)]
+    pub settlers_free: bool,
 }
 
 /// How often the random events (task 68) fire, as a multiplier on the original's chance.
@@ -676,6 +680,7 @@ impl GameSettings {
             },
             rules: RuleSettings {
                 safe_flee: Split::both(false),
+                settlers_free: false,
             },
             events: EventSettings {
                 random_events: true,
