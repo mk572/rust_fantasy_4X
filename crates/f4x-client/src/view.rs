@@ -248,8 +248,6 @@ pub struct App {
     pub(crate) combat_results: Option<crate::combat_result::CombatResults>,
     /// The battle last begun, for the scroll's paper.
     pub(crate) battle_site: Option<crate::combat_result::BattleSite>,
-    /// The question of what to give up when the mana reserve cannot pay the upkeep.
-    pub(crate) upkeep_prompt: Option<crate::upkeep_prompt::UpkeepPrompt>,
     /// The questions and notices over the screen below (`modal.rs`).
     pub(crate) modals: crate::modal::ModalStack,
 }
@@ -442,7 +440,6 @@ impl App {
             console: Default::default(),
             combat_results: None,
             battle_site: None,
-            upkeep_prompt: None,
             modals: Default::default(),
         };
         app.start_game();
@@ -1397,7 +1394,7 @@ impl App {
             && matches!(self.screen, Screen::Map)
             && self.turn_pending == 0
             && self.turn_events.is_none()
-            && self.upkeep_prompt.is_none()
+            && !self.modals.blocks_turn()
             && self.defences.is_empty()
             && !self.game.in_battle()
     }
@@ -1444,13 +1441,6 @@ impl App {
             && !matches!(self.screen, Screen::Console)
         {
             return self.modal_frame(input);
-        }
-        if self.upkeep_prompt.is_some()
-            && !self.game.in_battle()
-            && !matches!(self.screen, Screen::Console)
-            && self.upkeep_prompt_frame(input)
-        {
-            return true;
         }
         if self.proposal_waits() && self.proposal_frame(input) {
             return true;

@@ -27,6 +27,7 @@ pub(crate) mod priority {
 /// The names of the kinds that other code asks about (`ModalStack::has`).
 pub(crate) mod kind {
     pub(crate) const MASTERY: &str = "mastery";
+    pub(crate) const UPKEEP: &str = "upkeep";
 }
 
 pub(crate) trait Modal {
@@ -90,9 +91,8 @@ impl ModalStack {
         self.open.is_empty() && self.waiting.is_empty()
     }
 
-    /// Whether the turn change has to wait for an answer. Not asked yet: the prompts the turn
-    /// change waits for are still on the `if` chain in `view.rs`.
-    #[allow(dead_code)]
+    /// Whether the turn change has to wait for an answer. The prompts still on the `if` chain in
+    /// `view.rs` are checked there until their kind moves.
     pub(crate) fn blocks_turn(&self) -> bool {
         self.open
             .iter()

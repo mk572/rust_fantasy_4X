@@ -12,6 +12,7 @@ use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
+use crate::modal::{keep, kind, Modal};
 use crate::view::{App, HUMAN};
 
 /// Row height and the most rows shown, in the original's pixels (the screen is 320 by 200).
@@ -37,6 +38,15 @@ pub(crate) struct UpkeepPrompt {
     items: Option<ItemOverflow>,
     item_marked: Vec<bool>,
     cursor: usize,
+}
+
+impl Modal for UpkeepPrompt {
+    fn kind(&self) -> &'static str {
+        kind::UPKEEP
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.upkeep_prompt_frame(*self, input))
+    }
 }
 
 impl UpkeepPrompt {
@@ -224,8 +234,8 @@ impl App {
     pub(crate) fn request_end_turn(&mut self) {
         let mana = self.game.upkeep_shortfall(HUMAN);
         let troops = self.game.treasury_shortfall(HUMAN);
-        if (mana.is_some() || troops.is_some()) && self.upkeep_prompt.is_none() {
-            self.upkeep_prompt = Some(UpkeepPrompt::new(mana, troops));
+        if (mana.is_some() || troops.is_some()) && !self.modals.has(kind::UPKEEP) {
+            self.modals.open(UpkeepPrompt::new(mana, troops));
         } else {
             self.finish_turn();
         }
@@ -315,16 +325,17 @@ impl App {
     }
 
     /// One frame of the prompt; returns whether it took the frame.
-    pub(crate) fn upkeep_prompt_frame(&mut self, input: &Input) -> bool {
-        let Some(mut prompt) = self.upkeep_prompt.take() else {
-            return false;
-        };
+    pub(crate) fn upkeep_prompt_frame(
+        &mut self,
+        mut prompt: UpkeepPrompt,
+        input: &Input,
+    ) -> Option<UpkeepPrompt> {
         // The game may have changed under it (a building sold, a spell turned off): the prompt
         // goes if nothing is short any more.
         if self.game.upkeep_shortfall(HUMAN).is_none()
             && self.game.treasury_shortfall(HUMAN).is_none()
         {
-            return true;
+            return None;
         }
         let lines = prompt.lines();
         let n = lines.len();
@@ -386,9 +397,9 @@ impl App {
                 prompt.items = None;
                 prompt.item_marked.clear();
                 prompt.cursor = prompt.first_selectable();
-                self.upkeep_prompt = Some(prompt);
+                return Some(prompt);
             }
-            return true;
+            return None;
         }
         if confirm {
             if prompt.items.is_none() {
@@ -401,17 +412,13 @@ impl App {
                         .collect();
                     prompt.items = Some(over);
                     prompt.cursor = prompt.first_selectable();
-                    self.upkeep_prompt = Some(prompt);
-                    return true;
+                    return Some(prompt);
                 }
             }
             self.answer_upkeep(&prompt);
-            return true;
+            return None;
         }
 
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
         // The box: the original's stone brown with a dark edge.
         let panel = lay.rect((bx, by, bw, bh));
         draw_rectangle(
@@ -535,7 +542,6 @@ impl App {
             no_at.0,
             no_at.1,
         );
-        self.upkeep_prompt = Some(prompt);
-        true
+        Some(prompt)
     }
 }
