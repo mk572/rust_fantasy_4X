@@ -38,18 +38,21 @@ pub(crate) struct SelectionBox {
 }
 
 /// The pieces of the box in `resource.lbx`: left, top, right, bottom, bottom left, bottom
-/// right, then the row buttons (frame 0 plain, 1 lit) and their 2-pixel right ends.
+/// right, the brown fill under them, then the row buttons (frame 0 plain, 1 lit) and their 2-pixel right ends.
 const LEFT: usize = 5;
 const BOTTOM_LEFT: usize = 6;
 const TOP: usize = 7;
 const RIGHT: usize = 8;
 const BOTTOM: usize = 9;
 const BOTTOM_RIGHT: usize = 10;
+const FILL: usize = 11;
 const BUTTONS: usize = 12;
 const BUTTON_ENDS: usize = 22;
 const ROW_HEIGHT: f32 = 14.0;
 const TOP_HEIGHT: f32 = 18.0;
 const BOTTOM_HEIGHT: f32 = 14.0;
+const FILL_WIDTH: f32 = 16.0;
+const FILL_HEIGHT: f32 = 153.0;
 const SIDE_WIDTH: f32 = 16.0;
 const RIGHT_WIDTH: f32 = 18.0;
 
@@ -276,6 +279,20 @@ impl App {
             .contains(mouse)
         });
 
+        // The frame's pieces tint what is under them (the original's glass colours): the box is
+        // first filled with the brown strip of `resource.lbx` (two pixels short of the edge, where the
+        // frame has no marble), so the map does not shine through.
+        self.clipped((x1 + 2.0, y1 + 2.0, width - 4.0, height - 4.0), |app| {
+            let mut y = y1;
+            while y < y1 + height {
+                let mut x = x1;
+                while x < x1 + width {
+                    app.draw_pic(&lay, "resource", FILL, 0, x, y);
+                    x += FILL_WIDTH;
+                }
+                y += FILL_HEIGHT;
+            }
+        });
         // The top, the bottom and the row buttons are wider than any box: they are cut at the
         // frame's inner edge, so nothing of them shows through the frame's own pieces.
         let inner = (
