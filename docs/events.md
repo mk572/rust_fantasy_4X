@@ -1,7 +1,7 @@
 # Random events
 
 How the original game's random events work, for task 68. Sources: ReMoM `MoM/src/EVENTS.c`
-(`Determine_Event`, `Event_Twiddle`, `Get_Event_Victim`), the notes in `reference/ReMoM/doc/NextTurn/EVENTS-*.md`
+(`Determine_Event`, `Event_Twiddle`, `Get_Event_Victim`), the notes in `~/projects/ReMoM/doc/NextTurn/EVENTS-*.md`
 and `doc/MoX-Events.md`, the manual (page 105), and the places the events are read
 (`CITYCALC.c`, `MainScr.c`, `CityScr.c`, `REPORT.c`).
 

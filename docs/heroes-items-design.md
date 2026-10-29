@@ -14,8 +14,8 @@ each system is plain data plus functions over the pieces they need, not methods 
 (`ecs-structure.md`, guideline 12).
 
 Sources, so every number can be checked: the original's data files (`ITEMDATA.LBX`, `ITEMPOW.LBX`,
-`NAMES.LBX`, `PORTRAIT.LBX`, ...), the ReMoM clone in `reference/ReMoM` (`MoM/src/*.c`, written
-`File.c:function` below), its notes in `reference/ReMoM/doc/`, and the original help
+`NAMES.LBX`, `PORTRAIT.LBX`, ...), the ReMoM clone in `~/projects/ReMoM` (`MoM/src/*.c`, written
+`File.c:function` below), its notes in `~/projects/ReMoM/doc/`, and the original help
 (`content-local/help.ron`, topic numbers in brackets). "Level" is the 0-based level the code
 stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 

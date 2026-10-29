@@ -405,8 +405,7 @@ mod brain_tests {
     fn a_checkpoint_plays_battles_through_the_core_hook() {
         let content = f4x_data::load_content_layers(&[Path::new("../../content")]).unwrap();
         let spec = obs::ObsSpec::new(&content);
-        let dir = std::env::temp_dir().join(format!("f4x-learn-test-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = f4x_core::testdir::TestDir::new("learn-test");
         let file = dir.join("net");
         net::save_checkpoint(
             net::PolicyNet::new(spec.unit_features(), &Device::flex()),
@@ -431,7 +430,6 @@ mod brain_tests {
             finished += usize::from(env.outcome.winner.is_some());
         }
         assert!(finished >= 3, "{finished} of 4 battles ended");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A checkpoint saved for other rules (an ability gone, a size changed) or with no record of
@@ -440,8 +438,7 @@ mod brain_tests {
     fn a_checkpoint_for_other_rules_is_refused_with_a_reason() {
         let content = f4x_data::load_content_layers(&[Path::new("../../content")]).unwrap();
         let spec = obs::ObsSpec::new(&content);
-        let dir = std::env::temp_dir().join(format!("f4x-learn-shape-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = f4x_core::testdir::TestDir::new("learn-shape");
         let file = dir.join("net");
         net::save_checkpoint(
             net::PolicyNet::new(spec.unit_features(), &Device::flex()),
@@ -469,6 +466,5 @@ mod brain_tests {
             panic!("a checkpoint with no record was loaded");
         };
         assert!(why.contains("no record"), "{why}");
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

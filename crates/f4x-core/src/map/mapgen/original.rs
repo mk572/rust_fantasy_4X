@@ -4,7 +4,7 @@
 //! `Translate_Heightmap_To_Base_Terrain_Types` turns the count into terrain (1 grassland or a
 //! quarter forest, 2 to 3 forest, 4 to 5 hills, 6 and more mountains) and `Add_Tundra` paints the
 //! poles; `Generate_Climate_Terrain_Types` adds the tundra gradient and random-walked deserts and
-//! swamps (`reference/ReMoM/doc/SRD-NEWG_CreateLands.md`, `doc/NewGame/MAPGEN-*.md`). Ours takes
+//! swamps (`~/projects/ReMoM/doc/SRD-NEWG_CreateLands.md`, `doc/NewGame/MAPGEN-*.md`). Ours takes
 //! the same steps with the constants scaled to the map size; rivers and lakes are ours, run over the
 //! visit counts as the height. `Extend_Islands` follows the features (see [`extend_islands`]).
 //! Not ported: the landmass ids (nothing here reads them).

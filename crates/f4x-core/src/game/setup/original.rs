@@ -1,4 +1,4 @@
-//! The original's fortress sites (`Generate_Home_Cities`, `reference/ReMoM/doc/NewGame/
+//! The original's fortress sites (`Generate_Home_Cities`, `~/projects/ReMoM/doc/NewGame/
 //! MAPGEN-Generate_Home_Cities.md`), for the setting `original_map_generator`.
 //!
 //! A site is rolled anywhere on the wizard's plane, 1000 tries for all the wizards at a time;

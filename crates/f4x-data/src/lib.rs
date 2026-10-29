@@ -608,8 +608,7 @@ mod tests {
     #[test]
     fn hero_names_come_from_the_local_file_when_there_is_one() {
         let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
-        let over = std::env::temp_dir().join(format!("f4x_hero_names_{}", std::process::id()));
-        std::fs::create_dir_all(&over).unwrap();
+        let over = f4x_core::testdir::TestDir::new("hero-names");
         std::fs::write(
             over.join("hero_names.ron"),
             r#"[(unit: "dwarf", names: ["Brax", "Dolgin"])]"#,
@@ -633,7 +632,6 @@ mod tests {
         )
         .unwrap();
         assert!(load_content_layers(&[&over, &committed]).is_err());
-        let _ = std::fs::remove_dir_all(&over);
     }
 
     #[test]
@@ -1038,11 +1036,9 @@ mod tests {
 
     #[test]
     fn content_without_settings_leaves_them_empty_and_a_local_file_wins() {
-        let none = std::env::temp_dir().join("f4x-settings-none");
-        std::fs::create_dir_all(&none).unwrap();
+        let none = f4x_core::testdir::TestDir::new("settings-none");
         assert_eq!(load_settings(&[&none]).unwrap(), SettingsDef::default());
-        let over = std::env::temp_dir().join("f4x-settings-layer");
-        std::fs::create_dir_all(&over).unwrap();
+        let over = f4x_core::testdir::TestDir::new("settings-layer");
         std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 3))").unwrap();
         let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
         let c = load_content_layers(&[&over, &committed]).unwrap();
@@ -1052,8 +1048,7 @@ mod tests {
 
     #[test]
     fn a_settings_file_out_of_range_is_refused() {
-        let over = std::env::temp_dir().join("f4x-settings-bad");
-        std::fs::create_dir_all(&over).unwrap();
+        let over = f4x_core::testdir::TestDir::new("settings-bad");
         std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 10))").unwrap();
         let err = load_settings(&[&over]).unwrap_err();
         assert!(err.to_string().contains("10 opponents"), "{err}");
@@ -1079,8 +1074,7 @@ mod tests {
 
     #[test]
     fn a_spell_library_naming_an_unknown_spell_or_realm_is_refused() {
-        let over = std::env::temp_dir().join("f4x-settings-spells");
-        std::fs::create_dir_all(&over).unwrap();
+        let over = f4x_core::testdir::TestDir::new("settings-spells");
         let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
         std::fs::write(
             over.join("settings.ron"),

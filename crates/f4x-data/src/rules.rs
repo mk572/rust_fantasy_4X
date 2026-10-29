@@ -1124,9 +1124,7 @@ mod tests {
 
     #[test]
     fn city_names_come_from_the_first_directory_that_has_the_file() {
-        let base = std::env::temp_dir().join(format!("f4x-names-{}", std::process::id()));
-        let over = base.join("over");
-        std::fs::create_dir_all(&over).unwrap();
+        let over = f4x_core::testdir::TestDir::new("names");
         std::fs::write(
             over.join("city_names.ron"),
             r#"[(race: "barbarian", names: ["Alpha", "Beta"])]"#,
@@ -1157,6 +1155,5 @@ mod tests {
         )
         .unwrap();
         assert!(load_rules(&[&over, &content_dir()], &features).is_err());
-        let _ = std::fs::remove_dir_all(&base);
     }
 }

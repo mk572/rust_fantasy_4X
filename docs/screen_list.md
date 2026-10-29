@@ -2,7 +2,7 @@
 
 Every screen, window and pop-up of the original game, what it is for, when the game goes there,
 and where this project stands. The original is described from the reverse-engineered source in
-`reference/ReMoM/MoM/src` (function names in backquotes are from it; `MGC` is the start-up
+`~/projects/ReMoM/MoM/src` (function names in backquotes are from it; `MGC` is the start-up
 program `MAGIC.EXE`, `WZD` the game `WIZARDS.EXE`) and the original help text. Where the source
 has no comment I describe what the code does from its strings and calls and say so.
 Task numbers refer to [`TASKS.md`](TASKS.md) and [`TASKS-DONE.md`](TASKS-DONE.md). Where each screen's pictures come from and which palette they need: [`extract-art.md`](extract-art.md).

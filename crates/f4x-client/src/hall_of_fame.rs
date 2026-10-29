@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn the_file_round_trips_and_a_damaged_line_is_skipped() {
-        let dir = std::env::temp_dir().join(format!("f4x_hof_{}", std::process::id()));
+        let dir = f4x_core::testdir::TestDir::new("hof");
         let path = dir.join("hall.txt");
         let table = vec![e("Merlin", 1200), e("Raven", 800)];
         save(&path, &table).unwrap();
@@ -193,7 +193,6 @@ mod tests {
         text.push_str("garbage\n");
         std::fs::write(&path, text).unwrap();
         assert_eq!(load(&path), table);
-        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

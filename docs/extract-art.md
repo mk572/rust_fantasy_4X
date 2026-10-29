@@ -4,7 +4,7 @@ How the original's pictures get from its `.lbx` files into this project, how pal
 work, and how to attach a picture to a screen or an object in the game. Code:
 `crates/f4x-tools/src/{lbx,image,art,fonts,map_art}.rs` (extractor) and
 `crates/f4x-client/src/{art,frame}.rs` (the client side). Where each picture is shown in the
-original is read from the reverse-engineered source in `reference/ReMoM/MoM/src` (named below);
+original is read from the reverse-engineered source in `~/projects/ReMoM/MoM/src` (named below);
 [`screen_list.md`](screen_list.md) lists the screens themselves and [`local-assets.md`](local-assets.md)
 the IP rule.
 
@@ -173,7 +173,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   an embedded palette (the battle panel, the Info window) uses those indexes for colours.
 - **Also not reproduced:** fades, and the colour remapping for disabled or "ghost" drawing.
 
-**If a picture looks wrong:** (1) find where ReMoM loads it (`grep -rn "NAME" reference/ReMoM/MoM/src`);
+**If a picture looks wrong:** (1) find where ReMoM loads it (`grep -rn "NAME" ~/projects/ReMoM/MoM/src`);
 (2) look for a `Load_Palette(n)` or `Load_Palette_From_Animation(...)` shortly before it;
 (3) if it is a numbered palette, add the file to `palette_entry_for` with entry `n + 2`;
 (4) re-run the extractor and add a line to the unit test in `art.rs`.
@@ -244,7 +244,7 @@ when you can, the entry number when a lookup is by index (`map_draw.rs` does bot
 **Rule of thumb:** find the original's load call in ReMoM, take the file and entry number from
 it, and place the picture where the draw call puts it on the 320 by 200 screen.
 
-1. **Find it.** `grep -rn "FILENAME" reference/ReMoM/MoM/src/*.c`, or in `LOADER.c` for pictures
+1. **Find it.** `grep -rn "FILENAME" ~/projects/ReMoM/MoM/src/*.c`, or in `LOADER.c` for pictures
    shared by many screens (`Terrain_Init`, `Main_Screen_Load_Pictures`, `City_Screen_Load_Pictures`,
    `Reload_Combat_Graphics_Cache`, `Reload_Cityscape_Graphics_Cache`, `Reload_Item_Pictures`,
    `Cache_Graphics_Diplomacy`). A call like `LBX_Load(main_lbx_file, 8)` is `main/008_00.png`; `LBX_Reload_Next` is the

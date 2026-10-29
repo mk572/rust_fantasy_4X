@@ -56,6 +56,10 @@ Implement several test layers:
 
 Small tests within rs files themselves.
 
+A test that writes files takes its folder from `f4x_core::testdir::TestDir::new("label")`, never a fixed
+name in the temp folder: the name is unique per process and per call, so two `cargo test` runs at the same
+time (or nextest) never share a folder, and the folder is removed when the value is dropped.
+
 ## Regression testing
 
 Regression testing should be implemented on the overall game, not individual crates.

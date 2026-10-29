@@ -11,9 +11,11 @@ are the local-only ones; both are gitignored and the game runs without them (fla
 - `reference/mom-classic/` the author's own copy of the original game (Steam "Master of Magic
   Classic", app 1146370, downloaded with steamcmd); the files are in
   `reference/mom-classic/Master of Magic Official Release/`;
-- `reference/ReMoM/` a single-commit clone of jbalcomb/ReMoM (a reverse-engineering of the
-  original code), used for the unit and race tables and as a behaviour reference. A private
-  full-history mirror is on GitHub as `ReMoM-reference`.
+
+The ReMoM clone is outside the project, in `~/projects/ReMoM` (a clone of jbalcomb/ReMoM, a
+reverse-engineering of the original code), used for the unit, race and spell tables and as a
+behaviour reference. A private full-history mirror is on GitHub as `ReMoM-reference`. All the
+reference projects are listed in [`references.md`](references.md).
 
 The scripts default to these paths. Nothing in `reference/`, `assets-local/` or
 `content-local/` is committed.

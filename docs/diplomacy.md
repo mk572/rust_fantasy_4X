@@ -5,7 +5,7 @@ sections 2 to 7 and the hooks of 9.3), the AI answers proposals (`crates/f4x-ai/
 (`crates/f4x-console/src/talk.rs`). Not built: the diplomacy screen (task 91), personalities and what the AI starts on its own
 (tasks 64 and 65) and the leftovers of task 167. This document records the original's rules
 (taken from the reverse-engineered `DIPLOMAC.c`, `INITGAME.c`, `Spells128.c`, `Combat.c`,
-`CONQUEST.c` and `Explore.c` in `reference/ReMoM`, plus quotes of the official strategy guide
+`CONQUEST.c` and `Explore.c` in `~/projects/ReMoM`, plus quotes of the official strategy guide
 (OSG) kept in its notes), then how to build it. Numbers below were read from that code; where the
 code is marked buggy or unfinished by its authors that is said.
 

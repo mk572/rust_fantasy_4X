@@ -331,3 +331,439 @@ fn every_prefab_item_has_the_originals_type_cost_bonuses_and_powers() {
         wrong.join("\n")
     );
 }
+
+#[test]
+fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
+    use f4x_core::rules::{effects::Effect, ModOp, UnitKind};
+    let c = content();
+    let rows = named_table(include_str!("../original/races.tsv"));
+    let defs = c.rules.races.defs();
+    assert_eq!(defs.len(), rows.len(), "races");
+    let buildings = c.rules.buildings.defs();
+    let units = c.rules.units.defs();
+    let unit_rows = table(include_str!("../original/units.tsv"));
+    let mut wrong = Vec::new();
+    for (index, (def, row)) in defs.iter().zip(&rows).enumerate() {
+        if plain(&def.name) != plain(&row["name"]) {
+            wrong.push(format!("{}: named {} in the original", def.id, row["name"]));
+            continue;
+        }
+        let growth: i32 = def
+            .effects
+            .iter()
+            .filter_map(|e| match &e.effect {
+                Effect::Modify {
+                    stat: Stat::CityGrowth,
+                    op: ModOp::Add,
+                    value,
+                } => Some(*value),
+                _ => None,
+            })
+            .sum();
+        for (what, ours, theirs) in [
+            (
+                "outpost growth",
+                i64::from(def.outpost_growth),
+                number(row, "outpost_growth"),
+            ),
+            (
+                "house type",
+                i64::from(def.house_type),
+                number(row, "house_type"),
+            ),
+            // The original's modifier is in tens of percent.
+            (
+                "city growth",
+                i64::from(growth),
+                number(row, "growth_mod") * 10,
+            ),
+        ] {
+            if ours != theirs {
+                wrong.push(format!("{} {what}: {ours}, original {theirs}", def.id));
+            }
+        }
+        // A building with no race list is open to every race.
+        let mut cannot: Vec<&str> = buildings
+            .iter()
+            .filter(|b| !b.races.is_empty() && !b.races.contains(&def.id))
+            .map(|b| b.id.as_str())
+            .collect();
+        cannot.sort_unstable();
+        let mut original: Vec<&str> = row["cant_build"]
+            .split_whitespace()
+            .map(|r| {
+                buildings[r.parse::<usize>().unwrap() - FIRST_BUILDING]
+                    .id
+                    .as_str()
+            })
+            .collect();
+        original.sort_unstable();
+        if cannot != original {
+            wrong.push(format!(
+                "{} cannot build {cannot:?}, original {original:?}",
+                def.id
+            ));
+        }
+        let mut ours: Vec<&str> = def.units.iter().map(String::as_str).collect();
+        ours.sort_unstable();
+        let mut theirs: Vec<&str> = units
+            .iter()
+            .zip(&unit_rows)
+            // Heroes carry a race in the original but are hired, not trained by a city.
+            .filter(|(u, r)| u.kind == UnitKind::Normal && r["race"] == index as i32)
+            .map(|(u, _)| u.id.as_str())
+            .collect();
+        theirs.sort_unstable();
+        if ours != theirs {
+            wrong.push(format!("{} units {ours:?}, original {theirs:?}", def.id));
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} differ:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
+}
+
+/// Casting cost of a spell the original leaves at 0 because the caster chooses it, and the cost
+/// our content gives it instead: `(spell id, our cost, reason)`.
+const SPELL_DEPARTURES: &[(&str, u32, &str)] = &[
+    (
+        "enchant_item",
+        1,
+        "the original asks for the mana of the item's powers; ours starts at 1",
+    ),
+    (
+        "create_artifact",
+        1,
+        "the original asks for the mana of the item's powers; ours starts at 1",
+    ),
+];
+
+#[test]
+fn every_spell_has_the_originals_name_realm_cost_research_rarity_and_summoned_unit() {
+    use f4x_core::rules::{effects::Effect, Rarity};
+    let c = content();
+    let rows = named_table(include_str!("../original/spells.tsv"));
+    let defs = c.rules.spells.defs();
+    assert_eq!(defs.len(), rows.len(), "spells");
+    let units = c.rules.units.defs();
+    // Each realm's spells come as ten common, ten uncommon, ten rare and ten very rare, in the
+    // original's order.
+    let tiers = [
+        Rarity::Common,
+        Rarity::Uncommon,
+        Rarity::Rare,
+        Rarity::VeryRare,
+    ];
+    let mut seen = [0usize; 6];
+    let mut wrong = Vec::new();
+    for (def, row) in defs.iter().zip(&rows) {
+        if plain(&def.name) != plain(&row["name"]) {
+            wrong.push(format!("{}: named {} in the original", def.id, row["name"]));
+            continue;
+        }
+        let realm = number(row, "realm") as usize;
+        if def.realm != REALMS[realm] {
+            wrong.push(format!(
+                "{} realm {}, original {}",
+                def.id, def.realm, REALMS[realm]
+            ));
+        }
+        let tier = tiers[(seen[realm] / 10).min(3)];
+        seen[realm] += 1;
+        if def.rarity != tier {
+            wrong.push(format!(
+                "{} rarity {:?}, original {tier:?}",
+                def.id, def.rarity
+            ));
+        }
+        let cost = number(row, "cost");
+        let departs = SPELL_DEPARTURES
+            .iter()
+            .any(|(id, ours, _)| *id == def.id && i64::from(*ours) == i64::from(def.cost));
+        if i64::from(def.cost) != cost && !departs {
+            wrong.push(format!("{} cost {}, original {cost}", def.id, def.cost));
+        }
+        if i64::from(def.research_cost) != number(row, "research") {
+            wrong.push(format!(
+                "{} research {}, original {}",
+                def.id,
+                def.research_cost,
+                number(row, "research")
+            ));
+        }
+        // Category 0 is a summoning; its first parameter is the unit it creates.
+        if number(row, "category") == 0 {
+            let original = &units[number(row, "param") as usize].id;
+            let ours: Vec<&String> = def
+                .effects
+                .iter()
+                .filter_map(|e| match &e.effect {
+                    Effect::Summon { unit, .. } => Some(unit),
+                    // The Floating Island is a unit in the original; ours is a custom effect of the same name.
+                    Effect::Custom(name) if *name == def.id => Some(name),
+                    _ => None,
+                })
+                .collect();
+            if ours != [original] {
+                wrong.push(format!("{} summons {ours:?}, original {original}", def.id));
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} differ:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
+}
+
+/// The unit abilities the original keeps as bits, as `(column, bit, our ability id)`: the movement
+/// flags, the first attribute word, the second (what the unit casts as if it had the spell) and
+/// the ability word (`ReMoM`'s `MOM_DEF.h`). The ability word's `Fantastic` bit is the unit's kind
+/// and its `Land Corruption` bit has no ability of ours.
+const FLAG_ABILITIES: &[(&str, i32, &str)] = &[
+    ("move_flags", 0x01, "cavalry"),
+    ("move_flags", 0x10, "teleport"),
+    ("move_flags", 0x20, "forester"),
+    ("move_flags", 0x40, "mountaineer"),
+    ("attribs1", 0x0001, "fire_immunity"),
+    ("attribs1", 0x0002, "stoning_immunity"),
+    ("attribs1", 0x0004, "missile_immunity"),
+    ("attribs1", 0x0008, "illusion_immunity"),
+    ("attribs1", 0x0010, "cold_immunity"),
+    ("attribs1", 0x0020, "magic_immunity"),
+    ("attribs1", 0x0040, "death_immunity"),
+    ("attribs1", 0x0080, "poison_immunity"),
+    ("attribs1", 0x0100, "weapon_immunity"),
+    ("attribs1", 0x0200, "flying"),
+    ("attribs1", 0x0400, "lucky"),
+    ("attribs2", 0x01, "casts_healing"),
+    ("attribs2", 0x02, "casts_fireball"),
+    ("attribs2", 0x04, "casts_doom_bolt"),
+    ("attribs2", 0x08, "immolation"),
+    ("attribs2", 0x10, "casts_web"),
+    ("attribs2", 0x20, "cause_fear"),
+    ("attribs2", 0x40, "resist_all"),
+    ("attribs2", 0x80, "holy_bonus"),
+    ("abilities", 0x0002, "large_shield"),
+    ("abilities", 0x0004, "planar_travel"),
+    ("abilities", 0x0008, "wall_crusher"),
+    ("abilities", 0x0010, "healer"),
+    ("abilities", 0x0020, "create_outpost"),
+    ("abilities", 0x0040, "invisibility"),
+    ("abilities", 0x0080, "create_undead"),
+    ("abilities", 0x0100, "long_range"),
+    ("abilities", 0x0400, "meld"),
+    ("abilities", 0x0800, "non_corporeal"),
+    ("abilities", 0x1000, "wind_walking"),
+    ("abilities", 0x2000, "regeneration"),
+    ("abilities", 0x4000, "purify"),
+    ("abilities", 0x8000, "negate_first_strike"),
+];
+
+#[test]
+fn every_unit_has_the_abilities_the_originals_flags_give_it() {
+    let c = content();
+    let rows = table(include_str!("../original/units.tsv"));
+    let defs = c.rules.units.defs();
+    let mut wrong = Vec::new();
+    let mut compared = 0;
+    for (def, row) in defs.iter().zip(&rows) {
+        let mut theirs: Vec<&str> = FLAG_ABILITIES
+            .iter()
+            .filter(|(column, bit, _)| row[*column] & bit != 0)
+            .map(|(_, _, id)| *id)
+            .collect();
+        theirs.sort_unstable();
+        // Only the abilities the flags cover: the rest (attack types, gazes, breaths) are not bits.
+        let mut ours: Vec<&str> = def
+            .abilities
+            .iter()
+            .map(String::as_str)
+            .filter(|a| FLAG_ABILITIES.iter().any(|(_, _, id)| id == a))
+            .collect();
+        ours.sort_unstable();
+        compared += theirs.len();
+        if ours != theirs {
+            wrong.push(format!(
+                "{} has {ours:?}, original flags {theirs:?}",
+                def.id
+            ));
+        }
+    }
+    assert!(
+        compared > 100,
+        "the walk compared only {compared} abilities"
+    );
+    assert!(
+        wrong.is_empty(),
+        "{} differ:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
+}
+
+/// The original's retorts ("special abilities") in the order of its wizard record
+/// (`wsa_*` of `NewGame.c`), which is `Retort::LISTED`.
+const ORIGINAL_RETORTS: [&str; 18] = [
+    "Alchemy",
+    "Warlord",
+    "ChaosMastery",
+    "NatureMastery",
+    "SorceryMastery",
+    "InfernalPower",
+    "DivinePower",
+    "SageMaster",
+    "Channeler",
+    "Myrran",
+    "Archmage",
+    "ManaFocusing",
+    "NodeMastery",
+    "Famous",
+    "Runemaster",
+    "Conjurer",
+    "Charismatic",
+    "Artificer",
+];
+
+/// Picks a retort costs in the original's creation screen: one, two for the five of
+/// `TBL_2pickRetort_Lbls` (Warlord, Channeler, Divine Power, Famous, Infernal Power), three for Myrran.
+fn original_retort_cost(name: &str) -> u8 {
+    match name {
+        "Warlord" | "Channeler" | "DivinePower" | "Famous" | "InfernalPower" => 2,
+        "Myrran" => 3,
+        _ => 1,
+    }
+}
+
+/// Whether the original's creation screen lets the wizard pick the retort with these books
+/// (`wsa_picklist_start` and the unlocks after it), not counting the pick budget. `n` is
+/// life, death, chaos, nature, sorcery.
+fn original_retort_available(name: &str, n: [u8; 5]) -> bool {
+    let [life, death, chaos, nature, sorcery] = n;
+    let realms = n.iter().filter(|&&b| b > 0).count();
+    let strong_realms = n.iter().filter(|&&b| b > 1).count();
+    let mastery_book = n.iter().any(|&b| b > 3);
+    match name {
+        "Alchemy" | "Warlord" | "Channeler" | "Artificer" | "Conjurer" | "Myrran" | "Famous"
+        | "Charismatic" => true,
+        "SageMaster" => realms > 1,
+        "Runemaster" => strong_realms > 2,
+        "Archmage" | "ManaFocusing" => mastery_book,
+        "ChaosMastery" => chaos > 3,
+        "NatureMastery" => nature > 3,
+        "SorceryMastery" => sorcery > 3,
+        "InfernalPower" => death > 3,
+        "DivinePower" => life > 3,
+        "NodeMastery" => chaos > 0 && sorcery > 0 && nature > 0,
+        other => panic!("{other} is not a retort of the original"),
+    }
+}
+
+#[test]
+fn every_retort_costs_and_unlocks_as_in_the_originals_creation_screen() {
+    use f4x_core::wizard::{magic::Retort, retort_available, retort_cost, ALL_RETORTS};
+    assert_eq!(Retort::LISTED.len(), ORIGINAL_RETORTS.len());
+    for (retort, name) in Retort::LISTED.iter().zip(ORIGINAL_RETORTS) {
+        assert_eq!(
+            format!("{retort:?}"),
+            name,
+            "the retort list follows the original's order"
+        );
+        assert!(
+            ALL_RETORTS.contains(retort),
+            "{name} is on the creation screen"
+        );
+        assert_eq!(
+            retort_cost(*retort),
+            original_retort_cost(name),
+            "{name} cost"
+        );
+    }
+    let realms = ["life", "death", "chaos", "nature", "sorcery"];
+    let mut checked = 0;
+    // Every way to spend up to eleven picks on books.
+    for life in 0..=11u8 {
+        for death in 0..=11 - life {
+            for chaos in 0..=11 - life - death {
+                for nature in 0..=11 - life - death - chaos {
+                    for sorcery in 0..=11 - life - death - chaos - nature {
+                        let n = [life, death, chaos, nature, sorcery];
+                        let books = realms
+                            .iter()
+                            .zip(n)
+                            .map(|(r, b)| (r.to_string(), b))
+                            .collect();
+                        for (retort, name) in Retort::LISTED.iter().zip(ORIGINAL_RETORTS) {
+                            assert_eq!(
+                                retort_available(*retort, &books),
+                                original_retort_available(name, n),
+                                "{name} with life {life}, death {death}, chaos {chaos}, nature {nature}, sorcery {sorcery}"
+                            );
+                            checked += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(checked > 50_000, "only {checked} cases checked");
+}
+
+/// The original's ready-made wizards (`_wizard_presets_table`): name, books in the order life,
+/// sorcery, nature, death, chaos, and the retort's place in `ORIGINAL_RETORTS` (none for Raven).
+const ORIGINAL_WIZARDS: [(&str, [u8; 5], Option<usize>); 14] = [
+    ("Merlin", [5, 0, 5, 0, 0], Some(7)),
+    ("Raven", [0, 6, 5, 0, 0], None),
+    ("Sharee", [0, 0, 0, 5, 5], Some(15)),
+    ("Lo Pan", [0, 5, 0, 0, 5], Some(8)),
+    ("Jafar", [0, 10, 0, 0, 0], Some(0)),
+    ("Oberic", [0, 0, 5, 0, 5], Some(11)),
+    ("Rjak", [0, 0, 0, 9, 0], Some(5)),
+    ("Sss'ra", [4, 0, 0, 0, 4], Some(9)),
+    ("Tauron", [0, 0, 0, 0, 10], Some(2)),
+    ("Freya", [0, 0, 10, 0, 0], Some(3)),
+    ("Horus", [5, 5, 0, 0, 0], Some(10)),
+    ("Ariel", [10, 0, 0, 0, 0], Some(16)),
+    ("Tlaloc", [0, 0, 4, 5, 0], Some(1)),
+    ("Kali", [0, 5, 0, 5, 0], Some(17)),
+];
+
+#[test]
+fn every_ready_made_wizard_has_the_originals_books_and_retort() {
+    use f4x_core::wizard::magic::Retort;
+    let c = content();
+    let defs = c.rules.wizards.defs();
+    assert_eq!(defs.len(), ORIGINAL_WIZARDS.len(), "ready-made wizards");
+    let realms = ["life", "sorcery", "nature", "death", "chaos"];
+    for (def, (name, books, retort)) in defs.iter().zip(ORIGINAL_WIZARDS) {
+        assert_eq!(
+            plain(&def.id),
+            plain(name),
+            "wizards come in the original's order"
+        );
+        let mut ours: Vec<(&str, u8)> = def.books.iter().map(|(r, b)| (r.as_str(), *b)).collect();
+        ours.sort_unstable();
+        let mut theirs: Vec<(&str, u8)> = realms
+            .iter()
+            .zip(books)
+            .filter(|(_, b)| *b > 0)
+            .map(|(r, b)| (*r, b))
+            .collect();
+        // Lo Pan has one sorcery book fewer than the original (docs/divergences.md).
+        if def.id == "lo_pan" {
+            theirs.iter_mut().for_each(|(r, b)| {
+                if *r == "sorcery" {
+                    *b -= 1;
+                }
+            });
+        }
+        theirs.sort_unstable();
+        assert_eq!(ours, theirs, "{} books", def.id);
+        let retorts: Vec<Retort> = retort.map(|i| Retort::LISTED[i]).into_iter().collect();
+        assert_eq!(def.retorts, retorts, "{} retorts", def.id);
+    }
+}

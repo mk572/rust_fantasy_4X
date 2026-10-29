@@ -602,8 +602,7 @@ mod tests {
 
     #[test]
     fn files_are_found_by_archive_and_entry() {
-        let dir = std::env::temp_dir().join("f4x-audio-scan-test");
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = f4x_core::testdir::TestDir::new("audio-scan");
         std::fs::create_dir_all(dir.join("soundfx")).unwrap();
         std::fs::create_dir_all(dir.join("music")).unwrap();
         std::fs::write(dir.join("soundfx/002_left_btn_clk.ogg"), b"x").unwrap();
@@ -615,6 +614,5 @@ mod tests {
         assert!(a.files.contains_key(&(Archive::Music, 104)));
         assert_eq!(a.files.len(), 2);
         assert!(!Audio::scan(&dir.join("none"), SoundTable::default()).has_files());
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

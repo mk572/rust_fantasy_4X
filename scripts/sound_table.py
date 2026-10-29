@@ -19,7 +19,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_GAME = REPO / "reference/mom-classic/Master of Magic Official Release"
-DEFAULT_REMOM = REPO / "reference/ReMoM"
+DEFAULT_REMOM = Path.home() / "projects/ReMoM"
 
 # Global enchantments whose music is entry 19 + the spell row's byte 32 (`WIZ_GlobalSpellAnim`).
 GLOBAL_SPELLS = [

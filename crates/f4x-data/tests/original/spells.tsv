@@ -1,0 +1,215 @@
+index	name	category	realm	cost	research	param
+0	Earth to Mud	5	0	15	20	0
+1	Resist Elements	1	0	5	40	512
+2	Wall of Stone	5	0	50	60	8200
+3	Giant Strength	1	0	8	80	0
+4	Web	14	0	10	100	4096
+5	War Bears	0	0	70	130	179
+6	Stone Skin	1	0	10	160	2048
+7	Water Walking	1	0	50	190	256
+8	Sprites	0	0	100	220	180
+9	Earth Lore	5	0	30	250	0
+10	Cracks Call	5	0	20	300	3
+11	Nature's Eye	2	0	75	350	14
+12	Ice Bolt	22	0	10	400	12293
+13	Giant Spiders	0	0	200	450	183
+14	Change Terrain	5	0	50	500	1
+15	Path Finding	1	0	50	560	128
+16	Cockatrices	0	0	275	620	181
+17	Transmute	5	0	60	680	0
+18	Nature's Cures	5	0	75	740	1
+19	Basilisk	0	0	325	800	182
+20	Elemental Armor	1	0	35	880	1024
+21	Petrify	12	0	35	960	8704
+22	Stone Giant	0	0	450	1040	184
+23	Iron Skin	1	0	40	1120	4096
+24	Ice Storm	4	0	200	1200	12294
+25	Earthquake	5	0	200	1300	0
+26	Gorgons	0	0	600	1400	186
+27	Move Fortress	5	0	200	1500	7
+28	Gaia's Blessing	2	0	300	1600	17
+29	Earth Elemental	0	0	60	1700	187
+30	Regeneration	1	0	60	1850	64
+31	Behemoth	0	0	700	2000	188
+32	Entangle	10	0	50	2250	24
+33	Nature Awareness	9	0	800	2500	7
+34	Call Lightning	10	0	60	3000	18
+35	Colossus	0	0	800	3500	185
+36	Earth Gate	2	0	250	4000	15
+37	Herb Mastery	9	0	1000	4500	9
+38	Great Wyrm	0	0	1000	5000	189
+39	Nature's Wrath	9	0	1250	6000	8
+40	Resist Magic	1	1	5	20	0
+41	Dispel Magic True	18	1	10	40	0
+42	Floating Island	0	1	50	60	190
+43	Guardian Wind	1	1	10	80	2
+44	Phantom Warriors	0	1	10	100	192
+45	Confusion	13	1	15	130	2
+46	Word of Recall	5	1	20	160	0
+47	Counter Magic	21	1	10	190	20
+48	Nagas	0	1	100	220	197
+49	Psionic Blast	22	1	10	250	10245
+50	Blur	10	1	25	300	28
+51	Disenchant True	19	1	50	350	0
+52	Vertigo	13	1	25	400	1
+53	Spell Lock	1	1	20	450	16384
+54	Enchant Road	5	1	100	500	0
+55	Flight	1	1	25	560	0
+56	Wind Mastery	9	1	400	620	4
+57	Spell Blast	6	1	50	680	0
+58	Aura of Majesty	9	1	400	740	3
+59	Phantom Beast	0	1	35	800	191
+60	Disjunction True	20	1	200	880	0
+61	Invisiblity	1	1	35	960	-32768
+62	Wind Walking	1	1	250	1040	0
+63	Banish	23	1	20	1120	3
+64	Storm Giant	0	1	500	1200	193
+65	Air Elemental	0	1	50	1300	194
+66	Mind Storm	14	1	35	1400	8
+67	Stasis	5	1	250	1500	192
+68	Magic Immunity	1	1	50	1600	0
+69	Haste	1	1	50	1700	2048
+70	Djinn	0	1	650	1850	195
+71	Spell Ward	5	1	350	2000	9
+72	Creature Binding	13	1	70	2250	8192
+73	Mass Invisibility	10	1	80	2500	22
+74	Great Unsummoning	5	1	1000	3000	0
+75	Spell Binding	5	1	1000	3500	0
+76	Flying Fortress	2	1	500	4000	8
+77	Sky Drake	0	1	1000	4500	196
+78	Suppress Magic	9	1	1250	5000	5
+79	Time Stop	9	1	1500	6000	6
+80	Warp Wood	5	2	10	20	0
+81	Disrupt	5	2	15	40	0
+82	Fire Bolt	22	2	5	60	8453
+83	Hell Hounds	0	2	40	80	155
+84	Corruption	5	2	40	100	0
+85	Eldritch Weapon	15	2	15	130	0
+86	Wall of Fire	2	2	30	160	0
+87	Shatter	16	2	12	190	16
+88	Warp Creature	5	2	18	220	0
+89	Fire Elemental	0	2	20	250	158
+90	Lightning Bolt	22	2	10	300	8197
+91	Fire Giant	0	2	150	350	157
+92	Chaos Channels	5	2	50	400	0
+93	Flame Blade	15	2	25	450	0
+94	Gargoyles	0	2	200	500	156
+95	Fireball	22	2	15	560	8453
+96	Doom Bat	0	2	300	620	161
+97	Raise Volcano	5	2	200	680	0
+98	Immolation	1	2	30	740	1
+99	Chimeras	0	2	350	800	160
+100	Warp Lightning	4	2	35	880	8202
+101	Metal Fires	10	2	40	960	10
+102	Chaos Spawn	0	2	500	1040	159
+103	Doom Bolt	4	2	40	1120	8202
+104	Magic Vortex	5	2	50	1200	0
+105	Efreet	0	2	550	1300	162
+106	Fire Storm	4	2	250	1400	8456
+107	Warp Reality	10	2	50	1500	4
+108	Flame Strike	10	2	60	1600	8463
+109	Chaos Rift	3	2	300	1700	1
+110	Hydra	0	2	650	1850	163
+111	Disintegrate	12	2	50	2000	8192
+112	Meteor Storm	9	2	900	2250	13
+113	Great Wasting	9	2	1000	2500	12
+114	Call Chaos	10	2	75	3000	8452
+115	Chaos Surge	9	2	1000	3500	10
+116	Doom Mastery	9	2	1100	4000	11
+117	Great Drake	0	2	900	4500	164
+118	Call the Void	5	2	500	5000	8202
+119	Armageddon	9	2	1250	6000	14
+120	Bless	1	3	5	20	0
+121	Star Fires	4	3	5	40	8207
+122	Endurance	1	3	30	60	8192
+123	Holy Weapon	15	3	10	80	0
+124	Healing	5	3	15	100	0
+125	Holy Armor	15	3	18	130	0
+126	Just Cause	9	3	150	160	18
+127	True Light	10	3	20	190	0
+128	Guardian Spirit	0	3	80	220	176
+129	Heroism	15	3	20	250	0
+130	True Sight	1	3	20	300	0
+131	Plane Shift	5	3	125	350	0
+132	Resurrection	5	3	250	400	0
+133	Dispel Evil	12	3	25	450	0
+134	Planar Seal	9	3	500	500	20
+135	Unicorns	0	3	250	560	175
+136	Raise Dead	5	3	35	620	0
+137	Planar Travel	1	3	150	680	0
+138	Heavenly Light	2	3	150	740	21
+139	Prayer	10	3	30	800	12
+140	Lionheart	1	3	40	880	0
+141	Incarnation	5	3	500	960	0
+142	Invulnerability	1	3	40	1040	0
+143	Righteousness	1	3	40	1120	0
+144	Prosperity	2	3	250	1200	19
+145	Altar of Battle	2	3	300	1300	24
+146	Angel	0	3	550	1400	177
+147	Stream of Life	2	3	300	1500	16
+148	Mass Healing	10	3	50	1600	0
+149	Holy Word	10	3	60	1700	0
+150	High Prayer	10	3	60	1850	14
+151	Inspirations	2	3	350	2000	18
+152	Astral Gate	2	3	350	2250	20
+153	Holy Arms	9	3	900	2500	19
+154	Consecration	2	3	400	3000	22
+155	Life Force	9	3	1000	3500	16
+156	Tranquility	9	3	1000	4000	15
+157	Crusade	9	3	1100	4500	17
+158	Arch Angel	0	3	950	5000	178
+159	Charm of Life	9	3	1250	6000	21
+160	Skeletons	0	4	25	20	165
+161	Weakness	13	4	5	40	32
+162	Dark Rituals	2	4	30	60	2
+163	Cloak of Fear	1	4	12	80	8
+164	Black Sleep	13	4	15	100	64
+165	Ghouls	0	4	80	130	166
+166	Life Drain	22	4	10	160	24576
+167	Terror	10	4	20	190	16
+168	Darkness	10	4	25	250	2
+169	Mana Leak	10	4	20	220	26
+170	Drain Power	6	4	50	300	2
+171	Possession	16	4	30	350	16384
+172	Lycanthropy	5	4	180	400	168
+173	Black Prayer	10	4	35	450	6
+174	Black Channels	1	4	100	500	16
+175	Night Stalker	0	4	250	560	167
+176	Subversion	6	4	100	620	3
+177	Wall of Darkness	2	4	40	680	23
+178	Berserk	1	4	30	740	4
+179	Shadow Demons	0	4	325	800	171
+180	Wraith Form	1	4	30	880	32
+181	Wrack	10	4	40	960	8
+182	Evil Presence	3	4	100	1040	3
+183	Wraiths	0	4	500	1120	170
+184	Cloud of Shadow	2	4	150	1200	6
+185	Warp Node	5	4	75	1300	0
+186	Black Wind	5	4	200	1400	1
+187	Zombie Mastery	9	4	800	1500	2
+188	Famine	3	4	200	1600	7
+189	Cursed Lands	3	4	150	1700	4
+190	Cruel Unminding	6	4	250	1850	1
+191	Word of Death	12	4	40	2000	5
+192	Death Knights	0	4	600	2250	172
+193	Death Spell	10	4	50	2500	0
+194	Animate Dead	5	4	50	3000	76
+195	Pestilence	3	4	350	3500	5
+196	Eternal Night	9	4	1000	4000	0
+197	Evil Omens	9	4	1100	4500	1
+198	Death Wish	5	4	500	5000	0
+199	Demon Lord	0	4	1000	6000	173
+200	Magic Spirit	0	5	30	20	154
+201	Dispel Magic	18	5	10	100	0
+202	Summoning Circle	2	5	50	150	0
+203	Disenchant Area	19	5	50	300	0
+204	Recall Hero	5	5	20	350	0
+205	Detect Magic	9	5	200	400	22
+206	Enchant Item	11	5	0	450	0
+207	Summon Hero	5	5	300	500	0
+208	Awareness	9	5	500	700	23
+209	Disjunction	20	5	200	750	0
+210	Create Artifact	11	5	0	1000	0
+211	Summon Champion	5	5	750	1250	0
+212	Spell of Mastery	5	5	5000	60000	0
+213	Spell of Return	5	5	1000	20	0

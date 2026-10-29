@@ -28,7 +28,7 @@ LOG = logging.getLogger("import_mom")
 
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_GAME = REPO / "reference/mom-classic/Master of Magic Official Release"
-DEFAULT_REMOM = REPO / "reference/ReMoM"
+DEFAULT_REMOM = Path.home() / "projects/ReMoM"
 
 
 # --------------------------------------------------------------------------- #

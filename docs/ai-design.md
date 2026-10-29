@@ -124,7 +124,7 @@ scripted AI becomes a second brain of that kind (section 6.2).
 
 ## 4. What ReMoM's AI does (reference)
 
-From `reference/ReMoM/doc/ComputerPlayer/` and the sources it points to. The ReMoM source is a
+From `~/projects/ReMoM/doc/ComputerPlayer/` and the sources it points to. The ReMoM source is a
 reconstruction, and several leaves are still stubs there; this is said below where it matters.
 Not everything in these notes was read; the sections that were are named.
 

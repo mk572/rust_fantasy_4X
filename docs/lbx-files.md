@@ -3,7 +3,7 @@
 What each `.LBX` file of the original game holds, which of them carry rules or text, and where this
 project reads them. Written 24 October 2026 (tasks 242 and 243) from the author's copy of the game
 and the ReMoM clone: the counts are read from the files, the use from the source that loads each
-(`reference/ReMoM/MoM/src`). The art is local only (`docs/local-assets.md`).
+(`~/projects/ReMoM/MoM/src`). The art is local only (`docs/local-assets.md`).
 
 An `.lbx` is a list of entries (`docs/extract-art.md` section 2). A data entry starts with two
 `u16`s, the number of records and the size of one, then the records.

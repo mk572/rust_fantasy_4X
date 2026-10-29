@@ -1,6 +1,6 @@
 # Sound and music
 
-What the original plays and when, taken from ReMoM (`reference/ReMoM`: `MoX/src/SOUND.h`, the callers in
+What the original plays and when, taken from ReMoM (`~/projects/ReMoM`: `MoX/src/SOUND.h`, the callers in
 `MoM/src/`, `doc/MoX-Sounds.md`, `doc/Audio/`) and from the original's data files. This is the catalogue the
 audio tasks (76, 97, 266 to 268, 357) build on. The audio files themselves are copyrighted: they are extracted
 into `assets-local/` for the author's own copy and never committed (`design.md` section 9, `local-assets.md`).

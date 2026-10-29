@@ -3,8 +3,8 @@
 
 The table is the numbers of `UNITTYPE.c` in the ReMoM clone: melee, ranged, ammo, to hit,
 defence, resistance, moves (in half moves, as the file has them), cost, upkeep, hit points,
-sight, transport and figures, one row per unit in the original's order (which is the order
-of `content/units.ron`). `crates/f4x-data/tests/it/original_content.rs` compares every unit of the
+sight, transport, figures and the four flag words (movement, attributes 1 and 2, abilities), one
+row per unit in the original's order (which is the order of `content/units.ron`). `crates/f4x-data/tests/it/original_content.rs` compares every unit of the
 content with it. Needs the ReMoM clone; the output is numbers, so it is committed.
 
     python3 -I scripts/export_original_units.py [--remom DIR] [--out FILE]
@@ -15,14 +15,15 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-DEFAULT_REMOM = REPO / "reference/ReMoM"
+DEFAULT_REMOM = Path.home() / "projects/ReMoM"
 DEFAULT_OUT = REPO / "crates/f4x-data/tests/original/units.tsv"
 COLUMNS = ["index", "melee", "ranged", "ammo", "to_hit", "defense", "resist", "moves_half",
-           "cost", "upkeep", "hits", "sight", "transport", "figures"]
+           "cost", "upkeep", "race", "hits", "sight", "transport", "figures", "move_flags", "attribs1", "attribs2", "abilities"]
 # Field positions inside one row of the C initializer (after the name pointer).
 FIELDS = {"melee": 0, "ranged": 1, "ammo": 3, "to_hit": 4, "defense": 5, "resist": 6,
-          "moves_half": 7, "cost": 8, "upkeep": 9, "hits": 14, "sight": 15, "transport": 16,
-          "figures": 17}
+          "moves_half": 7, "cost": 8, "upkeep": 9, "race": 10, "hits": 14, "sight": 15, "transport": 16,
+          "figures": 17, "move_flags": 20, "attribs1": 21,
+          "attribs2": 22, "abilities": 23}
 
 
 def rows(text: str) -> list[list[int]]:

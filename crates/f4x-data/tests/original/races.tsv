@@ -1,0 +1,15 @@
+index	name	cant_build	outpost_growth	growth_mod	house_type
+0	Barbarian	20 10 25	15	2	0
+1	Beastmen	11 13	5	0	0
+2	Dark Elf	25 14	2	-2	1
+3	Draconian	33 11 14	5	-1	0
+4	Dwarven	9 13 20 24	7	-2	0
+5	Gnoll	10 17 24 6 14	5	-1	2
+6	Halfling	20 6 9 13	15	0	0
+7	High Elf	24 14	5	-2	1
+8	High Men	11	10	0	0
+9	Klackon	23 17 13	5	-1	2
+10	Lizardman	7 10 17 24 34 12 15	10	1	2
+11	Nomad	14 21	10	-1	0
+12	Orc		10	0	0
+13	Troll	11 17 34 13	3	-2	2

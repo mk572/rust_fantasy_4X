@@ -1,6 +1,6 @@
 # The original's hotkeys
 
-What each key does in Master of Magic, read from ReMoM (`reference/ReMoM/MoM/src`, the field
+What each key does in Master of Magic, read from ReMoM (`~/projects/ReMoM/MoM/src`, the field
 setup of each screen: `Add_Hot_Key`, `Add_Button_Field`, `Add_Hidden_Field`). The client follows
 this table; where it adds a key of its own, that is marked **extra**. Letter keys are not case
 sensitive. "Not yet" means the screen or action does not exist in our game. The client's keys on the

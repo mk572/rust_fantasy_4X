@@ -114,8 +114,7 @@ mod tests {
 
     #[test]
     fn a_picture_moves_to_its_spell_folder_with_its_masks_and_the_index_follows() {
-        let root = std::env::temp_dir().join(format!("f4x-refile-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&root);
+        let root = f4x_core::testdir::TestDir::new("refile");
         let art_dir = root.join("art");
         fs::create_dir_all(art_dir.join("cmbtfx")).unwrap();
         for name in ["000_00.png", "000_01.png", "000_01_cycle.png", "001_00.png"] {
@@ -142,6 +141,5 @@ mod tests {
         assert_eq!(index, "cmbtfx\t0\tart/spells/fire_bolt/cmbtfx_000\n");
         // Run again: nothing is left to move.
         assert_eq!(refile(&art_dir, &placer).unwrap(), 0);
-        let _ = fs::remove_dir_all(&root);
     }
 }
