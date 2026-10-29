@@ -7,6 +7,7 @@ use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
+use crate::modal::{keep, kind, Modal};
 use crate::ui::{button, GOLD};
 use crate::view::{App, HUMAN};
 
@@ -33,21 +34,55 @@ pub struct ManaAsk {
     typed: bool,
 }
 
+/// What the mana box decided.
+enum ManaStep {
+    Asking(ManaAsk),
+    /// Back to the question before.
+    Back,
+    /// The fight has been run.
+    Fought,
+}
+
+/// The box over the map for an attack: the question about a treaty, then the choice to fight, to
+/// leave it to the computer or to call it off, then for an automatic fight the mana limit.
+pub(crate) struct AttackAsk {
+    pub(crate) attack: PendingAttack,
+    mana: Option<ManaAsk>,
+}
+
+impl AttackAsk {
+    pub(crate) fn new(attack: PendingAttack) -> Self {
+        Self { attack, mana: None }
+    }
+}
+
+impl Modal for AttackAsk {
+    fn kind(&self) -> &'static str {
+        kind::ATTACK
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.attack_prompt_frame(*self, input))
+    }
+}
+
 impl App {
     /// Leave the pending attack to the battle AI: ask how much mana to spend if the wizard could
-    /// cast anything, else fight at once.
-    fn start_auto_battle(&mut self, attack: PendingAttack) {
+    /// cast anything (the box that does is returned), else fight at once.
+    fn start_auto_battle(&mut self, attack: PendingAttack) -> Option<AttackAsk> {
         let reserve = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         match self.game.strategic_mana_default(HUMAN) {
-            Some(amount) => {
-                self.attack_prompt = Some(attack);
-                self.mana_ask = Some(ManaAsk {
+            Some(amount) => Some(AttackAsk {
+                attack,
+                mana: Some(ManaAsk {
                     amount,
                     reserve: reserve.max(0) as u32,
                     typed: false,
-                });
+                }),
+            }),
+            None => {
+                self.run_auto_battle(attack, None);
+                None
             }
-            None => self.run_auto_battle(attack, None),
         }
     }
 
@@ -82,16 +117,17 @@ impl App {
             defending: false,
             treaty_asked: true,
         };
-        if question_only {
-            self.attack_prompt = Some(attack);
+        let ask = if question_only {
+            Some(AttackAsk::new(attack))
         } else {
-            self.start_auto_battle(attack);
+            self.start_auto_battle(attack)
+        };
+        if let Some(ask) = ask {
+            self.modals.open(ask);
         }
     }
 
     fn run_auto_battle(&mut self, attack: PendingAttack, mana: Option<u32>) {
-        self.attack_prompt = None;
-        self.mana_ask = None;
         self.auto_battle(Command::AutoResolve {
             attackers: attack.attackers,
             defenders: attack.defenders,
@@ -99,8 +135,13 @@ impl App {
         });
     }
 
-    /// The box that asks for the mana limit. Returns whether it took the frame.
-    fn mana_ask_frame(&mut self, attack: &PendingAttack, mut ask: ManaAsk, input: &Input) {
+    /// The box that asks for the mana limit.
+    fn mana_ask_frame(
+        &mut self,
+        attack: &PendingAttack,
+        mut ask: ManaAsk,
+        input: &Input,
+    ) -> ManaStep {
         let (w, h) = (screen_width(), screen_height());
         let (bw, bh) = (560.0, 220.0);
         let (x, y) = ((w - bw) / 2.0, (h - bh) / 2.0);
@@ -175,37 +216,35 @@ impl App {
             ask.amount /= 10;
         }
         if back || input.key_pressed(KeyCode::Escape) {
-            self.mana_ask = None;
+            ManaStep::Back
         } else if ok || input.key_pressed(KeyCode::Enter) {
             self.run_auto_battle(attack.clone(), Some(ask.amount));
+            ManaStep::Fought
         } else {
-            self.mana_ask = Some(ask);
+            ManaStep::Asking(ask)
         }
     }
 
-    /// Show the pending attack over the map until it is answered. Returns whether the box took
-    /// the frame.
-    pub(crate) fn attack_prompt_frame(&mut self, input: &Input) -> bool {
-        let Some(attack) = self.attack_prompt.clone() else {
-            return false;
-        };
+    /// Show the pending attack over the map until it is answered; what is left of the box.
+    pub(crate) fn attack_prompt_frame(
+        &mut self,
+        AttackAsk { mut attack, mana }: AttackAsk,
+        input: &Input,
+    ) -> Option<AttackAsk> {
         // A unit that is gone (the game was loaded, a console command) cancels the question.
         let alive = |u: &hecs::Entity| self.game.units().unit_owner(*u).is_some();
         if !attack.attackers.iter().all(alive) || !attack.defenders.iter().all(alive) {
-            self.attack_prompt = None;
-            self.mana_ask = None;
-            return false;
+            return None;
         }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
-
-        if let Some(ask) = self.mana_ask.clone() {
-            clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-            self.draw_map();
-            self.draw_bars(input);
-            self.mana_ask_frame(&attack, ask, input);
-            return true;
+        if let Some(ask) = mana {
+            return match self.mana_ask_frame(&attack, ask, input) {
+                ManaStep::Asking(ask) => Some(AttackAsk {
+                    attack,
+                    mana: Some(ask),
+                }),
+                ManaStep::Back => Some(AttackAsk::new(attack)),
+                ManaStep::Fought => None,
+            };
         }
         if !attack.treaty_asked {
             let partner = attack
@@ -219,12 +258,7 @@ impl App {
                     )
                 });
             match partner {
-                None => {
-                    self.attack_prompt = Some(PendingAttack {
-                        treaty_asked: true,
-                        ..attack
-                    })
-                }
+                None => attack.treaty_asked = true,
                 Some(p) => {
                     let lay = crate::frame::Layout::new();
                     let text = self.text_with(
@@ -232,18 +266,13 @@ impl App {
                         &Args::new().text("wizard", self.diplo_name(p)),
                     );
                     match self.confirmation_box(&lay, &text, input) {
-                        Some(true) => {
-                            self.attack_prompt = Some(PendingAttack {
-                                treaty_asked: true,
-                                ..attack
-                            })
-                        }
-                        Some(false) => self.attack_prompt = None,
+                        Some(true) => attack.treaty_asked = true,
+                        Some(false) => return None,
                         None => {}
                     }
                 }
             }
-            return true;
+            return Some(AttackAsk::new(attack));
         }
         // The original's box (`resource` 0 and 1, as `Confirmation_Box`) with the question and
         // three of its red buttons; the original asks nothing before a fight, so this is the
@@ -298,24 +327,25 @@ impl App {
             || (!attack.defending
                 && (input.key_pressed(KeyCode::Escape) || input.key_pressed(KeyCode::N)));
         if cancel {
-            self.attack_prompt = None;
+            None
         } else if fight || auto {
             if auto
                 || self
                     .prefs
                     .get(crate::preferences::Pref::StrategicCombatOnly)
             {
-                self.start_auto_battle(attack);
+                self.start_auto_battle(attack)
             } else {
-                self.attack_prompt = None;
                 let (attackers, defenders) = (attack.attackers, attack.defenders);
                 self.begin_battle(Command::BeginBattle {
                     attackers,
                     defenders,
                 });
+                None
             }
+        } else {
+            Some(AttackAsk::new(attack))
         }
-        true
     }
 
     /// "Your 3 units attack 2 Spearmen and a Hero" in a few words.

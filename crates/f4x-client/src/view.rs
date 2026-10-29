@@ -151,10 +151,6 @@ pub struct App {
     pub(crate) greetings_due: Vec<PlayerId>,
     /// The box that shows the offers made at the turn change (task 220).
     pub(crate) offer_ui: crate::offer_prompt::OfferUi,
-    /// An attack the human started and has yet to confirm.
-    pub(crate) attack_prompt: Option<crate::attack_prompt::PendingAttack>,
-    /// The second step of an automatic fight: the mana limit.
-    pub(crate) mana_ask: Option<crate::attack_prompt::ManaAsk>,
     /// The rival wizards, who play their turns when the human ends theirs (task 135).
     pub(crate) ais: Vec<f4x_ai::Ai>,
     /// Attacks on the human this turn, waiting to be fought one after the other.
@@ -389,8 +385,6 @@ impl App {
             greetings: Default::default(),
             greetings_due: Vec::new(),
             offer_ui: Default::default(),
-            attack_prompt: None,
-            mana_ask: None,
             ais: Vec::new(),
             defences: Default::default(),
             turn_events: None,
@@ -686,12 +680,14 @@ impl App {
                         .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
                     {
                         // Asked first: fight, leave it to the computer, or call it off.
-                        self.attack_prompt = Some(crate::attack_prompt::PendingAttack {
-                            attackers,
-                            defenders,
-                            defending: false,
-                            treaty_asked: false,
-                        });
+                        self.modals.open(crate::attack_prompt::AttackAsk::new(
+                            crate::attack_prompt::PendingAttack {
+                                attackers,
+                                defenders,
+                                defending: false,
+                                treaty_asked: false,
+                            },
+                        ));
                     }
                     None
                 }
@@ -1207,20 +1203,13 @@ impl App {
     /// Go on with the turn change once no attack on the human waits: end the turn for everyone
     /// and report what the rivals and the turn did.
     pub(crate) fn resume_turn(&mut self) {
-        if self.attack_prompt.is_some() || self.game.in_battle() {
+        if self.modals.has(crate::modal::kind::ATTACK) || self.game.in_battle() {
             return;
         }
-        // The next attack that is still real (a unit may have died to an earlier one).
-        while let Some(attack) = self.defences.pop_front() {
-            let alive = |u: &hecs::Entity| self.game.units().unit_owner(*u).is_some();
-            let mine = attack
-                .defenders
-                .first()
-                .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN));
-            if mine && attack.attackers.iter().all(alive) && attack.defenders.iter().all(alive) {
-                self.attack_prompt = Some(attack);
-                return;
-            }
+        if let Some(attack) = self.next_defence() {
+            self.modals
+                .open(crate::attack_prompt::AttackAsk::new(attack));
+            return;
         }
         let Some(mut events) = self.turn_events.take() else {
             return;
@@ -1249,6 +1238,21 @@ impl App {
             .push(self.text_with("log.turn", &Args::new().count("turn", turn)));
     }
 
+    /// The next attack on the human that is still real (a unit may have died to an earlier one).
+    fn next_defence(&mut self) -> Option<crate::attack_prompt::PendingAttack> {
+        while let Some(attack) = self.defences.pop_front() {
+            let alive = |u: &hecs::Entity| self.game.units().unit_owner(*u).is_some();
+            let mine = attack
+                .defenders
+                .first()
+                .is_some_and(|&u| self.game.units().unit_owner(u) == Some(HUMAN));
+            if mine && attack.attackers.iter().all(alive) && attack.defenders.iter().all(alive) {
+                return Some(attack);
+            }
+        }
+        None
+    }
+
     /// Whether the human sees this event of a rival's turn: their refusals, the founding of a
     /// city out of sight and the like stay hidden.
     fn concerns_human(&self, event: &Event) -> bool {
@@ -1265,7 +1269,7 @@ impl App {
             self.end_turn();
             // No one defends in person here: the computer fights the attacks on the human.
             while self.turn_events.is_some() {
-                if let Some(attack) = self.attack_prompt.take() {
+                while let Some(attack) = self.next_defence() {
                     let _ = self.game.apply(Command::AutoResolve {
                         mana_budget: None,
                         attackers: attack.attackers,
@@ -1455,12 +1459,6 @@ impl App {
             if self.turn_events.is_none() {
                 self.save_to(std::path::Path::new(AUTOSAVE));
             }
-        }
-        if matches!(self.screen, Screen::Map)
-            && !self.game.in_battle()
-            && self.attack_prompt_frame(input)
-        {
-            return true;
         }
         if matches!(self.screen, Screen::Map)
             && !self.game.in_battle()

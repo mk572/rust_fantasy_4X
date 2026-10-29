@@ -32,6 +32,7 @@ pub(crate) mod kind {
     pub(crate) const PROPOSAL: &str = "proposal";
     pub(crate) const SITE: &str = "site";
     pub(crate) const LEARNED: &str = "learned";
+    pub(crate) const ATTACK: &str = "attack";
 }
 
 pub(crate) trait Modal {
