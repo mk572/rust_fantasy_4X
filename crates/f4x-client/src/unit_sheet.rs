@@ -364,6 +364,16 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
             Some(120),
         ));
     }
+    for (marker, key) in [
+        ("stasis_held", "unit.stasis_held"),
+        ("mutation_armor", "unit.mutation_armor"),
+        ("mutation_wings", "unit.mutation_wings"),
+        ("mutation_breath", "unit.mutation_breath"),
+    ] {
+        if has(marker) {
+            out.push(plain(input.texts.get(key, &Args::new()), None));
+        }
+    }
     for (spell, id, name, removable) in &input.enchantments {
         out.push(Special {
             name: name.clone(),
@@ -478,7 +488,10 @@ impl App {
         let units = game.units();
         let def = units.unit_def(unit)?;
         let content = game.content();
-        let abilities = units.unit_abilities(unit);
+        let mut abilities = units.unit_abilities(unit);
+        if game.unit_in_stasis(unit) {
+            abilities.push("stasis_held".to_string());
+        }
         let stat = |s: Stat| units.unit_stat(unit, s);
         let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
         let hp = stat(Stat::MaxHp).max(1);

@@ -908,6 +908,15 @@ impl Game {
         if let Some(at) = aimed_at {
             events.push(Event::SpellCastAt { player, spell, at });
         }
+        if let Some(Target::Player(victim)) = target {
+            if victim != player {
+                events.push(Event::SpellCastOnWizard {
+                    player,
+                    spell,
+                    victim,
+                });
+            }
+        }
         let victim = match target {
             Some(Target::City(c)) => self.economy().city_owner(c).filter(|&o| o != player),
             _ => None,

@@ -187,6 +187,13 @@ pub enum Event {
         spell: rules::SpellId,
         at: map::Position,
     },
+    /// Follows [`Event::SpellCast`] when the spell was aimed at another wizard (Spell Blast, Drain
+    /// Power, Cruel Unminding, Subversion): the client plays its picture on that wizard's portrait.
+    SpellCastOnWizard {
+        player: player::PlayerId,
+        spell: rules::SpellId,
+        victim: player::PlayerId,
+    },
     /// A dispel took `removed` enchantments off its target.
     Dispelled {
         player: player::PlayerId,

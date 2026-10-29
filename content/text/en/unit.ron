@@ -26,4 +26,8 @@
     "unit.carries": "Carries {n}",
     "unit.caster": "Caster {n} mp",
     "unit.undead": "Undead",
+    "unit.stasis_held": "Held in Stasis",
+    "unit.mutation_armor": "Demon Skin",
+    "unit.mutation_wings": "Wings",
+    "unit.mutation_breath": "Fire Breath",
 }

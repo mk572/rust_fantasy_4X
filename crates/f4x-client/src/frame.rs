@@ -8,6 +8,7 @@
 
 use crate::input::Input;
 use f4x_core::map::Position;
+use f4x_core::text::Args;
 use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
@@ -343,6 +344,14 @@ impl App {
         }
         self.draw_pic(lay, "main", 15, 0, 280.0, 186.0);
 
+        // While a wizard's Time Stop runs, a note says whose it is.
+        if let Some(stopper) = self.game.time_stopper() {
+            let args = self.wizard_arg(Args::new(), "wizard", stopper);
+            let note = self.text_with("ui.time_stop_note", &args);
+            let (nx, ny) = spot::NEXT_TURN;
+            let r = lay.rect((nx, ny - 14.0, 80.0, 12.0));
+            text_centered(&note, r.x + r.w / 2.0, r.y + r.h * 0.7, 3.2 * s, GOLD);
+        }
         // Next Turn, over them, once no unit is left that waits for orders.
         if !self.all_units_moved() {
             return;

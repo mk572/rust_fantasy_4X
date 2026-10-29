@@ -103,6 +103,11 @@ fn drain_power_takes_what_the_victim_has_up_to_the_roll() {
         })
         .unwrap_or_else(|| panic!("{events:?}"));
     assert!((10..=200).contains(&taken), "{taken}");
+    // The client plays the spell's picture on the victim's portrait.
+    assert!(events.iter().any(|e| matches!(
+        e,
+        Event::SpellCastOnWizard { player, victim, .. } if *player == P0 && *victim == P1
+    )));
     assert_eq!(g.player(P1).unwrap().treasury().mana, 1000 - taken);
     // A poor victim loses only what is there.
     g.treasury_mut(P1).unwrap().mana = 4;
@@ -967,6 +972,13 @@ fn chaos_channels_gives_one_mutation_once_and_makes_a_creature_of_chaos() {
         seen.insert(format!("{m:?}"));
         let units = g.units();
         assert_eq!(units.unit_realm(u).as_deref(), Some("chaos"));
+        // The unit sheet names the mutation by this marker.
+        let marker = crate::unit::mutation::MUTATION_MARKERS
+            .iter()
+            .find(|(k, _)| *k == m)
+            .map(|(_, name)| *name)
+            .expect("a marker");
+        assert!(units.unit_has_ability(u, marker));
         match m {
             Mutation::Armor => {
                 assert_eq!(units.unit_stat(u, crate::rules::Stat::Defense), def0 + 3)

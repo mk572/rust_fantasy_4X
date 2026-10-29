@@ -18,6 +18,12 @@ use crate::unit::UnitView;
 pub const CHAOS_CHANNELS: &str = "chaos_channels";
 /// The ability that marks a unit as mutated.
 pub const MUTATED: &str = "chaos_channeled";
+/// The ability that says which mutation a unit has, for the unit sheet to name it.
+pub const MUTATION_MARKERS: [(Mutation, &str); 3] = [
+    (Mutation::Armor, "mutation_armor"),
+    (Mutation::Wings, "mutation_wings"),
+    (Mutation::Breath, "mutation_breath"),
+];
 
 /// Defence the demon-skin armour adds.
 const ARMOR_DEFENSE: i32 = 3;
@@ -110,6 +116,9 @@ impl Game {
             }
         }
         self.grant_temp_ability(who, MUTATED, None);
+        if let Some((_, marker)) = MUTATION_MARKERS.iter().find(|(m, _)| *m == pick) {
+            self.grant_temp_ability(who, marker, None);
+        }
         Some(pick)
     }
 

@@ -549,6 +549,14 @@ impl App {
                 self.announce_city_spell(*player, *spell, *at);
                 self.announce_square_spell(*player, *spell, *at);
             }
+            if let Event::SpellCastOnWizard {
+                player,
+                spell,
+                victim,
+            } = &event
+            {
+                self.announce_wizard_spell(*player, *spell, *victim);
+            }
             match &event {
                 Event::WizardBanished { player, by } => {
                     self.queue_conquest_scene(*player, Some(*by), true)
@@ -2407,7 +2415,10 @@ impl App {
         let glow = self.unit_glow_realm(top);
         let patrolling = owner == HUMAN.0
             && self.game.units().unit_standby(top) == Some(f4x_core::unit::Standby::Patrol);
-        let tint = if patrolling {
+        let tint = if self.game.unit_in_stasis(top) {
+            // A unit held in stasis is drawn pale and bluish.
+            Color::new(0.65, 0.8, 1.0, 0.75)
+        } else if patrolling {
             Color::new(0.6, 0.6, 0.6, 1.0)
         } else {
             WHITE

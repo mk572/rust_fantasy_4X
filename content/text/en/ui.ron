@@ -31,6 +31,7 @@
     "ui.food": "Food",
     "ui.mana": "Mana",
     "ui.next_turn": "Next Turn",
+    "ui.time_stop_note": "Time stopped by {wizard}",
     "ui.yes": "Yes",
     "ui.no": "No",
     "ui.cancel": "Cancel",

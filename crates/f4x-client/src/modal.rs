@@ -38,6 +38,7 @@ pub(crate) mod kind {
     pub(crate) const SUMMON_SCENE: &str = "summon_scene";
     pub(crate) const CITY_SCROLL: &str = "city_scroll";
     pub(crate) const SQUARE_ANIM: &str = "square_anim";
+    pub(crate) const WIZARD_ANIM: &str = "wizard_anim";
     pub(crate) const SPELL_NOTICE: &str = "spell_notice";
     pub(crate) const OFFER: &str = "offer";
     pub(crate) const BUILT: &str = "built";

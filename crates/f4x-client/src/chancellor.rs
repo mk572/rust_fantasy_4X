@@ -91,6 +91,7 @@ impl App {
         let say = |key: &str, args: Args| self.text_with(key, &args);
         let (mut unit_spells, mut city_spells, mut global_spells) =
             (Vec::new(), Vec::new(), Vec::new());
+        let mut strikes = Vec::new();
         for event in events {
             match event {
                 Event::UnitLost {
@@ -163,6 +164,20 @@ impl App {
                         .text("city", self.city_name(*city))
                         .count("n", *count),
                 )),
+                Event::WorldSpellStruck {
+                    spell,
+                    units_lost,
+                    buildings_lost,
+                    population_lost,
+                    ..
+                } => {
+                    let args = self
+                        .spell_arg(Args::new(), *spell)
+                        .count("units", *units_lost)
+                        .count("citizens", *population_lost)
+                        .count("buildings", *buildings_lost);
+                    strikes.push(say("log.world_spell_struck", args));
+                }
                 Event::EnchantmentLapsed { player, spell } if *player == HUMAN => {
                     let def = rules.spells.get(*spell);
                     let list = match def.target {
@@ -182,6 +197,7 @@ impl App {
             ("chancellor.growth", growth),
             ("chancellor.deaths", deaths),
             ("chancellor.buildings", buildings),
+            ("chancellor.strikes", strikes),
             ("chancellor.wizards", rivals),
             ("chancellor.ships", ships),
             ("chancellor.unit_spells", unit_spells),
