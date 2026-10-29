@@ -294,7 +294,7 @@ impl App {
         if self.game.in_battle()
             || !matches!(self.screen, Screen::Map)
             || !self.item_pool_pending
-            || !self.event_notices.is_empty()
+            || self.modals.has(crate::modal::kind::EVENT)
             || !self.game.offers(crate::view::HUMAN).is_empty()
         {
             return false;

@@ -172,8 +172,6 @@ pub struct App {
     pub(crate) diplomsg: std::collections::HashMap<u16, Vec<String>>,
     /// Heroes died and their items were awarded: the warning box comes before the item screen.
     pub(crate) item_pool_warning: bool,
-    /// The events the player has yet to be told of, oldest first.
-    pub(crate) event_notices: std::collections::VecDeque<f4x_core::world_event::EventNotice>,
     /// The buildings the human's cities finished, to be announced, oldest first.
     /// The spells that fizzled or were dispelled, to be announced.
     /// Global enchantments cast and not yet shown in the mirror (`global_spell.rs`).
@@ -394,7 +392,6 @@ impl App {
             event_texts: Vec::new(),
             diplomsg: Default::default(),
             item_pool_warning: false,
-            event_notices: Default::default(),
             built_notices: Default::default(),
             build_in: None,
             end_scenes: Default::default(),
@@ -620,7 +617,7 @@ impl App {
                         &self.game.content().texts,
                         &notice,
                     );
-                    self.event_notices.push_back(notice);
+                    self.modals.enqueue(crate::event_popup::EventBox(notice));
                     line
                 }
                 Event::ProductionCompleted { city, item } => {
@@ -1463,12 +1460,6 @@ impl App {
             && self.turn_events.is_none()
         {
             self.check_hero_levels();
-        }
-        if matches!(self.screen, Screen::Map)
-            && !self.game.in_battle()
-            && self.event_popup_frame(input)
-        {
-            return true;
         }
         if matches!(self.screen, Screen::Map)
             && !self.game.in_battle()

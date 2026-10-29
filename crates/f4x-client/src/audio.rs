@@ -464,17 +464,6 @@ impl App {
         if let Some(track) = self.modals.music() {
             return Some(track);
         }
-        if let Some(n) = self.event_notices.front() {
-            return Some(Track {
-                entry: if n.kind.is_good() {
-                    music::EVENT_GOOD
-                } else {
-                    music::EVENT_BAD
-                },
-                looped: false,
-                event: true,
-            });
-        }
         if !self.built_notices.is_empty() {
             return Some(Track::piece(music::BUILDING_FINISHED));
         }

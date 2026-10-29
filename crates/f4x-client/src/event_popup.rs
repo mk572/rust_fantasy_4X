@@ -11,7 +11,9 @@ use f4x_core::world_event::{compose, EventKind};
 use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
+use crate::audio::{music, Track};
 use crate::frame::{Align, Layout};
+use crate::modal::{keep, kind, Modal};
 use crate::view::{App, HUMAN};
 
 /// Where the mascot, the text and the box go for each realm (chaos, death, life, nature,
@@ -56,6 +58,29 @@ impl SpellNotice {
     }
 }
 
+/// The box that announces a random event.
+pub(crate) struct EventBox(pub(crate) f4x_core::world_event::EventNotice);
+
+impl Modal for EventBox {
+    fn kind(&self) -> &'static str {
+        kind::EVENT
+    }
+    fn music(&self) -> Option<Track> {
+        Some(Track {
+            entry: if self.0.kind.is_good() {
+                music::EVENT_GOOD
+            } else {
+                music::EVENT_BAD
+            },
+            looped: false,
+            event: true,
+        })
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.event_popup_frame(*self, input))
+    }
+}
+
 impl App {
     /// For screenshots and checks: make an event happen to the human wizard (`great_meteor`,
     /// `gift`, `plague`...). The reason it cannot is printed.
@@ -88,19 +113,13 @@ impl App {
         best
     }
 
-    /// The oldest event the player has not been told of, over the map until it is closed.
-    /// Returns whether the box took the frame.
-    pub(crate) fn event_popup_frame(&mut self, input: &Input) -> bool {
-        let Some(notice) = self.event_notices.front().cloned() else {
-            return false;
-        };
-        let Some(text) = compose(&self.event_texts, &self.game.content().texts, &notice) else {
-            self.event_notices.pop_front();
-            return true;
-        };
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
+    /// The event box over the screen until a click or a key closes it.
+    pub(crate) fn event_popup_frame(
+        &mut self,
+        EventBox(notice): EventBox,
+        input: &Input,
+    ) -> Option<EventBox> {
+        let text = compose(&self.event_texts, &self.game.content().texts, &notice)?;
         let lay = Layout::new();
         let number = notice.kind.number() as usize - 1;
         let closed = self.notify2_box(
@@ -113,10 +132,7 @@ impl App {
             },
             input,
         );
-        if closed {
-            self.event_notices.pop_front();
-        }
-        true
+        (!closed).then_some(EventBox(notice))
     }
 
     /// `Notify2`: the green strip with the mascot of the wizard's strongest realm on the left,
