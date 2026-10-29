@@ -77,6 +77,9 @@ pub(crate) struct HelpUi {
     /// The name and description of the building under the mouse on the city screen, set while
     /// that screen is drawn.
     pub building: Option<(String, String)>,
+    /// For the screenshot check (`--help-building ID`): open the description of this building
+    /// on the city screen at once.
+    pub probe_building: Option<String>,
 }
 
 /// The topic of the melee row on the unit sheet.
@@ -142,6 +145,24 @@ impl App {
     /// Look for a right-click on a help area. Called once a frame, before the screen reacts.
     pub(crate) fn watch_for_help(&mut self, input: &Input) {
         let probe = self.help_ui.probe;
+        if matches!(self.screen, Screen::City(_)) {
+            if let Some(name) = self.help_ui.probe_building.take() {
+                let content = self.game.content();
+                if let Some(id) = content.rules.buildings.id_of(&name) {
+                    let own = (
+                        content.rules.buildings.get(id).name.clone(),
+                        f4x_core::city::description::building_description(content, id),
+                    );
+                    self.help_ui.request = Some(HelpRequest {
+                        topic: 0,
+                        extra: None,
+                        own: Some(own),
+                        from: (158.0, 98.0, 4.0, 4.0),
+                    });
+                }
+                return;
+            }
+        }
         if input.mouse_pressed(MouseButton::Right) && matches!(self.screen, Screen::City(_)) {
             if let Some(own) = self.help_ui.building.take() {
                 let lay = Layout::new();

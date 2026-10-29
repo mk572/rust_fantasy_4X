@@ -147,6 +147,8 @@ struct Options {
     attack_box: bool,
     /// With `--shot`, open the help for this point of the screen (320 by 200 coordinates).
     help_at: Option<(i32, i32)>,
+    /// With `--shot --city`, open the description of this building (an id) in a help pop-up.
+    help_building: Option<String>,
     /// With `--shot`, show this scene of the opening movie (0 to 12), at full brightness.
     intro: Option<usize>,
     /// With `--advisor 0`: describe the square at this column and row.
@@ -269,6 +271,7 @@ fn parse_args() -> Result<Options, String> {
         auto_attack: false,
         attack_box: false,
         help_at: None,
+        help_building: None,
         survey_at: None,
         scroll: None,
         reveal: false,
@@ -471,6 +474,7 @@ fn parse_args() -> Result<Options, String> {
                     y.parse().map_err(|_| "--help-at takes X,Y")?,
                 ));
             }
+            "--help-building" => o.help_building = Some(value("--help-building")?),
             "--intro" => {
                 o.intro = Some(
                     value("--intro")?
@@ -795,6 +799,7 @@ async fn main() {
         app.open_intro();
     }
     app.help_ui.probe = options.help_at;
+    app.help_ui.probe_building = options.help_building.clone();
     let mut frames = 0;
     if let Some(key) = options.hear {
         if app.audio.can_play(key) {
