@@ -82,7 +82,7 @@ pub enum Screen {
     /// An outpost (`outpost_screen.rs`).
     Outpost(hecs::Entity),
     /// Another wizard's city (`enemy_city_screen.rs`).
-    EnemyCity(hecs::Entity),
+    EnemyCity,
     /// The table of best games (`hall_of_fame.rs`).
     HallOfFame,
     /// The heroes' items and the vault (`item_screen.rs`).
@@ -209,7 +209,8 @@ pub struct App {
     pub(crate) item_pool_pending: bool,
     /// The test battle is fought at sea (`--battle-field sea`).
     pub(crate) test_sea: bool,
-    pub(crate) hall: Vec<crate::hall_of_fame::Entry>,
+    /// The open screen's own state and code, for the screens converted to [`Page`](crate::page::Page).
+    pub(crate) page: Option<Box<dyn crate::page::Page>>,
     pub(crate) item_ui: crate::item_screen::ItemUi,
     pub(crate) craft_ui: Option<crate::craft_screen::CraftUi>,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
@@ -399,7 +400,7 @@ impl App {
             outpost_ui: Default::default(),
             test_sea: false,
             item_pool_pending: false,
-            hall: Vec::new(),
+            page: None,
             item_ui: Default::default(),
             craft_ui: None,
             game_over_seen: false,
@@ -1519,8 +1520,8 @@ impl App {
             Screen::ArmyList => self.army_screen(input),
             Screen::CityList => self.city_list_screen(input),
             Screen::Outpost(city) => self.outpost_screen(city, input),
-            Screen::EnemyCity(city) => self.enemy_city_screen(city, input),
-            Screen::HallOfFame => self.hall_of_fame_screen(input),
+            Screen::EnemyCity => self.page_frame(input),
+            Screen::HallOfFame => self.page_frame(input),
             Screen::Items => self.item_screen(input),
             Screen::Craft => self.craft_screen(input),
             Screen::Diplomacy => self.diplomacy_screen(input),

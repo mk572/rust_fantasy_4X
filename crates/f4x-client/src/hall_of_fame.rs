@@ -7,6 +7,7 @@ use std::path::Path;
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -100,38 +101,45 @@ impl App {
     /// Show the table; `from_menu` returns to the start menu, otherwise the game has ended and
     /// the start menu follows too (the original goes back to it).
     pub(crate) fn open_hall_of_fame(&mut self) {
-        self.hall = load(Path::new(FILE));
-        self.screen = Screen::HallOfFame;
+        let table = load(Path::new(FILE));
+        self.open_page(Screen::HallOfFame, HallPage { table });
     }
+}
 
-    pub(crate) fn hall_of_fame_screen(&mut self, input: &Input) {
+/// The table as it was when the screen opened.
+struct HallPage {
+    table: Vec<Entry>,
+}
+
+impl Page for HallPage {
+    fn frame(&mut self, app: &mut App, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        if self.draw_pic(&lay, "halofam", 0, 0, 0.0, 0.0).is_none() {
+        if app.draw_pic(&lay, "halofam", 0, 0, 0.0, 0.0).is_none() {
             let r = lay.rect((0.0, 0.0, 320.0, 200.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.08, 0.06, 1.0));
         }
         let gold = Color::new(0.95, 0.85, 0.5, 1.0);
         let ink = Color::new(0.95, 0.8, 0.45, 1.0);
-        let title = self.text("hall.title");
-        self.draw_styled(view, &Style::outlined(5).center(), &title, 160.0, 7.0);
+        let title = app.text("hall.title");
+        app.draw_styled(view, &Style::outlined(5).center(), &title, 160.0, 7.0);
         let (x, mut y) = (72.0, 42.0);
-        for (i, e) in self.hall.clone().iter().enumerate() {
+        for (i, e) in self.table.iter().enumerate() {
             let rank = if i == 0 {
-                self.text("hall.master")
+                app.text("hall.master")
             } else {
-                self.text_with("hall.rank", &Args::new().count("n", i + 1))
+                app.text_with("hall.rank", &Args::new().count("n", i + 1))
             };
-            self.draw_styled(view, &Style::nearest(2, gold).right(), &rank, x, y);
-            let who = self.text_with(
+            app.draw_styled(view, &Style::nearest(2, gold).right(), &rank, x, y);
+            let who = app.text_with(
                 "hall.of_the",
                 &Args::new()
                     .text("name", &e.name)
-                    .text("race", plural(&self.game.content().rules.races, &e.race)),
+                    .text("race", plural(&app.game.content().rules.races, &e.race)),
             );
-            self.draw_styled(view, &Style::nearest(2, ink), &who, x + 9.0, y);
-            self.draw_styled(
+            app.draw_styled(view, &Style::nearest(2, ink), &who, x + 9.0, y);
+            app.draw_styled(
                 view,
                 &Style::nearest(2, ink).right(),
                 &e.score.to_string(),
@@ -139,14 +147,14 @@ impl App {
                 y,
             );
             let share = format!("({}%)", percent(e.score));
-            self.draw_styled(view, &Style::nearest(2, ink).right(), &share, x + 198.0, y);
+            app.draw_styled(view, &Style::nearest(2, ink).right(), &share, x + 198.0, y);
             y += 13.0;
         }
         if input.key_pressed(KeyCode::Escape)
             || input.key_pressed(KeyCode::Enter)
             || input.mouse_pressed(MouseButton::Left)
         {
-            self.open_main_menu();
+            app.open_main_menu();
         }
     }
 }

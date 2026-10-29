@@ -53,6 +53,7 @@ mod newgame_picks;
 mod offer_prompt;
 mod options_screen;
 mod outpost_screen;
+mod page;
 mod page_turn;
 mod pointer;
 mod preferences;
