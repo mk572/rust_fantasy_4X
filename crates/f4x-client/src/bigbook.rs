@@ -213,10 +213,7 @@ impl App {
                     25.0 + 147.0 * (slot / 4) as f32,
                     25.0 + 37.0 * (slot % 4) as f32,
                 );
-                if lay
-                    .rect((x, y, 110.0, 33.0))
-                    .contains(input.mouse_position().into())
-                {
+                if ui::hit(lay.rect((x, y, 110.0, 33.0)), true, input).hovered() {
                     let Some(spell) = self
                         .game
                         .wizard(HUMAN)

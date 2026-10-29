@@ -148,6 +148,39 @@ mod tests {
         assert_eq!(hit(RECT, true, &Input::default()), Hit::None);
     }
 
+    /// The hand-written tests of a hot-zone (`contains` with a pressed or held button) that
+    /// `hit` replaced: for every frame the answers must be the same.
+    #[test]
+    fn hit_answers_what_the_hand_written_tests_did() {
+        for (x, y) in [
+            (15.0, 15.0),
+            (10.0, 10.0),
+            (29.9, 19.9),
+            (30.0, 15.0),
+            (5.0, 5.0),
+        ] {
+            let at = Vec2::new(x, y);
+            for left in [false, true] {
+                let buttons = if left {
+                    vec![MouseButton::Left]
+                } else {
+                    vec![]
+                };
+                let frame = Input {
+                    mouse: (x, y),
+                    buttons_pressed: buttons.clone(),
+                    buttons_down: buttons,
+                    ..Input::default()
+                };
+                let state = hit(RECT, true, &frame);
+                let inside = RECT.contains(at);
+                assert_eq!(state.hovered(), inside, "hover at {x},{y}");
+                assert_eq!(state.held(), inside && left, "held at {x},{y}");
+                assert_eq!(state.clicked(), inside && left, "click at {x},{y}");
+            }
+        }
+    }
+
     #[test]
     fn only_the_left_button_clicks() {
         let right = Input::click(MouseButton::Right, 15.0, 15.0);

@@ -5,6 +5,7 @@
 //! original's.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -97,7 +98,6 @@ impl App {
                 .filter(|&u| self.game.units().unit_owner(u) == owner)
                 .filter(|&u| !self.game.units().unit_has_ability(u, "invisibility"))
                 .collect();
-            let mouse: Vec2 = input.mouse_position().into();
             let layout = crate::frame::Layout::new();
             for (i, &unit) in units.iter().take(12).enumerate() {
                 let (ux, uy) = (
@@ -105,7 +105,7 @@ impl App {
                     52.0 + (i / 6) as f32 * 20.0,
                 );
                 self.draw_army_unit(&layout, unit, ux - 1.0, uy - 1.0);
-                if lay.rect(ux, uy, 20.0, 18.0).contains(mouse) {
+                if ui::hit(lay.rect(ux, uy, 20.0, 18.0), true, input).hovered() {
                     let name = self.game.units().unit_def(unit).map(|d| d.name.clone());
                     if let Some(name) = name {
                         self.bm_text(view, 1, orange, &name, X + 36.0, 43.0, Align::Left);

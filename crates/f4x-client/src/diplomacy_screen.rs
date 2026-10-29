@@ -9,6 +9,7 @@
 //! as it does on this screen in the original.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::diplomacy::{relation_level, ProposalKind, Stage, Treaty};
 use f4x_core::game::{Command, Event};
 use f4x_core::player::PlayerId;
@@ -906,7 +907,6 @@ impl App {
             y += line_height;
         }
 
-        let mouse = input.mouse_position();
         let click = input.mouse_pressed(MouseButton::Left);
         let mut chosen: Option<Act> = None;
         if rows.is_empty() {
@@ -937,7 +937,7 @@ impl App {
             for (i, r) in rows.iter().enumerate() {
                 let ry = MENU_Y + spacing * (i + 1) as f32;
                 let rect = lay.rect((TEXT_X, ry - 1.0, TEXT_W, 8.0));
-                let over = rect.contains(mouse.into());
+                let over = ui::hit(rect, true, input).hovered();
                 if over && r.enabled {
                     draw_rectangle(
                         rect.x,

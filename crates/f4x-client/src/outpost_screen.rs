@@ -7,6 +7,7 @@
 
 use crate::input::Input;
 use crate::modal::{keep, Modal};
+use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -186,13 +187,13 @@ impl App {
                 .take(10)
                 .collect()
         };
-        let mouse: Vec2 = input.mouse_position().into();
         let (mut left, mut right) = (None, None);
         for (slot, &unit) in units.iter().enumerate() {
             let (x, y, w, h) = Self::outpost_slot(slot);
             self.draw_army_unit(&lay, unit, x - 1.0, y - 1.0);
-            if lay.rect((x, y, w, h)).contains(mouse) {
-                if input.mouse_pressed(MouseButton::Left) {
+            let state = ui::hit(lay.rect((x, y, w, h)), true, input);
+            if state.hovered() {
+                if state.clicked() {
                     left = Some(unit);
                 }
                 if input.mouse_pressed(MouseButton::Right) {

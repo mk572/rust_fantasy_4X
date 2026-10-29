@@ -9,6 +9,7 @@
 //! Positions are the original's.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::item::armory::{ItemError, ItemSpot, Spot, TRANSFER_MANA, VAULT_SLOTS};
 use f4x_core::item::Item;
@@ -218,8 +219,7 @@ impl App {
             vec2(x + base * scale, y + (ay + 17.0) * scale),
             color,
         );
-        let mouse: Vec2 = input.mouse_position().into();
-        enabled && lay.rect((ax - 1.0, ay, 11.0, 18.0)).contains(mouse)
+        ui::hit(lay.rect((ax - 1.0, ay, 11.0, 18.0)), enabled, input).hovered()
     }
 
     pub(crate) fn item_screen(&mut self, input: &Input) {
@@ -229,7 +229,6 @@ impl App {
         let (wx, wy) = WINDOW;
         self.draw_pic(&lay, "armylist", 0, 0, 0.0, 0.0);
         self.draw_pic(&lay, "armylist", 5, 0, wx, wy);
-        let mouse: Vec2 = input.mouse_position().into();
         let busy = self.item_ui.card.is_some() || self.item_ui.confirm.is_some();
         let left = input.mouse_pressed(MouseButton::Left) && !busy;
         let right = input.mouse_pressed(MouseButton::Right) && !busy;
@@ -278,7 +277,7 @@ impl App {
                     );
                 }
             }
-            if lay.rect((x1, y1, 32.0, 32.0)).contains(mouse) && right {
+            if right && ui::hit(lay.rect((x1, y1, 32.0, 32.0)), true, input).hovered() {
                 self.open_unit_sheet(hero);
                 return;
             }
@@ -299,7 +298,7 @@ impl App {
                         self.draw_pic(&lay, "itemisc", slot_icon(kind), 0, sx + 1.0, sy + 2.0);
                     }
                 }
-                if lay.rect((sx, sy + 1.0, 22.0, 18.0)).contains(mouse) {
+                if ui::hit(lay.rect((sx, sy + 1.0, 22.0, 18.0)), true, input).hovered() {
                     if left {
                         self.item_click(spot);
                     } else if right {
@@ -344,7 +343,7 @@ impl App {
             if let Some(item) = self.item_at(spot) {
                 self.draw_pic(&lay, "items", usize::from(item.icon), 0, sx, sy);
             }
-            if lay.rect((sx, sy + 2.0, 20.0, 16.0)).contains(mouse) {
+            if ui::hit(lay.rect((sx, sy + 2.0, 20.0, 16.0)), true, input).hovered() {
                 if left {
                     self.item_click(spot);
                 } else if right {
@@ -379,7 +378,7 @@ impl App {
         self.bm_text_outlined(view, 0, "MP", wx + 203.0, wy + 164.0, Align::Left);
         let alchemy = !held && self.item_button(&lay, 7, wx + 219.0, wy + 155.0, input);
         let ok = !held && self.item_button(&lay, 8, wx + 219.0, wy + 175.0, input);
-        if left && lay.rect((wx + 9.0, wy + 155.0, 39.0, 34.0)).contains(mouse) {
+        if left && ui::hit(lay.rect((wx + 9.0, wy + 155.0, 39.0, 34.0)), true, input).hovered() {
             self.scrap_held();
         }
         // S sells the item in the hand for half its value in gold (task 294).

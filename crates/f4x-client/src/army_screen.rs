@@ -6,6 +6,7 @@
 //! or OK leaves. Positions are the original's.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -131,7 +132,6 @@ impl App {
             as usize;
 
         // The stacks.
-        let mouse: Vec2 = input.mouse_position().into();
         let mut left = None;
         let mut right = None;
         for row in 0..ROWS {
@@ -141,9 +141,10 @@ impl App {
             for (i, &unit) in stack.iter().take(9).enumerate() {
                 let (x, y) = (START.0 + STEP.0 * i as f32, START.1 + STEP.1 * row as f32);
                 let cell = lay.rect((x + 1.0, y + 1.0, 18.0, 15.0));
-                if cell.contains(mouse) {
+                let state = ui::hit(cell, true, input);
+                if state.hovered() {
                     ui.scanned = (ui.first + row, i);
-                    if input.mouse_pressed(MouseButton::Left) {
+                    if state.clicked() {
                         left = Some(unit);
                     }
                     if input.mouse_pressed(MouseButton::Right) {

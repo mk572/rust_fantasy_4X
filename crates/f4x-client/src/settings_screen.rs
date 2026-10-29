@@ -9,7 +9,7 @@ use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
 use crate::preferences::{Pref, FILE};
-use crate::ui::{button, GOLD};
+use crate::ui::{self, button, GOLD};
 use crate::view::{App, Screen};
 
 /// Where a switch sits, in the original's pixels: the check box's left edge and top.
@@ -70,7 +70,6 @@ impl App {
             self.bm_text(view, 5, GOLD, &title, 160.0, 20.0, Align::Center);
         }
         let mouse: Vec2 = input.mouse_position().into();
-        let pressed = input.mouse_pressed(MouseButton::Left);
 
         for (i, &(pref, x, y)) in ROWS.iter().enumerate() {
             let on = self.prefs.get(pref);
@@ -92,7 +91,7 @@ impl App {
             }
             let label = self.text(pref.label());
             self.bm_text(view, 2, WHITE, &label, x + 16.0, y + 2.0, Align::Left);
-            if pressed && lay.rect((x, y, ROW_WIDTH, ROW_HEIGHT)).contains(mouse) {
+            if ui::hit(lay.rect((x, y, ROW_WIDTH, ROW_HEIGHT)), true, input).clicked() {
                 self.prefs.toggle(pref);
             }
         }
@@ -103,7 +102,8 @@ impl App {
 
         let (l, t, r, b) = OK_AREA;
         let ok = lay.rect((l, t, r - l, b - t));
-        let hover = ok.contains(mouse);
+        let ok_hit = ui::hit(ok, true, input);
+        let hover = ok_hit.hovered();
         let (dx, dy) = if hover {
             (267.0, 177.0)
         } else {
@@ -123,7 +123,7 @@ impl App {
             self.screen = Screen::GameSettings;
             return;
         }
-        if (pressed && hover)
+        if ok_hit.clicked()
             || input.key_pressed(KeyCode::O)
             || input.key_pressed(KeyCode::Enter)
             || input.key_pressed(KeyCode::Escape)
@@ -134,7 +134,6 @@ impl App {
 
     /// The two volume sliders in the bottom row: a press or a drag on a bar sets that volume.
     fn volume_sliders(&mut self, lay: &Layout, view: (f32, f32, f32), mouse: Vec2, input: &Input) {
-        let down = input.mouse_down(MouseButton::Left);
         for (i, &(key, label_x, bar_x, bar_w)) in SLIDERS.iter().enumerate() {
             let label = self.text(key);
             self.bm_text(view, 2, WHITE, &label, label_x, SLIDER_Y + 1.0, Align::Left);
@@ -145,7 +144,7 @@ impl App {
             } else {
                 &mut self.prefs.effects_volume
             };
-            if down && hit.contains(mouse) {
+            if ui::hit(hit, true, input).held() {
                 *volume = (((mouse.x - bar.x) / bar.w) * 100.0)
                     .round()
                     .clamp(0.0, 100.0) as u8;

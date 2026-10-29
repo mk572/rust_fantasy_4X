@@ -8,7 +8,7 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::modal::{keep, Modal};
-use crate::ui::GOLD;
+use crate::ui::{self, GOLD};
 use crate::view::{App, Screen, HUMAN};
 use f4x_core::rules::exec::Target;
 use f4x_core::rules::SpellId;
@@ -63,16 +63,15 @@ impl App {
         let row = row.min(lines.len().saturating_sub(1));
         let (w, h) = (screen_width(), screen_height());
         let (top, step) = (h / 2.0 - 20.0, 30.0);
-        let clicked = if input.mouse_pressed(MouseButton::Left) {
-            let (mx, my) = input.mouse_position();
-            (0..lines.len()).find(|&n| {
-                let y = top + step * n as f32;
-                (w / 2.0 - 260.0..w / 2.0 + 260.0).contains(&mx)
-                    && (y - 20.0..y + 8.0).contains(&my)
-            })
-        } else {
-            None
-        };
+        let clicked = (0..lines.len()).find(|&n| {
+            let y = top + step * n as f32;
+            ui::hit(
+                Rect::new(w / 2.0 - 260.0, y - 20.0, 520.0, 28.0),
+                true,
+                input,
+            )
+            .clicked()
+        });
         let mut pick = clicked.unwrap_or(row);
         if input.key_pressed(KeyCode::Up) {
             pick = pick.saturating_sub(1);

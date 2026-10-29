@@ -7,7 +7,7 @@ use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
-use crate::ui::{button, GOLD, PANEL};
+use crate::ui::{self, button, GOLD, PANEL};
 use crate::view::{App, Screen};
 
 /// The message keys of the difficulty names, easiest first.
@@ -123,13 +123,12 @@ impl App {
             land,
             self.text(MAGIC_LEVELS[usize::from(o.magic).min(2)]),
         ];
-        let mouse: Vec2 = input.mouse_position().into();
         let clicked = input.mouse_pressed(MouseButton::Left);
         let shadow = Color::new(0.1, 0.1, 0.12, 1.0);
         let font = Color::new(0.85, 0.85, 0.95, 1.0);
         let mut changed = None;
         for (i, ((y, text_y), label)) in ROWS.into_iter().zip(labels).enumerate() {
-            let hover = lay.rect((250.0, y - 1.0, 66.0, 17.0)).contains(mouse);
+            let hover = ui::hit(lay.rect((250.0, y - 1.0, 66.0, 17.0)), true, input).hovered();
             let shift = if hover { 1.0 } else { 0.0 };
             self.draw_pic(&lay, "newgame", 4 + i, 0, 251.0 + shift, y + shift);
             self.bm_text(
@@ -177,7 +176,7 @@ impl App {
             ),
         ];
         for (i, (y, name, value)) in rows.into_iter().enumerate() {
-            let hover = lay.rect((166.0, y - 1.0, 150.0, 12.0)).contains(mouse);
+            let hover = ui::hit(lay.rect((166.0, y - 1.0, 150.0, 12.0)), true, input).hovered();
             let shift = if hover { 1.0 } else { 0.0 };
             let ink = if hover {
                 Color::new(1.0, 1.0, 0.7, 1.0)

@@ -3,6 +3,7 @@
 //! figures drawn over them; Esc or a click leaves.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::text::Args;
 use f4x_core::wizard::astrology::HISTORY_TURNS;
 use macroquad::prelude::*;
@@ -321,7 +322,7 @@ impl App {
             };
             square(sx + 1.0, sy + 1.0, 3.0, BLACK);
             square(sx, sy, 3.0, colour);
-            if lay.rect((sx, sy, CART_SQUARE, CART_SQUARE)).contains(mouse) {
+            if ui::hit(lay.rect((sx, sy, CART_SQUARE, CART_SQUARE)), true, input).hovered() {
                 hovered = Some((sx, sy, city.name.clone()));
             }
         }
@@ -387,11 +388,14 @@ impl App {
 
         // Keys and clicks.
         let pressed = input.mouse_pressed(MouseButton::Left);
-        let in_map = lay
-            .rect((ox, oy, w as f32 * CART_SQUARE, h as f32 * CART_SQUARE))
-            .contains(mouse);
+        let in_map = ui::hit(
+            lay.rect((ox, oy, w as f32 * CART_SQUARE, h as f32 * CART_SQUARE)),
+            true,
+            input,
+        )
+        .hovered();
         if input.key_pressed(KeyCode::N)
-            || (pressed && lay.rect((285.0, 180.0, 29.0, 19.0)).contains(mouse))
+            || ui::hit(lay.rect((285.0, 180.0, 29.0, 19.0)), true, input).clicked()
         {
             self.cart_plane = if plane == Plane::Arcanus {
                 Plane::Myrror
@@ -402,7 +406,7 @@ impl App {
         if input.key_pressed(KeyCode::C)
             || input.key_pressed(KeyCode::Escape)
             || input.mouse_pressed(MouseButton::Right)
-            || (pressed && lay.rect((265.0, 143.0, 34.0, 26.0)).contains(mouse))
+            || ui::hit(lay.rect((265.0, 143.0, 34.0, 26.0)), true, input).clicked()
         {
             self.screen = Screen::Map;
         } else if pressed && in_map {

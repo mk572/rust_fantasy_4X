@@ -243,21 +243,17 @@ impl App {
     /// The three staves: drawn empty above the line and full below it, locked or not, and
     /// dragged with the mouse (the share changes as the mouse moves and is kept on release).
     fn magic_staves(&mut self, lay: &Layout, active: bool, input: &Input) {
-        let (mx, my) = input.mouse_position();
+        let (_, my) = input.mouse_position();
         let virtual_y = (my - lay.origin.y) / lay.scale;
-        let virtual_x = (mx - lay.origin.x) / lay.scale;
         if active {
             // Locks.
             if input.mouse_pressed(MouseButton::Left) {
                 for (i, &sx) in STAFF_X.iter().enumerate() {
-                    let lock = (sx - 1.0, 82.0, sx + 12.0, 101.0);
-                    if (lock.0..=lock.2).contains(&virtual_x)
-                        && (lock.1..=lock.3).contains(&virtual_y)
-                    {
+                    let lock = lay.rect((sx - 1.0, 82.0, 13.0, 19.0));
+                    let staff = lay.rect((sx - 4.0, 83.0, 22.0, 75.0));
+                    if ui::hit(lock, true, input).clicked() {
                         self.magic_ui.locked[i] = !self.magic_ui.locked[i];
-                    } else if (sx - 4.0..=sx + 18.0).contains(&virtual_x)
-                        && (83.0..=158.0).contains(&virtual_y)
-                    {
+                    } else if ui::hit(staff, true, input).clicked() {
                         self.magic_ui.drag = Some(i);
                     }
                 }
@@ -472,7 +468,7 @@ impl App {
                     show(self, t, colour);
                 }
             }
-            let over = gem.is_some_and(|r| r.contains(input.mouse_position().into()));
+            let over = gem.is_some_and(|r| ui::hit(r, true, input).hovered());
             if active && over && input.mouse_pressed(MouseButton::Left) {
                 self.open_diplomacy(id);
             }
@@ -551,15 +547,11 @@ impl App {
             ui.slider = 3;
         }
         let amount = alchemy_amount(pool, ui.slider);
-        let (mx, my) = input.mouse_position();
+        let (mx, _) = input.mouse_position();
         let vx = (mx - lay.origin.x) / lay.scale;
-        let vy = (my - lay.origin.y) / lay.scale;
         // The slider bar.
-        if input.mouse_down(MouseButton::Left)
-            && (px + 46.0..=px + 108.0).contains(&vx)
-            && (py + 22.0..=py + 34.0).contains(&vy)
-            && pool > 1
-        {
+        let bar = lay.rect((px + 46.0, py + 22.0, 62.0, 12.0));
+        if ui::hit(bar, pool > 1, input).held() {
             ui.slider = ((vx - (px + 50.0)).round() as i32 + 3).clamp(3, 53);
         }
         self.draw_pic(lay, "magic", 52, 0, px - 5.0, py);

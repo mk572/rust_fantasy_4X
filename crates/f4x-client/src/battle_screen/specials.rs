@@ -5,6 +5,7 @@
 use super::*;
 use crate::frame::Layout;
 use crate::input::Input;
+use crate::ui;
 use crate::unit_sheet::special_picture;
 use f4x_core::battle::spell::BattleSpell;
 
@@ -144,7 +145,6 @@ impl App {
         let dim = Color::new(0.6, 0.55, 0.5, 1.0);
         let free =
             my_turn && self.battle_ui.aiming.is_none() && self.battle_ui.fallen_list.is_none();
-        let mouse: Vec2 = input.mouse_position().into();
         let mut cast: Option<BattleSpell> = None;
         let mut summon = false;
         for (i, row) in rows.iter().enumerate() {
@@ -161,7 +161,7 @@ impl App {
                 Row::Ability(icon, name) => (name.clone(), light, *icon, false),
             };
             let clickable = !matches!(row, Row::Ability(..));
-            let hover = usable && cell.contains(mouse);
+            let hover = ui::hit(cell, usable, input).hovered();
             if hover {
                 draw_rectangle(
                     cell.x,

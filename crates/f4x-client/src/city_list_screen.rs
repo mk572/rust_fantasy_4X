@@ -5,6 +5,7 @@
 //! scroll five rows, Esc or OK leaves. Positions are the original's.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -193,16 +194,16 @@ impl App {
         ui.first = scrolled(ui.first, scroll.signum(), count);
 
         // The rows.
-        let mouse: Vec2 = input.mouse_position().into();
         let shown = count.saturating_sub(ui.first).min(ROWS);
         ui.scanned = ui.scanned.min(shown.saturating_sub(1));
         let (mut left, mut right) = (None, None);
         for (i, row) in rows.iter().skip(ui.first).take(ROWS).enumerate() {
             let y = 26.0 + 14.0 * i as f32;
             let cell = lay.rect((30.0, y, 260.0, 9.0));
-            if cell.contains(mouse) {
+            let state = ui::hit(cell, true, input);
+            if state.hovered() {
                 ui.scanned = i;
-                if input.mouse_pressed(MouseButton::Left) {
+                if state.clicked() {
                     left = Some(ui.first + i);
                 }
                 if input.mouse_pressed(MouseButton::Right) {

@@ -13,6 +13,7 @@ use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
 use crate::modal::{keep, kind, Modal};
+use crate::ui;
 use crate::view::{App, HUMAN};
 
 /// Row height and the most rows shown, in the original's pixels (the screen is 320 by 200).
@@ -359,8 +360,8 @@ impl App {
         };
         let yes_at = (bx + bw - 70.0, by + bh - 21.0);
         let no_at = (bx + bw - 138.0, by + bh - 21.0);
-        let yes = lay.rect((yes_at.0, yes_at.1, 65.0, 17.0));
-        let no = lay.rect((no_at.0, no_at.1, 65.0, 17.0));
+        let yes = ui::hit(lay.rect((yes_at.0, yes_at.1, 65.0, 17.0)), true, input);
+        let no = ui::hit(lay.rect((no_at.0, no_at.1, 65.0, 17.0)), true, input);
 
         let mut confirm = input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::Y);
         let mut cancelled = input.key_pressed(KeyCode::Escape) || input.key_pressed(KeyCode::N);
@@ -378,14 +379,13 @@ impl App {
         if input.key_pressed(KeyCode::Space) {
             prompt.toggle(lines[prompt.cursor]);
         }
-        let mouse = Vec2::from(input.mouse_position());
         if input.mouse_pressed(MouseButton::Left) {
-            if yes.contains(mouse) {
+            if yes.clicked() {
                 confirm = true;
-            } else if no.contains(mouse) {
+            } else if no.clicked() {
                 cancelled = true;
-            } else if let Some(i) =
-                (first..first + rows).find(|&i| selectable(i) && row_rect(i).contains(mouse))
+            } else if let Some(i) = (first..first + rows)
+                .find(|&i| selectable(i) && ui::hit(row_rect(i), true, input).clicked())
             {
                 prompt.cursor = i;
                 prompt.toggle(lines[i]);
@@ -525,12 +525,11 @@ impl App {
                 Align::Left,
             );
         }
-        let down = input.mouse_down(MouseButton::Left);
         self.draw_pic(
             &lay,
             "resource",
             3,
-            usize::from(down && yes.contains(mouse)),
+            usize::from(yes.held()),
             yes_at.0,
             yes_at.1,
         );
@@ -538,7 +537,7 @@ impl App {
             &lay,
             "resource",
             4,
-            usize::from(down && no.contains(mouse)),
+            usize::from(no.held()),
             no_at.0,
             no_at.1,
         );

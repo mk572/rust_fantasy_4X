@@ -11,6 +11,7 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
+use crate::ui;
 use crate::view::App;
 
 /// What the box says.
@@ -238,18 +239,16 @@ impl App {
         self.draw_pic_rows(lay, "resource", 0, x, y, y, y + paragraph + 12.0);
         self.draw_pic(lay, "resource", 1, 0, x, y + paragraph + 10.0);
         self.draw_box_text(view, &lines, x + 9.0, y + 9.0, line);
-        let mouse = Vec2::from(input.mouse_position());
-        let down = input.mouse_down(MouseButton::Left);
         let right_at = (x + 101.0, y + paragraph + 15.0);
         let left_at = (x + 18.0, y + paragraph + 15.0);
-        let right = lay.rect((right_at.0, right_at.1, 33.0, 17.0));
-        let left = lay.rect((left_at.0, left_at.1, 33.0, 17.0));
+        let right = ui::hit(lay.rect((right_at.0, right_at.1, 33.0, 17.0)), true, input);
+        let left = ui::hit(lay.rect((left_at.0, left_at.1, 33.0, 17.0)), true, input);
         let (lbx, entry) = buttons.right;
         self.draw_pic(
             lay,
             lbx,
             entry,
-            usize::from(down && right.contains(mouse)),
+            usize::from(right.held()),
             right_at.0,
             right_at.1,
         );
@@ -258,15 +257,20 @@ impl App {
             lay,
             lbx,
             entry,
-            usize::from(down && left.contains(mouse)),
+            usize::from(left.held()),
             left_at.0,
             left_at.1,
         );
-        let clicked =
-            input.mouse_pressed(MouseButton::Left) || input.mouse_pressed(MouseButton::Right);
-        if (clicked && right.contains(mouse)) || input.key_pressed(buttons.right_key) {
+        // Either mouse button answers a question box.
+        let right_click = input.mouse_pressed(MouseButton::Right);
+        let clicked = input.mouse_pressed(MouseButton::Left) || right_click;
+        if (right.clicked() || (right_click && right.hovered()))
+            || input.key_pressed(buttons.right_key)
+        {
             Some(true)
-        } else if (clicked && left.contains(mouse)) || input.key_pressed(buttons.left_key) {
+        } else if (left.clicked() || (right_click && left.hovered()))
+            || input.key_pressed(buttons.left_key)
+        {
             Some(false)
         } else if input.key_pressed(KeyCode::Escape) || (clicked && buttons.elsewhere) {
             Some(buttons.escape)

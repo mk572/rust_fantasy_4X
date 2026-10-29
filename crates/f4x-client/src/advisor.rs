@@ -5,6 +5,7 @@
 //! Collector. History and Astrologer are screens of their own here.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -282,15 +283,14 @@ impl App {
         let (x1, y1) = ((320.0 - width) / 2.0, ((200.0 - height) / 2.0).floor());
         let (x2, y2) = (x1 + width - 1.0, y1 + height - 1.0);
 
-        let mouse: Vec2 = input.mouse_position().into();
         let hover = (0..sel.rows.len()).find(|&i| {
-            lay.rect((
+            let row = lay.rect((
                 x1 + SIDE_WIDTH,
                 y1 + TOP_HEIGHT + ROW_HEIGHT * i as f32,
                 width - SIDE_WIDTH - RIGHT_WIDTH,
                 ROW_HEIGHT,
-            ))
-            .contains(mouse)
+            ));
+            ui::hit(row, true, input).hovered()
         });
 
         // The frame's pieces tint what is under them (the original's glass colours): the box is
@@ -401,7 +401,7 @@ impl App {
                 self.choose_row(sel.purpose, i);
                 return None;
             }
-            if !lay.rect((x1, y1, width, height)).contains(mouse) {
+            if !ui::hit(lay.rect((x1, y1, width, height)), true, input).hovered() {
                 return None;
             }
         }

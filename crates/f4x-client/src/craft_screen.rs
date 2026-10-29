@@ -7,6 +7,7 @@
 //! this file holds the choices. Positions are the original's.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::game::{Command, Event};
 use f4x_core::item::crafting::{
     available_powers, check, cost, made_name, Craft, ItemDesign, MAX_CHARGES, MAX_POWERS,
@@ -251,7 +252,6 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         clear_background(BLACK);
         self.draw_pic(&lay, "spellscr", 13, 0, 0.0, 0.0);
-        let mouse: Vec2 = input.mouse_position().into();
         let busy = ui.spells.is_some() || ui.give_up;
         let click = input.mouse_pressed(MouseButton::Left) && !busy;
         let allowed = self.craft_allowed(ui.craft, ui.design.kind);
@@ -263,7 +263,7 @@ impl App {
             let entry = if on { 25 + i } else { 14 + i };
             let pressed = !busy && input.mouse_down(MouseButton::Left);
             let rect = self.draw_pic(&lay, "spellscr", entry, usize::from(pressed), x, y);
-            if click && rect.is_some_and(|r| r.contains(mouse)) {
+            if rect.is_some_and(|r| ui::hit(r, click, input).clicked()) {
                 ui.set_kind(kind, &self.craft_allowed(ui.craft, kind));
                 ui.message = None;
             }
@@ -273,7 +273,7 @@ impl App {
         self.draw_pic(&lay, "items", usize::from(ui.design.picture()), 0, 4.0, 5.0);
         for (forward, x, entry) in [(false, 4.0, 35), (true, 17.0, 36)] {
             let rect = self.draw_pic(&lay, "spellscr", entry, 0, x, 24.0);
-            if click && rect.is_some_and(|r| r.contains(mouse)) {
+            if rect.is_some_and(|r| ui::hit(r, click, input).clicked()) {
                 ui.step_icon(forward);
             }
         }
@@ -281,7 +281,7 @@ impl App {
         // The name box.
         let name_box = lay.rect((30.0, 13.0, 118.0, 10.0));
         if input.mouse_pressed(MouseButton::Left) && !busy {
-            let inside = name_box.contains(mouse);
+            let inside = ui::hit(name_box, true, input).hovered();
             if inside && !ui.typing {
                 ui.design.name = self.craft_name(&ui);
                 ui.typing = true;
@@ -369,7 +369,7 @@ impl App {
                     self.bm_text(view, 3, color, rest, x + 14.0, y, Align::Left);
                 }
                 let width = if col == 2 { 98.0 } else { 78.0 };
-                if click && lay.rect((x, y - 2.0, width, 9.0)).contains(mouse) {
+                if ui::hit(lay.rect((x, y - 2.0, width, 9.0)), click, input).clicked() {
                     ui.message = None;
                     if charges {
                         if ui.design.charges.is_some() {
@@ -415,7 +415,7 @@ impl App {
         }
         let ok = !busy
             && !ui.typing
-            && ((click && ok_rect.is_some_and(|r| r.contains(mouse)))
+            && (ok_rect.is_some_and(|r| ui::hit(r, click, input).clicked())
                 || input.key_pressed(KeyCode::Escape));
         if ok {
             if ui.used() == 0 {
@@ -493,7 +493,6 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (bx, by) = (28.0, 12.0);
         let spells = self.charge_spells();
-        let mouse: Vec2 = input.mouse_position().into();
         let click = input.mouse_pressed(MouseButton::Left);
         self.draw_pic(lay, "spells", 0, 0, bx, by);
         let title = self.text("craft.choose_spell");
@@ -513,13 +512,13 @@ impl App {
         pick.page = pick.page.min(pages - 1);
         if pick.page > 0 {
             let r = self.draw_pic(lay, "spells", 1, 0, bx + 13.0, by + 4.0);
-            if click && r.is_some_and(|r| r.contains(mouse)) {
+            if r.is_some_and(|r| ui::hit(r, click, input).clicked()) {
                 pick.page -= 1;
             }
         }
         if pick.page + 1 < pages {
             let r = self.draw_pic(lay, "spells", 2, 0, bx + 258.0, by + 4.0);
-            if click && r.is_some_and(|r| r.contains(mouse)) {
+            if r.is_some_and(|r| ui::hit(r, click, input).clicked()) {
                 pick.page += 1;
             }
         }
@@ -543,8 +542,7 @@ impl App {
                 Align::Left,
             );
             if pick.chosen.is_none()
-                && click
-                && lay.rect((x - 2.0, y - 1.0, 105.0, 10.0)).contains(mouse)
+                && ui::hit(lay.rect((x - 2.0, y - 1.0, 105.0, 10.0)), click, input).clicked()
             {
                 chosen = Some((i, id.clone()));
             }
@@ -576,14 +574,15 @@ impl App {
                     by + 11.0 + row * 10.0 + 10.0 * col as f32,
                 );
                 let r = self.draw_pic(lay, "spellscr", 38 + n as usize, 0, x, y);
-                if click && r.is_some_and(|r| r.contains(mouse)) {
+                if r.is_some_and(|r| ui::hit(r, click, input).clicked()) {
                     done = Some((id.clone(), n + 1));
                 }
             }
         }
-        let leave =
-            click && pick.chosen.is_none() && !lay.rect((bx, by, 290.0, 170.0)).contains(mouse)
-                || input.key_pressed(KeyCode::Escape);
+        let leave = click
+            && pick.chosen.is_none()
+            && !ui::hit(lay.rect((bx, by, 290.0, 170.0)), true, input).hovered()
+            || input.key_pressed(KeyCode::Escape);
         if let Some(charges) = done {
             ui.design.charges = Some(charges);
             ui.spells = None;

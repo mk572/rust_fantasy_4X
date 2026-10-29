@@ -80,7 +80,7 @@ impl App {
             let over = self
                 .garrison_cells(city, lay)
                 .into_iter()
-                .find(|(r, _)| r.contains(input.mouse_position().into()));
+                .find(|(r, _)| ui::hit(*r, true, input).hovered());
             if let Some((_, unit)) = over {
                 self.open_unit_sheet(unit);
                 return;
@@ -91,7 +91,7 @@ impl App {
             let over = self
                 .garrison_cells(city, lay)
                 .into_iter()
-                .find(|(r, _)| r.contains(input.mouse_position().into()));
+                .find(|(r, _)| ui::hit(*r, true, input).hovered());
             if let Some((_, unit)) = over {
                 let here = self.city_position(city);
                 let elsewhere = self
@@ -398,7 +398,6 @@ impl App {
         let total = (eco.farmers + eco.workers + eco.rebels).max(1) as f32;
         let step = (11.0f32).min(196.0 / total);
         let mut x = 7.0;
-        let mouse: Vec2 = input.mouse_position().into();
         let clicked = input.mouse_pressed(MouseButton::Left) && !self.choosing;
         let jobs = [(eco.farmers, 45usize), (eco.workers, 59), (eco.rebels, 74)];
         for (job, (count, base)) in jobs.into_iter().enumerate() {
@@ -409,7 +408,7 @@ impl App {
                     draw_rectangle(r.x, r.y, r.w, r.h, [GREEN, ORANGE, RED][job]);
                 }
                 let hit = lay.rect(x, 26.0, step, 15.0);
-                if clicked && hit.contains(mouse) && eco.figures > 0 {
+                if clicked && ui::hit(hit, true, input).hovered() && eco.figures > 0 {
                     match job {
                         0 => {
                             self.game.apply(Command::SetFarmers {
@@ -549,7 +548,6 @@ impl App {
         } else {
             self.city_spell_first = 0;
         }
-        let mouse = input.mouse_position().into();
         let click = input.mouse_pressed(MouseButton::Left) && enabled;
         for (row, line) in effects.iter().enumerate() {
             let row = list.len() + row;
@@ -595,8 +593,9 @@ impl App {
                 Align::Left,
             );
             let rect = lay.rect(first.0, first.1 + i * 7.0, 60.0, 7.0);
-            hit |= click && rect.contains(mouse);
-            if click && caster == HUMAN && rect.contains(mouse) {
+            let on_row = ui::hit(rect, true, input).hovered();
+            hit |= click && on_row;
+            if click && caster == HUMAN && on_row {
                 self.sell_prompt = Some(SellPrompt::TurnOff {
                     city,
                     spell,
@@ -849,7 +848,6 @@ impl App {
         // stay put from frame to frame.
         let mut mouse_over: Option<i16> = None;
         let mut over_rubble = false;
-        let mouse: Vec2 = input.mouse_position().into();
         let sold = self.game.economy().sold_building(city);
         let rubble_of = sold.map(|b| {
             (
@@ -898,7 +896,7 @@ impl App {
                             let frames = self.art.frames("cityscap", rubble);
                             let frame = cs::looped_frame(building_counter, frames);
                             self.city_pic(lay, "cityscap", rubble, frame, sx, sy - up);
-                            over_rubble |= rect.contains(mouse);
+                            over_rubble |= ui::hit(rect, true, input).hovered();
                             continue;
                         }
                         let frames = self.art.frames("cityscap", entry);
@@ -932,7 +930,7 @@ impl App {
                                 }
                             }
                         }
-                        if rect.contains(mouse) {
+                        if ui::hit(rect, true, input).hovered() {
                             mouse_over = Some(idx);
                         }
                     }

@@ -9,8 +9,8 @@ use f4x_core::map::Position;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Align, Layout};
-use crate::ui::{button, GOLD};
+use crate::frame::{Align, Disabled, Layout};
+use crate::ui::{self, button, GOLD};
 use crate::view::App;
 
 /// A road being planned.
@@ -67,9 +67,10 @@ impl App {
     /// Whether a click at the mouse falls on one of the mode's buttons.
     pub(crate) fn road_plan_on_button(&self, input: &Input) -> bool {
         let lay = Layout::new();
-        let at = input.mouse_position().into();
         self.road_plan.is_some()
-            && (button_rect(&lay, OK_AT).contains(at) || button_rect(&lay, CANCEL_AT).contains(at))
+            && [OK_AT, CANCEL_AT]
+                .into_iter()
+                .any(|at| ui::hit(button_rect(&lay, at), true, input).hovered())
     }
 
     /// A map click in the mode: plan the road to that square.
@@ -229,12 +230,7 @@ impl App {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let sum = self.road_summary(&plan);
-        let (mouse, down) = (
-            Vec2::from(input.mouse_position()),
-            input.mouse_down(MouseButton::Left),
-        );
-        let pressed = input.mouse_pressed(MouseButton::Left);
-        let (ok_rect, cancel_rect) = (button_rect(&lay, OK_AT), button_rect(&lay, CANCEL_AT));
+        let ok_rect = button_rect(&lay, OK_AT);
         let can = sum.turns > 0 && !sum.blocked;
 
         // The panel hides Next Turn, then the buttons sit on the border at the bottom.
@@ -276,25 +272,11 @@ impl App {
         for (i, line) in self.bm_wrap(1, &message, 60.0).iter().enumerate() {
             self.bm_text_set(view, 1, 0, line, 250.0, 106.0 + i as f32 * 9.0, Align::Left);
         }
-        let ok_frame = usize::from(can && down && ok_rect.contains(mouse));
-        self.draw_pic_tinted(
-            &lay,
-            "main",
-            46,
-            ok_frame,
-            OK_AT.0,
-            OK_AT.1,
-            if can {
-                WHITE
-            } else {
-                Color::new(1.0, 1.0, 1.0, 0.5)
-            },
-        );
-        let cancel_frame = usize::from(down && cancel_rect.contains(mouse));
-        self.draw_pic(&lay, "main", 41, cancel_frame, CANCEL_AT.0, CANCEL_AT.1);
-        if pressed && can && ok_rect.contains(mouse) {
+        let ok = self.pic_button(&lay, ("main", 46), OK_AT, (can, Disabled::Fade(0.5)), input);
+        let cancel = self.pic_button_on(&lay, ("main", 41), CANCEL_AT, input);
+        if ok {
             self.road_plan_confirm();
-        } else if pressed && cancel_rect.contains(mouse) {
+        } else if cancel {
             self.road_plan_cancel();
         }
     }

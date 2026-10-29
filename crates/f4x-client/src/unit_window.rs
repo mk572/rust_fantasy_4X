@@ -4,6 +4,7 @@
 //! stack's moves. A click on a picture picks that unit, a right-click opens its sheet.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
@@ -180,8 +181,6 @@ impl App {
     /// Draw the unit window, the buttons and the moves, and say what was clicked.
     pub(crate) fn draw_unit_window(&mut self, lay: &Layout, click: &mut FrameClick, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let mouse: Vec2 = input.mouse_position().into();
-        let pressed = input.mouse_pressed(MouseButton::Left);
         let right = input.mouse_pressed(MouseButton::Right);
         let stack = self.stack_units();
         let all_picked = stack.iter().all(|u| self.selection.contains(u));
@@ -212,8 +211,9 @@ impl App {
                 self.bm_text_outlined(view, 1, mark, at.0 + 2.0, at.1 + 2.0, Align::Left);
             }
             let rect = lay.rect((at.0 - 1.0, at.1 - 1.0, STEP.0 - 1.0, STEP.1 - 1.0));
-            if rect.contains(mouse) {
-                if pressed {
+            let state = ui::hit(rect, true, input);
+            if state.hovered() {
+                if state.clicked() {
                     click.slot = Some(unit);
                     click.pick_only = all_picked;
                 }
@@ -224,17 +224,19 @@ impl App {
         }
 
         // The buttons.
-        let down = input.mouse_down(MouseButton::Left);
         let special = self.special_action();
         let mut button = |app: &mut App, entry: usize, at: (f32, f32), which: StackButton| {
             let tex_size = app.art_picture("main", entry, 0).map(|t| t.size());
-            let hover = tex_size.is_some_and(|s| {
+            let state = tex_size.map_or(ui::Hit::None, |s| {
                 let p = lay.point(at.0, at.1);
-                Rect::new(p.x, p.y, s.x * lay.scale, s.y * lay.scale).contains(mouse)
+                ui::hit(
+                    Rect::new(p.x, p.y, s.x * lay.scale, s.y * lay.scale),
+                    true,
+                    input,
+                )
             });
-            let frame = usize::from(hover && down);
-            app.draw_pic(lay, "main", entry, frame, at.0, at.1);
-            if hover && pressed {
+            app.draw_pic(lay, "main", entry, usize::from(state.held()), at.0, at.1);
+            if state.clicked() {
                 click.button = Some(which);
             }
         };

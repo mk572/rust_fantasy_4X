@@ -364,37 +364,15 @@ impl App {
             bottom,
         );
         self.draw_box_text(view, &lines, BOX_X + 9.0, top_y + 10.0, line);
-        let mouse = Vec2::from(input.mouse_position());
-        let down = input.mouse_down(MouseButton::Left);
         if buttons {
             let yes_at = (BOX_X + 100.0, bottom + 5.0);
             let no_at = (BOX_X + 17.0, bottom + 5.0);
-            let yes = lay.rect((yes_at.0, yes_at.1, 33.0, 17.0));
-            let no = lay.rect((no_at.0, no_at.1, 33.0, 17.0));
-            self.draw_pic(
-                lay,
-                "resource",
-                3,
-                usize::from(down && yes.contains(mouse)),
-                yes_at.0,
-                yes_at.1,
-            );
-            self.draw_pic(
-                lay,
-                "resource",
-                4,
-                usize::from(down && no.contains(mouse)),
-                no_at.0,
-                no_at.1,
-            );
-            let click = input.mouse_pressed(MouseButton::Left);
-            if (click && yes.contains(mouse)) || input.key_pressed(KeyCode::Y) {
+            let yes = self.pic_button_on(lay, ("resource", 3), yes_at, input);
+            let no = self.pic_button_on(lay, ("resource", 4), no_at, input);
+            if yes || input.key_pressed(KeyCode::Y) {
                 return Some(true);
             }
-            if (click && no.contains(mouse))
-                || input.key_pressed(KeyCode::N)
-                || input.key_pressed(KeyCode::Escape)
-            {
+            if no || input.key_pressed(KeyCode::N) || input.key_pressed(KeyCode::Escape) {
                 return Some(false);
             }
             None

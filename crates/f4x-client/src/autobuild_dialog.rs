@@ -122,7 +122,6 @@ impl App {
         };
         text(&self.text("autobuild.title"), 48.0, 36.0, GOLD);
         text(&self.text("autobuild.help"), 48.0, 44.0, GRAY);
-        let pointer: Vec2 = input.mouse_position().into();
         let left = input.mouse_pressed(MouseButton::Left);
         let right = input.mouse_pressed(MouseButton::Right);
         let balanced = d.plan.primary == Focus::Balanced;
@@ -163,7 +162,7 @@ impl App {
         for (i, (name, value, enabled)) in rows.iter().enumerate() {
             let y = 54.0 + i as f32 * 11.0;
             let r = lay.rect(46.0, y - 6.0, 228.0, 10.0);
-            let hover = r.contains(pointer);
+            let hover = ui::hit(r, true, input).hovered();
             if hover && *enabled {
                 draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.4, 0.3, 0.15, 1.0));
             }
@@ -221,7 +220,7 @@ impl App {
         for (k, (name, x)) in buttons.iter().enumerate() {
             let enabled = k != 1 || d.had_plan;
             let r = lay.rect(*x, 150.0, 60.0, 11.0);
-            let hover = r.contains(pointer) && enabled;
+            let hover = ui::hit(r, enabled, input).hovered();
             draw_rectangle(
                 r.x,
                 r.y,

@@ -16,7 +16,6 @@ use crate::frame::{Align, Layout};
 use crate::view::{App, HUMAN};
 
 const CANCEL_AT: (f32, f32) = (263.0, 181.0);
-const BUTTON_SIZE: (f32, f32) = (33.0, 9.0);
 
 /// What the panel says about one square.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -241,17 +240,12 @@ impl App {
         }
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let mouse: Vec2 = input.mouse_position().into();
-        let cancel = lay.rect((CANCEL_AT.0, CANCEL_AT.1, BUTTON_SIZE.0, BUTTON_SIZE.1));
         let art = self.draw_pic(&lay, "main", 44, 0, 242.0, 173.0).is_some()
             && self.draw_pic(&lay, "main", 57, 0, 240.0, 76.0).is_some();
         self.draw_pic(&lay, "main", 47, 0, 240.0, 173.0);
-        let down = input.mouse_down(MouseButton::Left);
-        let frame = usize::from(down && cancel.contains(mouse));
-        self.draw_pic(&lay, "main", 41, frame, CANCEL_AT.0, CANCEL_AT.1);
-        let mut leave = input.key_pressed(KeyCode::C)
-            || input.key_pressed(KeyCode::Escape)
-            || (input.mouse_pressed(MouseButton::Left) && cancel.contains(mouse));
+        let cancel = self.pic_button_on(&lay, ("main", 41), CANCEL_AT, input);
+        let mut leave =
+            input.key_pressed(KeyCode::C) || input.key_pressed(KeyCode::Escape) || cancel;
         if !art {
             self.log.push(self.text("surveyor.needs_pictures"));
             leave = true;

@@ -228,8 +228,6 @@ impl App {
         let lay = Layout::new();
         let mut click = FrameClick::default();
         let s = lay.scale;
-        let mouse: Vec2 = input.mouse_position().into();
-        let pressed = input.mouse_pressed(MouseButton::Left);
 
         // The frame itself; flat panels when the art is missing.
         if self.draw_pic(&lay, "main", 0, 0, 0.0, 0.0).is_none() {
@@ -242,15 +240,14 @@ impl App {
         // The menu bar: Game, Spells, Armies, Cities, Magic, Info, Plane.
         for (i, &x) in spot::MENU_X.iter().enumerate() {
             let entry = i + 1;
-            let hover = {
-                let tex = self.art_picture("main", entry, 0);
-                tex.map(|t| {
+            let state = self
+                .art_picture("main", entry, 0)
+                .map_or(ui::Hit::None, |t| {
                     let at = lay.point(x, spot::MENU_Y);
-                    Rect::new(at.x, at.y, t.width() * s, t.height() * s).contains(mouse)
-                })
-                .unwrap_or(false)
-            };
-            let frame = usize::from(hover && input.mouse_down(MouseButton::Left));
+                    let rect = Rect::new(at.x, at.y, t.width() * s, t.height() * s);
+                    ui::hit(rect, true, input)
+                });
+            let frame = usize::from(state.held());
             if self
                 .draw_pic(&lay, "main", entry, frame, x, spot::MENU_Y)
                 .is_none()
@@ -267,8 +264,8 @@ impl App {
                 let r = lay.rect((x, spot::MENU_Y, 38.0, 12.0));
                 draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.45, 0.3, 0.12, 1.0));
                 text_centered(&names[i], r.x + r.w / 2.0, r.y + r.h * 0.75, 3.2 * s, GOLD);
-                click.menu = click.menu.or_else(|| (hover && pressed).then_some(i));
-            } else if hover && pressed {
+                click.menu = click.menu.or_else(|| state.clicked().then_some(i));
+            } else if state.clicked() {
                 click.menu = Some(i);
             }
         }
@@ -362,8 +359,6 @@ impl App {
     fn draw_summary(&mut self, lay: &Layout, click: &mut FrameClick, input: &Input) {
         let s = lay.scale;
         let view = (lay.origin.x, lay.origin.y, s);
-        let mouse: Vec2 = input.mouse_position().into();
-        let pressed = input.mouse_pressed(MouseButton::Left);
         // Resource panels with this turn's income in each.
         let t = self.game.budget(HUMAN);
         let income = self.game.income(HUMAN);
@@ -407,14 +402,17 @@ impl App {
         if self.draw_pic(lay, "main", 35, 0, nx, ny).is_some() {
             // The button has one picture; it sits 2 px down and right while it is held.
             let (bx, by) = (nx + 6.0, ny + 5.0);
-            let hover = self.art_picture("main", 58, 0).is_some_and(|t| {
+            let state = self.art_picture("main", 58, 0).map_or(ui::Hit::None, |t| {
                 let p = lay.point(bx, by);
-                Rect::new(p.x, p.y, t.width() * s, t.height() * s).contains(mouse)
+                ui::hit(
+                    Rect::new(p.x, p.y, t.width() * s, t.height() * s),
+                    true,
+                    input,
+                )
             });
-            let held = hover && input.mouse_down(MouseButton::Left);
-            let push = if held { 2.0 } else { 0.0 };
+            let push = if state.held() { 2.0 } else { 0.0 };
             self.draw_pic(lay, "main", 58, 0, bx + push, by + push);
-            click.next_turn = pressed && hover;
+            click.next_turn = state.clicked();
         } else {
             let r = lay.rect((nx + 4.0, ny + 4.0, 72.0, 19.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.45, 0.3, 0.12, 1.0));
@@ -425,7 +423,7 @@ impl App {
                 5.0 * s,
                 GOLD,
             );
-            click.next_turn = pressed && r.contains(mouse);
+            click.next_turn = ui::hit(r, true, input).clicked();
         }
     }
 
@@ -540,7 +538,7 @@ impl App {
         }
         // Clicking the minimap centres the map there.
         let mouse: Vec2 = input.mouse_position().into();
-        if input.mouse_pressed(MouseButton::Left) && r.contains(mouse) {
+        if ui::hit(r, true, input).clicked() {
             let (i, j) = (
                 ((mouse.x - r.x) / s).floor() as i32,
                 ((mouse.y - r.y) / s).floor() as i32,

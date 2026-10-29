@@ -327,14 +327,13 @@ impl App {
             "create.select_wizard"
         });
         self.bm_text_outlined(view, 5, &title, 242.0, 1.0, Align::Center);
-        let mouse: Vec2 = input.mouse_position().into();
         let clicked = input.mouse_pressed(MouseButton::Left) && self.ng_input();
         let mut chosen = None;
         let mut over = None;
         for i in 0..7 + right_count {
             let (col, row) = if i < 7 { (LEFT, i) } else { (RIGHT, i - 7) };
             let y = col.1 + ROW_STEP * row as f32;
-            let hot = lay.rect((col.0, y, 70.0, 17.0)).contains(mouse) && self.ng_input();
+            let hot = ui::hit(lay.rect((col.0, y, 70.0, 17.0)), self.ng_input(), input).hovered();
             if hot {
                 over = Some(i);
                 if clicked {
@@ -553,7 +552,6 @@ impl App {
             .unzip();
         let title = Color::new(0.85, 0.65, 0.2, 1.0);
         let bright = Color::new(1.0, 0.95, 0.6, 1.0);
-        let mouse: Vec2 = input.mouse_position().into();
         let live = self.ng_input();
         let clicked = input.mouse_pressed(MouseButton::Left) && live;
         let (arcanian_title, myrran_title) =
@@ -567,7 +565,7 @@ impl App {
             for (i, race) in list.iter().enumerate() {
                 let Some(race) = *race else { continue };
                 let y = top + 10.0 * i as f32;
-                let hot = lay.rect((168.0, y, 64.0, 8.0)).contains(mouse) && live;
+                let hot = ui::hit(lay.rect((168.0, y, 64.0, 8.0)), live, input).hovered();
                 if hot {
                     hovered = Some(race);
                 }
@@ -612,10 +610,7 @@ impl App {
         // OK goes on, once a race is picked.
         let ok = self.create.race_pick.is_some();
         self.draw_pic(lay, "newgame", if ok { 42 } else { 43 }, 0, 286.0, 182.0);
-        if live
-            && input.mouse_pressed(MouseButton::Left)
-            && lay.rect((285.0, 181.0, 32.0, 16.0)).contains(mouse)
-        {
+        if ui::hit(lay.rect((285.0, 181.0, 32.0, 16.0)), live, input).clicked() {
             match self.create.race_pick {
                 Some(race) => {
                     self.race = race;
@@ -692,7 +687,6 @@ impl App {
         let name = self.create.build.name.clone();
         self.ng_name(lay, &name);
         self.ng_build_shelf(lay);
-        let mouse: Vec2 = input.mouse_position().into();
         let live = self.ng_input();
         let mut clicked = None;
         for column in 0..2 {
@@ -700,7 +694,7 @@ impl App {
                 let (x, y) = (170.0 + 74.0 * column as f32, 26.0 + 34.0 * row as f32);
                 let entry = row + 5 * column;
                 let area = lay.rect((x - 2.0, y - 4.0, 74.0, 30.0));
-                let hot = live && area.contains(mouse);
+                let hot = ui::hit(area, live, input).hovered();
                 if self.draw_pic(lay, "banner_flags", entry, 0, x, y).is_none() {
                     draw_rectangle(
                         area.x,

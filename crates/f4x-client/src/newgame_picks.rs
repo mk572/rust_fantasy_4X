@@ -6,6 +6,7 @@
 //! this file is the pictures and the clicks. Positions are the original's.
 
 use crate::input::Input;
+use crate::ui;
 use f4x_core::content::Content;
 use f4x_core::rules::Rarity;
 use f4x_core::text::Args;
@@ -151,15 +152,14 @@ impl App {
         }
         let mouse: Vec2 = input.mouse_position().into();
         let live = self.ng_input();
-        let down = input.mouse_down(MouseButton::Left) && live && !self.create.ignore_drag;
-        let pressed = input.mouse_pressed(MouseButton::Left) && live;
+        let dragging = live && !self.create.ignore_drag;
         let left = self.create.build.picks_left();
 
         // The rows of books: a drag sets the count (eight pixels a book).
         let mut slide = None;
         for (i, realm) in REALM_ORDER.iter().enumerate() {
             let y = 47.0 + 26.0 * i as f32;
-            if down && lay.rect((190.0, y, 104.0, 22.0)).contains(mouse) {
+            if ui::hit(lay.rect((190.0, y, 104.0, 22.0)), dragging, input).held() {
                 let x = (mouse.x - lay.origin.x) / lay.scale - 190.0;
                 slide = Some((*realm, (x / 8.0).floor().max(0.0) as u8));
             }
@@ -210,7 +210,7 @@ impl App {
                 self.draw_pic(lay, "newgame", 52, 0, mark, y + 1.0);
             }
             let (x0, x1) = [(164.0, 202.0), (203.0, 252.0), (253.0, 319.0)][col];
-            if pressed && lay.rect((x0, y, x1 - x0, 7.0)).contains(mouse) {
+            if ui::hit(lay.rect((x0, y, x1 - x0, 7.0)), live, input).clicked() {
                 clicked = Some(retort);
             }
         }
@@ -230,10 +230,7 @@ impl App {
         self.ng_abilities(lay);
         let ok = left == 0;
         self.draw_pic(lay, "newgame", if ok { 42 } else { 43 }, 0, 252.0, 182.0);
-        if live
-            && input.mouse_pressed(MouseButton::Left)
-            && lay.rect((251.0, 181.0, 32.0, 16.0)).contains(mouse)
-        {
+        if ui::hit(lay.rect((251.0, 181.0, 32.0, 16.0)), live, input).clicked() {
             if ok {
                 self.next_spells(0);
             } else {
@@ -390,7 +387,6 @@ impl App {
         self.bm_text(view, 4, ink, &title, 241.0, 6.0, Align::Center);
         let books = self.create.build.books.clone();
         self.ng_shelf(lay, &REALM_ORDER, &|r| books.get(r).copied().unwrap_or(0));
-        let mouse: Vec2 = input.mouse_position().into();
         let live = self.ng_input();
         let pressed = input.mouse_pressed(MouseButton::Left) && live;
         let mut remaining = 0usize;
@@ -455,10 +451,11 @@ impl App {
                     self.draw_pic(lay, "newgame", 52, 0, 169.0 + 74.0 * col as f32, y);
                 }
                 let cell = lay.rect((170.0 + 74.0 * col as f32, top + 7.0 * row as f32, 70.0, 6.0));
-                if cell.contains(mouse) {
+                let state = ui::hit(cell, true, input);
+                if state.hovered() {
                     hovered = Some(*id);
                 }
-                if pressed && cell.contains(mouse) {
+                if pressed && state.hovered() {
                     if selected {
                         toggle = Some((*id, false));
                     } else if chosen < want {
@@ -490,10 +487,7 @@ impl App {
         self.ng_abilities(lay);
         let ok = remaining == 0;
         self.draw_pic(lay, "newgame", if ok { 42 } else { 43 }, 0, 252.0, 182.0);
-        if live
-            && input.mouse_pressed(MouseButton::Left)
-            && lay.rect((251.0, 181.0, 32.0, 16.0)).contains(mouse)
-        {
+        if ui::hit(lay.rect((251.0, 181.0, 32.0, 16.0)), live, input).clicked() {
             if ok {
                 self.next_spells(index + 1);
             } else {
