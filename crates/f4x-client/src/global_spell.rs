@@ -50,7 +50,7 @@ impl Modal for GlobalCast {
     }
 }
 
-fn any_input(input: &Input) -> bool {
+pub(crate) fn any_input(input: &Input) -> bool {
     input.mouse_pressed(MouseButton::Left)
         || input.mouse_pressed(MouseButton::Right)
         || input.key_pressed(KeyCode::Enter)
@@ -60,7 +60,15 @@ fn any_input(input: &Input) -> bool {
 
 impl App {
     /// Remember a cast to show, if the spell is a global enchantment with a picture.
+    ///
+    /// Overland Spell Events off shows no mirror at all; a rival's cast also needs Enemy Spells
+    /// (the original reads `enemy_spells` for every other wizard's spell animation and never
+    /// reads its own overland switch, so the pairing is ours; see `divergences.md`).
     pub(crate) fn announce_global_cast(&mut self, player: PlayerId, spell: SpellId) {
+        let rival_hidden = player != crate::view::HUMAN && !self.prefs.get(Pref::EnemySpells);
+        if rival_hidden || !self.prefs.get(Pref::OverlandSpellEvents) {
+            return;
+        }
         self.enqueue_global_cast(player, spell, None);
     }
 

@@ -53,6 +53,8 @@ impl App {
             if !(self.prefs.get(Pref::EnemyMoves) && seen && visible) {
                 return;
             }
+            // "Your view will be moved while other detected enemy troops move."
+            self.center_on(*to);
         }
         // Behind an earlier step of the same units.
         let now = get_time();

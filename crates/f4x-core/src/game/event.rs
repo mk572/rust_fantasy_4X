@@ -175,6 +175,13 @@ pub enum Event {
         player: player::PlayerId,
         spell: rules::SpellId,
     },
+    /// Follows [`Event::SpellCast`] when the spell was aimed at a city, a unit or a square: where
+    /// it landed (the client's square animations and city scroll).
+    SpellCastAt {
+        player: player::PlayerId,
+        spell: rules::SpellId,
+        at: map::Position,
+    },
     /// A dispel took `removed` enchantments off its target.
     Dispelled {
         player: player::PlayerId,

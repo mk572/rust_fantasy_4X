@@ -752,3 +752,19 @@ immunity** protects against Terror. The other differences listed there are kept 
   vanish, as the original's message says, and the lair choice has no bias to the human's plane (the
   original rerolls towards it). A city a raiding city conquers is its own, not a new independent city
   (item 33's design is still planned). Both are off in the symmetric `flat` game.
+
+## 37. The three event switches the original never reads (tasks 269 to 271, 276 to 278)
+
+In the original `magic_set.city_spell_events`, `overland_spell_events` and `summoning_events` are set
+by the Settings screen and by the defaults (`Settings.c`) and read nowhere else (a search of ReMoM
+finds only `MOX_SET.h`, `Settings.c`); their help (topics 678 to 680) promises what no code does. What
+the original really does: `enemy_spells` gates every other wizard's spell animation (`OverSpel.c`,
+`Spells129.c`, `Spells130.c`, `Spells132.c`, together with contact and, for summons, Detect Magic),
+`enemy_moves` moves the view while a rival's detected troops move (`MainScr.c`), and
+`auto_unit_information` shows the hovered unit's figures in a battle (`Combat.c`).
+Ours reads all six. Enemy Moves centres the map on a rival's step and slides it (`map_slide.rs`), Enemy
+Spells hides a rival's global-spell mirror and spell sound, Auto Unit Information hides the battle's hover
+window (the right-click sheet stays), and Overland Spell Events turns the global-spell mirror off
+for every wizard, as its help reads. City Spell Events and Summoning Events turn off the city-spell scroll (`city_scroll.rs`) and the summon scene
+(`summon_scene.rs`). Contact and Detect Magic are not
+asked of a rival's cast yet. Decided 30 October 2026.

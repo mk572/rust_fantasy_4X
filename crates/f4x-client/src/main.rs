@@ -17,6 +17,7 @@ mod built_popup;
 mod chancellor;
 mod city_list_screen;
 mod city_screen;
+mod city_scroll;
 mod cityscape;
 mod combat_result;
 mod console_screen;
@@ -63,6 +64,8 @@ mod settings_screen;
 mod site_prompt;
 mod spell_fx;
 mod spellbook;
+mod square_anim;
+mod summon_scene;
 mod surveyor;
 mod temp_effect_view;
 mod terrain_pick;
@@ -183,6 +186,12 @@ struct Options {
     turn_at: f64,
     /// Show this global spell (an id) being cast, by `--global-by` (a player number, 0 you) and `--global-at` seconds in.
     global: Option<String>,
+    /// Show the summon scene of this spell (an id), by `--global-by` and `--global-at`.
+    summon: Option<String>,
+    /// Show the city-spell scroll of this spell (an id) on the first city, by `--global-by` and `--global-at`.
+    city_scroll: Option<String>,
+    /// Show the square animation of this spell (an id) on the first city, `--global-at` seconds in.
+    square: Option<String>,
     global_by: u8,
     global_at: f64,
     learn_at: f64,
@@ -287,6 +296,9 @@ fn parse_args() -> Result<Options, String> {
         turn: None,
         turn_at: 0.0,
         global: None,
+        summon: None,
+        city_scroll: None,
+        square: None,
         global_by: 0,
         global_at: 0.0,
         learn_at: 0.0,
@@ -363,6 +375,9 @@ fn parse_args() -> Result<Options, String> {
                     .map_err(|_| "--turn-at must be a number of seconds")?
             }
             "--global" => o.global = Some(value("--global")?),
+            "--summon" => o.summon = Some(value("--summon")?),
+            "--square" => o.square = Some(value("--square")?),
+            "--city-scroll" => o.city_scroll = Some(value("--city-scroll")?),
             "--global-by" => {
                 o.global_by = value("--global-by")?
                     .parse()
@@ -493,7 +508,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|conquest|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--attack-box] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|conquest|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--attack-box] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -703,6 +718,15 @@ async fn main() {
     }
     if let Some(id) = &options.global {
         app.open_test_global(id, options.global_by, options.global_at);
+    }
+    if let Some(id) = &options.square {
+        app.open_test_square(id, options.global_at);
+    }
+    if let Some(id) = &options.city_scroll {
+        app.open_test_city_scroll(id, options.global_by, options.global_at);
+    }
+    if let Some(id) = &options.summon {
+        app.open_test_summon(id, options.global_by, options.global_at);
     }
     if let Some(id) = &options.learn {
         app.open_test_learn(id, options.learn_at);

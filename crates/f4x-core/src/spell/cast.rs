@@ -838,6 +838,13 @@ impl Game {
             }
             other => other,
         };
+        // Where the spell lands, for the client's scene (read before the spell can move or remove it).
+        let aimed_at = match target {
+            Some(Target::City(c)) => self.city_position(c),
+            Some(Target::Unit(u)) => self.units().unit_position(u),
+            Some(Target::Tile(pos)) => Some(pos),
+            _ => None,
+        };
         let def = self.content.rules.spells.get(spell).clone();
         let this = target.unwrap_or(Target::Player(player));
         let ctx = Context {
@@ -866,6 +873,9 @@ impl Game {
         self.rng = rng;
 
         let mut events = vec![Event::SpellCast { player, spell }];
+        if let Some(at) = aimed_at {
+            events.push(Event::SpellCastAt { player, spell, at });
+        }
         let victim = match target {
             Some(Target::City(c)) => self.economy().city_owner(c).filter(|&o| o != player),
             _ => None,

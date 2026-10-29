@@ -443,6 +443,12 @@ impl App {
     /// The little window with the stats of the unit under the pointer
     /// (`Draw_Combat_Unit_Display`), at the top of the map, left of the box of spells and abilities.
     fn draw_scanned_unit(&mut self, battle: &Battle, hovered: Option<Pos>, view: (f32, f32, f32)) {
+        if !self
+            .prefs
+            .get(crate::preferences::Pref::AutoUnitInformation)
+        {
+            return;
+        }
         let Some(u) = hovered.and_then(|p| Self::seen_unit_at(battle, p)) else {
             return;
         };

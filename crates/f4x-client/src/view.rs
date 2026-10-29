@@ -545,6 +545,10 @@ impl App {
                     self.audio.effect(key);
                 }
             }
+            if let Event::SpellCastAt { player, spell, at } = &event {
+                self.announce_city_spell(*player, *spell, *at);
+                self.announce_square_spell(*player, *spell, *at);
+            }
             match &event {
                 Event::WizardBanished { player, by } => {
                     self.queue_conquest_scene(*player, Some(*by), true)
@@ -826,6 +830,7 @@ impl App {
                 }
                 Event::SpellCast { player, spell } => {
                     self.announce_global_cast(player, spell);
+                    self.announce_summon(player, spell);
                     Some(self.text_with("log.cast", &self.spell_arg(Args::new(), spell)))
                 }
                 Event::SpellFizzled { spell, city, .. } => {
@@ -1273,7 +1278,7 @@ impl App {
         }
     }
 
-    fn tile_size(&self) -> Vec2 {
+    pub(crate) fn tile_size(&self) -> Vec2 {
         vec2(TILE_W * self.zoom, TILE_H * self.zoom)
     }
 
