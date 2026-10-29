@@ -9,6 +9,7 @@
 
 use std::collections::{HashMap, VecDeque};
 
+use crate::input::Input;
 use f4x_core::battle::ai::next_command;
 use f4x_core::battle::map::{distance, Pos, Wall, GRID_H, GRID_W};
 use f4x_core::battle::{
@@ -1084,7 +1085,7 @@ impl App {
         self.battle_ui.selected = next;
     }
 
-    pub(crate) fn battle_screen(&mut self) {
+    pub(crate) fn battle_screen(&mut self, input: &Input) {
         let dt = get_frame_time();
         self.advance_animation(dt);
         // While orders animate, the battle as it was is drawn; afterwards the real one.
@@ -1103,8 +1104,8 @@ impl App {
         }
         // A dispel's notices stand over the fight until they are clicked away.
         if !self.spell_notices.is_empty() {
-            self.draw_battle(&battle, false, None);
-            self.draw_spell_notice();
+            self.draw_battle(&battle, false, None, input);
+            self.draw_spell_notice(input);
             return;
         }
         self.battle_ui.ai_timer -= dt;
@@ -1125,17 +1126,17 @@ impl App {
                 .unwrap_or_else(|| next_command(&battle));
             self.battle_order(order);
             self.select_next(None);
-            return self.draw_battle(&battle, my_turn, None);
+            return self.draw_battle(&battle, my_turn, None, input);
         }
 
         // Where the pointer is.
         let (scale, ox, oy) = Self::battle_view();
-        let mouse: Vec2 = mouse_position().into();
+        let mouse: Vec2 = input.mouse_position().into();
         let hovered = cell_at((mouse.x - ox) / scale, (mouse.y - oy) / scale)
             .filter(|&p| battle.map.is_playable(p));
 
         if my_turn && !self.battle_ui.info_open {
-            self.battle_input(&battle, hovered);
+            self.battle_input(&battle, hovered, input);
         }
         let battle = self
             .battle_ui
@@ -1143,11 +1144,16 @@ impl App {
             .clone()
             .or_else(|| self.game.battle().cloned())
             .unwrap_or(battle);
-        self.draw_battle(&battle, my_turn, hovered);
-        self.draw_battle_pointer(&battle, my_turn && !self.battle_ui.info_open, hovered);
+        self.draw_battle(&battle, my_turn, hovered, input);
+        self.draw_battle_pointer(
+            &battle,
+            my_turn && !self.battle_ui.info_open,
+            hovered,
+            input,
+        );
         if self.battle_ui.info_open {
             if let Some(info) = self.game.battle_info(HUMAN) {
-                if self.draw_battle_info(&info) {
+                if self.draw_battle_info(&info, input) {
                     self.battle_ui.info_open = false;
                 }
             } else {
@@ -1156,34 +1162,34 @@ impl App {
         }
     }
 
-    fn battle_input(&mut self, battle: &Battle, hovered: Option<Pos>) {
+    fn battle_input(&mut self, battle: &Battle, hovered: Option<Pos>, input: &Input) {
         if self.battle_ui.aiming.is_some()
             || self.battle_ui.spell_list
             || self.battle_ui.fallen_list.is_some()
         {
-            return self.spell_input(battle, hovered);
+            return self.spell_input(battle, hovered, input);
         }
         let selected = self.battle_ui.selected;
         let sel_unit = selected
             .and_then(|i| battle.unit(i))
             .filter(|u| unfinished(u));
 
-        if is_key_pressed(KeyCode::Tab) {
+        if input.key_pressed(KeyCode::Tab) {
             self.select_next(selected);
         }
-        if is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::E) {
+        if input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::E) {
             self.battle_order(BattleCommand::EndTurn);
             self.battle_ui.selected = None;
             return;
         }
-        if is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::D) {
+        if input.key_pressed(KeyCode::Space) || input.key_pressed(KeyCode::D) {
             if let Some(u) = sel_unit {
                 self.battle_order(BattleCommand::Done { unit: u.id });
                 self.select_next(Some(u.id));
             }
             return;
         }
-        if is_mouse_button_pressed(MouseButton::Right) {
+        if input.mouse_pressed(MouseButton::Right) {
             // A right-click on a unit opens its statistics sheet.
             if let Some(u) = hovered.and_then(|cell| Self::seen_unit_at(battle, cell)) {
                 let id = u.id;
@@ -1191,9 +1197,9 @@ impl App {
                 return;
             }
         }
-        if is_mouse_button_pressed(MouseButton::Left) {
+        if input.mouse_pressed(MouseButton::Left) {
             // Clicks on the panel are the buttons' business.
-            if self.on_map(mouse_position().into()) {
+            if self.on_map(input.mouse_position().into()) {
                 if let Some(cell) = hovered {
                     self.battle_click(battle, cell);
                 }
@@ -1352,8 +1358,8 @@ impl App {
     }
 
     /// Keys and clicks while the spell list is open or a spell waits for its target.
-    fn spell_input(&mut self, battle: &Battle, hovered: Option<Pos>) {
-        if is_key_pressed(KeyCode::Escape) {
+    fn spell_input(&mut self, battle: &Battle, hovered: Option<Pos>, input: &Input) {
+        if input.key_pressed(KeyCode::Escape) {
             self.battle_ui.aiming = None;
             self.battle_ui.spell_list = false;
             self.battle_ui.spell_unit = None;
@@ -1366,7 +1372,7 @@ impl App {
         // More or less mana: Up/Down by one, Page Up/Down by five.
         let cost = self.game.content().rules.spells.get(aim.spell).cost as i32;
         let step = |up: KeyCode, down: KeyCode, by: i32| {
-            i32::from(is_key_pressed(up)) * by - i32::from(is_key_pressed(down)) * by
+            i32::from(input.key_pressed(up)) * by - i32::from(input.key_pressed(down)) * by
         };
         if aim.takes_extra_mana {
             let change = step(KeyCode::Up, KeyCode::Down, 1)
@@ -1377,9 +1383,9 @@ impl App {
         }
         let aimless = matches!(aim.target, SpellTarget::None | SpellTarget::Battlefield);
         let target = if aimless {
-            is_key_pressed(KeyCode::Enter).then_some(SpellAim::None)
-        } else if is_mouse_button_pressed(MouseButton::Left) {
-            let on_grid = self.on_map(mouse_position().into());
+            input.key_pressed(KeyCode::Enter).then_some(SpellAim::None)
+        } else if input.mouse_pressed(MouseButton::Left) {
+            let on_grid = self.on_map(input.mouse_position().into());
             hovered
                 .filter(|_| on_grid)
                 .and_then(|cell| match aim.target {
@@ -1424,7 +1430,7 @@ impl App {
     /// over the field (`Combat_Spellbook_Screen`): each spell with what it costs now and a
     /// realm symbol for every time it could be paid for this turn; one that cannot be cast is
     /// greyed. A click on a spell picks it, the ribbon or Escape closes the book.
-    fn draw_spell_list(&mut self, battle: &Battle) {
+    fn draw_spell_list(&mut self, battle: &Battle, input: &Input) {
         let unit = self.battle_ui.spell_unit;
         let spells: Vec<f4x_core::battle::spell::BattleSpell> = match unit {
             Some(u) => self
@@ -1477,23 +1483,25 @@ impl App {
         self.book_ui.left = self.book_ui.left.min(last) & !1;
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        if self.book_turn.is_some() && !self.book_turn_frame() {
+        if self.book_turn.is_some() && !self.book_turn_frame(input) {
             return;
         }
         let left = self.book_ui.left;
-        let (_, wheel) = mouse_wheel();
-        let forward = is_key_pressed(KeyCode::Right) || is_key_pressed(KeyCode::F) || wheel < 0.0;
-        let back = is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::B) || wheel > 0.0;
-        let clicked = is_mouse_button_pressed(MouseButton::Left);
+        let (_, wheel) = input.mouse_wheel();
+        let forward =
+            input.key_pressed(KeyCode::Right) || input.key_pressed(KeyCode::F) || wheel < 0.0;
+        let back = input.key_pressed(KeyCode::Left) || input.key_pressed(KeyCode::B) || wheel > 0.0;
+        let clicked = input.mouse_pressed(MouseButton::Left);
         let in_rect = |x: f32, y: f32, w: f32, h: f32| {
-            lay.rect((x, y, w, h)).contains(mouse_position().into())
+            lay.rect((x, y, w, h))
+                .contains(input.mouse_position().into())
         };
         if (forward || (clicked && in_rect(274.0, 14.0, 14.0, 13.0))) && left + 2 < pages {
-            self.turn_book_page(false, true);
+            self.turn_book_page(false, true, input);
             return;
         }
         if (back || (clicked && in_rect(29.0, 14.0, 14.0, 13.0))) && left >= 2 {
-            self.turn_book_page(false, false);
+            self.turn_book_page(false, false, input);
             return;
         }
         if clicked && in_rect(175.0, 166.0, 19.0, 30.0) {
@@ -1501,7 +1509,7 @@ impl App {
             self.battle_ui.spell_unit = None;
             return;
         }
-        self.draw_spellbook(&lay, view);
+        self.draw_spellbook(&lay, view, input);
         if spells.is_empty() {
             self.bm_text(
                 view,
@@ -1535,7 +1543,7 @@ impl App {
         if let (Some(u), true) = (unit, demons > 0) {
             let r = lay.rect((100.0, 170.0, 70.0, 16.0));
             let label = self.text_with("battle.summon_demon", &Args::new().count("n", demons));
-            if button(r, &label, self.game.can_summon_demon(u)) {
+            if button(r, &label, self.game.can_summon_demon(u), input) {
                 self.battle_ui.spell_list = false;
                 self.battle_ui.spell_unit = None;
                 self.battle_order(BattleCommand::SummonDemon { unit: u });
@@ -1545,7 +1553,7 @@ impl App {
     }
 
     /// The fallen of the wizard's army that the spell could bring back, to pick one from.
-    fn draw_fallen_list(&mut self, battle: &Battle, spell: SpellId) {
+    fn draw_fallen_list(&mut self, battle: &Battle, spell: SpellId, input: &Input) {
         let fallen: Vec<usize> = self
             .game
             .legal_battle_casts()
@@ -1603,7 +1611,7 @@ impl App {
                 width - 16.0,
                 row_h - 2.0,
             );
-            if button(rect, &label, true) {
+            if button(rect, &label, true, input) {
                 self.battle_ui.fallen_list = None;
                 self.battle_order(BattleCommand::Cast {
                     spell,
@@ -1667,7 +1675,7 @@ impl App {
         }
     }
 
-    fn draw_battle(&mut self, battle: &Battle, my_turn: bool, hovered: Option<Pos>) {
+    fn draw_battle(&mut self, battle: &Battle, my_turn: bool, hovered: Option<Pos>, input: &Input) {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let (scale, ox, oy) = Self::battle_view();
         // The map window is clipped, as the original's is: figures stand taller than a cell.
@@ -1812,13 +1820,13 @@ impl App {
         self.draw_aiming(battle, hovered, (ox, oy, scale));
         gl.flush();
         gl.quad_gl.scissor(None);
-        self.draw_battle_panel(battle, my_turn, hovered);
+        self.draw_battle_panel(battle, my_turn, hovered, input);
         self.draw_spell_overlay();
         if my_turn && self.battle_ui.spell_list {
-            self.draw_spell_list(battle);
+            self.draw_spell_list(battle, input);
         }
         if let Some(spell) = self.battle_ui.fallen_list.filter(|_| my_turn) {
-            self.draw_fallen_list(battle, spell);
+            self.draw_fallen_list(battle, spell, input);
         }
     }
 

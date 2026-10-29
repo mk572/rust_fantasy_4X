@@ -2,6 +2,7 @@
 //! `AdvsrScr.c`. Both are full pictures from `reload.lbx` (entry 0 and 1) with the wizards'
 //! figures drawn over them; Esc or a click leaves.
 
+use crate::input::Input;
 use f4x_core::text::Args;
 use f4x_core::wizard::astrology::HISTORY_TURNS;
 use macroquad::prelude::*;
@@ -37,17 +38,17 @@ impl App {
             .collect()
     }
 
-    fn leave_on_click_or_escape(&mut self) {
-        if is_key_pressed(KeyCode::Escape)
-            || is_mouse_button_pressed(MouseButton::Left)
-            || is_mouse_button_pressed(MouseButton::Right)
+    fn leave_on_click_or_escape(&mut self, input: &Input) {
+        if input.key_pressed(KeyCode::Escape)
+            || input.mouse_pressed(MouseButton::Left)
+            || input.mouse_pressed(MouseButton::Right)
         {
             self.screen = Screen::Map;
         }
     }
 
     /// "History Of Wizards Power": a line for each wizard met, one point to the turn.
-    pub(crate) fn history_screen(&mut self) {
+    pub(crate) fn history_screen(&mut self, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -147,11 +148,11 @@ impl App {
                 Align::Left,
             );
         }
-        self.leave_on_click_or_escape();
+        self.leave_on_click_or_escape(input);
     }
 
     /// "Current Status Of Wizards": bars of army strength, magic power and spell research.
-    pub(crate) fn astrologer_screen(&mut self) {
+    pub(crate) fn astrologer_screen(&mut self, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -212,7 +213,7 @@ impl App {
                 );
             }
         }
-        self.leave_on_click_or_escape();
+        self.leave_on_click_or_escape(input);
     }
 }
 
@@ -224,7 +225,7 @@ impl App {
     /// The Cartographer (F2): the whole of one plane, four pixels to the square, with the
     /// nodes, lairs and towers seen, the units and the cities. N flips the plane, a click on
     /// the map takes the main map there, C, Esc or the Close corner leave.
-    pub(crate) fn cartographer_screen(&mut self) {
+    pub(crate) fn cartographer_screen(&mut self, input: &Input) {
         use f4x_core::feature::def::FeatureKind;
         use f4x_core::map::Plane;
 
@@ -303,7 +304,7 @@ impl App {
         }
         // Cities: a banner-coloured block with a black shadow, brown for independent ones.
         let mut hovered = None;
-        let mouse: Vec2 = mouse_position().into();
+        let mouse: Vec2 = input.mouse_position().into();
         for (_, city, at) in self.game.economy().cities() {
             if at.plane != plane || !self.game.is_explored(HUMAN, at) {
                 continue;
@@ -385,11 +386,11 @@ impl App {
         );
 
         // Keys and clicks.
-        let pressed = is_mouse_button_pressed(MouseButton::Left);
+        let pressed = input.mouse_pressed(MouseButton::Left);
         let in_map = lay
             .rect((ox, oy, w as f32 * CART_SQUARE, h as f32 * CART_SQUARE))
             .contains(mouse);
-        if is_key_pressed(KeyCode::N)
+        if input.key_pressed(KeyCode::N)
             || (pressed && lay.rect((285.0, 180.0, 29.0, 19.0)).contains(mouse))
         {
             self.cart_plane = if plane == Plane::Arcanus {
@@ -398,9 +399,9 @@ impl App {
                 Plane::Arcanus
             };
         }
-        if is_key_pressed(KeyCode::C)
-            || is_key_pressed(KeyCode::Escape)
-            || is_mouse_button_pressed(MouseButton::Right)
+        if input.key_pressed(KeyCode::C)
+            || input.key_pressed(KeyCode::Escape)
+            || input.mouse_pressed(MouseButton::Right)
             || (pressed && lay.rect((265.0, 143.0, 34.0, 26.0)).contains(mouse))
         {
             self.screen = Screen::Map;

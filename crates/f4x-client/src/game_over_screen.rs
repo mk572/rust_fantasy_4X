@@ -4,6 +4,7 @@
 //! fame, time, the Spell of Mastery), the final score and a bar of `score / 40` up to 200. A click
 //! or Esc goes on: the score is entered in the Hall of Fame (task 88) and the table is shown.
 
+use crate::input::Input;
 use f4x_core::game::endgame::EndKind;
 use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
@@ -43,7 +44,7 @@ impl App {
         });
     }
 
-    pub(crate) fn game_over_screen(&mut self) -> bool {
+    pub(crate) fn game_over_screen(&mut self, input: &Input) -> bool {
         clear_background(BLACK);
         let Some(over) = self.game.game_over else {
             self.screen = Screen::Map;
@@ -199,9 +200,9 @@ impl App {
             Color::new(0.3, 0.75, 0.2, 1.0),
         );
 
-        let leave = is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Enter)
-            || is_mouse_button_pressed(MouseButton::Left);
+        let leave = input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Enter)
+            || input.mouse_pressed(MouseButton::Left);
         if leave {
             // The score goes in the table once, then the table is shown.
             let mut table = hall_of_fame::load(std::path::Path::new(hall_of_fame::FILE));

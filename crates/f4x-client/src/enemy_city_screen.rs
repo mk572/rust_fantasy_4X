@@ -4,6 +4,7 @@
 //! out), its enchantments and its cityscape. A click anywhere or Esc leaves. Positions are the
 //! original's.
 
+use crate::input::Input;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -35,7 +36,7 @@ impl App {
         }
     }
 
-    pub(crate) fn enemy_city_screen(&mut self, city: hecs::Entity) {
+    pub(crate) fn enemy_city_screen(&mut self, city: hecs::Entity, input: &Input) {
         let at = self.city_position(city);
         if self.game.economy().city_at(at) != Some(city) {
             self.screen = Screen::Map;
@@ -96,7 +97,7 @@ impl App {
                 .filter(|&u| self.game.units().unit_owner(u) == owner)
                 .filter(|&u| !self.game.units().unit_has_ability(u, "invisibility"))
                 .collect();
-            let mouse: Vec2 = mouse_position().into();
+            let mouse: Vec2 = input.mouse_position().into();
             let layout = crate::frame::Layout::new();
             for (i, &unit) in units.iter().take(12).enumerate() {
                 let (ux, uy) = (
@@ -109,7 +110,7 @@ impl App {
                     if let Some(name) = name {
                         self.bm_text(view, 1, orange, &name, X + 36.0, 43.0, Align::Left);
                     }
-                    if is_mouse_button_pressed(MouseButton::Right) {
+                    if input.mouse_pressed(MouseButton::Right) {
                         self.open_unit_sheet(unit);
                         return;
                     }
@@ -134,9 +135,9 @@ impl App {
                 Align::Left,
             );
         }
-        self.draw_city_buildings_at(city, lay, X + 4.0, 101.0);
+        self.draw_city_buildings_at(city, lay, X + 4.0, 101.0, input);
 
-        if is_key_pressed(KeyCode::Escape) || is_mouse_button_pressed(MouseButton::Left) {
+        if input.key_pressed(KeyCode::Escape) || input.mouse_pressed(MouseButton::Left) {
             self.screen = Screen::Map;
         }
     }

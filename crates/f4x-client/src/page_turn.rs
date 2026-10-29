@@ -4,6 +4,7 @@
 //! (`Scale_Bitmap` and `Shear_Bitmap_Y`). The leaf is composed in an off-screen picture and
 //! drawn a column at a time, each lifted by the curve.
 
+use crate::input::Input;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -199,18 +200,18 @@ impl App {
     }
 
     /// Turn a page: with the animation if the art is there, else at once.
-    pub(crate) fn turn_book_page(&mut self, big: bool, forward: bool) {
+    pub(crate) fn turn_book_page(&mut self, big: bool, forward: bool, input: &Input) {
         self.start_book_turn(big, forward);
         if self.book_turn.is_none() {
             self.move_book(big, forward);
         } else {
-            self.book_turn_frame();
+            self.book_turn_frame(input);
         }
     }
 
     /// Draw the turn in progress. Returns true once it is over (the book is on its new spread
     /// and the turn is cleared), or when none is.
-    pub(crate) fn book_turn_frame(&mut self) -> bool {
+    pub(crate) fn book_turn_frame(&mut self, input: &Input) -> bool {
         let Some(turn) = self.book_turn else {
             return true;
         };
@@ -246,7 +247,7 @@ impl App {
             self.draw_big_spread(&lay, view, under_left, under_right, corners, None);
         } else {
             let corners = (under_left != 0, true);
-            self.draw_book_spread(&lay, view, under_left, under_right, corners);
+            self.draw_book_spread(&lay, view, under_left, under_right, corners, input);
         }
         let frame = if turn.forward { stage } else { 3 - stage };
         self.draw_pic(&lay, "book", usize::from(turn.big), frame, 0.0, 0.0);

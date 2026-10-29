@@ -1,6 +1,7 @@
 //! The dialog that sets a city's auto-builder plan (docs/auto-builder.md), opened from the
 //! city screen. Left-click a row for the next value, right-click for the previous one.
 
+use crate::input::Input;
 use f4x_core::city::autobuild::{BuildPlan, Focus, Mix};
 use f4x_core::game::Command;
 use f4x_core::text::{Args, Texts};
@@ -58,11 +59,12 @@ impl App {
         city: hecs::Entity,
         lay: Layout,
         (x, y, width): (f32, f32, f32),
+        input: &Input,
     ) {
         let plan = self.game.autobuild_of(city).map(|a| a.plan);
         let own = self.game.autobuild_of(city).is_some();
         let r = lay.rect(x, y, width, 10.0);
-        let hover = r.contains(mouse_position().into());
+        let hover = r.contains(input.mouse_position().into());
         let fill = if hover {
             Color::new(0.4, 0.3, 0.15, 1.0)
         } else {
@@ -80,7 +82,7 @@ impl App {
             5.0 * lay.scale,
             if own { WHITE } else { LIGHTGRAY },
         );
-        if hover && is_mouse_button_pressed(MouseButton::Left) {
+        if hover && input.mouse_pressed(MouseButton::Left) {
             self.choosing = false;
             self.autobuild_dialog = Some(AutoDialog {
                 plan: plan.unwrap_or_default(),
@@ -90,7 +92,12 @@ impl App {
     }
 
     /// Draw the dialog and handle it. Returns true while it is open.
-    pub(crate) fn draw_autobuild_dialog(&mut self, city: hecs::Entity, lay: Layout) -> bool {
+    pub(crate) fn draw_autobuild_dialog(
+        &mut self,
+        city: hecs::Entity,
+        lay: Layout,
+        input: &Input,
+    ) -> bool {
         let Some(mut d) = self.autobuild_dialog.take() else {
             return false;
         };
@@ -114,9 +121,9 @@ impl App {
         };
         text(&self.text("autobuild.title"), 48.0, 36.0, GOLD);
         text(&self.text("autobuild.help"), 48.0, 44.0, GRAY);
-        let pointer: Vec2 = mouse_position().into();
-        let left = is_mouse_button_pressed(MouseButton::Left);
-        let right = is_mouse_button_pressed(MouseButton::Right);
+        let pointer: Vec2 = input.mouse_position().into();
+        let left = input.mouse_pressed(MouseButton::Left);
+        let right = input.mouse_pressed(MouseButton::Right);
         let balanced = d.plan.primary == Focus::Balanced;
         let yes_no = |on: bool| self.text(if on { "autobuild.yes" } else { "autobuild.no" });
         let secondary = match d.plan.secondary {
@@ -238,10 +245,10 @@ impl App {
                 chosen = Some(k);
             }
         }
-        if is_key_pressed(KeyCode::Escape) {
+        if input.key_pressed(KeyCode::Escape) {
             chosen = Some(2);
         }
-        if is_key_pressed(KeyCode::Enter) {
+        if input.key_pressed(KeyCode::Enter) {
             chosen = Some(0);
         }
         match chosen {

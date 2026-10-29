@@ -7,6 +7,7 @@
 //! original's (`win`, `lose`, `conquest`, `wizlab`, `vortex`, `cmbtfx`); without them a scene shows
 //! its caption on black and runs as long.
 
+use crate::input::Input;
 use f4x_core::player::PlayerId;
 use f4x_core::text::{Args, Gender};
 use macroquad::prelude::*;
@@ -300,7 +301,7 @@ impl App {
     }
 
     /// Draw the scene on top, if any. Returns whether it took the frame.
-    pub(crate) fn end_scene_frame(&mut self) -> bool {
+    pub(crate) fn end_scene_frame(&mut self, input: &Input) -> bool {
         if self.game.in_battle() {
             return false;
         }
@@ -313,7 +314,7 @@ impl App {
         let ticks = ((now - started) * TICKS_PER_SECOND) as u32;
         let stage = ticks / per_stage;
         let kind = scene.kind.clone();
-        let skipped = is_key_pressed(KeyCode::Escape) || is_mouse_button_pressed(MouseButton::Left);
+        let skipped = input.key_pressed(KeyCode::Escape) || input.mouse_pressed(MouseButton::Left);
         // The scene's first frame is drawn before it can be skipped, so a held key from the
         // screen before does not flash it past.
         if stage > last || (skipped && ticks > 2) {
@@ -324,7 +325,7 @@ impl App {
         // The Spell of Return's box stands over the main screen.
         if matches!(kind, Kind::Return { .. }) {
             self.draw_map();
-            self.draw_bars();
+            self.draw_bars(input);
         }
         let lay = Layout::new();
         clip_to_screen(&lay, true);

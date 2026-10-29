@@ -7,6 +7,7 @@
 //! closes the pop-up cannot reach a button below. With Expanding Help on, the box grows out of the
 //! area that was asked about, with lines from the area's corners to the box's.
 
+use crate::input::Input;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -121,9 +122,9 @@ impl App {
     }
 
     /// Look for a right-click on a help area. Called once a frame, before the screen reacts.
-    pub(crate) fn watch_for_help(&mut self) {
+    pub(crate) fn watch_for_help(&mut self, input: &Input) {
         let probe = self.help_ui.probe;
-        if !(is_mouse_button_pressed(MouseButton::Right) || probe.is_some())
+        if !(input.mouse_pressed(MouseButton::Right) || probe.is_some())
             || self.help.topics.is_empty()
         {
             return;
@@ -132,7 +133,7 @@ impl App {
             return;
         };
         let lay = Layout::new();
-        let (mx, my) = mouse_position();
+        let (mx, my) = input.mouse_position();
         let (x, y) = probe.unwrap_or((
             ((mx - lay.origin.x) / lay.scale).floor() as i32,
             ((my - lay.origin.y) / lay.scale).floor() as i32,
@@ -244,7 +245,7 @@ impl App {
     }
 
     /// The pop-up over the frozen frame. Returns whether it took the frame.
-    pub(crate) fn help_popup_frame(&mut self) -> bool {
+    pub(crate) fn help_popup_frame(&mut self, input: &Input) -> bool {
         let Some(popup) = self.help_ui.popup.as_ref() else {
             return false;
         };
@@ -343,14 +344,15 @@ impl App {
             }
         }
         // The wheel and the arrow keys scroll a long text; any other key or a click closes it.
-        let wheel = mouse_wheel().1;
+        let wheel = input.mouse_wheel().1;
         let scrolled =
-            is_key_pressed(KeyCode::Down) || is_key_pressed(KeyCode::PageDown) || wheel < 0.0;
-        let back = is_key_pressed(KeyCode::Up) || is_key_pressed(KeyCode::PageUp) || wheel > 0.0;
-        let paged = is_key_pressed(KeyCode::PageDown) || is_key_pressed(KeyCode::PageUp);
-        let leave = (get_last_key_pressed().is_some() && !(scrolled || back))
-            || is_mouse_button_pressed(MouseButton::Left)
-            || is_mouse_button_pressed(MouseButton::Right);
+            input.key_pressed(KeyCode::Down) || input.key_pressed(KeyCode::PageDown) || wheel < 0.0;
+        let back =
+            input.key_pressed(KeyCode::Up) || input.key_pressed(KeyCode::PageUp) || wheel > 0.0;
+        let paged = input.key_pressed(KeyCode::PageDown) || input.key_pressed(KeyCode::PageUp);
+        let leave = (input.any_key_pressed() && !(scrolled || back))
+            || input.mouse_pressed(MouseButton::Left)
+            || input.mouse_pressed(MouseButton::Right);
         if let Some(popup) = self.help_ui.popup.as_mut() {
             let step = if paged { room } else { 3 };
             if scrolled {

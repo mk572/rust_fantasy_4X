@@ -14,6 +14,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::task::{Context, Poll, Waker};
 
+use crate::input::Input;
 use f4x_core::player::PlayerId;
 use f4x_data::sound::SoundTable;
 use macroquad::audio::{
@@ -384,13 +385,13 @@ const WIZARDS: u16 = 14;
 impl App {
     /// Once a frame: switch the music to what the game's state asks for, and play the button
     /// click for a press that lands on a button.
-    pub(crate) fn update_audio(&mut self) {
+    pub(crate) fn update_audio(&mut self, input: &Input) {
         self.audio
             .set_volumes(self.prefs.music_volume, self.prefs.effects_volume);
         self.audio.effects_on = self.prefs.get(Pref::SoundEffects);
         self.audio.music_on = self.prefs.get(Pref::BackgroundMusic);
         self.audio.event_music_on = self.prefs.get(Pref::EventMusic);
-        if is_mouse_button_pressed(MouseButton::Left) && self.click_lands_on_button() {
+        if input.mouse_pressed(MouseButton::Left) && self.click_lands_on_button(input) {
             self.audio.effect(Some(CLICK));
         }
         let want = self.want_music();
@@ -398,8 +399,8 @@ impl App {
     }
 
     /// The overland map and the battle field take clicks that are no buttons.
-    fn click_lands_on_button(&self) -> bool {
-        let at: Vec2 = mouse_position().into();
+    fn click_lands_on_button(&self, input: &Input) -> bool {
+        let at: Vec2 = input.mouse_position().into();
         let lay = crate::frame::Layout::new();
         match self.screen {
             Screen::Console => false,

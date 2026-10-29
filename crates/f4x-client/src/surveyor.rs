@@ -4,6 +4,7 @@
 //! it, or why none can be founded. A click on the map centres it there, and Cancel, C or Escape
 //! (or a right-click) leave.
 
+use crate::input::Input;
 use f4x_core::city::FoundCityError;
 use f4x_core::feature::def::FeatureKind;
 use f4x_core::map::terrain::TerrainClass;
@@ -234,23 +235,23 @@ impl App {
     }
 
     /// The panel over the side column, and its Cancel button.
-    pub(crate) fn surveyor_bar(&mut self) {
+    pub(crate) fn surveyor_bar(&mut self, input: &Input) {
         if !self.surveyor {
             return;
         }
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let mouse: Vec2 = mouse_position().into();
+        let mouse: Vec2 = input.mouse_position().into();
         let cancel = lay.rect((CANCEL_AT.0, CANCEL_AT.1, BUTTON_SIZE.0, BUTTON_SIZE.1));
         let art = self.draw_pic(&lay, "main", 44, 0, 242.0, 173.0).is_some()
             && self.draw_pic(&lay, "main", 57, 0, 240.0, 76.0).is_some();
         self.draw_pic(&lay, "main", 47, 0, 240.0, 173.0);
-        let down = is_mouse_button_down(MouseButton::Left);
+        let down = input.mouse_down(MouseButton::Left);
         let frame = usize::from(down && cancel.contains(mouse));
         self.draw_pic(&lay, "main", 41, frame, CANCEL_AT.0, CANCEL_AT.1);
-        let mut leave = is_key_pressed(KeyCode::C)
-            || is_key_pressed(KeyCode::Escape)
-            || (is_mouse_button_pressed(MouseButton::Left) && cancel.contains(mouse));
+        let mut leave = input.key_pressed(KeyCode::C)
+            || input.key_pressed(KeyCode::Escape)
+            || (input.mouse_pressed(MouseButton::Left) && cancel.contains(mouse));
         if !art {
             self.log.push(self.text("surveyor.needs_pictures"));
             leave = true;
@@ -258,7 +259,7 @@ impl App {
         let title = self.text("surveyor.title");
         self.bm_text_set(view, 4, 1, &title, 280.0, 80.0, Align::Center);
         let text = self
-            .tile_under_mouse()
+            .tile_under_mouse(input)
             .and_then(|pos| self.describe_square(pos));
         if let Some(t) = text {
             self.bm_text_set(view, 1, 1, &t.terrain, 280.0, 91.0, Align::Center);
@@ -320,9 +321,9 @@ impl App {
     }
 
     /// The map square under the mouse, if it is over the map.
-    pub(crate) fn tile_under_mouse(&self) -> Option<Position> {
+    pub(crate) fn tile_under_mouse(&self, input: &Input) -> Option<Position> {
         self.survey_probe
-            .or_else(|| self.tile_at(mouse_position().into()))
+            .or_else(|| self.tile_at(input.mouse_position().into()))
     }
 }
 

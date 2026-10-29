@@ -6,6 +6,7 @@
 //! has the Dismiss and OK buttons on a second panel (`unitview` 2) to the right; in battle it
 //! is the panel alone. Positions are the original's, from the panel's top-left (`UnitStat.c`).
 
+use crate::input::Input;
 use f4x_core::battle::Battle;
 use f4x_core::game::Command;
 use f4x_core::text::Args;
@@ -179,7 +180,7 @@ impl App {
         self.sheet_ui.sheet = None;
     }
 
-    pub(crate) fn unit_sheet_screen(&mut self) {
+    pub(crate) fn unit_sheet_screen(&mut self, input: &Input) {
         let Some(sheet) = self.sheet_ui.sheet.clone() else {
             self.close_sheet();
             return;
@@ -192,25 +193,25 @@ impl App {
         // A box that opens this frame waits for the next, so its own click does not answer it.
         let (was_confirming, was_turning_off) =
             (self.sheet_ui.confirm, self.sheet_ui.turn_off.is_some());
-        self.draw_sheet_panel(&lay, &sheet, (px, py), !in_battle);
+        self.draw_sheet_panel(&lay, &sheet, (px, py), !in_battle, input);
 
         // Buttons and leaving.
-        let mut leave = is_key_pressed(KeyCode::Escape);
+        let mut leave = input.key_pressed(KeyCode::Escape);
         if !in_battle {
             let (ok_label, dismiss_label) = (self.text("ui.ok"), self.text("unit.dismiss"));
-            let ok = self.red_button(&lay, &ok_label, px + 222.0, py + 162.0);
+            let ok = self.red_button(&lay, &ok_label, px + 222.0, py + 162.0, input);
             let dismiss = sheet.can_dismiss
-                && self.red_button(&lay, &dismiss_label, px + 222.0, py + 143.0)
+                && self.red_button(&lay, &dismiss_label, px + 222.0, py + 143.0, input)
                 && !self.sheet_ui.confirm
                 && self.sheet_ui.turn_off.is_none();
             if !sheet.can_dismiss {
-                self.red_button_face(&lay, &dismiss_label, px + 222.0, py + 143.0, false);
+                self.red_button_face(&lay, &dismiss_label, px + 222.0, py + 143.0, false, input);
             }
             let asking = self.sheet_ui.confirm || self.sheet_ui.turn_off.is_some();
-            if ok || (is_key_pressed(KeyCode::Enter) && !asking) {
+            if ok || (input.key_pressed(KeyCode::Enter) && !asking) {
                 leave = true;
             }
-            if dismiss || (sheet.can_dismiss && is_key_pressed(KeyCode::D)) {
+            if dismiss || (sheet.can_dismiss && input.key_pressed(KeyCode::D)) {
                 self.sheet_ui.confirm = true;
             }
             if self.sheet_ui.group.len() > 1 && !asking {
@@ -231,23 +232,23 @@ impl App {
                     py + 108.0,
                     Align::Center,
                 );
-                let back = self.red_button_sized(&lay, "<", px + 222.0, py + 121.0, 24.0);
-                let forward = self.red_button_sized(&lay, ">", px + 247.0, py + 121.0, 24.0);
-                if back || is_key_pressed(KeyCode::Left) {
+                let back = self.red_button_sized(&lay, "<", px + 222.0, py + 121.0, 24.0, input);
+                let forward = self.red_button_sized(&lay, ">", px + 247.0, py + 121.0, 24.0, input);
+                if back || input.key_pressed(KeyCode::Left) {
                     self.step_sheet(-1);
-                } else if forward || is_key_pressed(KeyCode::Right) {
+                } else if forward || input.key_pressed(KeyCode::Right) {
                     self.step_sheet(1);
                 }
             }
-        } else if is_key_pressed(KeyCode::Enter) {
+        } else if input.key_pressed(KeyCode::Enter) {
             leave = true;
         }
         if was_confirming {
-            self.dismiss_confirmation(&lay, &sheet);
+            self.dismiss_confirmation(&lay, &sheet, input);
             return;
         }
         if was_turning_off {
-            self.turn_off_confirmation(&lay, &sheet);
+            self.turn_off_confirmation(&lay, &sheet, input);
             return;
         }
         if self.sheet_ui.confirm || self.sheet_ui.turn_off.is_some() {
@@ -255,7 +256,8 @@ impl App {
         }
         // A click away from the panel leaves too.
         let panel = lay.rect((px, py, if in_battle { 218.0 } else { 282.0 }, 184.0));
-        if is_mouse_button_pressed(MouseButton::Left) && !panel.contains(mouse_position().into()) {
+        if input.mouse_pressed(MouseButton::Left) && !panel.contains(input.mouse_position().into())
+        {
             leave = true;
         }
         if leave {
@@ -272,15 +274,22 @@ impl App {
         sheet: &Sheet,
         at: (f32, f32),
         second_panel: bool,
+        input: &Input,
     ) {
-        self.draw_sheet_panel_as(lay, sheet, at, second_panel, false);
+        self.draw_sheet_panel_as(lay, sheet, at, second_panel, false, input);
     }
 
     /// The same panel as the production screen shows it (`Thing_View_Draw` called from the
     /// production screen): the small background, everything four pixels to the right, the top
     /// block higher, a stat row ten icons long and no Dismiss panel. The caller adds the cost.
-    pub(crate) fn draw_production_sheet(&mut self, lay: &Layout, sheet: &Sheet, at: (f32, f32)) {
-        self.draw_sheet_panel_as(lay, sheet, at, false, true);
+    pub(crate) fn draw_production_sheet(
+        &mut self,
+        lay: &Layout,
+        sheet: &Sheet,
+        at: (f32, f32),
+        input: &Input,
+    ) {
+        self.draw_sheet_panel_as(lay, sheet, at, false, true, input);
     }
 
     fn draw_sheet_panel_as(
@@ -290,6 +299,7 @@ impl App {
         (px, py): (f32, f32),
         second_panel: bool,
         production: bool,
+        input: &Input,
     ) {
         let (ox, row_length) = if production { (4.0, 10) } else { (0.0, ROW) };
         let (name_y, moves_y, upkeep_y) = if production {
@@ -427,8 +437,8 @@ impl App {
                 (special.removable, asking, special.spell, sheet.source)
             {
                 let line = lay.rect((x - 1.0, y - 1.0, 105.0, 17.0));
-                if is_mouse_button_pressed(MouseButton::Left)
-                    && line.contains(mouse_position().into())
+                if input.mouse_pressed(MouseButton::Left)
+                    && line.contains(input.mouse_position().into())
                 {
                     let drowned = self.game.drowned_if_off(unit, spell);
                     self.sheet_ui.turn_off = Some(TurnOff {
@@ -445,17 +455,19 @@ impl App {
                 3,
                 px + if production { 156.0 } else { 204.0 },
                 py + 105.0,
+                input,
             );
             let down = self.arrow_button(
                 lay,
                 4,
                 px + if production { 156.0 } else { 204.0 },
                 py + 168.0,
+                input,
             );
-            if (up || is_key_pressed(KeyCode::PageUp)) && first > 0 {
+            if (up || input.key_pressed(KeyCode::PageUp)) && first > 0 {
                 first = first.saturating_sub(PER_PAGE);
             }
-            if (down || is_key_pressed(KeyCode::PageDown)) && first + PER_PAGE < total {
+            if (down || input.key_pressed(KeyCode::PageDown)) && first + PER_PAGE < total {
                 first += PER_PAGE;
             }
             self.sheet_ui.first = first;
@@ -464,9 +476,9 @@ impl App {
 
     /// Ask whether to dismiss the unit (the original's confirmation box); Yes sends the
     /// command and leaves.
-    fn dismiss_confirmation(&mut self, lay: &Layout, sheet: &Sheet) {
+    fn dismiss_confirmation(&mut self, lay: &Layout, sheet: &Sheet, input: &Input) {
         let text = self.text_with("unit.disband", &Args::new().text("unit", &sheet.name));
-        match self.confirmation_box(lay, &text) {
+        match self.confirmation_box(lay, &text, input) {
             Some(true) => {
                 if let Source::Overland(unit) = sheet.source {
                     let events = self.game.apply(Command::DismissUnit { unit });
@@ -483,7 +495,7 @@ impl App {
 
     /// Ask whether to turn off a lasting spell of the wizard's; Yes sends the command. The
     /// question and the warning are the original's words.
-    fn turn_off_confirmation(&mut self, lay: &Layout, sheet: &Sheet) {
+    fn turn_off_confirmation(&mut self, lay: &Layout, sheet: &Sheet, input: &Input) {
         let (Some(ask), Source::Overland(unit)) = (self.sheet_ui.turn_off.clone(), sheet.source)
         else {
             self.sheet_ui.turn_off = None;
@@ -495,7 +507,7 @@ impl App {
             1 => text.push_str(&self.text("unit.dies_one")),
             _ => text.push_str(&self.text("unit.dies_many")),
         }
-        match self.confirmation_box(lay, &text) {
+        match self.confirmation_box(lay, &text, input) {
             Some(true) => {
                 let events = self.game.apply(Command::TurnOffUnitSpell {
                     player: crate::view::HUMAN,
@@ -576,26 +588,41 @@ impl App {
     }
 
     /// The up and down arrows of the abilities list (`unitview` 3 and 4); true when clicked.
-    fn arrow_button(&mut self, lay: &Layout, entry: usize, x: f32, y: f32) -> bool {
+    fn arrow_button(&mut self, lay: &Layout, entry: usize, x: f32, y: f32, input: &Input) -> bool {
         let down = self.art.picture("unitview", entry, 0).cloned();
         let Some(tex) = down else {
             return false;
         };
         let r = lay.rect((x, y, tex.width(), tex.height()));
-        let hover = r.contains(mouse_position().into());
-        let frame = usize::from(hover && is_mouse_button_down(MouseButton::Left));
+        let hover = r.contains(input.mouse_position().into());
+        let frame = usize::from(hover && input.mouse_down(MouseButton::Left));
         self.draw_pic(lay, "unitview", entry, frame, x, y);
-        hover && is_mouse_button_pressed(MouseButton::Left)
+        hover && input.mouse_pressed(MouseButton::Left)
     }
 
     /// A red button of the original (`backgrnd` 24) with its label; true when clicked.
-    pub(crate) fn red_button(&mut self, lay: &Layout, label: &str, x: f32, y: f32) -> bool {
-        self.red_button_face(lay, label, x, y, true)
+    pub(crate) fn red_button(
+        &mut self,
+        lay: &Layout,
+        label: &str,
+        x: f32,
+        y: f32,
+        input: &Input,
+    ) -> bool {
+        self.red_button_face(lay, label, x, y, true, input)
     }
 
     /// A red button of another width (the picture is stretched).
-    fn red_button_sized(&mut self, lay: &Layout, label: &str, x: f32, y: f32, w: f32) -> bool {
-        self.red_button_face_sized(lay, label, x, y, true, w)
+    fn red_button_sized(
+        &mut self,
+        lay: &Layout,
+        label: &str,
+        x: f32,
+        y: f32,
+        w: f32,
+        input: &Input,
+    ) -> bool {
+        self.red_button_face_sized(lay, label, (x, y), true, w, input)
     }
 
     fn red_button_face(
@@ -605,23 +632,24 @@ impl App {
         x: f32,
         y: f32,
         enabled: bool,
+        input: &Input,
     ) -> bool {
-        self.red_button_face_sized(lay, label, x, y, enabled, 49.0)
+        self.red_button_face_sized(lay, label, (x, y), enabled, 49.0, input)
     }
 
     fn red_button_face_sized(
         &mut self,
         lay: &Layout,
         label: &str,
-        x: f32,
-        y: f32,
+        (x, y): (f32, f32),
         enabled: bool,
         w: f32,
+        input: &Input,
     ) -> bool {
         let h = 12.0;
         let r = lay.rect((x, y, w, h));
-        let hover = enabled && r.contains(mouse_position().into());
-        let down = hover && is_mouse_button_down(MouseButton::Left);
+        let hover = enabled && r.contains(input.mouse_position().into());
+        let down = hover && input.mouse_down(MouseButton::Left);
         let tint = if enabled {
             WHITE
         } else {
@@ -648,6 +676,6 @@ impl App {
             y + 3.0 + f32::from(u8::from(down)),
             Align::Center,
         );
-        hover && is_mouse_button_pressed(MouseButton::Left)
+        hover && input.mouse_pressed(MouseButton::Left)
     }
 }

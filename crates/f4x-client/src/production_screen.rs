@@ -5,6 +5,7 @@
 //! A click on another item picks it, a click on the picked one, or OK, starts it; Cancel and
 //! Esc leave. Positions are the original's.
 
+use crate::input::Input;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use macroquad::prelude::*;
@@ -98,7 +99,7 @@ impl App {
         (buildings, units)
     }
 
-    pub(crate) fn draw_production_screen(&mut self, city: hecs::Entity) {
+    pub(crate) fn draw_production_screen(&mut self, city: hecs::Entity, input: &Input) {
         let lay = Layout::new();
         clear_background(Color::new(0.03, 0.09, 0.09, 1.0));
         let (buildings, units) = self.production_columns(city);
@@ -113,12 +114,12 @@ impl App {
 
         // The middle panel first: the tabs overlap its edges.
         if let Some(item) = selected {
-            self.draw_production_panel(city, item, &lay);
+            self.draw_production_panel(city, item, &lay, input);
         }
 
-        let (_, wheel) = mouse_wheel();
+        let (_, wheel) = input.mouse_wheel();
         if wheel != 0.0 {
-            let column = usize::from(mouse_position().0 > lay.origin.x + 120.0 * lay.scale);
+            let column = usize::from(input.mouse_position().0 > lay.origin.x + 120.0 * lay.scale);
             let len = [buildings.len(), units.len()][column];
             let max = len.saturating_sub(ROWS);
             let scroll = &mut self.prod_ui.scroll[column];
@@ -154,8 +155,8 @@ impl App {
                 );
                 let tab = lay.rect((x, y, 74.0, 11.0));
                 if !waiting
-                    && is_mouse_button_pressed(MouseButton::Left)
-                    && tab.contains(mouse_position().into())
+                    && input.mouse_pressed(MouseButton::Left)
+                    && tab.contains(input.mouse_position().into())
                 {
                     clicked = Some((*item, blocked));
                 }
@@ -163,13 +164,13 @@ impl App {
         }
 
         let city_lay = crate::city_screen::Layout::new();
-        self.draw_autobuild_button(city, city_lay, (2.0, 181.0, 70.0));
+        self.draw_autobuild_button(city, city_lay, (2.0, 181.0, 70.0), input);
         let (cancel, ok) = (self.text("ui.cancel"), self.text("ui.ok"));
-        let cancel = self.red_button(&lay, &cancel, 99.0, 181.0);
-        let ok = self.red_button(&lay, &ok, 172.0, 181.0);
+        let cancel = self.red_button(&lay, &cancel, 99.0, 181.0, input);
+        let ok = self.red_button(&lay, &ok, 172.0, 181.0, input);
 
         if let Some(text) = self.prod_ui.warning.clone() {
-            if self.warning_box(&lay, &text) {
+            if self.warning_box(&lay, &text, input) {
                 self.prod_ui.warning = None;
             }
             return;
@@ -177,9 +178,9 @@ impl App {
         if fresh {
             return;
         }
-        if is_key_pressed(KeyCode::Escape) || cancel {
+        if input.key_pressed(KeyCode::Escape) || cancel {
             self.choosing = false;
-        } else if ok || is_key_pressed(KeyCode::Enter) {
+        } else if ok || input.key_pressed(KeyCode::Enter) {
             self.start_production(city, selected);
         } else if let Some((item, blocked)) = clicked {
             if blocked {
@@ -202,7 +203,13 @@ impl App {
     }
 
     /// `Thing_View_Draw` for the production screen.
-    fn draw_production_panel(&mut self, city: hecs::Entity, item: ProductionItem, lay: &Layout) {
+    fn draw_production_panel(
+        &mut self,
+        city: hecs::Entity,
+        item: ProductionItem,
+        lay: &Layout,
+        input: &Input,
+    ) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let white = WHITE;
         let (px, py) = (PANEL_X, 0.0);
@@ -211,7 +218,7 @@ impl App {
             ProductionItem::Unit(id) => {
                 let def = self.game.content().rules.units.get(id).clone();
                 let sheet = self.offer_sheet(&def, None, HUMAN.0);
-                self.draw_production_sheet(lay, &sheet, (px, py));
+                self.draw_production_sheet(lay, &sheet, (px, py), input);
                 let mut price = cost.to_string();
                 if cost != def.cost {
                     price = format!("{cost}({})", def.cost);

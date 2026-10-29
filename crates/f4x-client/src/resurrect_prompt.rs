@@ -2,6 +2,7 @@
 //! (`Cast_Resurrection`), like a rival's global enchantment is for Disjunction. Up and Down
 //! move, Enter or a click casts it (the spell's target, aimed at the hero), Escape gives up.
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -33,6 +34,7 @@ impl App {
         spell: SpellId,
         resolve: bool,
         row: usize,
+        input: &Input,
     ) -> Option<Modal> {
         let dead = self.game.units().raisable_heroes();
         let lines: Vec<String> = dead
@@ -42,8 +44,8 @@ impl App {
         let row = row.min(lines.len().saturating_sub(1));
         let (w, h) = (screen_width(), screen_height());
         let (top, step) = (h / 2.0 - 20.0, 30.0);
-        let clicked = if is_mouse_button_pressed(MouseButton::Left) {
-            let (mx, my) = mouse_position();
+        let clicked = if input.mouse_pressed(MouseButton::Left) {
+            let (mx, my) = input.mouse_position();
             (0..lines.len()).find(|&n| {
                 let y = top + step * n as f32;
                 (w / 2.0 - 260.0..w / 2.0 + 260.0).contains(&mx)
@@ -53,16 +55,16 @@ impl App {
             None
         };
         let mut pick = clicked.unwrap_or(row);
-        if is_key_pressed(KeyCode::Up) {
+        if input.key_pressed(KeyCode::Up) {
             pick = pick.saturating_sub(1);
         }
-        if is_key_pressed(KeyCode::Down) {
+        if input.key_pressed(KeyCode::Down) {
             pick = (pick + 1).min(lines.len().saturating_sub(1));
         }
         let mut left = None;
-        if is_key_pressed(KeyCode::Escape) || dead.is_empty() {
+        if input.key_pressed(KeyCode::Escape) || dead.is_empty() {
             self.log.push(self.text("log.cast_cancelled"));
-        } else if clicked.is_some() || is_key_pressed(KeyCode::Enter) {
+        } else if clicked.is_some() || input.key_pressed(KeyCode::Enter) {
             let target = Target::Hero(dead[pick]);
             let command = if resolve {
                 Command::ResolveCast {

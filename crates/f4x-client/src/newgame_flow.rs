@@ -5,6 +5,7 @@
 //! Picture, Name, Picks, Spells, Race, Banner. Esc goes one step back. Positions are the
 //! original's. The rules behind the choices are the core's (`WizardBuild`).
 
+use crate::input::Input;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -157,7 +158,7 @@ impl App {
 
     /// `Warn0`: the warning box with the message; any click or Enter closes it, but not on the
     /// frame it came up (`closable` is false): the click that caused it would close it at once.
-    pub(crate) fn ng_warn_box(&mut self, lay: &Layout, closable: bool) -> bool {
+    pub(crate) fn ng_warn_box(&mut self, lay: &Layout, closable: bool, input: &Input) -> bool {
         let Some(message) = self.create.warn.clone() else {
             return false;
         };
@@ -179,9 +180,9 @@ impl App {
             );
         }
         if closable
-            && (is_mouse_button_pressed(MouseButton::Left)
-                || is_key_pressed(KeyCode::Enter)
-                || is_key_pressed(KeyCode::Escape))
+            && (input.mouse_pressed(MouseButton::Left)
+                || input.key_pressed(KeyCode::Enter)
+                || input.key_pressed(KeyCode::Escape))
         {
             self.create.warn = None;
             self.create.ignore_drag = true;
@@ -229,7 +230,7 @@ impl App {
 
     /// The Back button at the foot of every step of the creation: a small box between the portrait
     /// frame and the picks count.
-    fn ng_back_button(&mut self, lay: &Layout) {
+    fn ng_back_button(&mut self, lay: &Layout, input: &Input) {
         // The race and banner steps use the corner (the race list's frame reaches down to y 198
         // at x 166 to 231), so there the button stands by OK, right of that frame.
         let left = if matches!(self.create.step, Step::Race | Step::Banner) {
@@ -238,7 +239,7 @@ impl App {
             165.0
         };
         let r = lay.rect((left, 182.0, 30.0, 14.0));
-        let hover = r.contains(mouse_position().into());
+        let hover = r.contains(input.mouse_position().into());
         let fill = if hover {
             Color::new(0.34, 0.24, 0.15, 1.0)
         } else {
@@ -258,12 +259,12 @@ impl App {
             186.0,
             Align::Center,
         );
-        if hover && self.ng_input() && is_mouse_button_pressed(MouseButton::Left) {
+        if hover && self.ng_input() && input.mouse_pressed(MouseButton::Left) {
             self.create_back();
         }
     }
 
-    pub(crate) fn create_screen(&mut self) {
+    pub(crate) fn create_screen(&mut self, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
         let r = lay.rect((0.0, 0.0, 320.0, 200.0));
@@ -276,25 +277,25 @@ impl App {
         self.draw_pic(&lay, "newgame", background, 0, 0.0, 0.0);
         // A warning box has the input until it is closed.
         let had_warning = self.create.warn.is_some();
-        if !is_mouse_button_down(MouseButton::Left) {
+        if !input.mouse_down(MouseButton::Left) {
             self.create.ignore_drag = false;
         }
         let step = self.create.step;
         match step {
-            Step::Wizard => self.step_wizard(&lay, false),
-            Step::Portrait => self.step_wizard(&lay, true),
-            Step::Name => self.step_name(&lay),
-            Step::Picks => self.step_picks(&lay),
-            Step::Spells(i) => self.step_spells(&lay, i),
-            Step::Race => self.step_race(&lay),
-            Step::Banner => self.step_banner(&lay),
+            Step::Wizard => self.step_wizard(&lay, false, input),
+            Step::Portrait => self.step_wizard(&lay, true, input),
+            Step::Name => self.step_name(&lay, input),
+            Step::Picks => self.step_picks(&lay, input),
+            Step::Spells(i) => self.step_spells(&lay, i, input),
+            Step::Race => self.step_race(&lay, input),
+            Step::Banner => self.step_banner(&lay, input),
         }
         // A step that was left this frame (OK clicked) must not hand its click to the next step's
         // Back button, which stands where OK did.
         if self.create.step == step {
-            self.ng_back_button(&lay);
+            self.ng_back_button(&lay, input);
         }
-        self.ng_warn_box(&lay, had_warning);
+        self.ng_warn_box(&lay, had_warning, input);
     }
 
     /// Whether the steps may take input (no warning box is open).
@@ -304,7 +305,7 @@ impl App {
 
     /// Screens 1 and 2: the two columns of wizard buttons. Hovering shows the wizard; a click
     /// takes a ready-made wizard, "Custom", or (as a picture) one of the fourteen portraits.
-    fn step_wizard(&mut self, lay: &Layout, picture: bool) {
+    fn step_wizard(&mut self, lay: &Layout, picture: bool, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let defs: Vec<(String, String)> = self
             .game
@@ -324,8 +325,8 @@ impl App {
             "create.select_wizard"
         });
         self.bm_text_outlined(view, 5, &title, 242.0, 1.0, Align::Center);
-        let mouse: Vec2 = mouse_position().into();
-        let clicked = is_mouse_button_pressed(MouseButton::Left) && self.ng_input();
+        let mouse: Vec2 = input.mouse_position().into();
+        let clicked = input.mouse_pressed(MouseButton::Left) && self.ng_input();
         let mut chosen = None;
         let mut over = None;
         for i in 0..7 + right_count {
@@ -411,13 +412,13 @@ impl App {
                 self.create.hover = 0;
             }
         }
-        if is_key_pressed(KeyCode::Escape) && self.ng_input() {
+        if input.key_pressed(KeyCode::Escape) && self.ng_input() {
             self.create_back();
         }
     }
 
     /// Screen 3: the name box (`newgame` 40) with the typed name.
-    fn step_name(&mut self, lay: &Layout) {
+    fn step_name(&mut self, lay: &Layout, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         self.draw_pic(lay, "newgame", 40, 0, 181.0, 17.0);
         let title = self.text("create.wizard_name");
@@ -433,19 +434,19 @@ impl App {
         }
         let mut typed = name;
         if self.ng_input() {
-            while let Some(c) = get_char_pressed() {
+            for c in input.typed() {
                 if !c.is_control() && typed.chars().count() < 10 {
                     typed.push(c);
                 }
             }
-            if is_key_pressed(KeyCode::Backspace) {
+            if input.key_pressed(KeyCode::Backspace) {
                 typed.pop();
             }
         }
         self.create.build.name = typed.clone();
         if self.create.custom {
             // Tab turns the wizard's gender: he, she, they.
-            if self.ng_input() && is_key_pressed(KeyCode::Tab) {
+            if self.ng_input() && input.key_pressed(KeyCode::Tab) {
                 use f4x_core::text::Gender::*;
                 self.create.build.gender = match self.create.build.gender {
                     Masculine => Feminine,
@@ -478,11 +479,11 @@ impl App {
         if !self.ng_input() {
             return;
         }
-        let ok_clicked = is_mouse_button_pressed(MouseButton::Left)
+        let ok_clicked = input.mouse_pressed(MouseButton::Left)
             && lay
                 .rect((251.0, 181.0, 32.0, 16.0))
-                .contains(mouse_position().into());
-        if ok_clicked || is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter) {
+                .contains(input.mouse_position().into());
+        if ok_clicked || input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::KpEnter) {
             if self.create.build.name.trim().is_empty() {
                 let fallback = portrait
                     .and_then(|p| {
@@ -508,7 +509,7 @@ impl App {
                 // A ready-made wizard also chooses their starting spells, from the defaults.
                 self.next_spells(0);
             }
-        } else if is_key_pressed(KeyCode::Escape) {
+        } else if input.key_pressed(KeyCode::Escape) {
             self.create_back();
         }
     }
@@ -525,7 +526,7 @@ impl App {
     }
 
     /// Screen 6: the races, the Myrran ones only for a wizard with the Myrran retort.
-    fn step_race(&mut self, lay: &Layout) {
+    fn step_race(&mut self, lay: &Layout, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         self.draw_pic(lay, "newgame", 54, 0, 164.0, 18.0);
         // The lists stand at the left of the right-hand half, an explanation box beside them.
@@ -553,9 +554,9 @@ impl App {
             .unzip();
         let title = Color::new(0.85, 0.65, 0.2, 1.0);
         let bright = Color::new(1.0, 0.95, 0.6, 1.0);
-        let mouse: Vec2 = mouse_position().into();
-        let input = self.ng_input();
-        let clicked = is_mouse_button_pressed(MouseButton::Left) && input;
+        let mouse: Vec2 = input.mouse_position().into();
+        let live = self.ng_input();
+        let clicked = input.mouse_pressed(MouseButton::Left) && live;
         let (arcanian_title, myrran_title) =
             (self.text("create.arcanian"), self.text("create.myrran"));
         self.bm_text(view, 3, title, &arcanian_title, 199.0, 25.0, Align::Center);
@@ -567,7 +568,7 @@ impl App {
             for (i, race) in list.iter().enumerate() {
                 let Some(race) = *race else { continue };
                 let y = top + 10.0 * i as f32;
-                let hot = lay.rect((168.0, y, 64.0, 8.0)).contains(mouse) && input;
+                let hot = lay.rect((168.0, y, 64.0, 8.0)).contains(mouse) && live;
                 if hot {
                     hovered = Some(race);
                 }
@@ -612,8 +613,8 @@ impl App {
         // OK goes on, once a race is picked.
         let ok = self.create.race_pick.is_some();
         self.draw_pic(lay, "newgame", if ok { 42 } else { 43 }, 0, 286.0, 182.0);
-        if input
-            && is_mouse_button_pressed(MouseButton::Left)
+        if live
+            && input.mouse_pressed(MouseButton::Left)
             && lay.rect((285.0, 181.0, 32.0, 16.0)).contains(mouse)
         {
             match self.create.race_pick {
@@ -623,7 +624,7 @@ impl App {
                 }
                 None => self.create.warn = Some(self.text("create.pick_race")),
             }
-        } else if is_key_pressed(KeyCode::Escape) && input {
+        } else if input.key_pressed(KeyCode::Escape) && live {
             self.create_back();
         }
     }
@@ -685,22 +686,22 @@ impl App {
     /// Screen 7: ten small flags in two columns, the original's five and five more colours made
     /// from them (`scripts/make_banner_flags.py`); a click on one takes the banner and starts the
     /// game.
-    fn step_banner(&mut self, lay: &Layout) {
+    fn step_banner(&mut self, lay: &Layout, input: &Input) {
         let portrait = self.create.build.portrait.map(usize::from);
         let title = self.text("create.select_banner");
         self.ng_frame(lay, &title, portrait);
         let name = self.create.build.name.clone();
         self.ng_name(lay, &name);
         self.ng_build_shelf(lay);
-        let mouse: Vec2 = mouse_position().into();
-        let input = self.ng_input();
+        let mouse: Vec2 = input.mouse_position().into();
+        let live = self.ng_input();
         let mut clicked = None;
         for column in 0..2 {
             for row in 0..5 {
                 let (x, y) = (170.0 + 74.0 * column as f32, 26.0 + 34.0 * row as f32);
                 let entry = row + 5 * column;
                 let area = lay.rect((x - 2.0, y - 4.0, 74.0, 30.0));
-                let hot = input && area.contains(mouse);
+                let hot = live && area.contains(mouse);
                 if self.draw_pic(lay, "banner_flags", entry, 0, x, y).is_none() {
                     draw_rectangle(
                         area.x,
@@ -719,7 +720,7 @@ impl App {
                         2.0,
                         Color::new(1.0, 0.95, 0.6, 1.0),
                     );
-                    if is_mouse_button_pressed(MouseButton::Left) {
+                    if input.mouse_pressed(MouseButton::Left) {
                         clicked = Some((column, row));
                     }
                 }
@@ -731,7 +732,7 @@ impl App {
                 self.begin_game();
             }
             None => {
-                if is_key_pressed(KeyCode::Escape) && input {
+                if input.key_pressed(KeyCode::Escape) && live {
                     self.create_back();
                 }
             }

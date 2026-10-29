@@ -3,6 +3,7 @@
 //! Pictures: `load` entries 11 (background), 4 (OK) and 13 to 20 (check boxes). A click on a
 //! row flips its switch; OK, O or Escape leave, and the preferences are written either way.
 
+use crate::input::Input;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -57,7 +58,7 @@ const ROW_WIDTH: f32 = 144.0;
 const ROW_HEIGHT: f32 = 9.0;
 
 impl App {
-    pub(crate) fn settings_screen(&mut self) {
+    pub(crate) fn settings_screen(&mut self, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -67,8 +68,8 @@ impl App {
             let title = self.text("options.settings");
             self.bm_text(view, 5, GOLD, &title, 160.0, 20.0, Align::Center);
         }
-        let mouse: Vec2 = mouse_position().into();
-        let pressed = is_mouse_button_pressed(MouseButton::Left);
+        let mouse: Vec2 = input.mouse_position().into();
+        let pressed = input.mouse_pressed(MouseButton::Left);
 
         for (i, &(pref, x, y)) in ROWS.iter().enumerate() {
             let on = self.prefs.get(pref);
@@ -109,30 +110,30 @@ impl App {
         };
         if self.draw_pic(&lay, "load", 4, 0, dx, dy).is_none() {
             let near = lay.rect((l, t, 41.0, 14.0));
-            if button(near, "OK", true) {
+            if button(near, "OK", true, input) {
                 self.leave_settings();
             }
         }
-        self.volume_sliders(&lay, view, mouse);
+        self.volume_sliders(&lay, view, mouse, input);
         // The game's own settings (task 94), which the original keeps on the new-game screen.
         let game = lay.rect((31.0, 186.0, 60.0, 10.0));
-        if button(game, &self.text("settings.game"), true) {
+        if button(game, &self.text("settings.game"), true, input) {
             self.save_preferences();
             self.screen = Screen::GameSettings;
             return;
         }
         if (pressed && hover)
-            || is_key_pressed(KeyCode::O)
-            || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::O)
+            || input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::Escape)
         {
             self.leave_settings();
         }
     }
 
     /// The two volume sliders in the bottom row: a press or a drag on a bar sets that volume.
-    fn volume_sliders(&mut self, lay: &Layout, view: (f32, f32, f32), mouse: Vec2) {
-        let down = is_mouse_button_down(MouseButton::Left);
+    fn volume_sliders(&mut self, lay: &Layout, view: (f32, f32, f32), mouse: Vec2, input: &Input) {
+        let down = input.mouse_down(MouseButton::Left);
         for (i, &(key, label_x, bar_x, bar_w)) in SLIDERS.iter().enumerate() {
             let label = self.text(key);
             self.bm_text(view, 2, WHITE, &label, label_x, SLIDER_Y + 1.0, Align::Left);

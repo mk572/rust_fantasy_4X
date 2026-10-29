@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::frame::Layout;
+use crate::input::Input;
 use crate::unit_sheet::special_picture;
 use f4x_core::battle::spell::BattleSpell;
 
@@ -88,7 +89,7 @@ impl App {
     }
 
     /// Draw the box for the selected unit and take a click on one of its spells.
-    pub(super) fn draw_unit_specials(&mut self, battle: &Battle, my_turn: bool) {
+    pub(super) fn draw_unit_specials(&mut self, battle: &Battle, my_turn: bool, input: &Input) {
         self.battle_ui.box_rect = None;
         let Some(id) = self.battle_ui.selected else {
             return;
@@ -143,7 +144,7 @@ impl App {
         let dim = Color::new(0.6, 0.55, 0.5, 1.0);
         let free =
             my_turn && self.battle_ui.aiming.is_none() && self.battle_ui.fallen_list.is_none();
-        let mouse: Vec2 = mouse_position().into();
+        let mouse: Vec2 = input.mouse_position().into();
         let mut cast: Option<BattleSpell> = None;
         let mut summon = false;
         for (i, row) in rows.iter().enumerate() {
@@ -177,7 +178,7 @@ impl App {
             let text_x = if icon.is_some() { x + 19.0 } else { x + 2.0 };
             let colour = if clickable && !usable { dim } else { colour };
             self.bm_text(view, 1, colour, &text, text_x, y + 6.0, Align::Left);
-            if hover && is_mouse_button_pressed(MouseButton::Left) {
+            if hover && input.mouse_pressed(MouseButton::Left) {
                 match row {
                     Row::Spell(spell, _) => cast = Some(*spell),
                     Row::Demon(_) => summon = true,

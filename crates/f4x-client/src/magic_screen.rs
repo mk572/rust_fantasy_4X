@@ -9,6 +9,7 @@
 //! Alchemy button opens the gold-and-power exchange. Spells are cast from the spell book
 //! (`spellbook.rs`) and chosen for research in the big book (`bigbook.rs`).
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
 use f4x_core::rules::SpellId;
@@ -156,12 +157,12 @@ impl App {
             .collect()
     }
 
-    pub(crate) fn magic_screen(&mut self) {
+    pub(crate) fn magic_screen(&mut self, input: &Input) {
         let modal = self.magic_ui.alchemy.is_some() || self.magic_ui.turn_off.is_some();
         if !modal
-            && (is_key_pressed(KeyCode::Escape)
-                || is_key_pressed(KeyCode::M)
-                || is_key_pressed(KeyCode::O))
+            && (input.key_pressed(KeyCode::Escape)
+                || input.key_pressed(KeyCode::M)
+                || input.key_pressed(KeyCode::O))
         {
             self.screen = Screen::Map;
             return;
@@ -179,17 +180,17 @@ impl App {
                 Color::new(0.18, 0.2, 0.3, 1.0),
             );
         }
-        self.magic_staves(&lay, !modal);
+        self.magic_staves(&lay, !modal, input);
         self.magic_text(&lay, view);
-        self.magic_gems(&lay, view, !modal);
-        self.magic_enchantments(&lay, view, !modal);
+        self.magic_gems(&lay, view, !modal, input);
+        self.magic_enchantments(&lay, view, !modal, input);
 
         // The Alchemy and OK buttons.
         let alchemy = self.draw_pic(&lay, "magic", 13, 0, 232.0, 181.0);
         let ok = self.draw_pic(&lay, "magic", 14, 0, 291.0, 181.0);
         let hit = |r: Option<Rect>| {
-            r.is_some_and(|r| r.contains(mouse_position().into()))
-                && is_mouse_button_pressed(MouseButton::Left)
+            r.is_some_and(|r| r.contains(input.mouse_position().into()))
+                && input.mouse_pressed(MouseButton::Left)
         };
         if !modal {
             if hit(alchemy)
@@ -198,6 +199,7 @@ impl App {
                         lay.rect((232.0, 181.0, 58.0, 15.0)),
                         &self.text("magic.alchemy"),
                         true,
+                        input,
                     ))
             {
                 let gold_to_mana = true;
@@ -212,18 +214,19 @@ impl App {
                         lay.rect((291.0, 181.0, 26.0, 15.0)),
                         &self.text("ui.ok"),
                         true,
+                        input,
                     ))
             {
                 self.screen = Screen::Map;
             }
         }
         if self.magic_ui.alchemy.is_some() {
-            self.alchemy_popup(&lay, view);
+            self.alchemy_popup(&lay, view, input);
         }
         if let Some(spell) = self.magic_ui.turn_off {
             let name = self.game.content().rules.spells.get(spell).name.clone();
             let question = self.text_with("magic.cancel_spell", &Args::new().text("spell", &name));
-            match self.confirm_box(&question) {
+            match self.confirm_box(&question, input) {
                 Some(true) => {
                     self.magic_ui.turn_off = None;
                     let events = self.game.apply(Command::TurnOffSpell {
@@ -241,13 +244,13 @@ impl App {
 
     /// The three staves: drawn empty above the line and full below it, locked or not, and
     /// dragged with the mouse (the share changes as the mouse moves and is kept on release).
-    fn magic_staves(&mut self, lay: &Layout, active: bool) {
-        let (mx, my) = mouse_position();
+    fn magic_staves(&mut self, lay: &Layout, active: bool, input: &Input) {
+        let (mx, my) = input.mouse_position();
         let virtual_y = (my - lay.origin.y) / lay.scale;
         let virtual_x = (mx - lay.origin.x) / lay.scale;
         if active {
             // Locks.
-            if is_mouse_button_pressed(MouseButton::Left) {
+            if input.mouse_pressed(MouseButton::Left) {
                 for (i, &sx) in STAFF_X.iter().enumerate() {
                     let lock = (sx - 1.0, 82.0, sx + 12.0, 101.0);
                     if (lock.0..=lock.2).contains(&virtual_x)
@@ -262,7 +265,7 @@ impl App {
                 }
             }
             if let Some(i) = self.magic_ui.drag {
-                if is_mouse_button_down(MouseButton::Left) {
+                if input.mouse_down(MouseButton::Left) {
                     let value = (STAFF_FLOOR - virtual_y).round() as i32;
                     let moved = staff_adjust(self.magic_ui.pos, self.magic_ui.locked, i, value);
                     self.magic_ui.pos = moved;
@@ -397,7 +400,7 @@ impl App {
     /// colour with the word for how it feels about you and an icon for each treaty, and broken
     /// once the wizard is gone. A click on a met wizard's gem opens the diplomacy screen, a
     /// right-click the wizard's sheet.
-    fn magic_gems(&mut self, lay: &Layout, view: (f32, f32, f32), active: bool) {
+    fn magic_gems(&mut self, lay: &Layout, view: (f32, f32, f32), active: bool, input: &Input) {
         for i in 0..4 {
             self.draw_pic(lay, "magic", 6, 0, 24.0 + 77.0 * i as f32, 4.0);
         }
@@ -471,11 +474,11 @@ impl App {
                     show(self, t, colour);
                 }
             }
-            let over = gem.is_some_and(|r| r.contains(mouse_position().into()));
-            if active && over && is_mouse_button_pressed(MouseButton::Left) {
+            let over = gem.is_some_and(|r| r.contains(input.mouse_position().into()));
+            if active && over && input.mouse_pressed(MouseButton::Left) {
                 self.open_diplomacy(id);
             }
-            if active && over && is_mouse_button_pressed(MouseButton::Right) {
+            if active && over && input.mouse_pressed(MouseButton::Right) {
                 self.open_wizard(id);
             }
         }
@@ -483,7 +486,13 @@ impl App {
 
     /// The overland enchantments panel: one column of up to nine, or two of up to eighteen
     /// with a "More..." that turns the page. A click on one of your own offers to turn it off.
-    fn magic_enchantments(&mut self, lay: &Layout, view: (f32, f32, f32), active: bool) {
+    fn magic_enchantments(
+        &mut self,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        active: bool,
+        input: &Input,
+    ) {
         let list = self.overland_enchantments();
         let two_columns = list.len() >= 10;
         let per_page = if two_columns { 18 } else { 9 };
@@ -511,8 +520,8 @@ impl App {
             };
             if active
                 && owner == HUMAN
-                && is_mouse_button_pressed(MouseButton::Left)
-                && rect.contains(mouse_position().into())
+                && input.mouse_pressed(MouseButton::Left)
+                && rect.contains(input.mouse_position().into())
             {
                 self.magic_ui.turn_off = Some(spell);
             }
@@ -521,10 +530,10 @@ impl App {
             let more = self.text("magic.more");
             self.bm_text(view, 0, WHITE, &more, 286.0, 163.0, Align::Left);
             if active
-                && is_mouse_button_pressed(MouseButton::Left)
+                && input.mouse_pressed(MouseButton::Left)
                 && lay
                     .rect((286.0, 163.0, 21.0, 7.0))
-                    .contains(mouse_position().into())
+                    .contains(input.mouse_position().into())
             {
                 self.magic_ui.first += 18;
                 if self.magic_ui.first >= list.len() {
@@ -536,7 +545,7 @@ impl App {
 
     /// The alchemy window at (80, 60): drag the star along the bar to pick how much, the arrow
     /// button turns the exchange round, OK does it.
-    fn alchemy_popup(&mut self, lay: &Layout, view: (f32, f32, f32)) {
+    fn alchemy_popup(&mut self, lay: &Layout, view: (f32, f32, f32), input: &Input) {
         let Some(mut ui) = self.magic_ui.alchemy else {
             return;
         };
@@ -553,11 +562,11 @@ impl App {
             ui.slider = 3;
         }
         let amount = alchemy_amount(pool, ui.slider);
-        let (mx, my) = mouse_position();
+        let (mx, my) = input.mouse_position();
         let vx = (mx - lay.origin.x) / lay.scale;
         let vy = (my - lay.origin.y) / lay.scale;
         // The slider bar.
-        if is_mouse_button_down(MouseButton::Left)
+        if input.mouse_down(MouseButton::Left)
             && (px + 46.0..=px + 108.0).contains(&vx)
             && (py + 22.0..=py + 34.0).contains(&vy)
             && pool > 1
@@ -600,8 +609,8 @@ impl App {
         // Cancel, the arrow that turns the exchange, and OK.
         let click = |app: &mut App, entry: usize, x: f32, y: f32| {
             let r = app.draw_pic(lay, "magic", entry, 0, x, y);
-            r.is_some_and(|r| r.contains(mouse_position().into()))
-                && is_mouse_button_pressed(MouseButton::Left)
+            r.is_some_and(|r| r.contains(input.mouse_position().into()))
+                && input.mouse_pressed(MouseButton::Left)
         };
         let cancel = click(self, 53, px + 13.0, py + 39.0);
         let turn = click(
@@ -611,7 +620,7 @@ impl App {
             py + 39.0,
         );
         let ok = click(self, 54, px + 96.0, py + 39.0);
-        if turn || is_key_pressed(KeyCode::Space) {
+        if turn || input.key_pressed(KeyCode::Space) {
             ui.gold_to_mana = !ui.gold_to_mana;
             ui.slider = 3;
         }
@@ -625,7 +634,7 @@ impl App {
             self.magic_ui.alchemy = None;
             return;
         }
-        if cancel || ok || is_key_pressed(KeyCode::Escape) {
+        if cancel || ok || input.key_pressed(KeyCode::Escape) {
             self.magic_ui.alchemy = None;
             return;
         }
@@ -668,7 +677,7 @@ impl App {
     }
 
     /// A question with Yes and No (or Y and N); `Some` once the player has answered.
-    pub(crate) fn confirm_box(&mut self, text: &str) -> Option<bool> {
+    pub(crate) fn confirm_box(&mut self, text: &str, input: &Input) -> Option<bool> {
         let (w, h) = (screen_width(), screen_height());
         let (bw, bh) = (w.min(560.0), 130.0);
         let (x, y) = ((w - bw) / 2.0, (h - bh) / 2.0);
@@ -679,16 +688,18 @@ impl App {
             Rect::new(x + bw / 2.0 - 110.0, y + 70.0, 100.0, 36.0),
             &self.text("ui.yes"),
             true,
+            input,
         );
         let no = button(
             Rect::new(x + bw / 2.0 + 10.0, y + 70.0, 100.0, 36.0),
             &self.text("ui.no"),
             true,
+            input,
         );
-        if yes || is_key_pressed(KeyCode::Y) || is_key_pressed(KeyCode::Enter) {
+        if yes || input.key_pressed(KeyCode::Y) || input.key_pressed(KeyCode::Enter) {
             return Some(true);
         }
-        if no || is_key_pressed(KeyCode::N) || is_key_pressed(KeyCode::Escape) {
+        if no || input.key_pressed(KeyCode::N) || input.key_pressed(KeyCode::Escape) {
             return Some(false);
         }
         None

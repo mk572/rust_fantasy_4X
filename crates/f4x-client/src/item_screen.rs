@@ -8,6 +8,7 @@
 //! `Command::ScrapItem`); a move to a hero somewhere else asks to pay its mana first.
 //! Positions are the original's.
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::item::armory::{ItemError, ItemSpot, Spot, TRANSFER_MANA, VAULT_SLOTS};
 use f4x_core::item::Item;
@@ -180,9 +181,9 @@ impl App {
     }
 
     /// Draw an item's icon with its name at the hand.
-    fn draw_item_in_hand(&mut self, lay: &Layout, item: &Item) {
+    fn draw_item_in_hand(&mut self, lay: &Layout, item: &Item, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let (mx, my) = mouse_position();
+        let (mx, my) = input.mouse_position();
         let (x, y) = (
             (mx - lay.origin.x) / lay.scale - 5.0,
             (my - lay.origin.y) / lay.scale - 5.0,
@@ -194,7 +195,14 @@ impl App {
 
     /// Draw a triangle arrow of the scroll buttons at `at` (11 by 18) pointing left (`dir < 0`)
     /// or right; true when the mouse is on it and it is `enabled`.
-    fn scroll_arrow(&self, lay: &Layout, at: (f32, f32), dir: i32, enabled: bool) -> bool {
+    fn scroll_arrow(
+        &self,
+        lay: &Layout,
+        at: (f32, f32),
+        dir: i32,
+        enabled: bool,
+        input: &Input,
+    ) -> bool {
         let (ax, ay) = at;
         let (x, y, scale) = (lay.origin.x, lay.origin.y, lay.scale);
         let tip = if dir < 0 { ax } else { ax + 9.0 };
@@ -210,21 +218,21 @@ impl App {
             vec2(x + base * scale, y + (ay + 17.0) * scale),
             color,
         );
-        let mouse: Vec2 = mouse_position().into();
+        let mouse: Vec2 = input.mouse_position().into();
         enabled && lay.rect((ax - 1.0, ay, 11.0, 18.0)).contains(mouse)
     }
 
-    pub(crate) fn item_screen(&mut self) {
+    pub(crate) fn item_screen(&mut self, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (wx, wy) = WINDOW;
         self.draw_pic(&lay, "armylist", 0, 0, 0.0, 0.0);
         self.draw_pic(&lay, "armylist", 5, 0, wx, wy);
-        let mouse: Vec2 = mouse_position().into();
+        let mouse: Vec2 = input.mouse_position().into();
         let busy = self.item_ui.card.is_some() || self.item_ui.confirm.is_some();
-        let left = is_mouse_button_pressed(MouseButton::Left) && !busy;
-        let right = is_mouse_button_pressed(MouseButton::Right) && !busy;
+        let left = input.mouse_pressed(MouseButton::Left) && !busy;
+        let right = input.mouse_pressed(MouseButton::Right) && !busy;
         let heroes = self.game.units().hero_units(HUMAN);
         let held = self.item_ui.held.is_some();
         let ink = Color::new(0.95, 0.85, 0.5, 1.0);
@@ -310,7 +318,7 @@ impl App {
                 } else {
                     page + 1 < hero_pages
                 };
-                if self.scroll_arrow(&lay, (ax, wy + 142.0), dir, enabled) && left {
+                if self.scroll_arrow(&lay, (ax, wy + 142.0), dir, enabled, input) && left {
                     let page = if dir < 0 { page - 1 } else { page + 1 };
                     self.item_ui.hero_offset = page * HEROES;
                 }
@@ -325,7 +333,7 @@ impl App {
         let page = self.item_ui.vault_offset / VAULT_SLOTS;
         for (dir, ax) in [(-1i32, wx + 40.0), (1, wx + 139.0)] {
             let enabled = if dir < 0 { page > 0 } else { page + 1 < pages };
-            if self.scroll_arrow(&lay, (ax, wy + 170.0), dir, enabled) && left {
+            if self.scroll_arrow(&lay, (ax, wy + 170.0), dir, enabled, input) && left {
                 let page = if dir < 0 { page - 1 } else { page + 1 };
                 self.item_ui.vault_offset = page * VAULT_SLOTS;
             }
@@ -369,13 +377,13 @@ impl App {
         );
         self.bm_text_outlined(view, 0, "GP", wx + 169.0, wy + 164.0, Align::Left);
         self.bm_text_outlined(view, 0, "MP", wx + 203.0, wy + 164.0, Align::Left);
-        let alchemy = !held && self.item_button(&lay, 7, wx + 219.0, wy + 155.0);
-        let ok = !held && self.item_button(&lay, 8, wx + 219.0, wy + 175.0);
+        let alchemy = !held && self.item_button(&lay, 7, wx + 219.0, wy + 155.0, input);
+        let ok = !held && self.item_button(&lay, 8, wx + 219.0, wy + 175.0, input);
         if left && lay.rect((wx + 9.0, wy + 155.0, 39.0, 34.0)).contains(mouse) {
             self.scrap_held();
         }
         // S sells the item in the hand for half its value in gold (task 294).
-        if held && is_key_pressed(KeyCode::S) {
+        if held && input.key_pressed(KeyCode::S) {
             self.sell_held();
         }
         if let Some(item) = card_at {
@@ -385,14 +393,14 @@ impl App {
         // The item in the hand follows the mouse.
         if let Some(spot) = self.item_ui.held {
             match self.item_at(spot) {
-                Some(item) => self.draw_item_in_hand(&lay, &item),
+                Some(item) => self.draw_item_in_hand(&lay, &item, input),
                 None => self.item_ui.held = None,
             }
         }
         if let Some(message) = self.item_ui.message.clone() {
             self.bm_text_outlined(view, 1, &message, 160.0, 150.0, Align::Center);
         }
-        self.item_modals(&lay);
+        self.item_modals(&lay, input);
 
         if alchemy {
             self.open_magic();
@@ -400,15 +408,15 @@ impl App {
                 gold_to_mana: true,
                 slider: 3,
             });
-        } else if !busy && !held && (ok || is_key_pressed(KeyCode::Escape)) {
+        } else if !busy && !held && (ok || input.key_pressed(KeyCode::Escape)) {
             self.screen = Screen::ArmyList;
         }
         let _ = ink;
     }
 
     /// One of the screen's two-frame buttons (`armylist` 7 and 8); true when clicked.
-    fn item_button(&mut self, lay: &Layout, entry: usize, x: f32, y: f32) -> bool {
-        self.army_button(lay, entry, x, y, true)
+    fn item_button(&mut self, lay: &Layout, entry: usize, x: f32, y: f32, input: &Input) -> bool {
+        self.army_button(lay, entry, x, y, true, input)
     }
 
     /// The anvil: destroy the item in the hand if it is in the vault or on the award list.
@@ -446,13 +454,13 @@ impl App {
     }
 
     /// The item card and the question about paying for a move.
-    fn item_modals(&mut self, lay: &Layout) {
+    fn item_modals(&mut self, lay: &Layout, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         if let Some(item) = self.item_ui.card.clone() {
             self.draw_item_card(lay, &item, 50.0, 60.0);
-            if is_mouse_button_pressed(MouseButton::Left)
-                || is_mouse_button_pressed(MouseButton::Right)
-                || is_key_pressed(KeyCode::Escape)
+            if input.mouse_pressed(MouseButton::Left)
+                || input.mouse_pressed(MouseButton::Right)
+                || input.key_pressed(KeyCode::Escape)
             {
                 self.item_ui.card = None;
             }
@@ -476,10 +484,10 @@ impl App {
                     Align::Center,
                 );
             }
-            if is_key_pressed(KeyCode::Y) || is_key_pressed(KeyCode::Enter) {
+            if input.key_pressed(KeyCode::Y) || input.key_pressed(KeyCode::Enter) {
                 self.item_ui.confirm = None;
                 self.try_move(from, to, true);
-            } else if is_key_pressed(KeyCode::N) || is_key_pressed(KeyCode::Escape) {
+            } else if input.key_pressed(KeyCode::N) || input.key_pressed(KeyCode::Escape) {
                 self.item_ui.confirm = None;
             }
         }

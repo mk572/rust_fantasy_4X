@@ -2,6 +2,7 @@
 //! fight it, leave it to the computer (Auto-resolve) or call the attack off, as a box over the
 //! map. Plain box for now; the original's picture is task 143.
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -99,7 +100,7 @@ impl App {
     }
 
     /// The box that asks for the mana limit. Returns whether it took the frame.
-    fn mana_ask_frame(&mut self, attack: &PendingAttack, mut ask: ManaAsk) {
+    fn mana_ask_frame(&mut self, attack: &PendingAttack, mut ask: ManaAsk, input: &Input) {
         let (w, h) = (screen_width(), screen_height());
         let (bw, bh) = (560.0, 220.0);
         let (x, y) = ((w - bw) / 2.0, (h - bh) / 2.0);
@@ -121,22 +122,26 @@ impl App {
             Rect::new(x + 170.0, y + 100.0, 50.0, 38.0),
             &self.text("attack.mana_less"),
             ask.amount > 0,
+            input,
         );
         let more = button(
             Rect::new(x + bw - 220.0, y + 100.0, 50.0, 38.0),
             &self.text("attack.mana_more"),
             ask.amount < ask.reserve,
+            input,
         );
         crate::frame::text_centered(&ask.amount.to_string(), w / 2.0, y + 128.0, 32.0, GOLD);
         let ok = button(
             Rect::new(x + 60.0, y + bh - 56.0, 200.0, 38.0),
             &self.text("attack.mana_ok"),
             true,
+            input,
         );
         let back = button(
             Rect::new(x + bw - 260.0, y + bh - 56.0, 200.0, 38.0),
             &self.text("attack.mana_back"),
             true,
+            input,
         );
         let step = |ask: &mut ManaAsk, up: bool, by: u32| {
             ask.typed = true;
@@ -146,32 +151,32 @@ impl App {
                 ask.amount.saturating_sub(by)
             };
         };
-        if less || is_key_pressed(KeyCode::Down) {
+        if less || input.key_pressed(KeyCode::Down) {
             step(&mut ask, false, 1);
         }
-        if more || is_key_pressed(KeyCode::Up) {
+        if more || input.key_pressed(KeyCode::Up) {
             step(&mut ask, true, 1);
         }
-        if is_key_pressed(KeyCode::PageDown) {
+        if input.key_pressed(KeyCode::PageDown) {
             step(&mut ask, false, 10);
         }
-        if is_key_pressed(KeyCode::PageUp) {
+        if input.key_pressed(KeyCode::PageUp) {
             step(&mut ask, true, 10);
         }
-        while let Some(c) = get_char_pressed() {
+        for c in input.typed() {
             if let Some(d) = c.to_digit(10) {
                 let base = if ask.typed { ask.amount } else { 0 };
                 ask.typed = true;
                 ask.amount = (base * 10 + d).min(ask.reserve);
             }
         }
-        if is_key_pressed(KeyCode::Backspace) {
+        if input.key_pressed(KeyCode::Backspace) {
             ask.typed = true;
             ask.amount /= 10;
         }
-        if back || is_key_pressed(KeyCode::Escape) {
+        if back || input.key_pressed(KeyCode::Escape) {
             self.mana_ask = None;
-        } else if ok || is_key_pressed(KeyCode::Enter) {
+        } else if ok || input.key_pressed(KeyCode::Enter) {
             self.run_auto_battle(attack.clone(), Some(ask.amount));
         } else {
             self.mana_ask = Some(ask);
@@ -180,7 +185,7 @@ impl App {
 
     /// Show the pending attack over the map until it is answered. Returns whether the box took
     /// the frame.
-    pub(crate) fn attack_prompt_frame(&mut self) -> bool {
+    pub(crate) fn attack_prompt_frame(&mut self, input: &Input) -> bool {
         let Some(attack) = self.attack_prompt.clone() else {
             return false;
         };
@@ -193,13 +198,13 @@ impl App {
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
 
         if let Some(ask) = self.mana_ask.clone() {
             clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
             self.draw_map();
-            self.draw_bars();
-            self.mana_ask_frame(&attack, ask);
+            self.draw_bars(input);
+            self.mana_ask_frame(&attack, ask, input);
             return true;
         }
         if !attack.treaty_asked {
@@ -226,7 +231,7 @@ impl App {
                         "diplomacy.attack_partner",
                         &Args::new().text("wizard", self.diplo_name(p)),
                     );
-                    match self.confirmation_box(&lay, &text) {
+                    match self.confirmation_box(&lay, &text, input) {
                         Some(true) => {
                             self.attack_prompt = Some(PendingAttack {
                                 treaty_asked: true,
@@ -283,14 +288,15 @@ impl App {
             self.text("attack.auto"),
             self.text("attack.cancel"),
         );
-        let fight = self.red_button(&lay, &fight_label, x + 13.0, at);
-        let auto = self.red_button(&lay, &auto_label, x + 67.0, at);
-        let cancel = !attack.defending && self.red_button(&lay, &cancel_label, x + 121.0, at);
-        let fight = fight || is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Y);
-        let auto = auto || is_key_pressed(KeyCode::A);
+        let fight = self.red_button(&lay, &fight_label, x + 13.0, at, input);
+        let auto = self.red_button(&lay, &auto_label, x + 67.0, at, input);
+        let cancel =
+            !attack.defending && self.red_button(&lay, &cancel_label, x + 121.0, at, input);
+        let fight = fight || input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::Y);
+        let auto = auto || input.key_pressed(KeyCode::A);
         let cancel = cancel
             || (!attack.defending
-                && (is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::N)));
+                && (input.key_pressed(KeyCode::Escape) || input.key_pressed(KeyCode::N)));
         if cancel {
             self.attack_prompt = None;
         } else if fight || auto {

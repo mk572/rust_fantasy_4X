@@ -9,6 +9,7 @@
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+use crate::input::Input;
 use f4x_core::game::save::LoadError;
 use f4x_core::text::{Args, Texts};
 use f4x_data::save::{summarize_save, SaveError, SaveSummary};
@@ -190,16 +191,17 @@ impl App {
         enabled: bool,
         hover_frame: bool,
         hover_shift: bool,
+        input: &Input,
     ) -> bool {
         let r = lay.rect(rect);
-        let hover = r.contains(mouse_position().into());
+        let hover = r.contains(input.mouse_position().into());
         let tint = if enabled {
             WHITE
         } else {
             Color::new(1.0, 1.0, 1.0, 0.4)
         };
         let (shift, frame) = (
-            if hover_shift && hover && enabled && is_mouse_button_down(MouseButton::Left) {
+            if hover_shift && hover && enabled && input.mouse_down(MouseButton::Left) {
                 1.0
             } else {
                 0.0
@@ -233,11 +235,11 @@ impl App {
                 crate::frame::Align::Center,
             );
         }
-        enabled && hover && is_mouse_button_pressed(MouseButton::Left)
+        enabled && hover && input.mouse_pressed(MouseButton::Left)
     }
 
     /// Draw and run the start menu. False when the player quits.
-    pub(crate) fn main_menu_screen(&mut self) -> bool {
+    pub(crate) fn main_menu_screen(&mut self, input: &Input) -> bool {
         clear_background(BLACK);
         let lay = Layout::new();
         let has_slots = self.menu.slots.iter().any(Slot::loadable);
@@ -294,12 +296,13 @@ impl App {
                 enabled,
                 true,
                 false,
+                input,
             );
-            if (clicked || (enabled && is_key_pressed(hotkey))) && chosen.is_none() {
+            if (clicked || (enabled && input.key_pressed(hotkey))) && chosen.is_none() {
                 chosen = Some(entry);
             }
         }
-        if is_key_pressed(KeyCode::Escape) {
+        if input.key_pressed(KeyCode::Escape) {
             chosen = Some(Entry::Quit);
         }
 
@@ -336,7 +339,7 @@ impl App {
     }
 
     /// Draw and run the Load / Save screen.
-    pub(crate) fn slots_screen(&mut self) {
+    pub(crate) fn slots_screen(&mut self, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -385,7 +388,7 @@ impl App {
                 y + 1.0,
                 crate::frame::Align::Left,
             );
-            if r.contains(mouse_position().into()) && is_mouse_button_pressed(MouseButton::Left) {
+            if r.contains(input.mouse_position().into()) && input.mouse_pressed(MouseButton::Left) {
                 if self.menu.selected != Some(n) {
                     self.menu.confirm_overwrite = false;
                     self.menu.message.clear();
@@ -414,6 +417,7 @@ impl App {
             true,
             false,
             true,
+            input,
         );
         let load = self.menu_button(
             &lay,
@@ -423,6 +427,7 @@ impl App {
             can_load,
             false,
             true,
+            input,
         );
         let save = self.menu_button(
             &lay,
@@ -432,6 +437,7 @@ impl App {
             can_save,
             false,
             true,
+            input,
         );
         let settings = self.menu_button(
             &lay,
@@ -441,6 +447,7 @@ impl App {
             true,
             false,
             true,
+            input,
         );
         let ok = self.menu_button(
             &lay,
@@ -450,7 +457,8 @@ impl App {
             true,
             false,
             true,
-        ) || is_key_pressed(KeyCode::Escape);
+            input,
+        ) || input.key_pressed(KeyCode::Escape);
 
         if self.menu.confirm_overwrite {
             self.bm_text(

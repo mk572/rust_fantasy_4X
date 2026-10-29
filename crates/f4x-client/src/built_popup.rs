@@ -4,6 +4,7 @@
 //! picture and lose the plural "s" of their name. One box per building, oldest first, after the
 //! Chancellor's scroll.
 
+use crate::input::Input;
 use f4x_core::rules::BuildingId;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -52,13 +53,13 @@ impl App {
 
     /// The oldest finished building not yet announced, over the map until it is closed.
     /// Returns whether the box took the frame.
-    pub(crate) fn built_popup_frame(&mut self) -> bool {
+    pub(crate) fn built_popup_frame(&mut self, input: &Input) -> bool {
         let Some(&(city, building)) = self.built_notices.front() else {
             return false;
         };
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         let lay = Layout::new();
         let def = self.game.content().rules.buildings.get(building);
         let walls = def.id == "city_walls";
@@ -93,6 +94,7 @@ impl App {
                 let at_y = TOP + 8.0 + (CELL.1 - height) / 2.0 - top;
                 app.draw_pic(lay, "cityscap", entry, 0, at_x, at_y);
             },
+            input,
         );
         if closed {
             self.built_notices.pop_front();

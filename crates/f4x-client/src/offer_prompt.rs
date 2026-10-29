@@ -4,6 +4,7 @@
 //! and the next offer comes after it. Without the local art the pictures are missing and the
 //! text and buttons are still drawn.
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::player::offer::Offer;
 use f4x_core::text::Args;
@@ -100,7 +101,7 @@ impl App {
 
     /// The first unanswered offer of the human wizard, shown over the map until answered.
     /// Returns whether the box took the frame.
-    pub(crate) fn offer_prompt_frame(&mut self) -> bool {
+    pub(crate) fn offer_prompt_frame(&mut self, input: &Input) -> bool {
         let Some(offer) = self.game.offers(HUMAN).first().cloned() else {
             self.offer_ui.shown = None;
             return false;
@@ -118,7 +119,7 @@ impl App {
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         let lay = Layout::new();
         let affordable = self
             .game
@@ -126,12 +127,12 @@ impl App {
             .is_some_and(|p| p.treasury().gold >= offer.price());
         let (accept, reject) = match &offer {
             Offer::Item { item, price } => {
-                self.merchant_box(&lay, item, *price, "offer.merchant", affordable)
+                self.merchant_box(&lay, item, *price, "offer.merchant", affordable, input)
             }
             Offer::Resale { item, price, .. } => {
-                self.merchant_box(&lay, item, *price, "offer.resale", affordable)
+                self.merchant_box(&lay, item, *price, "offer.resale", affordable, input)
             }
-            _ => self.hire_box(&lay, &offer, affordable),
+            _ => self.hire_box(&lay, &offer, affordable, input),
         };
         if accept {
             let hero = matches!(offer, Offer::Hero { .. });
@@ -172,6 +173,7 @@ impl App {
         price: i32,
         key: &str,
         affordable: bool,
+        input: &Input,
     ) -> (bool, bool) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (x, y) = (5.0, 15.0);
@@ -189,18 +191,24 @@ impl App {
         }
         self.draw_item_card(lay, item, x + 14.0, y + 65.0);
         let (buy_label, reject_label) = (self.text("ui.buy"), self.text("ui.reject"));
-        let buy = self.red_button(lay, &buy_label, x + 252.0, y + 121.0);
-        let reject = self.red_button(lay, &reject_label, x + 252.0, y + 140.0);
-        let buy =
-            (buy || is_key_pressed(KeyCode::Y) || is_key_pressed(KeyCode::Enter)) && affordable;
-        let reject = reject || is_key_pressed(KeyCode::N) || is_key_pressed(KeyCode::Escape);
+        let buy = self.red_button(lay, &buy_label, x + 252.0, y + 121.0, input);
+        let reject = self.red_button(lay, &reject_label, x + 252.0, y + 140.0, input);
+        let buy = (buy || input.key_pressed(KeyCode::Y) || input.key_pressed(KeyCode::Enter))
+            && affordable;
+        let reject = reject || input.key_pressed(KeyCode::N) || input.key_pressed(KeyCode::Escape);
         (buy && !reject, reject)
     }
 
     /// `Hire_Hero_Popup` and `Hire_Merc_Popup`: the unit's sheet with the banner above it, the
     /// price in the title and the Hire and Reject buttons; a hero is then named in a box over
     /// the sheet. Returns (hire, reject).
-    fn hire_box(&mut self, lay: &Layout, offer: &Offer, affordable: bool) -> (bool, bool) {
+    fn hire_box(
+        &mut self,
+        lay: &Layout,
+        offer: &Offer,
+        affordable: bool,
+        input: &Input,
+    ) -> (bool, bool) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (wx, wy) = WINDOW;
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
@@ -223,7 +231,7 @@ impl App {
         if let Some(def) = def {
             let sheet = self.offer_sheet(def, level, HUMAN.0);
             debug_assert_eq!(sheet.source, Source::Offer);
-            self.draw_sheet_panel(lay, &sheet, (wx, wy), true);
+            self.draw_sheet_panel(lay, &sheet, (wx, wy), true, input);
         }
         self.draw_pic(lay, "hire", 0, 0, 0.0, 0.0);
         let price = offer.price();
@@ -252,12 +260,12 @@ impl App {
                 wy + 58.0,
                 Align::Center,
             );
-            while let Some(c) = get_char_pressed() {
+            for c in input.typed() {
                 if !c.is_control() && self.offer_ui.name.chars().count() < NAME_LEN {
                     self.offer_ui.name.push(c);
                 }
             }
-            if is_key_pressed(KeyCode::Backspace) {
+            if input.key_pressed(KeyCode::Backspace) {
                 self.offer_ui.name.pop();
             }
             let shown = format!("{}_", self.offer_ui.name);
@@ -283,13 +291,13 @@ impl App {
             },
         );
         let reject_label = self.text("ui.reject");
-        let hire = self.red_button(lay, &label, wx + 221.0, wy + 143.0);
-        let reject = self.red_button(lay, &reject_label, wx + 221.0, wy + 162.0);
+        let hire = self.red_button(lay, &label, wx + 221.0, wy + 143.0, input);
+        let reject = self.red_button(lay, &reject_label, wx + 221.0, wy + 162.0, input);
         // H hires (the original's hotkey); while naming Enter ends the name.
-        let key = is_key_pressed(KeyCode::Enter)
-            || (!naming && is_key_pressed(if free_hero { KeyCode::A } else { KeyCode::H }));
+        let key = input.key_pressed(KeyCode::Enter)
+            || (!naming && input.key_pressed(if free_hero { KeyCode::A } else { KeyCode::H }));
         let hire = (hire || key) && affordable;
-        let reject = reject || is_key_pressed(KeyCode::Escape);
+        let reject = reject || input.key_pressed(KeyCode::Escape);
         (hire && !reject, reject)
     }
 

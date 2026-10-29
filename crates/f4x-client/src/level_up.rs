@@ -4,6 +4,7 @@
 //! experience gives is higher than the one it last noted; so does this, from the level each of the
 //! human's heroes had at the last turn. A click or a key closes it.
 
+use crate::input::Input;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -85,7 +86,7 @@ impl App {
     }
 
     /// The oldest announcement not yet read. Returns whether the box took the frame.
-    pub(crate) fn level_up_frame(&mut self) -> bool {
+    pub(crate) fn level_up_frame(&mut self, input: &Input) -> bool {
         let Some(&unit) = self.level_ups.front() else {
             return false;
         };
@@ -96,7 +97,7 @@ impl App {
         let level = self.game.units().unit_xp_level(unit);
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (bx, by) = BASE;
@@ -158,10 +159,10 @@ impl App {
                 y += ROW;
             }
         }
-        let close = is_mouse_button_pressed(MouseButton::Left)
-            || is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::Space);
+        let close = input.mouse_pressed(MouseButton::Left)
+            || input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::Space);
         if close {
             self.level_ups.pop_front();
         }

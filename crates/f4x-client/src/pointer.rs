@@ -6,6 +6,7 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::input::Input;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -32,13 +33,13 @@ fn set_system_pointer(shown: bool) {
 impl App {
     /// Draw the original's pointer `image` at the mouse on top of everything, hiding the system's;
     /// the system pointer stays when the picture is missing.
-    pub(crate) fn draw_pointer_image(&mut self, image: usize) {
+    pub(crate) fn draw_pointer_image(&mut self, image: usize, input: &Input) {
         let Some(tex) = self.art.cursor(image).cloned() else {
             set_system_pointer(true);
             return;
         };
         set_system_pointer(false);
-        let at: Vec2 = mouse_position().into();
+        let at: Vec2 = input.mouse_position().into();
         draw_texture_ex(
             &tex,
             at.x,
@@ -52,15 +53,15 @@ impl App {
     }
 
     /// Draw the pointer for the frame just built. The battle screen draws its own.
-    pub(crate) fn draw_pointer(&mut self) {
+    pub(crate) fn draw_pointer(&mut self, input: &Input) {
         if matches!(self.screen, Screen::Battle) && self.game.in_battle() {
             return;
         }
-        let image = self.overland_pointer();
-        self.draw_pointer_image(image);
+        let image = self.overland_pointer(input);
+        self.draw_pointer_image(image, input);
     }
 
-    fn overland_pointer(&mut self) -> usize {
+    fn overland_pointer(&mut self, input: &Input) -> usize {
         if self.turn_pending > 0 {
             return HOURGLASS;
         }
@@ -73,7 +74,7 @@ impl App {
         if self.selection.is_empty() || self.road_plan.is_some() || self.surveyor {
             return FINGER;
         }
-        let Some(pos) = self.tile_at(mouse_position().into()) else {
+        let Some(pos) = self.tile_at(input.mouse_position().into()) else {
             return FINGER;
         };
         let key = (pos, self.selection.clone());

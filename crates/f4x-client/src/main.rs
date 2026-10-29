@@ -35,6 +35,7 @@ mod global_spell;
 mod hall_of_fame;
 mod help_popup;
 mod hotkeys;
+mod input;
 mod intro_screen;
 mod item_screen;
 mod learn_spell;
@@ -75,6 +76,7 @@ mod wizard_screen;
 
 use std::path::{Path, PathBuf};
 
+use input::Input;
 use macroquad::prelude::*;
 
 use view::App;
@@ -759,7 +761,8 @@ async fn main() {
         }
     }
     loop {
-        if !app.frame() {
+        let input = Input::read();
+        if !app.frame(&input) {
             break;
         }
         app.open_help_after_frame();
@@ -783,7 +786,7 @@ async fn main() {
                 break;
             }
         }
-        app.draw_pointer();
+        app.draw_pointer(&input);
         next_frame().await;
     }
 }

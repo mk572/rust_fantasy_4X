@@ -4,6 +4,7 @@
 //! the enchantments of the city under the mouse. A left-click opens the city (an outpost has its own screen), a right-click its production menu. U and D (or the arrows, or the wheel)
 //! scroll five rows, Esc or OK leaves. Positions are the original's.
 
+use crate::input::Input;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -113,7 +114,7 @@ impl App {
             .collect()
     }
 
-    pub(crate) fn city_list_screen(&mut self) {
+    pub(crate) fn city_list_screen(&mut self, input: &Input) {
         let rows = self.city_rows();
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -174,25 +175,25 @@ impl App {
         let mut scroll = 0i32;
         if count > ROWS {
             for x in [11.0, 299.0] {
-                if self.army_button(&lay, 1, x, 26.0, can_up) {
+                if self.army_button(&lay, 1, x, 26.0, can_up, input) {
                     scroll -= 1;
                 }
-                if self.army_button(&lay, 2, x, 139.0, can_down) {
+                if self.army_button(&lay, 2, x, 139.0, can_down, input) {
                     scroll += 1;
                 }
             }
         }
-        if is_key_pressed(KeyCode::U) {
+        if input.key_pressed(KeyCode::U) {
             scroll -= 1;
         }
-        if is_key_pressed(KeyCode::D) {
+        if input.key_pressed(KeyCode::D) {
             scroll += 1;
         }
-        scroll -= mouse_wheel().1.signum() as i32;
+        scroll -= input.mouse_wheel().1.signum() as i32;
         ui.first = scrolled(ui.first, scroll.signum(), count);
 
         // The rows.
-        let mouse: Vec2 = mouse_position().into();
+        let mouse: Vec2 = input.mouse_position().into();
         let shown = count.saturating_sub(ui.first).min(ROWS);
         ui.scanned = ui.scanned.min(shown.saturating_sub(1));
         let (mut left, mut right) = (None, None);
@@ -201,10 +202,10 @@ impl App {
             let cell = lay.rect((30.0, y, 260.0, 9.0));
             if cell.contains(mouse) {
                 ui.scanned = i;
-                if is_mouse_button_pressed(MouseButton::Left) {
+                if input.mouse_pressed(MouseButton::Left) {
                     left = Some(ui.first + i);
                 }
-                if is_mouse_button_pressed(MouseButton::Right) {
+                if input.mouse_pressed(MouseButton::Right) {
                     right = Some(ui.first + i);
                 }
             }
@@ -283,9 +284,9 @@ impl App {
             self.draw_reduced_map(&lay, at, MAP);
         }
 
-        let leave = self.city_list_ok(&lay)
-            || is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::O);
+        let leave = self.city_list_ok(&lay, input)
+            || input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::O);
         self.city_list_ui = ui;
         if leave {
             self.screen = Screen::Map;
@@ -297,15 +298,15 @@ impl App {
     }
 
     /// The OK button (`reload.lbx` 22, two frames); true when clicked.
-    fn city_list_ok(&mut self, lay: &Layout) -> bool {
+    fn city_list_ok(&mut self, lay: &Layout, input: &Input) -> bool {
         let Some(tex) = self.art.picture("reload", 22, 0).cloned() else {
             return false;
         };
         let r = lay.rect((239.0, 182.0, tex.width(), tex.height()));
-        let hover = r.contains(mouse_position().into());
-        let frame = usize::from(hover && is_mouse_button_down(MouseButton::Left));
+        let hover = r.contains(input.mouse_position().into());
+        let frame = usize::from(hover && input.mouse_down(MouseButton::Left));
         self.draw_pic(lay, "reload", 22, frame, 239.0, 182.0);
-        hover && is_mouse_button_pressed(MouseButton::Left)
+        hover && input.mouse_pressed(MouseButton::Left)
     }
 
     /// Go to a city: its screen (an outpost's for an outpost), with the production menu open

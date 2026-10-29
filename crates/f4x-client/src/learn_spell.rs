@@ -3,6 +3,7 @@
 //! decoded out of glowing text under the sparkle (`Role::Sparkle`). With Spell Animations off the
 //! original shows a box over the map instead: "You have mastered the spell of X".
 
+use crate::input::Input;
 use f4x_core::rules::SpellId;
 use f4x_core::text::Args;
 use f4x_data::spell_art::Role;
@@ -41,11 +42,11 @@ pub(crate) struct LearnAnim {
     place: Option<(usize, usize)>,
 }
 
-fn any_input() -> bool {
-    is_mouse_button_pressed(MouseButton::Left)
-        || is_key_pressed(KeyCode::Enter)
-        || is_key_pressed(KeyCode::Escape)
-        || is_key_pressed(KeyCode::Space)
+fn any_input(input: &Input) -> bool {
+    input.mouse_pressed(MouseButton::Left)
+        || input.key_pressed(KeyCode::Enter)
+        || input.key_pressed(KeyCode::Escape)
+        || input.key_pressed(KeyCode::Space)
 }
 
 impl App {
@@ -81,12 +82,12 @@ impl App {
 
     /// The oldest spell learned and not yet announced, over the whole screen until it is done.
     /// Returns whether it took the frame.
-    pub(crate) fn learned_notice(&mut self) -> bool {
+    pub(crate) fn learned_notice(&mut self, input: &Input) -> bool {
         let Some(&spell) = self.big_ui.learned.front() else {
             return false;
         };
         if !self.prefs.get(Pref::SpellAnimations) {
-            return self.learned_box(spell);
+            return self.learned_box(spell, input);
         }
         let mut anim = match self.big_ui.learn.clone() {
             Some(a) if a.spell == spell => a,
@@ -94,7 +95,7 @@ impl App {
         };
         let lay = Layout::new();
         let t = get_time() - anim.started;
-        let pressed = any_input();
+        let pressed = any_input(input);
         if t < anim.lab_end {
             if pressed {
                 anim.lab_end = t;
@@ -198,16 +199,23 @@ impl App {
     }
 
     /// With animations off: "You have mastered the spell of X" in a box over the map.
-    fn learned_box(&mut self, spell: SpellId) -> bool {
+    fn learned_box(&mut self, spell: SpellId, input: &Input) -> bool {
         let name = self.game.content().rules.spells.get(spell).name.clone();
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         let lay = Layout::new();
         let text = self.text_with("spell.mastered", &Args::new().text("spell", &name));
-        let closed = self.notify2_box(&lay, 40.0, GREEN, &text, |app, lay, x| {
-            app.draw_shared_pic(lay, &Role::Learned, 0, x, 40.0 + 9.0);
-        });
+        let closed = self.notify2_box(
+            &lay,
+            40.0,
+            GREEN,
+            &text,
+            |app, lay, x| {
+                app.draw_shared_pic(lay, &Role::Learned, 0, x, 40.0 + 9.0);
+            },
+            input,
+        );
         if closed {
             self.big_ui.learned.pop_front();
         }

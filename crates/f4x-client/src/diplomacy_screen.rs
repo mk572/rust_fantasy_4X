@@ -8,6 +8,7 @@
 //! A proposal is put to the core and the wizard answers at once (`f4x_ai::answer_proposals`),
 //! as it does on this screen in the original.
 
+use crate::input::Input;
 use f4x_core::diplomacy::{relation_level, ProposalKind, Stage, Treaty};
 use f4x_core::game::{Command, Event};
 use f4x_core::player::PlayerId;
@@ -826,7 +827,7 @@ impl App {
         self.diplo_ui.opened = get_time() - 10.0;
     }
 
-    pub(crate) fn diplomacy_screen(&mut self) {
+    pub(crate) fn diplomacy_screen(&mut self, input: &Input) {
         let with = self.diplo_ui.with;
         if !self.game.have_met(HUMAN, with) {
             self.screen = Screen::Magic;
@@ -905,12 +906,12 @@ impl App {
             y += line_height;
         }
 
-        let mouse = mouse_position();
-        let click = is_mouse_button_pressed(MouseButton::Left);
+        let mouse = input.mouse_position();
+        let click = input.mouse_pressed(MouseButton::Left);
         let mut chosen: Option<Act> = None;
         if rows.is_empty() {
             // A message waits to be read.
-            if click || is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Enter) {
+            if click || input.key_pressed(KeyCode::Space) || input.key_pressed(KeyCode::Enter) {
                 if self.diplo_ui.menu == Menu::Greeting {
                     if self.audience_refused(with) {
                         let salt = self.game.turn as usize;
@@ -974,7 +975,7 @@ impl App {
                 }
             }
         }
-        if is_key_pressed(KeyCode::Escape) {
+        if input.key_pressed(KeyCode::Escape) {
             chosen = Some(match self.diplo_ui.menu {
                 Menu::Main | Menu::Greeting => Act::Leave,
                 Menu::Reply if self.diplo_ui.leave_after => Act::Leave,

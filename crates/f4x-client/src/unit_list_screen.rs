@@ -4,6 +4,7 @@
 //! Monsters" for the neutral ones) and the unit's melee, range, armour, hits and moves. It is
 //! read only: a click or Escape closes it.
 
+use crate::input::Input;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -61,19 +62,19 @@ impl App {
     }
 
     /// One frame of the window over the map. True while it is up.
-    pub(crate) fn unit_list_frame(&mut self) -> bool {
+    pub(crate) fn unit_list_frame(&mut self, input: &Input) -> bool {
         if self.unit_list.is_empty() {
             return false;
         }
         self.unit_list
             .retain(|&u| self.game.units().unit_position(u).is_some());
-        let leave = is_key_pressed(KeyCode::Escape)
-            || is_mouse_button_pressed(MouseButton::Left)
-            || is_mouse_button_pressed(MouseButton::Right)
+        let leave = input.key_pressed(KeyCode::Escape)
+            || input.mouse_pressed(MouseButton::Left)
+            || input.mouse_pressed(MouseButton::Right)
             || self.unit_list.is_empty();
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         self.draw_unit_list();
         if leave {
             self.unit_list.clear();

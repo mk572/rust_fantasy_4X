@@ -30,7 +30,7 @@ impl Bolt {
         match self {
             Bolt::Fire => ((-16.0, -20.0), (110.0, -66.0), (-10.0, 6.0)),
             Bolt::Fireball => ((-14.0, -21.0), (110.0, -66.0), (-10.0, 6.0)),
-            // Fire Bolt's picture mirrored: it comes in from the top left.
+            // The original's own picture (cmbtfx 11): it comes in from the top left.
             Bolt::Ice => ((-12.0, -20.0), (-110.0, -66.0), (10.0, 6.0)),
             Bolt::Doom => ((-14.0, -25.0), (0.0, -72.0), (0.0, 6.0)),
         }

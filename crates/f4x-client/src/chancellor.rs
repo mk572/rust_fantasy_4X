@@ -4,6 +4,7 @@
 //! Escape, Enter or a click rolls it up; U, D, the arrows or the wheel scroll a long one.
 //! The "End of Turn Summary" switch of the Settings page turns it off.
 
+use crate::input::Input;
 use f4x_core::game::{Event, LossCause};
 use f4x_core::rules::SpellTarget;
 use f4x_core::text::Args;
@@ -274,13 +275,13 @@ impl App {
     }
 
     /// Draw the scroll over the map and handle its keys; true while it is up.
-    pub(crate) fn chancellor_frame(&mut self) -> bool {
+    pub(crate) fn chancellor_frame(&mut self, input: &Input) -> bool {
         let Some(mut scroll) = self.chancellor.take() else {
             return false;
         };
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
 
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -343,9 +344,9 @@ impl App {
         }
 
         let max = scroll.max_scroll();
-        let down = is_key_down(KeyCode::D) || is_key_down(KeyCode::Down);
-        let up = is_key_down(KeyCode::U) || is_key_down(KeyCode::Up);
-        let wheel = match mouse_wheel().1 {
+        let down = input.key_down(KeyCode::D) || input.key_down(KeyCode::Down);
+        let up = input.key_down(KeyCode::U) || input.key_down(KeyCode::Up);
+        let wheel = match input.mouse_wheel().1 {
             0.0 => 0.0,
             w => w.signum(),
         };
@@ -353,11 +354,11 @@ impl App {
             + (f32::from(down) - f32::from(up)) * 60.0 * get_frame_time()
             - wheel * 8.0)
             .clamp(0.0, max);
-        let leave = is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::KpEnter)
-            || is_mouse_button_pressed(MouseButton::Left)
-            || is_mouse_button_pressed(MouseButton::Right);
+        let leave = input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::KpEnter)
+            || input.mouse_pressed(MouseButton::Left)
+            || input.mouse_pressed(MouseButton::Right);
         if !leave {
             self.chancellor = Some(scroll);
         }

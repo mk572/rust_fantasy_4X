@@ -6,6 +6,7 @@
 //! resource panels and the Next Turn button. The original pictures come from the local art
 //! set; without it the same layout is drawn in flat colours.
 
+use crate::input::Input;
 use f4x_core::map::Position;
 use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
@@ -167,12 +168,12 @@ impl App {
 
     /// The frame, menu, side column and everything drawn over the map. Returns what the
     /// player clicked this frame.
-    pub(crate) fn draw_frame(&mut self) -> FrameClick {
+    pub(crate) fn draw_frame(&mut self, input: &Input) -> FrameClick {
         let lay = Layout::new();
         let mut click = FrameClick::default();
         let s = lay.scale;
-        let mouse: Vec2 = mouse_position().into();
-        let pressed = is_mouse_button_pressed(MouseButton::Left);
+        let mouse: Vec2 = input.mouse_position().into();
+        let pressed = input.mouse_pressed(MouseButton::Left);
 
         // The frame itself; flat panels when the art is missing.
         if self.draw_pic(&lay, "main", 0, 0, 0.0, 0.0).is_none() {
@@ -193,7 +194,7 @@ impl App {
                 })
                 .unwrap_or(false)
             };
-            let frame = usize::from(hover && is_mouse_button_down(MouseButton::Left));
+            let frame = usize::from(hover && input.mouse_down(MouseButton::Left));
             if self
                 .draw_pic(&lay, "main", entry, frame, x, spot::MENU_Y)
                 .is_none()
@@ -238,12 +239,12 @@ impl App {
 
         self.draw_world_event(&lay);
         if self.selection.is_empty() {
-            self.draw_summary(&lay, &mut click);
+            self.draw_summary(&lay, &mut click, input);
         } else {
-            self.draw_unit_window(&lay, &mut click);
+            self.draw_unit_window(&lay, &mut click, input);
         }
 
-        self.draw_minimap(&lay);
+        self.draw_minimap(&lay, input);
         click
     }
 
@@ -302,11 +303,11 @@ impl App {
 
     /// The gold, food and mana panels, the locked action buttons and the Next Turn button: the
     /// column while no stack is selected.
-    fn draw_summary(&mut self, lay: &Layout, click: &mut FrameClick) {
+    fn draw_summary(&mut self, lay: &Layout, click: &mut FrameClick, input: &Input) {
         let s = lay.scale;
         let view = (lay.origin.x, lay.origin.y, s);
-        let mouse: Vec2 = mouse_position().into();
-        let pressed = is_mouse_button_pressed(MouseButton::Left);
+        let mouse: Vec2 = input.mouse_position().into();
+        let pressed = input.mouse_pressed(MouseButton::Left);
         // Resource panels with this turn's income in each.
         let t = self.game.budget(HUMAN);
         let income = self.game.income(HUMAN);
@@ -346,7 +347,7 @@ impl App {
                 let p = lay.point(bx, by);
                 Rect::new(p.x, p.y, t.width() * s, t.height() * s).contains(mouse)
             });
-            let held = hover && is_mouse_button_down(MouseButton::Left);
+            let held = hover && input.mouse_down(MouseButton::Left);
             let push = if held { 2.0 } else { 0.0 };
             self.draw_pic(lay, "main", 58, 0, bx + push, by + push);
             click.next_turn = pressed && hover;
@@ -368,7 +369,7 @@ impl App {
     /// one pixel for each of the 58 by 30 squares round the middle of the map window, black where
     /// unexplored, in the colour of the terrain type, the cities in their banner's colour, and
     /// ticks at the corners of the box that shows the map window. A click centres the map there.
-    fn draw_minimap(&mut self, lay: &Layout) {
+    fn draw_minimap(&mut self, lay: &Layout, input: &Input) {
         const COLS: i32 = 58;
         const ROWS: i32 = 30;
         let r = lay.rect(spot::MINIMAP);
@@ -474,8 +475,8 @@ impl App {
             }
         }
         // Clicking the minimap centres the map there.
-        let mouse: Vec2 = mouse_position().into();
-        if is_mouse_button_pressed(MouseButton::Left) && r.contains(mouse) {
+        let mouse: Vec2 = input.mouse_position().into();
+        if input.mouse_pressed(MouseButton::Left) && r.contains(mouse) {
             let (i, j) = (
                 ((mouse.x - r.x) / s).floor() as i32,
                 ((mouse.y - r.y) / s).floor() as i32,

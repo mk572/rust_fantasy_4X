@@ -1,13 +1,14 @@
 //! Small immediate-mode widgets and shared colours.
 
+use crate::input::Input;
 use macroquad::prelude::*;
 
 pub const PANEL: Color = Color::new(0.08, 0.07, 0.06, 0.92);
 pub const GOLD: Color = Color::new(0.95, 0.8, 0.35, 1.0);
 
 /// A clickable button; returns true on the frame it is clicked.
-pub fn button(rect: Rect, label: &str, enabled: bool) -> bool {
-    let hover = rect.contains(mouse_position().into());
+pub fn button(rect: Rect, label: &str, enabled: bool, input: &Input) -> bool {
+    let hover = rect.contains(input.mouse_position().into());
     let base = if enabled {
         if hover {
             Color::new(0.45, 0.35, 0.2, 1.0)
@@ -36,7 +37,7 @@ pub fn button(rect: Rect, label: &str, enabled: bool) -> bool {
         size,
         color,
     );
-    enabled && hover && is_mouse_button_pressed(MouseButton::Left)
+    enabled && hover && input.mouse_pressed(MouseButton::Left)
 }
 
 /// A horizontal progress bar.

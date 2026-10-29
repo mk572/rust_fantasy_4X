@@ -6,6 +6,7 @@
 //! are the core's (`item::crafting`: what may be chosen, what it costs, `Command::CraftItem`);
 //! this file holds the choices. Positions are the original's.
 
+use crate::input::Input;
 use f4x_core::game::{Command, Event};
 use f4x_core::item::crafting::{
     available_powers, check, cost, made_name, Craft, ItemDesign, MAX_CHARGES, MAX_POWERS,
@@ -241,7 +242,7 @@ impl App {
         made_name(&ui.design, &self.game.content().rules).compose(self.game.content())
     }
 
-    pub(crate) fn craft_screen(&mut self) {
+    pub(crate) fn craft_screen(&mut self, input: &Input) {
         let Some(mut ui) = self.craft_ui.take() else {
             self.screen = Screen::Map;
             return;
@@ -250,9 +251,9 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         clear_background(BLACK);
         self.draw_pic(&lay, "spellscr", 13, 0, 0.0, 0.0);
-        let mouse: Vec2 = mouse_position().into();
+        let mouse: Vec2 = input.mouse_position().into();
         let busy = ui.spells.is_some() || ui.give_up;
-        let click = is_mouse_button_pressed(MouseButton::Left) && !busy;
+        let click = input.mouse_pressed(MouseButton::Left) && !busy;
         let allowed = self.craft_allowed(ui.craft, ui.design.kind);
 
         // The ten kinds.
@@ -260,7 +261,7 @@ impl App {
             let (x, y) = (156.0 + 33.0 * (i % 5) as f32, 3.0 + 15.0 * (i / 5) as f32);
             let on = kind == ui.design.kind;
             let entry = if on { 25 + i } else { 14 + i };
-            let pressed = !busy && is_mouse_button_down(MouseButton::Left);
+            let pressed = !busy && input.mouse_down(MouseButton::Left);
             let rect = self.draw_pic(&lay, "spellscr", entry, usize::from(pressed), x, y);
             if click && rect.is_some_and(|r| r.contains(mouse)) {
                 ui.set_kind(kind, &self.craft_allowed(ui.craft, kind));
@@ -279,7 +280,7 @@ impl App {
 
         // The name box.
         let name_box = lay.rect((30.0, 13.0, 118.0, 10.0));
-        if is_mouse_button_pressed(MouseButton::Left) && !busy {
+        if input.mouse_pressed(MouseButton::Left) && !busy {
             let inside = name_box.contains(mouse);
             if inside && !ui.typing {
                 ui.design.name = self.craft_name(&ui);
@@ -289,15 +290,15 @@ impl App {
             }
         }
         if ui.typing && !busy {
-            while let Some(c) = get_char_pressed() {
+            for c in input.typed() {
                 if !c.is_control() && ui.design.name.chars().count() < NAME_LEN {
                     ui.design.name.push(c);
                 }
             }
-            if is_key_pressed(KeyCode::Backspace) {
+            if input.key_pressed(KeyCode::Backspace) {
                 ui.design.name.pop();
             }
-            if is_key_pressed(KeyCode::Enter) {
+            if input.key_pressed(KeyCode::Enter) {
                 self.leave_name(&mut ui);
             }
         }
@@ -415,7 +416,7 @@ impl App {
         let ok = !busy
             && !ui.typing
             && ((click && ok_rect.is_some_and(|r| r.contains(mouse)))
-                || is_key_pressed(KeyCode::Escape));
+                || input.key_pressed(KeyCode::Escape));
         if ok {
             if ui.used() == 0 {
                 ui.give_up = true;
@@ -425,11 +426,11 @@ impl App {
         }
 
         if ui.spells.is_some() {
-            self.craft_spell_list(&lay, &mut ui);
+            self.craft_spell_list(&lay, &mut ui, input);
         }
         if ui.give_up {
             let question = self.text("craft.give_up");
-            match self.confirm_box(&question) {
+            match self.confirm_box(&question, input) {
                 Some(true) => {
                     self.screen = Screen::Map;
                     return;
@@ -488,12 +489,12 @@ impl App {
     }
 
     /// The list of spells for Spell Charges, over the screen (`Item_Make_Screen_Spellbook_Popup`).
-    fn craft_spell_list(&mut self, lay: &Layout, ui: &mut CraftUi) {
+    fn craft_spell_list(&mut self, lay: &Layout, ui: &mut CraftUi, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (bx, by) = (28.0, 12.0);
         let spells = self.charge_spells();
-        let mouse: Vec2 = mouse_position().into();
-        let click = is_mouse_button_pressed(MouseButton::Left);
+        let mouse: Vec2 = input.mouse_position().into();
+        let click = input.mouse_pressed(MouseButton::Left);
         self.draw_pic(lay, "spells", 0, 0, bx, by);
         let title = self.text("craft.choose_spell");
         self.bm_text(
@@ -582,7 +583,7 @@ impl App {
         }
         let leave =
             click && pick.chosen.is_none() && !lay.rect((bx, by, 290.0, 170.0)).contains(mouse)
-                || is_key_pressed(KeyCode::Escape);
+                || input.key_pressed(KeyCode::Escape);
         if let Some(charges) = done {
             ui.design.charges = Some(charges);
             ui.spells = None;

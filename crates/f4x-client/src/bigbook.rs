@@ -5,6 +5,7 @@
 
 use std::collections::VecDeque;
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::rules::SpellId;
 use f4x_core::text::Args;
@@ -170,34 +171,35 @@ impl App {
         }
     }
 
-    pub(crate) fn apprentice_screen(&mut self) {
+    pub(crate) fn apprentice_screen(&mut self, input: &Input) {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        if self.book_turn.is_some() && !self.book_turn_frame() {
+        if self.book_turn.is_some() && !self.book_turn_frame(input) {
             return;
         }
         let pages = self.big_ui.pages.len();
         let left = self.big_ui.left;
-        let clicked = is_mouse_button_pressed(MouseButton::Left);
+        let clicked = input.mouse_pressed(MouseButton::Left);
         let in_rect = |x: f32, y: f32, w: f32, h: f32| {
-            lay.rect((x, y, w, h)).contains(mouse_position().into())
+            lay.rect((x, y, w, h))
+                .contains(input.mouse_position().into())
         };
-        let (_, wheel) = mouse_wheel();
+        let (_, wheel) = input.mouse_wheel();
         let forward = (clicked && in_rect(290.0, 7.0, 16.0, 16.0))
-            || is_key_pressed(KeyCode::Right)
+            || input.key_pressed(KeyCode::Right)
             || wheel < 0.0;
         let back = (clicked && in_rect(15.0, 7.0, 16.0, 16.0))
-            || is_key_pressed(KeyCode::Left)
+            || input.key_pressed(KeyCode::Left)
             || wheel > 0.0;
         if forward && left + 2 < pages {
-            self.turn_book_page(true, true);
+            self.turn_book_page(true, true, input);
             return;
         } else if back && left >= 2 {
-            self.turn_book_page(true, false);
+            self.turn_book_page(true, false, input);
             return;
-        } else if is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::F3)
-            || is_mouse_button_pressed(MouseButton::Right)
+        } else if input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::F3)
+            || input.mouse_pressed(MouseButton::Right)
             || (clicked && in_rect(0.0, 25.0, 320.0, 175.0))
         {
             self.screen = Screen::Map;
@@ -207,10 +209,10 @@ impl App {
         self.draw_big_book(&lay, view, None);
     }
 
-    pub(crate) fn research_screen(&mut self) {
+    pub(crate) fn research_screen(&mut self, input: &Input) {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let clicked = is_mouse_button_pressed(MouseButton::Left);
+        let clicked = input.mouse_pressed(MouseButton::Left);
         if clicked {
             for slot in 0..8usize {
                 let (x, y) = (
@@ -219,7 +221,7 @@ impl App {
                 );
                 if lay
                     .rect((x, y, 110.0, 33.0))
-                    .contains(mouse_position().into())
+                    .contains(input.mouse_position().into())
                 {
                     let Some(spell) = self
                         .game
@@ -453,7 +455,7 @@ impl App {
     /// "<wizard> has started casting the Spell of Mastery" over a black screen, as the original
     /// does (`Cast_Spell_Of_Mastery`; its swirling animation is local art not drawn here yet,
     /// task 287); any key or click goes on.
-    pub(crate) fn mastery_notice_frame(&mut self) -> bool {
+    pub(crate) fn mastery_notice_frame(&mut self, input: &Input) -> bool {
         let Some(&caster) = self.mastery_notice.front() else {
             return false;
         };
@@ -480,10 +482,10 @@ impl App {
             110.0,
             Align::Center,
         );
-        if is_mouse_button_pressed(MouseButton::Left)
-            || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Space)
+        if input.mouse_pressed(MouseButton::Left)
+            || input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Space)
         {
             self.mastery_notice.pop_front();
         }

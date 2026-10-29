@@ -4,6 +4,7 @@
 //! to sell back the ... for ... gold?" (`CityScr.c`, help topic 303); a building another one
 //! needs is refused with a notice. Yes sends `Command::SellBuilding`.
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::rules::BuildingId;
 use f4x_core::text::Args;
@@ -134,7 +135,7 @@ impl App {
     }
 
     /// Draw the box and take the answer.
-    pub(crate) fn draw_sell_prompt(&mut self) {
+    pub(crate) fn draw_sell_prompt(&mut self, input: &Input) {
         let Some(prompt) = self.sell_prompt.take() else {
             return;
         };
@@ -161,18 +162,20 @@ impl App {
             }
         };
         match &prompt {
-            SellPrompt::Ask { city, building, .. } => match self.confirmation_box(&lay, &text) {
-                Some(true) => {
-                    let events = self.game.apply(Command::SellBuilding {
-                        city: *city,
-                        building: *building,
-                    });
-                    self.note(events);
+            SellPrompt::Ask { city, building, .. } => {
+                match self.confirmation_box(&lay, &text, input) {
+                    Some(true) => {
+                        let events = self.game.apply(Command::SellBuilding {
+                            city: *city,
+                            building: *building,
+                        });
+                        self.note(events);
+                    }
+                    Some(false) => {}
+                    None => self.sell_prompt = Some(prompt),
                 }
-                Some(false) => {}
-                None => self.sell_prompt = Some(prompt),
-            },
-            SellPrompt::Buy { city, .. } => match self.confirmation_box(&lay, &text) {
+            }
+            SellPrompt::Buy { city, .. } => match self.confirmation_box(&lay, &text, input) {
                 Some(true) => {
                     let events = self.game.apply(Command::BuyProduction { city: *city });
                     self.note(events);
@@ -180,20 +183,22 @@ impl App {
                 Some(false) => {}
                 None => self.sell_prompt = Some(prompt),
             },
-            SellPrompt::TurnOff { city, spell, .. } => match self.confirmation_box(&lay, &text) {
-                Some(true) => {
-                    let events = self.game.apply(Command::TurnOffCitySpell {
-                        player: crate::view::HUMAN,
-                        city: *city,
-                        spell: *spell,
-                    });
-                    self.note(events);
+            SellPrompt::TurnOff { city, spell, .. } => {
+                match self.confirmation_box(&lay, &text, input) {
+                    Some(true) => {
+                        let events = self.game.apply(Command::TurnOffCitySpell {
+                            player: crate::view::HUMAN,
+                            city: *city,
+                            spell: *spell,
+                        });
+                        self.note(events);
+                    }
+                    Some(false) => {}
+                    None => self.sell_prompt = Some(prompt),
                 }
-                Some(false) => {}
-                None => self.sell_prompt = Some(prompt),
-            },
+            }
             SellPrompt::Refused(_) => {
-                if !self.warning_box(&lay, &text) {
+                if !self.warning_box(&lay, &text, input) {
                     self.sell_prompt = Some(prompt);
                 }
             }
@@ -203,8 +208,13 @@ impl App {
     /// `Confirmation_Box`: the text, a Yes and a No (`resource.lbx` 0, 1, 3 and 4), 166 wide
     /// in the box font, the box in the middle of the screen. A right-click counts as a left
     /// one, a click elsewhere or Esc as No. `Some` once answered.
-    pub(crate) fn confirmation_box(&mut self, lay: &Layout, text: &str) -> Option<bool> {
-        self.question_box(lay, text, &YES_NO)
+    pub(crate) fn confirmation_box(
+        &mut self,
+        lay: &Layout,
+        text: &str,
+        input: &Input,
+    ) -> Option<bool> {
+        self.question_box(lay, text, &YES_NO, input)
     }
 
     /// The box of `confirmation_box` with other buttons: the right one answers `Some(true)`,
@@ -214,6 +224,7 @@ impl App {
         lay: &Layout,
         text: &str,
         buttons: &Buttons,
+        input: &Input,
     ) -> Option<bool> {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let line = self.art.text_height(4) + 2.0;
@@ -227,8 +238,8 @@ impl App {
         self.draw_pic_rows(lay, "resource", 0, x, y, y, y + paragraph + 12.0);
         self.draw_pic(lay, "resource", 1, 0, x, y + paragraph + 10.0);
         self.draw_box_text(view, &lines, x + 9.0, y + 9.0, line);
-        let mouse = Vec2::from(mouse_position());
-        let down = is_mouse_button_down(MouseButton::Left);
+        let mouse = Vec2::from(input.mouse_position());
+        let down = input.mouse_down(MouseButton::Left);
         let right_at = (x + 101.0, y + paragraph + 15.0);
         let left_at = (x + 18.0, y + paragraph + 15.0);
         let right = lay.rect((right_at.0, right_at.1, 33.0, 17.0));
@@ -251,13 +262,13 @@ impl App {
             left_at.0,
             left_at.1,
         );
-        let clicked = is_mouse_button_pressed(MouseButton::Left)
-            || is_mouse_button_pressed(MouseButton::Right);
-        if (clicked && right.contains(mouse)) || is_key_pressed(buttons.right_key) {
+        let clicked =
+            input.mouse_pressed(MouseButton::Left) || input.mouse_pressed(MouseButton::Right);
+        if (clicked && right.contains(mouse)) || input.key_pressed(buttons.right_key) {
             Some(true)
-        } else if (clicked && left.contains(mouse)) || is_key_pressed(buttons.left_key) {
+        } else if (clicked && left.contains(mouse)) || input.key_pressed(buttons.left_key) {
             Some(false)
-        } else if is_key_pressed(KeyCode::Escape) || (clicked && buttons.elsewhere) {
+        } else if input.key_pressed(KeyCode::Escape) || (clicked && buttons.elsewhere) {
             Some(buttons.escape)
         } else {
             None
@@ -266,7 +277,7 @@ impl App {
 
     /// `Warn0`: the red box (`resource.lbx` 38 and 39) with the text centred; any click or key
     /// closes it. Returns whether it was closed.
-    pub(crate) fn warning_box(&mut self, lay: &Layout, text: &str) -> bool {
+    pub(crate) fn warning_box(&mut self, lay: &Layout, text: &str, input: &Input) -> bool {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let line = self.art.text_height(4) + 2.0;
         let lines = self.bm_wrap(4, text, 166.0);
@@ -282,10 +293,10 @@ impl App {
             self.bm_text(view, 4, shadow, l, cx + 1.0, at + 1.0, Align::Center);
             self.bm_text(view, 4, light, l, cx, at, Align::Center);
         }
-        is_mouse_button_pressed(MouseButton::Left)
-            || is_mouse_button_pressed(MouseButton::Right)
-            || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Space)
+        input.mouse_pressed(MouseButton::Left)
+            || input.mouse_pressed(MouseButton::Right)
+            || input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Space)
     }
 }

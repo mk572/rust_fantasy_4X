@@ -4,6 +4,7 @@
 //! F9 shows your own; a right-click on a rival's gem on the magic screen shows theirs. Esc or a
 //! click leaves. Positions are the original's, measured from the panel's top-left.
 
+use crate::input::Input;
 use f4x_core::diplomacy::relation_key;
 use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
 use f4x_core::text::Args;
@@ -113,11 +114,11 @@ impl App {
         self.screen = Screen::Wizard;
     }
 
-    pub(crate) fn wizard_screen(&mut self) {
+    pub(crate) fn wizard_screen(&mut self, input: &Input) {
         let ui = self.wizard_ui;
-        if is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Enter)
-            || is_mouse_button_pressed(MouseButton::Left)
+        if input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Enter)
+            || input.mouse_pressed(MouseButton::Left)
         {
             self.screen = ui.back;
             return;

@@ -5,6 +5,7 @@
 
 use std::path::Path;
 
+use crate::input::Input;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -102,7 +103,7 @@ impl App {
         self.screen = Screen::HallOfFame;
     }
 
-    pub(crate) fn hall_of_fame_screen(&mut self) {
+    pub(crate) fn hall_of_fame_screen(&mut self, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -142,9 +143,9 @@ impl App {
             self.bm_text(view, 2, ink, &share, x + 198.0, y, Align::Right);
             y += 13.0;
         }
-        if is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Enter)
-            || is_mouse_button_pressed(MouseButton::Left)
+        if input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Enter)
+            || input.mouse_pressed(MouseButton::Left)
         {
             self.open_main_menu();
         }

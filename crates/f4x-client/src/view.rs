@@ -11,6 +11,7 @@ use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::text::Args;
 
+use crate::input::Input;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::wizard::WizardBuild;
 use macroquad::prelude::*;
@@ -1359,9 +1360,9 @@ impl App {
     }
 
     /// Handle input and draw one frame. Returns false when the player quits.
-    pub fn frame(&mut self) -> bool {
-        self.update_audio();
-        if self.help_popup_frame() {
+    pub fn frame(&mut self, input: &Input) -> bool {
+        self.update_audio(input);
+        if self.help_popup_frame(input) {
             return true;
         }
         if self.turn_pending > 0 {
@@ -1382,7 +1383,7 @@ impl App {
         } else {
             self.battle_ui.ready = false;
         }
-        if self.hotkeys.pressed("console") {
+        if self.hotkeys.pressed("console", input) {
             self.toggle_console();
         }
         // The result scroll waits until the last blow of the battle has been played.
@@ -1391,7 +1392,7 @@ impl App {
             && !self.game.in_battle()
             && !still_playing
             && !matches!(self.screen, Screen::Console)
-            && self.combat_results_frame()
+            && self.combat_results_frame(input)
         {
             return true;
         }
@@ -1399,32 +1400,32 @@ impl App {
             && !self.game.in_battle()
             && !matches!(self.screen, Screen::Console)
         {
-            return self.modal_frame();
+            return self.modal_frame(input);
         }
         if self.upkeep_prompt.is_some()
             && !self.game.in_battle()
             && !matches!(self.screen, Screen::Console)
-            && self.upkeep_prompt_frame()
+            && self.upkeep_prompt_frame(input)
         {
             return true;
         }
-        if self.proposal_waits() && self.proposal_frame() {
+        if self.proposal_waits() && self.proposal_frame(input) {
             return true;
         }
-        if self.site_notice_frame() {
+        if self.site_notice_frame(input) {
             return true;
         }
         if !self.unit_list.is_empty()
             && !self.game.in_battle()
             && matches!(self.screen, Screen::Map)
-            && self.unit_list_frame()
+            && self.unit_list_frame(input)
         {
             return true;
         }
         if self.capital_naming.is_some()
             && !self.game.in_battle()
             && matches!(self.screen, Screen::Map)
-            && self.capital_name_frame()
+            && self.capital_name_frame(input)
         {
             return true;
         }
@@ -1432,7 +1433,7 @@ impl App {
         if !self.mastery_notice.is_empty()
             && !self.game.in_battle()
             && matches!(self.screen, Screen::Map)
-            && self.mastery_notice_frame()
+            && self.mastery_notice_frame(input)
         {
             return true;
         }
@@ -1440,7 +1441,7 @@ impl App {
         if !self.big_ui.learned.is_empty()
             && !self.game.in_battle()
             && matches!(self.screen, Screen::Map)
-            && self.learned_notice()
+            && self.learned_notice(input)
         {
             return true;
         }
@@ -1459,7 +1460,7 @@ impl App {
         }
         if matches!(self.screen, Screen::Map)
             && !self.game.in_battle()
-            && self.attack_prompt_frame()
+            && self.attack_prompt_frame(input)
         {
             return true;
         }
@@ -1469,36 +1470,52 @@ impl App {
         {
             self.check_hero_levels();
         }
-        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.level_up_frame() {
-            return true;
-        }
-        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.event_popup_frame()
-        {
-            return true;
-        }
-        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.global_cast_frame()
-        {
-            return true;
-        }
-        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.spell_notice_frame()
-        {
-            return true;
-        }
-        // The offers made at the turn change wait over the map until they are answered.
-        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.offer_prompt_frame()
-        {
-            return true;
-        }
-        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.chancellor_frame() {
-            return true;
-        }
-        if matches!(self.screen, Screen::Map) && !self.game.in_battle() && self.built_popup_frame()
+        if matches!(self.screen, Screen::Map)
+            && !self.game.in_battle()
+            && self.level_up_frame(input)
         {
             return true;
         }
         if matches!(self.screen, Screen::Map)
             && !self.game.in_battle()
-            && (self.selection_frame() || self.vizier_ask_frame())
+            && self.event_popup_frame(input)
+        {
+            return true;
+        }
+        if matches!(self.screen, Screen::Map)
+            && !self.game.in_battle()
+            && self.global_cast_frame(input)
+        {
+            return true;
+        }
+        if matches!(self.screen, Screen::Map)
+            && !self.game.in_battle()
+            && self.spell_notice_frame(input)
+        {
+            return true;
+        }
+        // The offers made at the turn change wait over the map until they are answered.
+        if matches!(self.screen, Screen::Map)
+            && !self.game.in_battle()
+            && self.offer_prompt_frame(input)
+        {
+            return true;
+        }
+        if matches!(self.screen, Screen::Map)
+            && !self.game.in_battle()
+            && self.chancellor_frame(input)
+        {
+            return true;
+        }
+        if matches!(self.screen, Screen::Map)
+            && !self.game.in_battle()
+            && self.built_popup_frame(input)
+        {
+            return true;
+        }
+        if matches!(self.screen, Screen::Map)
+            && !self.game.in_battle()
+            && (self.selection_frame(input) || self.vizier_ask_frame(input))
         {
             return true;
         }
@@ -1517,43 +1534,44 @@ impl App {
                 self.screen = Screen::GameOver;
             }
         }
-        if !matches!(self.screen, Screen::Console | Screen::MainMenu) && self.end_scene_frame() {
+        if !matches!(self.screen, Screen::Console | Screen::MainMenu) && self.end_scene_frame(input)
+        {
             return true;
         }
-        self.watch_for_help();
+        self.watch_for_help(input);
         match self.screen {
-            Screen::GameOver => return self.game_over_screen(),
-            Screen::Console => self.console_screen(),
+            Screen::GameOver => return self.game_over_screen(input),
+            Screen::Console => self.console_screen(input),
             Screen::City(city) => {
-                self.city_screen(city);
+                self.city_screen(city, input);
             }
-            Screen::Magic => self.magic_screen(),
-            Screen::Wizard => self.wizard_screen(),
-            Screen::UnitSheet => self.unit_sheet_screen(),
-            Screen::ArmyList => self.army_screen(),
-            Screen::CityList => self.city_list_screen(),
-            Screen::Outpost(city) => self.outpost_screen(city),
-            Screen::EnemyCity(city) => self.enemy_city_screen(city),
-            Screen::HallOfFame => self.hall_of_fame_screen(),
-            Screen::Items => self.item_screen(),
-            Screen::Craft => self.craft_screen(),
-            Screen::Diplomacy => self.diplomacy_screen(),
-            Screen::Spellbook => self.spellbook_screen(),
-            Screen::Apprentice => self.apprentice_screen(),
-            Screen::Research => self.research_screen(),
-            Screen::Battle => self.battle_screen(),
-            Screen::Create => self.create_screen(),
-            Screen::Options => self.options_screen(),
-            Screen::Cartographer => self.cartographer_screen(),
-            Screen::History => self.history_screen(),
-            Screen::Astrologer => self.astrologer_screen(),
-            Screen::Settings => self.settings_screen(),
-            Screen::GameSettings => self.game_settings_screen(),
-            Screen::MainMenu => return self.main_menu_screen(),
-            Screen::Intro => self.intro_screen(),
-            Screen::Slots => self.slots_screen(),
+            Screen::Magic => self.magic_screen(input),
+            Screen::Wizard => self.wizard_screen(input),
+            Screen::UnitSheet => self.unit_sheet_screen(input),
+            Screen::ArmyList => self.army_screen(input),
+            Screen::CityList => self.city_list_screen(input),
+            Screen::Outpost(city) => self.outpost_screen(city, input),
+            Screen::EnemyCity(city) => self.enemy_city_screen(city, input),
+            Screen::HallOfFame => self.hall_of_fame_screen(input),
+            Screen::Items => self.item_screen(input),
+            Screen::Craft => self.craft_screen(input),
+            Screen::Diplomacy => self.diplomacy_screen(input),
+            Screen::Spellbook => self.spellbook_screen(input),
+            Screen::Apprentice => self.apprentice_screen(input),
+            Screen::Research => self.research_screen(input),
+            Screen::Battle => self.battle_screen(input),
+            Screen::Create => self.create_screen(input),
+            Screen::Options => self.options_screen(input),
+            Screen::Cartographer => self.cartographer_screen(input),
+            Screen::History => self.history_screen(input),
+            Screen::Astrologer => self.astrologer_screen(input),
+            Screen::Settings => self.settings_screen(input),
+            Screen::GameSettings => self.game_settings_screen(input),
+            Screen::MainMenu => return self.main_menu_screen(input),
+            Screen::Intro => self.intro_screen(input),
+            Screen::Slots => self.slots_screen(input),
             Screen::Map => {
-                if is_key_pressed(KeyCode::Escape) {
+                if input.key_pressed(KeyCode::Escape) {
                     if self.targeting.take().is_some() {
                         self.log.push(self.text("log.cast_cancelled"));
                     } else if self.road_plan.is_some() {
@@ -1564,43 +1582,44 @@ impl App {
                         self.open_slots(false);
                     }
                 }
-                self.overworld_input();
+                self.overworld_input(input);
                 clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
                 self.draw_map();
-                self.draw_bars();
-                self.road_plan_bar();
-                self.surveyor_bar();
+                self.draw_bars(input);
+                self.road_plan_bar(input);
+                self.surveyor_bar(input);
             }
         }
         true
     }
 
     /// One frame of the top modal, over the map it was asked on.
-    fn modal_frame(&mut self) -> bool {
+    fn modal_frame(&mut self, input: &Input) -> bool {
         let Some((at, modal)) = self.modals.take_top() else {
             return false;
         };
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        let none = Input::default();
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(&none);
         let left = match modal {
-            Modal::Resign => self.resign_prompt_frame(),
+            Modal::Resign => self.resign_prompt_frame(input),
             Modal::Ward {
                 spell,
                 city,
                 resolve,
-            } => self.ward_prompt_frame(spell, city, resolve),
-            Modal::NoTarget(spell) => self.no_target_frame(spell),
+            } => self.ward_prompt_frame(spell, city, resolve, input),
+            Modal::NoTarget(spell) => self.no_target_frame(spell, input),
             Modal::Resurrect {
                 spell,
                 resolve,
                 row,
-            } => self.resurrect_prompt_frame(spell, resolve, row),
+            } => self.resurrect_prompt_frame(spell, resolve, row, input),
             Modal::Global {
                 spell,
                 resolve,
                 row,
-            } => self.global_prompt_frame(spell, resolve, row),
+            } => self.global_prompt_frame(spell, resolve, row, input),
         };
         self.modals.restore(at, left);
         true
@@ -1613,6 +1632,7 @@ impl App {
         spell: f4x_core::rules::SpellId,
         city: hecs::Entity,
         resolve: bool,
+        input: &Input,
     ) -> Option<Modal> {
         const KEYS: [(KeyCode, &str); 5] = [
             (KeyCode::N, "nature"),
@@ -1630,10 +1650,10 @@ impl App {
             city,
             resolve,
         });
-        if is_key_pressed(KeyCode::Escape) || open.is_empty() {
+        if input.key_pressed(KeyCode::Escape) || open.is_empty() {
             left = None;
             self.log.push(self.text("log.cast_cancelled"));
-        } else if let Some(&(_, realm)) = open.iter().find(|(k, _)| is_key_pressed(*k)) {
+        } else if let Some(&(_, realm)) = open.iter().find(|(k, _)| input.key_pressed(*k)) {
             left = None;
             if let Some(realm) = self.game.content().rules.realms.id_of(realm) {
                 let target = f4x_core::rules::exec::Target::CityRealm(city, realm);
@@ -1692,7 +1712,7 @@ impl App {
     /// The cast has nothing to aim at: "There are no targets for X. Do you wish to continue
     /// casting it?" Yes keeps the spell (it is not paid for until a target exists), No gives it
     /// up.
-    fn no_target_frame(&mut self, spell: f4x_core::rules::SpellId) -> Option<Modal> {
+    fn no_target_frame(&mut self, spell: f4x_core::rules::SpellId, input: &Input) -> Option<Modal> {
         let casting = self.game.wizard(HUMAN).and_then(|m| m.casting());
         if casting.is_none_or(|c| c.spell != spell) {
             return None;
@@ -1700,7 +1720,7 @@ impl App {
         let lay = crate::frame::Layout::new();
         let name = self.game.content().rules.spells.get(spell).name.clone();
         let text = self.text_with("spell.no_target", &Args::new().text("spell", &name));
-        match self.confirmation_box(&lay, &text) {
+        match self.confirmation_box(&lay, &text, input) {
             Some(true) => None,
             Some(false) => {
                 let events = self.game.apply(Command::CancelCast { player: HUMAN });
@@ -1719,6 +1739,7 @@ impl App {
         spell: f4x_core::rules::SpellId,
         resolve: bool,
         row: usize,
+        input: &Input,
     ) -> Option<Modal> {
         let rows = self.game.rival_globals(HUMAN);
         let row = row.min(rows.len().saturating_sub(1));
@@ -1737,8 +1758,8 @@ impl App {
             .collect();
         let (w, h) = (screen_width(), screen_height());
         let (top, step) = (h / 2.0 - 20.0, 30.0);
-        let clicked = if is_mouse_button_pressed(MouseButton::Left) {
-            let (mx, my) = mouse_position();
+        let clicked = if input.mouse_pressed(MouseButton::Left) {
+            let (mx, my) = input.mouse_position();
             (0..lines.len()).find(|&n| {
                 let y = top + step * n as f32;
                 (w / 2.0 - 260.0..w / 2.0 + 260.0).contains(&mx)
@@ -1748,16 +1769,16 @@ impl App {
             None
         };
         let mut pick = clicked.unwrap_or(row);
-        if is_key_pressed(KeyCode::Up) {
+        if input.key_pressed(KeyCode::Up) {
             pick = pick.saturating_sub(1);
         }
-        if is_key_pressed(KeyCode::Down) {
+        if input.key_pressed(KeyCode::Down) {
             pick = (pick + 1).min(lines.len().saturating_sub(1));
         }
         let mut left = None;
-        if is_key_pressed(KeyCode::Escape) || rows.is_empty() {
+        if input.key_pressed(KeyCode::Escape) || rows.is_empty() {
             self.log.push(self.text("log.cast_cancelled"));
-        } else if clicked.is_some() || is_key_pressed(KeyCode::Enter) {
+        } else if clicked.is_some() || input.key_pressed(KeyCode::Enter) {
             let target = f4x_core::rules::exec::Target::Spell(rows[pick]);
             let cmd = if resolve {
                 Command::ResolveCast {
@@ -1836,17 +1857,17 @@ impl App {
 
     /// The question after the human's fortress falls (`Banish_Wizard`): resign (Y) or cast the
     /// Spell of Return (N, Enter), shown over the map.
-    fn resign_prompt_frame(&mut self) -> Option<Modal> {
+    fn resign_prompt_frame(&mut self, input: &Input) -> Option<Modal> {
         let casting = self.game.wizard(HUMAN).and_then(|m| m.casting());
         let casting = casting.filter(|_| self.game.casting_return(HUMAN))?;
         let mut left = Some(Modal::Resign);
-        if is_key_pressed(KeyCode::Y) {
+        if input.key_pressed(KeyCode::Y) {
             left = None;
             let events = self.game.apply(Command::Resign { player: HUMAN });
             self.note(events);
-        } else if is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::N)
-            || is_key_pressed(KeyCode::Escape)
+        } else if input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::N)
+            || input.key_pressed(KeyCode::Escape)
         {
             left = None;
         }
@@ -1887,11 +1908,11 @@ impl App {
 
     /// The numpad digits (and the arrow keys, while they do not scroll) move the selected stack
     /// one square.
-    fn stack_keys(&mut self) {
+    fn stack_keys(&mut self, input: &Input) {
         let Some(from) = self.selection_position() else {
             return;
         };
-        let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
+        let shift = input.key_down(KeyCode::LeftShift) || input.key_down(KeyCode::RightShift);
         let Some(&(_, (dx, dy))) = [
             ("move_down_left", (-1, 1)),
             ("move_down", (0, 1)),
@@ -1904,7 +1925,7 @@ impl App {
         ]
         .iter()
         // With Shift held, the keys that scroll the map scroll it.
-        .find(|(action, _)| self.hotkeys.pressed_moving(action, shift)) else {
+        .find(|(action, _)| self.hotkeys.pressed_moving(action, shift, input)) else {
             return;
         };
         let Some(map) = self.game.map() else {
@@ -1952,12 +1973,12 @@ impl App {
             .and_then(|&u| self.game.units().unit_position(u))
     }
 
-    fn overworld_input(&mut self) {
+    fn overworld_input(&mut self, input: &Input) {
         let step = 12.0 * get_frame_time();
         let mut pan = Vec2::ZERO;
         // The arrow keys move the selected stack, as in the original; they scroll the map when
         // nothing is selected, or with Shift held.
-        let shift = is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift);
+        let shift = input.key_down(KeyCode::LeftShift) || input.key_down(KeyCode::RightShift);
         let scrolls = self.selection.is_empty() || shift;
         if scrolls {
             for (action, dir) in [
@@ -1966,47 +1987,47 @@ impl App {
                 ("scroll_up", vec2(0.0, -1.0)),
                 ("scroll_down", vec2(0.0, 1.0)),
             ] {
-                if self.hotkeys.down(action) {
+                if self.hotkeys.down(action, input) {
                     pan += dir;
                 }
             }
         }
         self.cam += pan * step;
-        if self.hotkeys.pressed("other_plane") {
+        if self.hotkeys.pressed("other_plane", input) {
             self.toggle_plane();
         }
-        if self.hotkeys.pressed("zoom_in") {
+        if self.hotkeys.pressed("zoom_in", input) {
             self.zoom = (self.zoom + 1.0).min(6.0);
         }
-        if self.hotkeys.pressed("zoom_out") {
+        if self.hotkeys.pressed("zoom_out", input) {
             self.zoom = (self.zoom - 1.0).max(1.0);
         }
-        if self.hotkeys.pressed("end_turn") {
+        if self.hotkeys.pressed("end_turn", input) {
             self.request_end_turn();
         }
-        if self.hotkeys.pressed("undo") {
+        if self.hotkeys.pressed("undo", input) {
             self.undo_last();
         }
-        if self.hotkeys.pressed("quick_save") {
+        if self.hotkeys.pressed("quick_save", input) {
             self.save_to(Path::new(QUICKSAVE));
         }
-        if self.hotkeys.pressed("quick_load") {
+        if self.hotkeys.pressed("quick_load", input) {
             if let Err(e) = self.load_from(Path::new(QUICKSAVE)) {
                 self.log.push(
                     self.text_with("log.load_failed", &Args::new().text("why", e.to_string())),
                 );
             }
         }
-        if self.hotkeys.pressed("magic") {
+        if self.hotkeys.pressed("magic", input) {
             self.open_magic();
         }
-        if self.hotkeys.pressed("spellbook") {
+        if self.hotkeys.pressed("spellbook", input) {
             self.open_spellbook();
         }
-        if self.hotkeys.pressed("army_list") {
+        if self.hotkeys.pressed("army_list", input) {
             self.open_army_list();
         }
-        if self.hotkeys.pressed("game_menu") {
+        if self.hotkeys.pressed("game_menu", input) {
             self.open_slots(false);
         }
         for (action, advisor) in [
@@ -2020,23 +2041,23 @@ impl App {
             ("grand_vizier", 7),
             ("mirror", 8),
         ] {
-            if self.hotkeys.pressed(action) {
+            if self.hotkeys.pressed(action, input) {
                 self.open_advisor(advisor);
             }
         }
-        if self.hotkeys.pressed("advisors") {
+        if self.hotkeys.pressed("advisors", input) {
             self.open_advisor_menu();
         }
-        self.road_plan_keys();
-        if self.hotkeys.pressed("special") && self.road_plan.is_some() {
+        self.road_plan_keys(input);
+        if self.hotkeys.pressed("special", input) && self.road_plan.is_some() {
             self.road_plan_confirm();
-        } else if self.hotkeys.pressed("special") {
+        } else if self.hotkeys.pressed("special", input) {
             self.special_button();
         }
-        if self.hotkeys.pressed("unselect") {
+        if self.hotkeys.pressed("unselect", input) {
             self.selection.clear();
         }
-        if self.hotkeys.pressed("plane_shift") {
+        if self.hotkeys.pressed("plane_shift", input) {
             // The plane button: the selected units change plane if they can, else the view does.
             let shifted = !self.selection.is_empty() && {
                 let events = self.game.apply(Command::ShiftPlane {
@@ -2056,47 +2077,47 @@ impl App {
                 self.toggle_plane();
             }
         }
-        self.stack_keys();
-        if self.hotkeys.pressed("balance_farmers") {
+        self.stack_keys(input);
+        if self.hotkeys.pressed("balance_farmers", input) {
             self.game.balance_farmers(HUMAN);
             self.log.push(self.text("log.farmers_balanced"));
         }
-        if self.hotkeys.pressed("wait") && !self.selection.is_empty() {
+        if self.hotkeys.pressed("wait", input) && !self.selection.is_empty() {
             self.select_next_idle(true);
         }
-        if self.hotkeys.pressed("done") && !self.selection.is_empty() {
+        if self.hotkeys.pressed("done", input) && !self.selection.is_empty() {
             self.game.apply(Command::ClearOrders {
                 units: self.selection.clone(),
             });
         }
-        if self.hotkeys.pressed("centre") {
+        if self.hotkeys.pressed("centre", input) {
             if let Some(at) = self.selection_position() {
                 self.center_on(at);
             }
         }
         self.clamp_camera();
 
-        let hovered = self.tile_at(mouse_position().into());
+        let hovered = self.tile_at(input.mouse_position().into());
         if let Some(pos) = hovered {
-            if is_mouse_button_pressed(MouseButton::Left) {
-                self.click(pos);
+            if input.mouse_pressed(MouseButton::Left) {
+                self.click(pos, input);
             }
-            if is_mouse_button_pressed(MouseButton::Right) && self.surveyor {
+            if input.mouse_pressed(MouseButton::Right) && self.surveyor {
                 self.stop_surveyor();
-            } else if is_mouse_button_pressed(MouseButton::Right) && self.road_plan.is_some() {
+            } else if input.mouse_pressed(MouseButton::Right) && self.road_plan.is_some() {
                 self.road_plan_cancel();
-            } else if is_mouse_button_pressed(MouseButton::Right)
+            } else if input.mouse_pressed(MouseButton::Right)
                 && self.game.is_explored(HUMAN, pos)
                 && self.foreign_stack_at(pos)
                 && self.open_unit_list(pos)
             {
-            } else if is_mouse_button_pressed(MouseButton::Right)
+            } else if input.mouse_pressed(MouseButton::Right)
                 && !self.selection.is_empty()
                 && !self.prefs.get(Pref::LeftClickMoves)
                 && self.selection_position() != Some(pos)
             {
                 self.go_to(pos);
-            } else if is_mouse_button_pressed(MouseButton::Right) {
+            } else if input.mouse_pressed(MouseButton::Right) {
                 // A right-click on one of your stacks shows the sheet of its first unit; the
                 // arrows there step through the others.
                 let stack = self.own_stack_at(pos);
@@ -2130,13 +2151,13 @@ impl App {
         self.note(events);
     }
 
-    fn click(&mut self, pos: Position) {
+    fn click(&mut self, pos: Position, input: &Input) {
         if let Some(t) = self.targeting.take() {
             self.aim_at(t, pos);
             return;
         }
         if self.road_plan.is_some() {
-            if !self.road_plan_on_button() {
+            if !self.road_plan_on_button(input) {
                 self.road_plan_click(pos);
             }
             return;
@@ -2497,8 +2518,8 @@ impl App {
         }
     }
 
-    pub(crate) fn draw_bars(&mut self) {
-        let click = self.draw_frame();
+    pub(crate) fn draw_bars(&mut self, input: &Input) {
+        let click = self.draw_frame(input);
         self.unit_window_click(click);
         // Menu: Game, Spells, Armies, Cities, Magic, Info, Plane.
         match click.menu {
@@ -2542,7 +2563,7 @@ impl App {
             self.overlay_line(view, &mut y, &self.text("ui.no_art"), RED);
         }
         self.draw_selection(view, &mut y);
-        self.draw_hover(view, &mut y);
+        self.draw_hover(view, &mut y, input);
         // Messages along the bottom of the map, newest last.
         let line = self.art.text_height(1) + 2.0;
         let bottom = spot::MAP.1 + spot::MAP.3 - 2.0;
@@ -2568,8 +2589,8 @@ impl App {
     }
 
     /// What is under the mouse, a line each.
-    fn hover_lines(&self) -> Vec<(String, Color)> {
-        let Some(pos) = self.tile_at(mouse_position().into()) else {
+    fn hover_lines(&self, input: &Input) -> Vec<(String, Color)> {
+        let Some(pos) = self.tile_at(input.mouse_position().into()) else {
             return Vec::new();
         };
         let content = self.game.content();
@@ -2629,8 +2650,8 @@ impl App {
         lines
     }
 
-    fn draw_hover(&mut self, view: (f32, f32, f32), y: &mut f32) {
-        for (text, color) in self.hover_lines() {
+    fn draw_hover(&mut self, view: (f32, f32, f32), y: &mut f32, input: &Input) {
+        for (text, color) in self.hover_lines(input) {
             self.overlay_line(view, y, &text, color);
         }
     }

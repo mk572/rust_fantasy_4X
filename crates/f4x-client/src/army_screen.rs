@@ -5,6 +5,7 @@
 //! map; a right-click opens the unit's sheet. U and D (or the arrows, or the wheel) scroll, Esc
 //! or OK leaves. Positions are the original's.
 
+use crate::input::Input;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -78,7 +79,7 @@ impl App {
         self.screen = Screen::ArmyList;
     }
 
-    pub(crate) fn army_screen(&mut self) {
+    pub(crate) fn army_screen(&mut self, input: &Input) {
         let stacks = self.army_stacks();
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -112,25 +113,25 @@ impl App {
         let can_down = ui.first + ROWS < count;
         let mut scroll = 0i32;
         for x in [250.0, 60.0] {
-            if self.army_button(&lay, 1, x, 26.0, can_up) {
+            if self.army_button(&lay, 1, x, 26.0, can_up, input) {
                 scroll -= 1;
             }
-            if self.army_button(&lay, 2, x, 139.0, can_down) {
+            if self.army_button(&lay, 2, x, 139.0, can_down, input) {
                 scroll += 1;
             }
         }
-        if is_key_pressed(KeyCode::U) {
+        if input.key_pressed(KeyCode::U) {
             scroll -= 1;
         }
-        if is_key_pressed(KeyCode::D) {
+        if input.key_pressed(KeyCode::D) {
             scroll += 1;
         }
-        scroll -= mouse_wheel().1.signum() as i32;
+        scroll -= input.mouse_wheel().1.signum() as i32;
         ui.first = (ui.first as i32 + scroll.signum()).clamp(0, count.saturating_sub(ROWS) as i32)
             as usize;
 
         // The stacks.
-        let mouse: Vec2 = mouse_position().into();
+        let mouse: Vec2 = input.mouse_position().into();
         let mut left = None;
         let mut right = None;
         for row in 0..ROWS {
@@ -142,10 +143,10 @@ impl App {
                 let cell = lay.rect((x + 1.0, y + 1.0, 18.0, 15.0));
                 if cell.contains(mouse) {
                     ui.scanned = (ui.first + row, i);
-                    if is_mouse_button_pressed(MouseButton::Left) {
+                    if input.mouse_pressed(MouseButton::Left) {
                         left = Some(unit);
                     }
-                    if is_mouse_button_pressed(MouseButton::Right) {
+                    if input.mouse_pressed(MouseButton::Right) {
                         right = Some(unit);
                     }
                 }
@@ -191,12 +192,12 @@ impl App {
         }
 
         // Buttons and leaving.
-        let items = self.army_button(&lay, 3, 273.0, 163.0, true);
-        let ok = self.army_button(&lay, 4, 273.0, 182.0, true);
+        let items = self.army_button(&lay, 3, 273.0, 163.0, true, input);
+        let ok = self.army_button(&lay, 4, 273.0, 182.0, true, input);
         self.army_ui = ui;
         if items {
             self.open_item_screen();
-        } else if ok || is_key_pressed(KeyCode::Escape) {
+        } else if ok || input.key_pressed(KeyCode::Escape) {
             self.screen = Screen::Map;
         } else if let Some(unit) = left {
             self.army_go_to(unit);
@@ -319,16 +320,17 @@ impl App {
         x: f32,
         y: f32,
         enabled: bool,
+        input: &Input,
     ) -> bool {
         let Some(tex) = self.art.picture("armylist", entry, 0).cloned() else {
             return false;
         };
         let r = lay.rect((x, y, tex.width(), tex.height()));
-        let hover = enabled && r.contains(mouse_position().into());
+        let hover = enabled && r.contains(input.mouse_position().into());
         let frame = if !enabled && entry <= 2 {
             1
         } else {
-            usize::from(hover && is_mouse_button_down(MouseButton::Left))
+            usize::from(hover && input.mouse_down(MouseButton::Left))
         };
         let tint = if enabled || entry <= 2 {
             WHITE
@@ -336,7 +338,7 @@ impl App {
             Color::new(1.0, 1.0, 1.0, 0.5)
         };
         self.draw_pic_tinted(lay, "armylist", entry, frame, x, y, tint);
-        hover && is_mouse_button_pressed(MouseButton::Left)
+        hover && input.mouse_pressed(MouseButton::Left)
     }
 }
 

@@ -3,6 +3,7 @@
 //! a road can be built, red where it cannot) with the turns each takes, and OK builds the whole
 //! path with `Command::BuildRoad`. Cancel, Escape or a right-click leave the mode.
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
@@ -64,9 +65,9 @@ impl App {
     }
 
     /// Whether a click at the mouse falls on one of the mode's buttons.
-    pub(crate) fn road_plan_on_button(&self) -> bool {
+    pub(crate) fn road_plan_on_button(&self, input: &Input) -> bool {
         let lay = Layout::new();
-        let at = mouse_position().into();
+        let at = input.mouse_position().into();
         self.road_plan.is_some()
             && (button_rect(&lay, OK_AT).contains(at) || button_rect(&lay, CANCEL_AT).contains(at))
     }
@@ -117,7 +118,7 @@ impl App {
     }
 
     /// Keys of the mode: Enter or B builds.
-    pub(crate) fn road_plan_keys(&mut self) {
+    pub(crate) fn road_plan_keys(&mut self, input: &Input) {
         if self.road_plan.is_none() {
             return;
         }
@@ -131,9 +132,9 @@ impl App {
             self.road_plan = None;
             return;
         }
-        if is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::KpEnter)
-            || is_key_pressed(KeyCode::O)
+        if input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::KpEnter)
+            || input.key_pressed(KeyCode::O)
         {
             self.road_plan_confirm();
         }
@@ -221,7 +222,7 @@ impl App {
     }
 
     /// The panel over the side column: the title, the turns it will take and the buttons.
-    pub(crate) fn road_plan_bar(&mut self) {
+    pub(crate) fn road_plan_bar(&mut self, input: &Input) {
         let Some(plan) = self.road_plan.clone() else {
             return;
         };
@@ -229,10 +230,10 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let sum = self.road_summary(&plan);
         let (mouse, down) = (
-            Vec2::from(mouse_position()),
-            is_mouse_button_down(MouseButton::Left),
+            Vec2::from(input.mouse_position()),
+            input.mouse_down(MouseButton::Left),
         );
-        let pressed = is_mouse_button_pressed(MouseButton::Left);
+        let pressed = input.mouse_pressed(MouseButton::Left);
         let (ok_rect, cancel_rect) = (button_rect(&lay, OK_AT), button_rect(&lay, CANCEL_AT));
         let can = sum.turns > 0 && !sum.blocked;
 
@@ -254,9 +255,9 @@ impl App {
                 Rect::new(screen_width() / 2.0 - 110.0, 8.0, 100.0, 30.0),
                 Rect::new(screen_width() / 2.0 + 10.0, 8.0, 100.0, 30.0),
             );
-            if button(ok, &self.text("ui.ok"), can) && can {
+            if button(ok, &self.text("ui.ok"), can, input) && can {
                 self.road_plan_confirm();
-            } else if button(cancel, &self.text("ui.cancel"), true) {
+            } else if button(cancel, &self.text("ui.cancel"), true, input) {
                 self.road_plan_cancel();
             }
             return;

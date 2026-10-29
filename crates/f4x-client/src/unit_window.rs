@@ -3,6 +3,7 @@
 //! to nine unit pictures in a grid of three, the Done, Patrol, Wait and Build buttons and the
 //! stack's moves. A click on a picture picks that unit, a right-click opens its sheet.
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
@@ -177,11 +178,11 @@ impl App {
     }
 
     /// Draw the unit window, the buttons and the moves, and say what was clicked.
-    pub(crate) fn draw_unit_window(&mut self, lay: &Layout, click: &mut FrameClick) {
+    pub(crate) fn draw_unit_window(&mut self, lay: &Layout, click: &mut FrameClick, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let mouse: Vec2 = mouse_position().into();
-        let pressed = is_mouse_button_pressed(MouseButton::Left);
-        let right = is_mouse_button_pressed(MouseButton::Right);
+        let mouse: Vec2 = input.mouse_position().into();
+        let pressed = input.mouse_pressed(MouseButton::Left);
+        let right = input.mouse_pressed(MouseButton::Right);
         let stack = self.stack_units();
         let all_picked = stack.iter().all(|u| self.selection.contains(u));
         for (i, &unit) in stack.iter().enumerate() {
@@ -223,7 +224,7 @@ impl App {
         }
 
         // The buttons.
-        let down = is_mouse_button_down(MouseButton::Left);
+        let down = input.mouse_down(MouseButton::Left);
         let special = self.special_action();
         let mut button = |app: &mut App, entry: usize, at: (f32, f32), which: StackButton| {
             let tex_size = app.art_picture("main", entry, 0).map(|t| t.size());

@@ -5,6 +5,7 @@
 //! site shows the first box without buttons on arrival. The boxes come one after another over
 //! the map, in the order the events arrived.
 
+use crate::input::Input;
 use f4x_core::feature::lair::Loot;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
@@ -274,7 +275,7 @@ impl App {
     }
 
     /// Show the first waiting box over the map. True while a box took the frame.
-    pub(crate) fn site_notice_frame(&mut self) -> bool {
+    pub(crate) fn site_notice_frame(&mut self, input: &Input) -> bool {
         if self.game.in_battle() || !matches!(self.screen, Screen::Map) {
             return false;
         }
@@ -286,7 +287,7 @@ impl App {
                 && self.game.offers(crate::view::HUMAN).is_empty()
             {
                 if self.item_pool_warning {
-                    if self.hero_died_warning() {
+                    if self.hero_died_warning(input) {
                         self.item_pool_warning = false;
                     }
                     return true;
@@ -299,12 +300,16 @@ impl App {
         };
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         let lay = Layout::new();
         let answer = match &notice {
-            SiteNotice::Ask { text, site, .. } => self.confirm_site_box(&lay, text, *site, true),
-            SiteNotice::Found { text, site } => self.confirm_site_box(&lay, text, *site, false),
-            SiteNotice::Treasure { text } => self.treasure_box(&lay, text),
+            SiteNotice::Ask { text, site, .. } => {
+                self.confirm_site_box(&lay, text, *site, true, input)
+            }
+            SiteNotice::Found { text, site } => {
+                self.confirm_site_box(&lay, text, *site, false, input)
+            }
+            SiteNotice::Treasure { text } => self.treasure_box(&lay, text, input),
         };
         let Some(yes) = answer else {
             return true;
@@ -326,6 +331,7 @@ impl App {
         text: &str,
         site: usize,
         buttons: bool,
+        input: &Input,
     ) -> Option<bool> {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let line = self.art.text_height(4) + 2.0;
@@ -344,8 +350,8 @@ impl App {
             bottom,
         );
         self.draw_box_text(view, &lines, BOX_X + 9.0, top_y + 10.0, line);
-        let mouse = Vec2::from(mouse_position());
-        let down = is_mouse_button_down(MouseButton::Left);
+        let mouse = Vec2::from(input.mouse_position());
+        let down = input.mouse_down(MouseButton::Left);
         if buttons {
             let yes_at = (BOX_X + 100.0, bottom + 5.0);
             let no_at = (BOX_X + 17.0, bottom + 5.0);
@@ -367,21 +373,21 @@ impl App {
                 no_at.0,
                 no_at.1,
             );
-            let click = is_mouse_button_pressed(MouseButton::Left);
-            if (click && yes.contains(mouse)) || is_key_pressed(KeyCode::Y) {
+            let click = input.mouse_pressed(MouseButton::Left);
+            if (click && yes.contains(mouse)) || input.key_pressed(KeyCode::Y) {
                 return Some(true);
             }
             if (click && no.contains(mouse))
-                || is_key_pressed(KeyCode::N)
-                || is_key_pressed(KeyCode::Escape)
+                || input.key_pressed(KeyCode::N)
+                || input.key_pressed(KeyCode::Escape)
             {
                 return Some(false);
             }
             None
-        } else if is_mouse_button_pressed(MouseButton::Left)
-            || is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::Space)
+        } else if input.mouse_pressed(MouseButton::Left)
+            || input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::Space)
         {
             Some(true)
         } else {
@@ -392,7 +398,7 @@ impl App {
     /// `Lair_Treasure_Popup`'s `Notify1` box: a strip of the notify art as wide as the widest
     /// line, the picture box at its right end holding the treasure picture. A click or a key
     /// closes it.
-    fn treasure_box(&mut self, lay: &Layout, text: &str) -> Option<bool> {
+    fn treasure_box(&mut self, lay: &Layout, text: &str, input: &Input) -> Option<bool> {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let line = self.art.text_height(4) + 2.0;
         let lines = self.bm_wrap(4, text, 175.0);
@@ -411,10 +417,10 @@ impl App {
         self.draw_pic(lay, "reload", 20, 0, right + 2.0 + 4.0, y + 8.0);
         let lines: Vec<(f32, String)> = lines.into_iter().map(|l| (0.0, l)).collect();
         self.draw_box_text(view, &lines, x + 10.0, y + 8.0, line);
-        (is_mouse_button_pressed(MouseButton::Left)
-            || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Space))
+        (input.mouse_pressed(MouseButton::Left)
+            || input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Space))
         .then_some(true)
     }
 

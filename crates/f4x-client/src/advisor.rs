@@ -4,6 +4,7 @@
 //! Mirror. The list box is the original's `Selection_Box` (`GENDRAW.c`), also used by the Tax
 //! Collector. History and Astrologer are screens of their own here.
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -178,13 +179,13 @@ impl App {
     }
 
     /// The question before the Grand Vizier takes over the cities' building.
-    pub(crate) fn vizier_ask_frame(&mut self) -> bool {
+    pub(crate) fn vizier_ask_frame(&mut self, input: &Input) -> bool {
         if !self.vizier_ask {
             return false;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         let (w, h) = (screen_width(), screen_height());
         draw_rectangle(
             w / 2.0 - 330.0,
@@ -215,27 +216,27 @@ impl App {
             22.0,
             crate::ui::GOLD,
         );
-        if is_key_pressed(KeyCode::Y) || is_key_pressed(KeyCode::Enter) {
+        if input.key_pressed(KeyCode::Y) || input.key_pressed(KeyCode::Enter) {
             self.vizier_ask = false;
             self.game.apply(Command::SetGrandVizier {
                 player: HUMAN,
                 on: true,
             });
             self.log.push(self.text("advisor.vizier_on"));
-        } else if is_key_pressed(KeyCode::N) || is_key_pressed(KeyCode::Escape) {
+        } else if input.key_pressed(KeyCode::N) || input.key_pressed(KeyCode::Escape) {
             self.vizier_ask = false;
         }
         true
     }
 
     /// The list box over the map; true while it is up.
-    pub(crate) fn selection_frame(&mut self) -> bool {
+    pub(crate) fn selection_frame(&mut self, input: &Input) -> bool {
         let Some(sel) = self.list_box.clone() else {
             return false;
         };
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
 
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -264,7 +265,7 @@ impl App {
         let (x1, y1) = ((320.0 - width) / 2.0, ((200.0 - height) / 2.0).floor());
         let (x2, y2) = (x1 + width - 1.0, y1 + height - 1.0);
 
-        let mouse: Vec2 = mouse_position().into();
+        let mouse: Vec2 = input.mouse_position().into();
         let hover = (0..sel.rows.len()).find(|&i| {
             lay.rect((
                 x1 + SIDE_WIDTH,
@@ -346,9 +347,9 @@ impl App {
             }
         }
 
-        if is_key_pressed(KeyCode::Escape) || is_mouse_button_pressed(MouseButton::Right) {
+        if input.key_pressed(KeyCode::Escape) || input.mouse_pressed(MouseButton::Right) {
             self.list_box = None;
-        } else if is_mouse_button_pressed(MouseButton::Left) {
+        } else if input.mouse_pressed(MouseButton::Left) {
             if let Some(i) = hover {
                 self.list_box = None;
                 self.choose_row(sel.purpose, i);

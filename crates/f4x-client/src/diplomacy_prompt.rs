@@ -2,6 +2,7 @@
 //! a pact, an alliance, peace, a war on a third wizard, a spell swap. Each waits in a yes-or-no
 //! box over the map until it is answered; one that is left lapses when the turn ends.
 
+use crate::input::Input;
 use f4x_core::diplomacy::{DiplomacyCommand, Proposal, ProposalKind};
 use f4x_core::game::Command;
 use f4x_core::player::view::PlayerView;
@@ -42,13 +43,13 @@ impl App {
     }
 
     /// Ask the human about the first waiting proposal.
-    pub(crate) fn proposal_frame(&mut self) -> bool {
+    pub(crate) fn proposal_frame(&mut self, input: &Input) -> bool {
         let Some(proposal) = self.pending_proposal() else {
             return false;
         };
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         let lay = crate::frame::Layout::new();
         let mut args = Args::new().text("wizard", self.diplo_name(proposal.from));
         match proposal.kind {
@@ -64,7 +65,7 @@ impl App {
             _ => {}
         }
         let text = self.text_with(question_key(proposal.kind), &args);
-        if let Some(accept) = self.confirmation_box(&lay, &text) {
+        if let Some(accept) = self.confirmation_box(&lay, &text, input) {
             let events = self
                 .game
                 .apply(Command::Diplomacy(DiplomacyCommand::Answer {

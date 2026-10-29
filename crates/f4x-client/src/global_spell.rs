@@ -6,6 +6,7 @@
 
 use std::collections::VecDeque;
 
+use crate::input::Input;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
 use f4x_core::text::Args;
@@ -41,12 +42,12 @@ impl GlobalCast {
     }
 }
 
-fn any_input() -> bool {
-    is_mouse_button_pressed(MouseButton::Left)
-        || is_mouse_button_pressed(MouseButton::Right)
-        || is_key_pressed(KeyCode::Enter)
-        || is_key_pressed(KeyCode::Escape)
-        || is_key_pressed(KeyCode::Space)
+fn any_input(input: &Input) -> bool {
+    input.mouse_pressed(MouseButton::Left)
+        || input.mouse_pressed(MouseButton::Right)
+        || input.key_pressed(KeyCode::Enter)
+        || input.key_pressed(KeyCode::Escape)
+        || input.key_pressed(KeyCode::Space)
 }
 
 impl App {
@@ -78,20 +79,20 @@ impl App {
 
     /// The oldest global cast not yet shown, over the map until it ends. Returns whether it took
     /// the frame.
-    pub(crate) fn global_cast_frame(&mut self) -> bool {
+    pub(crate) fn global_cast_frame(&mut self, input: &Input) -> bool {
         let Some(cast) = self.global_casts.front_mut() else {
             return false;
         };
         let started = *cast.started.get_or_insert_with(get_time);
         let cast = cast.clone();
         let stage = ((get_time() - started) / STAGE) as usize;
-        if stage >= STAGES || any_input() {
+        if stage >= STAGES || any_input(input) {
             self.global_casts.pop_front();
             return true;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         let lay = Layout::new();
         let animated = self.prefs.get(Pref::SpellAnimations);
         self.draw_mirror(&lay, &cast, stage, animated);

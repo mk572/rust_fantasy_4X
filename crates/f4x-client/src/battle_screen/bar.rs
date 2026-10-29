@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::frame::Layout;
+use crate::input::Input;
 
 /// Top of the panel (`combat_background_bottom`), and of the buttons and text in it.
 const BAR_Y: f32 = 164.0;
@@ -178,6 +179,7 @@ impl App {
         (entry, locked): (usize, usize),
         at: (f32, f32),
         enabled: bool,
+        input: &Input,
     ) -> bool {
         if !enabled {
             self.draw_pic(lay, "compix", locked, 0, at.0, at.1);
@@ -186,11 +188,11 @@ impl App {
         let size = self.art_picture("compix", entry, 0).map(|t| t.size());
         let hover = size.is_some_and(|s| {
             lay.rect((at.0, at.1, s.x, s.y))
-                .contains(mouse_position().into())
+                .contains(input.mouse_position().into())
         });
-        let down = hover && is_mouse_button_down(MouseButton::Left);
+        let down = hover && input.mouse_down(MouseButton::Left);
         self.draw_pic(lay, "compix", entry, usize::from(down), at.0, at.1);
-        hover && is_mouse_button_pressed(MouseButton::Left)
+        hover && input.mouse_pressed(MouseButton::Left)
     }
 
     pub(super) fn draw_battle_panel(
@@ -198,6 +200,7 @@ impl App {
         battle: &Battle,
         my_turn: bool,
         hovered: Option<Pos>,
+        input: &Input,
     ) {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -265,19 +268,19 @@ impl App {
                 || Self::my_caster(battle).is_some_and(|c| !c.cast_this_turn));
         let (lx, rx) = (LEFT_BUTTONS_X, RIGHT_BUTTONS_X);
         let row = |i: f32| BUTTONS_Y + 10.0 * i;
-        if self.bar_button(&lay, (1, 23), (lx, row(0.0)), can_cast)
-            || (can_cast && is_key_pressed(KeyCode::S))
+        if self.bar_button(&lay, (1, 23), (lx, row(0.0)), can_cast, input)
+            || (can_cast && input.key_pressed(KeyCode::S))
         {
             self.battle_ui.spell_list = !self.battle_ui.spell_list;
             self.battle_ui.spell_unit = unit_caster.filter(|_| self.battle_ui.spell_list);
         }
-        if self.bar_button(&lay, (2, 24), (rx, row(0.0)), my_turn)
-            || (my_turn && is_key_pressed(KeyCode::W))
+        if self.bar_button(&lay, (2, 24), (rx, row(0.0)), my_turn, input)
+            || (my_turn && input.key_pressed(KeyCode::W))
         {
             self.select_next(sel);
         }
         // Done ends the selected unit's turn; with no unit left that can act it ends the side's.
-        if self.bar_button(&lay, (3, 28), (rx, row(2.0)), my_turn) {
+        if self.bar_button(&lay, (3, 28), (rx, row(2.0)), my_turn, input) {
             let active = sel.filter(|&u| battle.unit(u).is_some_and(super::unfinished));
             order = Some(match active {
                 Some(unit) => BattleCommand::Done { unit },
@@ -286,8 +289,8 @@ impl App {
         }
         // Auto hands your side to the computer; pressed again, it takes it back.
         let auto = self.battle_ui.auto;
-        if self.bar_button(&lay, (4, 26), (rx, row(1.0)), my_turn || auto)
-            || ((my_turn || auto) && is_key_pressed(KeyCode::A))
+        if self.bar_button(&lay, (4, 26), (rx, row(1.0)), my_turn || auto, input)
+            || ((my_turn || auto) && input.key_pressed(KeyCode::A))
         {
             self.battle_ui.auto = !auto;
             self.battle_ui.aiming = None;
@@ -300,21 +303,21 @@ impl App {
             .game
             .battle_info(HUMAN)
             .is_some_and(|info| !info.is_empty());
-        if (self.bar_button(&lay, (20, 25), (lx, row(1.0)), has_info)
-            || (has_info && is_key_pressed(KeyCode::U)))
+        if (self.bar_button(&lay, (20, 25), (lx, row(1.0)), has_info, input)
+            || (has_info && input.key_pressed(KeyCode::U)))
             && !self.battle_ui.info_open
         {
             self.battle_ui.info_open = true;
             return;
         }
-        if self.bar_button(&lay, (21, 27), (lx, row(2.0)), my_turn)
-            || (my_turn && is_key_pressed(KeyCode::F))
+        if self.bar_button(&lay, (21, 27), (lx, row(2.0)), my_turn, input)
+            || (my_turn && input.key_pressed(KeyCode::F))
         {
             self.battle_ui.confirm_flee = true;
         }
         if self.battle_ui.confirm_flee {
             let question = self.text("battle.flee_question");
-            match self.confirmation_box(&lay, &question) {
+            match self.confirmation_box(&lay, &question, input) {
                 Some(true) => order = Some(BattleCommand::Flee),
                 Some(false) => self.battle_ui.confirm_flee = false,
                 None => {}
@@ -349,7 +352,7 @@ impl App {
             self.bm_text_shadowed(view, 1, text, at.0, at.1, LIGHTGRAY, Align::Left);
         }
         self.draw_scanned_unit(battle, hovered, view);
-        self.draw_unit_specials(battle, my_turn);
+        self.draw_unit_specials(battle, my_turn, input);
     }
 
     /// The selected unit in the middle of the panel (`Draw_Active_Unit_Window`).

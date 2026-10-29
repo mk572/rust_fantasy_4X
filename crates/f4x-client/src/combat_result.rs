@@ -6,6 +6,7 @@
 //! may be razed: the "Raze City" setting asks before the scroll; with it off, R on the scroll
 //! asks. A click, Enter or Esc rolls it up.
 
+use crate::input::Input;
 use f4x_core::game::{Command, Event};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
@@ -390,13 +391,13 @@ impl App {
     }
 
     /// The scroll over the map until it is rolled up; true while it took the frame.
-    pub(crate) fn combat_results_frame(&mut self) -> bool {
+    pub(crate) fn combat_results_frame(&mut self, input: &Input) -> bool {
         let Some(mut r) = self.combat_results.take() else {
             return false;
         };
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (_, height) = self.results_text(&r, 0.0);
@@ -419,7 +420,7 @@ impl App {
         let waited = r.asking;
         if r.asking {
             let text = self.text("combat.raze_question");
-            match self.question_box(&lay, &text, &RAZE_OR_SPARE) {
+            match self.question_box(&lay, &text, &RAZE_OR_SPARE, input) {
                 Some(true) => r.asking = false,
                 Some(false) => {
                     r.asking = false;
@@ -449,16 +450,16 @@ impl App {
             self.combat_results = Some(r);
             return true;
         }
-        if !waited && r.city.is_some() && is_key_pressed(KeyCode::R) {
+        if !waited && r.city.is_some() && input.key_pressed(KeyCode::R) {
             r.asking = true;
             self.combat_results = Some(r);
             return true;
         }
-        let leave = is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::KpEnter)
-            || is_mouse_button_pressed(MouseButton::Left)
-            || is_mouse_button_pressed(MouseButton::Right);
+        let leave = input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::KpEnter)
+            || input.mouse_pressed(MouseButton::Left)
+            || input.mouse_pressed(MouseButton::Right);
         if !leave {
             self.combat_results = Some(r);
         }

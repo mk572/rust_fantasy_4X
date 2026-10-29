@@ -3,11 +3,11 @@
 //! folder replace the keys of the actions they name. The screens' own keys (Enter and Escape in a
 //! question, the arrows in a list) stay as they are.
 
+use crate::input::Input;
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use macroquad::prelude::KeyCode;
-use macroquad::prelude::{is_key_down, is_key_pressed};
 
 /// Every action a key can do on the map; the names are those of `hotkeys.ron`.
 pub(crate) const ACTIONS: [&str; 41] = [
@@ -182,28 +182,28 @@ impl Chord {
         Ok(chord)
     }
 
-    fn modifiers_held() -> (bool, bool, bool) {
+    fn modifiers_held(input: &Input) -> (bool, bool, bool) {
         (
-            is_key_down(KeyCode::LeftControl)
-                || is_key_down(KeyCode::RightControl)
-                || is_key_down(KeyCode::LeftSuper)
-                || is_key_down(KeyCode::RightSuper),
-            is_key_down(KeyCode::LeftShift) || is_key_down(KeyCode::RightShift),
-            is_key_down(KeyCode::LeftAlt) || is_key_down(KeyCode::RightAlt),
+            input.key_down(KeyCode::LeftControl)
+                || input.key_down(KeyCode::RightControl)
+                || input.key_down(KeyCode::LeftSuper)
+                || input.key_down(KeyCode::RightSuper),
+            input.key_down(KeyCode::LeftShift) || input.key_down(KeyCode::RightShift),
+            input.key_down(KeyCode::LeftAlt) || input.key_down(KeyCode::RightAlt),
         )
     }
 
-    fn modifiers_ok(&self) -> bool {
-        let (ctrl, shift, alt) = Self::modifiers_held();
+    fn modifiers_ok(&self, input: &Input) -> bool {
+        let (ctrl, shift, alt) = Self::modifiers_held(input);
         self.ctrl == ctrl && (!self.shift || shift) && (!self.alt || alt)
     }
 
-    pub fn pressed(&self) -> bool {
-        is_key_pressed(self.key) && self.modifiers_ok()
+    pub fn pressed(&self, input: &Input) -> bool {
+        input.key_pressed(self.key) && self.modifiers_ok(input)
     }
 
-    pub fn down(&self) -> bool {
-        is_key_down(self.key) && self.modifiers_ok()
+    pub fn down(&self, input: &Input) -> bool {
+        input.key_down(self.key) && self.modifiers_ok(input)
     }
 
     /// How it is shown to the player: `Ctrl+Z`, `Numpad 1`, `Page Up`.
@@ -306,15 +306,15 @@ impl Hotkeys {
     }
 
     /// An action's key went down this frame.
-    pub fn pressed(&self, action: &str) -> bool {
-        self.chords(action).iter().any(Chord::pressed)
+    pub fn pressed(&self, action: &str, input: &Input) -> bool {
+        self.chords(action).iter().any(|c| c.pressed(input))
     }
 
     /// A move key went down. With Shift held, a key that also scrolls the map is left to the
     /// map (the arrows move the selected stack, or scroll the map with Shift).
-    pub fn pressed_moving(&self, action: &str, shift: bool) -> bool {
+    pub fn pressed_moving(&self, action: &str, shift: bool, input: &Input) -> bool {
         self.chords(action).iter().any(|c| {
-            c.pressed()
+            c.pressed(input)
                 && !(shift
                     && ["scroll_left", "scroll_right", "scroll_up", "scroll_down"]
                         .iter()
@@ -323,8 +323,8 @@ impl Hotkeys {
     }
 
     /// An action's key is held.
-    pub fn down(&self, action: &str) -> bool {
-        self.chords(action).iter().any(Chord::down)
+    pub fn down(&self, action: &str, input: &Input) -> bool {
+        self.chords(action).iter().any(|c| c.down(input))
     }
 
     /// The keys of `action`, as the player reads them: `Enter or N`.

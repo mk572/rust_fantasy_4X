@@ -1,6 +1,7 @@
 //! The text console in the client (backquote key): the same `f4x_console::Console` every other front end
 //! uses, with an input line, scrollback and a command history.
 
+use crate::input::Input;
 use f4x_console::{Access, Console, Mode};
 use macroquad::prelude::*;
 
@@ -70,23 +71,23 @@ impl App {
         self.console.lines.drain(..excess);
     }
 
-    pub(crate) fn console_screen(&mut self) {
-        while let Some(c) = get_char_pressed() {
+    pub(crate) fn console_screen(&mut self, input: &Input) {
+        for c in input.typed() {
             if !c.is_control() && c != '`' {
                 self.console.input.push(c);
             }
         }
-        if is_key_pressed(KeyCode::Backspace) {
+        if input.key_pressed(KeyCode::Backspace) {
             self.console.input.pop();
         }
-        if is_key_pressed(KeyCode::Enter) {
+        if input.key_pressed(KeyCode::Enter) {
             self.run_console_line();
         }
-        if is_key_pressed(KeyCode::Escape) {
+        if input.key_pressed(KeyCode::Escape) {
             self.screen = self.console.back;
         }
         let history = self.console.console.history.len();
-        if is_key_pressed(KeyCode::Up) && history > 0 {
+        if input.key_pressed(KeyCode::Up) && history > 0 {
             let i = self
                 .console
                 .recall
@@ -94,7 +95,7 @@ impl App {
             self.console.recall = Some(i);
             self.console.input = self.console.console.history[i].0.clone();
         }
-        if is_key_pressed(KeyCode::Down) {
+        if input.key_pressed(KeyCode::Down) {
             match self.console.recall {
                 Some(i) if i + 1 < history => {
                     self.console.recall = Some(i + 1);
@@ -106,7 +107,7 @@ impl App {
                 }
             }
         }
-        if is_key_pressed(KeyCode::Tab) {
+        if input.key_pressed(KeyCode::Tab) {
             let prefix = self.console.input.clone();
             if !prefix.contains(' ') {
                 let hits = self.console.console.complete(&prefix);
@@ -141,7 +142,7 @@ impl App {
             }
         }
         let furthest = shown.len().saturating_sub(rows);
-        let wheel = mouse_wheel().1;
+        let wheel = input.mouse_wheel().1;
         if wheel != 0.0 {
             let steps = (wheel.abs().ceil() as usize).max(1) * 3;
             self.console.scroll = if wheel > 0.0 {
@@ -150,16 +151,16 @@ impl App {
                 self.console.scroll.saturating_sub(steps)
             };
         }
-        if is_key_pressed(KeyCode::PageUp) {
+        if input.key_pressed(KeyCode::PageUp) {
             self.console.scroll = self.console.scroll.saturating_add(rows.saturating_sub(1));
         }
-        if is_key_pressed(KeyCode::PageDown) {
+        if input.key_pressed(KeyCode::PageDown) {
             self.console.scroll = self.console.scroll.saturating_sub(rows.saturating_sub(1));
         }
-        if is_key_pressed(KeyCode::Home) {
+        if input.key_pressed(KeyCode::Home) {
             self.console.scroll = furthest;
         }
-        if is_key_pressed(KeyCode::End) {
+        if input.key_pressed(KeyCode::End) {
             self.console.scroll = 0;
         }
         self.console.scroll = self.console.scroll.min(furthest);

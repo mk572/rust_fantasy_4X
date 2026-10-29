@@ -1,6 +1,7 @@
 //! The city screen: economy, buildings, worked area and the production list, drawn on
 //! the original screen layout (320x200) when the art is available.
 
+use crate::input::Input;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
@@ -49,7 +50,7 @@ impl Layout {
 const GARRISON: (f32, f32) = (215.0, 102.0);
 
 impl App {
-    pub(crate) fn city_screen(&mut self, city: hecs::Entity) {
+    pub(crate) fn city_screen(&mut self, city: hecs::Entity, input: &Input) {
         if self
             .game
             .economy()
@@ -61,34 +62,34 @@ impl App {
         }
         let lay = Layout::new();
         let dialog = self.autobuild_dialog.is_some();
-        if dialog && is_key_pressed(KeyCode::Escape) {
+        if dialog && input.key_pressed(KeyCode::Escape) {
             self.autobuild_dialog = None;
             return;
         }
         let selling = self.sell_prompt.is_some();
         let renaming = self.city_naming.is_some();
-        if renaming && is_key_pressed(KeyCode::Escape) {
+        if renaming && input.key_pressed(KeyCode::Escape) {
             self.city_naming = None;
             return;
         }
         let choosing = self.choosing || dialog || selling || renaming;
         // A right-click on a unit of the garrison opens its statistics sheet.
-        if is_mouse_button_pressed(MouseButton::Right) && !choosing {
+        if input.mouse_pressed(MouseButton::Right) && !choosing {
             let over = self
                 .garrison_cells(city, lay)
                 .into_iter()
-                .find(|(r, _)| r.contains(mouse_position().into()));
+                .find(|(r, _)| r.contains(input.mouse_position().into()));
             if let Some((_, unit)) = over {
                 self.open_unit_sheet(unit);
                 return;
             }
         }
         // A left-click on a unit of the garrison picks it, or lets it go.
-        if is_mouse_button_pressed(MouseButton::Left) && !choosing {
+        if input.mouse_pressed(MouseButton::Left) && !choosing {
             let over = self
                 .garrison_cells(city, lay)
                 .into_iter()
-                .find(|(r, _)| r.contains(mouse_position().into()));
+                .find(|(r, _)| r.contains(input.mouse_position().into()));
             if let Some((_, unit)) = over {
                 let here = self.city_position(city);
                 let elsewhere = self
@@ -108,8 +109,8 @@ impl App {
         }
         if !selling
             && !renaming
-            && (is_key_pressed(KeyCode::Escape)
-                || (is_mouse_button_pressed(MouseButton::Right) && !choosing))
+            && (input.key_pressed(KeyCode::Escape)
+                || (input.mouse_pressed(MouseButton::Right) && !choosing))
         {
             if choosing {
                 self.choosing = false;
@@ -146,23 +147,23 @@ impl App {
         if dialog || selling || renaming {
             self.choosing = true;
         }
-        self.draw_city_header(city, lay);
-        self.draw_city_resources(city, lay);
-        self.draw_city_buildings(city, lay);
-        self.draw_city_area(city, lay);
+        self.draw_city_header(city, lay, input);
+        self.draw_city_resources(city, lay, input);
+        self.draw_city_buildings(city, lay, input);
+        self.draw_city_area(city, lay, input);
         self.draw_city_garrison(city, lay);
-        self.draw_city_production(city, lay);
+        self.draw_city_production(city, lay, input);
         if renaming {
             self.choosing = was_choosing;
-            self.draw_rename_box(city);
+            self.draw_rename_box(city, input);
         } else if dialog {
             self.choosing = was_choosing;
-            self.draw_autobuild_dialog(city, lay);
+            self.draw_autobuild_dialog(city, lay, input);
         } else if selling {
             self.choosing = was_choosing;
-            self.draw_sell_prompt();
+            self.draw_sell_prompt(input);
         } else if self.choosing {
-            self.draw_production_screen(city);
+            self.draw_production_screen(city, input);
         }
     }
 
@@ -303,7 +304,7 @@ impl App {
 
     /// The box for a new name for the city (the original's name box); Enter keeps what is typed,
     /// an empty name keeps the old one.
-    fn draw_rename_box(&mut self, city: hecs::Entity) {
+    fn draw_rename_box(&mut self, city: hecs::Entity, input: &Input) {
         let Some(mut name) = self.city_naming.take() else {
             return;
         };
@@ -313,6 +314,7 @@ impl App {
             (60.0, 60.0),
             &self.text("city.name_prompt"),
             &mut name,
+            input,
         ) {
             let events = self.game.apply(Command::RenameCity { city, name });
             self.note(events);
@@ -321,7 +323,7 @@ impl App {
         }
     }
 
-    fn draw_city_header(&mut self, city: hecs::Entity, lay: Layout) {
+    fn draw_city_header(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
         let name = self.city_name(city);
         let (race_name, race_index) = self
             .game
@@ -355,11 +357,11 @@ impl App {
             Align::Center,
         );
         // A click on the name asks for a new one.
-        if is_mouse_button_pressed(MouseButton::Left)
+        if input.mouse_pressed(MouseButton::Left)
             && !self.choosing
             && lay
                 .rect(0.0, 0.0, 210.0, 17.0)
-                .contains(mouse_position().into())
+                .contains(input.mouse_position().into())
         {
             self.city_naming = Some(name.clone());
         }
@@ -399,8 +401,8 @@ impl App {
         let total = (eco.farmers + eco.workers + eco.rebels).max(1) as f32;
         let step = (11.0f32).min(196.0 / total);
         let mut x = 7.0;
-        let mouse: Vec2 = mouse_position().into();
-        let clicked = is_mouse_button_pressed(MouseButton::Left) && !self.choosing;
+        let mouse: Vec2 = input.mouse_position().into();
+        let clicked = input.mouse_pressed(MouseButton::Left) && !self.choosing;
         let jobs = [(eco.farmers, 45usize), (eco.workers, 59), (eco.rebels, 74)];
         for (job, (count, base)) in jobs.into_iter().enumerate() {
             for _ in 0..count {
@@ -461,7 +463,7 @@ impl App {
         at
     }
 
-    fn draw_city_resources(&mut self, city: hecs::Entity, lay: Layout) {
+    fn draw_city_resources(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
         let Some(eco) = self.game.economy().city_economy(city) else {
             return;
         };
@@ -498,15 +500,15 @@ impl App {
                 self.bm_text(view, 1, color, &note, 134.0, y, Align::Right);
             }
         }
-        self.draw_city_enchantments(city, lay);
+        self.draw_city_enchantments(city, lay, input);
     }
 
     /// The enchantments on the city, six to a page in the colour of whoever cast them, with the
     /// arrows that turn the page; a click on the player's own asks to turn it off
     /// (`City_Screen_Draw_City_Enchantments`, `City_Add_Fields_City_Enchantments`).
-    fn draw_city_enchantments(&mut self, city: hecs::Entity, lay: Layout) {
+    fn draw_city_enchantments(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
         let enabled = !self.choosing;
-        self.city_enchantment_list(city, lay, (139.0, 51.0), 3.0, enabled);
+        self.city_enchantment_list(city, lay, (139.0, 51.0), 3.0, enabled, input);
     }
 
     /// The list with its first row at `first` (the original's `xstart`, `ystart`), shared by
@@ -520,6 +522,7 @@ impl App {
         first: (f32, f32),
         shift: f32,
         enabled: bool,
+        input: &Input,
     ) -> bool {
         const PAGE: usize = 6;
         let mut hit = false;
@@ -531,18 +534,18 @@ impl App {
         if total > PAGE {
             let last = total - 1;
             let up = lay.rect(first.0 + 62.0, first.1 - 1.0, 12.0, 12.0);
-            hit |=
-                is_mouse_button_pressed(MouseButton::Left) && up.contains(mouse_position().into());
-            if self.pic_button(lay, 15, first.0 + 62.0, first.1 - 1.0, enabled) {
+            hit |= input.mouse_pressed(MouseButton::Left)
+                && up.contains(input.mouse_position().into());
+            if self.pic_button(lay, 15, first.0 + 62.0, first.1 - 1.0, enabled, input) {
                 self.city_spell_first = match self.city_spell_first {
                     0 => last / PAGE * PAGE,
                     n => n.saturating_sub(PAGE),
                 };
             }
             let down = lay.rect(first.0 + 62.0, first.1 + 34.0, 12.0, 12.0);
-            hit |= is_mouse_button_pressed(MouseButton::Left)
-                && down.contains(mouse_position().into());
-            if self.pic_button(lay, 16, first.0 + 62.0, first.1 + 34.0, enabled) {
+            hit |= input.mouse_pressed(MouseButton::Left)
+                && down.contains(input.mouse_position().into());
+            if self.pic_button(lay, 16, first.0 + 62.0, first.1 + 34.0, enabled, input) {
                 self.city_spell_first += PAGE;
                 if self.city_spell_first > last {
                     self.city_spell_first = 0;
@@ -551,8 +554,8 @@ impl App {
         } else {
             self.city_spell_first = 0;
         }
-        let mouse = mouse_position().into();
-        let click = is_mouse_button_pressed(MouseButton::Left) && enabled;
+        let mouse = input.mouse_position().into();
+        let click = input.mouse_pressed(MouseButton::Left) && enabled;
         for (row, line) in effects.iter().enumerate() {
             let row = list.len() + row;
             if row < self.city_spell_first || row >= self.city_spell_first + PAGE {
@@ -699,10 +702,10 @@ impl App {
 
     /// The city's picture: ground, water, hills, roads, then every cell from the back to the
     /// front (houses, trees, rocks, buildings), and the walls along the bottom.
-    fn draw_city_buildings(&mut self, city: hecs::Entity, lay: Layout) {
-        let over = self.draw_city_buildings_at(city, lay, 4.0, 100.0);
+    fn draw_city_buildings(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
+        let over = self.draw_city_buildings_at(city, lay, 4.0, 100.0, input);
         if let Some(i) = over.filter(|i| (3..=35).contains(i)) {
-            if is_mouse_button_pressed(MouseButton::Left) && !self.choosing {
+            if input.mouse_pressed(MouseButton::Left) && !self.choosing {
                 self.start_sale(city, i);
             }
         }
@@ -715,6 +718,7 @@ impl App {
         lay: Layout,
         x0: f32,
         y0: f32,
+        input: &Input,
     ) -> Option<i16> {
         use crate::cityscape as cs;
         let view = Self::view(lay);
@@ -850,7 +854,7 @@ impl App {
         // stay put from frame to frame.
         let mut mouse_over: Option<i16> = None;
         let mut over_rubble = false;
-        let mouse: Vec2 = mouse_position().into();
+        let mouse: Vec2 = input.mouse_position().into();
         let sold = self.game.economy().sold_building(city);
         let rubble_of = sold.map(|b| {
             (
@@ -1006,7 +1010,7 @@ impl App {
     /// The 5x5 worked area at original tile size, drawn as the map is (`City_Screen_Draw_Map`):
     /// terrain, resources and roads, the corners shaded, the cities on it, and a mark on the squares another city
     /// of the player also works.
-    fn draw_city_area(&mut self, city: hecs::Entity, lay: Layout) {
+    fn draw_city_area(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
         let at = self.city_position(city);
         let Some(map) = self.game.map() else {
             return;
@@ -1016,11 +1020,11 @@ impl App {
         let tile = vec2(TILE_W * lay.scale, TILE_H * lay.scale);
         let anim = (get_time() * 4.0) as usize;
         // A click on the map shows or hides each square's food and production.
-        if is_mouse_button_pressed(MouseButton::Left)
+        if input.mouse_pressed(MouseButton::Left)
             && !self.choosing
             && lay
                 .rect(215.0, 4.0, 5.0 * TILE_W, 5.0 * TILE_H)
-                .contains(mouse_position().into())
+                .contains(input.mouse_position().into())
         {
             self.city_area_figures = !self.city_area_figures;
         }
@@ -1295,7 +1299,7 @@ impl App {
         }
     }
 
-    fn draw_city_production(&mut self, city: hecs::Entity, lay: Layout) {
+    fn draw_city_production(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
         let prod = self.game.economy().city_production(city);
         let eco = self.game.economy().city_economy(city).unwrap_or_default();
         let view = Self::view(lay);
@@ -1379,7 +1383,14 @@ impl App {
             .map_or(0, |p| p.treasury().gold);
         let price = self.game.economy().buy_cost(city);
         // Clickable whenever the item can be bought; too little gold is answered with a box.
-        if self.pic_button(lay, 7, 214.0, 188.0, price.is_some() && !self.choosing) {
+        if self.pic_button(
+            lay,
+            7,
+            214.0,
+            188.0,
+            price.is_some() && !self.choosing,
+            input,
+        ) {
             if let (Some(price), Some(item)) = (price, prod.item) {
                 self.sell_prompt = Some(if price as i32 <= gold {
                     let name = self.item_name(item);
@@ -1389,22 +1400,30 @@ impl App {
                 });
             }
         }
-        if self.pic_button(lay, 8, 247.0, 188.0, !self.choosing) {
+        if self.pic_button(lay, 8, 247.0, 188.0, !self.choosing, input) {
             self.open_production(city);
         }
-        if self.pic_button(lay, 9, 286.0, 188.0, !self.choosing) {
+        if self.pic_button(lay, 9, 286.0, 188.0, !self.choosing, input) {
             self.screen = Screen::Map;
         }
     }
 
     /// One of the original's two-frame buttons from `backgrnd.lbx`; true when clicked.
-    fn pic_button(&mut self, lay: Layout, entry: usize, x: f32, y: f32, enabled: bool) -> bool {
+    fn pic_button(
+        &mut self,
+        lay: Layout,
+        entry: usize,
+        x: f32,
+        y: f32,
+        enabled: bool,
+        input: &Input,
+    ) -> bool {
         let Some(tex) = self.art.picture("backgrnd", entry, 0).cloned() else {
             return false;
         };
         let r = lay.rect(x, y, tex.width(), tex.height());
-        let hover = r.contains(mouse_position().into());
-        let down = enabled && hover && is_mouse_button_down(MouseButton::Left);
+        let hover = r.contains(input.mouse_position().into());
+        let down = enabled && hover && input.mouse_down(MouseButton::Left);
         let frame = usize::from(down);
         let tex = self
             .art
@@ -1425,7 +1444,7 @@ impl App {
                 ..Default::default()
             },
         );
-        enabled && hover && is_mouse_button_pressed(MouseButton::Left)
+        enabled && hover && input.mouse_pressed(MouseButton::Left)
     }
 
     /// Everything the city may start building: buildings, then units, then the two specials.

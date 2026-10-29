@@ -3,6 +3,7 @@
 //! Without an answer the turn change lets go of the newest. A second page appears when released
 //! heroes bring more items home than the armory holds: which to disband for mana.
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::player::shortfall::{ItemOverflow, TreasuryShortfall};
 use f4x_core::player::upkeep::Shortfall;
@@ -314,7 +315,7 @@ impl App {
     }
 
     /// One frame of the prompt; returns whether it took the frame.
-    pub(crate) fn upkeep_prompt_frame(&mut self) -> bool {
+    pub(crate) fn upkeep_prompt_frame(&mut self, input: &Input) -> bool {
         let Some(mut prompt) = self.upkeep_prompt.take() else {
             return false;
         };
@@ -350,24 +351,24 @@ impl App {
         let yes = lay.rect((yes_at.0, yes_at.1, 65.0, 17.0));
         let no = lay.rect((no_at.0, no_at.1, 65.0, 17.0));
 
-        let mut confirm = is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::Y);
-        let mut cancelled = is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::N);
+        let mut confirm = input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::Y);
+        let mut cancelled = input.key_pressed(KeyCode::Escape) || input.key_pressed(KeyCode::N);
         let selectable = |i: usize| !matches!(lines[i], Line::Header(_));
-        if is_key_pressed(KeyCode::Down) {
+        if input.key_pressed(KeyCode::Down) {
             if let Some(i) = (prompt.cursor + 1..n).find(|&i| selectable(i)) {
                 prompt.cursor = i;
             }
         }
-        if is_key_pressed(KeyCode::Up) {
+        if input.key_pressed(KeyCode::Up) {
             if let Some(i) = (0..prompt.cursor).rev().find(|&i| selectable(i)) {
                 prompt.cursor = i;
             }
         }
-        if is_key_pressed(KeyCode::Space) {
+        if input.key_pressed(KeyCode::Space) {
             prompt.toggle(lines[prompt.cursor]);
         }
-        let mouse = Vec2::from(mouse_position());
-        if is_mouse_button_pressed(MouseButton::Left) {
+        let mouse = Vec2::from(input.mouse_position());
+        if input.mouse_pressed(MouseButton::Left) {
             if yes.contains(mouse) {
                 confirm = true;
             } else if no.contains(mouse) {
@@ -410,7 +411,7 @@ impl App {
 
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         // The box: the original's stone brown with a dark edge.
         let panel = lay.rect((bx, by, bw, bh));
         draw_rectangle(
@@ -517,7 +518,7 @@ impl App {
                 Align::Left,
             );
         }
-        let down = is_mouse_button_down(MouseButton::Left);
+        let down = input.mouse_down(MouseButton::Left);
         self.draw_pic(
             &lay,
             "resource",

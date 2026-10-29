@@ -5,6 +5,7 @@
 //! rare). The pick rules are the core's (`WizardBuild`, `retort_available`, `retort_cost`);
 //! this file is the pictures and the clicks. Positions are the original's.
 
+use crate::input::Input;
 use f4x_core::content::Content;
 use f4x_core::rules::Rarity;
 use f4x_core::text::Args;
@@ -142,16 +143,16 @@ impl App {
     }
 
     /// Screen 4: the books and the retorts.
-    pub(crate) fn step_picks(&mut self, lay: &Layout) {
+    pub(crate) fn step_picks(&mut self, lay: &Layout, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let portrait = self.create.build.portrait.map(usize::from);
         if let Some(p) = portrait {
             self.draw_pic(lay, "wizards", p, 0, 24.0, 10.0);
         }
-        let mouse: Vec2 = mouse_position().into();
-        let input = self.ng_input();
-        let down = is_mouse_button_down(MouseButton::Left) && input && !self.create.ignore_drag;
-        let pressed = is_mouse_button_pressed(MouseButton::Left) && input;
+        let mouse: Vec2 = input.mouse_position().into();
+        let live = self.ng_input();
+        let down = input.mouse_down(MouseButton::Left) && live && !self.create.ignore_drag;
+        let pressed = input.mouse_pressed(MouseButton::Left) && live;
         let left = self.create.build.picks_left();
 
         // The rows of books: a drag sets the count (eight pixels a book).
@@ -229,8 +230,8 @@ impl App {
         self.ng_abilities(lay);
         let ok = left == 0;
         self.draw_pic(lay, "newgame", if ok { 42 } else { 43 }, 0, 252.0, 182.0);
-        if input
-            && is_mouse_button_pressed(MouseButton::Left)
+        if live
+            && input.mouse_pressed(MouseButton::Left)
             && lay.rect((251.0, 181.0, 32.0, 16.0)).contains(mouse)
         {
             if ok {
@@ -238,7 +239,7 @@ impl App {
             } else {
                 self.create.warn = Some(self.text("picks.make_all"));
             }
-        } else if input && is_key_pressed(KeyCode::Escape) {
+        } else if live && input.key_pressed(KeyCode::Escape) {
             self.create_back();
         }
     }
@@ -360,7 +361,7 @@ impl App {
     }
 
     /// Screen 5: the spells of one realm.
-    pub(crate) fn step_spells(&mut self, lay: &Layout, index: usize) {
+    pub(crate) fn step_spells(&mut self, lay: &Layout, index: usize, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let Some(&realm) = REALM_ORDER.get(index) else {
             self.create.step = Step::Race;
@@ -389,9 +390,9 @@ impl App {
         self.bm_text(view, 4, ink, &title, 241.0, 6.0, Align::Center);
         let books = self.create.build.books.clone();
         self.ng_shelf(lay, &REALM_ORDER, &|r| books.get(r).copied().unwrap_or(0));
-        let mouse: Vec2 = mouse_position().into();
-        let input = self.ng_input();
-        let pressed = is_mouse_button_pressed(MouseButton::Left) && input;
+        let mouse: Vec2 = input.mouse_position().into();
+        let live = self.ng_input();
+        let pressed = input.mouse_pressed(MouseButton::Left) && live;
         let mut remaining = 0usize;
         let mut toggle = None;
         let mut refused = false;
@@ -489,8 +490,8 @@ impl App {
         self.ng_abilities(lay);
         let ok = remaining == 0;
         self.draw_pic(lay, "newgame", if ok { 42 } else { 43 }, 0, 252.0, 182.0);
-        if input
-            && is_mouse_button_pressed(MouseButton::Left)
+        if live
+            && input.mouse_pressed(MouseButton::Left)
             && lay.rect((251.0, 181.0, 32.0, 16.0)).contains(mouse)
         {
             if ok {
@@ -498,7 +499,7 @@ impl App {
             } else {
                 self.create.warn = Some(self.text("picks.make_all"));
             }
-        } else if input && is_key_pressed(KeyCode::Escape) {
+        } else if live && input.key_pressed(KeyCode::Escape) {
             self.create_back();
         }
         let _ = GOLD_INK;

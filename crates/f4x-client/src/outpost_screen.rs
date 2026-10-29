@@ -5,6 +5,7 @@
 //! screen is left. A click anywhere or Esc leaves, a click on a garrison unit selects the stack
 //! on the map, a right-click on one opens its sheet. Positions are the original's.
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -91,7 +92,7 @@ impl App {
         )
     }
 
-    pub(crate) fn outpost_screen(&mut self, city: hecs::Entity) {
+    pub(crate) fn outpost_screen(&mut self, city: hecs::Entity, input: &Input) {
         let at = self.city_position(city);
         if self.game.economy().city_at(at) != Some(city) {
             self.screen = Screen::Map;
@@ -169,16 +170,16 @@ impl App {
                 .take(10)
                 .collect()
         };
-        let mouse: Vec2 = mouse_position().into();
+        let mouse: Vec2 = input.mouse_position().into();
         let (mut left, mut right) = (None, None);
         for (slot, &unit) in units.iter().enumerate() {
             let (x, y, w, h) = Self::outpost_slot(slot);
             self.draw_army_unit(&lay, unit, x - 1.0, y - 1.0);
             if lay.rect((x, y, w, h)).contains(mouse) {
-                if is_mouse_button_pressed(MouseButton::Left) {
+                if input.mouse_pressed(MouseButton::Left) {
                     left = Some(unit);
                 }
-                if is_mouse_button_pressed(MouseButton::Right) {
+                if input.mouse_pressed(MouseButton::Right) {
                     right = Some(unit);
                 }
             }
@@ -187,20 +188,26 @@ impl App {
         // click that leaves. A question opened by a click waits a frame before it draws.
         let asking = self.sell_prompt.is_some();
         let city_lay = crate::city_screen::Layout::new();
-        let on_list =
-            self.city_enchantment_list(city, city_lay, (wx + 114.0, wy + 54.0), 0.0, !asking);
+        let on_list = self.city_enchantment_list(
+            city,
+            city_lay,
+            (wx + 114.0, wy + 54.0),
+            0.0,
+            !asking,
+            input,
+        );
         if asking {
-            self.draw_sell_prompt();
+            self.draw_sell_prompt(input);
             return;
         }
         if ui.naming {
-            self.outpost_name_box(&lay, city);
+            self.outpost_name_box(&lay, city, input);
             return;
         }
         if let Some(unit) = right {
             self.open_unit_sheet(unit);
-        } else if is_key_pressed(KeyCode::Escape)
-            || (is_mouse_button_pressed(MouseButton::Left) && !on_list)
+        } else if input.key_pressed(KeyCode::Escape)
+            || (input.mouse_pressed(MouseButton::Left) && !on_list)
         {
             if left.is_some() && self.game.economy().city_owner(city) == Some(HUMAN) {
                 self.select_at(at);
@@ -260,10 +267,10 @@ impl App {
 
     /// `Change_City_Name_Popup`: the box with "New Outpost" and a field for the name. Enter
     /// keeps what is typed (an empty name keeps the one the game chose).
-    fn outpost_name_box(&mut self, lay: &Layout, city: hecs::Entity) {
+    fn outpost_name_box(&mut self, lay: &Layout, city: hecs::Entity, input: &Input) {
         let mut name = std::mem::take(&mut self.outpost_ui.name);
         let prompt = self.text("outpost.name_prompt");
-        let done = self.name_box(lay, NAME_BOX, &prompt, &mut name);
+        let done = self.name_box(lay, NAME_BOX, &prompt, &mut name, input);
         self.outpost_ui.name = name;
         if done {
             let name = std::mem::take(&mut self.outpost_ui.name);
@@ -281,18 +288,19 @@ impl App {
         (x, y): (f32, f32),
         title: &str,
         name: &mut String,
+        input: &Input,
     ) -> bool {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
         self.draw_pic(lay, "backgrnd", 33, 0, x, y);
         self.bm_text(view, 4, gold, title, x + 10.0, y + 6.0, Align::Left);
-        while let Some(c) = get_char_pressed() {
+        for c in input.typed() {
             if !c.is_control() && name.chars().count() < f4x_core::city::NAME_LEN {
                 name.push(c);
             }
         }
-        if is_key_pressed(KeyCode::Backspace) {
+        if input.key_pressed(KeyCode::Backspace) {
             name.pop();
         }
         self.bm_text(
@@ -304,21 +312,21 @@ impl App {
             y + 21.0,
             Align::Left,
         );
-        is_key_pressed(KeyCode::Enter) || is_key_pressed(KeyCode::KpEnter)
+        input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::KpEnter)
     }
 
     /// Turn 1: the box over the map that lets the player rename the capital
     /// (`Change_Home_City_Name_Popup`, the box at (60,30) titled "Name Starting City").
-    pub(crate) fn capital_name_frame(&mut self) -> bool {
+    pub(crate) fn capital_name_frame(&mut self, input: &Input) -> bool {
         let Some((city, mut name)) = self.capital_naming.take() else {
             return false;
         };
         let lay = Layout::new();
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         let prompt = self.text("outpost.name_starting");
-        if self.name_box(&lay, (60.0, 30.0), &prompt, &mut name) {
+        if self.name_box(&lay, (60.0, 30.0), &prompt, &mut name, input) {
             let events = self.game.apply(Command::RenameCity { city, name });
             self.note(events);
         } else {

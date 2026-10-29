@@ -4,6 +4,7 @@
 //! the wizard's strongest realm on the left, the text, and the event's picture in a frame at
 //! the right end. A click or a key closes it, and the next one follows.
 
+use crate::input::Input;
 use f4x_core::game::DispelSite;
 use f4x_core::text::Args;
 use f4x_core::world_event::{compose, EventKind};
@@ -89,7 +90,7 @@ impl App {
 
     /// The oldest event the player has not been told of, over the map until it is closed.
     /// Returns whether the box took the frame.
-    pub(crate) fn event_popup_frame(&mut self) -> bool {
+    pub(crate) fn event_popup_frame(&mut self, input: &Input) -> bool {
         let Some(notice) = self.event_notices.front().cloned() else {
             return false;
         };
@@ -99,12 +100,19 @@ impl App {
         };
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         let lay = Layout::new();
         let number = notice.kind.number() as usize - 1;
-        let closed = self.notify2_box(&lay, TOP, GREEN, &text, |app, lay, x| {
-            app.draw_pic(lay, "events", number, 0, x, TOP + 8.0);
-        });
+        let closed = self.notify2_box(
+            &lay,
+            TOP,
+            GREEN,
+            &text,
+            |app, lay, x| {
+                app.draw_pic(lay, "events", number, 0, x, TOP + 8.0);
+            },
+            input,
+        );
         if closed {
             self.event_notices.pop_front();
         }
@@ -121,6 +129,7 @@ impl App {
         strip: usize,
         text: &str,
         pictures: impl FnOnce(&mut Self, &Layout, f32),
+        input: &Input,
     ) -> bool {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let realm = self.mascot_realm();
@@ -151,11 +160,11 @@ impl App {
         pictures(self, lay, right + 7.0);
         let lines: Vec<(f32, String)> = lines.into_iter().map(|l| (0.0, l)).collect();
         self.draw_box_text(view, &lines, x + TEXT_X[realm], top + 8.0, line);
-        is_mouse_button_pressed(MouseButton::Left)
-            || is_mouse_button_pressed(MouseButton::Right)
-            || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Space)
+        input.mouse_pressed(MouseButton::Left)
+            || input.mouse_pressed(MouseButton::Right)
+            || input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Space)
     }
 
     /// The words of a spell that fizzled (`Fizzle_Notification`): the counter spell's caster
@@ -182,18 +191,18 @@ impl App {
 
     /// The oldest spell notice not yet shown, in its box over the map. Returns whether the box
     /// took the frame.
-    pub(crate) fn spell_notice_frame(&mut self) -> bool {
+    pub(crate) fn spell_notice_frame(&mut self, input: &Input) -> bool {
         if self.spell_notices.is_empty() {
             return false;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
-        self.draw_spell_notice()
+        self.draw_bars(input);
+        self.draw_spell_notice(input)
     }
 
     /// The oldest spell notice in its box over whatever is drawn (the map, or a battle).
-    pub(crate) fn draw_spell_notice(&mut self) -> bool {
+    pub(crate) fn draw_spell_notice(&mut self, input: &Input) -> bool {
         let Some(notice) = self.spell_notices.front().cloned() else {
             return false;
         };
@@ -212,6 +221,7 @@ impl App {
                     notice.top + notice.drop,
                 );
             },
+            input,
         );
         if closed {
             self.spell_notices.pop_front();
@@ -354,13 +364,13 @@ impl App {
 
     /// The red box that announces the items of fallen heroes before the item screen
     /// (`Player_Process_Item_Pool`). True when the box was closed this frame.
-    pub(crate) fn hero_died_warning(&mut self) -> bool {
+    pub(crate) fn hero_died_warning(&mut self, input: &Input) -> bool {
         let text = self.text("hero.items_to_share");
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_map();
-        self.draw_bars();
+        self.draw_bars(input);
         let lay = Layout::new();
-        self.warning_box(&lay, &text)
+        self.warning_box(&lay, &text, input)
     }
 
     /// The name of the world event that is going on, centred under the minimap

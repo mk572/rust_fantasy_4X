@@ -4,6 +4,7 @@
 //! Cast"). Clicking a spell starts casting it; one that needs a target is aimed on the map.
 //! The big book (the library and research) is in `bigbook.rs`.
 
+use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::rules::exec::Target;
 use f4x_core::rules::{CastContext, SpellId, SpellTarget};
@@ -244,11 +245,11 @@ impl App {
     }
 
     /// The question or message over the book, and what its answer does.
-    fn answer_book_ask(&mut self, ask: BookAsk) {
+    fn answer_book_ask(&mut self, ask: BookAsk, input: &Input) {
         match ask {
             BookAsk::Say(key) => {
                 let text = self.text(key);
-                if self.info_box(&text) {
+                if self.info_box(&text, input) {
                     self.book_ui.ask = None;
                 }
             }
@@ -267,7 +268,7 @@ impl App {
                     },
                     &Args::new().text("spell", &name),
                 );
-                match self.confirm_box(&text) {
+                match self.confirm_box(&text, input) {
                     Some(true) => {
                         self.book_ui.ask = None;
                         if researching {
@@ -291,7 +292,7 @@ impl App {
     }
 
     /// A message with OK; true once the player has read it.
-    fn info_box(&mut self, text: &str) -> bool {
+    fn info_box(&mut self, text: &str, input: &Input) -> bool {
         let (w, h) = (screen_width(), screen_height());
         let (bw, bh) = (w.min(560.0), 130.0);
         let (x, y) = ((w - bw) / 2.0, (h - bh) / 2.0);
@@ -302,10 +303,11 @@ impl App {
             Rect::new(x + bw / 2.0 - 50.0, y + 70.0, 100.0, 36.0),
             &self.text("ui.ok"),
             true,
+            input,
         );
-        ok || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Space)
+        ok || input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Space)
     }
 
     /// For the screenshot check: set the filter and the sort (`all`, `known`, `overland`,
@@ -443,20 +445,20 @@ impl App {
         self.screen = Screen::Map;
     }
 
-    pub(crate) fn spellbook_screen(&mut self) {
+    pub(crate) fn spellbook_screen(&mut self, input: &Input) {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         // A question about a spell the wizard does not know, or why it cannot be learnt.
         if let Some(ask) = self.book_ui.ask {
             clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-            self.draw_spellbook(&lay, view);
-            self.answer_book_ask(ask);
+            self.draw_spellbook(&lay, view, input);
+            self.answer_book_ask(ask, input);
             return;
         }
         // A question first: give up the spell being cast for another?
         if let Some((spell, abort_only)) = self.book_ui.replace {
             clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-            self.draw_spellbook(&lay, view);
+            self.draw_spellbook(&lay, view, input);
             let casting = self
                 .game
                 .wizard(HUMAN)
@@ -464,7 +466,7 @@ impl App {
                 .map(|c| self.game.content().rules.spells.get(c.spell).name.clone())
                 .unwrap_or_default();
             let question = self.text_with("spell.abort", &Args::new().text("spell", &casting));
-            match self.confirm_box(&question) {
+            match self.confirm_box(&question, input) {
                 Some(true) => {
                     self.book_ui.replace = None;
                     let events = self.game.apply(Command::CancelCast { player: HUMAN });
@@ -483,51 +485,53 @@ impl App {
             }
             return;
         }
-        if self.book_turn.is_some() && !self.book_turn_frame() {
+        if self.book_turn.is_some() && !self.book_turn_frame(input) {
             return;
         }
         let pages = self.book_ui.pages.len();
         let left = self.book_ui.left;
         // Page turns: the corners, the arrow keys and the wheel.
-        let (_, wheel) = mouse_wheel();
-        if (is_key_pressed(KeyCode::Right) || is_key_pressed(KeyCode::F) || wheel < 0.0)
+        let (_, wheel) = input.mouse_wheel();
+        if (input.key_pressed(KeyCode::Right) || input.key_pressed(KeyCode::F) || wheel < 0.0)
             && left + 2 < pages
         {
-            self.turn_book_page(false, true);
+            self.turn_book_page(false, true, input);
             return;
         }
-        if (is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::B) || wheel > 0.0) && left >= 2
+        if (input.key_pressed(KeyCode::Left) || input.key_pressed(KeyCode::B) || wheel > 0.0)
+            && left >= 2
         {
-            self.turn_book_page(false, false);
+            self.turn_book_page(false, false, input);
             return;
         }
         let in_rect = |x: f32, y: f32, w: f32, h: f32| {
-            lay.rect((x, y, w, h)).contains(mouse_position().into())
+            lay.rect((x, y, w, h))
+                .contains(input.mouse_position().into())
         };
-        let clicked = is_mouse_button_pressed(MouseButton::Left);
+        let clicked = input.mouse_pressed(MouseButton::Left);
         if clicked && in_rect(29.0, 14.0, 14.0, 13.0) && left >= 2 {
-            self.turn_book_page(false, false);
+            self.turn_book_page(false, false, input);
             return;
         }
         if clicked && in_rect(274.0, 14.0, 14.0, 13.0) && left + 2 < pages {
-            self.turn_book_page(false, true);
+            self.turn_book_page(false, true, input);
             return;
         }
         // The ribbon at the bottom, Escape, V or a click outside the book close it.
         let ribbon = clicked && in_rect(175.0, 166.0, 19.0, 30.0);
-        if ribbon || is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::V) {
+        if ribbon || input.key_pressed(KeyCode::Escape) || input.key_pressed(KeyCode::V) {
             self.book_ui.last_left = self.book_ui.left;
             self.screen = Screen::Map;
             return;
         }
         // The sort line at the right of the bookmark (or the S key) changes the order.
-        if (clicked && in_rect(200.0, 184.0, 116.0, 12.0)) || is_key_pressed(KeyCode::S) {
+        if (clicked && in_rect(200.0, 184.0, 116.0, 12.0)) || input.key_pressed(KeyCode::S) {
             self.book_ui.sort = self.book_ui.sort.next();
             self.refilter_book();
             return;
         }
         // The filter line at the foot of the left page (or the Tab key) changes what is listed.
-        if (clicked && in_rect(32.0, 184.0, 130.0, 12.0)) || is_key_pressed(KeyCode::Tab) {
+        if (clicked && in_rect(32.0, 184.0, 130.0, 12.0)) || input.key_pressed(KeyCode::Tab) {
             self.book_ui.filter = self.book_ui.filter.next();
             self.refilter_book();
             return;
@@ -560,7 +564,7 @@ impl App {
             }
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_spellbook(&lay, view);
+        self.draw_spellbook(&lay, view, input);
     }
 
     /// The spell listed at `(x, y)` (320 by 200 coordinates) of the open book, with its area.
@@ -591,9 +595,16 @@ impl App {
     }
 
     /// The open book: the page spread, its titles and spells, the corners and the ribbon.
-    pub(crate) fn draw_spellbook(&mut self, lay: &Layout, view: (f32, f32, f32)) {
+    pub(crate) fn draw_spellbook(&mut self, lay: &Layout, view: (f32, f32, f32), input: &Input) {
         let (pages, left) = (self.book_ui.pages.len(), self.book_ui.left);
-        self.draw_book_spread(lay, view, left, left + 1, (left >= 2, left + 2 < pages));
+        self.draw_book_spread(
+            lay,
+            view,
+            left,
+            left + 1,
+            (left >= 2, left + 2 < pages),
+            input,
+        );
     }
 
     /// The book picture with the pages `left_i` and `right_i` on it and the dog-ears `corners`
@@ -605,6 +616,7 @@ impl App {
         left_i: usize,
         right_i: usize,
         corners: (bool, bool),
+        input: &Input,
     ) {
         // The combat book lies on the battlefield; the overland one on a dark ground.
         if self.book_ui.combat.is_none() {
@@ -635,7 +647,7 @@ impl App {
             let line = self.text(self.book_ui.filter.text_key());
             let hover = lay
                 .rect((32.0, 184.0, 130.0, 12.0))
-                .contains(mouse_position().into());
+                .contains(input.mouse_position().into());
             let ink = if hover {
                 Color::new(1.0, 0.95, 0.6, 1.0)
             } else {
@@ -645,7 +657,7 @@ impl App {
             let line = self.text(self.book_ui.sort.text_key());
             let hover = lay
                 .rect((200.0, 184.0, 116.0, 12.0))
-                .contains(mouse_position().into());
+                .contains(input.mouse_position().into());
             let ink = if hover {
                 Color::new(1.0, 0.95, 0.6, 1.0)
             } else {

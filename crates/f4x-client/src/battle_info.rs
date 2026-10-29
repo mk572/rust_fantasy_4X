@@ -2,6 +2,7 @@
 //! effects in force on the field and each wizard's own spells, over the battle. Any key or
 //! click closes it.
 
+use crate::input::Input;
 use f4x_core::battle::info::{BattleInfo, InfoItem};
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -80,7 +81,7 @@ impl Layout {
 
 impl App {
     /// Draw the window; true once it is dismissed.
-    pub(crate) fn draw_battle_info(&mut self, info: &BattleInfo) -> bool {
+    pub(crate) fn draw_battle_info(&mut self, info: &BattleInfo, input: &Input) -> bool {
         let (w, h) = (screen_width(), screen_height());
         let s = (w / 320.0).min(h / 200.0);
         let view = ((w - 320.0 * s) / 2.0, (h - 200.0 * s) / 2.0, s);
@@ -225,11 +226,11 @@ impl App {
             );
         }
 
-        is_key_pressed(KeyCode::Escape)
-            || is_key_pressed(KeyCode::Enter)
-            || is_key_pressed(KeyCode::Space)
-            || is_mouse_button_pressed(MouseButton::Left)
-            || is_mouse_button_pressed(MouseButton::Right)
+        input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::Space)
+            || input.mouse_pressed(MouseButton::Left)
+            || input.mouse_pressed(MouseButton::Right)
     }
 }
 

@@ -4,13 +4,20 @@
 //! shoot, a wand on a square a spell can be aimed at, and a red cross where nothing can be done.
 
 use super::*;
+use crate::input::Input;
 
 use crate::pointer::{BOOT, BOW, FINGER, RED_CROSS, SWORDS, WAND};
 
 impl App {
     /// What the pointer should look like over the battle.
-    fn pointer_image(&self, battle: &Battle, my_turn: bool, hovered: Option<Pos>) -> usize {
-        if !self.on_map(mouse_position().into()) {
+    fn pointer_image(
+        &self,
+        battle: &Battle,
+        my_turn: bool,
+        hovered: Option<Pos>,
+        input: &Input,
+    ) -> usize {
+        if !self.on_map(input.mouse_position().into()) {
             return FINGER;
         }
         if let Some(aim) = &self.battle_ui.aiming {
@@ -61,8 +68,9 @@ impl App {
         battle: &Battle,
         my_turn: bool,
         hovered: Option<Pos>,
+        input: &Input,
     ) {
-        let image = self.pointer_image(battle, my_turn, hovered);
-        self.draw_pointer_image(image);
+        let image = self.pointer_image(battle, my_turn, hovered, input);
+        self.draw_pointer_image(image, input);
     }
 }

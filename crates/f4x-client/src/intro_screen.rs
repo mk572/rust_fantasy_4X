@@ -9,6 +9,7 @@
 //! The show is made as a list of beats up front (`beats`), one picture held for a number of the
 //! original's 55 ms ticks at a darkness, so the timing can be tested without a window.
 
+use crate::input::Input;
 use macroquad::prelude::*;
 
 use crate::audio::{fx, Key};
@@ -173,9 +174,9 @@ impl App {
         self.open_main_menu();
     }
 
-    pub(crate) fn intro_screen(&mut self) {
+    pub(crate) fn intro_screen(&mut self, input: &Input) {
         clear_background(BLACK);
-        let skip = get_last_key_pressed().is_some() || is_mouse_button_pressed(MouseButton::Left);
+        let skip = input.any_key_pressed() || input.mouse_pressed(MouseButton::Left);
         let now = get_time();
         let Some(beat) = self.intro.beats.get(self.intro.at).copied() else {
             return self.leave_intro();

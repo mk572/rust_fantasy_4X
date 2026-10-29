@@ -1,6 +1,7 @@
 //! The new-game options step: difficulty, opponents, land size and node strength, shown
 //! before the wizard is made (the original's `Newgame_Screen_0`).
 
+use crate::input::Input;
 use f4x_core::game::setting::SettingsDef;
 use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
@@ -100,7 +101,7 @@ impl App {
     /// The options step on the original's picture (`Newgame_Screen_0`): four buttons on the
     /// right whose text is the current choice, a click goes on to the next one; OK and Cancel
     /// under them. Positions are the original's.
-    pub(crate) fn options_screen(&mut self) {
+    pub(crate) fn options_screen(&mut self, input: &Input) {
         const ROWS: [(f32, f32); 4] = [(39.0, 43.0), (66.0, 70.0), (93.0, 96.0), (120.0, 123.0)];
         clear_background(BLACK);
         let lay = Layout::new();
@@ -122,8 +123,8 @@ impl App {
             land,
             self.text(MAGIC_LEVELS[usize::from(o.magic).min(2)]),
         ];
-        let mouse: Vec2 = mouse_position().into();
-        let clicked = is_mouse_button_pressed(MouseButton::Left);
+        let mouse: Vec2 = input.mouse_position().into();
+        let clicked = input.mouse_pressed(MouseButton::Left);
         let shadow = Color::new(0.1, 0.1, 0.12, 1.0);
         let font = Color::new(0.85, 0.85, 0.95, 1.0);
         let mut changed = None;
@@ -244,25 +245,32 @@ impl App {
             Some(3) => o.magic = (o.magic + 1) % 3,
             _ => {}
         }
-        let ok = self.newgame_button(&lay, 2, 252.0, 179.0);
-        let cancel = self.newgame_button(&lay, 3, 171.0, 179.0);
-        if cancel || is_key_pressed(KeyCode::Escape) {
+        let ok = self.newgame_button(&lay, 2, 252.0, 179.0, input);
+        let cancel = self.newgame_button(&lay, 3, 171.0, 179.0, input);
+        if cancel || input.key_pressed(KeyCode::Escape) {
             self.open_main_menu();
-        } else if ok || is_key_pressed(KeyCode::Enter) {
+        } else if ok || input.key_pressed(KeyCode::Enter) {
             self.open_creation();
         }
     }
 
     /// A two-frame button of `newgame.lbx` (the second frame while pressed); true when clicked.
-    pub(crate) fn newgame_button(&mut self, lay: &Layout, entry: usize, x: f32, y: f32) -> bool {
+    pub(crate) fn newgame_button(
+        &mut self,
+        lay: &Layout,
+        entry: usize,
+        x: f32,
+        y: f32,
+        input: &Input,
+    ) -> bool {
         let Some(tex) = self.art.picture("newgame", entry, 0).cloned() else {
             return false;
         };
         let r = lay.rect((x, y, tex.width(), tex.height()));
-        let hover = r.contains(mouse_position().into());
-        let frame = usize::from(hover && is_mouse_button_down(MouseButton::Left));
+        let hover = r.contains(input.mouse_position().into());
+        let frame = usize::from(hover && input.mouse_down(MouseButton::Left));
         self.draw_pic(lay, "newgame", entry, frame, x, y);
-        hover && is_mouse_button_pressed(MouseButton::Left)
+        hover && input.mouse_pressed(MouseButton::Left)
     }
 }
 
@@ -270,7 +278,7 @@ impl App {
     /// What the game is played with (task 94), opened from the Settings screen's Game button.
     /// In a game it shows the settings and changes nothing; from the start menu there is no
     /// game, so it is the options for the next one. Back returns to the Settings screen.
-    pub(crate) fn game_settings_screen(&mut self) {
+    pub(crate) fn game_settings_screen(&mut self, input: &Input) {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let (w, h) = (screen_width(), screen_height());
         draw_rectangle(0.0, 0.0, w, h, PANEL);
@@ -293,7 +301,7 @@ impl App {
             );
             let o = &mut self.options;
             let settings = &self.game.content().settings;
-            o.difficulty = choose(x, &mut y, &difficulty, &difficulties, o.difficulty);
+            o.difficulty = choose(x, &mut y, &difficulty, &difficulties, o.difficulty, input);
             let opponents: Vec<String> = (1..=settings.max_opponents)
                 .map(|n| n.to_string())
                 .collect();
@@ -303,12 +311,13 @@ impl App {
                 &opponents_label,
                 &opponents,
                 o.opponents.clamp(1, settings.max_opponents) - 1,
+                input,
             );
             let lands: Vec<String> = settings.land_sizes.iter().map(|s| s.name.clone()).collect();
-            o.land = choose(x, &mut y, &land_label, &lands, o.land);
-            o.magic = choose(x, &mut y, &magic_label, &magic_levels, o.magic);
+            o.land = choose(x, &mut y, &land_label, &lands, o.land, input);
+            o.magic = choose(x, &mut y, &magic_label, &magic_levels, o.magic, input);
             let maps: Vec<String> = settings.map_sizes.iter().map(|s| s.name.clone()).collect();
-            o.map = choose(x, &mut y, &map_label, &maps, o.map);
+            o.map = choose(x, &mut y, &map_label, &maps, o.map, input);
             let generators = [
                 self.texts().get("options.generator_custom", &Args::new()),
                 self.texts().get("options.generator_original", &Args::new()),
@@ -320,6 +329,7 @@ impl App {
                 &generator_label,
                 &generators,
                 u8::from(o.original_generator),
+                input,
             ) == 1;
             let seed = self.text_with(
                 "options.line_seed",
@@ -327,7 +337,12 @@ impl App {
             );
             draw_text(&seed, x, y + 20.0, 22.0, WHITE);
             y += 30.0;
-            button(Rect::new(x, y + 20.0, 150.0, 40.0), &back_label, true)
+            button(
+                Rect::new(x, y + 20.0, 150.0, 40.0),
+                &back_label,
+                true,
+                input,
+            )
         } else {
             draw_text(self.text("options.this_game"), x, y - 6.0, 20.0, GRAY);
             y += 16.0;
@@ -350,9 +365,10 @@ impl App {
                 Rect::new(x, y + 20.0, 150.0, 40.0),
                 &self.text("options.back"),
                 true,
+                input,
             )
         };
-        if back || is_key_pressed(KeyCode::Escape) {
+        if back || input.key_pressed(KeyCode::Escape) {
             self.screen = Screen::Settings;
         }
     }
@@ -437,7 +453,7 @@ pub(crate) fn settings_lines(
 }
 
 /// A row of radio buttons; returns the chosen index.
-fn choose(x: f32, y: &mut f32, label: &str, names: &[String], current: u8) -> u8 {
+fn choose(x: f32, y: &mut f32, label: &str, names: &[String], current: u8, input: &Input) -> u8 {
     draw_text(label, x, *y + 22.0, 24.0, WHITE);
     let mut chosen = current;
     for (i, name) in names.iter().enumerate() {
@@ -447,7 +463,7 @@ fn choose(x: f32, y: &mut f32, label: &str, names: &[String], current: u8) -> u8
         } else {
             name.clone()
         };
-        if button(r, &label, true) {
+        if button(r, &label, true, input) {
             chosen = i as u8;
         }
     }
