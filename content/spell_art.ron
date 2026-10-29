@@ -97,6 +97,7 @@
         "psionic_blast": [(lbx: "cmbtfx", entry: 16, role: Cast)],
         "raise_volcano": [(lbx: "specfx", entry: 11, role: Cast)],
         "spell_binding": [(lbx: "specfx", entry: 44, role: Cast)],
+        "spell_of_mastery": [(lbx: "spellscr", entry: 67, role: Mastery(0)), (lbx: "spellscr", entry: 68, role: Mastery(1)), (lbx: "spellscr", entry: 69, role: Mastery(2)), (lbx: "spellscr", entry: 70, role: Mastery(3))],
         "spell_blast": [(lbx: "specfx", entry: 40, role: Cast)],
         "star_fires": [(lbx: "cmbtfx", entry: 9, role: Cast)],
         "stasis": [(lbx: "specfx", entry: 53, role: Cast)],

@@ -43,6 +43,8 @@ pub enum Role {
     DispelledCity,
     /// The box about a unit's spell that was dispelled.
     DispelledUnit,
+    /// One of the four vortex animations of the Spell of Mastery announcement, in the order they play.
+    Mastery(u8),
     /// The mask the mirror dissolves the wizard's face through, first or second.
     Mask(u8),
 }

@@ -8,6 +8,7 @@ use crate::modal::{keep, kind, priority, Modal};
 use f4x_core::game::Command;
 use f4x_core::rules::SpellId;
 use f4x_core::text::Args;
+use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -482,9 +483,9 @@ impl Modal for MasteryNotice {
 const MASTERY_STAGE: f64 = 0.11;
 /// `Cast_Spell_Of_Mastery` runs 200 stages.
 const MASTERY_STAGES: usize = 200;
-/// `SPELLSCR.LBX` animations of the vortex and the stage each one starts at (`67` from the
-/// beginning, then `68`, `69` and `70` at stages 17, 33 and 49).
-const MASTERY_PICTURES: [(usize, usize); 4] = [(67, 0), (68, 17), (69, 33), (70, 49)];
+/// The stage each of the four vortex animations (`Role::Mastery`, `SPELLSCR.LBX` 67 to 70) starts
+/// at.
+const MASTERY_STARTS: [usize; 4] = [0, 17, 33, 49];
 
 impl App {
     /// For screenshots: the announcement of a cast by player `by`, `seconds` in.
@@ -511,13 +512,18 @@ impl App {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         clear_background(BLACK);
-        let &(entry, first) = MASTERY_PICTURES
+        let part = MASTERY_STARTS
             .iter()
-            .rev()
-            .find(|(_, from)| stage >= *from)
-            .unwrap_or(&MASTERY_PICTURES[0]);
-        let frames = self.art.frames("spellscr", entry).max(1);
-        self.draw_pic(&lay, "spellscr", entry, (stage - first) % frames, 0.0, 0.0);
+            .rposition(|&from| stage >= from)
+            .unwrap_or(0);
+        if let Some((lbx, entry)) = self
+            .art
+            .spell_picture("spell_of_mastery", &Role::Mastery(part as u8))
+        {
+            let frames = self.art.frames(&lbx, entry).max(1);
+            let frame = (stage - MASTERY_STARTS[part]) % frames;
+            self.draw_pic(&lay, &lbx, entry, frame, 0.0, 0.0);
+        }
         let args = self.wizard_arg(Args::new(), "wizard", notice.caster);
         let started_line = self.text_with("bigbook.mastery_started", &args);
         self.bm_text_outlined(view, 5, &started_line, 160.0, 160.0, Align::Center);
