@@ -437,7 +437,7 @@ impl App {
             return None;
         }
         if let Screen::Outpost = self.screen {
-            return self.page.as_ref().and_then(|page| page.music());
+            return self.pages.get(&self.screen).and_then(|page| page.music());
         }
         if self.game_over_pending() {
             return None;

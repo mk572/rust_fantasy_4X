@@ -205,8 +205,9 @@ pub struct App {
     pub(crate) item_pool_pending: bool,
     /// The test battle is fought at sea (`--battle-field sea`).
     pub(crate) test_sea: bool,
-    /// The open screen's own state and code, for the screens converted to [`Page`](crate::page::Page).
-    pub(crate) page: Option<Box<dyn crate::page::Page>>,
+    /// The screens converted to [`Page`](crate::page::Page): one page per kind of screen, kept
+    /// while another screen (a unit sheet, the console) is up over it.
+    pub(crate) pages: crate::page::Pages,
     pub(crate) item_ui: crate::item_screen::ItemUi,
     pub(crate) craft_ui: Option<crate::craft_screen::CraftUi>,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
@@ -392,7 +393,7 @@ impl App {
             slides: Vec::new(),
             test_sea: false,
             item_pool_pending: false,
-            page: None,
+            pages: Default::default(),
             item_ui: Default::default(),
             craft_ui: None,
             game_over_seen: false,
