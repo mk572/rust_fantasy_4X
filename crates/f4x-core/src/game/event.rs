@@ -70,6 +70,12 @@ pub enum Event {
         city: hecs::Entity,
         item: city::production::ProductionItem,
     },
+    /// The city's current item cannot be built any more (a building it needs was lost, say): it
+    /// goes back to Trade Goods.
+    ProductionImpossible {
+        city: hecs::Entity,
+        item: city::production::ProductionItem,
+    },
     /// A Chaos Rift struck the city: units it destroyed, and a building that fell.
     ChaosRiftStrikes {
         city: hecs::Entity,

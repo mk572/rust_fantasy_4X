@@ -508,6 +508,25 @@ impl Game {
         Ok(cost)
     }
 
+    /// The current item when the city can no longer build it (a building it needs is gone, or
+    /// the like): the city falls back to Trade Goods.
+    pub(crate) fn production_impossible(&mut self, city: hecs::Entity) -> Option<ProductionItem> {
+        let item = self.economy().city_production(city).item?;
+        let gone = matches!(
+            self.economy().can_build(city, item),
+            Err(ProductionError::MissingBuilding
+                | ProductionError::WrongRace
+                | ProductionError::NotCoastal)
+        );
+        if !gone {
+            return None;
+        }
+        let mut p = self.economy().city_production(city);
+        p.item = Some(ProductionItem::TradeGoods);
+        let _ = self.world.insert_one(city, p);
+        Some(item)
+    }
+
     /// Add this turn's production and complete the item if it is covered.
     /// A unit that would be finished now but finds the square full (nine units): the unit waits
     /// with its cost paid and the production of this turn is not added. Returns the unit.

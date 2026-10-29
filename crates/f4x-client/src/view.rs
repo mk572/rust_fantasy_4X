@@ -631,6 +631,12 @@ impl App {
                         .text("item", self.item_name(item));
                     Some(self.text_with("log.production_blocked", &args))
                 }
+                Event::ProductionImpossible { city, item } => {
+                    let args = Args::new()
+                        .text("city", self.city_name(city))
+                        .text("item", self.item_name(item));
+                    Some(self.text_with("log.production_impossible", &args))
+                }
                 Event::ChaosRiftStrikes {
                     city,
                     units_lost,
@@ -897,7 +903,20 @@ impl App {
                     let args = self.wizard_arg(Args::new(), "wizard", caster);
                     Some(self.text_with("log.mastery_started", &args))
                 }
-                Event::StasisEnded { .. } => Some(self.text("log.stasis_ended")),
+                Event::StasisEnded { unit } => {
+                    // The box of a dispelled lasting spell, for a unit of the human's (message 20).
+                    let stasis = self.game.content().rules.spells.id_of("stasis");
+                    if let Some(spell) = stasis {
+                        if self.game.units().unit_owner(unit) == Some(HUMAN) {
+                            self.announce_dispelled(
+                                spell,
+                                f4x_core::game::DispelSite::Unit,
+                                &mut dispelled,
+                            );
+                        }
+                    }
+                    Some(self.text("log.stasis_ended"))
+                }
                 Event::UnitMutated { .. } => Some(self.text("log.unit_mutated")),
                 Event::WorldSpellStruck {
                     spell,

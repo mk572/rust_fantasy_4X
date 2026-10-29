@@ -63,6 +63,9 @@ impl Game {
                 }
                 continue;
             }
+            if let Some(item) = self.production_impossible(city) {
+                events.push(Event::ProductionImpossible { city, item });
+            }
             self.autobuild_refresh(city);
             let Some(eco) = self.economy().city_economy(city) else {
                 continue;

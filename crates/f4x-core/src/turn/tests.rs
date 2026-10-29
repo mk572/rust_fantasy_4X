@@ -1361,6 +1361,31 @@ fn a_finished_unit_waits_while_nine_units_stand_in_the_city() {
 }
 
 #[test]
+fn a_city_that_lost_the_building_its_item_needs_turns_to_trade_goods() {
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), "elf", 4);
+    add_building(&mut g, city, "barracks");
+    add_building(&mut g, city, "fighters_guild");
+    let spear = g.content.rules.units.id_of("spear").unwrap();
+    g.set_production(city, ProductionItem::Unit(spear)).unwrap();
+    assert_eq!(g.production_impossible(city), None);
+    let barracks = g.content.rules.buildings.id_of("barracks").unwrap();
+    g.world
+        .get::<&mut Buildings>(city)
+        .unwrap()
+        .0
+        .retain(|b| *b != barracks);
+    assert_eq!(
+        g.production_impossible(city),
+        Some(ProductionItem::Unit(spear))
+    );
+    assert_eq!(
+        g.economy().city_production(city).item,
+        Some(ProductionItem::TradeGoods)
+    );
+}
+
+#[test]
 fn settlers_cost_a_citizen_unless_the_setting_makes_them_free() {
     let mut g = world();
     let city = found(&mut g, at(10, 6), "elf", 3);

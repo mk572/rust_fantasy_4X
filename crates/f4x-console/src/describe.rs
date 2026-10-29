@@ -118,6 +118,11 @@ pub fn event(game: &Game, e: &Event) -> String {
                 item(game, *i)
             )
         }
+        Event::ProductionImpossible { city, item: i } => format!(
+            "{} can no longer produce {}",
+            city_name(game, *city),
+            item(game, *i)
+        ),
         Event::ChaosRiftStrikes {
             city,
             units_lost,
