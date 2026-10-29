@@ -362,5 +362,6 @@
         "expanding_help": true,
         "play_intro": true,         // true: the original's opening movie plays at start-up (only if it was extracted)
         "left_click_moves": true,   // true: a left click moves the selected units; false: a right click does
+        "dim_behind_boxes": true,   // true: the screen under a question or notice is dimmed (the original does not); false: it stays as it is
     },
 )

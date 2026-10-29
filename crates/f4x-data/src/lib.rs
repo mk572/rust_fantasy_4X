@@ -1032,7 +1032,7 @@ mod tests {
             .iter()
             .all(|l| l.world.start_reveal_radius.0 == 2.5));
         assert!(s.levels.iter().all(|l| l.wizards.starting_mana.human == 0));
-        assert_eq!(s.preferences.len(), 18);
+        assert_eq!(s.preferences.len(), 19);
         assert!(!s.preferences["strategic_combat_only"] && s.preferences["sound_effects"]);
     }
 

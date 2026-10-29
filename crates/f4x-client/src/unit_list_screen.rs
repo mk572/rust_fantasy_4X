@@ -5,7 +5,7 @@
 //! read only: a click or Escape closes it.
 
 use crate::input::Input;
-use crate::modal::Modal;
+use crate::modal::{keep, Modal};
 use f4x_core::map::Position;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -28,6 +28,18 @@ pub(crate) fn window_top(count: usize) -> f32 {
     MIDDLE - ((HEAD + count as f32 * ROW) / 2.0).floor()
 }
 
+/// The units of a square the player cannot command, listed over the screen.
+pub(crate) struct UnitList(Vec<hecs::Entity>);
+
+impl Modal for UnitList {
+    fn kind(&self) -> &'static str {
+        "unit_list"
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.unit_list_frame(*self, input))
+    }
+}
+
 impl App {
     /// Open the list for the units of `pos` that the human can see, if any are not his own.
     pub(crate) fn open_unit_list(&mut self, pos: Position) -> bool {
@@ -42,7 +54,7 @@ impl App {
         if units.is_empty() {
             return false;
         }
-        self.modals.open(Modal::UnitList(units));
+        self.modals.open(UnitList(units));
         true
     }
 
@@ -65,9 +77,9 @@ impl App {
     /// One frame of the window over the screen below; what is left of it, `None` once it is left.
     pub(crate) fn unit_list_frame(
         &mut self,
-        mut units: Vec<hecs::Entity>,
+        UnitList(mut units): UnitList,
         input: &Input,
-    ) -> Option<Modal> {
+    ) -> Option<UnitList> {
         units.retain(|&u| self.game.units().unit_position(u).is_some());
         let leave = input.key_pressed(KeyCode::Escape)
             || input.mouse_pressed(MouseButton::Left)
@@ -77,7 +89,7 @@ impl App {
             return None;
         }
         self.draw_unit_list(&units);
-        (!leave).then_some(Modal::UnitList(units))
+        (!leave).then_some(UnitList(units))
     }
 
     fn draw_unit_list(&mut self, units: &[hecs::Entity]) {

@@ -7,11 +7,27 @@ use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
-use crate::modal::Modal;
+use crate::modal::{keep, Modal};
 use crate::ui::GOLD;
 use crate::view::{App, Screen, HUMAN};
 use f4x_core::rules::exec::Target;
 use f4x_core::rules::SpellId;
+
+/// The dead hero to raise, the row picked at `row`.
+pub(crate) struct Resurrect {
+    spell: SpellId,
+    resolve: bool,
+    row: usize,
+}
+
+impl Modal for Resurrect {
+    fn kind(&self) -> &'static str {
+        "resurrect"
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.resurrect_prompt_frame(*self, input))
+    }
+}
 
 impl App {
     /// Start Resurrection: open the list of the dead heroes, or say there are none.
@@ -20,7 +36,7 @@ impl App {
         if self.game.units().raisable_heroes().is_empty() {
             self.log.push(self.text("spell.no_dead"));
         } else {
-            self.modals.open(Modal::Resurrect {
+            self.modals.open(Resurrect {
                 spell,
                 resolve,
                 row: 0,
@@ -31,11 +47,14 @@ impl App {
     /// The list of the dead heroes over the map, the row picked at `row`.
     pub(crate) fn resurrect_prompt_frame(
         &mut self,
-        spell: SpellId,
-        resolve: bool,
-        row: usize,
+        resurrect: Resurrect,
         input: &Input,
-    ) -> Option<Modal> {
+    ) -> Option<Resurrect> {
+        let Resurrect {
+            spell,
+            resolve,
+            row,
+        } = resurrect;
         let dead = self.game.units().raisable_heroes();
         let lines: Vec<String> = dead
             .iter()
@@ -81,7 +100,7 @@ impl App {
             let events = self.game.apply(command);
             self.note(events);
         } else {
-            left = Some(Modal::Resurrect {
+            left = Some(Resurrect {
                 spell,
                 resolve,
                 row: pick,

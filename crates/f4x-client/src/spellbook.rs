@@ -12,7 +12,6 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
-use crate::modal::Modal;
 use crate::view::{App, Screen, HUMAN};
 
 /// A spell waiting for the player to click its target on the map.
@@ -378,7 +377,7 @@ impl App {
             if self.game.rival_globals(HUMAN).is_empty() {
                 self.log.push(self.text("spell.no_globals_waits"));
             } else {
-                self.modals.open(Modal::Global {
+                self.modals.open(crate::view::Global {
                     spell,
                     resolve: true,
                     row: 0,
@@ -420,7 +419,7 @@ impl App {
                 if self.game.rival_globals(HUMAN).is_empty() {
                     self.log.push(self.text("spell.no_globals"));
                 } else {
-                    self.modals.open(Modal::Global {
+                    self.modals.open(crate::view::Global {
                         spell,
                         resolve: false,
                         row: 0,
@@ -908,7 +907,7 @@ impl App {
                     if self.game.economy().city_owner(city) == Some(HUMAN)
                         && !self.game.fully_warded(city) =>
                 {
-                    self.modals.open(Modal::Ward {
+                    self.modals.open(crate::view::Ward {
                         spell: t.spell,
                         city,
                         resolve: t.resolve,

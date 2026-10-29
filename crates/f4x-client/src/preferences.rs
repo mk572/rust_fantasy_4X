@@ -1,6 +1,6 @@
 //! The player's preferences (task 89): the original's Settings screen, `MAGIC.SET`, and two of
-//! ours (Left Click Moves Units; off: a right click moves; Play Intro, task 85). Nineteen
-//! switches that change how the game is shown or asked about, not its rules. They live outside
+//! ours (Left Click Moves Units; off: a right click moves; Play Intro, task 85; Dim Behind Boxes,
+//! task 389). Nineteen switches that change how the game is shown or asked about, not its rules. They live outside
 //! the saves, in `saves/preferences.txt`, one `name=0|1` line each, so every game shares them.
 
 use std::collections::BTreeMap;
@@ -27,9 +27,10 @@ pub(crate) enum Pref {
     ExpandingHelp,
     LeftClickMoves,
     PlayIntro,
+    DimBehindBoxes,
 }
 
-pub(crate) const PREFS: [Pref; 18] = [
+pub(crate) const PREFS: [Pref; 19] = [
     Pref::SoundEffects,
     Pref::BackgroundMusic,
     Pref::EventMusic,
@@ -48,6 +49,7 @@ pub(crate) const PREFS: [Pref; 18] = [
     Pref::ExpandingHelp,
     Pref::LeftClickMoves,
     Pref::PlayIntro,
+    Pref::DimBehindBoxes,
 ];
 
 impl Pref {
@@ -72,6 +74,7 @@ impl Pref {
             Pref::ExpandingHelp => "expanding_help",
             Pref::LeftClickMoves => "left_click_moves",
             Pref::PlayIntro => "play_intro",
+            Pref::DimBehindBoxes => "dim_behind_boxes",
         }
     }
 
@@ -96,6 +99,7 @@ impl Pref {
             Pref::ExpandingHelp => "preferences.expanding_help",
             Pref::LeftClickMoves => "preferences.left_click_moves",
             Pref::PlayIntro => "preferences.play_intro",
+            Pref::DimBehindBoxes => "preferences.dim_behind_boxes",
         }
     }
 
@@ -110,7 +114,7 @@ pub(crate) const FILE: &str = "saves/preferences.txt";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Preferences {
-    on: [bool; 18],
+    on: [bool; 19],
     /// The music and effect volumes, 0 to 100 (the Settings screen's sliders; not in the
     /// original).
     pub music_volume: u8,

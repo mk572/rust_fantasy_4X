@@ -1,68 +1,99 @@
-//! The modal stack: questions that wait over the screen below until they are answered.
+//! The modal stack: questions and notices that wait over the screen below until they are answered.
 //!
-//! A modal is drawn after the screen below it and, while one is open, gets all the input of the
-//! frame (`App::frame` returns after the modal's frame, so nothing below sees a click or a key).
-//! The newest modal is on top. Each kind holds its own state; its frame returns what is left of
-//! it (`None` once it is answered). Opening a kind that is already open replaces it.
+//! A modal is drawn after the screen below it (dimmed, if the player wants it) and, while one is
+//! open, gets all the input of the frame (`App::frame` returns after the modal's frame, so
+//! nothing below sees a click or a key). Each kind is a struct with its own state that implements
+//! [`Modal`]; its frame takes the state and returns what is left of it (`None` once it is
+//! answered).
+//!
+//! Two kinds of modal come in two ways:
+//! - A question the player asked for (a spell's target, a confirmation) is `open`ed on top; one of
+//!   the same kind that is already open is replaced.
+//! - A notice that turn processing produces (an event, a site's report) is `enqueue`d: it waits
+//!   until nothing is open, and the waiting ones run first in, first out (lower `priority` first
+//!   among those that wait).
 
-use f4x_core::rules::SpellId;
+use std::collections::VecDeque;
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Modal {
-    /// The fortress has fallen: resign, or cast the Spell of Return.
-    Resign,
-    /// Which realm a Spell Ward guards a city against.
-    Ward {
-        spell: SpellId,
-        city: hecs::Entity,
-        resolve: bool,
-    },
-    /// The cast has nothing to aim at: keep the spell or give it up.
-    NoTarget(SpellId),
-    /// The dead hero to raise, the row picked at `row`.
-    Resurrect {
-        spell: SpellId,
-        resolve: bool,
-        row: usize,
-    },
-    /// The rival's global enchantment to dispel, the row picked at `row`.
-    Global {
-        spell: SpellId,
-        resolve: bool,
-        row: usize,
-    },
-    /// The units of a square the player cannot command, listed over the screen.
-    UnitList(Vec<hecs::Entity>),
-    /// Turn 1: the box that lets the player rename the capital, with the name typed so far.
-    CapitalName { city: hecs::Entity, name: String },
+use crate::input::Input;
+use crate::view::App;
+
+pub(crate) trait Modal {
+    /// What kind of box this is: opening one replaces an open one of the same kind.
+    fn kind(&self) -> &'static str;
+
+    /// Among the waiting notices the lower number runs first; equal ones keep their order.
+    fn priority(&self) -> u8 {
+        0
+    }
+
+    /// Whether the turn change must wait until this is answered.
+    fn blocks_turn(&self) -> bool {
+        true
+    }
+
+    /// One frame: draw the box and take the input; what is left of the modal, `None` once it is
+    /// answered.
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>>;
 }
 
-/// The open modals, the newest last.
+/// Box what is left of a modal's state, for `Modal::frame`.
+pub(crate) fn keep<M: Modal + 'static>(left: Option<M>) -> Option<Box<dyn Modal>> {
+    left.map(|m| Box::new(m) as Box<dyn Modal>)
+}
+
+/// The open modals, the newest last, and the notices waiting for their turn.
 #[derive(Default)]
 pub(crate) struct ModalStack {
-    open: Vec<Modal>,
+    open: Vec<Box<dyn Modal>>,
+    waiting: VecDeque<Box<dyn Modal>>,
 }
 
 impl ModalStack {
     /// Open a modal on top; one of the same kind that is already open is replaced.
-    pub(crate) fn open(&mut self, modal: Modal) {
-        self.open
-            .retain(|m| std::mem::discriminant(m) != std::mem::discriminant(&modal));
-        self.open.push(modal);
+    pub(crate) fn open(&mut self, modal: impl Modal + 'static) {
+        let kind = modal.kind();
+        self.open.retain(|m| m.kind() != kind);
+        self.open.push(Box::new(modal));
+    }
+
+    /// Let a notice wait for its turn, behind the ones that wait already.
+    pub(crate) fn enqueue(&mut self, modal: impl Modal + 'static) {
+        let at = self
+            .waiting
+            .iter()
+            .position(|m| m.priority() > modal.priority())
+            .unwrap_or(self.waiting.len());
+        self.waiting.insert(at, Box::new(modal));
     }
 
     pub(crate) fn is_empty(&self) -> bool {
-        self.open.is_empty()
+        self.open.is_empty() && self.waiting.is_empty()
     }
 
-    /// Take the top modal to run its frame; give it back with `restore`.
-    pub(crate) fn take_top(&mut self) -> Option<(usize, Modal)> {
+    /// Whether the turn change has to wait for an answer. Not asked yet: the prompts the turn
+    /// change waits for are still on the `if` chain in `view.rs`.
+    #[allow(dead_code)]
+    pub(crate) fn blocks_turn(&self) -> bool {
+        self.open
+            .iter()
+            .chain(&self.waiting)
+            .any(|m| m.blocks_turn())
+    }
+
+    /// Take the top modal to run its frame; give what is left of it back with `restore`. With
+    /// nothing open, the first waiting notice becomes the open one.
+    pub(crate) fn take_top(&mut self) -> Option<(usize, Box<dyn Modal>)> {
+        if self.open.is_empty() {
+            let next = self.waiting.pop_front()?;
+            self.open.push(next);
+        }
         let modal = self.open.pop()?;
         Some((self.open.len(), modal))
     }
 
     /// Put back what is left of a modal taken from `at`; modals opened meanwhile stay above it.
-    pub(crate) fn restore(&mut self, at: usize, left: Option<Modal>) {
+    pub(crate) fn restore(&mut self, at: usize, left: Option<Box<dyn Modal>>) {
         if let Some(modal) = left {
             self.open.insert(at.min(self.open.len()), modal);
         }
@@ -73,46 +104,97 @@ impl ModalStack {
 mod tests {
     use super::*;
 
-    /// A real spell of the shipped rules.
-    fn some_spell() -> SpellId {
-        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
-        let (id, _) = content.rules.spells.iter().next().unwrap();
-        id
+    /// A modal that only has a name, to look at the order they come in.
+    struct Named(&'static str, u8);
+
+    impl Modal for Named {
+        fn kind(&self) -> &'static str {
+            self.0
+        }
+        fn priority(&self) -> u8 {
+            self.1
+        }
+        fn frame(self: Box<Self>, _: &mut App, _: &Input) -> Option<Box<dyn Modal>> {
+            None
+        }
+    }
+
+    fn top_kind(stack: &mut ModalStack) -> Option<&'static str> {
+        stack.take_top().map(|(_, m)| m.kind())
     }
 
     #[test]
-    fn a_kind_opened_twice_is_kept_once_with_the_newer_state() {
+    fn a_kind_opened_twice_is_kept_once() {
         let mut stack = ModalStack::default();
-        stack.open(Modal::Resign);
-        stack.open(Modal::Resign);
-        assert_eq!(stack.take_top(), Some((0, Modal::Resign)));
+        stack.open(Named("resign", 0));
+        stack.open(Named("resign", 0));
+        assert_eq!(top_kind(&mut stack), Some("resign"));
         assert!(stack.is_empty());
     }
 
     #[test]
-    fn the_newest_modal_is_on_top_and_the_one_below_waits() {
+    fn the_newest_opened_modal_is_on_top_and_the_one_below_waits() {
         let mut stack = ModalStack::default();
-        let spell = some_spell();
-        stack.open(Modal::NoTarget(spell));
-        stack.open(Modal::Resign);
+        stack.open(Named("no_target", 0));
+        stack.open(Named("resign", 0));
         let (at, top) = stack.take_top().unwrap();
-        assert_eq!(top, Modal::Resign);
+        assert_eq!(top.kind(), "resign");
         // Still unanswered: it goes back where it was, below nothing.
         stack.restore(at, Some(top));
-        assert_eq!(stack.take_top().unwrap().1, Modal::Resign);
-        assert_eq!(stack.take_top().unwrap().1, Modal::NoTarget(spell));
-        assert!(stack.take_top().is_none());
+        assert_eq!(top_kind(&mut stack), Some("resign"));
+        assert_eq!(top_kind(&mut stack), Some("no_target"));
+        assert_eq!(top_kind(&mut stack), None);
     }
 
     #[test]
     fn a_modal_opened_while_one_runs_ends_up_above_it() {
         let mut stack = ModalStack::default();
-        let spell = some_spell();
-        stack.open(Modal::Resign);
+        stack.open(Named("resign", 0));
         let (at, running) = stack.take_top().unwrap();
-        stack.open(Modal::NoTarget(spell));
+        stack.open(Named("no_target", 0));
         stack.restore(at, Some(running));
-        assert_eq!(stack.take_top().unwrap().1, Modal::NoTarget(spell));
-        assert_eq!(stack.take_top().unwrap().1, Modal::Resign);
+        assert_eq!(top_kind(&mut stack), Some("no_target"));
+        assert_eq!(top_kind(&mut stack), Some("resign"));
+    }
+
+    #[test]
+    fn waiting_notices_run_first_in_first_out_and_a_lower_priority_number_goes_first() {
+        let mut stack = ModalStack::default();
+        stack.enqueue(Named("event", 5));
+        stack.enqueue(Named("site", 3));
+        stack.enqueue(Named("event", 5));
+        stack.enqueue(Named("level_up", 5));
+        let order: Vec<_> = std::iter::from_fn(|| top_kind(&mut stack)).collect();
+        assert_eq!(order, ["site", "event", "event", "level_up"]);
+    }
+
+    #[test]
+    fn an_opened_question_runs_before_the_waiting_notices() {
+        let mut stack = ModalStack::default();
+        stack.enqueue(Named("event", 5));
+        stack.open(Named("no_target", 0));
+        assert_eq!(top_kind(&mut stack), Some("no_target"));
+        assert_eq!(top_kind(&mut stack), Some("event"));
+    }
+
+    #[test]
+    fn a_notice_that_does_not_block_the_turn_leaves_it_free() {
+        struct Quiet;
+        impl Modal for Quiet {
+            fn kind(&self) -> &'static str {
+                "quiet"
+            }
+            fn blocks_turn(&self) -> bool {
+                false
+            }
+            fn frame(self: Box<Self>, _: &mut App, _: &Input) -> Option<Box<dyn Modal>> {
+                None
+            }
+        }
+        let mut stack = ModalStack::default();
+        stack.enqueue(Quiet);
+        assert!(!stack.is_empty() && !stack.blocks_turn());
+        stack.open(Named("resign", 0));
+        assert!(stack.blocks_turn());
     }
 }

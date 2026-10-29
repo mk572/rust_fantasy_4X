@@ -18,7 +18,7 @@ use macroquad::prelude::*;
 
 use crate::art::{Art, TILE_H, TILE_W};
 use crate::frame::{spot, Align};
-use crate::modal::Modal;
+use crate::modal::{keep, Modal};
 use crate::options_screen::OptionsState;
 use crate::preferences::Pref;
 use crate::ui::GOLD;
@@ -270,6 +270,65 @@ pub fn fresh_seed() -> u64 {
         .map_or(1, |d| d.as_nanos() as u64);
     // Mix it so that two games a moment apart do not get near numbers; kept to six digits.
     (nanos ^ (nanos >> 29)).wrapping_mul(0x9E37_79B9_7F4A_7C15) % 1_000_000
+}
+
+/// How dark the screen below a modal gets (`Pref::DimBehindBoxes`).
+const DIM: f32 = 0.45;
+
+/// The fortress has fallen: resign, or cast the Spell of Return.
+pub(crate) struct Resign;
+
+impl Modal for Resign {
+    fn kind(&self) -> &'static str {
+        "resign"
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.resign_prompt_frame(input))
+    }
+}
+
+/// Which realm a Spell Ward guards a city against.
+pub(crate) struct Ward {
+    pub(crate) spell: f4x_core::rules::SpellId,
+    pub(crate) city: hecs::Entity,
+    pub(crate) resolve: bool,
+}
+
+impl Modal for Ward {
+    fn kind(&self) -> &'static str {
+        "ward"
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.ward_prompt_frame(*self, input))
+    }
+}
+
+/// The cast has nothing to aim at: keep the spell or give it up.
+pub(crate) struct NoTarget(pub(crate) f4x_core::rules::SpellId);
+
+impl Modal for NoTarget {
+    fn kind(&self) -> &'static str {
+        "no_target"
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.no_target_frame(*self, input))
+    }
+}
+
+/// The rival's global enchantment to dispel, the row picked at `row`.
+pub(crate) struct Global {
+    pub(crate) spell: f4x_core::rules::SpellId,
+    pub(crate) resolve: bool,
+    pub(crate) row: usize,
+}
+
+impl Modal for Global {
+    fn kind(&self) -> &'static str {
+        "global"
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        keep(app.global_prompt_frame(*self, input))
+    }
 }
 
 impl App {
@@ -759,7 +818,7 @@ impl App {
                     Some(self.text_with(key, &Args::new().text("city", name)))
                 }
                 Event::WizardBanished { player, .. } if player == HUMAN => {
-                    self.modals.open(Modal::Resign);
+                    self.modals.open(Resign);
                     Some(self.text("log.banished_you"))
                 }
                 Event::WizardBanished { .. } => Some(self.text("log.banished_rival")),
@@ -906,7 +965,7 @@ impl App {
                 }
                 Event::NoTargetForCast { player, spell } => {
                     if player == HUMAN {
-                        self.modals.open(Modal::NoTarget(spell));
+                        self.modals.open(NoTarget(spell));
                     }
                     None
                 }
@@ -1579,46 +1638,34 @@ impl App {
         true
     }
 
-    /// One frame of the top modal, over the screen that is open.
+    /// One frame of the top modal, over the screen that is open, dimmed if the player wants it.
     fn modal_frame(&mut self, input: &Input) -> bool {
         let Some((at, modal)) = self.modals.take_top() else {
             return false;
         };
         self.screen_frame(&Input::default());
-        let left = match modal {
-            Modal::Resign => self.resign_prompt_frame(input),
-            Modal::Ward {
-                spell,
-                city,
-                resolve,
-            } => self.ward_prompt_frame(spell, city, resolve, input),
-            Modal::NoTarget(spell) => self.no_target_frame(spell, input),
-            Modal::Resurrect {
-                spell,
-                resolve,
-                row,
-            } => self.resurrect_prompt_frame(spell, resolve, row, input),
-            Modal::Global {
-                spell,
-                resolve,
-                row,
-            } => self.global_prompt_frame(spell, resolve, row, input),
-            Modal::UnitList(units) => self.unit_list_frame(units, input),
-            Modal::CapitalName { city, name } => self.capital_name_frame(city, name, input),
-        };
+        if self.prefs.get(crate::preferences::Pref::DimBehindBoxes) {
+            draw_rectangle(
+                0.0,
+                0.0,
+                screen_width(),
+                screen_height(),
+                Color::new(0.0, 0.0, 0.0, DIM),
+            );
+        }
+        let left = modal.frame(self, input);
         self.modals.restore(at, left);
         true
     }
 
     /// The question after aiming a Spell Ward at a city: which realm to ward it against, by the
     /// first letter of the realm, shown over the map. Realms already warded are not offered.
-    fn ward_prompt_frame(
-        &mut self,
-        spell: f4x_core::rules::SpellId,
-        city: hecs::Entity,
-        resolve: bool,
-        input: &Input,
-    ) -> Option<Modal> {
+    fn ward_prompt_frame(&mut self, ward: Ward, input: &Input) -> Option<Ward> {
+        let Ward {
+            spell,
+            city,
+            resolve,
+        } = ward;
         const KEYS: [(KeyCode, &str); 5] = [
             (KeyCode::N, "nature"),
             (KeyCode::S, "sorcery"),
@@ -1630,7 +1677,7 @@ impl App {
             .into_iter()
             .filter(|(_, r)| !self.game.economy().city_warded_against(city, r))
             .collect();
-        let mut left = Some(Modal::Ward {
+        let mut left = Some(Ward {
             spell,
             city,
             resolve,
@@ -1697,7 +1744,8 @@ impl App {
     /// The cast has nothing to aim at: "There are no targets for X. Do you wish to continue
     /// casting it?" Yes keeps the spell (it is not paid for until a target exists), No gives it
     /// up.
-    fn no_target_frame(&mut self, spell: f4x_core::rules::SpellId, input: &Input) -> Option<Modal> {
+    fn no_target_frame(&mut self, no_target: NoTarget, input: &Input) -> Option<NoTarget> {
+        let NoTarget(spell) = no_target;
         let casting = self.game.wizard(HUMAN).and_then(|m| m.casting());
         if casting.is_none_or(|c| c.spell != spell) {
             return None;
@@ -1712,20 +1760,19 @@ impl App {
                 self.note(events);
                 None
             }
-            None => Some(Modal::NoTarget(spell)),
+            None => Some(NoTarget(spell)),
         }
     }
 
     /// The list of the rivals' global enchantments a Disjunction or Spell Binding can aim at,
     /// by wizard, with the spell's name and cost: Up and Down move, Enter or a click casts, and
     /// Escape gives up.
-    fn global_prompt_frame(
-        &mut self,
-        spell: f4x_core::rules::SpellId,
-        resolve: bool,
-        row: usize,
-        input: &Input,
-    ) -> Option<Modal> {
+    fn global_prompt_frame(&mut self, global: Global, input: &Input) -> Option<Global> {
+        let Global {
+            spell,
+            resolve,
+            row,
+        } = global;
         let rows = self.game.rival_globals(HUMAN);
         let row = row.min(rows.len().saturating_sub(1));
         let spells = self.game.spells();
@@ -1780,7 +1827,7 @@ impl App {
             let events = self.game.apply(cmd);
             self.note(events);
         } else {
-            left = Some(Modal::Global {
+            left = Some(Global {
                 spell,
                 resolve,
                 row: pick,
@@ -1842,10 +1889,10 @@ impl App {
 
     /// The question after the human's fortress falls (`Banish_Wizard`): resign (Y) or cast the
     /// Spell of Return (N, Enter), shown over the map.
-    fn resign_prompt_frame(&mut self, input: &Input) -> Option<Modal> {
+    fn resign_prompt_frame(&mut self, input: &Input) -> Option<Resign> {
         let casting = self.game.wizard(HUMAN).and_then(|m| m.casting());
         let casting = casting.filter(|_| self.game.casting_return(HUMAN))?;
-        let mut left = Some(Modal::Resign);
+        let mut left = Some(Resign);
         if input.key_pressed(KeyCode::Y) {
             left = None;
             let events = self.game.apply(Command::Resign { player: HUMAN });
