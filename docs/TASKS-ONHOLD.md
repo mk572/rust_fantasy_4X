@@ -65,9 +65,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 384 | Client | Pop-up leftovers: Hero and Champion Summoned boxes, hire sheet checks |
 | 385 | Client | Help pop-ups: the topics, areas and screens still open |
 | 386 | Client | Magic screen: scroll the enemy wizard portraits |
-| 387 | Magic | Correct Ice Bolt animation |
 | 388 | Magic | Spell Images |
-
 
 ## Descriptions
 
@@ -294,7 +292,5 @@ No action: the hit-points row shows one figure's hit points, and the original do
 **385. Help pop-ups: what is left.** What is left of task 289: (1) our own text for the topics not yet written (`Help::unwritten()` lists them; the conflicts to settle while writing are in `docs/help-conflicts-checklist.md`); (2) the areas the client draws differently from the original: check each wired screen; (3) F1; (4) the screens not yet wired. Split from task 289, 25 October 2026.
 
 **386. Magic screen: scroll the enemy wizard portraits.** The Magic screen shows four rivals' gems and portraits only (`take(4)`), so with more than five wizards (ten colours are playable, task 381) the others cannot be reached. Let the player scroll through the enemy wizard portraits (arrows or the mouse wheel, in the original's style where it has one, else our own), so that every rival can be selected for diplomacy and its details. Split from task 381, 25 October 2026.
-
-**387. Correct Ice Bolt Animation.** Ice Bolt's original animation is not attributed, and it's found under /Users/martinkillmann/projects/rust_fantasy_4X/assets-local/art/cmbtfx/011_00.png until 03.png
 
 **388. Spell Images** Each spell has an image to be shown in Detect Magic etc., but they're not fully found and imported.
