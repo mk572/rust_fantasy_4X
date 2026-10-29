@@ -7,7 +7,7 @@
 
 use f4x_core::rules::SpellId;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Modal {
     /// The fortress has fallen: resign, or cast the Spell of Return.
     Resign,
@@ -31,6 +31,10 @@ pub(crate) enum Modal {
         resolve: bool,
         row: usize,
     },
+    /// The units of a square the player cannot command, listed over the screen.
+    UnitList(Vec<hecs::Entity>),
+    /// Turn 1: the box that lets the player rename the capital, with the name typed so far.
+    CapitalName { city: hecs::Entity, name: String },
 }
 
 /// The open modals, the newest last.

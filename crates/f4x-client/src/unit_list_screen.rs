@@ -5,6 +5,7 @@
 //! read only: a click or Escape closes it.
 
 use crate::input::Input;
+use crate::modal::Modal;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -41,7 +42,7 @@ impl App {
         if units.is_empty() {
             return false;
         }
-        self.unit_list = units;
+        self.modals.open(Modal::UnitList(units));
         true
     }
 
@@ -61,31 +62,27 @@ impl App {
         }
     }
 
-    /// One frame of the window over the map. True while it is up.
-    pub(crate) fn unit_list_frame(&mut self, input: &Input) -> bool {
-        if self.unit_list.is_empty() {
-            return false;
-        }
-        self.unit_list
-            .retain(|&u| self.game.units().unit_position(u).is_some());
+    /// One frame of the window over the screen below; what is left of it, `None` once it is left.
+    pub(crate) fn unit_list_frame(
+        &mut self,
+        mut units: Vec<hecs::Entity>,
+        input: &Input,
+    ) -> Option<Modal> {
+        units.retain(|&u| self.game.units().unit_position(u).is_some());
         let leave = input.key_pressed(KeyCode::Escape)
             || input.mouse_pressed(MouseButton::Left)
             || input.mouse_pressed(MouseButton::Right)
-            || self.unit_list.is_empty();
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
-        self.draw_unit_list();
-        if leave {
-            self.unit_list.clear();
+            || units.is_empty();
+        if units.is_empty() {
+            return None;
         }
-        true
+        self.draw_unit_list(&units);
+        (!leave).then_some(Modal::UnitList(units))
     }
 
-    fn draw_unit_list(&mut self) {
+    fn draw_unit_list(&mut self, units: &[hecs::Entity]) {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let units = self.unit_list.clone();
         let top = window_top(units.len());
         let height = HEAD + units.len() as f32 * ROW;
         let bottom = top + height;

@@ -222,16 +222,12 @@ pub struct App {
     pub(crate) army_ui: crate::army_screen::ArmyUi,
     pub(crate) city_list_ui: crate::city_list_screen::CityListUi,
     pub(crate) outpost_ui: crate::outpost_screen::OutpostUi,
-    /// The capital and the name typed so far, while the first-turn naming box is up.
-    /// The units of the foreign stack whose list window is up.
-    pub(crate) unit_list: Vec<hecs::Entity>,
     /// The site boxes waiting to be shown.
     pub(crate) site_notices: std::collections::VecDeque<crate::site_prompt::SiteNotice>,
     /// Items have just been awarded to the human wizard: the item screen opens when the boxes
     /// before it are closed (`Process_Item_Pool`: a lair's treasure, a gift, the merchant's item
     /// bought, an item made).
     pub(crate) item_pool_pending: bool,
-    pub(crate) capital_naming: Option<(hecs::Entity, String)>,
     /// The test battle is fought at sea (`--battle-field sea`).
     pub(crate) test_sea: bool,
     pub(crate) hall: Vec<crate::hall_of_fame::Entry>,
@@ -382,11 +378,9 @@ impl App {
             army_ui: Default::default(),
             city_list_ui: Default::default(),
             outpost_ui: Default::default(),
-            capital_naming: None,
             test_sea: false,
             site_notices: Default::default(),
             item_pool_pending: false,
-            unit_list: Vec::new(),
             hall: Vec::new(),
             item_ui: Default::default(),
             craft_ui: None,
@@ -1415,20 +1409,6 @@ impl App {
         if self.site_notice_frame(input) {
             return true;
         }
-        if !self.unit_list.is_empty()
-            && !self.game.in_battle()
-            && matches!(self.screen, Screen::Map)
-            && self.unit_list_frame(input)
-        {
-            return true;
-        }
-        if self.capital_naming.is_some()
-            && !self.game.in_battle()
-            && matches!(self.screen, Screen::Map)
-            && self.capital_name_frame(input)
-        {
-            return true;
-        }
         // A wizard has started casting the Spell of Mastery: announced over the whole screen.
         if !self.mastery_notice.is_empty()
             && !self.game.in_battle()
@@ -1539,6 +1519,12 @@ impl App {
             return true;
         }
         self.watch_for_help(input);
+        self.screen_frame(input)
+    }
+
+    /// One frame of the screen that is open (`self.screen`): its input, then its drawing. A modal
+    /// draws it as the base with an empty `Input`, so it shows no hover and takes no click.
+    fn screen_frame(&mut self, input: &Input) -> bool {
         match self.screen {
             Screen::GameOver => return self.game_over_screen(input),
             Screen::Console => self.console_screen(input),
@@ -1593,15 +1579,12 @@ impl App {
         true
     }
 
-    /// One frame of the top modal, over the map it was asked on.
+    /// One frame of the top modal, over the screen that is open.
     fn modal_frame(&mut self, input: &Input) -> bool {
         let Some((at, modal)) = self.modals.take_top() else {
             return false;
         };
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        let none = Input::default();
-        self.draw_map();
-        self.draw_bars(&none);
+        self.screen_frame(&Input::default());
         let left = match modal {
             Modal::Resign => self.resign_prompt_frame(input),
             Modal::Ward {
@@ -1620,6 +1603,8 @@ impl App {
                 resolve,
                 row,
             } => self.global_prompt_frame(spell, resolve, row, input),
+            Modal::UnitList(units) => self.unit_list_frame(units, input),
+            Modal::CapitalName { city, name } => self.capital_name_frame(city, name, input),
         };
         self.modals.restore(at, left);
         true

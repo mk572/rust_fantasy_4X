@@ -6,6 +6,7 @@
 //! on the map, a right-click on one opens its sheet. Positions are the original's.
 
 use crate::input::Input;
+use crate::modal::Modal;
 use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -315,24 +316,23 @@ impl App {
         input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::KpEnter)
     }
 
-    /// Turn 1: the box over the map that lets the player rename the capital
+    /// Turn 1: the box over the screen that lets the player rename the capital
     /// (`Change_Home_City_Name_Popup`, the box at (60,30) titled "Name Starting City").
-    pub(crate) fn capital_name_frame(&mut self, input: &Input) -> bool {
-        let Some((city, mut name)) = self.capital_naming.take() else {
-            return false;
-        };
+    pub(crate) fn capital_name_frame(
+        &mut self,
+        city: hecs::Entity,
+        mut name: String,
+        input: &Input,
+    ) -> Option<Modal> {
         let lay = Layout::new();
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars(input);
         let prompt = self.text("outpost.name_starting");
         if self.name_box(&lay, (60.0, 30.0), &prompt, &mut name, input) {
             let events = self.game.apply(Command::RenameCity { city, name });
             self.note(events);
+            None
         } else {
-            self.capital_naming = Some((city, name));
+            Some(Modal::CapitalName { city, name })
         }
-        true
     }
 
     /// Offer the naming box for the human capital, if there is one.
@@ -344,7 +344,8 @@ impl App {
             .into_iter()
             .find(|(e, c, _)| c.owner == HUMAN && self.game.economy().is_fortress_city(*e));
         if let Some((city, ..)) = capital {
-            self.capital_naming = Some((city, self.city_name(city)));
+            let name = self.city_name(city);
+            self.modals.open(Modal::CapitalName { city, name });
         }
     }
 }
