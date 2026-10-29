@@ -781,9 +781,9 @@ async fn main() {
         app.open_test_chancellor(long);
     }
     if options.create {
-        app.open_creation();
-        if let Some(step) = &options.create_step {
-            app.test_create_step(step);
+        match &options.create_step {
+            Some(step) => app.open_creation_at(step),
+            None => app.open_creation(),
         }
     } else if options.options {
         app.open_options();

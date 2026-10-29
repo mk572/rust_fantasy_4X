@@ -190,7 +190,6 @@ pub struct App {
     /// For screenshots: the square the Surveyor describes instead of the one under the mouse.
     pub(crate) survey_probe: Option<Position>,
     /// The wizard creation screen's state.
-    pub(crate) create: crate::create_screen::CreateState,
     /// The human wizard chosen on the creation screen; new maps reuse it.
     pub(crate) human_build: Option<f4x_core::wizard::WizardBuild>,
     /// The battle screen's state.
@@ -390,7 +389,6 @@ impl App {
             road_plan: None,
             surveyor: false,
             survey_probe: None,
-            create: crate::create_screen::CreateState::empty(),
             human_build: None,
             battle_ui: Default::default(),
             sheet_ui: Default::default(),
@@ -1529,7 +1527,7 @@ impl App {
             Screen::Apprentice => self.apprentice_screen(input),
             Screen::Research => self.research_screen(input),
             Screen::Battle => self.battle_screen(input),
-            Screen::Create => self.create_screen(input),
+            Screen::Create => self.page_frame(input),
             Screen::Options => self.options_screen(input),
             Screen::Cartographer => self.cartographer_screen(input),
             Screen::History => self.history_screen(input),

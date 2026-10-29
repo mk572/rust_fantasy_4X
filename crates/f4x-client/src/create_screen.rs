@@ -59,54 +59,54 @@ impl App {
             .map(|r| r.id.clone())
             .collect()
     }
-
-    pub(crate) fn pick_preset(&mut self, index: Option<usize>) {
+}
+impl CreateState {
+    pub(crate) fn pick_preset(&mut self, app: &mut App, index: Option<usize>) {
         match index {
             Some(i) => {
-                let id = self.game.content().rules.wizards.defs()[i].id.clone();
-                if let Some(build) = self.game.preset_build(&id) {
-                    self.create.build = build;
-                    self.create.preset = Some(i);
+                let id = app.game.content().rules.wizards.defs()[i].id.clone();
+                if let Some(build) = app.game.preset_build(&id) {
+                    self.build = build;
+                    self.preset = Some(i);
                 }
             }
             None => {
                 // "Custom" keeps what is there but under the full pick rules.
-                self.create.build.preset = false;
-                self.create.preset = None;
+                self.build.preset = false;
+                self.preset = None;
             }
         }
-        self.create.build.spells.clear();
-        self.refill_spells();
+        self.build.spells.clear();
+        self.refill_spells(app);
     }
 
     /// Keep the chosen starting spells within what the books allow, filling any gaps with
     /// the realm's defaults so the list always shows what the wizard would start with.
-    fn refill_spells(&mut self) {
-        let realms = self.book_realms();
+    fn refill_spells(&mut self, app: &mut App) {
+        let realms = app.book_realms();
         let mut spells: Vec<SpellId> = Vec::new();
         for realm in &realms {
             for rarity in [Rarity::Common, Rarity::Uncommon, Rarity::Rare] {
-                let want = self.create.build.spell_choices_of(
-                    &self.game.content().settings.spell_library,
+                let want = self.build.spell_choices_of(
+                    &app.game.content().settings.spell_library,
                     realm,
                     rarity,
                 );
                 let mut chosen: Vec<SpellId> = self
-                    .create
                     .build
                     .spells
                     .iter()
                     .copied()
                     .filter(|&s| {
-                        let d = self.game.content().rules.spells.get(s);
+                        let d = app.game.content().rules.spells.get(s);
                         d.realm == *realm && d.rarity == rarity
                     })
                     .collect();
                 chosen.truncate(want);
-                for s in f4x_core::wizard::magic::default_spells(self.game.content(), realm, rarity)
+                for s in f4x_core::wizard::magic::default_spells(app.game.content(), realm, rarity)
                     .into_iter()
                     .chain(f4x_core::wizard::magic::spells_of(
-                        self.game.content(),
+                        app.game.content(),
                         realm,
                         rarity,
                     ))
@@ -121,17 +121,17 @@ impl App {
                 spells.extend(chosen);
             }
         }
-        self.create.build.spells = spells;
+        self.build.spells = spells;
     }
 
-    pub(crate) fn begin_game(&mut self) {
-        let mut build = self.create.build.clone();
+    pub(crate) fn begin_game(&mut self, app: &mut App) {
+        let mut build = self.build.clone();
         build.name = if build.name.trim().is_empty() {
-            self.text("create.default_name")
+            app.text("create.default_name")
         } else {
             build.name.trim().to_string()
         };
-        self.human_build = Some(build);
-        self.new_map(self.seed);
+        app.human_build = Some(build);
+        app.new_map(app.seed);
     }
 }
