@@ -790,7 +790,7 @@ async fn main() {
     } else if options.slots {
         app.open_slots(true);
     } else if options.settings {
-        app.screen = view::Screen::Settings;
+        app.open_settings();
     } else if options.auto_attack || options.attack_box {
         app.open_test_auto_attack(options.attack_box);
     } else if let Some(scene) = options.intro {

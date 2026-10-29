@@ -5,6 +5,7 @@
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -59,25 +60,28 @@ const OK_AREA: (f32, f32, f32, f32) = (265.0, 175.0, 306.0, 189.0);
 const ROW_WIDTH: f32 = 144.0;
 const ROW_HEIGHT: f32 = 9.0;
 
-impl App {
-    pub(crate) fn settings_screen(&mut self, input: &Input) {
+/// The preferences screen keeps nothing between frames: the preferences are the `App`'s.
+struct SettingsPage;
+
+impl Page for SettingsPage {
+    fn frame(&mut self, app: &mut App, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        if self.draw_pic(&lay, "load", 11, 0, 0.0, 0.0).is_none() {
+        if app.draw_pic(&lay, "load", 11, 0, 0.0, 0.0).is_none() {
             let r = lay.rect((0.0, 0.0, 320.0, 200.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.08, 0.07, 0.06, 1.0));
-            let title = self.text("options.settings");
-            self.draw_styled(view, &Style::nearest(5, GOLD).center(), &title, 160.0, 20.0);
+            let title = app.text("options.settings");
+            app.draw_styled(view, &Style::nearest(5, GOLD).center(), &title, 160.0, 20.0);
         }
         let mouse: Vec2 = input.mouse_position().into();
 
         for (i, &(pref, x, y)) in ROWS.iter().enumerate() {
-            let on = self.prefs.get(pref);
+            let on = app.prefs.get(pref);
             // The three box pictures take turns down the page.
             let n = i % 3;
             let entry = if on { 13 + n } else { 16 + n };
-            if self.draw_pic(&lay, "load", entry, 0, x, y).is_none() {
+            if app.draw_pic(&lay, "load", entry, 0, x, y).is_none() {
                 let r = lay.rect((x, y, 9.0, 9.0));
                 draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, GOLD);
                 if on {
@@ -90,15 +94,15 @@ impl App {
                     );
                 }
             }
-            let label = self.text(pref.label());
-            self.draw_styled(view, &Style::nearest(2, WHITE), &label, x + 16.0, y + 2.0);
+            let label = app.text(pref.label());
+            app.draw_styled(view, &Style::nearest(2, WHITE), &label, x + 16.0, y + 2.0);
             if ui::hit(lay.rect((x, y, ROW_WIDTH, ROW_HEIGHT)), true, input).clicked() {
-                self.prefs.toggle(pref);
+                app.prefs.toggle(pref);
             }
         }
         for &(key, x, y) in &HEADINGS {
-            let text = self.text(key);
-            self.draw_styled(view, &Style::nearest(3, GOLD), &text, x, y);
+            let text = app.text(key);
+            app.draw_styled(view, &Style::nearest(3, GOLD), &text, x, y);
         }
 
         let (l, t, r, b) = OK_AREA;
@@ -110,18 +114,18 @@ impl App {
         } else {
             (266.0, 176.0)
         };
-        if self.draw_pic(&lay, "load", 4, 0, dx, dy).is_none() {
+        if app.draw_pic(&lay, "load", 4, 0, dx, dy).is_none() {
             let near = lay.rect((l, t, 41.0, 14.0));
             if button(near, "OK", true, input) {
-                self.leave_settings();
+                app.leave_settings();
             }
         }
-        self.volume_sliders(&lay, view, mouse, input);
+        app.volume_sliders(&lay, view, mouse, input);
         // The game's own settings (task 94), which the original keeps on the new-game screen.
         let game = lay.rect((31.0, 186.0, 60.0, 10.0));
-        if button(game, &self.text("settings.game"), true, input) {
-            self.save_preferences();
-            self.screen = Screen::GameSettings;
+        if button(game, &app.text("settings.game"), true, input) {
+            app.save_preferences();
+            app.screen = Screen::GameSettings;
             return;
         }
         if ok_hit.clicked()
@@ -129,8 +133,14 @@ impl App {
             || input.key_pressed(KeyCode::Enter)
             || input.key_pressed(KeyCode::Escape)
         {
-            self.leave_settings();
+            app.leave_settings();
         }
+    }
+}
+
+impl App {
+    pub(crate) fn open_settings(&mut self) {
+        self.open_page(Screen::Settings, SettingsPage);
     }
 
     /// The two volume sliders in the bottom row: a press or a drag on a bar sets that volume.

@@ -1534,7 +1534,7 @@ impl App {
             Screen::Cartographer => self.cartographer_screen(input),
             Screen::History => self.history_screen(input),
             Screen::Astrologer => self.astrologer_screen(input),
-            Screen::Settings => self.settings_screen(input),
+            Screen::Settings => self.page_frame(input),
             Screen::GameSettings => self.game_settings_screen(input),
             Screen::MainMenu => return self.main_menu_screen(input),
             Screen::Intro => self.intro_screen(input),

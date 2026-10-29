@@ -473,7 +473,7 @@ impl App {
         }
 
         if settings {
-            self.screen = Screen::Settings;
+            self.open_settings();
         } else if load {
             if let Some(n) = selected {
                 match self.load_from(&slot_path(n)) {

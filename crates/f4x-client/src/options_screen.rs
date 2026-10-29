@@ -352,7 +352,7 @@ impl App {
             )
         };
         if back || input.key_pressed(KeyCode::Escape) {
-            self.screen = Screen::Settings;
+            self.open_settings();
         }
     }
 }
