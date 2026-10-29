@@ -67,7 +67,9 @@ impl Game {
             let Some(eco) = self.economy().city_economy(city) else {
                 continue;
             };
-            if let Some(item) = self.apply_production(city, eco.production) {
+            if let Some(item) = self.production_blocked(city, eco.production) {
+                events.push(Event::ProductionBlocked { city, item });
+            } else if let Some(item) = self.apply_production(city, eco.production) {
                 events.push(Event::ProductionCompleted { city, item });
             }
             let (before, mut after) = self.apply_growth(city, eco.growth_tens);

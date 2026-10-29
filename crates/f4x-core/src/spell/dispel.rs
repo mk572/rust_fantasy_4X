@@ -339,6 +339,36 @@ impl Game {
         Some((spell, spent))
     }
 
+    /// Disenchant Area needs something of another wizard's to attack on the square: an
+    /// enchantment on the city or a unit there, a warped node or an enchanted road.
+    pub fn check_dispel_area(&self, at: Position, by: PlayerId) -> Result<(), TargetError> {
+        let theirs = |t: SpellTarget| {
+            self.spells()
+                .enchantments_on(t)
+                .iter()
+                .any(|&(_, caster)| caster != by)
+        };
+        let node = self.economy().node_at(at).is_some_and(|n| n.warped);
+        let road = self.map.as_ref().is_some_and(|m| {
+            m.plane(at.plane)
+                .has_enchanted_road(at.x as i32, at.y as i32)
+        });
+        let city = self
+            .economy()
+            .city_at(at)
+            .is_some_and(|c| theirs(SpellTarget::City(c)));
+        let unit = self
+            .units()
+            .units_at(at)
+            .into_iter()
+            .any(|u| theirs(SpellTarget::Unit(u)));
+        if node || road || city || unit {
+            Ok(())
+        } else {
+            Err(TargetError::NothingToDispel)
+        }
+    }
+
     /// Another wizard's standing dispel of strength 500 against every overland spell cast:
     /// Suppress Magic against all spells, Life Force against death spells, Tranquility against
     /// chaos spells. Returns the wizard whose enchantment stopped `spell`, if any.

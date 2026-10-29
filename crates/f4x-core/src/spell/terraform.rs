@@ -49,6 +49,13 @@ impl Game {
             TerrainClass::Hills => return Err(TargetError::VolcanoOnHill),
             _ => {}
         }
+        if self
+            .map
+            .as_ref()
+            .is_some_and(|m| m.plane(at.plane).has_river(at.x as i32, at.y as i32))
+        {
+            return Err(TargetError::VolcanoOnRiver);
+        }
         self.economy()
             .feature_entity_at(at)
             .is_none()
@@ -71,11 +78,10 @@ impl Game {
             | TerrainClass::Swamp => Ok(TerrainClass::Grassland),
             TerrainClass::Grassland => Ok(TerrainClass::Forest),
             TerrainClass::Mountains => Ok(TerrainClass::Hills),
-            TerrainClass::Ocean
-            | TerrainClass::Tundra
-            | TerrainClass::SorceryNode
-            | TerrainClass::NatureNode
-            | TerrainClass::ChaosNode => Err(TargetError::TerrainFixed),
+            TerrainClass::Ocean | TerrainClass::Tundra => Err(TargetError::TerrainFixed),
+            TerrainClass::SorceryNode | TerrainClass::NatureNode | TerrainClass::ChaosNode => {
+                Err(TargetError::NodeFixed)
+            }
         }
     }
 
@@ -365,6 +371,40 @@ mod tests {
         );
         assert_eq!(g.volcano_count(P0), 1);
         assert_eq!(g.income(P0).power_base, before + 1);
+    }
+
+    #[test]
+    fn a_volcano_cannot_rise_on_a_river_and_a_node_cannot_be_changed() {
+        let mut g = world();
+        g.map
+            .as_mut()
+            .unwrap()
+            .plane_mut(Plane::Arcanus)
+            .set_river(4, 4, true);
+        assert_eq!(
+            g.check_raise_volcano(at(4, 4)),
+            Err(TargetError::VolcanoOnRiver)
+        );
+        for class in [
+            TerrainClass::SorceryNode,
+            TerrainClass::NatureNode,
+            TerrainClass::ChaosNode,
+        ] {
+            let id = g
+                .content
+                .terrains
+                .first_of_class(class, Plane::Arcanus)
+                .unwrap();
+            g.map
+                .as_mut()
+                .unwrap()
+                .plane_mut(Plane::Arcanus)
+                .set(6, 6, id);
+            assert_eq!(
+                g.change_terrain_result(at(6, 6)),
+                Err(TargetError::NodeFixed)
+            );
+        }
     }
 
     #[test]

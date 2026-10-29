@@ -348,6 +348,7 @@ fn a_weak_disjunction_often_fails() {
 #[test]
 fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() {
     let mut g = world();
+    g.make_contact(P0, P1);
     let aura = sp(&g, "aura_of_majesty");
     let cost = g.casting_cost(P1, aura, false);
     g.scenario_casting(P1, aura, cost - 60);
@@ -607,4 +608,40 @@ fn flight_keeps_a_unit_afloat_and_turning_it_off_drowns_it() {
         player: P0,
         units: 1
     }));
+}
+
+#[test]
+fn disenchant_area_is_refused_where_there_is_nothing_of_another_wizards() {
+    let g = world();
+    let da = sp(&g, "disenchant_area");
+    assert_eq!(
+        g.check_target(P0, da, Some(Target::Tile(at(9, 9)))),
+        Err(crate::wizard::magic::MagicError::Target(
+            TargetError::NothingToDispel
+        ))
+    );
+}
+
+#[test]
+fn a_spell_blast_is_refused_without_contact_or_the_mana_to_match() {
+    let mut g = world();
+    let aura = sp(&g, "aura_of_majesty");
+    let cost = g.casting_cost(P1, aura, false);
+    g.scenario_casting(P1, aura, cost - 60);
+    let blast = sp(&g, "spell_blast");
+    let refused = |g: &Game| g.check_target(P0, blast, Some(Target::Player(P1)));
+    assert_eq!(
+        refused(&g),
+        Err(crate::wizard::magic::MagicError::Target(
+            TargetError::NoContact
+        ))
+    );
+    g.make_contact(P0, P1);
+    g.treasury_mut(P0).unwrap().mana = 10;
+    assert_eq!(
+        refused(&g),
+        Err(crate::wizard::magic::MagicError::Target(
+            TargetError::CannotMatchMana
+        ))
+    );
 }

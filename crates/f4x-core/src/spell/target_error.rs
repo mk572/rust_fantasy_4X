@@ -65,6 +65,13 @@ pub enum TargetError {
     BadSquare,
     NothingToRaise,
     NothingToAnimate,
+    NoContact,
+    CannotMatchMana,
+    NodeFixed,
+    VolcanoOnRiver,
+    NothingToDispel,
+    NonCorporeal,
+    NothingToHit,
 }
 
 impl TargetError {
@@ -132,6 +139,13 @@ impl TargetError {
             Self::BadSquare => "refuse_target.bad_square",
             Self::NothingToRaise => "refuse_target.nothing_to_raise",
             Self::NothingToAnimate => "refuse_target.nothing_to_animate",
+            Self::NoContact => "refuse_target.no_contact",
+            Self::CannotMatchMana => "refuse_target.cannot_match_mana",
+            Self::NodeFixed => "refuse_target.node_fixed",
+            Self::VolcanoOnRiver => "refuse_target.volcano_on_river",
+            Self::NothingToDispel => "refuse_target.nothing_to_dispel",
+            Self::NonCorporeal => "refuse_target.non_corporeal",
+            Self::NothingToHit => "refuse_target.nothing_to_hit",
         }
     }
 }

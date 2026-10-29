@@ -497,6 +497,29 @@ impl Game {
     }
 
     /// Add this turn's production and complete the item if it is covered.
+    /// A unit that would be finished now but finds the square full (nine units): the unit waits
+    /// with its cost paid and the production of this turn is not added. Returns the unit.
+    pub(crate) fn production_blocked(
+        &mut self,
+        city: hecs::Entity,
+        production: i32,
+    ) -> Option<ProductionItem> {
+        let Some(Advance::Done {
+            item: item @ ProductionItem::Unit(_),
+            production: p,
+            at,
+            ..
+        }) = self.economy().advance_production(city, production)
+        else {
+            return None;
+        };
+        if self.units().units_at(at).len() < crate::unit::MAX_STACK {
+            return None;
+        }
+        let _ = self.world.insert_one(city, p);
+        Some(item)
+    }
+
     /// Returns what was completed.
     pub fn apply_production(
         &mut self,

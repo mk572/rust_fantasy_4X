@@ -111,6 +111,13 @@ pub fn event(game: &Game, e: &Event) -> String {
         Event::ProductionCompleted { city, item: i } => {
             format!("{} finished {}", city_name(game, *city), item(game, *i))
         }
+        Event::ProductionBlocked { city, item: i } => {
+            format!(
+                "{} cannot finish {}: nine units stand in the city",
+                city_name(game, *city),
+                item(game, *i)
+            )
+        }
         Event::ChaosRiftStrikes {
             city,
             units_lost,

@@ -676,6 +676,28 @@ impl Game {
     ) -> Result<(), SpellError> {
         match (def.target, aim) {
             (SpellTarget::None | SpellTarget::Battlefield, SpellAim::None) => {
+                // A spell on every enemy needs one it can touch.
+                let hits = |ok: &dyn Fn(&super::BattleUnit) -> bool| {
+                    battle
+                        .units
+                        .iter()
+                        .any(|u| u.is_active() && u.side != side && ok(u))
+                };
+                match kind {
+                    Kind::Slay {
+                        only, all: true, ..
+                    } if !hits(&|u| slay_allows(*only, u)) => {
+                        return Err(SpellError::Target(TargetError::NothingToHit));
+                    }
+                    Kind::Damage { all: true, .. }
+                        if only_against(&def.id).is_some_and(|realms| {
+                            !hits(&|u| u.realm.is_some_and(|r| realms.contains(&r)))
+                        }) =>
+                    {
+                        return Err(SpellError::Target(TargetError::NothingToHit));
+                    }
+                    _ => {}
+                }
                 if let Kind::Field(f) = kind {
                     if battle.has_field(side, *f) {
                         return Err(SpellError::AlreadyUp);
@@ -825,6 +847,9 @@ impl Game {
                 }
                 // Warp Wood needs a missile unit; it and Warp Creature take normal units only,
                 // and a unit is warped once.
+                if def.id == "web" && u.has("non_corporeal") {
+                    return Err(SpellError::Target(TargetError::NonCorporeal));
+                }
                 if matches!(kind, Kind::WarpWood | Kind::Warp { .. }) && u.is_fantastic() {
                     return Err(SpellError::Target(TargetError::NotNormalUnit));
                 }

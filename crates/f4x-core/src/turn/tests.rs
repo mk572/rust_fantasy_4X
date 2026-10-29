@@ -1338,3 +1338,24 @@ fn just_cause_pacifies_one_rebel_in_every_city() {
     g.add_global(P0, just_cause);
     assert_eq!(rebels(&g), 3);
 }
+
+#[test]
+fn a_finished_unit_waits_while_nine_units_stand_in_the_city() {
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), "elf", 4);
+    add_building(&mut g, city, "barracks");
+    add_building(&mut g, city, "fighters_guild");
+    let spear = g.content.rules.units.id_of("spear").unwrap();
+    for _ in 0..crate::unit::MAX_STACK {
+        g.spawn_unit(P0, at(10, 6), spear);
+    }
+    g.set_production(city, ProductionItem::Unit(spear)).unwrap();
+    let cost = g.economy().item_cost(city, ProductionItem::Unit(spear));
+    assert!(g.production_blocked(city, cost as i32).is_some());
+    assert_eq!(g.units().units_at(at(10, 6)).len(), crate::unit::MAX_STACK);
+    assert_eq!(
+        g.economy().city_production(city).item,
+        Some(ProductionItem::Unit(spear))
+    );
+    assert!(g.economy().city_production(city).progress >= cost);
+}

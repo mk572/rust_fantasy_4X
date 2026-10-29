@@ -92,6 +92,7 @@ fn cast(g: &mut Game, spell: &str, target: Option<Target>) -> Vec<Event> {
 #[test]
 fn drain_power_takes_what_the_victim_has_up_to_the_roll() {
     let mut g = world();
+    g.make_contact(P0, P1);
     g.treasury_mut(P1).unwrap().mana = 1000;
     let events = cast(&mut g, "drain_power", Some(Target::Player(P1)));
     let taken = events
@@ -127,6 +128,7 @@ fn a_wizard_cannot_drain_themselves() {
 #[test]
 fn cruel_unminding_takes_a_tenth_at_most_and_at_least_one_point() {
     let mut g = world();
+    g.make_contact(P0, P1);
     g.wizard_mut(P1)
         .unwrap()
         .get_mut::<crate::wizard::sheet::Skill>()
@@ -171,6 +173,7 @@ fn an_archmages_ten_points_are_safe() {
 fn subversion_sours_the_others_on_the_target_and_ends_their_peace() {
     let mut g = world();
     g.make_contact(P2, P1);
+    g.make_contact(P0, P1);
     let before = g.relation(P2, P1);
     let events = cast(&mut g, "subversion", Some(Target::Player(P1)));
     assert!(
@@ -645,6 +648,7 @@ fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_last
     let others: Vec<_> = (0..20)
         .map(|_| unit(&mut g, P2, "walker", at(15, 5)))
         .collect();
+    g.make_contact(P0, P2);
     let events = cast(&mut g, "drain_power", Some(Target::Player(P2)));
     let lost = events.iter().find_map(|e| match e {
         Event::WorldSpellStruck {

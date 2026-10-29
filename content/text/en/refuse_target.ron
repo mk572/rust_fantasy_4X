@@ -62,4 +62,11 @@
     "refuse_target.bad_square": "The spell cannot be cast on that square.",
     "refuse_target.nothing_to_raise": "That unit cannot be raised from the dead.",
     "refuse_target.nothing_to_animate": "That unit cannot be animated.",
+    "refuse_target.no_contact": "You have no contact with that wizard.",
+    "refuse_target.cannot_match_mana": "You do not have enough mana to blast that spell.",
+    "refuse_target.node_fixed": "Nodes may not be changed.",
+    "refuse_target.volcano_on_river": "A volcano cannot be raised on a river.",
+    "refuse_target.nothing_to_dispel": "There is nothing to dispel in that area.",
+    "refuse_target.non_corporeal": "A web cannot hold a non-corporeal unit.",
+    "refuse_target.nothing_to_hit": "There is nothing on the battlefield this spell can affect.",
 }

@@ -166,6 +166,9 @@ impl Game {
         if units.unit_counts_as_undead(unit) {
             return Err(TargetError::Undead);
         }
+        if units.unit_is_mutated(unit) {
+            return Err(TargetError::AlreadyMutated);
+        }
         if self.content.rules.units.id_of(WEREWOLVES).is_none() {
             return Err(TargetError::WrongTarget);
         }

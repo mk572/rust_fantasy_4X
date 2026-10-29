@@ -65,6 +65,11 @@ pub enum Event {
         city: hecs::Entity,
         item: city::production::ProductionItem,
     },
+    /// A unit is finished but the city's square holds nine units already: it waits.
+    ProductionBlocked {
+        city: hecs::Entity,
+        item: city::production::ProductionItem,
+    },
     /// A Chaos Rift struck the city: units it destroyed, and a building that fell.
     ChaosRiftStrikes {
         city: hecs::Entity,

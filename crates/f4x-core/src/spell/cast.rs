@@ -539,6 +539,16 @@ impl Game {
                 Err(MagicError::Target(TargetError::NotYourCity))
             }
         };
+        // A summoning needs room on the square the creatures appear on.
+        if self.summons(spell) {
+            let at = match target {
+                Some(Target::Tile(p)) => self.summon_point(player).or(Some(p)),
+                _ => self.summon_point(player),
+            };
+            if at.is_some_and(|p| self.units().units_at(p).len() >= crate::unit::MAX_STACK) {
+                return Err(MagicError::Target(TargetError::SquareFull));
+            }
+        }
         if !self.spell_needs_target(player, spell) {
             return Ok(());
         }
@@ -706,6 +716,20 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
+        let disenchants = self
+            .content
+            .rules
+            .spells
+            .get(spell)
+            .effects
+            .iter()
+            .any(|e| matches!(e.effect, crate::rules::effects::Effect::Dispel { .. }));
+        if disenchants && wanted == SpellTarget::Tile {
+            if let Some(Target::Tile(at)) = target {
+                self.check_dispel_area(at, player)
+                    .map_err(MagicError::Target)?;
+            }
+        }
         if self.is_square_spell(spell) {
             return match target {
                 Some(Target::Tile(at)) => {
@@ -753,6 +777,14 @@ impl Game {
                     && self.mana_spent_casting(p).is_none()
                 {
                     Some(TargetError::NotCasting)
+                } else if !self.have_met(player, p) {
+                    Some(TargetError::NoContact)
+                } else if self.spell_has_hook(spell, crate::spell::dispel::SPELL_BLAST)
+                    && self.player(player).is_some_and(|me| {
+                        me.treasury().mana < self.mana_spent_casting(p).unwrap_or(0)
+                    })
+                {
+                    Some(TargetError::CannotMatchMana)
                 } else {
                     None
                 }

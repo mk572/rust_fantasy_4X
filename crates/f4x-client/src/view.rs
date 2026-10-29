@@ -617,6 +617,12 @@ impl App {
                         .text("item", self.item_name(item));
                     Some(self.text_with("log.production_complete", &args))
                 }
+                Event::ProductionBlocked { city, item } => {
+                    let args = Args::new()
+                        .text("city", self.city_name(city))
+                        .text("item", self.item_name(item));
+                    Some(self.text_with("log.production_blocked", &args))
+                }
                 Event::ChaosRiftStrikes {
                     city,
                     units_lost,

@@ -9,6 +9,7 @@
         zero: "Items fall to the victor: {items}",
         other: "Items fall to the victor: {items} ({lost} did not fit the armory and are lost)"),
     "log.production_complete": "{city}: {item} complete",
+    "log.production_blocked": "{city}: {item} is ready, but nine units already stand in the city",
     "log.rift": "The chaos rift over {city} strikes",
     "log.rift_units": (count: "units",
         one: "The chaos rift over {city} strikes: 1 unit destroyed",
