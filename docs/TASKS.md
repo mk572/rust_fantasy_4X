@@ -20,7 +20,7 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 
 | # | Area | Summary |
 |---|---|---|
-| 389 | Client | Modal stack for prompts, messages and help |
+| 389 | Client | Modal stack for prompts, messages and help (partly done) |
 | 390 | Client | Standard buttons and hit-testing |
 | 391 | Client | One input snapshot per frame |
 | 392 | Client | One text drawing function |
@@ -30,7 +30,7 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 
 ## Descriptions
 
-**389. Modal stack for prompts, messages and help.** `View::frame()` in `view.rs` runs about ten `*_prompt_frame()` and `*_popup_frame()` functions (help, upkeep, attack, ward, resurrect, global, resign, event, offer, built, and more) in a hand-ordered `if` chain, and some return early and block the rest of the frame. Replace this with one stack of modals (a trait with `draw` and `handle_input`): the screen below always draws first and is dimmed, only the top modal gets input (no click leaks through), Esc and click-outside behave the same everywhere, and prompts that queue up (the end-of-turn events) no longer depend on the order of the chain. Built on the client's own draw helpers; macroquad supplies only the primitives. Convert one prompt at a time. Builds on 391 and 390.
+**389. Modal stack for prompts, messages and help.** `View::frame()` in `view.rs` runs about ten `*_prompt_frame()` and `*_popup_frame()` functions (help, upkeep, attack, ward, resurrect, global, resign, event, offer, built, and more) in a hand-ordered `if` chain, and some return early and block the rest of the frame. Replace this with one stack of modals (a trait with `draw` and `handle_input`): the screen below always draws first and is dimmed, only the top modal gets input (no click leaks through), Esc and click-outside behave the same everywhere, and prompts that queue up (the end-of-turn events) no longer depend on the order of the chain. Built on the client's own draw helpers; macroquad supplies only the primitives. Convert one prompt at a time. Builds on 391 and 390. **Started:** `modal.rs` holds the `Modal` enum and the `ModalStack`; `App::modal_frame` draws the map, then runs the top modal's frame, which returns what is left of it. Converted: resign, Spell Ward realm, no-target, Resurrection and global-enchantment prompts. Still on the `if` chain in `view.rs`: upkeep, proposal, site notice, unit list, capital naming, mastery notice, learned spell, attack, level-up, event, global cast, spell notice, offer, Chancellor, built, selection, vizier and help pop-ups, the combat result and the end scenes. The modals still redraw the map themselves (`modal_frame`), so a modal over another screen needs the screen below to be drawn separately from its input.
 
 **390. Standard buttons and hit-testing.** `ui::button` is called about 83 times, and about 105 places test `mouse_position()` against a rectangle by hand (picture buttons and screens in the original's coordinates each repeat hover, press and disabled states). Add one helper in `ui.rs` that takes a rect in layout space and returns `None`, `Hover`, `Pressed` or `Clicked`, maps the mouse through `Layout` in one place, and covers text buttons, picture buttons and art-less hot-zones. Give it right-click help, the hotkey label and the disabled-reason tooltip (as the Buy button's refusal text) so screens stop doing these by hand.
 

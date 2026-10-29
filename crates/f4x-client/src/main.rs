@@ -43,6 +43,7 @@ mod magic_screen;
 mod map_draw;
 mod map_slide;
 mod menu_screen;
+mod modal;
 mod newgame_flow;
 mod newgame_picks;
 mod offer_prompt;

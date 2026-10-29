@@ -17,6 +17,7 @@ use macroquad::prelude::*;
 
 use crate::art::{Art, TILE_H, TILE_W};
 use crate::frame::{spot, Align};
+use crate::modal::Modal;
 use crate::options_screen::OptionsState;
 use crate::preferences::Pref;
 use crate::ui::GOLD;
@@ -251,19 +252,16 @@ pub struct App {
     /// The battle last begun, for the scroll's paper.
     pub(crate) battle_site: Option<crate::combat_result::BattleSite>,
     /// The question after the human's fortress falls: resign, or cast the Spell of Return.
-    pub(crate) resign_prompt: bool,
     /// The question of what to give up when the mana reserve cannot pay the upkeep.
     pub(crate) upkeep_prompt: Option<crate::upkeep_prompt::UpkeepPrompt>,
     /// A Spell Ward waiting for its realm: the spell, the city, and whether the spell is already
     /// paid for (`Targeting::resolve`).
-    pub(crate) ward_prompt: Option<(f4x_core::rules::SpellId, hecs::Entity, bool)>,
     /// Disjunction or Spell Binding being aimed: the spell, whether it is already paid for, and
     /// the row of the rival's global enchantment chosen so far.
     /// The spell being cast has nothing to aim at: ask whether to stop casting it.
-    pub(crate) no_target_prompt: Option<f4x_core::rules::SpellId>,
-    pub(crate) global_prompt: Option<(f4x_core::rules::SpellId, bool, usize)>,
     /// Resurrection's list of the dead heroes: the spell, whether it is paid already, the row picked.
-    pub(crate) resurrect_prompt: Option<(f4x_core::rules::SpellId, bool, usize)>,
+    /// The questions waiting over the screen below (`modal.rs`).
+    pub(crate) modals: crate::modal::ModalStack,
     /// Wizards who started casting the Spell of Mastery, announced full screen one by one.
     pub(crate) mastery_notice: std::collections::VecDeque<f4x_core::player::PlayerId>,
 }
@@ -399,12 +397,8 @@ impl App {
             console: Default::default(),
             combat_results: None,
             battle_site: None,
-            resign_prompt: false,
             upkeep_prompt: None,
-            ward_prompt: None,
-            global_prompt: None,
-            resurrect_prompt: None,
-            no_target_prompt: None,
+            modals: Default::default(),
             mastery_notice: std::collections::VecDeque::new(),
         };
         app.start_game();
@@ -770,7 +764,7 @@ impl App {
                     Some(self.text_with(key, &Args::new().text("city", name)))
                 }
                 Event::WizardBanished { player, .. } if player == HUMAN => {
-                    self.resign_prompt = true;
+                    self.modals.open(Modal::Resign);
                     Some(self.text("log.banished_you"))
                 }
                 Event::WizardBanished { .. } => Some(self.text("log.banished_rival")),
@@ -917,7 +911,7 @@ impl App {
                 }
                 Event::NoTargetForCast { player, spell } => {
                     if player == HUMAN {
-                        self.no_target_prompt = Some(spell);
+                        self.modals.open(Modal::NoTarget(spell));
                     }
                     None
                 }
@@ -1401,8 +1395,11 @@ impl App {
         {
             return true;
         }
-        if self.resign_prompt && !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
-            return self.resign_prompt_frame();
+        if !self.modals.is_empty()
+            && !self.game.in_battle()
+            && !matches!(self.screen, Screen::Console)
+        {
+            return self.modal_frame();
         }
         if self.upkeep_prompt.is_some()
             && !self.game.in_battle()
@@ -1411,28 +1408,8 @@ impl App {
         {
             return true;
         }
-        if let Some(prompt) = self.ward_prompt {
-            if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
-                return self.ward_prompt_frame(prompt);
-            }
-        }
         if self.proposal_waits() && self.proposal_frame() {
             return true;
-        }
-        if let Some(spell) = self.no_target_prompt {
-            if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
-                return self.no_target_frame(spell);
-            }
-        }
-        if let Some(prompt) = self.resurrect_prompt {
-            if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
-                return self.resurrect_prompt_frame(prompt);
-            }
-        }
-        if let Some(prompt) = self.global_prompt {
-            if !self.game.in_battle() && !matches!(self.screen, Screen::Console) {
-                return self.global_prompt_frame(prompt);
-            }
         }
         if self.site_notice_frame() {
             return true;
@@ -1598,12 +1575,45 @@ impl App {
         true
     }
 
+    /// One frame of the top modal, over the map it was asked on.
+    fn modal_frame(&mut self) -> bool {
+        let Some((at, modal)) = self.modals.take_top() else {
+            return false;
+        };
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        self.draw_map();
+        self.draw_bars();
+        let left = match modal {
+            Modal::Resign => self.resign_prompt_frame(),
+            Modal::Ward {
+                spell,
+                city,
+                resolve,
+            } => self.ward_prompt_frame(spell, city, resolve),
+            Modal::NoTarget(spell) => self.no_target_frame(spell),
+            Modal::Resurrect {
+                spell,
+                resolve,
+                row,
+            } => self.resurrect_prompt_frame(spell, resolve, row),
+            Modal::Global {
+                spell,
+                resolve,
+                row,
+            } => self.global_prompt_frame(spell, resolve, row),
+        };
+        self.modals.restore(at, left);
+        true
+    }
+
     /// The question after aiming a Spell Ward at a city: which realm to ward it against, by the
     /// first letter of the realm, shown over the map. Realms already warded are not offered.
     fn ward_prompt_frame(
         &mut self,
-        (spell, city, resolve): (f4x_core::rules::SpellId, hecs::Entity, bool),
-    ) -> bool {
+        spell: f4x_core::rules::SpellId,
+        city: hecs::Entity,
+        resolve: bool,
+    ) -> Option<Modal> {
         const KEYS: [(KeyCode, &str); 5] = [
             (KeyCode::N, "nature"),
             (KeyCode::S, "sorcery"),
@@ -1615,11 +1625,16 @@ impl App {
             .into_iter()
             .filter(|(_, r)| !self.game.economy().city_warded_against(city, r))
             .collect();
+        let mut left = Some(Modal::Ward {
+            spell,
+            city,
+            resolve,
+        });
         if is_key_pressed(KeyCode::Escape) || open.is_empty() {
-            self.ward_prompt = None;
+            left = None;
             self.log.push(self.text("log.cast_cancelled"));
         } else if let Some(&(_, realm)) = open.iter().find(|(k, _)| is_key_pressed(*k)) {
-            self.ward_prompt = None;
+            left = None;
             if let Some(realm) = self.game.content().rules.realms.id_of(realm) {
                 let target = f4x_core::rules::exec::Target::CityRealm(city, realm);
                 let cmd = if resolve {
@@ -1638,9 +1653,6 @@ impl App {
                 self.note(events);
             }
         }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars();
         let (w, h) = (screen_width(), screen_height());
         draw_rectangle(
             w / 2.0 - 260.0,
@@ -1674,34 +1686,29 @@ impl App {
             18.0,
             WHITE,
         );
-        true
+        left
     }
 
     /// The cast has nothing to aim at: "There are no targets for X. Do you wish to continue
     /// casting it?" Yes keeps the spell (it is not paid for until a target exists), No gives it
     /// up.
-    fn no_target_frame(&mut self, spell: f4x_core::rules::SpellId) -> bool {
+    fn no_target_frame(&mut self, spell: f4x_core::rules::SpellId) -> Option<Modal> {
         let casting = self.game.wizard(HUMAN).and_then(|m| m.casting());
         if casting.is_none_or(|c| c.spell != spell) {
-            self.no_target_prompt = None;
-            return true;
+            return None;
         }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars();
         let lay = crate::frame::Layout::new();
         let name = self.game.content().rules.spells.get(spell).name.clone();
         let text = self.text_with("spell.no_target", &Args::new().text("spell", &name));
         match self.confirmation_box(&lay, &text) {
-            Some(true) => self.no_target_prompt = None,
+            Some(true) => None,
             Some(false) => {
-                self.no_target_prompt = None;
                 let events = self.game.apply(Command::CancelCast { player: HUMAN });
                 self.note(events);
+                None
             }
-            None => {}
+            None => Some(Modal::NoTarget(spell)),
         }
-        true
     }
 
     /// The list of the rivals' global enchantments a Disjunction or Spell Binding can aim at,
@@ -1709,8 +1716,10 @@ impl App {
     /// Escape gives up.
     fn global_prompt_frame(
         &mut self,
-        (spell, resolve, row): (f4x_core::rules::SpellId, bool, usize),
-    ) -> bool {
+        spell: f4x_core::rules::SpellId,
+        resolve: bool,
+        row: usize,
+    ) -> Option<Modal> {
         let rows = self.game.rival_globals(HUMAN);
         let row = row.min(rows.len().saturating_sub(1));
         let spells = self.game.spells();
@@ -1745,11 +1754,10 @@ impl App {
         if is_key_pressed(KeyCode::Down) {
             pick = (pick + 1).min(lines.len().saturating_sub(1));
         }
+        let mut left = None;
         if is_key_pressed(KeyCode::Escape) || rows.is_empty() {
-            self.global_prompt = None;
             self.log.push(self.text("log.cast_cancelled"));
         } else if clicked.is_some() || is_key_pressed(KeyCode::Enter) {
-            self.global_prompt = None;
             let target = f4x_core::rules::exec::Target::Spell(rows[pick]);
             let cmd = if resolve {
                 Command::ResolveCast {
@@ -1766,11 +1774,12 @@ impl App {
             let events = self.game.apply(cmd);
             self.note(events);
         } else {
-            self.global_prompt = Some((spell, resolve, pick));
+            left = Some(Modal::Global {
+                spell,
+                resolve,
+                row: pick,
+            });
         }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars();
         let height = 110.0 + step * lines.len() as f32;
         draw_rectangle(
             w / 2.0 - 280.0,
@@ -1799,7 +1808,7 @@ impl App {
             18.0,
             WHITE,
         );
-        true
+        left
     }
 
     /// How many turns the Spell of Return still needs at the human's casting skill.
@@ -1827,25 +1836,20 @@ impl App {
 
     /// The question after the human's fortress falls (`Banish_Wizard`): resign (Y) or cast the
     /// Spell of Return (N, Enter), shown over the map.
-    fn resign_prompt_frame(&mut self) -> bool {
+    fn resign_prompt_frame(&mut self) -> Option<Modal> {
         let casting = self.game.wizard(HUMAN).and_then(|m| m.casting());
-        let Some(casting) = casting.filter(|_| self.game.casting_return(HUMAN)) else {
-            self.resign_prompt = false;
-            return true;
-        };
+        let casting = casting.filter(|_| self.game.casting_return(HUMAN))?;
+        let mut left = Some(Modal::Resign);
         if is_key_pressed(KeyCode::Y) {
-            self.resign_prompt = false;
+            left = None;
             let events = self.game.apply(Command::Resign { player: HUMAN });
             self.note(events);
         } else if is_key_pressed(KeyCode::Enter)
             || is_key_pressed(KeyCode::N)
             || is_key_pressed(KeyCode::Escape)
         {
-            self.resign_prompt = false;
+            left = None;
         }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars();
         let (w, h) = (screen_width(), screen_height());
         draw_rectangle(
             w / 2.0 - 300.0,
@@ -1870,7 +1874,7 @@ impl App {
             22.0,
             GOLD,
         );
-        true
+        left
     }
 
     fn toggle_plane(&mut self) {

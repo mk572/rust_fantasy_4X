@@ -6,6 +6,7 @@ use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
+use crate::modal::Modal;
 use crate::ui::GOLD;
 use crate::view::{App, Screen, HUMAN};
 use f4x_core::rules::exec::Target;
@@ -18,15 +19,21 @@ impl App {
         if self.game.units().raisable_heroes().is_empty() {
             self.log.push(self.text("spell.no_dead"));
         } else {
-            self.resurrect_prompt = Some((spell, resolve, 0));
+            self.modals.open(Modal::Resurrect {
+                spell,
+                resolve,
+                row: 0,
+            });
         }
     }
 
     /// The list of the dead heroes over the map, the row picked at `row`.
     pub(crate) fn resurrect_prompt_frame(
         &mut self,
-        (spell, resolve, row): (SpellId, bool, usize),
-    ) -> bool {
+        spell: SpellId,
+        resolve: bool,
+        row: usize,
+    ) -> Option<Modal> {
         let dead = self.game.units().raisable_heroes();
         let lines: Vec<String> = dead
             .iter()
@@ -52,11 +59,10 @@ impl App {
         if is_key_pressed(KeyCode::Down) {
             pick = (pick + 1).min(lines.len().saturating_sub(1));
         }
+        let mut left = None;
         if is_key_pressed(KeyCode::Escape) || dead.is_empty() {
-            self.resurrect_prompt = None;
             self.log.push(self.text("log.cast_cancelled"));
         } else if clicked.is_some() || is_key_pressed(KeyCode::Enter) {
-            self.resurrect_prompt = None;
             let target = Target::Hero(dead[pick]);
             let command = if resolve {
                 Command::ResolveCast {
@@ -73,11 +79,12 @@ impl App {
             let events = self.game.apply(command);
             self.note(events);
         } else {
-            self.resurrect_prompt = Some((spell, resolve, pick));
+            left = Some(Modal::Resurrect {
+                spell,
+                resolve,
+                row: pick,
+            });
         }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_map();
-        self.draw_bars();
         let height = 110.0 + step * lines.len() as f32;
         draw_rectangle(
             w / 2.0 - 280.0,
@@ -106,6 +113,6 @@ impl App {
             18.0,
             WHITE,
         );
-        true
+        left
     }
 }

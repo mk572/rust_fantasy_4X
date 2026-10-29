@@ -11,6 +11,7 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
+use crate::modal::Modal;
 use crate::view::{App, Screen, HUMAN};
 
 /// A spell waiting for the player to click its target on the map.
@@ -375,7 +376,11 @@ impl App {
             if self.game.rival_globals(HUMAN).is_empty() {
                 self.log.push(self.text("spell.no_globals_waits"));
             } else {
-                self.global_prompt = Some((spell, true, 0));
+                self.modals.open(Modal::Global {
+                    spell,
+                    resolve: true,
+                    row: 0,
+                });
             }
             return;
         }
@@ -413,7 +418,11 @@ impl App {
                 if self.game.rival_globals(HUMAN).is_empty() {
                     self.log.push(self.text("spell.no_globals"));
                 } else {
-                    self.global_prompt = Some((spell, false, 0));
+                    self.modals.open(Modal::Global {
+                        spell,
+                        resolve: false,
+                        row: 0,
+                    });
                 }
                 self.screen = Screen::Map;
                 return;
@@ -887,7 +896,11 @@ impl App {
                     if self.game.economy().city_owner(city) == Some(HUMAN)
                         && !self.game.fully_warded(city) =>
                 {
-                    self.ward_prompt = Some((t.spell, city, t.resolve));
+                    self.modals.open(Modal::Ward {
+                        spell: t.spell,
+                        city,
+                        resolve: t.resolve,
+                    });
                 }
                 _ => {
                     self.log.push(self.text("spell.choose_unwarded"));
