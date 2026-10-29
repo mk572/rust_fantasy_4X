@@ -3,7 +3,7 @@
 //! (`docs/ai-design.md` 11.3, tasks 230 and 233 to 236).
 
 #[allow(dead_code)]
-#[path = "../src/testworld.rs"]
+#[path = "../../src/testworld.rs"]
 mod testworld;
 
 use f4x_core::city::production::{ProductionError, ProductionItem};

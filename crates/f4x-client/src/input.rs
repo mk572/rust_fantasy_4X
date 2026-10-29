@@ -75,15 +75,63 @@ impl Input {
         !self.keys_pressed.is_empty()
     }
 
+    /// The frame closes a notice: a click, Enter, Esc or Space.
+    pub(crate) fn dismisses(&self) -> bool {
+        self.mouse_pressed(MouseButton::Left)
+            || self.mouse_pressed(MouseButton::Right)
+            || self.key_pressed(KeyCode::Enter)
+            || self.key_pressed(KeyCode::Escape)
+            || self.key_pressed(KeyCode::Space)
+    }
+
     /// The characters typed this frame, in order.
     pub(crate) fn typed(&self) -> impl Iterator<Item = char> + '_ {
         self.chars.iter().copied()
     }
 }
 
+/// Frames built by hand, for the tests of click flows (`docs/rust_coding_rules.md`, UI test).
+#[cfg(test)]
+impl Input {
+    /// The frame in which this key goes down.
+    pub(crate) fn key(key: KeyCode) -> Input {
+        Input {
+            keys_pressed: [key].into(),
+            keys_down: [key].into(),
+            ..Input::default()
+        }
+    }
+
+    /// The frame in which this mouse button goes down at (x, y).
+    pub(crate) fn click(button: MouseButton, x: f32, y: f32) -> Input {
+        Input {
+            mouse: (x, y),
+            buttons_pressed: vec![button],
+            buttons_down: vec![button],
+            ..Input::default()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_notice_closes_on_a_click_or_one_of_its_keys_only() {
+        for frame in [
+            Input::click(MouseButton::Left, 5.0, 5.0),
+            Input::click(MouseButton::Right, 5.0, 5.0),
+            Input::key(KeyCode::Enter),
+            Input::key(KeyCode::Escape),
+            Input::key(KeyCode::Space),
+        ] {
+            assert!(frame.dismisses());
+        }
+        assert!(!Input::default().dismisses());
+        assert!(!Input::key(KeyCode::A).dismisses());
+        assert!(!Input::click(MouseButton::Middle, 5.0, 5.0).dismisses());
+    }
 
     #[test]
     fn a_built_frame_answers_every_asker_the_same() {

@@ -1,6 +1,6 @@
 //! The scripted AI playing real content: what it does over a few dozen turns, and that it can
 //! win with the Spell of Mastery (`docs/ai-design.md`). Slow, so ignored by default: run them with
-//! `cargo test -p f4x-ai --test behaviour -- --ignored` when the AI changes.
+//! `cargo test -p f4x-ai --test it behaviour -- --ignored` when the AI changes.
 
 use f4x_ai::{play_round, Ai};
 use f4x_core::content::Content;

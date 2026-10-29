@@ -1,7 +1,7 @@
 //! Every spell the real content lets a wizard cast in a battle is cast once, in a small battle,
 //! to see that what the game lists as legal is accepted and that the fight goes on without a
 //! refused command (task 302, part 4: the real data through the engine). Slow, so it runs on
-//! request: `cargo test -p f4x-learn --test battle_spells -- --ignored`.
+//! request: `cargo test -p f4x-learn --test it battle_spells -- --ignored`.
 
 use f4x_core::battle::{BattleCommand, Side};
 use f4x_core::rules::defs::CastContext;

@@ -66,6 +66,8 @@ mod spellbook;
 mod surveyor;
 mod temp_effect_view;
 mod terrain_pick;
+#[cfg(test)]
+mod test_app;
 mod ui;
 mod unit_list_screen;
 mod unit_screen;

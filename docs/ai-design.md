@@ -426,8 +426,8 @@ that does not improve the soak or the mirrored fights is reverted and noted in t
 ## 11. What was built, and what it taught
 
 Written after steps 0 to 7 and 9 to 11. Each finding below was found by looking at a soak game,
-not guessed; the fixes are small and each has a test (`crates/f4x-ai/tests/behaviour.rs`, the
-unit tests in `wizardry.rs` and `battle/ai.rs`, `crates/f4x-learn/tests/mirror.rs`).
+not guessed; the fixes are small and each has a test (`crates/f4x-ai/tests/it/behaviour.rs`, the
+unit tests in `wizardry.rs` and `battle/ai.rs`, `crates/f4x-learn/tests/it/mirror.rs`).
 
 ### 11.1 Strategic AI
 

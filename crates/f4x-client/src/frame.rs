@@ -40,9 +40,17 @@ pub struct Layout {
     pub origin: Vec2,
 }
 
+/// The window's size; the tests, which have no window, get a fixed one.
+pub fn window_size() -> (f32, f32) {
+    #[cfg(test)]
+    return (1280.0, 720.0);
+    #[cfg(not(test))]
+    (screen_width(), screen_height())
+}
+
 impl Layout {
     pub fn new() -> Self {
-        let (w, h) = (screen_width(), screen_height());
+        let (w, h) = window_size();
         let scale = (w / ORIGINAL_W).min(h / ORIGINAL_H).max(0.5);
         Self {
             scale,

@@ -46,3 +46,32 @@ impl App {
         (!closed).then_some(notice)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modal::kind;
+    use crate::view::HUMAN;
+    use f4x_core::game::Event;
+    use f4x_core::player::PlayerId;
+
+    fn lost(player: PlayerId, units: u32) -> Vec<Event> {
+        vec![Event::UnitsLostFleeing { player, units }]
+    }
+
+    #[test]
+    fn the_human_who_loses_units_fleeing_gets_the_notice() {
+        let mut app = App::for_test();
+        app.note(lost(HUMAN, 2));
+        assert!(app.modals.has("fled_notice"));
+        assert!(app.modals.blocks_turn());
+        assert!(!app.modals.has(kind::EVENT));
+    }
+
+    #[test]
+    fn another_player_losing_units_fleeing_gets_none() {
+        let mut app = App::for_test();
+        app.note(lost(PlayerId(1), 2));
+        assert!(app.modals.is_empty());
+    }
+}

@@ -219,7 +219,7 @@ building. Off by default; the garrison rule alone reacts then.
 1. `BuildPlan`, per-city storage, saving, the command and the console command. **Done**
    (`Command::SetAutoBuild`, console `autobuild`, `CitySave::autobuild`).
 2. The scoring and the choice (sections 3 to 8), with tests on fixed cities. **Done**
-   (`city/autobuild.rs`, `autobuild/tests.rs`, and `f4x-data/tests/autobuild.rs` against the shipped
+   (`city/autobuild.rs`, `autobuild/tests.rs`, and `f4x-data/tests/it/autobuild.rs` against the shipped
    content). The event prompt flag is stored but does nothing yet.
 3. Hooking it to production: the choice after each item, the Vizier default, the news message.
    **Done**: `apply_production` asks `Game::autobuild_choice` after a building and after a unit;

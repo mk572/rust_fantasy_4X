@@ -153,7 +153,7 @@ def plan(files, run_all, with_slow):
             cmds.append(
                 ("f4x-core " + (" ".join(filters) if filters else "(all)"), ["cargo", "test", "-p", "f4x-core", "--lib", "--"] + filters)
             )
-        cmds.append(("f4x-core tests/", ["cargo", "test", "-p", "f4x-core", "--test", "version", "--test", "game_methods"]))
+        cmds.append(("f4x-core tests/", ["cargo", "test", "-p", "f4x-core", "--test", "it"]))
         crates.discard("f4x-core")
 
     for crate in sorted(crates):
@@ -162,7 +162,7 @@ def plan(files, run_all, with_slow):
             if with_slow or areas & triggers:
                 continue
             skip += ["--skip", name]
-        cmds.append((crate + (" (slow tests skipped)" if skip else ""), ["cargo", "test", "-p", crate, "--"] + skip))
+        cmds.append((crate + (" (slow tests skipped)" if skip else ""), ["cargo", "test", "-p", crate, "--lib", "--bins", "--tests", "--"] + skip))
     return cmds
 
 

@@ -42,7 +42,7 @@ fn departure(id: &str, column: &str, ours: i32) -> bool {
 #[test]
 fn every_unit_has_the_originals_numbers() {
     let c = content();
-    let rows = table(include_str!("original/units.tsv"));
+    let rows = table(include_str!("../original/units.tsv"));
     let defs = c.rules.units.defs();
     assert_eq!(
         defs.len(),
@@ -109,7 +109,7 @@ const TERRAIN: i32 = 100;
 #[test]
 fn every_building_has_the_originals_cost_upkeep_requirements_and_replacement() {
     let c = content();
-    let text = include_str!("original/buildings.tsv");
+    let text = include_str!("../original/buildings.tsv");
     let rows: Vec<Vec<&str>> = text
         .lines()
         .skip(1)
@@ -192,7 +192,7 @@ const REALMS: [&str; 6] = ["nature", "sorcery", "chaos", "life", "death", "arcan
 #[test]
 fn every_item_power_has_the_originals_types_cost_group_realm_and_books() {
     let c = content();
-    let rows = named_table(include_str!("original/item_powers.tsv"));
+    let rows = named_table(include_str!("../original/item_powers.tsv"));
     let defs = c.rules.item_powers.defs();
     assert_eq!(defs.len(), rows.len(), "item powers");
     let mut wrong = Vec::new();
@@ -254,8 +254,8 @@ fn every_prefab_item_has_the_originals_type_cost_bonuses_and_powers() {
     use f4x_core::rules::effects::Effect;
     use f4x_core::rules::ModOp;
     let c = content();
-    let rows = named_table(include_str!("original/items.tsv"));
-    let powers = named_table(include_str!("original/item_powers.tsv"));
+    let rows = named_table(include_str!("../original/items.tsv"));
+    let powers = named_table(include_str!("../original/item_powers.tsv"));
     let defs = c.rules.items.defs();
     assert_eq!(defs.len(), rows.len(), "items");
     let mut wrong = Vec::new();

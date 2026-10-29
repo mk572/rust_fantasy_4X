@@ -23,7 +23,7 @@ Non-obvious findings about this code base. General lessons (shell, tools) are in
   types with the same name, and receivers such as `dyn Trait` or test rigs. Rewrite, then let the
   compiler list what broke (`cargo check --workspace --tests`), fix by hand, and diff the result.
   Check the scratch script's location: the scratchpad directory, not `/tmp`.
-- **Guard.** `tests/game_methods.rs` reports `impl Game` growth per file against
+- **Guard.** `tests/it/game_methods.rs` reports `impl Game` growth per file against
   `game_method_limits.txt` (regenerate with `F4X_WRITE_LIMITS=1`). It never fails. The singular-name
   rule has no test on purpose: it is a guideline (`CLAUDE.md`), and a hard test would fail in
   surprising ways later.

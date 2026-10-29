@@ -188,11 +188,7 @@ impl App {
         pictures(self, lay, right + 7.0);
         let lines: Vec<(f32, String)> = lines.into_iter().map(|l| (0.0, l)).collect();
         self.draw_box_text(view, &lines, x + TEXT_X[realm], top + 8.0, line);
-        input.mouse_pressed(MouseButton::Left)
-            || input.mouse_pressed(MouseButton::Right)
-            || input.key_pressed(KeyCode::Enter)
-            || input.key_pressed(KeyCode::Escape)
-            || input.key_pressed(KeyCode::Space)
+        input.dismisses()
     }
 
     /// The words of a spell that fizzled (`Fizzle_Notification`): the counter spell's caster

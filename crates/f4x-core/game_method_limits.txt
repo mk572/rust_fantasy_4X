@@ -1,6 +1,6 @@
 # Methods in `impl Game` blocks per source file of f4x-core at the last baseline (task 183).
 # A measurement, read by tests/game_methods.rs, which reports growth and files over the guideline.
-# Regenerate: F4X_WRITE_LIMITS=1 cargo test -p f4x-core --test game_methods
+# Regenerate: F4X_WRITE_LIMITS=1 cargo test -p f4x-core --test it game_methods
 battle/game.rs 17
 battle/info.rs 1
 battle/save.rs 2

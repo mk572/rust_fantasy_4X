@@ -4,7 +4,7 @@
 The table is the numbers of `UNITTYPE.c` in the ReMoM clone: melee, ranged, ammo, to hit,
 defence, resistance, moves (in half moves, as the file has them), cost, upkeep, hit points,
 sight, transport and figures, one row per unit in the original's order (which is the order
-of `content/units.ron`). `crates/f4x-data/tests/original_content.rs` compares every unit of the
+of `content/units.ron`). `crates/f4x-data/tests/it/original_content.rs` compares every unit of the
 content with it. Needs the ReMoM clone; the output is numbers, so it is committed.
 
     python3 -I scripts/export_original_units.py [--remom DIR] [--out FILE]

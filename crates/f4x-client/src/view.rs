@@ -1774,22 +1774,24 @@ impl App {
         true
     }
 
+    /// What the keys answer to the resign question; whether it stays open.
+    pub(crate) fn resign_answer(&mut self, input: &Input) -> bool {
+        if input.key_pressed(KeyCode::Y) {
+            let events = self.game.apply(Command::Resign { player: HUMAN });
+            self.note(events);
+            return false;
+        }
+        !(input.key_pressed(KeyCode::Enter)
+            || input.key_pressed(KeyCode::N)
+            || input.key_pressed(KeyCode::Escape))
+    }
+
     /// The question after the human's fortress falls (`Banish_Wizard`): resign (Y) or cast the
     /// Spell of Return (N, Enter), shown over the map.
     fn resign_prompt_frame(&mut self, input: &Input) -> Option<Resign> {
         let casting = self.game.wizard(HUMAN).and_then(|m| m.casting());
         let casting = casting.filter(|_| self.game.casting_return(HUMAN))?;
-        let mut left = Some(Resign);
-        if input.key_pressed(KeyCode::Y) {
-            left = None;
-            let events = self.game.apply(Command::Resign { player: HUMAN });
-            self.note(events);
-        } else if input.key_pressed(KeyCode::Enter)
-            || input.key_pressed(KeyCode::N)
-            || input.key_pressed(KeyCode::Escape)
-        {
-            left = None;
-        }
+        let left = self.resign_answer(input).then_some(Resign);
         let (w, h) = (screen_width(), screen_height());
         draw_rectangle(
             w / 2.0 - 300.0,

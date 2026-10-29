@@ -19,7 +19,7 @@ FILES = [
     "features", "races", "terrain", "level_paths",
 ]
 # Content kinds whose every row is compared with the original's table by a test that walks the
-# whole file (`crates/f4x-data/tests/original_content.rs`, task 404): all ids are covered.
+# whole file (`crates/f4x-data/tests/it/original_content.rs`, task 404): all ids are covered.
 WALKED = {"units", "buildings", "items", "item_powers"}
 ID = re.compile(r'\(\s*id:\s*"([^"]+)"')
 
