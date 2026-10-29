@@ -19,8 +19,7 @@ use crate::audio::Track;
 use crate::input::Input;
 use crate::view::App;
 
-/// The order the waiting notices run in when several kinds wait together: the order of the
-/// `if` chain in `App::frame` that they replace. Lower runs first.
+/// The order the waiting notices run in when several kinds wait together. Lower runs first.
 pub(crate) mod priority {
     pub(crate) const MASTERY: u8 = 20;
 }
@@ -132,8 +131,7 @@ impl ModalStack {
         self.open.is_empty() && self.waiting.is_empty()
     }
 
-    /// Whether the turn change has to wait for an answer. The prompts still on the `if` chain in
-    /// `view.rs` are checked there until their kind moves.
+    /// Whether the turn change has to wait for an answer.
     pub(crate) fn blocks_turn(&self) -> bool {
         self.open
             .iter()
