@@ -2,6 +2,7 @@ use super::*;
 use crate::game::save::Snapshot;
 use crate::game::testutil::content_with_magic;
 use crate::map::{Grid, Map, Plane, Position};
+use crate::testdir::TestResult;
 
 use crate::game::{Command, Rejection};
 
@@ -20,7 +21,7 @@ fn at(x: u32, y: u32) -> Position {
 /// Three wizards, the first of them the human, nobody met yet.
 fn world() -> Game {
     let c = content_with_magic();
-    let grass = c.terrains.id_of("grassland").unwrap();
+    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
     let mut g = Game::new(11);
     g.content = c;
     g.map = Some(Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass)));
@@ -29,7 +30,8 @@ fn world() -> Game {
     }
     g.set_human(Some(P0));
     for id in [P0, P1, P2] {
-        g.init_wizard(id, &[("sorcery", 2)], &[], None).unwrap();
+        g.init_wizard(id, &[("sorcery", 2)], &[], None)
+            .expect("init_wizard succeeds");
     }
     g
 }
@@ -68,7 +70,7 @@ fn city(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
         race,
         population: 3,
     });
-    g.economy().city_at(pos).unwrap()
+    g.economy().city_at(pos).expect("city_at succeeds")
 }
 
 fn rejected(events: &[Event]) -> Option<DiplomacyError> {
@@ -91,29 +93,36 @@ fn the_scale_runs_from_hate_to_harmony() {
 }
 
 #[test]
-fn start_relations_come_from_the_books() {
+fn start_relations_come_from_the_books() -> TestResult {
     let mut g = world();
     // Life against death: -(life + death) * 5, no shared realm.
-    g.init_wizard(P0, &[("life", 3)], &[], None).unwrap();
-    g.init_wizard(P1, &[("death", 2)], &[], None).unwrap();
+    g.init_wizard(P0, &[("life", 3)], &[], None)
+        .map_err(|e| format!("{e:?}"))?;
+    g.init_wizard(P1, &[("death", 2)], &[], None)
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.relation(P0, P1), -25);
     // Shared realms add two for each book of the smaller; chaos costs two for the larger.
     g.init_wizard(P0, &[("nature", 3), ("chaos", 1)], &[], None)
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     g.init_wizard(P1, &[("nature", 2), ("chaos", 2)], &[], None)
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.relation(P0, P1), 2);
     // Never below -90.
-    g.init_wizard(P0, &[("life", 5)], &[], None).unwrap();
-    g.init_wizard(P1, &[("death", 5)], &[], None).unwrap();
+    g.init_wizard(P0, &[("life", 5)], &[], None)
+        .map_err(|e| format!("{e:?}"))?;
+    g.init_wizard(P1, &[("death", 5)], &[], None)
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.relation(P0, P1), -50);
-    g.init_wizard(P0, &[("life", 11)], &[], None).unwrap();
-    g.init_wizard(P1, &[("death", 11)], &[], None).unwrap();
+    g.init_wizard(P0, &[("life", 11)], &[], None)
+        .map_err(|e| format!("{e:?}"))?;
+    g.init_wizard(P1, &[("death", 11)], &[], None)
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.relation(P0, P1), -90);
+    Ok(())
 }
 
 #[test]
-fn a_wizard_whose_city_is_seen_is_met() {
+fn a_wizard_whose_city_is_seen_is_met() -> TestResult {
     let mut g = world();
     city(&mut g, P1, at(10, 10));
     assert!(!g.have_met(P0, P1));
@@ -122,18 +131,27 @@ fn a_wizard_whose_city_is_seen_is_met() {
     g.explore(P0, at(8, 10), 5);
     assert!(g.have_met(P0, P1));
     assert!(g.have_met(P1, P0));
-    assert_eq!(g.diplomacy.stance(P0, P1).unwrap().stage, Stage::Greeted);
+    assert_eq!(
+        g.diplomacy.stance(P0, P1).ok_or("stance is missing")?.stage,
+        Stage::Greeted
+    );
     assert!(!g.have_met(P0, P2));
+    Ok(())
 }
 
 #[test]
-fn the_event_of_a_meeting_comes_back_with_the_command() {
+fn the_event_of_a_meeting_comes_back_with_the_command() -> TestResult {
     let mut g = world();
     city(&mut g, P1, at(10, 10));
     let events = g.apply(Command::CreateUnit {
         owner: P0,
         pos: at(9, 10),
-        unit: g.content.rules.units.id_of("high_men_cavalry").unwrap(),
+        unit: g
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?,
     });
     // The unit looks round where it appears.
     assert!(
@@ -146,14 +164,20 @@ fn the_event_of_a_meeting_comes_back_with_the_command() {
         g.drain_diplomacy_events().is_empty(),
         "returned with the command, not kept"
     );
+    Ok(())
 }
 
 #[test]
-fn the_turn_meets_those_whose_units_one_can_see() {
+fn the_turn_meets_those_whose_units_one_can_see() -> TestResult {
     let mut g = world();
     city(&mut g, P0, at(10, 10));
-    let walker = g.content.rules.units.id_of("dwarf").unwrap();
-    g.treasury_mut(P1).unwrap().gold = 1000;
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("dwarf")
+        .ok_or("dwarf is not in the content")?;
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold = 1000;
     g.spawn_unit(P1, at(12, 10), walker);
     // Forget that they have been shown to each other already.
     set_pair(&mut g, P0, P1, |p| p.contacted = false);
@@ -166,20 +190,27 @@ fn the_turn_meets_those_whose_units_one_can_see() {
             b: P1
         }))
     );
+    Ok(())
 }
 
 #[test]
-fn nature_awareness_meets_everyone() {
+fn nature_awareness_meets_everyone() -> TestResult {
     let mut g = world();
     city(&mut g, P0, at(2, 2));
     city(&mut g, P1, at(25, 15));
     city(&mut g, P2, at(15, 8));
-    let spell = g.content.rules.spells.id_of("nature_awareness").unwrap();
+    let spell = g
+        .content
+        .rules
+        .spells
+        .id_of("nature_awareness")
+        .ok_or("nature_awareness is not in the content")?;
     // The spell's upkeep is paid from the reserve.
-    g.treasury_mut(P0).unwrap().mana = 1000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
     g.add_global(P0, spell);
     g.apply(Command::EndTurn);
     assert!(g.have_met(P0, P1) && g.have_met(P0, P2));
+    Ok(())
 }
 
 #[test]
@@ -222,24 +253,30 @@ fn bad_deeds_count_double_to_a_friend_and_less_to_an_enemy() {
 }
 
 #[test]
-fn temper_and_charm_change_what_a_deed_is_worth() {
+fn temper_and_charm_change_what_a_deed_is_worth() -> TestResult {
     let mut g = world();
     met(&mut g, P2, P1);
     set_rel(&mut g, P1, P2, 0);
-    g.wizard_mut(P1).unwrap().put(Some(Personality::Lawful));
+    g.wizard_mut(P1)
+        .ok_or("wizard_mut is missing")?
+        .put(Some(Personality::Lawful));
     g.change_relations(-5, P2, P1, Action::AttackedCity, None);
     assert_eq!(g.relation(P1, P2), -10);
     set_rel(&mut g, P1, P2, 0);
-    g.wizard_mut(P1).unwrap().put(Some(Personality::Maniacal));
+    g.wizard_mut(P1)
+        .ok_or("wizard_mut is missing")?
+        .put(Some(Personality::Maniacal));
     g.change_relations(-4, P2, P1, Action::AttackedCity, None);
     assert_eq!(g.relation(P1, P2), -6);
     g.change_relations(4, P2, P1, Action::Friendship, None);
     // -6 is negative, so the gain doubles to 8, then Maniacal takes three quarters: 6.
     assert_eq!(g.relation(P1, P2), 0);
     // A charismatic attacker halves its penalties and doubles its gains.
-    g.wizard_mut(P1).unwrap().put(Some(Personality::Chaotic));
+    g.wizard_mut(P1)
+        .ok_or("wizard_mut is missing")?
+        .put(Some(Personality::Chaotic));
     g.wizard_mut(P2)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
         .insert(Retort::Charismatic);
@@ -249,6 +286,7 @@ fn temper_and_charm_change_what_a_deed_is_worth() {
     set_rel(&mut g, P1, P2, 0);
     g.change_relations(4, P2, P1, Action::Friendship, None);
     assert_eq!(g.relation(P1, P2), 8);
+    Ok(())
 }
 
 #[test]
@@ -290,13 +328,16 @@ fn a_relation_stays_below_65_without_an_alliance_and_below_minus_25_at_war() {
 }
 
 #[test]
-fn what_a_human_does_in_a_war_does_not_worsen_it_but_wears_down_peace() {
+fn what_a_human_does_in_a_war_does_not_worsen_it_but_wears_down_peace() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
     g.declare_war(P1, P0);
     let (rel, patience) = (
         g.relation(P0, P1),
-        g.diplomacy.stance(P1, P0).unwrap().peace_patience,
+        g.diplomacy
+            .stance(P1, P0)
+            .ok_or("stance is missing")?
+            .peace_patience,
     );
     g.change_relations(-40, P0, P1, Action::AttackedCity, None);
     assert_eq!(g.relation(P0, P1), rel);
@@ -305,16 +346,20 @@ fn what_a_human_does_in_a_war_does_not_worsen_it_but_wears_down_peace() {
     let wear = -40 / (-rel / 25 + 1) / 4;
     assert!(wear < 0);
     assert_eq!(
-        g.diplomacy.stance(P1, P0).unwrap().peace_patience,
+        g.diplomacy
+            .stance(P1, P0)
+            .ok_or("stance is missing")?
+            .peace_patience,
         patience + wear
     );
     // Other things (a talk-type action) still count.
     g.change_relations(-10, P0, P1, Action::Trespass, None);
     assert!(g.relation(P0, P1) < rel || rel == -100);
+    Ok(())
 }
 
 #[test]
-fn the_last_strongest_act_of_the_human_is_remembered() {
+fn the_last_strongest_act_of_the_human_is_remembered() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
     set_rel(&mut g, P0, P1, 0);
@@ -324,27 +369,31 @@ fn the_last_strongest_act_of_the_human_is_remembered() {
     let last = g
         .diplomacy
         .stance(P1, P0)
-        .unwrap()
+        .ok_or("stance is missing")?
         .last_action
         .clone()
-        .unwrap();
+        .ok_or("clone is missing")?;
     assert_eq!(last.action, Action::AttackedCity);
     assert!(last.strength <= -20);
+    Ok(())
 }
 
 #[test]
-fn declaring_war_sets_the_state_the_original_sets() {
+fn declaring_war_sets_the_state_the_original_sets() -> TestResult {
     let mut g = world();
     met(&mut g, P1, P2);
-    let default = g.diplomacy.pair(P1, P2).unwrap().default;
+    let default = g.diplomacy.pair(P1, P2).ok_or("pair is missing")?.default;
     g.declare_war(P1, P2);
     assert_eq!(g.treaty(P1, P2), Treaty::War);
     assert_eq!(g.treaty(P2, P1), Treaty::War);
     let rel = g.relation(P2, P1);
     assert!((-100..=-76).contains(&rel), "{rel}");
-    assert_eq!(g.diplomacy.pair(P1, P2).unwrap().default, default - 5);
+    assert_eq!(
+        g.diplomacy.pair(P1, P2).ok_or("pair is missing")?.default,
+        default - 5
+    );
     for (a, b) in [(P1, P2), (P2, P1)] {
-        let s = g.diplomacy.stance(a, b).unwrap();
+        let s = g.diplomacy.stance(a, b).ok_or("stance is missing")?;
         assert_eq!(
             (s.treaty_patience, s.exchange_patience, s.peace_patience),
             (-200, -200, -130)
@@ -360,34 +409,74 @@ fn declaring_war_sets_the_state_the_original_sets() {
     assert_eq!(wars, 1);
     g.declare_war(P1, P2);
     assert!(g.drain_diplomacy_events().is_empty());
+    Ok(())
 }
 
 #[test]
-fn breaking_a_treaty_costs_trust_with_everyone() {
+fn breaking_a_treaty_costs_trust_with_everyone() -> TestResult {
     let mut g = world();
     met(&mut g, P1, P2);
     met(&mut g, P0, P1);
     met(&mut g, P0, P2);
     g.start_treaty(P1, P2, Treaty::Alliance);
-    let default = g.diplomacy.pair(P1, P2).unwrap().default;
+    let default = g.diplomacy.pair(P1, P2).ok_or("pair is missing")?.default;
     g.break_treaties(P1, P2);
     assert_eq!(g.treaty(P1, P2), Treaty::None);
     // The oath breaker's own core reaction falls (the original raises it by mistake).
-    assert_eq!(g.diplomacy.stance(P1, P2).unwrap().hidden, -20);
-    // Everyone else thinks less of the victim.
-    assert_eq!(g.diplomacy.stance(P0, P2).unwrap().hidden, -5);
-    assert_eq!(g.diplomacy.pair(P1, P2).unwrap().default, default - 20);
     assert_eq!(
-        g.diplomacy.stance(P2, P1).unwrap().broken,
+        g.diplomacy
+            .stance(P1, P2)
+            .ok_or("stance is missing")?
+            .hidden,
+        -20
+    );
+    // Everyone else thinks less of the victim.
+    assert_eq!(
+        g.diplomacy
+            .stance(P0, P2)
+            .ok_or("stance is missing")?
+            .hidden,
+        -5
+    );
+    assert_eq!(
+        g.diplomacy.pair(P1, P2).ok_or("pair is missing")?.default,
+        default - 20
+    );
+    assert_eq!(
+        g.diplomacy
+            .stance(P2, P1)
+            .ok_or("stance is missing")?
+            .broken,
         Some(Treaty::Alliance)
     );
-    assert_eq!(g.diplomacy.stance(P1, P2).unwrap().treaty_patience, -200);
-    assert_eq!(g.diplomacy.stance(P1, P2).unwrap().peace_patience, -200);
+    assert_eq!(
+        g.diplomacy
+            .stance(P1, P2)
+            .ok_or("stance is missing")?
+            .treaty_patience,
+        -200
+    );
+    assert_eq!(
+        g.diplomacy
+            .stance(P1, P2)
+            .ok_or("stance is missing")?
+            .peace_patience,
+        -200
+    );
     // A pact costs half as much, a Lawful breaker twice.
-    g.wizard_mut(P1).unwrap().put(Some(Personality::Lawful));
+    g.wizard_mut(P1)
+        .ok_or("wizard_mut is missing")?
+        .put(Some(Personality::Lawful));
     g.start_treaty(P1, P2, Treaty::Pact);
     g.break_treaties(P1, P2);
-    assert_eq!(g.diplomacy.stance(P1, P2).unwrap().hidden, -40);
+    assert_eq!(
+        g.diplomacy
+            .stance(P1, P2)
+            .ok_or("stance is missing")?
+            .hidden,
+        -40
+    );
+    Ok(())
 }
 
 #[test]
@@ -530,7 +619,7 @@ fn a_pact_cannot_be_offered_twice_nor_in_a_war() {
 }
 
 #[test]
-fn peace_ends_a_war_and_the_human_is_left_alone_a_while() {
+fn peace_ends_a_war_and_the_human_is_left_alone_a_while() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
     g.declare_war(P1, P0);
@@ -554,19 +643,41 @@ fn peace_ends_a_war_and_the_human_is_left_alone_a_while() {
     );
     assert_eq!(g.treaty(P0, P1), Treaty::None);
     assert_eq!(g.relation(P0, P1), (before + 40).min(100));
-    let peace = g.diplomacy.stance(P1, P0).unwrap().peace_duration;
+    let peace = g
+        .diplomacy
+        .stance(P1, P0)
+        .ok_or("stance is missing")?
+        .peace_duration;
     assert!((8..=13).contains(&peace), "{peace}");
-    assert_eq!(g.diplomacy.stance(P0, P1).unwrap().peace_duration, 0);
+    assert_eq!(
+        g.diplomacy
+            .stance(P0, P1)
+            .ok_or("stance is missing")?
+            .peace_duration,
+        0
+    );
+    Ok(())
 }
 
 #[test]
-fn peace_takes_off_the_spells_each_cast_on_the_other_s_cities_but_not_the_owners_own() {
+fn peace_takes_off_the_spells_each_cast_on_the_other_s_cities_but_not_the_owners_own() -> TestResult
+{
     let mut g = world();
     met(&mut g, P0, P1);
     let mine = g.spawn_city(P0, at(5, 5), "A".into(), None, 3);
     let theirs = g.spawn_city(P1, at(20, 5), "B".into(), None, 3);
-    let curse = g.content.rules.spells.id_of("famine").unwrap();
-    let ward = g.content.rules.spells.id_of("wall_of_fire").unwrap();
+    let curse = g
+        .content
+        .rules
+        .spells
+        .id_of("famine")
+        .ok_or("famine is not in the content")?;
+    let ward = g
+        .content
+        .rules
+        .spells
+        .id_of("wall_of_fire")
+        .ok_or("wall_of_fire is not in the content")?;
     g.add_city_enchantment(mine, curse, P1);
     g.add_city_enchantment(mine, ward, P0);
     g.add_city_enchantment(theirs, curse, P0);
@@ -575,6 +686,7 @@ fn peace_takes_off_the_spells_each_cast_on_the_other_s_cities_but_not_the_owners
     g.declare_peace(P0, P1);
     assert_eq!(g.spells().city_enchantments(mine), vec![(ward, P0)]);
     assert!(g.spells().city_enchantments(theirs).is_empty());
+    Ok(())
 }
 
 #[test]
@@ -604,7 +716,7 @@ fn a_war_on_a_third_wizard_is_declared_by_the_one_asked() {
 }
 
 #[test]
-fn asking_an_ally_to_break_with_another_makes_it_do_so() {
+fn asking_an_ally_to_break_with_another_makes_it_do_so() -> TestResult {
     let mut g = world();
     for (a, b) in [(P0, P1), (P0, P2), (P1, P2)] {
         met(&mut g, a, b);
@@ -627,7 +739,14 @@ fn asking_an_ally_to_break_with_another_makes_it_do_so() {
         },
     );
     assert_eq!(g.treaty(P1, P2), Treaty::None);
-    assert_eq!(g.diplomacy.stance(P1, P2).unwrap().hidden, -20);
+    assert_eq!(
+        g.diplomacy
+            .stance(P1, P2)
+            .ok_or("stance is missing")?
+            .hidden,
+        -20
+    );
+    Ok(())
 }
 
 #[test]
@@ -680,7 +799,7 @@ fn a_pact_that_stopped_being_possible_is_not_signed() {
 }
 
 #[test]
-fn breaking_a_pact_by_command_needs_one() {
+fn breaking_a_pact_by_command_needs_one() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
     let none = command(
@@ -700,7 +819,14 @@ fn breaking_a_pact_by_command_needs_one() {
         },
     );
     assert_eq!(g.treaty(P0, P1), Treaty::None);
-    assert_eq!(g.diplomacy.stance(P0, P1).unwrap().hidden, -10);
+    assert_eq!(
+        g.diplomacy
+            .stance(P0, P1)
+            .ok_or("stance is missing")?
+            .hidden,
+        -10
+    );
+    Ok(())
 }
 
 #[test]
@@ -714,12 +840,12 @@ fn a_wizard_can_declare_war_only_on_one_it_has_met() {
 }
 
 #[test]
-fn gold_is_a_gift_that_warms() {
+fn gold_is_a_gift_that_warms() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
     set_rel(&mut g, P0, P1, 0);
-    g.treasury_mut(P0).unwrap().gold = 300;
-    g.treasury_mut(P1).unwrap().gold = 100;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 300;
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold = 100;
     let events = command(
         &mut g,
         DiplomacyCommand::GiveGold {
@@ -729,8 +855,14 @@ fn gold_is_a_gift_that_warms() {
         },
     );
     assert!(rejected(&events).is_none(), "{events:?}");
-    assert_eq!(g.player(P0).unwrap().treasury().gold, 200);
-    assert_eq!(g.player(P1).unwrap().treasury().gold, 200);
+    assert_eq!(
+        g.player(P0).ok_or("player is missing")?.treasury().gold,
+        200
+    );
+    assert_eq!(
+        g.player(P1).ok_or("player is missing")?.treasury().gold,
+        200
+    );
     assert!(g.relation(P0, P1) >= 0);
     let broke = command(
         &mut g,
@@ -750,20 +882,26 @@ fn gold_is_a_gift_that_warms() {
         },
     );
     assert_eq!(rejected(&nobody), Some(DiplomacyError::NotContacted));
+    Ok(())
 }
 
 #[test]
-fn a_spell_given_is_known_and_wins_trust() {
+fn a_spell_given_is_known_and_wins_trust() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
-    let famine = g.content.rules.spells.id_of("famine").unwrap();
+    let famine = g
+        .content
+        .rules
+        .spells
+        .id_of("famine")
+        .ok_or("famine is not in the content")?;
     g.wizard_mut(P0)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
         .insert(famine);
     g.wizard_mut(P1)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
         .remove(&famine);
@@ -777,9 +915,13 @@ fn a_spell_given_is_known_and_wins_trust() {
         },
     );
     assert!(rejected(&events).is_none(), "{events:?}");
-    assert!(g.wizard(P1).unwrap().knows(famine));
+    assert!(g.wizard(P1).ok_or("wizard is missing")?.knows(famine));
     assert!(g.relation(P0, P1) > 0);
-    let hidden = g.diplomacy.stance(P1, P0).unwrap().hidden;
+    let hidden = g
+        .diplomacy
+        .stance(P1, P0)
+        .ok_or("stance is missing")?
+        .hidden;
     assert!((2..=9).contains(&hidden), "{hidden}");
     // It is not worth giving twice.
     let again = command(
@@ -791,30 +933,41 @@ fn a_spell_given_is_known_and_wins_trust() {
         },
     );
     assert_eq!(rejected(&again), Some(DiplomacyError::SpellUnavailable));
+    Ok(())
 }
 
 #[test]
-fn spells_are_exchanged_one_for_one() {
+fn spells_are_exchanged_one_for_one() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
-    let famine = g.content.rules.spells.id_of("famine").unwrap();
-    let gaia = g.content.rules.spells.id_of("gaias_blessing").unwrap();
+    let famine = g
+        .content
+        .rules
+        .spells
+        .id_of("famine")
+        .ok_or("famine is not in the content")?;
+    let gaia = g
+        .content
+        .rules
+        .spells
+        .id_of("gaias_blessing")
+        .ok_or("gaias_blessing is not in the content")?;
     for s in [famine, gaia] {
         for p in [P0, P1] {
             g.wizard_mut(p)
-                .unwrap()
+                .ok_or("wizard_mut is missing")?
                 .get_mut::<crate::wizard::sheet::KnownSpells>()
                 .known
                 .remove(&s);
         }
     }
     g.wizard_mut(P0)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
         .insert(famine);
     g.wizard_mut(P1)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
         .insert(gaia);
@@ -839,14 +992,15 @@ fn spells_are_exchanged_one_for_one() {
             accept: true,
         },
     );
-    assert!(g.wizard(P0).unwrap().knows(gaia));
-    assert!(g.wizard(P1).unwrap().knows(famine));
+    assert!(g.wizard(P0).ok_or("wizard is missing")?.knows(gaia));
+    assert!(g.wizard(P1).ok_or("wizard is missing")?.knows(famine));
     // Nothing left to swap.
     assert!(g.check_proposal(P0, P1, kind).is_err());
+    Ok(())
 }
 
 #[test]
-fn answering_wears_down_the_askers_patience_whatever_the_answer() {
+fn answering_wears_down_the_askers_patience_whatever_the_answer() -> TestResult {
     for accept in [false, true] {
         let mut g = world();
         met(&mut g, P0, P1);
@@ -868,7 +1022,7 @@ fn answering_wears_down_the_askers_patience_whatever_the_answer() {
                 accept,
             },
         );
-        let s = g.diplomacy.stance(P0, P1).unwrap();
+        let s = g.diplomacy.stance(P0, P1).ok_or("stance is missing")?;
         // 10 and 20 to 49 are taken, whatever the answer.
         assert!(
             (100 - 10 - 49..=100 - 10 - 20).contains(&s.treaty_patience),
@@ -877,14 +1031,20 @@ fn answering_wears_down_the_askers_patience_whatever_the_answer() {
         );
         assert_eq!((s.exchange_patience, s.peace_patience), (-10, -10));
     }
+    Ok(())
 }
 
 #[test]
-fn a_spell_swap_is_not_a_test_of_patience_and_wears_none_when_answered_no() {
+fn a_spell_swap_is_not_a_test_of_patience_and_wears_none_when_answered_no() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
     let before = g.diplomacy.stance(P0, P1).map_or(0, |s| s.treaty_patience);
-    let spell = g.content.rules.spells.id_of("spell_of_mastery").unwrap();
+    let spell = g
+        .content
+        .rules
+        .spells
+        .id_of("spell_of_mastery")
+        .ok_or("spell_of_mastery is not in the content")?;
     g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
         from: P0,
         to: P1,
@@ -902,17 +1062,18 @@ fn a_spell_swap_is_not_a_test_of_patience_and_wears_none_when_answered_no() {
         g.diplomacy.stance(P0, P1).map_or(0, |s| s.treaty_patience),
         before
     );
+    Ok(())
 }
 
 #[test]
-fn peace_runs_down_and_patience_comes_back() {
+fn peace_runs_down_and_patience_comes_back() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
     g.diplomacy.stance_mut(P1, P0).peace_duration = 3;
     g.diplomacy.stance_mut(P1, P0).treaty_patience = -100;
     g.diplomacy.stance_mut(P1, P0).peace_patience = 100;
     diplomacy_turn(&mut g);
-    let s = g.diplomacy.stance(P1, P0).unwrap();
+    let s = g.diplomacy.stance(P1, P0).ok_or("stance is missing")?;
     assert_eq!(s.peace_duration, 2);
     // +10 at the end of the turn, then up to twice 1..5 while below zero (the first)
     // and below fifty (the second).
@@ -922,6 +1083,7 @@ fn peace_runs_down_and_patience_comes_back() {
         s.treaty_patience
     );
     assert_eq!(s.peace_patience, 100, "above 100 nothing is added");
+    Ok(())
 }
 
 #[test]
@@ -939,10 +1101,10 @@ fn a_pact_makes_friends_over_time() {
 }
 
 #[test]
-fn without_cause_relations_drift_back_to_the_start() {
+fn without_cause_relations_drift_back_to_the_start() -> TestResult {
     let mut g = world();
     met(&mut g, P1, P2);
-    let default = g.diplomacy.pair(P1, P2).unwrap().default;
+    let default = g.diplomacy.pair(P1, P2).ok_or("pair is missing")?.default;
     set_rel(&mut g, P1, P2, default - 30);
     for _ in 0..60 {
         diplomacy_turn(&mut g);
@@ -954,13 +1116,14 @@ fn without_cause_relations_drift_back_to_the_start() {
         diplomacy_turn(&mut g);
     }
     assert_eq!(g.relation(P1, P2), default);
+    Ok(())
 }
 
 #[test]
-fn a_recent_deed_holds_the_drift_for_a_turn() {
+fn a_recent_deed_holds_the_drift_for_a_turn() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
-    let default = g.diplomacy.pair(P0, P1).unwrap().default;
+    let default = g.diplomacy.pair(P0, P1).ok_or("pair is missing")?.default;
     set_rel(&mut g, P0, P1, default + 30);
     g.diplomacy.stance_mut(P1, P0).last_action = Some(LastAction {
         action: Action::Friendship,
@@ -969,17 +1132,25 @@ fn a_recent_deed_holds_the_drift_for_a_turn() {
     });
     diplomacy_turn(&mut g);
     assert_eq!(g.relation(P0, P1), default + 30);
-    assert!(g.diplomacy.stance(P1, P0).unwrap().last_action.is_none());
+    assert!(g
+        .diplomacy
+        .stance(P1, P0)
+        .ok_or("stance is missing")?
+        .last_action
+        .is_none());
+    Ok(())
 }
 
 #[test]
-fn enchantments_offend_the_wizards_they_offend() {
+fn enchantments_offend_the_wizards_they_offend() -> TestResult {
     let mut g = world();
     for (a, b) in [(P0, P1), (P0, P2), (P1, P2)] {
         met(&mut g, a, b);
     }
-    g.init_wizard(P1, &[("life", 2)], &[], None).unwrap();
-    g.init_wizard(P2, &[("chaos", 2)], &[], None).unwrap();
+    g.init_wizard(P1, &[("life", 2)], &[], None)
+        .map_err(|e| format!("{e:?}"))?;
+    g.init_wizard(P2, &[("chaos", 2)], &[], None)
+        .map_err(|e| format!("{e:?}"))?;
     for (a, b) in [(P1, P0), (P2, P0)] {
         set_rel(&mut g, a, b, 0);
     }
@@ -1000,24 +1171,31 @@ fn enchantments_offend_the_wizards_they_offend() {
     set_rel(&mut g, P1, P0, 0);
     g.enchantment_relations(P0, "water_walking", 1);
     assert_eq!(g.relation(P1, P0), 0);
+    Ok(())
 }
 
 #[test]
-fn a_curse_on_a_city_is_noticed_by_its_owner() {
+fn a_curse_on_a_city_is_noticed_by_its_owner() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
     set_rel(&mut g, P0, P1, 0);
-    let famine = g.content.rules.spells.id_of("famine").unwrap();
+    let famine = g
+        .content
+        .rules
+        .spells
+        .id_of("famine")
+        .ok_or("famine is not in the content")?;
     g.cast_relations(P0, famine, Some(P1));
     assert_eq!(g.relation(P0, P1), -5);
     // On one's own city it is nobody's business.
     set_rel(&mut g, P0, P1, 0);
     g.cast_relations(P0, famine, None);
     assert_eq!(g.relation(P0, P1), 0);
+    Ok(())
 }
 
 #[test]
-fn casting_the_spell_of_mastery_turns_the_others_against_the_caster() {
+fn casting_the_spell_of_mastery_turns_the_others_against_the_caster() -> TestResult {
     let mut g = world();
     for (a, b) in [(P0, P1), (P0, P2), (P1, P2)] {
         met(&mut g, a, b);
@@ -1025,29 +1203,41 @@ fn casting_the_spell_of_mastery_turns_the_others_against_the_caster() {
     for b in [P1, P2] {
         set_rel(&mut g, P0, b, 0);
     }
-    let mastery = g.content.rules.spells.id_of("spell_of_mastery").unwrap();
+    let mastery = g
+        .content
+        .rules
+        .spells
+        .id_of("spell_of_mastery")
+        .ok_or("spell_of_mastery is not in the content")?;
     g.begin_cast_relations(P0, mastery);
     // The rules only sour the relation; a war on the caster is the AI's decision
     // (`f4x-ai`, `diplomacy::mastery_scare`).
     assert_eq!(g.treaty(P0, P1), Treaty::None);
     assert_eq!(g.relation(P0, P1), -50);
+    Ok(())
 }
 
 #[test]
-fn a_spell_of_mastery_being_cast_sours_relations_a_little_each_turn() {
+fn a_spell_of_mastery_being_cast_sours_relations_a_little_each_turn() -> TestResult {
     let mut g = world();
     met(&mut g, P1, P2);
     // Begun, the Spell of Mastery keeps bothering them a little each turn (half of fifty).
-    let mastery = g.content.rules.spells.id_of("spell_of_mastery").unwrap();
+    let mastery = g
+        .content
+        .rules
+        .spells
+        .id_of("spell_of_mastery")
+        .ok_or("spell_of_mastery is not in the content")?;
     g.begin_casting(P1, mastery, 100);
     set_rel(&mut g, P1, P2, 0);
     g.with_diplomacy(|d, ctx| d.enchantments_in_force(ctx));
     // Half of fifty is twenty-five.
     assert_eq!(g.relation(P1, P2), -25);
+    Ok(())
 }
 
 #[test]
-fn attacking_a_partner_breaks_the_treaty_and_costs_relations() {
+fn attacking_a_partner_breaks_the_treaty_and_costs_relations() -> TestResult {
     let mut g = world();
     met(&mut g, P1, P2);
     g.start_treaty(P1, P2, Treaty::Pact);
@@ -1055,17 +1245,29 @@ fn attacking_a_partner_breaks_the_treaty_and_costs_relations() {
     g.attack_relations(P1, P2);
     assert_eq!(g.treaty(P1, P2), Treaty::None);
     assert!(g.relation(P1, P2) < 30 - 40 + 1, "{}", g.relation(P1, P2));
-    assert_eq!(g.diplomacy.stance(P1, P2).unwrap().hidden, -10);
+    assert_eq!(
+        g.diplomacy
+            .stance(P1, P2)
+            .ok_or("stance is missing")?
+            .hidden,
+        -10
+    );
     // With no treaty there is nothing to break and nothing to lose.
     let before = g.relation(P1, P2);
     g.attack_relations(P1, P2);
     assert_eq!(g.relation(P1, P2), before);
+    Ok(())
 }
 
 #[test]
-fn a_battle_against_a_partner_breaks_the_pact() {
+fn a_battle_against_a_partner_breaks_the_pact() -> TestResult {
     let mut g = world();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(P1, at(5, 5), walker);
     let d = g.spawn_unit(P2, at(6, 5), walker);
     met(&mut g, P1, P2);
@@ -1087,13 +1289,19 @@ fn a_battle_against_a_partner_breaks_the_pact() {
         Event::Diplomacy(DiplomacyEvent::TreatyBroken { breaker, victim, treaty: Treaty::Pact })
             if *breaker == P1 && *victim == P2
     )));
+    Ok(())
 }
 
 #[test]
-fn the_losses_of_a_defending_wizard_cost_the_attacker_its_goodwill() {
+fn the_losses_of_a_defending_wizard_cost_the_attacker_its_goodwill() -> TestResult {
     use crate::battle::{Side, Status};
     let mut g = world();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(P2, at(5, 5), walker);
     let d: Vec<_> = (0..3).map(|_| g.spawn_unit(P1, at(6, 5), walker)).collect();
     met(&mut g, P1, P2);
@@ -1103,7 +1311,7 @@ fn the_losses_of_a_defending_wizard_cost_the_attacker_its_goodwill() {
     });
     let before = g.relation(P1, P2);
     {
-        let b = &mut g.battle.as_mut().unwrap().battle;
+        let b = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle;
         for u in b.units.iter_mut().filter(|u| u.side == Side::Defender) {
             u.status = Status::Dead;
         }
@@ -1118,12 +1326,18 @@ fn the_losses_of_a_defending_wizard_cost_the_attacker_its_goodwill() {
         before,
         g.relation(P1, P2)
     );
+    Ok(())
 }
 
 #[test]
-fn a_battle_against_a_stranger_makes_them_known_to_each_other() {
+fn a_battle_against_a_stranger_makes_them_known_to_each_other() -> TestResult {
     let mut g = world();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(P1, at(5, 5), walker);
     let d = g.spawn_unit(P2, at(6, 5), walker);
     set_pair(&mut g, P1, P2, |p| p.contacted = false);
@@ -1133,6 +1347,7 @@ fn a_battle_against_a_stranger_makes_them_known_to_each_other() {
     });
     assert!(g.have_met(P1, P2));
     assert_eq!(g.treaty(P1, P2), Treaty::None);
+    Ok(())
 }
 
 #[test]
@@ -1161,14 +1376,17 @@ fn taking_a_city_is_a_war() {
 }
 
 #[test]
-fn taking_an_independent_city_is_no_diplomacy() {
+fn taking_an_independent_city_is_no_diplomacy() -> TestResult {
     let mut g = world();
     g.add_neutral_player(PlayerId(9));
-    g.treasury_mut(PlayerId(9)).unwrap().gold = 0;
+    g.treasury_mut(PlayerId(9))
+        .ok_or("treasury_mut is missing")?
+        .gold = 0;
     let target = city(&mut g, PlayerId(9), at(10, 10));
     g.conquer_city(target, P1, 0);
     assert!(g.drain_diplomacy_events().is_empty());
     assert!(!g.have_met(P1, PlayerId(9)));
+    Ok(())
 }
 
 #[test]
@@ -1204,14 +1422,16 @@ fn a_fallen_fortress_is_held_against_the_winner_by_everyone_else() {
 }
 
 #[test]
-fn diplomacy_survives_a_save() {
+fn diplomacy_survives_a_save() -> TestResult {
     let mut g = world();
     for (a, b) in [(P0, P1), (P0, P2), (P1, P2)] {
         met(&mut g, a, b);
     }
     g.start_treaty(P1, P2, Treaty::Alliance);
     g.declare_war(P0, P1);
-    g.wizard_mut(P2).unwrap().put(Some(Personality::Lawful));
+    g.wizard_mut(P2)
+        .ok_or("wizard_mut is missing")?
+        .put(Some(Personality::Lawful));
     g.diplomacy.stance_mut(P2, P0).last_action = Some(LastAction {
         action: Action::AttackedCity,
         strength: -20,
@@ -1222,8 +1442,18 @@ fn diplomacy_survives_a_save() {
         to: P2,
         kind: ProposalKind::WarOn(P1),
     });
-    let famine = g.content.rules.spells.id_of("famine").unwrap();
-    let gaia = g.content.rules.spells.id_of("gaias_blessing").unwrap();
+    let famine = g
+        .content
+        .rules
+        .spells
+        .id_of("famine")
+        .ok_or("famine is not in the content")?;
+    let gaia = g
+        .content
+        .rules
+        .spells
+        .id_of("gaias_blessing")
+        .ok_or("gaias_blessing is not in the content")?;
     g.diplomacy.proposals.push(Proposal {
         from: P1,
         to: P2,
@@ -1234,24 +1464,26 @@ fn diplomacy_survives_a_save() {
     });
     g.drain_diplomacy_events();
     let snap: Snapshot = g.snapshot();
-    let text = ron::to_string(&snap).unwrap();
-    let back: Snapshot = ron::from_str(&text).unwrap();
+    let text = ron::to_string(&snap)?;
+    let back: Snapshot = ron::from_str(&text)?;
     assert_eq!(back, snap);
-    let h = back.restore(content_with_magic()).unwrap();
+    let h = back.restore(content_with_magic())?;
     assert_eq!(h.diplomacy, g.diplomacy);
     assert_eq!(h.treaty(P1, P2), Treaty::Alliance);
     assert_eq!(h.treaty(P0, P1), Treaty::War);
     assert_eq!(h.personality(P2), Personality::Lawful);
+    Ok(())
 }
 
 #[test]
-fn an_old_save_has_no_diplomacy() {
+fn an_old_save_has_no_diplomacy() -> TestResult {
     let g = world();
     let mut snap = g.snapshot();
     snap.diplomacy = DiplomacySave::default();
-    let h = snap.restore(content_with_magic()).unwrap();
+    let h = snap.restore(content_with_magic())?;
     assert!(!h.have_met(P0, P1));
     assert_eq!(h.relation(P0, P1), g.relation(P0, P1));
+    Ok(())
 }
 
 #[test]
@@ -1291,15 +1523,21 @@ fn propose_and_answer(
 }
 
 #[test]
-fn a_threat_that_works_buys_the_threatener_some_peace_and_costs_goodwill() {
+fn a_threat_that_works_buys_the_threatener_some_peace_and_costs_goodwill() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
     set_rel(&mut g, P0, P1, 20);
     propose_and_answer(&mut g, P0, P1, ProposalKind::Threat, true);
-    let s = g.diplomacy.stance(P1, P0).unwrap();
+    let s = g.diplomacy.stance(P1, P0).ok_or("stance is missing")?;
     assert!((1..=15).contains(&s.peace_duration), "{}", s.peace_duration);
     assert!(g.relation(P0, P1) <= 20);
-    assert_eq!(g.diplomacy.stance(P0, P1).unwrap().treaty_patience, -120);
+    assert_eq!(
+        g.diplomacy
+            .stance(P0, P1)
+            .ok_or("stance is missing")?
+            .treaty_patience,
+        -120
+    );
     // A refused threat gives no peace.
     let mut g = world();
     met(&mut g, P0, P1);
@@ -1319,31 +1557,42 @@ fn a_threat_that_works_buys_the_threatener_some_peace_and_costs_goodwill() {
         },
     );
     assert_eq!(rejected(&events), Some(DiplomacyError::NotAllowed));
+    Ok(())
 }
 
 #[test]
-fn a_demand_is_paid_when_accepted_and_resented_when_refused() {
+fn a_demand_is_paid_when_accepted_and_resented_when_refused() -> TestResult {
     let mut g = world();
     met(&mut g, P1, P0);
-    g.treasury_mut(P0).unwrap().gold = 200;
-    g.treasury_mut(P1).unwrap().gold = 10;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 200;
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold = 10;
     set_rel(&mut g, P0, P1, 0);
     propose_and_answer(&mut g, P1, P0, ProposalKind::Demand { gold: 75 }, true);
-    assert_eq!(g.player(P0).unwrap().treasury().gold, 125);
-    assert_eq!(g.player(P1).unwrap().treasury().gold, 85);
+    assert_eq!(
+        g.player(P0).ok_or("player is missing")?.treasury().gold,
+        125
+    );
+    assert_eq!(g.player(P1).ok_or("player is missing")?.treasury().gold, 85);
     let before = g.relation(P0, P1);
     propose_and_answer(&mut g, P1, P0, ProposalKind::Demand { gold: 50 }, false);
-    assert_eq!(g.player(P0).unwrap().treasury().gold, 125);
+    assert_eq!(
+        g.player(P0).ok_or("player is missing")?.treasury().gold,
+        125
+    );
     // The human is never changed, so the AI's own side of a refusal shows in its patience only
     // when the demand comes from the human; here the human refuses and the AI's feelings fall.
     assert!(g.relation(P0, P1) <= before);
     // More than the human has is not paid even when answered yes.
     propose_and_answer(&mut g, P1, P0, ProposalKind::Demand { gold: 500 }, true);
-    assert_eq!(g.player(P0).unwrap().treasury().gold, 125);
+    assert_eq!(
+        g.player(P0).ok_or("player is missing")?.treasury().gold,
+        125
+    );
+    Ok(())
 }
 
 #[test]
-fn a_warning_is_counted_and_told() {
+fn a_warning_is_counted_and_told() -> TestResult {
     let mut g = world();
     met(&mut g, P1, P0);
     let events = command(&mut g, DiplomacyCommand::Warn { from: P1, to: P0 });
@@ -1352,10 +1601,17 @@ fn a_warning_is_counted_and_told() {
         to: P0
     })));
     command(&mut g, DiplomacyCommand::Warn { from: P1, to: P0 });
-    assert_eq!(g.diplomacy.stance(P1, P0).unwrap().warnings, 2);
+    assert_eq!(
+        g.diplomacy
+            .stance(P1, P0)
+            .ok_or("stance is missing")?
+            .warnings,
+        2
+    );
     // Strangers warn no one.
     let events = command(&mut g, DiplomacyCommand::Warn { from: P1, to: P2 });
     assert_eq!(rejected(&events), Some(DiplomacyError::NotContacted));
+    Ok(())
 }
 
 #[test]
@@ -1375,12 +1631,17 @@ fn an_alliance_does_not_outlast_one_ally_fighting_the_others_ally() {
 }
 
 #[test]
-fn units_next_to_a_partners_city_are_warned_off_and_then_the_treaty_ends() {
+fn units_next_to_a_partners_city_are_warned_off_and_then_the_treaty_ends() -> TestResult {
     let mut g = world();
     met(&mut g, P1, P2);
     g.start_treaty(P1, P2, Treaty::Pact);
     city(&mut g, P1, at(10, 10));
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     g.spawn_unit(P2, at(11, 11), walker);
     let first = diplomacy_turn(&mut g);
     assert!(
@@ -1397,23 +1658,42 @@ fn units_next_to_a_partners_city_are_warned_off_and_then_the_treaty_ends() {
     assert_eq!(g.treaty(P1, P2), Treaty::Pact);
     diplomacy_turn(&mut g);
     assert_eq!(g.treaty(P1, P2), Treaty::None);
+    Ok(())
 }
 
 #[test]
-fn leaving_the_city_resets_the_warnings_and_wars_and_distance_are_ignored() {
+fn leaving_the_city_resets_the_warnings_and_wars_and_distance_are_ignored() -> TestResult {
     let mut g = world();
     met(&mut g, P1, P2);
     g.start_treaty(P1, P2, Treaty::Pact);
     city(&mut g, P1, at(10, 10));
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(P2, at(11, 11), walker);
     diplomacy_turn(&mut g);
-    assert_eq!(g.diplomacy.stance(P1, P2).unwrap().trespass, 1);
+    assert_eq!(
+        g.diplomacy
+            .stance(P1, P2)
+            .ok_or("stance is missing")?
+            .trespass,
+        1
+    );
     g.apply(Command::DismissUnit { unit });
     g.spawn_unit(P2, at(14, 10), walker);
     diplomacy_turn(&mut g);
-    assert_eq!(g.diplomacy.stance(P1, P2).unwrap().trespass, 0);
+    assert_eq!(
+        g.diplomacy
+            .stance(P1, P2)
+            .ok_or("stance is missing")?
+            .trespass,
+        0
+    );
     assert_eq!(g.treaty(P1, P2), Treaty::Pact);
+    Ok(())
 }
 
 #[test]

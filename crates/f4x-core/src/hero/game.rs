@@ -348,6 +348,7 @@ pub(crate) mod tests {
     use crate::game::testutil::content_with_magic;
     use crate::hero::Tier;
     use crate::map::{Grid, Map, Plane};
+    use crate::testdir::TestResult;
 
     pub(crate) const P0: PlayerId = PlayerId(0);
     pub(crate) const P1: PlayerId = PlayerId(1);
@@ -365,7 +366,7 @@ pub(crate) mod tests {
     pub(crate) fn world() -> Game {
         let mut c = content_with_magic();
         c.rules.hero_templates = crate::game::testutil::real_hero_templates();
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
         let mut g = Game::new(5);
         g.content = c;
         g.map = Some(Map::new(Grid::new(14, 8, grass), Grid::new(14, 8, grass)));
@@ -388,32 +389,36 @@ pub(crate) mod tests {
 
     /// Where the hero of this type is.
     pub(crate) fn state(g: &Game, kind: usize) -> HeroState {
-        let hero = g.units().hero_entity(kind).unwrap();
-        g.units().hero_state(hero).unwrap()
+        let hero = g.units().hero_entity(kind).expect("hero_entity succeeds");
+        g.units().hero_state(hero).expect("hero_state succeeds")
     }
 
     /// The experience the hero of this type keeps.
     pub(crate) fn set_xp(g: &mut Game, kind: usize, xp: u32) {
-        let hero = g.units().hero_entity(kind).unwrap();
-        g.world.insert_one(hero, Experience(xp)).unwrap();
+        let hero = g.units().hero_entity(kind).expect("hero_entity succeeds");
+        g.world
+            .insert_one(hero, Experience(xp))
+            .expect("insert_one succeeds");
     }
 
     /// Put the hero of this type in a state it free of any wizard (dead or gone), as if it had
     /// got there in play.
     pub(crate) fn set_state(g: &mut Game, kind: usize, state: HeroState) {
-        let hero = g.units().hero_entity(kind).unwrap();
-        g.world.insert_one(hero, state).unwrap();
+        let hero = g.units().hero_entity(kind).expect("hero_entity succeeds");
+        g.world
+            .insert_one(hero, state)
+            .expect("insert_one succeeds");
     }
 
     #[test]
-    fn the_game_has_one_hero_of_each_type_and_no_wizard_owns_any_at_the_start() {
+    fn the_game_has_one_hero_of_each_type_and_no_wizard_owns_any_at_the_start() -> TestResult {
         let g = world();
         // One of each, not one table for each wizard.
         let kinds: Vec<_> = g
             .units()
             .all_heroes()
             .into_iter()
-            .map(|h| g.units().hero_kind(h).unwrap())
+            .map(|h| g.units().hero_kind(h).expect("hero_kind succeeds"))
             .collect();
         assert_eq!(kinds, (0..35).collect::<Vec<_>>());
         assert_eq!(g.units().hero_type_name(0).as_deref(), Some("Dwarf"));
@@ -422,15 +427,18 @@ pub(crate) mod tests {
             assert!(g.units().heroes(p).is_empty());
         }
         assert!(g.units().all_units().is_empty());
+        Ok(())
     }
 
     #[test]
-    fn a_hired_hero_carries_its_record() {
+    fn a_hired_hero_carries_its_record() -> TestResult {
         let mut g = world();
         // The Dervish is noble; the Beastmaster knows Resist Elements.
         let dervish = kind_of(&g, "dervish");
-        let h = g.spawn_hero(P0, at(1, 1), dervish).unwrap();
-        let hero: Hero = (*g.world.get::<&Hero>(h).unwrap()).clone();
+        let h = g
+            .spawn_hero(P0, at(1, 1), dervish)
+            .map_err(|e| format!("{e:?}"))?;
+        let hero: Hero = (*g.world.get::<&Hero>(h)?).clone();
         assert_eq!(hero.name, "Dervish");
         assert_eq!(hero.abilities.might, Tier::None);
         assert!(hero.spells.is_empty());
@@ -441,10 +449,12 @@ pub(crate) mod tests {
         assert_eq!(g.units().unit_gold_upkeep(h), 0);
         assert_eq!(g.budget(P0).noble_gold, 10);
         let beast = kind_of(&g, "beastmaster");
-        let plain = g.spawn_hero(P0, at(1, 1), beast).unwrap();
+        let plain = g
+            .spawn_hero(P0, at(1, 1), beast)
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.units().unit_gold_upkeep(plain), 2);
         assert_eq!(
-            g.world.get::<&Hero>(plain).unwrap().spells,
+            g.world.get::<&Hero>(plain)?.spells,
             vec!["resist_elements".to_string()]
         );
         // The same hero cannot serve twice, and another wizard cannot hire the one who serves.
@@ -459,10 +469,12 @@ pub(crate) mod tests {
         assert_eq!(g.units().heroes(P0).len(), 2);
         assert!(g.units().heroes(P1).is_empty());
         assert_eq!(g.spawn_hero(P0, at(1, 1), 99), Err(HeroError::Unknown));
+        Ok(())
     }
 
     #[test]
-    fn a_hero_has_mana_from_skill_level_and_items_and_half_of_it_helps_at_the_fortress() {
+    fn a_hero_has_mana_from_skill_level_and_items_and_half_of_it_helps_at_the_fortress(
+    ) -> TestResult {
         use crate::item::{Item, ItemBonus};
         use crate::rules::ItemKind;
         let mut g = world();
@@ -470,7 +482,9 @@ pub(crate) mod tests {
             .put(Some(crate::wizard::fortress::Fortress(at(3, 3))));
         // The Sage has casting skill 2: at level 0, (2 + 1) * 1 * 5 / 2.
         let sage = kind_of(&g, "sage");
-        let h = g.spawn_hero(P0, at(3, 3), sage).unwrap();
+        let h = g
+            .spawn_hero(P0, at(3, 3), sage)
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.units().hero_mana(h), 7);
         assert_eq!(g.hero_casting_skill(P0), 3);
         // At the top level the fourth: (2 + 1) * 4 * 5 / 2.
@@ -499,23 +513,29 @@ pub(crate) mod tests {
         assert_eq!(g.hero_casting_skill(P0), (before + 7) / 2);
         // The Beastmaster has casting skill 1: (1 + 1) * 1 * 5 / 2.
         let beast = kind_of(&g, "beastmaster");
-        let away = g.spawn_hero(P0, at(5, 5), beast).unwrap();
+        let away = g
+            .spawn_hero(P0, at(5, 5), beast)
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.units().hero_mana(away), 5);
         assert_eq!(g.hero_casting_skill(P0), (before + 7) / 2);
         assert_eq!(g.hero_casting_skill(P1), 0);
         // A hero with no casting skill has no mana, whatever its items.
-        g.world.get::<&mut Hero>(away).unwrap().casting_skill = 0;
+        g.world.get::<&mut Hero>(away)?.casting_skill = 0;
         assert_eq!(g.units().hero_mana(away), 0);
+        Ok(())
     }
 
     #[test]
-    fn sage_heroes_add_research_and_fortress_heroes_add_to_the_skill_that_pays_over_turns() {
+    fn sage_heroes_add_research_and_fortress_heroes_add_to_the_skill_that_pays_over_turns(
+    ) -> TestResult {
         let mut g = world();
         g.wiz_mut(0)
             .put(Some(crate::wizard::fortress::Fortress(at(3, 3))));
         let kind = kind_of(&g, "sage");
-        let sage = g.spawn_hero(P0, at(3, 3), kind).unwrap();
-        g.world.get::<&mut Hero>(sage).unwrap().abilities.sage = Tier::Normal;
+        let sage = g
+            .spawn_hero(P0, at(3, 3), kind)
+            .map_err(|e| format!("{e:?}"))?;
+        g.world.get::<&mut Hero>(sage)?.abilities.sage = Tier::Normal;
         let _ = g.world.insert_one(sage, Experience(120));
         let level = g.units().unit_level(sage);
         assert!(level > 0);
@@ -525,22 +545,43 @@ pub(crate) mod tests {
         );
         assert_eq!(g.units().sage_research(P1), 0);
         // A spell paid over turns gets the heroes' skill on top of the wizard's own.
-        g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
-        let spell = g.content.rules.spells.id_of("healing").unwrap();
+        g.init_wizard(P0, &[("life", 2)], &[], None)
+            .map_err(|e| format!("{e:?}"))?;
+        let spell = g
+            .content
+            .rules
+            .spells
+            .id_of("healing")
+            .ok_or("healing is not in the content")?;
         let hero_skill = g.hero_casting_skill(P0);
         assert!(hero_skill > 0);
-        let nominal = g.wizard(P0).unwrap().casting_skill();
+        let nominal = g.wizard(P0).ok_or("wizard is missing")?.casting_skill();
         // Healing needs a unit to aim at, and the wizard keeps one after the hero is gone.
-        let soldier = g.content.rules.units.id_of("high_men_spearmen").unwrap();
+        let soldier = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_spearmen")
+            .ok_or("high_men_spearmen is not in the content")?;
         g.spawn_unit(P0, at(3, 3), soldier);
         g.scenario_casting(P0, spell, 1000);
         g.tr_mut(0).mana = 5000;
         let _ = g.process_magic();
-        let left = g.wizard(P0).unwrap().casting().unwrap().remaining;
+        let left = g
+            .wizard(P0)
+            .ok_or("wizard is missing")?
+            .casting()
+            .ok_or("casting is missing")?
+            .remaining;
         assert_eq!(1000 - left, nominal + hero_skill);
         // The heroes' skill counts for that turn only: the next payment is the wizard's alone.
         let _ = g.process_magic();
-        let after = g.wizard(P0).unwrap().casting().unwrap().remaining;
+        let after = g
+            .wizard(P0)
+            .ok_or("wizard is missing")?
+            .casting()
+            .ok_or("casting is missing")?
+            .remaining;
         assert_eq!(
             left - after,
             nominal + hero_skill,
@@ -548,16 +589,23 @@ pub(crate) mod tests {
         );
         g.remove_unit(sage, Fate::Released);
         let _ = g.process_magic();
-        let last = g.wizard(P0).unwrap().casting().unwrap().remaining;
+        let last = g
+            .wizard(P0)
+            .ok_or("wizard is missing")?
+            .casting()
+            .ok_or("casting is missing")?
+            .remaining;
         assert_eq!(after - last, nominal);
+        Ok(())
     }
 
     #[test]
-    fn a_wizard_may_have_every_hero_but_a_hero_serves_one_wizard_only() {
+    fn a_wizard_may_have_every_hero_but_a_hero_serves_one_wizard_only() -> TestResult {
         let mut g = world();
         let all = g.content.rules.hero_templates.len();
         for k in 0..all {
-            g.spawn_hero(P0, at(1, 1), k).unwrap();
+            g.spawn_hero(P0, at(1, 1), k)
+                .map_err(|e| format!("{e:?}"))?;
         }
         assert_eq!(g.units().hero_units(P0).len(), all);
         // Nobody is left for the other wizard.
@@ -567,21 +615,31 @@ pub(crate) mod tests {
         g.remove_unit(first, Fate::Released);
         assert_eq!(g.units().hero_units(P0).len(), all - 1);
         assert!(g.spawn_hero(P1, at(1, 1), 0).is_ok());
+        Ok(())
     }
 
     #[test]
-    fn a_hero_that_leaves_keeps_its_experience_or_is_gone() {
+    fn a_hero_that_leaves_keeps_its_experience_or_is_gone() -> TestResult {
         let mut g = world();
-        let a = g.spawn_hero(P0, at(1, 1), 0).unwrap();
-        let b = g.spawn_hero(P0, at(1, 1), 1).unwrap();
-        let c = g.spawn_hero(P0, at(1, 1), 3).unwrap();
+        let a = g
+            .spawn_hero(P0, at(1, 1), 0)
+            .map_err(|e| format!("{e:?}"))?;
+        let b = g
+            .spawn_hero(P0, at(1, 1), 1)
+            .map_err(|e| format!("{e:?}"))?;
+        let c = g
+            .spawn_hero(P0, at(1, 1), 3)
+            .map_err(|e| format!("{e:?}"))?;
         for (h, xp) in [(a, 40), (b, 70), (c, 90)] {
             let _ = g.world.insert_one(h, Experience(xp));
         }
         g.remove_unit(a, Fate::Slain);
         g.remove_unit(b, Fate::Released);
         g.remove_unit(c, Fate::Gone);
-        let xp = |g: &Game, k| g.units().hero_xp(g.units().hero_entity(k).unwrap());
+        let xp = |g: &Game, k| {
+            g.units()
+                .hero_xp(g.units().hero_entity(k).expect("hero_entity succeeds"))
+        };
         assert_eq!((state(&g, 0), xp(&g, 0)), (HeroState::Dead, 40));
         assert_eq!((state(&g, 1), xp(&g, 1)), (HeroState::Free, 70));
         assert_eq!(state(&g, 3), HeroState::Gone);
@@ -594,41 +652,53 @@ pub(crate) mod tests {
         assert!(g.units().hero_units(P0).is_empty());
         // A dead hero can be raised again, with the experience it had, by any wizard; a gone
         // one cannot.
-        let again = g.spawn_hero(P1, at(2, 2), 0).unwrap();
-        assert_eq!(g.world.get::<&Experience>(again).unwrap().0, 40);
+        let again = g
+            .spawn_hero(P1, at(2, 2), 0)
+            .map_err(|e| format!("{e:?}"))?;
+        assert_eq!(g.world.get::<&Experience>(again)?.0, 40);
         assert_eq!(g.spawn_hero(P0, at(2, 2), 3), Err(HeroError::NotAvailable));
         assert_eq!(g.units().hero_units(P1), vec![again]);
+        Ok(())
     }
 
     #[test]
-    fn the_places_that_remove_units_tell_the_hero() {
+    fn the_places_that_remove_units_tell_the_hero() -> TestResult {
         let mut g = world();
         // Unpaid upkeep lets a hero go: it can be hired again.
-        let h = g.spawn_hero(P0, at(1, 1), 0).unwrap();
+        let h = g
+            .spawn_hero(P0, at(1, 1), 0)
+            .map_err(|e| format!("{e:?}"))?;
         g.tr_mut(0).gold = 0;
         let _ = g.settle_treasury(P0);
         assert!(g.world.get::<&Unit>(h).is_err());
         assert_eq!(state(&g, 0), HeroState::Free);
         // The cheat that removes a unit does too.
-        let h = g.spawn_hero(P0, at(1, 1), 1).unwrap();
+        let h = g
+            .spawn_hero(P0, at(1, 1), 1)
+            .map_err(|e| format!("{e:?}"))?;
         assert!(g.cheat_remove_unit(h));
         assert_eq!(state(&g, 1), HeroState::Free);
         // A wizard who is defeated lets their heroes go: they are free for the others to hire.
-        let h = g.spawn_hero(P1, at(3, 3), 4).unwrap();
+        let h = g
+            .spawn_hero(P1, at(3, 3), 4)
+            .map_err(|e| format!("{e:?}"))?;
         g.aftermath(P1, P0);
         assert!(g.world.get::<&Unit>(h).is_err());
         assert_eq!(state(&g, 4), HeroState::Free);
         assert!(g.units().heroes(P1).is_empty());
+        Ok(())
     }
 
     #[test]
-    fn a_hero_let_go_can_be_hired_by_anyone_with_the_experience_it_has() {
+    fn a_hero_let_go_can_be_hired_by_anyone_with_the_experience_it_has() -> TestResult {
         let mut g = world();
-        let h = g.spawn_hero(P0, at(1, 1), 0).unwrap();
+        let h = g
+            .spawn_hero(P0, at(1, 1), 0)
+            .map_err(|e| format!("{e:?}"))?;
         set_xp(&mut g, 0, 10_000);
         // While it serves, the other wizard cannot hire it and is not offered it.
         g.player_component_mut::<crate::player::Offers>(P1)
-            .unwrap()
+            .ok_or("value is missing")?
             .0
             .push(crate::player::offer::Offer::Hero {
                 kind: 1,
@@ -636,28 +706,40 @@ pub(crate) mod tests {
             });
         assert_eq!(g.spawn_hero(P1, at(2, 2), 0), Err(HeroError::NotAvailable));
         // Hiring a hero takes it off every offer; an offer for another hero stays.
-        g.spawn_hero(P0, at(1, 1), 1).unwrap();
+        g.spawn_hero(P0, at(1, 1), 1)
+            .map_err(|e| format!("{e:?}"))?;
         assert!(g.offers(P1).is_empty());
         // Let go, it is free again with its experience, and the price shows it.
         g.remove_unit(h, Fate::Released);
         assert_eq!(state(&g, 0), HeroState::Free);
         assert!(g.units().hero_kept_level(0) > 0);
-        assert!(g.units().hero_hire_price(P1, 0).unwrap() > 100);
-        let again = g.spawn_hero(P1, at(2, 2), 0).unwrap();
+        assert!(
+            g.units()
+                .hero_hire_price(P1, 0)
+                .ok_or("hero_hire_price is missing")?
+                > 100
+        );
+        let again = g
+            .spawn_hero(P1, at(2, 2), 0)
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(again, h);
         assert_eq!(g.units().hero_units(P1), vec![h]);
-        assert_eq!(g.world.get::<&Experience>(h).unwrap().0, 10_000);
+        assert_eq!(g.world.get::<&Experience>(h)?.0, 10_000);
+        Ok(())
     }
 
     #[test]
-    fn the_price_follows_the_kept_level_and_the_retort() {
+    fn the_price_follows_the_kept_level_and_the_retort() -> TestResult {
         let mut g = world();
-        let cost = g.units().hero_hire_price(P0, 0).unwrap();
+        let cost = g
+            .units()
+            .hero_hire_price(P0, 0)
+            .ok_or("hero_hire_price is missing")?;
         assert_eq!(cost, 100);
         set_xp(&mut g, 0, 10_000);
         let level = crate::hero::kind::level_of(
             &g.content.rules,
-            crate::hero::kind::unit_of(&g.content.rules, 0).unwrap(),
+            crate::hero::kind::unit_of(&g.content.rules, 0).ok_or("unit_of is missing")?,
             10_000,
         );
         assert_eq!(
@@ -665,7 +747,7 @@ pub(crate) mod tests {
             Some(100 + level as i32 * 100 / 4)
         );
         g.wizard_mut(crate::player::PlayerId(0))
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
             .insert(crate::wizard::magic::Retort::Charismatic);
@@ -674,10 +756,11 @@ pub(crate) mod tests {
             Some((100 + level as i32 * 100 / 4) / 2)
         );
         assert_eq!(g.units().hero_hire_price(P0, 99), None);
+        Ok(())
     }
 
     #[test]
-    fn fame_and_books_decide_who_is_offered() {
+    fn fame_and_books_decide_who_is_offered() -> TestResult {
         let mut g = world();
         let necromancer = kind_of(&g, "necromancer");
         // The fame needed grows with the hire cost: at fame 0 no hero costing 100 or more
@@ -696,7 +779,7 @@ pub(crate) mod tests {
         assert!(seen.len() >= 4 && !seen.contains(&necromancer), "{seen:?}");
         // A summoning ignores the fame; the death book unlocks the necromancer.
         g.wizard_mut(crate::player::PlayerId(0))
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Books>()
             .0
             .insert("death".into(), 1);
@@ -715,22 +798,24 @@ pub(crate) mod tests {
             let k = g.pick_hero(P0, true, Class::Any);
             assert!(k.is_none() || k == Some(necromancer), "{k:?}");
         }
+        Ok(())
     }
 
     #[test]
-    fn the_heroes_survive_a_save() {
+    fn the_heroes_survive_a_save() -> TestResult {
         let mut g = world();
         let dervish = kind_of(&g, "dervish");
-        let h = g.spawn_hero(P0, at(1, 1), dervish).unwrap();
+        let h = g
+            .spawn_hero(P0, at(1, 1), dervish)
+            .map_err(|e| format!("{e:?}"))?;
         let _ = g.world.insert_one(h, Experience(33));
         let barbarian = kind_of(&g, "barbarian");
-        let dead = g.spawn_hero(P0, at(1, 1), barbarian).unwrap();
+        let dead = g
+            .spawn_hero(P0, at(1, 1), barbarian)
+            .map_err(|e| format!("{e:?}"))?;
         g.remove_unit(dead, Fate::Slain);
-        let text = ron::to_string(&g.snapshot()).unwrap();
-        let back = crate::game::save::Snapshot::from_text(&text)
-            .unwrap()
-            .restore(g.content.clone())
-            .unwrap();
+        let text = ron::to_string(&g.snapshot())?;
+        let back = crate::game::save::Snapshot::from_text(&text)?.restore(g.content.clone())?;
         {
             let all = |g: &Game| -> Vec<_> {
                 g.units()
@@ -738,7 +823,7 @@ pub(crate) mod tests {
                     .into_iter()
                     .map(|e| {
                         (
-                            (*g.world.get::<&Hero>(e).unwrap()).clone(),
+                            (*g.world.get::<&Hero>(e).expect("value succeeds")).clone(),
                             g.units().hero_state(e),
                             g.units().hero_xp(e),
                             g.serial_of(e),
@@ -752,12 +837,13 @@ pub(crate) mod tests {
         let heroes = back.units().hero_units(P0);
         assert_eq!(heroes.len(), 1);
         assert_eq!(
-            *back.world.get::<&Hero>(heroes[0]).unwrap(),
-            *g.world.get::<&Hero>(h).unwrap()
+            *back.world.get::<&Hero>(heroes[0])?,
+            *g.world.get::<&Hero>(h)?
         );
         assert_eq!(back.units().hero_kind(heroes[0]), Some(dervish));
         assert!(back.units().unit_has_ability(heroes[0], "noble"));
         assert_eq!(back.units().raisable_heroes(), vec![barbarian]);
+        Ok(())
     }
 
     fn sword() -> crate::item::Item {
@@ -775,7 +861,9 @@ pub(crate) mod tests {
     }
 
     fn armed_hero(g: &mut Game, owner: PlayerId) -> hecs::Entity {
-        let h = g.spawn_hero(owner, at(1, 1), 0).unwrap();
+        let h = g
+            .spawn_hero(owner, at(1, 1), 0)
+            .expect("spawn_hero succeeds");
         g.arm_hero(h, [Some(sword()), None, None]);
         h
     }
@@ -843,10 +931,15 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_hero_killed_in_a_battle_leaves_its_items_to_the_winner() {
+    fn a_hero_killed_in_a_battle_leaves_its_items_to_the_winner() -> TestResult {
         let mut g = world();
         let hero = armed_hero(&mut g, P0);
-        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+        let walker = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?;
         let attackers: Vec<_> = (0..8).map(|_| g.spawn_unit(P1, at(2, 1), walker)).collect();
         g.auto_resolve(&attackers, &[hero]);
         assert!(g.world.get::<&Unit>(hero).is_err(), "the hero fell");
@@ -856,5 +949,6 @@ pub(crate) mod tests {
             told.as_slice(),
             [Event::ItemsAwarded { player, .. }] if *player == P1
         ));
+        Ok(())
     }
 }

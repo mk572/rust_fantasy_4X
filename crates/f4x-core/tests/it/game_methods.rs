@@ -16,8 +16,8 @@ const GUIDELINE: usize = 12;
 
 fn source_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let mut entries: Vec<_> = fs::read_dir(dir)
-        .unwrap()
-        .map(|e| e.unwrap().path())
+        .expect("value succeeds")
+        .map(|e| e.expect("e succeeds").path())
         .collect();
     entries.sort();
     for path in entries {
@@ -78,11 +78,11 @@ fn counts() -> BTreeMap<String, usize> {
     source_files(&src, &mut files);
     let mut out = BTreeMap::new();
     for path in files {
-        let n = count_methods(&fs::read_to_string(&path).unwrap());
+        let n = count_methods(&fs::read_to_string(&path).expect("read_to_string succeeds"));
         if n > 0 {
             let rel = path
                 .strip_prefix(&src)
-                .unwrap()
+                .expect("value succeeds")
                 .to_string_lossy()
                 .replace('\\', "/");
             out.insert(rel, n);
@@ -95,8 +95,9 @@ const HEADER: &str = "# Methods in `impl Game` blocks per source file of f4x-cor
 # A measurement, read by tests/game_methods.rs, which reports growth and files over the guideline.\n\
 # Regenerate: F4X_WRITE_LIMITS=1 cargo test -p f4x-core --test it game_methods\n";
 
+use f4x_core::testdir::TestResult;
 #[test]
-fn report_game_methods() {
+fn report_game_methods() -> TestResult {
     let limits_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("game_method_limits.txt");
     let now = counts();
 
@@ -105,8 +106,8 @@ fn report_game_methods() {
         for (file, n) in &now {
             text.push_str(&format!("{file} {n}\n"));
         }
-        fs::write(&limits_path, text).unwrap();
-        return;
+        fs::write(&limits_path, text)?;
+        return Ok(());
     }
 
     let baseline: BTreeMap<String, usize> = fs::read_to_string(&limits_path)
@@ -137,6 +138,7 @@ fn report_game_methods() {
             println!("  over {GUIDELINE}: {file} ({n})");
         }
     }
+    Ok(())
 }
 
 #[test]

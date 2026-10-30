@@ -6,8 +6,8 @@ const P0: PlayerId = PlayerId(0);
 
 fn world() -> Game {
     let c = content_with_economy();
-    let grass = c.terrains.id_of("grassland").unwrap();
-    let ocean = c.terrains.id_of("ocean").unwrap();
+    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let ocean = c.terrains.id_of("ocean").expect("id_of succeeds");
     let build = || {
         let mut g = Grid::new(16, 10, grass);
         for y in 0..10 {

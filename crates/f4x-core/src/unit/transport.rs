@@ -394,6 +394,7 @@ mod tests {
     use crate::game::Command;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::Registry;
+    use crate::testdir::TestResult;
     use crate::unit::movement::{Entry, MoveError};
     use crate::unit::MovesLeft;
 
@@ -420,8 +421,8 @@ mod tests {
         crate::game::testutil::add_real_unit(&mut units, "floating_island");
         c.rules.units = Registry::new_sorted(units);
         let (grass, ocean) = (
-            c.terrains.id_of("grassland").unwrap(),
-            c.terrains.id_of("ocean").unwrap(),
+            c.terrains.id_of("grassland").expect("id_of succeeds"),
+            c.terrains.id_of("ocean").expect("id_of succeeds"),
         );
         let build = || {
             let mut g = Grid::new(14, 8, grass);
@@ -440,19 +441,24 @@ mod tests {
     }
 
     fn unit(g: &mut Game, id: &str, pos: Position) -> hecs::Entity {
-        let u = g.content.rules.units.id_of(id).unwrap();
+        let u = g.content.rules.units.id_of(id).expect("id_of succeeds");
         g.spawn_unit(P0, pos, u)
     }
 
     #[test]
-    fn wind_mastery_speeds_the_owners_ships_and_slows_the_others() {
+    fn wind_mastery_speeds_the_owners_ships_and_slows_the_others() -> TestResult {
         let mut g = world();
         let wm = crate::game::testutil::real_spells()
             .into_iter()
             .find(|s| s.id == "wind_mastery")
-            .unwrap();
+            .ok_or("find is missing")?;
         g.content.rules.spells = Registry::new(vec![wm]);
-        let wm = g.content.rules.spells.id_of("wind_mastery").unwrap();
+        let wm = g
+            .content
+            .rules
+            .spells
+            .id_of("wind_mastery")
+            .ok_or("wind_mastery is not in the content")?;
         for id in [P0, P1] {
             g.init_wizard(id, &[("life", 1)], &[], None).ok();
         }
@@ -473,6 +479,7 @@ mod tests {
         // Both have it: both get the bonus, nothing stacks.
         g.add_global(P0, wm);
         assert_eq!((max(&g, boat), max(&g, scout)), (12, 9));
+        Ok(())
     }
 
     #[test]
@@ -483,7 +490,7 @@ mod tests {
     }
 
     #[test]
-    fn a_unit_boards_a_waiting_ship_and_rides_with_it() {
+    fn a_unit_boards_a_waiting_ship_and_rides_with_it() -> TestResult {
         let mut g = world();
         let boat = unit(&mut g, "warship", at(5, 4));
         let w = unit(&mut g, "high_men_cavalry", at(4, 4));
@@ -492,22 +499,25 @@ mod tests {
         assert_eq!(g.economy().ship_room(boat), 1);
         let moves = g.units().unit_moves_left(w);
         // The ship sails alone; its passenger comes along at no cost.
-        g.move_stack(&[boat], at(6, 4)).unwrap();
+        g.move_stack(&[boat], at(6, 4))
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.units().unit_position(w), Some(at(6, 4)));
         assert_eq!(g.units().unit_moves_left(w), moves);
         assert_eq!(g.economy().carrier_of(w), Some(boat));
         // Selected together, they sail as one stack too.
-        g.move_stack(&[boat, w], at(7, 4)).unwrap();
+        g.move_stack(&[boat, w], at(7, 4))
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.units().unit_position(w), Some(at(7, 4)));
         assert_eq!(g.units().unit_moves_left(w), moves, "riding is free");
+        Ok(())
     }
 
     #[test]
-    fn path_estimates_use_the_ships_speed_not_the_passengers() {
+    fn path_estimates_use_the_ships_speed_not_the_passengers() -> TestResult {
         let mut g = world();
         let boat = unit(&mut g, "warship", at(5, 4));
         let w = unit(&mut g, "high_men_cavalry", at(4, 4));
-        g.move_stack(&[w], at(5, 4)).unwrap();
+        g.move_stack(&[w], at(5, 4)).map_err(|e| format!("{e:?}"))?;
         let path: Vec<_> = (6..10).map(|x| at(x, 4)).collect();
         let alone = g.path_turns(&[boat], &path);
         assert_eq!(g.path_turns(&[boat, w], &path), alone);
@@ -515,27 +525,30 @@ mod tests {
             alone, 0,
             "four sea squares fit in the ship's eight half-moves"
         );
+        Ok(())
     }
 
     #[test]
-    fn a_ship_holds_only_so_many() {
+    fn a_ship_holds_only_so_many() -> TestResult {
         let mut g = world();
         let boat = unit(&mut g, "warship", at(5, 4));
         let three: Vec<_> = (0..3)
             .map(|_| unit(&mut g, "high_men_cavalry", at(4, 4)))
             .collect();
         assert_eq!(g.move_stack(&three, at(5, 4)), Err(MoveError::NoRoom));
-        g.move_stack(&three[..2], at(5, 4)).unwrap();
+        g.move_stack(&three[..2], at(5, 4))
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.economy().ship_room(boat), 0);
         assert_eq!(
             g.move_stack(&three[2..], at(5, 4)),
             Err(MoveError::Impassable),
             "a full ship is no place to step"
         );
+        Ok(())
     }
 
     #[test]
-    fn units_load_in_port_and_unload_onto_land() {
+    fn units_load_in_port_and_unload_onto_land() -> TestResult {
         let mut g = world();
         g.apply(Command::FoundCity {
             owner: P0,
@@ -547,17 +560,23 @@ mod tests {
         let boat = unit(&mut g, "warship", at(4, 4));
         let w = unit(&mut g, "high_men_cavalry", at(4, 4));
         // The stack sails out of the port: the walker boards for free.
-        g.move_stack(&[boat, w], at(5, 4)).unwrap();
+        g.move_stack(&[boat, w], at(5, 4))
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.economy().carrier_of(w), Some(boat));
-        g.move_stack(&[boat], at(6, 4)).unwrap();
-        g.move_stack(&[boat], at(7, 4)).unwrap();
-        g.move_stack(&[boat], at(8, 4)).unwrap();
+        g.move_stack(&[boat], at(6, 4))
+            .map_err(|e| format!("{e:?}"))?;
+        g.move_stack(&[boat], at(7, 4))
+            .map_err(|e| format!("{e:?}"))?;
+        g.move_stack(&[boat], at(8, 4))
+            .map_err(|e| format!("{e:?}"))?;
         let _ = g.world.insert_one(boat, MovesLeft(8));
-        g.move_stack(&[boat], at(9, 4)).unwrap();
+        g.move_stack(&[boat], at(9, 4))
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.units().unit_position(w), Some(at(9, 4)));
         // Stepping ashore is an ordinary move.
         let _ = g.world.insert_one(w, MovesLeft(2));
-        g.move_stack(&[w], at(10, 4)).unwrap();
+        g.move_stack(&[w], at(10, 4))
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.economy().carrier_of(w), None, "no longer aboard");
         assert_eq!(g.units().unit_position(w), Some(at(10, 4)));
         assert_eq!(
@@ -567,10 +586,11 @@ mod tests {
         );
         // The ship stays; its place is free again.
         assert_eq!(g.economy().ship_room(boat), 2);
+        Ok(())
     }
 
     #[test]
-    fn passengers_ride_into_a_port_and_get_off_there() {
+    fn passengers_ride_into_a_port_and_get_off_there() -> TestResult {
         let mut g = world();
         g.apply(Command::FoundCity {
             owner: P0,
@@ -581,40 +601,49 @@ mod tests {
         });
         let boat = unit(&mut g, "warship", at(9, 4));
         let w = unit(&mut g, "high_men_cavalry", at(10, 4));
-        g.move_stack(&[w], at(9, 4)).unwrap();
+        g.move_stack(&[w], at(9, 4)).map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.economy().carrier_of(w), Some(boat));
-        g.move_stack(&[boat, w], at(10, 3)).unwrap();
+        g.move_stack(&[boat, w], at(10, 3))
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.economy().carrier_of(w), None, "ashore in the port");
         assert_eq!(g.units().unit_position(w), Some(at(10, 3)));
+        Ok(())
     }
 
     #[test]
-    fn at_sea_the_ships_are_decks_and_their_passengers_fight_on_them() {
+    fn at_sea_the_ships_are_decks_and_their_passengers_fight_on_them() -> TestResult {
         let mut g = world();
         let boat = unit(&mut g, "warship", at(5, 4));
         let walker = unit(&mut g, "high_men_cavalry", at(4, 4));
-        g.move_stack(&[walker], at(5, 4)).unwrap();
+        g.move_stack(&[walker], at(5, 4))
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.economy().carrier_of(walker), Some(boat));
         let attacker_boat = {
-            let u = g.content.rules.units.id_of("warship").unwrap();
+            let u = g
+                .content
+                .rules
+                .units
+                .id_of("warship")
+                .ok_or("warship is not in the content")?;
             g.spawn_unit(P1, at(6, 4), u)
         };
-        g.start_battle(&[attacker_boat], &[boat, walker]).unwrap();
-        let b = g.battle().unwrap();
+        g.start_battle(&[attacker_boat], &[boat, walker])
+            .map_err(|e| format!("{e:?}"))?;
+        let b = g.battle().ok_or("battle is missing")?;
         assert_eq!(b.units.len(), 3, "the passenger is in the fight");
-        let look = b.map.look().unwrap();
+        let look = b.map.look().ok_or("look is missing")?;
         assert_eq!(look.set, crate::battle::map::layout::Set::Water);
         // Every unit stands on a deck, and the ships stay where they are.
         for u in &b.units {
             assert!(b.map.is_ship_deck(u.cell), "{:?} is not on a deck", u.cell);
             assert_eq!(u.sails, u.moves == 0, "a ship does not sail off its deck");
         }
-        let on_foot = b.units.iter().find(|u| !u.sails).unwrap();
+        let on_foot = b.units.iter().find(|u| !u.sails).ok_or("find is missing")?;
         assert_eq!(b.map.enter_cost(on_foot.cell, false), Some(2));
         // The water between and round the decks is closed to a walker.
         assert_eq!(b.map.enter_cost((10, 10), false), None);
         // The attackers win and the defenders are all dead, the passenger with its ship.
-        let active = &mut g.battle.as_mut().unwrap().battle;
+        let active = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle;
         active.winner = Some(crate::battle::Side::Attacker);
         for u in &mut active.units {
             if u.side == crate::battle::Side::Defender {
@@ -623,27 +652,41 @@ mod tests {
         }
         g.finish_battle();
         assert!(g.units().unit_position(walker).is_none());
+        Ok(())
     }
 
     #[test]
-    fn a_floating_island_is_a_ship_in_a_sea_fight_and_its_passengers_stand_on_its_deck() {
+    fn a_floating_island_is_a_ship_in_a_sea_fight_and_its_passengers_stand_on_its_deck(
+    ) -> TestResult {
         let mut g = world();
         let island = {
-            let u = g.content.rules.units.id_of("floating_island").unwrap();
+            let u = g
+                .content
+                .rules
+                .units
+                .id_of("floating_island")
+                .ok_or("floating_island is not in the content")?;
             g.spawn_unit(P0, at(5, 4), u)
         };
         let walkers: Vec<_> = (0..2)
             .map(|_| unit(&mut g, "high_men_cavalry", at(4, 4)))
             .collect();
-        g.move_stack(&walkers, at(5, 4)).unwrap();
+        g.move_stack(&walkers, at(5, 4))
+            .map_err(|e| format!("{e:?}"))?;
         let enemy = {
-            let u = g.content.rules.units.id_of("warship").unwrap();
+            let u = g
+                .content
+                .rules
+                .units
+                .id_of("warship")
+                .ok_or("warship is not in the content")?;
             g.spawn_unit(P1, at(6, 4), u)
         };
         let mut defenders = vec![island];
         defenders.extend(&walkers);
-        g.start_battle(&[enemy], &defenders).unwrap();
-        let b = g.battle().unwrap();
+        g.start_battle(&[enemy], &defenders)
+            .map_err(|e| format!("{e:?}"))?;
+        let b = g.battle().ok_or("battle is missing")?;
         let own: Vec<_> = b
             .units
             .iter()
@@ -657,20 +700,25 @@ mod tests {
         for u in own {
             assert!(b.map.is_ship_deck(u.cell), "{:?}", u.cell);
         }
+        Ok(())
     }
 
     #[test]
-    fn land_units_without_a_ship_drown() {
+    fn land_units_without_a_ship_drown() -> TestResult {
         let mut g = world();
         let boat = unit(&mut g, "warship", at(5, 4));
         let w = unit(&mut g, "high_men_cavalry", at(4, 4));
-        g.move_stack(&[w], at(5, 4)).unwrap();
+        g.move_stack(&[w], at(5, 4)).map_err(|e| format!("{e:?}"))?;
         // Open sea: no shore beside the square.
-        let ocean = g.content.terrains.id_of("ocean").unwrap();
+        let ocean = g
+            .content
+            .terrains
+            .id_of("ocean")
+            .ok_or("ocean is not in the content")?;
         for (x, y) in [(4, 3), (4, 4), (4, 5), (5, 3), (5, 5), (6, 3), (6, 5)] {
             g.map
                 .as_mut()
-                .unwrap()
+                .ok_or("as_mut is missing")?
                 .plane_mut(Plane::Arcanus)
                 .set(x, y, ocean);
         }
@@ -691,17 +739,18 @@ mod tests {
         assert!(
             g.units().unit_position(flier).is_some() && g.units().unit_position(other).is_some()
         );
+        Ok(())
     }
 
     #[test]
-    fn passengers_of_a_lost_ship_beside_the_shore_may_scramble_ashore() {
+    fn passengers_of_a_lost_ship_beside_the_shore_may_scramble_ashore() -> TestResult {
         let mut g = world();
         let mut ashore = 0;
         let runs = 30;
         for _ in 0..runs {
             let boat = unit(&mut g, "warship", at(5, 4));
             let w = unit(&mut g, "high_men_cavalry", at(4, 4));
-            g.move_stack(&[w], at(5, 4)).unwrap();
+            g.move_stack(&[w], at(5, 4)).map_err(|e| format!("{e:?}"))?;
             g.despawn_with_spells(boat);
             g.drown_stranded();
             if let Some(p) = g.units().unit_position(w) {
@@ -711,21 +760,27 @@ mod tests {
             }
         }
         assert!(ashore > 0 && ashore < runs, "{ashore} of {runs} made it");
+        Ok(())
     }
 
     #[test]
-    fn who_is_aboard_survives_a_save() {
+    fn who_is_aboard_survives_a_save() -> TestResult {
         let mut g = world();
         let boat = unit(&mut g, "warship", at(5, 4));
         let w = unit(&mut g, "high_men_cavalry", at(4, 4));
-        g.move_stack(&[w], at(5, 4)).unwrap();
+        g.move_stack(&[w], at(5, 4)).map_err(|e| format!("{e:?}"))?;
         let content = g.content.clone();
-        let back = g.snapshot().restore(content).unwrap();
+        let back = g.snapshot().restore(content)?;
         let (boat2, w2) = (
-            back.units().entity_of_serial(g.serial_of(boat)).unwrap(),
-            back.units().entity_of_serial(g.serial_of(w)).unwrap(),
+            back.units()
+                .entity_of_serial(g.serial_of(boat))
+                .ok_or("entity_of_serial is missing")?,
+            back.units()
+                .entity_of_serial(g.serial_of(w))
+                .ok_or("entity_of_serial is missing")?,
         );
         assert_eq!(back.economy().carrier_of(w2), Some(boat2));
         assert_eq!(back.economy().ship_room(boat2), 1);
+        Ok(())
     }
 }

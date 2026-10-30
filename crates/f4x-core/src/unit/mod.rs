@@ -608,6 +608,7 @@ mod tests {
     use super::*;
     use crate::game::testutil::content_with_magic;
     use crate::map::Plane;
+    use crate::testdir::TestResult;
 
     const AT: Position = Position {
         plane: Plane::Arcanus,
@@ -616,28 +617,29 @@ mod tests {
     };
 
     #[test]
-    fn a_units_allowance_is_two_half_moves_for_each_move() {
+    fn a_units_allowance_is_two_half_moves_for_each_move() -> TestResult {
         let content = content_with_magic();
         let mut world = World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         let mut max = |id: &str, n: u64| {
-            let def = content.rules.units.id_of(id).unwrap();
+            let def = content.rules.units.id_of(id).expect("id_of succeeds");
             let e = spawn(&mut world, &content, Serial(n), owner, AT, def);
             UnitView::new(&world, &content).unit_max_moves(e)
         };
         assert_eq!(max("high_men_spearmen", 1), 2);
         assert_eq!(max("high_men_cavalry", 2), 4);
+        Ok(())
     }
 
     #[test]
-    fn basic_troops_cost_half_the_upkeep_when_the_setting_is_on() {
+    fn basic_troops_cost_half_the_upkeep_when_the_setting_is_on() -> TestResult {
         let mut content = content_with_magic();
         let mut world = World::new();
         let (a, b) = (
             world.spawn(crate::player::bundle(PlayerId(0))),
             world.spawn(crate::player::bundle(PlayerId(1))),
         );
-        let id = |n: &str, c: &Content| c.rules.units.id_of(n).unwrap();
+        let id = |n: &str, c: &Content| c.rules.units.id_of(n).expect("id_of succeeds");
         let made: Vec<_> = [
             (a, "high_men_spearmen"),
             (a, "high_men_swordsmen"),
@@ -671,12 +673,17 @@ mod tests {
         // A basic troop with an odd serial number is free (serials 1 to 5 here); the knight, with
         // its own upkeep, is not touched.
         assert_eq!(costs(&content), [(0, 0), (1, 1), (0, 0), (3, 1), (0, 0)]);
+        Ok(())
     }
 
     #[test]
-    fn a_units_figures_come_from_a_world_and_content_alone() {
+    fn a_units_figures_come_from_a_world_and_content_alone() -> TestResult {
         let content = content_with_magic();
-        let spear = content.rules.units.id_of("high_elf_spearmen").unwrap();
+        let spear = content
+            .rules
+            .units
+            .id_of("high_elf_spearmen")
+            .ok_or("high_elf_spearmen is not in the content")?;
         let mut world = World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         let e = spawn(&mut world, &content, Serial(1), owner, AT, spear);
@@ -690,12 +697,17 @@ mod tests {
         assert_eq!(units.unit_level(e), 0);
         assert!(!units.unit_has_ability(e, "flying"));
         assert_eq!(units.units_at(AT), vec![e]);
+        Ok(())
     }
 
     #[test]
-    fn units_come_in_the_order_they_were_made() {
+    fn units_come_in_the_order_they_were_made() -> TestResult {
         let content = content_with_magic();
-        let spear = content.rules.units.id_of("high_elf_spearmen").unwrap();
+        let spear = content
+            .rules
+            .units
+            .id_of("high_elf_spearmen")
+            .ok_or("high_elf_spearmen is not in the content")?;
         let mut world = World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         let second = spawn(&mut world, &content, Serial(2), owner, AT, spear);
@@ -703,5 +715,6 @@ mod tests {
         let units = UnitView::new(&world, &content);
         assert_eq!(units.all_units(), vec![first, second]);
         assert_eq!(units.units_at(AT), vec![first, second]);
+        Ok(())
     }
 }

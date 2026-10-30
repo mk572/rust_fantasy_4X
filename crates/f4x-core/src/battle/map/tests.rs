@@ -1,4 +1,5 @@
 use super::*;
+use crate::testdir::TestResult;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
@@ -332,8 +333,8 @@ fn a_node_square_is_fought_on_the_ground_of_its_kind() {
 fn sea_with_two_decks() -> (BattleMap, Vec<Pos>, Vec<Pos>) {
     let decks = layout::ship_decks(&[(3, 7)], &[(3, 7)]);
     let (a, d) = (
-        decks.attackers[0].clone().unwrap(),
-        decks.defenders[0].clone().unwrap(),
+        decks.attackers[0].clone().expect("clone succeeds"),
+        decks.defenders[0].clone().expect("clone succeeds"),
     );
     let mut spec = Spec::open(Set::Water);
     spec.ship_decks = a.iter().chain(&d).map(|&(x, y)| (20 - x, y)).collect();
@@ -346,7 +347,7 @@ fn sea_with_two_decks() -> (BattleMap, Vec<Pos>, Vec<Pos>) {
 }
 
 #[test]
-fn a_walker_jumps_the_water_between_two_decks_for_two_moves() {
+fn a_walker_jumps_the_water_between_two_decks_for_two_moves() -> TestResult {
     let (m, a, d) = sea_with_two_decks();
     // The attackers' deck square nearest the other one, and the square across the gap.
     let (from, to) = a
@@ -356,7 +357,7 @@ fn a_walker_jumps_the_water_between_two_decks_for_two_moves() {
             distance(p, q) == 2 && (p.0 - q.0).abs() != 1 && (p.1 - q.1).abs() != 1
                 || (distance(p, q) == 2 && (p.0 - q.0).abs() == 2 && p.1 == q.1)
         })
-        .unwrap();
+        .ok_or("find is missing")?;
     assert!(m.is_ship_deck(from) && m.is_ship_deck(to));
     // The water in between is closed to walking.
     let gap = ((from.0 + to.0) / 2, (from.1 + to.1) / 2);
@@ -376,4 +377,5 @@ fn a_walker_jumps_the_water_between_two_decks_for_two_moves() {
     assert!(!m.reachable_as(from, 4, ship, &none).contains_key(&to));
     // A unit that flies crosses the water, as it always does.
     assert!(m.reachable(from, 4, true, &none).contains_key(&gap));
+    Ok(())
 }

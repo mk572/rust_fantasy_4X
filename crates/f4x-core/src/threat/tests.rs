@@ -6,6 +6,7 @@ use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::Stat;
+use crate::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
 const TOWN: PlayerId = PlayerId(100);
@@ -37,7 +38,7 @@ fn content() -> crate::content::Content {
 /// that has `troops` spearmen. Raiders and monsters are switched on and Impossible is played.
 fn world(troops: usize) -> Game {
     let c = content();
-    let grass = c.terrains.id_of("grassland").unwrap();
+    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
     let mut g = Game::new(11);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -51,7 +52,12 @@ fn world(troops: usize) -> Game {
     g.spawn_city(P0, at(10, 4), "Capital".into(), None, 5);
     g.add_neutral_player(TOWN);
     g.spawn_city(TOWN, at(4, 4), "Free Town".into(), None, 5);
-    let spear = g.content.rules.units.id_of("high_men_spearmen").unwrap();
+    let spear = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_spearmen")
+        .expect("id_of succeeds");
     for _ in 0..troops {
         g.spawn_unit(TOWN, at(4, 4), spear);
     }
@@ -108,15 +114,19 @@ fn below_thirty_nothing_happens() {
 }
 
 #[test]
-fn a_neutral_city_alone_on_its_landmass_raises_nobody_and_feeds_the_monsters_clock() {
+fn a_neutral_city_alone_on_its_landmass_raises_nobody_and_feeds_the_monsters_clock() -> TestResult {
     let mut g = world(4);
-    let sea = g.content.terrains.id_of("ocean").unwrap();
+    let sea = g
+        .content
+        .terrains
+        .id_of("ocean")
+        .ok_or("ocean is not in the content")?;
     // A strip of sea between the two cities.
     for y in 0..14 {
         for x in [7, 20] {
             g.map
                 .as_mut()
-                .unwrap()
+                .ok_or("as_mut is missing")?
                 .plane_mut(Plane::Arcanus)
                 .set(x, y, sea);
         }
@@ -126,6 +136,7 @@ fn a_neutral_city_alone_on_its_landmass_raises_nobody_and_feeds_the_monsters_clo
     assert!(g.process_threats().is_empty());
     assert_eq!(g.threat.monster_clock, before + 15);
     assert!(!g.is_aggressive_player(TOWN));
+    Ok(())
 }
 
 #[test]
@@ -155,7 +166,7 @@ fn with_the_setting_off_the_clock_does_not_move() {
 }
 
 #[test]
-fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() {
+fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() -> TestResult {
     let mut g = world(0);
     g.settings.world.raiders_enabled = false;
     g.turn = 100;
@@ -169,26 +180,30 @@ fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() {
         ..
     }) = events.first().cloned()
     else {
-        panic!("monsters settled: {events:?}");
+        return Err(format!("monsters settled: {events:?}").into());
     };
     assert_eq!(pos, at(14, 8));
     assert!(count >= 1);
     assert_eq!(evicted, 2);
-    let lair = g.economy().lair_of(site).unwrap();
+    let lair = g.economy().lair_of(site).ok_or("lair_of is missing")?;
     assert_eq!(lair.guards.iter().map(|(_, n)| n).sum::<u32>(), count);
     assert!(lair.guards.iter().all(|(id, _)| {
-        let def = g.content.rules.units.by_name(id).unwrap();
+        let def = g.content.rules.units.by_name(id).expect("by_name succeeds");
         def.kind == crate::rules::UnitKind::Summoned && def.realm.as_deref() == Some("death")
     }));
     assert!(lair.fought_by.is_empty(), "nobody knows the new guards");
     let roaming = g.units().player_units(MONSTERS);
     assert_eq!(roaming.len(), 2);
-    let square = g.units().unit_position(roaming[0]).unwrap();
+    let square = g
+        .units()
+        .unit_position(roaming[0])
+        .ok_or("unit_position is missing")?;
     assert_ne!(square, at(14, 8));
     assert!(roaming
         .iter()
         .all(|&u| g.units().unit_position(u) == Some(square)));
     assert_eq!(g.threat.monster_clock, 0);
+    Ok(())
 }
 
 #[test]
@@ -215,15 +230,19 @@ fn nothing_comes_before_turn_fifty_and_the_clock_starts_again() {
 }
 
 #[test]
-fn a_lair_on_a_landmass_without_a_player_is_not_chosen() {
+fn a_lair_on_a_landmass_without_a_player_is_not_chosen() -> TestResult {
     let mut g = world(0);
     g.turn = 100;
-    let sea = g.content.terrains.id_of("ocean").unwrap();
+    let sea = g
+        .content
+        .terrains
+        .id_of("ocean")
+        .ok_or("ocean is not in the content")?;
     for y in 0..14 {
         for x in [12, 20] {
             g.map
                 .as_mut()
-                .unwrap()
+                .ok_or("as_mut is missing")?
                 .plane_mut(Plane::Arcanus)
                 .set(x, y, sea);
         }
@@ -231,10 +250,11 @@ fn a_lair_on_a_landmass_without_a_player_is_not_chosen() {
     g.put_lair(at(16, 8), "lair", lair(vec![("skeletons", 2)]));
     g.threat.monster_clock = 1000;
     assert!(g.process_threats().is_empty());
+    Ok(())
 }
 
 #[test]
-fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() {
+fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() -> TestResult {
     let mut g = world(0);
     let site = g.put_lair(
         at(14, 8),
@@ -250,7 +270,12 @@ fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() {
             fought_by: vec![P0],
         },
     );
-    let ghoul = g.content.rules.units.id_of("ghouls").unwrap();
+    let ghoul = g
+        .content
+        .rules
+        .units
+        .id_of("ghouls")
+        .ok_or("ghouls is not in the content")?;
     let stack = vec![
         g.spawn_unit(MONSTERS, at(14, 7), ghoul),
         g.spawn_unit(MONSTERS, at(14, 7), ghoul),
@@ -270,17 +295,18 @@ fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() {
         )),
         "{events:?}"
     );
-    let lair = g.economy().lair_of(site).unwrap();
+    let lair = g.economy().lair_of(site).ok_or("lair_of is missing")?;
     assert!(lair.intact);
     assert_eq!(lair.guards, vec![("ghouls".to_string(), 2)]);
     assert!(
         g.units().player_units(MONSTERS).is_empty(),
         "the units became the guards"
     );
+    Ok(())
 }
 
 #[test]
-fn a_node_a_wizard_holds_is_not_taken() {
+fn a_node_a_wizard_holds_is_not_taken() -> TestResult {
     let mut g = world(0);
     let node = crate::feature::node::Node {
         realm: "chaos".into(),
@@ -290,41 +316,45 @@ fn a_node_a_wizard_holds_is_not_taken() {
         warped: false,
     };
     let e = g.put_node_data(at(14, 8), "sorcery_node", node, Some(P0));
-    g.world
-        .insert_one(
-            e,
-            Lair {
-                intact: false,
-                guards: Vec::new(),
-                gold: 0,
-                mana: 0,
-                items: Vec::new(),
-                prisoner: false,
-                special: 0,
-                fought_by: Vec::new(),
-            },
-        )
-        .unwrap();
+    g.world.insert_one(
+        e,
+        Lair {
+            intact: false,
+            guards: Vec::new(),
+            gold: 0,
+            mana: 0,
+            items: Vec::new(),
+            prisoner: false,
+            special: 0,
+            fought_by: Vec::new(),
+        },
+    )?;
     assert_eq!(g.vacant_zone(at(14, 8)), None);
+    Ok(())
 }
 
 #[test]
-fn monsters_that_win_a_city_wreck_it_and_vanish_and_sometimes_leave_ruins() {
+fn monsters_that_win_a_city_wreck_it_and_vanish_and_sometimes_leave_ruins() -> TestResult {
     let mut ruined = 0;
     let mut kept = 0;
     for seed in 0..40 {
         let mut g = world(0);
         g.rng = crate::game::rng::GameRng::new(seed);
-        let ghoul = g.content.rules.units.id_of("ghouls").unwrap();
+        let ghoul = g
+            .content
+            .rules
+            .units
+            .id_of("ghouls")
+            .ok_or("ghouls is not in the content")?;
         let stack = vec![
             g.spawn_unit(MONSTERS, at(10, 5), ghoul),
             g.spawn_unit(MONSTERS, at(10, 5), ghoul),
         ];
         // A second city, so the wizard's last one is not what falls: the fortress is spared.
         g.spawn_city(P0, at(16, 9), "Colony".into(), None, 6);
-        let colony = g.economy().city_at(at(16, 9)).unwrap();
+        let colony = g.economy().city_at(at(16, 9)).ok_or("city_at is missing")?;
         for &m in &stack {
-            g.world.insert_one(m, at(16, 8)).unwrap();
+            g.world.insert_one(m, at(16, 8))?;
         }
         let events = g.apply(Command::MoveStack {
             units: stack.clone(),
@@ -340,7 +370,7 @@ fn monsters_that_win_a_city_wreck_it_and_vanish_and_sometimes_leave_ruins() {
             .find(|e| matches!(e, Event::CityRampaged { .. }))
             .cloned()
         else {
-            panic!("a rampage: {events:?}");
+            return Err(format!("a rampage: {events:?}").into());
         };
         assert_eq!((pos, owner), (at(16, 9), P0));
         if gone {
@@ -369,16 +399,27 @@ fn monsters_that_win_a_city_wreck_it_and_vanish_and_sometimes_leave_ruins() {
         }
     }
     assert!(ruined > 5 && kept > 5, "{ruined} ruined, {kept} kept");
+    Ok(())
 }
 
 #[test]
-fn monsters_that_beat_the_defenders_in_a_battle_rampage_through_the_city() {
+fn monsters_that_beat_the_defenders_in_a_battle_rampage_through_the_city() -> TestResult {
     let mut rampaged = 0;
     for seed in 0..12 {
         let mut g = world(0);
         g.rng = crate::game::rng::GameRng::new(seed);
-        let spear = g.content.rules.units.id_of("high_men_spearmen").unwrap();
-        let skeleton = g.content.rules.units.id_of("skeletons").unwrap();
+        let spear = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_spearmen")
+            .ok_or("high_men_spearmen is not in the content")?;
+        let skeleton = g
+            .content
+            .rules
+            .units
+            .id_of("skeletons")
+            .ok_or("skeletons is not in the content")?;
         g.spawn_city(P0, at(16, 9), "Colony".into(), None, 6);
         let defenders = vec![g.spawn_unit(P0, at(16, 9), spear)];
         let monsters: Vec<_> = (0..9)
@@ -401,16 +442,17 @@ fn monsters_that_beat_the_defenders_in_a_battle_rampage_through_the_city() {
         }
     }
     assert!(rampaged > 6, "nine skeletons beat one spearman: {rampaged}");
+    Ok(())
 }
 
 #[test]
-fn the_clocks_and_the_marks_survive_a_save() {
+fn the_clocks_and_the_marks_survive_a_save() -> TestResult {
     let mut g = world(4);
     g.threat.raider_clock = 29;
     g.process_threats();
     g.threat.monster_clock = 7;
     let text = g.snapshot();
-    let back = text.restore(g.content.clone()).unwrap();
+    let back = text.restore(g.content.clone())?;
     assert_eq!(back.threat, g.threat);
     assert!(back.is_aggressive_player(TOWN));
     let free = back
@@ -420,6 +462,7 @@ fn the_clocks_and_the_marks_survive_a_save() {
         .filter(|&u| back.units().unit_is_unpaid(u))
         .count();
     assert_eq!(free, 2);
+    Ok(())
 }
 
 #[test]

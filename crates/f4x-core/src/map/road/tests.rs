@@ -2,6 +2,7 @@ use super::*;
 use crate::game::testutil::content_with_magic;
 use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
+use crate::testdir::TestResult;
 
 use crate::game::Command;
 use crate::unit::MovesLeft;
@@ -18,7 +19,7 @@ fn at(x: u32, y: u32) -> Position {
 
 fn world() -> Game {
     let c = content_with_magic();
-    let grass = c.terrains.id_of("grassland").unwrap();
+    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
     let mut g = Game::new(4);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -27,15 +28,19 @@ fn world() -> Game {
 }
 
 fn engineer(g: &mut Game, id: &str, pos: Position) -> hecs::Entity {
-    let u = g.content.rules.units.id_of(id).unwrap();
+    let u = g.content.rules.units.id_of(id).expect("id_of succeeds");
     g.spawn_unit(P0, pos, u)
 }
 
 fn set_terrain(g: &mut Game, pos: Position, class: TerrainClass) {
-    let id = g.content.terrains.first_of_class(class, pos.plane).unwrap();
+    let id = g
+        .content
+        .terrains
+        .first_of_class(class, pos.plane)
+        .expect("first_of_class succeeds");
     g.map
         .as_mut()
-        .unwrap()
+        .expect("value succeeds")
         .plane_mut(pos.plane)
         .set(pos.x, pos.y, id);
 }
@@ -43,13 +48,13 @@ fn set_terrain(g: &mut Game, pos: Position, class: TerrainClass) {
 fn has_road(g: &Game, pos: Position) -> bool {
     g.map
         .as_ref()
-        .unwrap()
+        .expect("value succeeds")
         .plane(pos.plane)
         .has_road(pos.x as i32, pos.y as i32)
 }
 
 #[test]
-fn terrain_decides_how_long_a_road_takes() {
+fn terrain_decides_how_long_a_road_takes() -> TestResult {
     let mut g = world();
     for (class, turns) in [
         (TerrainClass::Grassland, 3),
@@ -68,7 +73,7 @@ fn terrain_decides_how_long_a_road_takes() {
     set_terrain(&mut g, at(3, 3), TerrainClass::Grassland);
     g.map
         .as_mut()
-        .unwrap()
+        .ok_or("as_mut is missing")?
         .plane_mut(Plane::Arcanus)
         .set_road(3, 3, true);
     assert_eq!(
@@ -76,14 +81,15 @@ fn terrain_decides_how_long_a_road_takes() {
         Some(0),
         "a road is already there"
     );
+    Ok(())
 }
 
 #[test]
-fn a_river_square_needs_two_more_turns_for_its_bridge() {
+fn a_river_square_needs_two_more_turns_for_its_bridge() -> TestResult {
     let mut g = world();
     g.map
         .as_mut()
-        .unwrap()
+        .ok_or("as_mut is missing")?
         .plane_mut(Plane::Arcanus)
         .set_river(3, 3, true);
     set_terrain(&mut g, at(3, 3), TerrainClass::Grassland);
@@ -95,6 +101,7 @@ fn a_river_square_needs_two_more_turns_for_its_bridge() {
         Some(3),
         "no river next door"
     );
+    Ok(())
 }
 
 #[test]
@@ -174,7 +181,7 @@ fn engineers_work_along_a_path() {
 }
 
 #[test]
-fn bad_orders_are_refused_and_moving_away_cancels() {
+fn bad_orders_are_refused_and_moving_away_cancels() -> TestResult {
     let mut g = world();
     let spirit = engineer(&mut g, "warship", at(5, 5));
     assert_eq!(g.build_road(&[spirit], vec![]), Err(RoadError::NoBuilders));
@@ -189,7 +196,7 @@ fn bad_orders_are_refused_and_moving_away_cancels() {
         g.build_road(&[e], vec![at(5, 5), at(6, 5)]),
         Err(RoadError::CannotBuildHere)
     );
-    g.build_road(&[e], vec![]).unwrap();
+    g.build_road(&[e], vec![]).map_err(|e| format!("{e:?}"))?;
     let _ = g.world.insert_one(e, at(5, 6));
     g.process_road_work();
     assert!(
@@ -197,13 +204,18 @@ fn bad_orders_are_refused_and_moving_away_cancels() {
         "moved away: cancelled"
     );
     assert!(!has_road(&g, at(5, 5)));
+    Ok(())
 }
 
 #[test]
-fn enchanted_roads_and_myrror_roads_are_free() {
+fn enchanted_roads_and_myrror_roads_are_free() -> TestResult {
     let mut g = world();
     {
-        let grid = g.map.as_mut().unwrap().plane_mut(Plane::Arcanus);
+        let grid = g
+            .map
+            .as_mut()
+            .ok_or("as_mut is missing")?
+            .plane_mut(Plane::Arcanus);
         for x in 5..=7 {
             grid.set_road(x, 5, true);
         }
@@ -218,23 +230,30 @@ fn enchanted_roads_and_myrror_roads_are_free() {
     assert!(!events.is_empty());
     let boot = engineer(&mut g, "high_men_cavalry", at(5, 5));
     let _ = g.world.insert_one(boot, MovesLeft(2));
-    g.move_stack(&[boot], at(6, 5)).unwrap();
+    g.move_stack(&[boot], at(6, 5))
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         g.units().unit_moves_left(boot),
         2,
         "an enchanted road costs nothing"
     );
-    g.move_stack(&[boot], at(7, 5)).unwrap();
+    g.move_stack(&[boot], at(7, 5))
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.units().unit_moves_left(boot), 2);
     // Plain roads cost half a move; Myrror's are enchanted already.
     let plain = engineer(&mut g, "high_men_cavalry", at(10, 8));
     {
-        let grid = g.map.as_mut().unwrap().plane_mut(Plane::Arcanus);
+        let grid = g
+            .map
+            .as_mut()
+            .ok_or("as_mut is missing")?
+            .plane_mut(Plane::Arcanus);
         grid.set_road(10, 8, true);
         grid.set_road(11, 8, true);
     }
     let _ = g.world.insert_one(plain, MovesLeft(2));
-    g.move_stack(&[plain], at(11, 8)).unwrap();
+    g.move_stack(&[plain], at(11, 8))
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.units().unit_moves_left(plain), 1);
     let on_myrror = Position {
         plane: Plane::Myrror,
@@ -243,35 +262,45 @@ fn enchanted_roads_and_myrror_roads_are_free() {
     };
     let m = engineer(&mut g, "high_men_cavalry", on_myrror);
     {
-        let grid = g.map.as_mut().unwrap().plane_mut(Plane::Myrror);
+        let grid = g
+            .map
+            .as_mut()
+            .ok_or("as_mut is missing")?
+            .plane_mut(Plane::Myrror);
         grid.set_road(10, 8, true);
         grid.set_road(11, 8, true);
     }
     let _ = g.world.insert_one(m, MovesLeft(2));
-    g.move_stack(&[m], Position { x: 11, ..on_myrror }).unwrap();
+    g.move_stack(&[m], Position { x: 11, ..on_myrror })
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.units().unit_moves_left(m), 2);
+    Ok(())
 }
 
 #[test]
-fn road_work_and_enchanted_roads_survive_a_save() {
+fn road_work_and_enchanted_roads_survive_a_save() -> TestResult {
     let mut g = world();
     let e = engineer(&mut g, "high_men_engineers", at(5, 5));
-    g.build_road(&[e], vec![at(5, 5), at(6, 5)]).unwrap();
+    g.build_road(&[e], vec![at(5, 5), at(6, 5)])
+        .map_err(|e| format!("{e:?}"))?;
     g.process_road_work();
     g.map
         .as_mut()
-        .unwrap()
+        .ok_or("as_mut is missing")?
         .plane_mut(Plane::Arcanus)
         .set_road(2, 2, true);
     g.map
         .as_mut()
-        .unwrap()
+        .ok_or("as_mut is missing")?
         .plane_mut(Plane::Arcanus)
         .set_enchanted_road(2, 2, true);
     let content = g.content.clone();
-    let back = g.snapshot().restore(content).unwrap();
-    let e2 = back.units().entity_of_serial(g.serial_of(e)).unwrap();
-    let work = back.world.get::<&RoadWork>(e2).unwrap();
+    let back = g.snapshot().restore(content)?;
+    let e2 = back
+        .units()
+        .entity_of_serial(g.serial_of(e))
+        .ok_or("entity_of_serial is missing")?;
+    let work = back.world.get::<&RoadWork>(e2)?;
     assert_eq!(
         *work,
         RoadWork {
@@ -283,9 +312,10 @@ fn road_work_and_enchanted_roads_survive_a_save() {
     assert!(back
         .map
         .as_ref()
-        .unwrap()
+        .ok_or("as_ref is missing")?
         .plane(Plane::Arcanus)
         .has_enchanted_road(2, 2));
+    Ok(())
 }
 
 #[test]

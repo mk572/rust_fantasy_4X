@@ -3,6 +3,7 @@ use crate::game::testutil::content_with_units;
 use crate::game::{Command, Event, Rejection};
 use crate::map::{Grid, Map, TerrainId};
 use crate::player::PlayerId;
+use crate::testdir::TestResult;
 use crate::unit::MovesLeft;
 
 const P0: PlayerId = PlayerId(0);
@@ -20,7 +21,7 @@ fn at(x: u32, y: u32) -> Position {
 /// grass x9-11. Everything else grassland. A tower at (1,4) on both planes.
 fn world() -> Game {
     let c = content_with_units();
-    let id = |n: &str| c.terrains.id_of(n).unwrap();
+    let id = |n: &str| c.terrains.id_of(n).expect("id_of succeeds");
     let build = || {
         let mut g = Grid::new(12, 6, id("grassland"));
         g.set(2, 2, id("forest"));
@@ -43,7 +44,12 @@ fn world() -> Game {
 }
 
 fn unit(game: &mut Game, owner: PlayerId, name: &str, pos: Position) -> hecs::Entity {
-    let id = game.content.rules.units.id_of(name).unwrap();
+    let id = game
+        .content
+        .rules
+        .units
+        .id_of(name)
+        .expect("id_of succeeds");
     game.spawn_unit(owner, pos, id)
 }
 
@@ -145,14 +151,15 @@ fn boats_stay_on_water() {
 }
 
 #[test]
-fn roads_halve_the_cost_between_road_tiles() {
+fn roads_halve_the_cost_between_road_tiles() -> TestResult {
     let mut g = world();
     let w = unit(&mut g, P0, "high_men_cavalry", at(0, 3));
-    let map = g.map.as_mut().unwrap();
+    let map = g.map.as_mut().ok_or("as_mut is missing")?;
     map.plane_mut(Plane::Arcanus).set_road(0, 3, true);
     map.plane_mut(Plane::Arcanus).set_road(1, 3, true);
     assert_eq!(cost(&g, w, at(0, 3), at(1, 3)), Ok(1));
     assert_eq!(cost(&g, w, at(1, 3), at(2, 3)), Ok(2), "road ends");
+    Ok(())
 }
 
 #[test]
@@ -325,7 +332,7 @@ fn water_walking_carries_only_the_walker_over_water() {
 }
 
 #[test]
-fn shifting_planes_needs_a_tower_or_planar_travel() {
+fn shifting_planes_needs_a_tower_or_planar_travel() -> TestResult {
     let mut g = world();
     let on_tower = unit(&mut g, P0, "high_men_cavalry", at(1, 4));
     let off_tower = unit(&mut g, P0, "high_men_cavalry", at(3, 4));
@@ -341,7 +348,14 @@ fn shifting_planes_needs_a_tower_or_planar_travel() {
     );
     let t = unit(&mut g, P0, "shadow_demons", at(3, 4));
     assert!(g.shift_plane(&[t]).is_ok(), "planar travel works anywhere");
-    assert_eq!(g.units().unit_position(t).unwrap().plane, Plane::Myrror);
+    assert_eq!(
+        g.units()
+            .unit_position(t)
+            .ok_or("unit_position is missing")?
+            .plane,
+        Plane::Myrror
+    );
+    Ok(())
 }
 
 #[test]
@@ -361,19 +375,23 @@ fn a_shift_into_a_blocked_tile_is_refused() {
 }
 
 #[test]
-fn paths_go_around_water_and_across_the_seam() {
+fn paths_go_around_water_and_across_the_seam() -> TestResult {
     let mut g = world();
     // Make the water a wall: ocean down the whole of columns 7..=8.
-    let ocean = g.content.terrains.id_of("ocean").unwrap();
+    let ocean = g
+        .content
+        .terrains
+        .id_of("ocean")
+        .ok_or("ocean is not in the content")?;
     for y in 0..6 {
         g.map
             .as_mut()
-            .unwrap()
+            .ok_or("as_mut is missing")?
             .plane_mut(Plane::Arcanus)
             .set(7, y, ocean);
         g.map
             .as_mut()
-            .unwrap()
+            .ok_or("as_mut is missing")?
             .plane_mut(Plane::Arcanus)
             .set(8, y, ocean);
     }
@@ -384,7 +402,9 @@ fn paths_go_around_water_and_across_the_seam() {
     assert!(path.len() >= 8, "the long way round: {path:?}");
     let scout = unit(&mut g, P0, "high_elf_pegasai", at(5, 2));
     assert_eq!(
-        g.find_path(&[scout], at(9, 2)).unwrap().len(),
+        g.find_path(&[scout], at(9, 2))
+            .ok_or("find_path is missing")?
+            .len(),
         4,
         "flying goes straight over"
     );
@@ -392,35 +412,37 @@ fn paths_go_around_water_and_across_the_seam() {
     for y in 0..6 {
         g.map
             .as_mut()
-            .unwrap()
+            .ok_or("as_mut is missing")?
             .plane_mut(Plane::Arcanus)
             .set(11, y, ocean);
         g.map
             .as_mut()
-            .unwrap()
+            .ok_or("as_mut is missing")?
             .plane_mut(Plane::Arcanus)
             .set(0, y, ocean);
     }
     assert_eq!(g.find_path(&[w], at(9, 2)), None);
+    Ok(())
 }
 
 #[test]
-fn path_prefers_cheap_terrain() {
+fn path_prefers_cheap_terrain() -> TestResult {
     let mut g = world();
     let w = unit(&mut g, P0, "high_men_cavalry", at(1, 2));
     // Straight east along row 2 runs through forest, hills and mountains; row 1 is grass.
-    let path = g.find_path(&[w], at(6, 2)).unwrap();
+    let path = g.find_path(&[w], at(6, 2)).ok_or("find_path is missing")?;
     assert!(
         path.iter().all(|p| p.y != 2 || p.x == 6),
         "avoids the rough row: {path:?}"
     );
+    Ok(())
 }
 
 #[test]
-fn goto_orders_continue_over_turns() {
+fn goto_orders_continue_over_turns() -> TestResult {
     let mut g = world();
     // A hero eats no food, and the treasury pays its gold.
-    g.treasury_mut(P0).unwrap().gold = 1000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 1000;
     let w = unit(&mut g, P0, "dwarf", at(0, 1));
     let events = g.apply(Command::GoTo {
         units: vec![w],
@@ -431,29 +453,43 @@ fn goto_orders_continue_over_turns() {
         .filter(|e| matches!(e, Event::UnitsMoved { .. }))
         .count();
     assert_eq!(moved, 2, "two grass tiles with four half-moves");
-    assert_eq!(g.units().unit_position(w).unwrap().x, 2);
+    assert_eq!(
+        g.units()
+            .unit_position(w)
+            .ok_or("unit_position is missing")?
+            .x,
+        2
+    );
     assert!(
         g.world.get::<&crate::unit::Order>(w).is_ok(),
         "order remains"
     );
     g.apply(Command::EndTurn);
-    assert_eq!(g.units().unit_position(w).unwrap().x, 4);
+    assert_eq!(
+        g.units()
+            .unit_position(w)
+            .ok_or("unit_position is missing")?
+            .x,
+        4
+    );
     g.apply(Command::EndTurn);
     assert_eq!(g.units().unit_position(w), Some(at(5, 1)));
     assert!(
         g.world.get::<&crate::unit::Order>(w).is_err(),
         "arrived: order cleared"
     );
+    Ok(())
 }
 
 #[test]
-fn end_turn_refills_moves() {
+fn end_turn_refills_moves() -> TestResult {
     let mut g = world();
-    g.treasury_mut(P0).unwrap().gold = 1000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 1000;
     let w = unit(&mut g, P0, "dwarf", at(1, 1));
-    g.world.insert_one(w, MovesLeft(0)).unwrap();
+    g.world.insert_one(w, MovesLeft(0))?;
     g.apply(Command::EndTurn);
     assert_eq!(g.units().unit_moves_left(w), 4);
+    Ok(())
 }
 
 #[test]
@@ -470,7 +506,7 @@ fn rejections_are_reported() {
 }
 
 #[test]
-fn stats_include_abilities_and_levels() {
+fn stats_include_abilities_and_levels() -> TestResult {
     use crate::rules::Stat;
     let mut g = world();
     let plain = unit(&mut g, P0, "high_men_cavalry", at(2, 1));
@@ -479,34 +515,36 @@ fn stats_include_abilities_and_levels() {
         g.units().unit_stat(plain, Stat::Defense),
     );
     // The real level path: Regular (20 xp) adds one to melee.
-    g.world
-        .insert_one(plain, crate::unit::Experience(25))
-        .unwrap();
+    g.world.insert_one(plain, crate::unit::Experience(25))?;
     assert_eq!(g.units().unit_level(plain), 1);
     assert_eq!(g.units().unit_stat(plain, Stat::Melee), melee + 1);
     assert_eq!(g.units().unit_stat(plain, Stat::Defense), defense);
     // Veteran (60 xp) adds one to defense.
-    g.world
-        .insert_one(plain, crate::unit::Experience(60))
-        .unwrap();
+    g.world.insert_one(plain, crate::unit::Experience(60))?;
     assert_eq!(g.units().unit_stat(plain, Stat::Defense), defense + 1);
     let (hits, max) = g.units().unit_hits(plain);
     assert_eq!(hits, max);
-    g.world.insert_one(plain, crate::unit::Hurt(2)).unwrap();
+    g.world.insert_one(plain, crate::unit::Hurt(2))?;
     assert_eq!(g.units().unit_hits(plain), (max - 2, max));
     let _ = TerrainId(0);
+    Ok(())
 }
 
 #[test]
-fn a_pathfinder_gives_the_whole_stack_road_speed() {
+fn a_pathfinder_gives_the_whole_stack_road_speed() -> TestResult {
     let mut g = world();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let player = PlayerId(0);
     let alone = g.spawn_unit(player, at(1, 2), walker);
     let plain = g
         .economy()
         .step_cost(alone, at(1, 2), at(2, 2), StackTraits::default())
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(plain, 4, "forest costs two moves");
     let guide = g.spawn_unit(player, at(1, 2), walker);
     g.grant_temp_ability(crate::rules::exec::Target::Unit(guide), "pathfinding", None);
@@ -526,14 +564,19 @@ fn a_pathfinder_gives_the_whole_stack_road_speed() {
         ),
         Ok(4)
     );
+    Ok(())
 }
 
 #[test]
-fn a_step_is_planned_from_a_hand_made_world_without_a_game() {
+fn a_step_is_planned_from_a_hand_made_world_without_a_game() -> TestResult {
     let c = content_with_units();
     let (grass, forest) = (
-        c.terrains.id_of("grassland").unwrap(),
-        c.terrains.id_of("forest").unwrap(),
+        c.terrains
+            .id_of("grassland")
+            .ok_or("grassland is not in the content")?,
+        c.terrains
+            .id_of("forest")
+            .ok_or("forest is not in the content")?,
     );
     let build = || {
         let mut g = Grid::new(12, 6, grass);
@@ -541,7 +584,11 @@ fn a_step_is_planned_from_a_hand_made_world_without_a_game() {
         g
     };
     let map = Map::new(build(), build());
-    let walker = c.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = c
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let mut world = hecs::World::new();
     let owner = world.spawn(crate::player::bundle(P0));
     let unit = crate::unit::spawn(
@@ -553,16 +600,21 @@ fn a_step_is_planned_from_a_hand_made_world_without_a_game() {
         walker,
     );
     let economy = Economy::new(&world, Some(&map), &c);
-    let (costs, entry) = economy.plan_step(&[unit], at(3, 2)).unwrap();
+    let (costs, entry) = economy
+        .plan_step(&[unit], at(3, 2))
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         (costs, entry),
         (vec![4], Entry::Free),
         "a forest costs two moves"
     );
-    let (costs, _) = economy.plan_step(&[unit], at(1, 2)).unwrap();
+    let (costs, _) = economy
+        .plan_step(&[unit], at(1, 2))
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(costs, vec![2], "grassland costs one");
     assert_eq!(
         economy.plan_step(&[unit], at(5, 2)),
         Err(MoveError::NotAdjacent)
     );
+    Ok(())
 }

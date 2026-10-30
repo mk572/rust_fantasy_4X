@@ -655,6 +655,7 @@ mod tests {
     use crate::city::economy::{Farmers, Population};
     use crate::game::testutil::content_with_economy;
     use crate::map::{Grid, Map, Plane};
+    use crate::testdir::TestResult;
 
     /// A one-city world with the elves' content, and no `Game`.
     struct Rig {
@@ -667,7 +668,7 @@ mod tests {
     impl Rig {
         fn new() -> Rig {
             let content = content_with_economy();
-            let grass = content.terrains.id_of("grassland").unwrap();
+            let grass = content.terrains.id_of("grassland").expect("id_of succeeds");
             let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
             let mut world = World::new();
             let owner = world.spawn(crate::player::bundle(PlayerId(0)));
@@ -689,7 +690,13 @@ mod tests {
                 Farmers(0),
                 Buildings::default(),
                 Production::default(),
-                CityRace(content.rules.races.id_of("high_elf").unwrap()),
+                CityRace(
+                    content
+                        .rules
+                        .races
+                        .id_of("high_elf")
+                        .expect("id_of succeeds"),
+                ),
             ));
             Rig {
                 world,
@@ -704,16 +711,28 @@ mod tests {
         }
 
         fn building(&self, id: &str) -> BuildingId {
-            self.content.rules.buildings.id_of(id).unwrap()
+            self.content
+                .rules
+                .buildings
+                .id_of(id)
+                .expect("id_of succeeds")
         }
     }
 
     #[test]
-    fn what_a_city_may_build_follows_its_race_and_its_buildings() {
+    fn what_a_city_may_build_follows_its_race_and_its_buildings() -> TestResult {
         let rig = Rig::new();
         let units = &rig.content.rules.units;
-        let swords = ProductionItem::Unit(units.id_of("high_elf_swordsmen").unwrap());
-        let spears = ProductionItem::Unit(units.id_of("high_elf_spearmen").unwrap());
+        let swords = ProductionItem::Unit(
+            units
+                .id_of("high_elf_swordsmen")
+                .ok_or("high_elf_swordsmen is not in the content")?,
+        );
+        let spears = ProductionItem::Unit(
+            units
+                .id_of("high_elf_spearmen")
+                .ok_or("high_elf_spearmen is not in the content")?,
+        );
         let (barracks, smithy) = (rig.building("barracks"), rig.building("smithy"));
         assert_eq!(rig.eco().can_build(rig.city, spears), Ok(()));
         assert_eq!(
@@ -721,8 +740,7 @@ mod tests {
             Err(ProductionError::MissingBuilding)
         );
         rig.world
-            .get::<&mut Buildings>(rig.city)
-            .unwrap()
+            .get::<&mut Buildings>(rig.city)?
             .0
             .extend([barracks, smithy]);
         assert_eq!(rig.eco().can_build(rig.city, swords), Ok(()));
@@ -731,54 +749,63 @@ mod tests {
                 .can_build(rig.city, ProductionItem::Building(barracks)),
             Err(ProductionError::AlreadyBuilt)
         );
+        Ok(())
     }
 
     #[test]
-    fn costs_and_purchases_are_worked_out_from_the_city_alone() {
+    fn costs_and_purchases_are_worked_out_from_the_city_alone() -> TestResult {
         let rig = Rig::new();
         let barracks = ProductionItem::Building(rig.building("barracks"));
-        rig.world.get::<&mut Production>(rig.city).unwrap().item = Some(barracks);
+        rig.world.get::<&mut Production>(rig.city)?.item = Some(barracks);
         let eco = rig.eco();
         assert_eq!(eco.item_cost(rig.city, barracks), 30);
         assert_eq!(eco.production_remaining(rig.city), 30);
         assert_eq!(eco.buy_cost(rig.city), Some(120), "four times from scratch");
-        rig.world.get::<&mut Production>(rig.city).unwrap().progress = 10;
+        rig.world.get::<&mut Production>(rig.city)?.progress = 10;
         assert_eq!(rig.eco().buy_cost(rig.city), Some(40), "twice what is left");
-        let plan = rig.eco().buy_plan(rig.city).unwrap();
+        let plan = rig.eco().buy_plan(rig.city).map_err(|e| format!("{e:?}"))?;
         assert_eq!(
             (plan.cost, plan.remaining, plan.owner),
             (40, 20, PlayerId(0))
         );
+        Ok(())
     }
 
     #[test]
-    fn production_is_added_until_the_item_is_covered() {
+    fn production_is_added_until_the_item_is_covered() -> TestResult {
         let rig = Rig::new();
         let barracks = rig.building("barracks");
-        rig.world.get::<&mut Production>(rig.city).unwrap().item =
-            Some(ProductionItem::Building(barracks));
-        match rig.eco().advance_production(rig.city, 12).unwrap() {
+        rig.world.get::<&mut Production>(rig.city)?.item = Some(ProductionItem::Building(barracks));
+        match rig
+            .eco()
+            .advance_production(rig.city, 12)
+            .ok_or("advance_production is missing")?
+        {
             Advance::Waiting(p) => assert_eq!(p.progress, 12),
             other => panic!("{other:?}"),
         }
-        rig.world.get::<&mut Production>(rig.city).unwrap().progress = 25;
-        match rig.eco().advance_production(rig.city, 10).unwrap() {
+        rig.world.get::<&mut Production>(rig.city)?.progress = 25;
+        match rig
+            .eco()
+            .advance_production(rig.city, 10)
+            .ok_or("advance_production is missing")?
+        {
             Advance::Done { item, owner, .. } => {
                 assert_eq!(item, ProductionItem::Building(barracks));
                 assert_eq!(owner, PlayerId(0));
             }
             other => panic!("{other:?}"),
         }
+        Ok(())
     }
 
     #[test]
-    fn a_building_that_another_needs_cannot_be_sold() {
+    fn a_building_that_another_needs_cannot_be_sold() -> TestResult {
         let rig = Rig::new();
         let (barracks, smithy) = (rig.building("barracks"), rig.building("smithy"));
         let armory = rig.building("armory");
         rig.world
-            .get::<&mut Buildings>(rig.city)
-            .unwrap()
+            .get::<&mut Buildings>(rig.city)?
             .0
             .extend([barracks, smithy, armory]);
         assert_eq!(
@@ -792,6 +819,7 @@ mod tests {
             remove_building(&rig.world, rig.city, armory),
             Err(ProductionError::NotBuilt)
         );
+        Ok(())
     }
 
     #[test]

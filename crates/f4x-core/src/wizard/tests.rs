@@ -1,5 +1,6 @@
 use super::*;
 use crate::game::testutil::content_with_magic;
+use crate::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
 
@@ -11,25 +12,26 @@ fn game() -> Game {
 }
 
 #[test]
-fn a_player_and_its_wizard_are_made_together_and_point_at_each_other() {
+fn a_player_and_its_wizard_are_made_together_and_point_at_each_other() -> TestResult {
     let g = game();
-    let w = g.wizard(P0).unwrap();
+    let w = g.wizard(P0).ok_or("wizard is missing")?;
     assert_eq!(w.name(), "W");
     assert_eq!(w.player(), g.player_entity(P0));
-    let back = g.world.get::<&entity::PlayerLink>(w.entity()).unwrap().0;
-    let link = g.world.get::<&crate::player::WizardLink>(back).unwrap().0;
+    let back = g.world.get::<&entity::PlayerLink>(w.entity())?.0;
+    let link = g.world.get::<&crate::player::WizardLink>(back)?.0;
     assert_eq!(link, w.entity());
+    Ok(())
 }
 
 #[test]
-fn an_independent_city_has_no_wizard_and_is_called_by_its_city() {
+fn an_independent_city_has_no_wizard_and_is_called_by_its_city() -> TestResult {
     let mut g = game();
     let town = PlayerId(9);
     g.add_neutral_player(town);
     assert!(g.wizard(town).is_none());
-    assert_eq!(g.player(town).unwrap().name(), "");
+    assert_eq!(g.player(town).ok_or("player is missing")?.name(), "");
     let serial = g.take_serial();
-    let owner = g.player_entity(town).unwrap();
+    let owner = g.player_entity(town).ok_or("player_entity is missing")?;
     g.world.spawn((
         crate::city::City {
             name: "Free Town".into(),
@@ -37,11 +39,15 @@ fn an_independent_city_has_no_wizard_and_is_called_by_its_city() {
         crate::player::Owner(owner),
         serial,
     ));
-    assert_eq!(g.player(town).unwrap().name(), "Free Town");
     assert_eq!(
-        g.player(town).unwrap().banner(),
+        g.player(town).ok_or("player is missing")?.name(),
+        "Free Town"
+    );
+    assert_eq!(
+        g.player(town).ok_or("player is missing")?.banner(),
         crate::player::NEUTRAL_BANNER
     );
+    Ok(())
 }
 
 /// The `n`th real spell of a realm and rarity, in the order of the game's spell list.
@@ -160,7 +166,7 @@ fn at_most_six_retorts() {
 }
 
 #[test]
-fn starting_spells_are_chosen_then_defaulted() {
+fn starting_spells_are_chosen_then_defaulted() -> TestResult {
     let mut g = game();
     let (c3, c7) = (
         nth(&g, "life", Rarity::Common, 3),
@@ -168,8 +174,8 @@ fn starting_spells_are_chosen_then_defaulted() {
     );
     let mut b = build(&[("life", 4), ("chaos", 6)], &[Retort::Alchemy]);
     b.spells = vec![c7, c3];
-    g.create_wizard(P0, &b).unwrap();
-    let m = g.wizard(P0).unwrap();
+    g.create_wizard(P0, &b).map_err(|e| format!("{e:?}"))?;
+    let m = g.wizard(P0).ok_or("wizard is missing")?;
     // Four life books: three commons; two were chosen, one is filled in.
     let known = m.known();
     let life: Vec<_> = known
@@ -185,7 +191,8 @@ fn starting_spells_are_chosen_then_defaulted() {
         .filter(|&&s| g.content.rules.spells.get(s).realm == "chaos")
         .count();
     assert_eq!(chaos, 5);
-    assert_eq!(g.player(P0).unwrap().name(), "Test");
+    assert_eq!(g.player(P0).ok_or("player is missing")?.name(), "Test");
+    Ok(())
 }
 
 #[test]
@@ -211,36 +218,45 @@ fn bad_spell_choices_are_refused() {
 }
 
 #[test]
-fn a_wizard_chooses_a_banner_and_it_is_saved() {
+fn a_wizard_chooses_a_banner_and_it_is_saved() -> TestResult {
     let mut g = game();
     let mut b = build(&[("life", 5), ("chaos", 5)], &[Retort::Alchemy]);
-    assert_eq!(g.player(P0).unwrap().banner(), 0, "player 0 starts blue");
-    b.banner = Some(3);
-    g.create_wizard(P0, &b).unwrap();
-    assert_eq!(g.player(P0).unwrap().banner(), 3);
-    b.banner = Some(9);
-    g.create_wizard(P0, &b).unwrap();
-    assert_eq!(g.player(P0).unwrap().banner(), 9, "orange is the tenth");
-    b.banner = Some(40);
-    g.create_wizard(P0, &b).unwrap();
     assert_eq!(
-        g.player(P0).unwrap().banner(),
+        g.player(P0).ok_or("player is missing")?.banner(),
+        0,
+        "player 0 starts blue"
+    );
+    b.banner = Some(3);
+    g.create_wizard(P0, &b).map_err(|e| format!("{e:?}"))?;
+    assert_eq!(g.player(P0).ok_or("player is missing")?.banner(), 3);
+    b.banner = Some(9);
+    g.create_wizard(P0, &b).map_err(|e| format!("{e:?}"))?;
+    assert_eq!(
+        g.player(P0).ok_or("player is missing")?.banner(),
+        9,
+        "orange is the tenth"
+    );
+    b.banner = Some(40);
+    g.create_wizard(P0, &b).map_err(|e| format!("{e:?}"))?;
+    assert_eq!(
+        g.player(P0).ok_or("player is missing")?.banner(),
         9,
         "kept within the ten choices"
     );
     let content = g.content.clone();
-    let back = g.snapshot().restore(content).unwrap();
-    assert_eq!(back.player(P0).unwrap().banner(), 9);
+    let back = g.snapshot().restore(content)?;
+    assert_eq!(back.player(P0).ok_or("player is missing")?.banner(), 9);
     g.add_neutral_player(PlayerId(9));
     assert_eq!(
-        g.player(PlayerId(9)).unwrap().banner(),
+        g.player(PlayerId(9)).ok_or("player is missing")?.banner(),
         crate::player::NEUTRAL_BANNER,
         "no wizard"
     );
+    Ok(())
 }
 
 #[test]
-fn presets_come_from_the_rules() {
+fn presets_come_from_the_rules() -> TestResult {
     let mut g = game();
     g.content.rules.wizards = crate::rules::Registry::new(vec![crate::rules::WizardDef {
         num: 0,
@@ -251,10 +267,10 @@ fn presets_come_from_the_rules() {
         books: vec![("life".into(), 5), ("chaos".into(), 5)],
         retorts: vec![Retort::Channeler],
     }]);
-    let b = g.preset_build("lo_pan").unwrap();
+    let b = g.preset_build("lo_pan").ok_or("preset_build is missing")?;
     assert!(b.preset);
     assert_eq!(b.picks_spent(), 12, "the original's Lo Pan is over budget");
-    g.create_wizard(P0, &b).unwrap();
+    g.create_wizard(P0, &b).map_err(|e| format!("{e:?}"))?;
     // His picture is his place in the list, as in the original.
     let place = g
         .content
@@ -263,16 +279,26 @@ fn presets_come_from_the_rules() {
         .defs()
         .iter()
         .position(|w| w.id == "lo_pan")
-        .unwrap();
-    assert_eq!(g.player(P0).unwrap().portrait() as usize, place);
-    let restored = g.snapshot().restore(g.content.clone()).unwrap();
-    assert_eq!(restored.player(P0).unwrap().portrait() as usize, place);
-    assert!(g.wizard(P0).unwrap().has(Retort::Channeler));
+        .ok_or("position is missing")?;
+    assert_eq!(
+        g.player(P0).ok_or("player is missing")?.portrait() as usize,
+        place
+    );
+    let restored = g.snapshot().restore(g.content.clone())?;
+    assert_eq!(
+        restored.player(P0).ok_or("player is missing")?.portrait() as usize,
+        place
+    );
+    assert!(g
+        .wizard(P0)
+        .ok_or("wizard is missing")?
+        .has(Retort::Channeler));
     assert!(g.preset_build("nobody").is_none());
+    Ok(())
 }
 
 #[test]
-fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() {
+fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() -> TestResult {
     let mut g = game();
     let life = |g: &Game, rarity, n| nth(g, "life", rarity, n);
     let (u0, u1, u2) = (
@@ -306,8 +332,8 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() {
     }
     let mut chosen = b.clone();
     chosen.spells = vec![u1, u2, rare];
-    g.create_wizard(P0, &chosen).unwrap();
-    let magic = g.wizard(P0).unwrap();
+    g.create_wizard(P0, &chosen).map_err(|e| format!("{e:?}"))?;
+    let magic = g.wizard(P0).ok_or("wizard is missing")?;
     assert_eq!(magic.books_in("life"), 11);
     let known = |spell| magic.knows(spell);
     assert!(
@@ -320,8 +346,8 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() {
     assert!(researchable(u0) && researchable(very_rare) && researchable(r0));
     // Without a choice the realm's defaults fill in: still two uncommon and one rare.
     let mut g = game();
-    g.create_wizard(P0, &b).unwrap();
-    let magic = g.wizard(P0).unwrap();
+    g.create_wizard(P0, &b).map_err(|e| format!("{e:?}"))?;
+    let magic = g.wizard(P0).ok_or("wizard is missing")?;
     let count = |r: Rarity| {
         magic
             .known()
@@ -333,6 +359,7 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() {
             .count()
     };
     assert_eq!((count(Rarity::Uncommon), count(Rarity::Rare)), (2, 1));
+    Ok(())
 }
 
 #[test]
@@ -346,12 +373,12 @@ fn ten_books_still_choose_nine_commons_and_nothing_else() {
 }
 
 #[test]
-fn eight_spells_are_on_offer_for_research_lowest_rarity_first() {
+fn eight_spells_are_on_offer_for_research_lowest_rarity_first() -> TestResult {
     use crate::wizard::magic::RESEARCH_SLOTS;
     let mut g = game();
     g.create_wizard(P0, &build(&[("life", 6), ("chaos", 5)], &[]))
-        .unwrap();
-    let magic = g.wizard(P0).unwrap();
+        .map_err(|e| format!("{e:?}"))?;
+    let magic = g.wizard(P0).ok_or("wizard is missing")?;
     assert_eq!(magic.candidates().len(), RESEARCH_SLOTS);
     assert!(magic.candidates().iter().all(|s| magic.can_research(*s)));
     // Lowest rarity first: a realm's uncommon spell is offered only once all its researchable
@@ -376,25 +403,26 @@ fn eight_spells_are_on_offer_for_research_lowest_rarity_first() {
     let outside = *researchable
         .iter()
         .find(|s| !magic.candidates().contains(s))
-        .unwrap();
+        .ok_or("find is missing")?;
     let pick = magic.candidates()[3];
     assert_eq!(
         g.set_research(P0, outside),
         Err(crate::wizard::magic::MagicError::NotAvailable)
     );
-    g.set_research(P0, pick).unwrap();
+    g.set_research(P0, pick).map_err(|e| format!("{e:?}"))?;
     // Learning it takes it off the offer, and the offer is topped up again.
     g.wizard_mut(P0)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Research>()
         .remaining = 0;
     let events = g.process_magic();
     assert!(events
         .iter()
         .any(|e| matches!(e, crate::game::Event::SpellLearned { spell, .. } if *spell == pick)));
-    let after = g.wizard(P0).unwrap();
+    let after = g.wizard(P0).ok_or("wizard is missing")?;
     assert!(after.knows(pick) && !after.candidates().contains(&pick));
     assert_eq!(after.candidates().len(), RESEARCH_SLOTS);
+    Ok(())
 }
 
 /// A ready-made wizard: no pick budget, so a test can have any books.
@@ -406,7 +434,7 @@ fn preset(books: &[(&str, u8)], retorts: &[Retort]) -> WizardBuild {
 }
 
 fn spell_id(g: &Game, id: &str) -> crate::rules::SpellId {
-    g.content.rules.spells.id_of(id).unwrap()
+    g.content.rules.spells.id_of(id).expect("id_of succeeds")
 }
 
 /// How many of the spells in `set` are of this realm and rarity.
@@ -425,11 +453,12 @@ fn of_kind(
 }
 
 #[test]
-fn a_realm_starts_with_the_first_default_commons_known() {
+fn a_realm_starts_with_the_first_default_commons_known() -> TestResult {
     // The original: n books, n - 1 commons known, taken from the realm's default list.
     let mut g = game();
-    g.create_wizard(P0, &preset(&[("nature", 3)], &[])).unwrap();
-    let m = g.wizard(P0).unwrap();
+    g.create_wizard(P0, &preset(&[("nature", 3)], &[]))
+        .map_err(|e| format!("{e:?}"))?;
+    let m = g.wizard(P0).ok_or("wizard is missing")?;
     for id in ["war_bears", "stone_skin"] {
         assert!(m.known().contains(&spell_id(&g, id)), "{id}");
     }
@@ -438,21 +467,24 @@ fn a_realm_starts_with_the_first_default_commons_known() {
         "the third is researchable"
     );
     assert_eq!(of_kind(&g, &m.known(), "nature", Rarity::Common), 2);
+    Ok(())
 }
 
 #[test]
-fn one_book_knows_no_spell_but_opens_three_commons_and_an_uncommon() {
+fn one_book_knows_no_spell_but_opens_three_commons_and_an_uncommon() -> TestResult {
     let mut g = game();
-    g.create_wizard(P0, &preset(&[("chaos", 1)], &[])).unwrap();
-    let m = g.wizard(P0).unwrap();
+    g.create_wizard(P0, &preset(&[("chaos", 1)], &[]))
+        .map_err(|e| format!("{e:?}"))?;
+    let m = g.wizard(P0).ok_or("wizard is missing")?;
     assert_eq!(of_kind(&g, &m.known(), "chaos", Rarity::Common), 0);
     assert_eq!(of_kind(&g, &m.researchable(), "chaos", Rarity::Common), 3);
     assert_eq!(of_kind(&g, &m.researchable(), "chaos", Rarity::Uncommon), 1);
     assert_eq!(of_kind(&g, &m.researchable(), "chaos", Rarity::Rare), 0);
+    Ok(())
 }
 
 #[test]
-fn the_books_open_more_of_the_realm_as_in_the_tables() {
+fn the_books_open_more_of_the_realm_as_in_the_tables() -> TestResult {
     // (books, researchable commons, uncommons, rares, very rares) in the original's tables.
     for (books, expect) in [
         (2, (5, 2, 1, 0)),
@@ -464,8 +496,8 @@ fn the_books_open_more_of_the_realm_as_in_the_tables() {
     ] {
         let mut g = game();
         g.create_wizard(P0, &preset(&[("life", books)], &[]))
-            .unwrap();
-        let m = g.wizard(P0).unwrap();
+            .map_err(|e| format!("{e:?}"))?;
+        let m = g.wizard(P0).ok_or("wizard is missing")?;
         let open = |r: Rarity| {
             of_kind(&g, &m.researchable(), "life", r) + of_kind(&g, &m.known(), "life", r)
         };
@@ -480,14 +512,15 @@ fn the_books_open_more_of_the_realm_as_in_the_tables() {
             "{books} books"
         );
     }
+    Ok(())
 }
 
 #[test]
-fn eleven_books_know_the_default_uncommons_and_rare() {
+fn eleven_books_know_the_default_uncommons_and_rare() -> TestResult {
     let mut g = game();
     g.create_wizard(P0, &preset(&[("sorcery", 11)], &[]))
-        .unwrap();
-    let m = g.wizard(P0).unwrap();
+        .map_err(|e| format!("{e:?}"))?;
+    let m = g.wizard(P0).ok_or("wizard is missing")?;
     for id in ["flight", "phantom_beast", "storm_giant"] {
         assert!(m.known().contains(&spell_id(&g, id)), "{id}");
     }
@@ -496,13 +529,15 @@ fn eleven_books_know_the_default_uncommons_and_rare() {
         of_kind(&g, &m.researchable(), "sorcery", Rarity::VeryRare),
         10
     );
+    Ok(())
 }
 
 #[test]
-fn every_wizard_knows_magic_spirit_and_the_spell_of_return() {
+fn every_wizard_knows_magic_spirit_and_the_spell_of_return() -> TestResult {
     let mut g = game();
-    g.create_wizard(P0, &preset(&[("life", 2)], &[])).unwrap();
-    let m = g.wizard(P0).unwrap();
+    g.create_wizard(P0, &preset(&[("life", 2)], &[]))
+        .map_err(|e| format!("{e:?}"))?;
+    let m = g.wizard(P0).ok_or("wizard is missing")?;
     assert!(m.known().contains(&spell_id(&g, "magic_spirit")));
     assert!(m.known().contains(&spell_id(&g, "spell_of_return")));
     assert!(
@@ -511,25 +546,27 @@ fn every_wizard_knows_magic_spirit_and_the_spell_of_return() {
     );
     assert!(!m.researchable().contains(&spell_id(&g, "spell_of_mastery")));
     assert!(m.researchable().contains(&spell_id(&g, "enchant_item")));
+    Ok(())
 }
 
 #[test]
-fn an_artificer_also_knows_enchant_item_and_create_artifact() {
+fn an_artificer_also_knows_enchant_item_and_create_artifact() -> TestResult {
     let mut g = game();
     g.create_wizard(
         P0,
         &preset(&[("life", 2), ("chaos", 2)], &[Retort::Artificer]),
     )
-    .unwrap();
-    let m = g.wizard(P0).unwrap();
+    .map_err(|e| format!("{e:?}"))?;
+    let m = g.wizard(P0).ok_or("wizard is missing")?;
     for id in ["enchant_item", "create_artifact"] {
         assert!(m.known().contains(&spell_id(&g, id)), "{id}");
         assert!(!m.researchable().contains(&spell_id(&g, id)), "{id}");
     }
+    Ok(())
 }
 
 #[test]
-fn a_computer_wizard_knows_a_spell_of_its_main_realm_and_the_human_does_not() {
+fn a_computer_wizard_knows_a_spell_of_its_main_realm_and_the_human_does_not() -> TestResult {
     // Most books wins; on a tie the first realm in the order nature, sorcery, chaos, life, death.
     for (books, spell) in [
         (vec![("nature", 4), ("life", 2)], "sprites"),
@@ -540,34 +577,42 @@ fn a_computer_wizard_knows_a_spell_of_its_main_realm_and_the_human_does_not() {
     ] {
         let mut g = game();
         g.settings.ai.wizards.guaranteed_summoning_spell = true;
-        g.create_wizard(P0, &preset(&books, &[])).unwrap();
+        g.create_wizard(P0, &preset(&books, &[]))
+            .map_err(|e| format!("{e:?}"))?;
         g.give_main_realm_spell(P0);
         assert!(
-            g.wizard(P0).unwrap().known().contains(&spell_id(&g, spell)),
+            g.wizard(P0)
+                .ok_or("wizard is missing")?
+                .known()
+                .contains(&spell_id(&g, spell)),
             "{spell}"
         );
     }
     let mut g = game();
-    g.create_wizard(P0, &preset(&[("nature", 1)], &[])).unwrap();
+    g.create_wizard(P0, &preset(&[("nature", 1)], &[]))
+        .map_err(|e| format!("{e:?}"))?;
     g.set_human(Some(P0));
     g.give_main_realm_spell(P0);
     assert!(!g
         .wizard(P0)
-        .unwrap()
+        .ok_or("wizard is missing")?
         .known()
         .contains(&spell_id(&g, "sprites")));
+    Ok(())
 }
 
 #[test]
-fn from_hard_on_a_computer_wizard_may_research_an_uncommon_summoning_spell() {
+fn from_hard_on_a_computer_wizard_may_research_an_uncommon_summoning_spell() -> TestResult {
     for (difficulty, open) in [(2, false), (3, true), (4, true)] {
         let mut g = game();
         g.settings.basic.difficulty = difficulty;
-        g.create_wizard(P0, &preset(&[("nature", 1)], &[])).unwrap();
+        g.create_wizard(P0, &preset(&[("nature", 1)], &[]))
+            .map_err(|e| format!("{e:?}"))?;
         g.give_main_realm_spell(P0);
-        let m = g.wizard(P0).unwrap();
+        let m = g.wizard(P0).ok_or("wizard is missing")?;
         let basilisk = spell_id(&g, "basilisk");
         assert_eq!(m.can_research(basilisk), open, "difficulty {difficulty}");
         assert!(!m.knows(basilisk));
     }
+    Ok(())
 }

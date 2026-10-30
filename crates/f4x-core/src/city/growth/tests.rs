@@ -1,4 +1,5 @@
 use super::*;
+use crate::testdir::TestResult;
 
 fn pop(figures: u32, tens: u32) -> Population {
     Population { figures, tens }
@@ -53,7 +54,7 @@ fn an_outpost_step_draws_in_a_fixed_order() {
 }
 
 #[test]
-fn a_new_outpost_starts_with_three_tens_and_an_outpost_with_none_is_lost() {
+fn a_new_outpost_starts_with_three_tens_and_an_outpost_with_none_is_lost() -> TestResult {
     let mut g = Game::new(1);
     g.add_player(PlayerId(0), "W");
     let at = crate::map::Position {
@@ -63,12 +64,13 @@ fn a_new_outpost_starts_with_three_tens_and_an_outpost_with_none_is_lost() {
     };
     let city = g.spawn_city(PlayerId(0), at, "O".into(), None, 0);
     assert_eq!(g.city_population(city), pop(0, OUTPOST_START_TENS));
-    g.world.insert_one(city, pop(0, 0)).unwrap();
+    g.world.insert_one(city, pop(0, 0))?;
     assert_eq!(g.grow_outpost(city), OutpostTurn::Lost);
+    Ok(())
 }
 
 #[test]
-fn a_city_that_starves_down_keeps_no_more_farmers_than_people() {
+fn a_city_that_starves_down_keeps_no_more_farmers_than_people() -> TestResult {
     let mut g = Game::new(1);
     g.add_player(PlayerId(0), "W");
     let at = crate::map::Position {
@@ -77,8 +79,9 @@ fn a_city_that_starves_down_keeps_no_more_farmers_than_people() {
         y: 20,
     };
     let city = g.spawn_city(PlayerId(0), at, "S".into(), None, 2);
-    g.world.insert_one(city, Farmers(2)).unwrap();
-    g.world.insert_one(city, pop(2, 10)).unwrap();
+    g.world.insert_one(city, Farmers(2))?;
+    g.world.insert_one(city, pop(2, 10))?;
     assert_eq!(g.apply_growth(city, -50), (2, 1));
-    assert_eq!(g.world.get::<&Farmers>(city).unwrap().0, 1);
+    assert_eq!(g.world.get::<&Farmers>(city)?.0, 1);
+    Ok(())
 }

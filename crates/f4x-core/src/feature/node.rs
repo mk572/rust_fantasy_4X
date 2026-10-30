@@ -270,6 +270,7 @@ pub(crate) mod tests {
     use crate::game::Command;
     use crate::map::Grid;
     use crate::rules::{Registry, UnitKind};
+    use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);
@@ -299,7 +300,7 @@ pub(crate) mod tests {
         }
         crate::game::testutil::add_real_unit(&mut units, "guardian_spirit");
         c.rules.units = Registry::new_sorted(units);
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
         let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
         let mut g = Game::new(seed);
         g.content = c;
@@ -307,8 +308,9 @@ pub(crate) mod tests {
         g.put_node(at(6, 6), "sorcery_node", 1);
         for id in [P0, P1] {
             g.add_player(id, "W");
-            g.treasury_mut(id).unwrap().mana = 100;
-            g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
+            g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
+            g.init_wizard(id, &[("life", 2)], &[], None)
+                .expect("init_wizard succeeds");
         }
         g
     }
@@ -316,11 +318,14 @@ pub(crate) mod tests {
     /// The node warped.
     fn warp(g: &mut Game) {
         let node = g.economy().nodes()[0].entity;
-        g.world.get::<&mut Node>(node).unwrap().warped = true;
+        g.world
+            .get::<&mut Node>(node)
+            .expect("value succeeds")
+            .warped = true;
     }
 
     pub(crate) fn spirit(g: &mut Game, player: PlayerId, pos: Position, id: &str) -> hecs::Entity {
-        let u = g.content.rules.units.id_of(id).unwrap();
+        let u = g.content.rules.units.id_of(id).expect("id_of succeeds");
         g.spawn_unit(player, pos, u)
     }
 
@@ -351,10 +356,16 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn generation_is_deterministic_and_myrror_nodes_are_stronger() {
+    fn generation_is_deterministic_and_myrror_nodes_are_stronger() -> TestResult {
         let c = content_with_magic();
-        let grass = c.terrains.id_of("grassland").unwrap();
-        let node = c.features.id_of("sorcery_node").unwrap();
+        let grass = c
+            .terrains
+            .id_of("grassland")
+            .ok_or("grassland is not in the content")?;
+        let node = c
+            .features
+            .id_of("sorcery_node")
+            .ok_or("sorcery_node is not in the content")?;
         let build = || {
             let map = Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass));
             let mut placed = Placed::new(30, 20);
@@ -369,12 +380,13 @@ pub(crate) mod tests {
             nodes
                 .iter()
                 .find(|(p, _)| p.plane == plane)
-                .unwrap()
+                .expect("value succeeds")
                 .1
                 .power
         };
         assert!((5..=10).contains(&power(Plane::Arcanus)));
         assert!((10..=20).contains(&power(Plane::Myrror)));
+        Ok(())
     }
 
     #[test]
@@ -409,10 +421,10 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn nodes_pay_power_by_strength_and_mastery() {
+    fn nodes_pay_power_by_strength_and_mastery() -> TestResult {
         let mut g = world();
         let s = spirit(&mut g, P0, at(6, 6), "magic_spirit");
-        g.meld(&[s]).unwrap();
+        g.meld(&[s]).map_err(|e| format!("{e:?}"))?;
         let power = i32::from(g.economy().nodes()[0].power);
         let base = g.income(P0).power_base;
         assert_eq!(g.node_income(P0), power, "normal strength: one per square");
@@ -423,7 +435,7 @@ pub(crate) mod tests {
         assert_eq!(g.node_income(P0), power / 2, "weak: half");
         g.settings.basic.magic_strength = 1;
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
             .insert(Retort::NodeMastery);
@@ -435,13 +447,14 @@ pub(crate) mod tests {
         );
         warp(&mut g);
         assert_eq!(g.node_income(P0), -5);
+        Ok(())
     }
 
     #[test]
-    fn a_guarded_node_resists_rivals_three_times_in_four() {
+    fn a_guarded_node_resists_rivals_three_times_in_four() -> TestResult {
         let mut g = world();
         let guard = spirit(&mut g, P0, at(6, 6), "guardian_spirit");
-        g.meld(&[guard]).unwrap();
+        g.meld(&[guard]).map_err(|e| format!("{e:?}"))?;
         assert!(g.economy().nodes()[0].guardian);
         // Many rivals try; the roll is seeded, so count successes over several nodes of fresh
         // games: with a guardian about a quarter win.
@@ -449,9 +462,9 @@ pub(crate) mod tests {
         for seed in 0..200 {
             let mut g2 = world_seeded(seed);
             let guard = spirit(&mut g2, P0, at(6, 6), "guardian_spirit");
-            g2.meld(&[guard]).unwrap();
+            g2.meld(&[guard]).map_err(|e| format!("{e:?}"))?;
             let rival = spirit(&mut g2, P1, at(6, 6), "magic_spirit");
-            let events = g2.meld(&[rival]).unwrap();
+            let events = g2.meld(&[rival]).map_err(|e| format!("{e:?}"))?;
             if events.iter().any(|e| matches!(e, Event::NodeMelded { .. })) {
                 wins += 1;
                 assert_eq!(g2.economy().nodes()[0].owner, Some(PlayerId(1)));
@@ -464,17 +477,18 @@ pub(crate) mod tests {
         // An unguarded node falls to any rival.
         let mut g3 = world();
         let mine = spirit(&mut g3, P0, at(6, 6), "magic_spirit");
-        g3.meld(&[mine]).unwrap();
+        g3.meld(&[mine]).map_err(|e| format!("{e:?}"))?;
         let rival = spirit(&mut g3, P1, at(6, 6), "magic_spirit");
-        g3.meld(&[rival]).unwrap();
+        g3.meld(&[rival]).map_err(|e| format!("{e:?}"))?;
         assert_eq!(g3.economy().nodes()[0].owner, Some(PlayerId(1)));
+        Ok(())
     }
 
     #[test]
-    fn a_node_you_own_and_guard_takes_no_more_spirits() {
+    fn a_node_you_own_and_guard_takes_no_more_spirits() -> TestResult {
         let mut g = world();
         let guard = spirit(&mut g, P0, at(6, 6), "guardian_spirit");
-        g.meld(&[guard]).unwrap();
+        g.meld(&[guard]).map_err(|e| format!("{e:?}"))?;
         let another = spirit(&mut g, P0, at(6, 6), "magic_spirit");
         assert_eq!(g.meld(&[another]), Err(MeldError::AlreadyGuarded));
         assert!(
@@ -485,8 +499,9 @@ pub(crate) mod tests {
         // Without a guardian it can still be melded again.
         let mut g2 = world();
         let plain = spirit(&mut g2, P0, at(6, 6), "magic_spirit");
-        g2.meld(&[plain]).unwrap();
+        g2.meld(&[plain]).map_err(|e| format!("{e:?}"))?;
         let again = spirit(&mut g2, P0, at(6, 6), "magic_spirit");
         assert!(g2.meld(&[again]).is_ok());
+        Ok(())
     }
 }

@@ -2,6 +2,7 @@ use super::*;
 use crate::game::testutil::content_with_magic;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::spell::target_error::TargetError;
+use crate::testdir::TestResult;
 
 use crate::game::Command;
 use crate::rules::exec::Target;
@@ -40,17 +41,18 @@ fn world() -> Game {
     // A unit of several figures to count them: the barbarians' spearmen, eight of one hit point.
     crate::game::testutil::add_real_unit(&mut units, "barbarian_spearmen");
     c.rules.units = Registry::new_sorted(units);
-    let grass = c.terrains.id_of("grassland").unwrap();
+    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
     let mut g = Game::new(9);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for (id, name) in [(P0, "Merlin"), (P1, "Rjak"), (P2, "Sss-ra")] {
         g.add_player(id, name);
-        g.treasury_mut(id).unwrap().mana = 5000;
-        g.init_wizard(id, &[("death", 3)], &[], None).unwrap();
+        g.treasury_mut(id).expect("treasury_mut succeeds").mana = 5000;
+        g.init_wizard(id, &[("death", 3)], &[], None)
+            .expect("init_wizard succeeds");
         g.wizard_mut(id)
-            .unwrap()
+            .expect("value succeeds")
             .get_mut::<crate::wizard::sheet::Skill>()
             .left = 99_999;
     }
@@ -58,18 +60,18 @@ fn world() -> Game {
 }
 
 fn sp(g: &Game, id: &str) -> crate::rules::SpellId {
-    g.content.rules.spells.id_of(id).unwrap()
+    g.content.rules.spells.id_of(id).expect("id_of succeeds")
 }
 
 fn unit(g: &mut Game, owner: PlayerId, id: &str, pos: Position) -> hecs::Entity {
-    let def = g.content.rules.units.id_of(id).unwrap();
+    let def = g.content.rules.units.id_of(id).expect("id_of succeeds");
     g.spawn_unit(owner, pos, def)
 }
 
 fn cast(g: &mut Game, spell: &str, target: Option<Target>) -> Vec<Event> {
     let s = sp(g, spell);
     g.wizard_mut(P0)
-        .unwrap()
+        .expect("value succeeds")
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
         .insert(s);
@@ -81,10 +83,10 @@ fn cast(g: &mut Game, spell: &str, target: Option<Target>) -> Vec<Event> {
 }
 
 #[test]
-fn drain_power_takes_what_the_victim_has_up_to_the_roll() {
+fn drain_power_takes_what_the_victim_has_up_to_the_roll() -> TestResult {
     let mut g = world();
     g.make_contact(P0, P1);
-    g.treasury_mut(P1).unwrap().mana = 1000;
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.mana = 1000;
     let events = cast(&mut g, "drain_power", Some(Target::Player(P1)));
     let taken = events
         .iter()
@@ -92,23 +94,27 @@ fn drain_power_takes_what_the_victim_has_up_to_the_roll() {
             Event::PowerDrained { amount, .. } => Some(*amount),
             _ => None,
         })
-        .unwrap_or_else(|| panic!("{events:?}"));
+        .ok_or_else(|| format!("{events:?}"))?;
     assert!((10..=200).contains(&taken), "{taken}");
     // The client plays the spell's picture on the victim's portrait.
     assert!(events.iter().any(|e| matches!(
         e,
         Event::SpellCastOnWizard { player, victim, .. } if *player == P0 && *victim == P1
     )));
-    assert_eq!(g.player(P1).unwrap().treasury().mana, 1000 - taken);
+    assert_eq!(
+        g.player(P1).ok_or("player is missing")?.treasury().mana,
+        1000 - taken
+    );
     // A poor victim loses only what is there.
-    g.treasury_mut(P1).unwrap().mana = 4;
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.mana = 4;
     let events = cast(&mut g, "drain_power", Some(Target::Player(P1)));
     assert!(events.contains(&Event::PowerDrained {
         player: P0,
         victim: P1,
         amount: 4
     }));
-    assert_eq!(g.player(P1).unwrap().treasury().mana, 0);
+    assert_eq!(g.player(P1).ok_or("player is missing")?.treasury().mana, 0);
+    Ok(())
 }
 
 #[test]
@@ -122,47 +128,55 @@ fn a_wizard_cannot_drain_themselves() {
 }
 
 #[test]
-fn cruel_unminding_takes_a_tenth_at_most_and_at_least_one_point() {
+fn cruel_unminding_takes_a_tenth_at_most_and_at_least_one_point() -> TestResult {
     let mut g = world();
     g.make_contact(P0, P1);
     g.wizard_mut(P1)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .points = skill_points_for(60, false);
-    let before = g.wizard(P1).unwrap().casting_skill();
+    let before = g.wizard(P1).ok_or("wizard is missing")?.casting_skill();
     assert_eq!(before, 60);
     cast(&mut g, "cruel_unminding", Some(Target::Player(P1)));
-    let after = g.wizard(P1).unwrap().casting_skill();
+    let after = g.wizard(P1).ok_or("wizard is missing")?.casting_skill();
     assert!((54..=59).contains(&after), "{after}");
     // A tiny skill still loses a point.
     g.wizard_mut(P2)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .points = skill_points_for(5, false);
-    let before = g.wizard(P2).unwrap().casting_skill();
+    let before = g.wizard(P2).ok_or("wizard is missing")?.casting_skill();
     let mut rng = crate::game::rng::GameRng::new(1);
     let lost = g.cruel_unminding(P2, &mut rng);
     assert_eq!(lost, 1);
-    assert_eq!(g.wizard(P2).unwrap().casting_skill(), before - 1);
+    assert_eq!(
+        g.wizard(P2).ok_or("wizard is missing")?.casting_skill(),
+        before - 1
+    );
+    Ok(())
 }
 
 #[test]
-fn an_archmages_ten_points_are_safe() {
+fn an_archmages_ten_points_are_safe() -> TestResult {
     let mut g = world();
     g.wizard_mut(P1)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
         .insert(Retort::Archmage);
     g.wizard_mut(P1)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .points = skill_points_for(40, true);
-    assert_eq!(g.wizard(P1).unwrap().casting_skill(), 40);
+    assert_eq!(g.wizard(P1).ok_or("wizard is missing")?.casting_skill(), 40);
     let mut rng = crate::game::rng::GameRng::new(2);
     let lost = g.cruel_unminding(P1, &mut rng);
     assert!((1..=4).contains(&lost), "{lost}");
-    assert_eq!(g.wizard(P1).unwrap().casting_skill(), 40 - lost);
+    assert_eq!(
+        g.wizard(P1).ok_or("wizard is missing")?.casting_skill(),
+        40 - lost
+    );
+    Ok(())
 }
 
 #[test]
@@ -230,7 +244,7 @@ fn death_wish_spares_the_casters_units_and_the_fantastic() {
 }
 
 #[test]
-fn an_earthquake_spares_flyers_and_the_bodiless() {
+fn an_earthquake_spares_flyers_and_the_bodiless() -> TestResult {
     let mut g = world();
     let city = {
         let race = g.content.rules.races.id_of("high_elf");
@@ -241,7 +255,7 @@ fn an_earthquake_spares_flyers_and_the_bodiless() {
             race,
             population: 4,
         });
-        g.economy().city_at(at(5, 5)).unwrap()
+        g.economy().city_at(at(5, 5)).ok_or("city_at is missing")?
     };
     let walkers: Vec<_> = (0..1)
         .map(|_| unit(&mut g, P1, "high_men_cavalry", at(5, 5)))
@@ -258,10 +272,11 @@ fn an_earthquake_spares_flyers_and_the_bodiless() {
         walkers.iter().all(|&u| !g.world.contains(u)),
         "fifty tremors"
     );
+    Ok(())
 }
 
 #[test]
-fn an_earthquake_is_cast_at_an_enemy_city_and_reports_the_toll() {
+fn an_earthquake_is_cast_at_an_enemy_city_and_reports_the_toll() -> TestResult {
     let mut g = world();
     let race = g.content.rules.races.id_of("high_elf");
     g.apply(Command::FoundCity {
@@ -271,7 +286,7 @@ fn an_earthquake_is_cast_at_an_enemy_city_and_reports_the_toll() {
         race,
         population: 4,
     });
-    let city = g.economy().city_at(at(5, 5)).unwrap();
+    let city = g.economy().city_at(at(5, 5)).ok_or("city_at is missing")?;
     let events = cast(&mut g, "earthquake", Some(Target::City(city)));
     assert!(
         events
@@ -287,12 +302,13 @@ fn an_earthquake_is_cast_at_an_enemy_city_and_reports_the_toll() {
         race,
         population: 4,
     });
-    let own = g.economy().city_at(at(9, 9)).unwrap();
+    let own = g.economy().city_at(at(9, 9)).ok_or("city_at is missing")?;
     let events = cast(&mut g, "earthquake", Some(Target::City(own)));
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
     );
+    Ok(())
 }
 
 /// Black Wind on every unit of a square, as the spell does; the units destroyed.
@@ -326,10 +342,10 @@ fn black_wind_strikes_every_unit_on_the_square_figure_by_figure() {
 }
 
 #[test]
-fn black_wind_wounds_a_unit_that_resists_some_figures() {
+fn black_wind_wounds_a_unit_that_resists_some_figures() -> TestResult {
     let mut g = world();
     let u = unit(&mut g, P1, "barbarian_spearmen", at(4, 4));
-    g.world.insert_one(u, crate::unit::Hurt(0)).unwrap();
+    g.world.insert_one(u, crate::unit::Hurt(0))?;
     // The spearmen's resistance of 5 against -1: each figure fails on a roll of 5 to 10 (60 percent).
     let mut rng = crate::game::rng::GameRng::new(11);
     let mut wounded = 0;
@@ -348,6 +364,7 @@ fn black_wind_wounds_a_unit_that_resists_some_figures() {
         wounded > 0 && killed > 0,
         "{wounded} wounded, {killed} killed"
     );
+    Ok(())
 }
 
 #[test]
@@ -368,10 +385,10 @@ fn black_wind_needs_a_square_with_an_enemy_on_it() {
 }
 
 #[test]
-fn lycanthropy_makes_a_normal_unit_a_werewolf_and_forgets_its_experience() {
+fn lycanthropy_makes_a_normal_unit_a_werewolf_and_forgets_its_experience() -> TestResult {
     let mut g = world();
     let u = unit(&mut g, P0, "high_men_cavalry", at(3, 3));
-    g.world.insert_one(u, crate::unit::Experience(120)).unwrap();
+    g.world.insert_one(u, crate::unit::Experience(120))?;
     let events = cast(&mut g, "lycanthropy", Some(Target::Unit(u)));
     assert!(
         events
@@ -379,7 +396,10 @@ fn lycanthropy_makes_a_normal_unit_a_werewolf_and_forgets_its_experience() {
             .any(|e| matches!(e, Event::UnitTransformed { .. })),
         "{events:?}"
     );
-    assert_eq!(g.units().unit_def(u).unwrap().id, "werewolves");
+    assert_eq!(
+        g.units().unit_def(u).ok_or("unit_def is missing")?.id,
+        "werewolves"
+    );
     assert!(g.units().unit_stat(u, crate::rules::Stat::Figures) > 0);
     assert!(g.world.get::<&crate::unit::Experience>(u).is_err());
     // Not twice: Werewolves are fantastic.
@@ -388,6 +408,7 @@ fn lycanthropy_makes_a_normal_unit_a_werewolf_and_forgets_its_experience() {
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
     );
+    Ok(())
 }
 
 #[test]
@@ -426,7 +447,11 @@ fn lycanthropy_refuses_fantastic_creatures_undead_and_other_wizards_units() {
 }
 
 fn lycanthropy_id(g: &Game) -> crate::rules::SpellId {
-    g.content.rules.spells.id_of("lycanthropy").unwrap()
+    g.content
+        .rules
+        .spells
+        .id_of("lycanthropy")
+        .expect("id_of succeeds")
 }
 
 /// Total hit points the units on a square have left.
@@ -509,9 +534,9 @@ fn magic_immunity_stops_a_storm_and_each_storm_has_its_own_element() {
 }
 
 #[test]
-fn a_storm_reaches_the_units_in_a_city() {
+fn a_storm_reaches_the_units_in_a_city() -> TestResult {
     let mut g = world();
-    let owner = g.player_entity(P1).unwrap();
+    let owner = g.player_entity(P1).ok_or("player_entity is missing")?;
     let city = g.world.spawn((
         crate::city::City {
             name: "Test".into(),
@@ -528,6 +553,7 @@ fn a_storm_reaches_the_units_in_a_city() {
         hurt |= !g.world.contains(u) || g.units().unit_hits(u).0 < before;
     }
     assert!(hurt, "the garrison was untouched");
+    Ok(())
 }
 
 #[test]
@@ -565,7 +591,7 @@ fn city_for(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
         race,
         population: 4,
     });
-    g.economy().city_at(pos).unwrap()
+    g.economy().city_at(pos).expect("city_at succeeds")
 }
 
 fn keep(g: &mut Game, player: PlayerId, spell: &str) {
@@ -631,7 +657,7 @@ fn call_the_void_hurts_everyone_inside_and_corrupts_the_land_around() {
 }
 
 #[test]
-fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_lasts() {
+fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_lasts() -> TestResult {
     let mut g = world();
     keep(&mut g, P1, "natures_wrath");
     let city = city_for(&mut g, P0, at(5, 5));
@@ -652,7 +678,7 @@ fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_last
         } if *v == P0 => Some(*units_lost),
         _ => None,
     });
-    let lost = lost.unwrap_or_else(|| panic!("{events:?}"));
+    let lost = lost.ok_or_else(|| format!("{events:?}"))?;
     let gone = walkers.iter().filter(|&&u| !g.world.contains(u)).count();
     assert!(lost > 0 && gone >= lost as usize, "10% of 60: lost {lost}");
     assert!(
@@ -662,12 +688,12 @@ fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_last
     let _ = (city, spared);
     // The holder's own casting, or a spell of another realm, does nothing.
     g.wizard_mut(P1)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 99_999;
     let s = sp(&g, "drain_power");
     g.wizard_mut(P1)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
         .insert(s);
@@ -686,6 +712,7 @@ fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_last
             .any(|e| matches!(e, Event::WorldSpellStruck { .. })),
         "sorcery"
     );
+    Ok(())
 }
 
 #[test]
@@ -755,13 +782,18 @@ fn great_wasting_corrupts_three_to_six_land_squares_a_turn_anywhere() {
 }
 
 #[test]
-fn a_battle_on_corrupted_ground_costs_no_range_penalty_while_great_wasting_lasts() {
+fn a_battle_on_corrupted_ground_costs_no_range_penalty_while_great_wasting_lasts() -> TestResult {
     use crate::battle::Side;
     let range = |g: &mut Game| {
         let a = unit(g, P0, "high_men_cavalry", at(8, 8));
         let d = unit(g, P1, "high_men_cavalry", at(9, 8));
-        g.start_battle(&[a], &[d]).unwrap();
-        let r = g.battle().unwrap().caster(Side::Attacker).unwrap().range;
+        g.start_battle(&[a], &[d]).expect("start_battle succeeds");
+        let r = g
+            .battle()
+            .expect("battle succeeds")
+            .caster(Side::Attacker)
+            .expect("caster succeeds")
+            .range;
         g.battle = None;
         r
     };
@@ -770,7 +802,7 @@ fn a_battle_on_corrupted_ground_costs_no_range_penalty_while_great_wasting_lasts
     assert!(far > 10, "no fortress: the greatest penalty ({far})");
     g.map
         .as_mut()
-        .unwrap()
+        .ok_or("as_mut is missing")?
         .plane_mut(Plane::Arcanus)
         .set_corrupted(9, 8, true);
     assert_eq!(range(&mut g), far, "corrupted ground alone does nothing");
@@ -778,6 +810,7 @@ fn a_battle_on_corrupted_ground_costs_no_range_penalty_while_great_wasting_lasts
     assert_eq!(range(&mut g), 10, "while the spell lasts");
     g.clear_globals(P0);
     assert_eq!(range(&mut g), far, "and not after");
+    Ok(())
 }
 
 #[test]
@@ -791,7 +824,7 @@ fn armageddon_raises_volcanoes_that_pay_the_caster_power() {
 }
 
 #[test]
-fn a_volcano_pays_a_point_of_power_to_its_owner_only() {
+fn a_volcano_pays_a_point_of_power_to_its_owner_only() -> TestResult {
     let mut g = world();
     for (x, o) in [(2, P0), (3, P1), (4, P1)] {
         let at = Position {
@@ -799,21 +832,26 @@ fn a_volcano_pays_a_point_of_power_to_its_owner_only() {
             x,
             y: 2,
         };
-        g.spawn_volcano(o, at).unwrap();
+        g.spawn_volcano(o, at).ok_or("spawn_volcano is missing")?;
     }
     assert_eq!((g.volcano_count(P0), g.volcano_count(P1)), (1, 2));
     // Keeping Armageddon going changes nothing about whose volcanoes pay.
     keep(&mut g, P0, "armageddon");
     assert_eq!((g.volcano_count(P0), g.volcano_count(P1)), (1, 2));
+    Ok(())
 }
 
 #[test]
-fn an_armageddon_volcano_can_rise_in_the_sea_and_sinks_the_ships_there() {
+fn an_armageddon_volcano_can_rise_in_the_sea_and_sinks_the_ships_there() -> TestResult {
     let mut g = world();
-    let ocean = g.content.terrains.id_of("ocean").unwrap();
+    let ocean = g
+        .content
+        .terrains
+        .id_of("ocean")
+        .ok_or("ocean is not in the content")?;
     g.map
         .as_mut()
-        .unwrap()
+        .ok_or("as_mut is missing")?
         .plane_mut(Plane::Arcanus)
         .set(6, 6, ocean);
     let boat = unit(&mut g, P1, "warship", at(6, 6));
@@ -832,21 +870,26 @@ fn an_armageddon_volcano_can_rise_in_the_sea_and_sinks_the_ships_there() {
     assert_eq!(g.volcano_count(P0), 1);
     assert!(!g.world.contains(boat), "the ship went down");
     assert!(!g.can_armageddon_volcano(at(6, 6)), "already a volcano");
+    Ok(())
 }
 
 #[test]
-fn armageddon_raises_far_fewer_volcanoes_at_sea_than_on_land() {
+fn armageddon_raises_far_fewer_volcanoes_at_sea_than_on_land() -> TestResult {
     // The west half of both planes is sea, the east half land, and the same number of squares.
     let mut g = world();
     let ocean = g
         .content
         .terrains
         .first_of_class(crate::map::terrain::TerrainClass::Ocean, Plane::Arcanus)
-        .unwrap();
+        .ok_or("first_of_class is missing")?;
     for plane in Plane::ALL {
         for x in 0..12 {
             for y in 0..14 {
-                g.map.as_mut().unwrap().plane_mut(plane).set(x, y, ocean);
+                g.map
+                    .as_mut()
+                    .ok_or("as_mut is missing")?
+                    .plane_mut(plane)
+                    .set(x, y, ocean);
             }
         }
     }
@@ -859,10 +902,12 @@ fn armageddon_raises_far_fewer_volcanoes_at_sea_than_on_land() {
     let land = volcanoes.len() - sea;
     assert!(sea > 0, "volcano islands do rise");
     assert!(sea * 3 < land, "but seldom: {sea} at sea, {land} on land");
+    Ok(())
 }
 
 #[test]
-fn an_armageddon_volcano_under_a_city_costs_a_quarter_of_everything_but_spares_the_neighbours() {
+fn an_armageddon_volcano_under_a_city_costs_a_quarter_of_everything_but_spares_the_neighbours(
+) -> TestResult {
     let mut g = world();
     let city = city_for(&mut g, P1, at(10, 6));
     let near = city_for(&mut g, P1, at(16, 6));
@@ -873,8 +918,7 @@ fn an_armageddon_volcano_under_a_city_costs_a_quarter_of_everything_but_spares_t
         .map(|_| unit(&mut g, P1, "high_men_cavalry", at(16, 6)))
         .collect();
     g.world
-        .get::<&mut crate::city::economy::Population>(city)
-        .unwrap()
+        .get::<&mut crate::city::economy::Population>(city)?
         .figures = 20;
     let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(11);
     let events = g.armageddon_volcano(P0, at(10, 6), &mut rng);
@@ -882,8 +926,7 @@ fn an_armageddon_volcano_under_a_city_costs_a_quarter_of_everything_but_spares_t
     assert!((8..=32).contains(&gone), "a quarter of 80: {gone}");
     let pop = g
         .world
-        .get::<&crate::city::economy::Population>(city)
-        .unwrap()
+        .get::<&crate::city::economy::Population>(city)?
         .figures;
     assert!(
         (8..=19).contains(&pop),
@@ -892,18 +935,18 @@ fn an_armageddon_volcano_under_a_city_costs_a_quarter_of_everything_but_spares_t
     assert!(next_door.iter().all(|&u| g.world.contains(u)));
     assert_eq!(
         g.world
-            .get::<&crate::city::economy::Population>(near)
-            .unwrap()
+            .get::<&crate::city::economy::Population>(near)?
             .figures,
         4
     );
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::WorldSpellStruck { .. })));
+    Ok(())
 }
 
 #[test]
-fn volcanoes_sometimes_cool_and_sometimes_bring_a_mineral() {
+fn volcanoes_sometimes_cool_and_sometimes_bring_a_mineral() -> TestResult {
     let mut g = world();
     let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(5);
     // A hundred volcanoes: about a fifth of them get a mineral.
@@ -917,7 +960,7 @@ fn volcanoes_sometimes_cool_and_sometimes_bring_a_mineral() {
         .filter(|&(x, y)| {
             g.map
                 .as_ref()
-                .unwrap()
+                .expect("value succeeds")
                 .plane(Plane::Arcanus)
                 .mineral(x, y)
                 .is_some()
@@ -934,6 +977,7 @@ fn volcanoes_sometimes_cool_and_sometimes_bring_a_mineral() {
     }
     let after = g.volcano_count(P0);
     assert!(after < before && after > 0, "{before} -> {after}");
+    Ok(())
 }
 
 #[test]
@@ -1022,7 +1066,8 @@ fn doom_mastery_mutates_new_units_of_its_wizard_only() {
 }
 
 #[test]
-fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_break_free() {
+fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_break_free(
+) -> TestResult {
     let mut g = world();
     // No upkeep and no food, so that nobody is lost while the turns go by.
     let mut defs = g.content.rules.units.defs().to_vec();
@@ -1062,7 +1107,7 @@ fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_
     assert!(enemies.iter().all(|&u| g.units().unit_moves_left(u) > 0));
     // A square with no enemy not already held is no target.
     g.wizard_mut(P0)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 99_999;
     let held = unit(&mut g, P1, "high_men_cavalry", at(12, 8));
@@ -1073,10 +1118,11 @@ fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_
         matches!(again.as_slice(), [Event::Rejected(_)]),
         "{again:?}"
     );
+    Ok(())
 }
 
 #[test]
-fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() {
+fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() -> TestResult {
     let mut g = world();
     let mut defs = g.content.rules.units.defs().to_vec();
     for d in defs.iter_mut() {
@@ -1089,10 +1135,10 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() {
     keep(&mut g, P0, "time_stop");
     g.attach_enchantment(Target::Player(P0), sp(&g, "time_stop"), P0);
     // Another global enchantment of the wizard's costs nothing now.
-    g.treasury_mut(P0).unwrap().mana = 500;
-    g.treasury_mut(P0).unwrap().gold = 100;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 500;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 100;
     g.wizard_mut(P1)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 5;
     g.apply(Command::EndTurn);
@@ -1103,23 +1149,27 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() {
         "their troops are frozen"
     );
     assert_eq!(
-        g.player(P0).unwrap().treasury().mana,
+        g.player(P0).ok_or("player is missing")?.treasury().mana,
         300,
         "200 for Time Stop"
     );
     assert_eq!(
-        g.player(P0).unwrap().treasury().gold,
+        g.player(P0).ok_or("player is missing")?.treasury().gold,
         100,
         "no gold either way"
     );
     assert!(g.time_stopper() == Some(P0));
     // Out of mana, the spell is lost and time runs again.
     g.apply(Command::EndTurn);
-    assert_eq!(g.player(P0).unwrap().treasury().mana, 100);
+    assert_eq!(
+        g.player(P0).ok_or("player is missing")?.treasury().mana,
+        100
+    );
     g.apply(Command::EndTurn);
     assert_eq!(g.time_stopper(), None, "it could not be paid for");
     g.apply(Command::EndTurn);
     assert!(g.units().unit_moves_left(theirs) > 0);
+    Ok(())
 }
 
 #[test]

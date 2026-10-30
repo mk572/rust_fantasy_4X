@@ -1004,11 +1004,15 @@ mod handle_tests {
     use super::*;
     use crate::game::testutil::content_with_economy;
     use crate::map::Grid;
+    use crate::testdir::TestResult;
 
     #[test]
-    fn a_cities_yields_come_from_a_world_a_map_and_the_content_alone() {
+    fn a_cities_yields_come_from_a_world_a_map_and_the_content_alone() -> TestResult {
         let content = content_with_economy();
-        let grass = content.terrains.id_of("grassland").unwrap();
+        let grass = content
+            .terrains
+            .id_of("grassland")
+            .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
         let at = Position {
             plane: Plane::Arcanus,
@@ -1033,11 +1037,13 @@ mod handle_tests {
         world.spawn(crate::player::bundle(PlayerId(0)));
         let eco = Economy::new(&world, Some(&map), &content);
 
-        let now = eco.city_economy(city).unwrap();
+        let now = eco.city_economy(city).ok_or("city_economy is missing")?;
         assert_eq!(now.figures, 4);
         assert_eq!(now.farmers + now.workers + now.rebels, 4);
         let farmers = eco.city_min_farmers(city);
-        let fed = eco.city_economy_with(city, farmers).unwrap();
+        let fed = eco
+            .city_economy_with(city, farmers)
+            .ok_or("city_economy_with is missing")?;
         assert!(fed.food >= 4, "the minimum farmers feed the city");
         assert_eq!(eco.city_owner(city), Some(PlayerId(0)));
         assert_eq!(eco.cities().len(), 1);
@@ -1048,12 +1054,16 @@ mod handle_tests {
             21,
             "a 5x5 area without its corners"
         );
+        Ok(())
     }
 
     #[test]
-    fn a_computer_wizards_bonuses_multiply_its_cities_and_nobody_elses() {
+    fn a_computer_wizards_bonuses_multiply_its_cities_and_nobody_elses() -> TestResult {
         let content = content_with_economy();
-        let grass = content.terrains.id_of("grassland").unwrap();
+        let grass = content
+            .terrains
+            .id_of("grassland")
+            .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
         let at = Position {
             plane: Plane::Arcanus,
@@ -1078,8 +1088,8 @@ mod handle_tests {
         let player = owner;
         let before = Economy::new(&world, Some(&map), &content)
             .city_economy(city)
-            .unwrap();
-        *world.get::<&mut crate::player::Bonus>(player).unwrap() = crate::player::Bonus {
+            .ok_or("city_economy is missing")?;
+        *world.get::<&mut crate::player::Bonus>(player)? = crate::player::Bonus {
             food: 200,
             production: 150,
             gold: 200,
@@ -1091,7 +1101,7 @@ mod handle_tests {
         };
         let after = Economy::new(&world, Some(&map), &content)
             .city_economy(city)
-            .unwrap();
+            .ok_or("city_economy is missing")?;
         assert!(before.food > 0 && before.production > 0 && before.gold > 0);
         assert!(before.growth_tens > 0, "a growing city: {before:?}");
         assert_eq!(after.food, before.food * 2);
@@ -1105,15 +1115,28 @@ mod handle_tests {
             after.figures, before.figures,
             "the people are not multiplied"
         );
+        Ok(())
     }
 
     #[test]
-    fn a_squares_food_follows_the_original() {
+    fn a_squares_food_follows_the_original() -> TestResult {
         let content = content_with_economy();
-        let grass = content.terrains.id_of("grassland").unwrap();
-        let swamp = content.terrains.id_of("swamp").unwrap();
-        let ocean = content.terrains.id_of("ocean").unwrap();
-        let sorcery = content.terrains.id_of("sorcery_node").unwrap();
+        let grass = content
+            .terrains
+            .id_of("grassland")
+            .ok_or("grassland is not in the content")?;
+        let swamp = content
+            .terrains
+            .id_of("swamp")
+            .ok_or("swamp is not in the content")?;
+        let ocean = content
+            .terrains
+            .id_of("ocean")
+            .ok_or("ocean is not in the content")?;
+        let sorcery = content
+            .terrains
+            .id_of("sorcery_node")
+            .ok_or("sorcery_node is not in the content")?;
         let mut grid = Grid::new(24, 14, grass);
         for x in 0..8 {
             for y in 0..4 {
@@ -1143,16 +1166,32 @@ mod handle_tests {
             "the shore (land one step south)"
         );
         assert_eq!(eco.square_food(g, 7, 3), 1, "the shore, diagonally");
+        Ok(())
     }
 
     #[test]
-    fn rivers_into_lakes_and_the_sea_give_two_food_and_nodes_set_production() {
+    fn rivers_into_lakes_and_the_sea_give_two_food_and_nodes_set_production() -> TestResult {
         let content = content_with_economy();
-        let grass = content.terrains.id_of("grassland").unwrap();
-        let ocean = content.terrains.id_of("ocean").unwrap();
-        let forest = content.terrains.id_of("forest").unwrap();
-        let nature = content.terrains.id_of("nature_node").unwrap();
-        let chaos = content.terrains.id_of("chaos_node").unwrap();
+        let grass = content
+            .terrains
+            .id_of("grassland")
+            .ok_or("grassland is not in the content")?;
+        let ocean = content
+            .terrains
+            .id_of("ocean")
+            .ok_or("ocean is not in the content")?;
+        let forest = content
+            .terrains
+            .id_of("forest")
+            .ok_or("forest is not in the content")?;
+        let nature = content
+            .terrains
+            .id_of("nature_node")
+            .ok_or("nature_node is not in the content")?;
+        let chaos = content
+            .terrains
+            .id_of("chaos_node")
+            .ok_or("chaos_node is not in the content")?;
         let mut grid = Grid::new(24, 14, grass);
         // A lake with a river running into it from the north.
         grid.set(5, 5, ocean);
@@ -1205,5 +1244,6 @@ mod handle_tests {
             "chaos node, not doubled"
         );
         assert_eq!(eco.square_production(g, 18, 7, true), 6, "forest");
+        Ok(())
     }
 }

@@ -150,6 +150,7 @@ mod tests {
     use super::*;
     use crate::map::Plane;
     use crate::rules::Stat;
+    use crate::testdir::TestResult;
     use crate::wizard::magic::Retort;
 
     const P0: PlayerId = PlayerId(0);
@@ -165,28 +166,31 @@ mod tests {
     /// The hero world (the game's real units, level paths and heroes) with a life wizard.
     fn world() -> Game {
         let mut g = crate::hero::game::tests::world();
-        g.treasury_mut(P0).unwrap().mana = 5000;
-        g.init_wizard(P0, &[("life", 4)], &[], None).unwrap();
+        g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 5000;
+        g.init_wizard(P0, &[("life", 4)], &[], None)
+            .expect("init_wizard succeeds");
         g
     }
 
     /// Hire the hero of this unit.
     fn hire(g: &mut Game, unit: &str, pos: Position) -> hecs::Entity {
         let kind = crate::hero::game::tests::kind_of(g, unit);
-        g.spawn_hero(P0, pos, kind).unwrap()
+        g.spawn_hero(P0, pos, kind).expect("spawn_hero succeeds")
     }
 
     fn spawn(g: &mut Game, id: &str, pos: Position) -> hecs::Entity {
-        let def = g.content.rules.units.id_of(id).unwrap();
+        let def = g.content.rules.units.id_of(id).expect("id_of succeeds");
         g.spawn_unit(P0, pos, def)
     }
 
     fn set_xp(g: &mut Game, unit: hecs::Entity, xp: u32) {
-        g.world.insert_one(unit, Experience(xp)).unwrap();
+        g.world
+            .insert_one(unit, Experience(xp))
+            .expect("insert_one succeeds");
     }
 
     fn enchant(g: &mut Game, spell: &str, who: crate::rules::exec::Target) {
-        let s = g.content.rules.spells.id_of(spell).unwrap();
+        let s = g.content.rules.spells.id_of(spell).expect("id_of succeeds");
         g.attach_enchantment(who, s, P0);
     }
 
@@ -205,7 +209,7 @@ mod tests {
     }
 
     #[test]
-    fn warlord_and_crusade_each_add_a_level_and_only_they_reach_the_top() {
+    fn warlord_and_crusade_each_add_a_level_and_only_they_reach_the_top() -> TestResult {
         let mut g = world();
         let unit = spawn(&mut g, "high_men_cavalry", at(3, 3));
         // The real path adds a point of melee at Regular and at Elite, and at Champion.
@@ -214,7 +218,7 @@ mod tests {
         assert_eq!(g.units().unit_level(unit), 3, "experience stops at elite");
         assert_eq!(g.units().unit_stat(unit, Stat::Melee), base + 2);
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
             .insert(Retort::Warlord);
@@ -228,10 +232,11 @@ mod tests {
         assert_eq!(g.units().unit_level(recruit), 2);
         set_xp(&mut g, recruit, 1000);
         assert_eq!(g.units().unit_level(recruit), 5);
+        Ok(())
     }
 
     #[test]
-    fn crusade_leaves_the_undead_and_creatures_alone_but_warlord_does_not() {
+    fn crusade_leaves_the_undead_and_creatures_alone_but_warlord_does_not() -> TestResult {
         let mut g = world();
         let normal = spawn(&mut g, "high_men_cavalry", at(3, 3));
         let creature = spawn(&mut g, "magic_spirit", at(4, 3));
@@ -242,15 +247,16 @@ mod tests {
         assert_eq!(g.units().unit_level(undead), 0, "not for the undead");
         assert_eq!(g.units().unit_level(creature), 0, "nor for creatures");
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
             .insert(Retort::Warlord);
         assert_eq!(g.units().unit_level(undead), 1, "warlord is for every unit");
+        Ok(())
     }
 
     #[test]
-    fn heroism_makes_a_unit_elite_and_ends_when_it_gets_there_by_itself() {
+    fn heroism_makes_a_unit_elite_and_ends_when_it_gets_there_by_itself() -> TestResult {
         let mut g = world();
         let unit = spawn(&mut g, "high_men_cavalry", at(3, 3));
         let base = g.units().unit_stat(unit, Stat::Melee);
@@ -260,13 +266,13 @@ mod tests {
         assert_eq!(g.units().unit_stat(unit, Stat::Melee), base + 2);
         // Warlord goes on top of the floor.
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
             .insert(Retort::Warlord);
         assert_eq!(g.units().unit_level(unit), 4);
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
             .clear();
@@ -279,6 +285,7 @@ mod tests {
         g.process_experience();
         assert!(!g.units().unit_has_heroism(unit));
         assert_eq!(g.units().unit_level(unit), 3);
+        Ok(())
     }
 
     #[test]

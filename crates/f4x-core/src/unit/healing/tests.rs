@@ -38,7 +38,7 @@ impl Rig {
             crate::game::testutil::add_real_unit(&mut units, id);
         }
         c.rules.units = Registry::new_sorted(units);
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
         let map = Map::new(Grid::new(12, 8, grass), Grid::new(12, 8, grass));
         Rig {
             content: c,
@@ -60,12 +60,19 @@ impl Rig {
     }
 
     fn unit(&mut self, kind: &str, owner: PlayerId, pos: Position, hurt: u32) -> hecs::Entity {
-        let id = self.content.rules.units.id_of(kind).unwrap();
+        let id = self
+            .content
+            .rules
+            .units
+            .id_of(kind)
+            .expect("id_of succeeds");
         let serial = Serial(self.next);
         self.next += 1;
         let owner = self.player(owner);
         let e = crate::unit::spawn(&mut self.world, &self.content, serial, owner, pos, id);
-        self.world.insert_one(e, Hurt(hurt)).unwrap();
+        self.world
+            .insert_one(e, Hurt(hurt))
+            .expect("insert_one succeeds");
         e
     }
 
@@ -85,12 +92,21 @@ impl Rig {
     }
 
     fn build(&mut self, city: hecs::Entity, id: &str) {
-        let b: BuildingId = self.content.rules.buildings.id_of(id).unwrap();
-        self.world.get::<&mut Buildings>(city).unwrap().0.push(b);
+        let b: BuildingId = self
+            .content
+            .rules
+            .buildings
+            .id_of(id)
+            .expect("id_of succeeds");
+        self.world
+            .get::<&mut Buildings>(city)
+            .expect("value succeeds")
+            .0
+            .push(b);
     }
 
     fn enchant(&mut self, city: hecs::Entity, id: &str, caster: PlayerId) {
-        let s = self.content.rules.spells.id_of(id).unwrap();
+        let s = self.content.rules.spells.id_of(id).expect("id_of succeeds");
         let player = self.player(caster);
         let wizard = self
             .world

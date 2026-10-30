@@ -626,6 +626,7 @@ mod tests {
     use crate::map::{Grid, Map};
     use crate::player::PlayerId;
     use crate::rules::{ItemPowerDef, PowerBonus, Registry};
+    use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
 
@@ -697,18 +698,19 @@ mod tests {
 
     fn world(skill: i32) -> Game {
         let c = rules_with_items();
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
         let mut g = Game::new(7);
         g.content = c;
         g.map = Some(Map::new(Grid::new(8, 8, grass), Grid::new(8, 8, grass)));
         g.add_player(P0, "Merlin");
-        g.treasury_mut(P0).unwrap().mana = 2000;
-        g.init_wizard(P0, &[("chaos", 2)], &[], None).unwrap();
+        g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 2000;
+        g.init_wizard(P0, &[("chaos", 2)], &[], None)
+            .expect("init_wizard succeeds");
         let known: Vec<_> = ["enchant_item", "create_artifact", "giant_strength"]
             .iter()
-            .map(|s| g.content.rules.spells.id_of(s).unwrap())
+            .map(|s| g.content.rules.spells.id_of(s).expect("id_of succeeds"))
             .collect();
-        let mut m = g.wizard_mut(P0).unwrap();
+        let mut m = g.wizard_mut(P0).expect("wizard_mut succeeds");
         m.get_mut::<crate::wizard::sheet::KnownSpells>()
             .researchable
             .retain(|s| !known.contains(s));
@@ -739,7 +741,12 @@ mod tests {
     }
 
     fn check_in(g: &Game, craft: Craft, d: &ItemDesign) -> Result<(), CraftError> {
-        check(d, craft, &g.wizard(P0).unwrap(), &g.content.rules)
+        check(
+            d,
+            craft,
+            &g.wizard(P0).expect("wizard succeeds"),
+            &g.content.rules,
+        )
     }
 
     #[test]
@@ -757,7 +764,7 @@ mod tests {
     }
 
     #[test]
-    fn a_design_is_checked_power_by_power() {
+    fn a_design_is_checked_power_by_power() -> TestResult {
         let g = world(0);
         let ok = |kind, powers: &[&str]| check_in(&g, Craft::CreateArtifact, &design(kind, powers));
         assert_eq!(ok(ItemKind::Sword, &["attack_1", "defense_2"]), Ok(()));
@@ -794,7 +801,7 @@ mod tests {
         assert_eq!(ok(ItemKind::Sword, &["flaming"]), Ok(()));
         let mut poor = world(0);
         poor.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Books>()
             .0
             .insert("chaos".into(), 1);
@@ -806,6 +813,7 @@ mod tests {
             ),
             Err(CraftError::NeedsBooks)
         );
+        Ok(())
     }
 
     #[test]
@@ -857,13 +865,18 @@ mod tests {
     }
 
     #[test]
-    fn the_powers_on_offer_follow_the_kind_the_cost_and_the_books() {
+    fn the_powers_on_offer_follow_the_kind_the_cost_and_the_books() -> TestResult {
         let g = world(0);
         let ids = |kind, craft| -> Vec<String> {
-            available_powers(kind, craft, &g.wizard(P0).unwrap(), &g.content.rules)
-                .iter()
-                .map(|p| p.id.clone())
-                .collect()
+            available_powers(
+                kind,
+                craft,
+                &g.wizard(P0).expect("wizard succeeds"),
+                &g.content.rules,
+            )
+            .iter()
+            .map(|p| p.id.clone())
+            .collect()
         };
         assert_eq!(
             ids(ItemKind::Sword, Craft::EnchantItem),
@@ -877,6 +890,7 @@ mod tests {
             ids(ItemKind::Staff, Craft::EnchantItem),
             ["spell_charges"][..0]
         );
+        Ok(())
     }
 
     #[test]
@@ -951,7 +965,8 @@ mod tests {
     }
 
     #[test]
-    fn an_item_that_can_be_paid_at_once_is_made_at_once_and_costs_the_reduced_price() {
+    fn an_item_that_can_be_paid_at_once_is_made_at_once_and_costs_the_reduced_price() -> TestResult
+    {
         let mut g = world(1000);
         let d = design(ItemKind::Sword, &["attack_2"]);
         let events = g.apply(Command::CraftItem {
@@ -970,19 +985,28 @@ mod tests {
             "{events:?}"
         );
         assert_eq!(
-            g.items().armory(P0).vault[0].clone().unwrap().bonus.attack,
+            g.items().armory(P0).vault[0]
+                .clone()
+                .ok_or("clone is missing")?
+                .bonus
+                .attack,
             2
         );
         assert_eq!(g.tr(0).mana, 2000 - 200);
-        assert_eq!(g.wizard(P0).unwrap().skill_left(), 800);
-        assert!(g.wizard(P0).unwrap().crafting().is_none());
+        assert_eq!(g.wizard(P0).ok_or("wizard is missing")?.skill_left(), 800);
+        assert!(g
+            .wizard(P0)
+            .ok_or("wizard is missing")?
+            .crafting()
+            .is_none());
+        Ok(())
     }
 
     #[test]
-    fn artificer_halves_the_mana_not_the_value() {
+    fn artificer_halves_the_mana_not_the_value() -> TestResult {
         let mut g = world(1000);
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
             .insert(crate::wizard::magic::Retort::Artificer);
@@ -992,11 +1016,18 @@ mod tests {
             design: design(ItemKind::Sword, &["attack_2"]),
         });
         assert_eq!(g.tr(0).mana, 2000 - 100);
-        assert_eq!(g.items().armory(P0).vault[0].clone().unwrap().cost, 200);
+        assert_eq!(
+            g.items().armory(P0).vault[0]
+                .clone()
+                .ok_or("clone is missing")?
+                .cost,
+            200
+        );
+        Ok(())
     }
 
     #[test]
-    fn an_item_too_dear_for_this_turn_waits_while_it_is_paid_for() {
+    fn an_item_too_dear_for_this_turn_waits_while_it_is_paid_for() -> TestResult {
         let mut g = world(4);
         let d = design(ItemKind::Sword, &["attack_2"]);
         let events = g.apply(Command::CraftItem {
@@ -1005,8 +1036,8 @@ mod tests {
             design: d,
         });
         assert!(events.is_empty(), "{events:?}");
-        let m = g.wizard(P0).unwrap();
-        assert_eq!(m.casting().unwrap().remaining, 200);
+        let m = g.wizard(P0).ok_or("wizard is missing")?;
+        assert_eq!(m.casting().ok_or("casting is missing")?.remaining, 200);
         assert!(m.crafting().is_some());
         // A second item cannot be started meanwhile.
         let again = g.apply(Command::CraftItem {
@@ -1028,15 +1059,24 @@ mod tests {
         }
         assert!(made, "the item should come when the cost is paid");
         assert_eq!(
-            g.items().armory(P0).vault[0].clone().unwrap().bonus.attack,
+            g.items().armory(P0).vault[0]
+                .clone()
+                .ok_or("clone is missing")?
+                .bonus
+                .attack,
             2
         );
-        assert!(g.wizard(P0).unwrap().crafting().is_none());
-        assert!(g.wizard(P0).unwrap().casting().is_none());
+        assert!(g
+            .wizard(P0)
+            .ok_or("wizard is missing")?
+            .crafting()
+            .is_none());
+        assert!(g.wizard(P0).ok_or("wizard is missing")?.casting().is_none());
+        Ok(())
     }
 
     #[test]
-    fn cancelling_the_cast_drops_the_item() {
+    fn cancelling_the_cast_drops_the_item() -> TestResult {
         let mut g = world(4);
         g.apply(Command::CraftItem {
             player: P0,
@@ -1044,13 +1084,20 @@ mod tests {
             design: design(ItemKind::Sword, &["attack_2"]),
         });
         assert_eq!(g.items().count_held(|_| true), 1, "the item being made");
-        g.wizard_mut(P0).unwrap().cancel_casting();
-        assert!(g.wizard(P0).unwrap().crafting().is_none());
+        g.wizard_mut(P0)
+            .ok_or("wizard_mut is missing")?
+            .cancel_casting();
+        assert!(g
+            .wizard(P0)
+            .ok_or("wizard is missing")?
+            .crafting()
+            .is_none());
         assert_eq!(g.items().count_held(|_| true), 0, "and it is gone");
+        Ok(())
     }
 
     #[test]
-    fn a_bad_design_or_an_unknown_spell_is_refused_and_costs_nothing() {
+    fn a_bad_design_or_an_unknown_spell_is_refused_and_costs_nothing() -> TestResult {
         let mut g = world(1000);
         let events = g.apply(Command::CraftItem {
             player: P0,
@@ -1065,7 +1112,7 @@ mod tests {
         ));
         assert_eq!(g.tr(0).mana, 2000);
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::KnownSpells>()
             .known
             .clear();
@@ -1078,31 +1125,39 @@ mod tests {
             events[0],
             Event::Rejected(crate::game::Rejection::Craft(CraftingError::Magic(_)))
         ));
+        Ok(())
     }
 
     #[test]
-    fn the_crafting_spells_are_not_cast_without_a_design() {
+    fn the_crafting_spells_are_not_cast_without_a_design() -> TestResult {
         let mut g = world(1000);
-        let spell = g.content.rules.spells.id_of("enchant_item").unwrap();
+        let spell = g
+            .content
+            .rules
+            .spells
+            .id_of("enchant_item")
+            .ok_or("enchant_item is not in the content")?;
         assert!(g.start_cast(P0, spell, None).is_err());
+        Ok(())
     }
 
     #[test]
-    fn the_made_item_is_saved_while_it_waits() {
+    fn the_made_item_is_saved_while_it_waits() -> TestResult {
         let mut g = world(4);
         g.apply(Command::CraftItem {
             player: P0,
             craft: Craft::EnchantItem,
             design: design(ItemKind::Sword, &["attack_2"]),
         });
-        let text = g.snapshot().to_text().unwrap();
-        let back = crate::game::save::Snapshot::from_text(&text)
-            .unwrap()
-            .restore(g.content.clone())
-            .unwrap();
-        let (was, now) = (g.wizard(P0).unwrap(), back.wizard(P0).unwrap());
+        let text = g.snapshot().to_text()?;
+        let back = crate::game::save::Snapshot::from_text(&text)?.restore(g.content.clone())?;
+        let (was, now) = (
+            g.wizard(P0).ok_or("wizard is missing")?,
+            back.wizard(P0).ok_or("wizard is missing")?,
+        );
         assert!(was.crafting().is_some());
         assert_eq!(now.crafting(), was.crafting());
         assert_eq!(now.casting(), was.casting());
+        Ok(())
     }
 }

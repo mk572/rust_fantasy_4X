@@ -162,16 +162,18 @@ mod tests {
     use crate::hero::game::tests::{at, set_state, state, world, P0, P1};
     use crate::hero::Fate;
     use crate::map::Plane;
+    use crate::testdir::TestResult;
     use crate::unit::Experience;
 
     /// The hero world, with the four spells known to wizard 0, a circle at (3, 3), 100 gold
     /// and plenty of mana and skill. The last of the seven hero types is "Torin".
     fn caster() -> Game {
         let mut g = world();
-        g.init_wizard(P0, &[("life", 3)], &[], None).unwrap();
+        g.init_wizard(P0, &[("life", 3)], &[], None)
+            .expect("init_wizard succeeds");
         for id in HOOKS {
-            let s = g.content.rules.spells.id_of(id).unwrap();
-            let mut m = g.wizard_mut(P0).unwrap();
+            let s = g.content.rules.spells.id_of(id).expect("id_of succeeds");
+            let mut m = g.wizard_mut(P0).expect("wizard_mut succeeds");
             m.get_mut::<crate::wizard::sheet::KnownSpells>()
                 .researchable
                 .remove(&s);
@@ -186,20 +188,20 @@ mod tests {
                 .insert(s);
         }
         g.wizard_mut(P0)
-            .unwrap()
+            .expect("value succeeds")
             .get_mut::<crate::wizard::sheet::Skill>()
             .left = 99_999;
-        let t = g.treasury_mut(P0).unwrap();
+        let t = g.treasury_mut(P0).expect("treasury_mut succeeds");
         t.mana = 1000;
         t.gold = 100;
-        let mut w = g.wizard_mut(P0).unwrap();
+        let mut w = g.wizard_mut(P0).expect("wizard_mut succeeds");
         w.put(Some(crate::wizard::fortress::Fortress(at(3, 3))));
         w.put(Some(crate::wizard::fortress::SummonAt(at(3, 3))));
         g
     }
 
     fn cast(g: &mut Game, hook: &str) -> Vec<Event> {
-        let spell = g.content.rules.spells.id_of(hook).unwrap();
+        let spell = g.content.rules.spells.id_of(hook).expect("id_of succeeds");
         g.apply(Command::CastSpell {
             player: P0,
             spell,
@@ -215,10 +217,10 @@ mod tests {
     }
 
     #[test]
-    fn hiring_charges_the_price_and_the_hero_appears_at_the_circle() {
+    fn hiring_charges_the_price_and_the_hero_appears_at_the_circle() -> TestResult {
         let mut g = caster();
-        let h = g.hire_hero(P0, 0).unwrap();
-        assert_eq!(g.player(P0).unwrap().treasury().gold, 0);
+        let h = g.hire_hero(P0, 0).map_err(|e| format!("{e:?}"))?;
+        assert_eq!(g.player(P0).ok_or("player is missing")?.treasury().gold, 0);
         assert_eq!(g.units().unit_position(h), Some(at(3, 3)));
         assert_eq!(g.units().hero_kind(h), Some(0));
         // Not twice, not by the other wizard while it serves, not without the gold, not without
@@ -227,41 +229,49 @@ mod tests {
         assert_eq!(g.hire_hero(P1, 0), Err(HeroError::NotAvailable));
         assert_eq!(g.hire_hero(P0, 1), Err(HeroError::NoGold));
         assert_eq!(g.hire_hero(P0, 99), Err(HeroError::Unknown));
-        g.treasury_mut(P0).unwrap().gold = 500;
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 500;
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .put::<crate::wizard::fortress::SummonAt>(None);
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .put::<crate::wizard::fortress::Fortress>(None);
         assert_eq!(g.hire_hero(P0, 1), Err(HeroError::NoCircle));
-        assert_eq!(g.player(P0).unwrap().treasury().gold, 500);
+        assert_eq!(
+            g.player(P0).ok_or("player is missing")?.treasury().gold,
+            500
+        );
         assert!(g.units().heroes(P1).is_empty());
+        Ok(())
     }
 
     #[test]
-    fn a_dead_hero_is_not_hired_and_there_is_no_limit_on_how_many_serve() {
+    fn a_dead_hero_is_not_hired_and_there_is_no_limit_on_how_many_serve() -> TestResult {
         let mut g = caster();
-        g.treasury_mut(P0).unwrap().gold = 5000;
-        let first = g.hire_hero(P0, 0).unwrap();
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 5000;
+        let first = g.hire_hero(P0, 0).map_err(|e| format!("{e:?}"))?;
         g.remove_unit(first, Fate::Slain);
         assert_eq!(g.hire_hero(P0, 0), Err(HeroError::NotAvailable));
         for k in 1..=6 {
-            g.hire_hero(P0, k).unwrap();
+            g.hire_hero(P0, k).map_err(|e| format!("{e:?}"))?;
         }
         assert_eq!(g.units().hero_units(P0).len(), 6);
         assert_eq!(g.units().raisable_heroes(), vec![0]);
+        Ok(())
     }
 
     #[test]
-    fn summon_hero_brings_a_hero_for_mana_only() {
+    fn summon_hero_brings_a_hero_for_mana_only() -> TestResult {
         let mut g = caster();
         let events = cast(&mut g, SUMMON_HERO);
-        let (unit, kind) = joined(&events).unwrap_or_else(|| panic!("{events:?}"));
+        let (unit, kind) = joined(&events).ok_or_else(|| format!("{events:?}"))?;
         assert!(kind < HEROES);
         assert_eq!(g.units().unit_position(unit), Some(at(3, 3)));
-        assert_eq!(g.player(P0).unwrap().treasury().gold, 100);
-        assert!(g.player(P0).unwrap().treasury().mana < 1000);
+        assert_eq!(
+            g.player(P0).ok_or("player is missing")?.treasury().gold,
+            100
+        );
+        assert!(g.player(P0).ok_or("player is missing")?.treasury().mana < 1000);
         assert_eq!(state(&g, kind), HeroState::Serving);
         // The necromancer (a death book) is not among those a life wizard can summon.
         let necromancer = crate::hero::game::tests::kind_of(&g, "necromancer");
@@ -270,17 +280,19 @@ mod tests {
                 assert_ne!(k, necromancer);
             }
         }
+        Ok(())
     }
 
     #[test]
-    fn summoning_is_refused_when_nobody_is_left_or_without_a_circle_and_costs_nothing() {
+    fn summoning_is_refused_when_nobody_is_left_or_without_a_circle_and_costs_nothing() -> TestResult
+    {
         let mut g = caster();
-        g.treasury_mut(P0).unwrap().gold = 100_000;
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 100_000;
         // Every hero serves: nobody is left to summon.
         for k in 0..=torin(&g.content.rules) {
-            g.hire_hero(P0, k).unwrap();
+            g.hire_hero(P0, k).map_err(|e| format!("{e:?}"))?;
         }
-        let mana = g.player(P0).unwrap().treasury().mana;
+        let mana = g.player(P0).ok_or("player is missing")?.treasury().mana;
         for hook in [SUMMON_HERO, SUMMON_CHAMPION, INCARNATION] {
             let events = cast(&mut g, hook);
             assert!(
@@ -288,20 +300,27 @@ mod tests {
                 "{hook}: {events:?}"
             );
         }
-        assert_eq!(g.player(P0).unwrap().treasury().mana, mana);
+        assert_eq!(
+            g.player(P0).ok_or("player is missing")?.treasury().mana,
+            mana
+        );
         let h = g.units().hero_units(P0)[0];
         g.remove_unit(h, Fate::Released);
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .put::<crate::wizard::fortress::SummonAt>(None);
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .put::<crate::wizard::fortress::Fortress>(None);
         assert!(matches!(
             cast(&mut g, SUMMON_HERO).as_slice(),
             [Event::Rejected(_)]
         ));
-        assert_eq!(g.player(P0).unwrap().treasury().mana, mana);
+        assert_eq!(
+            g.player(P0).ok_or("player is missing")?.treasury().mana,
+            mana
+        );
+        Ok(())
     }
 
     #[test]
@@ -319,12 +338,12 @@ mod tests {
     }
 
     #[test]
-    fn incarnation_brings_torin_back_with_his_experience() {
+    fn incarnation_brings_torin_back_with_his_experience() -> TestResult {
         let mut g = caster();
         let last = torin(&g.content.rules);
         assert_eq!(last, 34, "Torin the Chosen");
         let events = cast(&mut g, INCARNATION);
-        let (unit, kind) = joined(&events).unwrap_or_else(|| panic!("{events:?}"));
+        let (unit, kind) = joined(&events).ok_or_else(|| format!("{events:?}"))?;
         assert_eq!(kind, last);
         let _ = g.world.insert_one(unit, Experience(120));
         // There is only one Torin at a time.
@@ -333,18 +352,24 @@ mod tests {
             [Event::Rejected(_)]
         ));
         g.remove_unit(unit, Fate::Slain);
-        let (again, _) = joined(&cast(&mut g, INCARNATION)).unwrap();
-        assert_eq!(g.world.get::<&Experience>(again).unwrap().0, 120);
+        let (again, _) = joined(&cast(&mut g, INCARNATION)).ok_or("joined is missing")?;
+        assert_eq!(g.world.get::<&Experience>(again)?.0, 120);
         // Not once he is gone for good.
         g.remove_unit(again, Fate::Gone);
         assert!(matches!(
             cast(&mut g, INCARNATION).as_slice(),
             [Event::Rejected(_)]
         ));
+        Ok(())
     }
 
     fn raise(g: &mut Game, kind: usize) -> Vec<Event> {
-        let spell = g.content.rules.spells.id_of(RESURRECTION).unwrap();
+        let spell = g
+            .content
+            .rules
+            .spells
+            .id_of(RESURRECTION)
+            .expect("id_of succeeds");
         g.apply(Command::CastSpell {
             player: P0,
             spell,
@@ -353,11 +378,11 @@ mod tests {
     }
 
     #[test]
-    fn resurrection_raises_the_chosen_dead_hero() {
+    fn resurrection_raises_the_chosen_dead_hero() -> TestResult {
         let mut g = caster();
-        g.treasury_mut(P0).unwrap().gold = 5000;
-        let a = g.hire_hero(P0, 0).unwrap();
-        let b = g.hire_hero(P0, 1).unwrap();
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 5000;
+        let a = g.hire_hero(P0, 0).map_err(|e| format!("{e:?}"))?;
+        let b = g.hire_hero(P0, 1).map_err(|e| format!("{e:?}"))?;
         let _ = g.world.insert_one(b, Experience(75));
         g.remove_unit(a, Fate::Slain);
         g.remove_unit(b, Fate::Slain);
@@ -366,12 +391,12 @@ mod tests {
             cast(&mut g, RESURRECTION).as_slice(),
             [Event::Rejected(_)]
         ));
-        let mana = g.player(P0).unwrap().treasury().mana;
+        let mana = g.player(P0).ok_or("player is missing")?.treasury().mana;
         let events = raise(&mut g, 1);
-        let (unit, kind) = joined(&events).unwrap_or_else(|| panic!("{events:?}"));
+        let (unit, kind) = joined(&events).ok_or_else(|| format!("{events:?}"))?;
         assert_eq!(kind, 1);
-        assert_eq!(g.world.get::<&Experience>(unit).unwrap().0, 75);
-        assert!(g.player(P0).unwrap().treasury().mana < mana);
+        assert_eq!(g.world.get::<&Experience>(unit)?.0, 75);
+        assert!(g.player(P0).ok_or("player is missing")?.treasury().mana < mana);
         assert_eq!(g.units().raisable_heroes(), vec![0]);
         // A hero who is not dead, or never was, cannot be raised.
         for kind in [1, 5, 99] {
@@ -381,49 +406,60 @@ mod tests {
                 "{kind}: {events:?}"
             );
         }
+        Ok(())
     }
 
     #[test]
-    fn resurrection_picks_its_hero_when_the_cost_is_paid_and_survives_a_save() {
+    fn resurrection_picks_its_hero_when_the_cost_is_paid_and_survives_a_save() -> TestResult {
         let mut g = caster();
-        g.treasury_mut(P0).unwrap().gold = 5000;
-        let a = g.hire_hero(P0, 3).unwrap();
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 5000;
+        let a = g.hire_hero(P0, 3).map_err(|e| format!("{e:?}"))?;
         g.remove_unit(a, Fate::Slain);
-        let mut skill = g.wizard_mut(P0).unwrap();
+        let mut skill = g.wizard_mut(P0).ok_or("wizard_mut is missing")?;
         skill.get_mut::<crate::wizard::sheet::Skill>().left = 0;
         skill.get_mut::<crate::wizard::sheet::Skill>().points = 0;
         // Started with no hero named: the cost is paid over turns first.
-        let spell = g.content.rules.spells.id_of(RESURRECTION).unwrap();
+        let spell = g
+            .content
+            .rules
+            .spells
+            .id_of(RESURRECTION)
+            .ok_or("id_of is missing")?;
         let events = cast(&mut g, RESURRECTION);
         assert!(
             !events.iter().any(|e| matches!(e, Event::Rejected(_))),
             "{events:?}"
         );
         assert_eq!(
-            g.wizard(P0).unwrap().casting().map(|c| c.spell),
+            g.wizard(P0)
+                .ok_or("wizard is missing")?
+                .casting()
+                .map(|c| c.spell),
             Some(spell)
         );
         // (The test world has no city for the fortress to stand in, which a save refuses.)
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .put::<crate::wizard::fortress::Fortress>(None);
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .put::<crate::wizard::fortress::SummonAt>(None);
-        let text = ron::to_string(&g.snapshot()).unwrap();
-        let mut back = crate::game::save::Snapshot::from_text(&text)
-            .unwrap()
-            .restore(g.content.clone())
-            .unwrap();
+        let text = ron::to_string(&g.snapshot())?;
+        let mut back = crate::game::save::Snapshot::from_text(&text)?.restore(g.content.clone())?;
         back.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .put(Some(crate::wizard::fortress::SummonAt(at(3, 3))));
         assert_eq!(
-            back.wizard(P0).unwrap().casting().map(|c| c.spell),
+            back.wizard(P0)
+                .ok_or("wizard is missing")?
+                .casting()
+                .map(|c| c.spell),
             Some(spell)
         );
         // The cost is paid; the hero is named then.
-        back.wizard_mut(P0).unwrap().cancel_casting();
+        back.wizard_mut(P0)
+            .ok_or("wizard_mut is missing")?
+            .cancel_casting();
         back.begin_casting(P0, spell, 0);
         let wrong = back.apply(Command::ResolveCast {
             player: P0,
@@ -438,14 +474,20 @@ mod tests {
             target: crate::rules::exec::Target::Hero(3),
         });
         assert_eq!(joined(&events).map(|(_, k)| k), Some(3), "{events:?}");
+        Ok(())
     }
 
     #[test]
-    fn resurrection_warns_when_it_is_paid_and_no_hero_lies_dead() {
+    fn resurrection_warns_when_it_is_paid_and_no_hero_lies_dead() -> TestResult {
         let mut g = caster();
-        let spell = g.content.rules.spells.id_of(RESURRECTION).unwrap();
+        let spell = g
+            .content
+            .rules
+            .spells
+            .id_of(RESURRECTION)
+            .ok_or("id_of is missing")?;
         assert!(!g.spell_has_target(P0, spell));
-        let mut skill = g.wizard_mut(P0).unwrap();
+        let mut skill = g.wizard_mut(P0).ok_or("wizard_mut is missing")?;
         skill.get_mut::<crate::wizard::sheet::Skill>().left = 0;
         skill.get_mut::<crate::wizard::sheet::Skill>().points = 0;
         let started = cast(&mut g, RESURRECTION);
@@ -463,14 +505,15 @@ mod tests {
         );
         // Torin is raised by Incarnation only; a computer wizard raises the last dead hero.
         let mut g = caster();
-        g.treasury_mut(P0).unwrap().gold = 5000;
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 5000;
         for k in [1, 4, 34] {
-            let h = g.hire_hero(P0, k).unwrap();
+            let h = g.hire_hero(P0, k).map_err(|e| format!("{e:?}"))?;
             g.remove_unit(h, Fate::Slain);
         }
         assert_eq!(g.units().raisable_heroes(), vec![1, 4]);
         assert_eq!(g.units().ai_resurrection_pick(), Some(4));
         assert!(matches!(raise(&mut g, 34).as_slice(), [Event::Rejected(_)]));
         let _ = (P1, Plane::Arcanus);
+        Ok(())
     }
 }

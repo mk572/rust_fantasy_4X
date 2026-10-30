@@ -4,6 +4,7 @@ use crate::feature::place::Placed;
 use crate::game::testutil::content_with_magic;
 use crate::map::{Grid, Plane};
 use crate::player::PlayerId;
+use crate::testdir::TestResult;
 
 use crate::game::Command;
 use crate::rules::Registry;
@@ -25,17 +26,18 @@ fn content() -> Content {
 
 fn world(seed: u64) -> Game {
     let c = content();
-    let grass = c.terrains.id_of("grassland").unwrap();
+    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
     let mut g = Game::new(seed);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for id in [P0, PlayerId(1)] {
         g.add_player(id, "W");
-        g.treasury_mut(id).unwrap().gold = 100;
-        g.treasury_mut(id).unwrap().mana = 100;
+        g.treasury_mut(id).expect("treasury_mut succeeds").gold = 100;
+        g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
     }
-    g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
+    g.init_wizard(P0, &[("life", 2)], &[], None)
+        .expect("init_wizard succeeds");
     g
 }
 
@@ -104,21 +106,34 @@ fn only_summoned_non_transport_units_of_the_realm_can_guard() {
 }
 
 #[test]
-fn the_dearest_affordable_unit_is_chosen_and_the_first_of_equals() {
+fn the_dearest_affordable_unit_is_chosen_and_the_first_of_equals() -> TestResult {
     let list = vec![
         ("a".to_string(), 25),
         ("b".to_string(), 80),
         ("c".to_string(), 80),
         ("d".to_string(), 500),
     ];
-    assert_eq!(dearest_under(&list, 501, None).unwrap().0, "d");
     assert_eq!(
-        dearest_under(&list, 500, None).unwrap().0,
+        dearest_under(&list, 501, None)
+            .ok_or("dearest_under is missing")?
+            .0,
+        "d"
+    );
+    assert_eq!(
+        dearest_under(&list, 500, None)
+            .ok_or("dearest_under is missing")?
+            .0,
         "b",
         "strictly cheaper"
     );
-    assert_eq!(dearest_under(&list, 500, Some("b")).unwrap().0, "c");
+    assert_eq!(
+        dearest_under(&list, 500, Some("b"))
+            .ok_or("dearest_under is missing")?
+            .0,
+        "c"
+    );
     assert_eq!(dearest_under(&list, 25, None), None);
+    Ok(())
 }
 
 #[test]
@@ -184,17 +199,17 @@ fn a_site_type_decides_the_guards_realm() {
 }
 
 #[test]
-fn every_site_gets_a_lair_and_a_tower_has_one_for_both_planes() {
+fn every_site_gets_a_lair_and_a_tower_has_one_for_both_planes() -> TestResult {
     let g = world(1);
     let mut placed = Placed::new(24, 14);
-    let id = |name: &str| g.content.features.id_of(name).unwrap();
+    let id = |name: &str| g.content.features.id_of(name).expect("id_of succeeds");
     placed.set(Plane::Arcanus, 3, 3, id("tower"));
     placed.set(Plane::Myrror, 3, 3, id("tower"));
     placed.set(Plane::Arcanus, 8, 5, id("lair"));
     placed.set(Plane::Myrror, 9, 5, id("lair"));
     placed.set(Plane::Myrror, 12, 9, id("lair"));
     let params = GenParams::default();
-    let map = g.map.as_ref().unwrap();
+    let map = g.map.as_ref().ok_or("as_ref is missing")?;
     let lairs = generate_lairs(11, &params, map, &placed, &[], &g.content);
     assert_eq!(lairs.len(), 1 + 3, "one tower, three encounter sites");
     assert!(lairs.iter().all(|(_, l)| l.intact));
@@ -207,6 +222,7 @@ fn every_site_gets_a_lair_and_a_tower_has_one_for_both_planes() {
     assert_eq!(again, lairs);
     let other = generate_lairs(12, &params, map, &placed, &[], &g.content);
     assert_ne!(other, lairs);
+    Ok(())
 }
 
 #[test]
@@ -267,10 +283,15 @@ fn hoards_follow_the_original_rules() {
 }
 
 #[test]
-fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() {
+fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() -> TestResult {
     let mut g = world(2);
     let site = put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 3)]);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     let events = g.apply(Command::MoveStack {
         units: vec![w],
@@ -287,13 +308,19 @@ fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() {
     );
     assert_eq!(g.units().unit_position(w), Some(at(4, 5)));
     assert_eq!(g.units().unit_moves_left(w), 4, "no moves spent");
+    Ok(())
 }
 
 #[test]
-fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
+fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() -> TestResult {
     let mut g = world(3);
     let site = put_lair(&mut g, 5, 5, "lair", vec![]);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     let events = g.apply(Command::MoveStack {
         units: vec![w],
@@ -301,7 +328,7 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
     });
     assert!(matches!(events[0], Event::UnitsMoved { .. }));
     let Some(Event::SiteCleared { player, loot, .. }) = events.get(1) else {
-        panic!("expected the site to be cleared: {events:?}");
+        return Err(format!("expected the site to be cleared: {events:?}").into());
     };
     assert_eq!(*player, P0);
     assert_eq!((loot.gold, loot.mana), (120, 30));
@@ -312,8 +339,8 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
     assert_eq!(g.items().armory(P0).items().count(), 2);
     assert_eq!(
         (
-            g.player(P0).unwrap().treasury().gold,
-            g.player(P0).unwrap().treasury().mana
+            g.player(P0).ok_or("player is missing")?.treasury().gold,
+            g.player(P0).ok_or("player is missing")?.treasury().mana
         ),
         (220, 130)
     );
@@ -326,10 +353,11 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
     // Nothing to take the second time.
     let again = g.claim_lair(site, P0);
     assert!(again.is_empty());
+    Ok(())
 }
 
 #[test]
-fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
+fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
     let mut g = world(4);
     let mut l = lair(vec![]);
     l.gold = 0;
@@ -339,14 +367,17 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     // A spell: from a realm the wizard has books in (or arcane), newly known.
     l.special = 2;
     let site = g.put_lair(at(5, 5), "lair", l);
-    let known_before = g.wizard(P0).unwrap().known().len();
+    let known_before = g.wizard(P0).ok_or("wizard is missing")?.known().len();
     let events = g.claim_lair(site, P0);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
-        panic!("{events:?}");
+        return Err(format!("{events:?}").into());
     };
     let spell = loot.spell.expect("a spell");
-    assert!(g.wizard(P0).unwrap().knows(spell));
-    assert_eq!(g.wizard(P0).unwrap().known().len(), known_before + 1);
+    assert!(g.wizard(P0).ok_or("wizard is missing")?.knows(spell));
+    assert_eq!(
+        g.wizard(P0).ok_or("wizard is missing")?.known().len(),
+        known_before + 1
+    );
     assert!(
         matches!(
             g.content.rules.spells.get(spell).realm.as_str(),
@@ -360,7 +391,11 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     // A book of a dungeon's realm (death): refused while the wizard has life books.
     let l = info("dungeon");
     let mut loot = Loot::default();
-    let e = crate::wizard::entity::of_player(&g.world, g.player_entity(P0).unwrap()).unwrap();
+    let e = crate::wizard::entity::of_player(
+        &g.world,
+        g.player_entity(P0).ok_or("player_entity is missing")?,
+    )
+    .ok_or("of_player is missing")?;
     let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
     award_special(&mut w, &mut g.rng, &l, 1, &mut loot);
     assert!(
@@ -372,14 +407,19 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() {
     let mut books = 0;
     for _ in 0..40 {
         let mut loot = Loot::default();
-        let e = crate::wizard::entity::of_player(&g.world, g.player_entity(P0).unwrap()).unwrap();
+        let e = crate::wizard::entity::of_player(
+            &g.world,
+            g.player_entity(P0).ok_or("player_entity is missing")?,
+        )
+        .ok_or("of_player is missing")?;
         let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
         award_special(&mut w, &mut g.rng, &l, 1, &mut loot);
         books += loot.books.len();
         assert!(loot.books.iter().all(|b| b == "life"));
     }
     assert!(books > 0);
-    assert!(g.wizard(P0).unwrap().total_books() <= 12);
+    assert!(g.wizard(P0).ok_or("wizard is missing")?.total_books() <= 12);
+    Ok(())
 }
 
 fn fight_to_the_end(g: &mut Game) {
@@ -389,7 +429,7 @@ fn fight_to_the_end(g: &mut Game) {
             return;
         }
         let (side, ids): (Side, Vec<usize>) = {
-            let b = g.battle().unwrap();
+            let b = g.battle().expect("battle succeeds");
             (b.active, b.active_units(b.active).map(|u| u.id).collect())
         };
         for id in ids {
@@ -397,12 +437,12 @@ fn fight_to_the_end(g: &mut Game) {
                 return;
             }
             let target = {
-                let b = g.battle().unwrap();
+                let b = g.battle().expect("battle succeeds");
                 b.active_units(side.other()).next().map(|t| (t.id, t.cell))
             };
             let Some((t, cell)) = target else { break };
             let step = {
-                let b = g.battle().unwrap();
+                let b = g.battle().expect("battle succeeds");
                 b.reachable(id)
                     .into_iter()
                     .min_by_key(|(p, _)| (distance(*p, cell), *p))
@@ -424,7 +464,7 @@ fn fight_to_the_end(g: &mut Game) {
 }
 
 #[test]
-fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
+fn beating_the_guards_clears_the_site_pays_out_and_moves_in() -> TestResult {
     let mut g = world(5);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 1)]);
     // Make the guard feeble and the attackers strong.
@@ -445,7 +485,12 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
         }
     }
     g.content.rules.units = Registry::new_sorted(units);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     let events = g.apply(Command::EnterSite {
         units: vec![w],
@@ -462,7 +507,10 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
     assert!(g.world.contains(w));
     assert!(g.economy().lair_at(at(5, 5)).is_none(), "cleared");
     assert_eq!(g.economy().feature_id_at(at(5, 5)), None);
-    assert_eq!(g.player(P0).unwrap().treasury().gold, 220);
+    assert_eq!(
+        g.player(P0).ok_or("player is missing")?.treasury().gold,
+        220
+    );
     assert_eq!(
         g.units().unit_position(w),
         Some(at(5, 5)),
@@ -475,14 +523,20 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
             .all(|&u| g.units().unit_owner(u) == Some(P0)),
         "no guard is left"
     );
+    Ok(())
 }
 
 #[test]
-fn the_building_of_a_site_stands_in_the_middle_of_the_battlefield() {
+fn the_building_of_a_site_stands_in_the_middle_of_the_battlefield() -> TestResult {
     use crate::battle::map::layout::Structure;
     let mut g = world(5);
     put_lair(&mut g, 5, 5, "tower", vec![("skeletons", 1)]);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
         units: vec![w],
@@ -492,21 +546,27 @@ fn the_building_of_a_site_stands_in_the_middle_of_the_battlefield() {
     let look = active.battle.map.look().expect("the field has a look");
     assert_eq!(look.structure, Structure::Tower);
     assert!(!active.battle.map.is_playable(crate::battle::map::STRUCTURE));
+    Ok(())
 }
 
 #[test]
-fn a_guard_drained_to_death_joins_the_victors_as_undead() {
+fn a_guard_drained_to_death_joins_the_victors_as_undead() -> TestResult {
     use crate::battle::Status;
     let mut g = world(5);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2)]);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
         units: vec![w],
         to: at(5, 5),
     });
     let (drained, slain) = {
-        let a = g.battle.as_ref().unwrap();
+        let a = g.battle.as_ref().ok_or("as_ref is missing")?;
         let guards: Vec<usize> = a
             .battle
             .units
@@ -518,16 +578,20 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() {
         (
             (
                 guards[0],
-                a.sources[a.battle.units[guards[0]].source.unwrap()],
+                a.sources[a.battle.units[guards[0]]
+                    .source
+                    .ok_or("source is missing")?],
             ),
             (
                 guards[1],
-                a.sources[a.battle.units[guards[1]].source.unwrap()],
+                a.sources[a.battle.units[guards[1]]
+                    .source
+                    .ok_or("source is missing")?],
             ),
         )
     };
     {
-        let b = &mut g.battle.as_mut().unwrap().battle;
+        let b = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle;
         for (id, kinds) in [(drained.0, [1, 5, 0]), (slain.0, [4, 0, 0])] {
             b.units[id].status = Status::Dead;
             b.units[id].figures = 0;
@@ -549,10 +613,11 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() {
         Some(at(5, 5)),
         "the victors moved in"
     );
+    Ok(())
 }
 
 #[test]
-fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() {
+fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() -> TestResult {
     use crate::battle::Status;
     let mut g = world(7);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2)]);
@@ -562,25 +627,35 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() {
         d.kind = crate::rules::UnitKind::Normal;
     }
     g.content.rules.units = Registry::new_sorted(units);
-    let zm = g.content.rules.spells.id_of("zombie_mastery").unwrap();
+    let zm = g
+        .content
+        .rules
+        .spells
+        .id_of("zombie_mastery")
+        .ok_or("zombie_mastery is not in the content")?;
     g.add_global(P0, zm);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
         units: vec![w],
         to: at(5, 5),
     });
     let guards: Vec<(usize, hecs::Entity)> = {
-        let a = g.battle.as_ref().unwrap();
+        let a = g.battle.as_ref().ok_or("as_ref is missing")?;
         a.battle
             .units
             .iter()
             .filter(|u| u.side == Side::Defender)
-            .map(|u| (u.id, a.sources[u.source.unwrap()]))
+            .map(|u| (u.id, a.sources[u.source.expect("source succeeds")]))
             .collect()
     };
     {
-        let b = &mut g.battle.as_mut().unwrap().battle;
+        let b = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle;
         // One struck down, one destroyed.
         for (i, (id, _)) in guards.iter().enumerate() {
             b.units[*id].status = Status::Dead;
@@ -593,14 +668,20 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() {
     assert_eq!(g.units().unit_owner(guards[0].1), Some(P0));
     assert!(g.units().unit_is_undead(guards[0].1));
     assert!(!g.world.contains(guards[1].1), "the destroyed one is gone");
+    Ok(())
 }
 
 #[test]
-fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
+fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() -> TestResult {
     use crate::battle::Status;
     let mut g = world(5);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 1)]);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let (w, bystander) = (
         g.spawn_unit(P0, at(4, 5), walker),
         g.spawn_unit(P0, at(4, 5), walker),
@@ -610,7 +691,7 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
         to: at(5, 5),
     });
     {
-        let b = &mut g.battle.as_mut().unwrap().battle;
+        let b = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle;
         for u in b.units.iter_mut().filter(|u| u.side == Side::Attacker) {
             u.status = Status::Dead;
             u.figures = 0;
@@ -640,13 +721,19 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
     g.apply(Command::EndTurn);
     assert_eq!(g.units().unit_owner(w), Some(MONSTERS));
     assert!(g.economy().hostile_at(at(5, 5), P0).is_some());
+    Ok(())
 }
 
 #[test]
-fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() {
+fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() -> TestResult {
     let mut g = world(6);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 3)]);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
         units: vec![w],
@@ -660,16 +747,26 @@ fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() {
         g.units().units_at(at(5, 5)).is_empty(),
         "the guards are made anew on each visit"
     );
-    assert_eq!(g.player(P0).unwrap().treasury().gold, 100, "no treasure");
+    assert_eq!(
+        g.player(P0).ok_or("player is missing")?.treasury().gold,
+        100,
+        "no treasure"
+    );
     assert_eq!(g.units().unit_position(w), Some(at(4, 5)));
+    Ok(())
 }
 
 #[test]
-fn only_a_guarded_site_next_to_the_stack_can_be_entered() {
+fn only_a_guarded_site_next_to_the_stack_can_be_entered() -> TestResult {
     let mut g = world(7);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 1)]);
     put_lair(&mut g, 9, 9, "lair", vec![]);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(2, 2), walker);
     let reject = |g: &mut Game, to| g.apply(Command::EnterSite { units: vec![w], to });
     assert_eq!(
@@ -685,6 +782,7 @@ fn only_a_guarded_site_next_to_the_stack_can_be_entered() {
         ))]
     );
     assert!(!g.in_battle());
+    Ok(())
 }
 
 #[test]
@@ -703,12 +801,13 @@ fn a_tower_is_cleared_on_both_planes_and_stays() {
 }
 
 #[test]
-fn lairs_survive_a_save() {
+fn lairs_survive_a_save() -> TestResult {
     let mut g = world(9);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2), ("ghouls", 1)]);
     let snap = g.snapshot();
-    let back = snap.restore(g.content.clone()).unwrap();
+    let back = snap.restore(g.content.clone())?;
     assert_eq!(back.economy().lairs(), g.economy().lairs());
+    Ok(())
 }
 
 #[test]
@@ -725,16 +824,17 @@ fn clearing_a_site_takes_its_treasure_once() {
 }
 
 #[test]
-fn clearing_a_tower_leaves_another_tower_alone() {
+fn clearing_a_tower_leaves_another_tower_alone() -> TestResult {
     let mut g = world(11);
     let a = put_lair(&mut g, 3, 3, "tower", vec![]);
     put_lair(&mut g, 8, 8, "tower", vec![]);
-    g.clear_site(a).unwrap();
+    g.clear_site(a).ok_or("clear_site is missing")?;
     assert!(g.economy().lair_at(at(3, 3)).is_none());
     assert!(
         g.economy().lair_at(at(8, 8)).is_some(),
         "another tower stays"
     );
+    Ok(())
 }
 
 /// A wizard's sheet with no game: a world holding one wizard.
@@ -849,17 +949,17 @@ fn heroic_world() -> (Game, PlayerId) {
 }
 
 #[test]
-fn a_neutral_winner_gets_no_spell_and_the_value_comes_back_as_gold_or_mana() {
+fn a_neutral_winner_gets_no_spell_and_the_value_comes_back_as_gold_or_mana() -> TestResult {
     let (mut g, town) = heroic_world();
     let mut l = rich_lair();
     l.prisoner = false;
     l.items.clear();
     l.special = 4;
     let site = g.put_lair(at(5, 5), "lair", l);
-    let before = g.player(town).unwrap().treasury();
+    let before = g.player(town).ok_or("player is missing")?.treasury();
     let events = g.claim_lair(site, town);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
-        panic!("{events:?}");
+        return Err(format!("{events:?}").into());
     };
     assert!(loot.spell.is_none() && loot.books.is_empty() && loot.retorts.is_empty());
     assert!(
@@ -867,22 +967,23 @@ fn a_neutral_winner_gets_no_spell_and_the_value_comes_back_as_gold_or_mana() {
         "the 800-point spell comes back as gold and mana: {loot:?}"
     );
     assert!(loot.items.is_empty(), "no hero, no item");
-    let t = g.player(town).unwrap().treasury();
+    let t = g.player(town).ok_or("player is missing")?.treasury();
     assert_eq!(
         ((t.gold - before.gold) as u32, (t.mana - before.mana) as u32),
         (loot.gold, loot.mana)
     );
+    Ok(())
 }
 
 #[test]
-fn a_neutral_winner_without_a_hero_gets_no_item_and_a_prisoner_joins_it_at_home() {
+fn a_neutral_winner_without_a_hero_gets_no_item_and_a_prisoner_joins_it_at_home() -> TestResult {
     let (mut g, town) = heroic_world();
     let mut l = rich_lair();
     l.special = 0;
     let site = g.put_lair(at(5, 5), "lair", l);
     let events = g.claim_lair(site, town);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
-        panic!("{events:?}");
+        return Err(format!("{events:?}").into());
     };
     assert!(loot.prisoner, "the hero serves the city");
     let heroes = g.units().hero_units(town);
@@ -893,17 +994,19 @@ fn a_neutral_winner_without_a_hero_gets_no_item_and_a_prisoner_joins_it_at_home(
     assert_eq!(loot.items.len(), 1);
     assert!(g
         .player_component::<crate::player::Offers>(town)
-        .unwrap()
+        .ok_or("value is missing")?
         .0
         .is_empty());
+    Ok(())
 }
 
 #[test]
-fn a_prisoner_with_no_free_hero_left_is_rerolled_for_a_wizard_too() {
+fn a_prisoner_with_no_free_hero_left_is_rerolled_for_a_wizard_too() -> TestResult {
     let mut g = crate::hero::game::tests::world();
     g.content.features = world(1).content.features;
     for kind in 0..g.content.rules.hero_templates.len() {
-        g.spawn_hero(P0, at(1, 1), kind).unwrap();
+        g.spawn_hero(P0, at(1, 1), kind)
+            .map_err(|e| format!("{e:?}"))?;
     }
     assert!(!g.units().hero_summonable(P0, crate::hero::kind::Class::Any));
     let mut l = rich_lair();
@@ -914,18 +1017,19 @@ fn a_prisoner_with_no_free_hero_left_is_rerolled_for_a_wizard_too() {
     let site = g.put_lair(at(5, 5), "lair", l);
     let events = g.claim_lair(site, P0);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
-        panic!("{events:?}");
+        return Err(format!("{events:?}").into());
     };
     assert!(!loot.prisoner);
     assert!(g
         .player_component::<crate::player::Offers>(P0)
-        .unwrap()
+        .ok_or("value is missing")?
         .0
         .is_empty());
     assert!(
         loot.gold + loot.mana > 0 || !loot.items.is_empty(),
         "{loot:?}"
     );
+    Ok(())
 }
 
 #[test]
@@ -942,10 +1046,15 @@ fn rerolled_value_never_exceeds_the_value() {
 }
 
 #[test]
-fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() {
+fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() -> TestResult {
     let mut g = world(6);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 3)]);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     assert_eq!(g.economy().lair_guards_known_to(at(5, 5), P0), None);
     g.apply(Command::EnterSite {
@@ -963,8 +1072,9 @@ fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() {
         None
     );
     // And it is remembered in a save.
-    let back = g.snapshot().restore(g.content.clone()).unwrap();
+    let back = g.snapshot().restore(g.content.clone())?;
     assert!(back.economy().lair_guards_known_to(at(5, 5), P0).is_some());
+    Ok(())
 }
 
 /// Every lair of a busy map, for a few seeds, as one number: the lair tables moved to data
@@ -972,7 +1082,7 @@ fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() {
 fn lair_checksum() -> u64 {
     let g = world(1);
     let mut placed = Placed::new(24, 14);
-    let id = |name: &str| g.content.features.id_of(name).unwrap();
+    let id = |name: &str| g.content.features.id_of(name).expect("id_of succeeds");
     for (i, plane) in Plane::ALL.into_iter().enumerate() {
         for k in 0..10u32 {
             placed.set(plane, 1 + k, 1 + 4 * i as u32, id("lair"));
@@ -1002,7 +1112,7 @@ fn lair_checksum() -> u64 {
             )
         })
         .collect();
-    let map = g.map.as_ref().unwrap();
+    let map = g.map.as_ref().expect("as_ref succeeds");
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
     for seed in 1..6 {
         let params = GenParams {
@@ -1024,21 +1134,23 @@ fn generated_lairs_for_a_seed_stay_the_same() {
 }
 
 #[test]
-fn a_game_saved_in_a_lair_fight_goes_on_to_clear_the_site() {
+fn a_game_saved_in_a_lair_fight_goes_on_to_clear_the_site() -> TestResult {
     let mut g = world(5);
     let site = put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2)]);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
         units: vec![w],
         to: at(5, 5),
     });
     assert!(g.in_battle());
-    let text = g.snapshot().to_text().unwrap();
-    let mut loaded = crate::game::save::Snapshot::from_text(&text)
-        .unwrap()
-        .restore(g.content.clone())
-        .unwrap();
+    let text = g.snapshot().to_text()?;
+    let mut loaded = crate::game::save::Snapshot::from_text(&text)?.restore(g.content.clone())?;
     assert!(loaded.in_battle());
     assert_eq!(
         loaded
@@ -1051,8 +1163,6 @@ fn a_game_saved_in_a_lair_fight_goes_on_to_clear_the_site() {
     );
     fight_to_the_end(&mut g);
     fight_to_the_end(&mut loaded);
-    assert_eq!(
-        g.snapshot().to_text().unwrap(),
-        loaded.snapshot().to_text().unwrap()
-    );
+    assert_eq!(g.snapshot().to_text()?, loaded.snapshot().to_text()?);
+    Ok(())
 }

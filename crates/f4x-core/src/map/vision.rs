@@ -94,11 +94,15 @@ mod tests {
     use crate::game::testutil::content_with_units;
     use crate::game::Game;
     use crate::map::{Grid, Map};
+    use crate::testdir::TestResult;
 
     #[test]
-    fn units_and_cities_see_around_them() {
+    fn units_and_cities_see_around_them() -> TestResult {
         let c = content_with_units();
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c
+            .terrains
+            .id_of("grassland")
+            .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
         let mut g = Game::new(1);
         for id in (0..3).map(PlayerId) {
@@ -106,7 +110,12 @@ mod tests {
         }
         g.content = c;
         g.map = Some(map);
-        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+        let walker = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?;
         let p = PlayerId(0);
         g.spawn_unit(
             p,
@@ -126,13 +135,17 @@ mod tests {
             .visibility(PlayerId(1), Plane::Arcanus)
             .iter()
             .all(|&s| !s));
+        Ok(())
     }
 
     #[test]
-    fn oracle_walls_and_natures_eye_widen_a_citys_sight() {
+    fn oracle_walls_and_natures_eye_widen_a_citys_sight() -> TestResult {
         use crate::rules::{ModOp, Modifier, Source};
         let c = crate::game::testutil::content_with_economy();
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c
+            .terrains
+            .id_of("grassland")
+            .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass));
         let mut g = Game::new(1);
         for id in (0..3).map(PlayerId) {
@@ -152,7 +165,7 @@ mod tests {
             race: None,
             population: 3,
         });
-        let city = g.economy().city_at(at).unwrap();
+        let city = g.economy().city_at(at).ok_or("city_at is missing")?;
         assert_eq!(g.economy().city_sight(city), 5);
         let seen = |g: &Game| {
             g.economy()
@@ -175,10 +188,14 @@ mod tests {
         assert_eq!(compute(Stat::CitySight, 5, &mods), 9);
         assert_eq!(compute(Stat::CitySight, 5, &mods[..1]), 7);
         // A real building with the modifier widens what the city sees and explores.
-        let id = g.content.rules.buildings.id_of("oracle").unwrap();
+        let id = g
+            .content
+            .rules
+            .buildings
+            .id_of("oracle")
+            .ok_or("oracle is not in the content")?;
         g.world
-            .get::<&mut crate::city::economy::Buildings>(city)
-            .unwrap()
+            .get::<&mut crate::city::economy::Buildings>(city)?
             .0
             .push(id);
         assert_eq!(g.economy().city_sight(city), 9);
@@ -186,10 +203,11 @@ mod tests {
         g.process_globals();
         assert!(g.fog.is_explored(PlayerId(0), Plane::Arcanus, 14, 10));
         assert!(!g.fog.is_explored(PlayerId(0), Plane::Arcanus, 15, 10));
+        Ok(())
     }
 
     #[test]
-    fn invisible_units_hide_from_everyone_but_those_who_see_through_illusions() {
+    fn invisible_units_hide_from_everyone_but_those_who_see_through_illusions() -> TestResult {
         let mut c = content_with_units();
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
@@ -200,7 +218,10 @@ mod tests {
             }
         }
         c.rules.units = crate::rules::Registry::new_sorted(units);
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c
+            .terrains
+            .id_of("grassland")
+            .ok_or("grassland is not in the content")?;
         let mut g = Game::new(1);
         for id in (0..3).map(PlayerId) {
             g.add_player(id, "");
@@ -212,7 +233,7 @@ mod tests {
             x,
             y: 5,
         };
-        let id = |g: &Game, n: &str| g.content.rules.units.id_of(n).unwrap();
+        let id = |g: &Game, n: &str| g.content.rules.units.id_of(n).expect("id_of succeeds");
         let (spirit, mage) = (id(&g, "magic_spirit"), id(&g, "wind_mage"));
         let ghost = g.spawn_unit(PlayerId(0), at(5), spirit);
         assert!(
@@ -230,14 +251,22 @@ mod tests {
             g.economy().unit_visible_to(ghost, PlayerId(1)),
             "an illusion-immune unit is close"
         );
+        Ok(())
     }
 
     #[test]
-    fn the_handle_sees_without_a_game() {
+    fn the_handle_sees_without_a_game() -> TestResult {
         let c = content_with_units();
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c
+            .terrains
+            .id_of("grassland")
+            .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
-        let walker = c.rules.units.id_of("high_men_cavalry").unwrap();
+        let walker = c
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?;
         let mut world = hecs::World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         crate::unit::spawn(
@@ -259,5 +288,6 @@ mod tests {
             .visibility(PlayerId(1), Plane::Arcanus)
             .iter()
             .all(|&s| !s));
+        Ok(())
     }
 }

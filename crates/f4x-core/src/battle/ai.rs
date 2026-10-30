@@ -317,6 +317,7 @@ mod tests {
     use crate::battle::map::BattleMap;
     use crate::battle::{BattleUnit, Side};
     use crate::player::PlayerId;
+    use crate::testdir::TestResult;
 
     fn duel(a: Pos, d: Pos) -> Battle {
         let units = vec![
@@ -361,7 +362,7 @@ mod tests {
     }
 
     #[test]
-    fn a_shooter_with_shots_left_stays_put_instead_of_walking_into_melee() {
+    fn a_shooter_with_shots_left_stays_put_instead_of_walking_into_melee() -> TestResult {
         let units = vec![
             shooter(Side::Attacker, (3, 5)),
             BattleUnit::simple(Side::Defender, "d", 3, 3, 3, 2).at((12, 5)),
@@ -372,13 +373,14 @@ mod tests {
             BattleCommand::Shoot { unit: 0, target: 1 }
         );
         b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
-            .unwrap();
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(next_command(&b), BattleCommand::Done { unit: 0 });
         // The plain AI walks up after shooting.
         assert!(matches!(
             baseline_command(&b),
             BattleCommand::Move { unit: 0, .. }
         ));
+        Ok(())
     }
 
     #[test]
@@ -397,7 +399,7 @@ mod tests {
     }
 
     #[test]
-    fn a_defender_behind_walls_holds_its_ground() {
+    fn a_defender_behind_walls_holds_its_ground() -> TestResult {
         let units = vec![
             BattleUnit::simple(Side::Attacker, "a", 3, 3, 3, 2).at((3, 12)),
             BattleUnit::simple(Side::Defender, "d", 3, 3, 3, 2).at((13, 11)),
@@ -409,9 +411,11 @@ mod tests {
             units,
             1,
         );
-        b.apply(BattleCommand::EndTurn).unwrap();
+        b.apply(BattleCommand::EndTurn)
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(b.active, Side::Defender);
         assert_eq!(next_command(&b), BattleCommand::Done { unit: 1 });
+        Ok(())
     }
 
     #[test]
@@ -446,12 +450,13 @@ mod tests {
     }
 
     #[test]
-    fn walks_towards_the_enemy_then_attacks() {
+    fn walks_towards_the_enemy_then_attacks() -> TestResult {
         let mut b = duel((3, 5), (10, 5));
         let first = next_command(&b);
         assert!(matches!(first, BattleCommand::Move { unit: 0, .. }));
-        b.apply(first).unwrap();
+        b.apply(first).map_err(|e| format!("{e:?}"))?;
         assert!(distance(b.units[0].cell, (10, 5)) < 7);
+        Ok(())
     }
 
     #[test]
@@ -464,15 +469,16 @@ mod tests {
     }
 
     #[test]
-    fn a_whole_fight_ends() {
+    fn a_whole_fight_ends() -> TestResult {
         let mut b = duel((3, 5), (10, 5));
         for _ in 0..2000 {
             if b.winner.is_some() {
                 break;
             }
             let c = next_command(&b);
-            b.apply(c).unwrap();
+            b.apply(c).map_err(|e| format!("{e:?}"))?;
         }
         assert!(b.winner.is_some());
+        Ok(())
     }
 }

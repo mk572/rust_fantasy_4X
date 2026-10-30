@@ -333,6 +333,7 @@ mod tests {
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::player::PlayerId;
+    use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const AT: Position = Position {
@@ -343,7 +344,7 @@ mod tests {
 
     fn world() -> Game {
         let c = content_with_magic();
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -352,7 +353,7 @@ mod tests {
     }
 
     fn unit(g: &mut Game, id: &str) -> hecs::Entity {
-        let id = g.content.rules.units.id_of(id).unwrap();
+        let id = g.content.rules.units.id_of(id).expect("id_of succeeds");
         g.spawn_unit(P0, AT, id)
     }
 
@@ -427,17 +428,18 @@ mod tests {
     }
 
     #[test]
-    fn effects_survive_a_save() {
+    fn effects_survive_a_save() -> TestResult {
         let mut g = world();
         let u = unit(&mut g, "high_elf_spearmen");
         g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 3), Some(5));
         g.grant_temp_ability(Target::Unit(u), "flying", None);
         let snap = g.snapshot();
-        let back = snap.clone().restore(g.content.clone()).unwrap();
+        let back = snap.clone().restore(g.content.clone())?;
         assert_eq!(back.snapshot(), snap);
         let u = back.units().units_at(AT)[0];
         assert_eq!(back.units().temp_effects(u).len(), 2);
         assert!(back.units().unit_has_ability(u, "flying"));
+        Ok(())
     }
 
     #[test]
@@ -459,7 +461,7 @@ mod tests {
     }
 
     fn enchant(g: &mut Game, u: hecs::Entity, spell: &str) {
-        let id = g.content.rules.spells.id_of(spell).unwrap();
+        let id = g.content.rules.spells.id_of(spell).expect("id_of succeeds");
         g.attach_enchantment(Target::Unit(u), id, P0);
     }
 

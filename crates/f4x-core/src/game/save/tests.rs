@@ -2,6 +2,7 @@ use super::*;
 use crate::game::testutil::content_with_economy;
 use crate::game::Command;
 use crate::map::{Grid, Plane};
+use crate::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
 
@@ -17,10 +18,10 @@ fn at(x: u32, y: u32) -> Position {
 /// roads, a mine, explored land, and some turns played.
 fn game() -> Game {
     let c = content_with_economy();
-    let grass = c.terrains.id_of("grassland").unwrap();
-    let ocean = c.terrains.id_of("ocean").unwrap();
-    let hills = c.terrains.id_of("hills").unwrap();
-    let gold = c.features.id_of("gold").unwrap();
+    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let ocean = c.terrains.id_of("ocean").expect("id_of succeeds");
+    let hills = c.terrains.id_of("hills").expect("id_of succeeds");
+    let gold = c.features.id_of("gold").expect("id_of succeeds");
     let build = || {
         let mut g = Grid::new(24, 14, grass);
         for y in 0..14 {
@@ -36,15 +37,17 @@ fn game() -> Game {
         g
     };
     let map = Map::new(build(), build());
-    let node = c.features.id_of("sorcery_node").unwrap();
+    let node = c.features.id_of("sorcery_node").expect("id_of succeeds");
     let mut g = Game::new(99);
     g.content = c;
     g.settings.basic.magic_strength = 2;
     g.settings.basic.difficulty = 4;
     g.map = Some(map);
     g.add_player(P0, "Merlin");
-    g.treasury_mut(P0).unwrap().gold = 300;
-    g.player_component_mut::<crate::player::Tax>(P0).unwrap().0 = 2;
+    g.treasury_mut(P0).expect("treasury_mut succeeds").gold = 300;
+    g.player_component_mut::<crate::player::Tax>(P0)
+        .expect("value succeeds")
+        .0 = 2;
     g.set_grand_vizier(P0, true);
     g.add_player(PlayerId(1), "Rival");
     let magic_node = g.spawn_feature(crate::feature::entity::Placement {
@@ -88,8 +91,18 @@ fn game() -> Game {
         race: elf,
         population: 0,
     });
-    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let spear = g
+        .content
+        .rules
+        .units
+        .id_of("high_elf_spearmen")
+        .expect("id_of succeeds");
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .expect("id_of succeeds");
     for _ in 0..2 {
         g.spawn_unit(P0, at(10, 6), spear);
     }
@@ -98,8 +111,13 @@ fn game() -> Game {
         units: vec![scout],
         to: at(22, 2),
     });
-    let hall = g.content.rules.buildings.id_of("builders_hall").unwrap();
-    let home = g.economy().city_at(at(10, 6)).unwrap();
+    let hall = g
+        .content
+        .rules
+        .buildings
+        .id_of("builders_hall")
+        .expect("id_of succeeds");
+    let home = g.economy().city_at(at(10, 6)).expect("city_at succeeds");
     // Every citizen of Home farms, so the real units' food upkeep is paid.
     g.apply(Command::SetFarmers {
         city: home,
@@ -120,37 +138,39 @@ fn city_named(g: &Game, name: &str) -> hecs::Entity {
         .cities()
         .into_iter()
         .find(|(_, c, _)| c.name == name)
-        .unwrap()
+        .expect("value succeeds")
         .0
 }
 
 #[test]
-fn a_snapshot_survives_text() {
+fn a_snapshot_survives_text() -> TestResult {
     let snap = game().snapshot();
-    let text = snap.to_text().unwrap();
+    let text = snap.to_text()?;
     assert!(text.starts_with("// f4x save, version 2"));
-    assert_eq!(Snapshot::from_text(&text).unwrap(), snap);
+    assert_eq!(Snapshot::from_text(&text)?, snap);
+    Ok(())
 }
 
 #[test]
-fn restoring_gives_the_same_game() {
+fn restoring_gives_the_same_game() -> TestResult {
     let g = game();
     let snap = g.snapshot();
-    let back = Snapshot::from_text(&snap.to_text().unwrap())
-        .unwrap()
-        .restore(g.content.clone())
-        .unwrap();
+    let back = Snapshot::from_text(&snap.to_text()?)?.restore(g.content.clone())?;
     assert_eq!(back.snapshot(), snap);
     assert_eq!(back.turn, g.turn);
     assert_eq!(back.economy().cities().len(), 3);
     assert_eq!(back.units().all_units().len(), g.units().all_units().len());
     assert_eq!(
-        back.player(P0).unwrap().treasury().gold,
-        g.player(P0).unwrap().treasury().gold
+        back.player(P0).ok_or("player is missing")?.treasury().gold,
+        g.player(P0).ok_or("player is missing")?.treasury().gold
     );
     assert!(back.player(P0).is_some_and(|p| p.has_grand_vizier()));
     // Details that are easy to lose: roads, features, exploration, orders, the outpost.
-    let grid = back.map.as_ref().unwrap().plane(Plane::Arcanus);
+    let grid = back
+        .map
+        .as_ref()
+        .ok_or("as_ref is missing")?
+        .plane(Plane::Arcanus);
     assert!(grid.has_road(12, 6) && grid.has_road(13, 6) && !grid.has_road(14, 6));
     assert!(grid.has_river(14, 6) && !grid.has_river(13, 6));
     assert_eq!(back.economy().volcano_at(at(15, 6)), Some(PlayerId(0)));
@@ -185,24 +205,26 @@ fn restoring_gives_the_same_game() {
         .count();
     assert_eq!(walkers_with_orders, 1);
     let camp = city_named(&back, "Camp");
-    assert_eq!(back.world.get::<&Population>(camp).unwrap().figures, 0);
+    assert_eq!(back.world.get::<&Population>(camp)?.figures, 0);
+    Ok(())
 }
 
 #[test]
-fn the_random_stream_resumes_where_it_stopped() {
+fn the_random_stream_resumes_where_it_stopped() -> TestResult {
     let mut g = game();
     assert!(
         g.rng.draws() > 0,
         "the world used random numbers (outposts, healing)"
     );
-    let mut back = g.snapshot().restore(g.content.clone()).unwrap();
+    let mut back = g.snapshot().restore(g.content.clone())?;
     for _ in 0..5 {
         assert_eq!(g.next_u64(), back.next_u64());
     }
+    Ok(())
 }
 
 #[test]
-fn a_loaded_game_continues_exactly_like_the_original() {
+fn a_loaded_game_continues_exactly_like_the_original() -> TestResult {
     let mut original = game();
     // Make entity ids get reused: remove a unit, then create another.
     let spear = original
@@ -210,14 +232,11 @@ fn a_loaded_game_continues_exactly_like_the_original() {
         .rules
         .units
         .id_of("high_elf_spearmen")
-        .unwrap();
+        .ok_or("high_elf_spearmen is not in the content")?;
     let victim = original.units().units_at(at(10, 6))[0];
-    original.world.despawn(victim).unwrap();
+    original.world.despawn(victim)?;
     original.spawn_unit(P0, at(11, 6), spear);
-    let mut loaded = original
-        .snapshot()
-        .restore(original.content.clone())
-        .unwrap();
+    let mut loaded = original.snapshot().restore(original.content.clone())?;
     for turn in 0..12 {
         let (a, b) = (
             original.apply(Command::EndTurn),
@@ -228,7 +247,12 @@ fn a_loaded_game_continues_exactly_like_the_original() {
         if turn == 3 {
             for g in [&mut original, &mut loaded] {
                 let delve = city_named(g, "Delve");
-                let hall = g.content.rules.buildings.id_of("builders_hall").unwrap();
+                let hall = g
+                    .content
+                    .rules
+                    .buildings
+                    .id_of("builders_hall")
+                    .ok_or("builders_hall is not in the content")?;
                 g.apply(Command::SetProduction {
                     city: delve,
                     item: ProductionItem::Building(hall),
@@ -242,10 +266,11 @@ fn a_loaded_game_continues_exactly_like_the_original() {
             "diverged on turn {turn}"
         );
     }
+    Ok(())
 }
 
 #[test]
-fn missing_content_is_reported_by_number_or_name() {
+fn missing_content_is_reported_by_number_or_name() -> TestResult {
     let g = game();
     let snap = g.snapshot();
     let spearmen = g
@@ -253,7 +278,7 @@ fn missing_content_is_reported_by_number_or_name() {
         .rules
         .units
         .by_name("high_elf_spearmen")
-        .unwrap()
+        .ok_or("by_name is missing")?
         .num;
     let mut without = g.content.clone();
     let units: Vec<_> = without
@@ -275,7 +300,7 @@ fn missing_content_is_reported_by_number_or_name() {
         .defs()
         .iter()
         .find(|t| t.id == "hills")
-        .unwrap()
+        .ok_or("find is missing")?
         .num;
     let terrains: Vec<_> = no_terrain
         .terrains
@@ -289,27 +314,29 @@ fn missing_content_is_reported_by_number_or_name() {
         snap.restore(no_terrain).err(),
         Some(LoadError::UnknownId("terrain", hills.to_string()))
     );
+    Ok(())
 }
 
 #[test]
-fn a_save_carries_the_game_version() {
+fn a_save_carries_the_game_version() -> TestResult {
     let snap = game().snapshot();
     assert_eq!(snap.game_version, crate::game::save::GAME_VERSION);
-    let text = snap.to_text().unwrap();
+    let text = snap.to_text()?;
     assert!(text.contains(&format!("game {}", crate::game::save::GAME_VERSION)));
-    let back = Snapshot::from_text(&text).unwrap();
+    let back = Snapshot::from_text(&text)?;
     assert_eq!(back.game_version, crate::game::save::GAME_VERSION);
+    Ok(())
 }
 
 #[test]
-fn unreadable_and_foreign_saves_are_refused() {
+fn unreadable_and_foreign_saves_are_refused() -> TestResult {
     assert!(matches!(
         Snapshot::from_text("not a save"),
         Err(LoadError::Parse(_))
     ));
     let mut snap = game().snapshot();
     snap.version = 99;
-    let text = ron::to_string(&snap).unwrap();
+    let text = ron::to_string(&snap)?;
     assert_eq!(
         Snapshot::from_text(&text).err(),
         Some(LoadError::Version {
@@ -317,6 +344,7 @@ fn unreadable_and_foreign_saves_are_refused() {
             supported: SAVE_VERSION
         })
     );
+    Ok(())
 }
 
 #[test]
@@ -360,18 +388,16 @@ fn contradictory_saves_are_refused() {
 }
 
 #[test]
-fn an_empty_game_round_trips() {
+fn an_empty_game_round_trips() -> TestResult {
     let g = Game::new(5);
     let snap = g.snapshot();
-    let back = Snapshot::from_text(&snap.to_text().unwrap())
-        .unwrap()
-        .restore(Default::default())
-        .unwrap();
+    let back = Snapshot::from_text(&snap.to_text()?)?.restore(Default::default())?;
     assert_eq!(back.snapshot(), snap);
+    Ok(())
 }
 
 #[test]
-fn every_setting_survives_a_save() {
+fn every_setting_survives_a_save() -> TestResult {
     let mut g = Game::new(5);
     g.settings.basic = crate::game::setting::BasicSettings {
         difficulty: 3,
@@ -383,67 +409,88 @@ fn every_setting_survives_a_save() {
         diagonal_extra_cost: true,
         original_map_generator: true,
     };
-    let text = g.snapshot().to_text().unwrap();
-    let back = Snapshot::from_text(&text)
-        .unwrap()
-        .restore(Default::default())
-        .unwrap();
+    let text = g.snapshot().to_text()?;
+    let back = Snapshot::from_text(&text)?.restore(Default::default())?;
     assert_eq!(back.settings(), g.settings());
+    Ok(())
 }
 
 #[test]
-fn a_save_with_out_of_range_settings_is_brought_into_range() {
+fn a_save_with_out_of_range_settings_is_brought_into_range() -> TestResult {
     let mut snap = Game::new(5).snapshot();
     snap.settings.basic.difficulty = 9;
-    let back = snap.restore(Default::default()).unwrap();
+    let back = snap.restore(Default::default())?;
     assert_eq!(back.settings().basic.difficulty, 4);
+    Ok(())
 }
 
 #[test]
-fn weapon_quality_survives_a_save() {
+fn weapon_quality_survives_a_save() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(P0, at(11, 6), walker);
     let _ = g.world.insert_one(
         unit,
         crate::unit::WeaponQuality(crate::unit::WEAPON_MITHRIL),
     );
     let snap = g.snapshot();
-    let back = Snapshot::from_text(&snap.to_text().unwrap())
-        .unwrap()
-        .restore(g.content.clone())
-        .unwrap();
-    let again = back.units().units_at(at(11, 6)).into_iter().next().unwrap();
+    let back = Snapshot::from_text(&snap.to_text()?)?.restore(g.content.clone())?;
+    let again = back
+        .units()
+        .units_at(at(11, 6))
+        .into_iter()
+        .next()
+        .ok_or("next is missing")?;
     assert_eq!(
         back.units().unit_weapon_quality(again),
         crate::unit::WEAPON_MITHRIL
     );
+    Ok(())
 }
 
 #[test]
-fn an_undead_unit_stays_undead_through_a_save() {
+fn an_undead_unit_stays_undead_through_a_save() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(P0, at(11, 6), walker);
     g.make_undead(unit);
     let snap = g.snapshot();
-    let back = Snapshot::from_text(&snap.to_text().unwrap())
-        .unwrap()
-        .restore(g.content.clone())
-        .unwrap();
-    let again = back.units().units_at(at(11, 6)).into_iter().next().unwrap();
+    let back = Snapshot::from_text(&snap.to_text()?)?.restore(g.content.clone())?;
+    let again = back
+        .units()
+        .units_at(at(11, 6))
+        .into_iter()
+        .next()
+        .ok_or("next is missing")?;
     assert!(back.units().unit_is_undead(again));
     assert_eq!(back.snapshot(), snap);
+    Ok(())
 }
 
 #[test]
-fn creation_numbers_keep_counting_after_a_load() {
+fn creation_numbers_keep_counting_after_a_load() -> TestResult {
     let g = game();
     let next = g.next_serial;
-    let mut back = g.snapshot().restore(g.content.clone()).unwrap();
-    let walker = back.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let mut back = g.snapshot().restore(g.content.clone())?;
+    let walker = back
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let fresh = back.spawn_unit(P0, at(11, 6), walker);
     assert_eq!(back.serial_of(fresh), Serial(next));
+    Ok(())
 }
 
 #[test]
@@ -456,25 +503,33 @@ fn bit_packing_round_trips() {
 }
 
 #[test]
-fn a_unit_in_stasis_stays_there_through_a_save() {
+fn a_unit_in_stasis_stays_there_through_a_save() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(P0, at(11, 6), walker);
     let _ = g
         .world
         .insert_one(unit, crate::unit::stasis::Stasis::Lingering);
     let snap = g.snapshot();
-    let back = Snapshot::from_text(&snap.to_text().unwrap())
-        .unwrap()
-        .restore(g.content.clone())
-        .unwrap();
-    let again = back.units().units_at(at(11, 6)).into_iter().next().unwrap();
+    let back = Snapshot::from_text(&snap.to_text()?)?.restore(g.content.clone())?;
+    let again = back
+        .units()
+        .units_at(at(11, 6))
+        .into_iter()
+        .next()
+        .ok_or("next is missing")?;
     assert!(back.unit_in_stasis(again));
     assert_eq!(back.snapshot(), snap);
+    Ok(())
 }
 
 #[test]
-fn a_lasting_spell_on_the_world_stays_through_a_save() {
+fn a_lasting_spell_on_the_world_stays_through_a_save() -> TestResult {
     let mut g = game();
     g.content = crate::game::testutil::content_with_magic();
     let spell = g
@@ -484,19 +539,22 @@ fn a_lasting_spell_on_the_world_stays_through_a_save() {
         .iter()
         .next()
         .map(|(id, _)| id)
-        .unwrap();
+        .ok_or("map is missing")?;
     g.add_global(P0, spell);
-    let serial = g.wizard(P0).unwrap().global_instances()[0].1;
-    let back = g.snapshot().restore(g.content.clone()).unwrap();
+    let serial = g.wizard(P0).ok_or("wizard is missing")?.global_instances()[0].1;
+    let back = g.snapshot().restore(g.content.clone())?;
     assert_eq!(
-        back.wizard(P0).unwrap().global_instances(),
+        back.wizard(P0)
+            .ok_or("wizard is missing")?
+            .global_instances(),
         vec![(spell, serial)]
     );
     assert_eq!(back.snapshot(), g.snapshot());
+    Ok(())
 }
 
 #[test]
-fn a_spell_on_a_city_stays_through_a_save() {
+fn a_spell_on_a_city_stays_through_a_save() -> TestResult {
     let mut g = game();
     g.content = crate::game::testutil::content_with_magic();
     let spell = g
@@ -506,29 +564,30 @@ fn a_spell_on_a_city_stays_through_a_save() {
         .iter()
         .next()
         .map(|(id, _)| id)
-        .unwrap();
+        .ok_or("map is missing")?;
     let city = g
         .economy()
         .cities()
         .into_iter()
         .find(|(_, c, _)| c.owner == P0)
-        .unwrap()
+        .ok_or("find is missing")?
         .0;
     g.add_city_enchantment(city, spell, P0);
-    let back = g.snapshot().restore(g.content.clone()).unwrap();
+    let back = g.snapshot().restore(g.content.clone())?;
     let again = back
         .economy()
         .cities()
         .into_iter()
         .find(|(_, c, _)| c.owner == P0)
-        .unwrap()
+        .ok_or("find is missing")?
         .0;
     assert_eq!(back.city_enchantments(again), vec![(spell, P0)]);
     assert_eq!(back.snapshot(), g.snapshot());
+    Ok(())
 }
 
 #[test]
-fn a_spell_on_a_unit_stays_through_a_save() {
+fn a_spell_on_a_unit_stays_through_a_save() -> TestResult {
     let mut g = game();
     g.content = crate::game::testutil::content_with_magic();
     let spell = g
@@ -538,13 +597,14 @@ fn a_spell_on_a_unit_stays_through_a_save() {
         .iter()
         .next()
         .map(|(id, _)| id)
-        .unwrap();
+        .ok_or("map is missing")?;
     let unit = g.units().player_units(P0)[0];
     g.add_unit_enchantment(unit, spell, P0);
-    let back = g.snapshot().restore(g.content.clone()).unwrap();
+    let back = g.snapshot().restore(g.content.clone())?;
     let again = back.units().player_units(P0)[0];
     assert_eq!(back.units().unit_enchantments(again), vec![(spell, P0)]);
     assert_eq!(back.snapshot(), g.snapshot());
+    Ok(())
 }
 
 fn with_game_version(text: &str, version: &str) -> String {
@@ -557,12 +617,12 @@ fn with_game_version(text: &str, version: &str) -> String {
 }
 
 #[test]
-fn a_save_older_than_the_oldest_compatible_version_is_refused_by_name() {
+fn a_save_older_than_the_oldest_compatible_version_is_refused_by_name() -> TestResult {
     use crate::game::save::{GAME_VERSION, OLDEST_COMPATIBLE_VERSION};
-    let text = game().snapshot().to_text().unwrap();
+    let text = game().snapshot().to_text()?;
     let err = Snapshot::from_text(&with_game_version(&text, "0.0.1"))
         .err()
-        .unwrap();
+        .ok_or("err is missing")?;
     assert_eq!(
         err,
         LoadError::GameVersion {
@@ -572,25 +632,28 @@ fn a_save_older_than_the_oldest_compatible_version_is_refused_by_name() {
         }
     );
     assert!(err.to_string().starts_with("saved by 0.0.1"));
+    Ok(())
 }
 
 #[test]
-fn a_save_from_the_oldest_compatible_version_still_loads() {
+fn a_save_from_the_oldest_compatible_version_still_loads() -> TestResult {
     use crate::game::save::OLDEST_COMPATIBLE_VERSION;
-    let text = game().snapshot().to_text().unwrap();
+    let text = game().snapshot().to_text()?;
     let old = with_game_version(&text, OLDEST_COMPATIBLE_VERSION);
     assert!(Snapshot::from_text(&old).is_ok());
+    Ok(())
 }
 
 #[test]
-fn a_save_from_a_newer_or_unreadable_game_version_is_refused() {
-    let text = game().snapshot().to_text().unwrap();
+fn a_save_from_a_newer_or_unreadable_game_version_is_refused() -> TestResult {
+    let text = game().snapshot().to_text()?;
     for version in ["99.0.0", "", "x.y"] {
         let err = Snapshot::from_text(&with_game_version(&text, version))
             .err()
-            .unwrap();
+            .ok_or("err is missing")?;
         assert!(matches!(err, LoadError::GameVersion { .. }), "{version}");
     }
+    Ok(())
 }
 
 #[test]
@@ -614,22 +677,28 @@ fn a_save_of_another_layout_is_refused_for_its_version_not_its_parse() {
 }
 
 #[test]
-fn a_replay_older_than_the_oldest_compatible_version_is_refused() {
+fn a_replay_older_than_the_oldest_compatible_version_is_refused() -> TestResult {
     let mut g = game();
-    g.start_recording().unwrap();
-    let text = g.stop_recording().unwrap().to_text().unwrap();
+    g.start_recording().map_err(|e| format!("{e:?}"))?;
+    let text = g
+        .stop_recording()
+        .ok_or("stop_recording is missing")?
+        .to_text()?;
     let old = text.replace(
         &format!("game_version: \"{}\"", crate::game::save::GAME_VERSION),
         "game_version: \"0.0.1\"",
     );
-    let err = crate::game::replay::Replay::from_text(&old).err().unwrap();
+    let err = crate::game::replay::Replay::from_text(&old)
+        .err()
+        .ok_or("err is missing")?;
     assert!(format!("{err:?}").contains("saved by 0.0.1"), "{err:?}");
+    Ok(())
 }
 
 #[test]
-fn an_edited_save_is_noticed_and_still_loads() {
+fn an_edited_save_is_noticed_and_still_loads() -> TestResult {
     use crate::game::save::Integrity;
-    let text = game().snapshot().to_text().unwrap();
+    let text = game().snapshot().to_text()?;
     assert_eq!(Snapshot::integrity(&text), Integrity::Intact);
     let edited = text.replacen("turn: ", "turn: 1", 1);
     assert_eq!(Snapshot::integrity(&edited), Integrity::Edited);
@@ -637,6 +706,7 @@ fn an_edited_save_is_noticed_and_still_loads() {
     let unsigned = text.replacen(", checksum", ", sum", 1);
     assert_eq!(Snapshot::integrity(&unsigned), Integrity::Unsigned);
     assert!(Snapshot::from_text(&unsigned).is_ok());
+    Ok(())
 }
 
 #[test]

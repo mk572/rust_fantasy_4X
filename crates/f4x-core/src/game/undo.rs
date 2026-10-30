@@ -151,6 +151,7 @@ mod tests {
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::player::PlayerId;
+    use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
 
@@ -165,13 +166,18 @@ mod tests {
     /// A small explored world with one walker at (5, 5) and undo switched on.
     fn world() -> (Game, crate::game::serial::Serial) {
         let c = content_with_units();
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
         g.fog = crate::map::fog::Fog::new(20, 10);
         g.add_player(P0, "W");
-        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+        let walker = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .expect("id_of succeeds");
         let u = g.spawn_unit(P0, at(5, 5), walker);
         // Everything is known already, so moving shows nothing new.
         g.fog.explore(P0, at(10, 5), 25, false);
@@ -224,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn several_steps_go_back_one_at_a_time() {
+    fn several_steps_go_back_one_at_a_time() -> TestResult {
         let (mut g, s) = world();
         step(&mut g, s, at(6, 5));
         step(&mut g, s, at(7, 5));
@@ -232,17 +238,25 @@ mod tests {
             player: P0,
             rate: 3,
         });
-        assert_eq!(g.player_component::<crate::player::Tax>(P0).unwrap().0, 3);
-        g.undo().unwrap();
         assert_eq!(
-            g.player_component::<crate::player::Tax>(P0).unwrap().0,
+            g.player_component::<crate::player::Tax>(P0)
+                .ok_or("value is missing")?
+                .0,
+            3
+        );
+        g.undo().map_err(|e| format!("{e:?}"))?;
+        assert_eq!(
+            g.player_component::<crate::player::Tax>(P0)
+                .ok_or("value is missing")?
+                .0,
             crate::player::START_TAX_RATE
         );
-        g.undo().unwrap();
+        g.undo().map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.units().unit_position(walker(&g, s)), Some(at(6, 5)));
-        g.undo().unwrap();
+        g.undo().map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.units().unit_position(walker(&g, s)), Some(at(5, 5)));
         assert_eq!(g.undo(), Err(UndoError::NothingToUndo));
+        Ok(())
     }
 
     #[test]
@@ -293,7 +307,7 @@ mod tests {
     }
 
     #[test]
-    fn a_command_that_rolls_dice_wipes_the_history() {
+    fn a_command_that_rolls_dice_wipes_the_history() -> TestResult {
         use crate::feature::node::tests::{spirit, world_seeded};
         let mut g = world_seeded(4);
         g.fog = crate::map::fog::Fog::new(24, 14);
@@ -303,7 +317,7 @@ mod tests {
         let guard = spirit(&mut g, P0, at(6, 6), "guardian_spirit");
         g.apply(Command::Meld { units: vec![guard] });
         assert!(g.can_undo());
-        g.undo().unwrap();
+        g.undo().map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.economy().nodes()[0].owner, None);
         // Guard it again, then a rival tries: the one-in-four roll cannot be re-rolled.
         let guard = {
@@ -314,23 +328,25 @@ mod tests {
                         .unit_def(u)
                         .is_some_and(|d| d.id == "guardian_spirit")
                 })
-                .unwrap()
+                .ok_or("find is missing")?
         };
         g.apply(Command::Meld { units: vec![guard] });
         assert!(g.can_undo());
         let rival = spirit(&mut g, PlayerId(1), at(6, 6), "magic_spirit");
         g.apply(Command::Meld { units: vec![rival] });
         assert!(!g.can_undo(), "the dice were thrown");
+        Ok(())
     }
 
     #[test]
-    fn undo_gives_back_the_same_game_in_every_detail() {
+    fn undo_gives_back_the_same_game_in_every_detail() -> TestResult {
         let (mut g, s) = world();
         let before = g.snapshot();
         step(&mut g, s, at(6, 5));
         step(&mut g, s, at(7, 5));
-        g.undo().unwrap();
-        g.undo().unwrap();
+        g.undo().map_err(|e| format!("{e:?}"))?;
+        g.undo().map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.snapshot(), before);
+        Ok(())
     }
 }

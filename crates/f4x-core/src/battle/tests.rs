@@ -8,6 +8,7 @@ use crate::game::{Command, Event, Game, Rejection};
 use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
 use crate::spell::target_error::TargetError;
+use crate::testdir::TestResult;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
@@ -23,7 +24,7 @@ fn duel(att: BattleUnit, def: BattleUnit, seed: u64) -> Battle {
 }
 
 #[test]
-fn a_new_battle_starts_with_the_attacker_and_full_moves() {
+fn a_new_battle_starts_with_the_attacker_and_full_moves() -> TestResult {
     let b = duel(
         spearman(Side::Attacker, (3, 10)),
         spearman(Side::Defender, (17, 10)),
@@ -32,18 +33,22 @@ fn a_new_battle_starts_with_the_attacker_and_full_moves() {
     assert_eq!(b.active, Side::Attacker);
     assert_eq!(b.turn, 1);
     assert_eq!(b.winner, None);
-    assert_eq!(b.unit(0).unwrap().id, 0);
-    assert_eq!(b.unit(1).unwrap().id, 1);
-    assert_eq!(b.unit(0).unwrap().moves_left, b.unit(0).unwrap().moves);
+    assert_eq!(b.unit(0).ok_or("unit is missing")?.id, 0);
+    assert_eq!(b.unit(1).ok_or("unit is missing")?.id, 1);
+    assert_eq!(
+        b.unit(0).ok_or("unit is missing")?.moves_left,
+        b.unit(0).ok_or("unit is missing")?.moves
+    );
     assert_eq!(b.player_of(Side::Attacker), A);
     assert_eq!(b.player_of(Side::Defender), D);
     assert_eq!(b.active_units(Side::Attacker).count(), 1);
-    assert_eq!(b.unit_at((17, 10)).unwrap().id, 1);
+    assert_eq!(b.unit_at((17, 10)).ok_or("unit_at is missing")?.id, 1);
     assert!(b.unit_at((9, 9)).is_none());
+    Ok(())
 }
 
 #[test]
-fn units_walk_within_their_moves_and_not_through_others() {
+fn units_walk_within_their_moves_and_not_through_others() -> TestResult {
     let mut b = duel(
         spearman(Side::Attacker, (3, 10)),
         spearman(Side::Defender, (5, 10)),
@@ -59,13 +64,13 @@ fn units_walk_within_their_moves_and_not_through_others() {
             unit: 0,
             to: (5, 11),
         })
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     assert!(matches!(
         &events[0],
         BattleEvent::Moved { unit: 0, path } if path.last() == Some(&(5, 11)) && path.len() == 2
     ));
-    assert_eq!(b.unit(0).unwrap().cell, (5, 11));
-    assert_eq!(b.unit(0).unwrap().moves_left, 0);
+    assert_eq!(b.unit(0).ok_or("unit is missing")?.cell, (5, 11));
+    assert_eq!(b.unit(0).ok_or("unit is missing")?.moves_left, 0);
     assert_eq!(
         b.apply(BattleCommand::Move {
             unit: 0,
@@ -73,6 +78,7 @@ fn units_walk_within_their_moves_and_not_through_others() {
         }),
         Err(BattleError::NoMovesLeft)
     );
+    Ok(())
 }
 
 #[test]
@@ -118,7 +124,7 @@ fn bad_orders_are_refused() {
 }
 
 #[test]
-fn a_melee_attack_hurts_both_sides_and_uses_up_the_turn() {
+fn a_melee_attack_hurts_both_sides_and_uses_up_the_turn() -> TestResult {
     let mut b = duel(
         spearman(Side::Attacker, (9, 10)),
         spearman(Side::Defender, (10, 10)),
@@ -126,22 +132,23 @@ fn a_melee_attack_hurts_both_sides_and_uses_up_the_turn() {
     );
     let events = b
         .apply(BattleCommand::Attack { unit: 0, target: 1 })
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     let BattleEvent::Attacked { dealt, taken, .. } = events[0] else {
-        panic!("{events:?}");
+        return Err(format!("{events:?}").into());
     };
-    assert_eq!(b.unit(1).unwrap().hit_points(), 6 - dealt);
-    assert_eq!(b.unit(0).unwrap().hit_points(), 6 - taken);
-    assert!(b.unit(0).unwrap().attacked);
-    assert_eq!(b.unit(0).unwrap().moves_left, 0);
+    assert_eq!(b.unit(1).ok_or("unit is missing")?.hit_points(), 6 - dealt);
+    assert_eq!(b.unit(0).ok_or("unit is missing")?.hit_points(), 6 - taken);
+    assert!(b.unit(0).ok_or("unit is missing")?.attacked);
+    assert_eq!(b.unit(0).ok_or("unit is missing")?.moves_left, 0);
     assert_eq!(
         b.apply(BattleCommand::Attack { unit: 0, target: 1 }),
         Err(BattleError::AlreadyAttacked)
     );
+    Ok(())
 }
 
 #[test]
-fn killing_the_last_enemy_wins_and_ends_the_battle() {
+fn killing_the_last_enemy_wins_and_ends_the_battle() -> TestResult {
     let mut weak = BattleUnit::simple(Side::Defender, "peasant", 1, 1, 0, 0).at((10, 10));
     weak.melee = 0;
     let strong = BattleUnit::simple(Side::Attacker, "giant", 2, 20, 10, 5).at((9, 10));
@@ -155,20 +162,23 @@ fn killing_the_last_enemy_wins_and_ends_the_battle() {
                     ended = Some(*winner);
                     break;
                 }
-                b.apply(BattleCommand::EndTurn).unwrap();
-                b.apply(BattleCommand::EndTurn).unwrap();
+                b.apply(BattleCommand::EndTurn)
+                    .map_err(|e| format!("{e:?}"))?;
+                b.apply(BattleCommand::EndTurn)
+                    .map_err(|e| format!("{e:?}"))?;
             }
             Err(e) => panic!("{e:?}"),
         }
     }
     assert_eq!(ended, Some(Side::Attacker));
     assert_eq!(b.winner, Some(Side::Attacker));
-    assert!(!b.unit(1).unwrap().is_active());
+    assert!(!b.unit(1).ok_or("unit is missing")?.is_active());
     assert_eq!(b.apply(BattleCommand::EndTurn), Err(BattleError::Over));
+    Ok(())
 }
 
 #[test]
-fn turns_alternate_and_moves_come_back() {
+fn turns_alternate_and_moves_come_back() -> TestResult {
     let mut b = duel(
         spearman(Side::Attacker, (3, 10)),
         spearman(Side::Defender, (17, 10)),
@@ -178,9 +188,11 @@ fn turns_alternate_and_moves_come_back() {
         unit: 0,
         to: (5, 10),
     })
-    .unwrap();
-    assert_eq!(b.unit(0).unwrap().moves_left, 0);
-    let e = b.apply(BattleCommand::EndTurn).unwrap();
+    .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(b.unit(0).ok_or("unit is missing")?.moves_left, 0);
+    let e = b
+        .apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         e,
         vec![BattleEvent::TurnStarted {
@@ -193,8 +205,10 @@ fn turns_alternate_and_moves_come_back() {
         unit: 1,
         to: (15, 10),
     })
-    .unwrap();
-    let e = b.apply(BattleCommand::EndTurn).unwrap();
+    .map_err(|e| format!("{e:?}"))?;
+    let e = b
+        .apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         e,
         vec![BattleEvent::TurnStarted {
@@ -204,20 +218,21 @@ fn turns_alternate_and_moves_come_back() {
     );
     assert_eq!(b.turn, 2);
     assert_eq!(
-        b.unit(0).unwrap().moves_left,
-        b.unit(0).unwrap().moves,
+        b.unit(0).ok_or("unit is missing")?.moves_left,
+        b.unit(0).ok_or("unit is missing")?.moves,
         "refreshed"
     );
+    Ok(())
 }
 
 #[test]
-fn fleeing_hands_the_battle_to_the_other_side() {
+fn fleeing_hands_the_battle_to_the_other_side() -> TestResult {
     let mut b = duel(
         spearman(Side::Attacker, (3, 10)),
         spearman(Side::Defender, (17, 10)),
         1,
     );
-    let e = b.apply(BattleCommand::Flee).unwrap();
+    let e = b.apply(BattleCommand::Flee).map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         e[0],
         BattleEvent::Fled {
@@ -230,11 +245,12 @@ fn fleeing_hands_the_battle_to_the_other_side() {
             winner: Side::Defender
         })
     );
-    assert_eq!(b.unit(0).unwrap().status, Status::Fled);
+    assert_eq!(b.unit(0).ok_or("unit is missing")?.status, Status::Fled);
+    Ok(())
 }
 
 #[test]
-fn archers_shoot_with_ammunition_and_range_costs_accuracy() {
+fn archers_shoot_with_ammunition_and_range_costs_accuracy() -> TestResult {
     let archer = |cell| {
         let mut u = BattleUnit::simple(Side::Attacker, "archer", 4, 1, 1, 0).at(cell);
         u.ranged = 4;
@@ -263,13 +279,13 @@ fn archers_shoot_with_ammunition_and_range_costs_accuracy() {
         );
         let BattleEvent::Shot { dealt: n, .. } = near
             .apply(BattleCommand::Shoot { unit: 0, target: 1 })
-            .unwrap()[0]
+            .map_err(|e| format!("{e:?}"))?[0]
         else {
             panic!()
         };
         let BattleEvent::Shot { dealt: f, .. } = far
             .apply(BattleCommand::Shoot { unit: 0, target: 1 })
-            .unwrap()[0]
+            .map_err(|e| format!("{e:?}"))?[0]
         else {
             panic!()
         };
@@ -286,8 +302,8 @@ fn archers_shoot_with_ammunition_and_range_costs_accuracy() {
         1,
     );
     b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
-        .unwrap();
-    assert_eq!(b.unit(0).unwrap().ammo, 1);
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(b.unit(0).ok_or("unit is missing")?.ammo, 1);
     assert_eq!(
         b.apply(BattleCommand::Shoot { unit: 0, target: 1 }),
         Err(BattleError::AlreadyAttacked)
@@ -298,10 +314,11 @@ fn archers_shoot_with_ammunition_and_range_costs_accuracy() {
         b.apply(BattleCommand::Shoot { unit: 0, target: 1 }),
         Err(BattleError::OutOfAmmo)
     );
+    Ok(())
 }
 
 #[test]
-fn a_walkers_melee_against_a_flier_follows_the_setting_and_the_flier_hits_back() {
+fn a_walkers_melee_against_a_flier_follows_the_setting_and_the_flier_hits_back() -> TestResult {
     use crate::game::setting::MeleeVsFliers;
     let walker = BattleUnit::simple(Side::Attacker, "high_men_cavalry", 4, 2, 6, 1).at((9, 10));
     let mut flier = BattleUnit::simple(Side::Defender, "bat", 4, 2, 6, 1).at((10, 10));
@@ -321,11 +338,12 @@ fn a_walkers_melee_against_a_flier_follows_the_setting_and_the_flier_hits_back()
     b.melee_vs_fliers = MeleeVsFliers::Zero;
     let e = b
         .apply(BattleCommand::Attack { unit: 0, target: 1 })
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     let BattleEvent::Attacked { dealt, .. } = e[0] else {
         panic!()
     };
     assert_eq!(dealt, 0);
+    Ok(())
 }
 
 #[test]
@@ -359,7 +377,7 @@ fn a_battle_replays_exactly_from_the_same_seed() {
 }
 
 #[test]
-fn a_stalemate_ends_at_the_turn_limit_in_the_defenders_favour() {
+fn a_stalemate_ends_at_the_turn_limit_in_the_defenders_favour() -> TestResult {
     let mut b = duel(
         spearman(Side::Attacker, (3, 10)),
         spearman(Side::Defender, (17, 10)),
@@ -382,7 +400,8 @@ fn a_stalemate_ends_at_the_turn_limit_in_the_defenders_favour() {
     // The scroll says both armies withdrew exhausted, and the event comes before the end.
     let at = |f: fn(&BattleEvent) -> bool| last.iter().position(f);
     let exhausted = at(|e| matches!(e, BattleEvent::Exhausted)).expect("exhausted event");
-    assert!(exhausted < at(|e| matches!(e, BattleEvent::Ended { .. })).unwrap());
+    assert!(exhausted < at(|e| matches!(e, BattleEvent::Ended { .. })).ok_or("at is missing")?);
+    Ok(())
 }
 
 /// Both sides walk at the nearest enemy and attack: every such battle ends.
@@ -394,7 +413,7 @@ fn play_out(seed: u64, a: Vec<BattleUnit>, d: Vec<BattleUnit>) -> Battle {
         let side = b.active;
         let ids: Vec<usize> = b.active_units(side).map(|u| u.id).collect();
         for id in ids {
-            let me = b.unit(id).unwrap().clone();
+            let me = b.unit(id).expect("unit succeeds").clone();
             let Some(enemy) = b
                 .active_units(side.other())
                 .min_by_key(|e| distance(me.cell, e.cell))
@@ -402,9 +421,9 @@ fn play_out(seed: u64, a: Vec<BattleUnit>, d: Vec<BattleUnit>) -> Battle {
             else {
                 break;
             };
-            if distance(me.cell, b.unit(enemy).unwrap().cell) > 1 {
+            if distance(me.cell, b.unit(enemy).expect("unit succeeds").cell) > 1 {
                 // Step to the reachable square nearest the enemy.
-                let target = b.unit(enemy).unwrap().cell;
+                let target = b.unit(enemy).expect("unit succeeds").cell;
                 if let Some((&to, _)) = b
                     .reachable(id)
                     .iter()
@@ -415,8 +434,8 @@ fn play_out(seed: u64, a: Vec<BattleUnit>, d: Vec<BattleUnit>) -> Battle {
             }
             let enemy_cell = b.unit(enemy).map(|e| e.cell);
             if let Some(cell) = enemy_cell {
-                if b.unit(enemy).unwrap().is_active()
-                    && distance(b.unit(id).unwrap().cell, cell) == 1
+                if b.unit(enemy).expect("unit succeeds").is_active()
+                    && distance(b.unit(id).expect("unit succeeds").cell, cell) == 1
                 {
                     let _ = b.apply(BattleCommand::Attack {
                         unit: id,
@@ -429,7 +448,7 @@ fn play_out(seed: u64, a: Vec<BattleUnit>, d: Vec<BattleUnit>) -> Battle {
             }
         }
         if b.winner.is_none() {
-            b.apply(BattleCommand::EndTurn).unwrap();
+            b.apply(BattleCommand::EndTurn).expect("apply succeeds");
         }
     }
     b
@@ -499,7 +518,7 @@ fn obstacles_shape_where_units_can_go() {
 
 fn game() -> Game {
     let c = content_with_units();
-    let grass = c.terrains.id_of("grassland").unwrap();
+    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
     let mut g = Game::new(5);
     g.content = c;
     g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
@@ -518,9 +537,14 @@ fn at(x: u32, y: u32) -> crate::map::Position {
 }
 
 #[test]
-fn a_game_battle_copies_the_units_and_writes_the_results_back() {
+fn a_game_battle_copies_the_units_and_writes_the_results_back() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a1 = g.spawn_unit(A, at(4, 4), walker);
     let a2 = g.spawn_unit(A, at(4, 4), walker);
     let d1 = g.spawn_unit(D, at(5, 4), walker);
@@ -532,15 +556,15 @@ fn a_game_battle_copies_the_units_and_writes_the_results_back() {
         matches!(events[0], Event::BattleStarted { attacker, defender, .. } if attacker == A && defender == D)
     );
     assert!(g.in_battle());
-    let b = g.battle().unwrap();
+    let b = g.battle().ok_or("battle is missing")?;
     assert_eq!(b.units.len(), 3);
     // Statistics come from the overland unit: High Men Cavalry have melee 4, defence 2, 3 hit
     // points a figure and 4 figures.
-    let u = b.unit(0).unwrap();
+    let u = b.unit(0).ok_or("unit is missing")?;
     assert_eq!((u.melee, u.defense, u.hits, u.figures), (4, 2, 3, 4));
     assert_eq!(u.moves, g.units().unit_max_moves(a1));
     assert_eq!(u.cell, (6, 12));
-    assert_eq!(b.unit(2).unwrap().cell, (12, 12));
+    assert_eq!(b.unit(2).ok_or("unit is missing")?.cell, (12, 12));
     // A second battle is refused while this one runs.
     let again = g.apply(Command::BeginBattle {
         attackers: vec![a1],
@@ -556,18 +580,18 @@ fn a_game_battle_copies_the_units_and_writes_the_results_back() {
     let mut ended = false;
     for _ in 0..200 {
         let (side, ids): (Side, Vec<usize>) = {
-            let b = g.battle().unwrap();
+            let b = g.battle().ok_or("battle is missing")?;
             (b.active, b.active_units(b.active).map(|u| u.id).collect())
         };
         for id in ids {
             let target = {
-                let b = g.battle().unwrap();
+                let b = g.battle().ok_or("battle is missing")?;
                 b.active_units(side.other()).next().map(|t| (t.id, t.cell))
             };
             let Some((t, cell)) = target else { break };
             // Walk towards the target, then attack.
             let step = {
-                let b = g.battle().unwrap();
+                let b = g.battle().ok_or("battle is missing")?;
                 b.reachable(id)
                     .into_iter()
                     .min_by_key(|(p, _)| distance(*p, cell))
@@ -601,12 +625,18 @@ fn a_game_battle_copies_the_units_and_writes_the_results_back() {
             assert!(hp >= 1 && hp <= max, "hit points {hp}/{max}");
         }
     }
+    Ok(())
 }
 
 #[test]
-fn battles_need_two_sides_of_opposing_players_standing_together() {
+fn battles_need_two_sides_of_opposing_players_standing_together() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let a_far = g.spawn_unit(A, at(8, 8), walker);
     let mine = g.spawn_unit(A, at(5, 4), walker);
@@ -634,21 +664,31 @@ fn battles_need_two_sides_of_opposing_players_standing_together() {
     );
     assert_eq!(reject(&mut g, vec![a], vec![mine]), bad, "the same player");
     assert!(!g.in_battle());
+    Ok(())
 }
 
 #[test]
-fn wounded_units_enter_a_battle_wounded() {
+fn wounded_units_enter_a_battle_wounded() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
     // 4 figures x 3 hit points: eleven damage leaves one figure with one hit point.
-    g.world.insert_one(a, crate::unit::Hurt(11)).unwrap();
+    g.world.insert_one(a, crate::unit::Hurt(11))?;
     g.apply(Command::BeginBattle {
         attackers: vec![a],
         defenders: vec![d],
     });
-    let u = g.battle().unwrap().unit(0).unwrap();
+    let u = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(0)
+        .ok_or("unit is missing")?;
     assert_eq!((u.figures, u.hit_points()), (1, 1));
     // Fleeing ends it at once, and the wound is still there afterwards (unless the unit was
     // one of the half that is lost on the way).
@@ -657,6 +697,7 @@ fn wounded_units_enter_a_battle_wounded() {
         .iter()
         .any(|e| matches!(e, Event::BattleEnded { winner, .. } if *winner == D)));
     assert!(!g.world.contains(a) || g.units().unit_hits(a).0 == 1);
+    Ok(())
 }
 
 /// A fight of `n` walkers against one, at the given difficulty, with `held` enchantments put
@@ -665,7 +706,12 @@ fn flee_with(difficulty: u8, n: usize, held: &[&str]) -> (Game, Vec<hecs::Entity
     let mut g = game();
     g.settings =
         crate::game::setting::GameSettings::for_difficulty(&g.content.settings, difficulty);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .expect("id_of succeeds");
     let att: Vec<_> = (0..n).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let d = g.spawn_unit(D, at(5, 4), walker);
     g.apply(Command::BeginBattle {
@@ -673,13 +719,13 @@ fn flee_with(difficulty: u8, n: usize, held: &[&str]) -> (Game, Vec<hecs::Entity
         defenders: vec![d],
     });
     for (i, enchantment) in held.iter().enumerate() {
-        let battle = &mut g.battle.as_mut().unwrap().battle;
+        let battle = &mut g.battle.as_mut().expect("as_mut succeeds").battle;
         let unit = battle
             .units
             .iter_mut()
             .filter(|u| u.side == Side::Attacker)
             .nth(i)
-            .unwrap();
+            .expect("value succeeds");
         unit.enchantments.push((*enchantment).to_string());
     }
     g.apply(Command::Battle(BattleCommand::Flee));
@@ -732,13 +778,18 @@ fn found(g: &mut Game, owner: PlayerId, pos: crate::map::Position) -> hecs::Enti
         race,
         population: 3,
     });
-    g.economy().city_at(pos).unwrap()
+    g.economy().city_at(pos).expect("city_at succeeds")
 }
 
 #[test]
-fn auto_resolve_fights_to_the_end_and_the_winner_takes_the_square() {
+fn auto_resolve_fights_to_the_end_and_the_winner_takes_the_square() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let attackers: Vec<_> = (0..4).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let defender = g.spawn_unit(D, at(5, 4), walker);
     let events = g.apply(Command::AutoResolve {
@@ -762,12 +813,18 @@ fn auto_resolve_fights_to_the_end_and_the_winner_takes_the_square() {
     }
     // Another battle can start afterwards.
     assert!(g.battle().is_none());
+    Ok(())
 }
 
 #[test]
-fn a_battle_won_at_a_city_captures_it() {
+fn a_battle_won_at_a_city_captures_it() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let city = found(&mut g, D, at(5, 4));
     let defender = g.spawn_unit(D, at(5, 4), walker);
     let attackers: Vec<_> = (0..5).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
@@ -783,12 +840,18 @@ fn a_battle_won_at_a_city_captures_it() {
         "{events:?}"
     );
     assert_eq!(g.economy().city_owner(city), Some(A));
+    Ok(())
 }
 
 #[test]
-fn an_empty_enemy_city_is_taken_by_walking_in() {
+fn an_empty_enemy_city_is_taken_by_walking_in() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let city = found(&mut g, D, at(5, 4));
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let events = g.apply(Command::MoveStack {
@@ -803,12 +866,18 @@ fn an_empty_enemy_city_is_taken_by_walking_in() {
     );
     assert_eq!(g.economy().city_owner(city), Some(A));
     assert_eq!(g.units().unit_position(unit), Some(at(5, 4)));
+    Ok(())
 }
 
 #[test]
-fn a_losing_attacker_stays_where_it_was() {
+fn a_losing_attacker_stays_where_it_was() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let attacker = g.spawn_unit(A, at(4, 4), walker);
     let defenders: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     g.apply(Command::AutoResolve {
@@ -821,12 +890,18 @@ fn a_losing_attacker_stays_where_it_was() {
     for &d in defenders.iter().filter(|&&d| g.world.contains(d)) {
         assert_eq!(g.units().unit_position(d), Some(at(5, 4)));
     }
+    Ok(())
 }
 
 #[test]
-fn auto_resolve_needs_an_adjacent_target() {
+fn auto_resolve_needs_an_adjacent_target() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(2, 4), walker);
     let d = g.spawn_unit(D, at(6, 4), walker);
     let events = g.apply(Command::AutoResolve {
@@ -841,6 +916,7 @@ fn auto_resolve_needs_an_adjacent_target() {
         ))]
     );
     assert!(!g.in_battle());
+    Ok(())
 }
 
 fn instant_unit(side: Side, cell: Pos, ability: &str) -> BattleUnit {
@@ -850,7 +926,7 @@ fn instant_unit(side: Side, cell: Pos, ability: &str) -> BattleUnit {
 }
 
 #[test]
-fn teleporting_and_merging_units_go_anywhere_free_for_one_move() {
+fn teleporting_and_merging_units_go_anywhere_free_for_one_move() -> TestResult {
     for ability in ["teleport", "merging"] {
         let mut map = BattleMap::open();
         map.set((10, 10), Cell::Blocked);
@@ -878,17 +954,21 @@ fn teleporting_and_merging_units_go_anywhere_free_for_one_move() {
                 unit: 0,
                 to: (16, 10),
             })
-            .unwrap();
+            .map_err(|e| format!("{e:?}"))?;
         assert!(matches!(&events[0], BattleEvent::Moved { path, .. } if path == &vec![(16, 10)]));
-        assert_eq!(b.unit(0).unwrap().cell, (16, 10));
-        assert_eq!(b.unit(0).unwrap().moves_left, 2, "one of two moves used");
+        assert_eq!(b.unit(0).ok_or("unit is missing")?.cell, (16, 10));
+        assert_eq!(
+            b.unit(0).ok_or("unit is missing")?.moves_left,
+            2,
+            "one of two moves used"
+        );
         // It may teleport again with what is left, and then has nothing left.
         b.apply(BattleCommand::Move {
             unit: 0,
             to: (16, 5),
         })
-        .unwrap();
-        assert_eq!(b.unit(0).unwrap().moves_left, 0);
+        .map_err(|e| format!("{e:?}"))?;
+        assert_eq!(b.unit(0).ok_or("unit is missing")?.moves_left, 0);
         assert_eq!(
             b.apply(BattleCommand::Move {
                 unit: 0,
@@ -897,6 +977,7 @@ fn teleporting_and_merging_units_go_anywhere_free_for_one_move() {
             Err(BattleError::NoMovesLeft)
         );
     }
+    Ok(())
 }
 
 #[test]
@@ -1057,8 +1138,9 @@ fn damage_over_seeds(
         } else {
             BattleCommand::Attack { unit: 0, target: 1 }
         };
-        b.apply(command).unwrap();
-        total += b.unit(1).unwrap().max_hit_points() - b.unit(1).unwrap().hit_points();
+        b.apply(command).expect("apply succeeds");
+        total += b.unit(1).expect("unit succeeds").max_hit_points()
+            - b.unit(1).expect("unit succeeds").hit_points();
     }
     total
 }
@@ -1160,7 +1242,7 @@ fn an_illusion_ignores_armor_unless_the_defender_sees_through_it() {
 }
 
 #[test]
-fn a_defender_with_a_gaze_stones_the_attackers_before_they_strike() {
+fn a_defender_with_a_gaze_stones_the_attackers_before_they_strike() -> TestResult {
     let basilisk = || {
         let mut u = BattleUnit::simple(Side::Defender, "basilisk", 1, 30, 0, 3).at((4, 10));
         u.ranged = 1;
@@ -1178,22 +1260,23 @@ fn a_defender_with_a_gaze_stones_the_attackers_before_they_strike() {
         };
         let mut b = duel(squad(), basilisk(), seed);
         b.apply(BattleCommand::Attack { unit: 0, target: 1 })
-            .unwrap();
-        lost += 10 - b.unit(0).unwrap().figures;
+            .map_err(|e| format!("{e:?}"))?;
+        lost += 10 - b.unit(0).ok_or("unit is missing")?.figures;
         let mut plain = basilisk();
         plain.abilities.clear();
         let mut b = duel(squad(), plain, seed);
         b.apply(BattleCommand::Attack { unit: 0, target: 1 })
-            .unwrap();
-        gazeless_lost += 10 - b.unit(0).unwrap().figures;
+            .map_err(|e| format!("{e:?}"))?;
+        gazeless_lost += 10 - b.unit(0).ok_or("unit is missing")?.figures;
     }
     // Resistance 3 at -3 fails nine times in ten: about nine of the ten figures turn to stone.
     assert!(lost > 700, "{lost}");
     assert!(gazeless_lost < 100, "{gazeless_lost}");
+    Ok(())
 }
 
 #[test]
-fn a_life_stealing_shot_heals_the_shooter() {
+fn a_life_stealing_shot_heals_the_shooter() -> TestResult {
     let lord = || {
         let mut u = BattleUnit::simple(Side::Attacker, "lord", 2, 10, 1, 1).at((3, 10));
         u.ranged = 4;
@@ -1207,14 +1290,15 @@ fn a_life_stealing_shot_heals_the_shooter() {
     for seed in 0..50 {
         let mut b = duel(lord(), dummy(&[]), seed);
         b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
-            .unwrap();
-        healed += 8 - b.unit(0).unwrap().front_damage;
+            .map_err(|e| format!("{e:?}"))?;
+        healed += 8 - b.unit(0).ok_or("unit is missing")?.front_damage;
     }
     assert!(healed > 0);
+    Ok(())
 }
 
 #[test]
-fn a_power_drain_shot_takes_two_to_twenty_mana_from_a_caster_that_fails_its_check() {
+fn a_power_drain_shot_takes_two_to_twenty_mana_from_a_caster_that_fails_its_check() -> TestResult {
     let drainer = || {
         let mut u = BattleUnit::simple(Side::Attacker, "hero", 2, 10, 1, 1).at((3, 10));
         u.ranged = 6;
@@ -1232,13 +1316,14 @@ fn a_power_drain_shot_takes_two_to_twenty_mana_from_a_caster_that_fails_its_chec
     for seed in 0..60 {
         let mut b = duel(drainer(), caster(), seed);
         b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
-            .unwrap();
-        let lost = 40 - b.unit(1).unwrap().mana;
+            .map_err(|e| format!("{e:?}"))?;
+        let lost = 40 - b.unit(1).ok_or("unit is missing")?.mana;
         assert!((0..=20).contains(&lost) && lost != 1, "{lost}");
         tries += 1;
         drained += i32::from(lost > 0);
     }
     assert!(drained > 5 && drained < tries, "{drained} of {tries}");
+    Ok(())
 }
 
 fn crusher(side: Side, cell: Pos, ranged: bool) -> BattleUnit {
@@ -1264,7 +1349,7 @@ fn guard(cell: Pos) -> BattleUnit {
 }
 
 #[test]
-fn a_wall_crusher_brings_a_wall_down_half_the_time_in_melee() {
+fn a_wall_crusher_brings_a_wall_down_half_the_time_in_melee() -> TestResult {
     let mut fell = 0;
     for seed in 0..400 {
         let mut b = siege(
@@ -1277,21 +1362,22 @@ fn a_wall_crusher_brings_a_wall_down_half_the_time_in_melee() {
                 unit: 0,
                 cell: (12, 11),
             })
-            .unwrap();
+            .map_err(|e| format!("{e:?}"))?;
         let BattleEvent::WallAttacked { destroyed, .. } = events[0] else {
             panic!("{events:?}")
         };
         assert_eq!(destroyed, !b.map.has_wall((12, 11)));
         fell += i32::from(destroyed);
         // The blow takes the unit's turn.
-        assert!(b.unit(0).unwrap().attacked);
-        assert_eq!(b.unit(0).unwrap().moves_left, 0);
+        assert!(b.unit(0).ok_or("unit is missing")?.attacked);
+        assert_eq!(b.unit(0).ok_or("unit is missing")?.moves_left, 0);
     }
     assert!((150..250).contains(&fell), "{fell}");
+    Ok(())
 }
 
 #[test]
-fn shooting_a_wall_works_a_quarter_of_the_time_and_costs_a_shot() {
+fn shooting_a_wall_works_a_quarter_of_the_time_and_costs_a_shot() -> TestResult {
     let mut fell = 0;
     for seed in 0..400 {
         let mut b = siege(
@@ -1303,15 +1389,16 @@ fn shooting_a_wall_works_a_quarter_of_the_time_and_costs_a_shot() {
             unit: 0,
             cell: (12, 11),
         })
-        .unwrap();
-        assert_eq!(b.unit(0).unwrap().ammo, 3);
+        .map_err(|e| format!("{e:?}"))?;
+        assert_eq!(b.unit(0).ok_or("unit is missing")?.ammo, 3);
         fell += i32::from(!b.map.has_wall((12, 11)));
     }
     assert!((60..140).contains(&fell), "{fell}");
+    Ok(())
 }
 
 #[test]
-fn only_attacking_wall_crushers_may_strike_a_standing_wall() {
+fn only_attacking_wall_crushers_may_strike_a_standing_wall() -> TestResult {
     let mut b = siege(
         vec![
             BattleUnit::simple(Side::Attacker, "spearman", 3, 2, 3, 2).at((11, 11)),
@@ -1349,7 +1436,8 @@ fn only_attacking_wall_crushers_may_strike_a_standing_wall() {
         Err(BattleError::NoRangedAttack)
     );
     // Once the defenders' turn comes, a defending crusher is no wall breaker.
-    b.apply(BattleCommand::EndTurn).unwrap();
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
     let mut b2 = siege(
         vec![
             BattleUnit::simple(Side::Attacker, "x", 1, 1, 1, 1).at((3, 3)),
@@ -1358,7 +1446,8 @@ fn only_attacking_wall_crushers_may_strike_a_standing_wall() {
         true,
         1,
     );
-    b2.apply(BattleCommand::EndTurn).unwrap();
+    b2.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         b2.apply(BattleCommand::AttackWall {
             unit: 1,
@@ -1379,10 +1468,11 @@ fn only_attacking_wall_crushers_may_strike_a_standing_wall() {
         }),
         Err(BattleError::NoWall)
     );
+    Ok(())
 }
 
 #[test]
-fn a_wall_crusher_hitting_a_unit_on_the_wall_may_bring_the_wall_down_too() {
+fn a_wall_crusher_hitting_a_unit_on_the_wall_may_bring_the_wall_down_too() -> TestResult {
     let mut fell = 0;
     for seed in 0..300 {
         let mut b = siege(
@@ -1391,14 +1481,16 @@ fn a_wall_crusher_hitting_a_unit_on_the_wall_may_bring_the_wall_down_too() {
             seed,
         );
         b.apply(BattleCommand::Attack { unit: 0, target: 1 })
-            .unwrap();
+            .map_err(|e| format!("{e:?}"))?;
         fell += i32::from(!b.map.has_wall((12, 11)));
     }
     assert!((110..190).contains(&fell), "{fell}");
+    Ok(())
 }
 
 #[test]
-fn walls_add_three_to_the_defense_on_the_wall_and_one_behind_it_against_attackers_outside() {
+fn walls_add_three_to_the_defense_on_the_wall_and_one_behind_it_against_attackers_outside(
+) -> TestResult {
     // How many hit points a target loses over many fights, with its defense of 0.
     let lost = |target: Pos, walled: bool, from_inside: bool| {
         let mut total = 0;
@@ -1417,7 +1509,8 @@ fn walls_add_three_to_the_defense_on_the_wall_and_one_behind_it_against_attacker
                 b.units[0].cell = (14, 11);
             }
             let _ = b.apply(BattleCommand::Attack { unit: 0, target: 1 });
-            total += b.unit(1).unwrap().max_hit_points() - b.unit(1).unwrap().hit_points();
+            total += b.unit(1).expect("unit succeeds").max_hit_points()
+                - b.unit(1).expect("unit succeeds").hit_points();
         }
         total
     };
@@ -1439,10 +1532,11 @@ fn walls_add_three_to_the_defense_on_the_wall_and_one_behind_it_against_attacker
         "an attacker two squares away cannot strike"
     );
     assert!(inside_attacker > 0);
+    Ok(())
 }
 
 #[test]
-fn attackers_inside_the_city_hurt_it_each_turn() {
+fn attackers_inside_the_city_hurt_it_each_turn() -> TestResult {
     let mut b = siege(
         vec![
             BattleUnit::simple(Side::Attacker, "in", 2, 2, 2, 2).at((13, 11)),
@@ -1454,9 +1548,11 @@ fn attackers_inside_the_city_hurt_it_each_turn() {
     );
     // The first turn counts the attacker that starts inside.
     assert_eq!(b.city_damage, 1);
-    b.apply(BattleCommand::EndTurn).unwrap();
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(b.city_damage, 1, "the defenders' turn adds nothing");
-    b.apply(BattleCommand::EndTurn).unwrap();
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(b.city_damage, 2);
     // A battle in the open has no city to hurt.
     let b = duel(
@@ -1465,10 +1561,11 @@ fn attackers_inside_the_city_hurt_it_each_turn() {
         1,
     );
     assert_eq!(b.city_damage, 0);
+    Ok(())
 }
 
 #[test]
-fn the_battle_ai_takes_a_walled_city() {
+fn the_battle_ai_takes_a_walled_city() -> TestResult {
     // Attackers with a crusher against a few guards behind the wall: the fight ends, and the
     // crusher has opened the walls or the army has come through the gate.
     let mut results = (0, 0);
@@ -1486,7 +1583,7 @@ fn the_battle_ai_takes_a_walled_city() {
                 break;
             }
             let c = ai::next_command(&b);
-            b.apply(c).unwrap();
+            b.apply(c).map_err(|e| format!("{e:?}"))?;
         }
         assert!(b.winner.is_some(), "seed {seed} never ended");
         match b.winner {
@@ -1495,6 +1592,7 @@ fn the_battle_ai_takes_a_walled_city() {
         }
     }
     assert!(results.0 > 0, "the attackers never get in: {results:?}");
+    Ok(())
 }
 
 const GATE_SPOT: Pos = (12, 12);
@@ -1508,6 +1606,7 @@ mod casting {
     use crate::battle::immunity::{AttackNature, Immunities, Realm};
     use crate::rules::effects::DamageTraits;
     use crate::rules::stats::{ModOp, Modifier, Source, Stat};
+    use crate::testdir::TestResult;
 
     #[test]
     fn casting_costs_more_the_further_from_the_fortress() {
@@ -1535,7 +1634,7 @@ mod casting {
     }
 
     #[test]
-    fn a_mana_budget_caps_what_the_wizard_can_afford_and_is_used_up_by_casting() {
+    fn a_mana_budget_caps_what_the_wizard_can_afford_and_is_used_up_by_casting() -> TestResult {
         let mut near = BattleCaster::new(20, 100, 10);
         assert_eq!(near.affordable(), 20);
         near.budget = Some(8);
@@ -1553,14 +1652,20 @@ mod casting {
         b.set_caster(Side::Attacker, BattleCaster::new(20, 100, 10));
         b.set_mana_budget(Side::Attacker, Some(8));
         assert_eq!(b.pay_for_spell(5), 5);
-        let c = b.caster(Side::Attacker).unwrap();
+        let c = b.caster(Side::Attacker).ok_or("caster is missing")?;
         assert_eq!((c.budget, c.mana, c.skill_left), (Some(3), 95, 15));
         assert_eq!(c.affordable(), 3);
         // A side without a wizard has nothing to limit; no budget means no limit.
         b.set_mana_budget(Side::Defender, Some(1));
         assert!(b.caster(Side::Defender).is_none());
         b.set_mana_budget(Side::Attacker, None);
-        assert_eq!(b.caster(Side::Attacker).unwrap().affordable(), 15);
+        assert_eq!(
+            b.caster(Side::Attacker)
+                .ok_or("caster is missing")?
+                .affordable(),
+            15
+        );
+        Ok(())
     }
 
     #[test]
@@ -1697,7 +1802,7 @@ mod casting {
     }
 
     #[test]
-    fn a_lasting_spell_changes_the_numbers_and_a_rebuild_takes_it_off_again() {
+    fn a_lasting_spell_changes_the_numbers_and_a_rebuild_takes_it_off_again() -> TestResult {
         let mut b = duel(
             spearman(Side::Attacker, (3, 5)),
             spearman(Side::Defender, (8, 5)),
@@ -1728,7 +1833,7 @@ mod casting {
         assert!(u.first_strike && u.has("first_strike"));
         assert_eq!(u.combat_spells, vec![(spell, A)]);
         // A dispel: back to the base, with no spells on.
-        let base = u.base.as_deref().unwrap().clone();
+        let base = u.base.as_deref().ok_or("as_deref is missing")?.clone();
         b.rebuild_unit(0, base, Vec::new(), &[]);
         let u = &b.units[0];
         assert_eq!(
@@ -1737,6 +1842,7 @@ mod casting {
         );
         assert!(u.combat_spells.is_empty() && u.base.is_none());
         assert!(u.abilities.is_empty() && u.enchantments.is_empty());
+        Ok(())
     }
 
     #[test]
@@ -1785,6 +1891,7 @@ mod fields {
     use crate::battle::immunity::Realm;
     use crate::rules::stats::{ModOp, Modifier, Source, Stat};
     use crate::rules::SpellId;
+    use crate::testdir::TestResult;
 
     fn spell() -> SpellId {
         SpellId::new(1)
@@ -2060,7 +2167,7 @@ mod fields {
     fn end_turns(b: &mut Battle, n: usize) -> Vec<BattleEvent> {
         let mut all = Vec::new();
         for _ in 0..n {
-            all.extend(b.apply(BattleCommand::EndTurn).unwrap());
+            all.extend(b.apply(BattleCommand::EndTurn).expect("apply succeeds"));
         }
         all
     }
@@ -2296,7 +2403,7 @@ mod fields {
     }
 
     #[test]
-    fn mana_leak_drains_the_enemy_wizard_and_its_spell_shots() {
+    fn mana_leak_drains_the_enemy_wizard_and_its_spell_shots() -> TestResult {
         let mut shooter = of(Side::Defender, None, (17, 5));
         shooter.ranged_kind = RangedKind::Magic;
         shooter.ammo = 3;
@@ -2304,8 +2411,12 @@ mod fields {
         b.set_caster(Side::Defender, crate::battle::BattleCaster::new(20, 40, 10));
         b.raise_field(Side::Attacker, Field::ManaLeak, spell());
         end_turns(&mut b, 2);
-        assert_eq!(b.caster(Side::Defender).unwrap().mana, 40 - MANA_LEAK_DRAIN);
+        assert_eq!(
+            b.caster(Side::Defender).ok_or("caster is missing")?.mana,
+            40 - MANA_LEAK_DRAIN
+        );
         assert_eq!(b.units[1].ammo, 2);
+        Ok(())
     }
 
     #[test]
@@ -2348,13 +2459,15 @@ mod fields {
     }
 
     #[test]
-    fn figures_that_fail_their_resistance_are_destroyed() {
+    fn figures_that_fail_their_resistance_are_destroyed() -> TestResult {
         let mut soft = of(Side::Defender, None, (6, 5));
         soft.resistance = 0;
         soft.figures_start = 6;
         soft.figures = 6;
         let mut b = pair(of(Side::Attacker, None, (5, 5)), soft);
-        let dmg = b.spell_slay(1, Realm::Death, -9, &[], None).unwrap();
+        let dmg = b
+            .spell_slay(1, Realm::Death, -9, &[], None)
+            .ok_or("spell_slay is missing")?;
         assert_eq!(dmg.kills, 6, "no chance against a penalty of nine");
         assert!(!b.units[1].is_active());
         // A unit with the right immunity takes no harm; one with enough resistance resists.
@@ -2366,34 +2479,48 @@ mod fields {
             .spell_slay(1, Realm::Death, -2, &["death_immunity".into()], None)
             .is_none());
         assert_eq!(
-            b.spell_slay(1, Realm::Death, -2, &[], None).unwrap().kills,
+            b.spell_slay(1, Realm::Death, -2, &[], None)
+                .ok_or("spell_slay is missing")?
+                .kills,
             0
         );
         // Disintegrate: resistance under ten and the whole unit is gone.
         let mut frail = of(Side::Defender, None, (6, 5));
         frail.resistance = 9;
         let mut b = pair(of(Side::Attacker, None, (5, 5)), frail);
-        b.spell_slay(1, Realm::Chaos, 0, &[], Some(10)).unwrap();
+        b.spell_slay(1, Realm::Chaos, 0, &[], Some(10))
+            .ok_or("spell_slay is missing")?;
         assert!(!b.units[1].is_active());
         let mut hardy = of(Side::Defender, None, (6, 5));
         hardy.resistance = 10;
         let mut b = pair(of(Side::Attacker, None, (5, 5)), hardy);
-        b.spell_slay(1, Realm::Chaos, 0, &[], Some(10)).unwrap();
+        b.spell_slay(1, Realm::Chaos, 0, &[], Some(10))
+            .ok_or("spell_slay is missing")?;
         assert!(b.units[1].is_active());
+        Ok(())
     }
 }
 
 #[test]
-fn mithril_and_adamantium_weapons_add_to_the_attack_defence_and_to_hit() {
+fn mithril_and_adamantium_weapons_add_to_the_attack_defence_and_to_hit() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(A, at(4, 4), walker);
-    let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+    let plain = g
+        .battle_unit_from(unit, Side::Attacker, 0)
+        .ok_or("battle_unit_from is missing")?;
     for (quality, extra, plus) in [(1, 0, 1), (2, 1, 1), (3, 2, 1)] {
         let _ = g
             .world
             .insert_one(unit, crate::unit::WeaponQuality(quality));
-        let bu = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+        let bu = g
+            .battle_unit_from(unit, Side::Attacker, 0)
+            .ok_or("battle_unit_from is missing")?;
         assert_eq!(bu.melee, plain.melee + extra, "melee, quality {quality}");
         assert_eq!(
             bu.defense,
@@ -2402,10 +2529,11 @@ fn mithril_and_adamantium_weapons_add_to_the_attack_defence_and_to_hit() {
         );
         assert_eq!(bu.to_hit + bu.weapon_plus(), plain.to_hit + plus);
     }
+    Ok(())
 }
 
 #[test]
-fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
+fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestResult {
     use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = game();
@@ -2415,9 +2543,16 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
             crate::game::testutil::item_power("flaming", None, None),
         ]));
     // Only a hero carries items: the game's first hero, the Dwarf.
-    let walker = g.content.rules.units.id_of("dwarf").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("dwarf")
+        .ok_or("dwarf is not in the content")?;
     let unit = g.spawn_unit(A, at(4, 4), walker);
-    let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+    let plain = g
+        .battle_unit_from(unit, Side::Attacker, 0)
+        .ok_or("battle_unit_from is missing")?;
     let item = |kind, bonus: ItemBonus, powers: &[&str]| Item {
         name: "Test".into(),
         kind,
@@ -2448,7 +2583,9 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
         &[],
     );
     g.arm_hero(unit, [Some(sword), Some(shield), None]);
-    let armed = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+    let armed = g
+        .battle_unit_from(unit, Side::Attacker, 0)
+        .ok_or("battle_unit_from is missing")?;
     assert_eq!(armed.melee, plain.melee + 2 + 3, "attack and Flaming");
     assert_eq!(armed.melee_plus, 1);
     assert_eq!(armed.ranged_plus, 0);
@@ -2462,24 +2599,39 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
         armed.melee_combatant().to_hit,
         plain.melee_combatant().to_hit + 1
     );
+    Ok(())
 }
 
 #[test]
-fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
+fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestResult {
     use crate::hero::Hero;
     use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(A, at(4, 4), walker);
-    let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+    let plain = g
+        .battle_unit_from(unit, Side::Attacker, 0)
+        .ok_or("battle_unit_from is missing")?;
     assert_eq!((plain.mana, plain.hero_caster), (0, false));
     // No casting skill, no mana, whatever the items bring.
     let unit = hero_unit(&mut g, &[], 0);
-    assert_eq!(g.battle_unit_from(unit, Side::Attacker, 0).unwrap().mana, 0);
+    assert_eq!(
+        g.battle_unit_from(unit, Side::Attacker, 0)
+            .ok_or("battle_unit_from is missing")?
+            .mana,
+        0
+    );
     // Skill 2 at the first level: (2 + 1) * 1 * 5 / 2.
-    g.world.get::<&mut Hero>(unit).unwrap().casting_skill = 2;
-    let bare = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+    g.world.get::<&mut Hero>(unit)?.casting_skill = 2;
+    let bare = g
+        .battle_unit_from(unit, Side::Attacker, 0)
+        .ok_or("battle_unit_from is missing")?;
     assert_eq!((bare.mana, bare.hero_caster), (7, true));
     // An item's spell skill adds to it.
     let staff = Item {
@@ -2497,7 +2649,9 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
         made: None,
     };
     g.arm_hero(unit, [Some(staff), None, None]);
-    let mut armed = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
+    let mut armed = g
+        .battle_unit_from(unit, Side::Attacker, 0)
+        .ok_or("battle_unit_from is missing")?;
     assert_eq!(armed.mana, 12);
     // A magic shot costs the hero three mana, and its shots follow its mana.
     armed.ranged_kind = RangedKind::Magic;
@@ -2507,6 +2661,7 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
     assert_eq!((armed.mana, armed.ammo), (9, 3));
     armed.leak_mana(5);
     assert_eq!((armed.mana, armed.ammo), (4, 1));
+    Ok(())
 }
 
 /// A game with the game's real spells, for battle units that cast them.
@@ -2536,11 +2691,16 @@ fn hero_unit(g: &mut Game, spells: &[&str], skill: u8) -> hecs::Entity {
         HeroState::Free,
         0,
     );
-    g.spawn_hero(A, at(4, 4), 0).unwrap()
+    g.spawn_hero(A, at(4, 4), 0).expect("spawn_hero succeeds")
 }
 
 fn begin(g: &mut Game, attacker: hecs::Entity) {
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .expect("id_of succeeds");
     let d1 = g.spawn_unit(D, at(5, 4), walker);
     g.apply(Command::BeginBattle {
         attackers: vec![attacker],
@@ -2550,13 +2710,19 @@ fn begin(g: &mut Game, attacker: hecs::Entity) {
 }
 
 #[test]
-fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() {
+fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() -> TestResult {
     let mut g = casting_game();
-    g.treasury_mut(A).unwrap().mana = 2000;
-    g.init_wizard(A, &[("chaos", 5)], &[], None).unwrap();
-    let call = g.content.rules.spells.id_of("call_chaos").unwrap();
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 2000;
+    g.init_wizard(A, &[("chaos", 5)], &[], None)
+        .map_err(|e| format!("{e:?}"))?;
+    let call = g
+        .content
+        .rules
+        .spells
+        .id_of("call_chaos")
+        .ok_or("call_chaos is not in the content")?;
     {
-        let mut m = g.wizard_mut(A).unwrap();
+        let mut m = g.wizard_mut(A).ok_or("wizard_mut is missing")?;
         m.get_mut::<crate::wizard::sheet::KnownSpells>()
             .researchable
             .remove(&call);
@@ -2568,7 +2734,12 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
             .insert(call);
         m.get_mut::<crate::wizard::sheet::Skill>().left = 500;
     }
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let ours = g.spawn_unit(A, at(4, 4), walker);
     let theirs: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     g.apply(Command::BeginBattle {
@@ -2576,17 +2747,21 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
         defenders: theirs,
     });
     // The wizard has the skill and the mana for a spell that dear.
-    g.battle.as_mut().unwrap().battle.set_caster(
-        Side::Attacker,
-        crate::battle::BattleCaster::new(2000, 2000, 10),
-    );
+    g.battle
+        .as_mut()
+        .ok_or("as_mut is missing")?
+        .battle
+        .set_caster(
+            Side::Attacker,
+            crate::battle::BattleCaster::new(2000, 2000, 10),
+        );
     let events = g
         .battle_command(BattleCommand::Cast {
             spell: call,
             aim: SpellAim::None,
             mana: 0,
         })
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     let battle_events: Vec<&BattleEvent> = events
         .iter()
         .filter_map(|e| match e {
@@ -2604,7 +2779,7 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
     // One outcome for each enemy unit and for no one else, each of the eight there are.
     let enemies: Vec<usize> = g
         .battle()
-        .unwrap()
+        .ok_or("battle is missing")?
         .units
         .iter()
         .filter(|u| u.side == Side::Defender)
@@ -2633,16 +2808,23 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
             _ => {}
         }
     }
+    Ok(())
 }
 
 #[test]
-fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() {
+fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() -> TestResult {
     let mut g = casting_game();
-    g.treasury_mut(A).unwrap().mana = 2000;
-    g.init_wizard(A, &[("chaos", 5)], &[], None).unwrap();
-    let spell = g.content.rules.spells.id_of("chaos_channels").unwrap();
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 2000;
+    g.init_wizard(A, &[("chaos", 5)], &[], None)
+        .map_err(|e| format!("{e:?}"))?;
+    let spell = g
+        .content
+        .rules
+        .spells
+        .id_of("chaos_channels")
+        .ok_or("chaos_channels is not in the content")?;
     {
-        let mut m = g.wizard_mut(A).unwrap();
+        let mut m = g.wizard_mut(A).ok_or("wizard_mut is missing")?;
         m.get_mut::<crate::wizard::sheet::KnownSpells>()
             .researchable
             .remove(&spell);
@@ -2658,32 +2840,41 @@ fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() {
     let mut defs = g.content.rules.units.defs().to_vec();
     crate::game::testutil::add_real_unit(&mut defs, "barbarian_spearmen");
     g.content.rules.units = crate::rules::Registry::new_sorted(defs);
-    let soldier = g.content.rules.units.id_of("barbarian_spearmen").unwrap();
+    let soldier = g
+        .content
+        .rules
+        .units
+        .id_of("barbarian_spearmen")
+        .ok_or("barbarian_spearmen is not in the content")?;
     let ours = g.spawn_unit(A, at(4, 4), soldier);
     let theirs = g.spawn_unit(D, at(5, 4), soldier);
     g.apply(Command::BeginBattle {
         attackers: vec![ours],
         defenders: vec![theirs],
     });
-    g.battle.as_mut().unwrap().battle.set_caster(
-        Side::Attacker,
-        crate::battle::BattleCaster::new(2000, 2000, 10),
-    );
+    g.battle
+        .as_mut()
+        .ok_or("as_mut is missing")?
+        .battle
+        .set_caster(
+            Side::Attacker,
+            crate::battle::BattleCaster::new(2000, 2000, 10),
+        );
     let enemy = g
         .battle()
-        .unwrap()
+        .ok_or("battle is missing")?
         .units
         .iter()
         .find(|u| u.side == Side::Defender)
-        .unwrap()
+        .ok_or("find is missing")?
         .id;
     let mine = g
         .battle()
-        .unwrap()
+        .ok_or("battle is missing")?
         .units
         .iter()
         .find(|u| u.side == Side::Attacker)
-        .unwrap()
+        .ok_or("find is missing")?
         .id;
     let cast = |g: &mut Game, unit| {
         g.battle_command(BattleCommand::Cast {
@@ -2694,7 +2885,7 @@ fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() {
     };
     // Only the wizard's own units can be channelled.
     assert!(cast(&mut g, enemy).is_err());
-    let events = cast(&mut g, mine).unwrap();
+    let events = cast(&mut g, mine).map_err(|e| format!("{e:?}"))?;
     assert!(events.iter().any(|e| matches!(
         e,
         Event::Battle(BattleEvent::SpellEnchanted { unit, .. }) if *unit == mine
@@ -2702,21 +2893,41 @@ fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() {
     // The overland unit is mutated for good and the unit in the battle is a creature of chaos.
     assert!(g.units().unit_is_mutated(ours));
     assert_eq!(
-        g.battle().unwrap().unit(mine).unwrap().realm,
+        g.battle()
+            .ok_or("battle is missing")?
+            .unit(mine)
+            .ok_or("unit is missing")?
+            .realm,
         Some(Realm::Chaos)
     );
     // A unit takes the change once.
     assert!(cast(&mut g, mine).is_err());
+    Ok(())
 }
 
 #[test]
-fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
+fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() -> TestResult {
     let mut g = casting_game();
     let hero = hero_unit(&mut g, &["fire_bolt", "healing"], 2);
     begin(&mut g, hero);
-    let zap = g.content.rules.spells.id_of("fire_bolt").unwrap();
-    let mend = g.content.rules.spells.id_of("healing").unwrap();
-    let before = g.battle().unwrap().unit(0).unwrap().mana;
+    let zap = g
+        .content
+        .rules
+        .spells
+        .id_of("fire_bolt")
+        .ok_or("fire_bolt is not in the content")?;
+    let mend = g
+        .content
+        .rules
+        .spells
+        .id_of("healing")
+        .ok_or("healing is not in the content")?;
+    let before = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(0)
+        .ok_or("unit is missing")?
+        .mana;
     assert_eq!(before, 7);
     // Both spells are on the list; the hero has the mana for the Fire Bolt (5) but not for
     // Healing (15).
@@ -2735,8 +2946,13 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
     });
     assert_eq!(refused, Err(BattleError::Spell(SpellError::TooExpensive)));
     // With mana for more, it casts, pays and cannot cast again.
-    g.battle.as_mut().unwrap().battle.units[0].mana = 25;
-    let hp = g.battle().unwrap().unit(1).unwrap().hit_points();
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0].mana = 25;
+    let hp = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(1)
+        .ok_or("unit is missing")?
+        .hit_points();
     let events = g
         .battle_command(BattleCommand::UnitCast {
             unit: 0,
@@ -2744,7 +2960,7 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
             aim: SpellAim::Unit(1),
             mana: 0,
         })
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     assert!(events.iter().any(|e| matches!(
         e,
         Event::Battle(BattleEvent::UnitSpellCast {
@@ -2759,10 +2975,10 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
             BattleEvent::SpellDamaged { unit: 1, .. } | BattleEvent::SpellImmune { unit: 1 }
         )
     )));
-    let b = g.battle().unwrap();
-    assert_eq!(b.unit(0).unwrap().mana, 20);
-    assert!(b.unit(1).unwrap().hit_points() <= hp);
-    assert_eq!(b.unit(0).unwrap().moves_left, 0);
+    let b = g.battle().ok_or("battle is missing")?;
+    assert_eq!(b.unit(0).ok_or("unit is missing")?.mana, 20);
+    assert!(b.unit(1).ok_or("unit is missing")?.hit_points() <= hp);
+    assert_eq!(b.unit(0).ok_or("unit is missing")?.moves_left, 0);
     assert!(
         b.caster(Side::Attacker).is_none_or(|c| !c.cast_this_turn),
         "the wizard did not cast"
@@ -2774,10 +2990,11 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() {
         mana: 0,
     });
     assert_eq!(again, Err(BattleError::NoMovesLeft));
+    Ok(())
 }
 
 #[test]
-fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
+fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() -> TestResult {
     use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = casting_game();
@@ -2799,13 +3016,25 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
     // The spell is in the second slot: any slot works, not only the first.
     g.arm_hero(hero, [None, Some(wand("Wand")), None]);
     begin(&mut g, hero);
-    let zap = g.content.rules.spells.id_of("fire_bolt").unwrap();
-    let b = g.battle().unwrap();
-    assert_eq!(b.unit(0).unwrap().mana, 0, "no casting skill, no mana");
-    assert_eq!(b.unit(0).unwrap().casting.spell_save, 2);
+    let zap = g
+        .content
+        .rules
+        .spells
+        .id_of("fire_bolt")
+        .ok_or("fire_bolt is not in the content")?;
+    let b = g.battle().ok_or("battle is missing")?;
+    assert_eq!(
+        b.unit(0).ok_or("unit is missing")?.mana,
+        0,
+        "no casting skill, no mana"
+    );
+    assert_eq!(b.unit(0).ok_or("unit is missing")?.casting.spell_save, 2);
     let list = g.battle_unit_spells(0);
     assert_eq!(list.len(), 1);
-    let wand_entity = g.items().hero_item_entity(hero, 1).unwrap();
+    let wand_entity = g
+        .items()
+        .hero_item_entity(hero, 1)
+        .ok_or("hero_item_entity is missing")?;
     assert_eq!(list[0].source, SpellSource::Item(wand_entity));
     assert!(list[0].castable);
     g.battle_command(BattleCommand::UnitCast {
@@ -2814,8 +3043,14 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
         aim: SpellAim::Unit(1),
         mana: 0,
     })
-    .unwrap();
-    let left = &g.battle().unwrap().unit(0).unwrap().casting.item_charges;
+    .map_err(|e| format!("{e:?}"))?;
+    let left = &g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(0)
+        .ok_or("unit is missing")?
+        .casting
+        .item_charges;
     assert_eq!(left.len(), 1);
     assert_eq!(
         (left[0].item, left[0].spell, left[0].charges),
@@ -2823,20 +3058,28 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
     );
     assert_eq!(left[0].serial, g.serial_of(wand_entity));
     // The battle ends with the defender's flight; one charge is left on the item.
-    g.battle_command(BattleCommand::EndTurn).unwrap();
-    g.battle_command(BattleCommand::Flee).unwrap();
+    g.battle_command(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
+    g.battle_command(BattleCommand::Flee)
+        .map_err(|e| format!("{e:?}"))?;
     assert!(!g.in_battle());
     let items = g.items().hero_items(hero);
     assert_eq!(
-        items.0[1].as_ref().unwrap().charges,
+        items.0[1].as_ref().ok_or("as_ref is missing")?.charges,
         Some(("fire_bolt".into(), 1))
     );
+    Ok(())
 }
 
 #[test]
-fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it() {
+fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it() -> TestResult {
     let mut g = casting_game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let mut defs = g.content.rules.units.defs().to_vec();
     for d in defs.iter_mut().filter(|d| d.id == "high_men_cavalry") {
@@ -2844,7 +3087,12 @@ fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it()
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     begin(&mut g, unit);
-    let healing = g.content.rules.spells.id_of("healing").unwrap();
+    let healing = g
+        .content
+        .rules
+        .spells
+        .id_of("healing")
+        .ok_or("healing is not in the content")?;
     // It is cast on a friend only: the enemy is a bad target.
     let bad = g.battle_command(BattleCommand::UnitCast {
         unit: 0,
@@ -2864,16 +3112,17 @@ fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it()
         aim: SpellAim::Unit(0),
         mana: 0,
     })
-    .unwrap();
+    .map_err(|e| format!("{e:?}"))?;
     assert!(g.battle_unit_spells(0).is_empty() || !g.battle_unit_spells(0)[0].castable);
     assert!(g
         .battle()
-        .unwrap()
+        .ok_or("battle is missing")?
         .unit(0)
-        .unwrap()
+        .ok_or("unit is missing")?
         .casting
         .abilities
         .is_empty());
+    Ok(())
 }
 
 #[test]
@@ -2902,7 +3151,7 @@ fn hook_game(id: &str) -> Game {
     let mut g = casting_game();
     let hero = hero_unit(&mut g, &[id], 4);
     begin(&mut g, hero);
-    g.battle.as_mut().unwrap().battle.units[0].mana = 1000;
+    g.battle.as_mut().expect("as_mut succeeds").battle.units[0].mana = 1000;
     g
 }
 
@@ -2912,9 +3161,9 @@ fn cast_unit(
     aim: SpellAim,
     mana: u32,
 ) -> Result<Vec<Event>, BattleError> {
-    let spell = g.content.rules.spells.id_of(spell).unwrap();
+    let spell = g.content.rules.spells.id_of(spell).expect("id_of succeeds");
     // The unit may cast again in the next test step.
-    g.battle.as_mut().unwrap().battle.units[0].moves_left = 4;
+    g.battle.as_mut().expect("as_mut succeeds").battle.units[0].moves_left = 4;
     g.battle_command(BattleCommand::UnitCast {
         unit: 0,
         spell,
@@ -2924,15 +3173,16 @@ fn cast_unit(
 }
 
 #[test]
-fn earth_to_mud_makes_open_ground_in_five_by_five_cost_a_walker_all_its_moves() {
+fn earth_to_mud_makes_open_ground_in_five_by_five_cost_a_walker_all_its_moves() -> TestResult {
     let mut g = hook_game("earth_to_mud");
     // Any playable square may be aimed at.
     let centre = (10, 11);
-    let events = cast_unit(&mut g, "earth_to_mud", SpellAim::Tile(centre), 0).unwrap();
+    let events = cast_unit(&mut g, "earth_to_mud", SpellAim::Tile(centre), 0)
+        .map_err(|e| format!("{e:?}"))?;
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::Battle(BattleEvent::MudMade { cell }) if *cell == centre)));
-    let map = &g.battle().unwrap().map;
+    let map = &g.battle().ok_or("battle is missing")?.map;
     for (dx, dy, mud) in [
         (0, 0, true),
         (2, 2, true),
@@ -2972,13 +3222,14 @@ fn earth_to_mud_makes_open_ground_in_five_by_five_cost_a_walker_all_its_moves() 
         map.reachable_as((7, 11), 8, flier, &none)[&(8, 11)].0,
         OPEN_COST
     );
+    Ok(())
 }
 
 #[test]
-fn disrupt_destroys_one_wall_section_and_only_where_a_wall_stands() {
+fn disrupt_destroys_one_wall_section_and_only_where_a_wall_stands() -> TestResult {
     let mut g = hook_game("disrupt");
-    g.battle.as_mut().unwrap().battle.map = BattleMap::open().with_city(true);
-    let walls = g.battle().unwrap().map.standing_walls();
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.map = BattleMap::open().with_city(true);
+    let walls = g.battle().ok_or("battle is missing")?.map.standing_walls();
     assert!(walls.len() > 2);
     let bad = cast_unit(&mut g, "disrupt", SpellAim::Tile((3, 3)), 0);
     assert_eq!(
@@ -2986,11 +3237,12 @@ fn disrupt_destroys_one_wall_section_and_only_where_a_wall_stands() {
         Err(BattleError::Spell(SpellError::Target(TargetError::NoWall)))
     );
     let target = walls[1];
-    let events = cast_unit(&mut g, "disrupt", SpellAim::Tile(target), 0).unwrap();
+    let events =
+        cast_unit(&mut g, "disrupt", SpellAim::Tile(target), 0).map_err(|e| format!("{e:?}"))?;
     assert!(events.iter().any(
         |e| matches!(e, Event::Battle(BattleEvent::WallDestroyed { cell }) if *cell == target)
     ));
-    let map = &g.battle().unwrap().map;
+    let map = &g.battle().ok_or("battle is missing")?.map;
     assert!(!map.has_wall(target));
     assert_eq!(map.standing_walls().len(), walls.len() - 1);
     // The broken section cannot be struck again.
@@ -2999,22 +3251,36 @@ fn disrupt_destroys_one_wall_section_and_only_where_a_wall_stands() {
         again,
         Err(BattleError::Spell(SpellError::Target(TargetError::NoWall)))
     );
+    Ok(())
 }
 
 #[test]
-fn cracks_call_swallows_a_walker_one_time_in_four_but_not_a_flier_and_breaks_a_wall() {
+fn cracks_call_swallows_a_walker_one_time_in_four_but_not_a_flier_and_breaks_a_wall() -> TestResult
+{
     let mut g = hook_game("cracks_call");
-    let enemy_cell = g.battle().unwrap().unit(1).unwrap().cell;
+    let enemy_cell = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(1)
+        .ok_or("unit is missing")?
+        .cell;
     // A flier is never touched; a walker falls in sooner or later.
-    g.battle.as_mut().unwrap().battle.units[1].flies = true;
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1].flies = true;
     for _ in 0..40 {
-        cast_unit(&mut g, "cracks_call", SpellAim::Tile(enemy_cell), 0).unwrap();
-        assert!(g.battle().unwrap().unit(1).unwrap().is_active());
+        cast_unit(&mut g, "cracks_call", SpellAim::Tile(enemy_cell), 0)
+            .map_err(|e| format!("{e:?}"))?;
+        assert!(g
+            .battle()
+            .ok_or("battle is missing")?
+            .unit(1)
+            .ok_or("unit is missing")?
+            .is_active());
     }
-    g.battle.as_mut().unwrap().battle.units[1].flies = false;
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1].flies = false;
     let mut died = false;
     for _ in 0..60 {
-        let events = cast_unit(&mut g, "cracks_call", SpellAim::Tile(enemy_cell), 0).unwrap();
+        let events = cast_unit(&mut g, "cracks_call", SpellAim::Tile(enemy_cell), 0)
+            .map_err(|e| format!("{e:?}"))?;
         if !g.in_battle()
             || events
                 .iter()
@@ -3027,48 +3293,65 @@ fn cracks_call_swallows_a_walker_one_time_in_four_but_not_a_flier_and_breaks_a_w
     assert!(died, "one time in four, sixty times");
     // A wall on the square comes down.
     let mut g = hook_game("cracks_call");
-    g.battle.as_mut().unwrap().battle.map = BattleMap::open().with_city(true);
-    let wall = g.battle().unwrap().map.standing_walls()[0];
-    let events = cast_unit(&mut g, "cracks_call", SpellAim::Tile(wall), 0).unwrap();
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.map = BattleMap::open().with_city(true);
+    let wall = g.battle().ok_or("battle is missing")?.map.standing_walls()[0];
+    let events =
+        cast_unit(&mut g, "cracks_call", SpellAim::Tile(wall), 0).map_err(|e| format!("{e:?}"))?;
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::Battle(BattleEvent::WallDestroyed { .. }))));
-    assert!(!g.battle().unwrap().map.has_wall(wall));
+    assert!(!g.battle().ok_or("battle is missing")?.map.has_wall(wall));
+    Ok(())
 }
 
 #[test]
-fn life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune() {
+fn life_drain_takes_hit_points_that_a_hero_keeps_and_death_creatures_are_immune() -> TestResult {
     let mut g = hook_game("life_drain");
     {
-        let b = &mut g.battle.as_mut().unwrap().battle;
+        let b = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle;
         b.units[1].resistance = 0;
         b.units[0].front_damage = 3;
     }
-    let before = g.battle().unwrap().unit(1).unwrap().hit_points();
-    let hurt = g.battle().unwrap().unit(0).unwrap().hit_points();
-    let events = cast_unit(&mut g, "life_drain", SpellAim::Unit(1), 10).unwrap();
+    let before = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(1)
+        .ok_or("unit is missing")?
+        .hit_points();
+    let hurt = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(0)
+        .ok_or("unit is missing")?
+        .hit_points();
+    let events =
+        cast_unit(&mut g, "life_drain", SpellAim::Unit(1), 10).map_err(|e| format!("{e:?}"))?;
     let drained = events.iter().find_map(|e| match e {
         Event::Battle(BattleEvent::LifeDrained { points, .. }) => Some(*points),
         _ => None,
     });
     let points = drained.expect("a resistance 0 unit loses life");
-    let b = g.battle().unwrap();
-    assert_eq!(b.unit(1).unwrap().hit_points(), before - points);
+    let b = g.battle().ok_or("battle is missing")?;
+    assert_eq!(
+        b.unit(1).ok_or("unit is missing")?.hit_points(),
+        before - points
+    );
     assert!(
-        b.unit(0).unwrap().hit_points() > hurt,
+        b.unit(0).ok_or("unit is missing")?.hit_points() > hurt,
         "the hero took the life"
     );
     // Death creatures cannot be aimed at.
-    g.battle.as_mut().unwrap().battle.units[1].realm = Some(Realm::Death);
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1].realm = Some(Realm::Death);
     let refused = cast_unit(&mut g, "life_drain", SpellAim::Unit(1), 10);
     assert_eq!(
         refused,
         Err(BattleError::Spell(SpellError::Target(TargetError::Deathly)))
     );
+    Ok(())
 }
 
 #[test]
-fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() {
+fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() -> TestResult {
     let mut g = hook_game("word_of_recall");
     let no_circle = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(0), 0);
     assert_eq!(
@@ -3086,7 +3369,8 @@ fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() 
             TargetError::NotYourUnit
         )))
     );
-    let events = cast_unit(&mut g, "word_of_recall", SpellAim::Unit(0), 0).unwrap();
+    let events =
+        cast_unit(&mut g, "word_of_recall", SpellAim::Unit(0), 0).map_err(|e| format!("{e:?}"))?;
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::Battle(BattleEvent::HeroRecalled { unit: 0 }))));
@@ -3094,10 +3378,11 @@ fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() 
     assert!(!g.in_battle());
     let unit = g.units().hero_units(A)[0];
     assert_eq!(g.units().unit_position(unit), Some(at(1, 1)));
+    Ok(())
 }
 
 #[test]
-fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() {
+fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() -> TestResult {
     let mut g = game();
     let mut defs = g.content.rules.units.defs().to_vec();
     crate::game::testutil::add_real_unit(&mut defs, "demon");
@@ -3105,7 +3390,12 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() {
         d.abilities.push("summon_demon".into());
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(defs);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let lord = g.spawn_unit(A, at(4, 4), walker);
     begin(&mut g, lord);
     assert!(g.can_summon_demon(0));
@@ -3115,24 +3405,24 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() {
         Err(BattleError::NotYours)
     );
     for turn in 0..3 {
-        g.battle.as_mut().unwrap().battle.units[0].moves_left = 2;
-        let before = g.battle().unwrap().units.len();
+        g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0].moves_left = 2;
+        let before = g.battle().ok_or("battle is missing")?.units.len();
         let events = g
             .battle_command(BattleCommand::SummonDemon { unit: 0 })
-            .unwrap();
+            .map_err(|e| format!("{e:?}"))?;
         assert!(events
             .iter()
             .any(|e| matches!(e, Event::Battle(BattleEvent::Summoned { .. }))));
-        let b = g.battle().unwrap();
+        let b = g.battle().ok_or("battle is missing")?;
         assert_eq!(b.units.len(), before + 1, "turn {turn}");
-        let demon = b.units.last().unwrap();
+        let demon = b.units.last().ok_or("last is missing")?;
         assert_eq!(
             (demon.side, demon.unit_id.as_str()),
             (Side::Attacker, "demon")
         );
         assert!(demon.moves_left > 0, "it arrives ready to act");
         assert_eq!(
-            b.unit(0).unwrap().moves_left,
+            b.unit(0).ok_or("unit is missing")?.moves_left,
             0,
             "the summoner's turn is over"
         );
@@ -3141,12 +3431,13 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() {
             Err(BattleError::NoMovesLeft)
         );
     }
-    g.battle.as_mut().unwrap().battle.units[0].moves_left = 2;
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0].moves_left = 2;
     assert_eq!(
         g.battle_command(BattleCommand::SummonDemon { unit: 0 }),
         Err(BattleError::Spell(SpellError::NotKnown)),
         "three is all"
     );
+    Ok(())
 }
 
 // ---- city enchantments (task 25) ---------------------------------------------------------
@@ -3161,7 +3452,7 @@ fn crowd(side: Side, cell: Pos) -> BattleUnit {
 }
 
 #[test]
-fn a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers() {
+fn a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers() -> TestResult {
     let far = crowd(Side::Defender, (19, 2));
     for (flies, burned) in [(false, true), (true, false)] {
         let mut walker = crowd(Side::Attacker, (10, 11));
@@ -3173,12 +3464,12 @@ fn a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers() {
                 unit: 0,
                 to: (12, 11),
             })
-            .unwrap();
+            .map_err(|e| format!("{e:?}"))?;
         let hurt = events
             .iter()
             .any(|e| matches!(e, BattleEvent::SpellDamaged { unit: 0, .. }));
         assert_eq!(hurt, burned, "flies: {flies}");
-        assert_eq!(b.unit(0).unwrap().figures < 10, burned);
+        assert_eq!(b.unit(0).ok_or("unit is missing")?.figures < 10, burned);
     }
     // Walking about outside, or inside once there, costs nothing; so does a city without it.
     let mut b = Battle::new(
@@ -3194,7 +3485,7 @@ fn a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers() {
             unit: 0,
             to: (14, 11),
         })
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     assert!(!events
         .iter()
         .any(|e| matches!(e, BattleEvent::SpellDamaged { .. })));
@@ -3210,14 +3501,15 @@ fn a_wall_of_fire_burns_walkers_that_step_into_the_city_but_not_fliers() {
             unit: 0,
             to: (12, 11),
         })
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     assert!(!events
         .iter()
         .any(|e| matches!(e, BattleEvent::SpellDamaged { .. })));
+    Ok(())
 }
 
 #[test]
-fn striking_into_a_city_behind_a_wall_of_fire_burns_the_attacker() {
+fn striking_into_a_city_behind_a_wall_of_fire_burns_the_attacker() -> TestResult {
     let mut b = Battle::new(
         A,
         D,
@@ -3231,11 +3523,12 @@ fn striking_into_a_city_behind_a_wall_of_fire_burns_the_attacker() {
     b.wall_of_fire = true;
     let events = b
         .apply(BattleCommand::Attack { unit: 0, target: 1 })
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     assert!(matches!(
         events.first(),
         Some(BattleEvent::SpellDamaged { unit: 0, .. })
     ));
+    Ok(())
 }
 
 #[test]
@@ -3344,7 +3637,7 @@ fn check_legal_list(b: &Battle) {
 }
 
 #[test]
-fn the_legal_commands_are_exactly_what_apply_accepts() {
+fn the_legal_commands_are_exactly_what_apply_accepts() -> TestResult {
     let archer = |side, cell| {
         let mut u = BattleUnit::simple(side, "archer", 4, 1, 1, 0).at(cell);
         u.ranged = 4;
@@ -3365,13 +3658,16 @@ fn the_legal_commands_are_exactly_what_apply_accepts() {
     let mut b = Battle::new(A, D, BattleMap::open(), units, 1);
     check_legal_list(&b);
     // After the attacker's turn, the defender's.
-    b.apply(BattleCommand::Done { unit: 0 }).unwrap();
-    b.apply(BattleCommand::EndTurn).unwrap();
+    b.apply(BattleCommand::Done { unit: 0 })
+        .map_err(|e| format!("{e:?}"))?;
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
     check_legal_list(&b);
+    Ok(())
 }
 
 #[test]
-fn the_legal_commands_cover_walls_crushers_and_darkness() {
+fn the_legal_commands_cover_walls_crushers_and_darkness() -> TestResult {
     let mut b = siege(
         vec![
             crusher(Side::Attacker, (11, 11), true),
@@ -3391,14 +3687,20 @@ fn the_legal_commands_cover_walls_crushers_and_darkness() {
     b.wall_of_darkness = true;
     check_legal_list(&b);
     // A won battle allows nothing.
-    b.apply(BattleCommand::Flee).unwrap();
+    b.apply(BattleCommand::Flee).map_err(|e| format!("{e:?}"))?;
     assert!(b.legal_commands().is_empty());
+    Ok(())
 }
 
 #[test]
-fn an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities() {
+fn an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a1 = g.spawn_unit(A, at(4, 4), walker);
     let a2 = g.spawn_unit(A, at(4, 4), walker);
     let d1 = g.spawn_unit(D, at(5, 4), walker);
@@ -3407,9 +3709,17 @@ fn an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities() {
         attackers: vec![a1, a2],
         defenders: vec![d1],
     });
-    let b = g.battle().unwrap();
-    let raised = b.units.iter().find(|u| u.source == Some(0)).unwrap();
-    let living = b.units.iter().find(|u| u.source == Some(1)).unwrap();
+    let b = g.battle().ok_or("battle is missing")?;
+    let raised = b
+        .units
+        .iter()
+        .find(|u| u.source == Some(0))
+        .ok_or("find is missing")?;
+    let living = b
+        .units
+        .iter()
+        .find(|u| u.source == Some(1))
+        .ok_or("find is missing")?;
     assert!(raised.undead && raised.is_fantastic());
     assert_eq!(raised.realm, Some(immunity::Realm::Death));
     for a in [
@@ -3422,6 +3732,7 @@ fn an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities() {
         assert!(!living.has(a), "{a}");
     }
     assert!(!living.undead && !living.is_fantastic());
+    Ok(())
 }
 
 /// A player of battles that always flees.
@@ -3434,9 +3745,14 @@ impl crate::battle::game::BattleBrain for Quitter {
 }
 
 #[test]
-fn a_battle_brain_plays_for_its_wizard_and_the_plain_ai_for_the_rest() {
+fn a_battle_brain_plays_for_its_wizard_and_the_plain_ai_for_the_rest() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a1 = g.spawn_unit(A, at(4, 4), walker);
     let d1 = g.spawn_unit(D, at(5, 4), walker);
     g.set_battle_brain(A, Some(Box::new(Quitter)));
@@ -3467,6 +3783,7 @@ fn a_battle_brain_plays_for_its_wizard_and_the_plain_ai_for_the_rest() {
     assert!(!events
         .iter()
         .any(|e| matches!(e, Event::Battle(BattleEvent::Fled { .. }))));
+    Ok(())
 }
 
 // ---- combat ability rules (task 37), spell shots (38), after the battle (42) -------------
@@ -3501,23 +3818,29 @@ fn caster(abilities: &[&str], mana: i32, ammo: i32) -> BattleUnit {
 }
 
 #[test]
-fn a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot() {
+fn a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot() -> TestResult {
     let mut b = duel(
         caster(&["fireball_attack", "spellcaster"], 20, 6),
         dummy(&[]),
         1,
     );
     b.apply(BattleCommand::Shoot { unit: 0, target: 1 })
-        .unwrap();
-    let u = b.unit(0).unwrap();
+        .map_err(|e| format!("{e:?}"))?;
+    let u = b.unit(0).ok_or("unit is missing")?;
     assert_eq!((u.mana, u.ammo), (17, 5), "three mana a shot");
     // Mana leak takes five mana, which is another shot and a half.
     b.units[0].leak_mana(5);
-    let u = b.unit(0).unwrap();
+    let u = b.unit(0).ok_or("unit is missing")?;
     assert_eq!((u.mana, u.ammo), (12, 4));
     // With no mana left it cannot shoot.
     b.units[0].leak_mana(100);
-    assert_eq!((b.unit(0).unwrap().mana, b.unit(0).unwrap().ammo), (0, 0));
+    assert_eq!(
+        (
+            b.unit(0).ok_or("unit is missing")?.mana,
+            b.unit(0).ok_or("unit is missing")?.ammo
+        ),
+        (0, 0)
+    );
     // A unit with spell shots but no mana of its own simply loses one.
     let mut plain = caster(&["fireball_attack"], 0, 3);
     plain.leak_mana(5);
@@ -3525,27 +3848,32 @@ fn a_spell_caster_shoots_with_its_mana_and_mana_leak_costs_a_shot() {
     plain.ranged_kind = RangedKind::Missile;
     plain.leak_mana(5);
     assert_eq!(plain.ammo, 2, "arrows are not spell shots");
+    Ok(())
 }
 
 #[test]
-fn regenerating_units_heal_a_hit_as_their_sides_turn_begins() {
+fn regenerating_units_heal_a_hit_as_their_sides_turn_begins() -> TestResult {
     let mut hurt = dummy(&["regeneration"]);
     hurt.front_damage = 5;
     let mut b = duel(spearman(Side::Attacker, (3, 10)), hurt, 1);
-    let before = b.unit(1).unwrap().hit_points();
-    b.apply(BattleCommand::EndTurn).unwrap();
-    assert_eq!(b.unit(1).unwrap().hit_points(), before + 1);
+    let before = b.unit(1).ok_or("unit is missing")?.hit_points();
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(b.unit(1).ok_or("unit is missing")?.hit_points(), before + 1);
     // Not on the other side's turn.
-    b.apply(BattleCommand::EndTurn).unwrap();
-    assert_eq!(b.unit(1).unwrap().hit_points(), before + 1);
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(b.unit(1).ok_or("unit is missing")?.hit_points(), before + 1);
     // The Regeneration spell grants the same ability.
     let mut under_spell = dummy(&[]);
     under_spell.front_damage = 5;
     under_spell.abilities.push("regeneration".into());
     let mut b = duel(spearman(Side::Attacker, (3, 10)), under_spell, 1);
-    let before = b.unit(1).unwrap().hit_points();
-    b.apply(BattleCommand::EndTurn).unwrap();
-    assert_eq!(b.unit(1).unwrap().hit_points(), before + 1);
+    let before = b.unit(1).ok_or("unit is missing")?.hit_points();
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(b.unit(1).ok_or("unit is missing")?.hit_points(), before + 1);
+    Ok(())
 }
 
 fn game_with_abilities(unit_id: &str, abilities: &[&str]) -> Game {
@@ -3560,30 +3888,50 @@ fn game_with_abilities(unit_id: &str, abilities: &[&str]) -> Game {
 }
 
 #[test]
-fn luck_adds_one_to_hit_to_block_and_resistance_in_battle() {
+fn luck_adds_one_to_hit_to_block_and_resistance_in_battle() -> TestResult {
     let mut g = game_with_abilities("high_men_cavalry", &["lucky"]);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
     let plain = {
         let mut other = game();
-        let w = other.content.rules.units.id_of("high_men_cavalry").unwrap();
+        let w = other
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?;
         let u = other.spawn_unit(A, at(4, 4), w);
         let d = other.spawn_unit(D, at(5, 4), w);
         other.apply(Command::BeginBattle {
             attackers: vec![u],
             defenders: vec![d],
         });
-        other.battle().unwrap().unit(0).unwrap().clone()
+        other
+            .battle()
+            .ok_or("battle is missing")?
+            .unit(0)
+            .ok_or("unit is missing")?
+            .clone()
     };
     g.apply(Command::BeginBattle {
         attackers: vec![a],
         defenders: vec![d],
     });
-    let lucky = g.battle().unwrap().unit(0).unwrap();
+    let lucky = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(0)
+        .ok_or("unit is missing")?;
     assert_eq!(lucky.to_hit, plain.to_hit + 1);
     assert_eq!(lucky.to_block, plain.to_block + 1);
     assert_eq!(lucky.resistance, plain.resistance + 1);
+    Ok(())
 }
 
 /// Start a battle of `attackers` against `defenders` walkers, then mark the units in `dead`
@@ -3599,7 +3947,7 @@ fn finish_with_dead(
         attackers: attackers.to_vec(),
         defenders: defenders.to_vec(),
     });
-    let b = &mut g.battle.as_mut().unwrap().battle;
+    let b = &mut g.battle.as_mut().expect("as_mut succeeds").battle;
     for &i in dead {
         b.units[i].figures = 0;
         b.units[i].status = Status::Dead;
@@ -3608,21 +3956,29 @@ fn finish_with_dead(
 }
 
 #[test]
-fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won() {
+fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won() -> TestResult {
     let mut g = game_with_abilities("high_men_cavalry", &[]);
     let mut units = g.content.rules.units.defs().to_vec();
     crate::game::testutil::add_real_unit(&mut units, "troll_war_trolls");
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
-    let troll = g.content.rules.units.id_of("troll_war_trolls").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
+    let troll = g
+        .content
+        .rules
+        .units
+        .id_of("troll_war_trolls")
+        .ok_or("troll_war_trolls is not in the content")?;
     let alive = g.spawn_unit(A, at(4, 4), walker);
     let slain_troll = g.spawn_unit(A, at(4, 4), troll);
     let hurt_troll = g.spawn_unit(A, at(4, 4), troll);
     let slain_walker = g.spawn_unit(A, at(4, 4), walker);
     let foe = g.spawn_unit(D, at(5, 4), walker);
-    g.world
-        .insert_one(hurt_troll, crate::unit::Hurt(4))
-        .unwrap();
+    g.world.insert_one(hurt_troll, crate::unit::Hurt(4))?;
     let events = finish_with_dead(
         &mut g,
         &[alive, slain_troll, hurt_troll, slain_walker],
@@ -3635,33 +3991,50 @@ fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won(
     assert!(g.world.contains(alive));
     assert!(!g.world.contains(slain_walker), "the dead stay dead");
     assert!(g.world.contains(slain_troll), "regeneration brings it back");
-    assert_eq!(g.world.get::<&crate::unit::Hurt>(slain_troll).unwrap().0, 0);
-    assert_eq!(g.world.get::<&crate::unit::Hurt>(hurt_troll).unwrap().0, 0);
+    assert_eq!(g.world.get::<&crate::unit::Hurt>(slain_troll)?.0, 0);
+    assert_eq!(g.world.get::<&crate::unit::Hurt>(hurt_troll)?.0, 0);
     assert_eq!(
         g.units().unit_position(slain_troll),
         Some(at(5, 4)),
         "and moves in"
     );
+    Ok(())
 }
 
 #[test]
-fn a_regenerating_unit_that_loses_stays_dead() {
+fn a_regenerating_unit_that_loses_stays_dead() -> TestResult {
     let mut g = game_with_abilities("high_men_cavalry", &[]);
     let mut units = g.content.rules.units.defs().to_vec();
     crate::game::testutil::add_real_unit(&mut units, "troll_war_trolls");
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
-    let troll = g.content.rules.units.id_of("troll_war_trolls").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
+    let troll = g
+        .content
+        .rules
+        .units
+        .id_of("troll_war_trolls")
+        .ok_or("troll_war_trolls is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), troll);
     let d = g.spawn_unit(D, at(5, 4), walker);
     finish_with_dead(&mut g, &[a], &[d], &[0]);
     assert!(!g.world.contains(a));
+    Ok(())
 }
 
 #[test]
-fn the_winners_survivors_gain_experience_and_fame_for_four_kills() {
+fn the_winners_survivors_gain_experience_and_fame_for_four_kills() -> TestResult {
     let mut g = game_with_abilities("high_men_cavalry", &[]);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let fallen = g.spawn_unit(A, at(4, 4), walker);
     let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
@@ -3669,75 +4042,97 @@ fn the_winners_survivors_gain_experience_and_fame_for_four_kills() {
     let events = finish_with_dead(&mut g, &[a, fallen], &foes, &[1, 2, 3, 4, 5]);
     assert!(g.world.contains(a));
     // Four dead enemies: 2 each. The fallen of its own side give nothing, nor does it gain.
-    let xp = g.world.get::<&crate::unit::Experience>(a).unwrap().0;
+    let xp = g.world.get::<&crate::unit::Experience>(a)?.0;
     assert_eq!(xp, 8);
-    assert_eq!(g.wizard(A).unwrap().fame(), 4);
+    assert_eq!(g.wizard(A).ok_or("wizard is missing")?.fame(), 4);
     assert!(events.iter().any(|e| matches!(
         e,
         Event::BattleSpoils { player, experience: 8, fame: 1, .. } if *player == A
     )));
+    Ok(())
 }
 
 #[test]
-fn fewer_than_four_kills_give_experience_but_no_fame() {
+fn fewer_than_four_kills_give_experience_but_no_fame() -> TestResult {
     let mut g = game_with_abilities("high_men_cavalry", &[]);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let foes: Vec<_> = (0..2).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     finish_with_dead(&mut g, &[a], &foes, &[1, 2]);
-    assert_eq!(g.world.get::<&crate::unit::Experience>(a).unwrap().0, 4);
-    assert_eq!(g.wizard(A).unwrap().fame(), 0);
+    assert_eq!(g.world.get::<&crate::unit::Experience>(a)?.0, 4);
+    assert_eq!(g.wizard(A).ok_or("wizard is missing")?.fame(), 0);
+    Ok(())
 }
 
 #[test]
-fn a_very_rare_foe_is_worth_a_point_of_fame() {
+fn a_very_rare_foe_is_worth_a_point_of_fame() -> TestResult {
     let mut g = game_with_abilities("high_men_cavalry", &[]);
     let mut units = g.content.rules.units.defs().to_vec();
     for u in units.iter_mut().filter(|u| u.id == "high_men_cavalry") {
         u.cost = 600;
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
     g.set_fame(D, 5);
     finish_with_dead(&mut g, &[a], &[d], &[1]);
-    assert_eq!(g.wizard(A).unwrap().fame(), 1);
+    assert_eq!(g.wizard(A).ok_or("wizard is missing")?.fame(), 1);
     assert_eq!(
-        g.wizard(D).unwrap().fame(),
+        g.wizard(D).ok_or("wizard is missing")?.fame(),
         5,
         "no hero fell, so the loser keeps its fame"
     );
+    Ok(())
 }
 
 #[test]
-fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back() {
+fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back() -> TestResult {
     let mut g = game_with_abilities("high_men_cavalry", &[]);
     let mut units = g.content.rules.units.defs().to_vec();
     for u in units.iter_mut().filter(|u| u.id == "high_men_cavalry") {
         u.kind = crate::rules::UnitKind::Hero;
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     // The first foe is a Veteran (level 1): half of 1 + 1 is 1.
-    g.world
-        .insert_one(foes[0], crate::unit::Experience(20))
-        .unwrap();
+    g.world.insert_one(foes[0], crate::unit::Experience(20))?;
     g.set_fame(D, 25);
     g.set_human(Some(D));
     finish_with_dead(&mut g, &[a], &foes, &[1, 2, 3, 4]);
     // 25 - 1 for the hero, then one more for the four kills of a human loser above 20 fame.
-    assert_eq!(g.wizard(D).unwrap().fame(), 23);
+    assert_eq!(g.wizard(D).ok_or("wizard is missing")?.fame(), 23);
     // A hero's level 0 costs nothing.
     let mut g2 = game_with_abilities("high_men_cavalry", &[]);
-    let walker = g2.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g2
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a = g2.spawn_unit(A, at(4, 4), walker);
     let d = g2.spawn_unit(D, at(5, 4), walker);
     g2.set_fame(D, 5);
     finish_with_dead(&mut g2, &[a], &[d], &[1]);
-    assert_eq!(g2.wizard(D).unwrap().fame(), 5);
+    assert_eq!(g2.wizard(D).ok_or("wizard is missing")?.fame(), 5);
+    Ok(())
 }
 
 #[test]
@@ -3779,14 +4174,14 @@ fn extra_hits_do_not_count_as_the_units_real_strength() {
 }
 
 #[test]
-fn a_vortex_crushes_the_unit_it_lands_on_and_is_steered_once_a_turn_by_its_owner() {
+fn a_vortex_crushes_the_unit_it_lands_on_and_is_steered_once_a_turn_by_its_owner() -> TestResult {
     let mut b = duel(
         spearman(Side::Attacker, (3, 10)),
         spearman(Side::Defender, (11, 10)),
         5,
     );
     b.units[1].figures_start = 1;
-    let before = b.unit(1).unwrap().hit_points();
+    let before = b.unit(1).ok_or("unit is missing")?.hit_points();
     b.make_vortex(Side::Attacker, (10, 10));
     assert!(b.is_occupied((10, 10)));
     assert!(!b.can_make_vortex((10, 10)), "not on another vortex");
@@ -3804,13 +4199,13 @@ fn a_vortex_crushes_the_unit_it_lands_on_and_is_steered_once_a_turn_by_its_owner
             index: 0,
             to: (11, 10),
         })
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     assert!(events
         .iter()
         .any(|e| matches!(e, BattleEvent::VortexMoved { to: (11, 10), .. })));
     let after = b.unit(1).map_or(0, |u| u.hit_points());
     assert!(
-        after < before || !b.unit(1).unwrap().is_active(),
+        after < before || !b.unit(1).ok_or("unit is missing")?.is_active(),
         "{before} -> {after}"
     );
     // Once a turn.
@@ -3821,6 +4216,7 @@ fn a_vortex_crushes_the_unit_it_lands_on_and_is_steered_once_a_turn_by_its_owner
         }),
         Err(BattleError::NotYours)
     );
+    Ok(())
 }
 
 #[test]
@@ -3844,30 +4240,42 @@ fn vortices_wander_three_squares_each_turn_and_there_are_at_most_ten() {
 }
 
 #[test]
-fn magic_vortex_is_cast_on_a_free_square() {
+fn magic_vortex_is_cast_on_a_free_square() -> TestResult {
     let mut g = hook_game("magic_vortex");
-    let enemy_cell = g.battle().unwrap().unit(1).unwrap().cell;
+    let enemy_cell = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(1)
+        .ok_or("unit is missing")?
+        .cell;
     assert_eq!(
         cast_unit(&mut g, "magic_vortex", SpellAim::Tile(enemy_cell), 0),
         Err(BattleError::Spell(SpellError::Target(
             TargetError::NoVortexRoom
         )))
     );
-    let events = cast_unit(&mut g, "magic_vortex", SpellAim::Tile((10, 10)), 0).unwrap();
+    let events = cast_unit(&mut g, "magic_vortex", SpellAim::Tile((10, 10)), 0)
+        .map_err(|e| format!("{e:?}"))?;
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::Battle(BattleEvent::VortexMade { cell: (10, 10) }))));
-    assert_eq!(g.battle().unwrap().vortices.len(), 1);
+    assert_eq!(g.battle().ok_or("battle is missing")?.vortices.len(), 1);
+    Ok(())
 }
 
 #[test]
-fn a_battle_fought_after_recording_began_plays_again_the_same() {
+fn a_battle_fought_after_recording_began_plays_again_the_same() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let a1 = g.spawn_unit(A, at(4, 4), walker);
     let a2 = g.spawn_unit(A, at(4, 4), walker);
     let d1 = g.spawn_unit(D, at(5, 4), walker);
-    g.start_recording().unwrap();
+    g.start_recording().map_err(|e| format!("{e:?}"))?;
     g.apply(Command::BeginBattle {
         attackers: vec![a1, a2],
         defenders: vec![d1],
@@ -3875,18 +4283,18 @@ fn a_battle_fought_after_recording_began_plays_again_the_same() {
     let mut ended = false;
     for _ in 0..200 {
         let (side, ids): (Side, Vec<usize>) = {
-            let b = g.battle().unwrap();
+            let b = g.battle().ok_or("battle is missing")?;
             (b.active, b.active_units(b.active).map(|u| u.id).collect())
         };
         for id in ids {
             let Some((t, cell)) = ({
-                let b = g.battle().unwrap();
+                let b = g.battle().ok_or("battle is missing")?;
                 b.active_units(side.other()).next().map(|t| (t.id, t.cell))
             }) else {
                 break;
             };
             let step = {
-                let b = g.battle().unwrap();
+                let b = g.battle().ok_or("battle is missing")?;
                 b.reachable(id)
                     .into_iter()
                     .min_by_key(|(p, _)| distance(*p, cell))
@@ -3910,13 +4318,13 @@ fn a_battle_fought_after_recording_began_plays_again_the_same() {
         g.apply(Command::Battle(BattleCommand::EndTurn));
     }
     assert!(ended && !g.in_battle());
-    let replay = g.stop_recording().unwrap();
+    let replay = g.stop_recording().ok_or("stop_recording is missing")?;
     assert!(replay.commands.len() > 3, "the battle's orders are in it");
-    let (again, _) = replay.play(g.content.clone(), usize::MAX).unwrap();
-    assert_eq!(
-        again.snapshot().to_text().unwrap(),
-        g.snapshot().to_text().unwrap()
-    );
+    let (again, _) = replay
+        .play(g.content.clone(), usize::MAX)
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(again.snapshot().to_text()?, g.snapshot().to_text()?);
+    Ok(())
 }
 
 fn ghost(side: Side, cell: Pos) -> BattleUnit {
@@ -3952,27 +4360,31 @@ fn an_invisible_unit_is_unseen_and_cannot_be_aimed_at_until_it_gives_itself_away
 }
 
 #[test]
-fn an_invisible_unit_shows_after_it_attacks_until_its_next_turn_and_to_those_who_see_through() {
+fn an_invisible_unit_shows_after_it_attacks_until_its_next_turn_and_to_those_who_see_through(
+) -> TestResult {
     let mut b = duel(
         spearman(Side::Attacker, (3, 10)),
         ghost(Side::Defender, (5, 10)),
         1,
     );
-    b.apply(BattleCommand::EndTurn).unwrap();
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
     // The ghost walks up to the spearman and strikes it.
     b.apply(BattleCommand::Move {
         unit: 1,
         to: (4, 10),
     })
-    .unwrap();
+    .map_err(|e| format!("{e:?}"))?;
     b.apply(BattleCommand::Attack { unit: 1, target: 0 })
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     assert!(b.units[1].revealed);
     b.units[0].cell = (3, 3); // out of reach of the ghost's square, so only the strike shows it
     assert!(b.seen_by(Side::Attacker, 1), "seen after attacking");
-    b.apply(BattleCommand::EndTurn).unwrap();
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
     assert!(b.seen_by(Side::Attacker, 1), "still seen on the enemy turn");
-    b.apply(BattleCommand::EndTurn).unwrap();
+    b.apply(BattleCommand::EndTurn)
+        .map_err(|e| format!("{e:?}"))?;
     assert!(
         !b.units[1].revealed,
         "hidden again when its own turn begins"
@@ -3983,6 +4395,7 @@ fn an_invisible_unit_shows_after_it_attacks_until_its_next_turn_and_to_those_who
         b.seen_by(Side::Attacker, 1),
         "a unit immune to illusions sees it"
     );
+    Ok(())
 }
 
 #[test]
@@ -4009,19 +4422,40 @@ fn dispel_the_field(burn: usize) -> (bool, bool) {
     for _ in 0..burn {
         g.next_u64();
     }
-    g.treasury_mut(A).unwrap().mana = 2000;
-    g.init_wizard(A, &[("sorcery", 5)], &[], None).unwrap();
-    let dispel = g.content.rules.spells.id_of("dispel_magic").unwrap();
-    let darkness = g.content.rules.spells.id_of("darkness").unwrap();
-    let prayer = g.content.rules.spells.id_of("prayer").unwrap();
+    g.treasury_mut(A).expect("treasury_mut succeeds").mana = 2000;
+    g.init_wizard(A, &[("sorcery", 5)], &[], None)
+        .expect("init_wizard succeeds");
+    let dispel = g
+        .content
+        .rules
+        .spells
+        .id_of("dispel_magic")
+        .expect("id_of succeeds");
+    let darkness = g
+        .content
+        .rules
+        .spells
+        .id_of("darkness")
+        .expect("id_of succeeds");
+    let prayer = g
+        .content
+        .rules
+        .spells
+        .id_of("prayer")
+        .expect("id_of succeeds");
     {
-        let mut m = g.wizard_mut(A).unwrap();
+        let mut m = g.wizard_mut(A).expect("wizard_mut succeeds");
         m.get_mut::<crate::wizard::sheet::KnownSpells>()
             .known
             .insert(dispel);
         m.get_mut::<crate::wizard::sheet::Skill>().left = 500;
     }
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .expect("id_of succeeds");
     let ours = g.spawn_unit(A, at(4, 4), walker);
     let theirs = g.spawn_unit(D, at(5, 4), walker);
     g.apply(Command::BeginBattle {
@@ -4029,7 +4463,7 @@ fn dispel_the_field(burn: usize) -> (bool, bool) {
         defenders: vec![theirs],
     });
     {
-        let b = &mut g.battle.as_mut().unwrap().battle;
+        let b = &mut g.battle.as_mut().expect("as_mut succeeds").battle;
         b.set_caster(
             Side::Attacker,
             crate::battle::BattleCaster::new(2000, 2000, 10),
@@ -4043,8 +4477,8 @@ fn dispel_the_field(burn: usize) -> (bool, bool) {
             aim: SpellAim::Unit(1),
             mana: 1500,
         })
-        .unwrap();
-    let b = g.battle().unwrap();
+        .expect("value succeeds");
+    let b = g.battle().expect("battle succeeds");
     let down = !b.has_field(Side::Defender, Field::Darkness);
     assert_eq!(
         down,
@@ -4075,12 +4509,12 @@ fn dispel_magic_takes_down_the_enemy_battlefield_spells_and_leaves_its_casters_o
 /// attacker is a `unit` of the test content.
 fn wizard_battle(unit: &str, spells: &[&str]) -> Game {
     let mut g = casting_game();
-    g.treasury_mut(A).unwrap().mana = 2000;
+    g.treasury_mut(A).expect("treasury_mut succeeds").mana = 2000;
     g.init_wizard(A, &[("nature", 5), ("life", 5), ("death", 5)], &[], None)
-        .unwrap();
+        .expect("value succeeds");
     for name in spells {
-        let id = g.content.rules.spells.id_of(name).unwrap();
-        let mut m = g.wizard_mut(A).unwrap();
+        let id = g.content.rules.spells.id_of(name).expect("id_of succeeds");
+        let mut m = g.wizard_mut(A).expect("wizard_mut succeeds");
         m.get_mut::<crate::wizard::sheet::KnownSpells>()
             .researchable
             .remove(&id);
@@ -4091,7 +4525,7 @@ fn wizard_battle(unit: &str, spells: &[&str]) -> Game {
             .known
             .insert(id);
     }
-    let kind = g.content.rules.units.id_of(unit).unwrap();
+    let kind = g.content.rules.units.id_of(unit).expect("id_of succeeds");
     let ours = g.spawn_unit(A, at(4, 4), kind);
     begin(&mut g, ours);
     g
@@ -4099,11 +4533,15 @@ fn wizard_battle(unit: &str, spells: &[&str]) -> Game {
 
 /// The wizard casts `spell` on the first attacker, with a fresh turn's casting.
 fn cast_on_first(g: &mut Game, spell: &str) -> Result<Vec<Event>, BattleError> {
-    let id = g.content.rules.spells.id_of(spell).unwrap();
-    g.battle.as_mut().unwrap().battle.set_caster(
-        Side::Attacker,
-        crate::battle::BattleCaster::new(2000, 2000, 10),
-    );
+    let id = g.content.rules.spells.id_of(spell).expect("id_of succeeds");
+    g.battle
+        .as_mut()
+        .expect("as_mut succeeds")
+        .battle
+        .set_caster(
+            Side::Attacker,
+            crate::battle::BattleCaster::new(2000, 2000, 10),
+        );
     g.battle_command(BattleCommand::Cast {
         spell: id,
         aim: SpellAim::Unit(0),
@@ -4112,24 +4550,31 @@ fn cast_on_first(g: &mut Game, spell: &str) -> Result<Vec<Event>, BattleError> {
 }
 
 #[test]
-fn a_lasting_spell_is_cast_on_a_unit_once() {
+fn a_lasting_spell_is_cast_on_a_unit_once() -> TestResult {
     let mut g = wizard_battle("high_men_cavalry", &["giant_strength"]);
-    cast_on_first(&mut g, "giant_strength").unwrap();
+    cast_on_first(&mut g, "giant_strength").map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         cast_on_first(&mut g, "giant_strength"),
         Err(BattleError::Spell(SpellError::AlreadyEnchanted))
     );
+    Ok(())
 }
 
 #[test]
-fn stone_skin_gives_way_to_iron_skin_in_a_battle_too() {
+fn stone_skin_gives_way_to_iron_skin_in_a_battle_too() -> TestResult {
     let mut g = wizard_battle("high_men_cavalry", &["stone_skin", "iron_skin"]);
-    let defense = |g: &Game| g.battle().unwrap().unit(0).unwrap().defense;
+    let defense = |g: &Game| {
+        g.battle()
+            .expect("battle succeeds")
+            .unit(0)
+            .expect("unit succeeds")
+            .defense
+    };
     let base = defense(&g);
-    cast_on_first(&mut g, "stone_skin").unwrap();
+    cast_on_first(&mut g, "stone_skin").map_err(|e| format!("{e:?}"))?;
     assert_eq!(defense(&g), base + 1);
     // Iron Skin on top leaves its five, not six, and Stone Skin cannot follow it.
-    cast_on_first(&mut g, "iron_skin").unwrap();
+    cast_on_first(&mut g, "iron_skin").map_err(|e| format!("{e:?}"))?;
     assert_eq!(defense(&g), base + 5);
     assert_eq!(
         cast_on_first(&mut g, "stone_skin"),
@@ -4137,28 +4582,38 @@ fn stone_skin_gives_way_to_iron_skin_in_a_battle_too() {
     );
 
     let mut g = wizard_battle("high_men_cavalry", &["stone_skin", "iron_skin"]);
-    cast_on_first(&mut g, "iron_skin").unwrap();
+    cast_on_first(&mut g, "iron_skin").map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         cast_on_first(&mut g, "stone_skin"),
         Err(BattleError::Spell(SpellError::NotCumulative))
     );
     assert_eq!(defense(&g), base + 5);
+    Ok(())
 }
 
 #[test]
-fn a_dispel_does_not_bring_back_the_bonus_of_a_spell_that_gives_way() {
+fn a_dispel_does_not_bring_back_the_bonus_of_a_spell_that_gives_way() -> TestResult {
     // Whichever of the three the dice take off, the defence is that of the stronger skin left.
     for strength in [12, 25, 45, 80, 150] {
         let mut g = wizard_battle(
             "high_men_cavalry",
             &["stone_skin", "iron_skin", "giant_strength"],
         );
-        let base = g.battle().unwrap().unit(0).unwrap().defense;
+        let base = g
+            .battle()
+            .ok_or("battle is missing")?
+            .unit(0)
+            .ok_or("unit is missing")?
+            .defense;
         for spell in ["stone_skin", "iron_skin", "giant_strength"] {
-            cast_on_first(&mut g, spell).unwrap();
+            cast_on_first(&mut g, spell).map_err(|e| format!("{e:?}"))?;
         }
         g.dispel_battle_unit(0, strength, D);
-        let unit = g.battle().unwrap().unit(0).unwrap();
+        let unit = g
+            .battle()
+            .ok_or("battle is missing")?
+            .unit(0)
+            .ok_or("unit is missing")?;
         let has = |id: &str| unit.enchantments.iter().any(|e| e == id);
         let expected = if has("iron_skin") {
             5
@@ -4169,13 +4624,14 @@ fn a_dispel_does_not_bring_back_the_bonus_of_a_spell_that_gives_way() {
         };
         assert_eq!(unit.defense, base + expected, "strength {strength}");
     }
+    Ok(())
 }
 
 #[test]
-fn a_dispel_in_a_battle_tells_the_world_which_spell_went_and_whose_it_was() {
+fn a_dispel_in_a_battle_tells_the_world_which_spell_went_and_whose_it_was() -> TestResult {
     use crate::game::{DispelSite, Event};
     let mut g = wizard_battle("high_men_cavalry", &["stone_skin"]);
-    cast_on_first(&mut g, "stone_skin").unwrap();
+    cast_on_first(&mut g, "stone_skin").map_err(|e| format!("{e:?}"))?;
     let events = g.dispel_battle_unit(0, 10_000, D);
     let out = g.battle_event_list(events);
     let named = out
@@ -4191,6 +4647,7 @@ fn a_dispel_in_a_battle_tells_the_world_which_spell_went_and_whose_it_was() {
         })
         .count();
     assert_eq!(named, 1);
+    Ok(())
 }
 
 #[test]
@@ -4204,24 +4661,34 @@ fn a_wizard_cannot_give_a_unit_the_ability_it_has_by_nature() {
 }
 
 #[test]
-fn holy_weapon_is_refused_in_a_battle_while_the_wizard_keeps_holy_arms() {
+fn holy_weapon_is_refused_in_a_battle_while_the_wizard_keeps_holy_arms() -> TestResult {
     let mut g = wizard_battle("high_men_cavalry", &["holy_weapon"]);
-    let arms = g.content.rules.spells.id_of("holy_arms").unwrap();
+    let arms = g
+        .content
+        .rules
+        .spells
+        .id_of("holy_arms")
+        .ok_or("holy_arms is not in the content")?;
     g.add_global(A, arms);
     assert_eq!(
         cast_on_first(&mut g, "holy_weapon"),
         Err(BattleError::Spell(SpellError::NotCumulative))
     );
+    Ok(())
 }
 
 #[test]
-fn spells_the_battle_reads_by_name_can_be_cast_and_stay_on_the_unit() {
+fn spells_the_battle_reads_by_name_can_be_cast_and_stay_on_the_unit() -> TestResult {
     let names = ["bless", "righteousness", "resist_magic", "spell_lock"];
     let mut g = wizard_battle("high_men_cavalry", &names);
     for name in names {
-        cast_on_first(&mut g, name).unwrap();
+        cast_on_first(&mut g, name).map_err(|e| format!("{e:?}"))?;
     }
-    let unit = g.battle().unwrap().unit(0).unwrap();
+    let unit = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(0)
+        .ok_or("unit is missing")?;
     assert!(names
         .iter()
         .all(|n| unit.enchantments.iter().any(|e| e == n)));
@@ -4229,10 +4696,11 @@ fn spells_the_battle_reads_by_name_can_be_cast_and_stay_on_the_unit() {
         cast_on_first(&mut g, "bless"),
         Err(BattleError::Spell(SpellError::AlreadyEnchanted))
     );
+    Ok(())
 }
 
 #[test]
-fn the_resistance_pairs_are_refused_in_a_battle() {
+fn the_resistance_pairs_are_refused_in_a_battle() -> TestResult {
     let mut g = wizard_battle(
         "high_men_cavalry",
         &[
@@ -4242,39 +4710,57 @@ fn the_resistance_pairs_are_refused_in_a_battle() {
             "magic_immunity",
         ],
     );
-    cast_on_first(&mut g, "elemental_armor").unwrap();
+    cast_on_first(&mut g, "elemental_armor").map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         cast_on_first(&mut g, "resist_elements"),
         Err(BattleError::Spell(SpellError::NotCumulative))
     );
     let mut g = wizard_battle("high_men_cavalry", &["resist_elements", "elemental_armor"]);
-    cast_on_first(&mut g, "resist_elements").unwrap();
+    cast_on_first(&mut g, "resist_elements").map_err(|e| format!("{e:?}"))?;
     // The stronger one goes on top.
-    cast_on_first(&mut g, "elemental_armor").unwrap();
+    cast_on_first(&mut g, "elemental_armor").map_err(|e| format!("{e:?}"))?;
     let mut g = wizard_battle("high_men_cavalry", &["resist_magic", "magic_immunity"]);
-    cast_on_first(&mut g, "magic_immunity").unwrap();
+    cast_on_first(&mut g, "magic_immunity").map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         cast_on_first(&mut g, "resist_magic"),
         Err(BattleError::Spell(SpellError::NotCumulative))
     );
+    Ok(())
 }
 
 #[test]
-fn heroism_cast_in_a_battle_raises_the_unit_to_the_level_it_gives() {
+fn heroism_cast_in_a_battle_raises_the_unit_to_the_level_it_gives() -> TestResult {
     let mut g = wizard_battle("high_men_cavalry", &["heroism"]);
-    let melee = g.battle().unwrap().unit(0).unwrap().melee;
-    cast_on_first(&mut g, "heroism").unwrap();
+    let melee = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(0)
+        .ok_or("unit is missing")?
+        .melee;
+    cast_on_first(&mut g, "heroism").map_err(|e| format!("{e:?}"))?;
     // Heroism makes the unit Elite, which in the real path adds two points of attack (Regular and Elite).
-    assert_eq!(g.battle().unwrap().unit(0).unwrap().melee, melee + 2);
+    assert_eq!(
+        g.battle()
+            .ok_or("battle is missing")?
+            .unit(0)
+            .ok_or("unit is missing")?
+            .melee,
+        melee + 2
+    );
     // Dispelled, the unit goes back to what it was; a dispel of nothing leaves the bonus.
     g.dispel_battle_unit(0, 1000, D);
-    let unit = g.battle().unwrap().unit(0).unwrap();
+    let unit = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(0)
+        .ok_or("unit is missing")?;
     let has = unit.enchantments.iter().any(|e| e == "heroism");
     assert_eq!(unit.melee, melee + i32::from(has));
+    Ok(())
 }
 
 #[test]
-fn a_battle_is_saved_and_read_back_with_its_spells_and_items() {
+fn a_battle_is_saved_and_read_back_with_its_spells_and_items() -> TestResult {
     use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = casting_game();
@@ -4292,27 +4778,35 @@ fn a_battle_is_saved_and_read_back_with_its_spells_and_items() {
     };
     g.arm_hero(hero, [Some(wand), None, None]);
     begin(&mut g, hero);
-    let zap = g.content.rules.spells.id_of("fire_bolt").unwrap();
+    let zap = g
+        .content
+        .rules
+        .spells
+        .id_of("fire_bolt")
+        .ok_or("fire_bolt is not in the content")?;
     g.battle_command(BattleCommand::UnitCast {
         unit: 0,
         spell: zap,
         aim: SpellAim::Unit(1),
         mana: 0,
     })
-    .unwrap();
+    .map_err(|e| format!("{e:?}"))?;
     let rules = &g.content.rules;
-    let battle = g.battle().unwrap();
-    let text = ron::ser::to_string(battle).unwrap();
-    let mut back: Battle = ron::from_str(&text).unwrap();
-    back.check_spells(rules).unwrap();
-    let wand_entity = g.items().hero_item_entity(hero, 0).unwrap();
+    let battle = g.battle().ok_or("battle is missing")?;
+    let text = ron::ser::to_string(battle)?;
+    let mut back: Battle = ron::from_str(&text)?;
+    back.check_spells(rules).map_err(|e| format!("{e:?}"))?;
+    let wand_entity = g
+        .items()
+        .hero_item_entity(hero, 0)
+        .ok_or("hero_item_entity is missing")?;
     assert_eq!(
         back.units[0].casting.item_charges[0].item,
         hecs::Entity::DANGLING,
         "the entity is not saved"
     );
     back.bind_items(|s| (s == g.serial_of(wand_entity)).then_some(wand_entity))
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(back.units, battle.units);
     assert_eq!(back.units[0].casting.item_charges[0].charges, 1);
     // The random stream continues where it stopped.
@@ -4324,6 +4818,7 @@ fn a_battle_is_saved_and_read_back_with_its_spells_and_items() {
         save.check_spells(rules).err(),
         Some(save::BattleLoadError::UnknownSpell(9999))
     );
+    Ok(())
 }
 
 /// A battle between a hero with a charged wand and a spear, the hero's first spell cast.
@@ -4345,14 +4840,19 @@ fn battle_in_the_middle() -> (Game, hecs::Entity) {
     };
     g.arm_hero(hero, [Some(wand), None, None]);
     begin(&mut g, hero);
-    let zap = g.content.rules.spells.id_of("fire_bolt").unwrap();
+    let zap = g
+        .content
+        .rules
+        .spells
+        .id_of("fire_bolt")
+        .expect("id_of succeeds");
     g.battle_command(BattleCommand::UnitCast {
         unit: 0,
         spell: zap,
         aim: SpellAim::Unit(1),
         mana: 0,
     })
-    .unwrap();
+    .expect("value succeeds");
     (g, hero)
 }
 
@@ -4372,23 +4872,26 @@ fn finish_with_the_ai(g: &mut Game) -> Vec<Event> {
 }
 
 #[test]
-fn a_game_saved_in_a_battle_continues_exactly_like_the_unsaved_one() {
+fn a_game_saved_in_a_battle_continues_exactly_like_the_unsaved_one() -> TestResult {
     let (mut g, hero) = battle_in_the_middle();
-    let text = g.snapshot().to_text().unwrap();
-    let mut loaded = Snapshot::from_text(&text)
-        .unwrap()
-        .restore(g.content.clone())
-        .unwrap();
+    let text = g.snapshot().to_text()?;
+    let mut loaded = Snapshot::from_text(&text)?.restore(g.content.clone())?;
     assert!(loaded.in_battle(), "the battle comes back with the world");
-    assert_eq!(loaded.snapshot().to_text().unwrap(), text);
+    assert_eq!(loaded.snapshot().to_text()?, text);
     // The wand's charges are bound to the loaded world's own item entity.
-    let loaded_hero = loaded.units().entity_of_serial(g.serial_of(hero)).unwrap();
-    let wand = loaded.items().hero_item_entity(loaded_hero, 0).unwrap();
+    let loaded_hero = loaded
+        .units()
+        .entity_of_serial(g.serial_of(hero))
+        .ok_or("entity_of_serial is missing")?;
+    let wand = loaded
+        .items()
+        .hero_item_entity(loaded_hero, 0)
+        .ok_or("hero_item_entity is missing")?;
     let charges = &loaded
         .battle()
-        .unwrap()
+        .ok_or("battle is missing")?
         .unit(0)
-        .unwrap()
+        .ok_or("unit is missing")?
         .casting
         .item_charges;
     assert_eq!(charges.len(), 1);
@@ -4396,10 +4899,8 @@ fn a_game_saved_in_a_battle_continues_exactly_like_the_unsaved_one() {
     let (a, b) = (finish_with_the_ai(&mut g), finish_with_the_ai(&mut loaded));
     assert!(!g.in_battle() && !loaded.in_battle());
     assert_eq!(a, b);
-    assert_eq!(
-        g.snapshot().to_text().unwrap(),
-        loaded.snapshot().to_text().unwrap()
-    );
+    assert_eq!(g.snapshot().to_text()?, loaded.snapshot().to_text()?);
+    Ok(())
 }
 
 #[test]
@@ -4410,20 +4911,21 @@ fn a_game_saved_outside_a_battle_holds_no_battle() {
 }
 
 #[test]
-fn a_save_whose_battle_names_a_unit_that_is_gone_is_refused() {
+fn a_save_whose_battle_names_a_unit_that_is_gone_is_refused() -> TestResult {
     let (g, _) = battle_in_the_middle();
     let mut snap = g.snapshot();
-    let battle = snap.battle.as_mut().unwrap();
+    let battle = snap.battle.as_mut().ok_or("as_mut is missing")?;
     let gone = battle.sources[0];
     snap.units.retain(|u| u.serial != gone.0);
     snap.heroes.retain(|h| h.serial != gone.0);
     assert!(snap.restore(g.content.clone()).is_err());
+    Ok(())
 }
 
 #[test]
-fn a_replay_can_start_in_a_battle() {
+fn a_replay_can_start_in_a_battle() -> TestResult {
     let (mut g, _) = battle_in_the_middle();
-    g.start_recording().unwrap();
+    g.start_recording().map_err(|e| format!("{e:?}"))?;
     while let Some(command) = g.next_battle_command() {
         let events = g.apply(Command::Battle(command));
         if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
@@ -4431,31 +4933,36 @@ fn a_replay_can_start_in_a_battle() {
         }
     }
     assert!(!g.in_battle());
-    let replay = g.stop_recording().unwrap();
-    let (played, _) = replay.play(g.content.clone(), usize::MAX).unwrap();
-    assert_eq!(
-        played.snapshot().to_text().unwrap(),
-        g.snapshot().to_text().unwrap()
-    );
+    let replay = g.stop_recording().ok_or("stop_recording is missing")?;
+    let (played, _) = replay
+        .play(g.content.clone(), usize::MAX)
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(played.snapshot().to_text()?, g.snapshot().to_text()?);
+    Ok(())
 }
 
 #[test]
-fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() {
+fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() -> TestResult {
     let mut g = wizard_battle("high_men_cavalry", &[]);
-    g.treasury_mut(D).unwrap().mana = 2000;
+    g.treasury_mut(D).ok_or("treasury_mut is missing")?.mana = 2000;
     g.init_wizard(D, &[("nature", 5), ("chaos", 5), ("death", 5)], &[], None)
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     for name in ["wall_of_stone", "wall_of_fire", "wall_of_darkness"] {
-        let id = g.content.rules.spells.id_of(name).unwrap();
+        let id = g
+            .content
+            .rules
+            .spells
+            .id_of(name)
+            .ok_or("id_of is missing")?;
         g.wizard_mut(D)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::KnownSpells>()
             .known
             .insert(id);
     }
     let cast = |g: &mut Game, name: &str, side: Side| {
-        let spell = g.content.rules.spells.id_of(name).unwrap();
-        let b = &mut g.battle.as_mut().unwrap().battle;
+        let spell = g.content.rules.spells.id_of(name).expect("id_of succeeds");
+        let b = &mut g.battle.as_mut().expect("as_mut succeeds").battle;
         b.active = side;
         b.set_caster(side, crate::battle::BattleCaster::new(2000, 2000, 10));
         g.battle_command(BattleCommand::Cast {
@@ -4466,36 +4973,42 @@ fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() {
     };
     // In open country there is no city to wall.
     assert!(cast(&mut g, "wall_of_stone", Side::Defender).is_err());
-    g.battle.as_mut().unwrap().battle.map = BattleMap::open().with_city(false);
-    assert!(g.battle().unwrap().map.standing_walls().is_empty());
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.map = BattleMap::open().with_city(false);
+    assert!(g
+        .battle()
+        .ok_or("battle is missing")?
+        .map
+        .standing_walls()
+        .is_empty());
     // The attacker cannot raise one, the defender can, once.
     assert!(cast(&mut g, "wall_of_stone", Side::Attacker).is_err());
-    let events = cast(&mut g, "wall_of_stone", Side::Defender).unwrap();
+    let events = cast(&mut g, "wall_of_stone", Side::Defender).map_err(|e| format!("{e:?}"))?;
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::Battle(BattleEvent::WallRaised { .. }))));
-    assert!(g.battle().unwrap().map.is_fully_walled());
+    assert!(g.battle().ok_or("battle is missing")?.map.is_fully_walled());
     assert_eq!(
         cast(&mut g, "wall_of_stone", Side::Defender),
         Err(BattleError::Spell(SpellError::AlreadyUp))
     );
     // Fire and Darkness are flags of the battle.
-    cast(&mut g, "wall_of_fire", Side::Defender).unwrap();
-    cast(&mut g, "wall_of_darkness", Side::Defender).unwrap();
-    let b = g.battle().unwrap();
+    cast(&mut g, "wall_of_fire", Side::Defender).map_err(|e| format!("{e:?}"))?;
+    cast(&mut g, "wall_of_darkness", Side::Defender).map_err(|e| format!("{e:?}"))?;
+    let b = g.battle().ok_or("battle is missing")?;
     assert!(b.wall_of_fire && b.wall_of_darkness);
+    Ok(())
 }
 
 /// A fight of player A's wizard (who knows `spells`, with `mana` in the reserve) against a
 /// stack of walkers, left to the battle AI; returns the mana spent.
 fn strategic_fight(spells: &[&str], mana: i32, budget: Option<u32>) -> i32 {
     let mut g = casting_game();
-    g.treasury_mut(A).unwrap().mana = 2000;
+    g.treasury_mut(A).expect("treasury_mut succeeds").mana = 2000;
     g.init_wizard(A, &[("nature", 5), ("life", 5), ("death", 5)], &[], None)
-        .unwrap();
+        .expect("value succeeds");
     for name in spells {
-        let id = g.content.rules.spells.id_of(name).unwrap();
-        let mut m = g.wizard_mut(A).unwrap();
+        let id = g.content.rules.spells.id_of(name).expect("id_of succeeds");
+        let mut m = g.wizard_mut(A).expect("wizard_mut succeeds");
         m.get_mut::<crate::wizard::sheet::KnownSpells>()
             .researchable
             .remove(&id);
@@ -4506,8 +5019,13 @@ fn strategic_fight(spells: &[&str], mana: i32, budget: Option<u32>) -> i32 {
             .known
             .insert(id);
     }
-    g.treasury_mut(A).unwrap().mana = mana;
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    g.treasury_mut(A).expect("treasury_mut succeeds").mana = mana;
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .expect("id_of succeeds");
     let ours: Vec<_> = (0..3).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let theirs: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     g.apply(Command::AutoResolve {
@@ -4516,7 +5034,7 @@ fn strategic_fight(spells: &[&str], mana: i32, budget: Option<u32>) -> i32 {
         mana_budget: budget.map(|b| (A, b)),
     });
     assert!(!g.in_battle());
-    mana - g.treasury_mut(A).unwrap().mana
+    mana - g.treasury_mut(A).expect("treasury_mut succeeds").mana
 }
 
 #[test]
@@ -4530,21 +5048,26 @@ fn the_battle_ai_spends_mana_in_a_strategic_fight_and_a_limit_stops_it() {
 }
 
 #[test]
-fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() {
+fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() -> TestResult {
     let mut g = casting_game();
     g.init_wizard(A, &[("nature", 5), ("life", 5), ("death", 5)], &[], None)
-        .unwrap();
-    g.treasury_mut(A).unwrap().mana = 500;
+        .map_err(|e| format!("{e:?}"))?;
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 500;
     // No spell for a battle: nothing to ask.
     g.wizard_mut(A)
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
         .clear();
     assert_eq!(g.strategic_mana_default(A), None);
-    let id = g.content.rules.spells.id_of("giant_strength").unwrap();
+    let id = g
+        .content
+        .rules
+        .spells
+        .id_of("giant_strength")
+        .ok_or("giant_strength is not in the content")?;
     {
-        let mut m = g.wizard_mut(A).unwrap();
+        let mut m = g.wizard_mut(A).ok_or("wizard_mut is missing")?;
         m.get_mut::<crate::wizard::sheet::KnownSpells>()
             .researchable
             .remove(&id);
@@ -4555,37 +5078,42 @@ fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() {
             .known
             .insert(id);
     }
-    let skill = g.wizard(A).unwrap().casting_skill() as u32;
+    let skill = g.wizard(A).ok_or("wizard is missing")?.casting_skill() as u32;
     assert_eq!(g.strategic_mana_default(A), Some(skill.clamp(1, 250)));
-    g.treasury_mut(A).unwrap().mana = 10;
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 10;
     assert_eq!(g.strategic_mana_default(A), Some(skill.clamp(1, 5)));
-    g.treasury_mut(A).unwrap().mana = 1;
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 1;
     assert_eq!(g.strategic_mana_default(A), Some(1));
-    g.treasury_mut(A).unwrap().mana = 0;
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 0;
     assert_eq!(g.strategic_mana_default(A), None);
+    Ok(())
 }
 
 #[test]
-fn a_hasted_unit_attacks_twice_in_a_turn() {
+fn a_hasted_unit_attacks_twice_in_a_turn() -> TestResult {
     let mut hasted = spearman(Side::Attacker, (9, 10));
     hasted.abilities.push("hasted".into());
     hasted.apply_lasting(&[], &[]);
     let mut b = duel(hasted, spearman(Side::Defender, (10, 10)), 3);
-    assert!(b.unit(0).unwrap().extra_attack);
+    assert!(b.unit(0).ok_or("unit is missing")?.extra_attack);
     b.apply(BattleCommand::Attack { unit: 0, target: 1 })
-        .unwrap();
-    assert!(!b.unit(0).unwrap().attacked, "one attack is left");
+        .map_err(|e| format!("{e:?}"))?;
+    assert!(
+        !b.unit(0).ok_or("unit is missing")?.attacked,
+        "one attack is left"
+    );
     b.apply(BattleCommand::Attack { unit: 0, target: 1 })
-        .unwrap();
-    assert!(b.unit(0).unwrap().attacked);
+        .map_err(|e| format!("{e:?}"))?;
+    assert!(b.unit(0).ok_or("unit is missing")?.attacked);
     assert_eq!(
         b.apply(BattleCommand::Attack { unit: 0, target: 1 }),
         Err(BattleError::AlreadyAttacked)
     );
+    Ok(())
 }
 
 #[test]
-fn a_battle_starts_with_the_games_melee_against_fliers_setting() {
+fn a_battle_starts_with_the_games_melee_against_fliers_setting() -> TestResult {
     use crate::game::setting::MeleeVsFliers;
     for rule in [
         MeleeVsFliers::Zero,
@@ -4594,23 +5122,34 @@ fn a_battle_starts_with_the_games_melee_against_fliers_setting() {
     ] {
         let mut g = game();
         g.settings.rules.melee_vs_fliers = rule;
-        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+        let walker = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?;
         let a = g.spawn_unit(A, at(4, 4), walker);
         let d = g.spawn_unit(D, at(5, 4), walker);
         g.apply(Command::BeginBattle {
             attackers: vec![a],
             defenders: vec![d],
         });
-        assert_eq!(g.battle().unwrap().melee_vs_fliers, rule);
+        assert_eq!(g.battle().ok_or("battle is missing")?.melee_vs_fliers, rule);
     }
+    Ok(())
 }
 
 // ---- a defended square holds more than the nine who fight -------------------------------
 
 #[test]
-fn the_nine_most_experienced_defenders_fight_from_a_crowded_square() {
+fn the_nine_most_experienced_defenders_fight_from_a_crowded_square() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let attacker = g.spawn_unit(A, at(4, 4), walker);
     let defenders: Vec<_> = (0..12).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     // The last three are the veterans.
@@ -4630,12 +5169,18 @@ fn the_nine_most_experienced_defenders_fight_from_a_crowded_square() {
     assert_eq!(fighting, crate::unit::MAX_STACK);
     let picked = g.fighter_preset(&defenders);
     assert!(defenders[9..].iter().all(|d| picked[..3].contains(d)));
+    Ok(())
 }
 
 #[test]
-fn defenders_who_sat_a_lost_battle_out_are_half_lost_and_driven_off_the_square() {
+fn defenders_who_sat_a_lost_battle_out_are_half_lost_and_driven_off_the_square() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let attackers: Vec<_> = (0..9).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let defenders: Vec<_> = (0..crate::unit::MAX_TILE_LIMIT)
         .map(|_| g.spawn_unit(D, at(5, 4), walker))
@@ -4658,12 +5203,18 @@ fn defenders_who_sat_a_lost_battle_out_are_half_lost_and_driven_off_the_square()
     for &&b in &left {
         assert_ne!(g.units().unit_position(b), Some(at(5, 4)), "driven off");
     }
+    Ok(())
 }
 
 #[test]
-fn defenders_who_sat_a_won_battle_out_stay() {
+fn defenders_who_sat_a_won_battle_out_stay() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let attacker = g.spawn_unit(A, at(4, 4), walker);
     let defenders: Vec<_> = (0..12).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     g.apply(Command::BeginBattle {
@@ -4675,12 +5226,18 @@ fn defenders_who_sat_a_won_battle_out_stay() {
     assert!(defenders
         .iter()
         .all(|&d| g.units().unit_position(d) == Some(at(5, 4))));
+    Ok(())
 }
 
 #[test]
-fn the_player_names_who_fights_and_the_others_stay_out_with_their_moves() {
+fn the_player_names_who_fights_and_the_others_stay_out_with_their_moves() -> TestResult {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_cavalry")
+        .ok_or("high_men_cavalry is not in the content")?;
     let attackers: Vec<_> = (0..12).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let defenders: Vec<_> = (0..12).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     // Nine of each are named; the last three of the defenders are not.
@@ -4688,14 +5245,18 @@ fn the_player_names_who_fights_and_the_others_stay_out_with_their_moves() {
         attackers: attackers[..9].to_vec(),
         defenders: defenders[..9].to_vec(),
     });
-    let sources = &g.battle.as_ref().unwrap().sources;
+    let sources = &g.battle.as_ref().ok_or("as_ref is missing")?.sources;
     assert!(defenders[..9].iter().all(|d| sources.contains(d)));
     assert!(defenders[9..].iter().all(|d| !sources.contains(d)));
-    assert_eq!(g.battle.as_ref().unwrap().benched, defenders[9..].to_vec());
+    assert_eq!(
+        g.battle.as_ref().ok_or("as_ref is missing")?.benched,
+        defenders[9..].to_vec()
+    );
     // The three attackers who were not named never entered it and keep their moves.
     let full = g.units().unit_moves_left(attackers[0]);
     assert!(attackers[9..]
         .iter()
         .all(|&a| g.units().unit_moves_left(a) == full));
     assert!(attackers[9..].iter().all(|a| !sources.contains(a)));
+    Ok(())
 }

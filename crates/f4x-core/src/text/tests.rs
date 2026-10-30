@@ -1,7 +1,8 @@
 use super::*;
+use crate::testdir::TestResult;
 
 fn texts(src: &str) -> Texts {
-    let entries: HashMap<String, Entry> = ron::from_str(src).unwrap();
+    let entries: HashMap<String, Entry> = ron::from_str(src).expect("from_str succeeds");
     Texts::new("en", entries, "en", HashMap::new())
 }
 
@@ -30,10 +31,11 @@ fn a_missing_key_prints_as_the_key() {
 }
 
 #[test]
-fn a_key_missing_from_the_language_comes_from_the_fallback() {
-    let fallback: HashMap<String, Entry> = ron::from_str(r#"{ "a": "fallback" }"#).unwrap();
+fn a_key_missing_from_the_language_comes_from_the_fallback() -> TestResult {
+    let fallback: HashMap<String, Entry> = ron::from_str(r#"{ "a": "fallback" }"#)?;
     let t = Texts::new("de", HashMap::new(), "en", fallback);
     assert_eq!(t.get("a", &Args::new()), "fallback");
+    Ok(())
 }
 
 const UNITS: &str = r#"{

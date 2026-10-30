@@ -368,6 +368,7 @@ mod tests {
     use crate::map::{Grid, Map, Plane};
     use crate::rules::effects::{Effect, EffectRule};
     use crate::rules::{HeroKind, ItemKind, Registry};
+    use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);
@@ -413,8 +414,8 @@ mod tests {
             crate::game::testutil::item_power("flaming", None, None),
         ]));
         let (grass, ocean) = (
-            c.terrains.id_of("grassland").unwrap(),
-            c.terrains.id_of("ocean").unwrap(),
+            c.terrains.id_of("grassland").expect("id_of succeeds"),
+            c.terrains.id_of("ocean").expect("id_of succeeds"),
         );
         let build = || {
             let mut g = Grid::new(14, 8, grass);
@@ -435,7 +436,7 @@ mod tests {
     }
 
     fn hero(g: &mut Game, id: &str, pos: Position) -> hecs::Entity {
-        let u = g.content.rules.units.id_of(id).unwrap();
+        let u = g.content.rules.units.id_of(id).expect("id_of succeeds");
         g.spawn_unit(P0, pos, u)
     }
 
@@ -526,16 +527,16 @@ mod tests {
     }
 
     #[test]
-    fn a_full_slot_swaps_with_the_item_put_in_it() {
+    fn a_full_slot_swaps_with_the_item_put_in_it() -> TestResult {
         let mut g = world();
         let w = hero(&mut g, "dwarf", at(1, 1));
         g.give_item(P0, item("Sword", ItemKind::Sword));
         g.give_item(P0, item("Axe", ItemKind::Axe));
         g.give_item(P0, item("Plate", ItemKind::Platemail));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(w, 0), false)
-            .unwrap();
+            .map_err(|e| format!("{e:?}"))?;
         g.move_item(P0, ItemSpot::Vault(1), ItemSpot::Hero(w, 0), false)
-            .unwrap();
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(
             g.items()
                 .armory(P0)
@@ -544,7 +545,7 @@ mod tests {
                 .cloned()
                 .flatten()
                 .as_ref()
-                .unwrap()
+                .ok_or("as_ref is missing")?
                 .name,
             "Sword"
         );
@@ -563,10 +564,11 @@ mod tests {
                 .cloned()
                 .flatten()
                 .as_ref()
-                .unwrap()
+                .ok_or("as_ref is missing")?
                 .name,
             "Plate"
         );
+        Ok(())
     }
 
     #[test]
@@ -598,14 +600,14 @@ mod tests {
     }
 
     #[test]
-    fn two_heroes_on_one_square_trade_for_free() {
+    fn two_heroes_on_one_square_trade_for_free() -> TestResult {
         let mut g = world();
         let a = hero(&mut g, "dwarf", at(3, 3));
         let b = hero(&mut g, "dwarf", at(3, 3));
         let c = hero(&mut g, "dwarf", at(4, 3));
         g.give_item(P0, item("Sword", ItemKind::Sword));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(a, 0), true)
-            .unwrap();
+            .map_err(|e| format!("{e:?}"))?;
         g.tr_mut(0).mana = 0;
         assert_eq!(
             g.move_item(P0, ItemSpot::Hero(a, 0), ItemSpot::Hero(b, 0), false),
@@ -615,22 +617,29 @@ mod tests {
             g.move_item(P0, ItemSpot::Hero(b, 0), ItemSpot::Hero(c, 0), false),
             Err(ItemError::Transfer)
         );
+        Ok(())
     }
 
     #[test]
-    fn the_heroes_of_another_wizard_are_out_of_reach() {
+    fn the_heroes_of_another_wizard_are_out_of_reach() -> TestResult {
         let mut g = world();
-        let u = g.content.rules.units.id_of("dwarf").unwrap();
+        let u = g
+            .content
+            .rules
+            .units
+            .id_of("dwarf")
+            .ok_or("dwarf is not in the content")?;
         let theirs = g.spawn_unit(P1, at(1, 1), u);
         g.give_item(P0, item("Sword", ItemKind::Sword));
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(theirs, 0), false),
             Err(ItemError::NoSuchPlace)
         );
+        Ok(())
     }
 
     #[test]
-    fn an_item_that_keeps_a_hero_afloat_cannot_be_taken_away() {
+    fn an_item_that_keeps_a_hero_afloat_cannot_be_taken_away() -> TestResult {
         let mut g = world();
         // The hero stands on the sea with Flight in a misc slot; it is not a flier itself.
         let m = hero(&mut g, "dwarf", at(6, 4));
@@ -640,17 +649,18 @@ mod tests {
         g.wiz_mut(0)
             .put(Some(crate::wizard::fortress::Fortress(at(6, 4))));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(m, 2), false)
-            .unwrap();
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!(
             g.move_item(P0, ItemSpot::Hero(m, 2), ItemSpot::Vault(0), false),
             Err(ItemError::WouldDrown)
         );
         assert_eq!(g.items().carried(m).len(), 1);
         assert_eq!(g.items().armory(P0).vault.first().cloned().flatten(), None);
+        Ok(())
     }
 
     #[test]
-    fn the_vault_the_award_list_and_a_heros_items_are_saved() {
+    fn the_vault_the_award_list_and_a_heros_items_are_saved() -> TestResult {
         let mut g = world();
         let w = hero(&mut g, "dwarf", at(1, 1));
         let mut sword = item("Sword", ItemKind::Sword);
@@ -659,7 +669,7 @@ mod tests {
         g.give_item(P0, sword);
         g.give_item(P0, item("Ring", ItemKind::Misc));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(w, 0), false)
-            .unwrap();
+            .map_err(|e| format!("{e:?}"))?;
         for _ in 0..VAULT_SLOTS + 1 {
             g.give_item(P0, item("Filler", ItemKind::Misc));
         }
@@ -668,11 +678,8 @@ mod tests {
             crate::item::entity::HeldBy::Offered(P1),
         );
         g.wiz_mut(0).put::<crate::wizard::fortress::Fortress>(None);
-        let text = g.snapshot().to_text().unwrap();
-        let back = crate::game::save::Snapshot::from_text(&text)
-            .unwrap()
-            .restore(g.content.clone())
-            .unwrap();
+        let text = g.snapshot().to_text()?;
+        let back = crate::game::save::Snapshot::from_text(&text)?.restore(g.content.clone())?;
         assert_eq!(back.items().armory(P0), g.items().armory(P0));
         assert_eq!(
             back.items()
@@ -685,8 +692,9 @@ mod tests {
         let hero = carried
             .iter()
             .find(|&&u| !back.items().carried(u).is_empty())
-            .unwrap();
+            .ok_or("find is missing")?;
         assert_eq!(back.items().carried(*hero), g.items().carried(w));
+        Ok(())
     }
 
     struct FakeHero {
@@ -755,7 +763,7 @@ mod tests {
     }
 
     #[test]
-    fn the_rules_need_no_game_to_allow_or_refuse_a_move() {
+    fn the_rules_need_no_game_to_allow_or_refuse_a_move() -> TestResult {
         let (w, a, _) = fake();
         let armory = vault_with(&[(0, ItemKind::Bow), (1, ItemKind::Sword)]);
         let plan = |from, to, mana, pay| plan_move(&w, &armory, mana, P0, from, to, pay);
@@ -764,7 +772,8 @@ mod tests {
             plan(ItemSpot::Vault(0), ItemSpot::Hero(a, 0), 0, false),
             Err(ItemError::WrongSlot)
         );
-        let ok = plan(ItemSpot::Vault(1), ItemSpot::Hero(a, 0), 0, false).unwrap();
+        let ok = plan(ItemSpot::Vault(1), ItemSpot::Hero(a, 0), 0, false)
+            .map_err(|e| format!("{e:?}"))?;
         assert_eq!((ok.cost, ok.other), (0, None));
         // Nothing there, no such slot, someone else's hero.
         assert_eq!(
@@ -792,10 +801,11 @@ mod tests {
             plan(ItemSpot::Vault(1), ItemSpot::Award(0), 0, false),
             Err(ItemError::WrongSlot)
         );
+        Ok(())
     }
 
     #[test]
-    fn a_swap_must_fit_the_old_place_and_the_cost_needs_consent_and_mana() {
+    fn a_swap_must_fit_the_old_place_and_the_cost_needs_consent_and_mana() -> TestResult {
         let (mut w, a, b) = fake();
         let armory = vault_with(&[(0, ItemKind::Sword), (1, ItemKind::Bow)]);
         // The hero b already holds a sword: swapping gives it back to the vault.
@@ -808,7 +818,7 @@ mod tests {
             ItemSpot::Hero(b, 0),
             false,
         )
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
         assert_eq!(swap.other.as_ref().map(|i| i.name.as_str()), Some("Old"));
         // Heroes on one square trade for free; the sword cannot go into a misc slot.
         let trade = plan_move(
@@ -861,5 +871,6 @@ mod tests {
             false,
         );
         assert_eq!(back.map(|p| p.cost), Ok(0));
+        Ok(())
     }
 }

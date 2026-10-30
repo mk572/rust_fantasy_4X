@@ -103,6 +103,7 @@ mod tests {
     use crate::game::testutil::content_with_magic;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::exec::Target;
+    use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);
@@ -113,7 +114,7 @@ mod tests {
 
     fn world() -> Game {
         let c = content_with_magic();
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
         let map = Map::new(Grid::new(12, 6, grass), Grid::new(12, 6, grass));
         let mut g = Game::new(1);
         g.content = c;
@@ -127,13 +128,18 @@ mod tests {
     fn city(g: &mut Game, owner: PlayerId, pos: Position, gate: Option<(&str, PlayerId)>) {
         let c = g.spawn_city(owner, pos, "C".into(), None, 3);
         if let Some((name, caster)) = gate {
-            let spell = g.content.rules.spells.id_of(name).unwrap();
+            let spell = g.content.rules.spells.id_of(name).expect("id_of succeeds");
             g.attach_enchantment(Target::City(c), spell, caster);
         }
     }
 
     fn walker(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
-        let id = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+        let id = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .expect("id_of succeeds");
         g.spawn_unit(owner, pos, id)
     }
 
@@ -231,7 +237,7 @@ mod tests {
     }
 
     #[test]
-    fn an_astral_gate_is_closed_by_the_planar_seal_and_by_stationed_enemies() {
+    fn an_astral_gate_is_closed_by_the_planar_seal_and_by_stationed_enemies() -> TestResult {
         let mut g = world();
         let a = at(Plane::Arcanus, 1, 1);
         city(&mut g, P0, a, Some((ASTRAL_GATE, P0)));
@@ -240,11 +246,17 @@ mod tests {
         assert_eq!(g.shift_plane(&[w]), Err(MoveError::CannotShiftPlane));
         g.despawn_with_spells(guard);
         assert!(g.economy().can_shift_plane(&[w]).is_ok());
-        let seal = g.content.rules.spells.id_of("planar_seal").unwrap();
+        let seal = g
+            .content
+            .rules
+            .spells
+            .id_of("planar_seal")
+            .ok_or("planar_seal is not in the content")?;
         g.attach_enchantment(Target::Player(P1), seal, P1);
         assert_eq!(
             g.economy().can_shift_plane(&[w]),
             Err(MoveError::CannotShiftPlane)
         );
+        Ok(())
     }
 }

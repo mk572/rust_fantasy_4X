@@ -122,13 +122,13 @@ impl EffectHost for MockHost {
         }
     }
     fn damage(&mut self, who: Target, amount: i32, _k: DamageKind) -> i32 {
-        let u = self.unit_mut(who).unwrap();
+        let u = self.unit_mut(who).expect("unit_mut succeeds");
         let dealt = amount.min(u.hp);
         u.hp -= dealt;
         dealt
     }
     fn heal(&mut self, who: Target, amount: i32) -> i32 {
-        let u = self.unit_mut(who).unwrap();
+        let u = self.unit_mut(who).expect("unit_mut succeeds");
         u.hp += amount;
         amount
     }
@@ -150,7 +150,7 @@ impl EffectHost for MockHost {
         }
     }
     fn dispel(&mut self, who: Target, strength: u32, _by: PlayerId) -> u32 {
-        let u = self.unit_mut(who).unwrap();
+        let u = self.unit_mut(who).expect("unit_mut succeeds");
         let n = if strength > 0 {
             u.enchants.len() as u32
         } else {

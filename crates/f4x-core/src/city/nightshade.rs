@@ -98,6 +98,7 @@ mod tests {
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::{Registry, SpellTarget};
+    use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);
@@ -133,8 +134,8 @@ mod tests {
             }
         }
         c.rules.spells = Registry::new(spells);
-        let grass = c.terrains.id_of("grassland").unwrap();
-        let plant = c.features.id_of("nightshade").unwrap();
+        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+        let plant = c.features.id_of("nightshade").expect("id_of succeeds");
         let mut game = Game::new(3);
         game.content = c;
         let mut map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
@@ -152,16 +153,21 @@ mod tests {
             race,
             population: 4,
         });
-        let city = game.economy().city_at(at(10, 6)).unwrap();
-        let spell = game.content.rules.spells.id_of("famine").unwrap();
+        let city = game.economy().city_at(at(10, 6)).expect("city_at succeeds");
+        let spell = game
+            .content
+            .rules
+            .spells
+            .id_of("famine")
+            .expect("id_of succeeds");
         (game, city, spell)
     }
 
     fn build(g: &mut Game, city: hecs::Entity, id: &str) {
-        let b = g.content.rules.buildings.id_of(id).unwrap();
+        let b = g.content.rules.buildings.id_of(id).expect("id_of succeeds");
         g.world
             .get::<&mut crate::city::economy::Buildings>(city)
-            .unwrap()
+            .expect("value succeeds")
             .0
             .push(b);
     }
@@ -179,19 +185,18 @@ mod tests {
     }
 
     #[test]
-    fn an_outpost_counts_no_plants() {
+    fn an_outpost_counts_no_plants() -> TestResult {
         let (mut g, city, _) = world(&[(10, 8)], 10);
         build(&mut g, city, "temple");
-        g.world
-            .insert_one(
-                city,
-                crate::city::economy::Population {
-                    figures: 0,
-                    tens: 0,
-                },
-            )
-            .unwrap();
+        g.world.insert_one(
+            city,
+            crate::city::economy::Population {
+                figures: 0,
+                tens: 0,
+            },
+        )?;
         assert_eq!(g.nightshade_count(city), 0);
+        Ok(())
     }
 
     #[test]

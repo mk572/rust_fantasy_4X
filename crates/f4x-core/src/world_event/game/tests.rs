@@ -2,6 +2,7 @@ use super::*;
 use crate::game::testutil::content_with_magic;
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
+use crate::testdir::TestResult;
 use crate::world_event::EventKind as K;
 
 const P0: PlayerId = PlayerId(0);
@@ -18,20 +19,22 @@ fn at(x: u32, y: u32) -> Position {
 /// Two wizards with a fortress each; P0 is the human and has a second city at (10, 5).
 fn world() -> Game {
     let c = content_with_magic();
-    let grass = c.terrains.id_of("grassland").unwrap();
+    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
     let mut g = Game::new(11);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     for id in [P0, P1] {
         g.add_player(id, if id == P0 { "Merlin" } else { "Rjak" });
-        g.treasury_mut(id).unwrap().gold = 1000;
-        g.treasury_mut(id).unwrap().mana = 100;
-        g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
+        g.treasury_mut(id).expect("treasury_mut succeeds").gold = 1000;
+        g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
+        g.init_wizard(id, &[("life", 2)], &[], None)
+            .expect("init_wizard succeeds");
     }
     g.set_human(Some(P0));
     let race = g.content.rules.races.id_of("high_elf");
     for (p, pos) in [(P0, at(5, 5)), (P1, at(18, 9))] {
-        g.place_fortress(p, pos, "Capital".into(), race, 4).unwrap();
+        g.place_fortress(p, pos, "Capital".into(), race, 4)
+            .expect("place_fortress succeeds");
     }
     g.apply(Command::FoundCity {
         owner: P0,
@@ -44,7 +47,7 @@ fn world() -> Game {
 }
 
 fn city(g: &Game, x: u32, y: u32) -> hecs::Entity {
-    g.economy().city_at(at(x, y)).unwrap()
+    g.economy().city_at(at(x, y)).expect("city_at succeeds")
 }
 
 fn armed(kind: K, victim: PlayerId, city: Option<hecs::Entity>) -> Armed {
@@ -72,58 +75,70 @@ fn play(g: &mut Game, a: Armed) -> Vec<EventNotice> {
 }
 
 fn spear(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
-    let id = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
+    let id = g
+        .content
+        .rules
+        .units
+        .id_of("high_elf_spearmen")
+        .expect("id_of succeeds");
     g.spawn_unit(owner, pos, id)
 }
 
 #[test]
-fn a_donation_pays_105_to_600_gold_and_the_wizard_is_told() {
+fn a_donation_pays_105_to_600_gold_and_the_wizard_is_told() -> TestResult {
     let mut g = world();
     let told = play(&mut g, armed(K::Donation, P0, None));
-    let gold = g.player(P0).unwrap().treasury().gold;
+    let gold = g.player(P0).ok_or("player is missing")?.treasury().gold;
     assert!((1105..=1600).contains(&gold), "{gold}");
     assert_eq!(told.len(), 1);
     assert_eq!(told[0].voice, Voice::Started);
     assert_eq!(told[0].number, gold - 1000);
     assert_eq!(told[0].player_name, "Merlin");
+    Ok(())
 }
 
 #[test]
-fn piracy_takes_thirty_to_fifty_percent_and_cannot_hit_a_pauper() {
+fn piracy_takes_thirty_to_fifty_percent_and_cannot_hit_a_pauper() -> TestResult {
     let mut g = world();
     let told = play(&mut g, armed(K::Piracy, P0, None));
-    let gold = g.player(P0).unwrap().treasury().gold;
+    let gold = g.player(P0).ok_or("player is missing")?.treasury().gold;
     assert!((500..=700).contains(&gold), "{gold}");
     assert_eq!(told[0].number, 1000 - gold);
-    g.treasury_mut(P0).unwrap().gold = 99;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 99;
     let mut rng = GameRng::new(1);
     assert!(g.try_event(K::Piracy, P0, &mut rng).is_none());
+    Ok(())
 }
 
 #[test]
-fn an_event_that_falls_on_a_wizard_you_have_not_met_is_not_told() {
+fn an_event_that_falls_on_a_wizard_you_have_not_met_is_not_told() -> TestResult {
     let mut g = world();
     assert!(play(&mut g, armed(K::Donation, P1, None)).is_empty());
     assert!(
-        g.player(P1).unwrap().treasury().gold > 1000,
+        g.player(P1).ok_or("player is missing")?.treasury().gold > 1000,
         "but it happened"
     );
     g.make_contact(P0, P1);
     let told = play(&mut g, armed(K::Donation, P1, None));
     assert_eq!(told[0].voice, Voice::Elsewhere);
     assert_eq!(told[0].player_name, "Rjak");
+    Ok(())
 }
 
 #[test]
-fn a_rebellion_turns_the_city_neutral_and_keeps_its_normal_units() {
+fn a_rebellion_turns_the_city_neutral_and_keeps_its_normal_units() -> TestResult {
     let mut g = world();
     let town = city(&g, 10, 5);
     let guard = spear(&mut g, P0, at(10, 5));
     let told = play(&mut g, armed(K::Rebellion, P0, Some(town)));
-    let owner = g.economy().city_owner(town).unwrap();
+    let owner = g
+        .economy()
+        .city_owner(town)
+        .ok_or("city_owner is missing")?;
     assert!(g.is_neutral_player(owner));
     assert_eq!(g.units().unit_owner(guard), Some(owner));
     assert_eq!(told[0].city_name, "Town");
+    Ok(())
 }
 
 #[test]
@@ -149,7 +164,7 @@ fn a_rebellion_spares_the_fortress_city_and_cities_with_a_hero() {
 }
 
 #[test]
-fn a_marriage_gives_a_neutral_city_and_its_units_to_the_wizard() {
+fn a_marriage_gives_a_neutral_city_and_its_units_to_the_wizard() -> TestResult {
     let mut g = world();
     let owner = g.new_city_player();
     let race = g.content.rules.races.id_of("high_elf");
@@ -168,11 +183,12 @@ fn a_marriage_gives_a_neutral_city_and_its_units_to_the_wizard() {
     assert_eq!(g.economy().city_owner(free), Some(P0));
     assert_eq!(g.units().unit_owner(guard), Some(P0));
     assert_eq!(
-        g.world.get::<&Production>(free).unwrap().item,
+        g.world.get::<&Production>(free)?.item,
         Some(ProductionItem::TradeGoods)
     );
     assert_eq!(told[0].city_name, "Free");
     assert!(g.is_explored(P0, at(14, 5)), "the land round it is seen");
+    Ok(())
 }
 
 #[test]
@@ -186,16 +202,22 @@ fn marriage_and_meteor_wait_for_turn_150() {
 }
 
 #[test]
-fn disjunction_clears_every_wizards_overland_enchantments_and_needs_one_to_exist() {
+fn disjunction_clears_every_wizards_overland_enchantments_and_needs_one_to_exist() -> TestResult {
     let mut g = world();
     let mut rng = GameRng::new(3);
     assert!(g.try_event(K::Disjunction, P0, &mut rng).is_none());
-    let spell = g.content.rules.spells.id_of("time_stop").unwrap();
+    let spell = g
+        .content
+        .rules
+        .spells
+        .id_of("time_stop")
+        .ok_or("time_stop is not in the content")?;
     g.add_global(P1, spell);
     assert!(g.try_event(K::Disjunction, P0, &mut rng).is_some());
     let told = play(&mut g, armed(K::Disjunction, P0, None));
-    assert!(g.wizard(P1).unwrap().global().is_empty());
+    assert!(g.wizard(P1).ok_or("wizard is missing")?.global().is_empty());
     assert_eq!(told[0].voice, Voice::Happened);
+    Ok(())
 }
 
 #[test]
@@ -255,15 +277,21 @@ fn a_plague_lets_a_city_of_one_off_by_raising_it_to_two() {
 }
 
 #[test]
-fn a_population_boom_speeds_the_growth_of_its_city_only() {
+fn a_population_boom_speeds_the_growth_of_its_city_only() -> TestResult {
     let mut g = world();
     let town = city(&g, 10, 5);
     let capital = city(&g, 5, 5);
-    let growth = |g: &Game, c| g.economy().city_economy(c).unwrap().growth_tens;
+    let growth = |g: &Game, c| {
+        g.economy()
+            .city_economy(c)
+            .expect("city_economy succeeds")
+            .growth_tens
+    };
     let (before, other) = (growth(&g, town), growth(&g, capital));
     play(&mut g, armed(K::PopulationBoom, P0, Some(town)));
     assert!(growth(&g, town) > before);
     assert_eq!(growth(&g, capital), other);
+    Ok(())
 }
 
 #[test]
@@ -326,7 +354,7 @@ fn a_meteor_tells_how_many_citizens_it_killed() {
 }
 
 #[test]
-fn a_depletion_removes_a_mineral_and_a_find_adds_one() {
+fn a_depletion_removes_a_mineral_and_a_find_adds_one() -> TestResult {
     let mut g = world();
     let mut defs = g.content.features.defs().to_vec();
     for (id, name) in [("iron_ore", "Iron Ore"), ("coal", "Coal")] {
@@ -351,7 +379,7 @@ fn a_depletion_removes_a_mineral_and_a_find_adds_one() {
     let mut a = armed(K::NewMinerals, P0, None);
     a.deposit = Some(find);
     let told = play(&mut g, a);
-    let map = g.map().unwrap();
+    let map = g.map().ok_or("map is missing")?;
     assert_eq!(
         map.plane(find.at.plane)
             .mineral(find.at.x as i32, find.at.y as i32),
@@ -364,12 +392,13 @@ fn a_depletion_removes_a_mineral_and_a_find_adds_one() {
     let mut a = armed(K::Depletion, P0, None);
     a.deposit = Some(lost);
     play(&mut g, a);
-    let map = g.map().unwrap();
+    let map = g.map().ok_or("map is missing")?;
     assert_eq!(
         map.plane(lost.at.plane)
             .mineral(lost.at.x as i32, lost.at.y as i32),
         None
     );
+    Ok(())
 }
 
 #[test]
@@ -409,15 +438,19 @@ fn events_come_in_the_end_and_each_is_told_once() {
 }
 
 #[test]
-fn the_state_of_events_survives_a_save() {
+fn the_state_of_events_survives_a_save() -> TestResult {
     let mut g = world();
     let town = city(&g, 10, 5);
     play(&mut g, armed(K::Plague, P0, Some(town)));
     play(&mut g, armed(K::GoodMoon, P0, None));
     let content = g.content.clone();
-    let loaded = g.snapshot().restore(content).unwrap();
+    let loaded = g.snapshot().restore(content)?;
     assert!(loaded.events().is_ongoing(K::Plague));
     assert!(loaded.events().is_ongoing(K::GoodMoon));
-    let town = loaded.units().entity_of_serial(g.serial_of(town)).unwrap();
+    let town = loaded
+        .units()
+        .entity_of_serial(g.serial_of(town))
+        .ok_or("entity_of_serial is missing")?;
     assert!(loaded.events().on_city(K::Plague, loaded.serial_of(town)));
+    Ok(())
 }

@@ -1264,6 +1264,7 @@ pub fn generate(spec: &Spec, rng: &mut impl Rng) -> Layout {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testdir::TestResult;
     use rand::SeedableRng;
     use rand_pcg::Pcg64Mcg;
 
@@ -1568,13 +1569,13 @@ mod tests {
     }
 
     #[test]
-    fn every_pair_of_ships_faces_across_one_square_of_water() {
+    fn every_pair_of_ships_faces_across_one_square_of_water() -> TestResult {
         let sizes = [(3, 7), (4, 8), (5, 9)];
         for a in sizes {
             for d in sizes {
                 let decks = ship_decks(&[a], &[d]);
                 let (Some(da), Some(dd)) = (&decks.attackers[0], &decks.defenders[0]) else {
-                    panic!("{a:?} against {d:?} did not fit");
+                    return Err(format!("{a:?} against {d:?} did not fit").into());
                 };
                 for &(x, y) in da.iter().chain(dd) {
                     assert!(
@@ -1589,10 +1590,11 @@ mod tests {
                             .map(move |q| (p.0 - q.0).abs().max((p.1 - q.1).abs()))
                     })
                     .min()
-                    .unwrap();
+                    .ok_or("min is missing")?;
                 assert_eq!(gap, 2, "{a:?} against {d:?}: one square of water between");
             }
         }
+        Ok(())
     }
 
     #[test]

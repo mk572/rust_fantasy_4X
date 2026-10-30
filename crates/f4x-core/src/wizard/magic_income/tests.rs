@@ -1,5 +1,6 @@
 use super::*;
 use crate::game::testutil::content_with_magic;
+use crate::testdir::TestResult;
 use crate::wizard::magic::Retort;
 use crate::wizard::sheet::{Books, Retorts, WizardMut};
 
@@ -81,7 +82,7 @@ fn the_power_base_adds_cities_fortress_volcanoes_and_nodes() {
 }
 
 #[test]
-fn the_power_is_split_by_the_percentages_and_the_cities_add_research() {
+fn the_power_is_split_by_the_percentages_and_the_cities_add_research() -> TestResult {
     let mut v = fake();
     v.fortress = Some(Plane::Arcanus);
     let i = income(&v, P0);
@@ -97,7 +98,7 @@ fn the_power_is_split_by_the_percentages_and_the_cities_add_research() {
     assert_eq!(i.research, 4);
     WizardMut::new(&mut v.world, v.wizard)
         .set_split(100, 0, 0)
-        .unwrap();
+        .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         income(&v, P0).split,
         PowerShares {
@@ -111,6 +112,7 @@ fn the_power_is_split_by_the_percentages_and_the_cities_add_research() {
         .0
         .insert(Retort::ManaFocusing);
     assert_eq!(income(&v, P0).split.mana, 7, "a quarter more mana");
+    Ok(())
 }
 
 #[test]

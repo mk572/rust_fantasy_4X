@@ -6,6 +6,9 @@ use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
+/// What a test returns when it uses `?` instead of `unwrap`: the error is the failure message.
+pub type TestResult = Result<(), Box<dyn std::error::Error>>;
+
 static COUNTER: AtomicU32 = AtomicU32::new(0);
 
 /// An empty, new folder in the temp folder, removed again when this is dropped. It derefs to
@@ -45,16 +48,18 @@ impl Drop for TestDir {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testdir::TestResult;
 
     #[test]
-    fn two_folders_with_one_label_are_different_and_empty_and_removed_on_drop() {
+    fn two_folders_with_one_label_are_different_and_empty_and_removed_on_drop() -> TestResult {
         let a = TestDir::new("same");
         let b = TestDir::new("same");
         assert_ne!(*a, *b);
-        std::fs::write(a.join("x"), b"x").unwrap();
-        assert_eq!(std::fs::read_dir(&*b).unwrap().count(), 0);
+        std::fs::write(a.join("x"), b"x")?;
+        assert_eq!(std::fs::read_dir(&*b)?.count(), 0);
         let gone = a.to_path_buf();
         drop(a);
         assert!(!gone.exists());
+        Ok(())
     }
 }

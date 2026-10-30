@@ -133,6 +133,7 @@ mod tests {
     use crate::game::testutil::content_with_magic;
     use crate::map::Plane;
     use crate::spell::instance::SpellTarget;
+    use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);
@@ -149,7 +150,11 @@ mod tests {
     fn game() -> Game {
         let mut g = Game::new(3);
         g.content = content_with_magic();
-        let grass = g.content.terrains.id_of("grassland").unwrap();
+        let grass = g
+            .content
+            .terrains
+            .id_of("grassland")
+            .expect("id_of succeeds");
         g.map = Some(crate::map::Map::new(
             crate::map::Grid::new(30, 20, grass),
             crate::map::Grid::new(30, 20, grass),
@@ -161,13 +166,12 @@ mod tests {
     }
 
     #[test]
-    fn the_provided_questions_follow_from_the_players() {
+    fn the_provided_questions_follow_from_the_players() -> TestResult {
         let mut g = game();
         g.add_neutral_player(PlayerId(7));
-        let defeated = g.player_entity(P2).unwrap();
+        let defeated = g.player_entity(P2).ok_or("player_entity is missing")?;
         g.world
-            .insert_one(defeated, crate::player::Defeat { by: None })
-            .unwrap();
+            .insert_one(defeated, crate::player::Defeat { by: None })?;
         assert!(g.is_wizard(P0) && !g.is_wizard(PlayerId(7)));
         assert!(!g.is_wizard(crate::player::MONSTERS) && !g.is_wizard(PlayerId(9)));
         assert_eq!(g.living_wizards(), vec![P0, P1]);
@@ -178,19 +182,24 @@ mod tests {
             .iter()
             .map(|(id, d)| (id, d.id.clone()))
             .next()
-            .unwrap();
+            .ok_or("next is missing")?;
         assert!(!g.has_global(P0, &id));
-        let wizard = g.wizard(P0).unwrap().entity();
+        let wizard = g.wizard(P0).ok_or("wizard is missing")?.entity();
         g.spawn_spell(spell, wizard, SpellTarget::Global);
         assert!(g.has_global(P0, &id));
         assert!(!g.has_global(P1, &id));
+        Ok(())
     }
 
     #[test]
-    fn the_game_answers_what_a_wizard_sees_and_has() {
+    fn the_game_answers_what_a_wizard_sees_and_has() -> TestResult {
         let mut g = Game::new(3);
         g.content = content_with_magic();
-        let grass = g.content.terrains.id_of("grassland").unwrap();
+        let grass = g
+            .content
+            .terrains
+            .id_of("grassland")
+            .ok_or("grassland is not in the content")?;
         g.map = Some(crate::map::Map::new(
             crate::map::Grid::new(30, 20, grass),
             crate::map::Grid::new(30, 20, grass),
@@ -198,11 +207,16 @@ mod tests {
         for id in [P0, P1, P2] {
             g.add_player(id, "W");
         }
-        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+        let walker = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?;
         g.spawn_unit(P1, at(11, 10), walker);
         g.spawn_unit(P2, at(25, 15), walker);
         let mine = g.spawn_unit(P0, at(10, 10), walker);
-        let cost = g.units().unit_def(mine).unwrap().cost;
+        let cost = g.units().unit_def(mine).ok_or("unit_def is missing")?.cost;
         // Within two squares of (10, 10), whether or not it is in sight.
         let around = g.foreign_sightings_near(P0, at(10, 10), 2);
         assert_eq!(
@@ -232,5 +246,6 @@ mod tests {
         assert_eq!(army_strength(&g, P0), cost as i32);
         // Another viewpoint: P1 sees its own side's neighbours, not itself.
         assert!(g.foreign_sightings(P1).iter().all(|s| s.owner != P1));
+        Ok(())
     }
 }

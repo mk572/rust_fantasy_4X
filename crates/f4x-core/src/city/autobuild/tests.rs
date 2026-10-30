@@ -1,16 +1,17 @@
 use super::*;
 use crate::game::testutil::content_with_economy;
+use crate::testdir::TestResult;
 
 fn content() -> Content {
     content_with_economy()
 }
 
 fn building(c: &Content, id: &str) -> BuildingId {
-    c.rules.buildings.id_of(id).unwrap()
+    c.rules.buildings.id_of(id).expect("id_of succeeds")
 }
 
 fn unit_id(c: &Content, id: &str) -> UnitId {
-    c.rules.units.id_of(id).unwrap()
+    c.rules.units.id_of(id).expect("id_of succeeds")
 }
 
 /// A size-4 city with room to grow, rich enough, that has a Builders Hall and a Smithy and may
@@ -293,7 +294,7 @@ fn both_keeps_production_on_units_and_buildings_level() {
 }
 
 #[test]
-fn the_unit_roll_prefers_the_best_but_varies() {
+fn the_unit_roll_prefers_the_best_but_varies() -> TestResult {
     let c = content();
     let f = facts(&c);
     let p = BuildPlan {
@@ -309,13 +310,14 @@ fn the_unit_roll_prefers_the_best_but_varies() {
         Some(best),
         "a low roll takes the best"
     );
-    let high = roll_unit(&ranked, &mut |total| total).unwrap();
+    let high = roll_unit(&ranked, &mut |total| total).ok_or("roll_unit is missing")?;
     assert_ne!(high, best, "a high roll takes another unit");
     // Every roll lands on someone, and the weak are never drawn.
     let ids: std::collections::BTreeSet<UnitId> = (1..=2000)
         .filter_map(|n| roll_unit(&ranked, &mut |t| n.min(t)))
         .collect();
     assert!(ids.len() >= 2 && ids.len() <= ranked.len());
+    Ok(())
 }
 
 #[test]
@@ -423,19 +425,24 @@ fn at_the_end_of_the_list_gold_is_the_last_fallback() {
 }
 
 #[test]
-fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() {
+fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() -> TestResult {
     use crate::game::Command;
     use crate::map::{Grid, Map, Plane};
     use crate::player::PlayerId;
     let c = content();
-    let grass = c.terrains.id_of("grassland").unwrap();
+    let grass = c
+        .terrains
+        .id_of("grassland")
+        .ok_or("grassland is not in the content")?;
     let mut g = Game::new(3);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.add_player(PlayerId(0), "W");
-    g.treasury_mut(PlayerId(0)).unwrap().gold = 500;
+    g.treasury_mut(PlayerId(0))
+        .ok_or("treasury_mut is missing")?
+        .gold = 500;
     g.player_component_mut::<crate::player::Tax>(PlayerId(0))
-        .unwrap()
+        .ok_or("value is missing")?
         .0 = 2;
     let race = g.content.rules.races.id_of("high_elf");
     g.apply(Command::FoundCity {
@@ -468,15 +475,22 @@ fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() {
         g.economy().city_production(city).item,
         Some(ProductionItem::Building(_))
     ));
-    assert_eq!(g.autobuild_of(city).unwrap().plan, plan);
+    assert_eq!(
+        g.autobuild_of(city).ok_or("autobuild_of is missing")?.plan,
+        plan
+    );
     let snap = g.snapshot();
-    let loaded = crate::game::save::Snapshot::from_text(&snap.to_text().unwrap())
-        .unwrap()
-        .restore(content())
-        .unwrap();
+    let loaded = crate::game::save::Snapshot::from_text(&snap.to_text()?)?.restore(content())?;
     let again = loaded.economy().cities()[0].0;
-    assert_eq!(loaded.autobuild_of(again).unwrap().plan, plan);
+    assert_eq!(
+        loaded
+            .autobuild_of(again)
+            .ok_or("autobuild_of is missing")?
+            .plan,
+        plan
+    );
     // Switched off, the city has none (its owner has no Vizier).
     g.apply(Command::SetAutoBuild { city, plan: None });
     assert!(g.autobuild_of(city).is_none());
+    Ok(())
 }

@@ -208,6 +208,7 @@ mod tests {
     use crate::game::Command;
     use crate::map::{Grid, Map};
     use crate::player::PlayerId;
+    use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
 
@@ -229,28 +230,29 @@ mod tests {
             });
         }
         c.features = Features::new(defs);
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
         g.add_player(P0, "W");
-        g.treasury_mut(P0).unwrap().mana = 1000;
-        g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
+        g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 1000;
+        g.init_wizard(P0, &[("life", 2)], &[], None)
+            .expect("init_wizard succeeds");
         g
     }
 
     fn cast(g: &mut Game, id: &str, target: Target) -> Vec<Event> {
-        let s = g.content.rules.spells.id_of(id).unwrap();
+        let s = g.content.rules.spells.id_of(id).expect("id_of succeeds");
         g.wizard_mut(P0)
-            .unwrap()
+            .expect("value succeeds")
             .get_mut::<crate::wizard::sheet::KnownSpells>()
             .known
             .insert(s);
         g.wizard_mut(P0)
-            .unwrap()
+            .expect("value succeeds")
             .get_mut::<crate::wizard::sheet::Skill>()
             .left = 500;
-        g.treasury_mut(P0).unwrap().mana = 1000;
+        g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 1000;
         g.apply(Command::CastSpell {
             player: P0,
             spell: s,
@@ -259,7 +261,12 @@ mod tests {
     }
 
     fn walker(g: &mut Game, pos: Position) -> hecs::Entity {
-        let id = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+        let id = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .expect("id_of succeeds");
         g.spawn_unit(P0, pos, id)
     }
 
@@ -268,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn transmute_swaps_each_mineral_with_its_partner_and_refuses_the_rest() {
+    fn transmute_swaps_each_mineral_with_its_partner_and_refuses_the_rest() -> TestResult {
         let mut g = world();
         let pairs = [
             ("iron_ore", "gold_ore"),
@@ -280,10 +287,10 @@ mod tests {
         ];
         for (i, (from, to)) in pairs.into_iter().enumerate() {
             let pos = at(Plane::Arcanus, i as u32, 3);
-            let id = g.content.features.id_of(from).unwrap();
+            let id = g.content.features.id_of(from).ok_or("id_of is missing")?;
             g.map
                 .as_mut()
-                .unwrap()
+                .ok_or("as_mut is missing")?
                 .plane_mut(Plane::Arcanus)
                 .set_mineral(pos.x, pos.y, Some(id));
             let events = cast(&mut g, "transmute", Target::Tile(pos));
@@ -291,16 +298,20 @@ mod tests {
             let now = g
                 .map
                 .as_ref()
-                .unwrap()
+                .ok_or("as_ref is missing")?
                 .plane(Plane::Arcanus)
                 .mineral(pos.x as i32, pos.y as i32);
             assert_eq!(now, g.content.features.id_of(to), "{from}");
         }
-        let adamantium = g.content.features.id_of("adamantium_ore").unwrap();
+        let adamantium = g
+            .content
+            .features
+            .id_of("adamantium_ore")
+            .ok_or("adamantium_ore is not in the content")?;
         let pos = at(Plane::Arcanus, 10, 3);
         g.map
             .as_mut()
-            .unwrap()
+            .ok_or("as_mut is missing")?
             .plane_mut(Plane::Arcanus)
             .set_mineral(pos.x, pos.y, Some(adamantium));
         assert!(rejected(&cast(&mut g, "transmute", Target::Tile(pos))));
@@ -309,6 +320,7 @@ mod tests {
             "transmute",
             Target::Tile(at(Plane::Arcanus, 20, 9))
         )));
+        Ok(())
     }
 
     #[test]
@@ -326,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn natures_cures_heals_the_stack_but_not_the_dead_or_undead() {
+    fn natures_cures_heals_the_stack_but_not_the_dead_or_undead() -> TestResult {
         let mut g = world();
         let pos = at(Plane::Arcanus, 4, 4);
         let a = walker(&mut g, pos);
@@ -334,17 +346,18 @@ mod tests {
         let elsewhere = walker(&mut g, at(Plane::Arcanus, 6, 6));
         g.make_undead(b);
         for u in [a, b, elsewhere] {
-            g.world.insert_one(u, Hurt(1)).unwrap();
+            g.world.insert_one(u, Hurt(1))?;
         }
         let events = cast(&mut g, "natures_cures", Target::Unit(a));
         assert!(!rejected(&events), "{events:?}");
-        assert_eq!(g.world.get::<&Hurt>(a).unwrap().0, 0);
-        assert_eq!(g.world.get::<&Hurt>(b).unwrap().0, 1, "undead stay hurt");
-        assert_eq!(g.world.get::<&Hurt>(elsewhere).unwrap().0, 1);
+        assert_eq!(g.world.get::<&Hurt>(a)?.0, 0);
+        assert_eq!(g.world.get::<&Hurt>(b)?.0, 1, "undead stay hurt");
+        assert_eq!(g.world.get::<&Hurt>(elsewhere)?.0, 1);
+        Ok(())
     }
 
     #[test]
-    fn word_of_recall_takes_a_unit_to_the_summoning_circle() {
+    fn word_of_recall_takes_a_unit_to_the_summoning_circle() -> TestResult {
         let mut g = world();
         let u = walker(&mut g, at(Plane::Arcanus, 4, 4));
         assert!(
@@ -353,7 +366,7 @@ mod tests {
         );
         let home = at(Plane::Myrror, 9, 9);
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .put(Some(crate::wizard::fortress::SummonAt(home)));
         cast(&mut g, "word_of_recall", Target::Unit(u));
         assert_eq!(g.units().unit_position(u), Some(home));
@@ -362,10 +375,11 @@ mod tests {
         }
         let far = walker(&mut g, at(Plane::Arcanus, 1, 1));
         assert!(rejected(&cast(&mut g, "word_of_recall", Target::Unit(far))));
+        Ok(())
     }
 
     #[test]
-    fn plane_shift_moves_the_whole_stack_unless_blocked() {
+    fn plane_shift_moves_the_whole_stack_unless_blocked() -> TestResult {
         let mut g = world();
         let here = at(Plane::Arcanus, 4, 4);
         let a = walker(&mut g, here);
@@ -378,20 +392,31 @@ mod tests {
         // Back again is refused while the Planar Seal is up.
         let other = PlayerId(1);
         g.add_player(other, "X");
-        g.init_wizard(other, &[("life", 2)], &[], None).unwrap();
-        let seal = g.content.rules.spells.id_of("planar_seal").unwrap();
+        g.init_wizard(other, &[("life", 2)], &[], None)
+            .map_err(|e| format!("{e:?}"))?;
+        let seal = g
+            .content
+            .rules
+            .spells
+            .id_of("planar_seal")
+            .ok_or("planar_seal is not in the content")?;
         g.attach_enchantment(Target::Player(other), seal, other);
         assert!(rejected(&cast(&mut g, "plane_shift", Target::Unit(a))));
+        Ok(())
     }
 
     #[test]
-    fn floating_island_is_raised_on_the_aimed_water_square_and_refused_on_land() {
+    fn floating_island_is_raised_on_the_aimed_water_square_and_refused_on_land() -> TestResult {
         let mut g = world();
-        let ocean = g.content.terrains.id_of("ocean").unwrap();
+        let ocean = g
+            .content
+            .terrains
+            .id_of("ocean")
+            .ok_or("ocean is not in the content")?;
         let sea = at(Plane::Arcanus, 5, 5);
         g.map
             .as_mut()
-            .unwrap()
+            .ok_or("as_mut is missing")?
             .plane_mut(Plane::Arcanus)
             .set(sea.x, sea.y, ocean);
         let mut units = g.content.rules.units.defs().to_vec();
@@ -409,14 +434,19 @@ mod tests {
         );
         assert!(g.units().units_at(land).is_empty());
         // An enemy boat on the square bars it; a square already holding nine units is full.
-        let boat = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+        let boat = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?;
         g.add_player(PlayerId(1), "X");
         let enemy = g.spawn_unit(PlayerId(1), sea, boat);
         assert_eq!(
             g.check_floating_island(P0, sea),
             Err(TargetError::EnemyOnSquare)
         );
-        g.world.despawn(enemy).unwrap();
+        g.world.despawn(enemy)?;
         for _ in 0..crate::unit::MAX_TILE_LIMIT {
             g.spawn_unit(P0, sea, boat);
         }
@@ -425,7 +455,7 @@ mod tests {
             Err(TargetError::SquareFull)
         );
         for u in g.units().units_at(sea) {
-            g.world.despawn(u).unwrap();
+            g.world.despawn(u)?;
         }
         let events = cast(&mut g, "floating_island", Target::Tile(sea));
         assert!(!rejected(&events), "{events:?}");
@@ -435,5 +465,6 @@ mod tests {
             g.units().unit_def(here[0]).map(|d| d.id.as_str()),
             Some("floating_island")
         );
+        Ok(())
     }
 }

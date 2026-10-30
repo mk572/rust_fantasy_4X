@@ -4,6 +4,7 @@ use crate::game::Command;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
 use crate::rules::Stat;
+use crate::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
 const P1: PlayerId = PlayerId(1);
@@ -15,7 +16,7 @@ const AT: Position = Position {
 
 fn world() -> Game {
     let c = content_with_magic();
-    let grass = c.terrains.id_of("grassland").unwrap();
+    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
     let mut g = Game::new(3);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -26,12 +27,12 @@ fn world() -> Game {
 }
 
 fn unit(g: &mut Game, id: &str) -> hecs::Entity {
-    let id = g.content.rules.units.id_of(id).unwrap();
+    let id = g.content.rules.units.id_of(id).expect("id_of succeeds");
     g.spawn_unit(P0, AT, id)
 }
 
 fn spell(g: &Game, id: &str) -> SpellId {
-    g.content.rules.spells.id_of(id).unwrap()
+    g.content.rules.spells.id_of(id).expect("id_of succeeds")
 }
 
 fn enchant(g: &mut Game, u: hecs::Entity, id: &str) {
@@ -131,7 +132,7 @@ fn a_unit_cannot_be_given_what_it_is_by_nature() {
 }
 
 #[test]
-fn holy_weapon_is_refused_while_the_wizard_keeps_holy_arms() {
+fn holy_weapon_is_refused_while_the_wizard_keeps_holy_arms() -> TestResult {
     let mut g = world();
     let u = unit(&mut g, "high_men_cavalry");
     assert_eq!(aim(&g, u, "holy_weapon"), Ok(()));
@@ -142,16 +143,21 @@ fn holy_weapon_is_refused_while_the_wizard_keeps_holy_arms() {
     let other = g.spawn_unit(
         P1,
         AT,
-        g.content.rules.units.id_of("high_men_cavalry").unwrap(),
+        g.content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?,
     );
     assert_eq!(
         g.check_target(P1, spell(&g, "holy_weapon"), Some(Target::Unit(other))),
         Ok(())
     );
+    Ok(())
 }
 
 #[test]
-fn a_city_takes_a_lasting_spell_once() {
+fn a_city_takes_a_lasting_spell_once() -> TestResult {
     let mut g = world();
     let race = g.content.rules.races.id_of("high_elf");
     g.apply(Command::FoundCity {
@@ -161,7 +167,7 @@ fn a_city_takes_a_lasting_spell_once() {
         race,
         population: 4,
     });
-    let city = g.economy().city_at(AT).unwrap();
+    let city = g.economy().city_at(AT).ok_or("city_at is missing")?;
     let fire = spell(&g, "wall_of_fire");
     assert_eq!(g.check_target(P0, fire, Some(Target::City(city))), Ok(()));
     g.add_city_enchantment(city, fire, P0);
@@ -171,6 +177,7 @@ fn a_city_takes_a_lasting_spell_once() {
     );
     let dark = spell(&g, "wall_of_darkness");
     assert_eq!(g.check_target(P0, dark, Some(Target::City(city))), Ok(()));
+    Ok(())
 }
 
 #[test]

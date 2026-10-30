@@ -1,4 +1,5 @@
 use super::*;
+use crate::testdir::TestResult;
 
 use crate::hero::game::tests::{at, world as hero_world, P0, P1};
 use crate::item::armory::Placed;
@@ -17,15 +18,20 @@ fn world() -> Game {
             .expect("the game's level paths parse"),
     );
     // Each wizard has one unit on Arcanus, so Arcanus is the plane they can be offered.
-    let scout = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
+    let scout = g
+        .content
+        .rules
+        .units
+        .id_of("high_elf_spearmen")
+        .expect("id_of succeeds");
     g.spawn_unit(P0, at(2, 3), scout);
     g.spawn_unit(P1, at(8, 3), scout);
     g.set_human(Some(P0));
     g.turn = 40;
     for (i, id) in g.player_ids().into_iter().take(2).enumerate() {
-        g.treasury_mut(id).unwrap().gold = 5000;
+        g.treasury_mut(id).expect("treasury_mut succeeds").gold = 5000;
         g.wizard_mut(id)
-            .unwrap()
+            .expect("value succeeds")
             .put(Some(crate::wizard::fortress::Fortress(at(
                 1 + i as u32 * 6,
                 1,
@@ -154,7 +160,8 @@ fn only_wizards_with_a_standing_fortress_are_offered_anything() {
 }
 
 #[test]
-fn mercenaries_come_after_turn_30_to_a_wizard_who_can_pay_and_arrive_with_their_experience() {
+fn mercenaries_come_after_turn_30_to_a_wizard_who_can_pay_and_arrive_with_their_experience(
+) -> TestResult {
     let mut g = world();
     g.turn = 29;
     for _ in 0..400 {
@@ -184,24 +191,29 @@ fn mercenaries_come_after_turn_30_to_a_wizard_who_can_pay_and_arrive_with_their_
     assert_eq!((arcanus, myrror), (true, false));
     let gold = g.tr(0).gold;
     let before = g.units().units_at(at(1, 1)).len();
-    let events = g.accept_offer(P0, i, None).unwrap();
+    let events = g.accept_offer(P0, i, None).map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.tr(0).gold, gold - price);
     let Some(Event::MercenariesHired { units, .. }) = events.first() else {
         panic!("{events:?}");
     };
     assert_eq!(units.len(), count as usize);
     assert_eq!(g.units().units_at(at(1, 1)).len(), before + count as usize);
-    let xp = g.world.get::<&Experience>(units[0]).unwrap().0;
+    let xp = g.world.get::<&Experience>(units[0])?.0;
     assert_eq!(
         crate::hero::kind::level_of(
             &g.content.rules,
-            g.content.rules.units.id_of(&unit).unwrap(),
+            g.content
+                .rules
+                .units
+                .id_of(&unit)
+                .ok_or("id_of is missing")?,
             xp
         ),
         usize::from(level)
     );
     // The offer is used up.
     assert_eq!(g.accept_offer(P0, i, None), Err(OfferError::NoOffer));
+    Ok(())
 }
 
 #[test]
@@ -215,25 +227,28 @@ fn mercenaries_are_not_offered_to_a_wizard_who_cannot_pay_even_at_the_discount()
 }
 
 #[test]
-fn a_hero_for_hire_joins_under_the_name_the_player_gives() {
+fn a_hero_for_hire_joins_under_the_name_the_player_gives() -> TestResult {
     let mut g = world();
     let i = roll_until(&mut g, |o| matches!(o, Offer::Hero { .. }));
     let Offer::Hero { kind, price } = g.offers(P0)[i] else {
         unreachable!()
     };
     let gold = g.tr(0).gold;
-    let events = g.accept_offer(P0, i, Some("Rex".into())).unwrap();
+    let events = g
+        .accept_offer(P0, i, Some("Rex".into()))
+        .map_err(|e| format!("{e:?}"))?;
     assert!(matches!(events[..], [Event::HeroJoined { kind: k, .. }] if k == kind));
     assert_eq!(g.tr(0).gold, gold - price);
     assert_eq!(g.units().hero_type_name(kind).as_deref(), Some("Rex"));
     assert_eq!(g.units().hero_units(P0).len(), 1);
+    Ok(())
 }
 
 #[test]
-fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() {
+fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() -> TestResult {
     let mut g = world();
     g.player_component_mut::<crate::player::Offers>(P0)
-        .unwrap()
+        .ok_or("value is missing")?
         .0
         .clear();
     let site = g.put_lair(
@@ -256,15 +271,16 @@ fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() {
     );
     let events = g.claim_lair(site, P0);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
-        panic!("{events:?}");
+        return Err(format!("{events:?}").into());
     };
     assert!(loot.prisoner);
     assert!(matches!(g.offers(P0)[0], Offer::Hero { price: 0, .. }));
     let gold = g.tr(0).gold;
-    let joined = g.accept_offer(P0, 0, None).unwrap();
+    let joined = g.accept_offer(P0, 0, None).map_err(|e| format!("{e:?}"))?;
     assert!(matches!(joined[..], [Event::HeroJoined { .. }]));
     assert_eq!(g.tr(0).gold, gold, "a freed prisoner costs nothing");
     assert_eq!(g.units().hero_units(P0).len(), 1);
+    Ok(())
 }
 
 #[test]
@@ -278,7 +294,7 @@ fn a_hero_the_wizard_cannot_pay_for_stays_on_offer() {
 }
 
 #[test]
-fn every_wizard_meets_the_merchant_and_the_item_goes_to_the_armory() {
+fn every_wizard_meets_the_merchant_and_the_item_goes_to_the_armory() -> TestResult {
     let mut g = world();
     // The computer wizard (player 1) gets the same offers as the human.
     let mut computer_met_him = false;
@@ -293,7 +309,7 @@ fn every_wizard_meets_the_merchant_and_the_item_goes_to_the_armory() {
     };
     assert_eq!(price, item_price(item.cost, false));
     let gold = g.tr(0).gold;
-    let events = g.accept_offer(P0, i, None).unwrap();
+    let events = g.accept_offer(P0, i, None).map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.tr(0).gold, gold - price);
     assert!(matches!(
         events[..],
@@ -302,35 +318,37 @@ fn every_wizard_meets_the_merchant_and_the_item_goes_to_the_armory() {
             ..
         }]
     ));
+    Ok(())
 }
 
 #[test]
-fn an_offered_item_is_an_entity_that_is_kept_bought_or_withdrawn() {
+fn an_offered_item_is_an_entity_that_is_kept_bought_or_withdrawn() -> TestResult {
     use crate::item::entity::HeldBy;
     let held = |g: &Game, by: HeldBy| g.items().count_held(|h| h == by);
     let mut g = world();
     let i = roll_until(&mut g, |o| matches!(o, Offer::Item { .. }));
     assert_eq!(held(&g, HeldBy::Offered(P0)), 1);
     // Bought, it is the wizard's.
-    g.accept_offer(P0, i, None).unwrap();
+    g.accept_offer(P0, i, None).map_err(|e| format!("{e:?}"))?;
     assert_eq!(held(&g, HeldBy::Offered(P0)), 0);
     assert_eq!(g.items().armory(P0).items().count(), 1);
     let i = roll_until(&mut g, |o| matches!(o, Offer::Item { .. }));
     // Turned down, the item is gone.
-    g.reject_offer(P0, i).unwrap();
+    g.reject_offer(P0, i).map_err(|e| format!("{e:?}"))?;
     assert_eq!(held(&g, HeldBy::Offered(P0)), 0);
     assert_eq!(
         g.items().count_held(|_| true),
         1,
         "only the bought one is left"
     );
+    Ok(())
 }
 
 #[test]
-fn the_price_is_tested_after_the_charismatic_discount() {
+fn the_price_is_tested_after_the_charismatic_discount() -> TestResult {
     let mut g = world();
     g.wizard_mut(crate::player::PlayerId(0))
-        .unwrap()
+        .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
         .insert(Retort::Charismatic);
@@ -342,15 +360,15 @@ fn the_price_is_tested_after_the_charismatic_discount() {
             if let Offer::Item { item, price } = offer {
                 assert_eq!(price, item.cost as i32 * 3 / 2);
                 assert!(price <= 100);
-                return;
+                return Ok(());
             }
         }
     }
-    panic!("no cheap item was offered");
+    Err("no cheap item was offered".into())
 }
 
 #[test]
-fn a_rejected_or_lapsed_item_can_be_offered_again() {
+fn a_rejected_or_lapsed_item_can_be_offered_again() -> TestResult {
     let mut g = world();
     // One prefab item only, so the taken list shows plainly.
     let mut items = g.content.rules.items.defs().to_vec();
@@ -376,7 +394,7 @@ fn a_rejected_or_lapsed_item_can_be_offered_again() {
         |o| matches!(o, Offer::Item { item, .. } if item.prefab.is_some()),
     );
     assert_eq!(g.prefab_taken, vec!["only".to_string()]);
-    g.reject_offer(P0, i).unwrap();
+    g.reject_offer(P0, i).map_err(|e| format!("{e:?}"))?;
     assert!(g.prefab_taken.is_empty());
     // An unanswered one lapses at the next turn change.
     let i = roll_until(
@@ -385,26 +403,25 @@ fn a_rejected_or_lapsed_item_can_be_offered_again() {
     );
     assert!(i < g.offers(P0).len());
     g.player_component_mut::<crate::player::Offers>(P0)
-        .unwrap()
+        .ok_or("value is missing")?
         .0
         .clear();
     assert_eq!(g.reject_offer(P0, 0), Err(OfferError::NoOffer));
+    Ok(())
 }
 
 #[test]
-fn the_turn_change_makes_the_offers_and_a_save_keeps_them() {
+fn the_turn_change_makes_the_offers_and_a_save_keeps_them() -> TestResult {
     let mut g = world();
     roll_until(&mut g, |o| matches!(o, Offer::Hero { .. }));
     // A save wants a city wherever there is a fortress; this world has none.
     g.wiz_mut(0).put::<crate::wizard::fortress::Fortress>(None);
     g.wiz_mut(1).put::<crate::wizard::fortress::Fortress>(None);
-    let text = ron::to_string(&g.snapshot()).unwrap();
-    let back = crate::game::save::Snapshot::from_text(&text)
-        .unwrap()
-        .restore(g.content.clone())
-        .unwrap();
+    let text = ron::to_string(&g.snapshot())?;
+    let back = crate::game::save::Snapshot::from_text(&text)?.restore(g.content.clone())?;
     assert_eq!(back.offers(P0), g.offers(P0));
     assert_eq!(back.prefab_taken, g.prefab_taken);
+    Ok(())
 }
 
 #[test]
@@ -444,13 +461,13 @@ fn plain_item(cost: u32) -> Item {
 }
 
 #[test]
-fn a_sold_item_pays_half_its_value_in_gold_and_the_next_wizard_may_buy_it() {
+fn a_sold_item_pays_half_its_value_in_gold_and_the_next_wizard_may_buy_it() -> TestResult {
     use crate::item::armory::Spot;
     let mut g = world();
     g.give_item(P0, plain_item(1000));
     let (mine, theirs) = (
-        g.treasury_mut(P0).unwrap().gold,
-        g.treasury_mut(P1).unwrap().gold,
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold,
+        g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold,
     );
     let events = g.apply(crate::game::Command::SellItem {
         player: P0,
@@ -464,7 +481,10 @@ fn a_sold_item_pays_half_its_value_in_gold_and_the_next_wizard_may_buy_it() {
             ..
         }
     ));
-    assert_eq!(g.treasury_mut(P0).unwrap().gold, mine + 500);
+    assert_eq!(
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold,
+        mine + 500
+    );
     assert!(g.items().armory(P0).vault.iter().all(Option::is_none));
     // The other wizard is offered it for what the seller got.
     assert!(
@@ -491,13 +511,17 @@ fn a_sold_item_pays_half_its_value_in_gold_and_the_next_wizard_may_buy_it() {
         matches!(events[0], Event::ItemMade { player: P1, .. }),
         "{events:?}"
     );
-    assert_eq!(g.treasury_mut(P1).unwrap().gold, theirs - 500);
+    assert_eq!(
+        g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold,
+        theirs - 500
+    );
     assert!(g.offers(P1).is_empty());
     assert_eq!(g.items().armory(P1).vault.iter().flatten().count(), 1);
+    Ok(())
 }
 
 #[test]
-fn a_sold_item_nobody_buys_is_gone_and_one_nobody_can_pay_for_is_not_offered() {
+fn a_sold_item_nobody_buys_is_gone_and_one_nobody_can_pay_for_is_not_offered() -> TestResult {
     use crate::item::armory::Spot;
     let mut g = world();
     g.give_item(P0, plain_item(1000));
@@ -514,7 +538,7 @@ fn a_sold_item_nobody_buys_is_gone_and_one_nobody_can_pay_for_is_not_offered() {
     assert_eq!(g.items().armory(P0).vault.iter().flatten().count(), 0);
     // A buyer without the gold is not asked.
     g.give_item(P0, plain_item(1000));
-    g.treasury_mut(P1).unwrap().gold = 100;
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold = 100;
     let events = g.apply(crate::game::Command::SellItem {
         player: P0,
         from: Spot::Vault(0),
@@ -527,4 +551,5 @@ fn a_sold_item_nobody_buys_is_gone_and_one_nobody_can_pay_for_is_not_offered() {
         from: Spot::Vault(0),
     });
     assert!(matches!(events[0], Event::Rejected(_)));
+    Ok(())
 }

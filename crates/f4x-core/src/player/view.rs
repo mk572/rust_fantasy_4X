@@ -536,6 +536,7 @@ mod tests {
     use crate::game::testutil::content_with_magic;
     use crate::game::Command;
     use crate::map::{Grid, Map, Plane};
+    use crate::testdir::TestResult;
 
     const ME: PlayerId = PlayerId(0);
     const THEM: PlayerId = PlayerId(1);
@@ -550,7 +551,7 @@ mod tests {
 
     fn game() -> Game {
         let c = content_with_magic();
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
         let mut g = Game::new(5);
         g.set_content(c);
         g.set_map(Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass)));
@@ -571,9 +572,14 @@ mod tests {
     }
 
     #[test]
-    fn a_player_knows_its_own_things_and_only_the_cities_it_has_explored() {
+    fn a_player_knows_its_own_things_and_only_the_cities_it_has_explored() -> TestResult {
         let mut g = game();
-        let walker = g.content().rules.units.id_of("high_men_cavalry").unwrap();
+        let walker = g
+            .content()
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?;
         let mine = g.spawn_unit(ME, at(5, 5), walker);
         g.spawn_unit(THEM, at(20, 11), walker);
         let view = PlayerView::new(&g, ME);
@@ -606,12 +612,18 @@ mod tests {
         assert!(view.city_at(at(20, 10)).is_some());
         assert!(!view.sees(at(20, 10)), "explored is not seen");
         assert_eq!(view.hostile_at(at(20, 10)), None);
+        Ok(())
     }
 
     #[test]
-    fn a_square_in_sight_shows_its_hostile_units() {
+    fn a_square_in_sight_shows_its_hostile_units() -> TestResult {
         let mut g = game();
-        let walker = g.content().rules.units.id_of("high_men_cavalry").unwrap();
+        let walker = g
+            .content()
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?;
         g.spawn_unit(ME, at(5, 5), walker);
         let foe = g.spawn_unit(THEM, at(6, 5), walker);
         let view = PlayerView::new(&g, ME);
@@ -631,5 +643,6 @@ mod tests {
             "the map wraps"
         );
         assert_eq!(view.shift(at(3, 0), 0, -1), None, "and ends at the pole");
+        Ok(())
     }
 }

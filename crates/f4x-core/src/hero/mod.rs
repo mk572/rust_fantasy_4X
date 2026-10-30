@@ -301,6 +301,7 @@ mod tests {
     use super::*;
     use crate::game::Game;
     use crate::hero::game::tests::{at, world, P0};
+    use crate::testdir::TestResult;
     use crate::unit::Experience;
 
     #[test]
@@ -338,29 +339,35 @@ mod tests {
     }
 
     #[test]
-    fn a_hero_gets_its_abilities_as_stats_fame_and_research() {
+    fn a_hero_gets_its_abilities_as_stats_fame_and_research() -> TestResult {
         let mut g = world();
         // The Dervish has no stat abilities of its own.
         let kind = crate::hero::game::tests::kind_of(&g, "dervish");
-        let h = g.spawn_hero(P0, at(1, 1), kind).unwrap();
+        let h = g
+            .spawn_hero(P0, at(1, 1), kind)
+            .map_err(|e| format!("{e:?}"))?;
         let stats = [Stat::Melee, Stat::Defense, Stat::ToHit, Stat::MaxHp];
         let read = |g: &Game| stats.map(|s| g.units().unit_stat(h, s));
         // Experience 20 is the second level (x = 2); the test path adds its own pluses there, so
         // the ability's part is the difference to the same hero without abilities.
-        g.world.insert_one(h, Experience(20)).unwrap();
+        g.world.insert_one(h, Experience(20))?;
         let (fame, research) = (g.fame(P0), g.income(P0).research);
         let bare = read(&g);
-        g.world.get::<&mut Hero>(h).unwrap().abilities =
+        g.world.get::<&mut Hero>(h)?.abilities =
             HeroAbilities::from_names(&["might", "super_agility", "blademaster", "constitution"]);
         let with: Vec<i32> = read(&g).iter().zip(bare).map(|(n, b)| n - b).collect();
         assert_eq!(with, vec![2, 3, 1, 2]);
         // Super Legendary is 9 fame at x = 2, Sage 3 research at level 1.
-        g.world.get::<&mut Hero>(h).unwrap().abilities =
+        g.world.get::<&mut Hero>(h)?.abilities =
             HeroAbilities::from_names(&["super_legendary", "sage"]);
         assert_eq!(g.fame(P0), fame + 9);
         assert_eq!(g.income(P0).research, research + 3);
         let other = crate::player::PlayerId(1);
-        assert_eq!(g.fame(other), g.wizard(other).unwrap().fame());
+        assert_eq!(
+            g.fame(other),
+            g.wizard(other).ok_or("wizard is missing")?.fame()
+        );
+        Ok(())
     }
 
     #[test]

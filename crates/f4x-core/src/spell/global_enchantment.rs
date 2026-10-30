@@ -260,6 +260,7 @@ mod tests {
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::{Registry, UnitKind};
+    use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);
@@ -283,21 +284,22 @@ mod tests {
             }
         }
         c.rules.units = Registry::new_sorted(units);
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
         g.fog = crate::map::fog::Fog::new(24, 14);
         for id in [P0, P1] {
             g.add_player(id, "W");
-            g.treasury_mut(id).unwrap().mana = 5000;
-            g.init_wizard(id, &[("life", 4)], &[], None).unwrap();
+            g.treasury_mut(id).expect("treasury_mut succeeds").mana = 5000;
+            g.init_wizard(id, &[("life", 4)], &[], None)
+                .expect("init_wizard succeeds");
         }
         g
     }
 
     fn spell(g: &Game, id: &str) -> SpellId {
-        g.content.rules.spells.id_of(id).unwrap()
+        g.content.rules.spells.id_of(id).expect("id_of succeeds")
     }
 
     /// Cast a global spell for free (the cost rules are tested elsewhere).
@@ -330,9 +332,14 @@ mod tests {
     }
 
     #[test]
-    fn planar_seal_stops_every_plane_shift() {
+    fn planar_seal_stops_every_plane_shift() -> TestResult {
         let mut g = world();
-        let traveller = g.content.rules.units.id_of("shadow_demons").unwrap();
+        let traveller = g
+            .content
+            .rules
+            .units
+            .id_of("shadow_demons")
+            .ok_or("shadow_demons is not in the content")?;
         let u = g.spawn_unit(P0, at(5, 5), traveller);
         assert!(g.economy().can_shift_plane(&[u]).is_ok());
         grant(&mut g, P1, "planar_seal");
@@ -342,16 +349,22 @@ mod tests {
             Err(crate::unit::movement::MoveError::CannotShiftPlane),
             "even for planar travellers, and even against the caster's rival"
         );
+        Ok(())
     }
 
     #[test]
-    fn herb_mastery_heals_every_unit_each_turn() {
+    fn herb_mastery_heals_every_unit_each_turn() -> TestResult {
         let mut g = world();
-        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+        let walker = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?;
         let a = g.spawn_unit(P0, at(5, 5), walker);
         let b = g.spawn_unit(P1, at(8, 5), walker);
-        g.world.insert_one(a, Hurt(3)).unwrap();
-        g.world.insert_one(b, Hurt(3)).unwrap();
+        g.world.insert_one(a, Hurt(3))?;
+        g.world.insert_one(b, Hurt(3))?;
         grant(&mut g, P0, "herb_mastery");
         g.process_globals();
         assert_eq!(
@@ -359,15 +372,26 @@ mod tests {
             g.units().unit_hits(a).1,
             "mine is healed"
         );
-        assert_eq!(g.world.get::<&Hurt>(b).unwrap().0, 3, "theirs is not");
+        assert_eq!(g.world.get::<&Hurt>(b)?.0, 3, "theirs is not");
+        Ok(())
     }
 
     #[test]
-    fn undead_get_no_herb_mastery_no_holy_arms_and_cost_half_as_much_mana_again() {
+    fn undead_get_no_herb_mastery_no_holy_arms_and_cost_half_as_much_mana_again() -> TestResult {
         let mut g = world();
         // The Fire Elemental costs 4 mana a turn to keep.
-        let walker = g.content.rules.units.id_of("high_men_spearmen").unwrap();
-        let slow = g.content.rules.units.id_of("fire_elemental").unwrap();
+        let walker = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_spearmen")
+            .ok_or("high_men_spearmen is not in the content")?;
+        let slow = g
+            .content
+            .rules
+            .units
+            .id_of("fire_elemental")
+            .ok_or("fire_elemental is not in the content")?;
         let normal = g.spawn_unit(P0, at(5, 5), walker);
         let fantastic = g.spawn_unit(P0, at(6, 5), slow);
         assert_eq!(g.income(P0).mana_upkeep, 4);
@@ -385,17 +409,28 @@ mod tests {
         assert_eq!(g.units().unit_stat(normal, Stat::Melee), melee);
         assert!(!g.units().unit_has_magical_weapon(normal), "undead: no");
         // Herb Mastery does not heal it either.
-        g.world.insert_one(normal, Hurt(3)).unwrap();
+        g.world.insert_one(normal, Hurt(3))?;
         grant(&mut g, P0, "herb_mastery");
         g.process_globals();
-        assert_eq!(g.world.get::<&Hurt>(normal).unwrap().0, 3);
+        assert_eq!(g.world.get::<&Hurt>(normal)?.0, 3);
+        Ok(())
     }
 
     #[test]
-    fn holy_arms_and_chaos_surge_check_the_unit() {
+    fn holy_arms_and_chaos_surge_check_the_unit() -> TestResult {
         let mut g = world();
-        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
-        let slow = g.content.rules.units.id_of("high_men_spearmen").unwrap();
+        let walker = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?;
+        let slow = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_spearmen")
+            .ok_or("high_men_spearmen is not in the content")?;
         let normal = g.spawn_unit(P0, at(5, 5), walker);
         let chaos = g.spawn_unit(P0, at(6, 5), slow);
         let rival = g.spawn_unit(P1, at(9, 5), walker);
@@ -414,12 +449,18 @@ mod tests {
         grant(&mut g, P0, "chaos_surge");
         assert_eq!(melee(&g, chaos), m1 + 2);
         assert_eq!(melee(&g, normal), m0, "chaos surge skips non-chaos units");
+        Ok(())
     }
 
     #[test]
-    fn charm_of_life_adds_a_quarter_of_the_hit_points_at_least_one() {
+    fn charm_of_life_adds_a_quarter_of_the_hit_points_at_least_one() -> TestResult {
         let mut g = world();
-        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+        let walker = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("high_men_cavalry is not in the content")?;
         let u = g.spawn_unit(P0, at(5, 5), walker);
         let before = g.units().unit_stat(u, Stat::MaxHp);
         grant(&mut g, P0, "charm_of_life");
@@ -427,10 +468,11 @@ mod tests {
             g.units().unit_stat(u, Stat::MaxHp),
             before + (before / 4).max(1)
         );
+        Ok(())
     }
 
     #[test]
-    fn nature_awareness_and_natures_eye_show_who_guards_a_site() {
+    fn nature_awareness_and_natures_eye_show_who_guards_a_site() -> TestResult {
         let mut g = world();
         let guards = vec![("high_men_cavalry".to_string(), 2)];
         let lair = crate::feature::lair::Lair {
@@ -455,7 +497,10 @@ mod tests {
             race: elf,
             population: 3,
         });
-        let city = g.economy().city_at(at(17, 10)).unwrap();
+        let city = g
+            .economy()
+            .city_at(at(17, 10))
+            .ok_or("city_at is missing")?;
         assert_eq!(known(&g), None, "three squares away is outside plain sight");
         let eye = spell(&g, "natures_eye");
         g.attach_enchantment(crate::rules::exec::Target::City(city), eye, P0);
@@ -480,6 +525,7 @@ mod tests {
         assert_eq!(g.economy().lair_guards_known_to(at(2, 2), P0), None);
         grant(&mut g, P0, "nature_awareness");
         assert_eq!(g.economy().lair_guards_known_to(at(2, 2), P0), Some(guards));
+        Ok(())
     }
 
     #[test]
@@ -527,14 +573,19 @@ mod tests {
     }
 
     #[test]
-    fn just_cause_adds_ten_to_fame_while_it_lasts() {
+    fn just_cause_adds_ten_to_fame_while_it_lasts() -> TestResult {
         let mut g = world();
         g.set_fame(P0, 3);
         assert_eq!(g.fame(P0), 3);
         grant(&mut g, P0, "just_cause");
         assert_eq!(g.fame(P0), 13);
-        assert_eq!(g.fame(P1), g.wizard(P1).unwrap().fame(), "only the caster");
+        assert_eq!(
+            g.fame(P1),
+            g.wizard(P1).ok_or("wizard is missing")?.fame(),
+            "only the caster"
+        );
         assert_eq!(g.score(P0).fame, 26, "and it counts for the score");
+        Ok(())
     }
 
     #[test]

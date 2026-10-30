@@ -462,12 +462,15 @@ mod tests {
     }
 
     fn wizard(g: &Game, id: PlayerId) -> hecs::Entity {
-        g.wizard(id).unwrap().entity()
+        g.wizard(id).expect("wizard succeeds").entity()
     }
 
     fn two_spells(g: &Game) -> (SpellId, SpellId) {
         let mut ids = g.content.rules.spells.iter().map(|(id, _)| id);
-        (ids.next().unwrap(), ids.next().unwrap())
+        (
+            ids.next().expect("next succeeds"),
+            ids.next().expect("next succeeds"),
+        )
     }
 
     #[test]

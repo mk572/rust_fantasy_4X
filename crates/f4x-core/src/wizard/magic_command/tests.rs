@@ -1,6 +1,7 @@
 use super::*;
 use crate::game::testutil::content_with_magic;
 use crate::player::Treasury;
+use crate::testdir::TestResult;
 use crate::wizard::magic::Retort;
 
 fn treasury() -> Treasury {
@@ -11,14 +12,15 @@ fn treasury() -> Treasury {
 }
 
 #[test]
-fn alchemy_is_two_for_one_without_the_retort_and_one_for_one_with_it() {
+fn alchemy_is_two_for_one_without_the_retort_and_one_for_one_with_it() -> TestResult {
     let mut t = treasury();
-    alchemy(false, &mut t, 10, true).unwrap();
+    alchemy(false, &mut t, 10, true).map_err(|e| format!("{e:?}"))?;
     assert_eq!((t.gold, t.mana), (90, 25));
-    alchemy(false, &mut t, 10, false).unwrap();
+    alchemy(false, &mut t, 10, false).map_err(|e| format!("{e:?}"))?;
     assert_eq!((t.gold, t.mana), (95, 15));
-    alchemy(true, &mut t, 10, true).unwrap();
+    alchemy(true, &mut t, 10, true).map_err(|e| format!("{e:?}"))?;
     assert_eq!((t.gold, t.mana), (85, 25));
+    Ok(())
 }
 
 #[test]
@@ -36,27 +38,32 @@ fn alchemy_refuses_what_the_wizard_cannot_pay_and_changes_nothing() {
 }
 
 #[test]
-fn the_spell_being_cast_can_be_given_up_except_the_spell_of_return() {
+fn the_spell_being_cast_can_be_given_up_except_the_spell_of_return() -> TestResult {
     let mut g = crate::game::Game::new(3);
     g.content = content_with_magic();
     g.add_player(crate::player::PlayerId(0), "W");
-    let mut w = g.wizard_mut(crate::player::PlayerId(0)).unwrap();
+    let mut w = g
+        .wizard_mut(crate::player::PlayerId(0))
+        .ok_or("wizard_mut is missing")?;
     assert_eq!(cancel_cast(&mut w, true), Err(MagicError::NotAvailable));
     assert_eq!(cancel_cast(&mut w, false), Ok(()));
+    Ok(())
 }
 
 #[test]
-fn a_famous_wizard_starts_with_fame_and_every_wizard_with_a_library() {
+fn a_famous_wizard_starts_with_fame_and_every_wizard_with_a_library() -> TestResult {
     let mut g = crate::game::Game::new(3);
     g.content = content_with_magic();
     let id = crate::player::PlayerId(0);
     g.add_player(id, "W");
     g.init_wizard(id, &[("life", 2)], &[Retort::Famous], None)
-        .unwrap();
-    let w = g.wizard(id).unwrap();
+        .map_err(|e| format!("{e:?}"))?;
+    let w = g.wizard(id).ok_or("wizard is missing")?;
     assert_eq!(w.fame(), 10);
     assert_eq!(w.books_in("life"), 2);
     assert!(!w.known().is_empty());
-    g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
-    assert_eq!(g.wizard(id).unwrap().fame(), 0);
+    g.init_wizard(id, &[("life", 2)], &[], None)
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(g.wizard(id).ok_or("wizard is missing")?.fame(), 0);
+    Ok(())
 }

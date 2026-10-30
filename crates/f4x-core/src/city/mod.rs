@@ -109,12 +109,13 @@ mod tests {
     use crate::game::testutil::content;
     use crate::game::{Command, Event, Game, Rejection};
     use crate::map::Grid;
+    use crate::testdir::TestResult;
 
     /// 20x12 grassland world with ocean at x=0, a mountain at (5,5), a lair at (8,5)
     /// and a mineral at (12,5) (a city may sit on a mineral).
     fn game() -> Game {
         let c = content();
-        let id = |n: &str| c.terrains.id_of(n).unwrap();
+        let id = |n: &str| c.terrains.id_of(n).expect("id_of succeeds");
         let build = || {
             let mut g = Grid::new(20, 12, id("grassland"));
             for y in 0..12 {
@@ -203,7 +204,7 @@ mod tests {
     }
 
     #[test]
-    fn only_intact_sites_block_but_towers_and_nodes_always_do() {
+    fn only_intact_sites_block_but_towers_and_nodes_always_do() -> TestResult {
         let mut g = game();
         let a = Plane::Arcanus;
         assert_eq!(
@@ -211,7 +212,11 @@ mod tests {
             Err(FoundCityError::BlockedByFeature)
         );
         // Cleared: the encounter site is gone, so the square is free.
-        let lair = g.economy().lair_at(at(a, 8, 5)).unwrap().entity;
+        let lair = g
+            .economy()
+            .lair_at(at(a, 8, 5))
+            .ok_or("lair_at is missing")?
+            .entity;
         g.clear_site(lair);
         assert_eq!(g.can_found_city(at(a, 8, 5)), Ok(()));
         // A tower blocks on both planes, even with no intact lair record.
@@ -227,6 +232,7 @@ mod tests {
         );
         // The node is on Arcanus only.
         assert_eq!(g.can_found_city(at(Plane::Myrror, 16, 8)), Ok(()));
+        Ok(())
     }
 
     #[test]

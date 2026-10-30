@@ -306,6 +306,7 @@ mod tests {
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::exec::Target;
+    use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
 
@@ -319,28 +320,29 @@ mod tests {
 
     fn world() -> Game {
         let c = content_with_magic();
-        let grass = c.terrains.id_of("grassland").unwrap();
+        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
         g.add_player(P0, "W");
-        g.treasury_mut(P0).unwrap().mana = 1000;
-        g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
+        g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 1000;
+        g.init_wizard(P0, &[("life", 2)], &[], None)
+            .expect("init_wizard succeeds");
         g
     }
 
     fn cast(g: &mut Game, id: &str, pos: Position) -> Vec<Event> {
-        let s = g.content.rules.spells.id_of(id).unwrap();
+        let s = g.content.rules.spells.id_of(id).expect("id_of succeeds");
         g.wizard_mut(P0)
-            .unwrap()
+            .expect("value succeeds")
             .get_mut::<crate::wizard::sheet::KnownSpells>()
             .known
             .insert(s);
         g.wizard_mut(P0)
-            .unwrap()
+            .expect("value succeeds")
             .get_mut::<crate::wizard::sheet::Skill>()
             .left = 500;
-        g.treasury_mut(P0).unwrap().mana = 1000;
+        g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 1000;
         g.apply(Command::CastSpell {
             player: P0,
             spell: s,
@@ -349,12 +351,16 @@ mod tests {
     }
 
     #[test]
-    fn a_volcano_makes_mountains_destroys_minerals_and_adds_power() {
+    fn a_volcano_makes_mountains_destroys_minerals_and_adds_power() -> TestResult {
         let mut g = world();
-        let gold = g.content.features.id_of("gold").unwrap();
+        let gold = g
+            .content
+            .features
+            .id_of("gold")
+            .ok_or("gold is not in the content")?;
         g.map
             .as_mut()
-            .unwrap()
+            .ok_or("as_mut is missing")?
             .plane_mut(Plane::Arcanus)
             .set_mineral(4, 4, Some(gold));
         let before = g.income(P0).power_base;
@@ -362,7 +368,11 @@ mod tests {
         assert!(events
             .iter()
             .any(|e| matches!(e, Event::VolcanoRaised { .. })));
-        let grid = g.map.as_ref().unwrap().plane(Plane::Arcanus);
+        let grid = g
+            .map
+            .as_ref()
+            .ok_or("as_ref is missing")?
+            .plane(Plane::Arcanus);
         assert_eq!(g.economy().volcano_at(at(4, 4)), Some(PlayerId(0)));
         assert_eq!(grid.mineral(4, 4), None);
         assert_eq!(
@@ -371,14 +381,15 @@ mod tests {
         );
         assert_eq!(g.volcano_count(P0), 1);
         assert_eq!(g.income(P0).power_base, before + 1);
+        Ok(())
     }
 
     #[test]
-    fn a_volcano_cannot_rise_on_a_river_and_a_node_cannot_be_changed() {
+    fn a_volcano_cannot_rise_on_a_river_and_a_node_cannot_be_changed() -> TestResult {
         let mut g = world();
         g.map
             .as_mut()
-            .unwrap()
+            .ok_or("as_mut is missing")?
             .plane_mut(Plane::Arcanus)
             .set_river(4, 4, true);
         assert_eq!(
@@ -394,10 +405,10 @@ mod tests {
                 .content
                 .terrains
                 .first_of_class(class, Plane::Arcanus)
-                .unwrap();
+                .ok_or("first_of_class is missing")?;
             g.map
                 .as_mut()
-                .unwrap()
+                .ok_or("as_mut is missing")?
                 .plane_mut(Plane::Arcanus)
                 .set(6, 6, id);
             assert_eq!(
@@ -405,19 +416,20 @@ mod tests {
                 Err(TargetError::NodeFixed)
             );
         }
+        Ok(())
     }
 
     #[test]
-    fn volcanoes_cannot_rise_on_mountains_hills_or_nodes() {
+    fn volcanoes_cannot_rise_on_mountains_hills_or_nodes() -> TestResult {
         let mut g = world();
         let hills = g
             .content
             .terrains
             .first_of_class(TerrainClass::Hills, Plane::Arcanus)
-            .unwrap();
+            .ok_or("first_of_class is missing")?;
         g.map
             .as_mut()
-            .unwrap()
+            .ok_or("as_mut is missing")?
             .plane_mut(Plane::Arcanus)
             .set(2, 2, hills);
         g.put_feature(at(3, 3), "sorcery_node");
@@ -430,14 +442,19 @@ mod tests {
             Err(TargetError::VolcanoOnSite)
         );
         assert_eq!(g.check_raise_volcano(at(5, 5)), Ok(()));
-        let s = g.content.rules.spells.id_of("raise_volcano").unwrap();
+        let s = g
+            .content
+            .rules
+            .spells
+            .id_of("raise_volcano")
+            .ok_or("raise_volcano is not in the content")?;
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::KnownSpells>()
             .known
             .insert(s);
         g.wizard_mut(P0)
-            .unwrap()
+            .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Skill>()
             .left = 500;
         let events = g.apply(Command::CastSpell {
@@ -450,14 +467,15 @@ mod tests {
             "{events:?}"
         );
         assert_eq!(
-            g.player(P0).unwrap().treasury().mana,
+            g.player(P0).ok_or("player is missing")?.treasury().mana,
             1000,
             "refused before paying"
         );
+        Ok(())
     }
 
     #[test]
-    fn a_volcano_under_a_city_can_collapse_buildings() {
+    fn a_volcano_under_a_city_can_collapse_buildings() -> TestResult {
         let mut g = world();
         g.apply(Command::FoundCity {
             owner: P0,
@@ -466,14 +484,14 @@ mod tests {
             race: g.content.rules.races.id_of("high_elf"),
             population: 3,
         });
-        let city = g.economy().city_at(at(8, 8)).unwrap();
+        let city = g.economy().city_at(at(8, 8)).ok_or("city_at is missing")?;
         let ids: Vec<_> = (0..g.content.rules.buildings.defs().len().min(8))
             .map(|i| crate::rules::BuildingId::new(i as u16))
             .collect();
-        g.world.get::<&mut Buildings>(city).unwrap().0 = ids.clone();
+        g.world.get::<&mut Buildings>(city)?.0 = ids.clone();
         let mut rng = rand_pcg::Pcg64Mcg::new(1);
         let events = g.raise_volcano(P0, at(8, 8), &mut rng);
-        let left = g.world.get::<&Buildings>(city).unwrap().0.len();
+        let left = g.world.get::<&Buildings>(city)?.0.len();
         assert!(left <= ids.len());
         assert_eq!(
             events
@@ -481,16 +499,17 @@ mod tests {
                 .any(|e| matches!(e, Event::BuildingsCollapsed { .. })),
             left < ids.len()
         );
+        Ok(())
     }
 
     #[test]
-    fn change_terrain_follows_the_help_table() {
+    fn change_terrain_follows_the_help_table() -> TestResult {
         let mut g = world();
         let terr = |g: &Game, c| {
             g.content
                 .terrains
                 .first_of_class(c, Plane::Arcanus)
-                .unwrap()
+                .expect("value succeeds")
         };
         for (from, to) in [
             (TerrainClass::Desert, TerrainClass::Grassland),
@@ -503,7 +522,7 @@ mod tests {
             let id = terr(&g, from);
             g.map
                 .as_mut()
-                .unwrap()
+                .ok_or("as_mut is missing")?
                 .plane_mut(Plane::Arcanus)
                 .set(6, 6, id);
             assert_eq!(g.change_terrain_result(at(6, 6)), Ok(to), "{from:?}");
@@ -512,7 +531,7 @@ mod tests {
             let id = terr(&g, class);
             g.map
                 .as_mut()
-                .unwrap()
+                .ok_or("as_mut is missing")?
                 .plane_mut(Plane::Arcanus)
                 .set(6, 6, id);
             assert_eq!(
@@ -520,6 +539,7 @@ mod tests {
                 Err(TargetError::TerrainFixed)
             );
         }
+        Ok(())
     }
 
     #[test]

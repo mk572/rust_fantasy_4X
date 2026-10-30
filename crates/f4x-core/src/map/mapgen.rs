@@ -552,18 +552,20 @@ pub fn land_percent(grid: &Grid, terrains: &Terrains) -> u32 {
 mod tests {
     use super::*;
     use crate::game::testutil::content;
+    use crate::testdir::TestResult;
 
     #[test]
-    fn same_seed_same_map_different_seed_differs() {
+    fn same_seed_same_map_different_seed_differs() -> TestResult {
         let (c, p) = (content(), GenParams::default());
-        assert_eq!(generate(7, &p, &c).unwrap(), generate(7, &p, &c).unwrap());
-        assert_ne!(generate(7, &p, &c).unwrap(), generate(8, &p, &c).unwrap());
+        assert_eq!(generate(7, &p, &c)?, generate(7, &p, &c)?);
+        assert_ne!(generate(7, &p, &c)?, generate(8, &p, &c)?);
+        Ok(())
     }
 
     #[test]
-    fn land_share_matches_request_and_planes_differ() {
+    fn land_share_matches_request_and_planes_differ() -> TestResult {
         let (c, p) = (content(), GenParams::default());
-        let map = generate(1, &p, &c).unwrap().map;
+        let map = generate(1, &p, &c)?.map;
         for plane in Plane::ALL {
             let pct = land_percent(map.plane(plane), &c.terrains);
             // The polar caps come on top of the share asked for.
@@ -573,6 +575,7 @@ mod tests {
             );
         }
         assert_ne!(map.plane(Plane::Arcanus), map.plane(Plane::Myrror));
+        Ok(())
     }
 
     #[test]
@@ -627,10 +630,10 @@ mod tests {
     }
 
     #[test]
-    fn rivers_exist_on_gentle_land_and_are_deterministic() {
+    fn rivers_exist_on_gentle_land_and_are_deterministic() -> TestResult {
         let c = content();
-        let a = generate(7, &GenParams::default(), &c).unwrap();
-        let b = generate(7, &GenParams::default(), &c).unwrap();
+        let a = generate(7, &GenParams::default(), &c)?;
+        let b = generate(7, &GenParams::default(), &c)?;
         assert_eq!(a, b);
         let mut count = 0;
         for plane in Plane::ALL {
@@ -639,7 +642,11 @@ mod tests {
                 for x in 0..g.width() as i32 {
                     if g.has_river(x, y) {
                         count += 1;
-                        let class = c.terrains.get(g.get(x, y).unwrap()).unwrap().class;
+                        let class = c
+                            .terrains
+                            .get(g.get(x, y).ok_or("get is missing")?)
+                            .ok_or("get is missing")?
+                            .class;
                         assert!(
                             !matches!(
                                 class,
@@ -652,14 +659,15 @@ mod tests {
             }
         }
         assert!(count > 0, "the default map has rivers");
+        Ok(())
     }
 
     #[test]
-    fn lakes_are_single_water_squares_away_from_the_sea() {
+    fn lakes_are_single_water_squares_away_from_the_sea() -> TestResult {
         let c = content();
         let mut lakes = 0;
         for seed in 1..=30 {
-            let generated = generate(seed, &GenParams::default(), &c).unwrap();
+            let generated = generate(seed, &GenParams::default(), &c)?;
             let m = &generated.map;
             for plane in Plane::ALL {
                 let g = m.plane(plane);
@@ -669,7 +677,10 @@ mod tests {
                             continue;
                         }
                         lakes += 1;
-                        let class = |x, y| g.get(x, y).map(|t| c.terrains.get(t).unwrap().class);
+                        let class = |x, y| {
+                            g.get(x, y)
+                                .map(|t| c.terrains.get(t).expect("get succeeds").class)
+                        };
                         assert_eq!(class(x, y), Some(TerrainClass::Ocean), "a lake is water");
                         assert!(g.mineral(x, y).is_none(), "nothing stands in a lake");
                         assert!(
@@ -692,10 +703,11 @@ mod tests {
             }
         }
         assert!(lakes >= 20, "30 maps should hold lakes, found {lakes}");
+        Ok(())
     }
 
     #[test]
-    fn handles_non_square_and_odd_sizes() {
+    fn handles_non_square_and_odd_sizes() -> TestResult {
         let c = content();
         for (w, h) in [(8, 8), (61, 37), (120, 20), (20, 120)] {
             let p = GenParams {
@@ -704,9 +716,10 @@ mod tests {
                 land_percent: 40,
                 ..GenParams::default()
             };
-            let map = generate(3, &p, &c).unwrap().map;
+            let map = generate(3, &p, &c)?.map;
             assert_eq!((map.width(), map.height()), (w, h));
         }
+        Ok(())
     }
 
     #[test]
@@ -725,11 +738,11 @@ mod tests {
     }
 
     #[test]
-    fn every_size_of_the_range_generates_a_valid_map() {
+    fn every_size_of_the_range_generates_a_valid_map() -> TestResult {
         let c = content();
         for (w, h) in [(45, 30), (75, 50), (90, 60)] {
             let p = GenParams::sized(w, h);
-            let g = generate(5, &p, &c).unwrap();
+            let g = generate(5, &p, &c)?;
             assert_eq!((g.map.width(), g.map.height()), (w, h));
             let towers = g
                 .placements
@@ -749,5 +762,6 @@ mod tests {
                 "{w}x{h}: {towers} towers"
             );
         }
+        Ok(())
     }
 }
