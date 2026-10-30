@@ -8,9 +8,10 @@ use f4x_core::city::production::ProductionItem;
 use f4x_core::diplomacy::DiplomacyEvent;
 use f4x_core::game::{Event, Game};
 use f4x_core::player::PlayerId;
+use serde::{Deserialize, Serialize};
 
 /// Counts over a whole game for one wizard.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Metrics {
     pub cities_founded: u32,
     pub cities_captured: u32,
@@ -95,7 +96,7 @@ impl AddAssign for Metrics {
 
 /// The counts of every player of a game, by player number. The last slot holds whoever has no
 /// number among the players (the monsters that win a battle, say), so the totals add up.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Tally {
     players: Vec<Metrics>,
 }
@@ -201,7 +202,7 @@ impl Tally {
 }
 
 /// How a wizard stands at one moment.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Standing {
     pub cities: usize,
     pub buildings: usize,

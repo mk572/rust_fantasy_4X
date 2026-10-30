@@ -2,9 +2,41 @@
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
+use std::hash::{BuildHasherDefault, Hasher};
 
 use crate::game::Game;
 use crate::map::Position;
+
+/// A cheap hasher for the search's own tables, which are looked up for every square the search
+/// looks at (the default one is built to resist attacks, which these tables do not face) and
+/// whose order nobody reads.
+#[derive(Default)]
+struct SquareHasher(u64);
+
+impl Hasher for SquareHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.write_u64(u64::from(b));
+        }
+    }
+    fn write_u64(&mut self, n: u64) {
+        self.0 = (self.0.rotate_left(5) ^ n).wrapping_mul(0x517c_c1b7_2722_0a95);
+    }
+    fn write_u32(&mut self, n: u32) {
+        self.write_u64(u64::from(n));
+    }
+    fn write_u8(&mut self, n: u8) {
+        self.write_u64(u64::from(n));
+    }
+    fn write_isize(&mut self, n: isize) {
+        self.write_u64(n as u64);
+    }
+    fn finish(&self) -> u64 {
+        self.0
+    }
+}
+
+type SquareMap<V> = HashMap<Position, V, BuildHasherDefault<SquareHasher>>;
 
 pub(crate) fn neighbours(game: &Game, p: Position) -> Vec<Position> {
     let Some(map) = game.map.as_ref() else {
@@ -60,7 +92,7 @@ impl Game {
         // Which squares stop the walk (hostile units or city, a guarded site), worked out once
         // for every square the search looks at.
         let hostile = economy.hostile_squares(owner);
-        let mut stops: HashMap<Position, bool> = HashMap::new();
+        let mut stops: SquareMap<bool> = SquareMap::default();
         let mut blocked = |next: Position| -> bool {
             *stops.entry(next).or_insert_with(|| {
                 hostile.contains(&next)
@@ -69,8 +101,8 @@ impl Game {
             })
         };
 
-        let mut best: HashMap<Position, u32> = HashMap::new();
-        let mut came: HashMap<Position, Position> = HashMap::new();
+        let mut best: SquareMap<u32> = SquareMap::default();
+        let mut came: SquareMap<Position> = SquareMap::default();
         let mut open = BinaryHeap::new();
         best.insert(start, 0);
         open.push(Reverse((
@@ -152,7 +184,7 @@ impl Game {
         };
         // Which squares stop the walk, worked out once for every square the search looks at.
         let hostile = economy.hostile_squares(owner);
-        let mut stops: HashMap<Position, bool> = HashMap::new();
+        let mut stops: SquareMap<bool> = SquareMap::default();
         let mut blocked = |next: Position| -> bool {
             *stops.entry(next).or_insert_with(|| {
                 hostile.contains(&next)
@@ -160,7 +192,7 @@ impl Game {
                         && economy.lair_at(next).is_some_and(|l| !l.guards.is_empty()))
             })
         };
-        let mut best: HashMap<Position, u32> = HashMap::new();
+        let mut best: SquareMap<u32> = SquareMap::default();
         let mut open = BinaryHeap::new();
         best.insert(start, 0);
         open.push(Reverse((0u32, start.x, start.y)));

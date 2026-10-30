@@ -2,6 +2,7 @@
 
 mod art;
 mod audio;
+mod cache;
 mod console_cmd;
 mod contestant;
 mod fonts;

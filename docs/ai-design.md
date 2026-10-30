@@ -391,6 +391,13 @@ from the reference-only game. `f4x-tools soak-diff A B` compares two snapshots. 
 brain is not part of this; only the strategic AI. There is
 one reference at a time; fork again to replace it.
 
+Speed: the games run `--jobs N` at a time (default one for each core; games that print as they
+go, with `--every`, `--trace` or `--detail`, run one at a time), 5.7 times faster on ten cores
+with the same results. The reference-only game of each seed is kept in `soak-out/cache/` and
+reused while the rules, content, reference AI and soak code are unchanged (`--no-cache` plays
+it again); editing only `crates/f4x-ai` keeps it valid. Seeds where the wizards live on separate
+land masses stay in on purpose: ships and landings are what the AI has to learn.
+
 ### 8.2 Battle strength
 
 A test fights the new AI against the old (`ai::baseline`) on both sides of the same random

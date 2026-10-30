@@ -6,6 +6,8 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Mutex;
 use std::time::Instant;
 
 use f4x_core::content::Content;
@@ -13,11 +15,12 @@ use f4x_core::game::endgame::GameOver;
 use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::Game;
 use f4x_core::player::PlayerId;
+use serde::{Deserialize, Serialize};
 
 use crate::contestant::{self, Contestant, Version};
 use crate::metrics::{Standing, Tally};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -35,6 +38,10 @@ pub struct Options {
     /// Save the game every this many turns into `out` (none: not at all).
     pub snapshots_every: Option<u32>,
     pub out: Option<PathBuf>,
+    /// Games played at once (none: one for each core; one when the game prints as it goes).
+    pub jobs: Option<usize>,
+    /// Play the reference-only games again instead of reusing the kept ones.
+    pub no_cache: bool,
 }
 
 impl Options {
@@ -58,6 +65,8 @@ impl Options {
             },
             snapshots_every: None,
             out: None,
+            jobs: None,
+            no_cache: false,
         };
         let mut it = args.iter();
         while let Some(a) = it.next() {
@@ -91,10 +100,23 @@ impl Options {
                     )
                 }
                 "--out" => o.out = Some(value("--out")?.into()),
+                "--jobs" => o.jobs = Some(value("--jobs")?.parse().map_err(|_| "bad jobs")?),
+                "--no-cache" => o.no_cache = true,
                 other => return Err(format!("unknown option {other:?}\n{usage}")),
             }
         }
         Ok(o)
+    }
+
+    /// How many games to play at once. Games that print as they go (`--every`, `--trace`,
+    /// `--detail`) are played one at a time so their lines stay together.
+    pub fn jobs(&self) -> usize {
+        if self.every > 0 || self.trace > 0 || self.detail {
+            return 1;
+        }
+        self.jobs
+            .unwrap_or_else(|| std::thread::available_parallelism().map_or(1, |n| n.get()))
+            .max(1)
     }
 
     pub fn load_content(&self) -> Result<Content, String> {
@@ -109,11 +131,11 @@ pub struct Roster {
 }
 
 /// The refused-order log, one line per refused command, tab separated.
-pub type RefusedLog = Option<std::io::BufWriter<std::fs::File>>;
+pub type RefusedLog = Mutex<Option<std::io::BufWriter<std::fs::File>>>;
 
 pub fn open_refused_log(path: &Option<PathBuf>) -> Result<RefusedLog, String> {
     let Some(path) = path else {
-        return Ok(None);
+        return Ok(Mutex::new(None));
     };
     if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -122,10 +144,11 @@ pub fn open_refused_log(path: &Option<PathBuf>) -> Result<RefusedLog, String> {
         std::fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?,
     );
     writeln!(f, "seed\tturn\tplayer\tsource\treason\tcommand").map_err(|e| e.to_string())?;
-    Ok(Some(f))
+    Ok(Mutex::new(Some(f)))
 }
 
 /// How one game went.
+#[derive(Serialize, Deserialize)]
 pub struct GameResult {
     pub over: Option<GameOver>,
     pub tally: Tally,
@@ -138,22 +161,52 @@ pub struct GameResult {
 pub fn run(args: &[String]) -> Result<(), String> {
     let opts = Options::parse(args, USAGE)?;
     let content = opts.load_content()?;
-    let mut refused = open_refused_log(&opts.refused_log)?;
+    let refused = open_refused_log(&opts.refused_log)?;
     let roster = Roster {
         versions: vec![Version::New; usize::from(opts.players)],
         neutrals: Version::New,
     };
-    let mut summary = Vec::new();
-    for seed in opts.first..=opts.last {
-        let result = game(&content, seed, &opts, &roster, "", &mut refused)?;
-        summary.push(result.over.is_some());
-    }
+    let seeds: Vec<u64> = (opts.first..=opts.last).collect();
+    let results = in_parallel(opts.jobs(), &seeds, |&seed| {
+        game(&content, seed, &opts, &roster, "", &refused)
+    })?;
+    let summary: Vec<bool> = results.iter().map(|r| r.over.is_some()).collect();
     println!(
         "{} of {} games ended with a winner",
         summary.iter().filter(|&&w| w).count(),
         summary.len()
     );
     Ok(())
+}
+
+/// Run `work` on every item, `jobs` at a time, and return the results in the order of the items
+/// (the first error, if any). Each game builds its own `Game` on its thread, so nothing of the
+/// game itself crosses threads.
+pub fn in_parallel<T: Sync, R: Send>(
+    jobs: usize,
+    items: &[T],
+    work: impl Fn(&T) -> Result<R, String> + Sync,
+) -> Result<Vec<R>, String> {
+    let next = AtomicUsize::new(0);
+    let done: Mutex<Vec<Option<Result<R, String>>>> =
+        Mutex::new(items.iter().map(|_| None).collect());
+    std::thread::scope(|scope| {
+        for _ in 0..jobs.min(items.len()) {
+            scope.spawn(|| loop {
+                let i = next.fetch_add(1, Ordering::Relaxed);
+                let Some(item) = items.get(i) else {
+                    break;
+                };
+                let result = work(item);
+                done.lock().unwrap()[i] = Some(result);
+            });
+        }
+    });
+    done.into_inner()
+        .unwrap()
+        .into_iter()
+        .map(|r| r.expect("every item was worked on"))
+        .collect()
 }
 
 /// Play one game to its end or the turn limit, printing as the options ask, and report it.
@@ -164,7 +217,7 @@ pub fn game(
     opts: &Options,
     roster: &Roster,
     label: &str,
-    refused_out: &mut RefusedLog,
+    refused_out: &RefusedLog,
 ) -> Result<GameResult, String> {
     let players = opts.players;
     let tag = if label.is_empty() {
@@ -200,7 +253,7 @@ pub fn game(
         .map(|(k, &v)| contestant::make(v, PlayerId(k as u8)))
         .collect();
     for ai in &mut ais {
-        ai.record_refusals(refused_out.is_some());
+        ai.record_refusals(refused_out.lock().unwrap().is_some());
     }
     let snapshot_dir = match (&opts.out, opts.snapshots_every) {
         (Some(out), Some(n)) if n > 0 => {
@@ -236,7 +289,7 @@ pub fn game(
         if game.turn <= opts.trace && opts.trace > 0 {
             trace_turn(&game, &ais, &turns, &rest);
         }
-        if let Some(out) = refused_out.as_mut() {
+        if let Some(out) = refused_out.lock().unwrap().as_mut() {
             for ai in &ais {
                 for r in ai.take_refusals() {
                     writeln!(

@@ -10,11 +10,12 @@ use std::path::{Path, PathBuf};
 use f4x_core::game::save::Snapshot;
 use f4x_core::player::PlayerId;
 
+use crate::cache;
 use crate::contestant::Version;
 use crate::metrics::{Metrics, Standing};
 use crate::soak::{self, GameResult, Options, Roster};
 
-pub const USAGE: &str = "usage: f4x-tools soak-versus [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--detail] [--snapshots-every N (default 50, 0: none)] [--out DIR (default soak-out)] [--refused-log FILE]\n       f4x-tools soak-diff SNAPSHOT_A SNAPSHOT_B [--content DIR]";
+pub const USAGE: &str = "usage: f4x-tools soak-versus [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--detail] [--snapshots-every N (default 50, 0: none)] [--out DIR (default soak-out)] [--refused-log FILE] [--jobs N (default: one for each core)] [--no-cache]\n       f4x-tools soak-diff SNAPSHOT_A SNAPSHOT_B [--content DIR]";
 
 /// One of the four games of a seed.
 struct Variant {
@@ -89,31 +90,42 @@ pub fn run(args: &[String]) -> Result<(), String> {
     opts.snapshots_every.get_or_insert(50);
     opts.out.get_or_insert_with(|| "soak-out".into());
     let content = opts.load_content()?;
-    let mut refused = soak::open_refused_log(&opts.refused_log)?;
+    let refused = soak::open_refused_log(&opts.refused_log)?;
     let variants = variants(opts.players);
     let [mut ref_all, mut new_all, mut mixed_ref, mut mixed_new] = <[Column; 4]>::default();
     // Wins of the mixed games by version, and games nobody won.
     let (mut new_wins, mut ref_wins, mut undecided) = (0, 0, 0);
     let (mut ref_all_ended, mut new_all_ended, mut seeds) = (0, 0, 0);
     let mut divergence = Vec::new();
-    for seed in opts.first..=opts.last {
-        seeds += 1;
-        let mut played = Vec::new();
-        for v in &variants {
-            let roster = Roster {
-                versions: v.versions.clone(),
-                neutrals: Version::Reference,
-            };
-            played.push(soak::game(
-                &content,
-                seed,
-                &opts,
-                &roster,
-                v.name,
-                &mut refused,
-            )?);
+    // Every game of every seed, played `jobs` at a time; the reference-only game is taken from
+    // the cache when this build has played it before.
+    let out = opts.out.clone().unwrap_or_default();
+    let work: Vec<(u64, usize)> = (opts.first..=opts.last)
+        .flat_map(|seed| (0..variants.len()).map(move |k| (seed, k)))
+        .collect();
+    let all = soak::in_parallel(opts.jobs(), &work, |&(seed, k)| {
+        let v = &variants[k];
+        let cacheable = v.name == "ref-all" && !opts.no_cache && opts.battle_ai.is_none();
+        if cacheable {
+            if let Some(kept) = cache::load(&out, &opts, seed) {
+                println!("seed {seed} [{}]: kept from an earlier run", v.name);
+                return Ok(kept);
+            }
         }
-        for (v, result) in variants.iter().zip(&played) {
+        let roster = Roster {
+            versions: v.versions.clone(),
+            neutrals: Version::Reference,
+        };
+        let result = soak::game(&content, seed, &opts, &roster, v.name, &refused)?;
+        if cacheable {
+            cache::store(&out, &opts, seed, &result)?;
+        }
+        Ok(result)
+    })?;
+    for (n, seed) in (opts.first..=opts.last).enumerate() {
+        seeds += 1;
+        let played = &all[n * variants.len()..(n + 1) * variants.len()];
+        for (v, result) in variants.iter().zip(played) {
             let version_of = |p: PlayerId| v.versions[usize::from(p.0)];
             match v.name {
                 "ref-all" => {
@@ -135,7 +147,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 }
             }
         }
-        for (v, result) in variants.iter().zip(&played).skip(1) {
+        for (v, result) in variants.iter().zip(played).skip(1) {
             divergence.push((
                 seed,
                 v.name,
