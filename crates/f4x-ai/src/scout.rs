@@ -1,5 +1,5 @@
 //! Scouts: one or more units whose job is to find the rest of the world (`docs/ai-design.md`
-//! section 5.1). Without them the wizards never meet, so there are no wars.
+//! section 5.1).
 //!
 //! A scout walks to the reachable square from which it will see the most unexplored ground,
 //! nearer squares first, and takes a new target when it arrives or stops. Scouts keep apart:
@@ -231,6 +231,8 @@ mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0};
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     fn city() -> Position {
         at(COAST_CITY.0, COAST_CITY.1)
     }
@@ -262,26 +264,30 @@ mod tests {
     }
 
     #[test]
-    fn the_best_target_is_new_ground_the_unit_can_walk_to() {
+    fn the_best_target_is_new_ground_the_unit_can_walk_to() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         let walker = spawn(&mut g, P0, city(), "high_men_spearmen", 1)[0];
         let view = PlayerView::new(&g, P0);
-        let target = best_target(&view, walker, city(), &[]).expect("something to explore");
+        let target =
+            best_target(&view, walker, city(), &[]).ok_or("there is something to explore")?;
         assert_ne!(target, city());
         assert!(view.reachable(&[walker]).contains(&target));
         assert!(unexplored_near(&view, target, 3) > 0);
         // The same choice every time.
         assert_eq!(best_target(&view, walker, city(), &[]), Some(target));
+        Ok(())
     }
 
     #[test]
-    fn a_target_near_another_scouts_is_left_to_it() {
+    fn a_target_near_another_scouts_is_left_to_it() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         let walker = spawn(&mut g, P0, city(), "high_men_spearmen", 1)[0];
         let view = PlayerView::new(&g, P0);
-        let first = best_target(&view, walker, city(), &[]).unwrap();
-        let second = best_target(&view, walker, city(), &[first]).expect("a second target");
-        assert!(distance(&view, first, second).unwrap() >= KEEP_APART);
+        let first = best_target(&view, walker, city(), &[]).ok_or("a first target")?;
+        let second = best_target(&view, walker, city(), &[first]).ok_or("a second target")?;
+        let apart = distance(&view, first, second).ok_or("the targets are on one plane")?;
+        assert!(apart >= KEEP_APART, "{apart}");
+        Ok(())
     }
 
     #[test]
@@ -353,5 +359,30 @@ mod tests {
         ai.frontier_closed = true;
         scout(&mut ai, &mut g, &mut Vec::new());
         assert!(ai.scouts.is_empty());
+    }
+
+    #[test]
+    fn a_scout_that_stands_still_on_its_order_gives_the_target_up_and_chooses_another() -> TestResult
+    {
+        let mut g = game(COAST_CITY, "high_men");
+        spawn(&mut g, P0, city(), "high_men_spearmen", 2);
+        let mut ai = Ai::new(P0);
+        scout(&mut ai, &mut g, &mut Vec::new());
+        let (&serial, &first) = ai
+            .scout_targets
+            .iter()
+            .next()
+            .ok_or("the scout has a target")?;
+        // No turn passes, so the scout has no moves left: each look finds it where it was.
+        for _ in 0..=STUCK_TURNS {
+            scout(&mut ai, &mut g, &mut Vec::new());
+        }
+        assert!(
+            ai.bad_scout_targets.contains(&first),
+            "{:?}",
+            ai.bad_scout_targets
+        );
+        assert_ne!(ai.scout_targets.get(&serial), Some(&first));
+        Ok(())
     }
 }
