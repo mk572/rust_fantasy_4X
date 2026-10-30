@@ -100,30 +100,40 @@ mod tests {
     use super::*;
     use crate::testworld::{at, game, COAST_CITY, ENEMY_CITY, P0, P1};
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     #[test]
-    fn a_peaceful_wizard_never_razes_and_a_maniacal_one_with_nothing_left_nearby_does_not_either() {
+    fn a_maniacal_wizard_does_not_raze_a_city_whose_former_owner_has_nothing_nearby() -> TestResult
+    {
         let mut g = game(COAST_CITY, "high_men");
-        let city = g.economy().city_at(at(ENEMY_CITY.0, ENEMY_CITY.1)).unwrap();
+        let city = g
+            .economy()
+            .city_at(at(ENEMY_CITY.0, ENEMY_CITY.1))
+            .ok_or("the enemy has a city")?;
         // Take the enemy's only city: the former owner has nothing else near, so even the
         // fiercest temper does not raze it (-200 for no rival land on the continent).
-        g.wizard_mut(P0).unwrap().put(Some(Personality::Maniacal));
+        g.wizard_mut(P0)
+            .ok_or("player 0 is a wizard")?
+            .put(Some(Personality::Maniacal));
         g.conquer_city(city, P0, 0);
         let view = PlayerView::new(&g, P0);
         let pos = at(ENEMY_CITY.0, ENEMY_CITY.1);
         assert!(score(&view, pos, P1) < 0);
+        Ok(())
     }
 
     #[test]
-    fn the_temper_sets_the_start_of_the_score() {
+    fn the_temper_sets_the_start_of_the_score() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         let enemy = at(ENEMY_CITY.0, ENEMY_CITY.1);
-        let other = g.economy().city_at(enemy).unwrap();
+        let other = g.economy().city_at(enemy).ok_or("the enemy has a city")?;
+        let race = g.content().rules.races.id_of("high_men");
         // Give the former owner a second city near the first, so there is land to fight over.
         g.apply(Command::FoundCity {
             owner: P1,
             pos: at(ENEMY_CITY.0 + 4, ENEMY_CITY.1),
             name: "Second".into(),
-            race: None,
+            race,
             population: 4,
         });
         g.conquer_city(other, P0, 0);
@@ -134,12 +144,14 @@ mod tests {
             Personality::Aggressive,
             Personality::Peaceful,
         ] {
-            g.wizard_mut(P0).unwrap().put(Some(p));
+            g.wizard_mut(P0).ok_or("player 0 is a wizard")?.put(Some(p));
             let view = PlayerView::new(&g, P0);
             scores.push(score(&view, enemy, P1));
         }
         assert_eq!(scores[0] - scores[2], 25);
         assert_eq!(scores[1] - scores[2], 10);
         assert_eq!(scores[2] - scores[3], 200);
+        assert!(scores[3] < 0, "a peaceful wizard never razes: {scores:?}");
+        Ok(())
     }
 }
