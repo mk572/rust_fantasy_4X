@@ -46,8 +46,6 @@ pub(crate) struct BattleUi {
     /// The combat spell book: its pages are laid out again every frame, the spread and the page
     /// turn stay.
     book: BookUi,
-    /// The screen's state has been set up for the battle being fought.
-    pub(crate) ready: bool,
     selected: Option<usize>,
     ai_timer: f32,
     /// Where the box of the selected unit's spells and abilities was drawn.
@@ -105,8 +103,18 @@ struct Aiming {
 }
 
 impl BattleUi {
-    pub(crate) fn animating(&self) -> bool {
-        self.shown.is_some()
+    /// The magic wall being raised by the spell that is playing: its kind (0 fire, 1 darkness)
+    /// and the frame it is at.
+    pub(crate) fn rising_wall(&self) -> Option<(u8, usize)> {
+        match &self.playing {
+            Some((
+                Anim::WallRise {
+                    wall: Some(dark), ..
+                },
+                t,
+            )) => Some((u8::from(*dark), (*t / battle_anim::SPELL_FRAME) as usize)),
+            _ => None,
+        }
     }
 }
 
@@ -430,10 +438,8 @@ impl App {
 
     /// Start a battle for the stack the human just moved, or for a site's guards.
     pub(crate) fn begin_battle(&mut self, command: Command) {
-        self.battle_ui = BattleUi::default();
         let events = self.game.apply(command);
         self.note(events);
-        self.init_battle_ui();
         if self.game.in_battle() {
             self.open_battle_screen();
         }
@@ -463,23 +469,22 @@ impl App {
         self.note(rest);
     }
 
-    /// Set the screen up for the battle in progress (it may have been started by the console).
-    pub(crate) fn init_battle_ui(&mut self) {
-        self.battle_ui = BattleUi::default();
+    /// The page for the battle in progress (it may have been started by the console).
+    fn new_battle_page(&self) -> BattleUi {
+        let mut ui = BattleUi::default();
         if let Some(battle) = self.game.battle() {
-            self.battle_ui.ready = true;
-            self.battle_ui.names = battle.units.iter().map(|u| u.name.clone()).collect();
-            let first = battle
+            ui.names = battle.units.iter().map(|u| u.name.clone()).collect();
+            ui.selected = battle
                 .active_units(battle.active)
                 .find(|u| unfinished(u))
                 .map(|u| u.id);
-            self.battle_ui.selected = first;
             // The attackers (at the original's high x) look towards low x, the defenders the other way.
             for u in &battle.units {
                 let look = if u.side == Side::Attacker { 7 } else { 3 };
-                self.battle_ui.facing.insert(u.id, look);
+                ui.facing.insert(u.id, look);
             }
         }
+        ui
     }
 
     /// For the screenshot check: move the human's units three squares east and put the feature
@@ -566,13 +571,8 @@ impl App {
     /// After the test battle has begun: the walls of fire and darkness round the city, and
     /// mud over the middle of the field.
     pub fn set_test_effects(&mut self, kind: &str) {
-        if let Some(id) = kind.strip_prefix("fx-") {
-            self.test_spell_fx(id);
-            return;
-        }
-        if kind == "spell-book" {
-            self.battle_ui.ready = true;
-            self.battle_ui.spell_list = true;
+        if kind.starts_with("fx-") || matches!(kind, "spell-book" | "shot") {
+            self.with_page(|page, app| page.test_effect(app, kind));
             return;
         }
         use f4x_core::battle::field::Field;
@@ -612,31 +612,12 @@ impl App {
             "info" => {
                 battle.node_site = Some(f4x_core::battle::immunity::Realm::Chaos);
                 battle.node_aura = Some(f4x_core::battle::immunity::Realm::Chaos);
-                self.battle_ui.info_open = true;
             }
             "enchants" => {
                 for (side, field, spell) in raised {
                     battle.raise_field(side, field, spell);
                 }
                 battle.cast_counter_magic(Side::Attacker, 20);
-            }
-            "shot" => {
-                // The screen sets itself up when first drawn, which would drop the animation.
-                self.battle_ui.ready = true;
-                let sides = |side| battle.units.iter().find(|u| u.side == side).map(|u| u.id);
-                if let (Some(attacker), Some(defender)) =
-                    (sides(Side::Attacker), sides(Side::Defender))
-                {
-                    self.battle_ui.shown = Some(battle.clone());
-                    self.battle_ui.playing = Some((
-                        Anim::Shot {
-                            attacker,
-                            defender,
-                            dealt: 6,
-                        },
-                        0.7,
-                    ));
-                }
             }
             "glow" => {
                 for (u, id) in battle.units.iter_mut().zip([
@@ -673,34 +654,36 @@ impl App {
             }
             _ => {}
         }
+        if kind == "info" {
+            self.with_page(|page, app| page.test_effect(app, kind));
+        }
     }
 
     /// For screenshots: the animation of a spell (`--battle-field fx-fireball`) cast on the first
     /// defender, a moment in.
-    fn test_spell_fx(&mut self, id: &str) {
-        self.battle_ui.ready = true;
+    fn test_spell_fx(&mut self, ui: &mut BattleUi, id: &str) {
         let Some(battle) = self.game.battle().cloned() else {
             return;
         };
         let Some(spell) = self.game.content().rules.spells.id_of(id) else {
             return;
         };
-        self.battle_ui.cast_target = battle
+        ui.cast_target = battle
             .units
             .iter()
             .find(|u| u.side == Side::Defender)
             .map(|u| u.cell);
         // Call Chaos: a different outcome for each of the defenders.
-        self.battle_ui.chaos = battle
+        ui.chaos = battle
             .units
             .iter()
             .filter(|u| u.side == Side::Defender)
             .enumerate()
             .map(|(i, u)| (u.id, (i + 4) as u8 % 8))
             .collect();
-        if let Some(anim) = self.spell_animation(&battle, spell, Ok(Side::Attacker)) {
-            self.battle_ui.shown = Some(battle);
-            self.battle_ui.playing = Some((anim, 0.0));
+        if let Some(anim) = self.spell_animation(ui, &battle, spell, Ok(Side::Attacker)) {
+            ui.shown = Some(battle);
+            ui.playing = Some((anim, 0.0));
         }
     }
 
@@ -745,9 +728,9 @@ impl App {
     }
 
     /// Send one order to the battle and tell what came of it.
-    fn battle_order(&mut self, order: BattleCommand) {
+    fn battle_order(&mut self, ui: &mut BattleUi, order: BattleCommand) {
         let before = self.game.battle().cloned();
-        self.battle_ui.cast_target = match (&order, &before) {
+        ui.cast_target = match (&order, &before) {
             (BattleCommand::Cast { aim, .. } | BattleCommand::UnitCast { aim, .. }, Some(b)) => {
                 match *aim {
                     SpellAim::Unit(id) => b.unit(id).map(|u| u.cell),
@@ -761,11 +744,11 @@ impl App {
         self.record_combat_results(&events);
         // A summoned creature has a name too.
         if let Some(b) = self.game.battle() {
-            if b.units.len() != self.battle_ui.names.len() {
-                self.battle_ui.names = b.units.iter().map(|u| u.name.clone()).collect();
+            if b.units.len() != ui.names.len() {
+                ui.names = b.units.iter().map(|u| u.name.clone()).collect();
             }
         }
-        self.battle_ui.chaos = events
+        ui.chaos = events
             .iter()
             .filter_map(|e| match e {
                 Event::Battle(BattleEvent::ChaosCalled { unit, outcome }) => {
@@ -774,7 +757,7 @@ impl App {
                 _ => None,
             })
             .collect();
-        let names = self.battle_ui.names.clone();
+        let names = ui.names.clone();
         let mut anims = Vec::new();
         for event in &events {
             match event {
@@ -783,10 +766,10 @@ impl App {
                         |id: SpellId| self.game.content().rules.spells.get(id).name.clone();
                     if let Some(line) = describe(&self.game.content().texts, &names, &spell_name, e)
                     {
-                        self.battle_ui.log.push(line);
+                        ui.log.push(line);
                     }
                     if let Some(b) = &before {
-                        self.animate(b, e, &mut anims);
+                        self.animate(ui, b, e, &mut anims);
                     }
                 }
                 Event::BattleEnded { winner, .. } => {
@@ -795,21 +778,21 @@ impl App {
                     } else {
                         "battle.defeat"
                     });
-                    self.battle_ui.log.push(line.clone());
+                    ui.log.push(line.clone());
                     self.log.push(line);
                 }
                 Event::Rejected(why) => {
                     let line = self.text(why.key());
-                    self.battle_ui.log.push(line);
+                    ui.log.push(line);
                 }
                 _ => {}
             }
         }
         if !anims.is_empty() {
-            if self.battle_ui.shown.is_none() {
-                self.battle_ui.shown = before;
+            if ui.shown.is_none() {
+                ui.shown = before;
             }
-            self.battle_ui.queue.extend(anims);
+            ui.queue.extend(anims);
         }
         // The overland log gets the rest (a cleared site's treasure and so on).
         let rest: Vec<Event> = events
@@ -817,15 +800,21 @@ impl App {
             .filter(|e| !matches!(e, Event::Battle(_) | Event::BattleEnded { .. }))
             .collect();
         self.note(rest);
-        let n = self.battle_ui.log.len();
+        let n = ui.log.len();
         if n > 30 {
-            self.battle_ui.log.drain(..n - 30);
+            ui.log.drain(..n - 30);
         }
     }
 
     /// Turn one battle event into animations and remember which way units now look.
     /// `before` is the battle as it stood when the order was given.
-    fn animate(&mut self, before: &Battle, event: &BattleEvent, out: &mut Vec<Anim>) {
+    fn animate(
+        &mut self,
+        ui: &mut BattleUi,
+        before: &Battle,
+        event: &BattleEvent,
+        out: &mut Vec<Anim>,
+    ) {
         let cell_of = |id: usize| before.unit(id).map(|u| u.cell);
         match event {
             BattleEvent::Moved { unit, path } => {
@@ -835,9 +824,7 @@ impl App {
                         .checked_sub(2)
                         .and_then(|i| path.get(i).copied())
                         .unwrap_or(start);
-                    self.battle_ui
-                        .facing
-                        .insert(*unit, battle_anim::facing(prev, last));
+                    ui.facing.insert(*unit, battle_anim::facing(prev, last));
                 }
                 // A teleporter or a merging unit crosses the field in one jump, with its
                 // own sound and picture (`Battle_Unit_Teleport`, `Battle_Unit_Tunnel`).
@@ -879,12 +866,8 @@ impl App {
                     _ => (0, 0),
                 };
                 if let (Some(a), Some(d)) = (cell_of(*attacker), cell_of(*defender)) {
-                    self.battle_ui
-                        .facing
-                        .insert(*attacker, battle_anim::facing(a, d));
-                    self.battle_ui
-                        .facing
-                        .insert(*defender, battle_anim::facing(d, a));
+                    ui.facing.insert(*attacker, battle_anim::facing(a, d));
+                    ui.facing.insert(*defender, battle_anim::facing(d, a));
                 }
                 out.push(if matches!(event, BattleEvent::Shot { .. }) {
                     Anim::Shot {
@@ -906,21 +889,20 @@ impl App {
             BattleEvent::VortexMoved { .. } => out.push(Anim::Sound { cast: 7 }),
             BattleEvent::SpellCast { side, spell, .. } => {
                 out.extend(self.spell_cast_sound(*spell));
-                out.extend(self.spell_animation(before, *spell, Ok(*side)));
+                out.extend(self.spell_animation(ui, before, *spell, Ok(*side)));
             }
             BattleEvent::UnitSpellCast { unit, spell, .. } => {
                 out.extend(self.spell_cast_sound(*spell));
-                out.extend(self.spell_animation(before, *spell, Err(*unit)));
+                out.extend(self.spell_animation(ui, before, *spell, Err(*unit)));
             }
             _ => {}
         }
     }
 
     /// Run the animation clock; when the last one has played, show the real battle again.
-    fn advance_animation(&mut self, dt: f32) {
+    fn advance_animation(&mut self, ui: &mut BattleUi, dt: f32) {
         let mut started = None;
         let mut stepped = None;
-        let ui = &mut self.battle_ui;
         if let Some((anim, t)) = ui.playing.as_mut() {
             let before = *t;
             *t += dt;
@@ -944,39 +926,38 @@ impl App {
             ui.shown = None;
         }
         if let Some(anim) = started {
-            self.hear_animation(&anim);
+            self.hear_animation(ui, &anim);
         }
         if let Some(unit) = stepped {
-            self.hear_step(unit);
+            self.hear_step(ui, unit);
         }
     }
 
     /// The unit of the battle as it is shown now.
-    fn shown_unit(&self, id: usize) -> Option<&BattleUnit> {
-        self.battle_ui
-            .shown
+    fn shown_unit<'a>(&'a self, ui: &'a BattleUi, id: usize) -> Option<&'a BattleUnit> {
+        ui.shown
             .as_ref()
             .or_else(|| self.game.battle())
             .and_then(|b| b.unit(id))
     }
 
     /// What the original's table says the unit sounds like.
-    fn unit_sound(&self, id: usize) -> Option<f4x_data::sound::UnitSound> {
-        let unit = self.shown_unit(id)?;
+    fn unit_sound(&self, ui: &mut BattleUi, id: usize) -> Option<f4x_data::sound::UnitSound> {
+        let unit = self.shown_unit(ui, id)?;
         self.audio.table.units.get(&unit.unit_id).copied()
     }
 
     /// The sound that goes with an animation as it starts.
-    fn hear_animation(&mut self, anim: &Anim) {
+    fn hear_animation(&mut self, ui: &mut BattleUi, anim: &Anim) {
         let key = match anim {
             Anim::Move { unit, .. } => self
-                .unit_sound(*unit)
+                .unit_sound(ui, *unit)
                 .and_then(|s| crate::audio::step_sound(s.r#move)),
             Anim::Attack { attacker, .. } => self
-                .unit_sound(*attacker)
+                .unit_sound(ui, *attacker)
                 .and_then(|s| crate::audio::melee_sound(s.melee)),
             Anim::Shot { attacker, .. } => self
-                .shown_unit(*attacker)
+                .shown_unit(ui, *attacker)
                 .and_then(|u| crate::audio::shot_sound(missile_type(u))),
             Anim::Sound { cast } => crate::audio::spell_sound(*cast),
             _ => None,
@@ -984,9 +965,9 @@ impl App {
         self.audio.effect(key);
     }
 
-    fn hear_step(&mut self, unit: usize) {
+    fn hear_step(&mut self, ui: &mut BattleUi, unit: usize) {
         let key = self
-            .unit_sound(unit)
+            .unit_sound(ui, unit)
             .and_then(|s| crate::audio::step_sound(s.r#move));
         self.audio.effect(key);
     }
@@ -1017,8 +998,8 @@ impl App {
     }
 
     /// How the unit bleeds from the blow or shot being played, if it is a party to it.
-    fn blood_of(&self, u: &BattleUnit) -> Option<battle_anim::Blood> {
-        let (anim, t) = self.battle_ui.playing.as_ref()?;
+    fn blood_of(&self, ui: &mut BattleUi, u: &BattleUnit) -> Option<battle_anim::Blood> {
+        let (anim, t) = ui.playing.as_ref()?;
         let (damage, landed) = match *anim {
             Anim::Attack {
                 attacker,
@@ -1043,12 +1024,12 @@ impl App {
         battle_anim::blood(u.figures, u.hits, damage, landed)
     }
 
-    fn visual_of(&self, battle: &Battle, id: usize) -> Visual {
+    fn visual_of(&self, ui: &mut BattleUi, battle: &Battle, id: usize) -> Visual {
         let Some(u) = battle.unit(id) else {
             return Visual::still((0, 0), 2);
         };
-        let base = self.battle_ui.facing.get(&id).copied().unwrap_or(2);
-        if let Some((anim, t)) = &self.battle_ui.playing {
+        let base = ui.facing.get(&id).copied().unwrap_or(2);
+        if let Some((anim, t)) = &ui.playing {
             if let Some(v) = battle_anim::visual_in(anim, *t, id, u.cell, base) {
                 return v;
             }
@@ -1073,22 +1054,8 @@ impl App {
         Visual::still(u.cell, base)
     }
 
-    /// The magic wall being raised by the spell that is playing: its kind (0 fire, 1 darkness)
-    /// and the frame it is at.
-    pub(crate) fn rising_wall(&self) -> Option<(u8, usize)> {
-        match &self.battle_ui.playing {
-            Some((
-                Anim::WallRise {
-                    wall: Some(dark), ..
-                },
-                t,
-            )) => Some((u8::from(*dark), (*t / battle_anim::SPELL_FRAME) as usize)),
-            _ => None,
-        }
-    }
-
     /// Select the next unit of the human's side that can still act.
-    fn select_next(&mut self, after: Option<usize>) {
+    fn select_next(&mut self, ui: &mut BattleUi, after: Option<usize>) {
         let Some(battle) = self.game.battle() else {
             return;
         };
@@ -1103,60 +1070,60 @@ impl App {
             .copied()
             .find(|&i| i > start)
             .or_else(|| ids.first().copied());
-        self.battle_ui.selected = next;
+        ui.selected = next;
     }
 
     pub(crate) fn open_battle_screen(&mut self) {
-        self.open_page(Screen::Battle, BattlePage);
+        let page = self.new_battle_page();
+        self.open_page(Screen::Battle, page);
     }
 
-    pub(crate) fn battle_screen(&mut self, input: &Input) {
+    pub(crate) fn battle_screen(&mut self, ui: &mut BattleUi, input: &Input) {
         let dt = get_frame_time();
-        self.advance_animation(dt);
+        self.advance_animation(ui, dt);
         // While orders animate, the battle as it was is drawn; afterwards the real one.
-        let animating = self.battle_ui.animating();
+        let animating = ui.animating();
         let over = self.modals.has(crate::modal::kind::COMBAT_RESULT);
-        let Some(battle) = self
-            .battle_ui
+        let Some(battle) = ui
             .shown
             .clone()
             .or_else(|| self.game.battle().cloned())
-            .or_else(|| over.then(|| self.battle_ui.last_drawn.clone()).flatten())
+            .or_else(|| over.then(|| ui.last_drawn.clone()).flatten())
         else {
-            self.battle_ui.last_drawn = None;
+            ui.last_drawn = None;
             self.screen = Screen::Map;
             return;
         };
         if !over {
-            self.battle_ui.last_drawn = Some(battle.clone());
+            ui.last_drawn = Some(battle.clone());
         }
-        if self.battle_ui.names.len() != battle.units.len() {
-            self.battle_ui.names = battle.units.iter().map(|u| u.name.clone()).collect();
+        if ui.names.len() != battle.units.len() {
+            ui.names = battle.units.iter().map(|u| u.name.clone()).collect();
         }
         // A box over the fight (a dispel's notices) stops it until it is clicked away.
         if self.under_modal {
-            self.draw_battle(&battle, false, None, input);
+            self.draw_battle(ui, &battle, false, None, input);
             return;
         }
-        self.battle_ui.ai_timer -= dt;
+        ui.ai_timer -= dt;
 
         let mine = Self::human_side(&battle);
-        let auto = self.battle_ui.auto;
+        let auto = ui.auto;
         let my_turn = mine == Some(battle.active) && !animating && !auto;
         // The other side plays by itself, once nothing is moving; so does yours under Auto.
         if !animating
             && (auto || mine != Some(battle.active))
-            && self.battle_ui.ai_timer <= 0.0
+            && ui.ai_timer <= 0.0
             && self.game.in_battle()
         {
-            self.battle_ui.ai_timer = AI_DELAY;
+            ui.ai_timer = AI_DELAY;
             let order = self
                 .game
                 .next_battle_command()
                 .unwrap_or_else(|| next_command(&battle));
-            self.battle_order(order);
-            self.select_next(None);
-            return self.draw_battle(&battle, my_turn, None, input);
+            self.battle_order(ui, order);
+            self.select_next(ui, None);
+            return self.draw_battle(ui, &battle, my_turn, None, input);
         }
 
         // Where the pointer is.
@@ -1165,57 +1132,54 @@ impl App {
         let hovered = cell_at((mouse.x - ox) / scale, (mouse.y - oy) / scale)
             .filter(|&p| battle.map.is_playable(p));
 
-        if my_turn && !self.battle_ui.info_open {
-            self.battle_input(&battle, hovered, input);
+        if my_turn && !ui.info_open {
+            self.battle_input(ui, &battle, hovered, input);
         }
-        let battle = self
-            .battle_ui
+        let battle = ui
             .shown
             .clone()
             .or_else(|| self.game.battle().cloned())
             .unwrap_or(battle);
-        self.draw_battle(&battle, my_turn, hovered, input);
-        self.draw_battle_pointer(
-            &battle,
-            my_turn && !self.battle_ui.info_open,
-            hovered,
-            input,
-        );
-        if self.battle_ui.info_open {
+        self.draw_battle(ui, &battle, my_turn, hovered, input);
+        self.draw_battle_pointer(ui, &battle, my_turn && !ui.info_open, hovered, input);
+        if ui.info_open {
             if let Some(info) = self.game.battle_info(HUMAN) {
                 if self.draw_battle_info(&info, input) {
-                    self.battle_ui.info_open = false;
+                    ui.info_open = false;
                 }
             } else {
-                self.battle_ui.info_open = false;
+                ui.info_open = false;
             }
         }
     }
 
-    fn battle_input(&mut self, battle: &Battle, hovered: Option<Pos>, input: &Input) {
-        if self.battle_ui.aiming.is_some()
-            || self.battle_ui.spell_list
-            || self.battle_ui.fallen_list.is_some()
-        {
-            return self.spell_input(battle, hovered, input);
+    fn battle_input(
+        &mut self,
+        ui: &mut BattleUi,
+        battle: &Battle,
+        hovered: Option<Pos>,
+        input: &Input,
+    ) {
+        if ui.aiming.is_some() || ui.spell_list || ui.fallen_list.is_some() {
+            return self.spell_input(ui, battle, hovered, input);
         }
-        let selected = self.battle_ui.selected;
+        let selected = ui.selected;
         let sel_unit = selected
             .and_then(|i| battle.unit(i))
             .filter(|u| unfinished(u));
 
         if input.key_pressed(KeyCode::Tab) {
-            self.select_next(selected);
+            self.select_next(ui, selected);
         }
         if input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::E) {
-            self.battle_order(BattleCommand::EndTurn);
-            self.battle_ui.selected = None;
+            self.battle_order(ui, BattleCommand::EndTurn);
+            ui.selected = None;
             return;
         }
         if input.key_pressed(KeyCode::Space) || input.key_pressed(KeyCode::D) {
             if let Some(u) = sel_unit {
-                self.battle_order(BattleCommand::Done { unit: u.id });
-                self.select_next(Some(u.id));
+                self.battle_order(ui, BattleCommand::Done { unit: u.id });
+                self.select_next(ui, Some(u.id));
             }
             return;
         }
@@ -1229,27 +1193,27 @@ impl App {
         }
         if input.mouse_pressed(MouseButton::Left) {
             // Clicks on the panel are the buttons' business.
-            if self.on_map(input.mouse_position().into()) {
+            if self.on_map(ui, input.mouse_position().into()) {
                 if let Some(cell) = hovered {
-                    self.battle_click(battle, cell);
+                    self.battle_click(ui, battle, cell);
                 }
             }
         }
     }
 
-    fn battle_click(&mut self, battle: &Battle, cell: Pos) {
-        let selected = self.battle_ui.selected;
+    fn battle_click(&mut self, ui: &mut BattleUi, battle: &Battle, cell: Pos) {
+        let selected = ui.selected;
         // A vortex of mine is picked, then steered one square.
         if let Some(i) = battle.vortex_at(cell) {
             if battle.vortices[i].owner == battle.active && !battle.vortices[i].steered {
-                self.battle_ui.steering = Some(i);
+                ui.steering = Some(i);
                 return;
             }
         }
-        if let Some(i) = self.battle_ui.steering.take() {
+        if let Some(i) = ui.steering.take() {
             let v = battle.vortices.get(i);
             if v.is_some_and(|v| distance(v.cell, cell) == 1) {
-                self.battle_order(BattleCommand::MoveVortex { index: i, to: cell });
+                self.battle_order(ui, BattleCommand::MoveVortex { index: i, to: cell });
                 return;
             }
         }
@@ -1260,7 +1224,7 @@ impl App {
         match (target, sel) {
             // Pick one of my own units.
             (Some((id, side)), _) if side == battle.active => {
-                self.battle_ui.selected = Some(id);
+                ui.selected = Some(id);
             }
             // Hit an enemy: in melee when next to it, otherwise shoot.
             (Some((id, _)), Some(u)) if !u.attacked => {
@@ -1277,8 +1241,8 @@ impl App {
                 } else {
                     return;
                 };
-                self.battle_order(order);
-                self.after_order(u.id);
+                self.battle_order(ui, order);
+                self.after_order(ui, u.id);
             }
             // A wall crusher strikes a wall section: with its blows next to it, or by shooting.
             (None, Some(u))
@@ -1294,15 +1258,18 @@ impl App {
                 } else {
                     return;
                 };
-                self.battle_order(order);
-                self.after_order(u.id);
+                self.battle_order(ui, order);
+                self.after_order(ui, u.id);
             }
             (None, Some(u)) if battle.reachable(u.id).contains_key(&cell) => {
-                self.battle_order(BattleCommand::Move {
-                    unit: u.id,
-                    to: cell,
-                });
-                self.after_order(u.id);
+                self.battle_order(
+                    ui,
+                    BattleCommand::Move {
+                        unit: u.id,
+                        to: cell,
+                    },
+                );
+                self.after_order(ui, u.id);
             }
             _ => {}
         }
@@ -1315,14 +1282,14 @@ impl App {
 
     /// Choose a spell from the list: cast it at once if it needs no target and no extra mana,
     /// otherwise wait for the target (and the amount of mana).
-    fn pick_spell(&mut self, spell: &f4x_core::battle::spell::BattleSpell) {
-        self.battle_ui.spell_list = false;
+    fn pick_spell(&mut self, ui: &mut BattleUi, spell: &f4x_core::battle::spell::BattleSpell) {
+        ui.spell_list = false;
         let cost = self.game.content().rules.spells.get(spell.spell).cost as i32;
-        let unit = self.battle_ui.spell_unit.take();
+        let unit = ui.spell_unit.take();
         let aimless = matches!(spell.target, SpellTarget::None | SpellTarget::Battlefield);
         if aimless && !spell.takes_extra_mana {
-            self.battle_order(cast_order(unit, spell.spell, SpellAim::None, 0));
-            self.battle_ui.selected = None;
+            self.battle_order(ui, cast_order(unit, spell.spell, SpellAim::None, 0));
+            ui.selected = None;
             return;
         }
         // Animate Dead and Raise Dead choose among the fallen, who are not on the field to click.
@@ -1335,7 +1302,7 @@ impl App {
         {
             // Only the wizard raises the fallen.
             if unit.is_none() {
-                self.battle_ui.fallen_list = Some(spell.spell);
+                ui.fallen_list = Some(spell.spell);
             }
             return;
         }
@@ -1376,7 +1343,7 @@ impl App {
         } else {
             Vec::new()
         };
-        self.battle_ui.aiming = Some(Aiming {
+        ui.aiming = Some(Aiming {
             tiles,
             unit,
             spell: spell.spell,
@@ -1388,15 +1355,21 @@ impl App {
     }
 
     /// Keys and clicks while the spell list is open or a spell waits for its target.
-    fn spell_input(&mut self, battle: &Battle, hovered: Option<Pos>, input: &Input) {
+    fn spell_input(
+        &mut self,
+        ui: &mut BattleUi,
+        battle: &Battle,
+        hovered: Option<Pos>,
+        input: &Input,
+    ) {
         if input.key_pressed(KeyCode::Escape) {
-            self.battle_ui.aiming = None;
-            self.battle_ui.spell_list = false;
-            self.battle_ui.spell_unit = None;
-            self.battle_ui.fallen_list = None;
+            ui.aiming = None;
+            ui.spell_list = false;
+            ui.spell_unit = None;
+            ui.fallen_list = None;
             return;
         }
-        let Some(mut aim) = self.battle_ui.aiming.clone() else {
+        let Some(mut aim) = ui.aiming.clone() else {
             return;
         };
         // More or less mana: Up/Down by one, Page Up/Down by five.
@@ -1409,13 +1382,13 @@ impl App {
                 + step(KeyCode::PageUp, KeyCode::PageDown, 5)
                 + step(KeyCode::Equal, KeyCode::Minus, 1);
             aim.mana = (aim.mana + change).clamp(cost, aim.most);
-            self.battle_ui.aiming = Some(aim.clone());
+            ui.aiming = Some(aim.clone());
         }
         let aimless = matches!(aim.target, SpellTarget::None | SpellTarget::Battlefield);
         let target = if aimless {
             input.key_pressed(KeyCode::Enter).then_some(SpellAim::None)
         } else if input.mouse_pressed(MouseButton::Left) {
-            let on_grid = self.on_map(input.mouse_position().into());
+            let on_grid = self.on_map(ui, input.mouse_position().into());
             hovered
                 .filter(|_| on_grid)
                 .and_then(|cell| match aim.target {
@@ -1426,18 +1399,21 @@ impl App {
             None
         };
         if let Some(target) = target {
-            self.battle_ui.aiming = None;
-            self.battle_order(cast_order(
-                aim.unit,
-                aim.spell,
-                target,
-                if aim.takes_extra_mana {
-                    aim.mana as u32
-                } else {
-                    0
-                },
-            ));
-            self.battle_ui.selected = None;
+            ui.aiming = None;
+            self.battle_order(
+                ui,
+                cast_order(
+                    aim.unit,
+                    aim.spell,
+                    target,
+                    if aim.takes_extra_mana {
+                        aim.mana as u32
+                    } else {
+                        0
+                    },
+                ),
+            );
+            ui.selected = None;
         }
     }
 
@@ -1460,15 +1436,21 @@ impl App {
     /// over the field (`Combat_Spellbook_Screen`): each spell with what it costs now and a
     /// realm symbol for every time it could be paid for this turn; one that cannot be cast is
     /// greyed. A click on a spell picks it, the ribbon or Escape closes the book.
-    fn draw_spell_list(&mut self, battle: &Battle, input: &Input) {
-        let mut book = std::mem::take(&mut self.battle_ui.book);
-        self.spell_list_in(&mut book, battle, input);
-        self.battle_ui.book = book;
+    fn draw_spell_list(&mut self, ui: &mut BattleUi, battle: &Battle, input: &Input) {
+        let mut book = std::mem::take(&mut ui.book);
+        self.spell_list_in(ui, &mut book, battle, input);
+        ui.book = book;
     }
 
     /// The combat book of `draw_spell_list`, with the book state taken out of the battle's.
-    fn spell_list_in(&mut self, book: &mut BookUi, battle: &Battle, input: &Input) {
-        let unit = self.battle_ui.spell_unit;
+    fn spell_list_in(
+        &mut self,
+        ui: &mut BattleUi,
+        book: &mut BookUi,
+        battle: &Battle,
+        input: &Input,
+    ) {
+        let unit = ui.spell_unit;
         let spells: Vec<f4x_core::battle::spell::BattleSpell> = match unit {
             Some(u) => self
                 .game
@@ -1536,8 +1518,8 @@ impl App {
             return;
         }
         if click_in(175.0, 166.0, 19.0, 30.0) {
-            self.battle_ui.spell_list = false;
-            self.battle_ui.spell_unit = None;
+            ui.spell_list = false;
+            ui.spell_unit = None;
             return;
         }
         book.draw_spellbook(self, &lay, view, input);
@@ -1559,7 +1541,7 @@ impl App {
             for (i, &id) in page.spells.iter().enumerate() {
                 if click_in(x0, 29.0 + 22.0 * i as f32, 121.0, 17.0) {
                     if let Some(spell) = spells.iter().find(|s| s.spell == id && s.castable) {
-                        self.pick_spell(spell);
+                        self.pick_spell(ui, spell);
                         return;
                     }
                 }
@@ -1573,16 +1555,22 @@ impl App {
             let r = lay.rect((100.0, 170.0, 70.0, 16.0));
             let label = self.text_with("battle.summon_demon", &Args::new().count("n", demons));
             if button(r, &label, self.game.can_summon_demon(u), input) {
-                self.battle_ui.spell_list = false;
-                self.battle_ui.spell_unit = None;
-                self.battle_order(BattleCommand::SummonDemon { unit: u });
-                self.battle_ui.selected = None;
+                ui.spell_list = false;
+                ui.spell_unit = None;
+                self.battle_order(ui, BattleCommand::SummonDemon { unit: u });
+                ui.selected = None;
             }
         }
     }
 
     /// The fallen of the wizard's army that the spell could bring back, to pick one from.
-    fn draw_fallen_list(&mut self, battle: &Battle, spell: SpellId, input: &Input) {
+    fn draw_fallen_list(
+        &mut self,
+        ui: &mut BattleUi,
+        battle: &Battle,
+        spell: SpellId,
+        input: &Input,
+    ) {
         let fallen: Vec<usize> = self
             .game
             .legal_battle_casts()
@@ -1641,20 +1629,29 @@ impl App {
                 row_h - 2.0,
             );
             if button(rect, &label, true, input) {
-                self.battle_ui.fallen_list = None;
-                self.battle_order(BattleCommand::Cast {
-                    spell,
-                    aim: SpellAim::Unit(id),
-                    mana: 0,
-                });
-                self.battle_ui.selected = None;
+                ui.fallen_list = None;
+                self.battle_order(
+                    ui,
+                    BattleCommand::Cast {
+                        spell,
+                        aim: SpellAim::Unit(id),
+                        mana: 0,
+                    },
+                );
+                ui.selected = None;
             }
         }
     }
 
     /// The prompt for the spell waiting for its target, and the squares it can be aimed at.
-    fn draw_aiming(&mut self, battle: &Battle, hovered: Option<Pos>, origin: (f32, f32, f32)) {
-        let Some(aim) = self.battle_ui.aiming.clone() else {
+    fn draw_aiming(
+        &mut self,
+        ui: &mut BattleUi,
+        battle: &Battle,
+        hovered: Option<Pos>,
+        origin: (f32, f32, f32),
+    ) {
+        let Some(aim) = ui.aiming.clone() else {
             return;
         };
         let (ox, oy, scale) = origin;
@@ -1693,18 +1690,25 @@ impl App {
     }
 
     /// Keep the selection on a unit that can still act.
-    fn after_order(&mut self, unit: usize) {
+    fn after_order(&mut self, ui: &mut BattleUi, unit: usize) {
         let still = self
             .game
             .battle()
             .and_then(|b| b.unit(unit))
             .is_some_and(unfinished);
         if !still {
-            self.select_next(Some(unit));
+            self.select_next(ui, Some(unit));
         }
     }
 
-    fn draw_battle(&mut self, battle: &Battle, my_turn: bool, hovered: Option<Pos>, input: &Input) {
+    fn draw_battle(
+        &mut self,
+        ui: &mut BattleUi,
+        battle: &Battle,
+        my_turn: bool,
+        hovered: Option<Pos>,
+        input: &Input,
+    ) {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let (scale, ox, oy) = Self::battle_view();
         // The map window is clipped, as the original's is: figures stand taller than a cell.
@@ -1724,7 +1728,7 @@ impl App {
         };
         let plane = battle.site.map_or(Plane::Arcanus, |site| site.plane);
 
-        let selected = self.battle_ui.selected.and_then(|i| battle.unit(i));
+        let selected = ui.selected.and_then(|i| battle.unit(i));
         let reach = match (selected, my_turn) {
             (Some(u), true) if unfinished(u) => battle.reachable(u.id),
             _ => Default::default(),
@@ -1756,7 +1760,7 @@ impl App {
         }
 
         // Scenery, walls and units, far rows first so near ones cover them.
-        let mut items = self.scenery_pieces(battle);
+        let mut items = self.scenery_pieces(battle, ui.rising_wall());
         let mut looks: HashMap<usize, Visual> = HashMap::new();
         let viewer = Self::human_side(battle);
         for u in battle
@@ -1764,7 +1768,7 @@ impl App {
             .iter()
             .filter(|u| u.is_active() && viewer.is_none_or(|v| battle.seen_by(v, u.id)))
         {
-            let vis = self.visual_of(battle, u.id);
+            let vis = self.visual_of(ui, battle, u.id);
             let depth = ((GRID_W - 1) as f32 - vis.at.0 + vis.at.1) * 100.0;
             items.push((depth.round() as i32, 2, u.cell, Piece::Unit(u.id)));
             looks.insert(u.id, vis);
@@ -1773,9 +1777,9 @@ impl App {
         for (_, _, pos, piece) in items {
             match piece {
                 Piece::Unit(id) => {
-                    let idle = self.battle_ui.selected == Some(id) && my_turn;
+                    let idle = ui.selected == Some(id) && my_turn;
                     let look = looks[&id];
-                    self.draw_unit(battle, id, look, idle, (ox, oy, scale), my_turn);
+                    self.draw_unit(ui, battle, id, look, idle, (ox, oy, scale), my_turn);
                     // A teleporter is on two squares while it fades out and in.
                     if let Some((at, alpha)) = look.twin {
                         let twin = Visual {
@@ -1784,7 +1788,7 @@ impl App {
                             twin: None,
                             ..look
                         };
-                        self.draw_unit(battle, id, twin, idle, (ox, oy, scale), my_turn);
+                        self.draw_unit(ui, battle, id, twin, idle, (ox, oy, scale), my_turn);
                     }
                 }
                 Piece::Wall(_) if self.wall_picture_missing(battle, plane, pos) => {
@@ -1793,8 +1797,8 @@ impl App {
                 piece => self.draw_piece(battle, plane, piece, (ox, oy, scale)),
             }
         }
-        self.draw_missile(battle, (ox, oy, scale));
-        self.draw_spell_fx((ox, oy, scale));
+        self.draw_missile(ui, battle, (ox, oy, scale));
+        self.draw_spell_fx(ui, (ox, oy, scale));
         // Magic vortices: the original's whirlwind (without the art, a swirl of rings), the
         // steered one marked.
         let vortex_art = self
@@ -1833,7 +1837,7 @@ impl App {
                     Color::new(0.6 - 0.1 * k as f32, 0.3, 0.9, 0.9),
                 );
             }
-            if self.battle_ui.steering == Some(i) {
+            if ui.steering == Some(i) {
                 diamond(sx, sy, scale, GOLD, false);
             }
         }
@@ -1868,22 +1872,23 @@ impl App {
                 }
             }
         }
-        self.draw_aiming(battle, hovered, (ox, oy, scale));
+        self.draw_aiming(ui, battle, hovered, (ox, oy, scale));
         gl.flush();
         gl.quad_gl.scissor(None);
-        self.draw_battle_panel(battle, my_turn, hovered, input);
-        self.draw_spell_overlay();
-        if my_turn && self.battle_ui.spell_list {
-            self.draw_spell_list(battle, input);
+        self.draw_battle_panel(ui, battle, my_turn, hovered, input);
+        self.draw_spell_overlay(ui);
+        if my_turn && ui.spell_list {
+            self.draw_spell_list(ui, battle, input);
         }
-        if let Some(spell) = self.battle_ui.fallen_list.filter(|_| my_turn) {
-            self.draw_fallen_list(battle, spell, input);
+        if let Some(spell) = ui.fallen_list.filter(|_| my_turn) {
+            self.draw_fallen_list(ui, battle, spell, input);
         }
     }
 
     #[allow(clippy::too_many_arguments)]
     fn draw_unit(
         &mut self,
+        ui: &mut BattleUi,
         battle: &Battle,
         id: usize,
         vis: Visual,
@@ -1947,7 +1952,7 @@ impl App {
                 .map(|i| (i, battle_anim::figure_offset(count, i)))
                 .collect();
             spots.sort_by_key(|&(_, (_, fy))| fy);
-            let blood = self.blood_of(u);
+            let blood = self.blood_of(ui, u);
             for (index, (fx, fy)) in spots {
                 let bleeding = blood
                     .filter(|b| index < b.lost)
@@ -2081,13 +2086,18 @@ impl App {
     }
 
     /// The arrow or bolt in flight during a shot.
-    fn draw_missile(&mut self, battle: &Battle, (ox, oy, scale): (f32, f32, f32)) {
+    fn draw_missile(
+        &mut self,
+        ui: &mut BattleUi,
+        battle: &Battle,
+        (ox, oy, scale): (f32, f32, f32),
+    ) {
         let Some((
             Anim::Shot {
                 attacker, defender, ..
             },
             t,
-        )) = self.battle_ui.playing.clone()
+        )) = ui.playing.clone()
         else {
             return;
         };
@@ -2222,12 +2232,45 @@ pub(crate) fn diamond(sx: f32, sy: f32, scale: f32, color: Color, fill: bool) {
     }
 }
 
-/// The battle, over whatever the screen was.
-pub(crate) struct BattlePage;
+/// The battle is its own page, over whatever the screen was.
+impl Page for BattleUi {
+    fn animating(&self) -> bool {
+        self.shown.is_some()
+    }
 
-impl Page for BattlePage {
+    fn test_effect(&mut self, app: &mut App, kind: &str) {
+        if let Some(id) = kind.strip_prefix("fx-") {
+            app.test_spell_fx(self, id);
+            return;
+        }
+        match kind {
+            "spell-book" => self.spell_list = true,
+            "info" => self.info_open = true,
+            "shot" => {
+                let Some(battle) = app.game.battle() else {
+                    return;
+                };
+                let sides = |side| battle.units.iter().find(|u| u.side == side).map(|u| u.id);
+                if let (Some(attacker), Some(defender)) =
+                    (sides(Side::Attacker), sides(Side::Defender))
+                {
+                    self.shown = Some(battle.clone());
+                    self.playing = Some((
+                        Anim::Shot {
+                            attacker,
+                            defender,
+                            dealt: 6,
+                        },
+                        0.7,
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+
     fn frame(&mut self, app: &mut App, input: &Input) {
-        app.battle_screen(input);
+        app.battle_screen(self, input);
     }
 }
 

@@ -12,26 +12,26 @@ impl App {
     /// What the pointer should look like over the battle.
     fn pointer_image(
         &self,
+        ui: &mut BattleUi,
         battle: &Battle,
         my_turn: bool,
         hovered: Option<Pos>,
         input: &Input,
     ) -> usize {
-        if !self.on_map(input.mouse_position().into()) {
+        if !self.on_map(ui, input.mouse_position().into()) {
             return FINGER;
         }
-        if let Some(aim) = &self.battle_ui.aiming {
+        if let Some(aim) = &ui.aiming {
             let aimable = hovered.is_some_and(|cell| self.spell_aim_ok(battle, aim, cell));
             return if aimable { WAND } else { RED_CROSS };
         }
-        if !my_turn || self.battle_ui.spell_list {
+        if !my_turn || ui.spell_list {
             return FINGER;
         }
         let Some(cell) = hovered else {
             return RED_CROSS;
         };
-        let sel = self
-            .battle_ui
+        let sel = ui
             .selected
             .and_then(|i| battle.unit(i))
             .filter(|u| unfinished(u));
@@ -65,12 +65,13 @@ impl App {
     /// Draw the pointer on top of everything, hiding the system's.
     pub(super) fn draw_battle_pointer(
         &mut self,
+        ui: &mut BattleUi,
         battle: &Battle,
         my_turn: bool,
         hovered: Option<Pos>,
         input: &Input,
     ) {
-        let image = self.pointer_image(battle, my_turn, hovered, input);
+        let image = self.pointer_image(ui, battle, my_turn, hovered, input);
         self.draw_pointer_image(image, input);
     }
 }

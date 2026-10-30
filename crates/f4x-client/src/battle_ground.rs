@@ -359,7 +359,11 @@ impl App {
     /// The scenery and walls of the field with the depth each sorts by, to be put in order with
     /// the units: `(depth, rank, square, piece)`, the rank putting scenery before walls before
     /// units on one depth.
-    pub(crate) fn scenery_pieces(&self, battle: &Battle) -> Vec<(i32, u8, Pos, Piece)> {
+    pub(crate) fn scenery_pieces(
+        &self,
+        battle: &Battle,
+        rising: Option<(u8, usize)>,
+    ) -> Vec<(i32, u8, Pos, Piece)> {
         let mut out = Vec::new();
         if let Some(look) = battle.map.look() {
             for (i, t) in look.trees.iter().enumerate() {
@@ -405,7 +409,6 @@ impl App {
             }
         };
         // The wall being raised by the spell that is playing: its kind (0 fire, 1 darkness) and frame.
-        let rising = self.rising_wall();
         let magic = |kind: u8, near: bool, out: &mut Vec<(i32, u8, Pos, Piece)>| {
             let on = if kind == 0 {
                 battle.wall_of_fire

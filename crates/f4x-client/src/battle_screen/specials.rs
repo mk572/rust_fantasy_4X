@@ -91,9 +91,15 @@ impl App {
     }
 
     /// Draw the box for the selected unit and take a click on one of its spells.
-    pub(super) fn draw_unit_specials(&mut self, battle: &Battle, my_turn: bool, input: &Input) {
-        self.battle_ui.box_rect = None;
-        let Some(id) = self.battle_ui.selected else {
+    pub(super) fn draw_unit_specials(
+        &mut self,
+        ui: &mut BattleUi,
+        battle: &Battle,
+        my_turn: bool,
+        input: &Input,
+    ) {
+        ui.box_rect = None;
+        let Some(id) = ui.selected else {
             return;
         };
         let Some(unit) = battle.unit(id) else {
@@ -138,14 +144,13 @@ impl App {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let height = EDGE_TOP + EDGE_BOTTOM + rows.len() as f32 * ROW;
-        self.battle_ui.box_rect = Some(lay.rect((LEFT, TOP, WIDTH, height)));
+        ui.box_rect = Some(lay.rect((LEFT, TOP, WIDTH, height)));
         self.draw_specials_box(&lay, height);
 
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
         let gold = Color::new(0.98, 0.86, 0.45, 1.0);
         let dim = Color::new(0.6, 0.55, 0.5, 1.0);
-        let free =
-            my_turn && self.battle_ui.aiming.is_none() && self.battle_ui.fallen_list.is_none();
+        let free = my_turn && ui.aiming.is_none() && ui.fallen_list.is_none();
         let mut cast: Option<BattleSpell> = None;
         let mut summon = false;
         for (i, row) in rows.iter().enumerate() {
@@ -188,13 +193,13 @@ impl App {
             }
         }
         if let Some(spell) = cast {
-            self.battle_ui.spell_unit = Some(id);
-            self.pick_spell(&spell);
+            ui.spell_unit = Some(id);
+            self.pick_spell(ui, &spell);
         } else if summon {
-            self.battle_ui.spell_list = false;
-            self.battle_ui.spell_unit = None;
-            self.battle_order(BattleCommand::SummonDemon { unit: id });
-            self.battle_ui.selected = None;
+            ui.spell_list = false;
+            ui.spell_unit = None;
+            self.battle_order(ui, BattleCommand::SummonDemon { unit: id });
+            ui.selected = None;
         }
     }
 }

@@ -40,6 +40,14 @@ pub(crate) trait Page {
         None
     }
 
+    /// The last blows of a battle are still playing.
+    fn animating(&self) -> bool {
+        false
+    }
+
+    /// For screenshots: set the screen up for a test of `kind`.
+    fn test_effect(&mut self, _app: &mut App, _kind: &str) {}
+
     /// One frame: draw the screen and take the input. Changing `app.screen` leaves it.
     fn frame(&mut self, app: &mut App, input: &Input);
 }
@@ -97,6 +105,16 @@ impl App {
         if self.pages.get(&shown).is_none() {
             self.pages.put(&shown, page);
         }
+    }
+
+    /// Whether a page is kept for `screen`.
+    pub(crate) fn has_page(&self, screen: &Screen) -> bool {
+        self.pages.get(screen).is_some()
+    }
+
+    /// Forget the page of `screen`.
+    pub(crate) fn close_page(&mut self, screen: &Screen) {
+        self.pages.take(screen);
     }
 
     /// Hand the page of the open screen, if it has one, to `with` (outside a frame).

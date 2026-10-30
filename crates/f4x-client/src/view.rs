@@ -172,7 +172,6 @@ pub struct App {
     /// The human wizard chosen on the creation screen; new maps reuse it.
     pub(crate) human_build: Option<f4x_core::wizard::WizardBuild>,
     /// The battle screen's state.
-    pub(crate) battle_ui: crate::battle_screen::BattleUi,
     /// Steps the units on the map are still sliding through (task 298).
     pub(crate) slides: Vec<crate::map_slide::Slide>,
     /// Items have just been awarded to the human wizard: the item screen opens when the boxes
@@ -351,7 +350,6 @@ impl App {
             surveyor: false,
             survey_probe: None,
             human_build: None,
-            battle_ui: Default::default(),
             slides: Vec::new(),
             test_sea: false,
             item_pool_pending: false,
@@ -1080,7 +1078,7 @@ impl App {
         self.ais = self.rival_wizards();
         self.defences.clear();
         // A game saved in a battle comes back in it: the frame loop opens the battle screen.
-        self.battle_ui = crate::battle_screen::BattleUi::default();
+        self.close_page(&Screen::Battle);
         self.turn_events = None;
         self.game_over_seen = false;
         self.end_scenes.clear();
@@ -1384,23 +1382,26 @@ impl App {
         self.selection
             .retain(|&u| self.game.units().unit_position(u).is_some());
         if self.game.in_battle() {
-            if !self.battle_ui.ready {
-                self.init_battle_ui();
-            }
-            if !matches!(
+            if !self.has_page(&Screen::Battle) {
+                self.open_battle_screen();
+            } else if !matches!(
                 self.screen,
                 Screen::Battle | Screen::Console | Screen::UnitSheet
             ) {
-                self.open_battle_screen();
+                self.screen = Screen::Battle;
             }
-        } else {
-            self.battle_ui.ready = false;
+        } else if !matches!(self.screen, Screen::Battle) {
+            self.close_page(&Screen::Battle);
         }
         if self.hotkeys.pressed("console", input) {
             self.toggle_console();
         }
         // The result scroll waits until the last blow of the battle has been played.
-        let still_playing = self.battle_ui.animating() && matches!(self.screen, Screen::Battle);
+        let still_playing = matches!(self.screen, Screen::Battle)
+            && self
+                .pages
+                .get(&Screen::Battle)
+                .is_some_and(|p| p.animating());
         if !self.game.in_battle() && !still_playing {
             if let Some(results) = self.combat_results.take() {
                 self.modals.open(results);

@@ -131,9 +131,9 @@ impl App {
 
     /// Whether a window point is on the map (the original's map window), not on the panel or
     /// the box of the selected unit's spells.
-    pub(super) fn on_map(&self, point: Vec2) -> bool {
+    pub(super) fn on_map(&self, ui: &mut BattleUi, point: Vec2) -> bool {
         Layout::new().rect((0.0, 0.0, 320.0, BAR_Y)).contains(point)
-            && !self.battle_ui.box_rect.is_some_and(|r| r.contains(point))
+            && !ui.box_rect.is_some_and(|r| r.contains(point))
     }
 
     /// Text in the panel's font colours: light, with a dark shadow down and to the right.
@@ -191,6 +191,7 @@ impl App {
 
     pub(super) fn draw_battle_panel(
         &mut self,
+        ui: &mut BattleUi,
         battle: &Battle,
         my_turn: bool,
         hovered: Option<Pos>,
@@ -245,8 +246,8 @@ impl App {
                 self.draw_pic(&lay, "compix", entry, 0, left + 17.0 * i as f32, 179.0);
             }
         }
-        self.draw_active_unit(battle);
-        let sel = self.battle_ui.selected;
+        self.draw_active_unit(ui, battle);
+        let sel = ui.selected;
         let mut order = None;
         // The selected unit casts its own spells when it has any it can cast now (a hero, a
         // creature caster); otherwise the Spell button is the wizard's.
@@ -256,8 +257,8 @@ impl App {
                     || self.game.can_summon_demon(u))
         });
         let can_cast = my_turn
-            && self.battle_ui.aiming.is_none()
-            && self.battle_ui.fallen_list.is_none()
+            && ui.aiming.is_none()
+            && ui.fallen_list.is_none()
             && (unit_caster.is_some()
                 || Self::my_caster(battle).is_some_and(|c| !c.cast_this_turn));
         let (lx, rx) = (LEFT_BUTTONS_X, RIGHT_BUTTONS_X);
@@ -265,13 +266,13 @@ impl App {
         if self.bar_button(&lay, (1, 23), (lx, row(0.0)), can_cast, input)
             || (can_cast && input.key_pressed(KeyCode::S))
         {
-            self.battle_ui.spell_list = !self.battle_ui.spell_list;
-            self.battle_ui.spell_unit = unit_caster.filter(|_| self.battle_ui.spell_list);
+            ui.spell_list = !ui.spell_list;
+            ui.spell_unit = unit_caster.filter(|_| ui.spell_list);
         }
         if self.bar_button(&lay, (2, 24), (rx, row(0.0)), my_turn, input)
             || (my_turn && input.key_pressed(KeyCode::W))
         {
-            self.select_next(sel);
+            self.select_next(ui, sel);
         }
         // Done ends the selected unit's turn; with no unit left that can act it ends the side's.
         if self.bar_button(&lay, (3, 28), (rx, row(2.0)), my_turn, input) {
@@ -282,15 +283,15 @@ impl App {
             });
         }
         // Auto hands your side to the computer; pressed again, it takes it back.
-        let auto = self.battle_ui.auto;
+        let auto = ui.auto;
         if self.bar_button(&lay, (4, 26), (rx, row(1.0)), my_turn || auto, input)
             || ((my_turn || auto) && input.key_pressed(KeyCode::A))
         {
-            self.battle_ui.auto = !auto;
-            self.battle_ui.aiming = None;
-            self.battle_ui.spell_list = false;
-            self.battle_ui.spell_unit = None;
-            self.battle_ui.fallen_list = None;
+            ui.auto = !auto;
+            ui.aiming = None;
+            ui.spell_list = false;
+            ui.spell_unit = None;
+            ui.fallen_list = None;
         }
         // Info lists the effects in force; the original locks it when there are none.
         let has_info = self
@@ -299,21 +300,21 @@ impl App {
             .is_some_and(|info| !info.is_empty());
         if (self.bar_button(&lay, (20, 25), (lx, row(1.0)), has_info, input)
             || (has_info && input.key_pressed(KeyCode::U)))
-            && !self.battle_ui.info_open
+            && !ui.info_open
         {
-            self.battle_ui.info_open = true;
+            ui.info_open = true;
             return;
         }
         if self.bar_button(&lay, (21, 27), (lx, row(2.0)), my_turn, input)
             || (my_turn && input.key_pressed(KeyCode::F))
         {
-            self.battle_ui.confirm_flee = true;
+            ui.confirm_flee = true;
         }
-        if self.battle_ui.confirm_flee {
+        if ui.confirm_flee {
             let question = self.text("battle.flee_question");
             match self.confirmation_box(&lay, &question, input) {
                 Some(true) => order = Some(BattleCommand::Flee),
-                Some(false) => self.battle_ui.confirm_flee = false,
+                Some(false) => ui.confirm_flee = false,
                 None => {}
             }
         }
@@ -322,38 +323,30 @@ impl App {
                 BattleCommand::Done { unit } => Some(unit),
                 _ => None,
             };
-            self.battle_order(order);
+            self.battle_order(ui, order);
             match done {
-                Some(unit) => self.select_next(Some(unit)),
-                None => self.battle_ui.selected = None,
+                Some(unit) => self.select_next(ui, Some(unit)),
+                None => ui.selected = None,
             }
-            self.battle_ui.confirm_flee = false;
+            ui.confirm_flee = false;
         }
 
         // The last lines of the fight, at the top of the map.
         let line = self.art.text_height(1) + 2.0;
-        let lines: Vec<String> = self
-            .battle_ui
-            .log
-            .iter()
-            .rev()
-            .take(3)
-            .rev()
-            .cloned()
-            .collect();
+        let lines: Vec<String> = ui.log.iter().rev().take(3).rev().cloned().collect();
         for (i, text) in lines.iter().enumerate() {
             let at = (4.0, 3.0 + line * i as f32);
             self.draw_styled(view, &Style::flat(1, LIGHTGRAY).shadow(), text, at.0, at.1);
         }
         self.draw_scanned_unit(battle, hovered, view);
-        self.draw_unit_specials(battle, my_turn, input);
+        self.draw_unit_specials(ui, battle, my_turn, input);
     }
 
     /// The selected unit in the middle of the panel (`Draw_Active_Unit_Window`).
-    fn draw_active_unit(&mut self, battle: &Battle) {
+    fn draw_active_unit(&mut self, ui: &mut BattleUi, battle: &Battle) {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let Some(u) = self.battle_ui.selected.and_then(|i| battle.unit(i)) else {
+        let Some(u) = ui.selected.and_then(|i| battle.unit(i)) else {
             return;
         };
         let owner = battle.player_of(u.side).0;

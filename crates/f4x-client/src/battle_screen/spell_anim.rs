@@ -14,6 +14,7 @@ impl App {
     /// or the casting unit, `before` the battle as it stood.
     pub(super) fn spell_animation(
         &mut self,
+        ui: &mut BattleUi,
         before: &Battle,
         spell: SpellId,
         caster: Result<Side, usize>,
@@ -72,7 +73,7 @@ impl App {
         }
         // Call Chaos plays what it did to each unit.
         let chaos: Vec<(usize, u8)> = if fx == SpellFx::Chaos {
-            self.battle_ui.chaos.clone()
+            ui.chaos.clone()
         } else {
             Vec::new()
         };
@@ -89,12 +90,7 @@ impl App {
                     .map(|u| (u.cell, (u.id * 3) % 5))
                     .collect()
             }
-            None => self
-                .battle_ui
-                .cast_target
-                .into_iter()
-                .map(|c| (c, 0))
-                .collect(),
+            None => ui.cast_target.into_iter().map(|c| (c, 0)).collect(),
         };
         let frames = match fx {
             SpellFx::Cell { ref lbx, entry, .. } | SpellFx::Ground { ref lbx, entry } => {
@@ -136,7 +132,7 @@ impl App {
     }
 
     /// Draw the picture of the spell being played.
-    pub(super) fn draw_spell_fx(&mut self, (ox, oy, scale): (f32, f32, f32)) {
+    pub(super) fn draw_spell_fx(&mut self, ui: &mut BattleUi, (ox, oy, scale): (f32, f32, f32)) {
         let Some((
             Anim::Spell {
                 fx,
@@ -146,7 +142,7 @@ impl App {
                 ..
             },
             t,
-        )) = self.battle_ui.playing.clone()
+        )) = ui.playing.clone()
         else {
             return;
         };
@@ -268,9 +264,9 @@ impl App {
 
     /// The tint of a battlefield spell over the whole screen, and the line telling who cast what
     /// (`Combat_Cast_Spell_Message`) over the map's top.
-    pub(super) fn draw_spell_overlay(&mut self) {
+    pub(super) fn draw_spell_overlay(&mut self, ui: &mut BattleUi) {
         let lay = Layout::new();
-        let (tint, line, t) = match self.battle_ui.playing.clone() {
+        let (tint, line, t) = match ui.playing.clone() {
             Some((Anim::Spell { fx, line, .. }, t)) => (Some(fx), line, t),
             Some((Anim::WallRise { line, .. }, t)) => (None, line, t),
             _ => return,

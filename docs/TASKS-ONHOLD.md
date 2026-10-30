@@ -56,6 +56,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 386 | Client | Magic screen: scroll the enemy wizard portraits |
 | 388 | Magic | Spell Images |
 | 417 | Client | Align the console to the look of the UI |
+| 422 | Client | Unit enchantments in the army list |
 
 ## Descriptions
 
@@ -260,3 +261,5 @@ No action: the hit-points row shows one figure's hit points, and the original do
 **388. Spell Images** Each spell has an image to be shown in Detect Magic etc., but they're not fully found and imported.
 
 **417. Align the console to the look of the UI.** Low priority. The text console in the client (`console_screen.rs`, backquote key) draws its text with macroquad's plain font (`draw_text`, `measure_text`) and its own wrapping (`wrap_line`), so it looks unlike the rest of the game, which draws the original's bitmap fonts through `Style` and `App::draw_styled` (`font.rs`, task 392). Make the console use the same fonts, colours (`GOLD`, `PANEL`) and wrapper (`bm_wrap`), keeping the input line, scrollback and history as they are. Left out of task 392 on purpose, 30 October 2026. The `text_centered` helper and the no-fonts fallback in `font.rs` stay plain macroquad text; decide then whether they should follow.
+
+**422. Unit enchantments in the army list.** Low priority; best done after the game is upscaled, when the rows have room for small icons. Show each unit's lasting spells (Haste, Flight, Bless, Heroism...) in the Army list (`army_screen.rs`) as the original's 16x16 `SPECIAL.LBX` icons, the ones the unit sheet already draws through `enchantment_icon()` (`unit_sheet.rs`). Unit enchantments are the only enchantments with icons in the original; city and overland enchantments are plain text. Decide then how the icons fit the row (size, overflow when a unit has many) and whether the garrison in the city screen gets them too. Added 30 October 2026.
