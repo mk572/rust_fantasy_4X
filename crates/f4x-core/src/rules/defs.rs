@@ -290,6 +290,10 @@ pub struct UnitDef {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AbilityDef {
+    /// The ability's number, the id the game passes around: the original has no table of
+    /// abilities, so they are counted from 1 in the alphabetical order of their ids.
+    pub num: u16,
+    /// The alias for human editing.
     pub id: String,
     pub name: String,
     #[serde(default)]
@@ -637,14 +641,7 @@ impl Default for RulesConfig {
     }
 }
 
-impl_def!(
-    AbilityDef,
-    RealmDef,
-    ItemDef,
-    ItemPowerDef,
-    LevelPathDef,
-    WizardDef
-);
+impl_def!(RealmDef, ItemDef, ItemPowerDef, LevelPathDef, WizardDef);
 
 impl Def for UnitDef {
     fn id(&self) -> &str {
@@ -657,6 +654,16 @@ impl Def for UnitDef {
 }
 
 impl Def for RaceDef {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn num(&self) -> Option<u16> {
+        Some(self.num)
+    }
+}
+
+impl Def for AbilityDef {
     fn id(&self) -> &str {
         &self.id
     }

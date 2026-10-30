@@ -249,9 +249,10 @@ fn saves_do_not_depend_on_the_order_of_the_content() {
     let g = game();
     let snap = g.snapshot();
     let mut shuffled = g.content.clone();
-    let mut abilities = shuffled.rules.abilities.defs().to_vec();
-    abilities.reverse();
-    shuffled.rules.abilities = crate::rules::Registry::new(abilities);
+    // A table that is not numbered yet counts its rows: reverse one of those.
+    let mut powers = shuffled.rules.item_powers.defs().to_vec();
+    powers.reverse();
+    shuffled.rules.item_powers = crate::rules::Registry::new(powers);
     let back = snap.clone().restore(shuffled).unwrap();
     assert_eq!(
         back.snapshot(),
