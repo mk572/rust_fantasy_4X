@@ -43,6 +43,10 @@ pub enum Kind {
     /// Disjunction, Disjunction True and Spell Binding: end (or take) the lasting spell on the
     /// world of a wizard at war with the AI.
     Disjunction,
+    /// Chaos Channels: gives a fighter a lasting mutation.
+    Mutate,
+    /// Word of Recall: takes a hurt stack far from home back to the summoning circle.
+    Recall,
     /// Everything else: not cast by the AI yet.
     Other,
 }
@@ -71,6 +75,15 @@ const READ_BY_ID_BUFFS: &[&str] = &[
 const EXPLORE_FLOOR: u32 = 70;
 /// Share of a stack's hit points (percent) that must be gone to be worth Nature's Cures.
 const CURE_PERCENT: u32 = 35;
+/// Spells costing more than this are only begun when the wizard pays for them within
+/// `MAX_CASTING_TURNS`: for the cost of a dear spell the wizard gets more from several quick ones.
+const DEAR_SPELL: i32 = 300;
+/// The most turns the AI spends paying for one dear spell.
+const MAX_CASTING_TURNS: i32 = 5;
+/// Squares from the summoning circle (or another plane) a stack must be to be worth a recall.
+const RECALL_DISTANCE: u32 = 8;
+/// Share of a stranded stack's hit points (percent) that must be gone to be worth a recall.
+const RECALL_PERCENT: u32 = 50;
 /// Mana kept in the reserve before the AI starts a global enchantment (the original's gate).
 const GLOBAL_RESERVE: i32 = 200;
 
@@ -100,6 +113,12 @@ pub fn kind(def: &SpellDef) -> Kind {
     }
     if has_hook(def, f4x_core::spell::special::NATURES_CURES) {
         return Kind::Cure;
+    }
+    if has_hook(def, f4x_core::unit::mutation::CHAOS_CHANNELS) {
+        return Kind::Mutate;
+    }
+    if has_hook(def, f4x_core::spell::special::WORD_OF_RECALL) {
+        return Kind::Recall;
     }
     if def.effects.is_empty()
         && def.target == SpellTarget::OwnUnit
@@ -169,6 +188,8 @@ fn priority(k: Kind) -> u8 {
         // A wizard under a curse wants it off before it blows at anyone.
         Kind::Disenchant => 2,
         Kind::Disjunction => 8,
+        Kind::Mutate => 4,
+        Kind::Recall => 2,
         Kind::Other => 9,
     }
 }
@@ -503,6 +524,26 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
             .max_by_key(|&(s, i)| (view.spell(s).cost, std::cmp::Reverse(view.serial_of(i))))
             .map(|(_, i)| Target::Spell(i))
             .filter(|&t| view.can_aim(spell, Some(t))),
+        Kind::Mutate => {
+            let mut units: Vec<hecs::Entity> = view
+                .my_units()
+                .into_iter()
+                .filter(|&u| {
+                    is_fighter(view, u)
+                        && !view.unit_has_ability(u, f4x_core::unit::mutation::MUTATED)
+                })
+                .collect();
+            view.sort_by_serial(&mut units);
+            units
+                .into_iter()
+                .map(|u| (unit_strength(view, u), u))
+                .filter(|&(_, u)| view.can_aim(spell, Some(Target::Unit(u))))
+                .max_by(|a, b| a.0.total_cmp(&b.0))
+                .map(|(_, u)| Target::Unit(u))
+        }
+        Kind::Recall => stranded_unit(view)
+            .map(Target::Unit)
+            .filter(|&t| view.can_aim(spell, Some(t))),
         Kind::Cure => hurt_stack_unit(view)
             .map(Target::Unit)
             .filter(|&t| view.can_aim(spell, Some(t))),
@@ -514,6 +555,11 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
             .find(|&t| view.can_aim(spell, Some(t))),
         _ => None,
     }
+}
+
+/// Is a spell of this cost worth beginning for a wizard that pays `power` for it each turn?
+fn quick_enough(cost: i32, power: i32) -> bool {
+    cost <= DEAR_SPELL || cost <= MAX_CASTING_TURNS * power
 }
 
 /// The strength of a dispel cast overland: the base cost, three times that for the "True" spells.
@@ -603,6 +649,49 @@ fn hurt_stack_unit(view: &PlayerView) -> Option<hecs::Entity> {
         }
         if best.is_none_or(|(m, _)| missing > m) {
             best = Some((missing, stack[0]));
+        }
+    }
+    best.map(|(_, u)| u)
+}
+
+/// One unit of the most hurt stack that stands in the field, well away from the summoning
+/// circle, when a good part of it is hurt: the stack Word of Recall brings home.
+fn stranded_unit(view: &PlayerView) -> Option<hecs::Entity> {
+    let circle = view.wizard()?.summon_at()?;
+    let cities: Vec<Position> = view.my_cities().into_iter().map(|(_, p)| p).collect();
+    let mut stacks: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
+    for u in view.my_units() {
+        let Some(at) = view.unit_position(u) else {
+            continue;
+        };
+        if cities.contains(&at) || !is_fighter(view, u) {
+            continue;
+        }
+        match stacks.iter_mut().find(|(p, _)| *p == at) {
+            Some((_, units)) => units.push(u),
+            None => stacks.push((at, vec![u])),
+        }
+    }
+    let mut best: Option<(u32, hecs::Entity)> = None;
+    for (at, mut units) in stacks {
+        if view
+            .distance(at, circle)
+            .is_some_and(|d| d < RECALL_DISTANCE)
+        {
+            continue;
+        }
+        view.sort_by_serial(&mut units);
+        let (mut missing, mut total) = (0u32, 0u32);
+        for &u in &units {
+            let (hits, max) = view.unit_hits(u);
+            missing += max.saturating_sub(hits);
+            total += max;
+        }
+        if total == 0 || missing * 100 / total < RECALL_PERCENT {
+            continue;
+        }
+        if best.is_none_or(|(m, _)| missing > m) {
+            best = Some((missing, units[0]));
         }
     }
     best.map(|(_, u)| u)
@@ -717,6 +806,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 Kind::UnitBuff => {
                     now && room && fighters >= 3 && upkeep_ok(&view, def) && target.is_some()
                 }
+                Kind::Mutate => now && fighters >= 3 && target.is_some(),
                 Kind::CityBuff => now && room && upkeep_ok(&view, def) && target.is_some(),
                 Kind::GlobalBuff => {
                     now && room
@@ -724,7 +814,9 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         && upkeep_ok(&view, def)
                         && !magic.has_global(spell)
                 }
-                Kind::Explore | Kind::Cure | Kind::Disenchant => now && target.is_some(),
+                Kind::Explore | Kind::Cure | Kind::Disenchant | Kind::Recall => {
+                    now && target.is_some()
+                }
                 // Blows at an enemy at war, from mana the AI can spare.
                 Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction => {
                     now && room && mana - cost >= GLOBAL_RESERVE && target.is_some()
@@ -733,7 +825,10 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             // The original's check: not more than fifty turns of what the AI can put towards it.
             let per_turn = mana / 10 + income.split.mana;
-            if wanted && (k == Kind::Mastery || cost / 50 <= per_turn) {
+            if wanted
+                && (k == Kind::Mastery
+                    || (cost / 50 <= per_turn && quick_enough(cost, view.casting_power())))
+            {
                 found = Some((spell, target));
                 break;
             }
@@ -810,6 +905,8 @@ mod tests {
         assert_eq!(kind_of("natures_cures"), Kind::Cure);
         assert_eq!(kind_of("disenchant_area"), Kind::Disenchant);
         assert_eq!(kind_of("disenchant_true"), Kind::Disenchant);
+        assert_eq!(kind_of("chaos_channels"), Kind::Mutate);
+        assert_eq!(kind_of("word_of_recall"), Kind::Recall);
         assert_eq!(kind_of("disjunction"), Kind::Disjunction);
         assert_eq!(kind_of("spell_binding"), Kind::Disjunction);
         assert_eq!(kind_of("famine"), Kind::CityCurse);
@@ -1028,6 +1125,56 @@ mod tests {
         }));
         let instance = g.global_instance(P1, crusade).unwrap();
         assert_eq!(aim(&g), Some(Target::Spell(instance)));
+    }
+
+    #[test]
+    fn a_dear_spell_is_only_begun_when_it_is_paid_for_in_five_turns() {
+        assert!(
+            quick_enough(DEAR_SPELL, 1),
+            "cheap spells are never held back"
+        );
+        assert!(!quick_enough(1000, 150), "seven turns");
+        assert!(quick_enough(1000, 200), "five turns");
+        assert!(!quick_enough(1500, 0), "no casting power at all");
+    }
+
+    #[test]
+    fn a_hurt_stack_far_from_home_is_recalled_and_one_in_a_city_is_not() {
+        use f4x_core::game::setup::{new_game, NewGame};
+        use f4x_core::player::PlayerId;
+        const P1: PlayerId = PlayerId(1);
+        let content = crate::testworld::content();
+        let mut g = new_game(
+            &content,
+            &NewGame {
+                seed: 7,
+                ..NewGame::default()
+            },
+        )
+        .expect("a new game");
+        let recall = g.content().rules.spells.id_of("word_of_recall").unwrap();
+        g.cheat_learn_spell(P1, recall);
+        let circle = g
+            .wizard(P1)
+            .unwrap()
+            .summon_at()
+            .expect("a summoning circle");
+        let aim = |g: &Game| pick_target(&PlayerView::new(g, P1), recall);
+        for u in PlayerView::new(&g, P1).my_units() {
+            g.scenario_set_hurt(u, 1);
+        }
+        assert!(aim(&g).is_none(), "units at home are not stranded");
+        let far = f4x_core::map::Position {
+            x: (circle.x + 20) % g.map().expect("a map").width(),
+            ..circle
+        };
+        let fighters = crate::testworld::spawn(&mut g, P1, far, "high_men_spearmen", 2);
+        assert!(aim(&g).is_none(), "whole stack is not hurt");
+        for &u in &fighters {
+            let (_, max) = PlayerView::new(&g, P1).unit_hits(u);
+            g.scenario_set_hurt(u, max);
+        }
+        assert!(matches!(aim(&g), Some(Target::Unit(u)) if fighters.contains(&u)));
     }
 
     #[test]
