@@ -6,6 +6,7 @@
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::rules::exec::Target;
@@ -361,7 +362,7 @@ impl App {
         self.book_ui.replace = None;
         self.book_ui.ask = None;
         self.book_ui.combat = None;
-        self.screen = Screen::Spellbook;
+        self.open_page(Screen::Spellbook, SpellbookPage);
     }
 
     /// The spell the wizard has paid for over turns is ready: choose its target. A rival's
@@ -444,125 +445,6 @@ impl App {
         });
         self.note(events);
         self.screen = Screen::Map;
-    }
-
-    pub(crate) fn spellbook_screen(&mut self, input: &Input) {
-        let lay = Layout::new();
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        // A question about a spell the wizard does not know, or why it cannot be learnt.
-        if let Some(ask) = self.book_ui.ask {
-            clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-            self.draw_spellbook(&lay, view, input);
-            self.answer_book_ask(ask, input);
-            return;
-        }
-        // A question first: give up the spell being cast for another?
-        if let Some((spell, abort_only)) = self.book_ui.replace {
-            clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-            self.draw_spellbook(&lay, view, input);
-            let casting = self
-                .game
-                .wizard(HUMAN)
-                .and_then(|m| m.casting())
-                .map(|c| self.game.content().rules.spells.get(c.spell).name.clone())
-                .unwrap_or_default();
-            let question = self.text_with("spell.abort", &Args::new().text("spell", &casting));
-            match self.confirm_box(&question, input) {
-                Some(true) => {
-                    self.book_ui.replace = None;
-                    let events = self.game.apply(Command::CancelCast { player: HUMAN });
-                    self.note(events);
-                    if !abort_only
-                        && self
-                            .game
-                            .wizard(HUMAN)
-                            .is_some_and(|m| m.casting().is_none())
-                    {
-                        self.begin_cast(spell);
-                    }
-                }
-                Some(false) => self.book_ui.replace = None,
-                None => {}
-            }
-            return;
-        }
-        if self.book_turn.is_some() && !self.book_turn_frame(input) {
-            return;
-        }
-        let pages = self.book_ui.pages.len();
-        let left = self.book_ui.left;
-        // Page turns: the corners, the arrow keys and the wheel.
-        let (_, wheel) = input.mouse_wheel();
-        if (input.key_pressed(KeyCode::Right) || input.key_pressed(KeyCode::F) || wheel < 0.0)
-            && left + 2 < pages
-        {
-            self.turn_book_page(false, true, input);
-            return;
-        }
-        if (input.key_pressed(KeyCode::Left) || input.key_pressed(KeyCode::B) || wheel > 0.0)
-            && left >= 2
-        {
-            self.turn_book_page(false, false, input);
-            return;
-        }
-        let click_in =
-            |x: f32, y: f32, w: f32, h: f32| ui::hit(lay.rect((x, y, w, h)), true, input).clicked();
-        if click_in(29.0, 14.0, 14.0, 13.0) && left >= 2 {
-            self.turn_book_page(false, false, input);
-            return;
-        }
-        if click_in(274.0, 14.0, 14.0, 13.0) && left + 2 < pages {
-            self.turn_book_page(false, true, input);
-            return;
-        }
-        // The ribbon at the bottom, Escape, V or a click outside the book close it.
-        let ribbon = click_in(175.0, 166.0, 19.0, 30.0);
-        if ribbon || input.key_pressed(KeyCode::Escape) || input.key_pressed(KeyCode::V) {
-            self.book_ui.last_left = self.book_ui.left;
-            self.screen = Screen::Map;
-            return;
-        }
-        // The sort line at the right of the bookmark (or the S key) changes the order.
-        if click_in(200.0, 184.0, 116.0, 12.0) || input.key_pressed(KeyCode::S) {
-            self.book_ui.sort = self.book_ui.sort.next();
-            self.refilter_book();
-            return;
-        }
-        // The filter line at the foot of the left page (or the Tab key) changes what is listed.
-        if click_in(32.0, 184.0, 130.0, 12.0) || input.key_pressed(KeyCode::Tab) {
-            self.book_ui.filter = self.book_ui.filter.next();
-            self.refilter_book();
-            return;
-        }
-        // Clicking a spell.
-        let left = self.book_ui.left;
-        for (side, page_i) in [(0usize, left), (1, left + 1)] {
-            let Some(page) = self.book_ui.pages.get(page_i) else {
-                continue;
-            };
-            let x0 = if side == 0 { 32.0 } else { 164.0 };
-            for (i, &spell) in page.spells.iter().enumerate() {
-                if click_in(x0, 29.0 + 22.0 * i as f32, 121.0, 17.0) {
-                    if self.book_spell_usable(spell) {
-                        self.book_ui.last_left = left;
-                        self.choose_spell_to_cast(spell);
-                        return;
-                    }
-                    if !self.game.wizard(HUMAN).is_some_and(|m| m.knows(spell)) {
-                        self.book_ui.last_left = left;
-                        self.book_ui.ask = Some(self.why_not_learnable(spell));
-                        return;
-                    }
-                    // A known spell that cannot be cast from here (a battle spell on the map)
-                    // is described instead.
-                    self.book_ui.last_left = left;
-                    self.ask_spell_help(spell, (x0, 29.0 + 22.0 * i as f32, 121.0, 17.0));
-                    return;
-                }
-            }
-        }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_spellbook(&lay, view, input);
     }
 
     /// The spell listed at `(x, y)` (320 by 200 coordinates) of the open book, with its area.
@@ -936,6 +818,129 @@ impl App {
         if rejected {
             self.targeting = Some(t);
         }
+    }
+}
+
+pub(crate) struct SpellbookPage;
+
+impl Page for SpellbookPage {
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        // A question about a spell the wizard does not know, or why it cannot be learnt.
+        if let Some(ask) = app.book_ui.ask {
+            clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+            app.draw_spellbook(&lay, view, input);
+            app.answer_book_ask(ask, input);
+            return;
+        }
+        // A question first: give up the spell being cast for another?
+        if let Some((spell, abort_only)) = app.book_ui.replace {
+            clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+            app.draw_spellbook(&lay, view, input);
+            let casting = app
+                .game
+                .wizard(HUMAN)
+                .and_then(|m| m.casting())
+                .map(|c| app.game.content().rules.spells.get(c.spell).name.clone())
+                .unwrap_or_default();
+            let question = app.text_with("spell.abort", &Args::new().text("spell", &casting));
+            match app.confirm_box(&question, input) {
+                Some(true) => {
+                    app.book_ui.replace = None;
+                    let events = app.game.apply(Command::CancelCast { player: HUMAN });
+                    app.note(events);
+                    if !abort_only
+                        && app
+                            .game
+                            .wizard(HUMAN)
+                            .is_some_and(|m| m.casting().is_none())
+                    {
+                        app.begin_cast(spell);
+                    }
+                }
+                Some(false) => app.book_ui.replace = None,
+                None => {}
+            }
+            return;
+        }
+        if app.book_turn.is_some() && !app.book_turn_frame(input) {
+            return;
+        }
+        let pages = app.book_ui.pages.len();
+        let left = app.book_ui.left;
+        // Page turns: the corners, the arrow keys and the wheel.
+        let (_, wheel) = input.mouse_wheel();
+        if (input.key_pressed(KeyCode::Right) || input.key_pressed(KeyCode::F) || wheel < 0.0)
+            && left + 2 < pages
+        {
+            app.turn_book_page(false, true, input);
+            return;
+        }
+        if (input.key_pressed(KeyCode::Left) || input.key_pressed(KeyCode::B) || wheel > 0.0)
+            && left >= 2
+        {
+            app.turn_book_page(false, false, input);
+            return;
+        }
+        let click_in =
+            |x: f32, y: f32, w: f32, h: f32| ui::hit(lay.rect((x, y, w, h)), true, input).clicked();
+        if click_in(29.0, 14.0, 14.0, 13.0) && left >= 2 {
+            app.turn_book_page(false, false, input);
+            return;
+        }
+        if click_in(274.0, 14.0, 14.0, 13.0) && left + 2 < pages {
+            app.turn_book_page(false, true, input);
+            return;
+        }
+        // The ribbon at the bottom, Escape, V or a click outside the book close it.
+        let ribbon = click_in(175.0, 166.0, 19.0, 30.0);
+        if ribbon || input.key_pressed(KeyCode::Escape) || input.key_pressed(KeyCode::V) {
+            app.book_ui.last_left = app.book_ui.left;
+            app.screen = Screen::Map;
+            return;
+        }
+        // The sort line at the right of the bookmark (or the S key) changes the order.
+        if click_in(200.0, 184.0, 116.0, 12.0) || input.key_pressed(KeyCode::S) {
+            app.book_ui.sort = app.book_ui.sort.next();
+            app.refilter_book();
+            return;
+        }
+        // The filter line at the foot of the left page (or the Tab key) changes what is listed.
+        if click_in(32.0, 184.0, 130.0, 12.0) || input.key_pressed(KeyCode::Tab) {
+            app.book_ui.filter = app.book_ui.filter.next();
+            app.refilter_book();
+            return;
+        }
+        // Clicking a spell.
+        let left = app.book_ui.left;
+        for (side, page_i) in [(0usize, left), (1, left + 1)] {
+            let Some(page) = app.book_ui.pages.get(page_i) else {
+                continue;
+            };
+            let x0 = if side == 0 { 32.0 } else { 164.0 };
+            for (i, &spell) in page.spells.iter().enumerate() {
+                if click_in(x0, 29.0 + 22.0 * i as f32, 121.0, 17.0) {
+                    if app.book_spell_usable(spell) {
+                        app.book_ui.last_left = left;
+                        app.choose_spell_to_cast(spell);
+                        return;
+                    }
+                    if !app.game.wizard(HUMAN).is_some_and(|m| m.knows(spell)) {
+                        app.book_ui.last_left = left;
+                        app.book_ui.ask = Some(app.why_not_learnable(spell));
+                        return;
+                    }
+                    // A known spell that cannot be cast from here (a battle spell on the map)
+                    // is described instead.
+                    app.book_ui.last_left = left;
+                    app.ask_spell_help(spell, (x0, 29.0 + 22.0 * i as f32, 121.0, 17.0));
+                    return;
+                }
+            }
+        }
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        app.draw_spellbook(&lay, view, input);
     }
 }
 

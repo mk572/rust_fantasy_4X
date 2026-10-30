@@ -6,6 +6,7 @@
 use crate::font::Style;
 use crate::input::Input;
 use crate::modal::{keep, kind, priority, Modal};
+use crate::page::Page;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::rules::SpellId;
@@ -58,7 +59,7 @@ impl App {
     /// pages of spells on offer for research at the end.
     pub fn open_apprentice(&mut self) {
         if self.build_library_pages() {
-            self.screen = Screen::Apprentice;
+            self.open_page(Screen::Apprentice, ApprenticePage);
         }
     }
 
@@ -112,7 +113,7 @@ impl App {
         self.big_ui.first_research = 0;
         self.big_ui.left = 0;
         self.big_ui.mode = BigMode::Research;
-        self.screen = Screen::Research;
+        self.open_page(Screen::Research, ResearchPage);
     }
 
     /// At the start of a turn with nothing being researched and spells on offer (and the game
@@ -146,85 +147,6 @@ impl App {
         if idle && alive && self.game.game_over.is_none() {
             self.open_research_choice();
         }
-    }
-
-    pub(crate) fn apprentice_screen(&mut self, input: &Input) {
-        let lay = Layout::new();
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        if self.book_turn.is_some() && !self.book_turn_frame(input) {
-            return;
-        }
-        let pages = self.big_ui.pages.len();
-        let left = self.big_ui.left;
-        let click_in =
-            |x: f32, y: f32, w: f32, h: f32| ui::hit(lay.rect((x, y, w, h)), true, input).clicked();
-        let (_, wheel) = input.mouse_wheel();
-        let forward =
-            click_in(290.0, 7.0, 16.0, 16.0) || input.key_pressed(KeyCode::Right) || wheel < 0.0;
-        let back =
-            click_in(15.0, 7.0, 16.0, 16.0) || input.key_pressed(KeyCode::Left) || wheel > 0.0;
-        if forward && left + 2 < pages {
-            self.turn_book_page(true, true, input);
-            return;
-        } else if back && left >= 2 {
-            self.turn_book_page(true, false, input);
-            return;
-        } else if input.key_pressed(KeyCode::Escape)
-            || input.key_pressed(KeyCode::F3)
-            || input.mouse_pressed(MouseButton::Right)
-            || click_in(0.0, 25.0, 320.0, 175.0)
-        {
-            self.screen = Screen::Map;
-            return;
-        }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_big_book(&lay, view, None);
-    }
-
-    pub(crate) fn research_screen(&mut self, input: &Input) {
-        let lay = Layout::new();
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let clicked = input.mouse_pressed(MouseButton::Left);
-        if clicked {
-            for slot in 0..8usize {
-                let (x, y) = (
-                    25.0 + 147.0 * (slot / 4) as f32,
-                    25.0 + 37.0 * (slot % 4) as f32,
-                );
-                if ui::hit(lay.rect((x, y, 110.0, 33.0)), true, input).hovered() {
-                    let Some(spell) = self
-                        .game
-                        .wizard(HUMAN)
-                        .and_then(|m| m.candidates().get(slot).copied())
-                    else {
-                        continue;
-                    };
-                    let events = self.game.apply(Command::SetResearch {
-                        player: HUMAN,
-                        spell,
-                    });
-                    let ok = !events
-                        .iter()
-                        .any(|e| matches!(e, f4x_core::game::Event::Rejected(_)));
-                    self.note(events);
-                    if ok {
-                        self.screen = Screen::Map;
-                        return;
-                    }
-                }
-            }
-        }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.draw_big_book(&lay, view, None);
-        let prompt = Color::new(1.0, 0.95, 0.8, 1.0);
-        self.draw_styled(
-            view,
-            &Style::outlined(5),
-            &self.text("bigbook.choose_research"),
-            43.0,
-            183.0,
-        );
-        let _ = prompt;
     }
 
     /// The open book: the dog-ears (browsing only), and the two pages.
@@ -510,6 +432,93 @@ pub(crate) fn capitalise(s: &str) -> String {
     c.next()
         .map(|f| f.to_uppercase().collect::<String>() + c.as_str())
         .unwrap_or_default()
+}
+
+pub(crate) struct ApprenticePage;
+
+impl Page for ApprenticePage {
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        if app.book_turn.is_some() && !app.book_turn_frame(input) {
+            return;
+        }
+        let pages = app.big_ui.pages.len();
+        let left = app.big_ui.left;
+        let click_in =
+            |x: f32, y: f32, w: f32, h: f32| ui::hit(lay.rect((x, y, w, h)), true, input).clicked();
+        let (_, wheel) = input.mouse_wheel();
+        let forward =
+            click_in(290.0, 7.0, 16.0, 16.0) || input.key_pressed(KeyCode::Right) || wheel < 0.0;
+        let back =
+            click_in(15.0, 7.0, 16.0, 16.0) || input.key_pressed(KeyCode::Left) || wheel > 0.0;
+        if forward && left + 2 < pages {
+            app.turn_book_page(true, true, input);
+            return;
+        } else if back && left >= 2 {
+            app.turn_book_page(true, false, input);
+            return;
+        } else if input.key_pressed(KeyCode::Escape)
+            || input.key_pressed(KeyCode::F3)
+            || input.mouse_pressed(MouseButton::Right)
+            || click_in(0.0, 25.0, 320.0, 175.0)
+        {
+            app.screen = Screen::Map;
+            return;
+        }
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        app.draw_big_book(&lay, view, None);
+    }
+}
+
+pub(crate) struct ResearchPage;
+
+impl Page for ResearchPage {
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let clicked = input.mouse_pressed(MouseButton::Left);
+        if clicked {
+            for slot in 0..8usize {
+                let (x, y) = (
+                    25.0 + 147.0 * (slot / 4) as f32,
+                    25.0 + 37.0 * (slot % 4) as f32,
+                );
+                if ui::hit(lay.rect((x, y, 110.0, 33.0)), true, input).hovered() {
+                    let Some(spell) = app
+                        .game
+                        .wizard(HUMAN)
+                        .and_then(|m| m.candidates().get(slot).copied())
+                    else {
+                        continue;
+                    };
+                    let events = app.game.apply(Command::SetResearch {
+                        player: HUMAN,
+                        spell,
+                    });
+                    let ok = !events
+                        .iter()
+                        .any(|e| matches!(e, f4x_core::game::Event::Rejected(_)));
+                    app.note(events);
+                    if ok {
+                        app.screen = Screen::Map;
+                        return;
+                    }
+                }
+            }
+        }
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        app.draw_big_book(&lay, view, None);
+        let prompt = Color::new(1.0, 0.95, 0.8, 1.0);
+        app.draw_styled(
+            view,
+            &Style::outlined(5),
+            &app.text("bigbook.choose_research"),
+            43.0,
+            183.0,
+        );
+        let _ = prompt;
+    }
 }
 
 #[cfg(test)]
