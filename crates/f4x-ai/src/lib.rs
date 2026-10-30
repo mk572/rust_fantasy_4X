@@ -83,6 +83,8 @@ pub struct Ai {
     sea_port: Option<Position>,
     sea_scouting: bool,
     sea_done: bool,
+    /// Own cities with a stack of a wizard at war near and too few defenders, this turn.
+    threatened: Vec<Position>,
     /// The strength last seen in each enemy city and the turn it was seen.
     city_memory: HashMap<Position, (f32, u32)>,
     /// Enemy cities no march found a way to, and when the last was added.
@@ -140,6 +142,7 @@ impl Ai {
             sea_scouting: false,
             sea_done: false,
             city_memory: HashMap::new(),
+            threatened: Vec::new(),
             unreachable: Vec::new(),
             unreachable_since: 0,
             mastery_seen: HashMap::new(),

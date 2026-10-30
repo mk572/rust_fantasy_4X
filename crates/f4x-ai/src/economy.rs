@@ -92,7 +92,14 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .then(|| crate::naval::port_item(&view, city))
             .flatten();
             (
-                plan_for(&view, city, pos, broke, &mut settlers_planned),
+                plan_for(
+                    &view,
+                    city,
+                    pos,
+                    broke,
+                    ai.threatened.contains(&pos),
+                    &mut settlers_planned,
+                ),
                 port_item,
             )
         };
@@ -132,6 +139,7 @@ fn plan_for(
     city: hecs::Entity,
     pos: Position,
     broke: bool,
+    threatened: bool,
     settlers_planned: &mut usize,
 ) -> BuildPlan {
     let size = view.city_economy(city).map_or(0, |e| e.figures);
@@ -160,7 +168,7 @@ fn plan_for(
     });
     let strike = (crate::knob("STRIKE", traits.strike_base as f32) as i32 + temper).max(1) as usize
         + all / 2;
-    let army_short = fighters < home_guard + strike && treasury_ok;
+    let army_short = (fighters < home_guard + strike && treasury_ok) || threatened;
     let expanding =
         all + *settlers_planned < crate::knob("CITIES", traits.cities_wanted as f32) as usize;
     let rival_near = view.known_cities().into_iter().any(|(_, o, p)| {

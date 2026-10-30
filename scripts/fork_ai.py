@@ -31,7 +31,7 @@ def copy_tree(ref: str | None) -> None:
     REFERENCE.mkdir(parents=True)
     if ref is None:
         shutil.copy(LIVE / "Cargo.toml", REFERENCE / "Cargo.toml")
-        shutil.copytree(LIVE / "src", REFERENCE / "src")
+        shutil.copytree(LIVE / "src", REFERENCE / "src", copy_function=shutil.copy)  # new mtimes, or cargo keeps a stale build
         return
     archive = subprocess.run(
         ["git", "archive", ref, "crates/f4x-ai/Cargo.toml", "crates/f4x-ai/src"],

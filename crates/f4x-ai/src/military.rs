@@ -39,6 +39,15 @@ fn committed_ratio() -> f32 {
     crate::knob("COMMITTED", 1.1)
 }
 
+/// How near an enemy stack must be to threaten a city.
+const THREAT_RADIUS: i32 = 3;
+
+/// The enemy has the better of the garrison when it is this share of its strength.
+const THREAT_RATIO: f32 = 0.8;
+
+/// A relief force is sent to a threatened city only from this far or nearer.
+const RELIEF_RANGE: u32 = 12;
+
 const NEIGHBOURS: [(i32, i32); 8] = [
     (-1, -1),
     (0, -1),
@@ -231,6 +240,9 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let capital = view.fortress().or_else(|| own_cities.first().copied());
         (free, capital)
     };
+
+    // 2b. A city with a hostile stack near and too few defenders pulls the nearest free troops in.
+    let free = relieve(ai, game, free, events);
     let Some(capital) = capital else {
         return;
     };
@@ -418,6 +430,85 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.march_started = game.turn;
         }
     }
+}
+
+/// The own cities an enemy stack within [`THREAT_RADIUS`] could take: the strength near is more
+/// than [`THREAT_RATIO`] of the strength at home. With the strength still wanted.
+fn threats(view: &PlayerView) -> Vec<(Position, f32)> {
+    let mut found = Vec::new();
+    for (_, pos) in view.my_cities() {
+        let near: f32 = view
+            .enemies_near(pos, THREAT_RADIUS)
+            .iter()
+            .map(|(_, units)| stack_strength(view, units))
+            .sum();
+        if near <= 0.0 {
+            continue;
+        }
+        let home: Vec<_> = view
+            .garrison(pos)
+            .into_iter()
+            .filter(|&u| is_fighter(view, u))
+            .collect();
+        let held = stack_strength(view, &home);
+        if near * THREAT_RATIO > held {
+            found.push((pos, near / THREAT_RATIO - held));
+        }
+    }
+    found
+}
+
+/// Sends the nearest free troops to each threatened city until they make up the shortfall, and
+/// notes the cities for the economy to build in. Returns those still free.
+fn relieve(
+    ai: &mut Ai,
+    game: &mut Game,
+    mut free: Vec<hecs::Entity>,
+    events: &mut Vec<Event>,
+) -> Vec<hecs::Entity> {
+    let me = ai.player;
+    let threatened = threats(&PlayerView::new(game, me));
+    ai.threatened = threatened.iter().map(|&(pos, _)| pos).collect();
+    for (city, mut short) in threatened {
+        let mut sent: Vec<hecs::Entity> = Vec::new();
+        {
+            let view = PlayerView::new(game, me);
+            let mut candidates: Vec<(u32, hecs::Entity)> = free
+                .iter()
+                .copied()
+                .filter(|&u| !ai.marching.contains(&view.serial_of(u)))
+                .filter(|&u| !view.unit_has_order(u))
+                .filter_map(|u| {
+                    let at = view.unit_position(u)?;
+                    let d = distance(&view, at, city)?;
+                    (d > 0 && d <= RELIEF_RANGE && view.can_reach(&[u], city)).then_some((d, u))
+                })
+                .collect();
+            candidates.sort_by_key(|&(d, u)| (d, view.serial_of(u)));
+            for (_, u) in candidates {
+                if short <= 0.0 {
+                    break;
+                }
+                short -= unit_strength(&view, u);
+                sent.push(u);
+            }
+        }
+        if sent.is_empty() {
+            continue;
+        }
+        for &u in &sent {
+            ai.send(
+                game,
+                Command::GoTo {
+                    units: vec![u],
+                    to: city,
+                },
+                events,
+            );
+        }
+        free.retain(|u| !sent.contains(u));
+    }
+    free
 }
 
 pub(crate) fn average_strength(view: &PlayerView) -> f32 {
@@ -697,5 +788,44 @@ mod tests {
             g.units().unit_owner(defenders[0]).is_none(),
             "the spearman fell: {events:?}"
         );
+    }
+
+    /// West's city holds one spearman; four of East's swordsmen stand two squares away and three
+    /// of West's own wait four squares from the city.
+    fn besieged(war: bool) -> (Game, Vec<hecs::Entity>) {
+        let mut g = game(COAST_CITY, "high_men");
+        spawn(&mut g, P0, at(10, 6), "high_men_spearmen", 1);
+        spawn(&mut g, P1, at(8, 6), "high_men_swordsmen", 4);
+        let spare = spawn(&mut g, P0, at(6, 3), "high_men_swordsmen", 3);
+        g.make_contact(P0, P1);
+        if war {
+            g.declare_war(P0, P1);
+        }
+        (g, spare)
+    }
+
+    #[test]
+    fn a_city_with_a_stronger_enemy_stack_near_calls_in_the_troops_and_asks_for_more() {
+        let (mut g, spare) = besieged(true);
+        let mut ai = Ai::new(P0);
+        let mut events = Vec::new();
+        army(&mut ai, &mut g, &mut events);
+        assert_eq!(ai.threatened, vec![at(10, 6)], "{events:?}");
+        let view = PlayerView::new(&g, P0);
+        assert!(
+            spare.iter().all(|&u| view.unit_has_order(u)),
+            "the spare troops are on their way: {events:?}"
+        );
+    }
+
+    #[test]
+    fn at_peace_the_same_stack_is_no_threat() {
+        let (mut g, spare) = besieged(false);
+        let mut ai = Ai::new(P0);
+        let mut events = Vec::new();
+        army(&mut ai, &mut g, &mut events);
+        assert!(ai.threatened.is_empty());
+        let view = PlayerView::new(&g, P0);
+        assert!(spare.iter().all(|&u| !view.unit_has_order(u)));
     }
 }

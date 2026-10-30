@@ -407,6 +407,36 @@ impl<'a> PlayerView<'a> {
         )
     }
 
+    /// The units of wizards at war with the player on the squares within `radius` of `at` that
+    /// it sees now (the units it can make out), as one stack per square.
+    pub fn enemies_near(&self, at: Position, radius: i32) -> Vec<(Position, Vec<hecs::Entity>)> {
+        let at_war = self.rivals_at_war();
+        let mut found = Vec::new();
+        for dy in -radius..=radius {
+            for dx in -radius..=radius {
+                let Some(square) = self.shift(at, dx, dy) else {
+                    continue;
+                };
+                let Some(units) = self.hostile_at(square) else {
+                    continue;
+                };
+                let units: Vec<_> = units
+                    .into_iter()
+                    .filter(|&u| {
+                        self.game
+                            .units()
+                            .unit_owner(u)
+                            .is_some_and(|o| at_war.contains(&o))
+                    })
+                    .collect();
+                if !units.is_empty() {
+                    found.push((square, units));
+                }
+            }
+        }
+        found
+    }
+
     /// The class of terrain on an explored square.
     pub fn terrain_class(&self, at: Position) -> Option<TerrainClass> {
         self.explored(at)
