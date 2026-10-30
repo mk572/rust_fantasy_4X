@@ -612,9 +612,7 @@ async fn main() {
             app.open_test_sale();
         }
         if options.choose {
-            if let view::Screen::City(city) = app.screen {
-                app.open_production(city);
-            }
+            app.open_test_production();
         }
         if let Some(list) = &options.city_fx {
             app.open_test_city_fx(list);

@@ -14,7 +14,7 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::art::{TILE_H, TILE_W};
-use crate::sell_prompt::SellPrompt;
+use crate::sell_prompt::{CityPanel, SellPrompt};
 use crate::ui::GOLD;
 use crate::view::{App, Screen, HUMAN};
 
@@ -61,6 +61,10 @@ pub(crate) struct CityPage {
     pub(crate) autobuild: Option<crate::autobuild_dialog::AutoDialog>,
     /// Whether the worked-area map shows each square's food and production.
     pub(crate) area_figures: bool,
+    /// The question box and the enchantment list, as the outpost screen has them.
+    pub(crate) panel: CityPanel,
+    /// The production menu while it is open.
+    pub(crate) prod: crate::production_screen::ProductionUi,
 }
 
 impl CityPage {
@@ -70,6 +74,8 @@ impl CityPage {
             naming: None,
             autobuild: None,
             area_figures: false,
+            panel: CityPanel::default(),
+            prod: Default::default(),
         }
     }
 }
@@ -103,7 +109,7 @@ impl App {
             page.autobuild = None;
             return;
         }
-        let selling = self.sell_prompt.is_some();
+        let selling = page.panel.sell.is_some();
         let renaming = page.naming.is_some();
         if renaming && input.key_pressed(KeyCode::Escape) {
             page.naming = None;
@@ -185,11 +191,11 @@ impl App {
             self.choosing = true;
         }
         self.draw_city_header(page, lay, input);
-        self.draw_city_resources(city, lay, input);
-        self.draw_city_buildings(city, lay, input);
+        self.draw_city_resources(&mut page.panel, city, lay, input);
+        self.draw_city_buildings(&mut page.panel, city, lay, input);
         self.draw_city_area(page, lay, input);
         self.draw_city_garrison(city, lay);
-        self.draw_city_production(city, lay, input);
+        self.draw_city_production(page, lay, input);
         if renaming {
             self.choosing = was_choosing;
             self.draw_rename_box(page, input);
@@ -198,7 +204,7 @@ impl App {
             self.draw_autobuild_dialog(page, lay, input);
         } else if selling {
             self.choosing = was_choosing;
-            self.draw_sell_prompt(input);
+            self.draw_sell_prompt(&mut page.panel, input);
         } else if self.choosing {
             self.draw_production_screen(page, input);
         }
@@ -492,7 +498,13 @@ impl App {
         at
     }
 
-    fn draw_city_resources(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
+    fn draw_city_resources(
+        &mut self,
+        panel: &mut CityPanel,
+        city: hecs::Entity,
+        lay: Layout,
+        input: &Input,
+    ) {
         let Some(eco) = self.game.economy().city_economy(city) else {
             return;
         };
@@ -529,27 +541,33 @@ impl App {
                 self.draw_styled(view, &Style::nearest(1, color).right(), &note, 134.0, y);
             }
         }
-        self.draw_city_enchantments(city, lay, input);
+        self.draw_city_enchantments(panel, city, lay, input);
     }
 
     /// The enchantments on the city, six to a page in the colour of whoever cast them, with the
     /// arrows that turn the page; a click on the player's own asks to turn it off
     /// (`City_Screen_Draw_City_Enchantments`, `City_Add_Fields_City_Enchantments`).
-    fn draw_city_enchantments(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
-        let enabled = !self.choosing;
-        self.city_enchantment_list(city, lay, (139.0, 51.0), 3.0, enabled, input);
-    }
-
-    /// The list with its first row at `first` (the original's `xstart`, `ystart`), shared by
-    /// the city and outpost screens. Returns whether a click this frame landed on a row or an
-    /// arrow, so the caller does not take it for something else. The names are drawn `shift`
-    /// pixels right of and below the clickable rows (the city screen's panel has a margin).
-    pub(crate) fn city_enchantment_list(
+    fn draw_city_enchantments(
         &mut self,
+        panel: &mut CityPanel,
         city: hecs::Entity,
         lay: Layout,
-        first: (f32, f32),
-        shift: f32,
+        input: &Input,
+    ) {
+        let enabled = !self.choosing;
+        self.city_enchantment_list(panel, city, lay, (139.0, 51.0, 3.0), enabled, input);
+    }
+
+    /// The list with its first row at `(x, y, shift)` (the original's `xstart`, `ystart`), shared by
+    /// the city and outpost screens. Returns whether a click this frame landed on a row or an
+    /// arrow, so the caller does not take it for something else. The names are drawn `shift`
+    /// pixels right of and below the clickable rows, the third number (the city screen's panel has a margin).
+    pub(crate) fn city_enchantment_list(
+        &mut self,
+        panel: &mut CityPanel,
+        city: hecs::Entity,
+        lay: Layout,
+        (first_x, first_y, shift): (f32, f32, f32),
         enabled: bool,
         input: &Input,
     ) -> bool {
@@ -562,47 +580,42 @@ impl App {
         let total = list.len() + effects.len();
         if total > PAGE {
             let last = total - 1;
-            let up = lay.rect(first.0 + 62.0, first.1 - 1.0, 12.0, 12.0);
+            let up = lay.rect(first_x + 62.0, first_y - 1.0, 12.0, 12.0);
             hit |= ui::hit(up, true, input).clicked();
-            if self.backgrnd_button(lay, 15, first.0 + 62.0, first.1 - 1.0, enabled, input) {
-                self.city_spell_first = match self.city_spell_first {
+            if self.backgrnd_button(lay, 15, first_x + 62.0, first_y - 1.0, enabled, input) {
+                panel.spell_first = match panel.spell_first {
                     0 => last / PAGE * PAGE,
                     n => n.saturating_sub(PAGE),
                 };
             }
-            let down = lay.rect(first.0 + 62.0, first.1 + 34.0, 12.0, 12.0);
+            let down = lay.rect(first_x + 62.0, first_y + 34.0, 12.0, 12.0);
             hit |= ui::hit(down, true, input).clicked();
-            if self.backgrnd_button(lay, 16, first.0 + 62.0, first.1 + 34.0, enabled, input) {
-                self.city_spell_first += PAGE;
-                if self.city_spell_first > last {
-                    self.city_spell_first = 0;
+            if self.backgrnd_button(lay, 16, first_x + 62.0, first_y + 34.0, enabled, input) {
+                panel.spell_first += PAGE;
+                if panel.spell_first > last {
+                    panel.spell_first = 0;
                 }
             }
         } else {
-            self.city_spell_first = 0;
+            panel.spell_first = 0;
         }
         let click = input.mouse_pressed(MouseButton::Left) && enabled;
         for (row, line) in effects.iter().enumerate() {
             let row = list.len() + row;
-            if row < self.city_spell_first || row >= self.city_spell_first + PAGE {
+            if row < panel.spell_first || row >= panel.spell_first + PAGE {
                 continue;
             }
-            let i = (row - self.city_spell_first) as f32;
+            let i = (row - panel.spell_first) as f32;
             self.draw_styled(
                 view,
                 &Style::nearest(1, Color::new(0.85, 0.85, 0.8, 1.0)),
                 line,
-                first.0 + shift,
-                first.1 + shift + i * 7.0,
+                first_x + shift,
+                first_y + shift + i * 7.0,
             );
         }
-        for (row, &(spell, caster)) in list
-            .iter()
-            .enumerate()
-            .skip(self.city_spell_first)
-            .take(PAGE)
-        {
-            let i = (row - self.city_spell_first) as f32;
+        for (row, &(spell, caster)) in list.iter().enumerate().skip(panel.spell_first).take(PAGE) {
+            let i = (row - panel.spell_first) as f32;
             let def = self.game.content().rules.spells.get(spell).clone();
             let mut name = def.name.clone();
             if def.id == "spell_ward" {
@@ -618,14 +631,14 @@ impl App {
                 view,
                 &Style::nearest(1, color),
                 &name,
-                first.0 + shift,
-                first.1 + shift + i * 7.0,
+                first_x + shift,
+                first_y + shift + i * 7.0,
             );
-            let rect = lay.rect(first.0, first.1 + i * 7.0, 60.0, 7.0);
+            let rect = lay.rect(first_x, first_y + i * 7.0, 60.0, 7.0);
             let on_row = ui::hit(rect, true, input).hovered();
             hit |= click && on_row;
             if click && caster == HUMAN && on_row {
-                self.sell_prompt = Some(SellPrompt::TurnOff {
+                panel.sell = Some(SellPrompt::TurnOff {
                     city,
                     spell,
                     name: def.name.clone(),
@@ -725,11 +738,17 @@ impl App {
 
     /// The city's picture: ground, water, hills, roads, then every cell from the back to the
     /// front (houses, trees, rocks, buildings), and the walls along the bottom.
-    fn draw_city_buildings(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
+    fn draw_city_buildings(
+        &mut self,
+        panel: &mut CityPanel,
+        city: hecs::Entity,
+        lay: Layout,
+        input: &Input,
+    ) {
         let over = self.draw_city_buildings_at(city, lay, 4.0, 100.0, input);
         if let Some(i) = over.filter(|i| (3..=35).contains(i)) {
             if input.mouse_pressed(MouseButton::Left) && !self.choosing {
-                self.start_sale(city, i);
+                self.start_sale(panel, city, i);
             }
         }
     }
@@ -1331,7 +1350,8 @@ impl App {
         }
     }
 
-    fn draw_city_production(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
+    fn draw_city_production(&mut self, page: &mut CityPage, lay: Layout, input: &Input) {
+        let city = page.city;
         let prod = self.game.economy().city_production(city);
         let eco = self.game.economy().city_economy(city).unwrap_or_default();
         let view = Self::view(lay);
@@ -1416,7 +1436,7 @@ impl App {
             input,
         ) {
             if let (Some(price), Some(item)) = (price, prod.item) {
-                self.sell_prompt = Some(if price as i32 <= gold {
+                page.panel.sell = Some(if price as i32 <= gold {
                     let name = self.item_name(item);
                     SellPrompt::Buy { city, name, price }
                 } else {
@@ -1425,7 +1445,7 @@ impl App {
             }
         }
         if self.backgrnd_button(lay, 8, 247.0, 188.0, !self.choosing, input) {
-            self.open_production(city);
+            self.open_production(page);
         }
         if self.backgrnd_button(lay, 9, 286.0, 188.0, !self.choosing, input) {
             self.screen = Screen::Map;

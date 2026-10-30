@@ -122,10 +122,6 @@ pub struct App {
     /// The production menu is open on the city screen.
     pub(crate) choosing: bool,
     /// The question or refusal when a building of the city picture is clicked.
-    /// The first enchantment shown on the city screen's list.
-    pub(crate) city_spell_first: usize,
-    pub(crate) sell_prompt: Option<crate::sell_prompt::SellPrompt>,
-    pub(crate) prod_ui: crate::production_screen::ProductionUi,
     /// The diplomacy screen's talk.
     /// Wizards met whose greeting waits for the map: the screen opens for each in turn.
     pub(crate) greetings: std::collections::VecDeque<PlayerId>,
@@ -332,9 +328,6 @@ impl App {
             selection: Vec::new(),
             log: Vec::new(),
             choosing: false,
-            city_spell_first: 0,
-            sell_prompt: None,
-            prod_ui: Default::default(),
             greetings: Default::default(),
             greetings_due: Vec::new(),
             offer_ui: Default::default(),
@@ -1045,14 +1038,12 @@ impl App {
         if outpost {
             self.open_outpost(city, false);
         } else {
-            self.city_spell_first = 0;
             self.open_city_screen(city);
         }
     }
 
     pub fn open_first_city(&mut self) {
         if let Some((city, ..)) = self.game.economy().cities().first() {
-            self.city_spell_first = 0;
             self.open_city_screen(*city);
         }
     }

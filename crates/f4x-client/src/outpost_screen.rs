@@ -34,6 +34,8 @@ pub(crate) struct OutpostUi {
     /// The name box is up; `name` is what has been typed.
     pub naming: bool,
     pub name: String,
+    /// The question box and the enchantment list, as the city screen has them.
+    pub panel: crate::sell_prompt::CityPanel,
 }
 
 /// Houses lit on the row of ten: one for each hundred people.
@@ -68,9 +70,8 @@ impl App {
             } else {
                 String::new()
             },
+            panel: Default::default(),
         };
-        self.city_spell_first = 0;
-        self.sell_prompt = None;
         self.open_page(Screen::Outpost, ui);
     }
 
@@ -324,12 +325,18 @@ impl Page for OutpostUi {
         }
         // The enchantments page and turn off as the city screen's do; a click on one is not the
         // click that leaves. A question opened by a click waits a frame before it draws.
-        let asking = app.sell_prompt.is_some();
+        let asking = self.panel.sell.is_some();
         let city_lay = crate::city_screen::Layout::new();
-        let on_list =
-            app.city_enchantment_list(city, city_lay, (wx + 114.0, wy + 54.0), 0.0, !asking, input);
+        let on_list = app.city_enchantment_list(
+            &mut self.panel,
+            city,
+            city_lay,
+            (wx + 114.0, wy + 54.0, 0.0),
+            !asking,
+            input,
+        );
         if asking {
-            app.draw_sell_prompt(input);
+            app.draw_sell_prompt(&mut self.panel, input);
             return;
         }
         if ui.naming {
@@ -379,6 +386,7 @@ mod tests {
             new,
             naming: new,
             name: String::new(),
+            panel: Default::default(),
         };
         let app = App::for_test();
         assert!(ui(true).music(&app).is_some());

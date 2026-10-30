@@ -16,6 +16,7 @@ use crate::ui;
 use crate::view::App;
 
 /// What the box says.
+#[derive(Debug, Clone)]
 pub(crate) enum SellPrompt {
     /// The question: the building, its name, the gold it brings, and the name of the item whose
     /// production the sale ends, if any.
@@ -75,9 +76,23 @@ pub(crate) const RAZE_OR_SPARE: Buttons = Buttons {
     escape: true,
 };
 
+/// What the city screen and the outpost screen share: the question box over them and the
+/// first row of the enchantment list.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct CityPanel {
+    pub(crate) sell: Option<SellPrompt>,
+    /// The first enchantment shown on the list.
+    pub(crate) spell_first: usize,
+}
+
 impl App {
     /// A click on a building of the city picture: the question, or the refusal.
-    pub(crate) fn start_sale(&mut self, city: hecs::Entity, picture_index: i16) {
+    pub(crate) fn start_sale(
+        &mut self,
+        panel: &mut CityPanel,
+        city: hecs::Entity,
+        picture_index: i16,
+    ) {
         let rules = &self.game.content().rules;
         let Some(def) = usize::try_from(picture_index - 3)
             .ok()
@@ -118,7 +133,7 @@ impl App {
                 }
             }
         };
-        self.sell_prompt = Some(prompt);
+        panel.sell = Some(prompt);
     }
 
     /// For screenshots: the question for the first building of the open city.
@@ -132,13 +147,15 @@ impl App {
             rules.buildings.defs().iter().position(|d| &d.id == name)
         });
         if let Some(i) = first {
-            self.start_sale(city, i as i16 + 3);
+            let mut page = crate::city_screen::CityPage::new(city);
+            self.start_sale(&mut page.panel, city, i as i16 + 3);
+            self.open_page(crate::view::Screen::City(city), page);
         }
     }
 
     /// Draw the box and take the answer.
-    pub(crate) fn draw_sell_prompt(&mut self, input: &Input) {
-        let Some(prompt) = self.sell_prompt.take() else {
+    pub(crate) fn draw_sell_prompt(&mut self, panel: &mut CityPanel, input: &Input) {
+        let Some(prompt) = panel.sell.take() else {
             return;
         };
         let lay = Layout::new();
@@ -174,7 +191,7 @@ impl App {
                         self.note(events);
                     }
                     Some(false) => {}
-                    None => self.sell_prompt = Some(prompt),
+                    None => panel.sell = Some(prompt),
                 }
             }
             SellPrompt::Buy { city, .. } => match self.confirmation_box(&lay, &text, input) {
@@ -183,7 +200,7 @@ impl App {
                     self.note(events);
                 }
                 Some(false) => {}
-                None => self.sell_prompt = Some(prompt),
+                None => panel.sell = Some(prompt),
             },
             SellPrompt::TurnOff { city, spell, .. } => {
                 match self.confirmation_box(&lay, &text, input) {
@@ -196,12 +213,12 @@ impl App {
                         self.note(events);
                     }
                     Some(false) => {}
-                    None => self.sell_prompt = Some(prompt),
+                    None => panel.sell = Some(prompt),
                 }
             }
             SellPrompt::Refused(_) => {
                 if !self.warning_box(&lay, &text, input) {
-                    self.sell_prompt = Some(prompt);
+                    panel.sell = Some(prompt);
                 }
             }
         }

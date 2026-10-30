@@ -14,7 +14,7 @@ use macroquad::prelude::*;
 
 use crate::city_screen::CityPage;
 use crate::frame::Layout;
-use crate::view::{App, HUMAN};
+use crate::view::{App, Screen, HUMAN};
 
 /// Rows a column shows (the original's lists are cut to fit).
 const ROWS: usize = 12;
@@ -40,14 +40,23 @@ pub(crate) struct ProductionUi {
 }
 
 impl App {
-    /// Open the production screen over `city`'s screen with its current production picked.
-    pub(crate) fn open_production(&mut self, city: hecs::Entity) {
-        self.prod_ui = ProductionUi {
-            selected: self.game.economy().city_production(city).item,
+    /// The first city's screen with the production menu open (the `--choose` screenshot).
+    pub(crate) fn open_test_production(&mut self) {
+        let Screen::City(city) = self.screen else {
+            return;
+        };
+        let mut page = CityPage::new(city);
+        self.open_production(&mut page);
+        self.open_page(Screen::City(city), page);
+    }
+
+    /// Open the production screen over `page`'s city with its current production picked.
+    pub(crate) fn open_production(&mut self, page: &mut CityPage) {
+        page.prod = ProductionUi {
+            selected: self.game.economy().city_production(page.city).item,
             fresh: true,
             ..Default::default()
         };
-        self.prod_ui.panel.first = 0;
         self.choosing = true;
     }
 
@@ -72,10 +81,10 @@ impl App {
         let lay = Layout::new();
         clear_background(Color::new(0.03, 0.09, 0.09, 1.0));
         let (buildings, units) = self.production_columns(city);
-        let fresh = std::mem::take(&mut self.prod_ui.fresh);
+        let fresh = std::mem::take(&mut page.prod.fresh);
         let full = self.game.units().units_at(self.city_position(city)).len() >= GARRISON_LIMIT;
-        let selected = self
-            .prod_ui
+        let selected = page
+            .prod
             .selected
             .filter(|s| buildings.contains(s) || units.contains(s))
             .or_else(|| buildings.first().copied());
@@ -83,7 +92,7 @@ impl App {
 
         // The middle panel first: the tabs overlap its edges.
         if let Some(item) = selected {
-            self.draw_production_panel(city, item, &lay, input);
+            self.draw_production_panel(city, item, &mut page.prod.panel, &lay, input);
         }
 
         let (_, wheel) = input.mouse_wheel();
@@ -91,15 +100,15 @@ impl App {
             let column = usize::from(input.mouse_position().0 > lay.origin.x + 120.0 * lay.scale);
             let len = [buildings.len(), units.len()][column];
             let max = len.saturating_sub(ROWS);
-            let scroll = &mut self.prod_ui.scroll[column];
+            let scroll = &mut page.prod.scroll[column];
             *scroll = (*scroll as i32 - wheel.signum() as i32).clamp(0, max as i32) as usize;
         }
 
-        let waiting = self.prod_ui.warning.is_some() || fresh;
+        let waiting = page.prod.warning.is_some() || fresh;
         let mut clicked = None;
         for (column, list) in [&buildings, &units].into_iter().enumerate() {
             let x = if column == 0 { 0.0 } else { UNITS_X };
-            let first = self.prod_ui.scroll[column].min(list.len().saturating_sub(1));
+            let first = page.prod.scroll[column].min(list.len().saturating_sub(1));
             for (row, item) in list.iter().skip(first).take(ROWS).enumerate() {
                 let y = 4.0 + ROW_HEIGHT * row as f32;
                 self.draw_pic(&lay, "unitview", 31 + column, 0, x, y);
@@ -133,9 +142,9 @@ impl App {
         let cancel = self.red_button(&lay, &cancel, 99.0, 181.0, input);
         let ok = self.red_button(&lay, &ok, 172.0, 181.0, input);
 
-        if let Some(text) = self.prod_ui.warning.clone() {
+        if let Some(text) = page.prod.warning.clone() {
             if self.warning_box(&lay, &text, input) {
-                self.prod_ui.warning = None;
+                page.prod.warning = None;
             }
             return;
         }
@@ -148,12 +157,12 @@ impl App {
             self.start_production(city, selected);
         } else if let Some((item, blocked)) = clicked {
             if blocked {
-                self.prod_ui.warning = Some(self.text("production.garrison_full"));
+                page.prod.warning = Some(self.text("production.garrison_full"));
             } else if selected == Some(item) {
                 self.start_production(city, Some(item));
             } else {
-                self.prod_ui.selected = Some(item);
-                self.prod_ui.panel.first = 0;
+                page.prod.selected = Some(item);
+                page.prod.panel.first = 0;
             }
         }
     }
@@ -171,6 +180,7 @@ impl App {
         &mut self,
         city: hecs::Entity,
         item: ProductionItem,
+        sheet_panel: &mut crate::unit_screen::SheetPanel,
         lay: &Layout,
         input: &Input,
     ) {
@@ -182,9 +192,7 @@ impl App {
             ProductionItem::Unit(id) => {
                 let def = self.game.content().rules.units.get(id).clone();
                 let sheet = self.offer_sheet(&def, None, HUMAN.0);
-                let mut panel = std::mem::take(&mut self.prod_ui.panel);
-                self.draw_production_sheet(lay, &sheet, (px, py), &mut panel, input);
-                self.prod_ui.panel = panel;
+                self.draw_production_sheet(lay, &sheet, (px, py), sheet_panel, input);
                 let mut price = cost.to_string();
                 if cost != def.cost {
                     price = format!("{cost}({})", def.cost);
