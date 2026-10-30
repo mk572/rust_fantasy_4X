@@ -600,7 +600,7 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
 
 ## 26. Melee against fliers (task 107)
 
-In the original a unit that does not fly deals no melee damage to a flying unit (`Combat.c`, `Battle_Unit_Process_Attack`; counter-attacks, thrown and breath attacks excepted). Ours halves the walker's melee strength instead, rounded up, so a walker that cannot be rid of a flier is not helpless. "Walker" here is any unit that does not fly, ships and swimmers included. The flier's own blows are at full strength as before.
+In the original a unit that does not fly deals no melee damage to a flying unit (`Combat.c`, `Battle_Unit_Process_Attack`; counter-attacks, thrown and breath attacks excepted). The setting `rules.melee_vs_fliers` chooses: `zero` (the default since 30 October 2026, the original's rule), `half` (the walker's melee strength halved, rounded up, so a walker that cannot be rid of a flier is not helpless; this was our rule before) or `full` (no rule). Only `half` and `full` diverge. "Walker" here is any unit that does not fly, ships and swimmers included. The flier's own blows are at full strength as before.
 
 ## 27. Enchanted roads can be dispelled (task 107)
 
@@ -739,7 +739,7 @@ immunity** protects against Terror. The other differences listed there are kept 
   numbers for each unit, so about every second basic troop (the ones with an odd serial number, the
   order units are made in) costs nothing and the others pay in full. The unit sheet shows the
   unit's own figure, so a free one shows none. `half_upkeep` in `content/settings.ron`
-  (`enabled: false` brings back the original's upkeep; `units` names the troops).
+  (`enabled: true` turns it on; since 30 October 2026 it is off, so the AI learns on the original's rules; `units` names the troops).
 - **No limit on the number of units** (decided by the user, 24 October 2026, task 144): the
   original's unit table holds `MAX_UNIT_COUNT` entries, so production stops and says "Maximum number
   of units exceeded" (`NEXTTURN.c`, message 66) when it is full. Ours has no such table: the only
@@ -789,7 +789,7 @@ Left out on purpose:
   refuses the cast outright with the reason, which is the safer rule and the same for the AI; no prompt.
   The second cast of a global enchantment is refused by the stacking check (task 349).
 - **No settlers from a fortress's last citizens (11).** Settlers now cost a citizen (setting
-  `rules.settlers_free`, off by default) and need a city of two; the original's special line for a
+  `rules.settlers_cost_citizen`, on by default) and need a city of two; the original's special line for a
   fortress's last citizens is covered by that same rule, with the general text.
 - **Line 73 (Sorcery-immune unit).** I could not find which spell the original refuses it for; ours casts
   and the unit resists. Task 351 covers the lines whose trigger is not traced.

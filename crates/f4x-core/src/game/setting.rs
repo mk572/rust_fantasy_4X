@@ -228,10 +228,42 @@ impl Eq for Radius {}
 pub struct RuleSettings {
     /// A fleeing side loses nobody (the original: the player on turn, Intro and Easy).
     pub safe_flee: Split<bool>,
-    /// Settlers cost no citizen. Off: a city needs two citizens to build Settlers and loses one
-    /// when they are finished (the original's rule).
+    /// Building Settlers costs a citizen. On (the original's rule): a city needs two citizens to
+    /// build Settlers and loses one when they are finished. Off: Settlers cost production only.
+    #[serde(default = "yes")]
+    pub settlers_cost_citizen: bool,
+    /// How hard a walking unit hits a flying one in melee.
     #[serde(default)]
-    pub settlers_free: bool,
+    pub melee_vs_fliers: MeleeVsFliers,
+}
+
+fn yes() -> bool {
+    true
+}
+
+/// A walking unit's melee attack against a flying unit (divergence 26). The flier hits back at
+/// full strength whichever is chosen; thrown and breath attacks are unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MeleeVsFliers {
+    /// The walker's blows do nothing (the original's rule).
+    #[default]
+    Zero,
+    /// Half strength, rounded up (a planned mod).
+    Half,
+    /// Full strength: the rule is off.
+    Full,
+}
+
+impl MeleeVsFliers {
+    /// The melee strength a walker has against a flier, given its strength against anything else.
+    pub fn strength(self, full: i32) -> i32 {
+        match self {
+            MeleeVsFliers::Zero => 0,
+            MeleeVsFliers::Half => (full + 1) / 2,
+            MeleeVsFliers::Full => full,
+        }
+    }
 }
 
 /// How often the random events (task 68) fire, as a multiplier on the original's chance.
@@ -680,7 +712,8 @@ impl GameSettings {
             },
             rules: RuleSettings {
                 safe_flee: Split::both(false),
-                settlers_free: false,
+                settlers_cost_citizen: true,
+                melee_vs_fliers: MeleeVsFliers::Zero,
             },
             events: EventSettings {
                 random_events: true,

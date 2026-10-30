@@ -12,6 +12,7 @@ use super::attack::Mode;
 use super::immunity::{AttackNature, Immunities};
 use super::map::{distance, in_city_area, Pos};
 use super::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
+use crate::game::setting::MeleeVsFliers;
 
 /// The nearest active enemy the unit's side can see (lowest id on ties).
 fn closest_enemy<'a>(battle: &'a Battle, unit: &BattleUnit) -> Option<&'a BattleUnit> {
@@ -150,9 +151,16 @@ pub fn worth(u: &BattleUnit) -> f32 {
 /// The damage (hit points) `attacker` is expected to do to `target` with one attack of kind
 /// `ranged`: its dice that hit, less what the target's defence blocks. Zero when the target is
 /// immune to what the attack is made of.
-pub fn expected_damage(attacker: &BattleUnit, target: &BattleUnit, ranged: bool) -> f32 {
+pub fn expected_damage(
+    attacker: &BattleUnit,
+    target: &BattleUnit,
+    ranged: bool,
+    vs_fliers: MeleeVsFliers,
+) -> f32 {
     let (mode, strength) = if ranged {
         (Mode::Ranged, attacker.ranged)
+    } else if target.flies && !attacker.flies {
+        (Mode::Melee, vs_fliers.strength(attacker.melee))
     } else {
         (Mode::Melee, attacker.melee)
     };
@@ -178,9 +186,14 @@ pub fn expected_damage(attacker: &BattleUnit, target: &BattleUnit, ranged: bool)
 
 /// What an attack is worth: how much of the target it takes (a kill is worth all of it) times
 /// what the target is worth, with a premium on the units that shoot back.
-fn attack_value(attacker: &BattleUnit, target: &BattleUnit, ranged: bool) -> f32 {
+fn attack_value(
+    attacker: &BattleUnit,
+    target: &BattleUnit,
+    ranged: bool,
+    vs_fliers: MeleeVsFliers,
+) -> f32 {
     let left = target.hit_points().max(1) as f32;
-    let taken = (expected_damage(attacker, target, ranged) / left).min(1.0);
+    let taken = (expected_damage(attacker, target, ranged, vs_fliers) / left).min(1.0);
     let threat = if can_shoot(target) { 1.2 } else { 1.0 };
     taken * worth(target) * threat
 }
@@ -211,13 +224,13 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
             let melee = enemies
                 .iter()
                 .filter(|e| distance(unit.cell, e.cell) == 1)
-                .map(|e| (attack_value(unit, e, false), e.id))
+                .map(|e| (attack_value(unit, e, false, battle.melee_vs_fliers), e.id))
                 .max_by(|a, b| a.0.total_cmp(&b.0).then(b.1.cmp(&a.1)));
             let shot = if shooter {
                 enemies
                     .iter()
                     .filter(|e| !battle.blocked_by_darkness(unit.id, e.id))
-                    .map(|e| (attack_value(unit, e, true), e.id))
+                    .map(|e| (attack_value(unit, e, true, battle.melee_vs_fliers), e.id))
                     .max_by(|a, b| a.0.total_cmp(&b.0).then(b.1.cmp(&a.1)))
             } else {
                 None
@@ -261,7 +274,8 @@ pub fn next_command(battle: &Battle) -> BattleCommand {
             .iter()
             .max_by(|a, b| {
                 let value = |e: &&BattleUnit| {
-                    attack_value(unit, e, false) / (1.0 + distance(unit.cell, e.cell) as f32)
+                    attack_value(unit, e, false, battle.melee_vs_fliers)
+                        / (1.0 + distance(unit.cell, e.cell) as f32)
                 };
                 value(a).total_cmp(&value(b)).then(b.id.cmp(&a.id))
             })
@@ -396,17 +410,34 @@ mod tests {
     }
 
     #[test]
+    fn a_walker_expects_nothing_from_a_flier_in_melee_unless_the_setting_allows_it() {
+        let walker = BattleUnit::simple(Side::Attacker, "walker", 4, 2, 6, 1);
+        let mut bat = BattleUnit::simple(Side::Defender, "bat", 4, 2, 6, 1);
+        bat.flies = true;
+        let expect = |rule| expected_damage(&walker, &bat, false, rule);
+        assert_eq!(expect(MeleeVsFliers::Zero), 0.0);
+        assert!(expect(MeleeVsFliers::Half) > 0.0);
+        assert!(expect(MeleeVsFliers::Full) > expect(MeleeVsFliers::Half));
+    }
+
+    #[test]
     fn expected_damage_falls_with_defence_and_is_nothing_against_an_immunity() {
         let a = BattleUnit::simple(Side::Attacker, "a", 4, 1, 4, 1);
         let soft = BattleUnit::simple(Side::Defender, "soft", 4, 1, 1, 0);
         let hard = BattleUnit::simple(Side::Defender, "hard", 4, 1, 1, 4);
-        assert!(expected_damage(&a, &soft, false) > expected_damage(&a, &hard, false));
+        assert!(
+            expected_damage(&a, &soft, false, MeleeVsFliers::default())
+                > expected_damage(&a, &hard, false, MeleeVsFliers::default())
+        );
         let mut stone = BattleUnit::simple(Side::Defender, "stone", 4, 1, 1, 0);
         stone.abilities.push("weapon_immunity".into());
-        assert_eq!(expected_damage(&a, &stone, false), 0.0);
+        assert_eq!(
+            expected_damage(&a, &stone, false, MeleeVsFliers::default()),
+            0.0
+        );
         let mut magic = a.clone();
         magic.magical_weapon = true;
-        assert!(expected_damage(&magic, &stone, false) > 0.0);
+        assert!(expected_damage(&magic, &stone, false, MeleeVsFliers::default()) > 0.0);
     }
 
     #[test]

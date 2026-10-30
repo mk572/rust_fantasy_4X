@@ -513,6 +513,7 @@ impl Game {
         }
         let mut battle = Battle::new(a_owner, d_owner, map, units, seed);
         battle.site = Some(site);
+        battle.melee_vs_fliers = self.settings.rules.melee_vs_fliers;
         (battle.node_aura, battle.node_site) = self.node_realms_at(site, city.is_none());
         battle.refresh_fields();
         battle.wall_of_fire = has("wall_of_fire");

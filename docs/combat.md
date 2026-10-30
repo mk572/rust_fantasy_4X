@@ -52,9 +52,9 @@ Everything is in `attack.rs` as pure functions over numbers and a random generat
 - **Ranged attacks** draw no reply. Arrows, slings and boulders take -1 to hit for every
   three squares of distance (at most -1 with long range) and use one ammunition; spell shots
   take no distance penalty. One attack or shot per unit per turn.
-- A walking unit hits a **flying** unit in melee at half strength, rounded up (the flier still
-  hits back at full strength; thrown and breath attacks are unchanged). Divergence 26: the
-  original deals nothing.
+- A walking unit's melee against a **flying** unit follows the setting `rules.melee_vs_fliers`:
+  `zero` (the default, the original: nothing), `half` (half strength, rounded up) or `full`. The
+  flier still hits back at full strength; thrown and breath attacks are unchanged. Divergence 26.
 - **Doom damage** (`ignores_defense`) skips both the to-hit and the defence rolls.
 
 Ability rules (task 37): **large shield** adds 2 to the defence against anything but a melee blow

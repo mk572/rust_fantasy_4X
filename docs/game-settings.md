@@ -104,7 +104,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | basic | `opponents` | 1..=9 | 1 in the client | `NewGame` wizard count |
 | basic | `land_percent` | preset 15 / 20 / 30, free 10..=60 | 30 | `GenParams::land_percent` |
 | basic | `original_map_generator` | bool | off | `GenParams::original_generator`: the land from the original's random walks (`map/mapgen/original.rs`) and its fortress sites (`game/setup/original.rs`) instead of the noise-based land. `land_percent` is the land without the polar caps in both |
-| content | `half_upkeep` (`enabled`, `units`) | bool, unit names | on, Spearmen and Swordsmen | `UnitView::pays_upkeep` (unit/mod.rs): the basic troops cost half the food and gold (about every second one, by serial number, is free); not saved with the game, it is read from the content |
+| content | `half_upkeep` (`enabled`, `units`) | bool, unit names | off (30 October 2026: the AI learns on the original's rules), Spearmen and Swordsmen when on | `UnitView::pays_upkeep` (unit/mod.rs): the basic troops cost half the food and gold (about every second one, by serial number, is free); not saved with the game, it is read from the content |
 | basic | `magic_strength` | 0..=2 (Weak, Normal, Powerful) | 1 | `Game::magic_strength` |
 | wizards | `picks` | `Split`, 5..=20 | 11 / 11 | `wizard::PICKS` |
 | wizards | `max_books_per_realm` | 3..=11 | 11 | `wizard::MAX_BOOKS` |
@@ -139,7 +139,8 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | rules | `max_city_size` | 5..=40 | 25 | `rules.ron` |
 | rules | `min_city_distance` | 1..=8 | 4 | `rules.ron` |
 | rules | `safe_flee` | `Split<bool>` | Intro, Easy: on | `battle/game.rs::overland_aftermath` (4.7) |
-| rules | `settlers_free` | bool | off | `city/production.rs`: off, a city needs two citizens to build Settlers (`ProductionError::TooSmall`) and loses one when they are done, as in the original; on, Settlers cost production only |
+| rules | `settlers_cost_citizen` | bool | on | `city/production.rs`: on (the original), a city needs two citizens to build Settlers (`ProductionError::TooSmall`) and loses one when they are done; off, Settlers cost production only. Renamed on 30 October 2026 from `settlers_free` (inverted: on now means the cost applies) |
+| rules | `melee_vs_fliers` | `zero` / `half` / `full` | zero | `battle/mod.rs` `Battle::fighter`: a unit that does not fly deals no melee damage to a flier (`zero`, the original), half strength rounded up (`half`, a planned mod, what the game did before) or its full strength (`full`, the rule is off); the flier hits back in full, thrown and breath attacks are unchanged. The battle AI's `expected_damage` follows it |
 | victory | `spell_of_mastery` | on / off | on | always on |
 | victory | `spell_of_return` | `Off` / `HumanOnly` / `All` | `All` | always all |
 | victory | `hardcore` | bool | off | `PLANNED.md` 8 |

@@ -1419,6 +1419,6 @@ fn settlers_cost_a_citizen_unless_the_setting_makes_them_free() {
     let cost = g.economy().item_cost(city, item);
     g.apply_production(city, cost as i32);
     assert_eq!(g.city_population(city).figures, 2);
-    g.settings.rules.settlers_free = true;
+    g.settings.rules.settlers_cost_citizen = false;
     assert!(!g.economy().costs_a_citizen(settlers));
 }

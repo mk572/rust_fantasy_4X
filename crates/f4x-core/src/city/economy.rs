@@ -100,8 +100,8 @@ pub struct Economy<'a> {
     pub(crate) events: &'a crate::world_event::Events,
     /// A diagonal step costs half as much again (`BasicSettings::diagonal_extra_cost`).
     pub(crate) diagonal_extra: bool,
-    /// Settlers cost no citizen (`RuleSettings::settlers_free`).
-    pub(crate) settlers_free: bool,
+    /// Settlers cost a citizen (`RuleSettings::settlers_cost_citizen`).
+    pub(crate) settlers_cost_citizen: bool,
     /// For a path search: the squares where this player has a ship with a free place, worked
     /// out once, so the search need not look for ships at every sea square.
     pub(crate) ship_room: Option<(PlayerId, &'a HashSet<Position>)>,
@@ -115,21 +115,21 @@ impl<'a> Economy<'a> {
             content,
             events: &crate::world_event::NONE,
             diagonal_extra: false,
-            settlers_free: false,
+            settlers_cost_citizen: true,
             ship_room: None,
         }
     }
 
-    /// The same view with Settlers free of citizens, or not.
-    pub fn with_settlers_free(mut self, free: bool) -> Self {
-        self.settlers_free = free;
+    /// The same view with Settlers costing a citizen, or not.
+    pub fn with_settlers_cost_citizen(mut self, cost: bool) -> Self {
+        self.settlers_cost_citizen = cost;
         self
     }
 
     /// Whether building this unit takes a citizen from the city: Settlers do, unless the setting
-    /// says they are free.
+    /// says they cost none.
     pub fn costs_a_citizen(&self, unit: crate::rules::UnitId) -> bool {
-        !self.settlers_free
+        self.settlers_cost_citizen
             && self
                 .content
                 .rules
@@ -899,7 +899,7 @@ impl Game {
         Economy::new(&self.world, self.map.as_ref(), &self.content)
             .with_events(&self.events)
             .with_diagonal_extra(self.settings.basic.diagonal_extra_cost)
-            .with_settlers_free(self.settings.rules.settlers_free)
+            .with_settlers_cost_citizen(self.settings.rules.settlers_cost_citizen)
     }
 }
 

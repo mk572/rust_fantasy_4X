@@ -301,22 +301,31 @@ fn archers_shoot_with_ammunition_and_range_costs_accuracy() {
 }
 
 #[test]
-fn a_walker_hits_a_flier_at_half_strength_and_the_flier_hits_back() {
+fn a_walkers_melee_against_a_flier_follows_the_setting_and_the_flier_hits_back() {
+    use crate::game::setting::MeleeVsFliers;
     let walker = BattleUnit::simple(Side::Attacker, "walker", 4, 2, 6, 1).at((9, 10));
     let mut flier = BattleUnit::simple(Side::Defender, "bat", 4, 2, 6, 1).at((10, 10));
     flier.flies = true;
     let mut b = duel(walker, flier, 8);
+    let full = b.fighter(0, false).melee.strength;
+    assert!(full > 1);
+    for (rule, strength) in [
+        (MeleeVsFliers::Zero, 0),
+        (MeleeVsFliers::Half, (full + 1) / 2),
+        (MeleeVsFliers::Full, full),
+    ] {
+        b.melee_vs_fliers = rule;
+        assert_eq!(b.fighter(0, true).melee.strength, strength, "{rule:?}");
+    }
+    // The original's rule: the walker deals nothing, and the flier answers at full strength.
+    b.melee_vs_fliers = MeleeVsFliers::Zero;
     let e = b
         .apply(BattleCommand::Attack { unit: 0, target: 1 })
         .unwrap();
-    let BattleEvent::Attacked { taken, .. } = e[0] else {
+    let BattleEvent::Attacked { dealt, .. } = e[0] else {
         panic!()
     };
-    assert!(taken > 0 || b.unit(0).unwrap().hit_points() == 8);
-    // Half the dice of a walker against a flier; against a walker it rolls them all.
-    let full = b.fighter(0, false).melee.strength;
-    assert!(full > 1);
-    assert_eq!(b.fighter(0, true).melee.strength, (full + 1) / 2);
+    assert_eq!(dealt, 0);
 }
 
 #[test]
@@ -4621,4 +4630,25 @@ fn a_hasted_unit_attacks_twice_in_a_turn() {
         b.apply(BattleCommand::Attack { unit: 0, target: 1 }),
         Err(BattleError::AlreadyAttacked)
     );
+}
+
+#[test]
+fn a_battle_starts_with_the_games_melee_against_fliers_setting() {
+    use crate::game::setting::MeleeVsFliers;
+    for rule in [
+        MeleeVsFliers::Zero,
+        MeleeVsFliers::Half,
+        MeleeVsFliers::Full,
+    ] {
+        let mut g = game();
+        g.settings.rules.melee_vs_fliers = rule;
+        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let a = g.spawn_unit(A, at(4, 4), walker);
+        let d = g.spawn_unit(D, at(5, 4), walker);
+        g.apply(Command::BeginBattle {
+            attackers: vec![a],
+            defenders: vec![d],
+        });
+        assert_eq!(g.battle().unwrap().melee_vs_fliers, rule);
+    }
 }

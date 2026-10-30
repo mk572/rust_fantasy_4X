@@ -27,6 +27,7 @@ pub mod vortex;
 
 use crate::game::rng::GameRng;
 use crate::game::serial::Serial;
+use crate::game::setting::MeleeVsFliers;
 use rand::RngCore;
 
 use crate::map::Position;
@@ -904,6 +905,9 @@ pub struct Battle {
     pub(super) save_penalty: i32,
     /// The battle unit that is casting, if a unit and not the wizard: Life Drain heals it.
     pub(super) spell_caster: Option<usize>,
+    /// How hard a walker hits a flier in melee (`RuleSettings::melee_vs_fliers`).
+    #[serde(default)]
+    pub melee_vs_fliers: MeleeVsFliers,
     rng: GameRng,
 }
 
@@ -968,6 +972,7 @@ impl Battle {
             vortices: Vec::new(),
             save_penalty: 0,
             spell_caster: None,
+            melee_vs_fliers: MeleeVsFliers::default(),
             rng: GameRng::new(seed),
         };
         let _ = b.begin_side_turn();
@@ -1476,9 +1481,9 @@ impl Battle {
         let u = &self.units[id];
         let mut melee = u.melee_combatant();
         if vs_flier_blocked {
-            // A walker's blows reach a flier only half as well (the original: not at all, so
-            // only thrown weapons and breath could hurt it; divergence 26).
-            melee.strength = (melee.strength + 1) / 2;
+            // A walker's blows reach a flier by the setting: not at all (the original, so only
+            // thrown weapons and breath could hurt it), half as well, or in full (divergence 26).
+            melee.strength = self.melee_vs_fliers.strength(melee.strength);
         }
         Fighter {
             melee,
