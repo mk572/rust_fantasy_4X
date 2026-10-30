@@ -377,6 +377,20 @@ in a whole game. Without the grant nobody gets it in 400 turns (60,000 research 
 
 Soak is deterministic; two runs of one build give identical lines (timings stripped).
 
+### 8.1a New against old (`soak-versus`)
+
+To measure a change to the scripted strategic AI: freeze the AI before editing it
+(`python3 scripts/fork_ai.py`, or `--from REF` for an earlier commit), change `crates/f4x-ai`, then
+`f4x-tools soak-versus --seeds 1..8 --turns 400`. Per seed it plays four games with the reference's
+neutral cities and monsters (so the neutrals stay the same whatever the live AI does; fork again
+after a change to `neutral.rs` to test it): reference only, new in the first half of the seats,
+new in the second half, new only. The report gives per wizard and game the counts of
+`crates/f4x-tools/src/metrics.rs` for the reference, for the new AI and for both in the mixed
+games, who won the mixed games, and the first snapshot (every 50 turns, `soak-out/`) that differs
+from the reference-only game. `f4x-tools soak-diff A B` compares two snapshots. The learned battle
+brain is not part of this; only the strategic AI. There is
+one reference at a time; fork again to replace it.
+
 ### 8.2 Battle strength
 
 A test fights the new AI against the old (`ai::baseline`) on both sides of the same random

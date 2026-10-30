@@ -1,0 +1,16 @@
+[package]
+name = "f4x-ai-ref"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+test = false
+doctest = false
+
+[dependencies]
+f4x-core.workspace = true
+hecs.workspace = true
+
+[dev-dependencies]
+f4x-data.workspace = true

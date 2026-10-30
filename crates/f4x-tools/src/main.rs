@@ -3,13 +3,16 @@
 mod art;
 mod audio;
 mod console_cmd;
+mod contestant;
 mod fonts;
 mod image;
 mod lbx;
 mod map_art;
+mod metrics;
 mod refile;
 mod screens;
 mod soak;
+mod versus;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -42,7 +45,12 @@ const USAGE: &str = "usage:
                                               run the game from text commands (stdin, or the script)
   f4x-tools soak [--seeds A..B] [--turns N] [--players 2..5] [--every N] [--refused-log FILE]
                                               AI wizards play whole games and report; with
-                                              --refused-log, every refused command goes to FILE (TSV)";
+                                              --refused-log, every refused command goes to FILE (TSV);
+                                              --snapshots-every N --out DIR saves the game every N turns
+  f4x-tools soak-versus [--seeds A..B] [--turns N] [--players 2..5] [--snapshots-every N] [--out DIR]
+                                              the AI under work against the frozen reference (scripts/fork_ai.py):
+                                              four games a seed (ref only, new in each half of the seats, new only)
+  f4x-tools soak-diff SNAPSHOT_A SNAPSHOT_B   show how two saved games differ";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -53,6 +61,8 @@ fn main() -> ExitCode {
         Some("start-stats") => start_stats(&args[1..]),
         Some("console") => console_cmd::run(&args[1..]),
         Some("soak") => soak::run(&args[1..]),
+        Some("soak-versus") => versus::run(&args[1..]),
+        Some("soak-diff") => versus::diff(&args[1..]),
         Some("extract-art") => match args.get(1) {
             Some(game) => unit_art().and_then(|units| {
                 art::extract(

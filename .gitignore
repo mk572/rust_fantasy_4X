@@ -11,3 +11,4 @@ __pycache__/
 /.venv
 /tools/*/target
 .DS_Store
+/soak-out

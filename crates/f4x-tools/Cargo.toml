@@ -10,6 +10,7 @@ f4x-data.workspace = true
 png.workspace = true
 f4x-console.workspace = true
 f4x-ai.workspace = true
+f4x-ai-ref.workspace = true
 f4x-learn = { workspace = true, optional = true, features = ["train"] }
 
 [features]
