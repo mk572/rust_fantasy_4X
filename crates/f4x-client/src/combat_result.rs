@@ -401,10 +401,10 @@ impl App {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (_, height) = self.results_text(&r, 0.0);
-        let top = ((200.0 - (22.0 + height)) / 2.0).floor();
+        let top = ((crate::resolution::DESIGN_H - (22.0 + height)) / 2.0).floor();
         let (lines, _) = self.results_text(&r, top);
         let (paper, bottom) = (r.paper, top + height);
-        self.clipped((0.0, 0.0, 320.0, bottom), |app| {
+        self.clipped((0.0, 0.0, crate::resolution::DESIGN_W, bottom), |app| {
             app.draw_pic(&lay, "scroll", paper, 0, PAPER_X, top);
         });
         self.draw_pic(&lay, "help", 1, 0, PAPER_X, bottom);

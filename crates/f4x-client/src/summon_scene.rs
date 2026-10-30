@@ -181,7 +181,7 @@ impl App {
             y + 18.0
         };
         let figure = scene.figure;
-        self.clipped((0.0, 0.0, 320.0, y + 105.0), |app| {
+        self.clipped((0.0, 0.0, crate::resolution::DESIGN_W, y + 105.0), |app| {
             app.draw_pic(&lay, "monster", figure, 0, x + 76.0, rise);
         });
         let front = self.art.frames("spellscr", 11).max(1);

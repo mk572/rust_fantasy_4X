@@ -133,7 +133,7 @@ impl App {
                 square.y - t.y,
                 WHITE,
                 DrawTextureParams {
-                    dest_size: Some(tex.size() * k),
+                    dest_size: Some(crate::resolution::logical_size(&tex) * k),
                     ..Default::default()
                 },
             );

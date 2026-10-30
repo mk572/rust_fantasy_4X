@@ -292,13 +292,16 @@ impl App {
             .map(|l| (0.0, l))
             .collect();
         let paragraph = line * lines.len() as f32;
-        let (x, y) = (68.0, ((200.0 - (paragraph + 34.0)) / 2.0).floor());
+        let (x, y) = (
+            68.0,
+            ((crate::resolution::DESIGN_H - (paragraph + 34.0)) / 2.0).floor(),
+        );
         // The question box's lower part has wells for two buttons; with three red ones only its
         // bottom edge is used.
         let edge = self
             .art
             .picture("resource", 1, 0)
-            .map_or(24.0, |t| t.height());
+            .map_or(24.0, crate::resolution::logical_h);
         let below = y + paragraph + 10.0;
         self.draw_pic_rows(&lay, "resource", 0, x, y, y, below + edge - 4.0);
         self.draw_pic_rows(

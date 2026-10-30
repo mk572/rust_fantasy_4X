@@ -59,7 +59,7 @@ impl Page for GameOverPage {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         if app.draw_pic(&lay, "halofam", 0, 0, 0.0, 0.0).is_none() {
-            let r = lay.rect((0.0, 0.0, 320.0, 200.0));
+            let r = lay.rect(crate::resolution::SCREEN);
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.08, 0.06, 1.0));
         }
         let ink = Color::new(0.95, 0.8, 0.45, 1.0);

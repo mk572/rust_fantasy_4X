@@ -284,7 +284,10 @@ impl App {
             .fold(self.art.text_width(4, &sel.title), f32::max);
         let width = SIDE_WIDTH + widest + 8.0 + RIGHT_WIDTH;
         let height = TOP_HEIGHT + ROW_HEIGHT * sel.rows.len() as f32 + BOTTOM_HEIGHT;
-        let (x1, y1) = ((320.0 - width) / 2.0, ((200.0 - height) / 2.0).floor());
+        let (x1, y1) = (
+            (crate::resolution::DESIGN_W - width) / 2.0,
+            ((crate::resolution::DESIGN_H - height) / 2.0).floor(),
+        );
         let (x2, y2) = (x1 + width - 1.0, y1 + height - 1.0);
 
         let hover = (0..sel.rows.len()).find(|&i| {

@@ -251,7 +251,7 @@ impl App {
                             sy,
                             WHITE,
                             DrawTextureParams {
-                                dest_size: Some(tex.size() * scale),
+                                dest_size: Some(crate::resolution::logical_size(&tex) * scale),
                                 ..Default::default()
                             },
                         );
@@ -349,7 +349,7 @@ impl App {
                 at.1,
                 WHITE,
                 DrawTextureParams {
-                    dest_size: Some(tex.size() * scale),
+                    dest_size: Some(crate::resolution::logical_size(&tex) * scale),
                     ..Default::default()
                 },
             );
@@ -491,7 +491,11 @@ impl App {
                 let h = look.houses[i];
                 let (px, py) = point(h.cell.0, h.cell.1, (0, 0));
                 let entry = HOUSES + usize::from(h.variant);
-                let Some(size) = self.art.picture("cmbtcity", entry, 0).map(|t| t.size()) else {
+                let Some(size) = self
+                    .art
+                    .picture("cmbtcity", entry, 0)
+                    .map(crate::resolution::logical_size)
+                else {
                     return;
                 };
                 (
@@ -510,7 +514,11 @@ impl App {
                 let Some(entry) = structure_entry(structure) else {
                     return;
                 };
-                let Some(size) = self.art.picture("cmbtcity", entry, 0).map(|t| t.size()) else {
+                let Some(size) = self
+                    .art
+                    .picture("cmbtcity", entry, 0)
+                    .map(crate::resolution::logical_size)
+                else {
                     return;
                 };
                 // The nature node's picture hangs from a different spot.
@@ -529,7 +537,10 @@ impl App {
                 let bank = usize::from(plane == Plane::Myrror);
                 let frame = usize::from(battle.map.wall(pos) == Wall::Broken);
                 let entry = bank * 12 + itr;
-                let Some(size) = self.art.picture("citywall", entry, frame).map(|t| t.size())
+                let Some(size) = self
+                    .art
+                    .picture("citywall", entry, frame)
+                    .map(crate::resolution::logical_size)
                 else {
                     return;
                 };
@@ -545,7 +556,11 @@ impl App {
                 let ((cgx, cgy), (dx, dy), (hang_x, hang_y), _) = magic_section(itr);
                 let entry = if kind == 0 { FIRE_WALL } else { DARK_WALL } + itr;
                 let frame = (get_time() * 6.0) as usize % 4;
-                let Some(size) = self.art.picture("citywall", entry, 0).map(|t| t.size()) else {
+                let Some(size) = self
+                    .art
+                    .picture("citywall", entry, 0)
+                    .map(crate::resolution::logical_size)
+                else {
                     return;
                 };
                 let (px, py) = point(cgx, cgy, (0, 0));
@@ -560,7 +575,11 @@ impl App {
                 let ((cgx, cgy), (dx, dy), (hang_x, hang_y), _) = magic_section(itr);
                 let entry = if kind == 0 { FIRE_WALL } else { DARK_WALL } + itr;
                 let frames = self.art.frames("wallrise", entry).max(1);
-                let Some(size) = self.art.picture("wallrise", entry, 0).map(|t| t.size()) else {
+                let Some(size) = self
+                    .art
+                    .picture("wallrise", entry, 0)
+                    .map(crate::resolution::logical_size)
+                else {
                     return;
                 };
                 let (px, py) = point(cgx, cgy, (0, 0));

@@ -346,7 +346,7 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (bx, bw) = (8.0, 224.0);
         let bh = 62.0 + rows as f32 * ROW;
-        let by = ((200.0 - bh) / 2.0).floor();
+        let by = ((crate::resolution::DESIGN_H - bh) / 2.0).floor();
         let first = prompt
             .cursor
             .saturating_sub(SHOWN - 1)

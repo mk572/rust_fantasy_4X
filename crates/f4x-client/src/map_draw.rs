@@ -24,7 +24,7 @@ fn draw_pic(tex: &Texture2D, x: f32, y: f32, scale: f32) {
         y,
         WHITE,
         DrawTextureParams {
-            dest_size: Some(tex.size() * scale),
+            dest_size: Some(crate::resolution::logical_size(tex) * scale),
             ..Default::default()
         },
     );

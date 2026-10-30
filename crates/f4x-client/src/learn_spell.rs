@@ -129,7 +129,7 @@ impl App {
         self.draw_pic(lay, "wizlab", wizard, 0, 69.0, 75.0);
         let frame = (t / LAB_STEP) as usize % frames;
         self.draw_pic(lay, "wizlab", familiar, frame, 190.0, 160.0);
-        self.clipped((0.0, 0.0, 320.0, 200.0), |app| {
+        self.clipped(crate::resolution::SCREEN, |app| {
             app.draw_pic(lay, "wizlab", 21, 0, 132.0, -3.0);
         });
     }

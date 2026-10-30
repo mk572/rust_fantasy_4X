@@ -125,7 +125,7 @@ impl App {
                 to.y,
                 tint,
                 DrawTextureParams {
-                    dest_size: Some(tex.size() * lay.scale),
+                    dest_size: Some(crate::resolution::logical_size(tex) * lay.scale),
                     ..Default::default()
                 },
             );
@@ -227,7 +227,9 @@ impl App {
         // The buttons.
         let special = self.special_action();
         let mut button = |app: &mut App, entry: usize, at: (f32, f32), which: StackButton| {
-            let tex_size = app.art_picture("main", entry, 0).map(|t| t.size());
+            let tex_size = app
+                .art_picture("main", entry, 0)
+                .map(|t| crate::resolution::logical_size(&t));
             let state = tex_size.map_or(ui::Hit::None, |s| {
                 let p = lay.point(at.0, at.1);
                 ui::hit(

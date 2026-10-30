@@ -651,7 +651,7 @@ impl BookUi {
     ) {
         // The combat book lies on the battlefield; the overland one on a dark ground.
         if self.combat.is_none() {
-            let full = lay.rect((0.0, 0.0, 320.0, 200.0));
+            let full = lay.rect(crate::resolution::SCREEN);
             draw_rectangle(
                 full.x,
                 full.y,

@@ -144,7 +144,7 @@ impl Page for CityListUi {
         let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         if app.draw_pic(&lay, "reload", 21, 0, 0.0, 0.0).is_none() {
-            let r = lay.rect((0.0, 0.0, 320.0, 200.0));
+            let r = lay.rect(crate::resolution::SCREEN);
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.2, 0.2, 0.3, 1.0));
         }
         let count = rows.len();

@@ -401,7 +401,7 @@ impl App {
             at.y,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(tex.size() * lay.scale * size / 100.0),
+                dest_size: Some(crate::resolution::logical_size(&tex) * lay.scale * size / 100.0),
                 rotation: angle.to_radians(),
                 pivot: Some(at),
                 ..Default::default()
@@ -517,7 +517,7 @@ fn clip_to_screen(lay: &Layout, on: bool) {
     let mut gl = unsafe { get_internal_gl() };
     gl.flush();
     if on {
-        let r = lay.rect((0.0, 0.0, 320.0, 200.0));
+        let r = lay.rect(crate::resolution::SCREEN);
         let dpi = screen_dpi_scale();
         gl.quad_gl.scissor(Some((
             (r.x * dpi) as i32,

@@ -218,7 +218,7 @@ impl App {
             p.y,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(tex.size() * lay.scale),
+                dest_size: Some(crate::resolution::logical_size(&tex) * lay.scale),
                 ..Default::default()
             },
         );

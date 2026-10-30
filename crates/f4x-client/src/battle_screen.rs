@@ -1715,7 +1715,7 @@ impl App {
         let mut gl = unsafe { get_internal_gl() };
         gl.flush();
         let dpi = screen_dpi_scale();
-        let clip = Layout::new().rect((0.0, 0.0, 320.0, 164.0));
+        let clip = Layout::new().rect((0.0, 0.0, crate::resolution::DESIGN_W, 164.0));
         gl.quad_gl.scissor(Some((
             (clip.x * dpi) as i32,
             (clip.y * dpi) as i32,
@@ -1821,7 +1821,7 @@ impl App {
                     sy - 17.0 * scale,
                     WHITE,
                     DrawTextureParams {
-                        dest_size: Some(tex.size() * scale),
+                        dest_size: Some(crate::resolution::logical_size(tex) * scale),
                         ..Default::default()
                     },
                 );
@@ -1980,7 +1980,7 @@ impl App {
                     (None, None) => self.art.figure(ty, vis.facing, frame, banner_index),
                 };
                 if let Some(tex) = tex {
-                    let native = tex.size();
+                    let native = crate::resolution::logical_size(tex);
                     // A unit sinking into the ground is drawn lower and cut off at the line
                     // its feet stood on.
                     let sunk = vis.sink.clamp(0.0, native.y);
@@ -1995,7 +1995,12 @@ impl App {
                         tint,
                         DrawTextureParams {
                             dest_size: Some(size),
-                            source: Some(Rect::new(0.0, 0.0, native.x, native.y - sunk)),
+                            source: Some(crate::resolution::pixel_rect(Rect::new(
+                                0.0,
+                                0.0,
+                                native.x,
+                                native.y - sunk,
+                            ))),
                             ..Default::default()
                         },
                     );
@@ -2012,7 +2017,7 @@ impl App {
                                 top.1,
                                 WHITE,
                                 DrawTextureParams {
-                                    dest_size: Some(blood.size() * scale),
+                                    dest_size: Some(crate::resolution::logical_size(blood) * scale),
                                     ..Default::default()
                                 },
                             );
@@ -2032,7 +2037,7 @@ impl App {
                     sy - 15.0 * scale,
                     Color::new(1.0, 1.0, 1.0, vis.alpha),
                     DrawTextureParams {
-                        dest_size: Some(tex.size() * scale),
+                        dest_size: Some(crate::resolution::logical_size(tex) * scale),
                         ..Default::default()
                     },
                 );
@@ -2044,7 +2049,7 @@ impl App {
             let base = sy + CELL_H * scale;
             match icon {
                 Some(tex) => {
-                    let size = tex.size() * scale * 1.3;
+                    let size = crate::resolution::logical_size(tex) * scale * 1.3;
                     draw_texture_ex(
                         tex,
                         cx - size.x / 2.0,
@@ -2152,7 +2157,7 @@ impl App {
                     oy + (y - 22.0) * scale,
                     WHITE,
                     DrawTextureParams {
-                        dest_size: Some(tex.size() * scale),
+                        dest_size: Some(crate::resolution::logical_size(tex) * scale),
                         ..Default::default()
                     },
                 ),

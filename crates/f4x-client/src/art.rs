@@ -3,7 +3,7 @@
 //! placeholder, so the game runs and CI passes without the original assets.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use f4x_data::spell_art::{Role, SpellArt};
 use macroquad::prelude::*;
@@ -379,7 +379,8 @@ impl Art {
         let fh = self.styles[style]
             .as_ref()
             .map_or(1, |s| s.height as usize)
-            .max(1);
+            .max(1)
+            * usize::from(crate::resolution::art_scale());
         let mut colors = Vec::new();
         for set in 0..16 {
             let (mut r, mut g, mut b, mut n) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
@@ -482,12 +483,12 @@ impl Art {
                     tint,
                     DrawTextureParams {
                         dest_size: Some(vec2(gw as f32 * scale, height * scale)),
-                        source: Some(Rect::new(
+                        source: Some(crate::resolution::pixel_rect(Rect::new(
                             gx as f32,
                             set.min(15) as f32 * height,
                             gw as f32,
                             height,
-                        )),
+                        ))),
                         ..Default::default()
                     },
                 );
@@ -502,15 +503,10 @@ impl Art {
     }
 
     fn texture(&mut self, relative: PathBuf) -> Option<&Texture2D> {
-        let path = self.dir.join(&relative);
+        let (dir, relative_path) = (self.dir.clone(), relative.clone());
         self.textures
             .entry(relative)
-            .or_insert_with(|| {
-                let bytes = std::fs::read(&path).ok()?;
-                let tex = Texture2D::from_file_with_format(&bytes, Some(ImageFormat::Png));
-                tex.set_filter(FilterMode::Nearest);
-                Some(tex)
-            })
+            .or_insert_with(|| load_texture(&dir, &relative_path))
             .as_ref()
     }
 
@@ -741,15 +737,11 @@ impl Art {
     /// A picture painted in a banner's shades, where `extract-art` wrote a banner mask for it.
     fn load_painted(&self, lbx: &str, entry: usize, frame: usize, banner: u8) -> Option<Texture2D> {
         let base = picture_base(&self.placed, lbx, entry, frame);
-        let bytes = std::fs::read(self.dir.join(format!("{base}.png"))).ok()?;
-        let mut img = Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()?;
+        let mut img = read_image(&self.dir, Path::new(&format!("{base}.png")))?;
         if let Some(shades) = self.banners.get(usize::from(banner)) {
-            if let Ok(mask_bytes) = std::fs::read(self.dir.join(format!("{base}_banner.png"))) {
-                if let Ok(mask) = Image::from_file_with_format(&mask_bytes, Some(ImageFormat::Png))
-                {
-                    let rgb = shades.map(|c| [c.r, c.g, c.b].map(|v| (v * 255.0).round() as u8));
-                    paint_banner(&mut img.bytes, &mask.bytes, &rgb);
-                }
+            if let Some(mask) = read_image(&self.dir, Path::new(&format!("{base}_banner.png"))) {
+                let rgb = shades.map(|c| [c.r, c.g, c.b].map(|v| (v * 255.0).round() as u8));
+                paint_banner(&mut img.bytes, &mask.bytes, &rgb);
             }
         }
         let tex = Texture2D::from_image(&img);
@@ -785,7 +777,10 @@ impl Art {
         if !self.textures.contains_key(&key) {
             let tex = crate::river_art::png(shape, frame, myrror).and_then(|bytes| {
                 let img = Image::from_file_with_format(bytes, Some(ImageFormat::Png)).ok()?;
-                let tex = Texture2D::from_image(&img);
+                let tex = Texture2D::from_image(&enlarged(
+                    img,
+                    usize::from(crate::resolution::art_scale()),
+                ));
                 tex.set_filter(FilterMode::Nearest);
                 Some(tex)
             });
@@ -840,9 +835,7 @@ impl Art {
         mask_frame: usize,
     ) -> Option<Texture2D> {
         let read = |lbx: &str, entry: usize, frame: usize| {
-            let path = self.dir.join(picture_path(&self.placed, lbx, entry, frame));
-            let bytes = std::fs::read(path).ok()?;
-            Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()
+            read_image(&self.dir, &picture_path(&self.placed, lbx, entry, frame))
         };
         let mut img = read(lbx, entry, frame)?;
         let mask = read(mask.0, mask.1, mask_frame)?;
@@ -928,6 +921,52 @@ fn picture_base(
         Some(place) => format!("../{place}_{frame:02}"),
         None => format!("{lbx}/{entry:03}_{frame:02}"),
     }
+}
+
+/// A picture file as an image at the art scale in use (`crate::resolution`): the finer art in
+/// `x2/` or `x4/` beside the originals when it has the file, otherwise the original enlarged by
+/// whole pixels, so an image is always the art scale times the size of its picture on the design
+/// grid.
+fn read_image(dir: &Path, relative: &Path) -> Option<Image> {
+    let scale = crate::resolution::art_scale();
+    if scale > 1 {
+        let fine = dir.join(format!("x{scale}")).join(relative);
+        if let Some(image) = std::fs::read(fine)
+            .ok()
+            .and_then(|bytes| Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok())
+        {
+            return Some(image);
+        }
+    }
+    let bytes = std::fs::read(dir.join(relative)).ok()?;
+    let image = Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()?;
+    Some(enlarged(image, usize::from(scale)))
+}
+
+/// `image` with every pixel repeated `by` times across and down.
+fn enlarged(image: Image, by: usize) -> Image {
+    if by <= 1 {
+        return image;
+    }
+    let (w, h) = (usize::from(image.width), usize::from(image.height));
+    let mut bytes = Vec::with_capacity(w * h * by * by * 4);
+    for y in 0..h * by {
+        for x in 0..w * by {
+            let at = ((y / by) * w + x / by) * 4;
+            bytes.extend_from_slice(&image.bytes[at..at + 4]);
+        }
+    }
+    Image {
+        bytes,
+        width: (w * by) as u16,
+        height: (h * by) as u16,
+    }
+}
+
+fn load_texture(dir: &Path, relative: &Path) -> Option<Texture2D> {
+    let tex = Texture2D::from_image(&read_image(dir, relative)?);
+    tex.set_filter(FilterMode::Nearest);
+    Some(tex)
 }
 
 fn picture_path(

@@ -90,7 +90,7 @@ impl App {
         let Some(tex) = self.art.unit_picture(&lbx, entry as usize, banner) else {
             return;
         };
-        let size = tex.size() * 1.5;
+        let size = crate::resolution::logical_size(tex) * 1.5;
         let to = lay.point(
             at.0 + (FRAME.0 - size.x) / 2.0,
             at.1 + (FRAME.1 - size.y) / 2.0,

@@ -343,7 +343,7 @@ impl App {
         let Some(tex) = self.art_picture(lbx, entry, 0) else {
             return;
         };
-        let h = tex.height();
+        let h = crate::resolution::logical_h(&tex);
         let (from, to) = (top.max(y), bottom.min(y + h));
         if to <= from {
             return;
@@ -355,8 +355,16 @@ impl App {
             at.y,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(vec2(tex.width() * lay.scale, (to - from) * lay.scale)),
-                source: Some(Rect::new(0.0, from - y, tex.width(), to - from)),
+                dest_size: Some(vec2(
+                    crate::resolution::logical_w(&tex) * lay.scale,
+                    (to - from) * lay.scale,
+                )),
+                source: Some(crate::resolution::pixel_rect(Rect::new(
+                    0.0,
+                    from - y,
+                    crate::resolution::logical_w(&tex),
+                    to - from,
+                ))),
                 ..Default::default()
             },
         );
@@ -703,7 +711,7 @@ impl Page for MagicUi {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let full = lay.rect((0.0, 0.0, 320.0, 200.0));
+        let full = lay.rect(crate::resolution::SCREEN);
         if app.draw_pic(&lay, "magic", 0, 0, 0.0, 0.0).is_none() {
             draw_rectangle(
                 full.x,

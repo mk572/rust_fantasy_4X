@@ -266,7 +266,7 @@ impl BigBookUi {
         corners: (bool, bool),
         hide: Option<(usize, usize)>,
     ) {
-        let full = lay.rect((0.0, 0.0, 320.0, 200.0));
+        let full = lay.rect(crate::resolution::SCREEN);
         if app.draw_pic(lay, "scroll", 6, 0, 0.0, 0.0).is_none() {
             draw_rectangle(
                 full.x,
@@ -523,7 +523,12 @@ impl BigBookUi {
         } else if input.key_pressed(KeyCode::Escape)
             || input.key_pressed(KeyCode::F3)
             || input.mouse_pressed(MouseButton::Right)
-            || click_in(0.0, 25.0, 320.0, 175.0)
+            || click_in(
+                0.0,
+                25.0,
+                crate::resolution::DESIGN_W,
+                crate::resolution::DESIGN_H - 25.0,
+            )
         {
             app.screen = Screen::Map;
             return;

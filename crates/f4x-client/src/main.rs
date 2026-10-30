@@ -58,6 +58,7 @@ mod page_turn;
 mod pointer;
 mod preferences;
 mod production_screen;
+mod resolution;
 mod resurrect_prompt;
 mod river_art;
 mod road_plan;
@@ -225,6 +226,7 @@ struct Options {
     audio: PathBuf,
     /// Play no sound.
     mute: bool,
+    art_scale: Option<u8>,
     /// Play one sound at start-up and quit after three seconds: `--hear soundfx:2`.
     hear: Option<(audio::Archive, u16)>,
     /// Start from a saved game.
@@ -243,6 +245,7 @@ fn parse_args() -> Result<Options, String> {
         assets: "assets-local/art".into(),
         audio: "assets-local/audio".into(),
         mute: false,
+        art_scale: None,
         hear: None,
         seed: 1,
         seed_given: false,
@@ -329,6 +332,13 @@ fn parse_args() -> Result<Options, String> {
             "--assets" => o.assets = value("--assets")?.into(),
             "--audio" => o.audio = value("--audio")?.into(),
             "--mute" => o.mute = true,
+            "--art-scale" => {
+                o.art_scale = Some(
+                    value("--art-scale")?
+                        .parse()
+                        .map_err(|_| "--art-scale takes 1, 2 or 4".to_string())?,
+                )
+            }
             "--hear" => {
                 let v = value("--hear")?;
                 o.hear = v
@@ -524,7 +534,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|conquest|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--attack-box] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|conquest|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--attack-box] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -590,6 +600,7 @@ async fn main() {
     app.event_texts = f4x_data::load_event_texts(&options.content).unwrap_or_default();
     app.diplomsg = f4x_data::load_diplomacy_lines(&options.content).unwrap_or_default();
     app.prefs = preferences::Preferences::load(Path::new(preferences::FILE), app.prefs.clone());
+    resolution::set_art_scale(options.art_scale.unwrap_or(app.prefs.art_scale));
     if let Some(path) = &options.load {
         if let Err(e) = app.load_from(path) {
             eprintln!("could not load {}: {e}", path.display());

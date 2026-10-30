@@ -294,7 +294,7 @@ impl App {
         set_default_camera();
         let columns = (w * shape.percent / 100.0).floor() as i32;
         let step = 100.0 / shape.percent;
-        self.clipped((0.0, 0.0, 320.0, 200.0), |_| {
+        self.clipped(crate::resolution::SCREEN, |_| {
             for c in 0..columns {
                 let at = lay.point(shape.at.0 + c as f32, shape.at.1 + lift(shape.curve, c));
                 draw_texture_ex(

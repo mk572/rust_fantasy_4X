@@ -242,8 +242,11 @@ impl App {
                     .min(2),
             ),
         };
-        if let Some(size) = entry.and_then(|e| self.art.picture("cityscap", e, 0).map(|t| t.size()))
-        {
+        if let Some(size) = entry.and_then(|e| {
+            self.art
+                .picture("cityscap", e, 0)
+                .map(crate::resolution::logical_size)
+        }) {
             let x = px + 6.0 + ((44.0 - size.x) / 2.0).floor();
             let y = py + 4.0 + ((36.0 - size.y) / 2.0).floor();
             if let Some(entry) = entry {

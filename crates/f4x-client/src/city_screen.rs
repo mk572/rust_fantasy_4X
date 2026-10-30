@@ -28,13 +28,14 @@ pub(crate) struct Layout {
 
 impl Layout {
     pub(crate) fn new() -> Self {
-        let scale = (screen_height() / 200.0)
-            .min(screen_width() / 320.0)
+        use crate::resolution::{DESIGN_H, DESIGN_W};
+        let scale = (screen_height() / DESIGN_H)
+            .min(screen_width() / DESIGN_W)
             .floor()
             .max(1.0);
         Self {
-            ox: (screen_width() - 320.0 * scale) / 2.0,
-            oy: (screen_height() - 200.0 * scale) / 2.0,
+            ox: (screen_width() - DESIGN_W * scale) / 2.0,
+            oy: (screen_height() - DESIGN_H * scale) / 2.0,
             scale,
         }
     }
@@ -164,7 +165,12 @@ impl App {
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         // The original's panels are see-through cut-outs: back them with white, as the game did.
-        let full = lay.rect(0.0, 0.0, 320.0, 200.0);
+        let full = lay.rect(
+            0.0,
+            0.0,
+            crate::resolution::DESIGN_W,
+            crate::resolution::DESIGN_H,
+        );
         draw_rectangle(full.x, full.y, full.w, full.h, WHITE);
         match self.art.picture("backgrnd", 6, 0) {
             Some(tex) => draw_texture_ex(
@@ -242,7 +248,7 @@ impl App {
             at.y,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(tex.size() * lay.scale),
+                dest_size: Some(crate::resolution::logical_size(&tex) * lay.scale),
                 ..Default::default()
             },
         );
@@ -281,7 +287,7 @@ impl App {
             at.y,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(faded.size() * lay.scale),
+                dest_size: Some(crate::resolution::logical_size(&faded) * lay.scale),
                 ..Default::default()
             },
         );
@@ -1208,15 +1214,23 @@ impl App {
                     // The left part of the full coin over the empty one.
                     if let Some(tex) = self.art.picture("backgrnd", 12, 0).cloned() {
                         let width = (part / 2) as f32;
-                        let at = lay.rect(x, y, width, tex.height());
+                        let at = lay.rect(x, y, width, crate::resolution::logical_h(&tex));
                         draw_texture_ex(
                             &tex,
                             at.x,
                             at.y,
                             WHITE,
                             DrawTextureParams {
-                                dest_size: Some(vec2(at.w, tex.height() * lay.scale)),
-                                source: Some(Rect::new(0.0, 0.0, width, tex.height())),
+                                dest_size: Some(vec2(
+                                    at.w,
+                                    crate::resolution::logical_h(&tex) * lay.scale,
+                                )),
+                                source: Some(crate::resolution::pixel_rect(Rect::new(
+                                    0.0,
+                                    0.0,
+                                    width,
+                                    crate::resolution::logical_h(&tex),
+                                ))),
                                 ..Default::default()
                             },
                         );
@@ -1245,13 +1259,17 @@ impl App {
             return;
         }
         let step = if slots > 1 {
-            ((18.0 - tex.width()) / (slots - 1) as f32).clamp(0.5, tex.width())
+            ((18.0 - crate::resolution::logical_w(&tex)) / (slots - 1) as f32)
+                .clamp(0.5, crate::resolution::logical_w(&tex))
         } else {
             0.0
         };
         for k in 0..slots {
             let at = lay.rect(x + k as f32 * step, y, 0.0, 0.0);
-            let (w, h) = (tex.width() * lay.scale, tex.height() * lay.scale);
+            let (w, h) = (
+                crate::resolution::logical_w(&tex) * lay.scale,
+                crate::resolution::logical_h(&tex) * lay.scale,
+            );
             if half && k == slots - 1 {
                 // The half loaf: the triangle above the diagonal from the top right.
                 let corner = |dx: f32, dy: f32, u: f32, v: f32| {
@@ -1283,7 +1301,11 @@ impl App {
 
     /// A `cityscap` picture centred in the 44 by 31 pixels at (215, 147).
     fn draw_centred_building(&mut self, lay: Layout, entry: usize) {
-        let Some(size) = self.art.picture("cityscap", entry, 0).map(|t| t.size()) else {
+        let Some(size) = self
+            .art
+            .picture("cityscap", entry, 0)
+            .map(crate::resolution::logical_size)
+        else {
             return;
         };
         let x = 215.0 + ((44.0 - size.x) / 2.0).floor();

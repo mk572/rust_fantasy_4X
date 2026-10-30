@@ -253,7 +253,10 @@ impl App {
             .map(|l| (0.0, l))
             .collect();
         let paragraph = line * lines.len() as f32;
-        let (x, y) = (68.0, ((200.0 - (paragraph + 34.0)) / 2.0).floor());
+        let (x, y) = (
+            68.0,
+            ((crate::resolution::DESIGN_H - (paragraph + 34.0)) / 2.0).floor(),
+        );
         self.draw_pic_rows(lay, "resource", 0, x, y, y, y + paragraph + 12.0);
         self.draw_pic(lay, "resource", 1, 0, x, y + paragraph + 10.0);
         self.draw_box_text(view, &lines, x + 9.0, y + 9.0, line);
@@ -304,7 +307,10 @@ impl App {
         let line = self.art.text_height(4) + 2.0;
         let lines = self.bm_wrap(4, text, 166.0);
         let paragraph = line * lines.len() as f32;
-        let (x, y) = (68.0, ((200.0 - (paragraph + 33.0)) / 2.0).floor());
+        let (x, y) = (
+            68.0,
+            ((crate::resolution::DESIGN_H - (paragraph + 33.0)) / 2.0).floor(),
+        );
         self.draw_pic_rows(lay, "resource", 38, x, y, y, y + paragraph + 12.0);
         self.draw_pic(lay, "resource", 39, 0, x, y + paragraph + 10.0);
         let shadow = Color::new(0.2, 0.02, 0.02, 1.0);

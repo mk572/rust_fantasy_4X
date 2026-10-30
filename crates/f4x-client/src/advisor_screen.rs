@@ -66,7 +66,7 @@ impl Page for HistoryPage {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         if app.draw_pic(&lay, "reload", 0, 0, 0.0, 0.0).is_none() {
-            let r = lay.rect((0.0, 0.0, 320.0, 200.0));
+            let r = lay.rect(crate::resolution::SCREEN);
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.08, 0.07, 0.06, 1.0));
         }
         let gold = Color::new(0.95, 0.85, 0.5, 1.0);
@@ -241,7 +241,7 @@ impl Page for CartographerPage {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         if app.draw_pic(&lay, "reload", 2, 0, 0.0, 0.0).is_none() {
-            let r = lay.rect((0.0, 0.0, 320.0, 200.0));
+            let r = lay.rect(crate::resolution::SCREEN);
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.4, 0.3, 0.15, 1.0));
         }
         let plane = self.plane;

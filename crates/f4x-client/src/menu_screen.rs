@@ -349,7 +349,7 @@ impl Page for SlotsPage {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         if app.draw_pic(&lay, "load", 0, 0, 0.0, 0.0).is_none() {
-            let r = lay.rect((0.0, 0.0, 320.0, 200.0));
+            let r = lay.rect(crate::resolution::SCREEN);
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.08, 0.07, 0.06, 1.0));
             app.draw_styled(
                 view,

@@ -369,7 +369,7 @@ impl CreateState {
     fn frame_of_step(&mut self, app: &mut App, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
-        let r = lay.rect((0.0, 0.0, 320.0, 200.0));
+        let r = lay.rect(crate::resolution::SCREEN);
         draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.2, 0.15, 0.1, 1.0));
         let background = if self.step == Step::Picks { 41 } else { 0 };
         app.draw_pic(&lay, "newgame", background, 0, 0.0, 0.0);

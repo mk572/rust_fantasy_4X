@@ -352,7 +352,7 @@ impl App {
         let line = self.art.text_height(4) + 2.0;
         let lines = self.wrap_round_picture(text, line);
         let paragraph = line * lines.len() as f32;
-        let top_y = ((200.0 - (34.0 + paragraph)) / 2.0).floor();
+        let top_y = ((crate::resolution::DESIGN_H - (34.0 + paragraph)) / 2.0).floor();
         let bottom = paragraph.max(75.0) + top_y + 6.0 + 6.0;
         self.draw_pic_rows(lay, "backgrnd", 25, BOX_X, top_y, top_y, bottom);
         self.draw_pic(lay, "reload", 9 + site, 0, BOX_X + 7.0, top_y + 7.0);
@@ -402,9 +402,12 @@ impl App {
             .ceil();
         let x = (190.0 - ((96.0 + widest) / 2.0)).floor();
         let y = 60.0;
-        self.clipped((0.0, 0.0, widest + x + 12.0, 200.0), |app| {
-            app.draw_pic(lay, "resource", 56, 0, x, y);
-        });
+        self.clipped(
+            (0.0, 0.0, widest + x + 12.0, crate::resolution::DESIGN_H),
+            |app| {
+                app.draw_pic(lay, "resource", 56, 0, x, y);
+            },
+        );
         let right = x + widest + 12.0;
         self.draw_pic(lay, "resource", 57, 0, right, y);
         self.draw_pic(lay, "reload", 20, 0, right + 2.0 + 4.0, y + 8.0);

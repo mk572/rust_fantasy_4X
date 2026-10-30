@@ -16,8 +16,7 @@ use macroquad::prelude::*;
 use crate::ui::{self, GOLD};
 use crate::view::{App, HUMAN};
 
-pub const ORIGINAL_W: f32 = 320.0;
-pub const ORIGINAL_H: f32 = 200.0;
+pub use crate::resolution::{DESIGN_H as ORIGINAL_H, DESIGN_W as ORIGINAL_W};
 
 /// Where the original's elements sit, in its 320 by 200 pixels.
 pub mod spot {
@@ -164,7 +163,16 @@ impl App {
         let Some(tex) = self.art_picture(lbx, entry, 0) else {
             return false;
         };
-        let state = ui::hit(lay.rect((x, y, tex.width(), tex.height())), enabled, input);
+        let state = ui::hit(
+            lay.rect((
+                x,
+                y,
+                crate::resolution::logical_w(&tex),
+                crate::resolution::logical_h(&tex),
+            )),
+            enabled,
+            input,
+        );
         let (mut frame, mut tint) = (usize::from(state.held()), WHITE);
         match (enabled, disabled) {
             (false, Disabled::Frame(f)) => frame = f,
@@ -191,7 +199,7 @@ impl App {
         tint: Color,
     ) -> Option<Rect> {
         let tex = self.art_picture(lbx, entry, frame)?;
-        let size = tex.size() * lay.scale;
+        let size = crate::resolution::logical_size(&tex) * lay.scale;
         let at = lay.point(x, y);
         draw_texture_ex(
             &tex,
@@ -245,7 +253,12 @@ impl App {
                 .art_picture("main", entry, 0)
                 .map_or(ui::Hit::None, |t| {
                     let at = lay.point(x, spot::MENU_Y);
-                    let rect = Rect::new(at.x, at.y, t.width() * s, t.height() * s);
+                    let rect = Rect::new(
+                        at.x,
+                        at.y,
+                        crate::resolution::logical_w(&t) * s,
+                        crate::resolution::logical_h(&t) * s,
+                    );
                     ui::hit(rect, true, input)
                 });
             let frame = usize::from(state.held());
@@ -385,7 +398,12 @@ impl App {
             let state = self.art_picture("main", 58, 0).map_or(ui::Hit::None, |t| {
                 let p = lay.point(bx, by);
                 ui::hit(
-                    Rect::new(p.x, p.y, t.width() * s, t.height() * s),
+                    Rect::new(
+                        p.x,
+                        p.y,
+                        crate::resolution::logical_w(&t) * s,
+                        crate::resolution::logical_h(&t) * s,
+                    ),
                     true,
                     input,
                 )

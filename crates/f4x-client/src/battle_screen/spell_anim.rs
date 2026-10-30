@@ -154,7 +154,7 @@ impl App {
                     oy + at.1 * scale,
                     WHITE,
                     DrawTextureParams {
-                        dest_size: Some(tex.size() * scale),
+                        dest_size: Some(crate::resolution::logical_size(tex) * scale),
                         ..Default::default()
                     },
                 );

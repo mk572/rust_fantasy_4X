@@ -172,17 +172,20 @@ impl App {
         let (mascot_x, mascot_y) = MASCOT[realm];
         let x = if mascot_x < 0.0 { 6.0 - mascot_x } else { 6.0 };
         let right = TEXT_X[realm] + x + widest;
-        self.clipped((0.0, 0.0, x + right + 12.0, 200.0), |app| {
-            app.draw_pic(lay, "resource", strip, 0, x, top);
-            app.draw_pic(
-                lay,
-                "resource",
-                51 + realm,
-                0,
-                x + mascot_x - 1.0,
-                top + mascot_y,
-            );
-        });
+        self.clipped(
+            (0.0, 0.0, x + right + 12.0, crate::resolution::DESIGN_H),
+            |app| {
+                app.draw_pic(lay, "resource", strip, 0, x, top);
+                app.draw_pic(
+                    lay,
+                    "resource",
+                    51 + realm,
+                    0,
+                    x + mascot_x - 1.0,
+                    top + mascot_y,
+                );
+            },
+        );
         let black = lay.rect((right + 2.0, top, 46.0, 56.0));
         draw_rectangle(black.x, black.y, black.w, black.h, BLACK);
         self.draw_pic(lay, "resource", strip + 2, 0, right + 1.0, top);

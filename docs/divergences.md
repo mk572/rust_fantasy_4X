@@ -420,6 +420,9 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
   too; the original writes only on OK. A **Game...** button leads to the game's own settings
   (task 94), which the original keeps on the new-game screens. Random Events is a rules switch here
   as in the original, but it is stored with the preferences until task 274 decides where it lives.
+- **An art scale (1, 2 or 4) is stored beside them** (`art_scale=N`, read at start-up, or
+  `--art-scale N`): the screens keep the original's 320 by 200 layout and the art may be 640 by
+  400 or 1280 by 800 for the same layout (`resolution.rs`, task 393). The original has one size.
 
 ## 15. Ice Storm and Fire Storm (task 56)
 

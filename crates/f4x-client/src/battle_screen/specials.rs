@@ -40,7 +40,7 @@ impl App {
             return;
         };
         let (src_y, h) = rows;
-        let full = tex.width();
+        let full = crate::resolution::logical_w(&tex);
         let pieces = [
             (0.0, SIDE, at.0),
             (SIDE, w - 2.0 * SIDE, at.0 + SIDE),
@@ -55,12 +55,12 @@ impl App {
                 WHITE,
                 DrawTextureParams {
                     dest_size: Some(vec2(width * lay.scale, h * lay.scale)),
-                    source: Some(Rect::new(
+                    source: Some(crate::resolution::pixel_rect(Rect::new(
                         src_x,
                         src_y,
                         width.min(full - 2.0 * SIDE).max(SIDE),
                         h,
-                    )),
+                    ))),
                     ..Default::default()
                 },
             );
@@ -73,7 +73,7 @@ impl App {
         let middle = self
             .art
             .picture("compix", 57, 0)
-            .map_or(100.0, |t| t.height());
+            .map_or(100.0, crate::resolution::logical_h);
         let body = height - EDGE_TOP - EDGE_BOTTOM;
         let mut done = 0.0;
         while done < body {

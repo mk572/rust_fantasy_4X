@@ -405,7 +405,9 @@ impl App {
         match self.screen {
             Screen::Console => false,
             Screen::Map => !lay.rect(crate::frame::spot::MAP).contains(at),
-            Screen::Battle => !lay.rect((0.0, 0.0, 320.0, 164.0)).contains(at),
+            Screen::Battle => !lay
+                .rect((0.0, 0.0, crate::resolution::DESIGN_W, 164.0))
+                .contains(at),
             _ => true,
         }
     }

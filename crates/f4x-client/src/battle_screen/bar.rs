@@ -132,7 +132,9 @@ impl App {
     /// Whether a window point is on the map (the original's map window), not on the panel or
     /// the box of the selected unit's spells.
     pub(super) fn on_map(&self, ui: &mut BattleUi, point: Vec2) -> bool {
-        Layout::new().rect((0.0, 0.0, 320.0, BAR_Y)).contains(point)
+        Layout::new()
+            .rect((0.0, 0.0, crate::resolution::DESIGN_W, BAR_Y))
+            .contains(point)
             && !ui.box_rect.is_some_and(|r| r.contains(point))
     }
 
@@ -365,8 +367,8 @@ impl App {
         if let Some(tex) = unit_type.and_then(|t| self.art.figure(t, 2, 0, banner).cloned()) {
             // Centred in the 32 by 25 box at (84, 173).
             let at = lay.point(
-                84.0 + (32.0 - tex.width()) / 2.0,
-                173.0 + (25.0 - tex.height()) / 2.0,
+                84.0 + (32.0 - crate::resolution::logical_w(&tex)) / 2.0,
+                173.0 + (25.0 - crate::resolution::logical_h(&tex)) / 2.0,
             );
             draw_texture_ex(
                 &tex,
@@ -374,7 +376,7 @@ impl App {
                 at.y,
                 WHITE,
                 DrawTextureParams {
-                    dest_size: Some(tex.size() * lay.scale),
+                    dest_size: Some(crate::resolution::logical_size(&tex) * lay.scale),
                     ..Default::default()
                 },
             );

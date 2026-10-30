@@ -39,7 +39,7 @@ impl Layout {
         Layout {
             items,
             rows,
-            top: 100.0 - (height / 2.0).floor(),
+            top: crate::resolution::DESIGN_H / 2.0 - (height / 2.0).floor(),
         }
     }
 
@@ -83,8 +83,12 @@ impl App {
     /// Draw the window; true once it is dismissed.
     pub(crate) fn draw_battle_info(&mut self, info: &BattleInfo, input: &Input) -> bool {
         let (w, h) = (screen_width(), screen_height());
-        let s = (w / 320.0).min(h / 200.0);
-        let view = ((w - 320.0 * s) / 2.0, (h - 200.0 * s) / 2.0, s);
+        let s = (w / crate::resolution::DESIGN_W).min(h / crate::resolution::DESIGN_H);
+        let view = (
+            (w - crate::resolution::DESIGN_W * s) / 2.0,
+            (h - crate::resolution::DESIGN_H * s) / 2.0,
+            s,
+        );
         let (ox, oy, _) = view;
         let at = |x: f32, y: f32| (ox + x * s, oy + y * s);
         let lay = Layout::new(info);
@@ -94,7 +98,7 @@ impl App {
             let Some(tex) = app.art.picture("compix", entry, 0).cloned() else {
                 return;
             };
-            let height = height.min(tex.height());
+            let height = height.min(crate::resolution::logical_h(&tex));
             if height <= 0.0 {
                 return;
             }
@@ -106,7 +110,9 @@ impl App {
                 WHITE,
                 DrawTextureParams {
                     dest_size: Some(vec2(WIDTH * s, height * s)),
-                    source: Some(Rect::new(0.0, 0.0, WIDTH, height)),
+                    source: Some(crate::resolution::pixel_rect(Rect::new(
+                        0.0, 0.0, WIDTH, height,
+                    ))),
                     ..Default::default()
                 },
             );
@@ -118,7 +124,7 @@ impl App {
             let top_h = self
                 .art
                 .picture("compix", 58, 0)
-                .map_or(0.0, |t| t.height());
+                .map_or(0.0, crate::resolution::logical_h);
             if top_end - lay.top > top_h {
                 strip(self, 57, lay.top + top_h, top_end - lay.top - top_h);
             }
@@ -186,7 +192,7 @@ impl App {
                     py,
                     WHITE,
                     DrawTextureParams {
-                        dest_size: Some(tex.size() * s),
+                        dest_size: Some(crate::resolution::logical_size(&tex) * s),
                         ..Default::default()
                     },
                 );
@@ -205,7 +211,7 @@ impl App {
                     py,
                     WHITE,
                     DrawTextureParams {
-                        dest_size: Some(tex.size() * s),
+                        dest_size: Some(crate::resolution::logical_size(&tex) * s),
                         ..Default::default()
                     },
                 );

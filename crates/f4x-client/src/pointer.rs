@@ -46,7 +46,7 @@ impl App {
             at.y,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(tex.size() * Layout::new().scale),
+                dest_size: Some(crate::resolution::logical_size(&tex) * Layout::new().scale),
                 ..Default::default()
             },
         );

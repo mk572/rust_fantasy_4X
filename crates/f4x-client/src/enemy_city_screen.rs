@@ -58,7 +58,7 @@ impl Page for EnemyCityPage {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         if app.city_pic(lay, "reload", 26, 0, X - 1.0, 0.0) {
         } else {
-            let r = lay.rect(X - 1.0, 0.0, 212.0, 200.0);
+            let r = lay.rect(X - 1.0, 0.0, 212.0, crate::resolution::DESIGN_H);
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.3, 0.25, 0.2, 1.0));
         }
 

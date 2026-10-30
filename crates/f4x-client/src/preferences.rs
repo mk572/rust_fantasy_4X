@@ -119,6 +119,9 @@ pub(crate) struct Preferences {
     /// original).
     pub music_volume: u8,
     pub effects_volume: u8,
+    /// The scale of the art (1, 2 or 4; `crate::resolution`): 320x200, 640x400 or 1280x800
+    /// pictures for the same screen layout. Read at start-up.
+    pub art_scale: u8,
 }
 
 /// The volumes a game starts with.
@@ -131,6 +134,7 @@ impl Default for Preferences {
             on: PREFS.map(Pref::default_on),
             music_volume: MUSIC_VOLUME,
             effects_volume: EFFECTS_VOLUME,
+            art_scale: 1,
         }
     }
 }
@@ -174,6 +178,9 @@ impl Preferences {
                 match (key.trim(), volume) {
                     ("music_volume", Some(v)) => prefs.music_volume = v,
                     ("effects_volume", Some(v)) => prefs.effects_volume = v,
+                    ("art_scale", Some(v)) if crate::resolution::ART_SCALES.contains(&v) => {
+                        prefs.art_scale = v
+                    }
                     _ => {}
                 }
                 if let Some(&p) = PREFS.iter().find(|p| p.key() == key.trim()) {
@@ -195,6 +202,7 @@ impl Preferences {
         for (key, value) in [
             ("music_volume", self.music_volume),
             ("effects_volume", self.effects_volume),
+            ("art_scale", self.art_scale),
         ] {
             text += &format!("{}={}\n", key, value);
         }
@@ -222,6 +230,7 @@ mod tests {
         p.toggle(Pref::StrategicCombatOnly);
         p.music_volume = 30;
         p.effects_volume = 0;
+        p.art_scale = 2;
         p.save(&path).unwrap();
         let mut text = std::fs::read_to_string(&path).unwrap();
         text.push_str("nonsense=1\njunk\n");
