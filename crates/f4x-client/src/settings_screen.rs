@@ -125,7 +125,10 @@ impl Page for SettingsPage {
         let game = lay.rect((31.0, 186.0, 60.0, 10.0));
         if button(game, &app.text("settings.game"), true, input) {
             app.save_preferences();
-            app.screen = Screen::GameSettings;
+            app.open_page(
+                Screen::GameSettings,
+                crate::options_screen::GameSettingsPage,
+            );
             return;
         }
         if ok_hit.clicked()
