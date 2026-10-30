@@ -1,4 +1,4 @@
-//! Running short of mana, gold or food (tasks 62 and 292): the AI chooses what to give up as a
+//! Running short of mana, gold or food: the AI chooses what to give up as a
 //! player does, through `ReleaseUpkeep` and `ReleaseTroops`, instead of leaving it to the turn
 //! change. The rules are deliberately plain and fixed, so the scripted AI is deterministic:
 //! mana: the newest spells and summons go (what the turn change would do); gold: first sell
@@ -121,16 +121,13 @@ mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0};
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     #[test]
-    fn the_ai_lets_go_of_the_units_it_cannot_feed_or_pay_for() {
+    fn the_ai_lets_go_of_the_units_it_cannot_feed_or_pay_for() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
-        // Full upkeep: with the half upkeep of the shipped content a part of the troops is free,
-        // and the AI lets go of the paying ones only.
-        let mut content = g.content().clone();
-        content.settings.half_upkeep.enabled = false;
-        g.set_content(content);
         let army = spawn(&mut g, P0, at(9, 6), "high_men_spearmen", 8);
-        g.treasury_mut(P0).unwrap().gold = 3;
+        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold = 3;
         g.apply(Command::SetTaxRate {
             player: P0,
             rate: 0,
@@ -159,28 +156,29 @@ mod tests {
             .map(|&u| g.units().unit_owner(u).is_some())
             .collect();
         assert!(kept.windows(2).all(|w| w[0] || !w[1]), "{kept:?}");
+        Ok(())
     }
 
     #[test]
-    fn a_building_another_one_needs_is_not_put_up_for_sale() {
+    fn a_building_another_one_needs_is_not_put_up_for_sale() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         let pos = at(COAST_CITY.0, COAST_CITY.1);
         crate::testworld::build(&mut g, pos, &["barracks", "smithy", "library"]);
-        let city = g.economy().city_at(pos).unwrap();
+        let city = g.economy().city_at(pos).ok_or("player 0 has a city")?;
+        let buildings = &g.content().rules.buildings;
+        let smithy = buildings.id_of("smithy").ok_or("smithy is shipped")?;
+        let library = buildings.id_of("library").ok_or("library is shipped")?;
         let name = |g: &Game, b| g.content().rules.buildings.get(b).id.clone();
         let sale = |g: &Game| next_sale(g, P0).map(|(_, b)| name(g, b));
         assert_eq!(sale(&g).as_deref(), Some("library"));
         // The stables need the smithy: the smithy is no longer on offer, the library still is.
         crate::testworld::build(&mut g, pos, &["stables"]);
-        assert!(g
-            .economy()
-            .sale_price(city, g.content().rules.buildings.id_of("smithy").unwrap())
-            .is_err());
+        assert!(g.economy().sale_price(city, smithy).is_err());
         assert_eq!(sale(&g).as_deref(), Some("library"));
         // Without the library nothing else is both dispensable and free to sell.
-        let library = g.content().rules.buildings.id_of("library").unwrap();
         g.scenario_set_building(city, library, false);
         assert_eq!(sale(&g), None);
+        Ok(())
     }
 
     #[test]
