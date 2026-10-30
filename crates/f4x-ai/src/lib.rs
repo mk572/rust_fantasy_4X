@@ -5,7 +5,8 @@
 //! spells, city production, settlers, the army) and leaves ending the turn to the caller,
 //! because a turn ends for every wizard at once; [`play_round`] does that for a list of AIs.
 //!
-//! Tests: in the modules (each decision has its own file and tests); `tests/it/` plays whole turns.
+//! Tests: in the modules (each decision has its own file and tests); `tests/it/` has the rules of
+//! the ships and the slow whole-game behaviour tests (ignored by default).
 
 mod diplomacy;
 mod economy;
