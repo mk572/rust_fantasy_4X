@@ -12,6 +12,7 @@ use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use macroquad::prelude::*;
 
+use crate::city_screen::CityPage;
 use crate::frame::Layout;
 use crate::view::{App, HUMAN};
 
@@ -66,7 +67,8 @@ impl App {
         (buildings, units)
     }
 
-    pub(crate) fn draw_production_screen(&mut self, city: hecs::Entity, input: &Input) {
+    pub(crate) fn draw_production_screen(&mut self, page: &mut CityPage, input: &Input) {
+        let city = page.city;
         let lay = Layout::new();
         clear_background(Color::new(0.03, 0.09, 0.09, 1.0));
         let (buildings, units) = self.production_columns(city);
@@ -126,7 +128,7 @@ impl App {
         }
 
         let city_lay = crate::city_screen::Layout::new();
-        self.draw_autobuild_button(city, city_lay, (2.0, 181.0, 70.0), input);
+        self.draw_autobuild_button(page, city_lay, (2.0, 181.0, 70.0), input);
         let (cancel, ok) = (self.text("ui.cancel"), self.text("ui.ok"));
         let cancel = self.red_button(&lay, &cancel, 99.0, 181.0, input);
         let ok = self.red_button(&lay, &ok, 172.0, 181.0, input);

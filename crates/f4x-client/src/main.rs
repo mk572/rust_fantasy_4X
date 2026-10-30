@@ -606,15 +606,7 @@ async fn main() {
     if options.city {
         app.open_first_city();
         if options.autobuild {
-            app.autobuild_dialog = Some(autobuild_dialog::AutoDialog {
-                plan: f4x_core::city::autobuild::BuildPlan {
-                    primary: f4x_core::city::autobuild::Focus::Defense,
-                    secondary: Some(f4x_core::city::autobuild::Focus::Gold),
-                    settlers: true,
-                    ..Default::default()
-                },
-                had_plan: true,
-            });
+            app.open_test_autobuild();
         }
         if options.sell {
             app.open_test_sale();

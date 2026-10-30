@@ -55,21 +55,39 @@ const GARRISON: (f32, f32) = (215.0, 102.0);
 /// The city screen of one city.
 pub(crate) struct CityPage {
     pub(crate) city: hecs::Entity,
+    /// The new name being typed in the rename box.
+    pub(crate) naming: Option<String>,
+    /// The auto-builder dialog while it is open.
+    pub(crate) autobuild: Option<crate::autobuild_dialog::AutoDialog>,
+    /// Whether the worked-area map shows each square's food and production.
+    pub(crate) area_figures: bool,
+}
+
+impl CityPage {
+    pub(crate) fn new(city: hecs::Entity) -> CityPage {
+        CityPage {
+            city,
+            naming: None,
+            autobuild: None,
+            area_figures: false,
+        }
+    }
 }
 
 impl Page for CityPage {
     fn frame(&mut self, app: &mut App, input: &Input) {
-        app.city_screen(self.city, input);
+        app.city_screen(self, input);
     }
 }
 
 impl App {
     /// Open the screen of `city`.
     pub(crate) fn open_city_screen(&mut self, city: hecs::Entity) {
-        self.open_page(Screen::City(city), CityPage { city });
+        self.open_page(Screen::City(city), CityPage::new(city));
     }
 
-    pub(crate) fn city_screen(&mut self, city: hecs::Entity, input: &Input) {
+    pub(crate) fn city_screen(&mut self, page: &mut CityPage, input: &Input) {
+        let city = page.city;
         if self
             .game
             .economy()
@@ -80,15 +98,15 @@ impl App {
             return;
         }
         let lay = Layout::new();
-        let dialog = self.autobuild_dialog.is_some();
+        let dialog = page.autobuild.is_some();
         if dialog && input.key_pressed(KeyCode::Escape) {
-            self.autobuild_dialog = None;
+            page.autobuild = None;
             return;
         }
         let selling = self.sell_prompt.is_some();
-        let renaming = self.city_naming.is_some();
+        let renaming = page.naming.is_some();
         if renaming && input.key_pressed(KeyCode::Escape) {
-            self.city_naming = None;
+            page.naming = None;
             return;
         }
         let choosing = self.choosing || dialog || selling || renaming;
@@ -166,23 +184,23 @@ impl App {
         if dialog || selling || renaming {
             self.choosing = true;
         }
-        self.draw_city_header(city, lay, input);
+        self.draw_city_header(page, lay, input);
         self.draw_city_resources(city, lay, input);
         self.draw_city_buildings(city, lay, input);
-        self.draw_city_area(city, lay, input);
+        self.draw_city_area(page, lay, input);
         self.draw_city_garrison(city, lay);
         self.draw_city_production(city, lay, input);
         if renaming {
             self.choosing = was_choosing;
-            self.draw_rename_box(city, input);
+            self.draw_rename_box(page, input);
         } else if dialog {
             self.choosing = was_choosing;
-            self.draw_autobuild_dialog(city, lay, input);
+            self.draw_autobuild_dialog(page, lay, input);
         } else if selling {
             self.choosing = was_choosing;
             self.draw_sell_prompt(input);
         } else if self.choosing {
-            self.draw_production_screen(city, input);
+            self.draw_production_screen(page, input);
         }
     }
 
@@ -323,8 +341,9 @@ impl App {
 
     /// The box for a new name for the city (the original's name box); Enter keeps what is typed,
     /// an empty name keeps the old one.
-    fn draw_rename_box(&mut self, city: hecs::Entity, input: &Input) {
-        let Some(mut name) = self.city_naming.take() else {
+    fn draw_rename_box(&mut self, page: &mut CityPage, input: &Input) {
+        let city = page.city;
+        let Some(mut name) = page.naming.take() else {
             return;
         };
         let lay = crate::frame::Layout::new();
@@ -338,11 +357,12 @@ impl App {
             let events = self.game.apply(Command::RenameCity { city, name });
             self.note(events);
         } else {
-            self.city_naming = Some(name);
+            page.naming = Some(name);
         }
     }
 
-    fn draw_city_header(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
+    fn draw_city_header(&mut self, page: &mut CityPage, lay: Layout, input: &Input) {
+        let city = page.city;
         let name = self.city_name(city);
         let (race_name, race_index) = self
             .game
@@ -375,7 +395,7 @@ impl App {
         );
         // A click on the name asks for a new one.
         if ui::hit(lay.rect(0.0, 0.0, 210.0, 17.0), !self.choosing, input).clicked() {
-            self.city_naming = Some(name.clone());
+            page.naming = Some(name.clone());
         }
         let orange = Color::new(0.95, 0.7, 0.2, 1.0);
         let mut race_name = race_name;
@@ -1025,7 +1045,8 @@ impl App {
     /// The 5x5 worked area at original tile size, drawn as the map is (`City_Screen_Draw_Map`):
     /// terrain, resources and roads, the corners shaded, the cities on it, and a mark on the squares another city
     /// of the player also works.
-    fn draw_city_area(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
+    fn draw_city_area(&mut self, page: &mut CityPage, lay: Layout, input: &Input) {
+        let city = page.city;
         let at = self.city_position(city);
         let Some(map) = self.game.map() else {
             return;
@@ -1037,7 +1058,7 @@ impl App {
         // A click on the map shows or hides each square's food and production.
         let map = lay.rect(215.0, 4.0, 5.0 * TILE_W, 5.0 * TILE_H);
         if ui::hit(map, !self.choosing, input).clicked() {
-            self.city_area_figures = !self.city_area_figures;
+            page.area_figures = !page.area_figures;
         }
         let gaia = self
             .game
@@ -1086,7 +1107,7 @@ impl App {
                 if shared {
                     self.city_pic(lay, "backgrnd", 0, 0, cx + 7.0, cy + 4.0);
                 }
-                if self.city_area_figures {
+                if page.area_figures {
                     let (food, production) = self.game.map().map_or((0, 0), |m| {
                         let eco = self.game.economy();
                         let half = |v: i32| if shared { v / 2 } else { v };

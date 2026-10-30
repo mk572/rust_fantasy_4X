@@ -124,13 +124,7 @@ pub struct App {
     /// The question or refusal when a building of the city picture is clicked.
     /// The first enchantment shown on the city screen's list.
     pub(crate) city_spell_first: usize,
-    /// Whether the city screen's map shows each square's food and production.
-    pub(crate) city_area_figures: bool,
-    /// The name typed so far while the city screen's rename box is up.
-    pub(crate) city_naming: Option<String>,
     pub(crate) sell_prompt: Option<crate::sell_prompt::SellPrompt>,
-    /// The auto-builder dialog over the city screen, while it is open.
-    pub(crate) autobuild_dialog: Option<crate::autobuild_dialog::AutoDialog>,
     pub(crate) prod_ui: crate::production_screen::ProductionUi,
     /// The diplomacy screen's talk.
     /// Wizards met whose greeting waits for the map: the screen opens for each in turn.
@@ -339,10 +333,7 @@ impl App {
             log: Vec::new(),
             choosing: false,
             city_spell_first: 0,
-            city_area_figures: false,
-            city_naming: None,
             sell_prompt: None,
-            autobuild_dialog: None,
             prod_ui: Default::default(),
             greetings: Default::default(),
             greetings_due: Vec::new(),

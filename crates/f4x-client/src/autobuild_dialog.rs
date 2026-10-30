@@ -8,8 +8,8 @@ use f4x_core::game::Command;
 use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
-use crate::city_screen::Layout;
-use crate::view::App;
+use crate::city_screen::{CityPage, Layout};
+use crate::view::{App, Screen};
 
 /// The plan being edited, and whether the city had one when the dialog opened.
 pub(crate) struct AutoDialog {
@@ -53,15 +53,34 @@ pub(crate) fn label(texts: &Texts, plan: Option<&BuildPlan>) -> String {
 }
 
 impl App {
+    /// The first city's screen with the dialog open on a plan (the `--autobuild` screenshot).
+    pub(crate) fn open_test_autobuild(&mut self) {
+        let Some(city) = self.game.economy().cities().first().map(|c| c.0) else {
+            return;
+        };
+        let mut page = CityPage::new(city);
+        page.autobuild = Some(AutoDialog {
+            plan: BuildPlan {
+                primary: Focus::Defense,
+                secondary: Some(Focus::Gold),
+                settlers: true,
+                ..Default::default()
+            },
+            had_plan: true,
+        });
+        self.open_page(Screen::City(city), page);
+    }
+
     /// The "Auto" button in the window where the production is chosen (`city_screen.rs`), at
     /// `(x, y)` and `width` wide; opens the dialog when clicked.
     pub(crate) fn draw_autobuild_button(
         &mut self,
-        city: hecs::Entity,
+        page: &mut CityPage,
         lay: Layout,
         (x, y, width): (f32, f32, f32),
         input: &Input,
     ) {
+        let city = page.city;
         let plan = self.game.autobuild_of(city).map(|a| a.plan);
         let own = self.game.autobuild_of(city).is_some();
         let r = lay.rect(x, y, width, 10.0);
@@ -85,7 +104,7 @@ impl App {
         );
         if state.clicked() {
             self.choosing = false;
-            self.autobuild_dialog = Some(AutoDialog {
+            page.autobuild = Some(AutoDialog {
                 plan: plan.unwrap_or_default(),
                 had_plan: own,
             });
@@ -95,11 +114,12 @@ impl App {
     /// Draw the dialog and handle it. Returns true while it is open.
     pub(crate) fn draw_autobuild_dialog(
         &mut self,
-        city: hecs::Entity,
+        page: &mut CityPage,
         lay: Layout,
         input: &Input,
     ) -> bool {
-        let Some(mut d) = self.autobuild_dialog.take() else {
+        let city = page.city;
+        let Some(mut d) = page.autobuild.take() else {
             return false;
         };
         let panel = lay.rect(40.0, 24.0, 240.0, 150.0);
@@ -265,7 +285,7 @@ impl App {
             }
             Some(_) => {}
             None => {
-                self.autobuild_dialog = Some(d);
+                page.autobuild = Some(d);
             }
         }
         true
