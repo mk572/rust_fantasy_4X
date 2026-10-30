@@ -38,6 +38,8 @@ pub enum Kind {
     CityCurse,
     /// A curse on a wizard the AI is at war with (Drain Power, Subversion, Cruel Unminding).
     WizardCurse,
+    /// Disenchant Area and True: takes the curses of other wizards off a square of the map.
+    Disenchant,
     /// Everything else: not cast by the AI yet.
     Other,
 }
@@ -106,6 +108,14 @@ pub fn kind(def: &SpellDef) -> Kind {
     if def.effects.is_empty() || has_hook(def, "unimplemented") {
         return Kind::Other;
     }
+    if def.target == SpellTarget::Tile
+        && def
+            .effects
+            .iter()
+            .any(|r| matches!(r.effect, Effect::Dispel { .. }))
+    {
+        return Kind::Disenchant;
+    }
     let helps = |r: &f4x_core::rules::effects::EffectRule| match &r.effect {
         Effect::Modify { value, .. } => *value >= 0,
         Effect::GrantAbility(_) => true,
@@ -150,6 +160,8 @@ fn priority(k: Kind) -> u8 {
         Kind::GlobalBuff => 6,
         Kind::CityCurse => 7,
         Kind::WizardCurse => 8,
+        // A wizard under a curse wants it off before it blows at anyone.
+        Kind::Disenchant => 2,
         Kind::Other => 9,
     }
 }
@@ -469,6 +481,9 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
         Kind::Explore => explore_target(view)
             .map(Target::Tile)
             .filter(|&t| view.can_aim(spell, Some(t))),
+        Kind::Disenchant => cursed_city(view)
+            .map(Target::Tile)
+            .filter(|&t| view.can_aim(spell, Some(t))),
         Kind::Cure => hurt_stack_unit(view)
             .map(Target::Unit)
             .filter(|&t| view.can_aim(spell, Some(t))),
@@ -500,6 +515,18 @@ fn curse_city(view: &PlayerView, spell: SpellId) -> Option<hecs::Entity> {
         .into_iter()
         .map(|(_, c)| c)
         .find(|&c| view.can_aim(spell, Some(Target::City(c))))
+}
+
+/// The square of the wizard's most populous city that another wizard has put a spell on.
+fn cursed_city(view: &PlayerView) -> Option<Position> {
+    let mut cities: Vec<(u32, hecs::Entity, Position)> = view
+        .my_cities()
+        .into_iter()
+        .filter(|&(c, _)| !view.city_curses(c).is_empty())
+        .filter_map(|(c, p)| view.city_economy(c).map(|e| (e.figures, c, p)))
+        .collect();
+    cities.sort_by_key(|&(n, c, _)| (std::cmp::Reverse(n), view.serial_of(c)));
+    cities.first().map(|&(_, _, p)| p)
 }
 
 /// The square to aim Earth Lore at: the centre of the block of the map with the most ground the
@@ -669,7 +696,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         && upkeep_ok(&view, def)
                         && !magic.has_global(spell)
                 }
-                Kind::Explore | Kind::Cure => now && target.is_some(),
+                Kind::Explore | Kind::Cure | Kind::Disenchant => now && target.is_some(),
                 // Blows at an enemy at war, from mana the AI can spare.
                 Kind::CityCurse | Kind::WizardCurse => {
                     now && room && mana - cost >= GLOBAL_RESERVE && target.is_some()
@@ -753,6 +780,8 @@ mod tests {
         assert_eq!(kind_of("herb_mastery"), Kind::GlobalBuff);
         assert_eq!(kind_of("earth_lore"), Kind::Explore);
         assert_eq!(kind_of("natures_cures"), Kind::Cure);
+        assert_eq!(kind_of("disenchant_area"), Kind::Disenchant);
+        assert_eq!(kind_of("disenchant_true"), Kind::Disenchant);
         assert_eq!(kind_of("famine"), Kind::CityCurse);
         assert_eq!(kind_of("earthquake"), Kind::CityCurse);
         assert_eq!(kind_of("cruel_unminding"), Kind::WizardCurse);
@@ -921,6 +950,31 @@ mod tests {
         let began = g.wizard(P0).unwrap().casting().is_some()
             || g.city_enchantments(enemy).iter().any(|&(s, _)| s == famine);
         assert!(began, "at war: Famine begun or cast");
+    }
+
+    #[test]
+    fn a_wizard_disenchants_the_city_an_enemy_has_cursed_and_otherwise_leaves_it() {
+        use crate::testworld::{at, game, COAST_CITY, P0, P1};
+        let mut g = game(COAST_CITY, "high_men");
+        let content = g.content().clone();
+        let spells = &content.rules.spells;
+        let (area, famine, wall) = (
+            spells.id_of("disenchant_area").unwrap(),
+            spells.id_of("famine").unwrap(),
+            spells.id_of("natures_eye").unwrap(),
+        );
+        g.cheat_learn_spell(P0, area);
+        g.treasury_mut(P0).unwrap().mana = 5_000;
+        let city = g.economy().city_at(at(COAST_CITY.0, COAST_CITY.1)).unwrap();
+        g.scenario_enchant_city(city, wall, P0);
+        let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), area);
+        assert!(aim(&g).is_none(), "a spell of its own is no curse");
+        g.scenario_enchant_city(city, famine, P1);
+        assert_eq!(
+            aim(&g),
+            Some(Target::Tile(at(COAST_CITY.0, COAST_CITY.1))),
+            "the cursed city is the aim"
+        );
     }
 
     #[test]

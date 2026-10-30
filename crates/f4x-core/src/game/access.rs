@@ -186,6 +186,11 @@ impl Game {
         self.add_unit_enchantment(unit, spell, caster);
     }
 
+    /// Put a lasting spell on a city, as a scenario sets it up (no cost, no upkeep paid).
+    pub fn scenario_enchant_city(&mut self, city: hecs::Entity, spell: SpellId, caster: PlayerId) {
+        self.add_city_enchantment(city, spell, caster);
+    }
+
     /// Set the spell a wizard is casting and the mana still owed, as a scenario sets it up (no
     /// checks; a cast already in progress is replaced).
     pub fn scenario_casting(&mut self, player: PlayerId, spell: SpellId, owed: i32) {

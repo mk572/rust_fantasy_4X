@@ -182,6 +182,16 @@ impl<'a> PlayerView<'a> {
             .collect()
     }
 
+    /// The lasting spells on a city that another wizard cast.
+    pub fn city_curses(&self, city: hecs::Entity) -> Vec<SpellId> {
+        self.game
+            .city_enchantments(city)
+            .into_iter()
+            .filter(|&(_, caster)| caster != self.me)
+            .map(|(s, _)| s)
+            .collect()
+    }
+
     /// The proposals other wizards have made to the player and it has not answered.
     pub fn proposals_to_me(&self) -> Vec<Proposal> {
         self.game
