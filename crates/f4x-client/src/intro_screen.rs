@@ -11,6 +11,7 @@
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use macroquad::prelude::*;
 
 use crate::audio::{fx, Key};
@@ -142,13 +143,7 @@ impl App {
     /// Start the movie when it is wanted and the pictures are there; else the start menu.
     pub fn open_intro(&mut self) {
         if self.prefs.get(Pref::PlayIntro) && self.art_picture("intro", 0, 0).is_some() {
-            self.intro = IntroState {
-                beats: beats(),
-                at: 0,
-                since: get_time(),
-                sounded: false,
-            };
-            self.screen = Screen::Intro;
+            self.open_page(Screen::Intro, IntroState::start());
         } else {
             self.open_main_menu();
         }
@@ -156,55 +151,68 @@ impl App {
 
     /// Open the movie at the start of `scene`, for a screenshot (`--intro`).
     pub fn open_intro_at(&mut self, scene: usize) {
-        self.open_intro();
-        let at = self
-            .intro
+        let mut movie = IntroState::start();
+        let at = movie
             .beats
             .iter()
             .position(|b| b.picture == Some((scene, 0)) && b.dark == 0);
-        self.intro.at = at.unwrap_or(0);
-        self.intro.since = f64::MAX;
+        movie.at = at.unwrap_or(0);
+        movie.since = f64::MAX;
+        self.open_page(Screen::Intro, movie);
+    }
+}
+impl IntroState {
+    /// The movie from its first beat, starting now.
+    fn start() -> IntroState {
+        IntroState {
+            beats: beats(),
+            at: 0,
+            since: get_time(),
+            sounded: false,
+        }
     }
 
     /// Go to the start menu and silence the movie's sounds: the long ones would play on over
     /// the screens after it.
-    fn leave_intro(&mut self) {
-        for sound in self.intro.beats.iter().filter_map(|b| b.sound) {
-            self.audio.stop_effect(Some(fx(sound)));
+    fn leave_intro(&mut self, app: &mut App) {
+        for sound in self.beats.iter().filter_map(|b| b.sound) {
+            app.audio.stop_effect(Some(fx(sound)));
         }
-        self.open_main_menu();
+        app.open_main_menu();
     }
+}
 
-    pub(crate) fn intro_screen(&mut self, input: &Input) {
+impl Page for IntroState {
+    fn frame(&mut self, app: &mut App, input: &Input) {
         clear_background(BLACK);
         let skip = input.any_key_pressed() || input.mouse_pressed(MouseButton::Left);
         let now = get_time();
-        let Some(beat) = self.intro.beats.get(self.intro.at).copied() else {
-            return self.leave_intro();
+        let Some(beat) = self.beats.get(self.at).copied() else {
+            return self.leave_intro(app);
         };
         if skip {
-            return self.leave_intro();
+            return self.leave_intro(app);
         }
-        if !self.intro.sounded {
-            self.intro.sounded = true;
+        if !self.sounded {
+            self.sounded = true;
             let key: Option<Key> = beat.sound.map(fx);
-            self.audio.effect(key);
+            app.audio.effect(key);
         }
-        if now - self.intro.since >= f64::from(beat.ticks) * TICK {
-            self.intro.since = now;
-            self.intro.at += 1;
-            self.intro.sounded = false;
+        if now - self.since >= f64::from(beat.ticks) * TICK {
+            self.since = now;
+            self.at += 1;
+            self.sounded = false;
         }
         let lay = Layout::new();
         if let Some((scene, frame)) = beat.picture {
             let shade = 1.0 - f32::from(beat.dark) / 100.0;
             let tint = Color::new(shade, shade, shade, 1.0);
-            self.draw_pic_tinted(&lay, "intro", scene, frame, 0.0, 0.0, tint);
+            app.draw_pic_tinted(&lay, "intro", scene, frame, 0.0, 0.0, tint);
         }
         if beat.copyright {
             let view = (lay.origin.x, lay.origin.y, lay.scale);
-            let text = self.text("intro.copyright");
-            self.draw_styled(
+            let text = app.text("intro.copyright");
+            app.draw_styled(
                 view,
                 &Style::nearest(0, WHITE).center(),
                 &text,

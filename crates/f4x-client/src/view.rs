@@ -199,12 +199,13 @@ pub struct App {
     /// The screens converted to [`Page`](crate::page::Page): one page per kind of screen, kept
     /// while another screen (a unit sheet, the console) is up over it.
     pub(crate) pages: crate::page::Pages,
+    /// The player chose Quit on the start menu; the frame returns false.
+    pub(crate) quit: bool,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
     /// unit's sheet instead of sending the stack anywhere.
     /// The player has seen the game-over screen and chose to look at the map.
     pub(crate) game_over_seen: bool,
     pub(crate) menu: crate::menu_screen::MenuState,
-    pub(crate) intro: crate::intro_screen::IntroState,
     pub(crate) help_ui: crate::help_popup::HelpUi,
     /// The keys of the overland map (`content/hotkeys.ron`).
     pub(crate) hotkeys: crate::hotkeys::Hotkeys,
@@ -379,9 +380,9 @@ impl App {
             test_sea: false,
             item_pool_pending: false,
             pages: Default::default(),
+            quit: false,
             game_over_seen: false,
             menu: Default::default(),
-            intro: Default::default(),
             help_ui: Default::default(),
             hotkeys: Default::default(),
             console: Default::default(),
@@ -1470,7 +1471,7 @@ impl App {
                 self.queue_game_over_scene();
             }
             if self.end_scenes.is_empty() {
-                self.screen = Screen::GameOver;
+                self.open_page(Screen::GameOver, crate::game_over_screen::GameOverPage);
             }
         }
         if !matches!(self.screen, Screen::Console | Screen::MainMenu) && self.end_scene_frame(input)
@@ -1485,7 +1486,7 @@ impl App {
     /// draws it as the base with an empty `Input`, so it shows no hover and takes no click.
     fn screen_frame(&mut self, input: &Input) -> bool {
         match self.screen {
-            Screen::GameOver => return self.game_over_screen(input),
+            Screen::GameOver => self.page_frame(input),
             Screen::Console => self.console_screen(input),
             Screen::City(city) => {
                 self.city_screen(city, input);
@@ -1512,9 +1513,12 @@ impl App {
             Screen::Astrologer => self.page_frame(input),
             Screen::Settings => self.page_frame(input),
             Screen::GameSettings => self.page_frame(input),
-            Screen::MainMenu => return self.main_menu_screen(input),
-            Screen::Intro => self.intro_screen(input),
-            Screen::Slots => self.slots_screen(input),
+            Screen::MainMenu => {
+                self.page_frame(input);
+                return !self.quit;
+            }
+            Screen::Intro => self.page_frame(input),
+            Screen::Slots => self.page_frame(input),
             Screen::Map => {
                 if input.key_pressed(KeyCode::Escape) {
                     if self.targeting.take().is_some() {

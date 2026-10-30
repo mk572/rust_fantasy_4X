@@ -11,6 +11,7 @@ use std::time::UNIX_EPOCH;
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use crate::ui;
 use f4x_core::game::save::LoadError;
 use f4x_core::text::{Args, Texts};
@@ -168,7 +169,7 @@ impl App {
         self.menu.can_continue = Path::new(AUTOSAVE).exists();
         self.menu.slots = (0..SLOTS).map(|n| Slot::read(&slot_path(n))).collect();
         self.menu.message.clear();
-        self.screen = Screen::MainMenu;
+        self.open_page(Screen::MainMenu, MainMenuPage);
     }
 
     /// Open the save slots; `from_menu` when reached from the start menu.
@@ -178,7 +179,7 @@ impl App {
         self.menu.from_menu = from_menu;
         self.menu.confirm_overwrite = false;
         self.menu.message.clear();
-        self.screen = Screen::Slots;
+        self.open_page(Screen::Slots, SlotsPage);
     }
 
     /// A button on the 320 by 200 layout: the original's picture (a different frame while the
@@ -238,31 +239,35 @@ impl App {
         }
         state.clicked()
     }
+}
 
-    /// Draw and run the start menu. False when the player quits.
-    pub(crate) fn main_menu_screen(&mut self, input: &Input) -> bool {
+/// Draw and run the start menu. Quit sets `quit`.
+pub(crate) struct MainMenuPage;
+
+impl Page for MainMenuPage {
+    fn frame(&mut self, app: &mut App, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
-        let has_slots = self.menu.slots.iter().any(Slot::loadable);
+        let has_slots = app.menu.slots.iter().any(Slot::loadable);
         let mut rows = Vec::new();
         if has_slots {
             rows.push(Entry::Load);
         }
-        if self.menu.can_continue {
+        if app.menu.can_continue {
             // Continue sits above Load, or takes its place.
             rows.insert(0, Entry::Continue);
         }
         rows.extend([Entry::New, Entry::Fame, Entry::Quit]);
 
         // The logo and the picture behind the entries.
-        if self.draw_pic(&lay, "mainscrn", 0, 0, 0.0, 0.0).is_some() {
-            self.draw_pic(&lay, "mainscrn", 5, 0, 0.0, 41.0);
+        if app.draw_pic(&lay, "mainscrn", 0, 0, 0.0, 0.0).is_some() {
+            app.draw_pic(&lay, "mainscrn", 5, 0, 0.0, 41.0);
         } else {
             let view = (lay.origin.x, lay.origin.y, lay.scale);
-            self.draw_styled(
+            app.draw_styled(
                 view,
                 &Style::nearest(5, GOLD).align(crate::frame::Align::Center),
-                &self.text("menu.title"),
+                &app.text("menu.title"),
                 160.0,
                 60.0,
             );
@@ -284,10 +289,10 @@ impl App {
                 Entry::Fame => ("menu.hall_of_fame", 2, KeyCode::H),
                 Entry::Quit => ("menu.quit", 3, KeyCode::Q),
             };
-            let label = self.text(label);
+            let label = app.text(label);
             let y = top + 12.0 * i as f32;
             let enabled = true;
-            let clicked = self.menu_button(
+            let clicked = app.menu_button(
                 &lay,
                 (108.0, y - 2.0, 103.0, 12.0),
                 Some(("vortex", vortex, 123.0, y)),
@@ -305,10 +310,10 @@ impl App {
             chosen = Some(Entry::Quit);
         }
 
-        if !self.menu.message.is_empty() {
+        if !app.menu.message.is_empty() {
             let view = (lay.origin.x, lay.origin.y, lay.scale);
-            let msg = self.menu.message.clone();
-            self.draw_styled(
+            let msg = app.menu.message.clone();
+            app.draw_styled(
                 view,
                 &Style::nearest(1, RED).align(crate::frame::Align::Center),
                 &msg,
@@ -319,34 +324,37 @@ impl App {
 
         match chosen {
             Some(Entry::Continue) => {
-                if let Err(e) = self.load_from(Path::new(AUTOSAVE)) {
-                    self.menu.message = self.text_with(
+                if let Err(e) = app.load_from(Path::new(AUTOSAVE)) {
+                    app.menu.message = app.text_with(
                         "menu.could_not_continue",
                         &Args::new().text("why", e.to_string()),
                     );
                 }
             }
-            Some(Entry::Load) => self.open_slots(true),
-            Some(Entry::New) => self.open_options(),
-            Some(Entry::Fame) => self.open_hall_of_fame(),
-            Some(Entry::Quit) => return false,
+            Some(Entry::Load) => app.open_slots(true),
+            Some(Entry::New) => app.open_options(),
+            Some(Entry::Fame) => app.open_hall_of_fame(),
+            Some(Entry::Quit) => app.quit = true,
             None => {}
         }
-        true
     }
+}
 
-    /// Draw and run the Load / Save screen.
-    pub(crate) fn slots_screen(&mut self, input: &Input) {
+/// Draw and run the Load / Save screen.
+pub(crate) struct SlotsPage;
+
+impl Page for SlotsPage {
+    fn frame(&mut self, app: &mut App, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        if self.draw_pic(&lay, "load", 0, 0, 0.0, 0.0).is_none() {
+        if app.draw_pic(&lay, "load", 0, 0, 0.0, 0.0).is_none() {
             let r = lay.rect((0.0, 0.0, 320.0, 200.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.08, 0.07, 0.06, 1.0));
-            self.draw_styled(
+            app.draw_styled(
                 view,
                 &Style::nearest(5, GOLD).align(crate::frame::Align::Center),
-                &self.text("menu.load_save"),
+                &app.text("menu.load_save"),
                 160.0,
                 20.0,
             );
@@ -355,18 +363,18 @@ impl App {
         // The slots: rows 15 pixels apart from y = 47.
         for n in 0..SLOTS {
             let y = 47.0 + 15.0 * n as f32;
-            let slot = self.menu.slots.get(n).cloned().unwrap_or(Slot::Empty);
+            let slot = app.menu.slots.get(n).cloned().unwrap_or(Slot::Empty);
             let r = lay.rect((43.0, y, 229.0, 12.0));
-            let picked = self.menu.selected == Some(n);
+            let picked = app.menu.selected == Some(n);
             if slot != Slot::Empty {
                 // The original lays a text-field picture behind a filled slot.
-                if self.draw_pic(&lay, "load", 9, 0, 43.0, y).is_none() {
+                if app.draw_pic(&lay, "load", 9, 0, 43.0, y).is_none() {
                     draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.2, 0.15, 0.1, 1.0));
                 }
-            } else if self.art.picture("load", 9, 0).is_none() {
+            } else if app.art.picture("load", 9, 0).is_none() {
                 draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.0, Color::new(0.4, 0.3, 0.2, 1.0));
             }
-            if picked && self.draw_pic(&lay, "load", 10, 0, 36.0, y).is_none() {
+            if picked && app.draw_pic(&lay, "load", 10, 0, 36.0, y).is_none() {
                 draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, GOLD);
             }
             let color = if picked {
@@ -374,96 +382,96 @@ impl App {
             } else {
                 Color::new(0.85, 0.8, 0.6, 1.0)
             };
-            self.draw_styled(
+            app.draw_styled(
                 view,
                 &Style::nearest(1, color).align(crate::frame::Align::Left),
-                &slot.label(self.texts(), n),
+                &slot.label(app.texts(), n),
                 45.0,
                 y + 1.0,
             );
             if ui::hit(r, true, input).clicked() {
-                if self.menu.selected != Some(n) {
-                    self.menu.confirm_overwrite = false;
-                    self.menu.message.clear();
+                if app.menu.selected != Some(n) {
+                    app.menu.confirm_overwrite = false;
+                    app.menu.message.clear();
                 }
-                self.menu.selected = Some(n);
+                app.menu.selected = Some(n);
             }
         }
 
-        let selected = self.menu.selected;
-        let selected_slot = selected.and_then(|n| self.menu.slots.get(n).cloned());
+        let selected = app.menu.selected;
+        let selected_slot = selected.and_then(|n| app.menu.slots.get(n).cloned());
         let can_load = selected_slot.as_ref().is_some_and(Slot::loadable);
-        let in_game = !self.menu.from_menu;
-        let can_save = in_game && selected.is_some() && self.game.game_over.is_none();
+        let in_game = !app.menu.from_menu;
+        let can_save = in_game && selected.is_some() && app.game.game_over.is_none();
 
         // Buttons along y = 171: Quit, Load, Save, Settings, OK (the original's positions).
-        let quit_label = self.text(if self.menu.from_menu {
+        let quit_label = app.text(if app.menu.from_menu {
             "menu.back"
         } else {
             "menu.quit"
         });
-        let quit = self.menu_button(
+        let quit = app.menu_button(
             &lay,
             (43.0, 171.0, 39.0, 13.0),
-            (!self.menu.from_menu).then_some(("load", 2, 43.0, 171.0)),
+            (!app.menu.from_menu).then_some(("load", 2, 43.0, 171.0)),
             &quit_label,
             true,
             false,
             true,
             input,
         );
-        let load = self.menu_button(
+        let load = app.menu_button(
             &lay,
             (83.0, 171.0, 38.0, 13.0),
             Some(("load", if can_load { 1 } else { 6 }, 83.0, 171.0)),
-            &self.text("menu.load"),
+            &app.text("menu.load"),
             can_load,
             false,
             true,
             input,
         );
-        let save = self.menu_button(
+        let save = app.menu_button(
             &lay,
             (122.0, 171.0, 38.0, 13.0),
             Some(("load", if can_save { 3 } else { 7 }, 122.0, 171.0)),
-            &self.text("menu.save"),
+            &app.text("menu.save"),
             can_save,
             false,
             true,
             input,
         );
-        let settings = self.menu_button(
+        let settings = app.menu_button(
             &lay,
             (172.0, 171.0, 58.0, 13.0),
             Some(("load", 12, 172.0, 171.0)),
-            &self.text("menu.settings"),
+            &app.text("menu.settings"),
             true,
             false,
             true,
             input,
         );
-        let ok = self.menu_button(
+        let ok = app.menu_button(
             &lay,
             (231.0, 171.0, 40.0, 13.0),
             Some(("load", 4, 231.0, 171.0)),
-            &self.text("ui.ok"),
+            &app.text("ui.ok"),
             true,
             false,
             true,
             input,
         ) || input.key_pressed(KeyCode::Escape);
 
-        if self.menu.confirm_overwrite {
-            self.draw_styled(
+        if app.menu.confirm_overwrite {
+            app.draw_styled(
                 view,
                 &Style::nearest(1, GOLD).align(crate::frame::Align::Center),
-                &self.text("menu.confirm_overwrite"),
+                &app.text("menu.confirm_overwrite"),
                 160.0,
                 155.0,
             );
-        } else if !self.menu.message.is_empty() {
-            let msg = self.menu.message.clone();
-            self.draw_styled(
+        } else if !app.menu.message.is_empty() {
+            let msg = app.menu.message.clone();
+            app.draw_styled(
                 view,
                 &Style::nearest(1, RED).align(crate::frame::Align::Center),
                 &msg,
@@ -473,17 +481,17 @@ impl App {
         }
 
         if settings {
-            self.open_settings();
+            app.open_settings();
         } else if load {
             if let Some(n) = selected {
-                match self.load_from(&slot_path(n)) {
+                match app.load_from(&slot_path(n)) {
                     Ok(()) => {
-                        self.log.push(
-                            self.text_with("menu.loaded_slot", &Args::new().count("slot", n + 1)),
+                        app.log.push(
+                            app.text_with("menu.loaded_slot", &Args::new().count("slot", n + 1)),
                         );
                     }
                     Err(e) => {
-                        self.menu.message = self.text_with(
+                        app.menu.message = app.text_with(
                             "menu.could_not_load",
                             &Args::new().text("why", e.to_string()),
                         )
@@ -492,35 +500,35 @@ impl App {
             }
         } else if save {
             if let Some(n) = selected {
-                let filled = self.menu.slots.get(n).is_some_and(|s| *s != Slot::Empty);
-                if filled && !self.menu.confirm_overwrite {
-                    self.menu.confirm_overwrite = true;
+                let filled = app.menu.slots.get(n).is_some_and(|s| *s != Slot::Empty);
+                if filled && !app.menu.confirm_overwrite {
+                    app.menu.confirm_overwrite = true;
                 } else {
-                    self.menu.confirm_overwrite = false;
-                    self.save_to(&slot_path(n));
-                    self.menu.slots[n] = Slot::read(&slot_path(n));
-                    if !self.menu.slots[n].loadable() {
-                        self.menu.message = self.text("menu.could_not_save");
+                    app.menu.confirm_overwrite = false;
+                    app.save_to(&slot_path(n));
+                    app.menu.slots[n] = Slot::read(&slot_path(n));
+                    if !app.menu.slots[n].loadable() {
+                        app.menu.message = app.text("menu.could_not_save");
                     } else {
-                        self.screen = Screen::Map;
+                        app.screen = Screen::Map;
                     }
                 }
             }
         } else if quit {
-            if self.menu.from_menu {
-                self.open_main_menu();
+            if app.menu.from_menu {
+                app.open_main_menu();
             } else {
                 // Leaving the game keeps it as the one Continue offers.
-                if self.game.game_over.is_none() {
-                    self.save_to(Path::new(AUTOSAVE));
+                if app.game.game_over.is_none() {
+                    app.save_to(Path::new(AUTOSAVE));
                 }
-                self.open_main_menu();
+                app.open_main_menu();
             }
         } else if ok {
-            if self.menu.from_menu {
-                self.open_main_menu();
+            if app.menu.from_menu {
+                app.open_main_menu();
             } else {
-                self.screen = Screen::Map;
+                app.screen = Screen::Map;
             }
         }
     }

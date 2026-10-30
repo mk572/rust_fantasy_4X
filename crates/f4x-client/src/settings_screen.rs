@@ -185,7 +185,9 @@ impl App {
 
     fn leave_settings(&mut self) {
         self.save_preferences();
-        self.screen = Screen::Slots;
+        self.show_page(Screen::Slots, |app| {
+            app.open_page(Screen::Slots, crate::menu_screen::SlotsPage)
+        });
     }
 
     fn save_preferences(&mut self) {

@@ -64,6 +64,16 @@ impl App {
         self.screen = screen;
     }
 
+    /// Go back to `screen`, whose page is kept if it was left under another screen (a talk, a
+    /// sheet), else open it afresh with `open`.
+    pub(crate) fn show_page(&mut self, screen: Screen, open: impl FnOnce(&mut App)) {
+        if self.pages.get(&screen).is_some() {
+            self.screen = screen;
+        } else {
+            open(self);
+        }
+    }
+
     /// One frame of the page of the open screen. A screen with no page (it was set without
     /// `open_page`) goes back to the map.
     pub(crate) fn page_frame(&mut self, input: &Input) {

@@ -832,7 +832,7 @@ impl App {
     pub(crate) fn diplomacy_screen(&mut self, input: &Input) {
         let with = self.diplo_ui.with;
         if !self.game.have_met(HUMAN, with) {
-            self.screen = Screen::Magic;
+            self.show_page(Screen::Magic, App::open_magic);
             return;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
@@ -1000,7 +1000,7 @@ impl App {
             );
         }
         if dark >= 1.0 && self.diplo_ui.leaving.is_some() {
-            self.screen = Screen::Magic;
+            self.show_page(Screen::Magic, App::open_magic);
         }
     }
 }
