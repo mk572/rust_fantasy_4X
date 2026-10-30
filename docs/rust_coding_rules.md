@@ -8,7 +8,10 @@ Production code (the game) should avoid unsafe code wherever feasible.
 Current unsafe code should be replaced.
 
 Implement error handling according to good Rust coding practices.
-Avoid unwrap. Avoid panics.
+Avoid unwrap. Avoid panics. (Tests have their own rules, see "Error handling in tests" below.)
+
+Clippy's `unwrap_used` and `expect_used` lints keep unwraps out of production code; tests may allow
+them with `#![cfg_attr(test, allow(clippy::unwrap_used))]`.
 
 ## Resource efficiency
 
@@ -55,6 +58,59 @@ Implement several test layers:
 ## Functional testing
 
 Small tests within rs files themselves.
+
+### Test on the actual game data and rules
+
+**Always test on the shipped game data and the real rules, never on fixtures.** A test loads the content
+the game ships with (`f4x_data::load_content`, the `content/` folder) and runs the real engine, so that
+it behaves as close to actual gameplay as possible. Hand-built content, a second copy of a rule in the
+test environment, or an empty `Content::default()` lets the test drift from the game and pass for the
+wrong reason.
+
+- Build only situations the game can reach (a unit always has a real player as owner; see
+  `ecs-structure.md` section 3.3). A situation the game cannot create belongs in a test only to check
+  error handling (a rejected command, a refused save).
+- Look units, spells, buildings and races up by name in the shipped content; do not invent stats.
+- A test whose subject needs content (spells, units) must fail when the content is missing. An empty
+  registry that makes the test skip its assertions is a bug.
+- The one exception is a crate that cannot depend on `f4x-data` (`f4x-core` is below it). Keep any
+  hand-built content there to the minimum, and cover the same behaviour again in a test that uses the
+  shipped data (`f4x-data/tests/` or a higher crate).
+
+### Error handling in tests
+
+A test fails when it panics or when it returns `Err`; both are fine. Choose by what the test does:
+
+- **Code under test returns `Result`** (loading, parsing, saving, a command that can be rejected):
+  make the test `-> Result<(), Box<dyn std::error::Error>>` and use `?`. The failure then shows the
+  real error instead of `called Result::unwrap() on an Err value`.
+- **Setup that must succeed** (looking up a unit by name, a player that was just added): use
+  `.expect("why this cannot be missing")`, never a bare `.unwrap()`. The message documents the
+  precondition. Where the test returns `Result`, `.ok_or("what is missing")?` does the same.
+- **Assertions stay `assert!`, `assert_eq!`, `assert_ne!`, `matches!`.** Do not turn them into `Err`
+  returns: that loses the left/right diff and the line number.
+- **No `panic!` as a check.** Use an assertion with a message. `#[should_panic(expected = "...")]` is
+  only for code that is meant to panic; a returned error is asserted on as a value.
+- **Never skip silently.** `if let Some(x) = ... { assert!(..) }` passes when the value is missing and
+  checks nothing. Use `let Some(x) = ... else { return Err(..) }` or `expect`.
+- **Test the error paths.** Assert the specific error variant (`matches!`, `assert_eq!`), not just
+  `is_err()`, which can pass for the wrong reason.
+
+### Quality of tests
+
+- **Behaviour, not implementation.** Assert what a player or the AI can observe (events, state), so a
+  refactor does not break the test.
+- **Deterministic.** Seed every random generator; no wall-clock time; files only in a `TestDir`.
+- **Fast.** A unit test runs in milliseconds. Build the world once per test (not once per loop
+  iteration) and borrow rather than clone large entities (`Game`, `Content`, saves). A slow test is
+  marked `#[ignore]` and run on request.
+- **Every test asserts something that can fail.** Mutation testing (`cargo mutants -p <crate>`) finds
+  tests that pass without protecting anything; task 408 tracks this.
+- **Invariants and round trips** (save then load, a value that must never go negative) suit
+  property-based tests (`proptest`); large structured output (event logs, saves) suits snapshot tests
+  (`insta`). Neither is a dependency yet; add one with the first test that needs it.
+- **Gates before a commit:** `cargo fmt --all`, `cargo clippy --workspace --tests`, and the test
+  commands in `CLAUDE.md`.
 
 A test that writes files takes its folder from `f4x_core::testdir::TestDir::new("label")`, never a fixed
 name in the temp folder: the name is unique per process and per call, so two `cargo test` runs at the same
