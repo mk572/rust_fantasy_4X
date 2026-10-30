@@ -597,9 +597,7 @@ fn production(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, game, spawn, COAST_CITY, P0};
-    use f4x_core::feature::entity::Placement;
-    use f4x_core::feature::lair::Lair;
+    use crate::testworld::{at, game, spawn, spawn_site, COAST_CITY, P0};
     use f4x_core::player::PlayerId;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -625,29 +623,14 @@ mod tests {
         assert!(!events.iter().any(|e| matches!(e, Event::Rejected(_))));
         g.treasury_mut(TOWN).ok_or("the town has a treasury")?.gold = 1_000_000;
         spawn(&mut g, TOWN, at(4, 4), "high_men_paladins", 9);
-        let feature = g
-            .content()
-            .features
-            .id_of("monster_lair")
-            .ok_or("monster_lair is shipped")?;
-        let Some(guards) = guards else {
-            return Ok(g);
-        };
-        g.spawn_feature(Placement {
-            at: at(6, 4),
-            feature,
-            node: None,
-            lair: Some(Lair {
-                intact: true,
+        if let Some(guards) = guards {
+            spawn_site(
+                &mut g,
+                at(6, 4),
                 guards,
-                gold: 300,
-                mana: 0,
-                items: Vec::new(),
-                prisoner: false,
-                special: 0,
-                fought_by: if known { vec![TOWN] } else { Vec::new() },
-            }),
-        });
+                if known { vec![TOWN] } else { Vec::new() },
+            )?;
+        }
         Ok(g)
     }
 

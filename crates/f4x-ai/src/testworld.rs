@@ -2,6 +2,8 @@
 //! islands in an ocean, one wizard on each, so that a unit cannot walk to the other side.
 
 use f4x_core::content::Content;
+use f4x_core::feature::entity::Placement;
+use f4x_core::feature::lair::Lair;
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
 
@@ -101,6 +103,36 @@ pub fn spawn(
     (0..count)
         .map(|_| game.spawn_unit(owner, pos, id))
         .collect()
+}
+
+/// An intact encounter site at `pos` with these guards (unit id, count) and 300 gold. The players
+/// in `fought_by` have fought for it before, so they know its guards.
+pub fn spawn_site(
+    game: &mut Game,
+    pos: Position,
+    guards: Vec<(String, u32)>,
+    fought_by: Vec<PlayerId>,
+) -> Result<hecs::Entity, &'static str> {
+    let feature = game
+        .content()
+        .features
+        .id_of("monster_lair")
+        .ok_or("monster_lair is shipped")?;
+    Ok(game.spawn_feature(Placement {
+        at: pos,
+        feature,
+        node: None,
+        lair: Some(Lair {
+            intact: true,
+            guards,
+            gold: 300,
+            mana: 0,
+            items: Vec::new(),
+            prisoner: false,
+            special: 0,
+            fought_by,
+        }),
+    }))
 }
 
 /// Give the city at `pos` the buildings (by id), in the order given.

@@ -1,10 +1,7 @@
 //! Towers, magic nodes and encounter sites: a wizard's spare soldiers clear the guarded sites
-//! near their cities for the treasure and the nodes (task 356). The AI plays by the human's
-//! rules (`design.md` section 8): it knows a site once it has explored it, knows what guards it
-//! only from a fight it fought or a spell that shows it (`PlayerView::lair_guards`), guesses
-//! otherwise, and sends a party through `Command::EnterSite` with the battle AI fighting. What it
-//! wins is spent by the AI it already has: items are equipped (`offer::equip`), the freed
-//! prisoner is hired from the offers, gold and mana go to the plans.
+//! near their cities. The AI plays by the human's rules (`design.md` section 8): it knows the
+//! guards only from a fight it fought or a spell that shows them (`PlayerView::lair_guards`),
+//! and guesses otherwise. A party goes in through `Command::EnterSite`, the battle AI fighting.
 
 use f4x_core::game::serial::Serial;
 use f4x_core::game::{Command, Event, Game};
@@ -154,36 +151,35 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, game, spawn, COAST_CITY};
-    use f4x_core::feature::entity::Placement;
-    use f4x_core::feature::lair::Lair;
-    use f4x_core::player::PlayerId;
+    use crate::testworld::{at, game, spawn, spawn_site, COAST_CITY, P0};
 
-    const P0: PlayerId = PlayerId(0);
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// The west wizard with `paladins` in its city at (10, 6) and an encounter site of the
     /// given guards two squares west. `known`: the wizard has fought for the site before.
-    fn world(paladins: usize, guards: Vec<(String, u32)>, known: bool) -> Game {
+    fn world(
+        paladins: usize,
+        guards: Vec<(String, u32)>,
+        known: bool,
+    ) -> Result<Game, Box<dyn std::error::Error>> {
         let mut g = game(COAST_CITY, "high_men");
-        g.treasury_mut(P0).unwrap().gold = 1_000_000;
+        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold = 1_000_000;
         spawn(&mut g, P0, at(10, 6), "high_men_paladins", paladins);
-        let feature = g.content().features.id_of("monster_lair").unwrap();
-        g.spawn_feature(Placement {
-            at: at(8, 6),
-            feature,
-            node: None,
-            lair: Some(Lair {
-                intact: true,
-                guards,
-                gold: 300,
-                mana: 0,
-                items: Vec::new(),
-                prisoner: false,
-                special: 0,
-                fought_by: if known { vec![P0] } else { Vec::new() },
-            }),
-        });
-        g
+        spawn_site(
+            &mut g,
+            at(8, 6),
+            guards,
+            if known { vec![P0] } else { Vec::new() },
+        )?;
+        Ok(g)
+    }
+
+    /// Whether every soldier of the wizard stands in its city.
+    fn all_home(g: &Game) -> bool {
+        g.units()
+            .player_units(P0)
+            .iter()
+            .all(|&u| g.units().unit_position(u) == Some(at(10, 6)))
     }
 
     fn turns(g: &mut Game, ai: &mut Ai, n: usize) -> Vec<Event> {
@@ -198,8 +194,8 @@ mod tests {
     }
 
     #[test]
-    fn a_strong_party_next_to_an_encounter_site_clears_it() {
-        let mut g = world(5, vec![("zombies".into(), 1)], false);
+    fn a_strong_party_next_to_an_encounter_site_clears_it() -> TestResult {
+        let mut g = world(5, vec![("zombies".into(), 1)], false)?;
         let mut ai = Ai::new(P0);
         let events = turns(&mut g, &mut ai, 10);
         let gold: u32 = events
@@ -211,35 +207,34 @@ mod tests {
             .sum();
         assert_eq!(gold, 300, "the hoard is the wizard's");
         assert!(g.economy().lair_at(at(8, 6)).is_none());
+        Ok(())
     }
 
     #[test]
-    fn a_weak_party_leaves_a_site_whose_guards_it_knows_to_be_too_strong() {
-        let mut g = world(4, vec![("great_drake".into(), 2)], true);
+    fn a_weak_party_leaves_a_site_whose_guards_it_knows_to_be_too_strong() -> TestResult {
+        let mut g = world(4, vec![("great_drake".into(), 2)], true)?;
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 4);
         assert!(ai.raiders.is_empty());
         assert!(g.economy().lair_at(at(8, 6)).is_some());
-        assert!(g
-            .units()
-            .player_units(P0)
-            .iter()
-            .all(|&u| g.units().unit_position(u) == Some(at(10, 6))));
+        assert!(all_home(&g));
+        Ok(())
     }
 
     #[test]
-    fn a_city_keeps_its_garrison_and_waits_for_a_party() {
+    fn a_city_keeps_its_garrison_and_waits_for_a_party() -> TestResult {
         // One spare fighter beyond the single guard is not a party.
-        let mut g = world(2, vec![("zombies".into(), 1)], false);
+        let mut g = world(2, vec![("zombies".into(), 1)], false)?;
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 4);
         assert!(ai.raiders.is_empty());
         assert!(g.economy().lair_at(at(8, 6)).is_some());
+        Ok(())
     }
 
     #[test]
-    fn the_survivors_come_home_after_the_raid() {
-        let mut g = world(6, vec![("zombies".into(), 1)], false);
+    fn the_survivors_come_home_after_the_raid() -> TestResult {
+        let mut g = world(6, vec![("zombies".into(), 1)], false)?;
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 14);
         assert!(
@@ -247,10 +242,7 @@ mod tests {
             "the site is cleared"
         );
         assert!(ai.raiders.is_empty(), "{:?}", ai.raiders);
-        assert!(g
-            .units()
-            .player_units(P0)
-            .iter()
-            .all(|&u| g.units().unit_position(u) == Some(at(10, 6))));
+        assert!(all_home(&g));
+        Ok(())
     }
 }
