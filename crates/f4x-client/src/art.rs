@@ -146,6 +146,9 @@ pub struct Art {
     figures: HashMap<FigureKey, Option<Texture2D>>,
     unit_pictures: HashMap<(String, usize, u8), Option<Texture2D>>,
     masked: HashMap<(String, usize, usize, usize, usize), Option<Texture2D>>,
+    /// The pixels of pictures that code reads or edits (kept so they are read back from the
+    /// graphics card once): lower-case name, entry, frame.
+    pixels: HashMap<(String, usize, usize), Option<Image>>,
     /// Figures with the glow of an enchantment: the figure's key, the realm and the step.
     glows: HashMap<(FigureKey, usize, usize), Option<Texture2D>>,
     /// Map pictures of units with the glow of an enchantment: (file, entry, banner, realm, step).
@@ -261,6 +264,7 @@ impl Art {
             unit_glows: HashMap::new(),
             unit_pictures: HashMap::new(),
             masked: HashMap::new(),
+            pixels: HashMap::new(),
             spells,
         }
     }
@@ -852,6 +856,18 @@ impl Art {
         let tex = Texture2D::from_image(&img);
         tex.set_filter(FilterMode::Nearest);
         Some(tex)
+    }
+
+    /// The pixels of a picture (at the art scale), read back from its texture the first time.
+    pub fn pixels(&mut self, lbx: &str, entry: usize, frame: usize) -> Option<&Image> {
+        let key = (lbx.to_string(), entry, frame);
+        if !self.pixels.contains_key(&key) {
+            let image = self
+                .picture(lbx, entry, frame)
+                .map(Texture2D::get_texture_data);
+            self.pixels.insert(key.clone(), image);
+        }
+        self.pixels.get(&key).and_then(Option::as_ref)
     }
 
     /// A picture from an original `.lbx` file: lower-case name, entry, frame.

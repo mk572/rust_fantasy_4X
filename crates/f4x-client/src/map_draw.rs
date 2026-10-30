@@ -225,18 +225,17 @@ const WARP_STEPS_PER_SECOND: f64 = 18.0;
 /// up to a pixel (a different amount every frame, so it shimmers), and the result is cut to
 /// the shape of `mapback.lbx` 93 and drawn over the square.
 fn draw_warped_node(art: &mut Art, sx: f32, sy: f32, k: f32) {
-    let mask: Vec<bool> = match art.picture("mapback", 93, 0) {
-        Some(tex) => {
-            let img = tex.get_texture_data();
-            (0..NODE_W * NODE_H)
-                .map(|i| {
-                    let (x, y) = (i % NODE_W, i / NODE_W);
-                    x < usize::from(img.width)
-                        && y < usize::from(img.height)
-                        && img.bytes[(y * usize::from(img.width) + x) * 4 + 3] > 0
-                })
-                .collect()
-        }
+    let mask: Vec<bool> = match art.pixels("mapback", 93, 0) {
+        Some(img) => (0..NODE_W * NODE_H)
+            .map(|i| {
+                // The picture may be finer than the design grid: sample its square's corner.
+                let scale = usize::from(crate::resolution::art_scale());
+                let (x, y) = ((i % NODE_W) * scale, (i / NODE_W) * scale);
+                x < usize::from(img.width)
+                    && y < usize::from(img.height)
+                    && img.bytes[(y * usize::from(img.width) + x) * 4 + 3] > 0
+            })
+            .collect(),
         None => vec![true; NODE_W * NODE_H],
     };
     let shot = get_screen_data();

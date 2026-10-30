@@ -127,10 +127,9 @@ impl App {
     /// The part of a picture's first frame that is not transparent: left, top, width, height
     /// (`Get_Bitmap_Actual_Size`).
     fn picture_extent(&mut self, lbx: &str, entry: usize) -> (f32, f32, f32, f32) {
-        let Some(tex) = self.art.picture(lbx, entry, 0) else {
+        let Some(img) = self.art.pixels(lbx, entry, 0) else {
             return (0.0, 0.0, 0.0, 0.0);
         };
-        let img = tex.get_texture_data();
         let (w, h) = (usize::from(img.width), usize::from(img.height));
         let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0, 0);
         for y in 0..h {
@@ -143,9 +142,16 @@ impl App {
                 }
             }
         }
+        // In the squares of the design grid, whatever the art scale.
+        let k = f32::from(crate::resolution::art_scale());
         if x1 <= x0 {
-            return (0.0, 0.0, w as f32, h as f32);
+            return (0.0, 0.0, w as f32 / k, h as f32 / k);
         }
-        (x0 as f32, y0 as f32, (x1 - x0) as f32, (y1 - y0) as f32)
+        (
+            x0 as f32 / k,
+            y0 as f32 / k,
+            (x1 - x0) as f32 / k,
+            (y1 - y0) as f32 / k,
+        )
     }
 }

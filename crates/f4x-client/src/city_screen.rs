@@ -268,10 +268,9 @@ impl App {
         percent: u32,
         draw: u64,
     ) {
-        let Some(tex) = self.art.picture("cityscap", entry, frame).cloned() else {
+        let Some(mut img) = self.art.pixels("cityscap", entry, frame).cloned() else {
             return;
         };
-        let mut img = tex.get_texture_data();
         let width = usize::from(img.width);
         for i in 0..img.bytes.len() / 4 {
             if crate::cityscape::vanished((i % width) as u32, (i / width) as u32, draw, percent) {
