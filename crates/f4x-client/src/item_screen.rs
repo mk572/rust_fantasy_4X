@@ -10,6 +10,7 @@
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::item::armory::{ItemError, ItemSpot, Spot, TRANSFER_MANA, VAULT_SLOTS};
@@ -89,16 +90,9 @@ pub(crate) fn refusal(error: ItemError) -> &'static str {
 
 impl App {
     pub(crate) fn open_item_screen(&mut self) {
-        self.item_ui = ItemUi::default();
-        self.pick_up_award();
-        self.screen = Screen::Items;
-    }
-
-    /// The next item on the award list comes into the hand (`Process_Item_Pool`).
-    fn pick_up_award(&mut self) {
-        if self.item_ui.held.is_none() && !self.game.items().armory(HUMAN).awards.is_empty() {
-            self.item_ui.held = Some(ItemSpot::Award(0));
-        }
+        let mut ui = ItemUi::default();
+        ui.pick_up_award(self);
+        self.open_page(Screen::Items, ui);
     }
 
     /// The item at a spot.
@@ -123,63 +117,6 @@ impl App {
             .rposition(Option::is_some)
             .map_or(0, |last| last + 1);
         vault_pages_for(used)
-    }
-
-    /// Whether `hero`'s square is the one the item in the hand comes from.
-    fn same_location(&self, hero: hecs::Entity) -> bool {
-        let source = match self.item_ui.held {
-            Some(ItemSpot::Hero(unit, _)) => self.game.units().unit_position(unit),
-            _ => self.game.wizard(HUMAN).and_then(|w| w.fortress()),
-        };
-        source.is_some() && source == self.game.units().unit_position(hero)
-    }
-
-    /// Put the item in the hand at `to` (or pick up what is there).
-    fn item_click(&mut self, to: ItemSpot) {
-        self.item_ui.message = None;
-        match self.item_ui.held {
-            None => {
-                if self.item_at(to).is_some() {
-                    self.item_ui.held = Some(to);
-                }
-            }
-            Some(from) if from == to => self.item_ui.held = None,
-            Some(from) => self.try_move(from, to, false),
-        }
-    }
-
-    fn try_move(&mut self, from: ItemSpot, to: ItemSpot, pay: bool) {
-        // An item put in the vault that comes from the award list leaves the list shorter; an
-        // item in the hand stays there while the swapped one is picked up in its place (the
-        // original's exchange), which the core does as a swap.
-        let before = self.item_at(to);
-        let events = self.game.apply(Command::MoveItem {
-            player: HUMAN,
-            from,
-            to,
-            pay,
-        });
-        let error = events.iter().find_map(|e| match e {
-            f4x_core::game::Event::Rejected(f4x_core::game::Rejection::Item(err)) => Some(*err),
-            _ => None,
-        });
-        match error {
-            Some(ItemError::Transfer) => self.item_ui.confirm = Some((from, to)),
-            Some(err) => {
-                let key = refusal(err);
-                self.item_ui.message = Some(if key.is_empty() {
-                    String::new()
-                } else {
-                    self.text(key)
-                });
-            }
-            None => {
-                // What was in the target slot is now where the item came from: pick it up.
-                self.item_ui.held = before.map(|_| from);
-                self.note(events);
-            }
-        }
-        self.pick_up_award();
     }
 
     /// Draw an item's icon with its name at the hand.
@@ -223,62 +160,206 @@ impl App {
         ui::hit(lay.rect((ax - 1.0, ay, 11.0, 18.0)), enabled, input).hovered()
     }
 
-    pub(crate) fn item_screen(&mut self, input: &Input) {
+    /// One of the screen's two-frame buttons (`armylist` 7 and 8); true when clicked.
+    fn item_button(&mut self, lay: &Layout, entry: usize, x: f32, y: f32, input: &Input) -> bool {
+        self.army_button(lay, entry, x, y, true, input)
+    }
+}
+impl ItemUi {
+    /// The next item on the award list comes into the hand (`Process_Item_Pool`).
+    fn pick_up_award(&mut self, app: &mut App) {
+        if self.held.is_none() && !app.game.items().armory(HUMAN).awards.is_empty() {
+            self.held = Some(ItemSpot::Award(0));
+        }
+    }
+
+    /// Whether `hero`'s square is the one the item in the hand comes from.
+    fn same_location(&self, app: &App, hero: hecs::Entity) -> bool {
+        let source = match self.held {
+            Some(ItemSpot::Hero(unit, _)) => app.game.units().unit_position(unit),
+            _ => app.game.wizard(HUMAN).and_then(|w| w.fortress()),
+        };
+        source.is_some() && source == app.game.units().unit_position(hero)
+    }
+
+    /// Put the item in the hand at `to` (or pick up what is there).
+    fn item_click(&mut self, app: &mut App, to: ItemSpot) {
+        self.message = None;
+        match self.held {
+            None => {
+                if app.item_at(to).is_some() {
+                    self.held = Some(to);
+                }
+            }
+            Some(from) if from == to => self.held = None,
+            Some(from) => self.try_move(app, from, to, false),
+        }
+    }
+
+    fn try_move(&mut self, app: &mut App, from: ItemSpot, to: ItemSpot, pay: bool) {
+        // An item put in the vault that comes from the award list leaves the list shorter; an
+        // item in the hand stays there while the swapped one is picked up in its place (the
+        // original's exchange), which the core does as a swap.
+        let before = app.item_at(to);
+        let events = app.game.apply(Command::MoveItem {
+            player: HUMAN,
+            from,
+            to,
+            pay,
+        });
+        let error = events.iter().find_map(|e| match e {
+            f4x_core::game::Event::Rejected(f4x_core::game::Rejection::Item(err)) => Some(*err),
+            _ => None,
+        });
+        match error {
+            Some(ItemError::Transfer) => self.confirm = Some((from, to)),
+            Some(err) => {
+                let key = refusal(err);
+                self.message = Some(if key.is_empty() {
+                    String::new()
+                } else {
+                    app.text(key)
+                });
+            }
+            None => {
+                // What was in the target slot is now where the item came from: pick it up.
+                self.held = before.map(|_| from);
+                app.note(events);
+            }
+        }
+        self.pick_up_award(app);
+    }
+
+    /// The anvil: destroy the item in the hand if it is in the vault or on the award list.
+    fn scrap_held(&mut self, app: &mut App) {
+        let spot = match self.held {
+            Some(ItemSpot::Vault(i)) => Spot::Vault(i),
+            Some(ItemSpot::Award(i)) => Spot::Award(i),
+            _ => return,
+        };
+        let events = app.game.apply(Command::ScrapItem {
+            player: HUMAN,
+            from: spot,
+        });
+        app.note(events);
+        self.held = None;
+        self.pick_up_award(app);
+    }
+
+    /// Sell the item in the hand if it is in the vault or on the award list: half its value in
+    /// gold now, and the computer wizards are asked in turn whether they buy it.
+    fn sell_held(&mut self, app: &mut App) {
+        let spot = match self.held {
+            Some(ItemSpot::Vault(i)) => Spot::Vault(i),
+            Some(ItemSpot::Award(i)) => Spot::Award(i),
+            _ => return,
+        };
+        let mut events = app.game.apply(Command::SellItem {
+            player: HUMAN,
+            from: spot,
+        });
+        events.extend(f4x_ai::answer_resales(&mut app.game));
+        app.note(events);
+        self.held = None;
+        self.pick_up_award(app);
+    }
+
+    /// The item card and the question about paying for a move.
+    fn item_modals(&mut self, app: &mut App, lay: &Layout, input: &Input) {
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        if let Some(item) = self.card.clone() {
+            app.draw_item_card(lay, &item, 50.0, 60.0);
+            if input.mouse_pressed(MouseButton::Left)
+                || input.mouse_pressed(MouseButton::Right)
+                || input.key_pressed(KeyCode::Escape)
+            {
+                self.card = None;
+            }
+        }
+        if let Some((from, to)) = self.confirm {
+            app.draw_pic(lay, "newgame", 44, 0, 67.0, 40.0);
+            app.draw_pic(lay, "newgame", 45, 0, 67.0, 152.0);
+            let text = app.text_with(
+                "item.transfer_ask",
+                &Args::new().count("mana", TRANSFER_MANA),
+            );
+            let lines = app.bm_wrap(1, &text, 160.0);
+            for (i, line) in lines.iter().enumerate() {
+                app.draw_styled(
+                    view,
+                    &Style::nearest(1, Color::new(0.93, 0.88, 0.68, 1.0)).center(),
+                    line,
+                    160.0,
+                    80.0 + i as f32 * 8.0,
+                );
+            }
+            if input.key_pressed(KeyCode::Y) || input.key_pressed(KeyCode::Enter) {
+                self.confirm = None;
+                self.try_move(app, from, to, true);
+            } else if input.key_pressed(KeyCode::N) || input.key_pressed(KeyCode::Escape) {
+                self.confirm = None;
+            }
+        }
+    }
+}
+
+impl Page for ItemUi {
+    fn frame(&mut self, app: &mut App, input: &Input) {
         clear_background(BLACK);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (wx, wy) = WINDOW;
-        self.draw_pic(&lay, "armylist", 0, 0, 0.0, 0.0);
-        self.draw_pic(&lay, "armylist", 5, 0, wx, wy);
-        let busy = self.item_ui.card.is_some() || self.item_ui.confirm.is_some();
+        app.draw_pic(&lay, "armylist", 0, 0, 0.0, 0.0);
+        app.draw_pic(&lay, "armylist", 5, 0, wx, wy);
+        let busy = self.card.is_some() || self.confirm.is_some();
         let left = input.mouse_pressed(MouseButton::Left) && !busy;
         let right = input.mouse_pressed(MouseButton::Right) && !busy;
-        let heroes = self.game.units().hero_units(HUMAN);
-        let held = self.item_ui.held.is_some();
+        let heroes = app.game.units().hero_units(HUMAN);
+        let held = self.held.is_some();
         let ink = Color::new(0.95, 0.85, 0.5, 1.0);
         let mut card_at = None;
 
         // The heroes, their pictures and their slots.
         let hero_pages = hero_pages_for(heroes.len());
-        self.item_ui.hero_offset = self.item_ui.hero_offset.min((hero_pages - 1) * HEROES);
-        let shown = heroes.iter().skip(self.item_ui.hero_offset).take(HEROES);
+        self.hero_offset = self.hero_offset.min((hero_pages - 1) * HEROES);
+        let shown = heroes.iter().skip(self.hero_offset).take(HEROES);
         for (i, &hero) in shown.enumerate() {
             let (x1, y1) = hero_square(i);
-            self.draw_pic(&lay, "armylist", 6, 0, x1, y1);
-            let portrait = self
+            app.draw_pic(&lay, "armylist", 6, 0, x1, y1);
+            let portrait = app
                 .game
                 .units()
                 .unit_def(hero)
                 .and_then(|d| d.hero.as_ref().map(|h| h.portrait as usize));
             if let Some(p) = portrait {
-                self.draw_pic(&lay, "portrait", p, 0, x1 + 1.0, y1 + 1.0);
+                app.draw_pic(&lay, "portrait", p, 0, x1 + 1.0, y1 + 1.0);
             }
-            let name = self.game.units().hero_name(hero).unwrap_or_default();
-            self.draw_styled(view, &Style::outlined(1), &name, x1 + 37.0, y1);
+            let name = app.game.units().hero_name(hero).unwrap_or_default();
+            app.draw_styled(view, &Style::outlined(1), &name, x1 + 37.0, y1);
             if held {
-                if self.same_location(hero) {
-                    self.draw_styled(
+                if self.same_location(app, hero) {
+                    app.draw_styled(
                         view,
                         &Style::nearest(1, Color::new(0.6, 0.9, 0.5, 1.0)),
-                        &self.text("item.same_location"),
+                        &app.text("item.same_location"),
                         x1 + 37.0,
                         y1 + 7.0,
                     );
                 } else {
-                    self.draw_styled(
+                    app.draw_styled(
                         view,
                         &Style::nearest(1, Color::new(0.95, 0.5, 0.4, 1.0)),
-                        &self.text("item.teleport"),
+                        &app.text("item.teleport"),
                         x1 + 37.0,
                         y1 + 7.0,
                     );
                 }
             }
             if right && ui::hit(lay.rect((x1, y1, 32.0, 32.0)), true, input).hovered() {
-                self.open_unit_sheet(hero);
+                app.open_unit_sheet(hero);
                 return;
             }
-            let kinds = self
+            let kinds = app
                 .game
                 .units()
                 .unit_def(hero)
@@ -287,19 +368,19 @@ impl App {
             for (slot, &kind) in kinds.iter().enumerate() {
                 let (sx, sy) = (x1 + 40.0 + slot as f32 * 29.0, y1 + 15.0);
                 let spot = ItemSpot::Hero(hero, slot);
-                match self.item_at(spot) {
+                match app.item_at(spot) {
                     Some(item) => {
-                        self.draw_pic(&lay, "items", usize::from(item.icon), 0, sx, sy);
+                        app.draw_pic(&lay, "items", usize::from(item.icon), 0, sx, sy);
                     }
                     None => {
-                        self.draw_pic(&lay, "itemisc", slot_icon(kind), 0, sx + 1.0, sy + 2.0);
+                        app.draw_pic(&lay, "itemisc", slot_icon(kind), 0, sx + 1.0, sy + 2.0);
                     }
                 }
                 if ui::hit(lay.rect((sx, sy + 1.0, 22.0, 18.0)), true, input).hovered() {
                     if left {
-                        self.item_click(spot);
+                        self.item_click(app, spot);
                     } else if right {
-                        card_at = self.item_at(spot);
+                        card_at = app.item_at(spot);
                     }
                 }
             }
@@ -307,20 +388,20 @@ impl App {
 
         // More heroes than fit: an arrow on each side of the page number scrolls six at a time.
         if hero_pages > 1 {
-            let page = self.item_ui.hero_offset / HEROES;
+            let page = self.hero_offset / HEROES;
             for (dir, ax) in [(-1i32, wx + 88.0), (1, wx + 124.0)] {
                 let enabled = if dir < 0 {
                     page > 0
                 } else {
                     page + 1 < hero_pages
                 };
-                if self.scroll_arrow(&lay, (ax, wy + 142.0), dir, enabled, input) && left {
+                if app.scroll_arrow(&lay, (ax, wy + 142.0), dir, enabled, input) && left {
                     let page = if dir < 0 { page - 1 } else { page + 1 };
-                    self.item_ui.hero_offset = page * HEROES;
+                    self.hero_offset = page * HEROES;
                 }
             }
             let label = format!("{}/{}", page + 1, hero_pages);
-            self.draw_styled(
+            app.draw_styled(
                 view,
                 &Style::outlined(1).center(),
                 &label,
@@ -330,165 +411,88 @@ impl App {
         }
 
         // The vault: four slots of it at a time, with an arrow on each side to scroll a page.
-        let pages = self.vault_pages();
-        self.item_ui.vault_offset = self.item_ui.vault_offset.min((pages - 1) * VAULT_SLOTS);
-        let page = self.item_ui.vault_offset / VAULT_SLOTS;
+        let pages = app.vault_pages();
+        self.vault_offset = self.vault_offset.min((pages - 1) * VAULT_SLOTS);
+        let page = self.vault_offset / VAULT_SLOTS;
         for (dir, ax) in [(-1i32, wx + 40.0), (1, wx + 139.0)] {
             let enabled = if dir < 0 { page > 0 } else { page + 1 < pages };
-            if self.scroll_arrow(&lay, (ax, wy + 170.0), dir, enabled, input) && left {
+            if app.scroll_arrow(&lay, (ax, wy + 170.0), dir, enabled, input) && left {
                 let page = if dir < 0 { page - 1 } else { page + 1 };
-                self.item_ui.vault_offset = page * VAULT_SLOTS;
+                self.vault_offset = page * VAULT_SLOTS;
             }
         }
         for slot in 0..VAULT_SLOTS {
             let (sx, sy) = (wx + 52.0 + slot as f32 * 21.0, wy + 170.0);
-            let spot = ItemSpot::Vault(self.item_ui.vault_offset + slot);
-            if let Some(item) = self.item_at(spot) {
-                self.draw_pic(&lay, "items", usize::from(item.icon), 0, sx, sy);
+            let spot = ItemSpot::Vault(self.vault_offset + slot);
+            if let Some(item) = app.item_at(spot) {
+                app.draw_pic(&lay, "items", usize::from(item.icon), 0, sx, sy);
             }
             if ui::hit(lay.rect((sx, sy + 2.0, 20.0, 16.0)), true, input).hovered() {
                 if left {
-                    self.item_click(spot);
+                    self.item_click(app, spot);
                 } else if right {
-                    card_at = self.item_at(spot);
+                    card_at = app.item_at(spot);
                 }
             }
         }
 
         // The gold and the mana, the anvil, the buttons.
-        let (gold, mana) = self
+        let (gold, mana) = app
             .game
             .player(HUMAN)
             .map_or((0, 0), |p| (p.treasury().gold, p.treasury().mana));
         let style = if gold > 19999 || mana > 19999 { 0 } else { 1 };
-        self.draw_styled(
+        app.draw_styled(
             view,
             &Style::outlined(style).right(),
             &gold.to_string(),
             wx + 166.0,
             wy + 164.0,
         );
-        self.draw_styled(
+        app.draw_styled(
             view,
             &Style::outlined(style).right(),
             &mana.to_string(),
             wx + 200.0,
             wy + 164.0,
         );
-        self.draw_styled(view, &Style::outlined(0), "GP", wx + 169.0, wy + 164.0);
-        self.draw_styled(view, &Style::outlined(0), "MP", wx + 203.0, wy + 164.0);
-        let alchemy = !held && self.item_button(&lay, 7, wx + 219.0, wy + 155.0, input);
-        let ok = !held && self.item_button(&lay, 8, wx + 219.0, wy + 175.0, input);
+        app.draw_styled(view, &Style::outlined(0), "GP", wx + 169.0, wy + 164.0);
+        app.draw_styled(view, &Style::outlined(0), "MP", wx + 203.0, wy + 164.0);
+        let alchemy = !held && app.item_button(&lay, 7, wx + 219.0, wy + 155.0, input);
+        let ok = !held && app.item_button(&lay, 8, wx + 219.0, wy + 175.0, input);
         if left && ui::hit(lay.rect((wx + 9.0, wy + 155.0, 39.0, 34.0)), true, input).hovered() {
-            self.scrap_held();
+            self.scrap_held(app);
         }
         // S sells the item in the hand for half its value in gold (task 294).
         if held && input.key_pressed(KeyCode::S) {
-            self.sell_held();
+            self.sell_held(app);
         }
         if let Some(item) = card_at {
-            self.item_ui.card = Some(item);
+            self.card = Some(item);
         }
 
         // The item in the hand follows the mouse.
-        if let Some(spot) = self.item_ui.held {
-            match self.item_at(spot) {
-                Some(item) => self.draw_item_in_hand(&lay, &item, input),
-                None => self.item_ui.held = None,
+        if let Some(spot) = self.held {
+            match app.item_at(spot) {
+                Some(item) => app.draw_item_in_hand(&lay, &item, input),
+                None => self.held = None,
             }
         }
-        if let Some(message) = self.item_ui.message.clone() {
-            self.draw_styled(view, &Style::outlined(1).center(), &message, 160.0, 150.0);
+        if let Some(message) = self.message.clone() {
+            app.draw_styled(view, &Style::outlined(1).center(), &message, 160.0, 150.0);
         }
-        self.item_modals(&lay, input);
+        self.item_modals(app, &lay, input);
 
         if alchemy {
-            self.open_magic();
-            self.magic_ui.alchemy = Some(crate::magic_screen::AlchemyUi {
+            app.open_magic();
+            app.magic_ui.alchemy = Some(crate::magic_screen::AlchemyUi {
                 gold_to_mana: true,
                 slider: 3,
             });
         } else if !busy && !held && (ok || input.key_pressed(KeyCode::Escape)) {
-            self.open_page(Screen::ArmyList, crate::army_screen::ArmyUi::default());
+            app.open_page(Screen::ArmyList, crate::army_screen::ArmyUi::default());
         }
         let _ = ink;
-    }
-
-    /// One of the screen's two-frame buttons (`armylist` 7 and 8); true when clicked.
-    fn item_button(&mut self, lay: &Layout, entry: usize, x: f32, y: f32, input: &Input) -> bool {
-        self.army_button(lay, entry, x, y, true, input)
-    }
-
-    /// The anvil: destroy the item in the hand if it is in the vault or on the award list.
-    fn scrap_held(&mut self) {
-        let spot = match self.item_ui.held {
-            Some(ItemSpot::Vault(i)) => Spot::Vault(i),
-            Some(ItemSpot::Award(i)) => Spot::Award(i),
-            _ => return,
-        };
-        let events = self.game.apply(Command::ScrapItem {
-            player: HUMAN,
-            from: spot,
-        });
-        self.note(events);
-        self.item_ui.held = None;
-        self.pick_up_award();
-    }
-
-    /// Sell the item in the hand if it is in the vault or on the award list: half its value in
-    /// gold now, and the computer wizards are asked in turn whether they buy it.
-    fn sell_held(&mut self) {
-        let spot = match self.item_ui.held {
-            Some(ItemSpot::Vault(i)) => Spot::Vault(i),
-            Some(ItemSpot::Award(i)) => Spot::Award(i),
-            _ => return,
-        };
-        let mut events = self.game.apply(Command::SellItem {
-            player: HUMAN,
-            from: spot,
-        });
-        events.extend(f4x_ai::answer_resales(&mut self.game));
-        self.note(events);
-        self.item_ui.held = None;
-        self.pick_up_award();
-    }
-
-    /// The item card and the question about paying for a move.
-    fn item_modals(&mut self, lay: &Layout, input: &Input) {
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        if let Some(item) = self.item_ui.card.clone() {
-            self.draw_item_card(lay, &item, 50.0, 60.0);
-            if input.mouse_pressed(MouseButton::Left)
-                || input.mouse_pressed(MouseButton::Right)
-                || input.key_pressed(KeyCode::Escape)
-            {
-                self.item_ui.card = None;
-            }
-        }
-        if let Some((from, to)) = self.item_ui.confirm {
-            self.draw_pic(lay, "newgame", 44, 0, 67.0, 40.0);
-            self.draw_pic(lay, "newgame", 45, 0, 67.0, 152.0);
-            let text = self.text_with(
-                "item.transfer_ask",
-                &Args::new().count("mana", TRANSFER_MANA),
-            );
-            let lines = self.bm_wrap(1, &text, 160.0);
-            for (i, line) in lines.iter().enumerate() {
-                self.draw_styled(
-                    view,
-                    &Style::nearest(1, Color::new(0.93, 0.88, 0.68, 1.0)).center(),
-                    line,
-                    160.0,
-                    80.0 + i as f32 * 8.0,
-                );
-            }
-            if input.key_pressed(KeyCode::Y) || input.key_pressed(KeyCode::Enter) {
-                self.item_ui.confirm = None;
-                self.try_move(from, to, true);
-            } else if input.key_pressed(KeyCode::N) || input.key_pressed(KeyCode::Escape) {
-                self.item_ui.confirm = None;
-            }
-        }
     }
 }
 
