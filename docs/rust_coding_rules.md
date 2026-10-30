@@ -21,12 +21,23 @@ Avoid cloning, especially on large entities.
 
 The game is built on four major components: rules engine, game engine, client and ai.
 
+The crates depend on each other in one direction: `f4x-core` is at the bottom and depends on no other
+game crate; `f4x-data` depends on `f4x-core`; `f4x-ai`, `f4x-console`, `f4x-learn`, `f4x-client` and
+`f4x-tools` sit above them. `f4x-core` does no file I/O (it is deterministic, see its `lib.rs`).
+
 ## Rules engine
 
 The rules engine is static and implements the rules of the game.
 It reads game rules and content and provides it to the game engine.
 For example, unit stats and abilities, buildings, spells, terrain etc. are all provided via the rules engine.
-The rules engine sits in f4x-data.
+
+The rules engine is split over two crates:
+
+- **f4x-core, `rules/`** (and the definition types next to their concepts, such as `map/terrain.rs`
+  and `feature/def.rs`) holds the types of the rules (`UnitDef`, `SpellDef`, `Effect`, `Stat`,
+  `Content`) and the code that applies them.
+- **f4x-data** loads the files in `content/` (`.ron`), validates them and builds core's types from
+  them (`load_content`). It holds no rules of its own.
 
 ## Game engine
 
@@ -98,9 +109,14 @@ wrong reason.
 - Look units, spells, buildings and races up by name in the shipped content; do not invent stats.
 - A test whose subject needs content (spells, units) must fail when the content is missing. An empty
   registry that makes the test skip its assertions is a bug.
-- The one exception is a crate that cannot depend on `f4x-data` (`f4x-core` is below it). Keep any
-  hand-built content there to the minimum, and cover the same behaviour again in a test that uses the
-  shipped data (`f4x-data/tests/` or a higher crate).
+- The one exception is the unit tests inside `f4x-core/src/`. `f4x-core` is below `f4x-data`, and
+  a test compiled inside the crate cannot use it: with `f4x-data` as a dev-dependency the test build
+  and `f4x-data` hold two copies of core's types (`expected content::Content, found
+  f4x_core::content::Content`). The integration tests in `f4x-core/tests/it/` can: Cargo allows the
+  dev-dependency cycle there and `f4x_data::load_content` works (tried, not yet adopted). So a core
+  test that needs the real rules goes to `f4x-core/tests/it/` (or `f4x-data/tests/`); a unit test in
+  `src/` that stays keeps its hand-built content (`game/testutil.rs`) to the minimum the mechanic
+  needs.
 
 ### Error handling in tests
 
