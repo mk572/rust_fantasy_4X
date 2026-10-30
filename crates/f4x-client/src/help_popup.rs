@@ -197,7 +197,11 @@ impl App {
         ));
         // A spell in the spell book opens its own description.
         if matches!(self.screen, Screen::Spellbook) {
-            if let Some((spell, from)) = self.book_spell_at(x as f32, y as f32) {
+            let hit = self
+                .pages
+                .get(&self.screen)
+                .and_then(|page| page.spell_at(x as f32, y as f32));
+            if let Some((spell, from)) = hit {
                 if self.ask_spell_help(spell, from) {
                     return;
                 }

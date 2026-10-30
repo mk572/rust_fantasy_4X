@@ -11,6 +11,8 @@ use std::mem::{discriminant, Discriminant};
 
 use crate::audio::Track;
 use crate::input::Input;
+use f4x_core::rules::SpellId;
+
 use crate::view::{App, Screen};
 
 pub(crate) trait Page {
@@ -24,6 +26,14 @@ pub(crate) trait Page {
     fn help_at(&self, _app: &App, _x: i32, _y: i32) -> Option<(u16, (f32, f32, f32, f32))> {
         None
     }
+
+    /// The spell listed at `(x, y)` (320 by 200 coordinates) in an open book, with its area.
+    fn spell_at(&self, _x: f32, _y: f32) -> Option<(SpellId, (f32, f32, f32, f32))> {
+        None
+    }
+
+    /// For screenshots: a page turn already `seconds` in.
+    fn start_test_turn(&mut self, _app: &mut App, _forward: bool, _seconds: f64) {}
 
     /// The icon of the weapon the open unit sheet shows, which picks the melee help topic.
     fn melee_icon(&self) -> Option<usize> {
@@ -86,6 +96,17 @@ impl App {
         // Unless the frame opened the same screen afresh, which put its own page.
         if self.pages.get(&shown).is_none() {
             self.pages.put(&shown, page);
+        }
+    }
+
+    /// Hand the page of the open screen, if it has one, to `with` (outside a frame).
+    pub(crate) fn with_page(&mut self, with: impl FnOnce(&mut dyn Page, &mut App)) {
+        let shown = self.screen;
+        if let Some(mut page) = self.pages.take(&shown) {
+            with(page.as_mut(), self);
+            if self.pages.get(&shown).is_none() {
+                self.pages.put(&shown, page);
+            }
         }
     }
 }

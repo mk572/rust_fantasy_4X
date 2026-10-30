@@ -145,14 +145,10 @@ pub struct App {
     pub(crate) defences: std::collections::VecDeque<crate::attack_prompt::PendingAttack>,
     /// The turn is half over: the rivals have moved and the human is defending before it ends.
     pub(crate) turn_events: Option<Vec<Event>>,
-    /// The small spell book's pages.
-    pub(crate) book_ui: crate::spellbook::BookUi,
+    /// What the small spell book keeps between openings.
+    pub(crate) book_prefs: crate::spellbook::BookPrefs,
     /// A spell to research once the research under way is done (set from the spell book).
     pub(crate) queued_research: Option<f4x_core::rules::SpellId>,
-    /// The big spell book: the library, the research choice, spells just learned.
-    pub(crate) big_ui: crate::bigbook::BigBookUi,
-    /// A page turn of the spell books in progress (`page_turn.rs`).
-    pub(crate) book_turn: Option<crate::page_turn::BookTurn>,
     /// The help topics (local only), which describe the spells.
     pub(crate) help: f4x_core::help::Help,
     /// The messages of the random events (`event_texts.ron`).
@@ -354,10 +350,8 @@ impl App {
             ais: Vec::new(),
             defences: Default::default(),
             turn_events: None,
-            book_ui: Default::default(),
+            book_prefs: Default::default(),
             queued_research: None,
-            book_turn: None,
-            big_ui: Default::default(),
             help: Default::default(),
             event_texts: Vec::new(),
             diplomsg: Default::default(),
@@ -815,7 +809,7 @@ impl App {
                 Event::SummoningCircleMoved { .. } => Some(self.text("log.circle_moved")),
                 Event::SpellLearned { player, spell } => {
                     if player == HUMAN {
-                        self.modals.enqueue(crate::learn_spell::Learned(spell));
+                        self.modals.enqueue(crate::learn_spell::Learned::new(spell));
                     }
                     Some(self.text_with("log.learned", &self.spell_arg(Args::new(), spell)))
                 }

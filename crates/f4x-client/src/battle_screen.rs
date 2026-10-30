@@ -12,6 +12,7 @@ use std::collections::{HashMap, VecDeque};
 use crate::font::Style;
 use crate::input::Input;
 use crate::page::Page;
+use crate::spellbook::BookUi;
 use f4x_core::battle::ai::next_command;
 use f4x_core::battle::map::{distance, Pos, Wall, GRID_H, GRID_W};
 use f4x_core::battle::{
@@ -42,6 +43,9 @@ const AI_DELAY: f32 = 0.3;
 /// What the screen remembers between frames.
 #[derive(Default)]
 pub(crate) struct BattleUi {
+    /// The combat spell book: its pages are laid out again every frame, the spread and the page
+    /// turn stay.
+    book: BookUi,
     /// The screen's state has been set up for the battle being fought.
     pub(crate) ready: bool,
     selected: Option<usize>,
@@ -1457,6 +1461,13 @@ impl App {
     /// realm symbol for every time it could be paid for this turn; one that cannot be cast is
     /// greyed. A click on a spell picks it, the ribbon or Escape closes the book.
     fn draw_spell_list(&mut self, battle: &Battle, input: &Input) {
+        let mut book = std::mem::take(&mut self.battle_ui.book);
+        self.spell_list_in(&mut book, battle, input);
+        self.battle_ui.book = book;
+    }
+
+    /// The combat book of `draw_spell_list`, with the book state taken out of the battle's.
+    fn spell_list_in(&mut self, book: &mut BookUi, battle: &Battle, input: &Input) {
         let unit = self.battle_ui.spell_unit;
         let spells: Vec<f4x_core::battle::spell::BattleSpell> = match unit {
             Some(u) => self
@@ -1500,19 +1511,16 @@ impl App {
             })
             .collect();
         let ids: Vec<SpellId> = spells.iter().map(|s| s.spell).collect();
-        self.book_ui.pages = self.book_pages(&ids, crate::spellbook::SMALL_PAGE);
-        self.book_ui.combat = Some(entries);
-        let (pages, last) = (
-            self.book_ui.pages.len(),
-            self.book_ui.pages.len().max(2) - 2,
-        );
-        self.book_ui.left = self.book_ui.left.min(last) & !1;
+        book.pages = self.book_pages(&ids, crate::spellbook::SMALL_PAGE);
+        book.combat = Some(entries);
+        let (pages, last) = (book.pages.len(), book.pages.len().max(2) - 2);
+        book.left = book.left.min(last) & !1;
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        if self.book_turn.is_some() && !self.book_turn_frame(input) {
+        if book.turn.is_some() && !self.book_turn_frame(book, input) {
             return;
         }
-        let left = self.book_ui.left;
+        let left = book.left;
         let (_, wheel) = input.mouse_wheel();
         let forward =
             input.key_pressed(KeyCode::Right) || input.key_pressed(KeyCode::F) || wheel < 0.0;
@@ -1520,11 +1528,11 @@ impl App {
         let click_in =
             |x: f32, y: f32, w: f32, h: f32| ui::hit(lay.rect((x, y, w, h)), true, input).clicked();
         if (forward || click_in(274.0, 14.0, 14.0, 13.0)) && left + 2 < pages {
-            self.turn_book_page(false, true, input);
+            self.turn_book_page(book, true, input);
             return;
         }
         if (back || click_in(29.0, 14.0, 14.0, 13.0)) && left >= 2 {
-            self.turn_book_page(false, false, input);
+            self.turn_book_page(book, false, input);
             return;
         }
         if click_in(175.0, 166.0, 19.0, 30.0) {
@@ -1532,7 +1540,7 @@ impl App {
             self.battle_ui.spell_unit = None;
             return;
         }
-        self.draw_spellbook(&lay, view, input);
+        book.draw_spellbook(self, &lay, view, input);
         if spells.is_empty() {
             self.draw_styled(
                 view,
@@ -1544,7 +1552,7 @@ impl App {
         }
         // Clicking a spell.
         for (side, page_i) in [(0usize, left), (1, left + 1)] {
-            let Some(page) = self.book_ui.pages.get(page_i) else {
+            let Some(page) = book.pages.get(page_i) else {
                 continue;
             };
             let x0 = if side == 0 { 32.0 } else { 164.0 };

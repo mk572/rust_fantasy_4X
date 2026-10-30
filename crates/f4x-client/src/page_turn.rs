@@ -17,10 +17,8 @@ const STAGE_SECONDS: f64 = 0.07;
 /// A turn in progress.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct BookTurn {
-    /// The big book (the Apprentice's library) rather than the small one.
-    pub big: bool,
     pub forward: bool,
-    started: f64,
+    pub(crate) started: f64,
 }
 
 /// One stretch of a curve: the leaf's column `x0` is lifted by `y0`, column `x1` by `y1`, and
@@ -158,77 +156,94 @@ fn lift(curve: &[Segment], x: i32) -> f32 {
         })
 }
 
-impl App {
-    /// Begin turning a page of the small or big book, if the art is there to show it.
-    pub(crate) fn start_book_turn(&mut self, big: bool, forward: bool) {
-        let entry = usize::from(big);
-        if self.art_picture("book", entry, 0).is_some() {
-            self.book_turn = Some(BookTurn {
-                big,
-                forward,
-                started: get_time(),
-            });
-        }
-    }
+/// A book the turn engine can turn the pages of: the small spell book and the big library.
+pub(crate) trait Book {
+    /// The big book (the Apprentice's library) rather than the small one.
+    const BIG: bool;
+    /// The left page of the spread shown.
+    fn left(&self) -> usize;
+    fn set_left(&mut self, left: usize);
+    /// The turn in progress.
+    fn turn(&self) -> Option<BookTurn>;
+    fn set_turn(&mut self, turn: Option<BookTurn>);
+    /// The book picture with pages `left_i` and `right_i` on it, as the turn shows what lies under
+    /// the leaf.
+    fn draw_turn_spread(
+        &mut self,
+        app: &mut App,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        left_i: usize,
+        right_i: usize,
+        input: &Input,
+    );
+    /// Page `page_i` composed for the leaf, in a layout of its own.
+    fn draw_turn_leaf(&mut self, app: &mut App, lay: &Layout, view: (f32, f32, f32), page_i: usize);
 
     /// Move the book to the next or the previous spread.
-    fn move_book(&mut self, big: bool, forward: bool) {
-        let left = if big {
-            &mut self.big_ui.left
-        } else {
-            &mut self.book_ui.left
-        };
-        *left = if forward {
-            *left + 2
+    fn move_page(&mut self, forward: bool) {
+        let left = self.left();
+        self.set_left(if forward {
+            left + 2
         } else {
             left.saturating_sub(2)
-        };
+        });
     }
 
     /// For screenshots: a turn already `seconds` in.
-    pub fn open_test_page_turn(&mut self, big: bool, forward: bool, seconds: f64) {
-        let left = if big {
-            &mut self.big_ui.left
-        } else {
-            &mut self.book_ui.left
-        };
-        *left = if forward { 0 } else { 2 };
-        self.start_book_turn(big, forward);
-        if let Some(turn) = self.book_turn.as_mut() {
+    fn start_test_turn(&mut self, app: &mut App, forward: bool, seconds: f64) {
+        self.set_left(if forward { 0 } else { 2 });
+        app.start_book_turn(self, forward);
+        if let Some(mut turn) = self.turn() {
             turn.started = get_time() - seconds;
+            self.set_turn(Some(turn));
+        }
+    }
+}
+
+impl App {
+    /// For screenshots: the open book with a turn already `seconds` in.
+    pub fn open_test_page_turn(&mut self, forward: bool, seconds: f64) {
+        self.with_page(|page, app| page.start_test_turn(app, forward, seconds));
+    }
+
+    /// Begin turning a page of `book`, if the art is there to show it.
+    pub(crate) fn start_book_turn<B: Book + ?Sized>(&mut self, book: &mut B, forward: bool) {
+        let entry = usize::from(B::BIG);
+        if self.art_picture("book", entry, 0).is_some() {
+            book.set_turn(Some(BookTurn {
+                forward,
+                started: get_time(),
+            }));
         }
     }
 
     /// Turn a page: with the animation if the art is there, else at once.
-    pub(crate) fn turn_book_page(&mut self, big: bool, forward: bool, input: &Input) {
-        self.start_book_turn(big, forward);
-        if self.book_turn.is_none() {
-            self.move_book(big, forward);
+    pub(crate) fn turn_book_page<B: Book>(&mut self, book: &mut B, forward: bool, input: &Input) {
+        self.start_book_turn(book, forward);
+        if book.turn().is_none() {
+            book.move_page(forward);
         } else {
-            self.book_turn_frame(input);
+            self.book_turn_frame(book, input);
         }
     }
 
     /// Draw the turn in progress. Returns true once it is over (the book is on its new spread
     /// and the turn is cleared), or when none is.
-    pub(crate) fn book_turn_frame(&mut self, input: &Input) -> bool {
-        let Some(turn) = self.book_turn else {
+    pub(crate) fn book_turn_frame<B: Book>(&mut self, book: &mut B, input: &Input) -> bool {
+        let Some(turn) = book.turn() else {
             return true;
         };
         let stage = ((get_time() - turn.started) / STAGE_SECONDS) as usize;
         if stage >= 4 {
-            self.book_turn = None;
-            self.move_book(turn.big, turn.forward);
+            book.set_turn(None);
+            book.move_page(turn.forward);
             return true;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let (left, pages) = if turn.big {
-            (self.big_ui.left, self.big_ui.pages.len())
-        } else {
-            (self.book_ui.left, self.book_ui.pages.len())
-        };
+        let left = book.left();
         // The spread under the leaf: the page that stays and the one that is uncovered.
         let (under_left, under_right) = if turn.forward {
             (left, left + 3)
@@ -242,25 +257,23 @@ impl App {
             (false, true) => left,
             (false, false) => left.saturating_sub(1),
         };
-        if turn.big {
-            let corners = (under_left != 0, under_right + 2 < pages);
-            self.draw_big_spread(&lay, view, under_left, under_right, corners, None);
-        } else {
-            let corners = (under_left != 0, true);
-            self.draw_book_spread(&lay, view, under_left, under_right, corners, input);
-        }
+        book.draw_turn_spread(self, &lay, view, under_left, under_right, input);
         let frame = if turn.forward { stage } else { 3 - stage };
-        self.draw_pic(&lay, "book", usize::from(turn.big), frame, 0.0, 0.0);
-        let table = if turn.big { &BIG_STAGES } else { &SMALL_STAGES };
+        self.draw_pic(&lay, "book", usize::from(B::BIG), frame, 0.0, 0.0);
+        let table = if B::BIG { &BIG_STAGES } else { &SMALL_STAGES };
         let shape = &table[frame];
-        self.draw_leaf(&lay, turn.big, leaf_page, shape);
+        self.draw_leaf(book, &lay, leaf_page, shape);
         false
     }
 
     /// The leaf's page composed off screen, then drawn narrowed to `shape.percent` and bent along
     /// its curve, a column at a time.
-    fn draw_leaf(&mut self, lay: &Layout, big: bool, page_i: usize, shape: &Stage) {
-        let (w, h) = if big { (129.0, 200.0) } else { (122.0, 175.0) };
+    fn draw_leaf<B: Book>(&mut self, book: &mut B, lay: &Layout, page_i: usize, shape: &Stage) {
+        let (w, h) = if B::BIG {
+            (129.0, 200.0)
+        } else {
+            (122.0, 175.0)
+        };
         let k = lay.scale;
         let (pw, ph) = ((w * k).ceil() as u32, (h * k).ceil() as u32);
         let target = render_target(pw, ph);
@@ -277,13 +290,7 @@ impl App {
             origin: Vec2::ZERO,
         };
         let page_view = (0.0, 0.0, k);
-        let right = page_i % 2 == 1;
-        if big {
-            let title = (if right { 58.0 } else { 66.0 }, 30.0);
-            self.draw_big_page(&page_lay, page_view, page_i, right, 0.0, title, 20.0, None);
-        } else {
-            self.draw_book_page(&page_lay, page_view, page_i, right, 0.0, (62.0, 30.0), 17.0);
-        }
+        book.draw_turn_leaf(self, &page_lay, page_view, page_i);
         set_default_camera();
         let columns = (w * shape.percent / 100.0).floor() as i32;
         let step = 100.0 / shape.percent;

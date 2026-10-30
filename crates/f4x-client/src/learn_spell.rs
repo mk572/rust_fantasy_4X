@@ -10,7 +10,7 @@ use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
 
 use crate::audio::{music, Track};
-use crate::bigbook::BigMode;
+use crate::bigbook::BigBookUi;
 use crate::event_popup::GREEN;
 use crate::frame::Layout;
 use crate::modal::{keep, kind, Modal};
@@ -36,7 +36,6 @@ const GLOW_TO: [f32; 3] = [38.0, 38.0, 53.0];
 /// A learn-spell animation in progress.
 #[derive(Debug, Clone)]
 pub(crate) struct LearnAnim {
-    spell: SpellId,
     started: f64,
     /// When the lab scene ends, in seconds from the start.
     lab_end: f64,
@@ -45,7 +44,41 @@ pub(crate) struct LearnAnim {
 }
 
 /// A spell the human has just learned, announced until the animation or the box is done.
-pub(crate) struct Learned(pub(crate) SpellId);
+pub(crate) struct Learned {
+    spell: SpellId,
+    /// The animation once it has started, and the library it plays in.
+    anim: Option<LearnAnim>,
+    book: BigBookUi,
+}
+
+impl Learned {
+    pub(crate) fn new(spell: SpellId) -> Self {
+        Self {
+            spell,
+            anim: None,
+            book: BigBookUi::default(),
+        }
+    }
+
+    /// Lay out the library and find the spell's place in it.
+    fn start(&mut self, app: &mut App) -> LearnAnim {
+        self.book = app.library_book().unwrap_or_default();
+        let place = self.book.pages[..self.book.first_research]
+            .iter()
+            .enumerate()
+            .find_map(|(page, p)| {
+                p.spells
+                    .iter()
+                    .position(|&s| s == self.spell)
+                    .map(|i| (page, i))
+            });
+        LearnAnim {
+            started: get_time(),
+            lab_end: LAB_LOOPS * LAB_STEP,
+            place,
+        }
+    }
+}
 
 impl Modal for Learned {
     fn kind(&self) -> &'static str {
@@ -67,66 +100,6 @@ fn any_input(input: &Input) -> bool {
 }
 
 impl App {
-    /// For screenshots: announce a spell as learned, the animation `seconds` in.
-    pub fn open_test_learn(&mut self, id: &str, seconds: f64) {
-        let Some(spell) = self.game.content().rules.spells.id_of(id) else {
-            eprintln!("unknown spell {id}");
-            return;
-        };
-        self.modals.enqueue(Learned(spell));
-        let anim = self.start_learn_anim(spell);
-        self.big_ui.learn = Some(LearnAnim {
-            started: get_time() - seconds,
-            ..anim
-        });
-    }
-
-    fn start_learn_anim(&mut self, spell: SpellId) -> LearnAnim {
-        self.build_library_pages();
-        self.big_ui.mode = BigMode::Apprentice;
-        let library = self.big_ui.first_research;
-        let place = self.big_ui.pages[..library]
-            .iter()
-            .enumerate()
-            .find_map(|(page, p)| p.spells.iter().position(|&s| s == spell).map(|i| (page, i)));
-        LearnAnim {
-            spell,
-            started: get_time(),
-            lab_end: LAB_LOOPS * LAB_STEP,
-            place,
-        }
-    }
-
-    /// A spell learned, over the whole screen until its animation is done; what is left of it
-    /// while it plays.
-    fn learned_frame(&mut self, Learned(spell): Learned, input: &Input) -> Option<Learned> {
-        if !self.prefs.get(Pref::SpellAnimations) {
-            return self.learned_box(spell, input).then_some(Learned(spell));
-        }
-        let mut anim = match self.big_ui.learn.clone() {
-            Some(a) if a.spell == spell => a,
-            _ => self.start_learn_anim(spell),
-        };
-        let lay = Layout::new();
-        let t = get_time() - anim.started;
-        let pressed = any_input(input);
-        if t < anim.lab_end {
-            if pressed {
-                anim.lab_end = t;
-            }
-            self.draw_lab(&lay, t);
-        } else {
-            let stage = ((t - anim.lab_end) / DECODE_STEP) as usize;
-            let Some(place) = anim.place.filter(|_| stage < DECODE_STAGES && !pressed) else {
-                self.big_ui.learn = None;
-                return None;
-            };
-            self.draw_decode(&lay, spell, place, stage);
-        }
-        self.big_ui.learn = Some(anim);
-        Some(Learned(spell))
-    }
-
     /// The realm of the wizard's strongest books, the first of nature, sorcery, chaos, life and
     /// death on a tie (`Prim_Realm`): it colours the familiar.
     fn primary_realm(&self) -> usize {
@@ -161,56 +134,6 @@ impl App {
         });
     }
 
-    /// `Learn_Spell_Animation_Decode_Draw`: the book open at the spell's page with its entry
-    /// hidden, the glowing text over it, the real entry opening through a window, and the
-    /// sparkle on top.
-    fn draw_decode(&mut self, lay: &Layout, spell: SpellId, place: (usize, usize), stage: usize) {
-        let (page, slot) = place;
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        self.big_ui.left = page & !1;
-        self.draw_big_book(lay, view, Some(place));
-        let on_right = page % 2 == 1;
-        let (x, y) = (
-            if on_right { 173.0 } else { 25.0 },
-            28.0 + 37.0 * slot as f32,
-        );
-        let cycled = stage.min(15) as f32 * 2.0;
-        let glow = Color::new(
-            (GLOW_FROM[0] + cycled).min(GLOW_TO[0]) / 63.0,
-            (GLOW_FROM[1] + cycled).min(GLOW_TO[1]) / 63.0,
-            (GLOW_FROM[2] + cycled).min(GLOW_TO[2]) / 63.0,
-            1.0,
-        );
-        if stage >= 28 {
-            self.draw_big_entry(lay, view, spell, x, y, false, None);
-        } else if stage >= 22 {
-            let k = stage - 22;
-            let (open, close) = (x + WINDOW_LEFT[k], x + WINDOW_RIGHT[k]);
-            self.clipped((open, y, close - open, 37.0), |app| {
-                app.draw_big_entry(lay, view, spell, x, y, false, None);
-            });
-            if stage < 27 {
-                self.clipped((x, y, open - x, 37.0), |app| {
-                    app.draw_big_entry(lay, view, spell, x, y, false, Some(glow));
-                });
-                self.clipped((close, y, x + 129.0 - close, 37.0), |app| {
-                    app.draw_big_entry(lay, view, spell, x, y, false, Some(glow));
-                });
-            }
-        } else {
-            self.draw_big_entry(lay, view, spell, x, y, false, Some(glow));
-        }
-        if (16..29).contains(&stage) {
-            let (sx, sy) = if on_right {
-                (168.0, 24.0)
-            } else {
-                (20.0, 21.0)
-            };
-            self.draw_shared_pic(lay, &Role::Sparkle, stage - 16, sx, sy + 37.0 * slot as f32);
-        }
-    }
-
     /// With animations off: "You have mastered the spell of X" in a box over the map.
     /// True while the box stays.
     fn learned_box(&mut self, spell: SpellId, input: &Input) -> bool {
@@ -228,5 +151,108 @@ impl App {
             input,
         );
         !closed
+    }
+}
+impl App {
+    /// For screenshots: announce a spell as learned, the animation `seconds` in.
+    pub fn open_test_learn(&mut self, id: &str, seconds: f64) {
+        let Some(spell) = self.game.content().rules.spells.id_of(id) else {
+            eprintln!("unknown spell {id}");
+            return;
+        };
+        let mut learned = Learned::new(spell);
+        let anim = learned.start(self);
+        learned.anim = Some(LearnAnim {
+            started: get_time() - seconds,
+            ..anim
+        });
+        self.modals.enqueue(learned);
+    }
+
+    /// A spell learned, over the whole screen until its animation is done; what is left of it
+    /// while it plays.
+    fn learned_frame(&mut self, mut learned: Learned, input: &Input) -> Option<Learned> {
+        let spell = learned.spell;
+        if !self.prefs.get(Pref::SpellAnimations) {
+            return self.learned_box(spell, input).then_some(learned);
+        }
+        let mut anim = match learned.anim.take() {
+            Some(a) => a,
+            None => learned.start(self),
+        };
+        let lay = Layout::new();
+        let t = get_time() - anim.started;
+        let pressed = any_input(input);
+        if t < anim.lab_end {
+            if pressed {
+                anim.lab_end = t;
+            }
+            self.draw_lab(&lay, t);
+        } else {
+            let stage = ((t - anim.lab_end) / DECODE_STEP) as usize;
+            let place = anim.place.filter(|_| stage < DECODE_STAGES && !pressed)?;
+            learned.book.draw_decode(self, &lay, spell, place, stage);
+        }
+        learned.anim = Some(anim);
+        Some(learned)
+    }
+}
+
+impl BigBookUi {
+    /// `Learn_Spell_Animation_Decode_Draw`: the book open at the spell's page with its entry
+    /// hidden, the glowing text over it, the real entry opening through a window, and the
+    /// sparkle on top.
+    fn draw_decode(
+        &mut self,
+        app: &mut App,
+        lay: &Layout,
+        spell: SpellId,
+        place: (usize, usize),
+        stage: usize,
+    ) {
+        let (page, slot) = place;
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        self.left = page & !1;
+        self.draw_big_book(app, lay, view, Some(place));
+        let on_right = page % 2 == 1;
+        let (x, y) = (
+            if on_right { 173.0 } else { 25.0 },
+            28.0 + 37.0 * slot as f32,
+        );
+        let cycled = stage.min(15) as f32 * 2.0;
+        let glow = Color::new(
+            (GLOW_FROM[0] + cycled).min(GLOW_TO[0]) / 63.0,
+            (GLOW_FROM[1] + cycled).min(GLOW_TO[1]) / 63.0,
+            (GLOW_FROM[2] + cycled).min(GLOW_TO[2]) / 63.0,
+            1.0,
+        );
+        if stage >= 28 {
+            app.draw_big_entry(lay, view, spell, x, y, false, None);
+        } else if stage >= 22 {
+            let k = stage - 22;
+            let (open, close) = (x + WINDOW_LEFT[k], x + WINDOW_RIGHT[k]);
+            app.clipped((open, y, close - open, 37.0), |app| {
+                app.draw_big_entry(lay, view, spell, x, y, false, None);
+            });
+            if stage < 27 {
+                app.clipped((x, y, open - x, 37.0), |app| {
+                    app.draw_big_entry(lay, view, spell, x, y, false, Some(glow));
+                });
+                app.clipped((close, y, x + 129.0 - close, 37.0), |app| {
+                    app.draw_big_entry(lay, view, spell, x, y, false, Some(glow));
+                });
+            }
+        } else {
+            app.draw_big_entry(lay, view, spell, x, y, false, Some(glow));
+        }
+        if (16..29).contains(&stage) {
+            let (sx, sy) = if on_right {
+                (168.0, 24.0)
+            } else {
+                (20.0, 21.0)
+            };
+            app.draw_shared_pic(lay, &Role::Sparkle, stage - 16, sx, sy + 37.0 * slot as f32);
+        }
     }
 }

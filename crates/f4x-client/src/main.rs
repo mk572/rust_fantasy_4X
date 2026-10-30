@@ -662,7 +662,7 @@ async fn main() {
         app.open_research_choice();
     }
     if let Some(way) = &options.turn {
-        app.open_test_page_turn(options.apprentice, way == "forward", options.turn_at);
+        app.open_test_page_turn(way == "forward", options.turn_at);
     }
     if let Some(id) = &options.battle_site {
         app.set_test_feature(id);

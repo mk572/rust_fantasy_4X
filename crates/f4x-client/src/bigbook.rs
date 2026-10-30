@@ -7,6 +7,7 @@ use crate::font::Style;
 use crate::input::Input;
 use crate::modal::{keep, kind, priority, Modal};
 use crate::page::Page;
+use crate::page_turn::{Book, BookTurn};
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::rules::SpellId;
@@ -38,8 +39,8 @@ pub(crate) struct BigBookUi {
     /// The first of the two research pages.
     pub first_research: usize,
     pub left: usize,
-    /// The learn-spell animation of the first of them, once it has started (`learn_spell.rs`).
-    pub learn: Option<crate::learn_spell::LearnAnim>,
+    /// The page turn in progress.
+    pub turn: Option<BookTurn>,
 }
 
 /// What a spell does: the text of its help topic (`spell:<id>`). Empty without one.
@@ -58,17 +59,15 @@ impl App {
     /// Open the Apprentice's library: every spell the books allow, known or not, and the two
     /// pages of spells on offer for research at the end.
     pub fn open_apprentice(&mut self) {
-        if self.build_library_pages() {
-            self.open_page(Screen::Apprentice, ApprenticePage);
+        if let Some(book) = self.library_book() {
+            self.open_page(Screen::Apprentice, book);
         }
     }
 
-    /// Lay out the library (every spell known or researchable, then the research pages) in
-    /// `big_ui`, open at the research pages. False without a wizard.
-    pub(crate) fn build_library_pages(&mut self) -> bool {
-        let Some(m) = self.game.wizard(HUMAN) else {
-            return false;
-        };
+    /// The library laid out (every spell known or researchable, then the research pages),
+    /// open at the research pages. `None` without a wizard.
+    pub(crate) fn library_book(&mut self) -> Option<BigBookUi> {
+        let m = self.game.wizard(HUMAN)?;
         let all: Vec<SpellId> = m
             .known()
             .iter()
@@ -76,13 +75,15 @@ impl App {
             .copied()
             .collect();
         let mut pages = self.book_pages(&all, BIG_PAGE);
-        let first = pages.len();
+        let first_research = pages.len();
         pages.extend(self.research_pages());
-        self.big_ui.pages = pages;
-        self.big_ui.first_research = first;
-        self.big_ui.left = first;
-        self.big_ui.mode = BigMode::Apprentice;
-        true
+        Some(BigBookUi {
+            mode: BigMode::Apprentice,
+            pages,
+            first_research,
+            left: first_research,
+            turn: None,
+        })
     }
 
     /// The two pages that list the spells on offer for research.
@@ -109,11 +110,12 @@ impl App {
 
     /// The dialog that asks what to research next.
     pub fn open_research_choice(&mut self) {
-        self.big_ui.pages = self.research_pages();
-        self.big_ui.first_research = 0;
-        self.big_ui.left = 0;
-        self.big_ui.mode = BigMode::Research;
-        self.open_page(Screen::Research, ResearchPage);
+        let book = BigBookUi {
+            mode: BigMode::Research,
+            pages: self.research_pages(),
+            ..Default::default()
+        };
+        self.open_page(Screen::Research, book);
     }
 
     /// At the start of a turn with nothing being researched and spells on offer (and the game
@@ -146,106 +148,6 @@ impl App {
             && !self.game.player(HUMAN).is_some_and(|p| p.is_defeated());
         if idle && alive && self.game.game_over.is_none() {
             self.open_research_choice();
-        }
-    }
-
-    /// The open book: the dog-ears (browsing only), and the two pages.
-    pub(crate) fn draw_big_book(
-        &mut self,
-        lay: &Layout,
-        view: (f32, f32, f32),
-        hide: Option<(usize, usize)>,
-    ) {
-        let (pages, left) = (self.big_ui.pages.len(), self.big_ui.left);
-        let browsing = self.big_ui.mode == BigMode::Apprentice;
-        let corners = (browsing && left >= 1, browsing && left + 2 < pages);
-        self.draw_big_spread(lay, view, left, left + 1, corners, hide);
-    }
-
-    /// The book picture with the pages `left_i` and `right_i` and the dog-ears `corners` asked
-    /// for (a page turn shows other pages than the current spread).
-    pub(crate) fn draw_big_spread(
-        &mut self,
-        lay: &Layout,
-        view: (f32, f32, f32),
-        left_i: usize,
-        right_i: usize,
-        corners: (bool, bool),
-        hide: Option<(usize, usize)>,
-    ) {
-        let full = lay.rect((0.0, 0.0, 320.0, 200.0));
-        if self.draw_pic(lay, "scroll", 6, 0, 0.0, 0.0).is_none() {
-            draw_rectangle(
-                full.x,
-                full.y,
-                full.w,
-                full.h,
-                Color::new(0.55, 0.4, 0.2, 1.0),
-            );
-        }
-        if corners.0 {
-            self.draw_pic(lay, "scroll", 7, 0, 15.0, 9.0);
-        }
-        if corners.1 {
-            self.draw_pic(lay, "scroll", 8, 0, 289.0, 9.0);
-        }
-        for (side, page_i) in [(0usize, left_i), (1, right_i)] {
-            let x0 = if side == 0 { 25.0 } else { 173.0 };
-            let title = (x0 + if side == 0 { 66.0 } else { 58.0 }, 10.0);
-            self.draw_big_page(lay, view, page_i, side == 1, x0, title, 0.0, hide);
-        }
-    }
-
-    /// A page of the big book: its title (on the left page and on a right page that starts a
-    /// realm) centred at `title`, and its spells with the page's left edge at `x0` and `dy`
-    /// added to their y.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn draw_big_page(
-        &mut self,
-        lay: &Layout,
-        view: (f32, f32, f32),
-        page_i: usize,
-        right: bool,
-        x0: f32,
-        title: (f32, f32),
-        dy: f32,
-        hide: Option<(usize, usize)>,
-    ) {
-        let Some(page) = self.big_ui.pages.get(page_i).cloned() else {
-            return;
-        };
-        let starts_realm = page_i == self.big_ui.first_research
-            || page_i == 0
-            || self
-                .big_ui
-                .pages
-                .get(page_i - 1)
-                .is_none_or(|p| p.title != page.title);
-        if !right || starts_realm {
-            self.draw_styled(
-                view,
-                &Style::nearest(5, Color::new(0.45, 0.2, 0.1, 1.0)).center(),
-                &page.title,
-                title.0,
-                title.1,
-            );
-        }
-        let research_page = page_i >= self.big_ui.first_research
-            && self.big_ui.mode == BigMode::Apprentice
-            || self.big_ui.mode == BigMode::Research;
-        for (i, &spell) in page.spells.iter().enumerate() {
-            if hide == Some((page_i, i)) {
-                continue;
-            }
-            self.draw_big_entry(
-                lay,
-                view,
-                spell,
-                x0,
-                28.0 + 37.0 * i as f32 + dy,
-                research_page,
-                None,
-            );
         }
     }
 
@@ -332,6 +234,109 @@ impl App {
                 &l,
                 x,
                 y + 17.0 + line_h * n as f32,
+            );
+        }
+    }
+}
+impl BigBookUi {
+    /// The open book: the dog-ears (browsing only), and the two pages.
+    pub(crate) fn draw_big_book(
+        &mut self,
+        app: &mut App,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        hide: Option<(usize, usize)>,
+    ) {
+        let (pages, left) = (self.pages.len(), self.left);
+        let browsing = self.mode == BigMode::Apprentice;
+        let corners = (browsing && left >= 1, browsing && left + 2 < pages);
+        self.draw_big_spread(app, lay, view, left, left + 1, corners, hide);
+    }
+
+    /// The book picture with the pages `left_i` and `right_i` and the dog-ears `corners` asked
+    /// for (a page turn shows other pages than the current spread).
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn draw_big_spread(
+        &mut self,
+        app: &mut App,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        left_i: usize,
+        right_i: usize,
+        corners: (bool, bool),
+        hide: Option<(usize, usize)>,
+    ) {
+        let full = lay.rect((0.0, 0.0, 320.0, 200.0));
+        if app.draw_pic(lay, "scroll", 6, 0, 0.0, 0.0).is_none() {
+            draw_rectangle(
+                full.x,
+                full.y,
+                full.w,
+                full.h,
+                Color::new(0.55, 0.4, 0.2, 1.0),
+            );
+        }
+        if corners.0 {
+            app.draw_pic(lay, "scroll", 7, 0, 15.0, 9.0);
+        }
+        if corners.1 {
+            app.draw_pic(lay, "scroll", 8, 0, 289.0, 9.0);
+        }
+        for (side, page_i) in [(0usize, left_i), (1, right_i)] {
+            let x0 = if side == 0 { 25.0 } else { 173.0 };
+            let title = (x0 + if side == 0 { 66.0 } else { 58.0 }, 10.0);
+            self.draw_big_page(app, lay, view, page_i, side == 1, x0, title, 0.0, hide);
+        }
+    }
+
+    /// A page of the big book: its title (on the left page and on a right page that starts a
+    /// realm) centred at `title`, and its spells with the page's left edge at `x0` and `dy`
+    /// added to their y.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn draw_big_page(
+        &mut self,
+        app: &mut App,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        page_i: usize,
+        right: bool,
+        x0: f32,
+        title: (f32, f32),
+        dy: f32,
+        hide: Option<(usize, usize)>,
+    ) {
+        let Some(page) = self.pages.get(page_i).cloned() else {
+            return;
+        };
+        let starts_realm = page_i == self.first_research
+            || page_i == 0
+            || self
+                .pages
+                .get(page_i - 1)
+                .is_none_or(|p| p.title != page.title);
+        if !right || starts_realm {
+            app.draw_styled(
+                view,
+                &Style::nearest(5, Color::new(0.45, 0.2, 0.1, 1.0)).center(),
+                &page.title,
+                title.0,
+                title.1,
+            );
+        }
+        let research_page = page_i >= self.first_research && self.mode == BigMode::Apprentice
+            || self.mode == BigMode::Research;
+        for (i, &spell) in page.spells.iter().enumerate() {
+            if hide == Some((page_i, i)) {
+                continue;
+            }
+            app.draw_big_entry(
+                lay,
+                view,
+                spell,
+                x0,
+                28.0 + 37.0 * i as f32 + dy,
+                research_page,
+                None,
             );
         }
     }
@@ -434,17 +439,74 @@ pub(crate) fn capitalise(s: &str) -> String {
         .unwrap_or_default()
 }
 
-pub(crate) struct ApprenticePage;
+impl Page for BigBookUi {
+    fn start_test_turn(&mut self, app: &mut App, forward: bool, seconds: f64) {
+        Book::start_test_turn(self, app, forward, seconds);
+    }
 
-impl Page for ApprenticePage {
     fn frame(&mut self, app: &mut App, input: &Input) {
+        match self.mode {
+            BigMode::Apprentice => self.browse(app, input),
+            BigMode::Research => self.choose_research(app, input),
+        }
+    }
+}
+
+impl Book for BigBookUi {
+    const BIG: bool = true;
+
+    fn left(&self) -> usize {
+        self.left
+    }
+
+    fn set_left(&mut self, left: usize) {
+        self.left = left;
+    }
+
+    fn turn(&self) -> Option<BookTurn> {
+        self.turn
+    }
+
+    fn set_turn(&mut self, turn: Option<BookTurn>) {
+        self.turn = turn;
+    }
+
+    fn draw_turn_spread(
+        &mut self,
+        app: &mut App,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        left_i: usize,
+        right_i: usize,
+        _input: &Input,
+    ) {
+        let corners = (left_i != 0, right_i + 2 < self.pages.len());
+        self.draw_big_spread(app, lay, view, left_i, right_i, corners, None);
+    }
+
+    fn draw_turn_leaf(
+        &mut self,
+        app: &mut App,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        page_i: usize,
+    ) {
+        let right = page_i % 2 == 1;
+        let title = (if right { 58.0 } else { 66.0 }, 30.0);
+        self.draw_big_page(app, lay, view, page_i, right, 0.0, title, 20.0, None);
+    }
+}
+
+impl BigBookUi {
+    /// Browsing the library: page turns, nothing to choose.
+    fn browse(&mut self, app: &mut App, input: &Input) {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        if app.book_turn.is_some() && !app.book_turn_frame(input) {
+        if self.turn.is_some() && !app.book_turn_frame(self, input) {
             return;
         }
-        let pages = app.big_ui.pages.len();
-        let left = app.big_ui.left;
+        let pages = self.pages.len();
+        let left = self.left;
         let click_in =
             |x: f32, y: f32, w: f32, h: f32| ui::hit(lay.rect((x, y, w, h)), true, input).clicked();
         let (_, wheel) = input.mouse_wheel();
@@ -453,10 +515,10 @@ impl Page for ApprenticePage {
         let back =
             click_in(15.0, 7.0, 16.0, 16.0) || input.key_pressed(KeyCode::Left) || wheel > 0.0;
         if forward && left + 2 < pages {
-            app.turn_book_page(true, true, input);
+            app.turn_book_page(self, true, input);
             return;
         } else if back && left >= 2 {
-            app.turn_book_page(true, false, input);
+            app.turn_book_page(self, false, input);
             return;
         } else if input.key_pressed(KeyCode::Escape)
             || input.key_pressed(KeyCode::F3)
@@ -467,14 +529,11 @@ impl Page for ApprenticePage {
             return;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        app.draw_big_book(&lay, view, None);
+        self.draw_big_book(app, &lay, view, None);
     }
-}
 
-pub(crate) struct ResearchPage;
-
-impl Page for ResearchPage {
-    fn frame(&mut self, app: &mut App, input: &Input) {
+    /// Choosing the next research from the eight on offer.
+    fn choose_research(&mut self, app: &mut App, input: &Input) {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let clicked = input.mouse_pressed(MouseButton::Left);
@@ -508,7 +567,7 @@ impl Page for ResearchPage {
             }
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        app.draw_big_book(&lay, view, None);
+        self.draw_big_book(app, &lay, view, None);
         let prompt = Color::new(1.0, 0.95, 0.8, 1.0);
         app.draw_styled(
             view,
