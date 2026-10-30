@@ -243,6 +243,7 @@ fn a_wizard_chooses_a_banner_and_it_is_saved() {
 fn presets_come_from_the_rules() {
     let mut g = game();
     g.content.rules.wizards = crate::rules::Registry::new(vec![crate::rules::WizardDef {
+        num: 0,
         id: "lo_pan".into(),
         name: "Lo Pan".into(),
         description: String::new(),

@@ -133,18 +133,12 @@ pub fn content_with_units() -> Content {
 
 /// Test content with a few races, buildings, mines and city enchantments, for economy tests.
 pub fn content_with_economy() -> Content {
-    use crate::rules::RealmDef;
     let mut c = content_with_units();
     let buildings = real_buildings();
     c.rules.races = Registry::new(real_races());
     c.rules.buildings = Registry::new_sorted(buildings);
     c.rules.spells = Registry::new(real_spells());
-    c.rules.realms = Registry::new(vec![RealmDef {
-        id: "life".into(),
-        name: "Life".into(),
-        color: (255, 255, 255),
-        default_spells: Vec::new(),
-    }]);
+    c.rules.realms = Registry::new(real_realms());
     // Features with city bonuses.
     let mut defs: Vec<FeatureDef> = c.features.defs().to_vec();
     for d in defs.iter_mut() {
@@ -248,12 +242,30 @@ pub fn real_buildings() -> Vec<crate::rules::BuildingDef> {
 /// Economy content plus the game's real spells and realms (`content/spells.ron` and
 /// `content/realms.ron`), so a test casts the same spell the game does.
 pub fn content_with_magic() -> Content {
-    use crate::rules::RealmDef;
-    let mut c = content_with_economy();
-    let realms: Vec<RealmDef> = ron::from_str(include_str!("../../../../content/realms.ron"))
-        .expect("the game's realms parse");
-    c.rules.realms = Registry::new(realms);
-    c
+    content_with_economy()
+}
+
+/// The game's real realms (`content/realms.ron`).
+pub fn real_realms() -> Vec<crate::rules::RealmDef> {
+    ron::from_str(include_str!("../../../../content/realms.ron")).expect("the game's realms parse")
+}
+
+/// Fixture item powers of a test, numbered from 0 in the order given.
+pub fn numbered_powers(
+    mut powers: Vec<crate::rules::ItemPowerDef>,
+) -> Vec<crate::rules::ItemPowerDef> {
+    for (i, p) in powers.iter_mut().enumerate() {
+        p.num = i as u16;
+    }
+    powers
+}
+
+/// Fixture items of a test, numbered from 0 in the order given.
+pub fn numbered_items(mut items: Vec<crate::rules::ItemDef>) -> Vec<crate::rules::ItemDef> {
+    for (i, p) in items.iter_mut().enumerate() {
+        p.num = i as u16;
+    }
+    items
 }
 
 /// An item power for tests that is not a plain bonus: the lasting spell and the attack ability
@@ -264,6 +276,7 @@ pub fn item_power(
     attack: Option<&str>,
 ) -> crate::rules::ItemPowerDef {
     crate::rules::ItemPowerDef {
+        num: 0,
         id: id.into(),
         name: id.into(),
         group: 9,

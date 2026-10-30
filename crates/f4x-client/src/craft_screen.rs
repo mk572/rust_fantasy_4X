@@ -583,6 +583,7 @@ mod tests {
 
     fn power(id: &str, group: u8, bonus: Option<(PowerBonus, i32)>) -> ItemPowerDef {
         ItemPowerDef {
+            num: 0,
             id: id.into(),
             name: id.into(),
             group,

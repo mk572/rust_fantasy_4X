@@ -210,6 +210,13 @@ fn every_item_power_has_the_originals_types_cost_group_realm_and_books() {
     assert_eq!(defs.len(), rows.len(), "item powers");
     let mut wrong = Vec::new();
     for (def, row) in defs.iter().zip(&rows) {
+        if i64::from(def.num) != number(row, "index") {
+            wrong.push(format!(
+                "{}: numbered {}, original {}",
+                def.id, def.num, row["index"]
+            ));
+            continue;
+        }
         if plain(&def.name) != plain(&row["name"]) {
             wrong.push(format!("{}: named {} in the original", def.id, row["name"]));
             continue;
@@ -273,6 +280,13 @@ fn every_prefab_item_has_the_originals_type_cost_bonuses_and_powers() {
     assert_eq!(defs.len(), rows.len(), "items");
     let mut wrong = Vec::new();
     for (def, row) in defs.iter().zip(&rows) {
+        if i64::from(def.num) != number(row, "index") {
+            wrong.push(format!(
+                "{}: numbered {}, original {}",
+                def.id, def.num, row["index"]
+            ));
+            continue;
+        }
         // The two names the original uses twice carry I and II in the content.
         let (ours, theirs) = (plain(&def.name), plain(&row["name"]));
         if ours != theirs && ours != theirs.clone() + "i" && ours != theirs + "ii" {

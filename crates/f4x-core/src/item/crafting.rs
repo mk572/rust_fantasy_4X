@@ -638,6 +638,7 @@ mod tests {
         realm: Option<(&str, u32)>,
     ) -> ItemPowerDef {
         ItemPowerDef {
+            num: 0,
             id: id.into(),
             name: id.into(),
             group,
@@ -654,7 +655,7 @@ mod tests {
     fn rules_with_items() -> crate::content::Content {
         use ItemKind::*;
         let mut c = content_with_magic();
-        c.rules.item_powers = Registry::new(vec![
+        c.rules.item_powers = Registry::new(crate::game::testutil::numbered_powers(vec![
             power(
                 "attack_1",
                 0,
@@ -690,7 +691,7 @@ mod tests {
             power("flaming", 9, 300, &[Sword, Staff], None, Some(("chaos", 2))),
             power("cloak", 9, 150, &[Sword, Misc], None, None),
             power("spell_charges", 9, 1000, &[Staff, Wand], None, None),
-        ]);
+        ]));
         c
     }
 

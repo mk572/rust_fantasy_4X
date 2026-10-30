@@ -2409,10 +2409,11 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
     use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = game();
-    g.content.rules.item_powers = crate::rules::Registry::new(vec![
-        crate::game::testutil::item_power("vampiric", None, Some("life_steal")),
-        crate::game::testutil::item_power("flaming", None, None),
-    ]);
+    g.content.rules.item_powers =
+        crate::rules::Registry::new(crate::game::testutil::numbered_powers(vec![
+            crate::game::testutil::item_power("vampiric", None, Some("life_steal")),
+            crate::game::testutil::item_power("flaming", None, None),
+        ]));
     // Only a hero carries items: the game's first hero, the Dwarf.
     let walker = g.content.rules.units.id_of("dwarf").unwrap();
     let unit = g.spawn_unit(A, at(4, 4), walker);

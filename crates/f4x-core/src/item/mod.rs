@@ -519,12 +519,13 @@ mod tests {
         ];
         let mut rules = Rules::default();
         let power = crate::game::testutil::item_power;
-        rules.item_powers = crate::rules::Registry::new(vec![
-            power("holy_avenger", Some("bless"), Some("dispel_evil")),
-            power("righteousness", Some("righteousness"), None),
-            power("vampiric", None, Some("life_steal")),
-            power("merging", None, None),
-        ]);
+        rules.item_powers =
+            crate::rules::Registry::new(crate::game::testutil::numbered_powers(vec![
+                power("holy_avenger", Some("bless"), Some("dispel_evil")),
+                power("righteousness", Some("righteousness"), None),
+                power("vampiric", None, Some("life_steal")),
+                power("merging", None, None),
+            ]));
         assert_eq!(thing.granted_spells(&rules), ["bless", "righteousness"]);
         assert_eq!(
             thing.granted_abilities(&rules),

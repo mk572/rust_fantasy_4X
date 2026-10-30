@@ -408,10 +408,10 @@ mod tests {
             }];
         }
         c.rules.spells = Registry::new(spells);
-        c.rules.item_powers = Registry::new(vec![
+        c.rules.item_powers = Registry::new(crate::game::testutil::numbered_powers(vec![
             crate::game::testutil::item_power("flight", Some("flight"), None),
             crate::game::testutil::item_power("flaming", None, None),
-        ]);
+        ]));
         let (grass, ocean) = (
             c.terrains.id_of("grassland").unwrap(),
             c.terrains.id_of("ocean").unwrap(),

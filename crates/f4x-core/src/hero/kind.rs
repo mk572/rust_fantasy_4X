@@ -23,15 +23,17 @@ pub enum Class {
     Champion,
 }
 
-/// The hero type of a unit: its index among `Rules::hero_templates`.
+/// The hero type of a unit: the unit's own number, which is also its row among
+/// `Rules::hero_templates` (the data check keeps them equal).
 pub fn kind_of(rules: &Rules, unit: UnitId) -> Option<usize> {
-    let id = &rules.units.get(unit).id;
-    rules.hero_templates.iter().position(|t| &t.unit == id)
+    let kind = usize::from(unit.num());
+    (rules.hero_templates.get(kind)?.unit == rules.units.get(unit).id).then_some(kind)
 }
 
-/// The unit definition of a hero type.
+/// The unit definition of a hero type: the unit with that number.
 pub fn unit_of(rules: &Rules, kind: usize) -> Option<UnitId> {
-    rules.units.id_of(&rules.hero_templates.get(kind)?.unit)
+    let id = rules.units.id_numbered(u16::try_from(kind).ok()?)?;
+    (rules.hero_templates.get(kind)?.unit == rules.units.get(id).id).then_some(id)
 }
 
 /// The magic ranged attacks, the only ones Arcane Power adds to. (The original's `Init_Heroes`

@@ -245,23 +245,6 @@ fn a_loaded_game_continues_exactly_like_the_original() {
 }
 
 #[test]
-fn saves_do_not_depend_on_the_order_of_the_content() {
-    let g = game();
-    let snap = g.snapshot();
-    let mut shuffled = g.content.clone();
-    // A table that is not numbered yet counts its rows: reverse one of those.
-    let mut powers = shuffled.rules.item_powers.defs().to_vec();
-    powers.reverse();
-    shuffled.rules.item_powers = crate::rules::Registry::new(powers);
-    let back = snap.clone().restore(shuffled).unwrap();
-    assert_eq!(
-        back.snapshot(),
-        snap,
-        "the same game under a different table order"
-    );
-}
-
-#[test]
 fn missing_content_is_reported_by_name() {
     let g = game();
     let snap = g.snapshot();

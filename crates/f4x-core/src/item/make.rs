@@ -146,6 +146,7 @@ mod tests {
 
     fn def(id: &str, kind: ItemKind, cost: u32, powers: &[&str], flag: bool) -> ItemDef {
         ItemDef {
+            num: 0,
             id: id.into(),
             name: id.into(),
             slot: kind.slot(),
@@ -169,6 +170,7 @@ mod tests {
         realm: Option<(&str, u32)>,
     ) -> ItemPowerDef {
         ItemPowerDef {
+            num: 0,
             id: id.into(),
             name: id.into(),
             group,
@@ -195,7 +197,7 @@ mod tests {
 
     fn rules() -> Rules {
         let mut rules = crate::game::testutil::content_with_magic().rules;
-        rules.item_powers = Registry::new(vec![
+        rules.item_powers = Registry::new(crate::game::testutil::numbered_powers(vec![
             power("attack_1", 0, 50, Some((PowerBonus::Attack, 1)), None),
             power("attack_2", 0, 100, Some((PowerBonus::Attack, 2)), None),
             power("attack_6", 0, 800, Some((PowerBonus::Attack, 6)), None),
@@ -204,13 +206,13 @@ mod tests {
             power("flaming", 9, 300, None, Some(("chaos", 2))),
             power("lightning", 9, 800, None, Some(("chaos", 5))),
             power("true_sight", 9, 500, None, Some(("life", 6))),
-        ]);
-        rules.items = Registry::new(vec![
+        ]));
+        rules.items = Registry::new(crate::game::testutil::numbered_items(vec![
             def("cheap", ItemKind::Sword, 250, &[], false),
             def("flame", ItemKind::Sword, 600, &["flaming"], true),
             def("bolt", ItemKind::Mace, 900, &["lightning", "flaming"], true),
             def("sight", ItemKind::Misc, 1000, &["true_sight"], true),
-        ]);
+        ]));
         rules
     }
 

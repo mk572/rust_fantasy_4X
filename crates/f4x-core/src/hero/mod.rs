@@ -286,8 +286,8 @@ impl HeroAbilities {
 /// is the `Unit` component.)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hero {
-    /// The hero type: its index among `Rules::hero_templates`, the one number that names the hero
-    /// to its wizard (a wizard has one hero of each type).
+    /// The hero type: the number of the hero's unit, which is also its row among
+    /// `Rules::hero_templates` (a wizard has one hero of each type).
     pub kind: usize,
     pub name: String,
     pub abilities: HeroAbilities,

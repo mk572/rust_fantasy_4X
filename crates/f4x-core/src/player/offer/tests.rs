@@ -356,6 +356,7 @@ fn a_rejected_or_lapsed_item_can_be_offered_again() {
     let mut items = g.content.rules.items.defs().to_vec();
     items.clear();
     items.push(crate::rules::ItemDef {
+        num: 0,
         id: "only".into(),
         name: "only".into(),
         slot: crate::rules::ItemSlot::Weapon,

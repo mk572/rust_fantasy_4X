@@ -2,17 +2,9 @@
 // Level bonuses are the original's `Battle_Unit_Level_Stats` (task 174): a melee or ranged
 // plus only counts for a unit that has that attack (`Units::unit_modifiers` drops it
 // otherwise). Heroes also gain a hit point a level (the original's `COMBINIT.c`).
+// `num` is our own: 1, 2 ... in the alphabetical order of the ids (the original has no such table); `id` is the alias for human editing.
 [
-    (id: "standard_xp", levels: [
-        (name: "Recruit", xp: 0, effects: []),
-        (name: "Regular", xp: 20, effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1))]),
-        (name: "Veteran", xp: 60, effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Defense, op: Add, value: 1))]),
-        (name: "Elite", xp: 120, effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1))]),
-    ], bonus: [
-        (name: "Ultra-Elite", effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Defense, op: Add, value: 1))]),
-        (name: "Champion", effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1))]),
-    ]),
-    (id: "hero_xp", levels: [
+    (num: 1, id: "hero_xp", levels: [
         (name: "Hero", xp: 0, effects: []),
         (name: "Myrmidon", xp: 20, effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1)), (effect: Modify(stat: Defense, op: Add, value: 1)), (effect: Modify(stat: MaxHp, op: Add, value: 1))]),
         (name: "Captain", xp: 60, effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1)), (effect: Modify(stat: MaxHp, op: Add, value: 1))]),
@@ -22,5 +14,14 @@
         (name: "Grand Lord", xp: 450, effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1)), (effect: Modify(stat: MaxHp, op: Add, value: 1))]),
         (name: "Super Hero", xp: 600, effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1)), (effect: Modify(stat: Defense, op: Add, value: 1)), (effect: Modify(stat: MaxHp, op: Add, value: 1))]),
         (name: "Demi-God", xp: 1000, effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1)), (effect: Modify(stat: MaxHp, op: Add, value: 1))]),
+    ]),
+    (num: 2, id: "standard_xp", levels: [
+        (name: "Recruit", xp: 0, effects: []),
+        (name: "Regular", xp: 20, effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1))]),
+        (name: "Veteran", xp: 60, effects: [(effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Defense, op: Add, value: 1))]),
+        (name: "Elite", xp: 120, effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1))]),
+    ], bonus: [
+        (name: "Ultra-Elite", effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Defense, op: Add, value: 1))]),
+        (name: "Champion", effects: [(effect: Modify(stat: ToHit, op: Add, value: 1)), (effect: Modify(stat: Resistance, op: Add, value: 1)), (effect: Modify(stat: Melee, op: Add, value: 1)), (effect: Modify(stat: Ranged, op: Add, value: 1))]),
     ]),
 ]

@@ -11,12 +11,8 @@ use super::ids::Id;
 pub trait Def {
     fn id(&self) -> &str;
 
-    /// The definition's number, which is the [`Id`] the game passes around. `None` while the
-    /// table has not been numbered yet (its rows then count from 0 in file order; that goes
-    /// away when every table carries its numbers).
-    fn num(&self) -> Option<u16> {
-        None
-    }
+    /// The definition's number, which is the [`Id`] the game passes around.
+    fn num(&self) -> u16;
 }
 
 /// The definitions of one kind, in the order of their numbers.
@@ -42,21 +38,16 @@ impl<T> Default for Registry<T> {
 }
 
 impl<T: Def> Registry<T> {
-    /// Build a registry. The definitions must be in ascending order of their numbers (a table
-    /// without numbers is numbered from 0 in the order given). If an alias repeats, the first
-    /// definition wins the lookup (content validation reports duplicates).
+    /// Build a registry. The definitions must be in ascending order of their numbers. If an
+    /// alias repeats, the first definition wins the lookup (content validation reports
+    /// duplicates).
     pub fn new(defs: Vec<T>) -> Self {
         assert!(defs.len() < NO_ROW as usize, "too many definitions");
-        let numbered = defs.first().is_some_and(|d| d.num().is_some());
         let mut index = HashMap::new();
         let mut rows: Vec<u16> = Vec::new();
         let mut last: Option<u16> = None;
         for (i, d) in defs.iter().enumerate() {
-            let num = if numbered {
-                d.num().expect("every definition of a table has its number")
-            } else {
-                i as u16
-            };
+            let num = d.num();
             assert!(
                 last.is_none_or(|l| num > l),
                 "numbers out of order or repeated at {}",

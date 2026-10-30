@@ -10,10 +10,6 @@ use super::registry::{Def, Registry};
 use super::stats::Stat;
 use crate::map::terrain::TerrainClass;
 
-macro_rules! impl_def {
-    ($($t:ty),*) => { $(impl Def for $t { fn id(&self) -> &str { &self.id } })* };
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RaceDef {
     /// The original's race number, the id the game passes around (and the row of the
@@ -333,6 +329,9 @@ pub struct BuildingDef {
 /// A school of magic. Data, so the set of realms is not hard-coded.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RealmDef {
+    /// The original's realm number, the id the game passes around.
+    pub num: u16,
+    /// The alias for human editing.
     pub id: String,
     pub name: String,
     pub color: (u8, u8, u8),
@@ -346,6 +345,9 @@ pub struct RealmDef {
 /// description that the local texts file fills in.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WizardDef {
+    /// The wizard's place in the original's list, the id the game passes around.
+    pub num: u16,
+    /// The alias for human editing.
     pub id: String,
     /// The original's name is local-only; without it the wizard is named after its id.
     #[serde(default)]
@@ -449,6 +451,9 @@ pub struct SpellSave {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemDef {
+    /// The original's item number, the id the game passes around.
+    pub num: u16,
+    /// The alias for human editing.
     pub id: String,
     pub name: String,
     pub slot: ItemSlot,
@@ -527,6 +532,9 @@ impl ItemKind {
 /// can carry, with what it costs to put on one.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemPowerDef {
+    /// The original's item power number, the id the game passes around.
+    pub num: u16,
+    /// The alias for human editing.
     pub id: String,
     pub name: String,
     /// At most one power of a group on an item.
@@ -573,6 +581,9 @@ pub struct LevelDef {
 /// Experience thresholds and what each level grants (units and heroes share the mechanism).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LevelPathDef {
+    /// The level path's number (ours: counted from 1 in the alphabetical order of the ids).
+    pub num: u16,
+    /// The alias for human editing.
     pub id: String,
     pub levels: Vec<LevelDef>,
     /// Levels above the last one experience reaches: only Warlord, Crusade and the like lift a
@@ -641,15 +652,29 @@ impl Default for RulesConfig {
     }
 }
 
-impl_def!(RealmDef, ItemDef, ItemPowerDef, LevelPathDef, WizardDef);
+macro_rules! impl_numbered_def {
+    ($($t:ty),* $(,)?) => {
+        $(impl Def for $t {
+            fn id(&self) -> &str {
+                &self.id
+            }
+
+            fn num(&self) -> u16 {
+                self.num
+            }
+        })*
+    };
+}
+
+impl_numbered_def!(RealmDef, ItemDef, ItemPowerDef, LevelPathDef, WizardDef);
 
 impl Def for UnitDef {
     fn id(&self) -> &str {
         &self.id
     }
 
-    fn num(&self) -> Option<u16> {
-        Some(self.num)
+    fn num(&self) -> u16 {
+        self.num
     }
 }
 
@@ -658,8 +683,8 @@ impl Def for RaceDef {
         &self.id
     }
 
-    fn num(&self) -> Option<u16> {
-        Some(self.num)
+    fn num(&self) -> u16 {
+        self.num
     }
 }
 
@@ -668,8 +693,8 @@ impl Def for AbilityDef {
         &self.id
     }
 
-    fn num(&self) -> Option<u16> {
-        Some(self.num)
+    fn num(&self) -> u16 {
+        self.num
     }
 }
 
@@ -678,8 +703,8 @@ impl Def for BuildingDef {
         &self.id
     }
 
-    fn num(&self) -> Option<u16> {
-        Some(self.num)
+    fn num(&self) -> u16 {
+        self.num
     }
 }
 
@@ -688,8 +713,8 @@ impl Def for SpellDef {
         &self.id
     }
 
-    fn num(&self) -> Option<u16> {
-        Some(self.num)
+    fn num(&self) -> u16 {
+        self.num
     }
 }
 

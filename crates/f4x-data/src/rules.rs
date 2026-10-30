@@ -255,10 +255,18 @@ fn check_hero_templates(r: &Rules, p: &mut Vec<String>) {
         return;
     }
     let mut seen = HashSet::new();
-    for t in &r.hero_templates {
+    for (row, t) in r.hero_templates.iter().enumerate() {
         let who = format!("hero template {:?}", t.unit);
         match r.units.by_name(&t.unit) {
-            Some(u) if u.kind == UnitKind::Hero => {}
+            Some(u) if u.kind == UnitKind::Hero => {
+                // The hero type is the number of the hero's unit, so the row is that number.
+                if usize::from(u.num) != row {
+                    p.push(format!(
+                        "{who} is row {row} but its unit is numbered {}",
+                        u.num
+                    ));
+                }
+            }
             Some(_) => p.push(format!("{who} is not a Hero unit")),
             None => p.push(format!("{who} names an unknown unit")),
         }
