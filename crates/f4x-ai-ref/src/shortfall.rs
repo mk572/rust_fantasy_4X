@@ -77,8 +77,11 @@ fn next_sale(
             if game.economy().sold_this_turn(city) {
                 continue;
             }
+            // Not one that another building of the city needs: the sale would be refused.
             if let Some(b) = game.city_buildings(city).into_iter().find(|&b| {
-                rules.buildings.get(b).id == *name && rules.buildings.get(b).upkeep_gold > 0
+                rules.buildings.get(b).id == *name
+                    && rules.buildings.get(b).upkeep_gold > 0
+                    && game.economy().sale_price(city, b).is_ok()
             }) {
                 return Some((city, b));
             }
@@ -156,6 +159,28 @@ mod tests {
             .map(|&u| g.units().unit_owner(u).is_some())
             .collect();
         assert!(kept.windows(2).all(|w| w[0] || !w[1]), "{kept:?}");
+    }
+
+    #[test]
+    fn a_building_another_one_needs_is_not_put_up_for_sale() {
+        let mut g = game(COAST_CITY, "high_men");
+        let pos = at(COAST_CITY.0, COAST_CITY.1);
+        crate::testworld::build(&mut g, pos, &["barracks", "smithy", "library"]);
+        let city = g.economy().city_at(pos).unwrap();
+        let name = |g: &Game, b| g.content().rules.buildings.get(b).id.clone();
+        let sale = |g: &Game| next_sale(g, P0).map(|(_, b)| name(g, b));
+        assert_eq!(sale(&g).as_deref(), Some("library"));
+        // The stables need the smithy: the smithy is no longer on offer, the library still is.
+        crate::testworld::build(&mut g, pos, &["stables"]);
+        assert!(g
+            .economy()
+            .sale_price(city, g.content().rules.buildings.id_of("smithy").unwrap())
+            .is_err());
+        assert_eq!(sale(&g).as_deref(), Some("library"));
+        // Without the library nothing else is both dispensable and free to sell.
+        let library = g.content().rules.buildings.id_of("library").unwrap();
+        g.scenario_set_building(city, library, false);
+        assert_eq!(sale(&g), None);
     }
 
     #[test]

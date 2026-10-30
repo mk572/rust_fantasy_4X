@@ -571,14 +571,25 @@ fn march_landed(
     let me = ai.player;
     let (landed, force, expected) = {
         let view = PlayerView::new(game, me);
+        let open: Vec<Position> = neighbours(&view, target)
+            .into_iter()
+            .filter(|&s| view.hostile_at(s).is_none())
+            .collect();
+        // One search for each unit finds every square it can walk to, instead of one path
+        // search for each square next to the target.
         let landed: Vec<hecs::Entity> = free
             .iter()
             .copied()
             .filter(|&u| !ai.marching.contains(&view.serial_of(u)))
             .filter(|&u| {
-                neighbours(&view, target)
-                    .into_iter()
-                    .any(|s| view.hostile_at(s).is_none() && view.can_reach(&[u], s))
+                if open.is_empty() {
+                    return false;
+                }
+                let Some(at) = view.unit_position(u) else {
+                    return false;
+                };
+                let reach = view.reachable(&[u]);
+                open.iter().any(|&s| s != at && reach.contains(&s))
             })
             .collect();
         let force = stack_strength(&view, &landed);
