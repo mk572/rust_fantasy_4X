@@ -22,8 +22,10 @@ Avoid cloning, especially on large entities.
 The game is built on four major components: rules engine, game engine, client and ai.
 
 The crates depend on each other in one direction: `f4x-core` is at the bottom and depends on no other
-game crate; `f4x-data` depends on `f4x-core`; `f4x-ai`, `f4x-console`, `f4x-learn`, `f4x-client` and
-`f4x-tools` sit above them. `f4x-core` does no file I/O (it is deterministic, see its `lib.rs`).
+game crate; `f4x-data` and `f4x-ai` depend on `f4x-core` (`f4x-ai` uses `f4x-data` only in its tests);
+`f4x-console` depends on core, data and ai; `f4x-learn` on core and data; `f4x-client` and `f4x-tools`
+on all of these (`f4x-tools` also on `f4x-ai-ref`). `f4x-core` does no file I/O (it is deterministic,
+see its `lib.rs`).
 
 ## Rules engine
 
