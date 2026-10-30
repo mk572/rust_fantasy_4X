@@ -99,7 +99,7 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
 }
 
-/// The computer wizards answer the items resold to them now (task 294), one after the other
+/// The computer wizards answer the items resold to them now, one after the other
 /// round the cycle until the item is taken or nobody is left. Returns the events.
 pub fn answer_resales(game: &mut Game) -> Vec<Event> {
     let mut events = Vec::new();
@@ -152,26 +152,34 @@ pub fn answer_resales(game: &mut Game) -> Vec<Event> {
 mod tests {
     use super::*;
     use f4x_core::game::setup::{new_game, NewGame};
-    use f4x_core::player::offer::OfferKind;
+    use f4x_core::player::offer::{OfferKind, AI_FIRST_MERCENARY_TURN};
     use f4x_core::player::PlayerId;
+
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     const P1: PlayerId = PlayerId(1);
 
-    fn game() -> Game {
+    fn game() -> Result<Game, Box<dyn std::error::Error>> {
         let content = crate::testworld::content();
-        new_game(
+        Ok(new_game(
             &content,
             &NewGame {
                 seed: 7,
                 ..NewGame::default()
             },
-        )
-        .expect("a new game")
+        )?)
     }
 
-    /// Force a hero offer; with little fame the pick can come up empty, so try again.
+    fn set_gold(g: &mut Game, player: PlayerId, gold: i32) -> TestResult {
+        g.treasury_mut(player)
+            .ok_or("the player has a treasury")?
+            .gold = gold;
+        Ok(())
+    }
+
+    /// Force a hero offer. A hero is only offered to a wizard whose fame exceeds its cost's step
+    /// over 100, and the pick can come up empty, so it tries again.
     fn offer_hero(g: &mut Game) {
-        // A hero is only offered to a wizard whose fame exceeds its cost's step over 100.
         g.set_fame(P1, 100);
         assert!(
             (0..500).any(|_| g.cheat_offer(P1, OfferKind::Hero).is_some()),
@@ -180,10 +188,11 @@ mod tests {
     }
 
     #[test]
-    fn a_computer_wizard_hires_the_hero_it_can_pay_for_and_turns_down_one_it_cannot() {
-        let mut g = game();
+    fn a_computer_wizard_hires_the_hero_it_can_pay_for_and_turns_down_one_it_cannot() -> TestResult
+    {
+        let mut g = game()?;
         let ai = Ai::new(P1);
-        g.treasury_mut(P1).unwrap().gold = 5000;
+        set_gold(&mut g, P1, 5000)?;
         offer_hero(&mut g);
         let mut events = Vec::new();
         answer(&ai, &mut g, &mut events);
@@ -193,20 +202,21 @@ mod tests {
         );
         assert!(g.offers(P1).is_empty());
         // With nothing to pay with, the offer is turned down, not left lying.
-        g.treasury_mut(P1).unwrap().gold = 0;
+        set_gold(&mut g, P1, 0)?;
         offer_hero(&mut g);
         let mut events = Vec::new();
         answer(&ai, &mut g, &mut events);
         assert!(!events.iter().any(|e| matches!(e, Event::HeroJoined { .. })));
         assert!(g.offers(P1).is_empty());
+        Ok(())
     }
 
     #[test]
-    fn mercenaries_wait_for_turn_50() {
-        let mut g = game();
+    fn mercenaries_wait_for_the_first_mercenary_turn() -> TestResult {
+        let mut g = game()?;
         let ai = Ai::new(P1);
-        g.treasury_mut(P1).unwrap().gold = 100_000;
-        g.turn = 40;
+        set_gold(&mut g, P1, 100_000)?;
+        g.turn = AI_FIRST_MERCENARY_TURN - 10;
         let mut got = 0;
         for _ in 0..50 {
             if g.cheat_offer(P1, OfferKind::Mercenaries).is_some() {
@@ -223,22 +233,25 @@ mod tests {
             .iter()
             .any(|e| matches!(e, Event::MercenariesHired { .. })));
         assert!(g.offers(P1).is_empty());
-        g.turn = 50;
+        g.turn = AI_FIRST_MERCENARY_TURN;
         g.cheat_offer(P1, OfferKind::Mercenaries);
         let mut events = Vec::new();
         answer(&ai, &mut g, &mut events);
         assert!(events
             .iter()
             .any(|e| matches!(e, Event::MercenariesHired { .. })));
+        Ok(())
     }
 
     #[test]
-    fn a_computer_wizard_buys_the_merchants_item_once_it_has_a_hero_and_puts_it_on_the_hero() {
-        let mut g = game();
+    fn a_computer_wizard_buys_the_merchants_item_once_it_has_a_hero_and_puts_it_on_the_hero(
+    ) -> TestResult {
+        let mut g = game()?;
         let ai = Ai::new(P1);
-        g.treasury_mut(P1).unwrap().gold = 100_000;
+        set_gold(&mut g, P1, 100_000)?;
         // Without a hero to carry it, the item is turned down.
-        g.cheat_offer(P1, OfferKind::Item).expect("an item");
+        g.cheat_offer(P1, OfferKind::Item)
+            .ok_or("an item is offered")?;
         let mut events = Vec::new();
         answer(&ai, &mut g, &mut events);
         assert!(g.offers(P1).is_empty());
@@ -246,7 +259,10 @@ mod tests {
         // With one, it is bought and the hero at the fortress takes what fits its slots.
         offer_hero(&mut g);
         answer(&ai, &mut g, &mut events);
-        let hero = PlayerView::new(&g, P1).my_heroes()[0];
+        let hero = *PlayerView::new(&g, P1)
+            .my_heroes()
+            .first()
+            .ok_or("the wizard hired a hero")?;
         let mut equipped = false;
         for _ in 0..40 {
             if g.cheat_offer(P1, OfferKind::Item).is_none() {
@@ -260,38 +276,40 @@ mod tests {
             }
         }
         assert!(equipped, "the hero never got an item");
+        Ok(())
     }
 
-    fn item(cost: u32) -> f4x_core::item::Item {
-        f4x_core::item::Item {
-            name: "Sword".into(),
-            kind: f4x_core::rules::ItemKind::Sword,
-            cost,
-            icon: 0,
-            bonus: f4x_core::item::ItemBonus::default(),
-            powers: Vec::new(),
-            charges: None,
-            prefab: None,
-            made: None,
-        }
+    /// A copy of a sword of the shipped content.
+    fn sword(g: &Game) -> Result<f4x_core::item::Item, &'static str> {
+        g.content()
+            .rules
+            .items
+            .iter()
+            .map(|(_, def)| def)
+            .find(|def| def.kind == f4x_core::rules::ItemKind::Sword)
+            .map(f4x_core::item::Item::from_def)
+            .ok_or("the shipped content has a sword")
     }
 
     #[test]
-    fn a_computer_wizard_with_a_hero_and_the_gold_buys_a_resold_item_and_one_without_does_not() {
+    fn a_computer_wizard_with_a_hero_and_the_gold_buys_a_resold_item_and_one_without_does_not(
+    ) -> TestResult {
         use f4x_core::item::armory::Spot;
-        let mut g = game();
-        let sell = |g: &mut Game| {
-            g.give_item(PlayerId(0), item(1000));
+        let mut g = game()?;
+        let seller = PlayerId(0);
+        let sell = |g: &mut Game| -> Result<Vec<Event>, &'static str> {
+            let item = sword(g)?;
+            g.give_item(seller, item);
             let mut events = g.apply(Command::SellItem {
-                player: PlayerId(0),
+                player: seller,
                 from: Spot::Vault(0),
             });
             events.extend(answer_resales(g));
-            events
+            Ok(events)
         };
         // No hero to carry it: turned down, and the item is gone.
-        g.treasury_mut(P1).unwrap().gold = 5000;
-        let events = sell(&mut g);
+        set_gold(&mut g, P1, 5000)?;
+        let events = sell(&mut g)?;
         assert!(g.offers(P1).is_empty());
         assert!(!events.iter().any(|e| matches!(e, Event::ItemMade { .. })));
         assert_eq!(g.items().armory(P1).vault.iter().flatten().count(), 0);
@@ -300,15 +318,23 @@ mod tests {
         let mut hired = Vec::new();
         answer(&Ai::new(P1), &mut g, &mut hired);
         assert!(!g.units().hero_units(P1).is_empty(), "{hired:?}");
-        let gold = g.treasury_mut(P1).unwrap().gold;
-        let events = sell(&mut g);
+        let gold = |g: &mut Game, player| g.treasury_mut(player).map(|t| t.gold);
+        let (buyer_before, seller_before) = (gold(&mut g, P1), gold(&mut g, seller));
+        let events = sell(&mut g)?;
         assert!(
             events
                 .iter()
                 .any(|e| matches!(e, Event::ItemMade { player: P1, .. })),
             "{events:?}"
         );
-        assert_eq!(g.treasury_mut(P1).unwrap().gold, gold - 500);
+        let paid = gold(&mut g, seller).zip(seller_before).map(|(a, b)| a - b);
+        assert!(paid.is_some_and(|p| p > 0), "the seller was paid: {paid:?}");
+        assert_eq!(
+            gold(&mut g, P1),
+            buyer_before.zip(paid).map(|(g, p)| g - p),
+            "the buyer pays what the seller was paid"
+        );
         assert_eq!(g.items().armory(P1).vault.iter().flatten().count(), 1);
+        Ok(())
     }
 }
