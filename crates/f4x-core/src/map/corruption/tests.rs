@@ -283,7 +283,7 @@ fn warp_node_turns_a_rivals_node_against_them() {
     let mut g = world();
     g.put_node_data(
         at(6, 6),
-        "node",
+        "sorcery_node",
         Node {
             realm: "chaos".into(),
             power: 8,

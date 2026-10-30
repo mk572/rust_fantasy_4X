@@ -130,7 +130,7 @@ mod tests {
         let at = |plane, x, y| Position { plane, x, y };
         // A tower stands on both planes, a node on one.
         game.put_feature(at(Plane::Arcanus, 14, 8), "tower");
-        game.put_feature(at(Plane::Arcanus, 16, 8), "node");
+        game.put_feature(at(Plane::Arcanus, 16, 8), "sorcery_node");
         game.put_lair(
             at(Plane::Arcanus, 8, 5),
             "lair",

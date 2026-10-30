@@ -22,6 +22,7 @@ fn content() -> crate::content::Content {
     let mut c = content_with_magic();
     let mut features = c.features.defs().to_vec();
     features.push(FeatureDef {
+        num: features.len() as u16 + 1,
         id: "ruins".into(),
         name: "Ruins".into(),
         kind: FeatureKind::Encounter,
@@ -237,7 +238,7 @@ fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() {
     let mut g = world(0);
     let site = g.put_lair(
         at(14, 8),
-        "node",
+        "sorcery_node",
         Lair {
             intact: false,
             guards: Vec::new(),
@@ -288,7 +289,7 @@ fn a_node_a_wizard_holds_is_not_taken() {
         guardian: false,
         warped: false,
     };
-    let e = g.put_node_data(at(14, 8), "node", node, Some(P0));
+    let e = g.put_node_data(at(14, 8), "sorcery_node", node, Some(P0));
     g.world
         .insert_one(
             e,

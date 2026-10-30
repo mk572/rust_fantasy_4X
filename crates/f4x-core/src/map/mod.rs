@@ -46,11 +46,11 @@ impl Plane {
     }
 }
 
-/// Index into the loaded [`crate::map::terrain::Terrains`] table.
+/// The number (`num`) of a terrain definition in the loaded [`crate::map::terrain::Terrains`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TerrainId(pub u16);
 
-/// Index into the loaded [`crate::feature::def::Features`] table.
+/// The number (`num`) of a feature definition in the loaded [`crate::feature::def::Features`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FeatureId(pub u16);
 

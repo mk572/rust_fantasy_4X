@@ -420,7 +420,7 @@ mod tests {
             .unwrap()
             .plane_mut(Plane::Arcanus)
             .set(2, 2, hills);
-        g.put_feature(at(3, 3), "node");
+        g.put_feature(at(3, 3), "sorcery_node");
         assert_eq!(
             g.check_raise_volcano(at(2, 2)),
             Err(TargetError::VolcanoOnHill)

@@ -47,6 +47,11 @@ pub struct CityBonus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FeatureDef {
     pub id: String,
+    /// The feature's number, the id the game passes around (ours: counted from 1 in the
+    /// alphabetical order of the ids).
+    pub num: u16,
+    /// From `text/<language>/name/` by `num`, not from the feature file.
+    #[serde(default)]
     pub name: String,
     pub kind: FeatureKind,
     #[serde(default)]
@@ -56,14 +61,15 @@ pub struct FeatureDef {
     pub spawn: Vec<SpawnRule>,
 }
 
-/// The loaded feature table; a [`FeatureId`] is an index into it.
+/// The loaded feature table, sorted by number; a [`FeatureId`] is a definition's number.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Features {
     defs: Vec<FeatureDef>,
 }
 
 impl Features {
-    pub fn new(defs: Vec<FeatureDef>) -> Self {
+    pub fn new(mut defs: Vec<FeatureDef>) -> Self {
+        defs.sort_by_key(|d| d.num);
         Self { defs }
     }
 
@@ -71,22 +77,35 @@ impl Features {
         &self.defs
     }
 
+    /// The definitions, to put the names of a language on them. Their numbers stay as they are.
+    pub fn defs_mut(&mut self) -> &mut [FeatureDef] {
+        &mut self.defs
+    }
+
+    /// The feature with the number `num` (what a save and the name tables call it).
+    pub fn id_numbered(&self, num: u16) -> Option<FeatureId> {
+        self.get(FeatureId(num)).map(|_| FeatureId(num))
+    }
+
     pub fn get(&self, id: FeatureId) -> Option<&FeatureDef> {
-        self.defs.get(id.0 as usize)
+        self.defs
+            .binary_search_by_key(&id.0, |d| d.num)
+            .ok()
+            .map(|i| &self.defs[i])
     }
 
     pub fn id_of(&self, name: &str) -> Option<FeatureId> {
         self.defs
             .iter()
-            .position(|d| d.id == name)
-            .map(|i| FeatureId(i as u16))
+            .find(|d| d.id == name)
+            .map(|d| FeatureId(d.num))
     }
 
     pub fn first_of_kind(&self, kind: FeatureKind) -> Option<FeatureId> {
         self.defs
             .iter()
-            .position(|d| d.kind == kind)
-            .map(|i| FeatureId(i as u16))
+            .find(|d| d.kind == kind)
+            .map(|d| FeatureId(d.num))
     }
 
     /// Features of `kind` that can spawn on `terrain` on `plane`, with summed weights.
@@ -98,16 +117,15 @@ impl Features {
     ) -> Vec<(FeatureId, u32)> {
         self.defs
             .iter()
-            .enumerate()
-            .filter(|(_, d)| d.kind == kind)
-            .filter_map(|(i, d)| {
+            .filter(|d| d.kind == kind)
+            .filter_map(|d| {
                 let w: u32 = d
                     .spawn
                     .iter()
                     .filter(|r| r.terrain.contains(&terrain) && r.planes.contains(&plane))
                     .map(|r| r.weight)
                     .sum();
-                (w > 0).then_some((FeatureId(i as u16), w))
+                (w > 0).then_some((FeatureId(d.num), w))
             })
             .collect()
     }

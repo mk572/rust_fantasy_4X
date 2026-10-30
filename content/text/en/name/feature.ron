@@ -1,0 +1,25 @@
+// The names of the map feature definitions, by the definition's number (`num` in features.ron). A language has the same file in its own folder.
+{
+    1: "Abandoned Keep",  // abandoned_keep
+    2: "Adamantium Ore",  // adamantium_ore
+    3: "Ancient Temple",  // ancient_temple
+    4: "Chaos Node",  // chaos_node
+    5: "Coal",  // coal
+    6: "Crysx Crystal",  // crysx_crystal
+    7: "Dungeon",  // dungeon
+    8: "Fallen Temple",  // fallen_temple
+    9: "Gems",  // gem
+    10: "Gold Ore",  // gold_ore
+    11: "Iron Ore",  // iron_ore
+    12: "Mithril Ore",  // mithril_ore
+    13: "Monster Lair",  // monster_lair
+    14: "Mysterious Cave",  // mysterious_cave
+    15: "Nature Node",  // nature_node
+    16: "Nightshade",  // nightshade
+    17: "Quork Crystal",  // quork_crystal
+    18: "Ruins",  // ruins
+    19: "Silver Ore",  // silver_ore
+    20: "Sorcery Node",  // sorcery_node
+    21: "Tower",  // tower
+    22: "Wild Game",  // wild_game
+}

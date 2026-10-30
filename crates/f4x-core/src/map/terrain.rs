@@ -71,6 +71,11 @@ pub const REQUIRED_CLASSES: [TerrainClass; 11] = [
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TerrainDef {
     pub id: String,
+    /// The terrain's number, the id the game passes around (ours: counted from 1 in the
+    /// alphabetical order of the ids; the original has no table of terrain types by name).
+    pub num: u16,
+    /// From `text/<language>/name/` by `num`, not from the terrain file.
+    #[serde(default)]
     pub name: String,
     pub class: TerrainClass,
     pub walkable: bool,
@@ -84,14 +89,15 @@ pub struct TerrainDef {
     pub planes: Vec<Plane>,
 }
 
-/// The loaded terrain table; a [`TerrainId`] is an index into it.
+/// The loaded terrain table, sorted by number; a [`TerrainId`] is a definition's number.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Terrains {
     defs: Vec<TerrainDef>,
 }
 
 impl Terrains {
-    pub fn new(defs: Vec<TerrainDef>) -> Self {
+    pub fn new(mut defs: Vec<TerrainDef>) -> Self {
+        defs.sort_by_key(|d| d.num);
         Self { defs }
     }
 
@@ -99,23 +105,36 @@ impl Terrains {
         &self.defs
     }
 
+    /// The definitions, to put the names of a language on them. Their numbers stay as they are.
+    pub fn defs_mut(&mut self) -> &mut [TerrainDef] {
+        &mut self.defs
+    }
+
+    /// The terrain with the number `num` (what a save and the name tables call it).
+    pub fn id_numbered(&self, num: u16) -> Option<TerrainId> {
+        self.get(TerrainId(num)).map(|_| TerrainId(num))
+    }
+
     pub fn get(&self, id: TerrainId) -> Option<&TerrainDef> {
-        self.defs.get(id.0 as usize)
+        self.defs
+            .binary_search_by_key(&id.0, |d| d.num)
+            .ok()
+            .map(|i| &self.defs[i])
     }
 
     pub fn id_of(&self, name: &str) -> Option<TerrainId> {
         self.defs
             .iter()
-            .position(|d| d.id == name)
-            .map(|i| TerrainId(i as u16))
+            .find(|d| d.id == name)
+            .map(|d| TerrainId(d.num))
     }
 
     /// First definition of `class` that is available on `plane`.
     pub fn first_of_class(&self, class: TerrainClass, plane: Plane) -> Option<TerrainId> {
         self.defs
             .iter()
-            .position(|d| d.class == class && d.planes.contains(&plane))
-            .map(|i| TerrainId(i as u16))
+            .find(|d| d.class == class && d.planes.contains(&plane))
+            .map(|d| TerrainId(d.num))
     }
 }
 

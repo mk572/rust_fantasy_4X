@@ -137,12 +137,12 @@ fn name_table<V: serde::de::DeserializeOwned>(
 }
 
 /// How `fill_names` reads a definition's number and alias.
-type Keys<T> = (fn(&T) -> u16, fn(&T) -> &str);
+pub(crate) type Keys<T> = (fn(&T) -> u16, fn(&T) -> &str);
 
 /// Put the names of `lang` on the definitions of one table. A definition without a name and a
 /// name for a number nobody has are problems. A value is a name, or for races the pair of name
 /// and plural.
-fn fill_names<T, V: serde::de::DeserializeOwned + Clone>(
+pub(crate) fn fill_names<T, V: serde::de::DeserializeOwned + Clone>(
     (dirs, lang): (&[&Path], &str),
     (kind, file): (&str, &str),
     defs: &mut [T],
@@ -316,9 +316,9 @@ fn check_ids<T: Def>(kind: &str, reg: &Registry<T>, problems: &mut Vec<String>) 
 /// The lair rules: real realms, rolls that can be made and a table that is not empty.
 fn check_lairs(r: &Rules, p: &mut Vec<String>) {
     let l = &r.lairs;
-    let realm = |what: &str, id: &str, p: &mut Vec<String>| {
-        if r.realms.by_name(id).is_none() {
-            p.push(format!("lairs.ron: {what} names unknown realm {id:?}"));
+    let realm = |what: &str, num: u16, p: &mut Vec<String>| {
+        if r.realms.id_numbered(num).is_none() {
+            p.push(format!("lairs.ron: {what} names unknown realm {num}"));
         }
     };
     for (what, list) in [
@@ -329,12 +329,12 @@ fn check_lairs(r: &Rules, p: &mut Vec<String>) {
         if list.iter().map(|(_, w)| w).sum::<u32>() == 0 {
             p.push(format!("lairs.ron: {what} has no weight"));
         }
-        for (id, _) in list {
-            realm(what, id, p);
+        for &(num, _) in list {
+            realm(what, num, p);
         }
     }
-    for id in l.node_own_realms.iter().chain([&l.node_other]) {
-        realm("the node realms", id, p);
+    for &num in l.node_own_realms.iter().chain([&l.node_other]) {
+        realm("the node realms", num, p);
     }
     if l.hoard.iter().map(|(_, w)| w).sum::<u32>() == 0 {
         p.push("lairs.ron: the hoard table has no weight".into());
@@ -1026,11 +1026,7 @@ mod tests {
             f4x_core::rules::lair::LairRules::default()
         );
         assert!(has(
-            &problems(&[(
-                "lairs.ron",
-                "(\"death\", 3), (\"life\", 1)",
-                "(\"doom\", 3)"
-            )]),
+            &problems(&[("lairs.ron", "(4, 3), (3, 1)", "(99, 3)")]),
             "unknown realm"
         ));
         assert!(has(

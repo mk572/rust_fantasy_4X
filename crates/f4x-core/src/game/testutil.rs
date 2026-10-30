@@ -9,6 +9,7 @@ use crate::rules::{Registry, Rules, UnitDef};
 pub fn content() -> Content {
     let terrain = |id: &str, class: TerrainClass, walkable, can_found_city| TerrainDef {
         id: id.into(),
+        num: 0,
         name: id.into(),
         class,
         walkable,
@@ -35,7 +36,7 @@ pub fn content() -> Content {
         },
         planes: Plane::ALL.to_vec(),
     };
-    let terrains = Terrains::new(vec![
+    let mut terrains = Terrains::new(vec![
         terrain("ocean", TerrainClass::Ocean, false, false),
         terrain("grassland", TerrainClass::Grassland, true, true),
         terrain("forest", TerrainClass::Forest, true, true),
@@ -48,6 +49,9 @@ pub fn content() -> Content {
         terrain("nature_node", TerrainClass::NatureNode, true, true),
         terrain("chaos_node", TerrainClass::ChaosNode, true, true),
     ]);
+    for (i, d) in terrains.defs_mut().iter_mut().enumerate() {
+        d.num = i as u16 + 1;
+    }
     let land = vec![
         TerrainClass::Grassland,
         TerrainClass::Forest,
@@ -59,6 +63,7 @@ pub fn content() -> Content {
     ];
     let feature = |id: &str, kind, terrain: Vec<TerrainClass>, planes: Vec<Plane>| FeatureDef {
         id: id.into(),
+        num: 0,
         name: id.into(),
         kind,
         city: Default::default(),
@@ -72,7 +77,7 @@ pub fn content() -> Content {
             }]
         },
     };
-    let features = Features::new(vec![
+    let mut features = Features::new(vec![
         feature(
             "iron",
             FeatureKind::Mineral,
@@ -98,8 +103,11 @@ pub fn content() -> Content {
             Plane::ALL.to_vec(),
         ),
         feature("tower", FeatureKind::Tower, vec![], vec![]),
-        feature("node", FeatureKind::Node, land, Plane::ALL.to_vec()),
+        feature("sorcery_node", FeatureKind::Node, land, Plane::ALL.to_vec()),
     ]);
+    for (i, d) in features.defs_mut().iter_mut().enumerate() {
+        d.num = i as u16 + 1;
+    }
     Content {
         terrains,
         features,
@@ -177,6 +185,7 @@ pub fn content_with_economy() -> Content {
         }
     }
     defs.push(FeatureDef {
+        num: defs.len() as u16 + 1,
         id: "gold".into(),
         name: "gold".into(),
         kind: FeatureKind::Mineral,
@@ -188,6 +197,7 @@ pub fn content_with_economy() -> Content {
         spawn: vec![],
     });
     defs.push(FeatureDef {
+        num: defs.len() as u16 + 1,
         id: "game".into(),
         name: "game".into(),
         kind: FeatureKind::Mineral,

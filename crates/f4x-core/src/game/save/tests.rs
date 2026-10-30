@@ -36,7 +36,7 @@ fn game() -> Game {
         g
     };
     let map = Map::new(build(), build());
-    let node = c.features.id_of("node").unwrap();
+    let node = c.features.id_of("sorcery_node").unwrap();
     let mut g = Game::new(99);
     g.content = c;
     g.settings.basic.magic_strength = 2;
@@ -270,6 +270,13 @@ fn missing_content_is_reported_by_number_or_name() {
         Some(LoadError::UnknownId("unit", spearmen.to_string()))
     );
     let mut no_terrain = g.content.clone();
+    let hills = no_terrain
+        .terrains
+        .defs()
+        .iter()
+        .find(|t| t.id == "hills")
+        .unwrap()
+        .num;
     let terrains: Vec<_> = no_terrain
         .terrains
         .defs()
@@ -280,7 +287,7 @@ fn missing_content_is_reported_by_number_or_name() {
     no_terrain.terrains = crate::map::terrain::Terrains::new(terrains);
     assert_eq!(
         snap.restore(no_terrain).err(),
-        Some(LoadError::UnknownId("terrain", "hills".into()))
+        Some(LoadError::UnknownId("terrain", hills.to_string()))
     );
 }
 

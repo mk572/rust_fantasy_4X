@@ -56,25 +56,30 @@ fn random(rng: &mut Pcg64Mcg, n: i32) -> i32 {
 }
 
 /// The realm of a site's guards.
-fn guard_realm<'a>(rng: &mut Pcg64Mcg, site: SiteType, rules: &'a LairRules) -> &'a str {
+fn guard_realm<'a>(rng: &mut Pcg64Mcg, site: SiteType, content: &'a Content) -> &'a str {
+    let rules = &content.rules.lairs;
+    let realms = &content.rules.realms;
     let table = |rng: &mut Pcg64Mcg, weights| {
         LairRules::realm_for(
             weights,
             random(rng, LairRules::total(weights) as i32) as u32,
         )
     };
-    match site {
-        SiteType::Node(realm) => rules
-            .node_own_realms
-            .iter()
-            .find(|r| *r == realm)
-            .unwrap_or(&rules.node_other),
+    let num = match site {
+        SiteType::Node(realm) => {
+            let own = realms.id_of(realm).map(|r| r.num());
+            own.filter(|n| rules.node_own_realms.contains(n))
+                .unwrap_or(rules.node_other)
+        }
         SiteType::Tower => table(rng, &rules.tower_realms),
         SiteType::Holy => table(rng, &rules.holy_realms),
         // The original's switch falls through to nature in every case; the intended split
         // (ReMoM marks it a bug) is two parts death, two chaos, one nature.
         SiteType::Wild => table(rng, &rules.wild_realms),
-    }
+    };
+    realms
+        .id_numbered(num)
+        .map_or("", |id| realms.get(id).id.as_str())
 }
 
 /// Units that can guard a site of `realm`: summoned creatures of that realm that are not
@@ -311,7 +316,7 @@ fn make_lair(
 ) -> Lair {
     let rules = &content.rules.lairs;
     let budget = budget * guard_percent / 100;
-    let realm = guard_realm(rng, site, rules);
+    let realm = guard_realm(rng, site, content);
     let list = candidates(content, realm);
     let (guards, first, second) = pick_guards(rng, rules, &list, budget);
     let mut lair = Lair {

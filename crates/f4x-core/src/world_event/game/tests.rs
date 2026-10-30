@@ -331,6 +331,7 @@ fn a_depletion_removes_a_mineral_and_a_find_adds_one() {
     let mut defs = g.content.features.defs().to_vec();
     for (id, name) in [("iron_ore", "Iron Ore"), ("coal", "Coal")] {
         defs.push(crate::feature::def::FeatureDef {
+            num: defs.len() as u16 + 1,
             id: id.into(),
             name: name.into(),
             kind: crate::feature::def::FeatureKind::Mineral,

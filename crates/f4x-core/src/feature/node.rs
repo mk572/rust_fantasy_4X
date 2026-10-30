@@ -304,7 +304,7 @@ pub(crate) mod tests {
         let mut g = Game::new(seed);
         g.content = c;
         g.map = Some(map);
-        g.put_node(at(6, 6), "node", 1);
+        g.put_node(at(6, 6), "sorcery_node", 1);
         for id in [P0, P1] {
             g.add_player(id, "W");
             g.treasury_mut(id).unwrap().mana = 100;
@@ -354,7 +354,7 @@ pub(crate) mod tests {
     fn generation_is_deterministic_and_myrror_nodes_are_stronger() {
         let c = content_with_magic();
         let grass = c.terrains.id_of("grassland").unwrap();
-        let node = c.features.id_of("node").unwrap();
+        let node = c.features.id_of("sorcery_node").unwrap();
         let build = || {
             let map = Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass));
             let mut placed = Placed::new(30, 20);

@@ -548,7 +548,7 @@ fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() {
         .set(7, 6, chaos);
     g.put_node_data(
         at(7, 6),
-        "node",
+        "sorcery_node",
         crate::feature::node::Node {
             realm: "chaos".into(),
             power: 2,

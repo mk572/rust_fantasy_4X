@@ -220,6 +220,7 @@ mod tests {
         let mut defs = c.features.defs().to_vec();
         for id in ["iron_ore", "gold_ore", "coal", "gem", "silver_ore"] {
             defs.push(FeatureDef {
+                num: defs.len() as u16 + 1,
                 id: id.into(),
                 name: id.into(),
                 kind: FeatureKind::Mineral,

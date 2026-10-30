@@ -58,6 +58,7 @@ pub fn load_terrains(path: &Path) -> Result<Terrains, ContentError> {
 pub fn validate_terrains(defs: &[TerrainDef]) -> Vec<String> {
     let mut problems = Vec::new();
     let mut seen = HashSet::new();
+    let mut nums = HashSet::new();
     for d in defs {
         let id_ok = !d.id.is_empty()
             && d.id
@@ -72,8 +73,11 @@ pub fn validate_terrains(defs: &[TerrainDef]) -> Vec<String> {
         if !seen.insert(d.id.as_str()) {
             problems.push(format!("duplicate terrain id {:?}", d.id));
         }
-        if d.name.trim().is_empty() {
-            problems.push(format!("terrain {:?} has an empty name", d.id));
+        if d.num == 0 || !nums.insert(d.num) {
+            problems.push(format!(
+                "terrain {:?} needs a number that no other has",
+                d.id
+            ));
         }
         if d.planes.is_empty() {
             problems.push(format!("terrain {:?} is available on no plane", d.id));
@@ -123,13 +127,17 @@ pub fn parse_features(src: &str) -> Result<Features, ContentError> {
 pub fn validate_features(defs: &[FeatureDef]) -> Vec<String> {
     let mut problems = Vec::new();
     let mut seen = HashSet::new();
+    let mut nums = HashSet::new();
     for d in defs {
         problems.extend(id_problem("feature", &d.id));
         if !seen.insert(d.id.as_str()) {
             problems.push(format!("duplicate feature id {:?}", d.id));
         }
-        if d.name.trim().is_empty() {
-            problems.push(format!("feature {:?} has an empty name", d.id));
+        if d.num == 0 || !nums.insert(d.num) {
+            problems.push(format!(
+                "feature {:?} needs a number that no other has",
+                d.id
+            ));
         }
         if d.kind != FeatureKind::Tower && d.spawn.is_empty() {
             problems.push(format!(
@@ -303,9 +311,30 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
         std::fs::read_to_string(&path)
             .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))
     };
-    let terrains = parse_terrains(&read("terrain.ron")?)?;
-    let features = parse_features(&read("features.ron")?)?;
+    let mut terrains = parse_terrains(&read("terrain.ron")?)?;
+    let mut features = parse_features(&read("features.ron")?)?;
     let settings = load_settings(dirs)?;
+    let mut problems = Vec::new();
+    let at = (dirs, settings.language.as_str());
+    rules::fill_names(
+        at,
+        ("terrain", "terrain"),
+        terrains.defs_mut(),
+        (|d| d.num, |d| &d.id),
+        |d, n: String| d.name = n,
+        &mut problems,
+    )?;
+    rules::fill_names(
+        at,
+        ("feature", "feature"),
+        features.defs_mut(),
+        (|d| d.num, |d| &d.id),
+        |d, n: String| d.name = n,
+        &mut problems,
+    )?;
+    if !problems.is_empty() {
+        return Err(ContentError::Invalid(problems));
+    }
     let rules = rules::load_rules(dirs, &settings.language, &features)?;
     if dirs.iter().any(|d| d.join("settings.ron").exists()) {
         check_spell_library(&settings.spell_library, &rules)?;

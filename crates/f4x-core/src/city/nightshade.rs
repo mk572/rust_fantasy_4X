@@ -116,6 +116,7 @@ mod tests {
         let mut c = content_with_economy();
         let mut defs = c.features.defs().to_vec();
         defs.push(FeatureDef {
+            num: defs.len() as u16 + 1,
             id: "nightshade".into(),
             name: "Nightshade".into(),
             kind: FeatureKind::Mineral,

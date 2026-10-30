@@ -1,0 +1,14 @@
+// The names of the terrain definitions, by the definition's number (`num` in terrain.ron). A language has the same file in its own folder.
+{
+    1: "Chaos Node",  // chaos_node
+    2: "Desert",  // desert
+    3: "Forest",  // forest
+    4: "Grassland",  // grassland
+    5: "Hills",  // hills
+    6: "Mountains",  // mountains
+    7: "Nature Node",  // nature_node
+    8: "Ocean",  // ocean
+    9: "Sorcery Node",  // sorcery_node
+    10: "Swamp",  // swamp
+    11: "Tundra",  // tundra
+}

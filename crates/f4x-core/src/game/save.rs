@@ -5,8 +5,7 @@
 //! definition's number (the original's number, or the alphabetical one; `num` in the content
 //! files) and looked up again on load, so reordering or adding to the content files does not
 //! break a save, and a save that needs content that no longer exists is refused with a clear
-//! error rather than loaded wrongly. Terrains and map features have no numbers yet and are
-//! saved by id.
+//! error rather than loaded wrongly. Terrains and map features too.
 //!
 //! Entities are saved in creation order with their creation numbers (`Serial`), not their
 //! `hecs` ids, so a loaded game orders everything exactly as the original did and continues
@@ -123,15 +122,42 @@ pub enum HeldSave {
     Offered(u8),
 }
 
+/// A magic node as saved: [`crate::feature::node::Node`] with its realm by number.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeSave {
+    pub realm: u16,
+    pub power: u8,
+    pub aura: Vec<(u32, u32)>,
+    #[serde(default)]
+    pub guardian: bool,
+    #[serde(default)]
+    pub warped: bool,
+}
+
+/// A guarded site as saved: [`crate::feature::lair::Lair`] with its guards by unit number.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LairSave {
+    pub intact: bool,
+    /// Unit number and count.
+    pub guards: Vec<(u16, u32)>,
+    pub gold: u32,
+    pub mana: u32,
+    pub items: Vec<u32>,
+    pub prisoner: bool,
+    pub special: u8,
+    #[serde(default)]
+    pub fought_by: Vec<PlayerId>,
+}
+
 /// A terrain feature entity: its creation number, what it is, where it stands and what it holds.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FeatureSave {
     pub serial: u64,
-    /// The id of the feature in the content; `None` for a volcano.
-    pub feature: Option<String>,
+    /// The number of the feature in the content; `None` for a volcano.
+    pub feature: Option<u16>,
     pub at: Position,
-    pub node: Option<crate::feature::node::Node>,
-    pub lair: Option<crate::feature::lair::Lair>,
+    pub node: Option<NodeSave>,
+    pub lair: Option<LairSave>,
     /// The player who owns it (a node, a tower or a volcano).
     pub owner: Option<u8>,
 }
@@ -141,8 +167,10 @@ pub struct FeatureSave {
 pub struct MapSave {
     pub width: u32,
     pub height: u32,
-    pub terrains: Vec<String>,
-    pub features: Vec<String>,
+    /// The numbers of the terrains the map uses.
+    pub terrains: Vec<u16>,
+    /// The numbers of the map features it uses.
+    pub features: Vec<u16>,
     /// Arcanus, then Myrror.
     pub planes: Vec<PlaneSave>,
 }
@@ -501,11 +529,11 @@ fn unpack(bytes: &[u8], len: usize) -> Option<Vec<bool>> {
 }
 
 /// Index of `name` in `list`, adding it if new.
-fn intern(list: &mut Vec<String>, name: &str) -> u16 {
-    match list.iter().position(|n| n == name) {
+fn intern(list: &mut Vec<u16>, num: u16) -> u16 {
+    match list.iter().position(|&n| n == num) {
         Some(i) => i as u16,
         None => {
-            list.push(name.to_string());
+            list.push(num);
             (list.len() - 1) as u16
         }
     }
@@ -587,7 +615,7 @@ impl Game {
             .filter_map(|(serial, e)| {
                 let at = *self.world.get::<&Position>(e).ok()?;
                 let feature = match self.world.get::<&crate::feature::entity::TerrainFeature>(e) {
-                    Ok(f) => Some(self.content.features.get(f.0)?.id.clone()),
+                    Ok(f) => Some(f.0 .0),
                     Err(_) => None,
                 };
                 let owner = self
@@ -600,12 +628,35 @@ impl Game {
                     .world
                     .get::<&crate::feature::node::Node>(e)
                     .ok()
-                    .map(|n| (*n).clone());
+                    .and_then(|n| {
+                        Some(NodeSave {
+                            realm: self.content.rules.realms.id_of(&n.realm)?.num(),
+                            power: n.power,
+                            aura: n.aura.clone(),
+                            guardian: n.guardian,
+                            warped: n.warped,
+                        })
+                    });
                 let lair = self
                     .world
                     .get::<&crate::feature::lair::Lair>(e)
                     .ok()
-                    .map(|l| (*l).clone());
+                    .map(|l| LairSave {
+                        intact: l.intact,
+                        guards: l
+                            .guards
+                            .iter()
+                            .filter_map(|(id, n)| {
+                                Some((self.content.rules.units.id_of(id)?.num(), *n))
+                            })
+                            .collect(),
+                        gold: l.gold,
+                        mana: l.mana,
+                        items: l.items.clone(),
+                        prisoner: l.prisoner,
+                        special: l.special,
+                        fought_by: l.fought_by.clone(),
+                    });
                 let _ = &eco;
                 Some(FeatureSave {
                     serial: serial.0,
@@ -631,12 +682,7 @@ impl Game {
                     let tiles = grid
                         .tiles()
                         .iter()
-                        .map(|t| {
-                            intern(
-                                &mut terrains,
-                                self.content.terrains.get(*t).map_or("", |d| d.id.as_str()),
-                            )
-                        })
+                        .map(|t| intern(&mut terrains, t.0))
                         .collect();
                     let features = grid
                         .minerals()
@@ -644,7 +690,7 @@ impl Game {
                         .enumerate()
                         .filter_map(|(i, f)| {
                             let def = self.content.features.get((*f)?)?;
-                            Some((i as u32, intern(&mut features, &def.id)))
+                            Some((i as u32, intern(&mut features, def.num)))
                         })
                         .collect();
                     let roads = grid
@@ -1137,20 +1183,62 @@ impl Snapshot {
                     return Err(LoadError::Inconsistent("a node is off the map".into()));
                 }
             }
+            let rules = &game.content.rules;
+            let node = f
+                .node
+                .map(|n| {
+                    let realm = rules
+                        .realms
+                        .id_numbered(n.realm)
+                        .ok_or_else(|| LoadError::UnknownId("realm", n.realm.to_string()))?;
+                    Ok(crate::feature::node::Node {
+                        realm: rules.realms.get(realm).id.clone(),
+                        power: n.power,
+                        aura: n.aura,
+                        guardian: n.guardian,
+                        warped: n.warped,
+                    })
+                })
+                .transpose()?;
+            let lair =
+                f.lair
+                    .map(|l| {
+                        let guards =
+                            l.guards
+                                .iter()
+                                .map(|&(num, n)| {
+                                    let unit = rules.units.id_numbered(num).ok_or_else(|| {
+                                        LoadError::UnknownId("unit", num.to_string())
+                                    })?;
+                                    Ok((rules.units.get(unit).id.clone(), n))
+                                })
+                                .collect::<Result<Vec<_>, LoadError>>()?;
+                        Ok(crate::feature::lair::Lair {
+                            intact: l.intact,
+                            guards,
+                            gold: l.gold,
+                            mana: l.mana,
+                            items: l.items,
+                            prisoner: l.prisoner,
+                            special: l.special,
+                            fought_by: l.fought_by,
+                        })
+                    })
+                    .transpose()?;
             let entity = match &f.feature {
-                Some(id) => {
+                Some(num) => {
                     let feature = game
                         .content
                         .features
-                        .id_of(id)
-                        .ok_or(LoadError::UnknownId("feature", id.clone()))?;
+                        .id_numbered(*num)
+                        .ok_or(LoadError::UnknownId("feature", num.to_string()))?;
                     game.spawn_feature_with(
                         serial,
                         crate::feature::entity::Placement {
                             at: f.at,
                             feature,
-                            node: f.node,
-                            lair: f.lair,
+                            node,
+                            lair,
                         },
                     )
                 }
@@ -1559,21 +1647,21 @@ fn restore_map(m: MapSave, content: &Content) -> Result<Map, LoadError> {
     let terrains = m
         .terrains
         .iter()
-        .map(|t| {
+        .map(|&t| {
             content
                 .terrains
-                .id_of(t)
-                .ok_or(LoadError::UnknownId("terrain", t.clone()))
+                .id_numbered(t)
+                .ok_or(LoadError::UnknownId("terrain", t.to_string()))
         })
         .collect::<Result<Vec<TerrainId>, _>>()?;
     let features = m
         .features
         .iter()
-        .map(|f| {
+        .map(|&f| {
             content
                 .features
-                .id_of(f)
-                .ok_or(LoadError::UnknownId("feature", f.clone()))
+                .id_numbered(f)
+                .ok_or(LoadError::UnknownId("feature", f.to_string()))
         })
         .collect::<Result<Vec<FeatureId>, _>>()?;
     let len = (m.width as usize) * (m.height as usize);

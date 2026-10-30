@@ -49,7 +49,7 @@ per plane (checked by `f4x-tools validate` and again by the generator).
 
 | Field | Meaning |
 |---|---|
-| `id`, `name` | stable id and display name |
+| `id`, `num` | stable id and number (ours, counted from 1 in the alphabetical order of the ids); the display name is in `text/<lang>/name/terrain.ron` and `feature.ron` by `num` |
 | `class` | one of the eleven classes: the eight land and sea classes and the base terrains of the three node kinds |
 | `walkable` | ground units can enter (false for ocean) |
 | `can_found_city` | a city or outpost may be founded here |

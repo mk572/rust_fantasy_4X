@@ -35,8 +35,9 @@ pub enum HoardKind {
     Special,
 }
 
-/// The realms that guard a kind of site, with their weights (a roll over the total).
-pub type RealmWeights = Vec<(String, u32)>;
+/// The realms that guard a kind of site, by the realm's number, with their weights (a roll over
+/// the total).
+pub type RealmWeights = Vec<(u16, u32)>;
 
 /// The guard and treasure rules of the sites.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,8 +54,8 @@ pub struct LairRules {
     pub holy_realms: RealmWeights,
     pub wild_realms: RealmWeights,
     /// A node's guards come from its own realm if it is one of these, else from `node_other`.
-    pub node_own_realms: Vec<String>,
-    pub node_other: String,
+    pub node_own_realms: Vec<u16>,
+    pub node_other: u16,
     /// The budget of a tower.
     pub tower_budget: Roll,
     /// A node's budget is `power * power * (node_base + Random(node_rolls)) * (magic + 1) / 2`,
@@ -106,24 +107,18 @@ pub struct LairRules {
 
 impl Default for LairRules {
     fn default() -> Self {
-        let weights =
-            |list: &[(&str, u32)]| list.iter().map(|(r, w)| (r.to_string(), *w)).collect();
+        // Realm numbers as in `realms.ron`: nature 0, sorcery 1, chaos 2, life 3, death 4.
+        let weights = |list: &[(u16, u32)]| list.to_vec();
         Self {
             max_guards: 9,
             max_first_guards: 8,
             first_spread: 4,
             second_spread: 10,
-            tower_realms: weights(&[
-                ("death", 2),
-                ("chaos", 1),
-                ("life", 1),
-                ("nature", 1),
-                ("sorcery", 1),
-            ]),
-            holy_realms: weights(&[("death", 3), ("life", 1)]),
-            wild_realms: weights(&[("death", 2), ("chaos", 2), ("nature", 1)]),
-            node_own_realms: vec!["sorcery".into(), "nature".into()],
-            node_other: "chaos".into(),
+            tower_realms: weights(&[(4, 2), (2, 1), (3, 1), (0, 1), (1, 1)]),
+            holy_realms: weights(&[(4, 3), (3, 1)]),
+            wild_realms: weights(&[(4, 2), (2, 2), (0, 1)]),
+            node_own_realms: vec![1, 0],
+            node_other: 2,
             tower_budget: Roll::new(650, 11, 50),
             node_base: 4,
             node_rolls: 11,
@@ -166,15 +161,15 @@ impl Default for LairRules {
 
 impl LairRules {
     /// The realm a roll of `weights` picks, given `roll` in `1..=total`.
-    pub fn realm_for(weights: &RealmWeights, roll: u32) -> &str {
+    pub fn realm_for(weights: &RealmWeights, roll: u32) -> u16 {
         let mut left = roll;
         for (realm, weight) in weights {
             if left <= *weight {
-                return realm;
+                return *realm;
             }
             left -= weight;
         }
-        weights.last().map_or("", |(r, _)| r.as_str())
+        weights.last().map_or(0, |&(r, _)| r)
     }
 
     /// The sum of a realm table's weights.

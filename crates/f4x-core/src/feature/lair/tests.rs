@@ -145,7 +145,7 @@ fn guards_fit_the_budget_and_the_stack() {
 
 #[test]
 fn a_site_type_decides_the_guards_realm() {
-    let rules = LairRules::default();
+    let rules = content();
     let mut rng = Pcg64Mcg::seed_from_u64(2);
     for _ in 0..100 {
         assert_eq!(

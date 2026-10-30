@@ -215,7 +215,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() {
     g.attach_enchantment(Target::Unit(elsewhere), strength, P0);
     g.put_node_data(
         at(6, 6),
-        "node",
+        "sorcery_node",
         Node {
             realm: "chaos".into(),
             power: 8,
