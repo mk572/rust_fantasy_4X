@@ -36,7 +36,7 @@ or a `//! Tests:` line, stale or wordy comments (task numbers, history, general 
 
 ## crates/f4x-core (31 October 2026, done without the user present)
 
-Done for the whole crate in four passes, by script and compiler where it was mechanical, so the rows below are by pass and area, not by file. Checked after every pass: `cargo nextest run -p f4x-core` (1,025 tests, 1.2 s), `cargo clippy --workspace --tests`, `cargo fmt`.
+Done for the whole crate in four passes, by script and compiler where it was mechanical, so the rows below are by pass and area, not by file. Checked after every pass: `cargo nextest run -p f4x-core` (1,023 tests, 1.2 s), `cargo clippy --workspace --tests`, `cargo fmt`.
 
 | Pass | Status | Notes |
 |---|---|---|
@@ -45,5 +45,5 @@ Done for the whole crate in four passes, by script and compiler where it was mec
 | `//! Tests:` lines, 72 files | done | Every file without a `#[test]` now says where its tests are or why it has none. The "in" targets were picked by matching function names against the test code (the test file that names most of the file's functions), not by reading each file; the 15 files where hardly any function is named are **not** marked and are listed in task 431. `rules/registry.rs` had no test: it has five now (lookup by alias and number, gaps, iteration order, `new_sorted`, both refusals). |
 | tests on shipped data | partly | `f4x-data` is a dev-dependency of `f4x-core`; `tests/it/shipped_game.rs` runs a new game on `content/` (20 turns without a refusal, save and load give the same game, the same seed gives the same game). The other 800 tests still use the hand-built content of `testutil.rs`: task 430 (needs a decision). |
 | hard-coded values | partly | The turn thresholds of marriage and meteor (`BIG_EVENTS_FROM_TURN`, was 150 in two places), of the monsters (`MONSTER_FIRST_TURN`) and of the mercenaries (`FIRST_MERCENARY_TURN`) are constants in the tests. Not searched for other literals in the tests. |
-| slow tests | checked | All 1,025 tests under 0.35 s; the slowest are `a_guarded_node_resists_rivals_three_times_in_four` (0.33 s, a loop of rolls) and `the_battle_ai_takes_a_walled_city` (0.19 s). Needless cloning was not looked for beyond that. |
+| slow tests | checked | All 1,023 tests under 0.35 s; the slowest are `a_guarded_node_resists_rivals_three_times_in_four` (0.33 s, a loop of rolls) and `the_battle_ai_takes_a_walled_city` (0.19 s). Needless cloning was not looked for beyond that. |
 
