@@ -245,9 +245,16 @@ fn a_loaded_game_continues_exactly_like_the_original() {
 }
 
 #[test]
-fn missing_content_is_reported_by_name() {
+fn missing_content_is_reported_by_number_or_name() {
     let g = game();
     let snap = g.snapshot();
+    let spearmen = g
+        .content
+        .rules
+        .units
+        .by_name("high_elf_spearmen")
+        .unwrap()
+        .num;
     let mut without = g.content.clone();
     let units: Vec<_> = without
         .rules
@@ -260,7 +267,7 @@ fn missing_content_is_reported_by_name() {
     without.rules.units = crate::rules::Registry::new_sorted(units);
     assert_eq!(
         snap.clone().restore(without).err(),
-        Some(LoadError::UnknownId("unit", "high_elf_spearmen".into()))
+        Some(LoadError::UnknownId("unit", spearmen.to_string()))
     );
     let mut no_terrain = g.content.clone();
     let terrains: Vec<_> = no_terrain

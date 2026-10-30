@@ -1,11 +1,12 @@
 //! Saving and loading: a snapshot of the whole game that can be written as text and
 //! restored later, even into a build with different or extra content.
 //!
-//! A snapshot never stores definitions. Everything that refers to content (a unit's
-//! definition, a building, a terrain) is saved by its string id and looked up again on load,
-//! so reordering or adding to the content files does not break a save, and a save that
-//! needs content that no longer exists is refused with a clear error rather than loaded
-//! wrongly.
+//! A snapshot never stores definitions. Everything that refers to content is saved by the
+//! definition's number (the original's number, or the alphabetical one; `num` in the content
+//! files) and looked up again on load, so reordering or adding to the content files does not
+//! break a save, and a save that needs content that no longer exists is refused with a clear
+//! error rather than loaded wrongly. Terrains and map features have no numbers yet and are
+//! saved by id.
 //!
 //! Entities are saved in creation order with their creation numbers (`Serial`), not their
 //! `hecs` ids, so a loaded game orders everything exactly as the original did and continues
@@ -206,20 +207,21 @@ pub struct WizardSave {
     pub gender: crate::text::Gender,
     pub portrait: u8,
     pub banner: u8,
-    pub capital_race: Option<String>,
+    pub capital_race: Option<u16>,
     pub fame: i32,
-    pub books: Vec<(String, u8)>,
+    /// Realm number and books.
+    pub books: Vec<(u16, u8)>,
     pub retorts: Vec<Retort>,
     pub skill_points: i32,
     pub skill_left: i32,
     pub mana_pct: u8,
     pub research_pct: u8,
     pub skill_pct: u8,
-    pub known: Vec<String>,
-    pub researchable: Vec<String>,
+    pub known: Vec<u16>,
+    pub researchable: Vec<u16>,
     /// The spells on offer for research.
-    pub candidates: Vec<String>,
-    pub researching: Option<String>,
+    pub candidates: Vec<u16>,
+    pub researching: Option<u16>,
     pub research_remaining: i32,
     pub fortress: Option<Position>,
     pub summon_at: Option<Position>,
@@ -231,7 +233,7 @@ pub struct WizardSave {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpellSave {
     pub serial: u64,
-    pub spell: String,
+    pub spell: u16,
     /// The player of the wizard who cast it.
     pub caster: u8,
     pub target: SpellTargetSave,
@@ -252,7 +254,7 @@ pub enum SpellTargetSave {
 impl WizardSave {
     /// What the wizard's components hold.
     fn of(id: PlayerId, w: Wizard<'_>, rules: &crate::rules::Rules) -> Self {
-        let name = |s: &SpellId| rules.spells.get(*s).id.clone();
+        let name = |s: &SpellId| s.num();
         let split = w.power_split();
         Self {
             player: id.0,
@@ -260,9 +262,13 @@ impl WizardSave {
             gender: w.gender(),
             portrait: w.portrait(),
             banner: w.banner(),
-            capital_race: w.capital_race().map(|r| rules.races.get(r).id.clone()),
+            capital_race: w.capital_race().map(|r| r.num()),
             fame: w.fame(),
-            books: w.books().into_iter().collect(),
+            books: w
+                .books()
+                .into_iter()
+                .filter_map(|(realm, n)| Some((rules.realms.id_of(&realm)?.num(), n)))
+                .collect(),
             retorts: w.retorts().into_iter().collect(),
             skill_points: w.skill_points(),
             skill_left: w.skill_left(),
@@ -283,13 +289,13 @@ impl WizardSave {
 
     /// Put the saved sheet on the wizard's components.
     fn put(self, mut wizard: WizardMut<'_>, rules: &crate::rules::Rules) -> Result<(), LoadError> {
-        let id = |s: &String| {
+        let id = |n: &u16| {
             rules
                 .spells
-                .id_of(s)
-                .ok_or_else(|| LoadError::UnknownId("spell", s.clone()))
+                .id_numbered(*n)
+                .ok_or_else(|| LoadError::UnknownId("spell", n.to_string()))
         };
-        let ids = |v: &[String]| v.iter().map(id).collect::<Result<Vec<_>, _>>();
+        let ids = |v: &[u16]| v.iter().map(id).collect::<Result<Vec<_>, _>>();
         if u32::from(self.mana_pct) + u32::from(self.research_pct) + u32::from(self.skill_pct)
             != 100
         {
@@ -310,7 +316,15 @@ impl WizardSave {
         wizard.put(self.banished.then(|| Banishment {
             by: self.banished_by.map(PlayerId),
         }));
-        *wizard.get_mut::<Books>() = Books(self.books.into_iter().collect());
+        let mut books = std::collections::BTreeMap::new();
+        for (num, n) in self.books {
+            let realm = rules
+                .realms
+                .id_numbered(num)
+                .ok_or_else(|| LoadError::UnknownId("realm", num.to_string()))?;
+            books.insert(rules.realms.get(realm).id.clone(), n);
+        }
+        *wizard.get_mut::<Books>() = Books(books);
         *wizard.get_mut::<Retorts>() = Retorts(self.retorts.into_iter().collect());
         *wizard.get_mut::<Skill>() = Skill {
             points: self.skill_points,
@@ -348,7 +362,7 @@ pub struct HeroSave {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnitSave {
     pub serial: u64,
-    pub unit: String,
+    pub unit: u16,
     pub owner: u8,
     pub pos: Position,
     pub hurt: u32,
@@ -387,8 +401,8 @@ fn effects_load(
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ItemSave {
-    Building(String),
-    Unit(String),
+    Building(u16),
+    Unit(u16),
     TradeGoods,
     Housing,
 }
@@ -402,10 +416,10 @@ pub struct CitySave {
     pub figures: u32,
     pub tens: u32,
     pub farmers: u32,
-    pub race: Option<String>,
-    pub buildings: Vec<String>,
-    /// The realms a Spell Ward guards the city against.
-    pub wards: Vec<String>,
+    pub race: Option<u16>,
+    pub buildings: Vec<u16>,
+    /// The numbers of the realms a Spell Ward guards the city against.
+    pub wards: Vec<u16>,
     pub item: Option<ItemSave>,
     pub progress: u32,
     /// Temporary modifiers.
@@ -413,7 +427,7 @@ pub struct CitySave {
     /// Taken this turn by this player, who may still raze it.
     pub conquered: Option<u8>,
     /// The building sold this turn.
-    pub sold_building: Option<String>,
+    pub sold_building: Option<u16>,
     /// The city's auto-builder plan and what it has spent so far.
     pub autobuild: Option<crate::city::autobuild::AutoBuild>,
 }
@@ -540,7 +554,7 @@ impl Game {
                 };
                 Some(SpellSave {
                     serial: self.serial_of(i).0,
-                    spell: self.content.rules.spells.get(spells.def(i)?).id.clone(),
+                    spell: spells.def(i)?.num(),
                     caster: spells.caster_player(i)?.0,
                     target,
                     owed: self.world.get::<&Owed>(i).ok().map(|o| o.0),
@@ -725,7 +739,7 @@ impl Game {
             .filter_map(|u| {
                 Some(UnitSave {
                     serial: self.serial_of(u).0,
-                    unit: self.units().unit_def(u)?.id.clone(),
+                    unit: self.units().unit_def(u)?.num,
                     owner: self.units().unit_owner(u)?.0,
                     pos: self.units().unit_position(u)?,
                     hurt: self.world.get::<&Hurt>(u).map_or(0, |h| h.0),
@@ -760,8 +774,8 @@ impl Game {
             })
             .collect();
         let item_save = |item: ProductionItem| match item {
-            ProductionItem::Building(b) => ItemSave::Building(rules.buildings.get(b).id.clone()),
-            ProductionItem::Unit(u) => ItemSave::Unit(rules.units.get(u).id.clone()),
+            ProductionItem::Building(b) => ItemSave::Building(b.num()),
+            ProductionItem::Unit(u) => ItemSave::Unit(u.num()),
             ProductionItem::TradeGoods => ItemSave::TradeGoods,
             ProductionItem::Housing => ItemSave::Housing,
         };
@@ -791,21 +805,18 @@ impl Game {
                     figures: pop.figures,
                     tens: pop.tens,
                     farmers: self.world.get::<&Farmers>(e).map_or(0, |f| f.0),
-                    race: self
-                        .world
-                        .get::<&CityRace>(e)
-                        .ok()
-                        .map(|r| rules.races.get(r.0).id.clone()),
+                    race: self.world.get::<&CityRace>(e).ok().map(|r| r.0.num()),
                     buildings: self
                         .world
                         .get::<&Buildings>(e)
-                        .map(|b| {
-                            b.0.iter()
-                                .map(|&b| rules.buildings.get(b).id.clone())
-                                .collect()
-                        })
+                        .map(|b| b.0.iter().map(|b| b.num()).collect())
                         .unwrap_or_default(),
-                    wards: self.economy().city_wards(e),
+                    wards: self
+                        .economy()
+                        .city_wards(e)
+                        .iter()
+                        .filter_map(|w| Some(rules.realms.id_of(w)?.num()))
+                        .collect(),
                     item: production.item.map(item_save),
                     progress: production.progress,
                     effects: self.units().temp_effects(e),
@@ -815,10 +826,7 @@ impl Game {
                         .ok()
                         .and_then(|c| crate::player::id_of(&self.world, c.0))
                         .map(|p| p.0),
-                    sold_building: self
-                        .economy()
-                        .sold_building(e)
-                        .map(|b| rules.buildings.get(b).id.clone()),
+                    sold_building: self.economy().sold_building(e).map(|b| b.num()),
                     autobuild: self
                         .world
                         .get::<&crate::city::autobuild::AutoBuild>(e)
@@ -1064,8 +1072,8 @@ impl Snapshot {
                         game.content
                             .rules
                             .races
-                            .id_of(r)
-                            .ok_or_else(|| LoadError::UnknownId("race", r.clone()))
+                            .id_numbered(*r)
+                            .ok_or_else(|| LoadError::UnknownId("race", r.to_string()))
                     })
                     .transpose()?;
                 let (fame, banner, portrait, gender) = (
@@ -1198,8 +1206,8 @@ impl Snapshot {
                 .content
                 .rules
                 .units
-                .id_of(&u.unit)
-                .ok_or(LoadError::UnknownId("unit", u.unit.clone()))?;
+                .id_numbered(u.unit)
+                .ok_or(LoadError::UnknownId("unit", u.unit.to_string()))?;
             if !in_map(&game, u.pos) {
                 return Err(LoadError::Inconsistent(format!(
                     "unit {} is off the map",
@@ -1340,8 +1348,8 @@ impl Snapshot {
                 .map(|b| {
                     rules
                         .buildings
-                        .id_of(b)
-                        .ok_or(LoadError::UnknownId("building", b.clone()))
+                        .id_numbered(*b)
+                        .ok_or(LoadError::UnknownId("building", b.to_string()))
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             let item = c
@@ -1349,21 +1357,26 @@ impl Snapshot {
                 .map(|i| match i {
                     ItemSave::Building(b) => rules
                         .buildings
-                        .id_of(&b)
+                        .id_numbered(b)
                         .map(ProductionItem::Building)
-                        .ok_or(LoadError::UnknownId("building", b)),
+                        .ok_or(LoadError::UnknownId("building", b.to_string())),
                     ItemSave::Unit(u) => rules
                         .units
-                        .id_of(&u)
+                        .id_numbered(u)
                         .map(ProductionItem::Unit)
-                        .ok_or(LoadError::UnknownId("unit", u)),
+                        .ok_or(LoadError::UnknownId("unit", u.to_string())),
                     ItemSave::TradeGoods => Ok(ProductionItem::TradeGoods),
                     ItemSave::Housing => Ok(ProductionItem::Housing),
                 })
                 .transpose()?;
             let race = c
                 .race
-                .map(|r| rules.races.id_of(&r).ok_or(LoadError::UnknownId("race", r)))
+                .map(|r| {
+                    rules
+                        .races
+                        .id_numbered(r)
+                        .ok_or(LoadError::UnknownId("race", r.to_string()))
+                })
                 .transpose()?;
             let owner = game.player_entity(PlayerId(c.owner)).ok_or_else(|| {
                 LoadError::Inconsistent(format!("a city belongs to the missing player {}", c.owner))
@@ -1389,15 +1402,26 @@ impl Snapshot {
             }
             effects_load(&mut game.world, entity, c.effects);
             if !c.wards.is_empty() {
+                let wards = c
+                    .wards
+                    .iter()
+                    .map(|&n| {
+                        rules
+                            .realms
+                            .id_numbered(n)
+                            .map(|r| rules.realms.get(r).id.clone())
+                            .ok_or(LoadError::UnknownId("realm", n.to_string()))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let _ = game
                     .world
-                    .insert_one(entity, crate::spell::city::SpellWards(c.wards));
+                    .insert_one(entity, crate::spell::city::SpellWards(wards));
             }
             if let Some(b) = c.sold_building {
                 let b = rules
                     .buildings
-                    .id_of(&b)
-                    .ok_or(LoadError::UnknownId("building", b))?;
+                    .id_numbered(b)
+                    .ok_or(LoadError::UnknownId("building", b.to_string()))?;
                 let _ = game
                     .world
                     .insert_one(entity, crate::city::production::SoldBuilding(b));
@@ -1426,8 +1450,8 @@ impl Snapshot {
                 .content
                 .rules
                 .spells
-                .id_of(&i.spell)
-                .ok_or_else(|| LoadError::UnknownId("spell", i.spell.clone()))?;
+                .id_numbered(i.spell)
+                .ok_or_else(|| LoadError::UnknownId("spell", i.spell.to_string()))?;
             let caster = game
                 .wizard(PlayerId(i.caster))
                 .map(|w| w.entity())

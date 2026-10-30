@@ -181,7 +181,7 @@ Economy and movement
 - A unit with any movement left may always take a step.
 
 Saving
-- Snapshots, not command logs: a save restores the state directly. Content is referenced by string id, so saves survive content being added or reordered and fail clearly when content is missing. Units and cities carry a permanent creation number used for ordering and saved, so a loaded game continues exactly like the original.
+- Snapshots, not command logs: a save restores the state directly. Content is referenced by the definition's number (`num` in the content file; terrains and map features still by id), so saves survive content being added or reordered and fail clearly when content is missing. Units and cities carry a permanent creation number used for ordering and saved, so a loaded game continues exactly like the original.
 
 Client and tooling
 - macroquad for the client; art and data stay local; screenshots go in `assets-local/shots`.
