@@ -1,7 +1,5 @@
-//! The AI's side of the talk. The core keeps the relations and treaties and only checks that a
-//! proposal is legal; whether to accept it, and whether to start a war, is decided here, with the
-//! original's rating of a proposal (`Diplomacy_Test`, docs/diplomacy.md section 4) as the
-//! starting logic. The core wears down the asker's patience when a proposal is answered.
+//! The AI's side of the talk: how it rates and answers proposals, and when it declares war, offers
+//! or demands. The original's logic is in `docs/diplomacy.md` sections 4 and 8.
 
 use f4x_core::diplomacy::{
     army_strength, DiplomacyCommand, ProposalKind, Treaty, ALLIANCE_RELATION, PACT_RELATION,
@@ -232,12 +230,10 @@ const BREAK_RELATION: i32 = -50;
 /// The chance, in a hundred, of a turn in which a friendly wizard offers the human a better treaty.
 const OFFER_PERCENT: u32 = 12;
 
-/// What an AI wizard says to the human at the start of the human's turn, as commands a human
-/// could send: it offers peace when at war and in the mood (`DIPL_HumanWarOrPeace`, one turn in
-/// eight), declares war on a hated one, breaks a treaty with a hated partner, offers a pact or an
-/// alliance to a friend, and asks an ally to join its war (`NPC_Required_Alliances`, one turn in
-/// ten). The human answers the proposals in a box; they lapse when the turn ends. The numbers are
-/// the original's where `docs/diplomacy.md` section 8 gives them, and a plain guess elsewhere.
+/// What an AI wizard says to the human at the start of the human's turn, as commands a human could
+/// send: peace, war, a treaty broken or offered, a call to join its war (`DIPL_HumanWarOrPeace`,
+/// `NPC_Required_Alliances`). The numbers are the original's where `docs/diplomacy.md` section 8
+/// gives them, and a plain guess elsewhere.
 pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let Some(human) = game.human().filter(|&h| h != me) else {
@@ -605,11 +601,9 @@ fn answer_threat(game: &mut Game, judge: PlayerId, asker: PlayerId) -> bool {
     }
 }
 
-/// The AI wizards among themselves (`NPC_To_NPC_Treaty_Negotiations`): for each wizard it has
-/// met, with a chance of one in `15 - 2 * difficulty`, the wizard sizes the other up (relation,
-/// temper, the difficulty and a roll) and offers an alliance or a pact, a swap of spells, or
-/// peace; an ally joins the wars of its friends. The other wizard answers at once with its own
-/// rating of the offer (`rate`).
+/// The AI wizards among themselves (`NPC_To_NPC_Treaty_Negotiations`): each wizard met has a
+/// one in `15 - 2 * difficulty` chance of being offered a treaty, a spell swap or peace, which the
+/// other answers at once with `rate`; an ally joins the wars of its friends.
 pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let human = game.human();
