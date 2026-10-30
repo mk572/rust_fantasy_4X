@@ -214,7 +214,7 @@ mod tests {
                 _ => {}
             }
         }
-        c.rules.units = crate::rules::Registry::new(units);
+        c.rules.units = crate::rules::Registry::new_sorted(units);
         let grass = c.terrains.id_of("grassland").unwrap();
         let mut g = Game::new(1);
         for id in (0..3).map(PlayerId) {

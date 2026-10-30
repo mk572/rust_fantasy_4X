@@ -401,7 +401,7 @@ pub(crate) mod tests {
         // The last is the necromancer's stand-in: it needs a death book.
         units.last_mut().unwrap().id = "necromancer".into();
         templates[6].unit = "necromancer".into();
-        c.rules.units = Registry::new(units);
+        c.rules.units = Registry::new_sorted(units);
         c.rules.hero_templates = templates;
         let grass = c.terrains.id_of("grassland").unwrap();
         let mut g = Game::new(5);

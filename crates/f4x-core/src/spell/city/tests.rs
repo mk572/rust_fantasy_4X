@@ -427,7 +427,7 @@ fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() {
             _ => {}
         }
     }
-    g.content.rules.units = Registry::new(units);
+    g.content.rules.units = Registry::new_sorted(units);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let slow = g.content.rules.units.id_of("slow").unwrap();
     let ghoul = g.spawn_unit(P1, at(11, 6), walker);

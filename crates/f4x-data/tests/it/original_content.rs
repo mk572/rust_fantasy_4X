@@ -52,6 +52,12 @@ fn every_unit_has_the_originals_numbers() {
     let mut wrong = Vec::new();
     for (def, row) in defs.iter().zip(&rows) {
         let mut row = row.clone();
+        if i32::from(def.num) != row["index"] {
+            wrong.push(format!(
+                "{}: numbered {}, original {}",
+                def.id, def.num, row["index"]
+            ));
+        }
         if row["ranged"] > 0 && row["ammo"] == 0 {
             row.insert("ammo".into(), 1);
         }

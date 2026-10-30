@@ -2421,7 +2421,7 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
             hire_cost: 100,
         });
     }
-    g.content.rules.units = crate::rules::Registry::new(units);
+    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
@@ -2528,27 +2528,15 @@ fn casting_game() -> Game {
 /// are set after, as the rolled ones would be.
 fn hero_unit(g: &mut Game, spells: &[&str], skill: u8) -> hecs::Entity {
     use crate::hero::{Hero, HeroAbilities, HeroState};
-    use crate::rules::{HeroDef, HeroKind, HeroTemplate, PickType, Registry, UnitKind};
+    use crate::rules::{HeroTemplate, PickType, Registry};
     if g.content.rules.hero_templates.is_empty() {
-        let mut def = g
-            .content
-            .rules
-            .units
-            .get(g.content.rules.units.id_of("walker").unwrap())
-            .clone();
-        def.id = "hero_walker".into();
-        def.kind = UnitKind::Hero;
-        def.race = None;
-        def.hero = Some(HeroDef {
-            kind: HeroKind::Warrior,
-            portrait: 0,
-            hire_cost: 100,
-        });
+        // Dwarf, the first of the game's heroes.
+        let def = crate::game::testutil::real_unit("dwarf");
         let mut defs = g.content.rules.units.defs().to_vec();
         defs.push(def);
-        g.content.rules.units = Registry::new(defs);
+        g.content.rules.units = Registry::new_sorted(defs);
         g.content.rules.hero_templates = vec![HeroTemplate {
-            unit: "hero_walker".into(),
+            unit: "dwarf".into(),
             picks: 0,
             pick_type: PickType::Warrior,
             abilities: Vec::new(),
@@ -2687,19 +2675,11 @@ fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() {
             .insert(spell);
         m.get_mut::<crate::wizard::sheet::Skill>().left = 500;
     }
-    // The test content's walker is a fantastic creature; a normal unit is one of a kind that is.
-    let mut def = g
-        .content
-        .rules
-        .units
-        .get(g.content.rules.units.id_of("walker").unwrap())
-        .clone();
-    def.id = "soldier".into();
-    def.kind = crate::rules::UnitKind::Normal;
+    // A normal unit, as the game has them: the barbarians' spearmen.
     let mut defs = g.content.rules.units.defs().to_vec();
-    defs.push(def);
-    g.content.rules.units = crate::rules::Registry::new(defs);
-    let soldier = g.content.rules.units.id_of("soldier").unwrap();
+    defs.push(crate::game::testutil::real_unit("barbarian_spearmen"));
+    g.content.rules.units = crate::rules::Registry::new_sorted(defs);
+    let soldier = g.content.rules.units.id_of("barbarian_spearmen").unwrap();
     let ours = g.spawn_unit(A, at(4, 4), soldier);
     let theirs = g.spawn_unit(D, at(5, 4), soldier);
     g.apply(Command::BeginBattle {
@@ -2883,7 +2863,7 @@ fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it()
     for d in defs.iter_mut().filter(|d| d.id == "walker") {
         d.abilities.push("casts_healing".into());
     }
-    g.content.rules.units = crate::rules::Registry::new(defs);
+    g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     begin(&mut g, unit);
     let healing = g.content.rules.spells.id_of("healing").unwrap();
     // It is cast on a friend only: the enemy is a bad target.
@@ -3141,14 +3121,11 @@ fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() 
 fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() {
     let mut g = game();
     let mut defs = g.content.rules.units.defs().to_vec();
-    let mut demon = defs.iter().find(|d| d.id == "walker").unwrap().clone();
-    demon.id = "demon".into();
-    demon.name = "Demon".into();
-    defs.push(demon);
+    defs.push(crate::game::testutil::real_unit("demon"));
     for d in defs.iter_mut().filter(|d| d.id == "walker") {
         d.abilities.push("summon_demon".into());
     }
-    g.content.rules.units = crate::rules::Registry::new(defs);
+    g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let lord = g.spawn_unit(A, at(4, 4), walker);
     begin(&mut g, lord);
@@ -3599,7 +3576,7 @@ fn game_with_abilities(unit_id: &str, abilities: &[&str]) -> Game {
         u.kind = crate::rules::UnitKind::Normal;
         u.abilities.extend(abilities.iter().map(|a| a.to_string()));
     }
-    g.content.rules.units = crate::rules::Registry::new(units);
+    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     g
 }
 
@@ -3655,13 +3632,10 @@ fn finish_with_dead(
 fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won() {
     let mut g = game_with_abilities("walker", &[]);
     let mut units = g.content.rules.units.defs().to_vec();
-    let mut troll = units.iter().find(|u| u.id == "walker").unwrap().clone();
-    troll.id = "troll".into();
-    troll.abilities.push("regeneration".into());
-    units.push(troll);
-    g.content.rules.units = crate::rules::Registry::new(units);
+    units.push(crate::game::testutil::real_unit("troll_war_trolls"));
+    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     let walker = g.content.rules.units.id_of("walker").unwrap();
-    let troll = g.content.rules.units.id_of("troll").unwrap();
+    let troll = g.content.rules.units.id_of("troll_war_trolls").unwrap();
     let alive = g.spawn_unit(A, at(4, 4), walker);
     let slain_troll = g.spawn_unit(A, at(4, 4), troll);
     let hurt_troll = g.spawn_unit(A, at(4, 4), troll);
@@ -3695,13 +3669,10 @@ fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won(
 fn a_regenerating_unit_that_loses_stays_dead() {
     let mut g = game_with_abilities("walker", &[]);
     let mut units = g.content.rules.units.defs().to_vec();
-    let mut troll = units.iter().find(|u| u.id == "walker").unwrap().clone();
-    troll.id = "troll".into();
-    troll.abilities.push("regeneration".into());
-    units.push(troll);
-    g.content.rules.units = crate::rules::Registry::new(units);
+    units.push(crate::game::testutil::real_unit("troll_war_trolls"));
+    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     let walker = g.content.rules.units.id_of("walker").unwrap();
-    let troll = g.content.rules.units.id_of("troll").unwrap();
+    let troll = g.content.rules.units.id_of("troll_war_trolls").unwrap();
     let a = g.spawn_unit(A, at(4, 4), troll);
     let d = g.spawn_unit(D, at(5, 4), walker);
     finish_with_dead(&mut g, &[a], &[d], &[0]);
@@ -3746,7 +3717,7 @@ fn a_very_rare_foe_is_worth_a_point_of_fame() {
     for u in units.iter_mut().filter(|u| u.id == "walker") {
         u.cost = 600;
     }
-    g.content.rules.units = crate::rules::Registry::new(units);
+    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let a = g.spawn_unit(A, at(4, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
@@ -3767,7 +3738,7 @@ fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back(
     for u in units.iter_mut().filter(|u| u.id == "walker") {
         u.kind = crate::rules::UnitKind::Hero;
     }
-    g.content.rules.units = crate::rules::Registry::new(units);
+    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let a = g.spawn_unit(A, at(4, 4), walker);
     let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();

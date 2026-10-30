@@ -247,6 +247,9 @@ pub const HERO_ABILITIES: [&str; 24] = [
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnitDef {
+    /// The original's unit type number, the id the game passes around.
+    pub num: u16,
+    /// The alias for human editing.
     pub id: String,
     pub name: String,
     pub kind: UnitKind,
@@ -629,7 +632,6 @@ impl Default for RulesConfig {
 
 impl_def!(
     RaceDef,
-    UnitDef,
     AbilityDef,
     BuildingDef,
     RealmDef,
@@ -638,6 +640,16 @@ impl_def!(
     LevelPathDef,
     WizardDef
 );
+
+impl Def for UnitDef {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn num(&self) -> Option<u16> {
+        Some(self.num)
+    }
+}
 
 impl Def for SpellDef {
     fn id(&self) -> &str {

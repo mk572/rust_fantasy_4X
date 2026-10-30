@@ -103,7 +103,7 @@ fn sea_world() -> Game {
     let mut grunt = unit("tgrunt", MovementType::Walking, 2, &[]);
     grunt.upkeep.gold = 1;
     units.push(grunt);
-    g.content.rules.units = Registry::new(units);
+    g.content.rules.units = Registry::new_sorted(units);
     let (grass, ocean) = (
         g.content.terrains.id_of("grassland").unwrap(),
         g.content.terrains.id_of("ocean").unwrap(),

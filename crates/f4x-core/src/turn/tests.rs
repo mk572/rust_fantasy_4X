@@ -1054,7 +1054,7 @@ fn regenerating_units_mend_completely_each_turn() {
             u.abilities.push("regeneration".into());
         }
     }
-    g.content.rules.units = crate::rules::Registry::new(units);
+    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     let spear = g.content.rules.units.id_of("spear").unwrap();
     let troll = g.spawn_unit(P0, at(14, 3), spear);
     g.world.insert_one(troll, Hurt(5)).unwrap();

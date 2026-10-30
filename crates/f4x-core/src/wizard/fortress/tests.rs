@@ -27,12 +27,9 @@ fn world() -> Game {
         g.treasury_mut(id).unwrap().mana = 100;
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
-    // The test content has no bears: War Bears brings a copy of the spear.
     let mut units = g.content.rules.units.defs().to_vec();
-    let mut bears = units.iter().find(|u| u.id == "spear").unwrap().clone();
-    bears.id = "war_bears".into();
-    units.push(bears);
-    g.content.rules.units = crate::rules::Registry::new(units);
+    units.push(crate::game::testutil::real_unit("war_bears"));
+    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     g
 }
 
@@ -646,7 +643,7 @@ fn a_computer_wizard_who_cannot_pay_for_the_return_resigns_and_the_cities_go_neu
     let galley = g.content.rules.units.id_of("galley").unwrap();
     let mut defs = g.content.rules.units.defs().to_vec();
     defs.iter_mut().find(|d| d.id == "galley").unwrap().kind = crate::rules::UnitKind::Fantastic;
-    g.content.rules.units = crate::rules::Registry::new(defs);
+    g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     let beast = g.spawn_unit(P0, at(15, 5), galley);
     let events = g.capture_city(capital, P1);
     assert!(

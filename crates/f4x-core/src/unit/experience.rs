@@ -195,7 +195,7 @@ mod tests {
                 _ => {}
             }
         }
-        c.rules.units = Registry::new(units);
+        c.rules.units = Registry::new_sorted(units);
         let level = |name: &str, xp| LevelDef {
             name: name.into(),
             xp,
@@ -255,7 +255,7 @@ mod tests {
         for d in defs.iter_mut().filter(|d| d.id == "walker") {
             d.stats.insert(Stat::Melee, 0);
         }
-        g.content.rules.units = Registry::new(defs);
+        g.content.rules.units = Registry::new_sorted(defs);
         let unit = spawn(&mut g, "walker", at(3, 3));
         set_xp(&mut g, unit, 120);
         assert_eq!(g.units().unit_level(unit), 3);

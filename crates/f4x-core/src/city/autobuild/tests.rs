@@ -51,7 +51,7 @@ fn content() -> Content {
         40,
         &[(Stat::Melee, 0), (Stat::Construction, 1)],
     );
-    c.rules.units = Registry::new(defs);
+    c.rules.units = Registry::new_sorted(defs);
     c
 }
 

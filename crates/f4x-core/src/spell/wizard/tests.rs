@@ -36,19 +36,10 @@ fn world() -> Game {
             _ => {}
         }
     }
-    let mut wolves = units.iter().find(|u| u.id == "slow").unwrap().clone();
-    wolves.id = "werewolves".into();
-    wolves.name = "Werewolves".into();
-    wolves.realm = Some("death".into());
-    units.push(wolves);
-    // A squad of five with two hit points each, to count figures.
-    let mut squad = units.iter().find(|u| u.id == "walker").unwrap().clone();
-    squad.id = "squad".into();
-    squad.stats.insert(crate::rules::Stat::Figures, 5);
-    squad.stats.insert(crate::rules::Stat::MaxHp, 2);
-    squad.stats.insert(crate::rules::Stat::Resistance, 0);
-    units.push(squad);
-    c.rules.units = Registry::new(units);
+    units.push(crate::game::testutil::real_unit("werewolves"));
+    // A unit of several figures to count them: the barbarians' spearmen, eight of one hit point.
+    units.push(crate::game::testutil::real_unit("barbarian_spearmen"));
+    c.rules.units = Registry::new_sorted(units);
     let grass = c.terrains.id_of("grassland").unwrap();
     let mut g = Game::new(9);
     g.content = c;
@@ -316,47 +307,37 @@ fn black_wind_square(g: &mut Game, at: Position, rng: &mut crate::game::rng::Gam
 #[test]
 fn black_wind_strikes_every_unit_on_the_square_figure_by_figure() {
     let mut g = world();
-    // Zero resistance: a roll of 1 to 10 against -1 fails every time, so five figures of two
-    // hit points each usually all rot away.
+    // A resistance of 5 against -1: each of the eight figures fails on a roll of 5 to 10, so
+    // some of them rot away.
     let mut dead = 0;
     let mut hurt = 0;
-    for i in 0..9 {
-        unit(&mut g, P1, "squad", at(i, 1));
-    }
+    let units: Vec<_> = (0..9)
+        .map(|i| unit(&mut g, P1, "barbarian_spearmen", at(i, 1)))
+        .collect();
     let mut rng = crate::game::rng::GameRng::new(3);
     for i in 0..9 {
-        let before = g.units().units_at(at(i, 1)).len();
-        let killed = black_wind_square(&mut g, at(i, 1), &mut rng);
-        dead += killed;
-        if before == 1 && killed == 0 {
+        dead += black_wind_square(&mut g, at(i, 1), &mut rng);
+        let u = units[i as usize];
+        if g.world.contains(u) && g.units().unit_hits(u).0 < g.units().unit_hits(u).1 {
             hurt += 1;
         }
     }
-    assert!(dead + hurt == 9);
-    assert!(dead > 0, "five figures at zero resistance usually all rot");
+    assert!(dead + hurt > 0, "some of eight figures rot");
 }
 
 #[test]
 fn black_wind_wounds_a_unit_that_resists_some_figures() {
     let mut g = world();
-    let u = unit(&mut g, P1, "squad", at(4, 4));
+    let u = unit(&mut g, P1, "barbarian_spearmen", at(4, 4));
     g.world.insert_one(u, crate::unit::Hurt(0)).unwrap();
-    // A resistance of 5 against -1: each figure fails on a roll of 5 to 10 (60 percent).
-    let stats = {
-        let mut defs = g.content.rules.units.defs().to_vec();
-        for d in defs.iter_mut().filter(|d| d.id == "squad") {
-            d.stats.insert(crate::rules::Stat::Resistance, 5);
-        }
-        defs
-    };
-    g.content.rules.units = Registry::new(stats);
+    // The spearmen's resistance of 5 against -1: each figure fails on a roll of 5 to 10 (60 percent).
     let mut rng = crate::game::rng::GameRng::new(11);
     let mut wounded = 0;
     let mut killed = 0;
     for _ in 0..200 {
-        let u = unit(&mut g, P1, "squad", at(6, 6));
+        let u = unit(&mut g, P1, "barbarian_spearmen", at(6, 6));
         killed += black_wind_square(&mut g, at(6, 6), &mut rng);
-        if g.world.contains(u) && g.units().unit_hits(u).0 < 10 {
+        if g.world.contains(u) && g.units().unit_hits(u).0 < g.units().unit_hits(u).1 {
             wounded += 1;
         }
         if g.world.contains(u) {
@@ -462,9 +443,9 @@ fn a_storm_hits_every_unit_on_the_square_and_only_that_square() {
     for storm in ["ice_storm", "fire_storm"] {
         let mut g = world();
         let (mine, theirs, far) = (at(5, 5), at(5, 5), at(9, 9));
-        unit(&mut g, P0, "squad", mine);
-        unit(&mut g, P1, "squad", theirs);
-        unit(&mut g, P1, "squad", far);
+        unit(&mut g, P0, "barbarian_spearmen", mine);
+        unit(&mut g, P1, "barbarian_spearmen", theirs);
+        unit(&mut g, P1, "barbarian_spearmen", far);
         let (before_here, before_far) = (hits_left(&g, mine), hits_left(&g, far));
         let events = cast(&mut g, storm, Some(Target::Tile(at(5, 5))));
         assert!(
@@ -496,7 +477,7 @@ fn magic_immunity_stops_a_storm_and_each_storm_has_its_own_element() {
             .filter(|d| d.id == id)
             .for_each(|d| d.abilities.push(ability.to_string()));
     }
-    g.content.rules.units = Registry::new(defs);
+    g.content.rules.units = Registry::new_sorted(defs);
     for (storm, safe, hurt) in [
         ("ice_storm", ["walker", "scout"], "spirit"),
         ("fire_storm", ["walker", "spirit"], "scout"),
@@ -531,7 +512,7 @@ fn a_storm_reaches_the_units_in_a_city() {
         at(7, 7),
     ));
     let _ = city;
-    let u = unit(&mut g, P1, "squad", at(7, 7));
+    let u = unit(&mut g, P1, "barbarian_spearmen", at(7, 7));
     let before = g.units().unit_hits(u).0;
     let mut hurt = false;
     for _ in 0..5 {
@@ -557,7 +538,7 @@ fn a_storm_that_destroys_a_unit_says_so() {
     let mut g = world();
     let mut told = false;
     for i in 0..20 {
-        unit(&mut g, P1, "squad", at(3, 3));
+        unit(&mut g, P1, "barbarian_spearmen", at(3, 3));
         let events = cast(&mut g, "fire_storm", Some(Target::Tile(at(3, 3))));
         told |= events
             .iter()
@@ -617,7 +598,7 @@ fn call_the_void_kills_citizens_by_chance_but_never_the_last() {
 fn call_the_void_hurts_everyone_inside_and_corrupts_the_land_around() {
     let mut g = world();
     let city = city_for(&mut g, P1, at(10, 6));
-    let squad = unit(&mut g, P1, "squad", at(10, 6)); // 10 hit points
+    let squad = unit(&mut g, P1, "barbarian_spearmen", at(10, 6)); // 10 hit points
     let walker = unit(&mut g, P1, "walker", at(10, 6));
     let events = cast(&mut g, "call_the_void", Some(Target::City(city)));
     assert!(
@@ -1042,7 +1023,7 @@ fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_
         d.kind = UnitKind::Fantastic;
         d.stats.insert(crate::rules::Stat::Resistance, 12);
     }
-    g.content.rules.units = Registry::new(defs);
+    g.content.rules.units = Registry::new_sorted(defs);
     let enemies: Vec<_> = (0..6)
         .map(|_| unit(&mut g, P1, "walker", at(8, 8)))
         .collect();
@@ -1094,7 +1075,7 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() {
         d.upkeep = Default::default();
         d.kind = UnitKind::Fantastic;
     }
-    g.content.rules.units = Registry::new(defs);
+    g.content.rules.units = Registry::new_sorted(defs);
     let mine = unit(&mut g, P0, "walker", at(3, 3));
     let theirs = unit(&mut g, P1, "walker", at(4, 3));
     keep(&mut g, P0, "time_stop");

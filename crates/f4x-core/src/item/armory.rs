@@ -423,7 +423,7 @@ mod tests {
             });
             units.push(u);
         }
-        c.rules.units = Registry::new(units);
+        c.rules.units = Registry::new_sorted(units);
         c.rules.item_powers = Registry::new(vec![
             crate::game::testutil::item_power("flight", Some("flight"), None),
             crate::game::testutil::item_power("flaming", None, None),

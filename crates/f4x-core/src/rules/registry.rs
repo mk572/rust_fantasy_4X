@@ -79,6 +79,14 @@ impl<T: Def> Registry<T> {
         Self { defs, index, rows }
     }
 
+    /// A registry of definitions in any order: they are put in the order of their numbers
+    /// first. For a test that adds a fixture to the shipped definitions; a content file is
+    /// written in order and goes through [`Registry::new`].
+    pub fn new_sorted(mut defs: Vec<T>) -> Self {
+        defs.sort_by_key(|d| d.num());
+        Self::new(defs)
+    }
+
     pub fn len(&self) -> usize {
         self.defs.len()
     }

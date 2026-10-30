@@ -296,12 +296,9 @@ pub(crate) mod tests {
                 u.kind = UnitKind::Summoned;
                 u.realm = Some("arcane".into());
             }
-            if u.id == "mage" {
-                u.id = "guardian_spirit".into();
-                u.abilities.push("meld".into());
-            }
         }
-        c.rules.units = Registry::new(units);
+        units.push(crate::game::testutil::real_unit("guardian_spirit"));
+        c.rules.units = Registry::new_sorted(units);
         let grass = c.terrains.id_of("grassland").unwrap();
         let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
         let mut g = Game::new(seed);

@@ -43,7 +43,7 @@ fn content() -> Content {
     let mut ship = summoned("floating_island", "death", 9999);
     ship.stats.insert(Stat::Transport, 8);
     units.push(ship);
-    c.rules.units = Registry::new(units);
+    c.rules.units = Registry::new_sorted(units);
     c
 }
 
@@ -457,7 +457,7 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
             _ => {}
         }
     }
-    g.content.rules.units = Registry::new(units);
+    g.content.rules.units = Registry::new_sorted(units);
     let walker = g.content.rules.units.id_of("walker").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     let events = g.apply(Command::EnterSite {
@@ -574,7 +574,7 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() {
     for d in units.iter_mut().filter(|d| d.id == "skeletons") {
         d.kind = crate::rules::UnitKind::Normal;
     }
-    g.content.rules.units = Registry::new(units);
+    g.content.rules.units = Registry::new_sorted(units);
     let zm = g.content.rules.spells.id_of("zombie_mastery").unwrap();
     g.add_global(P0, zm);
     let walker = g.content.rules.units.id_of("walker").unwrap();

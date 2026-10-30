@@ -624,7 +624,7 @@ mod tests {
         boots.stats.insert(Stat::HalfMoves, 1);
         let mut rooted = unit("rooted", MovementType::Walking, 0, &[]);
         rooted.stats.insert(Stat::HalfMoves, 1);
-        content.rules.units = Registry::new(vec![boots, rooted]);
+        content.rules.units = Registry::new_sorted(vec![boots, rooted]);
         let mut world = World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         let mut max = |id: &str, n: u64| {
@@ -650,7 +650,7 @@ mod tests {
         let mut knight = unit("Knights", MovementType::Walking, 1, &[]);
         knight.kind = UnitKind::Normal;
         knight.upkeep.gold = 3;
-        content.rules.units = Registry::new(vec![spear, sword, knight]);
+        content.rules.units = Registry::new_sorted(vec![spear, sword, knight]);
         let mut world = World::new();
         let (a, b) = (
             world.spawn(crate::player::bundle(PlayerId(0))),

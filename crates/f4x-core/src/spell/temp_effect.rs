@@ -333,7 +333,6 @@ mod tests {
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::player::PlayerId;
-    use crate::rules::UnitKind;
 
     const P0: PlayerId = PlayerId(0);
     const AT: Position = Position {
@@ -540,23 +539,13 @@ mod tests {
     #[test]
     fn ships_and_catapults_are_fantastic_but_their_weapons_are_not_magical() {
         let mut g = world();
-        for (i, (movement, ability)) in [
-            (crate::rules::MovementType::Sailing, None),
-            (crate::rules::MovementType::Walking, Some("wall_crusher")),
-        ]
-        .into_iter()
-        .enumerate()
-        {
+        // The game's ship and its catapult.
+        for id in ["trireme", "catapult"] {
             let mut defs = g.content.rules.units.defs().to_vec();
-            let mut def = defs.iter().find(|d| d.id == "spear").unwrap().clone();
-            def.id = format!("machine{i}");
-            def.kind = UnitKind::Fantastic;
-            def.movement = movement;
-            def.abilities.extend(ability.map(String::from));
-            defs.push(def);
-            g.content.rules.units = crate::rules::Registry::new(defs);
-            let m = unit(&mut g, &format!("machine{i}"));
-            assert!(!g.units().unit_has_magical_weapon(m), "machine {i}");
+            defs.push(crate::game::testutil::real_unit(id));
+            g.content.rules.units = crate::rules::Registry::new_sorted(defs);
+            let m = unit(&mut g, id);
+            assert!(!g.units().unit_has_magical_weapon(m), "{id}");
         }
     }
 
@@ -577,16 +566,16 @@ mod tests {
             g.units().unit_has_magical_weapon(trained),
             "magic weapons are magical"
         );
-        let kinds = [UnitKind::Hero, UnitKind::Fantastic, UnitKind::Summoned];
-        for (i, kind) in kinds.into_iter().enumerate() {
+        // A hero and a summoned (fantastic) creature, as the game has them. The data's `Fantastic`
+        // kind is only the ships and the catapult, whose weapons are not magical (tested above).
+        for id in ["dwarf", "demon"] {
             let mut defs = g.content.rules.units.defs().to_vec();
-            let mut def = defs.iter().find(|d| d.id == "spear").unwrap().clone();
-            def.id = format!("special{i}");
-            def.kind = kind;
-            defs.push(def);
-            g.content.rules.units = crate::rules::Registry::new(defs);
-            let w = unit(&mut g, &format!("special{i}"));
-            assert!(g.units().unit_has_magical_weapon(w), "{kind:?}");
+            if !defs.iter().any(|d| d.id == id) {
+                defs.push(crate::game::testutil::real_unit(id));
+            }
+            g.content.rules.units = crate::rules::Registry::new_sorted(defs);
+            let w = unit(&mut g, id);
+            assert!(g.units().unit_has_magical_weapon(w), "{id}");
         }
     }
 }

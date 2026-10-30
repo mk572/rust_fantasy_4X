@@ -117,7 +117,22 @@ pub fn settings() -> crate::game::setting::SettingsDef {
     ron::from_str(include_str!("../../../../content/settings.ron")).expect("settings.ron parses")
 }
 
-/// A unit definition with the stats movement and combat tests need.
+/// The number of a test unit definition: above the original's, and the same for the same alias
+/// however often a fixture is built, so contents made apart agree.
+pub fn unit_num(id: &str) -> u16 {
+    use std::sync::{Mutex, OnceLock};
+    static NUMS: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+    let mut nums = NUMS.get_or_init(Default::default).lock().unwrap();
+    let at = nums.iter().position(|n| n == id).unwrap_or_else(|| {
+        nums.push(id.to_string());
+        nums.len() - 1
+    });
+    1000 + at as u16
+}
+
+/// A unit definition with the stats movement and combat tests need. Its number is the next one
+/// above the original's (1000 up), so it can sit in a table of the shipped units or of other
+/// fixtures made in order.
 pub fn unit(id: &str, movement: MovementType, moves: i32, abilities: &[&str]) -> UnitDef {
     let mut stats = BTreeMap::new();
     for (stat, v) in [
@@ -132,6 +147,7 @@ pub fn unit(id: &str, movement: MovementType, moves: i32, abilities: &[&str]) ->
         stats.insert(stat, v);
     }
     UnitDef {
+        num: unit_num(id),
         id: id.into(),
         name: id.into(),
         kind: UnitKind::Fantastic,
@@ -231,7 +247,7 @@ pub fn content_with_units() -> Content {
         bonus: vec![],
     };
     c.rules = Rules {
-        units: Registry::new(units),
+        units: Registry::new_sorted(units),
         abilities: Registry::new(abilities),
         level_paths: Registry::new(vec![level_path]),
         ..Default::default()
@@ -386,7 +402,7 @@ pub fn content_with_economy() -> Content {
     dwarf.units = vec!["spear".into()];
     // The spear is the elves' unit; dwarves list it too for the test, so give the check a race.
     c.rules.races = Registry::new(vec![elf, dwarf]);
-    c.rules.units = Registry::new(units);
+    c.rules.units = Registry::new_sorted(units);
     c.rules.buildings = Registry::new(buildings);
     c.rules.spells = Registry::new(real_spells());
     c.rules.realms = Registry::new(vec![RealmDef {
@@ -453,6 +469,29 @@ pub fn content_with_economy() -> Content {
 /// The game's real spells (`content/spells.ron`), for tests that cast or look at them.
 pub fn real_spells() -> Vec<crate::rules::SpellDef> {
     ron::from_str(include_str!("../../../../content/spells.ron")).expect("the game's spells parse")
+}
+
+/// One of the game's real units (`content/units.ron`) by its alias, for a test that needs the unit
+/// itself rather than a stand-in. It carries its own number, so push it among the fixtures with
+/// `Registry::new_sorted`.
+pub fn real_unit(id: &str) -> UnitDef {
+    let units: Vec<UnitDef> = ron::from_str(include_str!("../../../../content/units.ron"))
+        .expect("the game's units parse");
+    units
+        .into_iter()
+        .find(|u| u.id == id)
+        .unwrap_or_else(|| panic!("no real unit {id}"))
+}
+
+/// One of the game's real buildings (`content/buildings.ron`) by its alias.
+pub fn real_building(id: &str) -> crate::rules::BuildingDef {
+    let buildings: Vec<crate::rules::BuildingDef> =
+        ron::from_str(include_str!("../../../../content/buildings.ron"))
+            .expect("the game's buildings parse");
+    buildings
+        .into_iter()
+        .find(|b| b.id == id)
+        .unwrap_or_else(|| panic!("no real building {id}"))
 }
 
 /// Economy content plus the game's real spells and realms (`content/spells.ron` and

@@ -395,10 +395,8 @@ mod tests {
             .set(sea.x, sea.y, ocean);
         let mut units = g.content.rules.units.defs().to_vec();
         if !units.iter().any(|u| u.id == "floating_island") {
-            let mut island = units.iter().find(|u| u.id == "walker").unwrap().clone();
-            island.id = "floating_island".into();
-            units.push(island);
-            g.content.rules.units = crate::rules::Registry::new(units);
+            units.push(crate::game::testutil::real_unit("floating_island"));
+            g.content.rules.units = crate::rules::Registry::new_sorted(units);
         }
         let land = at(Plane::Arcanus, 6, 5);
         let events = cast(&mut g, "floating_island", Target::Tile(land));

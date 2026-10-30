@@ -282,7 +282,7 @@ mod tests {
                 _ => {}
             }
         }
-        c.rules.units = Registry::new(units);
+        c.rules.units = Registry::new_sorted(units);
         let grass = c.terrains.id_of("grassland").unwrap();
         let mut g = Game::new(3);
         g.content = c;
@@ -371,7 +371,7 @@ mod tests {
                 u.upkeep.mana = 4;
             }
         }
-        g.content.rules.units = Registry::new(units);
+        g.content.rules.units = Registry::new_sorted(units);
         let walker = g.content.rules.units.id_of("walker").unwrap();
         let slow = g.content.rules.units.id_of("slow").unwrap();
         let normal = g.spawn_unit(P0, at(5, 5), walker);

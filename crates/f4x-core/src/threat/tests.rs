@@ -36,7 +36,7 @@ fn content() -> crate::content::Content {
         u.cost = cost;
         units.push(u);
     }
-    c.rules.units = Registry::new(units);
+    c.rules.units = Registry::new_sorted(units);
     let mut features = c.features.defs().to_vec();
     features.push(FeatureDef {
         id: "ruins".into(),

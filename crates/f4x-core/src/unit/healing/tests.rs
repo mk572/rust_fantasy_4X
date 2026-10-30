@@ -7,7 +7,7 @@ use crate::game::testutil::content_with_magic;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
 
-use crate::rules::{BuildingId, Registry, Stat};
+use crate::rules::{BuildingId, Registry};
 use hecs::World;
 
 const P0: PlayerId = PlayerId(0);
@@ -21,8 +21,8 @@ fn at(x: u32, y: u32) -> Position {
     }
 }
 
-/// A world with no game: units of 120 hit points (six figures of twenty), the abilities the
-/// rules read, an Animists' Guild and the Stream of Life.
+/// A world with no game: the gnoll wolf riders (twenty hit points, no abilities), the healer
+/// hero and the war trolls (they regenerate), an Animists' Guild and the Stream of Life.
 struct Rig {
     content: Content,
     map: Map,
@@ -34,25 +34,12 @@ impl Rig {
     fn new() -> Rig {
         let mut c = content_with_magic();
         let mut units = c.rules.units.defs().to_vec();
-        let mut base = units.iter().find(|u| u.id == "walker").unwrap().clone();
-        base.stats.insert(Stat::Figures, 6);
-        base.stats.insert(Stat::MaxHp, 20);
-        for (id, ability) in [
-            ("plain", None),
-            ("healer", Some("healer")),
-            ("regenerator", Some("regeneration")),
-        ] {
-            let mut u = base.clone();
-            u.id = id.into();
-            u.abilities.extend(ability.map(String::from));
-            units.push(u);
+        for id in ["gnoll_wolf_riders", "healer", "troll_war_trolls"] {
+            units.push(crate::game::testutil::real_unit(id));
         }
-        c.rules.units = Registry::new(units);
+        c.rules.units = Registry::new_sorted(units);
         let mut buildings = c.rules.buildings.defs().to_vec();
-        let mut guild = buildings[0].clone();
-        guild.id = "animists_guild".into();
-        guild.effects = vec![];
-        buildings.push(guild);
+        buildings.push(crate::game::testutil::real_building("animists_guild"));
         c.rules.buildings = Registry::new(buildings);
         let grass = c.terrains.id_of("grassland").unwrap();
         let map = Map::new(Grid::new(12, 8, grass), Grid::new(12, 8, grass));
@@ -139,20 +126,24 @@ impl Rig {
 #[test]
 fn a_unit_in_the_field_mends_a_twentieth_of_its_hit_points() {
     let mut r = Rig::new();
-    let u = r.unit("plain", P0, at(3, 3), 50);
+    let u = r.unit("gnoll_wolf_riders", P0, at(3, 3), 15);
     let (plan, draws) = r.plan(1);
-    assert_eq!(r.after(&plan, u), Some(50 - 6));
-    assert_eq!(draws, 1, "one draw for the odd points");
+    assert_eq!(r.after(&plan, u), Some(15 - 1));
+    assert_eq!(draws, 1, "one draw for the points left over");
 }
 
 #[test]
 fn a_city_mends_a_tenth_and_an_animists_guild_a_sixth() {
     let mut r = Rig::new();
     let city = r.city(P0, at(5, 5));
-    let u = r.unit("plain", P0, at(5, 5), 50);
-    assert_eq!(r.after(&r.plan(1).0, u), Some(50 - 12));
+    let u = r.unit("gnoll_wolf_riders", P0, at(5, 5), 15);
+    assert_eq!(r.after(&r.plan(1).0, u), Some(15 - 2));
     r.build(city, "animists_guild");
-    assert_eq!(r.after(&r.plan(1).0, u), Some(50 - 20));
+    assert_eq!(
+        r.after(&r.plan(1).0, u),
+        Some(15 - 4),
+        "20 / 6 is 3, and seed 1 wins the odd point"
+    );
 }
 
 #[test]
@@ -160,43 +151,43 @@ fn a_city_of_another_owner_counts_as_the_field() {
     let mut r = Rig::new();
     let city = r.city(P1, at(5, 5));
     r.build(city, "animists_guild");
-    let u = r.unit("plain", P0, at(5, 5), 50);
-    assert_eq!(r.after(&r.plan(1).0, u), Some(50 - 6));
+    let u = r.unit("gnoll_wolf_riders", P0, at(5, 5), 15);
+    assert_eq!(r.after(&r.plan(1).0, u), Some(15 - 1));
 }
 
 #[test]
 fn a_healer_in_the_stack_gives_a_fifth_more_to_its_own_side_only() {
     let mut r = Rig::new();
     let _healer = r.unit("healer", P0, at(3, 3), 0);
-    let mine = r.unit("plain", P0, at(3, 3), 50);
-    let theirs = r.unit("plain", P1, at(3, 3), 50);
-    let elsewhere = r.unit("plain", P0, at(7, 7), 50);
+    let mine = r.unit("gnoll_wolf_riders", P0, at(3, 3), 15);
+    let theirs = r.unit("gnoll_wolf_riders", P1, at(3, 3), 15);
+    let elsewhere = r.unit("gnoll_wolf_riders", P0, at(7, 7), 15);
     let (plan, _) = r.plan(1);
-    assert_eq!(r.after(&plan, mine), Some(50 - 6 - 24));
-    assert_eq!(r.after(&plan, theirs), Some(50 - 6));
-    assert_eq!(r.after(&plan, elsewhere), Some(50 - 6));
+    assert_eq!(r.after(&plan, mine), Some(15 - 1 - 4));
+    assert_eq!(r.after(&plan, theirs), Some(15 - 1));
+    assert_eq!(r.after(&plan, elsewhere), Some(15 - 1));
 }
 
 #[test]
 fn regeneration_and_the_stream_of_life_heal_completely_without_a_draw() {
     let mut r = Rig::new();
     let city = r.city(P0, at(5, 5));
-    let field = r.unit("regenerator", P0, at(3, 3), 70);
-    let home = r.unit("plain", P0, at(5, 5), 70);
-    let outside = r.unit("plain", P0, at(3, 4), 70);
+    let field = r.unit("troll_war_trolls", P0, at(3, 3), 15);
+    let home = r.unit("gnoll_wolf_riders", P0, at(5, 5), 15);
+    let outside = r.unit("gnoll_wolf_riders", P0, at(3, 4), 15);
     r.enchant(city, "stream_of_life", P0);
     let (plan, draws) = r.plan(1);
     assert_eq!(r.after(&plan, field), Some(0));
     assert_eq!(r.after(&plan, home), Some(0));
-    assert_eq!(r.after(&plan, outside), Some(70 - 6));
+    assert_eq!(r.after(&plan, outside), Some(15 - 1));
     assert_eq!(draws, 1, "only the unit outside draws");
 }
 
 #[test]
 fn the_unhurt_and_the_dead_do_not_mend() {
     let mut r = Rig::new();
-    let well = r.unit("plain", P0, at(3, 3), 0);
-    let raised = r.unit("plain", P0, at(3, 4), 50);
+    let well = r.unit("gnoll_wolf_riders", P0, at(3, 3), 0);
+    let raised = r.unit("gnoll_wolf_riders", P0, at(3, 4), 15);
     crate::unit::undead::make_undead(&mut r.world, raised);
     let (plan, draws) = r.plan(1);
     assert_eq!(r.after(&plan, well), None);

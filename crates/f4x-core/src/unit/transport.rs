@@ -417,11 +417,8 @@ mod tests {
                 u.stats.insert(Stat::Transport, 2);
             }
         }
-        let mut island = units.iter().find(|u| u.id == "boat").unwrap().clone();
-        island.id = "floating_island".into();
-        island.stats.insert(Stat::Transport, 8);
-        units.push(island);
-        c.rules.units = Registry::new(units);
+        units.push(crate::game::testutil::real_unit("floating_island"));
+        c.rules.units = Registry::new_sorted(units);
         let (grass, ocean) = (
             c.terrains.id_of("grassland").unwrap(),
             c.terrains.id_of("ocean").unwrap(),
@@ -450,12 +447,10 @@ mod tests {
     #[test]
     fn wind_mastery_speeds_the_owners_ships_and_slows_the_others() {
         let mut g = world();
-        let mut wm = crate::game::testutil::content_with_magic()
-            .rules
-            .spells
-            .defs()[0]
-            .clone();
-        wm.id = "wind_mastery".into();
+        let wm = crate::game::testutil::real_spells()
+            .into_iter()
+            .find(|s| s.id == "wind_mastery")
+            .unwrap();
         g.content.rules.spells = Registry::new(vec![wm]);
         let wm = g.content.rules.spells.id_of("wind_mastery").unwrap();
         for id in [P0, P1] {

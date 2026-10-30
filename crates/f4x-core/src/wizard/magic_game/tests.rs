@@ -550,12 +550,9 @@ fn cancelling_loses_what_was_paid() {
 #[test]
 fn summoning_creates_units_at_the_chosen_tile() {
     let mut g = world();
-    // The test content has no bears: War Bears brings a copy of the spear.
     let mut units = g.content.rules.units.defs().to_vec();
-    let mut bears = units.iter().find(|u| u.id == "spear").unwrap().clone();
-    bears.id = "war_bears".into();
-    units.push(bears);
-    g.content.rules.units = crate::rules::Registry::new(units);
+    units.push(crate::game::testutil::real_unit("war_bears"));
+    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     let call = spell(&g, "war_bears");
     g.wizard_mut(P0)
         .unwrap()

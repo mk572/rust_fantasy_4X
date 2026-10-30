@@ -31,7 +31,7 @@ fn world() -> Game {
             _ => {}
         }
     }
-    c.rules.units = Registry::new(units);
+    c.rules.units = Registry::new_sorted(units);
     let grass = c.terrains.id_of("grassland").unwrap();
     let mut g = Game::new(4);
     g.content = c;

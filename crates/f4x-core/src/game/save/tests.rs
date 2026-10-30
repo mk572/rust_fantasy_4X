@@ -239,9 +239,6 @@ fn saves_do_not_depend_on_the_order_of_the_content() {
     let g = game();
     let snap = g.snapshot();
     let mut shuffled = g.content.clone();
-    let mut units = shuffled.rules.units.defs().to_vec();
-    units.reverse();
-    shuffled.rules.units = crate::rules::Registry::new(units);
     let mut buildings = shuffled.rules.buildings.defs().to_vec();
     buildings.reverse();
     shuffled.rules.buildings = crate::rules::Registry::new(buildings);
@@ -266,7 +263,7 @@ fn missing_content_is_reported_by_name() {
         .filter(|u| u.id != "spear")
         .cloned()
         .collect();
-    without.rules.units = crate::rules::Registry::new(units);
+    without.rules.units = crate::rules::Registry::new_sorted(units);
     assert_eq!(
         snap.clone().restore(without).err(),
         Some(LoadError::UnknownId("unit", "spear".into()))

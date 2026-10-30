@@ -36,7 +36,7 @@ fn world() -> Game {
     add("elf_engineers", "elf", 40, &[]);
     add("draconian_spear", "draconian", 30, &[]);
     add("draconian_engineers", "draconian", 40, &[]);
-    g.content.rules.units = Registry::new(units);
+    g.content.rules.units = Registry::new_sorted(units);
     // Each wizard has one unit on Arcanus, so Arcanus is the plane they can be offered.
     let scout = g.content.rules.units.id_of("elf_spear").unwrap();
     g.spawn_unit(P0, at(2, 3), scout);
