@@ -47,8 +47,14 @@ Debug output of the console and test messages are not player-facing and stay in 
 
 ## What stays outside
 
-- Names in the rules files (`units.ron`, `spells.ron`, `races.ron`, ...) are content, not messages.
-  A translation of them is task 358.
+- Names of the numbered rules tables are one file each in `content/text/<lang>/name/`: `unit.ron`,
+  `spell.ron`, `building.ron`, `race.ron` (and `race_plural.ron`), `realm.ron`, `ability.ron`,
+  `item.ron`, `item_power.ron`. A file is a RON map from the definition's `num` to its name
+  (`{ 95: "Spearmen" }`). The loader puts the name of the language in `settings.ron` on each
+  definition (`def.name`, so the screens need no change), a number the language leaves out is
+  English, and a definition with no English name or a name for a number nobody has is a load error.
+  A language is the same files in its own folder. Not yet in tables: ability descriptions, the
+  names of the wizards (`wizard_texts.ron`), of the experience levels and of the heroes.
 - Text the core builds as game data is on keys when a language must order or inflect it: the
   default name of a made item is kept as parts (`Item.made`: kind, bonus, suffix) and put together
   by `Item::display_name` from `item.name_*`, `item.type_*` and `item.suffix_*`; the words that fill

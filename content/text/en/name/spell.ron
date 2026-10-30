@@ -1,0 +1,217 @@
+// The names of the spell definitions, by the definition's number (`num` in spells.ron). A language has the same file in its own folder.
+{
+    1: "Earth to Mud",  // earth_to_mud
+    2: "Resist Elements",  // resist_elements
+    3: "Wall of Stone",  // wall_of_stone
+    4: "Giant Strength",  // giant_strength
+    5: "Web",  // web
+    6: "War Bears",  // war_bears
+    7: "Stone Skin",  // stone_skin
+    8: "Water Walking",  // water_walking
+    9: "Sprites",  // sprites
+    10: "Earth Lore",  // earth_lore
+    11: "Cracks Call",  // cracks_call
+    12: "Nature's Eye",  // natures_eye
+    13: "Ice Bolt",  // ice_bolt
+    14: "Giant Spiders",  // giant_spiders
+    15: "Change Terrain",  // change_terrain
+    16: "Path Finding",  // path_finding
+    17: "Cockatrices",  // cockatrices
+    18: "Transmute",  // transmute
+    19: "Nature's Cures",  // natures_cures
+    20: "Basilisk",  // basilisk
+    21: "Elemental Armor",  // elemental_armor
+    22: "Petrify",  // petrify
+    23: "Stone Giant",  // stone_giant
+    24: "Iron Skin",  // iron_skin
+    25: "Ice Storm",  // ice_storm
+    26: "Earthquake",  // earthquake
+    27: "Gorgons",  // gorgons
+    28: "Move Fortress",  // move_fortress
+    29: "Gaia's Blessing",  // gaias_blessing
+    30: "Earth Elemental",  // earth_elemental
+    31: "Regeneration",  // regeneration
+    32: "Behemoth",  // behemoth
+    33: "Entangle",  // entangle
+    34: "Nature Awareness",  // nature_awareness
+    35: "Call Lightning",  // call_lightning
+    36: "Colossus",  // colossus
+    37: "Earth Gate",  // earth_gate
+    38: "Herb Mastery",  // herb_mastery
+    39: "Great Wyrm",  // great_wyrm
+    40: "Nature's Wrath",  // natures_wrath
+    41: "Resist Magic",  // resist_magic
+    42: "Dispel Magic True",  // dispel_magic_true
+    43: "Floating Island",  // floating_island
+    44: "Guardian Wind",  // guardian_wind
+    45: "Phantom Warriors",  // phantom_warriors
+    46: "Confusion",  // confusion
+    47: "Word of Recall",  // word_of_recall
+    48: "Counter Magic",  // counter_magic
+    49: "Nagas",  // nagas
+    50: "Psionic Blast",  // psionic_blast
+    51: "Blur",  // blur
+    52: "Disenchant True",  // disenchant_true
+    53: "Vertigo",  // vertigo
+    54: "Spell Lock",  // spell_lock
+    55: "Enchant Road",  // enchant_road
+    56: "Flight",  // flight
+    57: "Wind Mastery",  // wind_mastery
+    58: "Spell Blast",  // spell_blast
+    59: "Aura of Majesty",  // aura_of_majesty
+    60: "Phantom Beast",  // phantom_beast
+    61: "Disjunction True",  // disjunction_true
+    62: "Invisiblity",  // invisiblity
+    63: "Wind Walking",  // wind_walking
+    64: "Banish",  // banish
+    65: "Storm Giant",  // storm_giant
+    66: "Air Elemental",  // air_elemental
+    67: "Mind Storm",  // mind_storm
+    68: "Stasis",  // stasis
+    69: "Magic Immunity",  // magic_immunity
+    70: "Haste",  // haste
+    71: "Djinn",  // djinn
+    72: "Spell Ward",  // spell_ward
+    73: "Creature Binding",  // creature_binding
+    74: "Mass Invisibility",  // mass_invisibility
+    75: "Great Unsummoning",  // great_unsummoning
+    76: "Spell Binding",  // spell_binding
+    77: "Flying Fortress",  // flying_fortress
+    78: "Sky Drake",  // sky_drake
+    79: "Suppress Magic",  // suppress_magic
+    80: "Time Stop",  // time_stop
+    81: "Warp Wood",  // warp_wood
+    82: "Disrupt",  // disrupt
+    83: "Fire Bolt",  // fire_bolt
+    84: "Hell Hounds",  // hell_hounds
+    85: "Corruption",  // corruption
+    86: "Eldritch Weapon",  // eldritch_weapon
+    87: "Wall of Fire",  // wall_of_fire
+    88: "Shatter",  // shatter
+    89: "Warp Creature",  // warp_creature
+    90: "Fire Elemental",  // fire_elemental
+    91: "Lightning Bolt",  // lightning_bolt
+    92: "Fire Giant",  // fire_giant
+    93: "Chaos Channels",  // chaos_channels
+    94: "Flame Blade",  // flame_blade
+    95: "Gargoyles",  // gargoyles
+    96: "Fireball",  // fireball
+    97: "Doom Bat",  // doom_bat
+    98: "Raise Volcano",  // raise_volcano
+    99: "Immolation",  // immolation
+    100: "Chimeras",  // chimeras
+    101: "Warp Lightning",  // warp_lightning
+    102: "Metal Fires",  // metal_fires
+    103: "Chaos Spawn",  // chaos_spawn
+    104: "Doom Bolt",  // doom_bolt
+    105: "Magic Vortex",  // magic_vortex
+    106: "Efreet",  // efreet
+    107: "Fire Storm",  // fire_storm
+    108: "Warp Reality",  // warp_reality
+    109: "Flame Strike",  // flame_strike
+    110: "Chaos Rift",  // chaos_rift
+    111: "Hydra",  // hydra
+    112: "Disintegrate",  // disintegrate
+    113: "Meteor Storm",  // meteor_storm
+    114: "Great Wasting",  // great_wasting
+    115: "Call Chaos",  // call_chaos
+    116: "Chaos Surge",  // chaos_surge
+    117: "Doom Mastery",  // doom_mastery
+    118: "Great Drake",  // great_drake
+    119: "Call the Void",  // call_the_void
+    120: "Armageddon",  // armageddon
+    121: "Bless",  // bless
+    122: "Star Fires",  // star_fires
+    123: "Endurance",  // endurance
+    124: "Holy Weapon",  // holy_weapon
+    125: "Healing",  // healing
+    126: "Holy Armor",  // holy_armor
+    127: "Just Cause",  // just_cause
+    128: "True Light",  // true_light
+    129: "Guardian Spirit",  // guardian_spirit
+    130: "Heroism",  // heroism
+    131: "True Sight",  // true_sight
+    132: "Plane Shift",  // plane_shift
+    133: "Resurrection",  // resurrection
+    134: "Dispel Evil",  // dispel_evil
+    135: "Planar Seal",  // planar_seal
+    136: "Unicorns",  // unicorns
+    137: "Raise Dead",  // raise_dead
+    138: "Planar Travel",  // planar_travel
+    139: "Heavenly Light",  // heavenly_light
+    140: "Prayer",  // prayer
+    141: "Lionheart",  // lionheart
+    142: "Incarnation",  // incarnation
+    143: "Invulnerability",  // invulnerability
+    144: "Righteousness",  // righteousness
+    145: "Prosperity",  // prosperity
+    146: "Altar of Battle",  // altar_of_battle
+    147: "Angel",  // angel
+    148: "Stream of Life",  // stream_of_life
+    149: "Mass Healing",  // mass_healing
+    150: "Holy Word",  // holy_word
+    151: "High Prayer",  // high_prayer
+    152: "Inspirations",  // inspirations
+    153: "Astral Gate",  // astral_gate
+    154: "Holy Arms",  // holy_arms
+    155: "Consecration",  // consecration
+    156: "Life Force",  // life_force
+    157: "Tranquility",  // tranquility
+    158: "Crusade",  // crusade
+    159: "Arch Angel",  // arch_angel
+    160: "Charm of Life",  // charm_of_life
+    161: "Skeletons",  // skeletons
+    162: "Weakness",  // weakness
+    163: "Dark Rituals",  // dark_rituals
+    164: "Cloak of Fear",  // cloak_of_fear
+    165: "Black Sleep",  // black_sleep
+    166: "Ghouls",  // ghouls
+    167: "Life Drain",  // life_drain
+    168: "Terror",  // terror
+    169: "Darkness",  // darkness
+    170: "Mana Leak",  // mana_leak
+    171: "Drain Power",  // drain_power
+    172: "Possession",  // possession
+    173: "Lycanthropy",  // lycanthropy
+    174: "Black Prayer",  // black_prayer
+    175: "Black Channels",  // black_channels
+    176: "Night Stalker",  // night_stalker
+    177: "Subversion",  // subversion
+    178: "Wall of Darkness",  // wall_of_darkness
+    179: "Berserk",  // berserk
+    180: "Shadow Demons",  // shadow_demons
+    181: "Wraith Form",  // wraith_form
+    182: "Wrack",  // wrack
+    183: "Evil Presence",  // evil_presence
+    184: "Wraiths",  // wraiths
+    185: "Cloud of Shadow",  // cloud_of_shadow
+    186: "Warp Node",  // warp_node
+    187: "Black Wind",  // black_wind
+    188: "Zombie Mastery",  // zombie_mastery
+    189: "Famine",  // famine
+    190: "Cursed Lands",  // cursed_lands
+    191: "Cruel Unminding",  // cruel_unminding
+    192: "Word of Death",  // word_of_death
+    193: "Death Knights",  // death_knights
+    194: "Death Spell",  // death_spell
+    195: "Animate Dead",  // animate_dead
+    196: "Pestilence",  // pestilence
+    197: "Eternal Night",  // eternal_night
+    198: "Evil Omens",  // evil_omens
+    199: "Death Wish",  // death_wish
+    200: "Demon Lord",  // demon_lord
+    201: "Magic Spirit",  // magic_spirit
+    202: "Dispel Magic",  // dispel_magic
+    203: "Summoning Circle",  // summoning_circle
+    204: "Disenchant Area",  // disenchant_area
+    205: "Recall Hero",  // recall_hero
+    206: "Detect Magic",  // detect_magic
+    207: "Enchant Item",  // enchant_item
+    208: "Summon Hero",  // summon_hero
+    209: "Awareness",  // awareness
+    210: "Disjunction",  // disjunction
+    211: "Create Artifact",  // create_artifact
+    212: "Summon Champion",  // summon_champion
+    213: "Spell of Mastery",  // spell_of_mastery
+    214: "Spell of Return",  // spell_of_return
+}

@@ -1,0 +1,36 @@
+// The names of the building definitions, by the definition's number (`num` in buildings.ron). A language has the same file in its own folder.
+{
+    3: "Barracks",  // barracks
+    4: "Armory",  // armory
+    5: "Fighters Guild",  // fighters_guild
+    6: "Armorers Guild",  // armorers_guild
+    7: "War College",  // war_college
+    8: "Smithy",  // smithy
+    9: "Stables",  // stables
+    10: "Animists Guild",  // animists_guild
+    11: "Fantastic Stable",  // fantastic_stable
+    12: "Ship Wrights Guild",  // ship_wrights_guild
+    13: "Ship Yard",  // ship_yard
+    14: "Maritime Guild",  // maritime_guild
+    15: "Sawmill",  // sawmill
+    16: "Library",  // library
+    17: "Sages Guild",  // sages_guild
+    18: "Oracle",  // oracle
+    19: "Alchemists Guild",  // alchemists_guild
+    20: "University",  // university
+    21: "Wizards Guild",  // wizards_guild
+    22: "Shrine",  // shrine
+    23: "Temple",  // temple
+    24: "Parthenon",  // parthenon
+    25: "Cathedral",  // cathedral
+    26: "Marketplace",  // marketplace
+    27: "Bank",  // bank
+    28: "Merchants Guild",  // merchants_guild
+    29: "Granary",  // granary
+    30: "Farmers Market",  // farmers_market
+    31: "Foresters Guild",  // foresters_guild
+    32: "Builders Hall",  // builders_hall
+    33: "Mechanicians Guild",  // mechanicians_guild
+    34: "Miners Guild",  // miners_guild
+    35: "City Walls",  // city_walls
+}

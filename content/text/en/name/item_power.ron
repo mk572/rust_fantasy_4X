@@ -1,0 +1,69 @@
+// The names of the item_power definitions, by the definition's number (`num` in item_powers.ron). A language has the same file in its own folder.
+{
+    0: "+1 Attack",  // attack_1
+    1: "+2 Attack",  // attack_2
+    2: "+3 Attack",  // attack_3
+    3: "+4 Attack",  // attack_4
+    4: "+5 Attack",  // attack_5
+    5: "+6 Attack",  // attack_6
+    6: "+1 Defense",  // defense_1
+    7: "+2 Defense",  // defense_2
+    8: "+3 Defense",  // defense_3
+    9: "+4 Defense",  // defense_4
+    10: "+5 Defense",  // defense_5
+    11: "+6 Defense",  // defense_6
+    12: "+1 To Hit",  // to_hit_1
+    13: "+2 To Hit",  // to_hit_2
+    14: "+3 To Hit",  // to_hit_3
+    15: "+1 Movement",  // movement_1
+    16: "+2 Movement",  // movement_2
+    17: "+3 Movement",  // movement_3
+    18: "+4 Movement",  // movement_4
+    19: "+1 Resistance",  // resistance_1
+    20: "+2 Resistance",  // resistance_2
+    21: "+3 Resistance",  // resistance_3
+    22: "+4 Resistance",  // resistance_4
+    23: "+5 Resistance",  // resistance_5
+    24: "+6 Resistance",  // resistance_6
+    25: "+5 Spell Skill",  // spell_skill_5
+    26: "+10 Spell Skill",  // spell_skill_10
+    27: "+15 Spell Skill",  // spell_skill_15
+    28: "+20 Spell Skill",  // spell_skill_20
+    29: "-1 Spell Save",  // spell_save_1
+    30: "-2 Spell Save",  // spell_save_2
+    31: "-3 Spell Save",  // spell_save_3
+    32: "-4 Spell Save",  // spell_save_4
+    33: "Flaming",  // flaming
+    34: "Lightning",  // lightning
+    35: "Chaos",  // chaos
+    36: "Destruction",  // destruction
+    37: "Vampiric",  // vampiric
+    38: "Death",  // death
+    39: "Power Drain",  // power_drain
+    40: "Holy Avenger",  // holy_avenger
+    41: "True Sight",  // true_sight
+    42: "Resist Elements",  // resist_elements
+    43: "Elemental Armor",  // elemental_armor
+    44: "Giant Strength",  // giant_strength
+    45: "Stoning",  // stoning
+    46: "Phantasmal",  // phantasmal
+    47: "Guardian Wind",  // guardian_wind
+    48: "Haste",  // haste
+    49: "Resist Magic",  // resist_magic
+    50: "Magic Immunity",  // magic_immunity
+    51: "Wraithform",  // wraithform
+    52: "Cloak of Fear",  // cloak_of_fear
+    53: "Bless",  // bless
+    54: "Righteousness",  // righteousness
+    55: "Invulnerability",  // invulnerability
+    56: "Endurance",  // endurance
+    57: "Planar Travel",  // planar_travel
+    58: "Lion Heart",  // lion_heart
+    59: "Water Walking",  // water_walking
+    60: "Regeneration",  // regeneration
+    61: "Pathfinding",  // pathfinding
+    62: "Merging",  // merging
+    63: "Flight",  // flight
+    64: "Invisibility",  // invisibility
+    65: "Spell Charges",  // spell_charges
+}

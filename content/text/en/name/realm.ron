@@ -1,0 +1,9 @@
+// The names of the realm definitions, by the definition's number (`num` in realms.ron). A language has the same file in its own folder.
+{
+    0: "Nature",  // nature
+    1: "Sorcery",  // sorcery
+    2: "Chaos",  // chaos
+    3: "Life",  // life
+    4: "Death",  // death
+    5: "Arcane",  // arcane
+}

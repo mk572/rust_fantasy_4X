@@ -119,9 +119,64 @@ fn apply_wizard_texts(dirs: &[&Path], wizards: &mut [WizardDef]) -> Result<(), C
     Ok(())
 }
 
+/// The names of one table in `lang`, by definition number: `text/<lang>/name/<file>.ron` of the
+/// first directory that has it, over the same file of the fallback language.
+fn name_table(
+    dirs: &[&Path],
+    lang: &str,
+    file: &str,
+) -> Result<std::collections::BTreeMap<u16, String>, ContentError> {
+    let mut all = std::collections::BTreeMap::new();
+    for l in [f4x_core::text::FALLBACK_LANGUAGE, lang] {
+        let name = format!("text/{l}/name/{file}.ron");
+        if find(dirs, &name).is_some() {
+            all.extend(parse::<std::collections::BTreeMap<u16, String>>(
+                dirs, &name,
+            )?);
+        }
+    }
+    Ok(all)
+}
+
+/// How `fill_names` reads a definition's number and alias.
+type Keys<T> = (fn(&T) -> u16, fn(&T) -> &str);
+
+/// Put the names of `lang` on the definitions of one table. A definition without a name and a
+/// name for a number nobody has are problems. `plural` is optional.
+fn fill_names<T>(
+    (dirs, lang): (&[&Path], &str),
+    (kind, file): (&str, &str),
+    defs: &mut [T],
+    (num, id): Keys<T>,
+    set: fn(&mut T, String, bool),
+    problems: &mut Vec<String>,
+) -> Result<(), ContentError> {
+    for (plural, file) in [(false, file.to_string()), (true, format!("{file}_plural"))] {
+        let names = name_table(dirs, lang, &file)?;
+        for d in defs.iter_mut() {
+            match names.get(&num(d)) {
+                Some(n) => set(d, n.clone(), plural),
+                None if !plural => problems.push(format!(
+                    "{kind} {} ({}) has no name in text/{lang}/name/{file}.ron",
+                    num(d),
+                    id(d)
+                )),
+                None => {}
+            }
+        }
+        let known: std::collections::BTreeSet<u16> = defs.iter().map(&num).collect();
+        for n in names.keys().filter(|n| !known.contains(n)) {
+            problems.push(format!(
+                "text/{lang}/name/{file}.ron names the unknown {kind} {n}"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Load and validate every rules file. Each file comes from the first of `dirs` that has it,
 /// so a local directory can replace single files of the committed one.
-pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentError> {
+pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rules, ContentError> {
     let dir = dirs;
     let mut races = parse::<Vec<RaceDef>>(dir, "races.ron")?;
     apply_city_names(dir, &mut races)?;
@@ -137,16 +192,92 @@ pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentE
         Vec::new()
     };
     apply_wizard_texts(dir, &mut wizards)?;
+    let mut units = parse::<Vec<UnitDef>>(dir, "units.ron")?;
+    let mut abilities = parse::<Vec<AbilityDef>>(dir, "abilities.ron")?;
+    let mut buildings = parse::<Vec<BuildingDef>>(dir, "buildings.ron")?;
+    let mut realms = parse::<Vec<RealmDef>>(dir, "realms.ron")?;
+    let mut spells = parse::<Vec<SpellDef>>(dir, "spells.ron")?;
+    let mut items = parse::<Vec<ItemDef>>(dir, "items.ron")?;
+    let mut item_powers = parse::<Vec<ItemPowerDef>>(dir, "item_powers.ron")?;
+    let mut problems = Vec::new();
+    let at = (dir, lang);
+    fill_names(
+        at,
+        ("race", "race"),
+        &mut races,
+        (|d| d.num, |d| &d.id),
+        |d, n, plural| if plural { d.plural = n } else { d.name = n },
+        &mut problems,
+    )?;
+    fill_names(
+        at,
+        ("unit", "unit"),
+        &mut units,
+        (|d| d.num, |d| &d.id),
+        |d, n, _| d.name = n,
+        &mut problems,
+    )?;
+    fill_names(
+        at,
+        ("ability", "ability"),
+        &mut abilities,
+        (|d| d.num, |d| &d.id),
+        |d, n, _| d.name = n,
+        &mut problems,
+    )?;
+    fill_names(
+        at,
+        ("building", "building"),
+        &mut buildings,
+        (|d| d.num, |d| &d.id),
+        |d, n, _| d.name = n,
+        &mut problems,
+    )?;
+    fill_names(
+        at,
+        ("realm", "realm"),
+        &mut realms,
+        (|d| d.num, |d| &d.id),
+        |d, n, _| d.name = n,
+        &mut problems,
+    )?;
+    fill_names(
+        at,
+        ("spell", "spell"),
+        &mut spells,
+        (|d| d.num, |d| &d.id),
+        |d, n, _| d.name = n,
+        &mut problems,
+    )?;
+    fill_names(
+        at,
+        ("item", "item"),
+        &mut items,
+        (|d| d.num, |d| &d.id),
+        |d, n, _| d.name = n,
+        &mut problems,
+    )?;
+    fill_names(
+        at,
+        ("item power", "item_power"),
+        &mut item_powers,
+        (|d| d.num, |d| &d.id),
+        |d, n, _| d.name = n,
+        &mut problems,
+    )?;
+    if !problems.is_empty() {
+        return Err(ContentError::Invalid(problems));
+    }
     let rules = Rules {
         config: parse::<RulesConfig>(dir, "rules.ron")?,
         races: Registry::new(races),
-        units: Registry::new(parse::<Vec<UnitDef>>(dir, "units.ron")?),
-        abilities: Registry::new(parse::<Vec<AbilityDef>>(dir, "abilities.ron")?),
-        buildings: Registry::new(parse::<Vec<BuildingDef>>(dir, "buildings.ron")?),
-        realms: Registry::new(parse::<Vec<RealmDef>>(dir, "realms.ron")?),
-        spells: Registry::new(parse::<Vec<SpellDef>>(dir, "spells.ron")?),
-        items: Registry::new(parse::<Vec<ItemDef>>(dir, "items.ron")?),
-        item_powers: Registry::new(parse::<Vec<ItemPowerDef>>(dir, "item_powers.ron")?),
+        units: Registry::new(units),
+        abilities: Registry::new(abilities),
+        buildings: Registry::new(buildings),
+        realms: Registry::new(realms),
+        spells: Registry::new(spells),
+        items: Registry::new(items),
+        item_powers: Registry::new(item_powers),
         level_paths: Registry::new(parse::<Vec<LevelPathDef>>(dir, "level_paths.ron")?),
         // Ready-made wizards are optional: a rule set without them just has no presets.
         wizards: Registry::new(wizards),
@@ -787,7 +918,7 @@ mod tests {
         let features =
             crate::parse_features(&std::fs::read_to_string(dir.join("features.ron")).unwrap())
                 .unwrap();
-        let rules = load_rules(&[dir.as_path()], &features).unwrap();
+        let rules = load_rules(&[dir.as_path()], "en", &features).unwrap();
         let wizards = rules.wizards.defs();
         assert_eq!(wizards.len(), 14);
         let lo_pan = wizards.iter().find(|w| w.id == "lo_pan").unwrap();
@@ -920,7 +1051,7 @@ mod tests {
     #[test]
     fn shipped_rules_are_valid() {
         assert_eq!(problems(&[]), Vec::<String>::new());
-        let rules = load_rules(&[&content_dir()], &features()).unwrap();
+        let rules = load_rules(&[&content_dir()], "en", &features()).unwrap();
         for realm in ["life", "death", "chaos", "nature", "sorcery"] {
             assert!(rules.realms.by_name(realm).is_some(), "{realm}");
         }
@@ -929,7 +1060,7 @@ mod tests {
 
     #[test]
     fn typed_ids_round_trip() {
-        let rules = load_rules(&[&content_dir()], &features()).unwrap();
+        let rules = load_rules(&[&content_dir()], "en", &features()).unwrap();
         let id = rules.units.id_of("barbarian_spearmen").unwrap();
         assert_eq!(rules.units.get(id).name, "Spearmen");
         assert!(rules.units.id_of("nope").is_none());
@@ -1100,7 +1231,7 @@ mod tests {
                 })
                 .sum()
         };
-        let rules = load_rules(&[&content_dir()], &features()).unwrap();
+        let rules = load_rules(&[&content_dir()], "en", &features()).unwrap();
         let unit = rules.units.by_name("barbarian_spearmen").unwrap();
         let path = rules
             .level_paths
@@ -1131,6 +1262,43 @@ mod tests {
     }
 
     #[test]
+    fn a_language_names_the_definitions_by_number_and_falls_back_to_english() {
+        let over = f4x_core::testdir::TestDir::new("lang");
+        std::fs::create_dir_all(over.join("text/xx/name")).unwrap();
+        std::fs::write(
+            over.join("text/xx/name/unit.ron"),
+            r#"{ 95: "Lanzenträger" }"#,
+        )
+        .unwrap();
+        std::fs::write(
+            over.join("text/xx/name/race_plural.ron"),
+            r#"{ 0: "Barbaren" }"#,
+        )
+        .unwrap();
+        let features = features();
+        let rules = load_rules(&[&over, &content_dir()], "xx", &features).unwrap();
+        let spearmen = rules.units.id_numbered(95).unwrap();
+        assert_eq!(rules.units.get(spearmen).name, "Lanzenträger");
+        // What the language leaves out is English.
+        assert!(!rules
+            .units
+            .get(rules.units.id_numbered(96).unwrap())
+            .name
+            .is_empty());
+        assert_eq!(rules.races.by_name("barbarian").unwrap().plural, "Barbaren");
+        assert_eq!(rules.races.by_name("barbarian").unwrap().name, "Barbarian");
+    }
+
+    #[test]
+    fn a_name_for_a_number_nobody_has_is_refused() {
+        let over = f4x_core::testdir::TestDir::new("lang_bad");
+        std::fs::create_dir_all(over.join("text/en/name")).unwrap();
+        std::fs::write(over.join("text/en/name/unit.ron"), r#"{ 9999: "Nobody" }"#).unwrap();
+        let err = load_rules(&[&over, &content_dir()], "en", &features()).unwrap_err();
+        assert!(format!("{err:?}").contains("names the unknown unit 9999"));
+    }
+
+    #[test]
     fn city_names_come_from_the_first_directory_that_has_the_file() {
         let over = f4x_core::testdir::TestDir::new("names");
         std::fs::write(
@@ -1139,8 +1307,8 @@ mod tests {
         )
         .unwrap();
         let features = features();
-        let shipped = load_rules(&[&content_dir()], &features).unwrap();
-        let rules = load_rules(&[&over, &content_dir()], &features).unwrap();
+        let shipped = load_rules(&[&content_dir()], "en", &features).unwrap();
+        let rules = load_rules(&[&over, &content_dir()], "en", &features).unwrap();
         let barbarian = rules.races.by_name("barbarian").unwrap();
         assert_eq!(barbarian.city_names, ["Alpha", "Beta"]);
         // The file is read whole from the first directory: the shipped table has names for
@@ -1162,6 +1330,6 @@ mod tests {
             r#"[(race: "nobody", names: ["X"])]"#,
         )
         .unwrap();
-        assert!(load_rules(&[&over, &content_dir()], &features).is_err());
+        assert!(load_rules(&[&over, &content_dir()], "en", &features).is_err());
     }
 }

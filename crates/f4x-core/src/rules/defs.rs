@@ -17,6 +17,8 @@ pub struct RaceDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
+    /// From `text/<language>/name/` by `num`, not from the rules file.
+    #[serde(default)]
     pub name: String,
     /// The name for more than one ("Barbarians"); empty uses the name.
     #[serde(default)]
@@ -251,6 +253,8 @@ pub struct UnitDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
+    /// From `text/<language>/name/` by `num`, not from the rules file.
+    #[serde(default)]
     pub name: String,
     pub kind: UnitKind,
     /// Required for `Normal` units; heroes and creatures have none.
@@ -291,6 +295,8 @@ pub struct AbilityDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
+    /// From `text/<language>/name/` by `num`, not from the rules file.
+    #[serde(default)]
     pub name: String,
     #[serde(default)]
     pub description: String,
@@ -303,6 +309,8 @@ pub struct BuildingDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
+    /// From `text/<language>/name/` by `num`, not from the rules file.
+    #[serde(default)]
     pub name: String,
     pub cost: u32,
     #[serde(default)]
@@ -333,6 +341,8 @@ pub struct RealmDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
+    /// From `text/<language>/name/` by `num`, not from the rules file.
+    #[serde(default)]
     pub name: String,
     pub color: (u8, u8, u8),
     /// Spells (ids) a wizard with books in this realm starts with when they choose none, in
@@ -404,6 +414,8 @@ pub struct SpellDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
+    /// From `text/<language>/name/` by `num`, not from the rules file.
+    #[serde(default)]
     pub name: String,
     pub realm: String,
     pub rarity: Rarity,
@@ -455,6 +467,8 @@ pub struct ItemDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
+    /// From `text/<language>/name/` by `num`, not from the rules file.
+    #[serde(default)]
     pub name: String,
     pub slot: ItemSlot,
     /// The original's item type; it fixes the slot (see [`ItemKind::slot`]).
@@ -536,6 +550,8 @@ pub struct ItemPowerDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
+    /// From `text/<language>/name/` by `num`, not from the rules file.
+    #[serde(default)]
     pub name: String,
     /// At most one power of a group on an item.
     pub group: u8,

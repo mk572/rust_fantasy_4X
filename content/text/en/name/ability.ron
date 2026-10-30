@@ -1,0 +1,77 @@
+// The names of the ability definitions, by the definition's number (`num` in abilities.ron). A language has the same file in its own folder.
+{
+    1: "Armour Piercing",  // armor_piercing
+    2: "Asleep",  // asleep
+    3: "Bow",  // bow
+    4: "Doom Bolt Spell",  // casts_doom_bolt
+    5: "Fireball Spell",  // casts_fireball
+    6: "Healing Spell",  // casts_healing
+    7: "Web Spell",  // casts_web
+    8: "Cause Fear",  // cause_fear
+    9: "Cavalry",  // cavalry
+    10: "Cold Immunity",  // cold_immunity
+    11: "Confused",  // confused
+    12: "Create Outpost",  // create_outpost
+    13: "Create Undead",  // create_undead
+    14: "Death Bolt",  // death_bolt
+    15: "Death Gaze",  // death_gaze
+    16: "Death Immunity",  // death_immunity
+    17: "Dispel Evil",  // dispel_evil
+    18: "Drow Bolt",  // drow_bolt
+    19: "Eldritch Weapon",  // eldritch_weapon
+    20: "Fire Breath",  // fire_breath
+    21: "Fire Immunity",  // fire_immunity
+    22: "Fireball",  // fireball_attack
+    23: "First Strike",  // first_strike
+    24: "Flying",  // flying
+    25: "Forester",  // forester
+    26: "Haste",  // hasted
+    27: "Healer",  // healer
+    28: "Holy Bonus",  // holy_bonus
+    29: "Ice Bolt",  // ice_bolt
+    30: "Illusion",  // illusion_attack
+    31: "Illusion Immunity",  // illusion_immunity
+    32: "Immolation",  // immolation
+    33: "Invisibility",  // invisibility
+    34: "Large Shield",  // large_shield
+    35: "Life Steal",  // life_steal
+    36: "Lightning Bolt",  // lightning_bolt
+    37: "Lightning Breath",  // lightning_breath
+    38: "Long Range",  // long_range
+    39: "Lucky",  // lucky
+    40: "Magic Immunity",  // magic_immunity
+    41: "Magical Weapon",  // magical_weapon
+    42: "Meld",  // meld
+    43: "Merging",  // merging
+    44: "Missile Immunity",  // missile_immunity
+    45: "Mountaineer",  // mountaineer
+    46: "Multiple Gaze",  // multi_gaze
+    47: "Nature Bolt",  // nature_bolt
+    48: "Negate First Strike",  // negate_first_strike
+    49: "Non-Corporeal",  // non_corporeal
+    50: "Path Finding",  // pathfinding
+    51: "Planar Travel",  // planar_travel
+    52: "Poison Immunity",  // poison_immunity
+    53: "Poison Touch",  // poison_touch
+    54: "Purify",  // purify
+    55: "Regeneration",  // regeneration
+    56: "Resist All",  // resist_all
+    57: "Rock Throwing",  // rock_throwing
+    58: "Shaman Bolt",  // shaman_bolt
+    59: "Sling",  // sling
+    60: "Sorcery Bolt",  // sorcery_bolt
+    61: "Spell Caster",  // spellcaster
+    62: "Major Spell Caster",  // spellcaster_major
+    63: "Sprite Bolt",  // sprite_bolt
+    64: "Stoning Gaze",  // stoning_gaze
+    65: "Stoning Immunity",  // stoning_immunity
+    66: "Stoning Touch",  // stoning_touch
+    67: "Creature Summoning",  // summon_demon
+    68: "Teleport",  // teleport
+    69: "Thrown",  // thrown
+    70: "Wall Crusher",  // wall_crusher
+    71: "Water Walking",  // water_walking
+    72: "Weapon Immunity",  // weapon_immunity
+    73: "Webbed",  // webbed
+    74: "Wind Walking",  // wind_walking
+}

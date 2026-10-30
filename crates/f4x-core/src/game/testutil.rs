@@ -108,6 +108,18 @@ pub fn content() -> Content {
     }
 }
 
+/// The game's real abilities (`content/abilities.ron`).
+pub fn real_abilities() -> Vec<crate::rules::AbilityDef> {
+    let mut abilities: Vec<crate::rules::AbilityDef> =
+        ron::from_str(include_str!("../../../../content/abilities.ron"))
+            .expect("the game's abilities parse");
+    let names = name_table(include_str!("../../../../content/text/en/name/ability.ron"));
+    for d in &mut abilities {
+        d.name = names[&d.num].clone();
+    }
+    abilities
+}
+
 /// The shipped `content/settings.ron`, for tests that play a difficulty level.
 pub fn settings() -> crate::game::setting::SettingsDef {
     ron::from_str(include_str!("../../../../content/settings.ron")).expect("settings.ron parses")
@@ -118,10 +130,7 @@ pub fn content_with_units() -> Content {
     let mut c = content();
     c.rules = Rules {
         units: Registry::new(real_units()),
-        abilities: Registry::new(
-            ron::from_str(include_str!("../../../../content/abilities.ron"))
-                .expect("the game's abilities parse"),
-        ),
+        abilities: Registry::new(real_abilities()),
         level_paths: Registry::new(
             ron::from_str(include_str!("../../../../content/level_paths.ron"))
                 .expect("the game's level paths parse"),
@@ -198,12 +207,30 @@ pub fn content_with_economy() -> Content {
 
 /// The game's real spells (`content/spells.ron`), for tests that cast or look at them.
 pub fn real_spells() -> Vec<crate::rules::SpellDef> {
-    ron::from_str(include_str!("../../../../content/spells.ron")).expect("the game's spells parse")
+    let mut spells: Vec<crate::rules::SpellDef> =
+        ron::from_str(include_str!("../../../../content/spells.ron"))
+            .expect("the game's spells parse");
+    let names = name_table(include_str!("../../../../content/text/en/name/spell.ron"));
+    for d in &mut spells {
+        d.name = names[&d.num].clone();
+    }
+    spells
+}
+
+/// The names of one table (`content/text/en/name/*.ron`) by definition number.
+fn name_table(src: &str) -> std::collections::BTreeMap<u16, String> {
+    ron::from_str(src).expect("the game's names parse")
 }
 
 /// All the game's real units (`content/units.ron`), in the original's order.
 pub fn real_units() -> Vec<UnitDef> {
-    ron::from_str(include_str!("../../../../content/units.ron")).expect("the game's units parse")
+    let mut units: Vec<UnitDef> = ron::from_str(include_str!("../../../../content/units.ron"))
+        .expect("the game's units parse");
+    let names = name_table(include_str!("../../../../content/text/en/name/unit.ron"));
+    for d in &mut units {
+        d.name = names[&d.num].clone();
+    }
+    units
 }
 
 /// Put one of the game's real units among `units` unless it is already there.
@@ -230,13 +257,32 @@ pub fn real_hero_templates() -> Vec<crate::rules::HeroTemplate> {
 
 /// The game's real races (`content/races.ron`).
 pub fn real_races() -> Vec<crate::rules::RaceDef> {
-    ron::from_str(include_str!("../../../../content/races.ron")).expect("the game's races parse")
+    let mut races: Vec<crate::rules::RaceDef> =
+        ron::from_str(include_str!("../../../../content/races.ron"))
+            .expect("the game's races parse");
+    let names = name_table(include_str!("../../../../content/text/en/name/race.ron"));
+    let plurals = name_table(include_str!(
+        "../../../../content/text/en/name/race_plural.ron"
+    ));
+    for d in &mut races {
+        d.name = names[&d.num].clone();
+        d.plural = plurals.get(&d.num).cloned().unwrap_or_default();
+    }
+    races
 }
 
 /// The game's real buildings (`content/buildings.ron`).
 pub fn real_buildings() -> Vec<crate::rules::BuildingDef> {
-    ron::from_str(include_str!("../../../../content/buildings.ron"))
-        .expect("the game's buildings parse")
+    let mut buildings: Vec<crate::rules::BuildingDef> =
+        ron::from_str(include_str!("../../../../content/buildings.ron"))
+            .expect("the game's buildings parse");
+    let names = name_table(include_str!(
+        "../../../../content/text/en/name/building.ron"
+    ));
+    for d in &mut buildings {
+        d.name = names[&d.num].clone();
+    }
+    buildings
 }
 
 /// Economy content plus the game's real spells and realms (`content/spells.ron` and
@@ -247,7 +293,14 @@ pub fn content_with_magic() -> Content {
 
 /// The game's real realms (`content/realms.ron`).
 pub fn real_realms() -> Vec<crate::rules::RealmDef> {
-    ron::from_str(include_str!("../../../../content/realms.ron")).expect("the game's realms parse")
+    let mut realms: Vec<crate::rules::RealmDef> =
+        ron::from_str(include_str!("../../../../content/realms.ron"))
+            .expect("the game's realms parse");
+    let names = name_table(include_str!("../../../../content/text/en/name/realm.ron"));
+    for d in &mut realms {
+        d.name = names[&d.num].clone();
+    }
+    realms
 }
 
 /// Fixture item powers of a test, numbered from 0 in the order given.

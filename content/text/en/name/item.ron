@@ -1,0 +1,253 @@
+// The names of the item definitions, by the definition's number (`num` in items.ron). A language has the same file in its own folder.
+{
+    0: "Black Asp",  // black_asp
+    1: "Sword of Mallana",  // sword_of_mallana
+    2: "Sword of Stealth",  // sword_of_stealth
+    3: "Dragon Slayer",  // dragon_slayer
+    4: "Monster Masher",  // monster_masher
+    5: "Sword of Mephisto",  // sword_of_mephisto
+    6: "White Lightning I",  // white_lightning_i
+    7: "Ultimate Defense",  // ultimate_defense
+    8: "Stoning Sword",  // stoning_sword
+    9: "Living Sword",  // living_sword
+    10: "Pummel Mace",  // pummel_mace
+    11: "Mauler",  // mauler
+    12: "Skull Smasher",  // skull_smasher
+    13: "Deathbringer",  // deathbringer
+    14: "Storm Mace",  // storm_mace
+    15: "Dracken Mace",  // dracken_mace
+    16: "Fangs Avenger",  // fangs_avenger
+    17: "World Ender",  // world_ender
+    18: "Morphains Friend",  // morphains_friend
+    19: "Orc Smasher",  // orc_smasher
+    20: "Flaming Axe",  // flaming_axe
+    21: "Axe of the Caster",  // axe_of_the_caster
+    22: "Hacker",  // hacker
+    23: "Axe of Haste",  // axe_of_haste
+    24: "Power Axe",  // power_axe
+    25: "Axe of Chaotic Death",  // axe_of_chaotic_death
+    26: "Phantastic Axe",  // phantastic_axe
+    27: "Axe of Stone",  // axe_of_stone
+    28: "The Beheader",  // the_beheader
+    29: "Axe of Light",  // axe_of_light
+    30: "Living Bow",  // living_bow
+    31: "The Regulator",  // the_regulator
+    32: "Mithril Longbow",  // mithril_longbow
+    33: "Silver Shortbow",  // silver_shortbow
+    34: "The Master Crossbow",  // the_master_crossbow
+    35: "Bow of Magic Immunity",  // bow_of_magic_immunity
+    36: "Bow of Hazard",  // bow_of_hazard
+    37: "The Undertaker",  // the_undertaker
+    38: "Elvish Longbow",  // elvish_longbow
+    39: "Life Bow",  // life_bow
+    40: "The Mangler",  // the_mangler
+    41: "Staff Of Magic Mastery",  // staff_of_magic_mastery
+    42: "Stick of the Mage",  // stick_of_the_mage
+    43: "Guardian Staff",  // guardian_staff
+    44: "Flaming Staff",  // flaming_staff
+    45: "Chaotic Staff of Fire",  // chaotic_staff_of_fire
+    46: "The Destructor",  // the_destructor
+    47: "Staff of Pain",  // staff_of_pain
+    48: "Staff Of Confusion",  // staff_of_confusion
+    49: "Staff of Superiority",  // staff_of_superiority
+    50: "The Branch of Magic",  // the_branch_of_magic
+    51: "Wand of Immunity",  // wand_of_immunity
+    52: "Wand of Arcanus",  // wand_of_arcanus
+    53: "Wand of Enhancement",  // wand_of_enhancement
+    54: "Wand of Fiery Death",  // wand_of_fiery_death
+    55: "Wand of Elros",  // wand_of_elros
+    56: "White Lightning II",  // white_lightning_ii
+    57: "Wand of Balmoth",  // wand_of_balmoth
+    58: "Wand of the Guardian",  // wand_of_the_guardian
+    59: "Wand of Doom",  // wand_of_doom
+    60: "Elven Ring of Health",  // elven_ring_of_health
+    61: "Amulet of Battle",  // amulet_of_battle
+    62: "Ring of Power",  // ring_of_power
+    63: "Amulet of Resistance",  // amulet_of_resistance
+    64: "Devils Eye of Fear",  // devils_eye_of_fear
+    65: "Band of Chivalry",  // band_of_chivalry
+    66: "Trinket of Strength",  // trinket_of_strength
+    67: "Orb of Righteous Sight",  // orb_of_righteous_sight
+    68: "Cross of Blessed Death",  // cross_of_blessed_death
+    69: "Magical Crystal of Power",  // magical_crystal_of_power
+    70: "Shield of Demos",  // shield_of_demos
+    71: "Shield of Evasion",  // shield_of_evasion
+    72: "Shield of Eros",  // shield_of_eros
+    73: "Blessed Shield of Defense",  // blessed_shield_of_defense
+    74: "Shield of Elements",  // shield_of_elements
+    75: "Shield of Guardian Defense",  // shield_of_guardian_defense
+    76: "Shield of Enduring Fear",  // shield_of_enduring_fear
+    77: "Shield of the Undead",  // shield_of_the_undead
+    78: "Shield of Transformation",  // shield_of_transformation
+    79: "Supreme Shield of Death",  // supreme_shield_of_death
+    80: "Chain Mail of Defense",  // chain_mail_of_defense
+    81: "Chain Mail of Resistance",  // chain_mail_of_resistance
+    82: "Chain Mail of Movement",  // chain_mail_of_movement
+    83: "Chain Mail of Balance",  // chain_mail_of_balance
+    84: "Blessed Mail of Resistance",  // blessed_mail_of_resistance
+    85: "Chain Mail of Endurance",  // chain_mail_of_endurance
+    86: "Chain Mail of Immunity",  // chain_mail_of_immunity
+    87: "Chain Mail of Absorbtion",  // chain_mail_of_absorbtion
+    88: "Chain of Super Resistance",  // chain_of_super_resistance
+    89: "Mithril Mail of Talos",  // mithril_mail_of_talos
+    90: "Plate Mail of Defense",  // plate_mail_of_defense
+    91: "Plate Mail of Resistance",  // plate_mail_of_resistance
+    92: "Plate Mail of Movement",  // plate_mail_of_movement
+    93: "Plate Mail of Diversity",  // plate_mail_of_diversity
+    94: "Plate Mail of Blessed Fear",  // plate_mail_of_blessed_fear
+    95: "Righteous Plate of Evasion",  // righteous_plate_of_evasion
+    96: "Plate of Enduring Immunity",  // plate_of_enduring_immunity
+    97: "Elemental Transformation",  // elemental_transformation
+    98: "Plate of Divine Protection",  // plate_of_divine_protection
+    99: "Plate of Omnipotence",  // plate_of_omnipotence
+    100: "Blade of Blood",  // blade_of_blood
+    101: "Bane Blade",  // bane_blade
+    102: "Sword of Immunity",  // sword_of_immunity
+    103: "Sting",  // sting
+    104: "Great Sword of Arkanna",  // great_sword_of_arkanna
+    105: "Right Hand 0f Justice",  // right_hand_0f_justice
+    106: "Vlads Impaler",  // vlads_impaler
+    107: "Merlins Nails",  // merlins_nails
+    108: "Intimidator",  // intimidator
+    109: "Whirlwind",  // whirlwind
+    110: "Thors Hammer",  // thors_hammer
+    111: "Hand of God",  // hand_of_god
+    112: "Club of Chaos",  // club_of_chaos
+    113: "Fist of Destruction",  // fist_of_destruction
+    114: "Edge of the Elements",  // edge_of_the_elements
+    115: "Double Axe of Pain",  // double_axe_of_pain
+    116: "Executioners Friend",  // executioners_friend
+    117: "Knight Chopper",  // knight_chopper
+    118: "Tree Tamer",  // tree_tamer
+    119: "Inquisitor",  // inquisitor
+    120: "The Resistor I",  // the_resistor_i
+    121: "Hells Bolt",  // hells_bolt
+    122: "Bow of the Golden Horde",  // bow_of_the_golden_horde
+    123: "Ray of Light",  // ray_of_light
+    124: "Gideons Harp",  // gideons_harp
+    125: "The Hartshone",  // the_hartshone
+    126: "The Deathstorm",  // the_deathstorm
+    127: "The Devils Instrument",  // the_devils_instrument
+    128: "The Enlightener",  // the_enlightener
+    129: "The Traveller",  // the_traveller
+    130: "Staff of Horus",  // staff_of_horus
+    131: "The Pummeler",  // the_pummeler
+    132: "Word of God",  // word_of_god
+    133: "The Protector",  // the_protector
+    134: "The Ossifier",  // the_ossifier
+    135: "Wand of Lesser Might",  // wand_of_lesser_might
+    136: "Wand of Infinite Magic",  // wand_of_infinite_magic
+    137: "The Mighty Wand of Zod",  // the_mighty_wand_of_zod
+    138: "The Wand of Glenda",  // the_wand_of_glenda
+    139: "Wand of Ultimate Might",  // wand_of_ultimate_might
+    140: "Amulet of Lesser Shielding",  // amulet_of_lesser_shielding
+    141: "Cloak of Armor",  // cloak_of_armor
+    142: "Ring of Dasmiff",  // ring_of_dasmiff
+    143: "Orb of Fear",  // orb_of_fear
+    144: "Helm of Trollish Might",  // helm_of_trollish_might
+    145: "Shield of the Fool",  // shield_of_the_fool
+    146: "Shield of Thiron",  // shield_of_thiron
+    147: "Shield of Quatis",  // shield_of_quatis
+    148: "Shield of the Wraith",  // shield_of_the_wraith
+    149: "Shield of the Gods",  // shield_of_the_gods
+    150: "Chain of Magical Health",  // chain_of_magical_health
+    151: "Morthogs Chainmail",  // morthogs_chainmail
+    152: "Mithril Chainmail",  // mithril_chainmail
+    153: "Chainmail of Speed",  // chainmail_of_speed
+    154: "Chainmail of the Elements",  // chainmail_of_the_elements
+    155: "Champions Platemail",  // champions_platemail
+    156: "Armor of the Warrior",  // armor_of_the_warrior
+    157: "Bloodmail",  // bloodmail
+    158: "Silvermail",  // silvermail
+    159: "Plate of Ultimax",  // plate_of_ultimax
+    160: "Sword of Cannae",  // sword_of_cannae
+    161: "Flaming Sword of Death",  // flaming_sword_of_death
+    162: "Joshuas Sword",  // joshuas_sword
+    163: "The Revenge of Orculs",  // the_revenge_of_orculs
+    164: "The Defender",  // the_defender
+    165: "Cannes Mace",  // cannes_mace
+    166: "Irons Mace",  // irons_mace
+    167: "Jans Hammer",  // jans_hammer
+    168: "Axe of Severe Pain",  // axe_of_severe_pain
+    169: "The Axe of Uncaring",  // the_axe_of_uncaring
+    170: "Axe of the Apostles",  // axe_of_the_apostles
+    171: "The Peacemaker",  // the_peacemaker
+    172: "The Kick Axe",  // the_kick_axe
+    173: "The Archer",  // the_archer
+    174: "The Telecaster",  // the_telecaster
+    175: "Bow of The Dervish",  // bow_of_the_dervish
+    176: "Elemental Staff of Nature",  // elemental_staff_of_nature
+    177: "Planar Staff",  // planar_staff
+    178: "Golden Staff of Sharee",  // golden_staff_of_sharee
+    179: "Purple Rain of Death",  // purple_rain_of_death
+    180: "The Conjurers Friend",  // the_conjurers_friend
+    181: "Wand of the Mind",  // wand_of_the_mind
+    182: "Wand of the Mage",  // wand_of_the_mage
+    183: "Wand of the Beast",  // wand_of_the_beast
+    184: "Pin of Health",  // pin_of_health
+    185: "Jafars Orb of Sight",  // jafars_orb_of_sight
+    186: "Gauntlet of Eastwood",  // gauntlet_of_eastwood
+    187: "Bracer of Invulnerability",  // bracer_of_invulnerability
+    188: "Helm of Everlasting",  // helm_of_everlasting
+    189: "Helm of the Tides",  // helm_of_the_tides
+    190: "Shield of Speed",  // shield_of_speed
+    191: "Vans Shield",  // vans_shield
+    192: "Shield of Brooke",  // shield_of_brooke
+    193: "The Wind Shield",  // the_wind_shield
+    194: "Holy Shield",  // holy_shield
+    195: "Mail of Arcanus",  // mail_of_arcanus
+    196: "Chain of Tyrolia",  // chain_of_tyrolia
+    197: "Giddeons Plate",  // giddeons_plate
+    198: "Plate of the Elements",  // plate_of_the_elements
+    199: "Plate of Immunity",  // plate_of_immunity
+    200: "Golden Axe of Rath",  // golden_axe_of_rath
+    201: "Suit of Power",  // suit_of_power
+    202: "The Great Wand",  // the_great_wand
+    203: "Elvish Scalemail",  // elvish_scalemail
+    204: "Uhl Khakhaas",  // uhl_khakhaas
+    205: "Uhl Dover",  // uhl_dover
+    206: "Idspispopd",  // idspispopd
+    207: "Ehr Rhee",  // ehr_rhee
+    208: "Mae Govannon",  // mae_govannon
+    209: "Zir Daun",  // zir_daun
+    210: "Lor Goth",  // lor_goth
+    211: "Mail of Pobox",  // mail_of_pobox
+    212: "Protection of Ramses",  // protection_of_ramses
+    213: "Bird of Paradise",  // bird_of_paradise
+    214: "Kraken Wand",  // kraken_wand
+    215: "Theodores Liberator",  // theodores_liberator
+    216: "Crossbow of Power",  // crossbow_of_power
+    217: "Laik Kenegul",  // laik_kenegul
+    218: "Peppermace of Gates",  // peppermace_of_gates
+    219: "Axe of Vivisection",  // axe_of_vivisection
+    220: "The Inquisition",  // the_inquisition
+    221: "White Flicker",  // white_flicker
+    222: "Staff of the Constellation",  // staff_of_the_constellation
+    223: "The Resistor II",  // the_resistor_ii
+    224: "Plate of Eandor",  // plate_of_eandor
+    225: "Blood Plate of Lucifer",  // blood_plate_of_lucifer
+    226: "Disc of Advancement",  // disc_of_advancement
+    227: "Wand of the Grey Wizard",  // wand_of_the_grey_wizard
+    228: "Little Flicker",  // little_flicker
+    229: "Freyas Friend",  // freyas_friend
+    230: "Vampiric Vanquisher",  // vampiric_vanquisher
+    231: "Sword of Medusa",  // sword_of_medusa
+    232: "Zlotakian Staff of Magic",  // zlotakian_staff_of_magic
+    233: "Orions Belt",  // orions_belt
+    234: "Bracer of Mrad",  // bracer_of_mrad
+    235: "Wraithe Shirt",  // wraithe_shirt
+    236: "Ziggmunds Armor",  // ziggmunds_armor
+    237: "Ring of the Mad Mage",  // ring_of_the_mad_mage
+    238: "Gabriels Axe",  // gabriels_axe
+    239: "Maul of Bathory",  // maul_of_bathory
+    240: "Sword of Pendulum",  // sword_of_pendulum
+    241: "Shield of Ultimate Defense",  // shield_of_ultimate_defense
+    242: "Tammas Staff of Negation",  // tammas_staff_of_negation
+    243: "Mace of Disintegration",  // mace_of_disintegration
+    244: "Sword of Renfield",  // sword_of_renfield
+    245: "Staff of Odin",  // staff_of_odin
+    246: "Gem of the Aerie",  // gem_of_the_aerie
+    247: "The Scarlet Bow",  // the_scarlet_bow
+    248: "Raindancer",  // raindancer
+    249: "Light Mail Shirt",  // light_mail_shirt
+}
