@@ -2,10 +2,9 @@
 //!
 //! An objective changes emphasis, not capability: one row of numbers each, read where the AI
 //! decides how many cities to settle, how big an army to keep, what its cities build, how it
-//! splits its power and which spells it researches first. The Pragmatist row is the AI as it was
-//! before objectives steered anything, and it is also the row of a wizard without an objective
-//! (the human's, a test's). The personality moves the army a little and decides who starts wars
-//! (`diplomacy::quarrel`).
+//! splits its power and which spells it researches first. The Pragmatist row is also the row of a
+//! wizard without an objective (the human's, a test's). The personality moves the army a little
+//! and decides who starts wars (`diplomacy::quarrel`).
 
 use f4x_core::city::autobuild::Focus;
 use f4x_core::player::view::PlayerView;
@@ -146,7 +145,7 @@ const TEMPERS: [Personality; 6] = [
     Personality::Maniacal,
 ];
 
-/// How many steps the difficulty slides every AI's temper towards Maniacal (task 148): none up to
+/// How many steps the difficulty slides every AI's temper towards Maniacal: none up to
 /// Normal, one on Hard, two on Impossible. The AI always plays its best; this only makes it
 /// fiercer. Ours, the original has no such thing.
 pub fn aggression_steps(difficulty: u8) -> i32 {
@@ -194,8 +193,10 @@ pub fn picks_fights(objective: Option<Objective>, personality: Personality) -> b
 mod tests {
     use super::*;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     #[test]
-    fn only_the_pragmatist_keeps_every_city_alike_and_the_ladder_of_spells() {
+    fn only_the_pragmatist_keeps_every_city_alike_and_the_ladder_of_spells() -> TestResult {
         assert!(traits_of(None).variety.is_none() && traits_of(None).cast_boost.is_empty());
         for o in [
             Objective::Militarist,
@@ -204,16 +205,28 @@ mod tests {
             Objective::Expansionist,
         ] {
             let t = traits_of(Some(o));
-            let (alt, every) = t.variety.expect("a variety");
+            let (alt, every) = t
+                .variety
+                .ok_or("every objective but the pragmatist varies")?;
             assert!(every >= 2, "{o:?}");
             assert_ne!(alt, t.settled, "{o:?}");
             assert!(!t.cast_boost.is_empty(), "{o:?}");
         }
+        Ok(())
     }
 
     #[test]
-    fn the_pragmatist_row_is_the_ai_as_it_was() {
+    fn a_wizard_without_an_objective_has_the_pragmatist_row() {
+        let pragmatist = traits_of(Some(Objective::Pragmatist));
         let t = traits_of(None);
+        assert_eq!(
+            (t.cities_wanted, t.strike_base, t.split_shift),
+            (
+                pragmatist.cities_wanted,
+                pragmatist.strike_base,
+                pragmatist.split_shift
+            )
+        );
         assert_eq!((t.cities_wanted, t.strike_base), (7, 4));
         assert_eq!(t.settled, (Focus::Balanced, None));
         assert_eq!(t.split_shift, 0);
@@ -256,15 +269,7 @@ mod tests {
 
     #[test]
     fn a_crueller_temper_keeps_a_bigger_army() {
-        let temper = [
-            Personality::Peaceful,
-            Personality::Lawful,
-            Personality::Chaotic,
-            Personality::Aggressive,
-            Personality::Ruthless,
-            Personality::Maniacal,
-        ];
-        let bias: Vec<i32> = temper.iter().map(|&p| army_bias(p, 2)).collect();
+        let bias: Vec<i32> = TEMPERS.iter().map(|&p| army_bias(p, 2)).collect();
         assert!(bias.windows(2).all(|w| w[0] <= w[1]), "{bias:?}");
         assert!(bias[0] < 0 && bias[5] > 0);
     }
