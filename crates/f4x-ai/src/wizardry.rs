@@ -802,7 +802,12 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             let wanted = match k {
                 Kind::Mastery => true,
                 // Summoned creatures cost upkeep mana: only while the army is thin.
-                Kind::Summon => now && room && fighters < 12 + 2 * view.my_cities().len(),
+                Kind::Summon => {
+                    now && room
+                        && fighters < 12 + 2 * view.my_cities().len()
+                        // The square the creatures appear on may be full.
+                        && view.can_aim(spell, None)
+                }
                 Kind::UnitBuff => {
                     now && room && fighters >= 3 && upkeep_ok(&view, def) && target.is_some()
                 }
