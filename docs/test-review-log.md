@@ -34,3 +34,16 @@ or a `//! Tests:` line, stale or wordy comments (task numbers, history, general 
 
 **`crates/f4x-ai` is finished** (`f4x-ai-ref` skipped). 122 tests run in 0.26 s, plus 5 ignored (2 of them fail, task 429).
 
+## crates/f4x-core (31 October 2026, done without the user present)
+
+Done for the whole crate in four passes, by script and compiler where it was mechanical, so the rows below are by pass and area, not by file. Checked after every pass: `cargo nextest run -p f4x-core` (1,025 tests, 1.2 s), `cargo clippy --workspace --tests`, `cargo fmt`.
+
+| Pass | Status | Notes |
+|---|---|---|
+| `unwrap` in tests, all of `crates/f4x-core/src` and `tests/it` | done | About 1,900 bare `.unwrap()` sites. Every `#[test]` that unwrapped now returns `TestResult` (new, in `f4x_core::testdir`) and uses `?`: a `Result` keeps its real error, an `Option` is `.ok_or("<call> is missing")?` (for `id_of("x")`: `x is not in the content`). Closures and test helpers (`testutil.rs`, `world()`-style builders) use `.expect("<call> succeeds")`. **The messages come from the call name by script and are plain; refine them where a failure turns out to be hard to read.** `panic!` checks became `return Err(..)`; `#[should_panic]` tests were left alone. No bare `unwrap()` is left in the crate (production code had none outside `#[cfg(test)]` helpers). |
+| comments, all of `crates/f4x-core/src` | done | About 100 task references removed ("(task 348)", "(tasks 329 to 332)"); sentences that told history or the future rewritten or cut ("is task 49", "comes later", "for now", "thin methods with the old names", "Stage 1 holds ..."). The comments were found by searching for task and history wording, not read one by one, so comments that are merely wordy are probably still there. |
+| `//! Tests:` lines, 72 files | done | Every file without a `#[test]` now says where its tests are or why it has none. The "in" targets were picked by matching function names against the test code (the test file that names most of the file's functions), not by reading each file; the 15 files where hardly any function is named are **not** marked and are listed in task 431. `rules/registry.rs` had no test: it has five now (lookup by alias and number, gaps, iteration order, `new_sorted`, both refusals). |
+| tests on shipped data | partly | `f4x-data` is a dev-dependency of `f4x-core`; `tests/it/shipped_game.rs` runs a new game on `content/` (20 turns without a refusal, save and load give the same game, the same seed gives the same game). The other 800 tests still use the hand-built content of `testutil.rs`: task 430 (needs a decision). |
+| hard-coded values | partly | The turn thresholds of marriage and meteor (`BIG_EVENTS_FROM_TURN`, was 150 in two places), of the monsters (`MONSTER_FIRST_TURN`) and of the mercenaries (`FIRST_MERCENARY_TURN`) are constants in the tests. Not searched for other literals in the tests. |
+| slow tests | checked | All 1,025 tests under 0.35 s; the slowest are `a_guarded_node_resists_rivals_three_times_in_four` (0.33 s, a loop of rolls) and `the_battle_ai_takes_a_walled_city` (0.19 s). Needless cloning was not looked for beyond that. |
+

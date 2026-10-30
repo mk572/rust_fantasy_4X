@@ -14,6 +14,7 @@ use crate::game::rng::GameRng;
 use crate::item::make::{make_item, Grade};
 use crate::map::{FeatureId, Position};
 use crate::player::PlayerId;
+use crate::world_event::BIG_EVENTS_FROM_TURN;
 
 use crate::game::{Event, Game};
 use crate::rules::UnitKind;
@@ -62,11 +63,11 @@ impl Game {
     }
 
     /// Make an event happen to a wizard now (an override, for tests and the console). The vetoes
-    /// apply, except the wait until turn 150. Returns what the player is told, or why the event
+    /// apply, except the wait for `BIG_EVENTS_FROM_TURN`. Returns what the player is told, or why the event
     /// cannot happen.
     pub fn cheat_event(&mut self, kind: EventKind, victim: PlayerId) -> Result<Vec<Event>, String> {
         let turn = self.turn;
-        self.turn = turn.max(150);
+        self.turn = turn.max(BIG_EVENTS_FROM_TURN);
         let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());
         let armed = self.try_event(kind, victim, &mut rng);
         self.turn = turn;
@@ -126,7 +127,9 @@ impl Game {
                 other = Some(self.pick_neutral_city(rng)?);
             }
         }
-        if matches!(kind, EventKind::Marriage | EventKind::GreatMeteor) && self.turn < 150 {
+        if matches!(kind, EventKind::Marriage | EventKind::GreatMeteor)
+            && self.turn < BIG_EVENTS_FROM_TURN
+        {
             return None;
         }
         if kind == EventKind::Rebellion && !self.can_rebel(victim, city?) {

@@ -192,12 +192,12 @@ fn a_marriage_gives_a_neutral_city_and_its_units_to_the_wizard() -> TestResult {
 }
 
 #[test]
-fn marriage_and_meteor_wait_for_turn_150() {
+fn marriage_and_meteor_wait_for_the_big_events_turn() {
     let mut g = world();
     let mut rng = GameRng::new(2);
-    g.turn = 149;
+    g.turn = BIG_EVENTS_FROM_TURN - 1;
     assert!(g.try_event(K::GreatMeteor, P0, &mut rng).is_none());
-    g.turn = 150;
+    g.turn = BIG_EVENTS_FROM_TURN;
     assert!(g.try_event(K::GreatMeteor, P0, &mut rng).is_some());
 }
 

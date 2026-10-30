@@ -10,3 +10,8 @@ rand.workspace = true
 rand_pcg.workspace = true
 serde.workspace = true
 ron.workspace = true
+
+[dev-dependencies]
+# The integration tests in tests/it/ run on the shipped content. A dev-dependency cycle is fine for
+# them; unit tests in src/ would see two copies of this crate's types.
+f4x-data.workspace = true

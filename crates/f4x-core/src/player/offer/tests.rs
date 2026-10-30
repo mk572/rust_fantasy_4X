@@ -160,10 +160,10 @@ fn only_wizards_with_a_standing_fortress_are_offered_anything() {
 }
 
 #[test]
-fn mercenaries_come_after_turn_30_to_a_wizard_who_can_pay_and_arrive_with_their_experience(
+fn mercenaries_come_from_the_first_mercenary_turn_to_a_wizard_who_can_pay_and_arrive_with_their_experience(
 ) -> TestResult {
     let mut g = world();
-    g.turn = 29;
+    g.turn = FIRST_MERCENARY_TURN - 1;
     for _ in 0..400 {
         g.determine_offers();
         assert!(offers_of(&g, P0, |o| matches!(o, Offer::Mercenaries { .. })).is_empty());

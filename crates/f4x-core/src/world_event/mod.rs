@@ -469,6 +469,9 @@ impl EventNotice {
 }
 
 /// The keys of the names of the city size classes, outpost to capital (`_city_size_names`).
+/// Marriage and the Great Meteor wait for this turn.
+pub const BIG_EVENTS_FROM_TURN: u32 = 150;
+
 pub const CITY_SIZE_KEYS: [&str; 6] = [
     "city.size_outpost",
     "city.size_hamlet",

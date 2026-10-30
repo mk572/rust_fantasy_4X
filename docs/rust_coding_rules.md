@@ -115,7 +115,7 @@ wrong reason.
   a test compiled inside the crate cannot use it: with `f4x-data` as a dev-dependency the test build
   and `f4x-data` hold two copies of core's types (`expected content::Content, found
   f4x_core::content::Content`). The integration tests in `f4x-core/tests/it/` can: Cargo allows the
-  dev-dependency cycle there and `f4x_data::load_content` works (tried, not yet adopted). So a core
+  dev-dependency cycle there and `f4x_data::load_content` works (adopted: `tests/it/shipped_game.rs`; task 430 is about moving more). So a core
   test that needs the real rules goes to `f4x-core/tests/it/` (or `f4x-data/tests/`); a unit test in
   `src/` that stays keeps its hand-built content (`game/testutil.rs`) to the minimum the mechanic
   needs.

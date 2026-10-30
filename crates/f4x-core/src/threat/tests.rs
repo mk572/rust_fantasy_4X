@@ -220,9 +220,9 @@ fn life_lairs_keep_their_guards() {
 }
 
 #[test]
-fn nothing_comes_before_turn_fifty_and_the_clock_starts_again() {
+fn nothing_comes_before_the_first_monster_turn_and_the_clock_starts_again() {
     let mut g = world(0);
-    g.turn = 49;
+    g.turn = MONSTER_FIRST_TURN - 1;
     g.put_lair(at(14, 8), "lair", lair(vec![("skeletons", 2)]));
     g.threat.monster_clock = 1000;
     assert!(g.process_threats().is_empty());

@@ -2638,6 +2638,7 @@ dependencies = [
 name = "f4x-core"
 version = "0.0.3"
 dependencies = [
+ "f4x-data",
  "hecs",
  "rand 0.8.8",
  "rand_pcg",
