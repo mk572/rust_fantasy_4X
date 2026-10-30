@@ -542,29 +542,57 @@ fn a_spell_on_a_unit_stays_through_a_save() {
     assert_eq!(back.snapshot(), g.snapshot());
 }
 
-#[test]
-fn a_save_from_another_game_version_is_refused_by_name() {
-    let text = game().snapshot().to_text().unwrap();
+fn with_game_version(text: &str, version: &str) -> String {
     let old = text.replace(
         &format!("game_version: \"{}\"", crate::game::save::GAME_VERSION),
-        "game_version: \"0.0.1\"",
+        &format!("game_version: \"{version}\""),
     );
     assert_ne!(old, text);
-    let err = Snapshot::from_text(&old).err().unwrap();
+    old
+}
+
+#[test]
+fn a_save_older_than_the_oldest_compatible_version_is_refused_by_name() {
+    use crate::game::save::{GAME_VERSION, OLDEST_COMPATIBLE_VERSION};
+    let text = game().snapshot().to_text().unwrap();
+    let err = Snapshot::from_text(&with_game_version(&text, "0.0.1"))
+        .err()
+        .unwrap();
     assert_eq!(
         err,
         LoadError::GameVersion {
             found: "0.0.1".into(),
-            supported: crate::game::save::GAME_VERSION
+            supported: GAME_VERSION,
+            oldest: OLDEST_COMPATIBLE_VERSION
         }
     );
-    assert_eq!(
-        err.to_string(),
-        format!(
-            "saved by 0.0.1, this is {}",
-            crate::game::save::GAME_VERSION
-        )
-    );
+    assert!(err.to_string().starts_with("saved by 0.0.1"));
+}
+
+#[test]
+fn a_save_from_the_oldest_compatible_version_still_loads() {
+    use crate::game::save::OLDEST_COMPATIBLE_VERSION;
+    let text = game().snapshot().to_text().unwrap();
+    let old = with_game_version(&text, OLDEST_COMPATIBLE_VERSION);
+    assert!(Snapshot::from_text(&old).is_ok());
+}
+
+#[test]
+fn a_save_from_a_newer_or_unreadable_game_version_is_refused() {
+    let text = game().snapshot().to_text().unwrap();
+    for version in ["99.0.0", "", "x.y"] {
+        let err = Snapshot::from_text(&with_game_version(&text, version))
+            .err()
+            .unwrap();
+        assert!(matches!(err, LoadError::GameVersion { .. }), "{version}");
+    }
+}
+
+#[test]
+fn versions_compare_by_number_not_by_text() {
+    use crate::game::save::version_parts;
+    assert!(version_parts("0.0.10") > version_parts("0.0.9"));
+    assert_eq!(version_parts("0.a"), None);
 }
 
 #[test]
@@ -581,7 +609,7 @@ fn a_save_of_another_layout_is_refused_for_its_version_not_its_parse() {
 }
 
 #[test]
-fn a_replay_of_another_game_version_is_refused() {
+fn a_replay_older_than_the_oldest_compatible_version_is_refused() {
     let mut g = game();
     g.start_recording().unwrap();
     let text = g.stop_recording().unwrap().to_text().unwrap();

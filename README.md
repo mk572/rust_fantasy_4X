@@ -1,6 +1,6 @@
 # rust_fantasy_4X
 
-**Version: 0.0.2**
+**Version: 0.0.3**
 
 A fantasy 4X strategy game written in Rust. It starts from a Master of Magic-style design (two planes, wizards and spell-casting, heroes, tactical battles) but is expected to deviate over time. It is a gameplay-inspired reimagining, not a port: no original game IP is committed to this repository: no original art, music, sound or help text, and no original code.
 

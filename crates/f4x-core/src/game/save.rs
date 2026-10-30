@@ -46,6 +46,15 @@ pub const SAVE_VERSION: u32 = 2;
 /// The version of the game itself (the workspace version in `Cargo.toml`), written into every save.
 pub const GAME_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// The oldest game version whose saves and replays this build still reads. Raise it when a change
+/// makes older files unreadable; leave it when they still load.
+pub const OLDEST_COMPATIBLE_VERSION: &str = "0.0.2";
+
+/// `"0.0.3"` as numbers, to compare versions (`"0.0.10"` is newer than `"0.0.9"`).
+fn version_parts(version: &str) -> Option<Vec<u32>> {
+    version.split('.').map(|p| p.parse().ok()).collect()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Snapshot {
     pub version: u32,
@@ -415,10 +424,12 @@ pub enum LoadError {
     Parse(String),
     /// The file was written with a different save layout.
     Version { found: u32, supported: u32 },
-    /// The file was written by a different version of the game.
+    /// The file was written by a game version this one cannot read: older than
+    /// `OLDEST_COMPATIBLE_VERSION`, newer than this game, or unknown.
     GameVersion {
         found: String,
         supported: &'static str,
+        oldest: &'static str,
     },
     /// The save refers to content that is not loaded: `(kind, id)`.
     UnknownId(&'static str, String),
@@ -436,8 +447,15 @@ impl std::fmt::Display for LoadError {
                     "save version {found} is not supported (this game reads version {supported})"
                 )
             }
-            LoadError::GameVersion { found, supported } => {
-                write!(f, "saved by {found}, this is {supported}")
+            LoadError::GameVersion {
+                found,
+                supported,
+                oldest,
+            } => {
+                write!(
+                    f,
+                    "saved by {found}, this is {supported} (it reads saves from {oldest} to {supported})"
+                )
             }
             LoadError::UnknownId(kind, id) => write!(
                 f,
@@ -891,7 +909,8 @@ fn checksum(text: &str) -> u64 {
     })
 }
 
-/// Refuse a save or replay made by another save layout or another version of the game.
+/// Refuse a save or replay of another save layout, or of a game version outside
+/// `OLDEST_COMPATIBLE_VERSION..=GAME_VERSION`.
 fn check_versions(version: u32, game_version: &str) -> Result<(), LoadError> {
     if version != SAVE_VERSION {
         return Err(LoadError::Version {
@@ -899,17 +918,26 @@ fn check_versions(version: u32, game_version: &str) -> Result<(), LoadError> {
             supported: SAVE_VERSION,
         });
     }
-    match game_version {
-        GAME_VERSION => Ok(()),
-        "" => Err(LoadError::GameVersion {
-            found: "an unknown version".into(),
-            supported: GAME_VERSION,
-        }),
-        other => Err(LoadError::GameVersion {
-            found: other.to_string(),
-            supported: GAME_VERSION,
-        }),
+    let refused = |found: &str| LoadError::GameVersion {
+        found: if found.is_empty() {
+            "an unknown version".into()
+        } else {
+            found.to_string()
+        },
+        supported: GAME_VERSION,
+        oldest: OLDEST_COMPATIBLE_VERSION,
+    };
+    let (Some(found), Some(oldest), Some(newest)) = (
+        version_parts(game_version),
+        version_parts(OLDEST_COMPATIBLE_VERSION),
+        version_parts(GAME_VERSION),
+    ) else {
+        return Err(refused(game_version));
+    };
+    if found < oldest || found > newest {
+        return Err(refused(game_version));
     }
+    Ok(())
 }
 
 pub(crate) fn check_snapshot_text(text: &str) -> Result<(), LoadError> {

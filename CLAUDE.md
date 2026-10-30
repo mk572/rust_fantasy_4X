@@ -3,7 +3,7 @@
 A Master of Magic-style 4X game in Rust (see `README.md`; design in `docs/design.md`, tasks in
 `docs/TASKS.md`).
 
-**Version: 0.0.2** (the one number is `[workspace.package] version` in `Cargo.toml`; a test keeps this line,
+**Version: 0.0.3** (the one number is `[workspace.package] version` in `Cargo.toml`; a test keeps this line,
 the README and `docs/ecs-structure.md` equal to it).
 
 

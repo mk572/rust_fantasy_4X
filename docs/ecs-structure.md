@@ -1,6 +1,6 @@
 # How game state is stored (and how that differs from the original)
 
-**Version: 0.0.2** (`Cargo.toml`). The entity rework (tasks 307 to 339 in `TASKS.md`) changes the save format, so saves and replays of another version are refused (task 335).
+**Version: 0.0.3** (`Cargo.toml`). The entity rework (tasks 307 to 339 in `TASKS.md`) changes the save format, so saves and replays of another version are refused (task 335).
 
 The original game keeps its world in fixed-size arrays of packed records and refers to
 things by array index. This project keeps it as entities with components, typed ids into
@@ -351,9 +351,9 @@ nothing refers to it, as the table says, and its `PlayerId` is not reused.
   The map layers (terrain, minerals, roads, rivers, lakes, corruption) and the fog are written as
   before; nodes, lairs, towers and volcanoes are feature entities.
 - A battle in progress is the `battle` field (`battle/save.rs`).
-- **Versions.** The first line of a save is `// f4x save, version 2, game 0.0.2, checksum <hex>`. The
+- **Versions.** The first line of a save is `// f4x save, version 2, game 0.0.3, checksum <hex>`. The
   loader reads the `version` and `game_version` fields before the rest and refuses a file of
-  another layout or game version with a plain message ("saved by 0.0.1, this is 0.0.2"); a replay
+  another layout, or a game version outside `OLDEST_COMPATIBLE_VERSION..=GAME_VERSION` (`save.rs`), with a plain message ("saved by 0.0.1, this is 0.0.3 (it reads saves from 0.0.2 to 0.0.3)"); a replay
   is checked the same way, through the snapshot it starts from.
 - **Checksum.** The checksum is a hash (FNV-1a, 64 bits) of the text after the first line. A save
   whose text no longer matches it, or that has none, still loads; `Snapshot::integrity(text)` says
