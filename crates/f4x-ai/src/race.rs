@@ -1,9 +1,6 @@
 //! What the AI does when another wizard starts casting the Spell of Mastery
-//! (`docs/ai-design.md` section 7): every wizard is told (`Event::MasteryStarted`) and can see how
-//! much mana the caster has left to pay. The AI then weighs the race. If it can finish the
-//! spell first (it knows it, or can research it and then cast it, before the rival is done) it
-//! drops what it was casting and runs for it. Otherwise the rival must be stopped by force: it
-//! declares war on the caster, whatever the treaty, and its armies go for that wizard's cities.
+//! (`docs/ai-design.md` section 7): it races for the spell when it can finish first, and
+//! otherwise declares war on the caster and sends its armies after that wizard's cities.
 
 use f4x_core::diplomacy::{DiplomacyCommand, Treaty};
 use f4x_core::game::{Command, Event, Game};
@@ -139,7 +136,9 @@ mod tests {
     use super::*;
     use crate::testworld::{game, COAST_CITY, P0, P1};
 
-    fn world() -> (Game, SpellId) {
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    fn world() -> Result<(Game, SpellId), Box<dyn std::error::Error>> {
         let mut g = game(COAST_CITY, "high_men");
         g.make_contact(P0, P1);
         let mastery = g
@@ -147,8 +146,8 @@ mod tests {
             .rules
             .spells
             .id_of("spell_of_mastery")
-            .expect("the spell exists");
-        (g, mastery)
+            .ok_or("spell_of_mastery is shipped")?;
+        Ok((g, mastery))
     }
 
     fn casts(g: &mut Game, who: PlayerId, spell: SpellId, left: i32) {
@@ -156,8 +155,8 @@ mod tests {
     }
 
     #[test]
-    fn a_wizard_that_cannot_win_the_race_declares_war_and_aims_at_the_caster() {
-        let (mut g, mastery) = world();
+    fn a_wizard_that_cannot_win_the_race_declares_war_and_aims_at_the_caster() -> TestResult {
+        let (mut g, mastery) = world()?;
         casts(&mut g, P1, mastery, 5000);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
@@ -165,11 +164,12 @@ mod tests {
         assert!(!ai.racing);
         assert_eq!(war_target(&ai), Some(P1));
         assert_eq!(g.treaty(P0, P1), Treaty::War);
+        Ok(())
     }
 
     #[test]
-    fn a_wizard_that_knows_the_spell_races_and_drops_its_other_casting() {
-        let (mut g, mastery) = world();
+    fn a_wizard_that_knows_the_spell_races_and_drops_its_other_casting() -> TestResult {
+        let (mut g, mastery) = world()?;
         let other = g
             .content()
             .rules
@@ -177,15 +177,15 @@ mod tests {
             .iter()
             .map(|(id, _)| id)
             .find(|&id| id != mastery)
-            .unwrap();
+            .ok_or("the content has a second spell")?;
         {
-            let mut w = g.wizard_mut(P0).unwrap();
+            let mut w = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
             let mut spells = w.get_mut::<f4x_core::wizard::sheet::KnownSpells>();
             spells.known.insert(mastery);
             spells.known.insert(other);
             drop(spells);
             w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
-            g.treasury_mut(P0).unwrap().mana = 20_000;
+            g.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana = 20_000;
         }
         casts(&mut g, P0, other, 300);
         casts(&mut g, P1, mastery, 40_000);
@@ -196,19 +196,24 @@ mod tests {
         assert_eq!(war_target(&ai), None);
         assert_ne!(g.treaty(P0, P1), Treaty::War);
         assert!(
-            g.wizard(P0).unwrap().casting().is_none(),
+            g.wizard(P0)
+                .ok_or("player 0 is a wizard")?
+                .casting()
+                .is_none(),
             "the other spell is dropped"
         );
+        Ok(())
     }
 
     #[test]
-    fn nothing_changes_while_nobody_casts_it() {
-        let (mut g, _) = world();
+    fn nothing_changes_while_nobody_casts_it() -> TestResult {
+        let (mut g, _) = world()?;
         let mut ai = Ai::new(P0);
         ai.war_on = Some(P1);
         run(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(war_target(&ai), None);
         assert!(!ai.racing);
+        Ok(())
     }
 
     #[test]
