@@ -749,11 +749,7 @@ fn march_landed(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, game, spawn, COAST_CITY};
-    use f4x_core::player::PlayerId;
-
-    const P0: PlayerId = PlayerId(0);
-    const P1: PlayerId = PlayerId(1);
+    use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
 
     /// West's six swordsmen stand next to one of East's spearmen, away from every city.
     fn field() -> (Game, Vec<hecs::Entity>) {

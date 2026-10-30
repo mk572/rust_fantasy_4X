@@ -191,6 +191,8 @@ mod tests {
     use f4x_core::feature::entity::Placement;
     use f4x_core::feature::lair::Lair;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     fn end_turn(g: &mut Game) {
         // The wizard's soldiers eat: put the citizens on the farms, or they starve at the turn.
         g.balance_farmers(P0);
@@ -222,13 +224,15 @@ mod tests {
                 .any(|e| matches!(e, Event::CityRampaged { pos, .. } if *pos == city)),
             "{events:?}"
         );
-        if let Some(c) = g.economy().city_at(city) {
-            assert_eq!(
-                g.economy().city_owner(c),
-                Some(P0),
-                "monsters never hold a city"
-            );
-        }
+        // The city is wrecked and gone, or still the wizard's: never the monsters'.
+        let owner = g
+            .economy()
+            .city_at(city)
+            .and_then(|c| g.economy().city_owner(c));
+        assert!(
+            owner.is_none() || owner == Some(P0),
+            "monsters never hold a city: {owner:?}"
+        );
     }
 
     #[test]
@@ -245,16 +249,30 @@ mod tests {
         );
         know(&mut g, city);
         end_turn(&mut g);
-        let before = g.units().player_units(P0).len();
         let (events, attacks) = roam(&mut g, &[]);
-        assert!(attacks.is_empty());
+        assert!(attacks.is_empty(), "no human to hand the fight to");
         assert!(
             events.iter().any(|e| matches!(
                 e,
-                Event::CityRampaged { .. } | Event::Battle(_) | Event::UnitsMoved { .. }
-            )) || g.units().player_units(P0).len() != before,
-            "{events:?}"
+                Event::BattleStarted { attacker, defender, site }
+                    if *attacker == MONSTERS && *defender == P0 && *site == city
+            )),
+            "the monsters attack the city: {events:?}"
         );
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                Event::BattleEnded { winner, loser } if *winner == MONSTERS && *loser == P0
+            )),
+            "three drakes beat one spearman: {events:?}"
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, Event::CityRampaged { pos, .. } if *pos == city)),
+            "the winners wreck the city: {events:?}"
+        );
+        assert!(g.units().player_units(P0).is_empty(), "the spearman fell");
     }
 
     #[test]
@@ -277,10 +295,14 @@ mod tests {
     }
 
     #[test]
-    fn monsters_settle_in_a_cleared_node_they_have_seen() {
+    fn monsters_settle_in_a_cleared_node_they_have_seen() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         let node_at = at(5, 9);
-        let feature = g.content().features.id_of("chaos_node").unwrap();
+        let feature = g
+            .content()
+            .features
+            .id_of("chaos_node")
+            .ok_or("chaos_node is shipped")?;
         let site = g.spawn_feature(Placement {
             at: node_at,
             feature,
@@ -306,8 +328,14 @@ mod tests {
                 .any(|e| matches!(e, Event::MonstersSettled { count: 2, .. })),
             "{events:?}"
         );
-        assert!(g.economy().lair_of(site).unwrap().intact);
+        assert!(
+            g.economy()
+                .lair_of(site)
+                .ok_or("the node has a lair")?
+                .intact
+        );
         assert!(g.units().player_units(MONSTERS).is_empty());
+        Ok(())
     }
 
     #[test]
@@ -330,13 +358,12 @@ mod tests {
         let mut g = game(INLAND_CITY, "high_men");
         let city = at(INLAND_CITY.0, INLAND_CITY.1);
         spawn(&mut g, P0, city, "high_men_paladins", 6);
-        let units = spawn(&mut g, MONSTERS, at(9, 9), "zombies", 1);
+        spawn(&mut g, MONSTERS, at(9, 9), "zombies", 1);
         know(&mut g, city);
         end_turn(&mut g);
         let (events, _) = roam(&mut g, &[]);
         assert!(!events
             .iter()
             .any(|e| matches!(e, Event::CityRampaged { .. })));
-        let _ = units;
     }
 }

@@ -298,27 +298,37 @@ mod tests {
     use crate::testworld::{game, COAST_CITY, P0};
     use f4x_core::city::autobuild::Focus;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    /// The capital of player 0.
+    fn capital(g: &Game) -> Result<hecs::Entity, &'static str> {
+        g.economy()
+            .city_at(crate::testworld::at(COAST_CITY.0, COAST_CITY.1))
+            .ok_or("player 0 has a city on the coast")
+    }
+
     #[test]
-    fn a_young_wizard_plans_for_growth_and_the_city_builds_by_the_plan() {
+    fn a_young_wizard_plans_for_growth_and_the_city_builds_by_the_plan() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         cities(&mut ai, &mut g, &mut events);
-        let city = g.economy().city_at(crate::testworld::at(10, 6)).unwrap();
-        let plan = g.autobuild_of(city).expect("the city has a plan").plan;
+        let city = capital(&g)?;
+        let plan = g.autobuild_of(city).ok_or("the city has a plan")?.plan;
         assert_eq!(plan.primary, Focus::Production, "room for more cities");
         assert_eq!(plan.secondary, Some(Focus::Population));
         assert!(plan.settlers && plan.eager_settlers && plan.min_settler_pop == 3);
         // A second look changes nothing and keeps what the city has spent.
-        let again = g.autobuild_of(city).unwrap();
+        let again = g.autobuild_of(city).ok_or("the city has a plan")?;
         cities(&mut ai, &mut g, &mut events);
-        assert_eq!(g.autobuild_of(city).unwrap(), again);
+        assert_eq!(g.autobuild_of(city), Some(again));
         // The city is building something now (the plan took over from housing).
         assert!(g.economy().city_production(city).item.is_some());
+        Ok(())
     }
 
     #[test]
-    fn a_city_that_cannot_feed_settlers_or_has_no_room_plans_without_them() {
+    fn a_city_that_cannot_feed_settlers_or_has_no_room_plans_without_them() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
@@ -331,17 +341,22 @@ mod tests {
             6,
         );
         cities(&mut ai, &mut g, &mut events);
-        let city = g.economy().city_at(crate::testworld::at(10, 6)).unwrap();
-        let plan = g.autobuild_of(city).unwrap().plan;
+        let plan = g
+            .autobuild_of(capital(&g)?)
+            .ok_or("the city has a plan")?
+            .plan;
         assert!(!plan.settlers);
         assert_eq!(plan.primary, Focus::Balanced);
+        Ok(())
     }
 
     #[test]
-    fn a_militarist_that_has_settled_builds_for_offence() {
+    fn a_militarist_that_has_settled_builds_for_offence() -> TestResult {
         use f4x_core::wizard::objective::Objective;
         let mut g = game(COAST_CITY, "high_men");
-        g.wizard_mut(P0).unwrap().put(Some(Objective::Militarist));
+        g.wizard_mut(P0)
+            .ok_or("player 0 is a wizard")?
+            .put(Some(Objective::Militarist));
         // Six cities to come (Militarist wants six): the wizard is done expanding.
         crate::testworld::spawn(
             &mut g,
@@ -351,9 +366,12 @@ mod tests {
             6,
         );
         cities(&mut Ai::new(P0), &mut g, &mut Vec::new());
-        let city = g.economy().city_at(crate::testworld::at(10, 6)).unwrap();
-        let plan = g.autobuild_of(city).unwrap().plan;
+        let plan = g
+            .autobuild_of(capital(&g)?)
+            .ok_or("the city has a plan")?
+            .plan;
         assert_eq!(plan.primary, Focus::Offense);
         assert_eq!(plan.secondary, Some(Focus::Production));
+        Ok(())
     }
 }

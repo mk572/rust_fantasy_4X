@@ -190,3 +190,148 @@ fn choose_site(
         .map(|(_, p)| p)
         .find(|&p| p == from || reachable.contains(&p))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testworld::{at, game, spawn, COAST_CITY, P0};
+
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    /// The west island, explored by its wizard, with `count` settlers standing in the capital.
+    fn island_with_settlers(count: usize) -> (Game, Vec<hecs::Entity>) {
+        let mut g = game(COAST_CITY, "high_men");
+        g.explore(P0, at(7, 6), 8);
+        let units = spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            "high_men_settlers",
+            count,
+        );
+        (g, units)
+    }
+
+    fn cities_of(g: &Game, player: crate::PlayerId) -> Vec<Position> {
+        PlayerView::new(g, player)
+            .my_cities()
+            .into_iter()
+            .map(|(_, pos)| pos)
+            .collect()
+    }
+
+    fn end_turn(g: &mut Game) {
+        // The settlers eat: put the citizens on the farms, or they starve at the turn.
+        g.balance_farmers(P0);
+        g.apply(Command::EndTurn);
+    }
+
+    #[test]
+    fn a_settler_walks_to_a_site_and_founds_a_city_there() -> TestResult {
+        let (mut g, units) = island_with_settlers(1);
+        let mut ai = Ai::new(P0);
+        let mut events = Vec::new();
+        let capital = at(COAST_CITY.0, COAST_CITY.1);
+        for _ in 0..40 {
+            settlers(&mut ai, &mut g, &mut events);
+            if cities_of(&g, P0).len() == 2 {
+                break;
+            }
+            end_turn(&mut g);
+        }
+        let cities = cities_of(&g, P0);
+        assert_eq!(cities.len(), 2, "the settler founded a city: {events:?}");
+        let founded = *cities
+            .iter()
+            .find(|&&c| c != capital)
+            .ok_or("a city besides the capital")?;
+        assert_eq!(founded.plane, capital.plane);
+        assert!(
+            PlayerView::new(&g, P0)
+                .distance(capital, founded)
+                .is_some_and(|d| d >= 2),
+            "{founded:?}"
+        );
+        assert!(
+            g.units().unit_owner(units[0]).is_none(),
+            "the settlers are used up by founding"
+        );
+        assert!(ai.settler_targets.is_empty(), "the target is forgotten");
+        Ok(())
+    }
+
+    #[test]
+    fn two_settlers_choose_sites_that_keep_apart() -> TestResult {
+        let (mut g, _) = island_with_settlers(2);
+        let mut ai = Ai::new(P0);
+        settlers(&mut ai, &mut g, &mut Vec::new());
+        let sites: Vec<Position> = ai.settler_targets.values().copied().collect();
+        assert_eq!(sites.len(), 2, "each settler has a site");
+        let view = PlayerView::new(&g, P0);
+        let apart = distance(&view, sites[0], sites[1]).ok_or("the sites are on one plane")?;
+        assert!(apart >= SPACING, "{sites:?} are {apart} apart");
+        Ok(())
+    }
+
+    #[test]
+    fn a_settler_that_did_not_move_all_turn_gives_its_site_up_and_chooses_another() -> TestResult {
+        let (mut g, units) = island_with_settlers(1);
+        let mut ai = Ai::new(P0);
+        settlers(&mut ai, &mut g, &mut Vec::new());
+        let serial = PlayerView::new(&g, P0).serial_of(units[0]);
+        let first = *ai
+            .settler_targets
+            .get(&serial)
+            .ok_or("the settler chose a site")?;
+        // A whole turn went by without the settler leaving its square: the last look equals now.
+        let here = PlayerView::new(&g, P0)
+            .unit_position(units[0])
+            .ok_or("the settler is on the map")?;
+        ai.settler_last.insert(serial, here);
+        settlers(&mut ai, &mut g, &mut Vec::new());
+        assert!(ai.bad_sites.contains(&first), "{:?}", ai.bad_sites);
+        let second = *ai
+            .settler_targets
+            .get(&serial)
+            .ok_or("the settler chose another site")?;
+        assert_ne!(second, first);
+        Ok(())
+    }
+
+    #[test]
+    fn a_settler_that_finds_no_site_scouts_instead() -> TestResult {
+        // Nothing but the squares round the capital is explored, and they are too near it.
+        let mut g = game(COAST_CITY, "high_men");
+        let units = spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            "high_men_settlers",
+            1,
+        );
+        let mut ai = Ai::new(P0);
+        settlers(&mut ai, &mut g, &mut Vec::new());
+        let view = PlayerView::new(&g, P0);
+        assert!(ai.settler_targets.is_empty());
+        assert!(view.unit_has_order(units[0]), "it walks to unexplored land");
+        Ok(())
+    }
+
+    #[test]
+    fn the_new_city_is_named_from_the_races_list() -> TestResult {
+        let (g, units) = island_with_settlers(1);
+        let view = PlayerView::new(&g, P0);
+        let race = view
+            .content()
+            .rules
+            .races
+            .by_name("high_men")
+            .ok_or("high_men is shipped")?;
+        let used = view.my_cities().len();
+        assert_eq!(
+            city_name(&view, units[0]),
+            race.city_names[used % race.city_names.len()]
+        );
+        Ok(())
+    }
+}

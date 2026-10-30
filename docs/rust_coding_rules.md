@@ -59,6 +59,17 @@ Implement several test layers:
 
 Small tests within rs files themselves.
 
+### Every file has tests
+
+Every `.rs` file with logic has tests (a `#[cfg(test)] mod tests` in it, or a `tests` module beside it for a
+big file). A file may go without only when someone has checked it, decided that tests add nothing, and
+written that down: a line in the file's module doc, `//! Tests: none, because <reason>.` Typical
+reasons: the file only declares modules or re-exports (`mod.rs`, `lib.rs`), only holds data types
+without behaviour, or only draws and needs a window (then the deciding part is moved into a testable
+function, see "UI test"). Code that is covered only by another file's tests is named there:
+`//! Tests: in <file>`. A file with neither tests nor such a line is a gap, to be fixed in the
+change that finds it. `docs/test-review-log.md` lists the files checked.
+
 ### Test on the actual game data and rules
 
 **Always test on the shipped game data and the real rules, never on fixtures.** A test loads the content

@@ -7,6 +7,8 @@
 //! The first version is deliberately simple: it expands, builds, defends and attacks cities it
 //! has found, and is meant to be good enough to play whole games, not to play them well
 //! (tasks 64 to 67 add personalities, spell use and real campaign planning).
+//!
+//! Tests: in the modules (each decision has its own file and tests); `tests/it/` plays whole turns.
 
 mod diplomacy;
 mod economy;
