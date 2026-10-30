@@ -1,4 +1,4 @@
-//! The monsters that roam the map (task 376): the guards a new stack drove out of their lair,
+//! The monsters that roam the map: the guards a new stack drove out of their lair,
 //! and any other unit of the monsters' owner that stands in the open. They have no wizard, so
 //! this is no wizard's AI: they scout, and when they find a stand nobody holds they settle in it
 //! (the game turns the units into its guards when they arrive), and when they find a city they

@@ -243,7 +243,7 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
     let Some(human) = game.human().filter(|&h| h != me) else {
         return;
     };
-    // Nobody makes overtures to a banished human (task 341) or to one who is out of the game.
+    // Nobody makes overtures to a banished human or to one who is out of the game.
     if !game.have_met(me, human)
         || game.player(human).is_none_or(|p| p.is_defeated())
         || game.wizard(human).is_none_or(|w| w.is_banished())

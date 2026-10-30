@@ -2,7 +2,8 @@
 
 Review of every `.rs` file's tests, in alphabetical order by folder and file (`f4x-ai-ref` is skipped:
 it is a generated copy). Checks: fixtures that should be the shipped game data, tests of outdated code,
-slow or wasteful tests (cloning), `unwrap`/`expect`/`panic!` instead of error handling. Rules:
+slow or wasteful tests (cloning), `unwrap`/`expect`/`panic!` instead of error handling, files without tests
+or a `//! Tests:` line, stale or wordy comments (task numbers, history, general project information). Rules:
 `rust_coding_rules.md`, "Testing".
 
 | File | Status | Notes |
@@ -13,3 +14,4 @@ slow or wasteful tests (cloning), `unwrap`/`expect`/`panic!` instead of error ha
 | `crates/f4x-ai/src/lib.rs` | done | Only module declarations and `Ai`; the `#[cfg(test)]` is the `testworld` declaration. Covered by the module tests. Has the `//! Tests:` line the rule "Every file has tests" asks for. |
 | `crates/f4x-ai/src/military.rs` | done | Clean: shipped content, no unwraps. Reuses `P0`/`P1` from `testworld`. |
 | `crates/f4x-ai/src/monster.rs` | done | 2 unwraps replaced; the silent `if let` on the city owner is an assertion; the dead `units` variable is gone; `monsters_that_see_a_defended_city...` was satisfied by any event and now asserts the battle (monsters attack, win), the rampage and the dead defender. |
+| comments, `crates/f4x-ai/src` (files above) | done | Removed task numbers (341, 376) and the stale `lib.rs` paragraph ("first version is deliberately simple", "tasks 64 to 67 add ..."; all four are done). Only task and history wording was searched in these six files; their general wordiness is not yet trimmed. |

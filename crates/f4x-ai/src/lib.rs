@@ -4,9 +4,6 @@
 //! One [`Ai`] plays one wizard. [`Ai::play_turn`] does that wizard's whole turn (research,
 //! spells, city production, settlers, the army) and leaves ending the turn to the caller,
 //! because a turn ends for every wizard at once; [`play_round`] does that for a list of AIs.
-//! The first version is deliberately simple: it expands, builds, defends and attacks cities it
-//! has found, and is meant to be good enough to play whole games, not to play them well
-//! (tasks 64 to 67 add personalities, spell use and real campaign planning).
 //!
 //! Tests: in the modules (each decision has its own file and tests); `tests/it/` plays whole turns.
 

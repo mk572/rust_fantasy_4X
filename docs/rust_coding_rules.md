@@ -59,6 +59,20 @@ Implement several test layers:
 
 Small tests within rs files themselves.
 
+### Comments
+
+Comments are brief and sit where the code cannot say it itself: why something is done, a rule of the
+original game it follows, a trap. Documentation lives in `docs/`, not in the code.
+
+- No task numbers and no history ("added for task 376", "first version", "will be replaced"). The task
+  list and git say what was done and when; a comment that names a task goes stale when it is done.
+- No general project information (what the game, a crate or the AI is for, how it works as a whole).
+  A module doc is one or two lines on what the file holds, and a pointer to the doc if one exists.
+- No comment that restates the next line, and no commented-out code.
+- A comment that no longer matches the code is a bug: fix or delete it in the change that finds it.
+- Test comments follow the same rule: name the situation a test builds only when the test name and the
+  assertions do not already say it.
+
 ### Every file has tests
 
 Every `.rs` file with logic has tests (a `#[cfg(test)] mod tests` in it, or a `tests` module beside it for a
