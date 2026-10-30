@@ -6,6 +6,8 @@
 //! whether mana is short. This module is that table. It holds no handlers: the rules read it
 //! through [`Events`], and what an event does to the world when it happens is done by
 //! `world_event/game.rs`, which draws one each turn and plays it out.
+//!
+//! Tests: in world_event/tests.rs.
 
 pub(crate) mod game;
 

@@ -1,4 +1,6 @@
 //! Hand-built content for unit tests (the shipped files are tested in f4x-data).
+//!
+//! Tests: none, because this is test support.
 
 use crate::content::Content;
 use crate::feature::def::{CityBonus, FeatureDef, FeatureKind, Features, SpawnRule};

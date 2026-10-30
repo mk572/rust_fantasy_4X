@@ -12,6 +12,8 @@
 //! spell), Suppress Magic (a standing strength-500 dispel against enemy overland spells),
 //! Counter Magic (a battlefield reserve, `battle::Battle::counter_magic_stops`) and
 //! nightshade (`city/nightshade.rs`). Spell Blast cancels the spell another wizard is casting.
+//!
+//! Tests: in spell/dispel/tests.rs.
 
 use rand::RngCore;
 

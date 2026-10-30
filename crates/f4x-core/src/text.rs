@@ -2,6 +2,8 @@
 //!
 //! The words live in `content/text/<lang>/*.ron` (one file per screen or domain, see
 //! `docs/text.md`); code only names a key and gives the values to put in.
+//!
+//! Tests: in text/tests.rs.
 
 use std::collections::HashMap;
 use std::fmt;

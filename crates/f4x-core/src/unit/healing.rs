@@ -1,6 +1,8 @@
 //! Healing at the turn change: wounded units mend, slowly in the field, faster in a city, with
 //! healers helping. `healing` works out who mends by how much from the unit and city rules and
 //! the generator; `Game::heal_units` applies it.
+//!
+//! Tests: in unit/healing/tests.rs.
 
 use crate::city::economy::Economy;
 use crate::game::rng::GameRng;

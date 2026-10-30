@@ -1,4 +1,6 @@
 //! Helpers for tests that need features on a map.
+//!
+//! Tests: none, because this is test support.
 
 use hecs::Entity;
 

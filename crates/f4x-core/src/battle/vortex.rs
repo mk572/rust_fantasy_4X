@@ -8,6 +8,8 @@
 //! This follows the original's `Vortex_Combat_Round` and `Vortex_Move_And_Attack`. In the
 //! original the computer's vortices never get the controlled move; here a computer wizard's
 //! don't either (nothing plays it), but a human can.
+//!
+//! Tests: in battle/tests.rs.
 
 use super::attack::unblockable;
 use super::immunity::{AttackNature, Immunities, Realm};

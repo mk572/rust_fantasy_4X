@@ -1,4 +1,6 @@
 //! Players: each one is an entity with a [`PlayerId`] and the components below.
+//!
+//! Tests: none, because it only declares the player components.
 
 pub mod entity;
 pub mod finance;

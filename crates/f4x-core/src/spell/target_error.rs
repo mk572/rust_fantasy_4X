@@ -1,5 +1,7 @@
 //! Why a spell cannot be cast on the target chosen: one reason for each refusal the original's
 //! `MESSAGE.LBX` words, for the map and for the battlefield.
+//!
+//! Tests: none, because it only names the refusal reasons.
 
 /// The reason a target is refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

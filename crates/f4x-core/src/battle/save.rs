@@ -5,6 +5,8 @@
 //!
 //! The battle holds the overland items its fighters carry (`ItemCharge`) by creation number only;
 //! [`Battle::bind_items`] puts the entities back once the world is loaded.
+//!
+//! Tests: in battle/tests.rs.
 
 use serde::{Deserialize, Serialize};
 

@@ -8,6 +8,8 @@
 //! wins takes the hoard and the site is cleared; an encounter site then disappears from the map.
 //!
 //! Differences from the original are listed in `docs/lairs.md`.
+//!
+//! Tests: in feature/lair/tests.rs.
 
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;

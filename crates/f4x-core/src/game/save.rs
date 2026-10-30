@@ -12,6 +12,8 @@
 //! identically: the same commands from a loaded game and from the game that was saved give
 //! the same snapshots. The random stream is resumed from the seed and the number of values
 //! drawn so far.
+//!
+//! Tests: in game/save/tests.rs.
 
 use std::collections::BTreeMap;
 

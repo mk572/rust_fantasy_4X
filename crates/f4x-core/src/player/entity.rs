@@ -1,4 +1,6 @@
 //! The read handle on one player: what its components say, and its wizard when it has one.
+//!
+//! Tests: none, because it only reads components, which every game test goes through.
 
 use crate::player::{
     Control, Defeat, GrandVizier, History, Neutral, PlayerId, Treasury, WizardLink, NEUTRAL_BANNER,

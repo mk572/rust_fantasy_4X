@@ -1,5 +1,7 @@
 //! Typed ids: the number of a definition in a [`super::registry::Registry`] of one definition type
 //! (the original game's number, kept in the content file; there is no other numbering).
+//!
+//! Tests: none, because it only declares the typed id and its trait impls.
 
 use std::marker::PhantomData;
 

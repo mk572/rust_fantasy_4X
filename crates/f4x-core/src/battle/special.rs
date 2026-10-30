@@ -20,6 +20,8 @@
 //! by its own immunity (stoning, death, poison). The penalty is the size of the unit's special
 //! level (`Stat::SpecialLevel`). Not here: power drain (it needs the mana of battle spells), and the extra penalty of
 //! touches that come from an item or spell rather than the unit itself.
+//!
+//! Tests: in battle/tests.rs.
 
 /// A gaze: a ranged attack that makes each of the target's figures resist.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

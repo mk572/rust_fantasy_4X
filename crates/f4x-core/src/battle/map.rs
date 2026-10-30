@@ -7,6 +7,8 @@
 //! one move everywhere and cross everything but those. Ships sail the ocean and rivers (two
 //! half-moves a square) and swimmers take the cheaper of the two ways. The ground comes from
 //! [`layout`], the port of the original's field generator.
+//!
+//! Tests: in battle/map/tests.rs.
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};

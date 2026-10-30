@@ -2,6 +2,8 @@
 //!
 //! All state changes go through [`game::Game::apply`] as [`game::Command`]s, which yield
 //! [`game::Event`]s. The command log plus the seed fully reproduces a game.
+//!
+//! Tests: none, because it only declares modules.
 
 pub mod battle;
 pub mod city;

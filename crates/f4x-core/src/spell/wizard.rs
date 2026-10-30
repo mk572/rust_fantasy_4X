@@ -4,6 +4,8 @@
 //!
 //! Where the original's help and code disagree the code is followed, except Subversion (see
 //! `docs/help-vs-implementation-conflicts.md`, rows B30 to B33).
+//!
+//! Tests: in spell/wizard/tests.rs.
 
 use crate::battle::immunity::{resistance_failure, Realm};
 use crate::game::rng::GameRng;

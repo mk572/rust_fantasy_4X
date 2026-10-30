@@ -19,6 +19,8 @@
 //! A *normal weapon* is any weapon that is not magical. Heroes, fantastic and summoned
 //! creatures and units with a flaming, blessed or similar weapon have magical weapons and
 //! ignore weapon immunity (`Game::unit_has_magical_weapon`).
+//!
+//! Tests: in battle/immunity/tests.rs.
 
 use rand::{Rng, RngCore};
 

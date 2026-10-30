@@ -2,6 +2,8 @@
 //! in three turns by units with Purify, and by Gaia's Blessing.
 //!
 //! A corrupted square gives its city no food, no production bonus and no mineral bonus.
+//!
+//! Tests: in map/corruption/tests.rs.
 
 use crate::game::{Event, Game};
 use crate::map::terrain::TerrainClass;

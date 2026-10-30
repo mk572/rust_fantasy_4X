@@ -18,6 +18,8 @@
 //!   city is gone. The wizard whose fortress it was is banished either way.
 //!
 //! [`Command::RazeCity`]: crate::game::Command::RazeCity
+//!
+//! Tests: in city/conquest/tests.rs.
 
 use crate::city::economy::{Buildings, Economy, Population};
 use crate::city::production::{Production, ProductionItem};

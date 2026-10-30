@@ -1,5 +1,7 @@
 //! Joining battles to the game: building one from overland units, running it through
 //! commands, and writing its results back.
+//!
+//! Tests: in battle/tests.rs.
 
 use crate::game::{Event, Game};
 use crate::map::Position;

@@ -5,6 +5,8 @@
 //! Power; three for Myrran), at most six retorts, and some retorts need books first. A realm
 //! with `n` books lets the wizard choose `n - 1` common spells to start with; with eleven
 //! (all the picks) it knows all ten common spells and chooses two uncommon and one rare.
+//!
+//! Tests: in wizard/tests.rs.
 
 pub(crate) mod ai;
 pub mod astrology;

@@ -2,6 +2,8 @@
 //! ([`IncomeView`]): the power base (cities, fortress, volcanoes, blighted squares, nodes), the research the cities
 //! make, the split of the power, the research income and the mana upkeep. `Game`
 //! gives the view through [`GameIncome`]; tests give a fake one, so none of this needs a world.
+//!
+//! Tests: in wizard/magic_income/tests.rs.
 
 use crate::content::Content;
 use crate::game::Game;

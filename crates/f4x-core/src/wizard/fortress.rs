@@ -5,6 +5,8 @@
 //! circle is where summoned creatures appear; it starts in the fortress city and can be moved
 //! by a spell. When the fortress city is taken the wizard is banished and starts casting the
 //! Spell of Return, which puts the fortress in a city of their choice.
+//!
+//! Tests: in wizard/fortress/tests.rs.
 
 use crate::city::economy::{CityRace, Economy, Population};
 use crate::city::FoundCityError;

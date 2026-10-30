@@ -2,6 +2,8 @@
 //! `Game::legal_battle_casts`). The console's battle queries and the learning environment
 //! (`docs/learning-ai.md` section 4) use the same list; a test checks it against
 //! [`Battle::apply`] for every command that could be written.
+//!
+//! Tests: in battle/tests.rs.
 
 use super::map::{distance, GRID_H, GRID_W};
 use super::{Battle, BattleCommand, RangedKind, Side};

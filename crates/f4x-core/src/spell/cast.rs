@@ -1,4 +1,6 @@
 //! Casting overland spells: targets, the effect host over the ECS, and lasting spells.
+//!
+//! Tests: in rules/exec/tests.rs, wizard/magic_game/tests.rs and spell/wizard/tests.rs.
 
 use rand::RngCore;
 

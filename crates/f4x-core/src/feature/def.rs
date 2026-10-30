@@ -1,5 +1,7 @@
 //! Terrain feature definitions: what a feature is, where it may spawn and what it gives a city
 //! that works its tile. Loading and validation from files lives in `f4x-data`.
+//!
+//! Tests: none, because it only declares the feature definitions; `f4x-data` loads and validates them.
 
 use serde::{Deserialize, Serialize};
 

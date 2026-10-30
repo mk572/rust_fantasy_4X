@@ -1,4 +1,6 @@
 //! The commands: the one way a player (or the AI, or a test) changes the game.
+//!
+//! Tests: none, because it only declares the command types.
 
 use crate::{battle, city, diplomacy, game, item, map, player, rules, spell, unit};
 

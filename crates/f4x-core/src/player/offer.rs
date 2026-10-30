@@ -10,6 +10,8 @@
 //! section 11): the computer wizards meet the merchant too, every wizard's chances use their own fame, the price is tested after the
 //! Charismatic discount, a mercenary company can be of level 2 and the AI's hero test reads as
 //! its comment says.
+//!
+//! Tests: in player/offer/tests.rs.
 
 use serde::{Deserialize, Serialize};
 

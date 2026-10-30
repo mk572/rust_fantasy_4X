@@ -1,4 +1,6 @@
 //! The spell part of the game.
+//!
+//! Tests: none, because it only declares modules.
 
 pub mod cast;
 pub mod city;

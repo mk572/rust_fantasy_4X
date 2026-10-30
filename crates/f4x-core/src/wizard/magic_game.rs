@@ -2,6 +2,8 @@
 //! the fortress, the nodes, the units and city spells that cost mana), the commands, the turn
 //! change, and the glue to the wizard's sheet (`wizard/sheet.rs`), which holds the wizard's components and their rules.
 //! Spell resolution is in `spell/cast.rs`, `spell/dispel.rs` and `spell/city.rs`.
+//!
+//! Tests: in wizard/magic_game/tests.rs.
 
 use crate::game::{Event, Game};
 use crate::player::PlayerId;

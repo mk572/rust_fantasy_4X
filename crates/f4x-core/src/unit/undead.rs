@@ -19,6 +19,8 @@
 //! Channeled"): it fights as a Death creature with the same immunities, cannot be healed and
 //! suffers Holy Word and Dispel Evil as the undead do. It is not a unit made undead for the
 //! upkeep (it keeps its gold and food cost, as in the original) or Holy Arms and Crusade.
+//!
+//! Tests: in turn/tests.rs and spell/wizard/tests.rs.
 
 use crate::game::Game;
 use crate::unit::{Unit, UnitView};

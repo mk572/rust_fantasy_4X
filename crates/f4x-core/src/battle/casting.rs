@@ -5,6 +5,8 @@
 //! skill to spend over the battle. The skill is the most mana (before the range multiplier)
 //! the spells of the whole battle can cost; the mana comes out of the reserve, costing more the
 //! further the battle is from the wizard's fortress (`range_percent`).
+//!
+//! Tests: in battle/tests.rs.
 
 use rand::RngCore;
 

@@ -1,4 +1,6 @@
 //! The features of the map: towers, nodes, lairs and the other places.
+//!
+//! Tests: none, because it only declares modules.
 
 pub mod def;
 pub mod entity;

@@ -2,6 +2,8 @@
 //! wizards' magic, healing). What each step does is in its domain: city growth in
 //! `city/growth.rs`, the treasury in `player/finance.rs`, magic in `wizard/magic_game.rs`, healing in
 //! `unit/healing.rs`.
+//!
+//! Tests: in turn/tests.rs.
 
 use crate::city::economy::{Farmers, Population};
 use crate::game::{Event, Game};

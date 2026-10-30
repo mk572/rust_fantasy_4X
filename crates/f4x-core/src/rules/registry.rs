@@ -127,3 +127,66 @@ impl<T: Def> Registry<T> {
         &self.defs
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testdir::TestResult;
+
+    /// The registry is generic over its definition; a bare row is enough to test the table.
+    struct Row(&'static str, u16);
+
+    impl Def for Row {
+        fn id(&self) -> &str {
+            self.0
+        }
+        fn num(&self) -> u16 {
+            self.1
+        }
+    }
+
+    fn table() -> Registry<Row> {
+        Registry::new(vec![Row("a", 1), Row("b", 4), Row("c", 9)])
+    }
+
+    #[test]
+    fn a_definition_is_found_by_alias_and_by_number() -> TestResult {
+        let t = table();
+        let b = t.id_of("b").ok_or("b is in the table")?;
+        assert_eq!(b.num(), 4);
+        assert_eq!(t.get(b).id(), "b");
+        assert_eq!(t.id_numbered(9).map(|id| t.get(id).id()), Some("c"));
+        assert_eq!(t.by_name("a").map(Def::num), Some(1));
+        Ok(())
+    }
+
+    #[test]
+    fn a_name_or_number_the_table_lacks_is_none() {
+        let t = table();
+        assert!(t.id_of("z").is_none());
+        assert!(t.id_numbered(2).is_none(), "a gap between numbers");
+        assert!(t.id_numbered(500).is_none(), "past the last number");
+    }
+
+    #[test]
+    fn iteration_follows_the_numbers_and_new_sorted_orders_them() {
+        let t = Registry::new_sorted(vec![Row("c", 9), Row("a", 1), Row("b", 4)]);
+        let order: Vec<_> = t.iter().map(|(id, d)| (id.num(), d.id())).collect();
+        assert_eq!(order, [(1, "a"), (4, "b"), (9, "c")]);
+        assert_eq!(t.len(), 3);
+        assert!(!t.is_empty());
+        assert!(Registry::<Row>::default().is_empty());
+    }
+
+    #[test]
+    #[should_panic(expected = "numbers out of order")]
+    fn numbers_out_of_order_are_refused() {
+        Registry::new(vec![Row("b", 4), Row("a", 1)]);
+    }
+
+    #[test]
+    #[should_panic(expected = "id repeated")]
+    fn a_repeated_alias_is_refused_in_tests() {
+        Registry::new(vec![Row("a", 1), Row("a", 2)]);
+    }
+}

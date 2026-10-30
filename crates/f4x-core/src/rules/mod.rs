@@ -1,5 +1,7 @@
 //! The rules framework: definitions, registries, stats and effects.
 //! See `docs/rules-framework.md`.
+//!
+//! Tests: none, because it only declares modules.
 
 pub mod defs;
 pub mod effects;

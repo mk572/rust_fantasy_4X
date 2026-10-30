@@ -1,6 +1,8 @@
 //! The vocabulary abilities, buildings, spells and items use to say what they do.
-//! These are plain data (no scripting); the executor that runs them comes later.
+//! These are plain data (no scripting).
 //! References to other definitions are string ids, checked when content loads.
+//!
+//! Tests: none, because it only declares the effect types; `rules/exec.rs` runs them and has the tests.
 
 use serde::{Deserialize, Serialize};
 

@@ -4,6 +4,8 @@
 //!
 //! The draw picks a kind and a victim and vetoes what cannot happen; what it arms is played out
 //! at once, in the order of the table, together with the lasting events that were already going.
+//!
+//! Tests: in world_event/game/tests.rs.
 
 use crate::city::conquest::city_size_class;
 use crate::city::economy::Population;

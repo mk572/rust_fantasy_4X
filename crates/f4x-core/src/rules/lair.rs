@@ -5,6 +5,8 @@
 //! The defaults are the original's values (ReMoM `Create_Lair`, `Lair_Make_Guardians`,
 //! `Generate_Lairs`; differences in `docs/lairs.md`), and `content/lairs.ron` repeats them; a
 //! test keeps the two equal.
+//!
+//! Tests: in feature/lair/tests.rs.
 
 use serde::{Deserialize, Serialize};
 

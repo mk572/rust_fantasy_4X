@@ -7,6 +7,8 @@
 //! never be channelled again. The changes are permanent temporary effects of the unit
 //! (`spell/temp_effect.rs`), so they are saved and read by every stat; the marker ability
 //! [`MUTATED`] makes the unit a creature of chaos (`UnitView::unit_realm`).
+//!
+//! Tests: in spell/wizard/tests.rs.
 
 use crate::game::rng::GameRng;
 use crate::game::Game;

@@ -1,6 +1,8 @@
 //! Spells that work on the whole world or hit a city from afar: the global enchantments Meteor
 //! Storm, Great Wasting and Armageddon (once a turn, while kept going), Call the Void, and
 //! Nature's Wrath (when another wizard casts a death or chaos spell).
+//!
+//! Tests: in spell/wizard/tests.rs.
 
 use rand::SeedableRng;
 

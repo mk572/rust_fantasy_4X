@@ -1,6 +1,8 @@
 //! All loaded game content: the bundle of the registries and tables the simulation reads. The
 //! tables themselves live with their concepts (`map/terrain.rs`, `feature/def.rs`, `rules/`);
 //! loading and validation from files lives in `f4x-data`.
+//!
+//! Tests: none, because it only bundles the registries; `f4x-data` loads and validates them.
 
 use crate::feature::def::Features;
 use crate::map::terrain::Terrains;

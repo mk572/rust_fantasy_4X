@@ -1,6 +1,8 @@
 //! The game itself: [`Game`] owns the world and every domain's state and turns a [`Command`]
 //! into [`Event`]s. Around it are the parts that keep a game going: setting one up, saving,
 //! replaying and undoing.
+//!
+//! Tests: in game/tests.rs, and in the tests of the modules that add methods to `Game`.
 
 pub(crate) mod access;
 pub mod cheat;

@@ -2,6 +2,8 @@
 //!
 //! Costs are in half-moves. A unit with moves left may always take a step, even when
 //! the step costs more than it has left (it just ends with none).
+//!
+//! Tests: in unit/movement/tests.rs.
 
 use crate::city::economy::Economy;
 use crate::map::terrain::TerrainClass;

@@ -13,6 +13,8 @@
 //!   for the sides that cast them.
 //! - **At the start of each side's turn**: Terror (the caster's enemies must resist or cannot
 //!   act) and Entangle (the caster's enemies that walk and have a body lose a move).
+//!
+//! Tests: in battle/tests.rs.
 
 use rand::{Rng, RngCore};
 

@@ -2,6 +2,8 @@
 //! a creation number and who holds it ([`HeldBy`]). Moving an item changes its `HeldBy`; an item
 //! that nobody holds is despawned. The holders are a hero's three slots, the fortress vault, the
 //! award list, an item being crafted and an item on offer.
+//!
+//! Tests: in item/armory.rs and hero/game.rs.
 
 use hecs::Entity;
 

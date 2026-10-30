@@ -9,6 +9,8 @@
 //! the items come home to the armory; what does not fit is destroyed for mana, the owner's
 //! choice (`Game::item_overflow`). A ship let go with passengers aboard turns neutral and sails
 //! for the nearest free shore (`transport::Marooned`).
+//!
+//! Tests: in player/shortfall/tests.rs.
 
 use crate::content::Content;
 use crate::item::armory::{ItemError, ItemSpot};

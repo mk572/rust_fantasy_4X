@@ -6,6 +6,8 @@
 //! monsters do afterwards is the neutral players' AI (`f4x_ai::play_neutrals`).
 //!
 //! Differences from the original are in `docs/divergences.md`.
+//!
+//! Tests: in threat/tests.rs.
 
 mod monster;
 mod raider;

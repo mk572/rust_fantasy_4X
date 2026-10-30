@@ -9,6 +9,8 @@
 //!
 //! Recording is local play's tool for replays and for saving a game with its history; it does
 //! not make a network protocol (see `PLANNED.md`, the multiplayer item).
+//!
+//! Tests: in game/replay/tests.rs.
 
 use std::cell::RefCell;
 use std::collections::HashMap;

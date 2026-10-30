@@ -13,6 +13,8 @@
 //! ([`Outcome`]: gold moved, a spell learned). `Game` only lends it out for a call
 //! (`with_diplomacy`) and has thin methods for the other modules and the
 //! crates around. Tests of the rules run on a real game.
+//!
+//! Tests: in diplomacy/tests.rs.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;

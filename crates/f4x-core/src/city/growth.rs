@@ -1,6 +1,8 @@
 //! How cities grow, outposts included, and how a city is founded. The sums are plain
 //! functions over the people and the random numbers ([`grow_population`], [`outpost_step`],
 //! [`outpost_shrink_chance`]); the `Game` side reads the city and applies the result.
+//!
+//! Tests: in city/growth/tests.rs.
 
 use crate::city::economy::{Buildings, CityRace, Economy, Farmers, Population};
 use crate::city::production::{Production, ProductionItem};

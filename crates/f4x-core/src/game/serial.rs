@@ -4,6 +4,8 @@
 //! give creation order and changes if a game is saved and reloaded. Every unit and city
 //! carries a `Serial` from a counter in `Game`; all game logic that needs a stable order
 //! sorts by it, and saves record it.
+//!
+//! Tests: in game/save/tests.rs.
 
 use crate::game::Game;
 

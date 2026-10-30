@@ -1,4 +1,6 @@
 //! What the game reports back from a command, and why it can refuse one.
+//!
+//! Tests: none, because it only declares the event types.
 
 use crate::hero::HeroError;
 use crate::{

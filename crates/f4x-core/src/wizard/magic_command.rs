@@ -1,6 +1,8 @@
 //! The magic commands that need no world, as functions: alchemy and giving up the
 //! spell being cast. `Game` finds the wizard and passes what it alone knows (whether the Spell of
 //! Return is cast).
+//!
+//! Tests: in wizard/magic_command/tests.rs.
 
 use crate::player::Treasury;
 use crate::wizard::magic::MagicError;

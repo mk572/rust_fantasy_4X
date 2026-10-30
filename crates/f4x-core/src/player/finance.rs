@@ -3,6 +3,8 @@
 //! ([`Budget::compute`], [`settle`]), so they run in a test without a game; the `Game` side
 //! gathers the figures from the cities and the troops and applies the result. The taxes and
 //! farmers that balance an independent city's books are here too.
+//!
+//! Tests: in player/finance/tests.rs.
 
 use crate::city::economy::{Farmers, Population};
 use crate::game::{Event, Game};

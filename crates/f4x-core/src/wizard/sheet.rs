@@ -6,6 +6,8 @@
 //!
 //! Formulas follow the original game's code (see `docs/magic.md` for the list and for where this
 //! differs).
+//!
+//! Tests: in wizard/sheet/tests.rs.
 
 use std::collections::{BTreeMap, BTreeSet};
 

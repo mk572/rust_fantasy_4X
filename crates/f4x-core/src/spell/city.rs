@@ -10,6 +10,8 @@
 //! - **Cloud of Shadow**, **Wall of Fire**, **Wall of Darkness**, **Flying Fortress**: read when
 //!   a battle starts at the city (`battle/game.rs`).
 //! - **Chaos Rift**: see [`Game::process_chaos_rifts`].
+//!
+//! Tests: in spell/city/tests.rs.
 
 use crate::city::economy::{Buildings, Economy};
 use crate::city::production::ProductionItem;

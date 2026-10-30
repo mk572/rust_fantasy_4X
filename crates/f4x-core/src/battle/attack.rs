@@ -14,6 +14,8 @@
 //! - In a melee exchange the attacker's thrown or breath attack comes first, then a first
 //!   striker's blows, then the defender hits back with the figures it has left, and last the
 //!   attacker's ordinary blows with the figures it has left.
+//!
+//! Tests: in battle/attack/tests.rs.
 
 use rand::{Rng, RngCore};
 

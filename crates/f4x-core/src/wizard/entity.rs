@@ -2,6 +2,8 @@
 //! first city. Each wizard and its player are made together (`Game::add_player`) and point at each
 //! other with [`PlayerLink`] and [`crate::player::WizardLink`]. A player without a wizard (the
 //! monsters' owner, an independent city's player) has no [`WizardLink`](crate::player::WizardLink).
+//!
+//! Tests: in wizard/tests.rs.
 
 use crate::player::{PlayerId, BANNER_CHOICES, PORTRAITS};
 use crate::rules::RaceId;

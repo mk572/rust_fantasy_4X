@@ -10,6 +10,8 @@
 //! Not ported: the landmass ids (nothing here reads them).
 //!
 //! The draws are our own seeded generator, so a seed gives another map than the original's.
+//!
+//! Tests: in map/mapgen/original/tests.rs.
 
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;

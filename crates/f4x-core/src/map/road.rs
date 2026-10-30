@@ -3,6 +3,8 @@
 //! A square takes a number of turns that depends on its terrain (3 on grassland up to 8 on
 //! mountains and swamp, two more for a river's bridge); the stack's total construction strength divides it, with a minimum
 //! of one turn. Roads halve movement; enchanted roads (and every road on Myrror) cost nothing.
+//!
+//! Tests: in map/road/tests.rs.
 
 use crate::game::{Event, Game};
 use crate::map::terrain::TerrainClass;

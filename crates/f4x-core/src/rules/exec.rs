@@ -5,6 +5,8 @@
 //! the primitive changes. The real game implements the host over `hecs`; tests
 //! implement it over a tiny synthetic world. All randomness comes from the RNG
 //! passed in, so a run is reproducible.
+//!
+//! Tests: in rules/exec/tests.rs.
 
 use rand::RngCore;
 

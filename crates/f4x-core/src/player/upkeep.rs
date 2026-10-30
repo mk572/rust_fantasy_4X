@@ -4,6 +4,8 @@
 //! (`magic::upkeep_plan`). A player who would like to choose asks [`Game::upkeep_shortfall`]
 //! before ending the turn, and answers with `Command::ReleaseUpkeep`: what is released goes
 //! at once, so the turn change finds the reserve enough (or drops only what is still short).
+//!
+//! Tests: in wizard/magic_game/tests.rs.
 
 use crate::game::{Event, Game};
 use crate::player::PlayerId;

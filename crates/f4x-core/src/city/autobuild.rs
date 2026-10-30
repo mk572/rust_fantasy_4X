@@ -5,6 +5,8 @@
 //! picks the next from the plan and a snapshot of the city ([`CityFacts`]); the choice is a pure
 //! function of those two and the game's random numbers, so it is tested on fixed cities. The
 //! scripted and learning AI set plans through the same data.
+//!
+//! Tests: in city/autobuild/tests.rs.
 
 use serde::{Deserialize, Serialize};
 
