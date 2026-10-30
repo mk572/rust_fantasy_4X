@@ -130,7 +130,7 @@ impl App {
             self.open_outpost(row.city, false);
         } else {
             self.choosing = production;
-            self.screen = Screen::City(row.city);
+            self.open_city_screen(row.city);
         }
     }
 }

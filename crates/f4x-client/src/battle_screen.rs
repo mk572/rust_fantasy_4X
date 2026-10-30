@@ -11,6 +11,7 @@ use std::collections::{HashMap, VecDeque};
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use f4x_core::battle::ai::next_command;
 use f4x_core::battle::map::{distance, Pos, Wall, GRID_H, GRID_W};
 use f4x_core::battle::{
@@ -430,7 +431,7 @@ impl App {
         self.note(events);
         self.init_battle_ui();
         if self.game.in_battle() {
-            self.screen = Screen::Battle;
+            self.open_battle_screen();
         }
     }
 
@@ -1099,6 +1100,10 @@ impl App {
             .find(|&i| i > start)
             .or_else(|| ids.first().copied());
         self.battle_ui.selected = next;
+    }
+
+    pub(crate) fn open_battle_screen(&mut self) {
+        self.open_page(Screen::Battle, BattlePage);
     }
 
     pub(crate) fn battle_screen(&mut self, input: &Input) {
@@ -2206,6 +2211,15 @@ pub(crate) fn diamond(sx: f32, sy: f32, scale: f32, color: Color, fill: bool) {
         draw_line(right.x, right.y, bottom.x, bottom.y, t, color);
         draw_line(bottom.x, bottom.y, left.x, left.y, t, color);
         draw_line(left.x, left.y, top.x, top.y, t, color);
+    }
+}
+
+/// The battle, over whatever the screen was.
+pub(crate) struct BattlePage;
+
+impl Page for BattlePage {
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        app.battle_screen(input);
     }
 }
 

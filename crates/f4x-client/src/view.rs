@@ -1061,14 +1061,14 @@ impl App {
             self.open_outpost(city, false);
         } else {
             self.city_spell_first = 0;
-            self.screen = Screen::City(city);
+            self.open_city_screen(city);
         }
     }
 
     pub fn open_first_city(&mut self) {
         if let Some((city, ..)) = self.game.economy().cities().first() {
             self.city_spell_first = 0;
-            self.screen = Screen::City(*city);
+            self.open_city_screen(*city);
         }
     }
 
@@ -1415,7 +1415,7 @@ impl App {
                 self.screen,
                 Screen::Battle | Screen::Console | Screen::UnitSheet
             ) {
-                self.screen = Screen::Battle;
+                self.open_battle_screen();
             }
         } else {
             self.battle_ui.ready = false;
@@ -1486,9 +1486,7 @@ impl App {
         match self.screen {
             Screen::GameOver => self.page_frame(input),
             Screen::Console => self.page_frame(input),
-            Screen::City(city) => {
-                self.city_screen(city, input);
-            }
+            Screen::City(_) => self.page_frame(input),
             Screen::Magic => self.page_frame(input),
             Screen::Wizard => self.page_frame(input),
             Screen::UnitSheet => self.page_frame(input),
@@ -1503,7 +1501,7 @@ impl App {
             Screen::Spellbook => self.page_frame(input),
             Screen::Apprentice => self.page_frame(input),
             Screen::Research => self.page_frame(input),
-            Screen::Battle => self.battle_screen(input),
+            Screen::Battle => self.page_frame(input),
             Screen::Create => self.page_frame(input),
             Screen::Options => self.page_frame(input),
             Screen::Cartographer => self.page_frame(input),

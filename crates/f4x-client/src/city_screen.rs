@@ -4,6 +4,7 @@
 use crate::font::Style;
 use crate::frame::Disabled;
 use crate::input::Input;
+use crate::page::Page;
 use crate::ui;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
@@ -51,7 +52,23 @@ impl Layout {
 /// The top left of the first unit in the garrison window.
 const GARRISON: (f32, f32) = (215.0, 102.0);
 
+/// The city screen of one city.
+pub(crate) struct CityPage {
+    pub(crate) city: hecs::Entity,
+}
+
+impl Page for CityPage {
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        app.city_screen(self.city, input);
+    }
+}
+
 impl App {
+    /// Open the screen of `city`.
+    pub(crate) fn open_city_screen(&mut self, city: hecs::Entity) {
+        self.open_page(Screen::City(city), CityPage { city });
+    }
+
     pub(crate) fn city_screen(&mut self, city: hecs::Entity, input: &Input) {
         if self
             .game
