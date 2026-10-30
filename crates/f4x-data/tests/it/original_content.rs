@@ -126,6 +126,13 @@ fn every_building_has_the_originals_cost_upkeep_requirements_and_replacement() {
     let id_of = |record: i32| -> &str { &defs[record as usize - FIRST_BUILDING].id };
     let mut wrong = Vec::new();
     for (def, row) in defs.iter().zip(&rows[FIRST_BUILDING..]) {
+        if i32::from(def.num) != row[0].parse::<i32>().unwrap() {
+            wrong.push(format!(
+                "{}: numbered {}, original {}",
+                def.id, def.num, row[0]
+            ));
+            continue;
+        }
         let num = |n: usize| -> i32 { row[n].parse().unwrap() };
         if plain(&def.name) != plain(row[1]) {
             wrong.push(format!("{}: named {} in the original", def.id, row[1]));
@@ -350,6 +357,13 @@ fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
     let unit_rows = table(include_str!("../original/units.tsv"));
     let mut wrong = Vec::new();
     for (index, (def, row)) in defs.iter().zip(&rows).enumerate() {
+        if i64::from(def.num) != number(row, "index") {
+            wrong.push(format!(
+                "{}: numbered {}, original {}",
+                def.id, def.num, row["index"]
+            ));
+            continue;
+        }
         if plain(&def.name) != plain(&row["name"]) {
             wrong.push(format!("{}: named {} in the original", def.id, row["name"]));
             continue;

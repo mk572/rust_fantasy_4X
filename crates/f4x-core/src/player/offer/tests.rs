@@ -1,44 +1,23 @@
 use super::*;
-use crate::game::testutil::{content_with_economy, unit};
+
 use crate::hero::game::tests::{at, world as hero_world, P0, P1};
 use crate::item::armory::Placed;
-use crate::rules::{Registry, UnitKind};
+use crate::rules::Registry;
 
-/// The hero world with a fortress for both wizards, one human, two races (elves on Arcanus,
-/// trolls on Myrror), three kinds of unit a mercenary company may be and three it may not, a
+/// The hero world with a fortress for both wizards, one human, the game's real races and units, a
 /// prefab item and a plain power for the merchant.
 fn world() -> Game {
     let mut g = hero_world();
-    let races = content_with_economy().rules.races;
-    let mut elf = races.by_name("elf").unwrap().clone();
-    elf.units.clear();
-    let mut troll = elf.clone();
-    troll.id = "troll".into();
-    troll.name = "troll".into();
-    troll.myrror = true;
-    let mut draconian = troll.clone();
-    draconian.id = "draconian".into();
-    draconian.name = "draconian".into();
-    g.content.rules.races = Registry::new(vec![elf, troll, draconian]);
+    // Only the game's real race units are ordinary ones, not the fixture's.
     let mut units = g.content.rules.units.defs().to_vec();
-    // Only the units added below are ordinary race units.
-    units.retain(|u| u.kind != UnitKind::Normal);
-    let mut add = |id: &str, race: &str, cost: u32, abilities: &[&str]| {
-        let mut u = unit(id, crate::rules::MovementType::Walking, 1, abilities);
-        u.kind = UnitKind::Normal;
-        u.race = Some(race.into());
-        u.cost = cost;
-        units.push(u);
-    };
-    add("elf_spear", "elf", 20, &[]);
-    add("troll_spear", "troll", 30, &[]);
-    add("settler", "elf", 30, &["create_outpost"]);
-    add("elf_engineers", "elf", 40, &[]);
-    add("draconian_spear", "draconian", 30, &[]);
-    add("draconian_engineers", "draconian", 40, &[]);
+    units.retain(|u| u.kind != crate::rules::UnitKind::Normal || u.num < 1000);
     g.content.rules.units = Registry::new_sorted(units);
+    g.content.rules.level_paths = Registry::new(
+        ron::from_str(include_str!("../../../../../content/level_paths.ron"))
+            .expect("the game's level paths parse"),
+    );
     // Each wizard has one unit on Arcanus, so Arcanus is the plane they can be offered.
-    let scout = g.content.rules.units.id_of("elf_spear").unwrap();
+    let scout = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     g.spawn_unit(P0, at(2, 3), scout);
     g.spawn_unit(P1, at(8, 3), scout);
     g.set_human(Some(P0));
@@ -129,25 +108,35 @@ fn the_computer_wizards_answer_by_gold_and_turn() {
 fn a_company_is_drawn_from_the_races_of_the_planes_the_wizard_is_on() {
     let g = world();
     let rules = &g.content.rules;
-    let ids = |arcanus, myrror| {
-        let mut v: Vec<_> = mercenary_pool(rules, arcanus, myrror)
+    let ids = |arcanus, myrror| -> Vec<String> {
+        mercenary_pool(rules, arcanus, myrror)
             .iter()
             .map(|u| u.id.clone())
-            .collect();
-        v.sort();
-        v
+            .collect()
     };
     // Never settlers, boats, heroes or summoned creatures. Engineers are offered like any other
     // unit, except the Draconian ones: Draconians fly and need no roads.
-    assert_eq!(
-        ids(true, false),
-        vec!["elf_engineers".to_string(), "elf_spear".to_string()]
+    let arcanus = ids(true, false);
+    assert!(arcanus.contains(&"high_elf_spearmen".to_string()));
+    assert!(
+        arcanus.contains(&"high_elf_pegasai".to_string()),
+        "{arcanus:?}"
     );
-    assert_eq!(
-        ids(false, true),
-        vec!["draconian_spear".to_string(), "troll_spear".to_string()]
-    );
-    assert_eq!(ids(true, true).len(), 4);
+    assert!(arcanus.contains(&"high_men_engineers".to_string()));
+    for out in [
+        "high_elf_settlers",
+        "galley",
+        "war_bears",
+        "troll_war_trolls",
+    ] {
+        assert!(!arcanus.contains(&out.to_string()), "{out}");
+    }
+    let myrror = ids(false, true);
+    assert!(myrror.contains(&"troll_war_trolls".to_string()));
+    assert!(myrror.contains(&"draconian_spearmen".to_string()));
+    assert!(!myrror.contains(&"draconian_engineers".to_string()));
+    assert!(!myrror.contains(&"high_elf_spearmen".to_string()));
+    assert_eq!(ids(true, true).len(), arcanus.len() + myrror.len());
     assert!(ids(false, false).is_empty());
 }
 
@@ -183,9 +172,11 @@ fn mercenaries_come_after_turn_30_to_a_wizard_who_can_pay_and_arrive_with_their_
     else {
         unreachable!()
     };
-    // Only the elves' units: the wizard is on Arcanus only.
+    // Only the units of the Arcanus races: the wizard is on Arcanus only.
     assert!(
-        ["elf_spear", "elf_engineers"].contains(&unit.as_str()),
+        mercenary_pool(&g.content.rules, true, false)
+            .iter()
+            .any(|u| u.id == unit),
         "{unit}"
     );
     assert!((1..=3).contains(&count) && (1..=3).contains(&level));
@@ -207,8 +198,7 @@ fn mercenaries_come_after_turn_30_to_a_wizard_who_can_pay_and_arrive_with_their_
             g.content.rules.units.id_of(&unit).unwrap(),
             xp
         ),
-        // The test unit's path has two levels only.
-        usize::from(level).min(1)
+        usize::from(level)
     );
     // The offer is used up.
     assert_eq!(g.accept_offer(P0, i, None), Err(OfferError::NoOffer));

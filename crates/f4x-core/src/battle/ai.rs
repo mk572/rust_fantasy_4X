@@ -416,7 +416,7 @@ mod tests {
 
     #[test]
     fn a_walker_expects_nothing_from_a_flier_in_melee_unless_the_setting_allows_it() {
-        let walker = BattleUnit::simple(Side::Attacker, "walker", 4, 2, 6, 1);
+        let walker = BattleUnit::simple(Side::Attacker, "high_men_cavalry", 4, 2, 6, 1);
         let mut bat = BattleUnit::simple(Side::Defender, "bat", 4, 2, 6, 1);
         bat.flies = true;
         let expect = |rule| expected_damage(&walker, &bat, false, rule);

@@ -16,6 +16,10 @@ macro_rules! impl_def {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RaceDef {
+    /// The original's race number, the id the game passes around (and the row of the
+    /// racial unrest matrix).
+    pub num: u16,
+    /// The alias for human editing.
     pub id: String,
     pub name: String,
     /// The name for more than one ("Barbarians"); empty uses the name.
@@ -295,6 +299,9 @@ pub struct AbilityDef {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BuildingDef {
+    /// The original's building number, the id the game passes around.
+    pub num: u16,
+    /// The alias for human editing.
     pub id: String,
     pub name: String,
     pub cost: u32,
@@ -610,7 +617,7 @@ pub struct RulesConfig {
     /// Unrest percent caused by each tax rate; the rate is also half the gold per citizen.
     pub tax_unrest_percent: Vec<u8>,
     /// Unrest (in tens of percent) in a city of one race under a capital of another:
-    /// `racial_unrest[capital race][city race]`, indexed in race file order. Empty means none.
+    /// `racial_unrest[capital race][city race]`, indexed by race number. Empty means none.
     pub racial_unrest: Vec<Vec<i8>>,
     /// Building ids in the order the Grand Vizier picks them (our own list).
     pub autobuild_order: Vec<String>,
@@ -631,9 +638,7 @@ impl Default for RulesConfig {
 }
 
 impl_def!(
-    RaceDef,
     AbilityDef,
-    BuildingDef,
     RealmDef,
     ItemDef,
     ItemPowerDef,
@@ -642,6 +647,26 @@ impl_def!(
 );
 
 impl Def for UnitDef {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn num(&self) -> Option<u16> {
+        Some(self.num)
+    }
+}
+
+impl Def for RaceDef {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn num(&self) -> Option<u16> {
+        Some(self.num)
+    }
+}
+
+impl Def for BuildingDef {
     fn id(&self) -> &str {
         &self.id
     }

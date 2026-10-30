@@ -29,7 +29,7 @@ fn world() -> Game {
         g.init_wizard(id, &[("life", 2)], &[], None).unwrap();
     }
     g.set_human(Some(P0));
-    let race = g.content.rules.races.id_of("elf");
+    let race = g.content.rules.races.id_of("high_elf");
     for (p, pos) in [(P0, at(5, 5)), (P1, at(18, 9))] {
         g.place_fortress(p, pos, "Capital".into(), race, 4).unwrap();
     }
@@ -72,7 +72,7 @@ fn play(g: &mut Game, a: Armed) -> Vec<EventNotice> {
 }
 
 fn spear(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
-    let id = g.content.rules.units.id_of("spear").unwrap();
+    let id = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     g.spawn_unit(owner, pos, id)
 }
 
@@ -152,7 +152,7 @@ fn a_rebellion_spares_the_fortress_city_and_cities_with_a_hero() {
 fn a_marriage_gives_a_neutral_city_and_its_units_to_the_wizard() {
     let mut g = world();
     let owner = g.new_city_player();
-    let race = g.content.rules.races.id_of("elf");
+    let race = g.content.rules.races.id_of("high_elf");
     g.apply(Command::FoundCity {
         owner,
         pos: at(14, 2),

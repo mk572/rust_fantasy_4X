@@ -692,7 +692,7 @@ impl App {
             .city_buildings(city)
             .into_iter()
             .chain(self.game.economy().sold_building(city))
-            .map(|id| (3 + id.num() as usize as i16, rules.buildings.get(id).shape))
+            .map(|id| (id.num() as i16, rules.buildings.get(id).shape))
             .collect();
         let enchanted = |name: &str| {
             self.game
@@ -806,7 +806,7 @@ impl App {
         }
         let fades = |idx: i16| {
             fading
-                .filter(|&(b, _)| 3 + b.num() as usize as i16 == idx)
+                .filter(|&(b, _)| b.num() as i16 == idx)
                 .map(|(_, percent)| percent)
         };
         let flying_fortress = enchanted("flying_fortress");
@@ -907,7 +907,7 @@ impl App {
         let sold = self.game.economy().sold_building(city);
         let rubble_of = sold.map(|b| {
             (
-                3 + b.num() as usize as i16,
+                b.num() as i16,
                 self.game.content().rules.buildings.get(b).shape,
             )
         });
@@ -1443,8 +1443,7 @@ impl App {
                 let entry = if self.game.content().rules.buildings.get(id).id == "city_walls" {
                     Some(114)
                 } else {
-                    crate::cityscape::sprite_of(id.num() as usize as i16 + 3)
-                        .map(|(entry, _)| entry)
+                    crate::cityscape::sprite_of(id.num() as i16).map(|(entry, _)| entry)
                 };
                 if let Some(entry) = entry {
                     self.draw_centred_building(lay, entry);

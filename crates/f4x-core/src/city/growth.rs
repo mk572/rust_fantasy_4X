@@ -96,6 +96,11 @@ impl Game {
             .unwrap_or_default();
         let grown = grow_population(pop, delta_tens, self.content.rules.config.max_city_size);
         let _ = self.world.insert_one(city, grown);
+        // A city that starved down cannot keep more farmers than it has people.
+        let farmers = self.world.get::<&Farmers>(city).map_or(0, |f| f.0);
+        if farmers > grown.figures {
+            let _ = self.world.insert_one(city, Farmers(grown.figures));
+        }
         (pop.figures, grown.figures)
     }
 

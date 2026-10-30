@@ -1,12 +1,12 @@
 use super::*;
 use crate::battle::{BattleCommand, Side};
 use crate::feature::place::Placed;
-use crate::game::testutil::{content_with_magic, unit};
+use crate::game::testutil::content_with_magic;
 use crate::map::{Grid, Plane};
 use crate::player::PlayerId;
 
 use crate::game::Command;
-use crate::rules::{MovementType, Registry, UnitDef};
+use crate::rules::Registry;
 
 const P0: PlayerId = PlayerId(0);
 
@@ -18,33 +18,9 @@ fn at(x: u32, y: u32) -> Position {
     }
 }
 
-fn summoned(id: &str, realm: &str, cost: u32) -> UnitDef {
-    let mut u = unit(id, MovementType::Walking, 2, &[]);
-    u.kind = UnitKind::Summoned;
-    u.realm = Some(realm.into());
-    u.cost = cost;
-    u
-}
-
-/// Magic test content plus guards of death and chaos, and a weak one to beat.
+/// Magic test content: the game's real units, so the guards are the real creatures.
 fn content() -> Content {
-    let mut c = content_with_magic();
-    let mut units = c.rules.units.defs().to_vec();
-    units.extend([
-        summoned("skeletons", "death", 25),
-        summoned("ghouls", "death", 80),
-        summoned("wraiths", "death", 500),
-        summoned("hell_hounds", "chaos", 40),
-        summoned("great_drake", "chaos", 900),
-        summoned("nature_guard", "nature", 70),
-        summoned("angel", "life", 550),
-        summoned("djinn", "sorcery", 650),
-    ]);
-    let mut ship = summoned("floating_island", "death", 9999);
-    ship.stats.insert(Stat::Transport, 8);
-    units.push(ship);
-    c.rules.units = Registry::new_sorted(units);
-    c
+    content_with_magic()
 }
 
 fn world(seed: u64) -> Game {
@@ -110,10 +86,21 @@ fn only_summoned_non_transport_units_of_the_realm_can_guard() {
         .collect();
     assert_eq!(
         death,
-        ["skeletons", "ghouls", "wraiths"],
-        "no ship, no other realm"
+        [
+            "skeletons",
+            "ghouls",
+            "night_stalker",
+            "werewolves",
+            "demon",
+            "wraiths",
+            "shadow_demons",
+            "death_knights",
+            "demon_lord",
+            "zombies"
+        ],
+        "every summoned creature of death, in the original's order, no ship and no other realm"
     );
-    assert!(candidates(&c, "arcane").is_empty());
+    assert!(candidates(&c, "no_such_realm").is_empty());
 }
 
 #[test]
@@ -283,7 +270,7 @@ fn hoards_follow_the_original_rules() {
 fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() {
     let mut g = world(2);
     let site = put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 3)]);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     let events = g.apply(Command::MoveStack {
         units: vec![w],
@@ -306,7 +293,7 @@ fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() {
 fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() {
     let mut g = world(3);
     let site = put_lair(&mut g, 5, 5, "lair", vec![]);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     let events = g.apply(Command::MoveStack {
         units: vec![w],
@@ -418,7 +405,7 @@ fn fight_to_the_end(g: &mut Game) {
                 let b = g.battle().unwrap();
                 b.reachable(id)
                     .into_iter()
-                    .min_by_key(|(p, _)| distance(*p, cell))
+                    .min_by_key(|(p, _)| (distance(*p, cell), *p))
                     .map(|(p, _)| p)
             };
             if let Some(to) = step {
@@ -450,7 +437,7 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
                 u.stats.insert(Stat::MaxHp, 1);
                 u.stats.insert(Stat::Figures, 1);
             }
-            "walker" => {
+            "high_men_cavalry" => {
                 u.stats.insert(Stat::Melee, 10);
                 u.stats.insert(Stat::Defense, 10);
             }
@@ -458,7 +445,7 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() {
         }
     }
     g.content.rules.units = Registry::new_sorted(units);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     let events = g.apply(Command::EnterSite {
         units: vec![w],
@@ -495,7 +482,7 @@ fn the_building_of_a_site_stands_in_the_middle_of_the_battlefield() {
     use crate::battle::map::layout::Structure;
     let mut g = world(5);
     put_lair(&mut g, 5, 5, "tower", vec![("skeletons", 1)]);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
         units: vec![w],
@@ -512,7 +499,7 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() {
     use crate::battle::Status;
     let mut g = world(5);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2)]);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
         units: vec![w],
@@ -577,7 +564,7 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() {
     g.content.rules.units = Registry::new_sorted(units);
     let zm = g.content.rules.spells.id_of("zombie_mastery").unwrap();
     g.add_global(P0, zm);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
         units: vec![w],
@@ -613,7 +600,7 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
     use crate::battle::Status;
     let mut g = world(5);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 1)]);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let (w, bystander) = (
         g.spawn_unit(P0, at(4, 5), walker),
         g.spawn_unit(P0, at(4, 5), walker),
@@ -659,7 +646,7 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() {
 fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() {
     let mut g = world(6);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 3)]);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
         units: vec![w],
@@ -682,7 +669,7 @@ fn only_a_guarded_site_next_to_the_stack_can_be_entered() {
     let mut g = world(7);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 1)]);
     put_lair(&mut g, 9, 9, "lair", vec![]);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let w = g.spawn_unit(P0, at(2, 2), walker);
     let reject = |g: &mut Game, to| g.apply(Command::EnterSite { units: vec![w], to });
     assert_eq!(
@@ -727,7 +714,7 @@ fn lairs_survive_a_save() {
 #[test]
 fn clearing_a_site_takes_its_treasure_once() {
     let mut g = world(10);
-    let site = put_lair(&mut g, 5, 5, "lair", vec![("walker", 1)]);
+    let site = put_lair(&mut g, 5, 5, "lair", vec![("high_men_cavalry", 1)]);
     let cleared = g.clear_site(site).expect("an intact lair");
     assert_eq!(
         (cleared.gold, cleared.mana, cleared.items),
@@ -958,7 +945,7 @@ fn rerolled_value_never_exceeds_the_value() {
 fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() {
     let mut g = world(6);
     put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 3)]);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     assert_eq!(g.economy().lair_guards_known_to(at(5, 5), P0), None);
     g.apply(Command::EnterSite {
@@ -1033,14 +1020,14 @@ fn lair_checksum() -> u64 {
 
 #[test]
 fn generated_lairs_for_a_seed_stay_the_same() {
-    assert_eq!(lair_checksum(), 6_659_293_770_976_314_851);
+    assert_eq!(lair_checksum(), 5_616_198_016_045_802_196);
 }
 
 #[test]
 fn a_game_saved_in_a_lair_fight_goes_on_to_clear_the_site() {
     let mut g = world(5);
     let site = put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2)]);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
         units: vec![w],

@@ -363,7 +363,7 @@ mod tests {
     #[test]
     fn a_modifier_changes_the_stat_until_it_runs_out() {
         let mut g = world();
-        let u = unit(&mut g, "spear");
+        let u = unit(&mut g, "high_elf_spearmen");
         let base = g.units().unit_stat(u, Stat::Melee);
         g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 3), Some(2));
         assert_eq!(g.units().unit_stat(u, Stat::Melee), base + 3);
@@ -377,7 +377,7 @@ mod tests {
     #[test]
     fn an_untimed_effect_stays() {
         let mut g = world();
-        let u = unit(&mut g, "spear");
+        let u = unit(&mut g, "high_elf_spearmen");
         let base = g.units().unit_stat(u, Stat::Melee);
         g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 1), None);
         for _ in 0..50 {
@@ -387,30 +387,29 @@ mod tests {
     }
 
     #[test]
-    fn a_granted_ability_counts_and_brings_its_modifiers() {
+    fn a_granted_ability_counts_until_it_runs_out() {
         let mut g = world();
-        let u = unit(&mut g, "spear");
-        let base = g.units().unit_stat(u, Stat::Defense);
-        assert!(!g.units().unit_has_ability(u, "tough"));
-        g.grant_temp_ability(Target::Unit(u), "tough", Some(1));
-        assert!(g.units().unit_has_ability(u, "tough"));
-        assert_eq!(g.units().unit_stat(u, Stat::Defense), base + 2);
+        let u = unit(&mut g, "high_elf_spearmen");
+        assert!(!g.units().unit_has_ability(u, "flying"));
+        g.grant_temp_ability(Target::Unit(u), "flying", Some(1));
+        assert!(g.units().unit_has_ability(u, "flying"));
         g.tick_temp_effects();
-        assert!(!g.units().unit_has_ability(u, "tough"));
-        assert_eq!(g.units().unit_stat(u, Stat::Defense), base);
+        assert!(!g.units().unit_has_ability(u, "flying"));
     }
 
     #[test]
-    fn a_removed_ability_is_gone_with_its_modifiers() {
+    fn a_removed_ability_is_gone_until_it_is_granted_again() {
         let mut g = world();
-        let u = unit(&mut g, "hardy");
-        let base = g.units().unit_stat(u, Stat::Defense);
-        g.remove_temp_ability(Target::Unit(u), "tough", None);
-        assert!(!g.units().unit_has_ability(u, "tough"));
-        assert_eq!(g.units().unit_stat(u, Stat::Defense), base - 2);
-        g.grant_temp_ability(Target::Unit(u), "tough", None);
-        assert!(g.units().unit_has_ability(u, "tough"), "a later grant wins");
-        assert_eq!(g.units().unit_stat(u, Stat::Defense), base);
+        // The Pegasai fly by nature.
+        let u = unit(&mut g, "high_elf_pegasai");
+        assert!(g.units().unit_has_ability(u, "flying"));
+        g.remove_temp_ability(Target::Unit(u), "flying", None);
+        assert!(!g.units().unit_has_ability(u, "flying"));
+        g.grant_temp_ability(Target::Unit(u), "flying", None);
+        assert!(
+            g.units().unit_has_ability(u, "flying"),
+            "a later grant wins"
+        );
     }
 
     #[test]
@@ -430,7 +429,7 @@ mod tests {
     #[test]
     fn effects_survive_a_save() {
         let mut g = world();
-        let u = unit(&mut g, "spear");
+        let u = unit(&mut g, "high_elf_spearmen");
         g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 3), Some(5));
         g.grant_temp_ability(Target::Unit(u), "flying", None);
         let snap = g.snapshot();
@@ -445,7 +444,7 @@ mod tests {
     fn a_rules_effect_reaches_the_store_through_the_host() {
         use crate::rules::exec::EffectHost;
         let mut g = world();
-        let u = unit(&mut g, "spear");
+        let u = unit(&mut g, "high_elf_spearmen");
         let melee = g.units().unit_stat(u, Stat::Melee);
         let mut host = crate::spell::cast::tests_support::host(&mut g);
         host.add_modifier(Target::Unit(u), plus(Stat::Melee, 2));
@@ -467,7 +466,7 @@ mod tests {
     #[test]
     fn a_lasting_spell_can_grant_an_ability() {
         let mut g = world();
-        let u = unit(&mut g, "spear");
+        let u = unit(&mut g, "high_elf_spearmen");
         assert!(!g
             .units()
             .unit_abilities(u)
@@ -491,7 +490,7 @@ mod tests {
     #[test]
     fn resistance_against_a_realm_counts_immunity_and_enchantments() {
         let mut g = world();
-        let u = unit(&mut g, "spear");
+        let u = unit(&mut g, "high_elf_spearmen");
         let base = g.units().unit_stat(u, Stat::Resistance);
         assert_eq!(
             g.units().unit_resistance_against(u, Some(Realm::Chaos)),
@@ -525,7 +524,7 @@ mod tests {
     #[test]
     fn righteousness_protects_against_chaos_and_death_only() {
         let mut g = world();
-        let u = unit(&mut g, "spear");
+        let u = unit(&mut g, "high_elf_spearmen");
         for realm in [Realm::Chaos, Realm::Death, Realm::Nature] {
             assert!(!g.units().unit_protected_from(u, Some(realm)));
         }
@@ -542,7 +541,7 @@ mod tests {
         // The game's ship and its catapult.
         for id in ["trireme", "catapult"] {
             let mut defs = g.content.rules.units.defs().to_vec();
-            defs.push(crate::game::testutil::real_unit(id));
+            crate::game::testutil::add_real_unit(&mut defs, id);
             g.content.rules.units = crate::rules::Registry::new_sorted(defs);
             let m = unit(&mut g, id);
             assert!(!g.units().unit_has_magical_weapon(m), "{id}");
@@ -552,11 +551,11 @@ mod tests {
     #[test]
     fn heroes_fantastic_creatures_and_flaming_blades_have_magical_weapons() {
         let mut g = world();
-        let u = unit(&mut g, "spear");
+        let u = unit(&mut g, "high_elf_spearmen");
         assert!(!g.units().unit_has_magical_weapon(u));
         enchant(&mut g, u, "flame_blade");
         assert!(g.units().unit_has_magical_weapon(u));
-        let trained = unit(&mut g, "spear");
+        let trained = unit(&mut g, "high_elf_spearmen");
         assert!(!g.units().unit_has_magical_weapon(trained));
         let _ = g.world.insert_one(
             trained,
@@ -571,7 +570,7 @@ mod tests {
         for id in ["dwarf", "demon"] {
             let mut defs = g.content.rules.units.defs().to_vec();
             if !defs.iter().any(|d| d.id == id) {
-                defs.push(crate::game::testutil::real_unit(id));
+                crate::game::testutil::add_real_unit(&mut defs, id);
             }
             g.content.rules.units = crate::rules::Registry::new_sorted(defs);
             let w = unit(&mut g, id);

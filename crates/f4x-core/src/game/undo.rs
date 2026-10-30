@@ -171,7 +171,7 @@ mod tests {
         g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
         g.fog = crate::map::fog::Fog::new(20, 10);
         g.add_player(P0, "W");
-        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
         let u = g.spawn_unit(P0, at(5, 5), walker);
         // Everything is known already, so moving shows nothing new.
         g.fog.explore(P0, at(10, 5), 25, false);
@@ -318,7 +318,7 @@ mod tests {
         };
         g.apply(Command::Meld { units: vec![guard] });
         assert!(g.can_undo());
-        let rival = spirit(&mut g, PlayerId(1), at(6, 6), "spirit");
+        let rival = spirit(&mut g, PlayerId(1), at(6, 6), "magic_spirit");
         g.apply(Command::Meld { units: vec![rival] });
         assert!(!g.can_undo(), "the dice were thrown");
     }

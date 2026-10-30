@@ -1,11 +1,11 @@
 use super::*;
 use crate::feature::def::{FeatureDef, FeatureKind, Features};
 use crate::feature::lair::Lair;
-use crate::game::testutil::{content_with_magic, unit};
+use crate::game::testutil::content_with_magic;
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::player::{PlayerId, MONSTERS};
-use crate::rules::{MovementType, Registry, Stat, UnitKind};
+use crate::rules::Stat;
 
 const P0: PlayerId = PlayerId(0);
 const TOWN: PlayerId = PlayerId(100);
@@ -20,23 +20,6 @@ fn at(x: u32, y: u32) -> Position {
 
 fn content() -> crate::content::Content {
     let mut c = content_with_magic();
-    let mut units = c.rules.units.defs().to_vec();
-    let mut spear = unit("spearmen", MovementType::Walking, 1, &[]);
-    spear.kind = UnitKind::Normal;
-    spear.upkeep.gold = 1;
-    units.push(spear);
-    for (id, realm, cost) in [
-        ("skeletons", "death", 25),
-        ("ghouls", "death", 80),
-        ("angel", "life", 550),
-    ] {
-        let mut u = unit(id, MovementType::Walking, 2, &[]);
-        u.kind = UnitKind::Summoned;
-        u.realm = Some(realm.into());
-        u.cost = cost;
-        units.push(u);
-    }
-    c.rules.units = Registry::new_sorted(units);
     let mut features = c.features.defs().to_vec();
     features.push(FeatureDef {
         id: "ruins".into(),
@@ -67,7 +50,7 @@ fn world(troops: usize) -> Game {
     g.spawn_city(P0, at(10, 4), "Capital".into(), None, 5);
     g.add_neutral_player(TOWN);
     g.spawn_city(TOWN, at(4, 4), "Free Town".into(), None, 5);
-    let spear = g.content.rules.units.id_of("spearmen").unwrap();
+    let spear = g.content.rules.units.id_of("high_men_spearmen").unwrap();
     for _ in 0..troops {
         g.spawn_unit(TOWN, at(4, 4), spear);
     }
@@ -192,10 +175,10 @@ fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() {
     assert_eq!(evicted, 2);
     let lair = g.economy().lair_of(site).unwrap();
     assert_eq!(lair.guards.iter().map(|(_, n)| n).sum::<u32>(), count);
-    assert!(lair
-        .guards
-        .iter()
-        .all(|(id, _)| id == "skeletons" || id == "ghouls"));
+    assert!(lair.guards.iter().all(|(id, _)| {
+        let def = g.content.rules.units.by_name(id).unwrap();
+        def.kind == crate::rules::UnitKind::Summoned && def.realm.as_deref() == Some("death")
+    }));
     assert!(lair.fought_by.is_empty(), "nobody knows the new guards");
     let roaming = g.units().player_units(MONSTERS);
     assert_eq!(roaming.len(), 2);
@@ -393,12 +376,12 @@ fn monsters_that_beat_the_defenders_in_a_battle_rampage_through_the_city() {
     for seed in 0..12 {
         let mut g = world(0);
         g.rng = crate::game::rng::GameRng::new(seed);
-        let spear = g.content.rules.units.id_of("spearmen").unwrap();
-        let ghoul = g.content.rules.units.id_of("ghouls").unwrap();
+        let spear = g.content.rules.units.id_of("high_men_spearmen").unwrap();
+        let skeleton = g.content.rules.units.id_of("skeletons").unwrap();
         g.spawn_city(P0, at(16, 9), "Colony".into(), None, 6);
         let defenders = vec![g.spawn_unit(P0, at(16, 9), spear)];
         let monsters: Vec<_> = (0..9)
-            .map(|_| g.spawn_unit(MONSTERS, at(16, 8), ghoul))
+            .map(|_| g.spawn_unit(MONSTERS, at(16, 8), skeleton))
             .collect();
         let events = g.apply(Command::AutoResolve {
             mana_budget: None,
@@ -416,7 +399,7 @@ fn monsters_that_beat_the_defenders_in_a_battle_rampage_through_the_city() {
             }
         }
     }
-    assert!(rampaged > 6, "nine ghouls beat one spearman: {rampaged}");
+    assert!(rampaged > 6, "nine skeletons beat one spearman: {rampaged}");
 }
 
 #[test]

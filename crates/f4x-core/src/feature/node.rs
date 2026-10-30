@@ -291,13 +291,13 @@ pub(crate) mod tests {
         let mut c = content_with_magic();
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
-            if u.id == "spirit" {
+            if u.id == "magic_spirit" {
                 u.abilities.push("meld".into());
                 u.kind = UnitKind::Summoned;
                 u.realm = Some("arcane".into());
             }
         }
-        units.push(crate::game::testutil::real_unit("guardian_spirit"));
+        crate::game::testutil::add_real_unit(&mut units, "guardian_spirit");
         c.rules.units = Registry::new_sorted(units);
         let grass = c.terrains.id_of("grassland").unwrap();
         let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
@@ -380,7 +380,7 @@ pub(crate) mod tests {
     #[test]
     fn melding_a_spirit_takes_the_node_and_uses_the_spirit_up() {
         let mut g = world();
-        let s = spirit(&mut g, P0, at(6, 6), "spirit");
+        let s = spirit(&mut g, P0, at(6, 6), "magic_spirit");
         let events = g.apply(Command::Meld { units: vec![s] });
         assert!(
             events.iter().any(|e| matches!(e, Event::NodeMelded { .. })),
@@ -397,12 +397,12 @@ pub(crate) mod tests {
     #[test]
     fn only_spirits_on_a_node_can_meld() {
         let mut g = world();
-        let off = spirit(&mut g, P0, at(10, 6), "spirit");
+        let off = spirit(&mut g, P0, at(10, 6), "magic_spirit");
         assert_eq!(g.meld(&[off]), Err(MeldError::NoNode));
-        let walker = spirit(&mut g, P0, at(6, 6), "walker");
+        let walker = spirit(&mut g, P0, at(6, 6), "high_men_cavalry");
         assert_eq!(g.meld(&[walker]), Err(MeldError::NoMelder));
         assert_eq!(g.meld(&[]), Err(MeldError::BadSelection));
-        let theirs = spirit(&mut g, P1, at(6, 6), "spirit");
+        let theirs = spirit(&mut g, P1, at(6, 6), "magic_spirit");
         assert_eq!(g.meld(&[walker, theirs]), Err(MeldError::BadSelection));
         warp(&mut g);
         assert_eq!(g.meld(&[theirs]), Err(MeldError::Warped));
@@ -411,7 +411,7 @@ pub(crate) mod tests {
     #[test]
     fn nodes_pay_power_by_strength_and_mastery() {
         let mut g = world();
-        let s = spirit(&mut g, P0, at(6, 6), "spirit");
+        let s = spirit(&mut g, P0, at(6, 6), "magic_spirit");
         g.meld(&[s]).unwrap();
         let power = i32::from(g.economy().nodes()[0].power);
         let base = g.income(P0).power_base;
@@ -450,7 +450,7 @@ pub(crate) mod tests {
             let mut g2 = world_seeded(seed);
             let guard = spirit(&mut g2, P0, at(6, 6), "guardian_spirit");
             g2.meld(&[guard]).unwrap();
-            let rival = spirit(&mut g2, P1, at(6, 6), "spirit");
+            let rival = spirit(&mut g2, P1, at(6, 6), "magic_spirit");
             let events = g2.meld(&[rival]).unwrap();
             if events.iter().any(|e| matches!(e, Event::NodeMelded { .. })) {
                 wins += 1;
@@ -463,9 +463,9 @@ pub(crate) mod tests {
         assert!((25..=75).contains(&wins), "about a quarter of 200: {wins}");
         // An unguarded node falls to any rival.
         let mut g3 = world();
-        let mine = spirit(&mut g3, P0, at(6, 6), "spirit");
+        let mine = spirit(&mut g3, P0, at(6, 6), "magic_spirit");
         g3.meld(&[mine]).unwrap();
-        let rival = spirit(&mut g3, P1, at(6, 6), "spirit");
+        let rival = spirit(&mut g3, P1, at(6, 6), "magic_spirit");
         g3.meld(&[rival]).unwrap();
         assert_eq!(g3.economy().nodes()[0].owner, Some(PlayerId(1)));
     }
@@ -475,7 +475,7 @@ pub(crate) mod tests {
         let mut g = world();
         let guard = spirit(&mut g, P0, at(6, 6), "guardian_spirit");
         g.meld(&[guard]).unwrap();
-        let another = spirit(&mut g, P0, at(6, 6), "spirit");
+        let another = spirit(&mut g, P0, at(6, 6), "magic_spirit");
         assert_eq!(g.meld(&[another]), Err(MeldError::AlreadyGuarded));
         assert!(
             g.world.get::<&crate::unit::Unit>(another).is_ok(),
@@ -484,9 +484,9 @@ pub(crate) mod tests {
         assert!(g.economy().nodes()[0].guardian);
         // Without a guardian it can still be melded again.
         let mut g2 = world();
-        let plain = spirit(&mut g2, P0, at(6, 6), "spirit");
+        let plain = spirit(&mut g2, P0, at(6, 6), "magic_spirit");
         g2.meld(&[plain]).unwrap();
-        let again = spirit(&mut g2, P0, at(6, 6), "spirit");
+        let again = spirit(&mut g2, P0, at(6, 6), "magic_spirit");
         assert!(g2.meld(&[again]).is_ok());
     }
 }

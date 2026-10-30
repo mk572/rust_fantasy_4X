@@ -1,14 +1,10 @@
 //! Hand-built content for unit tests (the shipped files are tested in f4x-data).
 
-use std::collections::BTreeMap;
-
 use crate::content::Content;
 use crate::feature::def::{CityBonus, FeatureDef, FeatureKind, Features, SpawnRule};
 use crate::map::terrain::{TerrainClass, TerrainDef, Terrains};
 use crate::map::Plane;
-use crate::rules::{
-    AbilityDef, LevelDef, LevelPathDef, MovementType, Registry, Rules, Stat, UnitDef, UnitKind,
-};
+use crate::rules::{Registry, Rules, UnitDef};
 
 pub fn content() -> Content {
     let terrain = |id: &str, class: TerrainClass, walkable, can_found_city| TerrainDef {
@@ -117,139 +113,19 @@ pub fn settings() -> crate::game::setting::SettingsDef {
     ron::from_str(include_str!("../../../../content/settings.ron")).expect("settings.ron parses")
 }
 
-/// The number of a test unit definition: above the original's, and the same for the same alias
-/// however often a fixture is built, so contents made apart agree.
-pub fn unit_num(id: &str) -> u16 {
-    use std::sync::{Mutex, OnceLock};
-    static NUMS: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
-    let mut nums = NUMS.get_or_init(Default::default).lock().unwrap();
-    let at = nums.iter().position(|n| n == id).unwrap_or_else(|| {
-        nums.push(id.to_string());
-        nums.len() - 1
-    });
-    1000 + at as u16
-}
-
-/// A unit definition with the stats movement and combat tests need. Its number is the next one
-/// above the original's (1000 up), so it can sit in a table of the shipped units or of other
-/// fixtures made in order.
-pub fn unit(id: &str, movement: MovementType, moves: i32, abilities: &[&str]) -> UnitDef {
-    let mut stats = BTreeMap::new();
-    for (stat, v) in [
-        (Stat::Melee, 3),
-        (Stat::Defense, 2),
-        (Stat::Resistance, 4),
-        (Stat::MaxHp, 2),
-        (Stat::Figures, 3),
-        (Stat::Moves, moves),
-        (Stat::Sight, 3),
-    ] {
-        stats.insert(stat, v);
-    }
-    UnitDef {
-        num: unit_num(id),
-        id: id.into(),
-        name: id.into(),
-        kind: UnitKind::Fantastic,
-        race: None,
-        realm: None,
-        cost: 10,
-        upkeep: Default::default(),
-        stats,
-        movement,
-        abilities: abilities.iter().map(|a| a.to_string()).collect(),
-        requires: vec![],
-        level_path: Some("xp".into()),
-        hero: None,
-        deck: None,
-        art: None,
-    }
-}
-
-/// Test content plus a few units: walker (2 moves), scout (flying, 3), boat (sailing, 4),
-/// ranger (forester + mountaineer), pathfinder, spirit (non-corporeal), mage (wind walking),
-/// traveller (planar travel).
+/// Test content plus the game's real units, abilities and experience levels.
 pub fn content_with_units() -> Content {
     let mut c = content();
-    let units = vec![
-        unit("walker", MovementType::Walking, 2, &[]),
-        unit("slow", MovementType::Walking, 1, &[]),
-        unit("scout", MovementType::Flying, 3, &[]),
-        unit("boat", MovementType::Sailing, 4, &[]),
-        unit(
-            "ranger",
-            MovementType::Walking,
-            2,
-            &["forester", "mountaineer"],
-        ),
-        unit("pathfinder", MovementType::Walking, 2, &["pathfinding"]),
-        unit("spirit", MovementType::Walking, 2, &["non_corporeal"]),
-        unit("mage", MovementType::Walking, 2, &["wind_walking"]),
-        unit("traveller", MovementType::Walking, 2, &["planar_travel"]),
-        unit("strider", MovementType::Walking, 2, &["water_walking"]),
-        unit("hardy", MovementType::Walking, 2, &["tough"]),
-    ];
-    let ability = |id: &str, effects| AbilityDef {
-        id: id.into(),
-        name: id.into(),
-        description: String::new(),
-        effects,
-    };
-    let abilities = [
-        "forester",
-        "mountaineer",
-        "pathfinding",
-        "non_corporeal",
-        "wind_walking",
-        "planar_travel",
-        "water_walking",
-        "flying",
-    ]
-    .into_iter()
-    .map(|a| ability(a, vec![]))
-    .chain([ability(
-        "tough",
-        vec![crate::rules::effects::EffectRule {
-            when: crate::rules::effects::Trigger::Passive,
-            condition: crate::rules::effects::Condition::Always,
-            target: crate::rules::effects::TargetSel::This,
-            effect: crate::rules::effects::Effect::Modify {
-                stat: Stat::Defense,
-                op: crate::rules::ModOp::Add,
-                value: 2,
-            },
-        }],
-    )])
-    .collect();
-    let level_path = LevelPathDef {
-        id: "xp".into(),
-        levels: vec![
-            LevelDef {
-                name: "Recruit".into(),
-                xp: 0,
-                effects: vec![],
-            },
-            LevelDef {
-                name: "Veteran".into(),
-                xp: 20,
-                effects: vec![crate::rules::effects::EffectRule {
-                    when: crate::rules::effects::Trigger::Passive,
-                    condition: crate::rules::effects::Condition::Always,
-                    target: crate::rules::effects::TargetSel::This,
-                    effect: crate::rules::effects::Effect::Modify {
-                        stat: Stat::Melee,
-                        op: crate::rules::ModOp::Add,
-                        value: 1,
-                    },
-                }],
-            },
-        ],
-        bonus: vec![],
-    };
     c.rules = Rules {
-        units: Registry::new_sorted(units),
-        abilities: Registry::new(abilities),
-        level_paths: Registry::new(vec![level_path]),
+        units: Registry::new(real_units()),
+        abilities: Registry::new(
+            ron::from_str(include_str!("../../../../content/abilities.ron"))
+                .expect("the game's abilities parse"),
+        ),
+        level_paths: Registry::new(
+            ron::from_str(include_str!("../../../../content/level_paths.ron"))
+                .expect("the game's level paths parse"),
+        ),
         ..Default::default()
     };
     c
@@ -257,153 +133,11 @@ pub fn content_with_units() -> Content {
 
 /// Test content with a few races, buildings, mines and city enchantments, for economy tests.
 pub fn content_with_economy() -> Content {
-    use crate::rules::effects::{Condition, Effect, EffectRule, TargetSel, Trigger};
-    use crate::rules::{BuildingDef, ModOp, RaceDef, RealmDef};
+    use crate::rules::RealmDef;
     let mut c = content_with_units();
-    let modify = |stat, op, value| EffectRule {
-        when: Trigger::Passive,
-        condition: Condition::Always,
-        target: TargetSel::This,
-        effect: Effect::Modify { stat, op, value },
-    };
-    let race = |id: &str, units: &[&str], effects: Vec<EffectRule>| RaceDef {
-        id: id.into(),
-        name: id.into(),
-        plural: String::new(),
-        units: units.iter().map(|u| u.to_string()).collect(),
-        buildings: vec![],
-        home_terrain: vec![],
-        effects,
-        city_names: vec![],
-        farmer_food: 2,
-        worker_production_x2: 4,
-        mana_per_citizen_x2: 0,
-        double_mining: false,
-        trade_percent: 0,
-        outpost_growth: 10,
-        house_type: 0,
-        myrror: false,
-    };
-    let mut dwarf = race(
-        "dwarf",
-        &["spear"],
-        vec![modify(Stat::CityGrowth, ModOp::Add, -20)],
-    );
-    dwarf.double_mining = true;
-    dwarf.worker_production_x2 = 6;
-    let mut elf = race("elf", &["spear"], vec![]);
-    elf.mana_per_citizen_x2 = 1;
-    elf.farmer_food = 3;
-    let building =
-        |id: &str, cost: u32, upkeep: u32, requires: &[&str], effects: Vec<EffectRule>| {
-            BuildingDef {
-                id: id.into(),
-                name: id.into(),
-                cost,
-                upkeep_gold: upkeep,
-                requires: requires.iter().map(|r| r.to_string()).collect(),
-                replaces: None,
-                races: vec![],
-                effects,
-                shape: 0,
-                coastal: false,
-            }
-        };
-    let mut hall = building("builders_hall", 60, 1, &[], vec![]);
-    hall.replaces = None;
-    let mut smithy = building("smithy", 40, 1, &[], vec![]);
-    smithy.replaces = None;
-    let mut armory = building("armory", 80, 2, &["barracks", "smithy"], vec![]);
-    armory.replaces = Some("barracks".into());
-    let mut dwarf_only = building("forge", 100, 2, &[], vec![]);
-    dwarf_only.races = vec!["dwarf".into()];
-    let buildings = vec![
-        building("barracks", 30, 0, &[], vec![]),
-        building(
-            "fighters_guild",
-            200,
-            3,
-            &["barracks"],
-            vec![modify(Stat::StartingXp, ModOp::Min, 20)],
-        ),
-        building("war_college", 500, 5, &["fighters_guild"], vec![]),
-        building("alchemists_guild", 250, 3, &[], vec![]),
-        building(
-            "marketplace",
-            100,
-            1,
-            &[],
-            vec![modify(Stat::CityGold, ModOp::Percent, 50)],
-        ),
-        building(
-            "temple",
-            200,
-            2,
-            &[],
-            vec![
-                modify(Stat::CityUnrest, ModOp::Add, -1),
-                modify(Stat::CityMana, ModOp::Add, 2),
-            ],
-        ),
-        building(
-            "granary",
-            40,
-            1,
-            &[],
-            vec![
-                modify(Stat::CityFoodFlat, ModOp::Add, 2),
-                modify(Stat::CityGrowth, ModOp::Add, 20),
-            ],
-        ),
-        building(
-            "library",
-            60,
-            1,
-            &[],
-            vec![modify(Stat::CityResearch, ModOp::Add, 2)],
-        ),
-        building(
-            "miners_guild",
-            300,
-            3,
-            &[],
-            vec![modify(Stat::CityProduction, ModOp::Percent, 50)],
-        ),
-        building("shipyard", 200, 2, &[], vec![]),
-        building(
-            "sawmill",
-            100,
-            2,
-            &[],
-            vec![modify(Stat::CityProduction, ModOp::Percent, 25)],
-        ),
-        hall,
-        smithy,
-        armory,
-        dwarf_only,
-    ];
-    let mut spear = unit("spear", MovementType::Walking, 1, &[]);
-    spear.kind = UnitKind::Normal;
-    spear.race = Some("elf".into());
-    spear.cost = 20;
-    spear.upkeep.gold = 1;
-    spear.requires = vec!["barracks".into()];
-    let mut settler = unit("settler", MovementType::Walking, 1, &["create_outpost"]);
-    settler.kind = UnitKind::Normal;
-    settler.race = Some("elf".into());
-    let mut galley = unit("galley", MovementType::Sailing, 4, &[]);
-    galley.requires = vec!["shipyard".into()];
-    galley.cost = 50;
-    let mut units: Vec<UnitDef> = c.rules.units.defs().to_vec();
-    units.push(spear);
-    units.push(galley);
-    units.push(settler);
-    elf.units = vec!["spear".into(), "settler".into()];
-    dwarf.units = vec!["spear".into()];
-    // The spear is the elves' unit; dwarves list it too for the test, so give the check a race.
-    c.rules.races = Registry::new(vec![elf, dwarf]);
-    c.rules.units = Registry::new_sorted(units);
-    c.rules.buildings = Registry::new(buildings);
+    let buildings = real_buildings();
+    c.rules.races = Registry::new(real_races());
+    c.rules.buildings = Registry::new_sorted(buildings);
     c.rules.spells = Registry::new(real_spells());
     c.rules.realms = Registry::new(vec![RealmDef {
         id: "life".into(),
@@ -462,7 +196,9 @@ pub fn content_with_economy() -> Content {
         spawn: vec![],
     });
     c.features = Features::new(defs);
-    c.rules.config.racial_unrest = vec![vec![0, 2], vec![1, 0]];
+    let rules: crate::rules::RulesConfig =
+        ron::from_str(include_str!("../../../../content/rules.ron")).expect("rules.ron parses");
+    c.rules.config.racial_unrest = rules.racial_unrest;
     c
 }
 
@@ -471,27 +207,42 @@ pub fn real_spells() -> Vec<crate::rules::SpellDef> {
     ron::from_str(include_str!("../../../../content/spells.ron")).expect("the game's spells parse")
 }
 
+/// All the game's real units (`content/units.ron`), in the original's order.
+pub fn real_units() -> Vec<UnitDef> {
+    ron::from_str(include_str!("../../../../content/units.ron")).expect("the game's units parse")
+}
+
+/// Put one of the game's real units among `units` unless it is already there.
+pub fn add_real_unit(units: &mut Vec<UnitDef>, id: &str) {
+    if !units.iter().any(|u| u.id == id) {
+        units.push(real_unit(id));
+    }
+}
+
 /// One of the game's real units (`content/units.ron`) by its alias, for a test that needs the unit
 /// itself rather than a stand-in. It carries its own number, so push it among the fixtures with
 /// `Registry::new_sorted`.
 pub fn real_unit(id: &str) -> UnitDef {
-    let units: Vec<UnitDef> = ron::from_str(include_str!("../../../../content/units.ron"))
-        .expect("the game's units parse");
-    units
+    real_units()
         .into_iter()
         .find(|u| u.id == id)
         .unwrap_or_else(|| panic!("no real unit {id}"))
 }
 
-/// One of the game's real buildings (`content/buildings.ron`) by its alias.
-pub fn real_building(id: &str) -> crate::rules::BuildingDef {
-    let buildings: Vec<crate::rules::BuildingDef> =
-        ron::from_str(include_str!("../../../../content/buildings.ron"))
-            .expect("the game's buildings parse");
-    buildings
-        .into_iter()
-        .find(|b| b.id == id)
-        .unwrap_or_else(|| panic!("no real building {id}"))
+/// The game's 35 real hero templates (`content/heroes.ron`).
+pub fn real_hero_templates() -> Vec<crate::rules::HeroTemplate> {
+    ron::from_str(include_str!("../../../../content/heroes.ron")).expect("the game's heroes parse")
+}
+
+/// The game's real races (`content/races.ron`).
+pub fn real_races() -> Vec<crate::rules::RaceDef> {
+    ron::from_str(include_str!("../../../../content/races.ron")).expect("the game's races parse")
+}
+
+/// The game's real buildings (`content/buildings.ron`).
+pub fn real_buildings() -> Vec<crate::rules::BuildingDef> {
+    ron::from_str(include_str!("../../../../content/buildings.ron"))
+        .expect("the game's buildings parse")
 }
 
 /// Economy content plus the game's real spells and realms (`content/spells.ron` and

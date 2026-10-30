@@ -66,3 +66,19 @@ fn a_new_outpost_starts_with_three_tens_and_an_outpost_with_none_is_lost() {
     g.world.insert_one(city, pop(0, 0)).unwrap();
     assert_eq!(g.grow_outpost(city), OutpostTurn::Lost);
 }
+
+#[test]
+fn a_city_that_starves_down_keeps_no_more_farmers_than_people() {
+    let mut g = Game::new(1);
+    g.add_player(PlayerId(0), "W");
+    let at = crate::map::Position {
+        plane: crate::map::Plane::Arcanus,
+        x: 20,
+        y: 20,
+    };
+    let city = g.spawn_city(PlayerId(0), at, "S".into(), None, 2);
+    g.world.insert_one(city, Farmers(2)).unwrap();
+    g.world.insert_one(city, pop(2, 10)).unwrap();
+    assert_eq!(g.apply_growth(city, -50), (2, 1));
+    assert_eq!(g.world.get::<&Farmers>(city).unwrap().0, 1);
+}

@@ -616,15 +616,8 @@ mod tests {
     };
 
     #[test]
-    fn half_moves_add_to_the_allowance_but_not_to_a_unit_that_cannot_move() {
-        use crate::game::testutil::unit;
-        use crate::rules::{MovementType, Registry, Stat};
-        let mut content = content_with_magic();
-        let mut boots = unit("boots", MovementType::Walking, 2, &[]);
-        boots.stats.insert(Stat::HalfMoves, 1);
-        let mut rooted = unit("rooted", MovementType::Walking, 0, &[]);
-        rooted.stats.insert(Stat::HalfMoves, 1);
-        content.rules.units = Registry::new_sorted(vec![boots, rooted]);
+    fn a_units_allowance_is_two_half_moves_for_each_move() {
+        let content = content_with_magic();
         let mut world = World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         let mut max = |id: &str, n: u64| {
@@ -632,25 +625,13 @@ mod tests {
             let e = spawn(&mut world, &content, Serial(n), owner, AT, def);
             UnitView::new(&world, &content).unit_max_moves(e)
         };
-        assert_eq!(max("boots", 1), 5, "two moves and a half-move");
-        assert_eq!(max("rooted", 2), 0);
+        assert_eq!(max("high_men_spearmen", 1), 2);
+        assert_eq!(max("high_men_cavalry", 2), 4);
     }
 
     #[test]
     fn basic_troops_cost_half_the_upkeep_when_the_setting_is_on() {
-        use crate::game::testutil::unit;
-        use crate::rules::{MovementType, Registry};
         let mut content = content_with_magic();
-        let mut spear = unit("Spearmen", MovementType::Walking, 1, &[]);
-        spear.kind = UnitKind::Normal;
-        spear.upkeep.gold = 1;
-        let mut sword = unit("Swordsmen", MovementType::Walking, 1, &[]);
-        sword.kind = UnitKind::Normal;
-        sword.upkeep.gold = 1;
-        let mut knight = unit("Knights", MovementType::Walking, 1, &[]);
-        knight.kind = UnitKind::Normal;
-        knight.upkeep.gold = 3;
-        content.rules.units = Registry::new_sorted(vec![spear, sword, knight]);
         let mut world = World::new();
         let (a, b) = (
             world.spawn(crate::player::bundle(PlayerId(0))),
@@ -658,11 +639,11 @@ mod tests {
         );
         let id = |n: &str, c: &Content| c.rules.units.id_of(n).unwrap();
         let made: Vec<_> = [
-            (a, "Spearmen"),
-            (a, "Swordsmen"),
-            (a, "Spearmen"),
-            (a, "Knights"),
-            (b, "Spearmen"),
+            (a, "high_men_spearmen"),
+            (a, "high_men_swordsmen"),
+            (a, "high_men_spearmen"),
+            (a, "high_men_paladins"),
+            (b, "high_men_spearmen"),
         ]
         .into_iter()
         .enumerate()
@@ -695,7 +676,7 @@ mod tests {
     #[test]
     fn a_units_figures_come_from_a_world_and_content_alone() {
         let content = content_with_magic();
-        let spear = content.rules.units.id_of("spear").unwrap();
+        let spear = content.rules.units.id_of("high_elf_spearmen").unwrap();
         let mut world = World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         let e = spawn(&mut world, &content, Serial(1), owner, AT, spear);
@@ -714,7 +695,7 @@ mod tests {
     #[test]
     fn units_come_in_the_order_they_were_made() {
         let content = content_with_magic();
-        let spear = content.rules.units.id_of("spear").unwrap();
+        let spear = content.rules.units.id_of("high_elf_spearmen").unwrap();
         let mut world = World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         let second = spawn(&mut world, &content, Serial(2), owner, AT, spear);

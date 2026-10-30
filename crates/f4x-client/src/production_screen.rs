@@ -230,8 +230,7 @@ impl App {
                 if rules.buildings.get(id).id == "city_walls" {
                     Some(114)
                 } else {
-                    crate::cityscape::sprite_of(id.num() as usize as i16 + 3)
-                        .map(|(entry, _)| entry)
+                    crate::cityscape::sprite_of(id.num() as i16).map(|(entry, _)| entry)
                 }
             }
             ProductionItem::TradeGoods => Some(41),

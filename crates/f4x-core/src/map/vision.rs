@@ -106,7 +106,7 @@ mod tests {
         }
         g.content = c;
         g.map = Some(map);
-        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
         let p = PlayerId(0);
         g.spawn_unit(
             p,
@@ -175,22 +175,7 @@ mod tests {
         assert_eq!(compute(Stat::CitySight, 5, &mods), 9);
         assert_eq!(compute(Stat::CitySight, 5, &mods[..1]), 7);
         // A real building with the modifier widens what the city sees and explores.
-        let mut oracle = g.content.rules.buildings.defs()[0].clone();
-        oracle.id = "oracle".into();
-        oracle.effects = vec![crate::rules::effects::EffectRule {
-            when: crate::rules::effects::Trigger::Passive,
-            condition: crate::rules::effects::Condition::Always,
-            target: crate::rules::effects::TargetSel::This,
-            effect: crate::rules::effects::Effect::Modify {
-                stat: Stat::CitySight,
-                op: ModOp::Min,
-                value: 9,
-            },
-        }];
-        let mut defs = g.content.rules.buildings.defs().to_vec();
-        defs.push(oracle);
-        let id = crate::rules::BuildingId::new((defs.len() - 1) as u16);
-        g.content.rules.buildings = crate::rules::Registry::new(defs);
+        let id = g.content.rules.buildings.id_of("oracle").unwrap();
         g.world
             .get::<&mut crate::city::economy::Buildings>(city)
             .unwrap()
@@ -209,8 +194,8 @@ mod tests {
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
             match u.id.as_str() {
-                "spirit" => u.abilities.push("invisibility".into()),
-                "mage" => u.abilities.push("illusion_immunity".into()),
+                "magic_spirit" => u.abilities.push("invisibility".into()),
+                "wind_mage" => u.abilities.push("illusion_immunity".into()),
                 _ => {}
             }
         }
@@ -228,7 +213,7 @@ mod tests {
             y: 5,
         };
         let id = |g: &Game, n: &str| g.content.rules.units.id_of(n).unwrap();
-        let (spirit, mage) = (id(&g, "spirit"), id(&g, "mage"));
+        let (spirit, mage) = (id(&g, "magic_spirit"), id(&g, "wind_mage"));
         let ghost = g.spawn_unit(PlayerId(0), at(5), spirit);
         assert!(
             g.economy().unit_visible_to(ghost, PlayerId(0)),
@@ -252,7 +237,7 @@ mod tests {
         let c = content_with_units();
         let grass = c.terrains.id_of("grassland").unwrap();
         let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
-        let walker = c.rules.units.id_of("walker").unwrap();
+        let walker = c.rules.units.id_of("high_men_cavalry").unwrap();
         let mut world = hecs::World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         crate::unit::spawn(

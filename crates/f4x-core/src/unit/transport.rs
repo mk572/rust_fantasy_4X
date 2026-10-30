@@ -413,11 +413,11 @@ mod tests {
         let mut c = content_with_units();
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
-            if u.id == "boat" {
+            if u.id == "warship" {
                 u.stats.insert(Stat::Transport, 2);
             }
         }
-        units.push(crate::game::testutil::real_unit("floating_island"));
+        crate::game::testutil::add_real_unit(&mut units, "floating_island");
         c.rules.units = Registry::new_sorted(units);
         let (grass, ocean) = (
             c.terrains.id_of("grassland").unwrap(),
@@ -456,9 +456,9 @@ mod tests {
         for id in [P0, P1] {
             g.init_wizard(id, &[("life", 1)], &[], None).ok();
         }
-        let boat = unit(&mut g, "boat", at(5, 4));
-        let scout = unit(&mut g, "scout", at(4, 4));
-        let walker = unit(&mut g, "walker", at(4, 3));
+        let boat = unit(&mut g, "warship", at(5, 4));
+        let scout = unit(&mut g, "high_elf_pegasai", at(4, 4));
+        let walker = unit(&mut g, "high_men_cavalry", at(4, 3));
         let max = |g: &Game, u| g.units().unit_max_moves(u);
         assert_eq!((max(&g, boat), max(&g, scout)), (8, 6));
         // The owner's Wind Mastery: half as far again, for ships and fliers only.
@@ -478,15 +478,15 @@ mod tests {
     #[test]
     fn land_units_cannot_enter_the_sea_alone() {
         let mut g = world();
-        let w = unit(&mut g, "walker", at(4, 4));
+        let w = unit(&mut g, "high_men_cavalry", at(4, 4));
         assert_eq!(g.move_stack(&[w], at(5, 4)), Err(MoveError::Impassable));
     }
 
     #[test]
     fn a_unit_boards_a_waiting_ship_and_rides_with_it() {
         let mut g = world();
-        let boat = unit(&mut g, "boat", at(5, 4));
-        let w = unit(&mut g, "walker", at(4, 4));
+        let boat = unit(&mut g, "warship", at(5, 4));
+        let w = unit(&mut g, "high_men_cavalry", at(4, 4));
         assert_eq!(g.move_stack(&[w], at(5, 4)), Ok(Entry::Free));
         assert_eq!(g.economy().carrier_of(w), Some(boat));
         assert_eq!(g.economy().ship_room(boat), 1);
@@ -505,8 +505,8 @@ mod tests {
     #[test]
     fn path_estimates_use_the_ships_speed_not_the_passengers() {
         let mut g = world();
-        let boat = unit(&mut g, "boat", at(5, 4));
-        let w = unit(&mut g, "walker", at(4, 4));
+        let boat = unit(&mut g, "warship", at(5, 4));
+        let w = unit(&mut g, "high_men_cavalry", at(4, 4));
         g.move_stack(&[w], at(5, 4)).unwrap();
         let path: Vec<_> = (6..10).map(|x| at(x, 4)).collect();
         let alone = g.path_turns(&[boat], &path);
@@ -520,8 +520,10 @@ mod tests {
     #[test]
     fn a_ship_holds_only_so_many() {
         let mut g = world();
-        let boat = unit(&mut g, "boat", at(5, 4));
-        let three: Vec<_> = (0..3).map(|_| unit(&mut g, "walker", at(4, 4))).collect();
+        let boat = unit(&mut g, "warship", at(5, 4));
+        let three: Vec<_> = (0..3)
+            .map(|_| unit(&mut g, "high_men_cavalry", at(4, 4)))
+            .collect();
         assert_eq!(g.move_stack(&three, at(5, 4)), Err(MoveError::NoRoom));
         g.move_stack(&three[..2], at(5, 4)).unwrap();
         assert_eq!(g.economy().ship_room(boat), 0);
@@ -542,8 +544,8 @@ mod tests {
             race: None,
             population: 3,
         });
-        let boat = unit(&mut g, "boat", at(4, 4));
-        let w = unit(&mut g, "walker", at(4, 4));
+        let boat = unit(&mut g, "warship", at(4, 4));
+        let w = unit(&mut g, "high_men_cavalry", at(4, 4));
         // The stack sails out of the port: the walker boards for free.
         g.move_stack(&[boat, w], at(5, 4)).unwrap();
         assert_eq!(g.economy().carrier_of(w), Some(boat));
@@ -577,8 +579,8 @@ mod tests {
             race: None,
             population: 3,
         });
-        let boat = unit(&mut g, "boat", at(9, 4));
-        let w = unit(&mut g, "walker", at(10, 4));
+        let boat = unit(&mut g, "warship", at(9, 4));
+        let w = unit(&mut g, "high_men_cavalry", at(10, 4));
         g.move_stack(&[w], at(9, 4)).unwrap();
         assert_eq!(g.economy().carrier_of(w), Some(boat));
         g.move_stack(&[boat, w], at(10, 3)).unwrap();
@@ -589,12 +591,12 @@ mod tests {
     #[test]
     fn at_sea_the_ships_are_decks_and_their_passengers_fight_on_them() {
         let mut g = world();
-        let boat = unit(&mut g, "boat", at(5, 4));
-        let walker = unit(&mut g, "walker", at(4, 4));
+        let boat = unit(&mut g, "warship", at(5, 4));
+        let walker = unit(&mut g, "high_men_cavalry", at(4, 4));
         g.move_stack(&[walker], at(5, 4)).unwrap();
         assert_eq!(g.economy().carrier_of(walker), Some(boat));
         let attacker_boat = {
-            let u = g.content.rules.units.id_of("boat").unwrap();
+            let u = g.content.rules.units.id_of("warship").unwrap();
             g.spawn_unit(P1, at(6, 4), u)
         };
         g.start_battle(&[attacker_boat], &[boat, walker]).unwrap();
@@ -630,10 +632,12 @@ mod tests {
             let u = g.content.rules.units.id_of("floating_island").unwrap();
             g.spawn_unit(P0, at(5, 4), u)
         };
-        let walkers: Vec<_> = (0..2).map(|_| unit(&mut g, "walker", at(4, 4))).collect();
+        let walkers: Vec<_> = (0..2)
+            .map(|_| unit(&mut g, "high_men_cavalry", at(4, 4)))
+            .collect();
         g.move_stack(&walkers, at(5, 4)).unwrap();
         let enemy = {
-            let u = g.content.rules.units.id_of("boat").unwrap();
+            let u = g.content.rules.units.id_of("warship").unwrap();
             g.spawn_unit(P1, at(6, 4), u)
         };
         let mut defenders = vec![island];
@@ -658,8 +662,8 @@ mod tests {
     #[test]
     fn land_units_without_a_ship_drown() {
         let mut g = world();
-        let boat = unit(&mut g, "boat", at(5, 4));
-        let w = unit(&mut g, "walker", at(4, 4));
+        let boat = unit(&mut g, "warship", at(5, 4));
+        let w = unit(&mut g, "high_men_cavalry", at(4, 4));
         g.move_stack(&[w], at(5, 4)).unwrap();
         // Open sea: no shore beside the square.
         let ocean = g.content.terrains.id_of("ocean").unwrap();
@@ -681,8 +685,8 @@ mod tests {
         );
         assert!(g.world.get::<&crate::unit::Unit>(w).is_err());
         // Fliers and ships are never in danger.
-        let flier = unit(&mut g, "scout", at(6, 4));
-        let other = unit(&mut g, "boat", at(7, 4));
+        let flier = unit(&mut g, "high_elf_pegasai", at(6, 4));
+        let other = unit(&mut g, "warship", at(7, 4));
         assert!(g.drown_stranded().is_empty());
         assert!(
             g.units().unit_position(flier).is_some() && g.units().unit_position(other).is_some()
@@ -695,8 +699,8 @@ mod tests {
         let mut ashore = 0;
         let runs = 30;
         for _ in 0..runs {
-            let boat = unit(&mut g, "boat", at(5, 4));
-            let w = unit(&mut g, "walker", at(4, 4));
+            let boat = unit(&mut g, "warship", at(5, 4));
+            let w = unit(&mut g, "high_men_cavalry", at(4, 4));
             g.move_stack(&[w], at(5, 4)).unwrap();
             g.despawn_with_spells(boat);
             g.drown_stranded();
@@ -712,8 +716,8 @@ mod tests {
     #[test]
     fn who_is_aboard_survives_a_save() {
         let mut g = world();
-        let boat = unit(&mut g, "boat", at(5, 4));
-        let w = unit(&mut g, "walker", at(4, 4));
+        let boat = unit(&mut g, "warship", at(5, 4));
+        let w = unit(&mut g, "high_men_cavalry", at(4, 4));
         g.move_stack(&[w], at(5, 4)).unwrap();
         let content = g.content.clone();
         let back = g.snapshot().restore(content).unwrap();

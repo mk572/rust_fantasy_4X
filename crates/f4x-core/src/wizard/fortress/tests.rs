@@ -28,13 +28,13 @@ fn world() -> Game {
     }
     g.init_wizard(P0, &[("life", 2)], &[], None).unwrap();
     let mut units = g.content.rules.units.defs().to_vec();
-    units.push(crate::game::testutil::real_unit("war_bears"));
+    crate::game::testutil::add_real_unit(&mut units, "war_bears");
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
     g
 }
 
 fn place(g: &mut Game, player: PlayerId, pos: Position) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("elf");
+    let race = g.content.rules.races.id_of("high_elf");
     let events = g.apply(Command::PlaceFortress {
         player,
         pos,
@@ -52,7 +52,7 @@ fn place(g: &mut Game, player: PlayerId, pos: Position) -> hecs::Entity {
 }
 
 fn city(g: &mut Game, player: PlayerId, pos: Position) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("elf");
+    let race = g.content.rules.races.id_of("high_elf");
     g.apply(Command::FoundCity {
         owner: player,
         pos,
@@ -95,7 +95,7 @@ fn placing_the_fortress_founds_the_capital_once() {
     assert_eq!(p.summon_at(), Some(at(5, 5)));
     assert_eq!(
         g.wizard(P0).unwrap().capital_race(),
-        g.content.rules.races.id_of("elf")
+        g.content.rules.races.id_of("high_elf")
     );
     assert_eq!(g.economy().fortress_city(P0), Some(capital));
     assert!(g.economy().is_fortress_city(capital));
@@ -631,7 +631,7 @@ fn banish_world(skill: i32) -> (Game, hecs::Entity, hecs::Entity) {
     set_skill(&mut g, P0, skill);
     let capital = place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P0, at(15, 5));
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     g.spawn_unit(P0, at(15, 5), spear);
     g.spawn_unit(P0, at(9, 9), spear);
     (g, capital, town)

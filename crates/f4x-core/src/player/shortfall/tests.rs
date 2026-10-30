@@ -1,10 +1,9 @@
 use super::*;
-use crate::game::testutil::unit;
 use crate::hero::game::tests::{at, world, P0};
 use crate::item::ItemBonus;
 use crate::map::{Grid, Map};
 use crate::rules::ItemKind;
-use crate::rules::{MovementType, Registry, Stat};
+
 use crate::unit::MovesLeft;
 
 fn item(name: &str, cost: u32) -> Item {
@@ -95,15 +94,6 @@ fn the_vault_has_room_for_all_so_nothing_overflows_and_scrapping_is_the_wizards_
 /// A 30x16 map, grass but for a sea from x = 3 to 26 and y = 3 to 13.
 fn sea_world() -> Game {
     let mut g = world();
-    let mut units = g.content.rules.units.defs().to_vec();
-    let mut boat = unit("tboat", MovementType::Sailing, 4, &[]);
-    boat.upkeep.gold = 1;
-    boat.stats.insert(Stat::Transport, 2);
-    units.push(boat);
-    let mut grunt = unit("tgrunt", MovementType::Walking, 2, &[]);
-    grunt.upkeep.gold = 1;
-    units.push(grunt);
-    g.content.rules.units = Registry::new_sorted(units);
     let (grass, ocean) = (
         g.content.terrains.id_of("grassland").unwrap(),
         g.content.terrains.id_of("ocean").unwrap(),
@@ -129,8 +119,10 @@ fn spawn(g: &mut Game, id: &str, pos: crate::map::Position) -> hecs::Entity {
 #[test]
 fn a_ship_let_go_at_sea_sails_to_the_shore_and_unloads() {
     let mut g = sea_world();
-    let boat = spawn(&mut g, "tboat", at(15, 8));
-    let riders: Vec<_> = (0..2).map(|_| spawn(&mut g, "tgrunt", at(15, 8))).collect();
+    let boat = spawn(&mut g, "galley", at(15, 8));
+    let riders: Vec<_> = (0..2)
+        .map(|_| spawn(&mut g, "high_men_cavalry", at(15, 8)))
+        .collect();
     for &r in &riders {
         let serial = g.units().serial_of(boat);
         let _ = g
@@ -180,11 +172,11 @@ fn a_ship_let_go_at_sea_sails_to_the_shore_and_unloads() {
 #[test]
 fn a_ship_in_port_or_without_passengers_is_simply_released() {
     let mut g = sea_world();
-    let empty = spawn(&mut g, "tboat", at(15, 4));
+    let empty = spawn(&mut g, "galley", at(15, 4));
     g.release_troops(P0, &[empty], &[]).unwrap();
     assert!(!g.world.contains(empty));
-    let docked = spawn(&mut g, "tboat", at(2, 4));
-    let rider = spawn(&mut g, "tgrunt", at(2, 4));
+    let docked = spawn(&mut g, "galley", at(2, 4));
+    let rider = spawn(&mut g, "high_men_cavalry", at(2, 4));
     let serial = g.units().serial_of(docked);
     let _ = g
         .world
@@ -198,15 +190,15 @@ fn a_ship_in_port_or_without_passengers_is_simply_released() {
 #[test]
 fn a_ship_with_no_free_shore_loses_its_passengers() {
     let mut g = sea_world();
-    let boat = spawn(&mut g, "tboat", at(15, 8));
-    let rider = spawn(&mut g, "tgrunt", at(15, 8));
+    let boat = spawn(&mut g, "galley", at(15, 8));
+    let rider = spawn(&mut g, "high_men_cavalry", at(15, 8));
     let serial = g.units().serial_of(boat);
     let _ = g
         .world
         .insert_one(rider, crate::unit::transport::Aboard(serial));
     g.release_troops(P0, &[boat], &[]).unwrap();
     // Every land square is taken by an enemy.
-    let u = g.content.rules.units.id_of("tgrunt").unwrap();
+    let u = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     for x in 0..30 {
         for y in 0..16 {
             if !g.economy().is_sea(at(x, y)) {
@@ -226,7 +218,7 @@ fn a_ship_with_no_free_shore_loses_its_passengers() {
 fn only_the_wizards_own_units_can_be_released() {
     let mut g = sea_world();
     let theirs = {
-        let u = g.content.rules.units.id_of("tgrunt").unwrap();
+        let u = g.content.rules.units.id_of("high_men_cavalry").unwrap();
         g.spawn_unit(crate::player::PlayerId(1), at(1, 1), u)
     };
     assert!(g.release_troops(P0, &[theirs], &[]).is_err());
@@ -265,8 +257,8 @@ fn a_unit_let_go_for_food_is_not_counted_for_gold() {
 #[test]
 fn a_marooned_ship_survives_saving() {
     let mut g = sea_world();
-    let boat = spawn(&mut g, "tboat", at(15, 8));
-    let rider = spawn(&mut g, "tgrunt", at(15, 8));
+    let boat = spawn(&mut g, "galley", at(15, 8));
+    let rider = spawn(&mut g, "high_men_cavalry", at(15, 8));
     let serial = g.units().serial_of(boat);
     let _ = g
         .world

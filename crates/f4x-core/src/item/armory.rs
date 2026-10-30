@@ -363,11 +363,11 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::{content_with_magic, unit};
+    use crate::game::testutil::content_with_magic;
     use crate::item::ItemBonus;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::effects::{Effect, EffectRule};
-    use crate::rules::{HeroDef, HeroKind, ItemKind, MovementType, Registry, Stat, UnitKind};
+    use crate::rules::{HeroKind, ItemKind, Registry};
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);
@@ -408,22 +408,6 @@ mod tests {
             }];
         }
         c.rules.spells = Registry::new(spells);
-        let mut units = c.rules.units.defs().to_vec();
-        for (id, kind) in [
-            ("test_warrior", HeroKind::Warrior),
-            ("test_mage", HeroKind::Mage),
-        ] {
-            let mut u = unit(id, MovementType::Walking, 2, &[]);
-            u.kind = UnitKind::Hero;
-            u.stats.insert(Stat::Melee, 3);
-            u.hero = Some(HeroDef {
-                kind,
-                portrait: 0,
-                hire_cost: 100,
-            });
-            units.push(u);
-        }
-        c.rules.units = Registry::new_sorted(units);
         c.rules.item_powers = Registry::new(vec![
             crate::game::testutil::item_power("flight", Some("flight"), None),
             crate::game::testutil::item_power("flaming", None, None),
@@ -495,7 +479,7 @@ mod tests {
     #[test]
     fn a_hero_takes_what_fits_its_slots() {
         let mut g = world();
-        let w = hero(&mut g, "test_warrior", at(1, 1));
+        let w = hero(&mut g, "dwarf", at(1, 1));
         g.give_item(P0, item("Bow", ItemKind::Bow));
         g.give_item(P0, item("Sword", ItemKind::Sword));
         g.give_item(P0, item("Plate", ItemKind::Platemail));
@@ -523,7 +507,7 @@ mod tests {
     #[test]
     fn a_mage_has_a_staff_slot_and_two_misc_slots() {
         let mut g = world();
-        let m = hero(&mut g, "test_mage", at(1, 1));
+        let m = hero(&mut g, "sage", at(1, 1));
         g.give_item(P0, item("Wand", ItemKind::Wand));
         g.give_item(P0, item("Ring", ItemKind::Misc));
         g.give_item(P0, item("Sword", ItemKind::Sword));
@@ -544,7 +528,7 @@ mod tests {
     #[test]
     fn a_full_slot_swaps_with_the_item_put_in_it() {
         let mut g = world();
-        let w = hero(&mut g, "test_warrior", at(1, 1));
+        let w = hero(&mut g, "dwarf", at(1, 1));
         g.give_item(P0, item("Sword", ItemKind::Sword));
         g.give_item(P0, item("Axe", ItemKind::Axe));
         g.give_item(P0, item("Plate", ItemKind::Platemail));
@@ -588,7 +572,7 @@ mod tests {
     #[test]
     fn a_hero_far_from_the_fortress_costs_mana() {
         let mut g = world();
-        let far = hero(&mut g, "test_warrior", at(3, 3));
+        let far = hero(&mut g, "dwarf", at(3, 3));
         g.give_item(P0, item("Sword", ItemKind::Sword));
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), false),
@@ -616,9 +600,9 @@ mod tests {
     #[test]
     fn two_heroes_on_one_square_trade_for_free() {
         let mut g = world();
-        let a = hero(&mut g, "test_warrior", at(3, 3));
-        let b = hero(&mut g, "test_warrior", at(3, 3));
-        let c = hero(&mut g, "test_warrior", at(4, 3));
+        let a = hero(&mut g, "dwarf", at(3, 3));
+        let b = hero(&mut g, "dwarf", at(3, 3));
+        let c = hero(&mut g, "dwarf", at(4, 3));
         g.give_item(P0, item("Sword", ItemKind::Sword));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(a, 0), true)
             .unwrap();
@@ -636,7 +620,7 @@ mod tests {
     #[test]
     fn the_heroes_of_another_wizard_are_out_of_reach() {
         let mut g = world();
-        let u = g.content.rules.units.id_of("test_warrior").unwrap();
+        let u = g.content.rules.units.id_of("dwarf").unwrap();
         let theirs = g.spawn_unit(P1, at(1, 1), u);
         g.give_item(P0, item("Sword", ItemKind::Sword));
         assert_eq!(
@@ -649,7 +633,7 @@ mod tests {
     fn an_item_that_keeps_a_hero_afloat_cannot_be_taken_away() {
         let mut g = world();
         // The hero stands on the sea with Flight in a misc slot; it is not a flier itself.
-        let m = hero(&mut g, "test_warrior", at(6, 4));
+        let m = hero(&mut g, "dwarf", at(6, 4));
         let mut boots = item("Boots", ItemKind::Misc);
         boots.powers = vec!["flight".into()];
         g.give_item(P0, boots);
@@ -668,7 +652,7 @@ mod tests {
     #[test]
     fn the_vault_the_award_list_and_a_heros_items_are_saved() {
         let mut g = world();
-        let w = hero(&mut g, "test_warrior", at(1, 1));
+        let w = hero(&mut g, "dwarf", at(1, 1));
         let mut sword = item("Sword", ItemKind::Sword);
         sword.bonus.attack = 2;
         sword.powers = vec!["flaming".into()];

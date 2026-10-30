@@ -258,7 +258,7 @@ mod tests {
     }
 
     fn walker(g: &mut Game, pos: Position) -> hecs::Entity {
-        let id = g.content.rules.units.id_of("walker").unwrap();
+        let id = g.content.rules.units.id_of("high_men_cavalry").unwrap();
         g.spawn_unit(P0, pos, id)
     }
 
@@ -395,7 +395,7 @@ mod tests {
             .set(sea.x, sea.y, ocean);
         let mut units = g.content.rules.units.defs().to_vec();
         if !units.iter().any(|u| u.id == "floating_island") {
-            units.push(crate::game::testutil::real_unit("floating_island"));
+            crate::game::testutil::add_real_unit(&mut units, "floating_island");
             g.content.rules.units = crate::rules::Registry::new_sorted(units);
         }
         let land = at(Plane::Arcanus, 6, 5);
@@ -408,7 +408,7 @@ mod tests {
         );
         assert!(g.units().units_at(land).is_empty());
         // An enemy boat on the square bars it; a square already holding nine units is full.
-        let boat = g.content.rules.units.id_of("walker").unwrap();
+        let boat = g.content.rules.units.id_of("high_men_cavalry").unwrap();
         g.add_player(PlayerId(1), "X");
         let enemy = g.spawn_unit(PlayerId(1), sea, boat);
         assert_eq!(

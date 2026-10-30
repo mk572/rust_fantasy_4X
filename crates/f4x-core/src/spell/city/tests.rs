@@ -4,7 +4,7 @@ use crate::map::{Grid, Map, Plane, Position};
 
 use crate::game::Command;
 use crate::rules::exec::Target;
-use crate::rules::{BuildingDef, Registry};
+use crate::rules::Registry;
 use crate::spell::target_error::TargetError;
 
 const P0: PlayerId = PlayerId(0);
@@ -21,24 +21,7 @@ fn at(x: u32, y: u32) -> Position {
 /// Two wizards on grassland, with the spells and buildings these tests need added to the
 /// test content.
 fn world() -> Game {
-    let mut c = content_with_magic();
-    let mut buildings = c.rules.buildings.defs().to_vec();
-    let temple = buildings.iter().find(|b| b.id == "temple").unwrap().clone();
-    for id in ["city_walls", "shrine", "parthenon"] {
-        buildings.push(BuildingDef {
-            id: id.into(),
-            name: id.into(),
-            effects: if id == "city_walls" {
-                vec![]
-            } else {
-                temple.effects.clone()
-            },
-            requires: vec![],
-            replaces: None,
-            ..temple.clone()
-        });
-    }
-    c.rules.buildings = Registry::new(buildings);
+    let c = content_with_magic();
     let grass = c.terrains.id_of("grassland").unwrap();
     let mut g = Game::new(3);
     g.content = c;
@@ -56,7 +39,7 @@ fn world() -> Game {
 }
 
 fn found(g: &mut Game, owner: PlayerId, pos: Position, pop: u32) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("elf");
+    let race = g.content.rules.races.id_of("high_elf");
     g.apply(Command::FoundCity {
         owner,
         pos,
@@ -195,7 +178,7 @@ fn a_chaos_rift_bolts_the_units_inside_and_may_bring_a_building_down() {
     let city = found(&mut g, P0, at(10, 6), 4);
     add_building(&mut g, city, "shrine");
     enchant(&mut g, city, "chaos_rift", P1);
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     let victim = g.spawn_unit(P0, at(10, 6), spear);
     let elsewhere = g.spawn_unit(P0, at(14, 3), spear);
     let hurt = |g: &Game, u| g.world.get::<&crate::unit::Hurt>(u).map_or(0, |h| h.0);
@@ -247,7 +230,7 @@ fn a_battle_at_an_enchanted_city_starts_with_its_walls_and_shadow() {
     use crate::battle::Side;
     let mut g = world();
     let city = found(&mut g, P0, at(10, 6), 4);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let defender = g.spawn_unit(P0, at(10, 6), walker);
     let attacker = g.spawn_unit(P1, at(11, 6), walker);
     g.start_battle(&[attacker], &[defender]).unwrap();
@@ -280,7 +263,7 @@ fn eternal_night_darkens_every_battle_but_not_at_heavenly_light() {
     use crate::battle::Side;
     let mut g = world();
     let city = found(&mut g, P0, at(10, 6), 4);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let defender = g.spawn_unit(P0, at(10, 6), walker);
     let attacker = g.spawn_unit(P1, at(11, 6), walker);
     let night = g.content.rules.spells.id_of("eternal_night").unwrap();
@@ -419,17 +402,8 @@ fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() {
         );
     }
     // A death creature cannot step into the city; a chaos one can.
-    let mut units = g.content.rules.units.defs().to_vec();
-    for u in units.iter_mut() {
-        match u.id.as_str() {
-            "walker" => u.realm = Some("death".into()),
-            "slow" => u.realm = Some("chaos".into()),
-            _ => {}
-        }
-    }
-    g.content.rules.units = Registry::new_sorted(units);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
-    let slow = g.content.rules.units.id_of("slow").unwrap();
+    let walker = g.content.rules.units.id_of("skeletons").unwrap();
+    let slow = g.content.rules.units.id_of("hell_hounds").unwrap();
     let ghoul = g.spawn_unit(P1, at(11, 6), walker);
     let imp = g.spawn_unit(P1, at(11, 7), slow);
     assert_eq!(
@@ -584,7 +558,7 @@ fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() {
         },
         None,
     );
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     for (x, aura, site) in [
         (7, Some(Realm::Chaos), Some(Realm::Chaos)),
         (8, Some(Realm::Chaos), None),

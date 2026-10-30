@@ -277,8 +277,8 @@ mod tests {
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
             match u.id.as_str() {
-                "walker" => u.kind = UnitKind::Normal,
-                "slow" => u.realm = Some("chaos".into()),
+                "high_men_cavalry" => u.kind = UnitKind::Normal,
+                "high_men_spearmen" => u.realm = Some("chaos".into()),
                 _ => {}
             }
         }
@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn planar_seal_stops_every_plane_shift() {
         let mut g = world();
-        let traveller = g.content.rules.units.id_of("traveller").unwrap();
+        let traveller = g.content.rules.units.id_of("shadow_demons").unwrap();
         let u = g.spawn_unit(P0, at(5, 5), traveller);
         assert!(g.economy().can_shift_plane(&[u]).is_ok());
         grant(&mut g, P1, "planar_seal");
@@ -347,7 +347,7 @@ mod tests {
     #[test]
     fn herb_mastery_heals_every_unit_each_turn() {
         let mut g = world();
-        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
         let a = g.spawn_unit(P0, at(5, 5), walker);
         let b = g.spawn_unit(P1, at(8, 5), walker);
         g.world.insert_one(a, Hurt(3)).unwrap();
@@ -365,15 +365,9 @@ mod tests {
     #[test]
     fn undead_get_no_herb_mastery_no_holy_arms_and_cost_half_as_much_mana_again() {
         let mut g = world();
-        let mut units = g.content.rules.units.defs().to_vec();
-        for u in units.iter_mut() {
-            if u.id == "slow" {
-                u.upkeep.mana = 4;
-            }
-        }
-        g.content.rules.units = Registry::new_sorted(units);
-        let walker = g.content.rules.units.id_of("walker").unwrap();
-        let slow = g.content.rules.units.id_of("slow").unwrap();
+        // The Fire Elemental costs 4 mana a turn to keep.
+        let walker = g.content.rules.units.id_of("high_men_spearmen").unwrap();
+        let slow = g.content.rules.units.id_of("fire_elemental").unwrap();
         let normal = g.spawn_unit(P0, at(5, 5), walker);
         let fantastic = g.spawn_unit(P0, at(6, 5), slow);
         assert_eq!(g.income(P0).mana_upkeep, 4);
@@ -400,8 +394,8 @@ mod tests {
     #[test]
     fn holy_arms_and_chaos_surge_check_the_unit() {
         let mut g = world();
-        let walker = g.content.rules.units.id_of("walker").unwrap();
-        let slow = g.content.rules.units.id_of("slow").unwrap();
+        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+        let slow = g.content.rules.units.id_of("high_men_spearmen").unwrap();
         let normal = g.spawn_unit(P0, at(5, 5), walker);
         let chaos = g.spawn_unit(P0, at(6, 5), slow);
         let rival = g.spawn_unit(P1, at(9, 5), walker);
@@ -425,7 +419,7 @@ mod tests {
     #[test]
     fn charm_of_life_adds_a_quarter_of_the_hit_points_at_least_one() {
         let mut g = world();
-        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
         let u = g.spawn_unit(P0, at(5, 5), walker);
         let before = g.units().unit_stat(u, Stat::MaxHp);
         grant(&mut g, P0, "charm_of_life");
@@ -438,7 +432,7 @@ mod tests {
     #[test]
     fn nature_awareness_and_natures_eye_show_who_guards_a_site() {
         let mut g = world();
-        let guards = vec![("walker".to_string(), 2)];
+        let guards = vec![("high_men_cavalry".to_string(), 2)];
         let lair = crate::feature::lair::Lair {
             intact: true,
             guards: guards.clone(),
@@ -453,7 +447,7 @@ mod tests {
         let known = |g: &Game| g.economy().lair_guards_known_to(at(20, 10), P0);
         assert_eq!(known(&g), None, "never fought, nothing shown");
         // Nature's Eye on a city nearby: sight 9 reaches four squares and a half.
-        let elf = g.content.rules.races.id_of("elf");
+        let elf = g.content.rules.races.id_of("high_elf");
         g.apply(crate::game::Command::FoundCity {
             owner: P0,
             pos: at(17, 10),
@@ -491,7 +485,7 @@ mod tests {
     #[test]
     fn awareness_shows_cities_and_nature_awareness_the_whole_map() {
         let mut g = world();
-        let elf = g.content.rules.races.id_of("elf");
+        let elf = g.content.rules.races.id_of("high_elf");
         g.apply(crate::game::Command::FoundCity {
             owner: P1,
             pos: at(20, 10),

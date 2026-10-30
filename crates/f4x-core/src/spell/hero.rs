@@ -264,9 +264,10 @@ mod tests {
         assert!(g.player(P0).unwrap().treasury().mana < 1000);
         assert_eq!(state(&g, kind), HeroState::Serving);
         // The necromancer (a death book) is not among those a life wizard can summon.
+        let necromancer = crate::hero::game::tests::kind_of(&g, "necromancer");
         for _ in 0..5 {
             if let Some((_, k)) = joined(&cast(&mut g, SUMMON_HERO)) {
-                assert_ne!(k, 6);
+                assert_ne!(k, necromancer);
             }
         }
     }
@@ -274,7 +275,7 @@ mod tests {
     #[test]
     fn summoning_is_refused_when_nobody_is_left_or_without_a_circle_and_costs_nothing() {
         let mut g = caster();
-        g.treasury_mut(P0).unwrap().gold = 5000;
+        g.treasury_mut(P0).unwrap().gold = 100_000;
         // Every hero serves: nobody is left to summon.
         for k in 0..=torin(&g.content.rules) {
             g.hire_hero(P0, k).unwrap();
@@ -306,8 +307,8 @@ mod tests {
     #[test]
     fn summon_champion_is_refused_when_nobody_is_left() {
         let mut g = caster();
-        // The test roster has no champion; "any" finds the free ones until none remain.
-        for k in 0..6 {
+        // A champion summoning finds the free champions, then any free hero, until none remain.
+        for k in 0..g.content.rules.hero_templates.len() {
             set_state(&mut g, k, HeroState::Gone);
         }
         let events = cast(&mut g, SUMMON_CHAMPION);
@@ -321,7 +322,7 @@ mod tests {
     fn incarnation_brings_torin_back_with_his_experience() {
         let mut g = caster();
         let last = torin(&g.content.rules);
-        assert_eq!(last, 6);
+        assert_eq!(last, 34, "Torin the Chosen");
         let events = cast(&mut g, INCARNATION);
         let (unit, kind) = joined(&events).unwrap_or_else(|| panic!("{events:?}"));
         assert_eq!(kind, last);
@@ -463,13 +464,13 @@ mod tests {
         // Torin is raised by Incarnation only; a computer wizard raises the last dead hero.
         let mut g = caster();
         g.treasury_mut(P0).unwrap().gold = 5000;
-        for k in [1, 4, 6] {
+        for k in [1, 4, 34] {
             let h = g.hire_hero(P0, k).unwrap();
             g.remove_unit(h, Fate::Slain);
         }
         assert_eq!(g.units().raisable_heroes(), vec![1, 4]);
         assert_eq!(g.units().ai_resurrection_pick(), Some(4));
-        assert!(matches!(raise(&mut g, 6).as_slice(), [Event::Rejected(_)]));
+        assert!(matches!(raise(&mut g, 34).as_slice(), [Event::Rejected(_)]));
         let _ = (P1, Plane::Arcanus);
     }
 }

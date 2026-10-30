@@ -143,7 +143,7 @@ mod tests {
         game.map = Some(map);
         game.add_player(P0, "Owner");
         game.add_player(P1, "Caster");
-        let race = game.content.rules.races.id_of("elf");
+        let race = game.content.rules.races.id_of("high_elf");
         game.apply(Command::FoundCity {
             owner: P0,
             pos: at(10, 6),

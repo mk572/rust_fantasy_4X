@@ -35,12 +35,9 @@ impl Rig {
         let mut c = content_with_magic();
         let mut units = c.rules.units.defs().to_vec();
         for id in ["gnoll_wolf_riders", "healer", "troll_war_trolls"] {
-            units.push(crate::game::testutil::real_unit(id));
+            crate::game::testutil::add_real_unit(&mut units, id);
         }
         c.rules.units = Registry::new_sorted(units);
-        let mut buildings = c.rules.buildings.defs().to_vec();
-        buildings.push(crate::game::testutil::real_building("animists_guild"));
-        c.rules.buildings = Registry::new(buildings);
         let grass = c.terrains.id_of("grassland").unwrap();
         let map = Map::new(Grid::new(12, 8, grass), Grid::new(12, 8, grass));
         Rig {

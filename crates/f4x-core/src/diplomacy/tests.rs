@@ -60,7 +60,7 @@ fn command(g: &mut Game, c: DiplomacyCommand) -> Vec<Event> {
 }
 
 fn city(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("elf");
+    let race = g.content.rules.races.id_of("high_elf");
     g.apply(Command::FoundCity {
         owner,
         pos,
@@ -133,7 +133,7 @@ fn the_event_of_a_meeting_comes_back_with_the_command() {
     let events = g.apply(Command::CreateUnit {
         owner: P0,
         pos: at(9, 10),
-        unit: g.content.rules.units.id_of("walker").unwrap(),
+        unit: g.content.rules.units.id_of("high_men_cavalry").unwrap(),
     });
     // The unit looks round where it appears.
     assert!(
@@ -152,7 +152,8 @@ fn the_event_of_a_meeting_comes_back_with_the_command() {
 fn the_turn_meets_those_whose_units_one_can_see() {
     let mut g = world();
     city(&mut g, P0, at(10, 10));
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("dwarf").unwrap();
+    g.treasury_mut(P1).unwrap().gold = 1000;
     g.spawn_unit(P1, at(12, 10), walker);
     // Forget that they have been shown to each other already.
     set_pair(&mut g, P0, P1, |p| p.contacted = false);
@@ -1064,7 +1065,7 @@ fn attacking_a_partner_breaks_the_treaty_and_costs_relations() {
 #[test]
 fn a_battle_against_a_partner_breaks_the_pact() {
     let mut g = world();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a = g.spawn_unit(P1, at(5, 5), walker);
     let d = g.spawn_unit(P2, at(6, 5), walker);
     met(&mut g, P1, P2);
@@ -1092,7 +1093,7 @@ fn a_battle_against_a_partner_breaks_the_pact() {
 fn the_losses_of_a_defending_wizard_cost_the_attacker_its_goodwill() {
     use crate::battle::{Side, Status};
     let mut g = world();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a = g.spawn_unit(P2, at(5, 5), walker);
     let d: Vec<_> = (0..3).map(|_| g.spawn_unit(P1, at(6, 5), walker)).collect();
     met(&mut g, P1, P2);
@@ -1122,7 +1123,7 @@ fn the_losses_of_a_defending_wizard_cost_the_attacker_its_goodwill() {
 #[test]
 fn a_battle_against_a_stranger_makes_them_known_to_each_other() {
     let mut g = world();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a = g.spawn_unit(P1, at(5, 5), walker);
     let d = g.spawn_unit(P2, at(6, 5), walker);
     set_pair(&mut g, P1, P2, |p| p.contacted = false);
@@ -1379,7 +1380,7 @@ fn units_next_to_a_partners_city_are_warned_off_and_then_the_treaty_ends() {
     met(&mut g, P1, P2);
     g.start_treaty(P1, P2, Treaty::Pact);
     city(&mut g, P1, at(10, 10));
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     g.spawn_unit(P2, at(11, 11), walker);
     let first = diplomacy_turn(&mut g);
     assert!(
@@ -1404,7 +1405,7 @@ fn leaving_the_city_resets_the_warnings_and_wars_and_distance_are_ignored() {
     met(&mut g, P1, P2);
     g.start_treaty(P1, P2, Treaty::Pact);
     city(&mut g, P1, at(10, 10));
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let unit = g.spawn_unit(P2, at(11, 11), walker);
     diplomacy_turn(&mut g);
     assert_eq!(g.diplomacy.stance(P1, P2).unwrap().trespass, 1);

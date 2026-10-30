@@ -463,7 +463,7 @@ mod tests {
             owner: P0,
             pos: at(8, 8),
             name: "T".into(),
-            race: g.content.rules.races.id_of("elf"),
+            race: g.content.rules.races.id_of("high_elf"),
             population: 3,
         });
         let city = g.economy().city_at(at(8, 8)).unwrap();

@@ -303,7 +303,7 @@ fn archers_shoot_with_ammunition_and_range_costs_accuracy() {
 #[test]
 fn a_walkers_melee_against_a_flier_follows_the_setting_and_the_flier_hits_back() {
     use crate::game::setting::MeleeVsFliers;
-    let walker = BattleUnit::simple(Side::Attacker, "walker", 4, 2, 6, 1).at((9, 10));
+    let walker = BattleUnit::simple(Side::Attacker, "high_men_cavalry", 4, 2, 6, 1).at((9, 10));
     let mut flier = BattleUnit::simple(Side::Defender, "bat", 4, 2, 6, 1).at((10, 10));
     flier.flies = true;
     let mut b = duel(walker, flier, 8);
@@ -520,7 +520,7 @@ fn at(x: u32, y: u32) -> crate::map::Position {
 #[test]
 fn a_game_battle_copies_the_units_and_writes_the_results_back() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a1 = g.spawn_unit(A, at(4, 4), walker);
     let a2 = g.spawn_unit(A, at(4, 4), walker);
     let d1 = g.spawn_unit(D, at(5, 4), walker);
@@ -534,9 +534,10 @@ fn a_game_battle_copies_the_units_and_writes_the_results_back() {
     assert!(g.in_battle());
     let b = g.battle().unwrap();
     assert_eq!(b.units.len(), 3);
-    // Statistics come from the overland unit: melee 3, defence 2, 2 hit points a figure, 3 figures.
+    // Statistics come from the overland unit: High Men Cavalry have melee 4, defence 2, 3 hit
+    // points a figure and 4 figures.
     let u = b.unit(0).unwrap();
-    assert_eq!((u.melee, u.defense, u.hits, u.figures), (3, 2, 2, 3));
+    assert_eq!((u.melee, u.defense, u.hits, u.figures), (4, 2, 3, 4));
     assert_eq!(u.moves, g.units().unit_max_moves(a1));
     assert_eq!(u.cell, (6, 12));
     assert_eq!(b.unit(2).unwrap().cell, (12, 12));
@@ -605,7 +606,7 @@ fn a_game_battle_copies_the_units_and_writes_the_results_back() {
 #[test]
 fn battles_need_two_sides_of_opposing_players_standing_together() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a = g.spawn_unit(A, at(4, 4), walker);
     let a_far = g.spawn_unit(A, at(8, 8), walker);
     let mine = g.spawn_unit(A, at(5, 4), walker);
@@ -638,11 +639,11 @@ fn battles_need_two_sides_of_opposing_players_standing_together() {
 #[test]
 fn wounded_units_enter_a_battle_wounded() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a = g.spawn_unit(A, at(4, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
-    // 3 figures x 2 hit points: five damage leaves one figure with one hit point.
-    g.world.insert_one(a, crate::unit::Hurt(5)).unwrap();
+    // 4 figures x 3 hit points: eleven damage leaves one figure with one hit point.
+    g.world.insert_one(a, crate::unit::Hurt(11)).unwrap();
     g.apply(Command::BeginBattle {
         attackers: vec![a],
         defenders: vec![d],
@@ -664,7 +665,7 @@ fn flee_with(difficulty: u8, n: usize, held: &[&str]) -> (Game, Vec<hecs::Entity
     let mut g = game();
     g.settings =
         crate::game::setting::GameSettings::for_difficulty(&g.content.settings, difficulty);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let att: Vec<_> = (0..n).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let d = g.spawn_unit(D, at(5, 4), walker);
     g.apply(Command::BeginBattle {
@@ -723,7 +724,7 @@ fn ranged_abilities_map_to_battle_kinds() {
 }
 
 fn found(g: &mut Game, owner: PlayerId, pos: crate::map::Position) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("elf");
+    let race = g.content.rules.races.id_of("high_elf");
     g.apply(Command::FoundCity {
         owner,
         pos,
@@ -737,7 +738,7 @@ fn found(g: &mut Game, owner: PlayerId, pos: crate::map::Position) -> hecs::Enti
 #[test]
 fn auto_resolve_fights_to_the_end_and_the_winner_takes_the_square() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let attackers: Vec<_> = (0..4).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let defender = g.spawn_unit(D, at(5, 4), walker);
     let events = g.apply(Command::AutoResolve {
@@ -766,7 +767,7 @@ fn auto_resolve_fights_to_the_end_and_the_winner_takes_the_square() {
 #[test]
 fn a_battle_won_at_a_city_captures_it() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let city = found(&mut g, D, at(5, 4));
     let defender = g.spawn_unit(D, at(5, 4), walker);
     let attackers: Vec<_> = (0..5).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
@@ -787,7 +788,7 @@ fn a_battle_won_at_a_city_captures_it() {
 #[test]
 fn an_empty_enemy_city_is_taken_by_walking_in() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let city = found(&mut g, D, at(5, 4));
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let events = g.apply(Command::MoveStack {
@@ -807,7 +808,7 @@ fn an_empty_enemy_city_is_taken_by_walking_in() {
 #[test]
 fn a_losing_attacker_stays_where_it_was() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let attacker = g.spawn_unit(A, at(4, 4), walker);
     let defenders: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     g.apply(Command::AutoResolve {
@@ -825,7 +826,7 @@ fn a_losing_attacker_stays_where_it_was() {
 #[test]
 fn auto_resolve_needs_an_adjacent_target() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a = g.spawn_unit(A, at(2, 4), walker);
     let d = g.spawn_unit(D, at(6, 4), walker);
     let events = g.apply(Command::AutoResolve {
@@ -1107,7 +1108,7 @@ fn missile_immunity_stops_arrows_completely() {
 #[test]
 fn magic_immunity_stops_a_bolt_that_a_fire_immunity_does_not() {
     let mage = || {
-        let mut u = BattleUnit::simple(Side::Attacker, "mage", 3, 1, 1, 1).at((3, 10));
+        let mut u = BattleUnit::simple(Side::Attacker, "wind_mage", 3, 1, 1, 1).at((3, 10));
         u.ranged = 6;
         u.ammo = 4;
         u.ranged_kind = RangedKind::Magic;
@@ -2385,7 +2386,7 @@ mod fields {
 #[test]
 fn mithril_and_adamantium_weapons_add_to_the_attack_defence_and_to_hit() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
     for (quality, extra, plus) in [(1, 0, 1), (2, 1, 1), (3, 2, 1)] {
@@ -2412,17 +2413,8 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() {
         crate::game::testutil::item_power("vampiric", None, Some("life_steal")),
         crate::game::testutil::item_power("flaming", None, None),
     ]);
-    // Only a hero carries items: the walker is made one.
-    let mut units = g.content.rules.units.defs().to_vec();
-    for u in units.iter_mut().filter(|u| u.id == "walker") {
-        u.hero = Some(crate::rules::HeroDef {
-            kind: crate::rules::HeroKind::Warrior,
-            portrait: 0,
-            hire_cost: 100,
-        });
-    }
-    g.content.rules.units = crate::rules::Registry::new_sorted(units);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    // Only a hero carries items: the game's first hero, the Dwarf.
+    let walker = g.content.rules.units.id_of("dwarf").unwrap();
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
     let item = |kind, bonus: ItemBonus, powers: &[&str]| Item {
@@ -2477,7 +2469,7 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() {
     use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let plain = g.battle_unit_from(unit, Side::Attacker, 0).unwrap();
     assert_eq!((plain.mana, plain.hero_caster), (0, false));
@@ -2528,23 +2520,9 @@ fn casting_game() -> Game {
 /// are set after, as the rolled ones would be.
 fn hero_unit(g: &mut Game, spells: &[&str], skill: u8) -> hecs::Entity {
     use crate::hero::{Hero, HeroAbilities, HeroState};
-    use crate::rules::{HeroTemplate, PickType, Registry};
     if g.content.rules.hero_templates.is_empty() {
-        // Dwarf, the first of the game's heroes.
-        let def = crate::game::testutil::real_unit("dwarf");
-        let mut defs = g.content.rules.units.defs().to_vec();
-        defs.push(def);
-        g.content.rules.units = Registry::new_sorted(defs);
-        g.content.rules.hero_templates = vec![HeroTemplate {
-            unit: "dwarf".into(),
-            picks: 0,
-            pick_type: PickType::Warrior,
-            abilities: Vec::new(),
-            casting_skill: 0,
-            spells: Vec::new(),
-            names: vec!["Ann".into()],
-            gender: Default::default(),
-        }];
+        // Dwarf is the first of the game's heroes.
+        g.content.rules.hero_templates = crate::game::testutil::real_hero_templates();
     }
     g.make_hero(
         Hero {
@@ -2561,7 +2539,7 @@ fn hero_unit(g: &mut Game, spells: &[&str], skill: u8) -> hecs::Entity {
 }
 
 fn begin(g: &mut Game, attacker: hecs::Entity) {
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let d1 = g.spawn_unit(D, at(5, 4), walker);
     g.apply(Command::BeginBattle {
         attackers: vec![attacker],
@@ -2589,7 +2567,7 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
             .insert(call);
         m.get_mut::<crate::wizard::sheet::Skill>().left = 500;
     }
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let ours = g.spawn_unit(A, at(4, 4), walker);
     let theirs: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     g.apply(Command::BeginBattle {
@@ -2677,7 +2655,7 @@ fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() {
     }
     // A normal unit, as the game has them: the barbarians' spearmen.
     let mut defs = g.content.rules.units.defs().to_vec();
-    defs.push(crate::game::testutil::real_unit("barbarian_spearmen"));
+    crate::game::testutil::add_real_unit(&mut defs, "barbarian_spearmen");
     g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     let soldier = g.content.rules.units.id_of("barbarian_spearmen").unwrap();
     let ours = g.spawn_unit(A, at(4, 4), soldier);
@@ -2857,10 +2835,10 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() {
 #[test]
 fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it() {
     let mut g = casting_game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let mut defs = g.content.rules.units.defs().to_vec();
-    for d in defs.iter_mut().filter(|d| d.id == "walker") {
+    for d in defs.iter_mut().filter(|d| d.id == "high_men_cavalry") {
         d.abilities.push("casts_healing".into());
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(defs);
@@ -3121,12 +3099,12 @@ fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() 
 fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() {
     let mut g = game();
     let mut defs = g.content.rules.units.defs().to_vec();
-    defs.push(crate::game::testutil::real_unit("demon"));
-    for d in defs.iter_mut().filter(|d| d.id == "walker") {
+    crate::game::testutil::add_real_unit(&mut defs, "demon");
+    for d in defs.iter_mut().filter(|d| d.id == "high_men_cavalry") {
         d.abilities.push("summon_demon".into());
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(defs);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let lord = g.spawn_unit(A, at(4, 4), walker);
     begin(&mut g, lord);
     assert!(g.can_summon_demon(0));
@@ -3419,7 +3397,7 @@ fn the_legal_commands_cover_walls_crushers_and_darkness() {
 #[test]
 fn an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a1 = g.spawn_unit(A, at(4, 4), walker);
     let a2 = g.spawn_unit(A, at(4, 4), walker);
     let d1 = g.spawn_unit(D, at(5, 4), walker);
@@ -3457,7 +3435,7 @@ impl crate::battle::game::BattleBrain for Quitter {
 #[test]
 fn a_battle_brain_plays_for_its_wizard_and_the_plain_ai_for_the_rest() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a1 = g.spawn_unit(A, at(4, 4), walker);
     let d1 = g.spawn_unit(D, at(5, 4), walker);
     g.set_battle_brain(A, Some(Box::new(Quitter)));
@@ -3582,13 +3560,13 @@ fn game_with_abilities(unit_id: &str, abilities: &[&str]) -> Game {
 
 #[test]
 fn luck_adds_one_to_hit_to_block_and_resistance_in_battle() {
-    let mut g = game_with_abilities("walker", &["lucky"]);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let mut g = game_with_abilities("high_men_cavalry", &["lucky"]);
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a = g.spawn_unit(A, at(4, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
     let plain = {
         let mut other = game();
-        let w = other.content.rules.units.id_of("walker").unwrap();
+        let w = other.content.rules.units.id_of("high_men_cavalry").unwrap();
         let u = other.spawn_unit(A, at(4, 4), w);
         let d = other.spawn_unit(D, at(5, 4), w);
         other.apply(Command::BeginBattle {
@@ -3630,11 +3608,11 @@ fn finish_with_dead(
 
 #[test]
 fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won() {
-    let mut g = game_with_abilities("walker", &[]);
+    let mut g = game_with_abilities("high_men_cavalry", &[]);
     let mut units = g.content.rules.units.defs().to_vec();
-    units.push(crate::game::testutil::real_unit("troll_war_trolls"));
+    crate::game::testutil::add_real_unit(&mut units, "troll_war_trolls");
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let troll = g.content.rules.units.id_of("troll_war_trolls").unwrap();
     let alive = g.spawn_unit(A, at(4, 4), walker);
     let slain_troll = g.spawn_unit(A, at(4, 4), troll);
@@ -3667,11 +3645,11 @@ fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won(
 
 #[test]
 fn a_regenerating_unit_that_loses_stays_dead() {
-    let mut g = game_with_abilities("walker", &[]);
+    let mut g = game_with_abilities("high_men_cavalry", &[]);
     let mut units = g.content.rules.units.defs().to_vec();
-    units.push(crate::game::testutil::real_unit("troll_war_trolls"));
+    crate::game::testutil::add_real_unit(&mut units, "troll_war_trolls");
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let troll = g.content.rules.units.id_of("troll_war_trolls").unwrap();
     let a = g.spawn_unit(A, at(4, 4), troll);
     let d = g.spawn_unit(D, at(5, 4), walker);
@@ -3681,8 +3659,8 @@ fn a_regenerating_unit_that_loses_stays_dead() {
 
 #[test]
 fn the_winners_survivors_gain_experience_and_fame_for_four_kills() {
-    let mut g = game_with_abilities("walker", &[]);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let mut g = game_with_abilities("high_men_cavalry", &[]);
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a = g.spawn_unit(A, at(4, 4), walker);
     let fallen = g.spawn_unit(A, at(4, 4), walker);
     let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
@@ -3701,8 +3679,8 @@ fn the_winners_survivors_gain_experience_and_fame_for_four_kills() {
 
 #[test]
 fn fewer_than_four_kills_give_experience_but_no_fame() {
-    let mut g = game_with_abilities("walker", &[]);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let mut g = game_with_abilities("high_men_cavalry", &[]);
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a = g.spawn_unit(A, at(4, 4), walker);
     let foes: Vec<_> = (0..2).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     finish_with_dead(&mut g, &[a], &foes, &[1, 2]);
@@ -3712,13 +3690,13 @@ fn fewer_than_four_kills_give_experience_but_no_fame() {
 
 #[test]
 fn a_very_rare_foe_is_worth_a_point_of_fame() {
-    let mut g = game_with_abilities("walker", &[]);
+    let mut g = game_with_abilities("high_men_cavalry", &[]);
     let mut units = g.content.rules.units.defs().to_vec();
-    for u in units.iter_mut().filter(|u| u.id == "walker") {
+    for u in units.iter_mut().filter(|u| u.id == "high_men_cavalry") {
         u.cost = 600;
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a = g.spawn_unit(A, at(4, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
     g.set_fame(D, 5);
@@ -3733,13 +3711,13 @@ fn a_very_rare_foe_is_worth_a_point_of_fame() {
 
 #[test]
 fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back() {
-    let mut g = game_with_abilities("walker", &[]);
+    let mut g = game_with_abilities("high_men_cavalry", &[]);
     let mut units = g.content.rules.units.defs().to_vec();
-    for u in units.iter_mut().filter(|u| u.id == "walker") {
+    for u in units.iter_mut().filter(|u| u.id == "high_men_cavalry") {
         u.kind = crate::rules::UnitKind::Hero;
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a = g.spawn_unit(A, at(4, 4), walker);
     let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     // The first foe is a Veteran (level 1): half of 1 + 1 is 1.
@@ -3752,8 +3730,8 @@ fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back(
     // 25 - 1 for the hero, then one more for the four kills of a human loser above 20 fame.
     assert_eq!(g.wizard(D).unwrap().fame(), 23);
     // A hero's level 0 costs nothing.
-    let mut g2 = game_with_abilities("walker", &[]);
-    let walker = g2.content.rules.units.id_of("walker").unwrap();
+    let mut g2 = game_with_abilities("high_men_cavalry", &[]);
+    let walker = g2.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a = g2.spawn_unit(A, at(4, 4), walker);
     let d = g2.spawn_unit(D, at(5, 4), walker);
     g2.set_fame(D, 5);
@@ -3884,7 +3862,7 @@ fn magic_vortex_is_cast_on_a_free_square() {
 #[test]
 fn a_battle_fought_after_recording_began_plays_again_the_same() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let a1 = g.spawn_unit(A, at(4, 4), walker);
     let a2 = g.spawn_unit(A, at(4, 4), walker);
     let d1 = g.spawn_unit(D, at(5, 4), walker);
@@ -4042,7 +4020,7 @@ fn dispel_the_field(burn: usize) -> (bool, bool) {
             .insert(dispel);
         m.get_mut::<crate::wizard::sheet::Skill>().left = 500;
     }
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let ours = g.spawn_unit(A, at(4, 4), walker);
     let theirs = g.spawn_unit(D, at(5, 4), walker);
     g.apply(Command::BeginBattle {
@@ -4134,7 +4112,7 @@ fn cast_on_first(g: &mut Game, spell: &str) -> Result<Vec<Event>, BattleError> {
 
 #[test]
 fn a_lasting_spell_is_cast_on_a_unit_once() {
-    let mut g = wizard_battle("walker", &["giant_strength"]);
+    let mut g = wizard_battle("high_men_cavalry", &["giant_strength"]);
     cast_on_first(&mut g, "giant_strength").unwrap();
     assert_eq!(
         cast_on_first(&mut g, "giant_strength"),
@@ -4144,7 +4122,7 @@ fn a_lasting_spell_is_cast_on_a_unit_once() {
 
 #[test]
 fn stone_skin_gives_way_to_iron_skin_in_a_battle_too() {
-    let mut g = wizard_battle("walker", &["stone_skin", "iron_skin"]);
+    let mut g = wizard_battle("high_men_cavalry", &["stone_skin", "iron_skin"]);
     let defense = |g: &Game| g.battle().unwrap().unit(0).unwrap().defense;
     let base = defense(&g);
     cast_on_first(&mut g, "stone_skin").unwrap();
@@ -4157,7 +4135,7 @@ fn stone_skin_gives_way_to_iron_skin_in_a_battle_too() {
         Err(BattleError::Spell(SpellError::AlreadyEnchanted))
     );
 
-    let mut g = wizard_battle("walker", &["stone_skin", "iron_skin"]);
+    let mut g = wizard_battle("high_men_cavalry", &["stone_skin", "iron_skin"]);
     cast_on_first(&mut g, "iron_skin").unwrap();
     assert_eq!(
         cast_on_first(&mut g, "stone_skin"),
@@ -4170,7 +4148,10 @@ fn stone_skin_gives_way_to_iron_skin_in_a_battle_too() {
 fn a_dispel_does_not_bring_back_the_bonus_of_a_spell_that_gives_way() {
     // Whichever of the three the dice take off, the defence is that of the stronger skin left.
     for strength in [12, 25, 45, 80, 150] {
-        let mut g = wizard_battle("walker", &["stone_skin", "iron_skin", "giant_strength"]);
+        let mut g = wizard_battle(
+            "high_men_cavalry",
+            &["stone_skin", "iron_skin", "giant_strength"],
+        );
         let base = g.battle().unwrap().unit(0).unwrap().defense;
         for spell in ["stone_skin", "iron_skin", "giant_strength"] {
             cast_on_first(&mut g, spell).unwrap();
@@ -4192,7 +4173,7 @@ fn a_dispel_does_not_bring_back_the_bonus_of_a_spell_that_gives_way() {
 #[test]
 fn a_dispel_in_a_battle_tells_the_world_which_spell_went_and_whose_it_was() {
     use crate::game::{DispelSite, Event};
-    let mut g = wizard_battle("walker", &["stone_skin"]);
+    let mut g = wizard_battle("high_men_cavalry", &["stone_skin"]);
     cast_on_first(&mut g, "stone_skin").unwrap();
     let events = g.dispel_battle_unit(0, 10_000, D);
     let out = g.battle_event_list(events);
@@ -4213,7 +4194,7 @@ fn a_dispel_in_a_battle_tells_the_world_which_spell_went_and_whose_it_was() {
 
 #[test]
 fn a_wizard_cannot_give_a_unit_the_ability_it_has_by_nature() {
-    let mut g = wizard_battle("spirit", &["wraith_form", "flight"]);
+    let mut g = wizard_battle("magic_spirit", &["wraith_form", "flight"]);
     assert_eq!(
         cast_on_first(&mut g, "wraith_form"),
         Err(BattleError::Spell(SpellError::AlreadyAble))
@@ -4223,7 +4204,7 @@ fn a_wizard_cannot_give_a_unit_the_ability_it_has_by_nature() {
 
 #[test]
 fn holy_weapon_is_refused_in_a_battle_while_the_wizard_keeps_holy_arms() {
-    let mut g = wizard_battle("walker", &["holy_weapon"]);
+    let mut g = wizard_battle("high_men_cavalry", &["holy_weapon"]);
     let arms = g.content.rules.spells.id_of("holy_arms").unwrap();
     g.add_global(A, arms);
     assert_eq!(
@@ -4235,7 +4216,7 @@ fn holy_weapon_is_refused_in_a_battle_while_the_wizard_keeps_holy_arms() {
 #[test]
 fn spells_the_battle_reads_by_name_can_be_cast_and_stay_on_the_unit() {
     let names = ["bless", "righteousness", "resist_magic", "spell_lock"];
-    let mut g = wizard_battle("walker", &names);
+    let mut g = wizard_battle("high_men_cavalry", &names);
     for name in names {
         cast_on_first(&mut g, name).unwrap();
     }
@@ -4252,7 +4233,7 @@ fn spells_the_battle_reads_by_name_can_be_cast_and_stay_on_the_unit() {
 #[test]
 fn the_resistance_pairs_are_refused_in_a_battle() {
     let mut g = wizard_battle(
-        "walker",
+        "high_men_cavalry",
         &[
             "resist_elements",
             "elemental_armor",
@@ -4265,11 +4246,11 @@ fn the_resistance_pairs_are_refused_in_a_battle() {
         cast_on_first(&mut g, "resist_elements"),
         Err(BattleError::Spell(SpellError::NotCumulative))
     );
-    let mut g = wizard_battle("walker", &["resist_elements", "elemental_armor"]);
+    let mut g = wizard_battle("high_men_cavalry", &["resist_elements", "elemental_armor"]);
     cast_on_first(&mut g, "resist_elements").unwrap();
     // The stronger one goes on top.
     cast_on_first(&mut g, "elemental_armor").unwrap();
-    let mut g = wizard_battle("walker", &["resist_magic", "magic_immunity"]);
+    let mut g = wizard_battle("high_men_cavalry", &["resist_magic", "magic_immunity"]);
     cast_on_first(&mut g, "magic_immunity").unwrap();
     assert_eq!(
         cast_on_first(&mut g, "resist_magic"),
@@ -4279,11 +4260,11 @@ fn the_resistance_pairs_are_refused_in_a_battle() {
 
 #[test]
 fn heroism_cast_in_a_battle_raises_the_unit_to_the_level_it_gives() {
-    let mut g = wizard_battle("walker", &["heroism"]);
+    let mut g = wizard_battle("high_men_cavalry", &["heroism"]);
     let melee = g.battle().unwrap().unit(0).unwrap().melee;
     cast_on_first(&mut g, "heroism").unwrap();
-    // The test content's level path has one level above the first, worth a point of attack.
-    assert_eq!(g.battle().unwrap().unit(0).unwrap().melee, melee + 1);
+    // Heroism makes the unit Elite, which in the real path adds two points of attack (Regular and Elite).
+    assert_eq!(g.battle().unwrap().unit(0).unwrap().melee, melee + 2);
     // Dispelled, the unit goes back to what it was; a dispel of nothing leaves the bonus.
     g.dispel_battle_unit(0, 1000, D);
     let unit = g.battle().unwrap().unit(0).unwrap();
@@ -4459,7 +4440,7 @@ fn a_replay_can_start_in_a_battle() {
 
 #[test]
 fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() {
-    let mut g = wizard_battle("walker", &[]);
+    let mut g = wizard_battle("high_men_cavalry", &[]);
     g.treasury_mut(D).unwrap().mana = 2000;
     g.init_wizard(D, &[("nature", 5), ("chaos", 5), ("death", 5)], &[], None)
         .unwrap();
@@ -4525,7 +4506,7 @@ fn strategic_fight(spells: &[&str], mana: i32, budget: Option<u32>) -> i32 {
             .insert(id);
     }
     g.treasury_mut(A).unwrap().mana = mana;
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let ours: Vec<_> = (0..3).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let theirs: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     g.apply(Command::AutoResolve {
@@ -4612,7 +4593,7 @@ fn a_battle_starts_with_the_games_melee_against_fliers_setting() {
     ] {
         let mut g = game();
         g.settings.rules.melee_vs_fliers = rule;
-        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
         let a = g.spawn_unit(A, at(4, 4), walker);
         let d = g.spawn_unit(D, at(5, 4), walker);
         g.apply(Command::BeginBattle {
@@ -4628,7 +4609,7 @@ fn a_battle_starts_with_the_games_melee_against_fliers_setting() {
 #[test]
 fn the_nine_most_experienced_defenders_fight_from_a_crowded_square() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let attacker = g.spawn_unit(A, at(4, 4), walker);
     let defenders: Vec<_> = (0..12).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     // The last three are the veterans.
@@ -4653,7 +4634,7 @@ fn the_nine_most_experienced_defenders_fight_from_a_crowded_square() {
 #[test]
 fn defenders_who_sat_a_lost_battle_out_are_half_lost_and_driven_off_the_square() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let attackers: Vec<_> = (0..9).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let defenders: Vec<_> = (0..crate::unit::MAX_TILE_LIMIT)
         .map(|_| g.spawn_unit(D, at(5, 4), walker))
@@ -4681,7 +4662,7 @@ fn defenders_who_sat_a_lost_battle_out_are_half_lost_and_driven_off_the_square()
 #[test]
 fn defenders_who_sat_a_won_battle_out_stay() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let attacker = g.spawn_unit(A, at(4, 4), walker);
     let defenders: Vec<_> = (0..12).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     g.apply(Command::BeginBattle {
@@ -4698,7 +4679,7 @@ fn defenders_who_sat_a_won_battle_out_stay() {
 #[test]
 fn the_player_names_who_fights_and_the_others_stay_out_with_their_moves() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let attackers: Vec<_> = (0..12).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let defenders: Vec<_> = (0..12).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
     // Nine of each are named; the last three of the defenders are not.

@@ -689,7 +689,7 @@ mod tests {
                 Farmers(0),
                 Buildings::default(),
                 Production::default(),
-                CityRace(content.rules.races.id_of("elf").unwrap()),
+                CityRace(content.rules.races.id_of("high_elf").unwrap()),
             ));
             Rig {
                 world,
@@ -711,18 +711,21 @@ mod tests {
     #[test]
     fn what_a_city_may_build_follows_its_race_and_its_buildings() {
         let rig = Rig::new();
-        let spear = ProductionItem::Unit(rig.content.rules.units.id_of("spear").unwrap());
-        let barracks = rig.building("barracks");
+        let units = &rig.content.rules.units;
+        let swords = ProductionItem::Unit(units.id_of("high_elf_swordsmen").unwrap());
+        let spears = ProductionItem::Unit(units.id_of("high_elf_spearmen").unwrap());
+        let (barracks, smithy) = (rig.building("barracks"), rig.building("smithy"));
+        assert_eq!(rig.eco().can_build(rig.city, spears), Ok(()));
         assert_eq!(
-            rig.eco().can_build(rig.city, spear),
+            rig.eco().can_build(rig.city, swords),
             Err(ProductionError::MissingBuilding)
         );
         rig.world
             .get::<&mut Buildings>(rig.city)
             .unwrap()
             .0
-            .push(barracks);
-        assert_eq!(rig.eco().can_build(rig.city, spear), Ok(()));
+            .extend([barracks, smithy]);
+        assert_eq!(rig.eco().can_build(rig.city, swords), Ok(()));
         assert_eq!(
             rig.eco()
                 .can_build(rig.city, ProductionItem::Building(barracks)),

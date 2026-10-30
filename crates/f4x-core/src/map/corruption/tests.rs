@@ -22,8 +22,8 @@ fn world() -> Game {
     let mut units = c.rules.units.defs().to_vec();
     for u in units.iter_mut() {
         match u.id.as_str() {
-            "walker" => u.abilities.push("purify".into()),
-            "slow" => u.abilities.push("land_corruption".into()),
+            "high_men_cavalry" => u.abilities.push("purify".into()),
+            "high_men_spearmen" => u.abilities.push("land_corruption".into()),
             _ => {}
         }
     }
@@ -120,7 +120,7 @@ fn corrupted_squares_give_a_city_nothing() {
         owner: P0,
         pos: at(10, 6),
         name: "T".into(),
-        race: g.content.rules.races.id_of("elf"),
+        race: g.content.rules.races.id_of("high_elf"),
         population: 4,
     });
     let city = g.economy().city_at(at(10, 6)).unwrap();
@@ -152,8 +152,8 @@ fn purifiers_clean_a_square_in_three_turns_and_moving_cancels() {
         .unwrap()
         .plane_mut(Plane::Arcanus)
         .set_corrupted(5, 5, true);
-    let walker = g.content.rules.units.id_of("walker").unwrap();
-    let slow = g.content.rules.units.id_of("slow").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
+    let slow = g.content.rules.units.id_of("high_men_spearmen").unwrap();
     let cleric = g.spawn_unit(P0, at(5, 5), walker);
     let other = g.spawn_unit(P0, at(5, 5), slow);
     assert_eq!(g.purify(&[]), Err(PurifyError::NoUnits));
@@ -184,7 +184,7 @@ fn purifiers_clean_a_square_in_three_turns_and_moving_cancels() {
 #[test]
 fn a_unit_that_stays_put_corrupts_its_square_when_it_has_land_corruption() {
     let mut g = world();
-    let slow = g.content.rules.units.id_of("slow").unwrap();
+    let slow = g.content.rules.units.id_of("high_men_spearmen").unwrap();
     let still = g.spawn_unit(P0, at(5, 5), slow);
     let moved = g.spawn_unit(P0, at(9, 9), slow);
     let _ = g.world.insert_one(moved, MovesLeft(0));
@@ -201,7 +201,7 @@ fn gaias_blessing_cleans_land_and_greens_deserts() {
         owner: P0,
         pos: at(10, 6),
         name: "T".into(),
-        race: g.content.rules.races.id_of("elf"),
+        race: g.content.rules.races.id_of("high_elf"),
         population: 3,
     });
     let city = g.economy().city_at(at(10, 6)).unwrap();
@@ -252,7 +252,7 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() {
         node: None,
         lair: None,
     });
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let u = g.spawn_unit(P0, at(7, 8), walker);
     assert_eq!(g.economy().tower_owner(at(8, 8)), None);
     g.move_stack(&[u], at(8, 8)).unwrap();
@@ -315,7 +315,7 @@ fn consecration_cleans_every_corrupted_square_of_its_city_at_once() {
         owner: P0,
         pos: at(10, 6),
         name: "T".into(),
-        race: g.content.rules.races.id_of("elf"),
+        race: g.content.rules.races.id_of("high_elf"),
         population: 3,
     });
     let city = g.economy().city_at(at(10, 6)).unwrap();

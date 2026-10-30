@@ -557,7 +557,7 @@ mod tests {
         for id in [ME, THEM] {
             g.add_player(id, "W");
         }
-        let race = g.content().rules.races.id_of("elf");
+        let race = g.content().rules.races.id_of("high_elf");
         for (owner, pos) in [(ME, at(5, 5)), (THEM, at(20, 10)), (THEM, at(8, 5))] {
             g.apply(Command::FoundCity {
                 owner,
@@ -573,7 +573,7 @@ mod tests {
     #[test]
     fn a_player_knows_its_own_things_and_only_the_cities_it_has_explored() {
         let mut g = game();
-        let walker = g.content().rules.units.id_of("walker").unwrap();
+        let walker = g.content().rules.units.id_of("high_men_cavalry").unwrap();
         let mine = g.spawn_unit(ME, at(5, 5), walker);
         g.spawn_unit(THEM, at(20, 11), walker);
         let view = PlayerView::new(&g, ME);
@@ -611,7 +611,7 @@ mod tests {
     #[test]
     fn a_square_in_sight_shows_its_hostile_units() {
         let mut g = game();
-        let walker = g.content().rules.units.id_of("walker").unwrap();
+        let walker = g.content().rules.units.id_of("high_men_cavalry").unwrap();
         g.spawn_unit(ME, at(5, 5), walker);
         let foe = g.spawn_unit(THEM, at(6, 5), walker);
         let view = PlayerView::new(&g, ME);

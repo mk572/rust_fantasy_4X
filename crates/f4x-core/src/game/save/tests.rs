@@ -65,8 +65,8 @@ fn game() -> Game {
     });
     g.set_feature_owner(magic_node, P0);
     g.spawn_volcano(P0, at(15, 6));
-    let elf = g.content.rules.races.id_of("elf");
-    let dwarf = g.content.rules.races.id_of("dwarf");
+    let elf = g.content.rules.races.id_of("high_elf");
+    let dwarf = g.content.rules.races.id_of("dwarven");
     g.apply(Command::FoundCity {
         owner: P0,
         pos: at(10, 6),
@@ -88,8 +88,8 @@ fn game() -> Game {
         race: elf,
         population: 0,
     });
-    let spear = g.content.rules.units.id_of("spear").unwrap();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     for _ in 0..2 {
         g.spawn_unit(P0, at(10, 6), spear);
     }
@@ -100,6 +100,11 @@ fn game() -> Game {
     });
     let hall = g.content.rules.buildings.id_of("builders_hall").unwrap();
     let home = g.economy().city_at(at(10, 6)).unwrap();
+    // Every citizen of Home farms, so the real units' food upkeep is paid.
+    g.apply(Command::SetFarmers {
+        city: home,
+        farmers: 4,
+    });
     g.apply(Command::SetProduction {
         city: home,
         item: ProductionItem::Building(hall),
@@ -200,7 +205,12 @@ fn the_random_stream_resumes_where_it_stopped() {
 fn a_loaded_game_continues_exactly_like_the_original() {
     let mut original = game();
     // Make entity ids get reused: remove a unit, then create another.
-    let spear = original.content.rules.units.id_of("spear").unwrap();
+    let spear = original
+        .content
+        .rules
+        .units
+        .id_of("high_elf_spearmen")
+        .unwrap();
     let victim = original.units().units_at(at(10, 6))[0];
     original.world.despawn(victim).unwrap();
     original.spawn_unit(P0, at(11, 6), spear);
@@ -239,9 +249,9 @@ fn saves_do_not_depend_on_the_order_of_the_content() {
     let g = game();
     let snap = g.snapshot();
     let mut shuffled = g.content.clone();
-    let mut buildings = shuffled.rules.buildings.defs().to_vec();
-    buildings.reverse();
-    shuffled.rules.buildings = crate::rules::Registry::new(buildings);
+    let mut abilities = shuffled.rules.abilities.defs().to_vec();
+    abilities.reverse();
+    shuffled.rules.abilities = crate::rules::Registry::new(abilities);
     let back = snap.clone().restore(shuffled).unwrap();
     assert_eq!(
         back.snapshot(),
@@ -260,13 +270,13 @@ fn missing_content_is_reported_by_name() {
         .units
         .defs()
         .iter()
-        .filter(|u| u.id != "spear")
+        .filter(|u| u.id != "high_elf_spearmen")
         .cloned()
         .collect();
     without.rules.units = crate::rules::Registry::new_sorted(units);
     assert_eq!(
         snap.clone().restore(without).err(),
-        Some(LoadError::UnknownId("unit", "spear".into()))
+        Some(LoadError::UnknownId("unit", "high_elf_spearmen".into()))
     );
     let mut no_terrain = g.content.clone();
     let terrains: Vec<_> = no_terrain
@@ -394,7 +404,7 @@ fn a_save_with_out_of_range_settings_is_brought_into_range() {
 #[test]
 fn weapon_quality_survives_a_save() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let unit = g.spawn_unit(P0, at(11, 6), walker);
     let _ = g.world.insert_one(
         unit,
@@ -415,7 +425,7 @@ fn weapon_quality_survives_a_save() {
 #[test]
 fn an_undead_unit_stays_undead_through_a_save() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let unit = g.spawn_unit(P0, at(11, 6), walker);
     g.make_undead(unit);
     let snap = g.snapshot();
@@ -433,7 +443,7 @@ fn creation_numbers_keep_counting_after_a_load() {
     let g = game();
     let next = g.next_serial;
     let mut back = g.snapshot().restore(g.content.clone()).unwrap();
-    let walker = back.content.rules.units.id_of("walker").unwrap();
+    let walker = back.content.rules.units.id_of("high_men_cavalry").unwrap();
     let fresh = back.spawn_unit(P0, at(11, 6), walker);
     assert_eq!(back.serial_of(fresh), Serial(next));
 }
@@ -450,7 +460,7 @@ fn bit_packing_round_trips() {
 #[test]
 fn a_unit_in_stasis_stays_there_through_a_save() {
     let mut g = game();
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
     let unit = g.spawn_unit(P0, at(11, 6), walker);
     let _ = g
         .world

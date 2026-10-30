@@ -4,7 +4,6 @@ use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
 
 use crate::game::Command;
-use crate::rules::Registry;
 use crate::unit::MovesLeft;
 
 const P0: PlayerId = PlayerId(0);
@@ -18,20 +17,7 @@ fn at(x: u32, y: u32) -> Position {
 }
 
 fn world() -> Game {
-    let mut c = content_with_magic();
-    let mut units = c.rules.units.defs().to_vec();
-    for u in units.iter_mut() {
-        match u.id.as_str() {
-            "walker" => {
-                u.stats.insert(Stat::Construction, 1);
-            }
-            "slow" => {
-                u.stats.insert(Stat::Construction, 2);
-            }
-            _ => {}
-        }
-    }
-    c.rules.units = Registry::new_sorted(units);
+    let c = content_with_magic();
     let grass = c.terrains.id_of("grassland").unwrap();
     let mut g = Game::new(4);
     g.content = c;
@@ -127,7 +113,7 @@ fn a_road_on_a_node_takes_the_time_of_its_own_ground() {
 #[test]
 fn one_engineer_needs_three_turns_on_grassland() {
     let mut g = world();
-    let e = engineer(&mut g, "walker", at(5, 5));
+    let e = engineer(&mut g, "high_men_engineers", at(5, 5));
     let events = g.apply(Command::BuildRoad {
         units: vec![e],
         path: vec![],
@@ -146,8 +132,8 @@ fn one_engineer_needs_three_turns_on_grassland() {
 #[test]
 fn a_strong_stack_divides_the_time_but_never_below_one_turn() {
     let mut g = world();
-    let a = engineer(&mut g, "walker", at(5, 5));
-    let b = engineer(&mut g, "slow", at(5, 5));
+    let a = engineer(&mut g, "high_men_engineers", at(5, 5));
+    let b = engineer(&mut g, "dwarven_engineers", at(5, 5));
     // 3 turns / (1 + 2) points = 1 turn.
     g.apply(Command::BuildRoad {
         units: vec![a, b],
@@ -157,8 +143,8 @@ fn a_strong_stack_divides_the_time_but_never_below_one_turn() {
     assert!(has_road(&g, at(5, 5)), "{events:?}");
     // A mountain takes 8 / 3 = 2 turns.
     set_terrain(&mut g, at(8, 8), TerrainClass::Mountains);
-    let c = engineer(&mut g, "walker", at(8, 8));
-    let d = engineer(&mut g, "slow", at(8, 8));
+    let c = engineer(&mut g, "high_men_engineers", at(8, 8));
+    let d = engineer(&mut g, "dwarven_engineers", at(8, 8));
     g.apply(Command::BuildRoad {
         units: vec![c, d],
         path: vec![],
@@ -172,7 +158,7 @@ fn a_strong_stack_divides_the_time_but_never_below_one_turn() {
 #[test]
 fn engineers_work_along_a_path() {
     let mut g = world();
-    let e = engineer(&mut g, "slow", at(5, 5)); // 2 points: grassland takes 1 turn
+    let e = engineer(&mut g, "dwarven_engineers", at(5, 5)); // 2 points: grassland takes 1 turn
     g.apply(Command::BuildRoad {
         units: vec![e],
         path: vec![at(5, 5), at(6, 5), at(7, 5)],
@@ -190,10 +176,10 @@ fn engineers_work_along_a_path() {
 #[test]
 fn bad_orders_are_refused_and_moving_away_cancels() {
     let mut g = world();
-    let spirit = engineer(&mut g, "boat", at(5, 5));
+    let spirit = engineer(&mut g, "warship", at(5, 5));
     assert_eq!(g.build_road(&[spirit], vec![]), Err(RoadError::NoBuilders));
     assert_eq!(g.build_road(&[], vec![]), Err(RoadError::BadSelection));
-    let e = engineer(&mut g, "walker", at(5, 5));
+    let e = engineer(&mut g, "high_men_engineers", at(5, 5));
     assert_eq!(
         g.build_road(&[e], vec![at(5, 5), at(9, 9)]),
         Err(RoadError::BadPath)
@@ -216,10 +202,6 @@ fn bad_orders_are_refused_and_moving_away_cancels() {
 #[test]
 fn enchanted_roads_and_myrror_roads_are_free() {
     let mut g = world();
-    let w = engineer(&mut g, "spirit", at(5, 5)); // the 2-move walker without roads
-    let _ = w;
-    let walker = engineer(&mut g, "pathfinder", at(5, 5));
-    let _ = g.world.insert_one(walker, MovesLeft(2));
     {
         let grid = g.map.as_mut().unwrap().plane_mut(Plane::Arcanus);
         for x in 5..=7 {
@@ -234,7 +216,7 @@ fn enchanted_roads_and_myrror_roads_are_free() {
     );
     let events = g.enchant_roads(at(6, 6));
     assert!(!events.is_empty());
-    let boot = engineer(&mut g, "hardy", at(5, 5));
+    let boot = engineer(&mut g, "high_men_cavalry", at(5, 5));
     let _ = g.world.insert_one(boot, MovesLeft(2));
     g.move_stack(&[boot], at(6, 5)).unwrap();
     assert_eq!(
@@ -245,7 +227,7 @@ fn enchanted_roads_and_myrror_roads_are_free() {
     g.move_stack(&[boot], at(7, 5)).unwrap();
     assert_eq!(g.units().unit_moves_left(boot), 2);
     // Plain roads cost half a move; Myrror's are enchanted already.
-    let plain = engineer(&mut g, "hardy", at(10, 8));
+    let plain = engineer(&mut g, "high_men_cavalry", at(10, 8));
     {
         let grid = g.map.as_mut().unwrap().plane_mut(Plane::Arcanus);
         grid.set_road(10, 8, true);
@@ -259,7 +241,7 @@ fn enchanted_roads_and_myrror_roads_are_free() {
         x: 10,
         y: 8,
     };
-    let m = engineer(&mut g, "hardy", on_myrror);
+    let m = engineer(&mut g, "high_men_cavalry", on_myrror);
     {
         let grid = g.map.as_mut().unwrap().plane_mut(Plane::Myrror);
         grid.set_road(10, 8, true);
@@ -273,7 +255,7 @@ fn enchanted_roads_and_myrror_roads_are_free() {
 #[test]
 fn road_work_and_enchanted_roads_survive_a_save() {
     let mut g = world();
-    let e = engineer(&mut g, "walker", at(5, 5));
+    let e = engineer(&mut g, "high_men_engineers", at(5, 5));
     g.build_road(&[e], vec![at(5, 5), at(6, 5)]).unwrap();
     g.process_road_work();
     g.map
@@ -309,8 +291,8 @@ fn road_work_and_enchanted_roads_survive_a_save() {
 #[test]
 fn road_turns_count_the_stack_and_say_none_on_water() {
     let mut g = world();
-    let a = engineer(&mut g, "walker", at(5, 5));
-    let b = engineer(&mut g, "slow", at(5, 5));
+    let a = engineer(&mut g, "high_men_engineers", at(5, 5));
+    let b = engineer(&mut g, "dwarven_engineers", at(5, 5));
     set_terrain(&mut g, at(6, 5), TerrainClass::Ocean);
     set_terrain(&mut g, at(7, 5), TerrainClass::Mountains);
     assert_eq!(g.road_turns(&[a], at(5, 5)), Some(3));

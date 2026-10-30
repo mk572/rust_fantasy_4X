@@ -340,7 +340,9 @@ mod tests {
     #[test]
     fn a_hero_gets_its_abilities_as_stats_fame_and_research() {
         let mut g = world();
-        let h = g.spawn_hero(P0, at(1, 1), 0).unwrap();
+        // The Dervish has no stat abilities of its own.
+        let kind = crate::hero::game::tests::kind_of(&g, "dervish");
+        let h = g.spawn_hero(P0, at(1, 1), kind).unwrap();
         let stats = [Stat::Melee, Stat::Defense, Stat::ToHit, Stat::MaxHp];
         let read = |g: &Game| stats.map(|s| g.units().unit_stat(h, s));
         // Experience 20 is the second level (x = 2); the test path adds its own pluses there, so

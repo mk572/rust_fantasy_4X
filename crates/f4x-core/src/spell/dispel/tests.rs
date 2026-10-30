@@ -129,7 +129,7 @@ fn masteries_and_archmage_multiply_a_spells_difficulty() {
 #[test]
 fn only_other_wizards_enchantments_are_dispelled() {
     let mut g = world();
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let strength = sp(&g, "giant_strength");
     g.attach_enchantment(Target::Unit(unit), strength, P0);
@@ -147,7 +147,7 @@ fn only_other_wizards_enchantments_are_dispelled() {
 #[test]
 fn a_dispel_names_each_spell_it_removes() {
     let mut g = world();
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let strength = sp(&g, "giant_strength");
     g.attach_enchantment(Target::Unit(unit), strength, P0);
@@ -166,7 +166,7 @@ fn a_dispel_names_each_spell_it_removes() {
 #[test]
 fn spell_lock_must_be_dispelled_before_anything_else_on_the_unit() {
     let mut g = world();
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let (lock, strength) = (sp(&g, "spell_lock"), sp(&g, "giant_strength"));
     g.attach_enchantment(Target::Unit(unit), strength, P0);
@@ -197,7 +197,7 @@ fn spell_lock_must_be_dispelled_before_anything_else_on_the_unit() {
 #[test]
 fn disenchant_area_clears_a_city_its_units_and_a_warped_node() {
     let mut g = world();
-    let race = g.content.rules.races.id_of("elf");
+    let race = g.content.rules.races.id_of("high_elf");
     g.apply(Command::FoundCity {
         owner: P0,
         pos: at(6, 6),
@@ -206,7 +206,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() {
         population: 3,
     });
     let city = g.economy().city_at(at(6, 6)).unwrap();
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     let unit = g.spawn_unit(P0, at(6, 6), spear);
     let elsewhere = g.spawn_unit(P0, at(9, 9), spear);
     let (strength, aura) = (sp(&g, "giant_strength"), sp(&g, "aura_of_majesty"));
@@ -511,7 +511,7 @@ fn a_dispel_can_undo_an_enchanted_road_on_its_square_only() {
 #[test]
 fn a_wizard_turns_off_only_their_own_spell_on_a_unit() {
     let mut g = world();
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let strength = sp(&g, "giant_strength");
     g.attach_enchantment(Target::Unit(unit), strength, P0);
@@ -560,7 +560,7 @@ fn turning_off_water_walking_at_sea_drowns_the_unit() {
         .plane_mut(Plane::Arcanus)
         .set(3, 3, ocean);
     open_sea(&mut g, 3, 3);
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let walking = sp(&g, "water_walking");
     g.attach_enchantment(Target::Unit(unit), walking, P0);
@@ -592,7 +592,7 @@ fn flight_keeps_a_unit_afloat_and_turning_it_off_drowns_it() {
         .plane_mut(Plane::Arcanus)
         .set(3, 3, ocean);
     open_sea(&mut g, 3, 3);
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let flight = sp(&g, "flight");
     g.attach_enchantment(Target::Unit(unit), flight, P0);

@@ -133,7 +133,7 @@ mod tests {
     }
 
     fn walker(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
-        let id = g.content.rules.units.id_of("walker").unwrap();
+        let id = g.content.rules.units.id_of("high_men_cavalry").unwrap();
         g.spawn_unit(owner, pos, id)
     }
 

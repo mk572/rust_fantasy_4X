@@ -198,7 +198,7 @@ mod tests {
         for id in [P0, P1, P2] {
             g.add_player(id, "W");
         }
-        let walker = g.content.rules.units.id_of("walker").unwrap();
+        let walker = g.content.rules.units.id_of("high_men_cavalry").unwrap();
         g.spawn_unit(P1, at(11, 10), walker);
         g.spawn_unit(P2, at(25, 15), walker);
         let mine = g.spawn_unit(P0, at(10, 10), walker);

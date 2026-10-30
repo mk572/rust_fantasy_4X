@@ -1,58 +1,8 @@
 use super::*;
-use crate::game::testutil::{content_with_economy, unit};
-use crate::rules::{Registry, Stat, UnitDef};
+use crate::game::testutil::content_with_economy;
 
 fn content() -> Content {
-    let mut c = content_with_economy();
-    let mut defs: Vec<UnitDef> = c.rules.units.defs().to_vec();
-    let mut add = |id: &str, move_: MovementType, moves, cost, stats: &[(Stat, i32)]| {
-        let mut u = unit(id, move_, moves, &[]);
-        u.kind = UnitKind::Normal;
-        u.race = Some("elf".into());
-        u.cost = cost;
-        for &(s, v) in stats {
-            u.stats.insert(s, v);
-        }
-        defs.push(u);
-    };
-    // A sturdy defender, a hard hitter, an archer, a scout on wings and an engineer.
-    add(
-        "pikeman",
-        MovementType::Walking,
-        1,
-        30,
-        &[(Stat::Defense, 5), (Stat::MaxHp, 4)],
-    );
-    add(
-        "swordsman",
-        MovementType::Walking,
-        1,
-        40,
-        &[(Stat::Melee, 6), (Stat::Defense, 2)],
-    );
-    add(
-        "archer",
-        MovementType::Walking,
-        1,
-        40,
-        &[(Stat::Melee, 1), (Stat::Ranged, 4)],
-    );
-    add(
-        "skylancer",
-        MovementType::Flying,
-        4,
-        30,
-        &[(Stat::Melee, 1), (Stat::Sight, 7)],
-    );
-    add(
-        "engineer",
-        MovementType::Walking,
-        1,
-        40,
-        &[(Stat::Melee, 0), (Stat::Construction, 1)],
-    );
-    c.rules.units = Registry::new_sorted(defs);
-    c
+    content_with_economy()
 }
 
 fn building(c: &Content, id: &str) -> BuildingId {
@@ -63,11 +13,21 @@ fn unit_id(c: &Content, id: &str) -> UnitId {
     c.rules.units.id_of(id).unwrap()
 }
 
-/// A size-4 city with room to grow, rich enough, that may build everything in the content
-/// except what needs a building it does not have.
+/// A size-4 city with room to grow, rich enough, that has a Builders Hall and a Smithy and may
+/// build everything else in the content whose requirements it meets.
 fn facts(c: &Content) -> CityFacts {
-    let possible: Vec<BuildingId> = c.rules.buildings.iter().map(|(id, _)| id).collect();
-    let free = |id: BuildingId| c.rules.buildings.get(id).requires.is_empty();
+    let built = vec![building(c, "builders_hall"), building(c, "smithy")];
+    let possible: Vec<BuildingId> = c
+        .rules
+        .buildings
+        .iter()
+        .map(|(id, _)| id)
+        .filter(|id| !built.contains(id))
+        .collect();
+    let free = |id: BuildingId| {
+        let def = c.rules.buildings.get(id);
+        def.requires.iter().all(|r| built.contains(&building(c, r)))
+    };
     CityFacts {
         figures: 4,
         max_size: 12,
@@ -75,11 +35,18 @@ fn facts(c: &Content) -> CityFacts {
         net_gold: 20,
         defenders: 2,
         buildable: possible.iter().copied().filter(|&b| free(b)).collect(),
+        built,
         possible,
-        units: ["pikeman", "swordsman", "archer", "skylancer", "engineer"]
-            .iter()
-            .map(|n| unit_id(c, n))
-            .collect(),
+        units: [
+            "high_men_pikemen",
+            "high_men_swordsmen",
+            "high_men_bowmen",
+            "high_elf_pegasai",
+            "high_men_engineers",
+        ]
+        .iter()
+        .map(|n| unit_id(c, n))
+        .collect(),
         cities: 3,
         ..CityFacts::default()
     }
@@ -139,7 +106,10 @@ fn a_city_below_its_garrison_minimum_builds_the_sturdiest_defender() {
     let mut f = facts(&c);
     f.defenders = 1;
     let item = choose(&c, &plan(Mix::Both, Focus::Gold), &f, &mut first);
-    assert_eq!(item, ProductionItem::Unit(unit_id(&c, "pikeman")));
+    assert_eq!(
+        item,
+        ProductionItem::Unit(unit_id(&c, "high_men_swordsmen"))
+    );
     // Buildings only never builds units.
     let item = choose(&c, &plan(Mix::Buildings, Focus::Gold), &f, &mut first);
     assert!(matches!(item, ProductionItem::Building(_)), "{item:?}");
@@ -205,7 +175,7 @@ fn rebels_call_for_a_building_that_lowers_unrest() {
     let mut f = facts(&c);
     f.rebels = 2;
     let item = choose(&c, &plan(Mix::Buildings, Focus::Production), &f, &mut first);
-    assert_eq!(item, ProductionItem::Building(building(&c, "temple")));
+    assert_eq!(item, ProductionItem::Building(building(&c, "shrine")));
 }
 
 #[test]
@@ -262,17 +232,19 @@ fn the_focus_decides_which_building_comes_first() {
 fn a_building_that_opens_a_better_one_gets_credit() {
     let c = content();
     let mut f = facts(&c);
-    // Only the barracks (no value to a gold plan) and the guild above it are in play.
-    f.buildable = vec![building(&c, "barracks")];
-    f.possible = vec![building(&c, "barracks"), building(&c, "fighters_guild")];
+    // Only the armory (no value to an offense plan by itself) and the guild above it are in play.
+    f.built.push(building(&c, "barracks"));
+    let armory = building(&c, "armory");
+    f.buildable = vec![armory];
+    f.possible = vec![armory, building(&c, "fighters_guild")];
     let offense = AutoBuild::new(BuildPlan {
         mix: Mix::Buildings,
         primary: Focus::Offense,
         ..BuildPlan::default()
     });
-    let with_dependent = building_score(&c, &offense.plan, &f, building(&c, "barracks"));
-    f.possible = vec![building(&c, "barracks")];
-    let alone = building_score(&c, &offense.plan, &f, building(&c, "barracks"));
+    let with_dependent = building_score(&c, &offense.plan, &f, armory);
+    f.possible = vec![armory];
+    let alone = building_score(&c, &offense.plan, &f, armory);
     assert!(with_dependent > alone);
 }
 
@@ -331,7 +303,7 @@ fn the_unit_roll_prefers_the_best_but_varies() {
     };
     let ranked = ranked_units(&c, &p, &f, false);
     let best = ranked[0].0;
-    assert_eq!(c.rules.units.get(best).id, "swordsman");
+    assert_eq!(c.rules.units.get(best).id, "high_men_pikemen");
     assert_eq!(
         roll_unit(&ranked, &mut |_| 1),
         Some(best),
@@ -359,9 +331,9 @@ fn defense_and_exploration_pick_their_own_units() {
         let r = ranked_units(&c, &p, &f, false);
         c.rules.units.get(r[0].0).id.clone()
     };
-    assert_eq!(top(Focus::Defense), "pikeman");
-    assert_eq!(top(Focus::Offense), "swordsman");
-    assert_eq!(top(Focus::Exploration), "skylancer");
+    assert_eq!(top(Focus::Defense), "high_men_swordsmen");
+    assert_eq!(top(Focus::Offense), "high_men_pikemen");
+    assert_eq!(top(Focus::Exploration), "high_elf_pegasai");
     // Engineers and scouts are only for exploration.
     let p = BuildPlan {
         mix: Mix::Units,
@@ -372,14 +344,14 @@ fn defense_and_exploration_pick_their_own_units() {
         .iter()
         .map(|&(u, _)| c.rules.units.get(u).id.clone())
         .collect();
-    assert!(!ids.contains(&"engineer".to_string()), "{ids:?}");
+    assert!(!ids.contains(&"high_men_engineers".to_string()), "{ids:?}");
 }
 
 #[test]
 fn settlers_need_room_space_and_a_wish() {
     let c = content();
     let mut f = facts(&c);
-    f.units.push(unit_id(&c, "settler"));
+    f.units.push(unit_id(&c, "high_elf_settlers"));
     f.figures = 10;
     f.max_size = 11;
     f.open_sites = 3;
@@ -415,13 +387,13 @@ fn settlers_need_room_space_and_a_wish() {
     });
     assert_eq!(
         choose(&c, &auto, &f, &mut first),
-        ProductionItem::Unit(unit_id(&c, "settler"))
+        ProductionItem::Unit(unit_id(&c, "high_elf_settlers"))
     );
     // But not before the garrison.
     f.defenders = 0;
     assert_eq!(
         choose(&c, &auto, &f, &mut first),
-        ProductionItem::Unit(unit_id(&c, "pikeman"))
+        ProductionItem::Unit(unit_id(&c, "high_men_swordsmen"))
     );
     // And buildings-only cities never build them.
     f.defenders = 4;
@@ -465,7 +437,7 @@ fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() {
     g.player_component_mut::<crate::player::Tax>(PlayerId(0))
         .unwrap()
         .0 = 2;
-    let race = g.content.rules.races.id_of("elf");
+    let race = g.content.rules.races.id_of("high_elf");
     g.apply(Command::FoundCity {
         owner: PlayerId(0),
         pos: crate::map::Position {

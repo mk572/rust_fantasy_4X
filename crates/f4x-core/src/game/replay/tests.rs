@@ -22,7 +22,8 @@ fn world() -> (Game, Serial) {
     g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
     g.fog = crate::map::fog::Fog::new(20, 10);
     g.add_player(P0, "W");
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("dwarf").unwrap();
+    g.treasury_mut(P0).unwrap().gold = 1000;
     let u = g.spawn_unit(P0, at(5, 5), walker);
     g.fog.explore(P0, at(10, 5), 25, false);
     let serial = g.serial_of(u);
@@ -88,7 +89,8 @@ fn a_replay_survives_being_written_and_read() {
 fn commands_find_their_units_after_a_load_changed_the_entities() {
     let (mut g, s) = world();
     // Make some entities come and go so that a rebuilt world numbers them differently.
-    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let walker = g.content.rules.units.id_of("dwarf").unwrap();
+    g.treasury_mut(P0).unwrap().gold = 1000;
     let spare = g.spawn_unit(P0, at(1, 1), walker);
     let _ = g.world.despawn(spare);
     g.set_undo(true);

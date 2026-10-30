@@ -55,7 +55,7 @@ fn world() -> Game {
 
 /// The first city is the wizard's fortress, later ones are ordinary cities.
 fn found(g: &mut Game, pos: Position, pop: u32) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("elf");
+    let race = g.content.rules.races.id_of("high_elf");
     let name = "Town".into();
     if g.wizard(P0).unwrap().fortress().is_none() {
         g.apply(Command::PlaceFortress {
@@ -260,7 +260,7 @@ fn mana_income_fills_the_reserve() {
 fn an_affordable_spell_takes_effect_at_once() {
     let mut g = world();
     on_the_map(&mut g, &["healing"]);
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     g.world.insert_one(unit, crate::unit::Hurt(3)).unwrap();
     let mend = spell(&g, "healing");
@@ -301,7 +301,7 @@ fn an_affordable_spell_takes_effect_at_once() {
 fn spells_need_a_known_spell_and_a_valid_target() {
     let mut g = world();
     on_the_map(&mut g, &["healing", "fire_bolt"]);
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     let mine = g.spawn_unit(P0, at(3, 3), spear);
     g.add_player(PlayerId(1), "");
     let theirs = g.spawn_unit(PlayerId(1), at(4, 3), spear);
@@ -551,7 +551,7 @@ fn cancelling_loses_what_was_paid() {
 fn summoning_creates_units_at_the_chosen_tile() {
     let mut g = world();
     let mut units = g.content.rules.units.defs().to_vec();
-    units.push(crate::game::testutil::real_unit("war_bears"));
+    crate::game::testutil::add_real_unit(&mut units, "war_bears");
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
     let call = spell(&g, "war_bears");
     g.wizard_mut(P0)
@@ -599,7 +599,7 @@ fn a_city_enchantment_is_cast_and_paid_for() {
 #[test]
 fn dispelling_removes_enchantments_by_strength() {
     let mut g = world();
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let strength = spell(&g, "giant_strength");
     let melee = g.units().unit_stat(unit, Stat::Melee);
@@ -617,10 +617,10 @@ fn dispelling_removes_enchantments_by_strength() {
 #[test]
 fn saves_keep_the_wizard_the_casting_and_unit_spells() {
     let mut g = world();
-    let spear = g.content.rules.units.id_of("spear").unwrap();
+    let spear = g.content.rules.units.id_of("high_elf_spearmen").unwrap();
     found(&mut g, at(10, 6), 8);
-    g.balance_farmers(P0);
     let unit = g.spawn_unit(P0, at(3, 3), spear);
+    g.balance_farmers(P0);
     let strength = spell(&g, "giant_strength");
     g.attach_enchantment(Target::Unit(unit), strength, P0);
     g.set_research(P0, spell(&g, "dispel_magic")).unwrap();
