@@ -56,6 +56,64 @@ impl SpellTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Owed(pub i32);
 
+/// On an entity (a unit, city, wizard or feature) that has an instance on it. A quick look for
+/// "nothing is on this one" that spares a query over the world, which is the most common
+/// question asked (every stat of a unit asks it). Put on by [`spawn_instance`], taken off when the
+/// last instance goes; one left behind by mistake only costs the query it was meant to spare.
+#[derive(Debug, Clone, Copy)]
+struct Enchanted;
+
+/// On a wizard that keeps a spell going on the whole world: the same quick look for the globals.
+#[derive(Debug, Clone, Copy)]
+struct KeepsGlobal;
+
+/// Does the entity carry the marker? A missing entity answers yes, so the query decides.
+fn marked<M: hecs::Component>(world: &hecs::World, entity: hecs::Entity) -> bool {
+    world.satisfies::<&M>(entity).unwrap_or(true)
+}
+
+/// A new instance in `world`, with the markers that go with it.
+pub(crate) fn spawn_instance(
+    world: &mut hecs::World,
+    def: SpellId,
+    caster: hecs::Entity,
+    target: SpellTarget,
+    serial: Serial,
+) -> hecs::Entity {
+    match target {
+        SpellTarget::Global => {
+            let _ = world.insert_one(caster, KeepsGlobal);
+        }
+        _ => {
+            if let Some(e) = target.entity() {
+                let _ = world.insert_one(e, Enchanted);
+            }
+        }
+    }
+    world.spawn((SpellCast { def }, Caster(caster), target, serial))
+}
+
+/// Remove one instance, and the markers it was the last reason for.
+fn despawn_instance(world: &mut hecs::World, instance: hecs::Entity) {
+    let target = world.get::<&SpellTarget>(instance).ok().map(|t| *t);
+    let caster = world.get::<&Caster>(instance).ok().map(|c| c.0);
+    let _ = world.despawn(instance);
+    let spells = Spells::new(world);
+    let (lone_target, lone_global) = match (target, caster) {
+        (Some(SpellTarget::Global), Some(c)) => {
+            (None, spells.globals_of(c).is_empty().then_some(c))
+        }
+        (Some(t), _) => (t.entity().filter(|_| spells.on(t).is_empty()), None),
+        _ => (None, None),
+    };
+    if let Some(e) = lone_target {
+        let _ = world.remove_one::<Enchanted>(e);
+    }
+    if let Some(c) = lone_global {
+        let _ = world.remove_one::<KeepsGlobal>(c);
+    }
+}
+
 /// A read handle on the spell instances of a world.
 #[derive(Clone, Copy)]
 pub struct Spells<'a> {
@@ -74,6 +132,12 @@ impl<'a> Spells<'a> {
 
     /// The instances on a target, oldest first.
     pub fn on(&self, target: SpellTarget) -> Vec<hecs::Entity> {
+        if target
+            .entity()
+            .is_some_and(|e| !marked::<Enchanted>(self.world, e))
+        {
+            return Vec::new();
+        }
         self.matching(|_, _, t| t == target)
     }
 
@@ -142,11 +206,17 @@ impl<'a> Spells<'a> {
 
     /// The lasting spells a wizard keeps going on the whole world, oldest first.
     pub fn globals_of(&self, caster: hecs::Entity) -> Vec<hecs::Entity> {
+        if !marked::<KeepsGlobal>(self.world, caster) {
+            return Vec::new();
+        }
         self.matching(|_, c, t| c == caster && t == SpellTarget::Global)
     }
 
     /// Does the wizard keep a global spell going for which `wanted` holds? (No list built, no sort.)
     pub fn any_global_of(&self, caster: hecs::Entity, wanted: impl Fn(SpellId) -> bool) -> bool {
+        if !marked::<KeepsGlobal>(self.world, caster) {
+            return false;
+        }
         self.world
             .query::<(&SpellCast, &Caster, &SpellTarget)>()
             .iter()
@@ -160,6 +230,12 @@ impl<'a> Spells<'a> {
 
     /// Is the spell on the target (whoever cast it)?
     pub fn has(&self, target: SpellTarget, def: SpellId) -> bool {
+        if target
+            .entity()
+            .is_some_and(|e| !marked::<Enchanted>(self.world, e))
+        {
+            return false;
+        }
         self.world
             .query::<(&SpellCast, &SpellTarget)>()
             .iter()
@@ -213,7 +289,7 @@ pub(crate) fn remove_on(
         })
         .collect();
     for instance in doomed {
-        let _ = world.despawn(instance);
+        despawn_instance(world, instance);
     }
 }
 
@@ -231,8 +307,7 @@ impl Game {
         target: SpellTarget,
     ) -> hecs::Entity {
         let serial = self.take_serial();
-        self.world
-            .spawn((SpellCast { def }, Caster(caster), target, serial))
+        spawn_instance(&mut self.world, def, caster, target, serial)
     }
 
     /// A lasting spell of `caster` is put on a city; a wizard has each spell on a city once.
@@ -340,7 +415,7 @@ impl Game {
 
     /// Remove one instance (dispelled, cancelled, or its effect is over).
     pub(crate) fn despawn_spell(&mut self, instance: hecs::Entity) {
-        let _ = self.world.despawn(instance);
+        despawn_instance(&mut self.world, instance);
     }
 
     /// Remove an entity, and with it every spell instance that is on it. Every unit, city and

@@ -1476,9 +1476,13 @@ impl Snapshot {
                     })
                 })?),
             };
-            let instance = game
-                .world
-                .spawn((SpellCast { def }, Caster(caster), target, serial));
+            let instance = crate::spell::instance::spawn_instance(
+                &mut game.world,
+                def,
+                caster,
+                target,
+                serial,
+            );
             if let Some(owed) = i.owed {
                 if target != SpellTarget::Wizard(caster) || !owing.insert(caster) {
                     return Err(LoadError::Inconsistent(

@@ -113,12 +113,13 @@ impl Rig {
             .spawn((crate::wizard::entity::PlayerLink(player),));
         let serial = Serial(self.next);
         self.next += 1;
-        self.world.spawn((
-            crate::spell::instance::SpellCast { def: s },
-            crate::spell::instance::Caster(wizard),
+        crate::spell::instance::spawn_instance(
+            &mut self.world,
+            s,
+            wizard,
             crate::spell::instance::SpellTarget::City(city),
             serial,
-        ));
+        );
     }
 
     /// What the plan says, and how many numbers it drew.
