@@ -371,7 +371,7 @@ fn combat_entry(wizard: Option<u16>, pick: usize) -> u16 {
 }
 
 /// A wizard's diplomacy tune: its friendly one, or the angry one.
-fn diplomacy_entry(wizard: u16, bad: bool) -> u16 {
+pub(crate) fn diplomacy_entry(wizard: u16, bad: bool) -> u16 {
     (if bad {
         music::WIZARD_BAD
     } else {
@@ -423,7 +423,7 @@ impl App {
             Screen::MainMenu => return Some(Track::looping(music::MAIN_MENU)),
             Screen::Intro => return Some(Track::piece(music::INTRO)),
             Screen::Create | Screen::Options => return None,
-            Screen::Diplomacy => return self.diplomacy_track(),
+            Screen::Diplomacy => return self.pages.get(&self.screen).and_then(|p| p.music(self)),
             Screen::GameOver => return self.game_over_track(),
             _ => {}
         }
@@ -437,7 +437,10 @@ impl App {
             return None;
         }
         if let Screen::Outpost = self.screen {
-            return self.pages.get(&self.screen).and_then(|page| page.music());
+            return self
+                .pages
+                .get(&self.screen)
+                .and_then(|page| page.music(self));
         }
         if self.game_over_pending() {
             return None;
@@ -474,7 +477,7 @@ impl App {
     }
 
     /// The wizard's number in the original's music order: its portrait, when it is one of the 14.
-    fn wizard_tracks_of(&self, player: PlayerId) -> Option<u16> {
+    pub(crate) fn wizard_tracks_of(&self, player: PlayerId) -> Option<u16> {
         let p = u16::from(self.game.wizard(player)?.portrait());
         (p < WIZARDS).then_some(p)
     }
@@ -499,15 +502,6 @@ impl App {
         let track = Track::looping(combat_entry(wizard, pick));
         self.audio.battle_track = Some((foe, track));
         Some(track)
-    }
-
-    /// The talking wizard's own tune: the angry one when its mood is bad.
-    fn diplomacy_track(&self) -> Option<Track> {
-        let w = self.wizard_tracks_of(self.diplo_ui.with)?;
-        Some(Track::looping(diplomacy_entry(
-            w,
-            self.diplo_ui.mood_is_bad(),
-        )))
     }
 
     fn game_over_track(&self) -> Option<Track> {

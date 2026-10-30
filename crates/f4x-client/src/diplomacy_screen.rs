@@ -8,8 +8,10 @@
 //! A proposal is put to the core and the wizard answers at once (`f4x_ai::answer_proposals`),
 //! as it does on this screen in the original.
 
+use crate::audio::{diplomacy_entry, Track};
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use crate::ui;
 use f4x_core::diplomacy::{relation_level, ProposalKind, Stage, Treaty};
 use f4x_core::game::{Command, Event};
@@ -160,12 +162,19 @@ impl Default for DiploUi {
 impl App {
     /// Talk to a wizard met. Does nothing for one not met.
     pub fn open_diplomacy(&mut self, with: PlayerId) {
+        if let Some(ui) = self.start_talk(with) {
+            self.open_page(Screen::Diplomacy, ui);
+        }
+    }
+
+    /// The start of a talk with `with`, who opens it (the greeting the first time).
+    fn start_talk(&mut self, with: PlayerId) -> Option<DiploUi> {
         if !self.game.have_met(HUMAN, with) {
-            return;
+            return None;
         }
         if self.game.wizard(HUMAN).is_some_and(|w| w.is_banished()) {
             self.log.push(self.text("log.banished_diplomacy"));
-            return;
+            return None;
         }
         let level = relation_level(self.game.relation(HUMAN, with));
         let first = self
@@ -213,8 +222,65 @@ impl App {
         }
         ui.talk_since = get_time();
         ui.opened = get_time();
-        self.diplo_ui = ui;
-        self.screen = Screen::Diplomacy;
+        Some(ui)
+    }
+
+    /// The screen as a screenshot shows it (`--talk MENU`): a wizard met, a relation, a menu.
+    pub fn open_test_talk(&mut self, menu: &str, relation: i32) {
+        let Some(with) = self.game.wizards().into_iter().find(|&w| w != HUMAN) else {
+            return;
+        };
+        self.game.make_contact(HUMAN, with);
+        let step = if relation >= 0 { 8 } else { -8 };
+        for _ in 0..(relation.abs() / 8 + 12) {
+            let now = self.game.relation(HUMAN, with);
+            if (relation - now).abs() < 8 {
+                break;
+            }
+            if step > 0 {
+                self.game.change_relations(
+                    8,
+                    HUMAN,
+                    with,
+                    f4x_core::diplomacy::Action::Friendship,
+                    None,
+                );
+            } else {
+                self.game.change_relations(
+                    -8,
+                    HUMAN,
+                    with,
+                    f4x_core::diplomacy::Action::AttackedCity,
+                    None,
+                );
+            }
+        }
+        self.game.drain_diplomacy_events();
+        let Some(mut ui) = self.start_talk(with) else {
+            return;
+        };
+        let menu = match menu {
+            "propose" => Menu::Propose,
+            "threaten" => Menu::Threaten,
+            "tribute" => Menu::Tribute,
+            "exchange" => Menu::ExchangeRealm,
+            "greeting" => {
+                self.open_page(Screen::Diplomacy, ui);
+                return;
+            }
+            "gems" => {
+                self.open_magic();
+                return;
+            }
+            _ => Menu::Main,
+        };
+        if ui.menu == Menu::Greeting {
+            ui.menu = Menu::Main;
+        }
+        ui.diplo_act(self, Act::Go(menu));
+        ui.talk_since = get_time() - 10.0;
+        ui.opened = get_time() - 10.0;
+        self.open_page(Screen::Diplomacy, ui);
     }
 
     /// A wizard that has been pushed too far will not see you: the worst patience is far gone.
@@ -280,223 +346,6 @@ impl App {
             .collect()
     }
 
-    /// The rows of the menu now, and the prompt over them.
-    fn diplo_rows(&self) -> (String, Vec<Row>) {
-        let with = self.diplo_ui.with;
-        let status = self.game.treaty(HUMAN, with);
-        let ok = |kind| self.game.check_proposal(HUMAN, with, kind).is_ok();
-        let forget = || row(self.text("diplomacy.forget_it"), true, Act::Back);
-        match self.diplo_ui.menu {
-            Menu::Main => {
-                let war = status == Treaty::War;
-                let gold = self.game.player(HUMAN).map_or(0, |p| p.treasury().gold);
-                let rows = vec![
-                    row(
-                        self.text("diplomacy.propose_treaty"),
-                        true,
-                        Act::Go(Menu::Propose),
-                    ),
-                    row(
-                        self.text("diplomacy.threaten_break"),
-                        !war,
-                        Act::Go(Menu::Threaten),
-                    ),
-                    row(
-                        self.text("diplomacy.offer_tribute"),
-                        gold >= 25,
-                        Act::Go(Menu::Tribute),
-                    ),
-                    row(
-                        self.text("diplomacy.exchange_spells"),
-                        !war,
-                        Act::Go(Menu::ExchangeRealm),
-                    ),
-                    row(self.text("diplomacy.good_bye"), true, Act::Leave),
-                ];
-                (say::menu_prompt(self.texts()), rows)
-            }
-            Menu::Propose => {
-                let rows = vec![
-                    row(
-                        self.text("diplomacy.wizard_pact"),
-                        ok(ProposalKind::Pact),
-                        Act::Propose(ProposalKind::Pact),
-                    ),
-                    row(
-                        self.text("diplomacy.alliance"),
-                        ok(ProposalKind::Alliance),
-                        Act::Propose(ProposalKind::Alliance),
-                    ),
-                    row(
-                        self.text("diplomacy.peace_treaty"),
-                        ok(ProposalKind::Peace),
-                        Act::Propose(ProposalKind::Peace),
-                    ),
-                    row(
-                        self.text("diplomacy.declare_war"),
-                        !self.third_wizards(with, true).is_empty(),
-                        Act::Go(Menu::Third(true)),
-                    ),
-                    row(
-                        self.text("diplomacy.break_alliance_with"),
-                        !self.third_wizards(with, false).is_empty(),
-                        Act::Go(Menu::Third(false)),
-                    ),
-                    forget(),
-                ];
-                (say::propose_prompt(self.texts()), rows)
-            }
-            Menu::Third(war) => {
-                let mut rows: Vec<Row> = self
-                    .third_wizards(with, war)
-                    .into_iter()
-                    .map(|t| {
-                        let kind = if war {
-                            ProposalKind::WarOn(t)
-                        } else {
-                            ProposalKind::BreakAllianceWith(t)
-                        };
-                        row(self.diplo_name(t), true, Act::Propose(kind))
-                    })
-                    .collect();
-                rows.push(forget());
-                (say::third_prompt(self.texts(), war), rows)
-            }
-            Menu::Threaten => {
-                let rows = vec![
-                    row(
-                        self.text("diplomacy.break_pact"),
-                        status == Treaty::Pact,
-                        if status == Treaty::Pact {
-                            Act::Break
-                        } else {
-                            Act::Nothing
-                        },
-                    ),
-                    row(
-                        self.text("diplomacy.break_alliance"),
-                        status == Treaty::Alliance,
-                        if status == Treaty::Alliance {
-                            Act::Break
-                        } else {
-                            Act::Nothing
-                        },
-                    ),
-                    row(
-                        self.text("diplomacy.threaten_attack"),
-                        ok(ProposalKind::Threat),
-                        Act::Propose(ProposalKind::Threat),
-                    ),
-                    forget(),
-                ];
-                (say::threaten_prompt(self.texts()), rows)
-            }
-            Menu::Tribute => {
-                let gold = self.game.player(HUMAN).map_or(0, |p| p.treasury().gold);
-                let cap = gold / 25 * 25;
-                let amounts: Vec<i32> = if cap < 100 {
-                    (1..=cap / 25).map(|i| i * 25).collect()
-                } else {
-                    [cap / 4, cap / 2, cap * 3 / 4, cap]
-                        .iter()
-                        .map(|a| a / 25 * 25)
-                        .collect()
-                };
-                let mut rows: Vec<Row> = amounts
-                    .into_iter()
-                    .map(|a| {
-                        row(
-                            self.text_with("diplomacy.gold_amount", &Args::new().count("n", a)),
-                            true,
-                            Act::Gold(a),
-                        )
-                    })
-                    .collect();
-                rows.push(row(
-                    self.text("diplomacy.spells"),
-                    !self.spells_to_give(HUMAN, with).is_empty(),
-                    Act::Go(Menu::TributeSpell),
-                ));
-                rows.push(forget());
-                (say::tribute_prompt(self.texts()), rows)
-            }
-            Menu::TributeSpell => {
-                let mut rows: Vec<Row> = self
-                    .spells_to_give(HUMAN, with)
-                    .into_iter()
-                    .take(5)
-                    .map(|s| {
-                        let name = self.game.content().rules.spells.get(s).name.clone();
-                        row(name, true, Act::GiveSpell(s))
-                    })
-                    .collect();
-                rows.push(forget());
-                (say::tribute_prompt(self.texts()), rows)
-            }
-            Menu::ExchangeRealm => {
-                let realms = self.exchange_realms(with);
-                if realms.is_empty() || self.spells_to_give(HUMAN, with).is_empty() {
-                    return (say::nothing_to_trade(self.texts()), vec![forget()]);
-                }
-                let mut rows: Vec<Row> = realms
-                    .into_iter()
-                    .map(|i| {
-                        let name = self.game.content().rules.realms.defs()[i].name.clone();
-                        row(name, true, Act::Go(Menu::ExchangeGet(i)))
-                    })
-                    .collect();
-                rows.push(forget());
-                (say::exchange_prompt(self.texts()), rows)
-            }
-            Menu::ExchangeGet(realm) => {
-                let rules = &self.game.content().rules;
-                let id = rules.realms.defs()[realm].id.clone();
-                let mut rows: Vec<Row> = self
-                    .spells_to_give(with, HUMAN)
-                    .into_iter()
-                    .filter(|&s| rules.spells.get(s).realm == id)
-                    .take(5)
-                    .map(|s| {
-                        row(
-                            rules.spells.get(s).name.clone(),
-                            true,
-                            Act::Go(Menu::ExchangeGive(s)),
-                        )
-                    })
-                    .collect();
-                rows.push(forget());
-                (say::exchange_prompt(self.texts()), rows)
-            }
-            Menu::ExchangeGive(get) => {
-                let rules = &self.game.content().rules;
-                let mut rows: Vec<Row> = self
-                    .spells_to_give(HUMAN, with)
-                    .into_iter()
-                    .take(5)
-                    .map(|s| {
-                        row(
-                            rules.spells.get(s).name.clone(),
-                            true,
-                            Act::Swap { give: s, get },
-                        )
-                    })
-                    .collect();
-                rows.push(forget());
-                (say::exchange_give_prompt(self.texts()), rows)
-            }
-            Menu::Greeting | Menu::Reply => (self.diplo_ui.message.clone(), Vec::new()),
-        }
-    }
-
-    /// The wizard speaks: the message is shown, the lips move, and the face takes the mood.
-    fn diplo_say(&mut self, text: impl Into<String>, mood: Mood, leave_after: bool) {
-        self.diplo_ui.message = text.into();
-        self.diplo_ui.mood = mood;
-        self.diplo_ui.talk_since = get_time();
-        self.diplo_ui.menu = Menu::Reply;
-        self.diplo_ui.leave_after = leave_after;
-    }
-
     fn wizard_name(&self, p: PlayerId) -> String {
         self.game
             .wizard(p)
@@ -535,142 +384,6 @@ impl App {
                 == 2,
             &values,
         )
-    }
-
-    /// Put a proposal and show the wizard's answer.
-    fn diplo_propose(&mut self, kind: ProposalKind) {
-        let with = self.diplo_ui.with;
-        let salt = self.game.turn as usize + usize::from(with.0);
-        let level = relation_level(self.game.relation(HUMAN, with));
-        let mut events = self.game.apply(Command::Diplomacy(
-            f4x_core::diplomacy::DiplomacyCommand::Propose {
-                from: HUMAN,
-                to: with,
-                kind,
-            },
-        ));
-        if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
-            self.note(events);
-            let said = self
-                .original_say(57, with, salt, &[])
-                .unwrap_or_else(|| say::refused(self.texts(), kind, level, salt));
-            self.diplo_say(said, Mood::Neutral, false);
-            return;
-        }
-        events.extend(f4x_ai::answer_proposals(&mut self.game, with));
-        let answer = events.iter().find_map(|e| match e {
-            Event::Diplomacy(f4x_core::diplomacy::DiplomacyEvent::ProposalAnswered {
-                accepted,
-                lapsed,
-                ..
-            }) => Some((*accepted, *lapsed)),
-            _ => None,
-        });
-        self.note(events);
-        match answer {
-            Some((true, _)) => {
-                let target = match kind {
-                    ProposalKind::WarOn(t) | ProposalKind::BreakAllianceWith(t) => {
-                        Some(self.wizard_name(t))
-                    }
-                    _ => None,
-                };
-                let extra: Vec<(&str, String)> = target
-                    .into_iter()
-                    .flat_map(|t| [("target", t.clone()), ("third_other", t)])
-                    .collect();
-                let said = say::accepted_situation(kind)
-                    .and_then(|n| self.original_say(n, with, salt, &extra))
-                    .unwrap_or_else(|| say::accepted(self.texts(), kind, salt));
-                self.diplo_say(said, Mood::Good, false)
-            }
-            Some((false, false)) if kind == ProposalKind::Threat => {
-                let at_war = self.game.treaty(HUMAN, with) == Treaty::War;
-                let key = if at_war {
-                    "diplomacy.threat_war"
-                } else {
-                    "diplomacy.refused_threat"
-                };
-                let said = self.text(key);
-                self.diplo_say(said, Mood::Bad, false);
-            }
-            Some((false, false)) => {
-                let level = relation_level(self.game.relation(HUMAN, with));
-                let said = self
-                    .original_say(57, with, salt, &[])
-                    .unwrap_or_else(|| say::refused(self.texts(), kind, level, salt));
-                self.diplo_say(said, Mood::Bad, false);
-            }
-            _ => self.diplo_say(say::lapsed(self.texts()), Mood::Neutral, false),
-        }
-    }
-
-    fn diplo_act(&mut self, act: Act) {
-        let with = self.diplo_ui.with;
-        let salt = self.game.turn as usize + usize::from(with.0);
-        match act {
-            Act::Nothing => {}
-            Act::Go(menu) => {
-                self.diplo_ui.menu = menu;
-                self.diplo_ui.message = self.diplo_rows().0;
-            }
-            Act::Back => {
-                self.diplo_ui.menu = Menu::Main;
-                self.diplo_ui.message = say::menu_prompt(self.texts());
-            }
-            Act::Leave => {
-                if self.diplo_ui.leaving.is_none() {
-                    self.diplo_ui.leaving = Some(get_time());
-                }
-            }
-            Act::Propose(kind) => self.diplo_propose(kind),
-            Act::Break => {
-                let events = self.game.apply(Command::Diplomacy(
-                    f4x_core::diplomacy::DiplomacyCommand::BreakTreaty {
-                        player: HUMAN,
-                        with,
-                    },
-                ));
-                self.note(events);
-                self.diplo_say(say::treaty_broken(self.texts()), Mood::Bad, false);
-            }
-            Act::Gold(amount) => {
-                let events = self.game.apply(Command::Diplomacy(
-                    f4x_core::diplomacy::DiplomacyCommand::GiveGold {
-                        from: HUMAN,
-                        to: with,
-                        amount,
-                    },
-                ));
-                let failed = events.iter().any(|e| matches!(e, Event::Rejected(_)));
-                self.note(events);
-                if !failed {
-                    let said = self
-                        .original_say(1, with, salt, &[])
-                        .unwrap_or_else(|| say::gold_thanks(self.texts(), salt));
-                    self.diplo_say(said, Mood::Good, false);
-                }
-            }
-            Act::GiveSpell(spell) => {
-                let events = self.game.apply(Command::Diplomacy(
-                    f4x_core::diplomacy::DiplomacyCommand::GiveSpell {
-                        from: HUMAN,
-                        to: with,
-                        spell,
-                    },
-                ));
-                let failed = events.iter().any(|e| matches!(e, Event::Rejected(_)));
-                self.note(events);
-                if !failed {
-                    let gift = self.game.content().rules.spells.get(spell).name.clone();
-                    let said = self
-                        .original_say(54, with, salt, &[("gift", gift)])
-                        .unwrap_or_else(|| say::spell_thanks(self.texts(), salt));
-                    self.diplo_say(said, Mood::Good, false);
-                }
-            }
-            Act::Swap { give, get } => self.diplo_propose(ProposalKind::Exchange { give, get }),
-        }
     }
 
     /// Break a long message into lines that fit `width` in a font style.
@@ -776,80 +489,392 @@ impl App {
             _ => None,
         }
     }
-
-    /// The screen as a screenshot shows it (`--talk MENU`): a wizard met, a relation, a menu.
-    pub fn open_test_talk(&mut self, menu: &str, relation: i32) {
-        let Some(with) = self.game.wizards().into_iter().find(|&w| w != HUMAN) else {
-            return;
-        };
-        self.game.make_contact(HUMAN, with);
-        let step = if relation >= 0 { 8 } else { -8 };
-        for _ in 0..(relation.abs() / 8 + 12) {
-            let now = self.game.relation(HUMAN, with);
-            if (relation - now).abs() < 8 {
-                break;
+}
+impl DiploUi {
+    /// The rows of the menu now, and the prompt over them.
+    fn diplo_rows(&self, app: &App) -> (String, Vec<Row>) {
+        let with = self.with;
+        let status = app.game.treaty(HUMAN, with);
+        let ok = |kind| app.game.check_proposal(HUMAN, with, kind).is_ok();
+        let forget = || row(app.text("diplomacy.forget_it"), true, Act::Back);
+        match self.menu {
+            Menu::Main => {
+                let war = status == Treaty::War;
+                let gold = app.game.player(HUMAN).map_or(0, |p| p.treasury().gold);
+                let rows = vec![
+                    row(
+                        app.text("diplomacy.propose_treaty"),
+                        true,
+                        Act::Go(Menu::Propose),
+                    ),
+                    row(
+                        app.text("diplomacy.threaten_break"),
+                        !war,
+                        Act::Go(Menu::Threaten),
+                    ),
+                    row(
+                        app.text("diplomacy.offer_tribute"),
+                        gold >= 25,
+                        Act::Go(Menu::Tribute),
+                    ),
+                    row(
+                        app.text("diplomacy.exchange_spells"),
+                        !war,
+                        Act::Go(Menu::ExchangeRealm),
+                    ),
+                    row(app.text("diplomacy.good_bye"), true, Act::Leave),
+                ];
+                (say::menu_prompt(app.texts()), rows)
             }
-            if step > 0 {
-                self.game.change_relations(
-                    8,
-                    HUMAN,
-                    with,
-                    f4x_core::diplomacy::Action::Friendship,
-                    None,
-                );
-            } else {
-                self.game.change_relations(
-                    -8,
-                    HUMAN,
-                    with,
-                    f4x_core::diplomacy::Action::AttackedCity,
-                    None,
-                );
+            Menu::Propose => {
+                let rows = vec![
+                    row(
+                        app.text("diplomacy.wizard_pact"),
+                        ok(ProposalKind::Pact),
+                        Act::Propose(ProposalKind::Pact),
+                    ),
+                    row(
+                        app.text("diplomacy.alliance"),
+                        ok(ProposalKind::Alliance),
+                        Act::Propose(ProposalKind::Alliance),
+                    ),
+                    row(
+                        app.text("diplomacy.peace_treaty"),
+                        ok(ProposalKind::Peace),
+                        Act::Propose(ProposalKind::Peace),
+                    ),
+                    row(
+                        app.text("diplomacy.declare_war"),
+                        !app.third_wizards(with, true).is_empty(),
+                        Act::Go(Menu::Third(true)),
+                    ),
+                    row(
+                        app.text("diplomacy.break_alliance_with"),
+                        !app.third_wizards(with, false).is_empty(),
+                        Act::Go(Menu::Third(false)),
+                    ),
+                    forget(),
+                ];
+                (say::propose_prompt(app.texts()), rows)
             }
+            Menu::Third(war) => {
+                let mut rows: Vec<Row> = app
+                    .third_wizards(with, war)
+                    .into_iter()
+                    .map(|t| {
+                        let kind = if war {
+                            ProposalKind::WarOn(t)
+                        } else {
+                            ProposalKind::BreakAllianceWith(t)
+                        };
+                        row(app.diplo_name(t), true, Act::Propose(kind))
+                    })
+                    .collect();
+                rows.push(forget());
+                (say::third_prompt(app.texts(), war), rows)
+            }
+            Menu::Threaten => {
+                let rows = vec![
+                    row(
+                        app.text("diplomacy.break_pact"),
+                        status == Treaty::Pact,
+                        if status == Treaty::Pact {
+                            Act::Break
+                        } else {
+                            Act::Nothing
+                        },
+                    ),
+                    row(
+                        app.text("diplomacy.break_alliance"),
+                        status == Treaty::Alliance,
+                        if status == Treaty::Alliance {
+                            Act::Break
+                        } else {
+                            Act::Nothing
+                        },
+                    ),
+                    row(
+                        app.text("diplomacy.threaten_attack"),
+                        ok(ProposalKind::Threat),
+                        Act::Propose(ProposalKind::Threat),
+                    ),
+                    forget(),
+                ];
+                (say::threaten_prompt(app.texts()), rows)
+            }
+            Menu::Tribute => {
+                let gold = app.game.player(HUMAN).map_or(0, |p| p.treasury().gold);
+                let cap = gold / 25 * 25;
+                let amounts: Vec<i32> = if cap < 100 {
+                    (1..=cap / 25).map(|i| i * 25).collect()
+                } else {
+                    [cap / 4, cap / 2, cap * 3 / 4, cap]
+                        .iter()
+                        .map(|a| a / 25 * 25)
+                        .collect()
+                };
+                let mut rows: Vec<Row> = amounts
+                    .into_iter()
+                    .map(|a| {
+                        row(
+                            app.text_with("diplomacy.gold_amount", &Args::new().count("n", a)),
+                            true,
+                            Act::Gold(a),
+                        )
+                    })
+                    .collect();
+                rows.push(row(
+                    app.text("diplomacy.spells"),
+                    !app.spells_to_give(HUMAN, with).is_empty(),
+                    Act::Go(Menu::TributeSpell),
+                ));
+                rows.push(forget());
+                (say::tribute_prompt(app.texts()), rows)
+            }
+            Menu::TributeSpell => {
+                let mut rows: Vec<Row> = app
+                    .spells_to_give(HUMAN, with)
+                    .into_iter()
+                    .take(5)
+                    .map(|s| {
+                        let name = app.game.content().rules.spells.get(s).name.clone();
+                        row(name, true, Act::GiveSpell(s))
+                    })
+                    .collect();
+                rows.push(forget());
+                (say::tribute_prompt(app.texts()), rows)
+            }
+            Menu::ExchangeRealm => {
+                let realms = app.exchange_realms(with);
+                if realms.is_empty() || app.spells_to_give(HUMAN, with).is_empty() {
+                    return (say::nothing_to_trade(app.texts()), vec![forget()]);
+                }
+                let mut rows: Vec<Row> = realms
+                    .into_iter()
+                    .map(|i| {
+                        let name = app.game.content().rules.realms.defs()[i].name.clone();
+                        row(name, true, Act::Go(Menu::ExchangeGet(i)))
+                    })
+                    .collect();
+                rows.push(forget());
+                (say::exchange_prompt(app.texts()), rows)
+            }
+            Menu::ExchangeGet(realm) => {
+                let rules = &app.game.content().rules;
+                let id = rules.realms.defs()[realm].id.clone();
+                let mut rows: Vec<Row> = app
+                    .spells_to_give(with, HUMAN)
+                    .into_iter()
+                    .filter(|&s| rules.spells.get(s).realm == id)
+                    .take(5)
+                    .map(|s| {
+                        row(
+                            rules.spells.get(s).name.clone(),
+                            true,
+                            Act::Go(Menu::ExchangeGive(s)),
+                        )
+                    })
+                    .collect();
+                rows.push(forget());
+                (say::exchange_prompt(app.texts()), rows)
+            }
+            Menu::ExchangeGive(get) => {
+                let rules = &app.game.content().rules;
+                let mut rows: Vec<Row> = app
+                    .spells_to_give(HUMAN, with)
+                    .into_iter()
+                    .take(5)
+                    .map(|s| {
+                        row(
+                            rules.spells.get(s).name.clone(),
+                            true,
+                            Act::Swap { give: s, get },
+                        )
+                    })
+                    .collect();
+                rows.push(forget());
+                (say::exchange_give_prompt(app.texts()), rows)
+            }
+            Menu::Greeting | Menu::Reply => (self.message.clone(), Vec::new()),
         }
-        self.game.drain_diplomacy_events();
-        self.open_diplomacy(with);
-        let menu = match menu {
-            "propose" => Menu::Propose,
-            "threaten" => Menu::Threaten,
-            "tribute" => Menu::Tribute,
-            "exchange" => Menu::ExchangeRealm,
-            "greeting" => return,
-            "gems" => {
-                self.open_magic();
-                return;
-            }
-            _ => Menu::Main,
-        };
-        if self.diplo_ui.menu == Menu::Greeting {
-            self.diplo_ui.menu = Menu::Main;
-        }
-        self.diplo_act(Act::Go(menu));
-        self.diplo_ui.talk_since = get_time() - 10.0;
-        self.diplo_ui.opened = get_time() - 10.0;
     }
 
-    pub(crate) fn diplomacy_screen(&mut self, input: &Input) {
-        let with = self.diplo_ui.with;
-        if !self.game.have_met(HUMAN, with) {
-            self.show_page(Screen::Magic, App::open_magic);
+    /// The wizard speaks: the message is shown, the lips move, and the face takes the mood.
+    fn diplo_say(&mut self, text: impl Into<String>, mood: Mood, leave_after: bool) {
+        self.message = text.into();
+        self.mood = mood;
+        self.talk_since = get_time();
+        self.menu = Menu::Reply;
+        self.leave_after = leave_after;
+    }
+
+    /// Put a proposal and show the wizard's answer.
+    fn diplo_propose(&mut self, app: &mut App, kind: ProposalKind) {
+        let with = self.with;
+        let salt = app.game.turn as usize + usize::from(with.0);
+        let level = relation_level(app.game.relation(HUMAN, with));
+        let mut events = app.game.apply(Command::Diplomacy(
+            f4x_core::diplomacy::DiplomacyCommand::Propose {
+                from: HUMAN,
+                to: with,
+                kind,
+            },
+        ));
+        if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
+            app.note(events);
+            let said = app
+                .original_say(57, with, salt, &[])
+                .unwrap_or_else(|| say::refused(app.texts(), kind, level, salt));
+            self.diplo_say(said, Mood::Neutral, false);
+            return;
+        }
+        events.extend(f4x_ai::answer_proposals(&mut app.game, with));
+        let answer = events.iter().find_map(|e| match e {
+            Event::Diplomacy(f4x_core::diplomacy::DiplomacyEvent::ProposalAnswered {
+                accepted,
+                lapsed,
+                ..
+            }) => Some((*accepted, *lapsed)),
+            _ => None,
+        });
+        app.note(events);
+        match answer {
+            Some((true, _)) => {
+                let target = match kind {
+                    ProposalKind::WarOn(t) | ProposalKind::BreakAllianceWith(t) => {
+                        Some(app.wizard_name(t))
+                    }
+                    _ => None,
+                };
+                let extra: Vec<(&str, String)> = target
+                    .into_iter()
+                    .flat_map(|t| [("target", t.clone()), ("third_other", t)])
+                    .collect();
+                let said = say::accepted_situation(kind)
+                    .and_then(|n| app.original_say(n, with, salt, &extra))
+                    .unwrap_or_else(|| say::accepted(app.texts(), kind, salt));
+                self.diplo_say(said, Mood::Good, false)
+            }
+            Some((false, false)) if kind == ProposalKind::Threat => {
+                let at_war = app.game.treaty(HUMAN, with) == Treaty::War;
+                let key = if at_war {
+                    "diplomacy.threat_war"
+                } else {
+                    "diplomacy.refused_threat"
+                };
+                let said = app.text(key);
+                self.diplo_say(said, Mood::Bad, false);
+            }
+            Some((false, false)) => {
+                let level = relation_level(app.game.relation(HUMAN, with));
+                let said = app
+                    .original_say(57, with, salt, &[])
+                    .unwrap_or_else(|| say::refused(app.texts(), kind, level, salt));
+                self.diplo_say(said, Mood::Bad, false);
+            }
+            _ => self.diplo_say(say::lapsed(app.texts()), Mood::Neutral, false),
+        }
+    }
+
+    fn diplo_act(&mut self, app: &mut App, act: Act) {
+        let with = self.with;
+        let salt = app.game.turn as usize + usize::from(with.0);
+        match act {
+            Act::Nothing => {}
+            Act::Go(menu) => {
+                self.menu = menu;
+                self.message = self.diplo_rows(app).0;
+            }
+            Act::Back => {
+                self.menu = Menu::Main;
+                self.message = say::menu_prompt(app.texts());
+            }
+            Act::Leave => {
+                if self.leaving.is_none() {
+                    self.leaving = Some(get_time());
+                }
+            }
+            Act::Propose(kind) => self.diplo_propose(app, kind),
+            Act::Break => {
+                let events = app.game.apply(Command::Diplomacy(
+                    f4x_core::diplomacy::DiplomacyCommand::BreakTreaty {
+                        player: HUMAN,
+                        with,
+                    },
+                ));
+                app.note(events);
+                self.diplo_say(say::treaty_broken(app.texts()), Mood::Bad, false);
+            }
+            Act::Gold(amount) => {
+                let events = app.game.apply(Command::Diplomacy(
+                    f4x_core::diplomacy::DiplomacyCommand::GiveGold {
+                        from: HUMAN,
+                        to: with,
+                        amount,
+                    },
+                ));
+                let failed = events.iter().any(|e| matches!(e, Event::Rejected(_)));
+                app.note(events);
+                if !failed {
+                    let said = app
+                        .original_say(1, with, salt, &[])
+                        .unwrap_or_else(|| say::gold_thanks(app.texts(), salt));
+                    self.diplo_say(said, Mood::Good, false);
+                }
+            }
+            Act::GiveSpell(spell) => {
+                let events = app.game.apply(Command::Diplomacy(
+                    f4x_core::diplomacy::DiplomacyCommand::GiveSpell {
+                        from: HUMAN,
+                        to: with,
+                        spell,
+                    },
+                ));
+                let failed = events.iter().any(|e| matches!(e, Event::Rejected(_)));
+                app.note(events);
+                if !failed {
+                    let gift = app.game.content().rules.spells.get(spell).name.clone();
+                    let said = app
+                        .original_say(54, with, salt, &[("gift", gift)])
+                        .unwrap_or_else(|| say::spell_thanks(app.texts(), salt));
+                    self.diplo_say(said, Mood::Good, false);
+                }
+            }
+            Act::Swap { give, get } => {
+                self.diplo_propose(app, ProposalKind::Exchange { give, get })
+            }
+        }
+    }
+}
+
+impl Page for DiploUi {
+    /// The talking wizard's own tune: the angry one when its mood is bad.
+    fn music(&self, app: &App) -> Option<Track> {
+        let w = app.wizard_tracks_of(self.with)?;
+        Some(Track::looping(diplomacy_entry(w, self.mood_is_bad())))
+    }
+
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        let with = self.with;
+        if !app.game.have_met(HUMAN, with) {
+            app.show_page(Screen::Magic, App::open_magic);
             return;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let level = relation_level(self.game.relation(HUMAN, with));
-        let portrait = self
+        let level = relation_level(app.game.relation(HUMAN, with));
+        let portrait = app
             .game
             .wizard(with)
             .map_or(0, |w| usize::from(w.portrait()));
 
         // The room, the wizard, the mirror's frame over him, and the gargoyles' eyes.
-        self.draw_pic(&lay, "diplomac", 0, 0, 0.0, 0.0);
-        let talking = get_time() - self.diplo_ui.talk_since;
+        app.draw_pic(&lay, "diplomac", 0, 0, 0.0, 0.0);
+        let talking = get_time() - self.talk_since;
         let frame = (talking / TALK_FRAME) as usize;
-        if frame < TALK_FRAMES && self.diplo_ui.menu != Menu::Main {
-            self.draw_pic(
+        if frame < TALK_FRAMES && self.menu != Menu::Main {
+            app.draw_pic(
                 &lay,
                 "diplomac",
                 24 + portrait,
@@ -858,8 +883,8 @@ impl App {
                 PORTRAIT_AT.1,
             );
         } else {
-            let mood = self.diplo_ui.mood.frame();
-            self.draw_pic(
+            let mood = self.mood.frame();
+            app.draw_pic(
                 &lay,
                 "moodwiz",
                 portrait,
@@ -868,8 +893,8 @@ impl App {
                 PORTRAIT_AT.1,
             );
         }
-        self.draw_pic(&lay, "backgrnd", 18, 0, MIRROR_AT.0, MIRROR_AT.1);
-        self.draw_pic(
+        app.draw_pic(&lay, "backgrnd", 18, 0, MIRROR_AT.0, MIRROR_AT.1);
+        app.draw_pic(
             &lay,
             "diplomac",
             2 + level,
@@ -877,7 +902,7 @@ impl App {
             LEFT_EYES_AT.0,
             LEFT_EYES_AT.1,
         );
-        self.draw_pic(
+        app.draw_pic(
             &lay,
             "diplomac",
             13 + level,
@@ -887,16 +912,16 @@ impl App {
         );
 
         // What is said, and what may be answered.
-        let (prompt, rows) = self.diplo_rows();
+        let (prompt, rows) = self.diplo_rows(app);
         let text = if rows.is_empty() {
-            self.diplo_ui.message.clone()
+            self.message.clone()
         } else {
             prompt
         };
-        let line_height = self.art.text_height(MESSAGE_STYLE) + 1.0;
+        let line_height = app.art.text_height(MESSAGE_STYLE) + 1.0;
         let mut y = TEXT_Y;
-        for line in self.diplo_wrap(MESSAGE_STYLE, &text, TEXT_W) {
-            self.draw_styled(
+        for line in app.diplo_wrap(MESSAGE_STYLE, &text, TEXT_W) {
+            app.draw_styled(
                 view,
                 &Style::set(MESSAGE_STYLE, MESSAGE_SET),
                 &line,
@@ -911,17 +936,17 @@ impl App {
         if rows.is_empty() {
             // A message waits to be read.
             if click || input.key_pressed(KeyCode::Space) || input.key_pressed(KeyCode::Enter) {
-                if self.diplo_ui.menu == Menu::Greeting {
-                    if self.audience_refused(with) {
-                        let salt = self.game.turn as usize;
-                        let said = self
+                if self.menu == Menu::Greeting {
+                    if app.audience_refused(with) {
+                        let salt = app.game.turn as usize;
+                        let said = app
                             .original_say(71, with, salt, &[])
-                            .unwrap_or_else(|| say::cold_shoulder(self.texts(), salt));
+                            .unwrap_or_else(|| say::cold_shoulder(app.texts(), salt));
                         self.diplo_say(said, Mood::Bad, true);
                     } else {
                         chosen = Some(Act::Back);
                     }
-                } else if self.diplo_ui.leave_after {
+                } else if self.leave_after {
                     chosen = Some(Act::Leave);
                 } else {
                     chosen = Some(Act::Back);
@@ -947,7 +972,7 @@ impl App {
                     );
                 }
                 if r.enabled {
-                    self.draw_styled(
+                    app.draw_styled(
                         view,
                         &Style::set(MENU_STYLE, MENU_SET),
                         &r.label,
@@ -957,7 +982,7 @@ impl App {
                 } else {
                     // The set the original dims them with is too dark to read on this background:
                     // the enabled colours, greyed.
-                    self.art.draw_bitmap_text_tinted(
+                    app.art.draw_bitmap_text_tinted(
                         MENU_STYLE,
                         MENU_SET,
                         &r.label,
@@ -973,22 +998,22 @@ impl App {
             }
         }
         if input.key_pressed(KeyCode::Escape) {
-            chosen = Some(match self.diplo_ui.menu {
+            chosen = Some(match self.menu {
                 Menu::Main | Menu::Greeting => Act::Leave,
-                Menu::Reply if self.diplo_ui.leave_after => Act::Leave,
+                Menu::Reply if self.leave_after => Act::Leave,
                 _ => Act::Back,
             });
         }
-        if self.diplo_ui.leaving.is_none() {
+        if self.leaving.is_none() {
             if let Some(act) = chosen {
-                self.diplo_act(act);
+                self.diplo_act(app, act);
             }
         }
         // The room fades in when it is entered and out when it is left.
         let now = get_time();
-        let dark = match self.diplo_ui.leaving {
+        let dark = match self.leaving {
             Some(since) => ((now - since) / FADE).min(1.0),
-            None => 1.0 - ((now - self.diplo_ui.opened) / FADE).min(1.0),
+            None => 1.0 - ((now - self.opened) / FADE).min(1.0),
         };
         if dark > 0.0 {
             draw_rectangle(
@@ -999,8 +1024,8 @@ impl App {
                 Color::new(0.0, 0.0, 0.0, dark as f32),
             );
         }
-        if dark >= 1.0 && self.diplo_ui.leaving.is_some() {
-            self.show_page(Screen::Magic, App::open_magic);
+        if dark >= 1.0 && self.leaving.is_some() {
+            app.show_page(Screen::Magic, App::open_magic);
         }
     }
 }

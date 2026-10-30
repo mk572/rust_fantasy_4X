@@ -15,7 +15,7 @@ use crate::view::{App, Screen};
 
 pub(crate) trait Page {
     /// The piece that plays while this screen is up, if it has one.
-    fn music(&self) -> Option<Track> {
+    fn music(&self, _app: &App) -> Option<Track> {
         None
     }
 

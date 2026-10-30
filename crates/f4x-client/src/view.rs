@@ -133,7 +133,6 @@ pub struct App {
     pub(crate) autobuild_dialog: Option<crate::autobuild_dialog::AutoDialog>,
     pub(crate) prod_ui: crate::production_screen::ProductionUi,
     /// The diplomacy screen's talk.
-    pub(crate) diplo_ui: crate::diplomacy_screen::DiploUi,
     /// Wizards met whose greeting waits for the map: the screen opens for each in turn.
     pub(crate) greetings: std::collections::VecDeque<PlayerId>,
     /// Wizards met since the turn began: their greeting comes with the next turn.
@@ -349,7 +348,6 @@ impl App {
             sell_prompt: None,
             autobuild_dialog: None,
             prod_ui: Default::default(),
-            diplo_ui: Default::default(),
             greetings: Default::default(),
             greetings_due: Vec::new(),
             offer_ui: Default::default(),
@@ -1487,7 +1485,7 @@ impl App {
     fn screen_frame(&mut self, input: &Input) -> bool {
         match self.screen {
             Screen::GameOver => self.page_frame(input),
-            Screen::Console => self.console_screen(input),
+            Screen::Console => self.page_frame(input),
             Screen::City(city) => {
                 self.city_screen(city, input);
             }
@@ -1501,7 +1499,7 @@ impl App {
             Screen::HallOfFame => self.page_frame(input),
             Screen::Items => self.page_frame(input),
             Screen::Craft => self.page_frame(input),
-            Screen::Diplomacy => self.diplomacy_screen(input),
+            Screen::Diplomacy => self.page_frame(input),
             Screen::Spellbook => self.spellbook_screen(input),
             Screen::Apprentice => self.apprentice_screen(input),
             Screen::Research => self.research_screen(input),

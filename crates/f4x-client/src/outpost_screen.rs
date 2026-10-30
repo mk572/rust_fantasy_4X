@@ -229,7 +229,7 @@ impl App {
 }
 
 impl Page for OutpostUi {
-    fn music(&self) -> Option<Track> {
+    fn music(&self, _app: &App) -> Option<Track> {
         self.new.then(|| Track::piece(music::NEW_OUTPOST))
     }
 
@@ -380,8 +380,9 @@ mod tests {
             naming: new,
             name: String::new(),
         };
-        assert!(ui(true).music().is_some());
-        assert!(ui(false).music().is_none());
+        let app = App::for_test();
+        assert!(ui(true).music(&app).is_some());
+        assert!(ui(false).music(&app).is_none());
     }
 
     #[test]
