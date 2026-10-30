@@ -3,10 +3,6 @@
 //! The spells are spell instances with the target `Global` (`spell/instance.rs`); the code that cares asks here. Plain stat changes come
 //! from the spell's own passive rules (with a condition such as "normal units"); the rest is
 //! recognised by spell id.
-//!
-//! Done: Evil Omens (cost), Herb Mastery, Planar Seal, Awareness, Nature Awareness, Detect
-//! Magic, Holy Arms (the attack bonus), Chaos Surge, Charm of Life. The others are listed in
-//! `docs/TASKS.md` (task 87).
 
 use crate::game::Game;
 use crate::player::PlayerId;

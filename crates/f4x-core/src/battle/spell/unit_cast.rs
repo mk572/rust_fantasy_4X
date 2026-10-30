@@ -1,4 +1,4 @@
-//! Spells cast by units on their own (task 265), the original's `Combat_Cast_Spell` with a
+//! Spells cast by units on their own, the original's `Combat_Cast_Spell` with a
 //! battle unit as the caster. A hero casts its four innate spells with its own mana
 //! (`BattleUnit::mana`) and the spell of an item with the item's charges; a creature caster (20
 //! or 40 mana) casts the spells of its realm; a unit with a `casts_...` ability casts that

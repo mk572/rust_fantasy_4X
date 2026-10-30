@@ -1,5 +1,5 @@
 //! Override mutators: things the rules never allow a player to do, for debug screens and tests.
-//! The console's override commands that used them are out for now (`reference/console-cheat/`).
+//! The console's override commands are out (`reference/console-cheat/`).
 
 use crate::map::{Position, TerrainId};
 use crate::player::PlayerId;

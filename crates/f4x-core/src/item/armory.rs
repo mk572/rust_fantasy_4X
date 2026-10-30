@@ -1,9 +1,9 @@
-//! Where a wizard's items are (task 49): the four slots of the fortress vault, the items waiting
+//! Where a wizard's items are: the four slots of the fortress vault, the items waiting
 //! after a reward, and the three slots of each hero (the [`HeroItems`] component), with the rules
 //! of the item screen for moving one between them (`ItemScrn.c`, design in
 //! `docs/heroes-items-design.md` section 3.4).
 //!
-//! The items are entities held by [`HeldBy`] (task 333, `item/entity.rs`); [`Armory`] is the
+//! The items are entities held by [`HeldBy`] (`item/entity.rs`); [`Armory`] is the
 //! vault and the award list read as one value (`ItemView::armory`), which the move rules look at,
 //! and `Game::move_item` and `Game::give_item` are what the commands call.
 
@@ -88,7 +88,7 @@ pub enum ItemError {
 }
 
 impl ItemError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::NoSuchPlace => "refuse_wizard.item_error_no_such_place",

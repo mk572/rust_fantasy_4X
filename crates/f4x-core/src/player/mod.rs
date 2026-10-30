@@ -28,8 +28,7 @@ pub fn id_of(world: &hecs::World, player: hecs::Entity) -> Option<PlayerId> {
     world.get::<&PlayerId>(player).ok().map(|id| *id)
 }
 
-/// On a player that is no wizard: the monsters' owner and each independent city's own player (task
-/// 31). It has no wizard, no magic, no victory, no fog and no AI of a wizard's kind.
+/// On a player that is no wizard: the monsters' owner and each independent city's own player. It has no wizard, no magic, no victory, no fog and no AI of a wizard's kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Neutral;
 
@@ -76,7 +75,7 @@ impl Default for Tax {
     }
 }
 
-/// On a player: the wizard's power at each turn, for the History screen (task 71); the last 288
+/// On a player: the wizard's power at each turn, for the History screen; the last 288
 /// turns.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct History(pub Vec<u8>);
@@ -86,7 +85,7 @@ pub struct History(pub Vec<u8>);
 pub struct GrandVizier;
 
 /// On a player: what this turn's merchant, mercenaries and hero asked of the wizard and is waiting
-/// for an answer (task 220); they lapse at the next turn change.
+/// for an answer; they lapse at the next turn change.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Offers(pub Vec<crate::player::offer::Offer>);
 

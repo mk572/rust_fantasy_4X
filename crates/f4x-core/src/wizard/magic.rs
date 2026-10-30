@@ -136,7 +136,7 @@ pub enum MagicError {
 }
 
 impl MagicError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::UnknownPlayer => "refuse_wizard.magic_error_unknown_player",

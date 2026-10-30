@@ -1,4 +1,4 @@
-//! The astrologer's comparison of the wizards and the history of their power (task 71): the
+//! The astrologer's comparison of the wizards and the history of their power: the
 //! original's `Record_History` and `Astrologer_*` in `CITYCALC.c`. The Astrologer screen shows
 //! the three scores, the History screen the power over the turns.
 

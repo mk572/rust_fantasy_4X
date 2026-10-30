@@ -1597,7 +1597,7 @@ fn the_battle_ai_takes_a_walled_city() -> TestResult {
 
 const GATE_SPOT: Pos = (12, 12);
 
-// ---- spells (task 43) -----------------------------------------------------------------
+// ---- spells -----------------------------------------------------------------
 
 mod casting {
     use super::*;
@@ -1883,7 +1883,7 @@ mod casting {
     }
 }
 
-// ---- battlefield enchantments (task 44) -----------------------------------------------
+// ---- battlefield enchantments -----------------------------------------------
 
 mod fields {
     use super::*;
@@ -3440,7 +3440,7 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() -> Te
     Ok(())
 }
 
-// ---- city enchantments (task 25) ---------------------------------------------------------
+// ---- city enchantments ---------------------------------------------------------
 
 fn city_map() -> BattleMap {
     BattleMap::open().with_city(false)
@@ -3786,7 +3786,7 @@ fn a_battle_brain_plays_for_its_wizard_and_the_plain_ai_for_the_rest() -> TestRe
     Ok(())
 }
 
-// ---- combat ability rules (task 37), spell shots (38), after the battle (42) -------------
+// ---- combat ability rules, spell shots, after the battle -------------
 
 #[test]
 fn a_large_shield_turns_missiles_but_not_blows() {

@@ -1,4 +1,4 @@
-//! The hero types (task 219): the rules over `Rules::hero_templates` that do not need the game's
+//! The hero types: the rules over `Rules::hero_templates` that do not need the game's
 //! world: which unit a type is, its level and hire price, how a wizard's heroes are rolled when the
 //! game starts (`Init_Heroes`) and which one is offered or summoned (`Pick_Random_Hero`). The
 //! heroes themselves are entities (`hero/game.rs`).

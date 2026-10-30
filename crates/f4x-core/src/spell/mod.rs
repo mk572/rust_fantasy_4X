@@ -1,4 +1,4 @@
-//! The spell part of the game (task 309).
+//! The spell part of the game.
 
 pub mod cast;
 pub mod city;

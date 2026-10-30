@@ -34,7 +34,7 @@ pub const SAIL_COST: u8 = 2;
 /// (which stays ocean).
 pub const DECK: u8 = 0x80;
 pub const DECK_PICTURE: u8 = 0x81;
-/// The road-layer value of a ship's deck in a sea battle (task 233): ground to stand on, apart
+/// The road-layer value of a ship's deck in a sea battle: ground to stand on, apart
 /// from the island's only in that a walker may jump the single square of water between decks.
 pub const SHIP_DECK: u8 = 0x82;
 

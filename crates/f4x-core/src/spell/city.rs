@@ -1,4 +1,4 @@
-//! City enchantments whose effects are more than stat changes (task 25). Most are read by name
+//! City enchantments whose effects are more than stat changes. Most are read by name
 //! from the city's enchantment list where they matter (`city/economy.rs` for unrest, `battle/` for
 //! sieges, `turn.rs` for what happens each turn); this file holds the shared lookups and what
 //! casting does.

@@ -1,4 +1,4 @@
-//! The terrain features that are entities (tasks 329 to 332): towers, magic nodes, encounter
+//! The terrain features that are entities: towers, magic nodes, encounter
 //! sites and the volcanoes spells raise. Each has a [`Position`] and a creation number; a
 //! `TerrainFeature` says which kind it is (all but a volcano), a [`Node`] and a [`Lair`] hold the
 //! state of a node and of a guarded site (a node and a tower have both), and an `Owner` names the

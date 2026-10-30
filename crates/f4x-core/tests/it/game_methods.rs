@@ -1,4 +1,4 @@
-//! Measures how many methods `Game` has per source file (task 183). A guideline, not a rule: the
+//! Measures how many methods `Game` has per source file. A guideline, not a rule: the
 //! test never fails on the counts. It compares them with `game_method_limits.txt` (the counts
 //! at the last baseline) and with `GUIDELINE`, and prints what is over either; see it with
 //! `cargo test -p f4x-core --test it game_methods -- --nocapture`.
@@ -91,7 +91,7 @@ fn counts() -> BTreeMap<String, usize> {
     out
 }
 
-const HEADER: &str = "# Methods in `impl Game` blocks per source file of f4x-core at the last baseline (task 183).\n\
+const HEADER: &str = "# Methods in `impl Game` blocks per source file of f4x-core at the last baseline.\n\
 # A measurement, read by tests/game_methods.rs, which reports growth and files over the guideline.\n\
 # Regenerate: F4X_WRITE_LIMITS=1 cargo test -p f4x-core --test it game_methods\n";
 

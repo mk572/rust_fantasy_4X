@@ -1,4 +1,4 @@
-//! City gates (task 12). Planar travel by tower and the Planar Seal are in `unit/movement.rs` and
+//! City gates. Planar travel by tower and the Planar Seal are in `unit/movement.rs` and
 //! `spell/global_enchantment.rs`.
 //!
 //! - **Earth Gate** (a city enchantment): a stack standing in a city with an Earth Gate may

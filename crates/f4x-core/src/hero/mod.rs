@@ -1,10 +1,10 @@
-//! Heroes (tasks 219 and 326): a hero is an entity of its own that outlives its body. Each wizard
+//! Heroes: a hero is an entity of its own that outlives its body. Each wizard
 //! has one hero entity for each of the 35 hero types from the start of the game, holding the
 //! abilities rolled for it, its name, its experience and its state; while it serves it also
 //! carries the unit components (`Unit`, `Position`...), and it loses them when the body dies.
 //!
 //! What the abilities are, so the roster, the save and `unit_abilities` read one type, and what
-//! they do (task 47): one pure function per row of the table in `heroes-items-design.md` 2.3,
+//! they do: one pure function per row of the table in `heroes-items-design.md` 2.3,
 //! which `unit/mod.rs` (the hero's own stats), `battle/field.rs` (Leadership, Prayermaster),
 //! `unit/mod.rs` (fame) and `wizard/magic_income.rs` (research) call. A hero's three items are the
 //! separate [`HeroItems`](crate::item::HeroItems) component.
@@ -30,7 +30,7 @@ pub enum HeroError {
 }
 
 impl HeroError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::Unknown => "refuse_wizard.hero_error_unknown",

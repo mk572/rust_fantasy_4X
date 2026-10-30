@@ -1,12 +1,12 @@
 //! Unit instances: components on map entities, and stats computed from their
 //! definition, abilities and experience level through the modifier engine.
 //!
-//! The rules of units are in [`UnitView`] (task 185): a read handle that borrows only the world,
+//! The rules of units are in [`UnitView`]: a read handle that borrows only the world,
 //! the content and the players (for the owner's retorts and global spells), with the queries as
 //! its methods. They are spread over the files of the unit rules (`spell/temp_effect.rs`,
 //! `unit/undead.rs`, `unit/experience.rs`, `spell/global_enchantment.rs`), each an `impl UnitView` block. What changes units
 //! is a function over `&mut World` (`spawn`, `experience::gain_xp`, the temporary effects).
-//! `Game` keeps thin methods with the old names that make a handle and ask it (`Game::units`).
+//! `Game` has thin methods that make a handle and ask it (`Game::units`).
 
 pub mod experience;
 pub(crate) mod healing;
@@ -516,7 +516,7 @@ impl<'a> UnitView<'a> {
             UnitKind::Hero if !self.unit_has_ability(unit, "noble") => def.upkeep.gold as i32,
             _ => 0,
         };
-        // A computer wizard's difficulty cuts its units' upkeep (task 247).
+        // A computer wizard's difficulty cuts its units' upkeep.
         let cut = self
             .unit_owner(unit)
             .and_then(|o| crate::player::component::<crate::player::Bonus>(self.world, o))
@@ -563,7 +563,7 @@ pub(crate) fn spawn(
 
 impl Game {
     /// The unit rules' view of the game: the world, the content and the players. The methods
-    /// below with the old names ask it.
+    /// below ask it.
     pub fn units(&self) -> UnitView<'_> {
         UnitView::new(&self.world, &self.content)
     }
@@ -583,7 +583,7 @@ impl Game {
     }
 
     /// The unit sheet's Dismiss button: the unit leaves its owner's service for good. Heroes
-    /// are refused until the items they carry have somewhere to go (task 221).
+    /// are refused until the items they carry have somewhere to go.
     pub fn dismiss_unit(&mut self, unit: hecs::Entity) -> Vec<Event> {
         let Some(owner) = self.units().unit_owner(unit) else {
             return Vec::new();

@@ -34,7 +34,7 @@ pub enum PurifyError {
 }
 
 impl PurifyError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::NoUnits => "refuse_map.purify_error_no_units",

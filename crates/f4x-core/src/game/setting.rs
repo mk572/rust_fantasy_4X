@@ -1,10 +1,8 @@
 //! The settings a game is played with: chosen once when the game is made, saved and loaded with
-//! it, and read by the rules through [`Game::settings`](crate::game::Game::settings) (task 246,
-//! `docs/game-settings.md`).
+//! it, and read by the rules through [`Game::settings`](crate::game::Game::settings)
+//! (`docs/game-settings.md`).
 //!
-//! Stage 1 holds the original's four new-game choices. The groups the design lists for later
-//! stages (wizards, AI, world, rules, victory, events, scoring) are added when they get a rule to
-//! read them. The figures of the difficulty levels and the defaults of the settings screens are
+//! The figures of the difficulty levels and the defaults of the settings screens are
 //! data, `content/settings.ron` ([`SettingsDef`]); only [`GameSettings::flat`] and the
 //! fallback [`BasicSettings::default`] for content without that file are in the code.
 
@@ -22,7 +20,7 @@ pub const DEFAULT_DIFFICULTY: u8 = 2;
 /// The map a game gets when nothing says otherwise: the original's 60 by 40 squares.
 pub const MAP_WIDTH: u16 = 60;
 pub const MAP_HEIGHT: u16 = 40;
-/// The sizes the map generator and the rest of the game are tested on (task 343): from 45 by 30
+/// The sizes the map generator and the rest of the game are tested on: from 45 by 30
 /// to 90 by 60 squares.
 pub const MAP_WIDTHS: std::ops::RangeInclusive<u16> = 45..=90;
 pub const MAP_HEIGHTS: std::ops::RangeInclusive<u16> = 30..=60;
@@ -274,7 +272,7 @@ impl MeleeVsFliers {
     }
 }
 
-/// How often the random events (task 68) fire, as a multiplier on the original's chance.
+/// How often the random events fire, as a multiplier on the original's chance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum EventFrequency {
     Half,

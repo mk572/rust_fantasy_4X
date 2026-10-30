@@ -2,7 +2,7 @@
 //! of the game and set up in it, in one place.
 //!
 //! `Game`'s state (`world`, `map`, `fog`, `content`, `players`) is private to the core, so
-//! that its shape can change without the callers noticing (task 181). Outside the core a game
+//! that its shape can change without the callers noticing. Outside the core a game
 //! is *read* through these queries and the many `unit_*`, `city_*` and `player` ones next to
 //! them, *played* through [`Game::apply`], and *set up by hand* (a test, a scenario, a tool)
 //! through the setters at the end, which the rules never use.

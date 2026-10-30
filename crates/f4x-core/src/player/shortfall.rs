@@ -1,4 +1,4 @@
-//! Gold and food that run short (task 292): the preview a player (human or AI) asks for before
+//! Gold and food that run short: the preview a player (human or AI) asks for before
 //! ending the turn, and the command that lets chosen units go.
 //!
 //! The turn change settles the treasury by itself (`finance::settle`: food first, newest first,

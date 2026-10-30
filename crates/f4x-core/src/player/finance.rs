@@ -1,4 +1,4 @@
-//! The budget (task 188): what a player takes in and pays out at the turn change, and who is
+//! The budget: what a player takes in and pays out at the turn change, and who is
 //! let go when the gold or the food runs short. The sums are plain functions over figures
 //! ([`Budget::compute`], [`settle`]), so they run in a test without a game; the `Game` side
 //! gathers the figures from the cities and the troops and applies the result. The taxes and

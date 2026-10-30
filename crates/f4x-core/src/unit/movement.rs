@@ -37,7 +37,7 @@ pub enum MoveError {
 }
 
 impl MoveError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::NoMap => "refuse_map.move_error_no_map",

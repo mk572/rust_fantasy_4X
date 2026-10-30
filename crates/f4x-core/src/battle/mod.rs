@@ -228,7 +228,7 @@ pub struct BattleUnit {
     pub bound_from: Option<Side>,
 }
 
-/// What a unit casts with its own mana rather than the wizard's skill (task 265).
+/// What a unit casts with its own mana rather than the wizard's skill.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct UnitCasting {
     /// A hero's innate spells: they cost the unit's mana.
@@ -648,7 +648,7 @@ pub enum BattleError {
 }
 
 impl BattleError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::Over => "refuse_battle.battle_error_over",

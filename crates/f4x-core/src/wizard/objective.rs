@@ -1,7 +1,6 @@
 //! A wizard's personality and objective, as the original's `Init_Magic_Personalities_Objectives`
-//! draws them at game start (`INITGAME.c`). The personality already steers diplomacy; the
-//! objective is only recorded for now: it shows on a rival's wizard sheet and does not yet steer
-//! the AI (the AI tasks decide that).
+//! draws them at game start (`INITGAME.c`). The personality steers diplomacy; the
+//! objective is recorded and shown on a rival's wizard sheet.
 
 use serde::{Deserialize, Serialize};
 

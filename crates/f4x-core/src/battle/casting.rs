@@ -157,7 +157,7 @@ pub enum SpellError {
 }
 
 impl SpellError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::NeedsGame => "refuse_battle.spell_error_needs_game",

@@ -2,10 +2,10 @@
 //! (farmers and workers, the worked area, mines, trade); everything content defines
 //! (buildings, race traits, city enchantments) arrives as stat modifiers.
 //!
-//! The rules are in [`Economy`] (task 186): a read handle over the world, the map, the content
+//! The rules are in [`Economy`]: a read handle over the world, the map, the content
 //! and the players, made by `Game::economy()`. A city's yields are worked out from those alone,
-//! so a test needs a world, a map and the content, no `Game`. `Game` keeps thin methods with
-//! the old names that ask it.
+//! so a test needs a world, a map and the content, no `Game`. `Game` has thin methods that
+//! ask it.
 //!
 //! Units: population is in citizens ("figures", 1000 people each) with a fractional part
 //! in tens of people; growth is in tens of people per turn; food in whole food; production

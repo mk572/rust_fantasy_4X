@@ -1,9 +1,8 @@
-//! Undead units (task 29, `UM_UNDEAD` in the original).
+//! Undead units (`UM_UNDEAD` in the original).
 //!
 //! A unit can be made undead: raised by the Animate Dead spell in a battle (`battle/spells.rs`),
 //! taken by the winner of a battle after a Life Steal or Create Undead attack drained it to
-//! death (`battle/game.rs`), or turned by Zombie Mastery (task 87; the `undead` console cheat and
-//! [`Game::make_undead`] do it for now). An undead unit:
+//! death (`battle/game.rs`), or turned by Zombie Mastery ([`Game::make_undead`]). An undead unit:
 //! - is a creature of the Death realm and counts as fantastic in battle;
 //! - has the immunities of the Death creatures: death, cold, poison and illusion. The original
 //!   forgot the last three for raised units (`COMBINIT.c`, "OGBUG"); the help gives them, and

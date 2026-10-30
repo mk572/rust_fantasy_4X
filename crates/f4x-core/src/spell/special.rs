@@ -1,5 +1,5 @@
 //! Special overland spells with no home of their own: Transmute, Earth Lore, Nature's Cures,
-//! Word of Recall, Plane Shift (task 56) and Floating Island. Each is a hook the spell runs; the targets they
+//! Word of Recall, Plane Shift and Floating Island. Each is a hook the spell runs; the targets they
 //! accept are checked by `check_target` in `spell/cast.rs`.
 
 use crate::map::{Plane, Position};

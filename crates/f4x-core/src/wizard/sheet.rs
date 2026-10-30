@@ -1,4 +1,4 @@
-//! What a wizard is as components of its entity (task 315): spell books, retorts, casting skill,
+//! What a wizard is as components of its entity: spell books, retorts, casting skill,
 //! the split of power, research, the spells known and researchable, the offer for research and
 //! fame. [`Wizard`] reads them (the cost of a spell, the research income, may the wizard cast it)
 //! and [`WizardMut`] changes them (research, casting, power). The cast in progress, with the item

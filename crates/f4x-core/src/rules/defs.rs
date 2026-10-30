@@ -474,7 +474,7 @@ pub struct ItemDef {
     /// The original's item type; it fixes the slot (see [`ItemKind::slot`]).
     pub kind: ItemKind,
     pub cost: u32,
-    /// The picture, an entry of the original's `ITEMS.LBX` (task 261).
+    /// The picture, an entry of the original's `ITEMS.LBX`.
     #[serde(default)]
     pub icon: u16,
     /// The plain bonuses: attack, to hit, defence, movement (in half-moves), resistance.
@@ -485,7 +485,7 @@ pub struct ItemDef {
     /// The size of the resistance penalty put on what the hero's spells hit, as the original stores it.
     #[serde(default)]
     pub spell_save: i32,
-    /// Special powers (ids in `item_powers.ron`). What each one does is task 49.
+    /// Special powers (ids in `item_powers.ron`).
     #[serde(default)]
     pub powers: Vec<String>,
     /// The spell the hero can cast from the item, and how many times (Spell Charges).

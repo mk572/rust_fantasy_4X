@@ -1,4 +1,4 @@
-//! The game version is set once, in the workspace `Cargo.toml` (task 307). The docs that state it
+//! The game version is set once, in the workspace `Cargo.toml`. The docs that state it
 //! must say the same, so that nobody reading `CLAUDE.md` or the README is told a stale number.
 
 use std::fs;

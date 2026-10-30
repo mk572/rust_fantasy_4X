@@ -70,7 +70,7 @@ pub enum BattleStartError {
 }
 
 impl BattleStartError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::InProgress => "refuse_map.battle_start_error_in_progress",
@@ -517,7 +517,7 @@ impl Game {
             && self.economy().terrain_class_at(site)
                 == Some(crate::map::terrain::TerrainClass::Ocean);
         // Ships fight as decks on the sea, and a Floating Island is a ship here: the land units
-        // aboard stand on its deck (tasks 233 and 352).
+        // aboard stand on its deck.
         let decks = if ocean {
             self.ship_deck_plan(attackers, defenders)
         } else {
@@ -970,7 +970,7 @@ impl Game {
                 let _ = self.world.insert_one(entity, Hurt(hurt as u32));
             }
         }
-        // Passengers of a ship that went down in the fight scramble ashore or drown (task 235).
+        // Passengers of a ship that went down in the fight scramble ashore or drown.
         events.extend(self.drown_stranded());
         if let Some(side) = battle.winner {
             events.push(Event::BattleEnded {
@@ -1093,10 +1093,10 @@ impl Game {
         let mut events = Vec::new();
         let source_of = |u: &BattleUnit| u.source.and_then(|i| sources.get(i).copied());
 
-        // Fleeing costs half the units and a quarter of the heroes (task 42). Units that are
+        // Fleeing costs half the units and a quarter of the heroes. Units that are
         // asleep, confused or webbed are always lost, and on Intro and Easy the player whose
         // turn it is (the attacker: a battle starts on its mover's turn) loses nothing else
-        // (`Combat.c`, task 250).
+        // (`Combat.c`).
         const HELD: [&str; 3] = ["black_sleep", "confusion", "web"];
         // Heroes taken off the field by Recall Hero are at the summoning circle now.
         for u in battle.units.iter().filter(|u| u.status == Status::Recalled) {

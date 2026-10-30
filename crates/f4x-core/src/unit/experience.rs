@@ -1,4 +1,4 @@
-//! Experience at the turn change (task 27).
+//! Experience at the turn change.
 //!
 //! The level itself is worked out by [`Game::unit_level`]: experience gives up to Elite (a
 //! hero's Demi-god), Heroism lifts a unit to Elite, and the Warlord retort and the Crusade spell
@@ -7,8 +7,8 @@
 //! - Heroism ends on a unit that reaches Elite by itself, as the help says;
 //! - a hero with the Armsmaster ability trains the other units on its square: each gets 2 xp (3
 //!   with Super Armsmaster) per level the hero has, counting from 1. When several heroes with the
-//!   ability share a square, the best of them counts. (Heroes' abilities are task 47; until it
-//!   hands them out, the ability is only there when a unit's definition lists it.)
+//!   ability share a square, the best of them counts. (The ability is there when the unit's
+//!   definition lists it.)
 //!
 //! Every living normal unit and hero also gains 1 xp each turn, up to the last level experience
 //! gives (Elite; a hero's Demi-god): `Do_All_Units_XP_Check` in the original. Creatures and the
@@ -23,7 +23,7 @@ use crate::rules::UnitKind;
 use crate::unit::{Experience, UnitView, HEROISM, HEROISM_LEVEL};
 use hecs::World;
 
-/// A hero's ability ids (task 47 adds the rest).
+/// A hero's ability ids.
 pub const ARMSMASTER: &str = "armsmaster";
 pub const SUPER_ARMSMASTER: &str = "super_armsmaster";
 

@@ -1,9 +1,9 @@
-//! The game's side of the heroes (tasks 219 and 326): making the game's 35 hero entities when it
+//! The game's side of the heroes: making the game's 35 hero entities when it
 //! starts, bringing a hero into a wizard's service as a unit, and the one place every unit that
 //! leaves the game goes through so that a hero's entity follows it (`remove_unit`).
 //!
 //! The rules themselves are in [`kind`](crate::hero::kind) and [`hero`](crate::hero); hiring
-//! with gold, summoning, offers and resurrection (tasks 48 and 220) call what is here.
+//! with gold, summoning, offers and resurrection call what is here.
 //!
 //! A hero is an individual, so there is one entity of each of the 35 types in the whole game, from
 //! its start: `Serial`, `Hero`, `HeroState` and `Experience`. It is free (any wizard may hire it, or

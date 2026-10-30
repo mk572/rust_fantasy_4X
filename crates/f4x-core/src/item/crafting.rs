@@ -1,4 +1,4 @@
-//! Making magic items (task 50): Enchant Item and Create Artifact.
+//! Making magic items: Enchant Item and Create Artifact.
 //!
 //! The wizard designs an item ([`ItemDesign`]): a kind, up to four powers and, for a staff or wand,
 //! a spell with charges. [`check`] says whether the wizard may have it, [`cost`] what it is worth,
@@ -105,7 +105,7 @@ pub enum CraftError {
 }
 
 impl CraftError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::NoPowers => "refuse_wizard.craft_error_no_powers",
@@ -513,7 +513,7 @@ pub enum CraftingError {
 }
 
 impl CraftingError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::UnknownPlayer => "refuse_wizard.crafting_error_unknown_player",

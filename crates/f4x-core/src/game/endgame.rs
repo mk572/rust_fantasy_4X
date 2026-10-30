@@ -1,9 +1,9 @@
-//! How a game ends, and what it was worth (task 70; the rules are in `docs/game_end.md`).
+//! How a game ends, and what it was worth (the rules are in `docs/game_end.md`).
 //!
 //! A game ends in one of two ways: the last wizard standing wins by **conquest** (or the human
 //! wizard is defeated, which ends it at once), or a wizard finishes the **Spell of Mastery**.
 //! Once it has ended every command is refused. A defeated wizard's belongings are cleared away
-//! first (`aftermath`, task 82).
+//! first (`aftermath`).
 
 use serde::{Deserialize, Serialize};
 
@@ -221,7 +221,7 @@ impl Game {
         }
     }
 
-    /// Clear away a defeated wizard's holdings (task 82): their heroes, creatures and remaining
+    /// Clear away a defeated wizard's holdings: their heroes, creatures and remaining
     /// units go, their enchantments come off every city and unit, their spells stop, their
     /// nodes are freed, and the conqueror takes half their gold.
     pub(crate) fn aftermath(&mut self, loser: PlayerId, winner: PlayerId) {

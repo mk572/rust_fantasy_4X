@@ -1,4 +1,4 @@
-//! The feature part of the game (tasks 309, 329 to 332).
+//! The features of the map: towers, nodes, lairs and the other places.
 
 pub mod def;
 pub mod entity;

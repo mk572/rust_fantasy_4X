@@ -1,4 +1,4 @@
-//! Instant overland spells that strike at a wizard or across the whole map (task 56): Drain
+//! Instant overland spells that strike at a wizard or across the whole map: Drain
 //! Power, Cruel Unminding, Subversion, Great Unsummoning, Death Wish and Earthquake. Each is a
 //! hook the spell runs (`spell/cast.rs`); the targets they accept are checked by `check_target`.
 //!

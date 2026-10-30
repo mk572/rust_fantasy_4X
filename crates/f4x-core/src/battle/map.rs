@@ -127,7 +127,7 @@ pub struct BattleMap {
     fortress: bool,
     /// Squares Earth to Mud turned to mud.
     mud: Vec<bool>,
-    /// The squares of a ship's deck in a sea battle (task 233).
+    /// The squares of a ship's deck in a sea battle.
     #[serde(default)]
     ship_deck: Vec<bool>,
 }
@@ -511,7 +511,7 @@ impl BattleMap {
                 }
             }
             // From one ship's deck a walker may jump the single square of water to another
-            // deck (task 233), for two moves; any move left lets it, as with rough ground.
+            // deck, for two moves; any move left lets it, as with rough ground.
             if self.is_ship_deck(at) && !mover.flying && !mover.sails {
                 for dy in -1..=1 {
                     for dx in -1..=1 {

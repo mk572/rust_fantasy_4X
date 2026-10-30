@@ -1,7 +1,7 @@
-//! Magic items (task 49): what an item is, where it fits and what it does for the hero that
+//! Magic items: what an item is, where it fits and what it does for the hero that
 //! carries it.
 //!
-//! An [`Item`] is an instance, not an id of the content: a crafted item (task 50) is not in any
+//! An [`Item`] is an instance, not an id of the content: a crafted item is not in any
 //! file. Each one is an entity (`entity.rs`: the `Item` component and `HeldBy`). A prefab item is a copy
 //! of its [`ItemDef`] ([`Item::from_def`]). Its effects reach the rules through the stat engine
 //! ([`modifiers`]) and the unit's abilities and lasting spells ([`Item::granted_spells`],
@@ -64,7 +64,7 @@ pub struct Item {
     pub charges: Option<(String, u32)>,
     /// The id of the prefab item this is a copy of; `None` for one made by a wizard or at random.
     pub prefab: Option<String>,
-    /// The parts of the default name of an item made without one (task 347): a language puts
+    /// The parts of the default name of an item made without one: a language puts
     /// them in its own order. `name` is empty then.
     #[serde(default)]
     pub made: Option<crafting::MadeName>,

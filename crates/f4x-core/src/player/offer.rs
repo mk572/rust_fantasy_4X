@@ -1,8 +1,8 @@
-//! Offers each turn (task 220): a wandering merchant's magic item, a company of mercenaries and
+//! Offers each turn: a wandering merchant's magic item, a company of mercenaries and
 //! a hero for hire, as `Determine_Offer` (`NEXTTURN.c`) and `Generate_Mercenaries`
 //! (`CITYCALC.c`) make them. At the turn change every wizard with a fortress rolls the three
 //! offers; what is offered waits in [`Offers`] until the wizard accepts or rejects it
-//! (the pop-ups of task 143 show it, the computer wizards answer through `f4x-ai`). An offer
+//! (the client's pop-ups show it, the computer wizards answer through `f4x-ai`). An offer
 //! not answered by the next turn change lapses.
 //!
 //! The chances, the prices and the AI's answers are plain functions, so they are tested without
@@ -50,7 +50,7 @@ pub enum Offer {
     },
     /// A merchant sells a magic item.
     Item { item: Item, price: i32 },
-    /// A wizard's item is sold at half its value (task 294): it is offered to the other wizards
+    /// A wizard's item is sold at half its value: it is offered to the other wizards
     /// in turn, `rest` still to be asked after this one.
     Resale {
         item: Item,
@@ -91,7 +91,7 @@ pub enum OfferError {
 }
 
 impl OfferError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::NoOffer => "refuse_wizard.offer_error_no_offer",
@@ -535,7 +535,7 @@ impl Game {
         })
     }
 
-    /// Sell the item in a vault slot or on the award list (task 294): the seller is paid half its
+    /// Sell the item in a vault slot or on the award list: the seller is paid half its
     /// value in gold at once, and the item is offered at that price to the other wizards, those
     /// whose fortress is on the seller's plane first, each group starting after the seller in the
     /// order of the players. The first to take it pays; if nobody does, the item is gone.

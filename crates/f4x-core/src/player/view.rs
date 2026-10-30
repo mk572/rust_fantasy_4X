@@ -1,6 +1,6 @@
 //! What one player may know of the game: all of its own, and of the others only what it can see
 //! or has explored. An AI wizard reads the game through this and plays through
-//! [`Game::apply`], so it cannot see more than a human player does (task 181).
+//! [`Game::apply`], so it cannot see more than a human player does.
 //!
 //! The view borrows the game for as long as it lives, so it is made where it is read and let go
 //! before a command is sent. It is cheap to make: what a player sees now (`visibility`) is worked

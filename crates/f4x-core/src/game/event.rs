@@ -90,7 +90,7 @@ pub enum Event {
         city: hecs::Entity,
         figures: u32,
     },
-    /// One unit let go at the turn change, for the Chancellor's report (task 272); the
+    /// One unit let go at the turn change, for the Chancellor's report; the
     /// `UnitsDisbanded` of the same turn counts them.
     UnitLost {
         player: player::PlayerId,
@@ -338,7 +338,7 @@ pub enum Event {
         player: player::PlayerId,
         offer: player::offer::Offer,
     },
-    /// A wizard sold an item for `gold` (task 294); it is offered to the others next.
+    /// A wizard sold an item for `gold`; it is offered to the others next.
     ItemSold {
         player: player::PlayerId,
         name: String,
@@ -417,7 +417,7 @@ pub enum Event {
         player: player::PlayerId,
         pos: map::Position,
     },
-    /// A random event happened or ended, and the player is told (task 68).
+    /// A random event happened or ended, and the player is told.
     RandomEvent(world_event::EventNotice),
     UnitCreated {
         unit: hecs::Entity,
@@ -505,7 +505,7 @@ pub enum Rejection {
 }
 
 impl Rejection {
-    /// The key of the sentence that tells why the command was refused (task 348): the client, the
+    /// The key of the sentence that tells why the command was refused: the client, the
     /// log and the console read this one source.
     pub fn key(self) -> &'static str {
         match self {

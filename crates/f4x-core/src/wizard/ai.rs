@@ -1,4 +1,4 @@
-//! How the computer wizards are made (task 247, `docs/game-settings.md` 4.8), after the original's
+//! How the computer wizards are made (`docs/game-settings.md` 4.8), after the original's
 //! `Init_Computer_Players_Wizard_Profile`: a random ready-made wizard each, opposed realms merged
 //! now and then, "erasure dice" that take books away, one or two made Myrran, and the picks
 //! filled up to the game's budget with random books and retorts. Every roll comes from the

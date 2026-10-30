@@ -789,7 +789,7 @@ fn the_banisher_is_remembered_across_a_save() -> TestResult {
     Ok(())
 }
 
-// ---- banishment and defeat as in the original (task 341) -------------------------------------
+// ---- banishment and defeat as in the original -------------------------------------
 
 /// P0 and P1 are wizards, P0 with a fortress and a town; P0 knows exactly `leave` spells that P1
 /// does not (P1 is taught the rest). Returns those spells.

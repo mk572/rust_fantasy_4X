@@ -1,5 +1,5 @@
 //! What a player can see right now (as opposed to merely having explored), worked out by the
-//! `Economy` handle (world, map, content, players) without a `Game` (task 193).
+//! `Economy` handle (world, map, content, players) without a `Game`.
 
 use crate::city::economy::Economy;
 use crate::map::{Plane, Position};

@@ -1,4 +1,4 @@
-//! The magic commands that need no world, as functions (task 197): alchemy and giving up the
+//! The magic commands that need no world, as functions: alchemy and giving up the
 //! spell being cast. `Game` finds the wizard and passes what it alone knows (whether the Spell of
 //! Return is cast).
 

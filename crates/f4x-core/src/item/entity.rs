@@ -1,4 +1,4 @@
-//! Items as entities (task 333): one entity for each item that exists, with its data ([`Item`]),
+//! Items as entities: one entity for each item that exists, with its data ([`Item`]),
 //! a creation number and who holds it ([`HeldBy`]). Moving an item changes its `HeldBy`; an item
 //! that nobody holds is despawned. The holders are a hero's three slots, the fortress vault, the
 //! award list, an item being crafted and an item on offer.

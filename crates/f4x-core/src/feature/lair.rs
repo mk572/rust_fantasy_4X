@@ -520,7 +520,7 @@ pub enum SiteError {
 }
 
 impl SiteError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::Move(e) => e.key(),
@@ -534,7 +534,7 @@ impl SiteError {
 /// wizard does not know yet; the wizard learns it. A realm with one book gives up to uncommon
 /// spells, two books up to rare, more up to very rare; arcane up to rare (ReMoM
 /// `WIZ_RollSpellReward`, whose realm test is inverted and whose index arithmetic is muddled:
-/// task 305 follows its rarity caps and gives only spells the wizard can use). Dearer
+/// this follows its rarity caps and gives only spells the wizard can use). Dearer
 /// rarities are tried when the first has nothing new; none at all gives `None`.
 pub(crate) fn award_spell(
     wizard: &mut crate::wizard::sheet::WizardMut<'_>,
@@ -784,7 +784,7 @@ impl Game {
     }
 
     /// Clear a lair and give `player` its treasure. What the winner cannot use is rerolled from
-    /// its value (task 353, `reroll_hoard`).
+    /// its value (`reroll_hoard`).
     pub(crate) fn claim_lair(&mut self, site: hecs::Entity, player: PlayerId) -> Vec<Event> {
         let Some(mut lair) = self.clear_site(site) else {
             return Vec::new();

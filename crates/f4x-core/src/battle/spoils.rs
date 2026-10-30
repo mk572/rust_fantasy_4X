@@ -9,7 +9,7 @@
 //!   than 20 fame also loses a point when the winner got its point for four kills (the
 //!   original takes it back from the human attacker or defender who lost).
 //!
-//! A neutral winner (monsters) gets nothing. Loot from fallen heroes' items is task 49.
+//! A neutral winner (monsters) gets nothing.
 
 use super::{Battle, BattleUnit, Status};
 use crate::game::{Event, Game};

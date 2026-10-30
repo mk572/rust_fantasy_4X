@@ -1,4 +1,4 @@
-//! The Surveyor's numbers for a square (task 71, `Compute_Base_Values_For_Map_Square` and
+//! The Surveyor's numbers for a square (`Compute_Base_Values_For_Map_Square` and
 //! `Map_Square_Survey` in the original): why a city cannot be founded there, and what one
 //! would get from the land around it.
 

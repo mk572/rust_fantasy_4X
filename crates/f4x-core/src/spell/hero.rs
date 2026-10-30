@@ -1,4 +1,4 @@
-//! Getting heroes into the army (task 48): hiring with gold, and the four spells that bring a
+//! Getting heroes into the army: hiring with gold, and the four spells that bring a
 //! hero in: Summon Hero, Summon Champion, Incarnation and Resurrection. A hero always appears at
 //! the wizard's summoning circle. The hero types and the entities are in `hero/kind.rs` and
 //! `hero/game.rs`.

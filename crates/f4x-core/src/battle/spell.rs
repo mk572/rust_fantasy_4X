@@ -15,8 +15,8 @@
 //!   (`SpellDef::save`) first gives its target a resistance check.
 //! - Battlefield enchantments (`field.rs`) stay up for the battle.
 //!
-//! Not yet: dispelling battlefield enchantments, the spells whose effects are not in the game
-//! (task 159), the node counter and the heroes' own casting.
+//! Not here: dispelling battlefield enchantments, the spells whose effects are not in the game,
+//! the node counter and the heroes' own casting.
 
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;

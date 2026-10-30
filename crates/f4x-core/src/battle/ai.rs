@@ -1,4 +1,4 @@
-//! The scripted battle AI (task 46, `docs/ai-design.md` section 6).
+//! The scripted battle AI (`docs/ai-design.md` section 6).
 //!
 //! [`baseline_command`] is the plain opponent the AI began as: every unit walks at the nearest
 //! enemy and hits it. It stays as the yardstick the smarter [`next_command`] is measured against

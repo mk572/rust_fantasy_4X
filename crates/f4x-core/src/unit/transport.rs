@@ -15,7 +15,7 @@ use crate::rules::{MovementType, Stat};
 
 use crate::game::{Event, Game};
 
-/// A ship let go for lack of gold with units still aboard (task 292): it belongs to nobody and
+/// A ship let go for lack of gold with units still aboard: it belongs to nobody and
 /// sails, a turn's worth at a time, for the nearest free shore, where it unloads and is released.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Marooned;
@@ -351,7 +351,7 @@ impl Game {
     /// Land units at sea with no ship under them are lost, as the units of a defeated army are
     /// when they flee: where free land lies beside them they scramble ashore, half of the troops
     /// and three in four of the heroes making it (`overland_aftermath`'s odds); anywhere else
-    /// they drown. Fliers and swimmers never need a ship, so they never come here (task 235).
+    /// they drown. Fliers and swimmers never need a ship, so they never come here.
     pub(crate) fn drown_stranded(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
         let mut drowned: Vec<(crate::player::PlayerId, u32)> = Vec::new();

@@ -55,7 +55,7 @@ pub enum MeldError {
 }
 
 impl MeldError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::BadSelection => "refuse_map.meld_error_bad_selection",

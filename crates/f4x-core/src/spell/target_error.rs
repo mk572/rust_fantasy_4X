@@ -1,4 +1,4 @@
-//! Why a spell cannot be cast on the target chosen (task 348): one reason for each refusal the original's
+//! Why a spell cannot be cast on the target chosen: one reason for each refusal the original's
 //! `MESSAGE.LBX` words, for the map and for the battlefield.
 
 /// The reason a target is refused.

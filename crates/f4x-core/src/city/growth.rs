@@ -1,4 +1,4 @@
-//! How cities grow, outposts included, and how a city is founded (task 188). The sums are plain
+//! How cities grow, outposts included, and how a city is founded. The sums are plain
 //! functions over the people and the random numbers ([`grow_population`], [`outpost_step`],
 //! [`outpost_shrink_chance`]); the `Game` side reads the city and applies the result.
 

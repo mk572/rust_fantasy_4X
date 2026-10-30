@@ -1078,7 +1078,7 @@ fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() -> TestR
 }
 
 /// Every lair of a busy map, for a few seeds, as one number: the lair tables moved to data
-/// (task 355) without changing a generated world.
+/// without changing a generated world.
 fn lair_checksum() -> u64 {
     let g = world(1);
     let mut placed = Placed::new(24, 14);

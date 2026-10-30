@@ -1,10 +1,10 @@
 //! What a city is building, buying it, and finishing it.
 //!
-//! The checks and the costs are methods of [`Economy`] (task 187): what a city may build, what
+//! The checks and the costs are methods of [`Economy`]: what a city may build, what
 //! it costs, how far it is, what a purchase or a sale would do, what finishing an item gives
-//! and (task: auto-builder, `city/autobuild.rs`) what the auto-builder picks. They need only the world, the map, the content and the
-//! players. `Game` makes the changes that need more (the owner's gold, the new unit, the
-//! treasury for the Vizier) and keeps the old names as thin methods that ask the handle.
+//! and what the auto-builder picks (`city/autobuild.rs`). They need only the world, the map, the
+//! content and the players. `Game` makes the changes that need more (the owner's gold, the new
+//! unit, the treasury for the Vizier).
 
 use hecs::World;
 
@@ -52,7 +52,7 @@ pub enum ProductionError {
 }
 
 impl ProductionError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::NotACity => "refuse_wizard.production_error_not_a_city",

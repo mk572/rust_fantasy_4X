@@ -1,4 +1,4 @@
-//! Diplomacy between wizards (task 63): contact, relations on the -100..100 scale, treaties,
+//! Diplomacy between wizards: contact, relations on the -100..100 scale, treaties,
 //! war, proposals and the per-turn drift. The rules are those of the original (`docs/diplomacy.md`).
 //!
 //! The core holds the state and applies the results; it never decides whether an AI wizard
@@ -7,11 +7,11 @@
 //! commands it issues itself (`f4x-ai/src/diplomacy.rs` holds the rating of a proposal and the
 //! war a wizard declares on the caster of the Spell of Mastery).
 //!
-//! Structure (task 179, `architecture-plan.md`): the rules are methods of [`Diplomacy`], which
+//! Structure (`architecture-plan.md`): the rules are methods of [`Diplomacy`], which
 //! owns the state and takes a [`DiplomacyCtx`] with what it needs of the rest of the game: a
 //! read-only [`Game`], the random numbers and a list of changes it asks the game to make
 //! ([`Outcome`]: gold moved, a spell learned). `Game` only lends it out for a call
-//! (`with_diplomacy`) and keeps thin methods with the old names for the other modules and the
+//! (`with_diplomacy`) and has thin methods for the other modules and the
 //! crates around. Tests of the rules run on a real game.
 
 use serde::{Deserialize, Serialize};
@@ -190,7 +190,7 @@ pub enum DiplomacyError {
 }
 
 impl DiplomacyError {
-    /// The key of its sentence in `content/text` (task 348).
+    /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {
             Self::NotWizards => "refuse_wizard.diplomacy_error_not_wizards",
