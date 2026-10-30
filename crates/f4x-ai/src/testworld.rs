@@ -22,16 +22,28 @@ const WEST: std::ops::RangeInclusive<u32> = 3..=10;
 const EAST: std::ops::RangeInclusive<u32> = 28..=35;
 const ROWS: std::ops::RangeInclusive<u32> = 3..=10;
 
-/// The shipped content, parsed once for all the tests of the process; each call hands out a copy
-/// because a `Game` owns its content.
-pub fn content() -> Content {
+/// The shipped content, parsed once for all the tests of the process.
+pub fn shipped() -> &'static Content {
     static SHIPPED: std::sync::OnceLock<Content> = std::sync::OnceLock::new();
-    SHIPPED
-        .get_or_init(|| {
-            f4x_data::load_content(std::path::Path::new("../../content"))
-                .expect("the rules data loads")
-        })
-        .clone()
+    SHIPPED.get_or_init(|| {
+        f4x_data::load_content(std::path::Path::new("../../content")).expect("the rules data loads")
+    })
+}
+
+/// A copy of the shipped content, for a `Game`, which owns its content.
+pub fn content() -> Content {
+    shipped().clone()
+}
+
+/// A new game as the game itself sets it up (wizards, cities, heroes), on the shipped content.
+pub fn fresh_game() -> Result<Game, Box<dyn std::error::Error>> {
+    Ok(f4x_core::game::setup::new_game(
+        shipped(),
+        &f4x_core::game::setup::NewGame {
+            seed: 7,
+            ..Default::default()
+        },
+    )?)
 }
 
 pub fn at(x: u32, y: u32) -> Position {

@@ -151,7 +151,6 @@ pub fn answer_resales(game: &mut Game) -> Vec<Event> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::game::setup::{new_game, NewGame};
     use f4x_core::player::offer::{OfferKind, AI_FIRST_MERCENARY_TURN};
     use f4x_core::player::PlayerId;
 
@@ -160,14 +159,7 @@ mod tests {
     const P1: PlayerId = PlayerId(1);
 
     fn game() -> Result<Game, Box<dyn std::error::Error>> {
-        let content = crate::testworld::content();
-        Ok(new_game(
-            &content,
-            &NewGame {
-                seed: 7,
-                ..NewGame::default()
-            },
-        )?)
+        crate::testworld::fresh_game()
     }
 
     fn set_gold(g: &mut Game, player: PlayerId, gold: i32) -> TestResult {

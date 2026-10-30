@@ -1,11 +1,8 @@
 //! The wizard's side of the AI: how power is split, what is researched and what is cast
-//! (`docs/ai-design.md` sections 5.3 and 7).
-//!
-//! The original weighs eleven kinds of overland spell and picks one at random; the picks inside
-//! each kind are left unfinished in the reference source. Here every choice is a function of
-//! what the AI sees, so a game replays exactly. The order of wants each turn: the Spell of
-//! Mastery when it is known, a summoning spell, a buff for the strongest units, a buff for a
-//! city, a lasting spell on the whole wizard.
+//! (`docs/ai-design.md` sections 5.3 and 7). Every choice is a function of what the AI sees, so a
+//! game replays exactly. The order of wants each turn: the Spell of Mastery when it is known, a
+//! summoning spell, a buff for the strongest units, a buff for a city, a lasting spell on the
+//! whole wizard.
 
 use f4x_core::diplomacy::Treaty;
 use f4x_core::game::{Command, Event, Game};
@@ -856,15 +853,32 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testworld::{at, fresh_game, game, shipped, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
+    use f4x_core::diplomacy::DiplomacyCommand;
+    use f4x_core::player::{PlayerId, Treasury};
+    use f4x_core::wizard::objective::Objective;
+
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    fn spell(id: &str) -> Result<SpellId, String> {
+        shipped()
+            .rules
+            .spells
+            .id_of(id)
+            .ok_or(format!("{id} is shipped"))
+    }
+
+    fn treasury(g: &mut Game, player: PlayerId) -> Result<&mut Treasury, &'static str> {
+        g.treasury_mut(player).ok_or("the player has a treasury")
+    }
 
     #[test]
     fn an_objective_moves_the_kinds_it_weights_up_the_order_of_casting() {
         use crate::objective::traits_of;
-        use f4x_core::wizard::objective::Objective;
         let pragmatist = traits_of(Some(Objective::Pragmatist));
         let militarist = traits_of(Some(Objective::Militarist));
         let perfectionist = traits_of(Some(Objective::Perfectionist));
-        // The ladder as it was: summons before buffs before curses.
+        // The ladder: summons before buffs before curses.
         assert!(cast_rank(Kind::Summon, &pragmatist) < cast_rank(Kind::GlobalBuff, &pragmatist));
         assert!(cast_rank(Kind::GlobalBuff, &pragmatist) < cast_rank(Kind::CityCurse, &pragmatist));
         // A militarist curses its enemies before it buffs its cities.
@@ -887,110 +901,102 @@ mod tests {
         }
     }
 
-    fn kind_of(id: &str) -> Kind {
-        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
-        let spell = content
-            .rules
-            .spells
-            .id_of(id)
-            .unwrap_or_else(|| panic!("no spell {id}"));
-        kind(content.rules.spells.get(spell))
+    fn kind_of(id: &str) -> Result<Kind, String> {
+        let rules = &shipped().rules;
+        Ok(kind(rules.spells.get(spell(id)?)))
     }
 
     #[test]
-    fn spells_are_sorted_into_the_kinds_the_ai_casts() {
-        assert_eq!(kind_of("spell_of_mastery"), Kind::Mastery);
-        assert_eq!(kind_of("war_bears"), Kind::Summon);
-        assert_eq!(kind_of("giant_strength"), Kind::UnitBuff);
-        assert_eq!(kind_of("heroism"), Kind::UnitBuff);
-        assert_eq!(kind_of("elemental_armor"), Kind::UnitBuff);
-        assert_eq!(kind_of("natures_eye"), Kind::CityBuff);
-        assert_eq!(kind_of("herb_mastery"), Kind::GlobalBuff);
-        assert_eq!(kind_of("earth_lore"), Kind::Explore);
-        assert_eq!(kind_of("natures_cures"), Kind::Cure);
-        assert_eq!(kind_of("disenchant_area"), Kind::Disenchant);
-        assert_eq!(kind_of("disenchant_true"), Kind::Disenchant);
-        assert_eq!(kind_of("chaos_channels"), Kind::Mutate);
-        assert_eq!(kind_of("word_of_recall"), Kind::Recall);
-        assert_eq!(kind_of("disjunction"), Kind::Disjunction);
-        assert_eq!(kind_of("spell_binding"), Kind::Disjunction);
-        assert_eq!(kind_of("famine"), Kind::CityCurse);
-        assert_eq!(kind_of("earthquake"), Kind::CityCurse);
-        assert_eq!(kind_of("cruel_unminding"), Kind::WizardCurse);
-        assert_eq!(kind_of("spell_blast"), Kind::Other);
+    fn spells_are_sorted_into_the_kinds_the_ai_casts() -> TestResult {
+        let cases = [
+            ("spell_of_mastery", Kind::Mastery),
+            ("war_bears", Kind::Summon),
+            ("giant_strength", Kind::UnitBuff),
+            ("heroism", Kind::UnitBuff),
+            ("elemental_armor", Kind::UnitBuff),
+            ("natures_eye", Kind::CityBuff),
+            ("herb_mastery", Kind::GlobalBuff),
+            ("earth_lore", Kind::Explore),
+            ("natures_cures", Kind::Cure),
+            ("disenchant_area", Kind::Disenchant),
+            ("disenchant_true", Kind::Disenchant),
+            ("chaos_channels", Kind::Mutate),
+            ("word_of_recall", Kind::Recall),
+            ("disjunction", Kind::Disjunction),
+            ("spell_binding", Kind::Disjunction),
+            ("famine", Kind::CityCurse),
+            ("earthquake", Kind::CityCurse),
+            ("cruel_unminding", Kind::WizardCurse),
+            ("spell_blast", Kind::Other),
+        ];
+        for (id, expected) in cases {
+            assert_eq!(kind_of(id)?, expected, "{id}");
+        }
+        Ok(())
     }
 
     #[test]
-    fn what_the_ai_cannot_use_is_left_alone() {
+    fn what_the_ai_cannot_use_is_left_alone() -> TestResult {
         // A curse on the whole world, a bolt for battle, a spell that is not done yet.
-        assert_eq!(kind_of("fire_bolt"), Kind::Other);
-        assert_eq!(kind_of("suppress_magic"), Kind::Other);
-        assert_eq!(kind_of("earth_to_mud"), Kind::Other);
+        for id in ["fire_bolt", "suppress_magic", "earth_to_mud"] {
+            assert_eq!(kind_of(id)?, Kind::Other, "{id}");
+        }
+        Ok(())
     }
 
     #[test]
-    fn a_wizard_that_knows_resurrection_raises_the_last_dead_hero() {
-        use f4x_core::game::setup::{new_game, NewGame};
-        use f4x_core::player::PlayerId;
-        const P1: PlayerId = PlayerId(1);
-        let content = crate::testworld::content();
-        let mut g = new_game(
-            &content,
-            &NewGame {
-                seed: 7,
-                ..NewGame::default()
-            },
-        )
-        .expect("a new game");
+    fn a_wizard_that_knows_resurrection_raises_the_last_dead_hero() -> TestResult {
+        let mut g = fresh_game()?;
         let ai = Ai::new(P1);
-        let spell = g
-            .content()
-            .rules
-            .spells
-            .id_of(f4x_core::spell::hero::RESURRECTION)
-            .unwrap();
-        g.treasury_mut(P1).unwrap().gold = 50_000;
-        g.treasury_mut(P1).unwrap().mana = 5_000;
+        let resurrection = spell(f4x_core::spell::hero::RESURRECTION)?;
+        treasury(&mut g, P1)?.gold = 50_000;
+        treasury(&mut g, P1)?.mana = 5_000;
         for k in [1, 4] {
-            let hero = g.hire_hero(P1, k).unwrap();
+            let hero = g
+                .hire_hero(P1, k)
+                .map_err(|e| format!("hiring hero {k}: {e:?}"))?;
             g.cheat_slay_unit(hero);
         }
         // Not known: nothing happens. Known: the spell is begun for the last dead hero.
         let mut events = Vec::new();
         assert!(!resurrect(&ai, &mut g, &mut events));
-        g.cheat_learn_spell(P1, spell);
+        g.cheat_learn_spell(P1, resurrection);
         assert!(resurrect(&ai, &mut g, &mut events), "{events:?}");
-        let started = g.wizard(P1).unwrap().casting().is_some()
+        let started = g
+            .wizard(P1)
+            .ok_or("player 1 is a wizard")?
+            .casting()
+            .is_some()
             || events.iter().any(|e| matches!(e, Event::HeroJoined { .. }));
         assert!(started, "{events:?}");
+        Ok(())
     }
 
     #[test]
-    fn a_militarist_gives_more_power_to_mana_than_a_pragmatist() {
-        use crate::testworld::{game, COAST_CITY, P0};
-        use f4x_core::wizard::objective::Objective;
-        let research_share = |objective: Objective| {
+    fn a_militarist_gives_more_power_to_mana_than_a_pragmatist() -> TestResult {
+        let research_share = |objective: Objective| -> Result<_, Box<dyn std::error::Error>> {
             let mut g = game(COAST_CITY, "high_men");
-            g.wizard_mut(P0).unwrap().put(Some(objective));
+            g.wizard_mut(P0)
+                .ok_or("player 0 is a wizard")?
+                .put(Some(objective));
             // A big reserve needs no spare mana income: the first candidate that pays is taken.
-            g.treasury_mut(P0).unwrap().mana = 1_000;
+            treasury(&mut g, P0)?.mana = 1_000;
             split(&Ai::new(P0), &mut g, &mut Vec::new());
-            g.wizard(P0).unwrap().power_split().research
+            Ok(g.wizard(P0)
+                .ok_or("player 0 is a wizard")?
+                .power_split()
+                .research)
         };
-        assert!(research_share(Objective::Militarist) < research_share(Objective::Pragmatist));
+        assert!(research_share(Objective::Militarist)? < research_share(Objective::Pragmatist)?);
+        Ok(())
     }
 
     #[test]
-    fn an_objective_researches_the_sort_of_spell_it_likes_first() {
+    fn an_objective_researches_the_sort_of_spell_it_likes_first() -> TestResult {
         use crate::objective::{traits_of, Like};
-        use f4x_core::wizard::objective::Objective;
-        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
-        let def = |id: &str| {
-            let spell = content.rules.spells.id_of(id).unwrap();
-            content.rules.spells.get(spell)
-        };
+        let spells = &shipped().rules.spells;
+        let bears = spells.get(spell("war_bears")?);
         let militarist = traits_of(Some(Objective::Militarist));
-        let bears = def("war_bears");
         assert!(liked(bears, kind(bears), &militarist));
         assert!(!liked(
             bears,
@@ -999,69 +1005,72 @@ mod tests {
         ));
         assert!(!liked(bears, kind(bears), &traits_of(None)));
         assert!(militarist.likes.contains(&Like::Summon));
+        Ok(())
     }
 
     #[test]
-    fn a_banished_wizard_turns_just_enough_gold_into_mana_for_the_return() {
-        use crate::testworld::{game, COAST_CITY, P0, P1};
+    fn a_banished_wizard_turns_just_enough_gold_into_mana_for_the_return() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
-        let spell = g.content().rules.spells.id_of("spell_of_return").unwrap();
-        g.wizard_mut(P0)
-            .unwrap()
-            .put(Some(f4x_core::wizard::fortress::Banishment {
-                by: Some(P1),
-            }));
-        g.wizard_mut(P0)
-            .unwrap()
-            .get_mut::<f4x_core::wizard::sheet::Skill>()
-            .points = 2_000;
+        let spell = spell("spell_of_return")?;
+        let mut wizard = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
+        wizard.put(Some(f4x_core::wizard::fortress::Banishment {
+            by: Some(P1),
+        }));
+        wizard.get_mut::<f4x_core::wizard::sheet::Skill>().points = 2_000;
         g.scenario_casting(P0, spell, 500);
-        let due = g.wizard(P0).unwrap().casting_skill().min(500);
+        let due = g
+            .wizard(P0)
+            .ok_or("player 0 is a wizard")?
+            .casting_skill()
+            .min(500);
         assert!(due > 4, "the test wizard has a casting skill ({due})");
         {
-            let t = g.treasury_mut(P0).unwrap();
+            let t = treasury(&mut g, P0)?;
             t.mana = 0;
             t.gold = 10_000;
         }
         let ai = Ai::new(P0);
         fund_return(&ai, &mut g, &mut Vec::new());
-        let t = g.player(P0).unwrap().treasury();
+        let t = g.player(P0).ok_or("player 0 exists")?.treasury();
         assert_eq!(t.mana, due, "mana now covers the payment");
         assert!(t.gold < 10_000 && t.gold >= 10_000 - 2 * due - 2);
         // Covered already: nothing more is converted.
         let gold = t.gold;
         fund_return(&ai, &mut g, &mut Vec::new());
-        assert_eq!(g.player(P0).unwrap().treasury().gold, gold);
+        assert_eq!(g.player(P0).ok_or("player 0 exists")?.treasury().gold, gold);
+        Ok(())
     }
 
     #[test]
-    fn a_wizard_that_is_not_banished_keeps_its_gold() {
-        use crate::testworld::{game, COAST_CITY, P0};
+    fn a_wizard_that_is_not_banished_keeps_its_gold() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
-        let spell = g.content().rules.spells.id_of("spell_of_return").unwrap();
-        g.scenario_casting(P0, spell, 500);
-        g.treasury_mut(P0).unwrap().mana = 0;
-        let gold = g.player(P0).unwrap().treasury().gold;
+        g.scenario_casting(P0, spell("spell_of_return")?, 500);
+        treasury(&mut g, P0)?.mana = 0;
+        let gold = g.player(P0).ok_or("player 0 exists")?.treasury().gold;
         fund_return(&Ai::new(P0), &mut g, &mut Vec::new());
-        assert_eq!(g.player(P0).unwrap().treasury().gold, gold);
+        assert_eq!(g.player(P0).ok_or("player 0 exists")?.treasury().gold, gold);
+        Ok(())
     }
 
     #[test]
-    fn a_wizard_curses_the_city_of_an_enemy_at_war_and_leaves_a_neighbour_at_peace_alone() {
-        use crate::testworld::{game, COAST_CITY, ENEMY_CITY, P0, P1};
-        use f4x_core::diplomacy::DiplomacyCommand;
+    fn a_wizard_curses_the_city_of_an_enemy_at_war_and_leaves_a_neighbour_at_peace_alone(
+    ) -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         g.make_contact(P0, P1);
-        let famine = g.content().rules.spells.id_of("famine").unwrap();
+        let famine = spell("famine")?;
         g.cheat_learn_spell(P0, famine);
-        g.treasury_mut(P0).unwrap().mana = 5_000;
-        g.wizard_mut(P0).unwrap().set_split(20, 40, 40).unwrap();
+        treasury(&mut g, P0)?.mana = 5_000;
+        g.wizard_mut(P0)
+            .ok_or("player 0 is a wizard")?
+            .set_split(20, 40, 40)
+            .map_err(|e| format!("{e:?}"))?;
         let ai = Ai::new(P0);
-        g.explore(P0, crate::testworld::at(ENEMY_CITY.0, ENEMY_CITY.1), 3);
+        let enemy_city = at(ENEMY_CITY.0, ENEMY_CITY.1);
+        g.explore(P0, enemy_city, 3);
         let enemy = g
             .economy()
-            .city_at(crate::testworld::at(ENEMY_CITY.0, ENEMY_CITY.1))
-            .unwrap();
+            .city_at(enemy_city)
+            .ok_or("the enemy has a city")?;
         let aimed = |g: &Game| {
             PlayerView::new(g, P0)
                 .known_cities()
@@ -1071,7 +1080,10 @@ mod tests {
         assert!(aimed(&g), "the test world shows the enemy city");
         cast(&ai, &mut g, &mut Vec::new());
         assert!(
-            g.wizard(P0).unwrap().casting().is_none(),
+            g.wizard(P0)
+                .ok_or("player 0 is a wizard")?
+                .casting()
+                .is_none(),
             "at peace: no curse"
         );
         g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
@@ -1079,26 +1091,31 @@ mod tests {
             on: P1,
         }));
         cast(&ai, &mut g, &mut Vec::new());
-        let began = g.wizard(P0).unwrap().casting().is_some()
+        let began = g
+            .wizard(P0)
+            .ok_or("player 0 is a wizard")?
+            .casting()
+            .is_some()
             || g.city_enchantments(enemy).iter().any(|&(s, _)| s == famine);
         assert!(began, "at war: Famine begun or cast");
+        Ok(())
     }
 
     #[test]
-    fn a_wizard_disenchants_the_city_an_enemy_has_cursed_and_otherwise_leaves_it() {
-        use crate::testworld::{at, game, COAST_CITY, P0, P1};
+    fn a_wizard_disenchants_the_city_an_enemy_has_cursed_and_otherwise_leaves_it() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
-        let content = g.content().clone();
-        let spells = &content.rules.spells;
-        let (area, famine, wall) = (
-            spells.id_of("disenchant_area").unwrap(),
-            spells.id_of("famine").unwrap(),
-            spells.id_of("natures_eye").unwrap(),
+        let (area, famine, own) = (
+            spell("disenchant_area")?,
+            spell("famine")?,
+            spell("natures_eye")?,
         );
         g.cheat_learn_spell(P0, area);
-        g.treasury_mut(P0).unwrap().mana = 5_000;
-        let city = g.economy().city_at(at(COAST_CITY.0, COAST_CITY.1)).unwrap();
-        g.scenario_enchant_city(city, wall, P0);
+        treasury(&mut g, P0)?.mana = 5_000;
+        let city = g
+            .economy()
+            .city_at(at(COAST_CITY.0, COAST_CITY.1))
+            .ok_or("player 0 has a city")?;
+        g.scenario_enchant_city(city, own, P0);
         let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), area);
         assert!(aim(&g).is_none(), "a spell of its own is no curse");
         g.scenario_enchant_city(city, famine, P1);
@@ -1107,29 +1124,28 @@ mod tests {
             Some(Target::Tile(at(COAST_CITY.0, COAST_CITY.1))),
             "the cursed city is the aim"
         );
+        Ok(())
     }
 
     #[test]
-    fn a_wizard_breaks_the_global_spell_of_an_enemy_at_war_and_not_of_a_neighbour_at_peace() {
-        use crate::testworld::{game, COAST_CITY, P0, P1};
-        use f4x_core::diplomacy::DiplomacyCommand;
+    fn a_wizard_breaks_the_global_spell_of_an_enemy_at_war_and_not_of_a_neighbour_at_peace(
+    ) -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         g.make_contact(P0, P1);
-        let spells = &g.content().clone().rules.spells;
-        let (disjunction, crusade) = (
-            spells.id_of("disjunction").unwrap(),
-            spells.id_of("awareness").unwrap(),
-        );
+        let (disjunction, awareness) = (spell("disjunction")?, spell("awareness")?);
         g.cheat_learn_spell(P0, disjunction);
-        g.scenario_add_global(P1, crusade);
+        g.scenario_add_global(P1, awareness);
         let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), disjunction);
         assert!(aim(&g).is_none(), "at peace: left alone");
         g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,
             on: P1,
         }));
-        let instance = g.global_instance(P1, crusade).unwrap();
+        let instance = g
+            .global_instance(P1, awareness)
+            .ok_or("player 1 has the global spell")?;
         assert_eq!(aim(&g), Some(Target::Spell(instance)));
+        Ok(())
     }
 
     #[test]
@@ -1144,68 +1160,49 @@ mod tests {
     }
 
     #[test]
-    fn a_hurt_stack_far_from_home_is_recalled_and_one_in_a_city_is_not() {
-        use f4x_core::game::setup::{new_game, NewGame};
-        use f4x_core::player::PlayerId;
-        const P1: PlayerId = PlayerId(1);
-        let content = crate::testworld::content();
-        let mut g = new_game(
-            &content,
-            &NewGame {
-                seed: 7,
-                ..NewGame::default()
-            },
-        )
-        .expect("a new game");
-        let recall = g.content().rules.spells.id_of("word_of_recall").unwrap();
+    fn a_hurt_stack_far_from_home_is_recalled_and_one_in_a_city_is_not() -> TestResult {
+        let mut g = fresh_game()?;
+        let recall = spell("word_of_recall")?;
         g.cheat_learn_spell(P1, recall);
         let circle = g
             .wizard(P1)
-            .unwrap()
+            .ok_or("player 1 is a wizard")?
             .summon_at()
-            .expect("a summoning circle");
+            .ok_or("a summoning circle")?;
         let aim = |g: &Game| pick_target(&PlayerView::new(g, P1), recall);
         for u in PlayerView::new(&g, P1).my_units() {
             g.scenario_set_hurt(u, 1);
         }
         assert!(aim(&g).is_none(), "units at home are not stranded");
+        let width = g.map().ok_or("a map")?.width();
         let far = f4x_core::map::Position {
-            x: (circle.x + 20) % g.map().expect("a map").width(),
+            x: (circle.x + 20) % width,
             ..circle
         };
-        let fighters = crate::testworld::spawn(&mut g, P1, far, "high_men_spearmen", 2);
+        let fighters = spawn(&mut g, P1, far, "high_men_spearmen", 2);
         assert!(aim(&g).is_none(), "whole stack is not hurt");
         for &u in &fighters {
             let (_, max) = PlayerView::new(&g, P1).unit_hits(u);
             g.scenario_set_hurt(u, max);
         }
         assert!(matches!(aim(&g), Some(Target::Unit(u)) if fighters.contains(&u)));
+        Ok(())
     }
 
     #[test]
-    fn heroism_is_aimed_at_a_fighter_and_not_at_one_that_has_it() {
-        use f4x_core::game::setup::{new_game, NewGame};
-        use f4x_core::player::PlayerId;
-        const P1: PlayerId = PlayerId(1);
-        let content = crate::testworld::content();
-        let mut g = new_game(
-            &content,
-            &NewGame {
-                seed: 7,
-                ..NewGame::default()
-            },
-        )
-        .expect("a new game");
-        let heroism = g.content().rules.spells.id_of("heroism").unwrap();
+    fn heroism_is_aimed_at_a_fighter_and_not_at_one_that_has_it() -> TestResult {
+        let mut g = fresh_game()?;
+        let heroism = spell("heroism")?;
         g.cheat_learn_spell(P1, heroism);
         let aim = |g: &Game| pick_target(&PlayerView::new(g, P1), heroism);
         let Some(Target::Unit(first)) = aim(&g) else {
-            panic!("Heroism has a unit to go on");
+            return Err("Heroism has a unit to go on".into());
         };
         g.scenario_enchant_unit(first, heroism, P1);
         match aim(&g) {
             Some(Target::Unit(second)) => assert_ne!(second, first),
             other => assert!(other.is_none(), "{other:?}"),
         }
+        Ok(())
     }
 }
