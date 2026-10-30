@@ -192,6 +192,22 @@ impl<'a> PlayerView<'a> {
             .collect()
     }
 
+    /// The lasting spells on the whole world that wizards at war with the player keep going, with
+    /// the instance to aim Disjunction at.
+    pub fn globals_of_enemies(&self) -> Vec<(SpellId, hecs::Entity)> {
+        let spells = self.game.spells();
+        self.game
+            .rival_globals(self.me)
+            .into_iter()
+            .filter(|&i| {
+                spells
+                    .caster_player(i)
+                    .is_some_and(|o| self.treaty_with(o) == crate::diplomacy::Treaty::War)
+            })
+            .filter_map(|i| spells.def(i).map(|s| (s, i)))
+            .collect()
+    }
+
     /// The proposals other wizards have made to the player and it has not answered.
     pub fn proposals_to_me(&self) -> Vec<Proposal> {
         self.game

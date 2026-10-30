@@ -191,6 +191,12 @@ impl Game {
         self.add_city_enchantment(city, spell, caster);
     }
 
+    /// Start a lasting spell of a wizard on the whole world, as a scenario sets it up (no cost,
+    /// no upkeep paid).
+    pub fn scenario_add_global(&mut self, player: PlayerId, spell: SpellId) {
+        self.add_global(player, spell);
+    }
+
     /// Set the spell a wizard is casting and the mana still owed, as a scenario sets it up (no
     /// checks; a cast already in progress is replaced).
     pub fn scenario_casting(&mut self, player: PlayerId, spell: SpellId, owed: i32) {

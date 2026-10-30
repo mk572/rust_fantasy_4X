@@ -40,6 +40,9 @@ pub enum Kind {
     WizardCurse,
     /// Disenchant Area and True: takes the curses of other wizards off a square of the map.
     Disenchant,
+    /// Disjunction, Disjunction True and Spell Binding: end (or take) the lasting spell on the
+    /// world of a wizard at war with the AI.
+    Disjunction,
     /// Everything else: not cast by the AI yet.
     Other,
 }
@@ -108,6 +111,9 @@ pub fn kind(def: &SpellDef) -> Kind {
     if def.effects.is_empty() || has_hook(def, "unimplemented") {
         return Kind::Other;
     }
+    if def.target == SpellTarget::GlobalEnchantment {
+        return Kind::Disjunction;
+    }
     if def.target == SpellTarget::Tile
         && def
             .effects
@@ -162,6 +168,7 @@ fn priority(k: Kind) -> u8 {
         Kind::WizardCurse => 8,
         // A wizard under a curse wants it off before it blows at anyone.
         Kind::Disenchant => 2,
+        Kind::Disjunction => 8,
         Kind::Other => 9,
     }
 }
@@ -177,7 +184,7 @@ fn cast_rank(k: Kind, traits: &crate::objective::Traits) -> i32 {
         Kind::CityBuff => Some(Like::CityBuff),
         Kind::GlobalBuff => Some(Like::GlobalBuff),
         Kind::Explore => Some(Like::Explore),
-        Kind::CityCurse | Kind::WizardCurse => Some(Like::Curse),
+        Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction => Some(Like::Curse),
         _ => None,
     };
     let boost = like
@@ -375,7 +382,10 @@ fn liked(def: &SpellDef, kind: Kind, traits: &crate::objective::Traits) -> bool 
         Like::GlobalBuff => kind == Kind::GlobalBuff,
         Like::Explore => kind == Kind::Explore,
         Like::Holy => def.realm == "life" || def.realm == "arcane",
-        Like::Curse => matches!(kind, Kind::CityCurse | Kind::WizardCurse),
+        Like::Curse => matches!(
+            kind,
+            Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction
+        ),
     })
 }
 
@@ -484,6 +494,15 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
         Kind::Disenchant => cursed_city(view)
             .map(Target::Tile)
             .filter(|&t| view.can_aim(spell, Some(t))),
+        Kind::Disjunction => view
+            .globals_of_enemies()
+            .into_iter()
+            // The dearest first: a spell that cost the enemy more is worth more to break. Only
+            // what the dispel has a fifth of a chance against (strength / (strength + cost)).
+            .filter(|&(s, _)| view.spell(s).cost <= dispel_strength(def) * 4)
+            .max_by_key(|&(s, i)| (view.spell(s).cost, std::cmp::Reverse(view.serial_of(i))))
+            .map(|(_, i)| Target::Spell(i))
+            .filter(|&t| view.can_aim(spell, Some(t))),
         Kind::Cure => hurt_stack_unit(view)
             .map(Target::Unit)
             .filter(|&t| view.can_aim(spell, Some(t))),
@@ -494,6 +513,15 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
             .map(Target::Player)
             .find(|&t| view.can_aim(spell, Some(t))),
         _ => None,
+    }
+}
+
+/// The strength of a dispel cast overland: the base cost, three times that for the "True" spells.
+fn dispel_strength(def: &SpellDef) -> u32 {
+    if def.id.ends_with("_true") {
+        def.cost * 3
+    } else {
+        def.cost
     }
 }
 
@@ -698,7 +726,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
                 Kind::Explore | Kind::Cure | Kind::Disenchant => now && target.is_some(),
                 // Blows at an enemy at war, from mana the AI can spare.
-                Kind::CityCurse | Kind::WizardCurse => {
+                Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction => {
                     now && room && mana - cost >= GLOBAL_RESERVE && target.is_some()
                 }
                 Kind::Other => false,
@@ -782,6 +810,8 @@ mod tests {
         assert_eq!(kind_of("natures_cures"), Kind::Cure);
         assert_eq!(kind_of("disenchant_area"), Kind::Disenchant);
         assert_eq!(kind_of("disenchant_true"), Kind::Disenchant);
+        assert_eq!(kind_of("disjunction"), Kind::Disjunction);
+        assert_eq!(kind_of("spell_binding"), Kind::Disjunction);
         assert_eq!(kind_of("famine"), Kind::CityCurse);
         assert_eq!(kind_of("earthquake"), Kind::CityCurse);
         assert_eq!(kind_of("cruel_unminding"), Kind::WizardCurse);
@@ -975,6 +1005,29 @@ mod tests {
             Some(Target::Tile(at(COAST_CITY.0, COAST_CITY.1))),
             "the cursed city is the aim"
         );
+    }
+
+    #[test]
+    fn a_wizard_breaks_the_global_spell_of_an_enemy_at_war_and_not_of_a_neighbour_at_peace() {
+        use crate::testworld::{game, COAST_CITY, P0, P1};
+        use f4x_core::diplomacy::DiplomacyCommand;
+        let mut g = game(COAST_CITY, "high_men");
+        g.make_contact(P0, P1);
+        let spells = &g.content().clone().rules.spells;
+        let (disjunction, crusade) = (
+            spells.id_of("disjunction").unwrap(),
+            spells.id_of("awareness").unwrap(),
+        );
+        g.cheat_learn_spell(P0, disjunction);
+        g.scenario_add_global(P1, crusade);
+        let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), disjunction);
+        assert!(aim(&g).is_none(), "at peace: left alone");
+        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+            player: P0,
+            on: P1,
+        }));
+        let instance = g.global_instance(P1, crusade).unwrap();
+        assert_eq!(aim(&g), Some(Target::Spell(instance)));
     }
 
     #[test]
