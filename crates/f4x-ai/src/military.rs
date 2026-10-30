@@ -34,6 +34,8 @@ const GATHER_RADIUS: u32 = 2;
 const COMMITTED_LANDING: f32 = 1.2;
 /// Turns an enemy city that no march could reach is left alone.
 const UNREACHABLE_TURNS: u32 = 40;
+/// The most fighters the war plan asks the cities to build for one campaign.
+const MAX_FORCE: usize = 20;
 /// Once marched, a force attacks with this much of an edge.
 fn committed_ratio() -> f32 {
     crate::knob("COMMITTED", 1.1)
@@ -556,6 +558,18 @@ pub(crate) fn expected_defence(
     }
 }
 
+/// How many average fighters the war plan needs to march on `target`: enough to beat what is
+/// expected there with the margin the march demands, and at least the three a march needs.
+pub(crate) fn force_wanted(
+    view: &PlayerView,
+    memory: &HashMap<Position, (f32, u32)>,
+    turn: u32,
+    target: Position,
+) -> usize {
+    let needed = expected_defence(view, memory, turn, target) * attack_ratio() + 1.0;
+    ((needed / average_strength(view).max(1.0)).ceil() as usize).clamp(3, MAX_FORCE)
+}
+
 /// The enemy city worth marching on: near, and lightly held as far as the AI knows. Each average
 /// unit of garrison counts as a few squares of walking.
 fn best_enemy_city(
@@ -827,5 +841,25 @@ mod tests {
         assert!(ai.threatened.is_empty());
         let view = PlayerView::new(&g, P0);
         assert!(spare.iter().all(|&u| !view.unit_has_order(u)));
+    }
+
+    #[test]
+    fn the_force_wanted_grows_with_the_garrison_the_ai_remembers_in_the_target() {
+        let (g, _) = besieged(true);
+        let view = PlayerView::new(&g, P0);
+        let target = at(2, 12);
+        let none = HashMap::new();
+        let weak = HashMap::from([(target, (1.0, 1))]);
+        let strong = HashMap::from([(target, (average_strength(&view) * 9.0, 1))]);
+        let wanted = |m: &HashMap<_, _>| force_wanted(&view, m, 2, target);
+        assert_eq!(wanted(&weak), 3, "a march needs three at least");
+        assert!(wanted(&none) >= 3);
+        assert!(
+            wanted(&strong) > wanted(&none),
+            "{} {}",
+            wanted(&strong),
+            wanted(&none)
+        );
+        assert!(wanted(&strong) <= MAX_FORCE);
     }
 }

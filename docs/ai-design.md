@@ -235,7 +235,7 @@ ships (step 8).
   the ones that raise mana for a wizard with a long spell queued.
 - Settlers: more cities earlier (seven today); stop when no site with value over a threshold
   is left, not at a fixed count.
-- Army size from the war plan, not `cities * 3 + 2`.
+- Army size from the war plan, not `cities * 3 + 2` (done: `military::force_wanted`).
 - Food: the soak shows food limiting the army; build farmers markets, granaries and
   foresters' guilds when `spare_food` is the limit.
 

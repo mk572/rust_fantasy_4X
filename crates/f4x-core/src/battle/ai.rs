@@ -142,10 +142,15 @@ pub fn baseline_command(battle: &Battle) -> BattleCommand {
 
 // ---- the smarter AI ------------------------------------------------------------
 
+/// How hard a unit hits and how much it can take, as one number: the one strength both the
+/// battle AI (`worth`) and the strategic AI (`f4x_ai::view::unit_strength`) weigh units by.
+pub fn strength(attack: i32, defense: i32, hit_points: i32) -> f32 {
+    (attack.max(0) as f32 * 1.5 + defense.max(0) as f32 + 1.0) * hit_points.max(0) as f32
+}
+
 /// What a unit is worth in a fight: its strength times what it has left.
 pub fn worth(u: &BattleUnit) -> f32 {
-    let attack = u.melee.max(u.ranged).max(0) as f32;
-    (attack * 1.5 + u.defense.max(0) as f32 + 1.0) * u.hit_points().max(0) as f32
+    strength(u.melee.max(u.ranged), u.defense, u.hit_points())
 }
 
 /// The damage (hit points) `attacker` is expected to do to `target` with one attack of kind

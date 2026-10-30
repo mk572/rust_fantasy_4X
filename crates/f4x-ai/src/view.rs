@@ -1,6 +1,7 @@
 //! How the AI weighs what it sees: strengths and who can fight. It reads the game only through
 //! a [`PlayerView`], which holds what a player may know.
 
+use f4x_core::battle::ai::strength;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
@@ -10,11 +11,9 @@ use f4x_core::rules::{MovementType, Stat};
 pub fn unit_strength(view: &PlayerView, unit: hecs::Entity) -> f32 {
     let attack = view
         .unit_stat(unit, Stat::Melee)
-        .max(view.unit_stat(unit, Stat::Ranged))
-        .max(0) as f32;
-    let defense = view.unit_stat(unit, Stat::Defense).max(0) as f32;
+        .max(view.unit_stat(unit, Stat::Ranged));
     let (hits, _) = view.unit_hits(unit);
-    (attack * 1.5 + defense + 1.0) * hits as f32
+    strength(attack, view.unit_stat(unit, Stat::Defense), hits as i32)
 }
 
 pub fn stack_strength(view: &PlayerView, units: &[hecs::Entity]) -> f32 {

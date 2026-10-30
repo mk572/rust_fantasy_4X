@@ -57,6 +57,10 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let planned = settlers_alive(&view) + in_production;
         (mine, planned)
     };
+    let war_force = ai.campaign.map(|target| {
+        let view = PlayerView::new(game, me);
+        crate::military::force_wanted(&view, &ai.city_memory, game.turn, target)
+    });
     for (city, pos) in mine {
         let (plan, port_item) = {
             let view = PlayerView::new(game, me);
@@ -98,6 +102,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     pos,
                     broke,
                     ai.threatened.contains(&pos),
+                    war_force,
                     &mut settlers_planned,
                 ),
                 port_item,
@@ -140,6 +145,7 @@ fn plan_for(
     pos: Position,
     broke: bool,
     threatened: bool,
+    war_force: Option<usize>,
     settlers_planned: &mut usize,
 ) -> BuildPlan {
     let size = view.city_economy(city).map_or(0, |e| e.figures);
@@ -166,8 +172,11 @@ fn plan_for(
     let temper = view.wizard().map_or(0, |w| {
         crate::objective::army_bias(w.personality(), view.difficulty())
     });
-    let strike = (crate::knob("STRIKE", traits.strike_base as f32) as i32 + temper).max(1) as usize
-        + all / 2;
+    // The strike force is what the campaign needs, once there is one; before that a few per city.
+    let strike = war_force.unwrap_or_else(|| {
+        (crate::knob("STRIKE", traits.strike_base as f32) as i32).max(1) as usize + all / 2
+    });
+    let strike = (strike as i32 + temper).max(1) as usize;
     let army_short = (fighters < home_guard + strike && treasury_ok) || threatened;
     let expanding =
         all + *settlers_planned < crate::knob("CITIES", traits.cities_wanted as f32) as usize;
