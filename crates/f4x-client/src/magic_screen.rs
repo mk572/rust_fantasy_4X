@@ -115,6 +115,16 @@ pub(crate) struct AlchemyUi {
     pub slider: i32,
 }
 
+/// Where a wizard stands in the row of gems: those you can talk to first, then those not met
+/// yet, then the gone ones (a stable sort keeps the order of the players within each).
+fn gem_rank(gone: bool, met: bool) -> u8 {
+    match (gone, met) {
+        (false, true) => 0,
+        (false, false) => 1,
+        (true, _) => 2,
+    }
+}
+
 /// What the magic screen remembers while it is open.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct MagicUi {
@@ -123,6 +133,8 @@ pub(crate) struct MagicUi {
     pub drag: Option<usize>,
     /// The first overland enchantment shown, when there are more than eighteen.
     pub first: usize,
+    /// The first of the other wizards shown in the four gems, when there are more than four.
+    pub first_wizard: usize,
     pub alchemy: Option<AlchemyUi>,
     /// Asking whether to turn off one of the wizard's own enchantments.
     pub turn_off: Option<SpellId>,
@@ -175,12 +187,21 @@ impl App {
     /// The other wizards' gems: grey until the wizard is met, then its picture in its banner
     /// colour with the word for how it feels about you and an icon for each treaty, and broken
     /// once the wizard is gone. A click on a met wizard's gem opens the diplomacy screen, a
-    /// right-click the wizard's sheet.
-    fn magic_gems(&mut self, lay: &Layout, view: (f32, f32, f32), active: bool, input: &Input) {
+    /// right-click the wizard's sheet. The wizards you can talk to come first, then those not
+    /// met yet, then the gone ones; with more than four the wheel, the arrows beside the gems
+    /// and the left and right keys scroll through them.
+    fn magic_gems(
+        &mut self,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        active: bool,
+        input: &Input,
+        first_wizard: &mut usize,
+    ) {
         for i in 0..4 {
             self.draw_pic(lay, "magic", 6, 0, 24.0 + 77.0 * i as f32, 4.0);
         }
-        let others: Vec<(PlayerId, u8, u8, bool)> = self
+        let mut others: Vec<(PlayerId, u8, u8, bool)> = self
             .game
             .player_ids()
             .into_iter()
@@ -195,6 +216,54 @@ impl App {
                 )
             })
             .collect();
+        others.sort_by_key(|&(id, _, _, gone)| gem_rank(gone, self.game.have_met(HUMAN, id)));
+        let last_first = others.len().saturating_sub(4);
+        *first_wizard = (*first_wizard).min(last_first);
+        if last_first > 0 && active {
+            let strip = lay.rect((24.0, 4.0, 77.0 * 3.0 + 40.0, 56.0));
+            let mouse: Vec2 = input.mouse_position().into();
+            let step =
+                |first: usize, by: i32| (first as i32 + by).clamp(0, last_first as i32) as usize;
+            let wheel = input.mouse_wheel().1;
+            if wheel != 0.0 && strip.contains(mouse) {
+                *first_wizard = step(*first_wizard, if wheel > 0.0 { -1 } else { 1 });
+            }
+            if input.key_pressed(KeyCode::Left) {
+                *first_wizard = step(*first_wizard, -1);
+            }
+            if input.key_pressed(KeyCode::Right) {
+                *first_wizard = step(*first_wizard, 1);
+            }
+            for (right, x) in [(false, 12.0), (true, 308.0)] {
+                let enabled = if right {
+                    *first_wizard < last_first
+                } else {
+                    *first_wizard > 0
+                };
+                let r = lay.rect((x - 5.0, 22.0, 10.0, 16.0));
+                let (cx, cy, h, d) = (
+                    r.x + r.w / 2.0,
+                    r.y + r.h / 2.0,
+                    r.h / 2.0,
+                    if right { 1.0 } else { -1.0 },
+                );
+                let colour = if enabled {
+                    WHITE
+                } else {
+                    Color::new(1.0, 1.0, 1.0, 0.25)
+                };
+                draw_triangle(
+                    vec2(cx + d * r.w / 2.0, cy),
+                    vec2(cx - d * r.w / 2.0, cy - h),
+                    vec2(cx - d * r.w / 2.0, cy + h),
+                    colour,
+                );
+                if enabled && ui::hit(r, true, input).clicked() {
+                    *first_wizard = step(*first_wizard, if right { 1 } else { -1 });
+                }
+            }
+        }
+        let others: Vec<_> = others.into_iter().skip(*first_wizard).collect();
         let gems: Vec<PlayerId> = others.iter().take(4).map(|o| o.0).collect();
         for (i, (id, portrait, banner, gone)) in others.into_iter().take(4).enumerate() {
             let x = 24.0 + 77.0 * i as f32;
@@ -646,7 +715,7 @@ impl Page for MagicUi {
         }
         self.magic_staves(app, &lay, !modal, input);
         self.magic_text(app, &lay, view);
-        app.magic_gems(&lay, view, !modal, input);
+        app.magic_gems(&lay, view, !modal, input, &mut self.first_wizard);
         self.magic_enchantments(app, &lay, view, !modal, input);
 
         // The Alchemy and OK buttons.
@@ -706,6 +775,15 @@ impl Page for MagicUi {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn contactable_wizards_come_before_unmet_and_gone_ones() {
+        let mut wizards = [(true, true), (false, false), (false, true), (true, false)];
+        wizards.sort_by_key(|&(gone, met)| gem_rank(gone, met));
+        assert_eq!(wizards[0], (false, true));
+        assert_eq!(wizards[1], (false, false));
+        assert!(wizards[2].0 && wizards[3].0);
+    }
+
     use super::*;
 
     #[test]
