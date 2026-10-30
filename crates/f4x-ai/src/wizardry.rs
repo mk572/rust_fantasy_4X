@@ -51,6 +51,17 @@ const GOOD_GLOBALS: &[&str] = &[
     "awareness",
 ];
 
+/// Lasting spells on a unit whose effect the rules read by the spell's id, so their `effects` are
+/// empty: Heroism, and the wards against a realm. All of them help the unit they sit on.
+const READ_BY_ID_BUFFS: &[&str] = &[
+    "heroism",
+    "bless",
+    "righteousness",
+    "resist_magic",
+    "resist_elements",
+    "elemental_armor",
+];
+
 /// Unexplored squares a block must hold to be worth Earth Lore.
 const EXPLORE_FLOOR: u32 = 70;
 /// Share of a stack's hit points (percent) that must be gone to be worth Nature's Cures.
@@ -84,6 +95,13 @@ pub fn kind(def: &SpellDef) -> Kind {
     }
     if has_hook(def, f4x_core::spell::special::NATURES_CURES) {
         return Kind::Cure;
+    }
+    if def.effects.is_empty()
+        && def.target == SpellTarget::OwnUnit
+        && def.duration == Duration::Permanent
+        && READ_BY_ID_BUFFS.contains(&def.id.as_str())
+    {
+        return Kind::UnitBuff;
     }
     if def.effects.is_empty() || has_hook(def, "unimplemented") {
         return Kind::Other;
@@ -729,6 +747,8 @@ mod tests {
         assert_eq!(kind_of("spell_of_mastery"), Kind::Mastery);
         assert_eq!(kind_of("war_bears"), Kind::Summon);
         assert_eq!(kind_of("giant_strength"), Kind::UnitBuff);
+        assert_eq!(kind_of("heroism"), Kind::UnitBuff);
+        assert_eq!(kind_of("elemental_armor"), Kind::UnitBuff);
         assert_eq!(kind_of("natures_eye"), Kind::CityBuff);
         assert_eq!(kind_of("herb_mastery"), Kind::GlobalBuff);
         assert_eq!(kind_of("earth_lore"), Kind::Explore);
@@ -901,5 +921,32 @@ mod tests {
         let began = g.wizard(P0).unwrap().casting().is_some()
             || g.city_enchantments(enemy).iter().any(|&(s, _)| s == famine);
         assert!(began, "at war: Famine begun or cast");
+    }
+
+    #[test]
+    fn heroism_is_aimed_at_a_fighter_and_not_at_one_that_has_it() {
+        use f4x_core::game::setup::{new_game, NewGame};
+        use f4x_core::player::PlayerId;
+        const P1: PlayerId = PlayerId(1);
+        let content = crate::testworld::content();
+        let mut g = new_game(
+            &content,
+            &NewGame {
+                seed: 7,
+                ..NewGame::default()
+            },
+        )
+        .expect("a new game");
+        let heroism = g.content().rules.spells.id_of("heroism").unwrap();
+        g.cheat_learn_spell(P1, heroism);
+        let aim = |g: &Game| pick_target(&PlayerView::new(g, P1), heroism);
+        let Some(Target::Unit(first)) = aim(&g) else {
+            panic!("Heroism has a unit to go on");
+        };
+        g.scenario_enchant_unit(first, heroism, P1);
+        match aim(&g) {
+            Some(Target::Unit(second)) => assert_ne!(second, first),
+            other => assert!(other.is_none(), "{other:?}"),
+        }
     }
 }

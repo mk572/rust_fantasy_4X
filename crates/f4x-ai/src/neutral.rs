@@ -238,7 +238,7 @@ pub(crate) fn march(
         let mut spots: Vec<Position> = around(&view, site)
             .into_iter()
             .filter(|&p| view.hostile_at(p).is_none() && !view.has_lair(p))
-            .filter(|&p| p == from || view.can_reach(units, p))
+            .filter(|&p| p != from && view.can_reach(units, p))
             .collect();
         spots.sort_by_key(|&p| (distance(&view, from, p), p.y, p.x));
         spots

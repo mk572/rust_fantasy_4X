@@ -108,7 +108,8 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             // A party that cannot find its way home (cut off by guarded ground or the sea) gives
             // up the raid and is left to the army's rules.
-            if !ai.send(game, Command::GoTo { units, to: home }, events) {
+            let reachable = PlayerView::new(game, me).can_reach(&units, home);
+            if !reachable || !ai.send(game, Command::GoTo { units, to: home }, events) {
                 ai.raiders.retain(|s| !serials.contains(s));
             }
         }
