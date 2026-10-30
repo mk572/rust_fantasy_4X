@@ -105,8 +105,6 @@ pub struct App {
     pub(crate) hero_levels: std::collections::HashMap<hecs::Entity, usize>,
     /// The turn the heroes' levels were last looked at (`u32::MAX`: not yet).
     pub(crate) levels_turn: u32,
-    /// The plane the Cartographer shows.
-    pub(crate) cart_plane: Plane,
     /// The news of the last turn change, for the Chancellor to show again.
     pub(crate) last_news: Vec<crate::chancellor::Section>,
     pub(crate) seed: u64,
@@ -134,7 +132,6 @@ pub struct App {
     /// The auto-builder dialog over the city screen, while it is open.
     pub(crate) autobuild_dialog: Option<crate::autobuild_dialog::AutoDialog>,
     pub(crate) prod_ui: crate::production_screen::ProductionUi,
-    /// The magic screen's staves, locks and windows.
     /// The diplomacy screen's talk.
     pub(crate) diplo_ui: crate::diplomacy_screen::DiploUi,
     /// Wizards met whose greeting waits for the map: the screen opens for each in turn.
@@ -187,15 +184,12 @@ pub struct App {
     pub(crate) surveyor: bool,
     /// For screenshots: the square the Surveyor describes instead of the one under the mouse.
     pub(crate) survey_probe: Option<Position>,
-    /// The wizard creation screen's state.
     /// The human wizard chosen on the creation screen; new maps reuse it.
     pub(crate) human_build: Option<f4x_core::wizard::WizardBuild>,
     /// The battle screen's state.
     pub(crate) battle_ui: crate::battle_screen::BattleUi,
-    /// The unit statistics sheet that is open, if any.
     /// Steps the units on the map are still sliding through (task 298).
     pub(crate) slides: Vec<crate::map_slide::Slide>,
-    /// The army list's scroll and the unit under the mouse.
     /// Items have just been awarded to the human wizard: the item screen opens when the boxes
     /// before it are closed (`Process_Item_Pool`: a lair's treasure, a gift, the merchant's item
     /// bought, an item made).
@@ -338,7 +332,6 @@ impl App {
             audio: crate::audio::Audio::silent(),
             hero_levels: Default::default(),
             levels_turn: u32::MAX,
-            cart_plane: Plane::Arcanus,
             last_news: Vec::new(),
             seed,
             seed_fixed: false,
@@ -1516,9 +1509,9 @@ impl App {
             Screen::Battle => self.battle_screen(input),
             Screen::Create => self.page_frame(input),
             Screen::Options => self.options_screen(input),
-            Screen::Cartographer => self.cartographer_screen(input),
-            Screen::History => self.history_screen(input),
-            Screen::Astrologer => self.astrologer_screen(input),
+            Screen::Cartographer => self.page_frame(input),
+            Screen::History => self.page_frame(input),
+            Screen::Astrologer => self.page_frame(input),
             Screen::Settings => self.page_frame(input),
             Screen::GameSettings => self.game_settings_screen(input),
             Screen::MainMenu => return self.main_menu_screen(input),

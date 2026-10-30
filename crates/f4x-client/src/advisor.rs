@@ -129,11 +129,14 @@ impl App {
             2 => self.open_apprentice(),
             0 => self.start_surveyor(),
             1 => {
-                self.cart_plane = self.plane;
-                self.screen = Screen::Cartographer;
+                let plane = self.plane;
+                self.open_page(
+                    Screen::Cartographer,
+                    crate::advisor_screen::CartographerPage { plane },
+                );
             }
-            3 => self.screen = Screen::History,
-            4 => self.screen = Screen::Astrologer,
+            3 => self.open_page(Screen::History, crate::advisor_screen::HistoryPage),
+            4 => self.open_page(Screen::Astrologer, crate::advisor_screen::AstrologerPage),
             5 => self.open_chancellor_advisor(),
             6 => self.open_tax_collector(),
             7 => self.toggle_grand_vizier(),
