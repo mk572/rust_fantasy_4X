@@ -1,5 +1,7 @@
 //! A small hand-made world with the shipped content, for the unit tests of the AI modules: two
 //! islands in an ocean, one wizard on each, so that a unit cannot walk to the other side.
+//!
+//! Tests: none, because this is test support; the modules that use it test it.
 
 use f4x_core::content::Content;
 use f4x_core::feature::entity::Placement;
