@@ -83,14 +83,14 @@ assets-local/
 `crates/f4x-tools/screens.tsv` is the table (lbx, first and last entry, screen, label; numbers
 and names only). A labelled single entry is `<label>_FF.png` (`main_screen/button_done_00.png`),
 anything else `<lbx>_NNN_FF.png`. Shared pictures (the grey gems, the OK button of Load and
-Settings, `items`, `special`, `wizards`, `cityscap`) stay in `art/`. A picture two screens use lives with its main screen. To move more, add rows and run
+Settings, `items`, `wizards`, `cityscap`) stay in `art/`. A picture two screens use lives with its main screen. To move more, add rows and run
 `extract-art` again: it writes the picture in its new place and deletes the old copy in `art/`.
 Unit art is filed by the unit's id from `content/units.ron` (its `art` and hero `portrait`;
 unit type numbers: `unit_type_number`), so the extractor must run from the project directory.
 Spell art is filed by the table `content/spell_art.ron` (spell id to `(lbx, entry, role)`): a picture
 of one spell goes to `art/spells/<spell id>/<lbx>_NNN_FF.png`, one that several spells use or that
 belongs to none (the realm pictures, the summon scene, the boxes, the masks) to `art/spells/_shared/`,
-and the spell book's twelve pictures (`spells.lbx`) to `art/spells/_book/`. The summon scene's creature pictures (`MONSTER.LBX`: the entry is the summoned unit's number minus the Magic Spirit's, 44 and 45 the heroes, 46 the sword) go to `art/summoning/NNN_FF.png`; entries 36, 37, 38, 40 and 47 are 1x1 stubs in the original's own file, which `extract-art` skips, so Floating Island, Phantom Beast, Phantom Warriors and Air Elemental show no figure (no translucency or palette swap is involved). A picture no spell names
+and the spell book's twelve pictures (`spells.lbx`) to `art/spells/_book/`. The 16x16 ability icons of the unit sheet (`SPECIAL.LBX` and the first 34 entries of `SPECIAL2.LBX`, the rest of that file is the small book and its marks) go to `art/unit_ability/NNN_FF.png`, numbered by the picture index of the original's `special_seg` (`SPECIAL2.LBX` continues at 111). The summon scene's creature pictures (`MONSTER.LBX`: the entry is the summoned unit's number minus the Magic Spirit's, 44 and 45 the heroes, 46 the sword) go to `art/summoning/NNN_FF.png`; entries 36, 37, 38, 40 and 47 are 1x1 stubs in the original's own file, which `extract-art` skips, so Floating Island, Phantom Beast, Phantom Warriors and Air Elemental show no figure (no translucency or palette swap is involved). A picture no spell names
 stays in `art/<lbx>/`. `extract-art` writes this layout from the start. For art already extracted,
 `f4x-tools refile-art [art-dir]` moves the files to where the current rules put them (screens, units
 and spells alike; it touches only pictures whose place changed, takes their `_cycle` and `_banner`

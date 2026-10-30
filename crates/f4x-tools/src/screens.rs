@@ -33,6 +33,11 @@ pub fn placement(rules: &[Rule], lbx: &str, entry: usize) -> Option<String> {
     Some(format!("{}/{name}", rule.screen))
 }
 
+/// The picture index at which `SPECIAL2.LBX` continues the ability icons of `SPECIAL.LBX`.
+const SPECIAL2_FIRST_ICON: usize = 111;
+/// How many entries at the start of `SPECIAL2.LBX` are ability icons.
+const ABILITY_ICONS_IN_SPECIAL2: usize = 34;
+
 /// The placement of every picture that has a special place.
 pub struct Placer {
     rules: Vec<Rule>,
@@ -92,6 +97,19 @@ impl Placer {
         // (entry = unit number - the Magic Spirit's), the heroes and the sword.
         if lbx == "monster" {
             return Some(format!("art/summoning/{entry:03}"));
+        }
+        // The 16x16 ability icons of the unit sheet: `SPECIAL.LBX` and the first 34 entries of
+        // `SPECIAL2.LBX`, filed by the picture index of the original's `special_seg` (the
+        // second file continues at 111). The rest of `SPECIAL2.LBX` is not an icon.
+        match lbx {
+            "special" => return Some(format!("art/unit_ability/{entry:03}")),
+            "special2" if entry < ABILITY_ICONS_IN_SPECIAL2 => {
+                return Some(format!(
+                    "art/unit_ability/{:03}",
+                    entry + SPECIAL2_FIRST_ICON
+                ));
+            }
+            _ => {}
         }
         if let Some(folder) = self.spells.get(&(lbx.to_string(), entry)) {
             return Some(format!("art/spells/{folder}/{lbx}_{entry:03}"));
@@ -292,6 +310,28 @@ mod tests {
             &f4x_data::spell_art::parse_spell_art("(shared: [], spells: {})").unwrap(),
         );
         assert_eq!(p.place("monster", 10).as_deref(), Some("art/summoning/010"));
+    }
+
+    #[test]
+    fn the_ability_icons_of_both_special_files_share_one_folder() {
+        let p = Placer::new(
+            rules().unwrap(),
+            &[],
+            &f4x_data::spell_art::parse_spell_art("(shared: [], spells: {})").unwrap(),
+        );
+        assert_eq!(
+            p.place("special", 5).as_deref(),
+            Some("art/unit_ability/005")
+        );
+        assert_eq!(
+            p.place("special2", 0).as_deref(),
+            Some("art/unit_ability/111")
+        );
+        assert_eq!(
+            p.place("special2", 33).as_deref(),
+            Some("art/unit_ability/144")
+        );
+        assert_eq!(p.place("special2", 34), None);
     }
 
     #[test]
