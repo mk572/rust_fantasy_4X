@@ -1,13 +1,6 @@
-//! Ships: how the AI reaches an enemy that lives on another land mass (`docs/ai-design.md` 11.3,
-//! task 230).
-//!
-//! When every enemy city it knows is out of reach on foot, the AI picks a landing: a land square
-//! beside the target city and a sea square beside that. The nearest coastal city of its own on
-//! the same sea becomes the port and builds a ship (and the building that lets it). Fighters
-//! gather at the port; when enough stand there, the ship and they sail together to the sea
-//! square, the fighters step ashore next turn, and the ship goes back for more. The landed units
-//! are ordinary units after that: standing next to the enemy city they attack it when they are
-//! strong enough, and each trip adds to them.
+//! Ships: how the AI reaches an enemy city on another land mass (`docs/ai-design.md` 11.3). A
+//! plan names the target, a landing (a land square and a sea square beside it) and the port to
+//! sail from.
 
 use f4x_core::city::production::{ProductionError, ProductionItem};
 use f4x_core::game::serial::Serial;
@@ -536,6 +529,8 @@ mod tests {
     use crate::testworld::{at, build, game, spawn, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0};
     use f4x_core::map::terrain::TerrainClass;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     fn port() -> Position {
         at(COAST_CITY.0, COAST_CITY.1)
     }
@@ -578,7 +573,7 @@ mod tests {
     }
 
     #[test]
-    fn a_city_away_from_the_sea_is_never_offered_a_ship() {
+    fn a_city_away_from_the_sea_is_never_offered_a_ship() -> TestResult {
         // With every ship building in place, an inland city still cannot build a ship.
         let mut g = game(INLAND_CITY, "high_men");
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
@@ -588,21 +583,23 @@ mod tests {
             &["ship_wrights_guild", "sawmill", "ship_yard"],
         );
         let view = PlayerView::new(&g, P0);
-        let city = view.city_at(inland).unwrap();
+        let city = view.city_at(inland).ok_or("the city is there")?;
         assert_eq!(port_item(&view, city), None);
+        Ok(())
     }
 
     #[test]
-    fn a_landing_is_a_shore_square_beside_the_city_and_the_sea_beside_that() {
+    fn a_landing_is_a_shore_square_beside_the_city_and_the_sea_beside_that() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         g.reveal_map(P0);
         let view = PlayerView::new(&g, P0);
-        let (land, sea) = landing(&view, enemy()).expect("a landing");
+        let (land, sea) = landing(&view, enemy()).ok_or("a landing")?;
         assert_ne!(land, enemy());
         assert_ne!(view.terrain_class(land), Some(TerrainClass::Ocean));
         assert_eq!(view.terrain_class(sea), Some(TerrainClass::Ocean));
         assert_eq!(view.distance(land, sea), Some(1));
         assert!(view.distance(land, enemy()).is_some_and(|d| d <= 2));
+        Ok(())
     }
 
     #[test]
@@ -613,17 +610,18 @@ mod tests {
     }
 
     #[test]
-    fn the_plan_sails_from_the_coastal_city_to_a_landing_by_the_enemy() {
+    fn the_plan_sails_from_the_coastal_city_to_a_landing_by_the_enemy() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         g.reveal_map(P0);
         let mut ai = Ai::new(P0);
         ai.unreachable.push(enemy());
         let view = PlayerView::new(&g, P0);
-        let plan = choose_plan(&ai, &view).expect("a plan");
+        let plan = choose_plan(&ai, &view).ok_or("a plan")?;
         assert_eq!(plan.target, enemy());
         assert_eq!(plan.port, port());
         assert_eq!(view.terrain_class(plan.sea), Some(TerrainClass::Ocean));
         assert_ne!(view.terrain_class(plan.land), Some(TerrainClass::Ocean));
+        Ok(())
     }
 
     #[test]
@@ -661,7 +659,7 @@ mod tests {
     }
 
     #[test]
-    fn a_galley_ferries_fighters_to_the_enemy_island() {
+    fn a_galley_ferries_fighters_to_the_enemy_island() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         build(
             &mut g,
@@ -669,8 +667,8 @@ mod tests {
             &["ship_wrights_guild", "sawmill", "ship_yard"],
         );
         g.reveal_map(P0);
-        // No upkeep trouble: the test world has no economy to pay for the army.
-        g.treasury_mut(P0).unwrap().gold = 1_000_000;
+        // Upkeep must not interfere.
+        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold = 1_000_000;
         spawn(&mut g, P0, port(), "galley", 1);
         // One stays as the garrison; four go.
         let army = spawn(&mut g, P0, port(), "high_men_spearmen", 5);
@@ -686,7 +684,7 @@ mod tests {
                 .filter(|&&u| {
                     g.units()
                         .unit_position(u)
-                        .is_some_and(|p| p.x >= 28 && p != enemy())
+                        .is_some_and(|p| p.x >= ENEMY_CITY.0 && p != enemy())
                 })
                 .count();
             if ashore > 0 {
@@ -703,6 +701,7 @@ mod tests {
             g.units().unit_position(army[0]).is_some(),
             "the garrison fighter is still alive"
         );
+        Ok(())
     }
 
     #[test]
