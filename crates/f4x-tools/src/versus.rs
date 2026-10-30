@@ -187,6 +187,16 @@ pub fn run(args: &[String]) -> Result<(), String> {
         }
         println!();
     }
+    print!("{:<20}", "first landing turn");
+    for (_, col) in &columns {
+        print!(
+            "{:>12}",
+            col.metrics
+                .first_landing()
+                .map_or("-".into(), |t| format!("{t:.1}"))
+        );
+    }
+    println!();
     println!("-- at the end of the game --");
     for (i, (label, _)) in Standing::default().rows().iter().enumerate() {
         print!("{label:<20}");

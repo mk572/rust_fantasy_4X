@@ -25,7 +25,7 @@ use crate::game::serial::Serial;
 use crate::map::fog::Fog;
 use crate::map::{FeatureId, Grid, Map, Position, TerrainId};
 use crate::player::{Defeat, History, Offers, Owner, PlayerId, Tax, Treasury};
-use crate::spell::instance::{Caster, Owed, SpellCast, SpellTarget};
+use crate::spell::instance::{Owed, SpellTarget};
 use crate::wizard::entity::{Banner, CapitalRace, Portrait};
 use crate::wizard::fortress::{Banishment, Fortress, SummonAt};
 

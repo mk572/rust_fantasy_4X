@@ -156,6 +156,19 @@ impl Game {
             .any(|s| s.plane == pos.plane && range(width, s.x, s.y, pos.x, pos.y) < distance)
     }
 
+    /// The landmass a square is on (0 for sea); two squares are on the same land when the
+    /// numbers match. Walks the whole plane, so ask for events, not for every square.
+    pub fn landmass_of(&self, at: Position) -> u32 {
+        let Some(map) = self.map.as_ref() else {
+            return 0;
+        };
+        let width = map.plane(at.plane).width();
+        self.landmasses(at.plane)
+            .get((at.y * width + at.x) as usize)
+            .copied()
+            .unwrap_or(0)
+    }
+
     /// A number for every land square telling which landmass it belongs to (0 for sea).
     pub(crate) fn landmasses(&self, plane: Plane) -> Vec<u32> {
         let Some(map) = self.map.as_ref() else {
