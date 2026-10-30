@@ -45,6 +45,8 @@
 
     // The selected stack.
     "unselect": ["Q", "U"],
+    // The unit window shows nine units; on a square with more this shows the next nine.
+    "next_page": ["PageDown"],
     "special": ["B"],
     "plane_shift": ["P"],
     "balance_farmers": ["T"],

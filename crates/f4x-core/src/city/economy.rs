@@ -102,6 +102,8 @@ pub struct Economy<'a> {
     pub(crate) diagonal_extra: bool,
     /// Settlers cost a citizen (`RuleSettings::settlers_cost_citizen`).
     pub(crate) settlers_cost_citizen: bool,
+    /// Most units on one square (`RuleSettings::max_tile`).
+    pub(crate) max_tile: usize,
     /// For a path search: the squares where this player has a ship with a free place, worked
     /// out once, so the search need not look for ships at every sea square.
     pub(crate) ship_room: Option<(PlayerId, &'a HashSet<Position>)>,
@@ -116,8 +118,15 @@ impl<'a> Economy<'a> {
             events: &crate::world_event::NONE,
             diagonal_extra: false,
             settlers_cost_citizen: true,
+            max_tile: crate::unit::MAX_TILE_LIMIT,
             ship_room: None,
         }
+    }
+
+    /// The same view with the game's limit of units on one square.
+    pub fn with_max_tile(mut self, max: usize) -> Self {
+        self.max_tile = max;
+        self
     }
 
     /// The same view with Settlers costing a citizen, or not.
@@ -685,7 +694,9 @@ impl<'a> Economy<'a> {
                         )
                     })
                 })
-                .count() as i32;
+                .count()
+                // A square holds more than a battle side does; the extra units keep no order.
+                .min(crate::unit::MAX_STACK) as i32;
             pacify += police / 2;
         }
         // Stream of Life: the citizens are so pleased that unrest disappears (the original's
@@ -900,6 +911,12 @@ impl Game {
             .with_events(&self.events)
             .with_diagonal_extra(self.settings.basic.diagonal_extra_cost)
             .with_settlers_cost_citizen(self.settings.rules.settlers_cost_citizen)
+            .with_max_tile(self.settings.rules.max_tile)
+    }
+
+    /// Most units that may stand on one square in this game (the `max_tile` setting).
+    pub fn max_tile(&self) -> usize {
+        self.settings.rules.max_tile
     }
 }
 

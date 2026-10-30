@@ -767,7 +767,7 @@ impl Game {
             .into_iter()
             .filter(|(_, c, _)| c.owner == player)
             .map(|(_, _, p)| p)
-            .filter(|&p| self.units().units_at(p).len() < crate::unit::MAX_STACK)
+            .filter(|&p| self.units().units_at(p).len() < self.max_tile())
             .collect();
         homes.sort_by_key(|p| {
             (

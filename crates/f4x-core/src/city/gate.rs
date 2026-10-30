@@ -17,7 +17,7 @@ use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::unit::movement::MoveError;
-use crate::unit::{MovesLeft, MAX_STACK};
+use crate::unit::MovesLeft;
 
 /// The hook of the gate spells: the effect is read from the city's enchantments, so casting
 /// does nothing beyond enchanting the city.
@@ -53,7 +53,7 @@ impl Game {
         if units.iter().any(|&u| self.units().unit_moves_left(u) == 0) {
             return Err(MoveError::NoMovesLeft);
         }
-        if self.units().units_at(to).len() + units.len() > MAX_STACK {
+        if self.units().units_at(to).len() + units.len() > self.max_tile() {
             return Err(MoveError::StackFull);
         }
         Ok(())
@@ -207,7 +207,7 @@ mod tests {
         let _ = g.world.insert_one(w, crate::unit::MovesLeft(0));
         assert_eq!(g.can_use_earth_gate(&[w], b), Err(MoveError::NoMovesLeft));
         let w2 = walker(&mut g, P0, a);
-        for _ in 0..MAX_STACK {
+        for _ in 0..crate::unit::MAX_TILE_LIMIT {
             walker(&mut g, P0, b);
         }
         assert_eq!(g.can_use_earth_gate(&[w2], b), Err(MoveError::StackFull));

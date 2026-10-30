@@ -146,7 +146,7 @@ fn a_neutral_city_alone_on_its_landmass_raises_nobody_and_feeds_the_monsters_clo
 
 #[test]
 fn a_full_city_has_no_room_for_a_party() {
-    let mut g = world(9);
+    let mut g = world(crate::unit::MAX_TILE_LIMIT);
     g.threat.raider_clock = 29;
     let events = g.process_threats();
     assert!(!events

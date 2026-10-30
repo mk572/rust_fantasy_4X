@@ -235,6 +235,14 @@ pub struct RuleSettings {
     /// How hard a walking unit hits a flying one in melee.
     #[serde(default)]
     pub melee_vs_fliers: MeleeVsFliers,
+    /// Most units on one square, from the nine of an army up to `MAX_TILE_LIMIT`. An army and a
+    /// battle side stay at nine; units above that on a defended square are a reserve.
+    #[serde(default = "default_max_tile")]
+    pub max_tile: usize,
+}
+
+fn default_max_tile() -> usize {
+    crate::unit::MAX_TILE_LIMIT
 }
 
 fn yes() -> bool {
@@ -714,6 +722,7 @@ impl GameSettings {
                 safe_flee: Split::both(false),
                 settlers_cost_citizen: true,
                 melee_vs_fliers: MeleeVsFliers::Zero,
+                max_tile: crate::unit::MAX_TILE_LIMIT,
             },
             events: EventSettings {
                 random_events: true,
@@ -772,6 +781,15 @@ impl GameSettings {
             format!(
                 "map {} by {} is not {:?} by {:?}",
                 b.map_width, b.map_height, MAP_WIDTHS, MAP_HEIGHTS
+            ),
+        );
+        check(
+            (crate::unit::MAX_STACK..=crate::unit::MAX_TILE_LIMIT).contains(&self.rules.max_tile),
+            format!(
+                "{} units on a square is not {} to {}",
+                self.rules.max_tile,
+                crate::unit::MAX_STACK,
+                crate::unit::MAX_TILE_LIMIT
             ),
         );
         let w = &self.wizards;
@@ -1064,6 +1082,17 @@ mod tests {
         );
         assert_eq!(flat.events, average.events);
         assert_eq!(flat.scoring, average.scoring);
+    }
+
+    #[test]
+    fn the_units_per_square_stay_between_an_army_and_the_ceiling() {
+        let mut s = at(2);
+        assert_eq!(s.rules.max_tile, crate::unit::MAX_TILE_LIMIT);
+        assert!(s.validate().is_empty());
+        for bad in [crate::unit::MAX_STACK - 1, crate::unit::MAX_TILE_LIMIT + 1] {
+            s.rules.max_tile = bad;
+            assert_eq!(s.validate().len(), 1, "{bad}");
+        }
     }
 
     #[test]

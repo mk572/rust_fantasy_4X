@@ -545,7 +545,7 @@ impl Game {
                 Some(Target::Tile(p)) => self.summon_point(player).or(Some(p)),
                 _ => self.summon_point(player),
             };
-            if at.is_some_and(|p| self.units().units_at(p).len() >= crate::unit::MAX_STACK) {
+            if at.is_some_and(|p| self.units().units_at(p).len() >= self.max_tile()) {
                 return Err(MagicError::Target(TargetError::SquareFull));
             }
         }

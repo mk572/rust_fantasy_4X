@@ -331,7 +331,11 @@ impl App {
             return Some(notice);
         };
         if let SiteNotice::Ask { units, to, .. } = notice {
-            if yes {
+            if yes && units.len() > f4x_core::unit::MAX_STACK {
+                // More than nine could go in: who does is asked first.
+                let pick = self.new_fighter_pick(&units, true, false);
+                self.modals.open(crate::fighter_pick::SitePick { pick, to });
+            } else if yes {
                 self.begin_battle(Command::EnterSite { units, to });
             }
         }

@@ -1346,13 +1346,16 @@ fn a_finished_unit_waits_while_nine_units_stand_in_the_city() {
     add_building(&mut g, city, "barracks");
     add_building(&mut g, city, "fighters_guild");
     let spear = g.content.rules.units.id_of("spear").unwrap();
-    for _ in 0..crate::unit::MAX_STACK {
+    for _ in 0..crate::unit::MAX_TILE_LIMIT {
         g.spawn_unit(P0, at(10, 6), spear);
     }
     g.set_production(city, ProductionItem::Unit(spear)).unwrap();
     let cost = g.economy().item_cost(city, ProductionItem::Unit(spear));
     assert!(g.production_blocked(city, cost as i32).is_some());
-    assert_eq!(g.units().units_at(at(10, 6)).len(), crate::unit::MAX_STACK);
+    assert_eq!(
+        g.units().units_at(at(10, 6)).len(),
+        crate::unit::MAX_TILE_LIMIT
+    );
     assert_eq!(
         g.economy().city_production(city).item,
         Some(ProductionItem::Unit(spear))

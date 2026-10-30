@@ -10,7 +10,7 @@ use crate::player::PlayerId;
 
 use crate::game::Game;
 use crate::rules::MovementType;
-use crate::unit::{MovesLeft, Unit, MAX_STACK};
+use crate::unit::{MovesLeft, Unit};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MoveError {
@@ -414,7 +414,7 @@ impl Economy<'_> {
             }
         }
         let present = self.units().units_at(to).len();
-        if present + units.len() > MAX_STACK {
+        if present + units.len() > self.max_tile {
             return Err(MoveError::StackFull);
         }
         Ok((costs, Entry::Free))
@@ -548,7 +548,7 @@ impl Game {
         if self.economy().hostile_at(to, owner).is_some() {
             return Err(MoveError::CannotShiftPlane);
         }
-        if self.units().units_at(to).len() + units.len() > MAX_STACK {
+        if self.units().units_at(to).len() + units.len() > self.max_tile() {
             return Err(MoveError::StackFull);
         }
         for &u in units {

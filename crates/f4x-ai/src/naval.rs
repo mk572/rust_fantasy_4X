@@ -453,14 +453,14 @@ fn voyage(
     }
 }
 
-/// A ship cannot enter a city holding a full stack: the last fighter of the port steps out to a
+/// A ship cannot enter a city holding a full tile: the last fighter of the port steps out to a
 /// square beside it, to make room.
 fn make_room(ai: &mut Ai, game: &mut Game, port: Position, events: &mut Vec<Event>) {
     let me = ai.player;
     let (unit, to) = {
         let view = PlayerView::new(game, me);
         let mut here = view.garrison(port);
-        if here.len() < f4x_core::unit::MAX_STACK {
+        if here.len() < view.max_tile() {
             return;
         }
         view.sort_by_serial(&mut here);
@@ -760,13 +760,16 @@ mod tests {
             P0,
             port(),
             "high_men_spearmen",
-            f4x_core::unit::MAX_STACK,
+            f4x_core::unit::MAX_TILE_LIMIT,
         );
-        assert_eq!(PlayerView::new(&g, P0).garrison(port()).len(), 9);
+        assert_eq!(
+            PlayerView::new(&g, P0).garrison(port()).len(),
+            f4x_core::unit::MAX_TILE_LIMIT
+        );
         let mut ai = Ai::new(P0);
         make_room(&mut ai, &mut g, port(), &mut Vec::new());
         let left = PlayerView::new(&g, P0).garrison(port()).len();
-        assert_eq!(left, f4x_core::unit::MAX_STACK - 1);
+        assert_eq!(left, f4x_core::unit::MAX_TILE_LIMIT - 1);
         assert!(full.iter().all(|&u| g.units().unit_position(u).is_some()));
     }
 }

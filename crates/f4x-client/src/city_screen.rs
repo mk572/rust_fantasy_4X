@@ -117,6 +117,9 @@ impl App {
             return;
         }
         let choosing = self.choosing || dialog || selling || renaming;
+        if !choosing {
+            self.scroll_garrison(city, lay, input);
+        }
         // A right-click on a unit of the garrison opens its statistics sheet.
         if input.mouse_pressed(MouseButton::Right) && !choosing {
             let over = self
@@ -1150,14 +1153,78 @@ impl App {
         }
     }
 
-    /// The garrison's unit squares and the unit on each (at most nine).
+    /// The garrison list's rows (five units each) that fit: the list scrolls by a row.
+    const GARRISON_ROWS: usize = 2;
+
+    /// The most rows the garrison list can be scrolled down by.
+    fn garrison_last_row(&self, city: hecs::Entity) -> usize {
+        let units = self.game.units().units_at(self.city_position(city)).len();
+        units.div_ceil(5).saturating_sub(Self::GARRISON_ROWS)
+    }
+
+    /// The two arrows in the list's heading row: where they are, up first.
+    fn garrison_arrows(lay: Layout) -> [Rect; 2] {
+        [
+            lay.rect(GARRISON.0 + 80.0, GARRISON.1 - 9.0, 8.0, 7.0),
+            lay.rect(GARRISON.0 + 92.0, GARRISON.1 - 9.0, 8.0, 7.0),
+        ]
+    }
+
+    /// The mouse wheel over the list, or a click on one of its arrows, scrolls it by a row.
+    fn scroll_garrison(&mut self, city: hecs::Entity, lay: Layout, input: &Input) {
+        let last = self.garrison_last_row(city);
+        self.garrison_row = self.garrison_row.min(last);
+        let area = lay.rect(GARRISON.0, GARRISON.1, 110.0, 36.0);
+        let [up, down] = Self::garrison_arrows(lay);
+        let wheel = input.mouse_wheel().1;
+        let over = ui::hit(area, true, input).hovered();
+        if (over && wheel > 0.0) || ui::hit(up, true, input).clicked() {
+            self.garrison_row = self.garrison_row.saturating_sub(1);
+        }
+        if (over && wheel < 0.0) || ui::hit(down, true, input).clicked() {
+            self.garrison_row = (self.garrison_row + 1).min(last);
+        }
+    }
+
+    /// For the screenshot check (`--city --crowd`): fourteen units in the first city, and the
+    /// garrison list scrolled down a row.
+    pub fn crowd_first_city(&mut self) {
+        let Some((_, at)) = self
+            .game
+            .economy()
+            .cities()
+            .into_iter()
+            .find(|(c, ..)| self.game.economy().city_owner(*c) == Some(HUMAN))
+            .map(|(c, _, p)| (c, p))
+        else {
+            return;
+        };
+        let kind = self
+            .game
+            .content()
+            .rules
+            .units
+            .defs()
+            .iter()
+            .find(|d| d.kind == f4x_core::rules::UnitKind::Normal && d.race.is_some())
+            .and_then(|d| self.game.content().rules.units.id_of(&d.id));
+        if let Some(kind) = kind {
+            for _ in 0..14 {
+                self.game.spawn_unit(HUMAN, at, kind);
+            }
+        }
+        self.garrison_row = 1;
+    }
+
+    /// The garrison's unit squares and the unit on each (the rows that are shown).
     fn garrison_cells(&self, city: hecs::Entity, lay: Layout) -> Vec<(Rect, hecs::Entity)> {
         let at = self.city_position(city);
         self.game
             .units()
             .units_at(at)
             .into_iter()
-            .take(9)
+            .skip(self.garrison_row * 5)
+            .take(Self::GARRISON_ROWS * 5)
             .enumerate()
             .map(|(i, u)| {
                 let (col, row) = ((i % 5) as f32, (i / 5) as f32);
@@ -1169,15 +1236,36 @@ impl App {
 
     /// The units in the city on their banner backgrounds (`City_Screen_Draw_Garrison_Window`),
     /// five to a row; the ones picked (by a click) have a gold frame.
-    fn draw_city_garrison(&mut self, city: hecs::Entity, _lay: Layout) {
+    fn draw_city_garrison(&mut self, city: hecs::Entity, city_lay: Layout) {
         let at = self.city_position(city);
         let lay = crate::frame::Layout::new();
-        for (i, u) in self
-            .game
-            .units()
-            .units_at(at)
+        let all = self.game.units().units_at(at);
+        if all.len() > Self::GARRISON_ROWS * 5 {
+            let [up, down] = Self::garrison_arrows(city_lay);
+            let last = self.garrison_last_row(city);
+            for (r, pointing_up) in [(up, true), (down, false)] {
+                let live = if pointing_up {
+                    self.garrison_row > 0
+                } else {
+                    self.garrison_row < last
+                };
+                let shade = if live {
+                    GOLD
+                } else {
+                    Color::new(0.4, 0.35, 0.3, 1.0)
+                };
+                let (l, m, t) = (r.x, r.x + r.w / 2.0, r.x + r.w);
+                if pointing_up {
+                    draw_triangle(vec2(l, r.y + r.h), vec2(t, r.y + r.h), vec2(m, r.y), shade);
+                } else {
+                    draw_triangle(vec2(l, r.y), vec2(t, r.y), vec2(m, r.y + r.h), shade);
+                }
+            }
+        }
+        for (i, u) in all
             .into_iter()
-            .take(9)
+            .skip(self.garrison_row * 5)
+            .take(Self::GARRISON_ROWS * 5)
             .enumerate()
         {
             let spot = (

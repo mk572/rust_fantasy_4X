@@ -20,6 +20,14 @@ pub fn stack_strength(view: &PlayerView, units: &[hecs::Entity]) -> f32 {
     units.iter().map(|&u| unit_strength(view, u)).sum()
 }
 
+/// What a defended square puts into a battle: a side fights with at most nine units, the
+/// strongest of a larger stack, and the rest are a reserve.
+pub fn fighting_strength(view: &PlayerView, units: &[hecs::Entity]) -> f32 {
+    let mut each: Vec<f32> = units.iter().map(|&u| unit_strength(view, u)).collect();
+    each.sort_by(|a, b| b.total_cmp(a));
+    each.iter().take(f4x_core::unit::MAX_STACK).sum()
+}
+
 /// A ship: it sails and carries land units.
 pub fn is_ship(view: &PlayerView, unit: hecs::Entity) -> bool {
     view.unit_stat(unit, Stat::Transport) > 0

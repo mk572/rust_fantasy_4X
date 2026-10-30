@@ -7,7 +7,7 @@ use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::{Aggressive, PlayerId, MONSTERS};
 use crate::rules::{Stat, UnitId, UnitKind};
-use crate::unit::{Experience, Unit, Unpaid, MAX_STACK};
+use crate::unit::{Experience, Unit, Unpaid};
 
 use super::RAIDER_LIMIT;
 
@@ -129,7 +129,7 @@ impl Game {
                     && self.economy().is_fortress_city(e)
             });
             let present = self.units().units_at(pos);
-            let room = MAX_STACK.saturating_sub(present.len());
+            let room = self.max_tile().saturating_sub(present.len());
             let troops: Vec<UnitId> = present
                 .iter()
                 .copied()

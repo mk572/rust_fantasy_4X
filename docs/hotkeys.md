@@ -50,6 +50,7 @@ client (**extra**, as is Shift plus an arrow with a stack selected).
 | Ctrl-Z | Undo the last order |
 | T | Balance farmers to feed the army |
 | Tab | Show the other plane |
+| Page Down | A square with more than nine of your units: show the next nine in the unit window |
 | `+`, `-` | Zoom |
 | `` ` `` (backquote) | The text console |
 

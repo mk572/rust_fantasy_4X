@@ -235,13 +235,27 @@ fn enemies_block_and_ask_for_a_fight() {
 }
 
 #[test]
-fn a_tile_holds_nine_units() {
+fn a_tile_holds_twenty_units() {
     let mut g = world();
-    for _ in 0..9 {
+    for _ in 0..crate::unit::MAX_TILE_LIMIT {
         unit(&mut g, P0, "walker", at(2, 1));
     }
     let mover = unit(&mut g, P0, "walker", at(1, 1));
     assert_eq!(g.move_stack(&[mover], at(2, 1)), Err(MoveError::StackFull));
+}
+
+#[test]
+fn the_setting_lowers_the_units_a_tile_holds() {
+    let mut g = world();
+    g.settings.rules.max_tile = 12;
+    for _ in 0..12 {
+        unit(&mut g, P0, "walker", at(2, 1));
+    }
+    let mover = unit(&mut g, P0, "walker", at(1, 1));
+    assert_eq!(g.max_tile(), 12);
+    assert_eq!(g.move_stack(&[mover], at(2, 1)), Err(MoveError::StackFull));
+    g.settings.rules.max_tile = 13;
+    assert!(g.move_stack(&[mover], at(2, 1)).is_ok());
 }
 
 #[test]

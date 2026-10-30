@@ -110,6 +110,9 @@ pub struct ActiveBattleSave {
     /// `BattleUnit::source` indexes this list.
     pub sources: Vec<Serial>,
     pub left_out: Vec<(Side, Serial)>,
+    /// Defenders beyond the nine that fight.
+    #[serde(default)]
+    pub benched: Vec<Serial>,
     pub lair: Option<Serial>,
 }
 
@@ -125,6 +128,7 @@ impl Game {
                 .iter()
                 .map(|&(side, e)| (side, self.serial_of(e)))
                 .collect(),
+            benched: a.benched.iter().map(|&e| self.serial_of(e)).collect(),
             lair: a.lair.map(|e| self.serial_of(e)),
         })
     }
@@ -168,6 +172,11 @@ impl Game {
                     .ok_or_else(|| bad("left a unit out that is gone"))
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let benched = save
+            .benched
+            .iter()
+            .map(|&s| unit_of(self, s).ok_or_else(|| bad("benched a unit that is gone")))
+            .collect::<Result<Vec<_>, _>>()?;
         let lair = save
             .lair
             .map(|s| {
@@ -202,6 +211,7 @@ impl Game {
             battle,
             sources,
             left_out,
+            benched,
             lair,
         });
         Ok(())

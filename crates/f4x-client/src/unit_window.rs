@@ -71,11 +71,9 @@ impl App {
         let Some(at) = self.selection_position() else {
             return Vec::new();
         };
-        self.game
-            .units()
-            .units_at(at)
+        self.own_units_at(at)
             .into_iter()
-            .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
+            .skip(self.stack_page * f4x_core::unit::MAX_STACK)
             .take(f4x_core::unit::MAX_STACK)
             .collect()
     }

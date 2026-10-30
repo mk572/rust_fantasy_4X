@@ -4652,3 +4652,98 @@ fn a_battle_starts_with_the_games_melee_against_fliers_setting() {
         assert_eq!(g.battle().unwrap().melee_vs_fliers, rule);
     }
 }
+
+// ---- a defended square holds more than the nine who fight -------------------------------
+
+#[test]
+fn the_nine_most_experienced_defenders_fight_from_a_crowded_square() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let attacker = g.spawn_unit(A, at(4, 4), walker);
+    let defenders: Vec<_> = (0..12).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
+    // The last three are the veterans.
+    for &d in &defenders[9..] {
+        let _ = g.world.insert_one(d, crate::unit::Experience(500));
+    }
+    g.apply(Command::BeginBattle {
+        attackers: vec![attacker],
+        defenders: defenders.clone(),
+    });
+    let battle = g.battle().expect("a battle started");
+    let fighting = battle
+        .units
+        .iter()
+        .filter(|u| u.side == Side::Defender)
+        .count();
+    assert_eq!(fighting, crate::unit::MAX_STACK);
+    let picked = g.fighter_preset(&defenders);
+    assert!(defenders[9..].iter().all(|d| picked[..3].contains(d)));
+}
+
+#[test]
+fn defenders_who_sat_a_lost_battle_out_are_half_lost_and_driven_off_the_square() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let attackers: Vec<_> = (0..9).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
+    let defenders: Vec<_> = (0..crate::unit::MAX_TILE_LIMIT)
+        .map(|_| g.spawn_unit(D, at(5, 4), walker))
+        .collect();
+    let benched = g.fighter_preset(&defenders)[crate::unit::MAX_STACK..].to_vec();
+    g.apply(Command::BeginBattle {
+        attackers,
+        defenders,
+    });
+    // The attacker waits and the defence runs.
+    g.apply(Command::Battle(BattleCommand::EndTurn));
+    g.apply(Command::Battle(BattleCommand::Flee));
+    assert!(!g.in_battle());
+    let left: Vec<_> = benched.iter().filter(|&&b| g.world.contains(b)).collect();
+    assert!(
+        !left.is_empty() && left.len() < benched.len(),
+        "{}",
+        left.len()
+    );
+    for &&b in &left {
+        assert_ne!(g.units().unit_position(b), Some(at(5, 4)), "driven off");
+    }
+}
+
+#[test]
+fn defenders_who_sat_a_won_battle_out_stay() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let attacker = g.spawn_unit(A, at(4, 4), walker);
+    let defenders: Vec<_> = (0..12).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
+    g.apply(Command::BeginBattle {
+        attackers: vec![attacker],
+        defenders: defenders.clone(),
+    });
+    g.apply(Command::Battle(BattleCommand::Flee));
+    assert!(!g.in_battle());
+    assert!(defenders
+        .iter()
+        .all(|&d| g.units().unit_position(d) == Some(at(5, 4))));
+}
+
+#[test]
+fn the_player_names_who_fights_and_the_others_stay_out_with_their_moves() {
+    let mut g = game();
+    let walker = g.content.rules.units.id_of("walker").unwrap();
+    let attackers: Vec<_> = (0..12).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
+    let defenders: Vec<_> = (0..12).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
+    // Nine of each are named; the last three of the defenders are not.
+    g.apply(Command::BeginBattle {
+        attackers: attackers[..9].to_vec(),
+        defenders: defenders[..9].to_vec(),
+    });
+    let sources = &g.battle.as_ref().unwrap().sources;
+    assert!(defenders[..9].iter().all(|d| sources.contains(d)));
+    assert!(defenders[9..].iter().all(|d| !sources.contains(d)));
+    assert_eq!(g.battle.as_ref().unwrap().benched, defenders[9..].to_vec());
+    // The three attackers who were not named never entered it and keep their moves.
+    let full = g.units().unit_moves_left(attackers[0]);
+    assert!(attackers[9..]
+        .iter()
+        .all(|&a| g.units().unit_moves_left(a) == full));
+    assert!(attackers[9..].iter().all(|a| !sources.contains(a)));
+}

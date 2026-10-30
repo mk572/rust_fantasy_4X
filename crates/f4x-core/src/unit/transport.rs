@@ -327,7 +327,7 @@ impl Game {
         None
     }
 
-    fn free_landing(
+    pub(crate) fn free_landing(
         &self,
         land: Position,
         from: Position,
@@ -339,7 +339,7 @@ impl Game {
             return false;
         }
         let there = self.units().units_at(land).len();
-        if there + passengers.len() > crate::unit::MAX_STACK {
+        if there + passengers.len() > self.max_tile() {
             return false;
         }
         let traits = crate::unit::movement::StackTraits::default();

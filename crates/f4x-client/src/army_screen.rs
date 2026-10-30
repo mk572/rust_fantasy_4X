@@ -46,7 +46,8 @@ pub(crate) fn group_stacks<T: Copy>(units: &[(T, Position)]) -> Vec<Vec<T>> {
 }
 
 impl App {
-    /// The wizard's stacks: units on the same square, nine at most each.
+    /// The wizard's stacks: units on the same square, in rows of nine (a square with more units
+    /// continues on the next row, and the list scrolls).
     fn army_stacks(&self) -> Vec<Vec<hecs::Entity>> {
         let units = self.game.units();
         let placed: Vec<_> = units
@@ -55,6 +56,9 @@ impl App {
             .filter_map(|u| Some((u, units.unit_position(u)?)))
             .collect();
         group_stacks(&placed)
+            .into_iter()
+            .flat_map(|stack| stack.chunks(9).map(<[_]>::to_vec).collect::<Vec<_>>())
+            .collect()
     }
 
     /// Gold, mana and food the army costs each turn.

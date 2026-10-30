@@ -7,7 +7,7 @@ use crate::map::{Plane, Position};
 use crate::game::{Event, Game};
 use crate::rules::exec::Target;
 use crate::spell::target_error::TargetError;
-use crate::unit::{Hurt, MAX_STACK};
+use crate::unit::Hurt;
 
 pub const TRANSMUTE: &str = "transmute";
 pub const EARTH_LORE: &str = "earth_lore";
@@ -58,7 +58,7 @@ impl Game {
         if self.economy().hostile_at(at, owner).is_some() {
             return Err(TargetError::EnemyOnSquare);
         }
-        if self.units().units_at(at).len() >= MAX_STACK {
+        if self.units().units_at(at).len() >= self.max_tile() {
             return Err(TargetError::SquareFull);
         }
         Ok(())
@@ -118,7 +118,7 @@ impl Game {
             .and_then(|w| w.summon_at())
             .ok_or(TargetError::NoCircle)?;
         let there = self.units().units_at(to);
-        (there.contains(&unit) || there.len() < MAX_STACK)
+        (there.contains(&unit) || there.len() < self.max_tile())
             .then_some(to)
             .ok_or(TargetError::CircleFull)
     }
@@ -156,7 +156,7 @@ impl Game {
         if self.economy().hostile_at(to, owner).is_some() {
             return Err(TargetError::EnemyOnOtherPlane);
         }
-        if self.units().units_at(to).len() + stack.len() > MAX_STACK {
+        if self.units().units_at(to).len() + stack.len() > self.max_tile() {
             return Err(TargetError::OtherPlaneFull);
         }
         let traits = self.economy().stack_traits(&stack);
@@ -356,7 +356,7 @@ mod tests {
             .put(Some(crate::wizard::fortress::SummonAt(home)));
         cast(&mut g, "word_of_recall", Target::Unit(u));
         assert_eq!(g.units().unit_position(u), Some(home));
-        for _ in 0..MAX_STACK - 1 {
+        for _ in 0..crate::unit::MAX_TILE_LIMIT - 1 {
             walker(&mut g, home);
         }
         let far = walker(&mut g, at(Plane::Arcanus, 1, 1));
@@ -418,7 +418,7 @@ mod tests {
             Err(TargetError::EnemyOnSquare)
         );
         g.world.despawn(enemy).unwrap();
-        for _ in 0..MAX_STACK {
+        for _ in 0..crate::unit::MAX_TILE_LIMIT {
             g.spawn_unit(P0, sea, boat);
         }
         assert_eq!(

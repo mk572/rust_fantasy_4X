@@ -548,7 +548,7 @@ impl Game {
             return None;
         };
         let too_small = self.economy().costs_a_citizen(u) && self.city_population(city).figures < 2;
-        if self.units().units_at(at).len() < crate::unit::MAX_STACK && !too_small {
+        if self.units().units_at(at).len() < self.max_tile() && !too_small {
             return None;
         }
         let _ = self.world.insert_one(city, p);

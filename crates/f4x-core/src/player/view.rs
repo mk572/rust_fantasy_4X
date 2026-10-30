@@ -391,6 +391,11 @@ impl<'a> PlayerView<'a> {
         self.game.economy().city_owner(city)
     }
 
+    /// Most units that may stand on one square in this game.
+    pub fn max_tile(&self) -> usize {
+        self.game.max_tile()
+    }
+
     /// Hostile units or a hostile city on a square the player sees now (`None` if there is
     /// nothing, or the square is out of sight: the player does not know). The units are those
     /// it can make out.

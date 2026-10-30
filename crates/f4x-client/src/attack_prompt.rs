@@ -7,6 +7,7 @@ use f4x_core::game::Command;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
+use crate::fighter_pick::PickStep;
 use crate::modal::{keep, kind, Modal};
 use crate::ui::{button, GOLD};
 use crate::view::{App, HUMAN};
@@ -48,11 +49,17 @@ enum ManaStep {
 pub(crate) struct AttackAsk {
     pub(crate) attack: PendingAttack,
     mana: Option<ManaAsk>,
+    /// The pick of who fights, when more than nine of the human's units could.
+    pick: Option<crate::fighter_pick::FighterPick>,
 }
 
 impl AttackAsk {
     pub(crate) fn new(attack: PendingAttack) -> Self {
-        Self { attack, mana: None }
+        Self {
+            attack,
+            mana: None,
+            pick: None,
+        }
     }
 }
 
@@ -78,6 +85,7 @@ impl App {
                     reserve: reserve.max(0) as u32,
                     typed: false,
                 }),
+                pick: None,
             }),
             None => {
                 self.run_auto_battle(attack, None);
@@ -125,6 +133,49 @@ impl App {
         if let Some(ask) = ask {
             self.modals.open(ask);
         }
+    }
+
+    /// For the screenshot check (`--pick-box`): the human's first stack grows to fourteen units
+    /// and attacks a monster, so the pick of who fights opens.
+    pub fn open_test_pick(&mut self) {
+        let Some(pos) = self
+            .game
+            .units()
+            .player_units(HUMAN)
+            .first()
+            .and_then(|&u| self.game.units().unit_position(u))
+        else {
+            return;
+        };
+        let kinds: Vec<_> = {
+            let rules = &self.game.content().rules;
+            rules
+                .units
+                .defs()
+                .iter()
+                .filter(|d| d.kind == f4x_core::rules::UnitKind::Normal && d.race.is_some())
+                .filter_map(|d| rules.units.id_of(&d.id))
+                .collect()
+        };
+        for i in 0..14usize.saturating_sub(self.own_units_at(pos).len()) {
+            self.game.spawn_unit(HUMAN, pos, kinds[i % kinds.len()]);
+        }
+        let attackers = self.own_units_at(pos);
+        let defender = self
+            .game
+            .spawn_unit(f4x_core::player::MONSTERS, pos, kinds[0]);
+        let pick = self.new_fighter_pick(&attackers, true, false);
+        let attack = PendingAttack {
+            attackers,
+            defenders: vec![defender],
+            defending: false,
+            treaty_asked: true,
+        };
+        self.modals.open(AttackAsk {
+            attack,
+            mana: None,
+            pick: Some(pick),
+        });
     }
 
     fn run_auto_battle(&mut self, attack: PendingAttack, mana: Option<u32>) {
@@ -228,7 +279,11 @@ impl App {
     /// Show the pending attack over the map until it is answered; what is left of the box.
     pub(crate) fn attack_prompt_frame(
         &mut self,
-        AttackAsk { mut attack, mana }: AttackAsk,
+        AttackAsk {
+            mut attack,
+            mana,
+            pick,
+        }: AttackAsk,
         input: &Input,
     ) -> Option<AttackAsk> {
         // A unit that is gone (the game was loaded, a console command) cancels the question.
@@ -241,9 +296,31 @@ impl App {
                 ManaStep::Asking(ask) => Some(AttackAsk {
                     attack,
                     mana: Some(ask),
+                    pick: None,
                 }),
                 ManaStep::Back => Some(AttackAsk::new(attack)),
                 ManaStep::Fought => None,
+            };
+        }
+        if let Some(pick) = pick {
+            let auto = pick.auto;
+            return match self.fighter_pick_frame(pick, input) {
+                PickStep::Picking(pick) => Some(AttackAsk {
+                    attack,
+                    mana: None,
+                    pick: Some(pick),
+                }),
+                PickStep::Back => None,
+                PickStep::Done(chosen) => {
+                    // The units not chosen are left out: attackers stay put with their moves,
+                    // defenders sit the fight out.
+                    if attack.defending {
+                        attack.defenders = chosen;
+                    } else {
+                        attack.attackers = chosen;
+                    }
+                    self.fight_or_auto(attack, auto)
+                }
             };
         }
         if !attack.treaty_asked {
@@ -332,22 +409,41 @@ impl App {
         if cancel {
             None
         } else if fight || auto {
-            if auto
+            let auto = auto
                 || self
                     .prefs
-                    .get(crate::preferences::Pref::StrategicCombatOnly)
-            {
-                self.start_auto_battle(attack)
+                    .get(crate::preferences::Pref::StrategicCombatOnly);
+            // More than nine of the human's units could fight: who does is asked first.
+            let mine = if attack.defending {
+                &attack.defenders
             } else {
-                let (attackers, defenders) = (attack.attackers, attack.defenders);
-                self.begin_battle(Command::BeginBattle {
-                    attackers,
-                    defenders,
+                &attack.attackers
+            };
+            if mine.len() > f4x_core::unit::MAX_STACK {
+                let pick = self.new_fighter_pick(mine, !attack.defending, auto);
+                return Some(AttackAsk {
+                    attack,
+                    mana: None,
+                    pick: Some(pick),
                 });
-                None
             }
+            self.fight_or_auto(attack, auto)
         } else {
             Some(AttackAsk::new(attack))
+        }
+    }
+
+    /// Begin the fight in person, or leave it to the computer.
+    fn fight_or_auto(&mut self, attack: PendingAttack, auto: bool) -> Option<AttackAsk> {
+        if auto {
+            self.start_auto_battle(attack)
+        } else {
+            let (attackers, defenders) = (attack.attackers, attack.defenders);
+            self.begin_battle(Command::BeginBattle {
+                attackers,
+                defenders,
+            });
+            None
         }
     }
 

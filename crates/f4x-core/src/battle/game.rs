@@ -20,6 +20,9 @@ pub struct ActiveBattle {
     /// Units that stayed out of a fight on the sea (land units aboard a ship): they share the
     /// fate of their side.
     pub left_out: Vec<(Side, hecs::Entity)>,
+    /// Defenders that stood on the square but are not among the nine who fight. They stay out
+    /// of the battle; if the defence loses they flee (`Game::bench_flees`), if it wins they stay.
+    pub benched: Vec<hecs::Entity>,
     /// The lair being assaulted, if this is a fight against a site's guards (`Battle::site` is
     /// the square the fight is on).
     pub lair: Option<hecs::Entity>,
@@ -370,6 +373,112 @@ impl Game {
         false
     }
 
+    /// How strong a unit is as a fighter: the number the preset and the pick screen sort by
+    /// (`battle::ai::strength` of its better attack, defence and hit points now).
+    pub fn fighter_strength(&self, unit: hecs::Entity) -> f32 {
+        use crate::rules::Stat;
+        let e = self.units();
+        let attack = e
+            .unit_stat(unit, Stat::Melee)
+            .max(e.unit_stat(unit, Stat::Ranged));
+        super::ai::strength(
+            attack,
+            e.unit_stat(unit, Stat::Defense),
+            e.unit_hits(unit).0 as i32,
+        )
+    }
+
+    /// The units that fight when more than nine could, strongest first: heroes first; then units
+    /// with an attack by strength, the more experienced first among equals; settlers, engineers
+    /// and the other units with no attack last. The first nine fight.
+    pub fn fighter_preset(&self, units: &[hecs::Entity]) -> Vec<hecs::Entity> {
+        use crate::rules::{Stat, UnitKind};
+        let mut sorted = units.to_vec();
+        self.sort_by_serial(&mut sorted);
+        sorted.sort_by_key(|&u| {
+            let hero = self
+                .units()
+                .unit_def(u)
+                .is_some_and(|d| d.kind == UnitKind::Hero);
+            let combat = self.units().unit_stat(u, Stat::Melee) > 0
+                || self.units().unit_stat(u, Stat::Ranged) > 0;
+            (
+                !hero,
+                !combat,
+                std::cmp::Reverse((self.fighter_strength(u) * 10.0) as i64),
+                std::cmp::Reverse(self.units().unit_experience(u)),
+            )
+        });
+        sorted
+    }
+
+    /// The (at most nine) units that fight out of those sent: all of them up to nine, else the
+    /// preset's nine. The rest are the second list.
+    fn pick_fighters(&self, units: &[hecs::Entity]) -> (Vec<hecs::Entity>, Vec<hecs::Entity>) {
+        if units.len() <= crate::unit::MAX_STACK {
+            return (units.to_vec(), Vec::new());
+        }
+        let mut order = self.fighter_preset(units);
+        let rest = order.split_off(crate::unit::MAX_STACK);
+        (order, rest)
+    }
+
+    /// The defenders who fight, and the units of the defending player on the square who do not.
+    /// The caller names who fights (the pick screen); a square with more than nine units where
+    /// fewer are named leaves the others out, and more than nine named are cut to the preset.
+    fn pick_defenders(
+        &self,
+        named: &[hecs::Entity],
+        owner: PlayerId,
+        site: Position,
+    ) -> (Vec<hecs::Entity>, Vec<hecs::Entity>) {
+        let (fighters, _) = self.pick_fighters(named);
+        let there: Vec<hecs::Entity> = self
+            .units()
+            .units_at(site)
+            .into_iter()
+            .filter(|&u| self.units().unit_owner(u) == Some(owner))
+            .collect();
+        if there.len() <= crate::unit::MAX_STACK {
+            return (named.to_vec(), Vec::new());
+        }
+        let rest = there
+            .into_iter()
+            .filter(|u| !fighters.contains(u))
+            .collect();
+        (fighters, rest)
+    }
+
+    /// Defenders that sat a lost battle out run as fleeing units do: half are lost and a quarter
+    /// of the heroes, the rest are driven to a free neighbouring square (lost if there is none).
+    fn bench_flees(&mut self, benched: &[hecs::Entity], victor: PlayerId) {
+        use crate::rules::UnitKind;
+        let mut benched = benched.to_vec();
+        self.sort_by_serial(&mut benched);
+        for unit in benched {
+            let (Some(at), Some(owner)) = (
+                self.units().unit_position(unit),
+                self.units().unit_owner(unit),
+            ) else {
+                continue;
+            };
+            let percent = match self.units().unit_def(unit).map(|d| d.kind) {
+                Some(UnitKind::Hero) => 25,
+                _ => 50,
+            };
+            let landing = crate::unit::pathing::neighbours(self, at)
+                .into_iter()
+                .find(|&next| self.free_landing(next, at, owner, &[unit]));
+            match landing {
+                Some(next) if self.roll(100) > percent => {
+                    let _ = self.world.remove_one::<crate::unit::Order>(unit);
+                    let _ = self.world.insert_one(unit, next);
+                }
+                _ => self.remove_unit_to(unit, crate::hero::Fate::Slain, Some(victor)),
+            }
+        }
+    }
+
     /// Begin a battle between two stacks. The defenders' square decides the terrain.
     pub fn start_battle(
         &mut self,
@@ -415,6 +524,12 @@ impl Game {
             ShipDeckPlan::default()
         };
         let mut left_out = Vec::new();
+        // An army and a battle side are at most nine; a defended square may hold more, and the
+        // strongest nine fight (`Game::fighter_preset`).
+        let attackers = self.pick_fighters(attackers).0;
+        let attackers = &attackers[..];
+        let (defenders, benched) = self.pick_defenders(defenders, d_owner, site);
+        let defenders = &defenders[..];
         for (side, group) in [(Side::Attacker, attackers), (Side::Defender, defenders)] {
             let ship_decks = decks.of(side);
             let carried = ocean
@@ -545,6 +660,7 @@ impl Game {
             sources,
             lair: None,
             left_out,
+            benched,
         });
         self.attack_relations(a_owner, d_owner);
         Ok(vec![Event::BattleStarted {
@@ -777,7 +893,13 @@ impl Game {
             sources,
             lair,
             left_out,
+            benched,
         } = active;
+        // The defenders that did not fight flee if the defence lost (before the square is
+        // taken, so that nobody is left on it).
+        if battle.winner == Some(Side::Attacker) {
+            self.bench_flees(&benched, battle.player_of(Side::Attacker));
+        }
         // The units that sat the fight out go down with a side that lost it.
         if let Some(winner) = battle.winner {
             for (side, unit) in left_out {
@@ -933,7 +1055,13 @@ impl Game {
         };
         self.sort_by_serial(&mut dead);
         // As in the original, the winner's units that stand count against the stack's nine.
-        let mut room = crate::unit::MAX_STACK.saturating_sub(battle.active_units(side).count());
+        let side_room = crate::unit::MAX_STACK.saturating_sub(battle.active_units(side).count());
+        // The square holds at most `max_tile` units, those of a defence that sat the fight out
+        // among them.
+        let tile_room = self
+            .max_tile()
+            .saturating_sub(self.units().units_at(pos).len());
+        let mut room = side_room.min(tile_room);
         let mut raised = 0;
         for unit in dead {
             if room == 0 {

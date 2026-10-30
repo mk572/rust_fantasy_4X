@@ -9,7 +9,9 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
 
-use crate::view::{distance, garrison_wanted, is_fighter, stack_strength, unit_strength};
+use crate::view::{
+    distance, fighting_strength, garrison_wanted, is_fighter, stack_strength, unit_strength,
+};
 use crate::{race, Ai};
 
 /// The AI attacks when its force is this much stronger than what it expects to meet.
@@ -145,7 +147,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     Some(defenders) if defenders.is_empty() => Sortie::WalkIn(target),
                     Some(defenders) => {
                         // A square we see is a square we know the defence of.
-                        let theirs = stack_strength(&view, &defenders)
+                        let theirs = fighting_strength(&view, &defenders)
                             * if view.city_at(target).is_some() {
                                 1.3
                             } else {
@@ -254,7 +256,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let view = PlayerView::new(game, me);
         for (_, owner, pos) in view.known_cities() {
             if owner != me && view.sees(pos) {
-                let strength = stack_strength(&view, &view.hostile_at(pos).unwrap_or_default());
+                let strength = fighting_strength(&view, &view.hostile_at(pos).unwrap_or_default());
                 ai.city_memory.insert(pos, (strength, game.turn));
             }
         }
@@ -338,11 +340,11 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let force = stack_strength(&view, &at_rally);
         (rally, expected, at_rally, elsewhere, force)
     };
-    // The port of a landing keeps a slot free: a ship cannot enter a city holding nine units.
+    // The port of a landing keeps a slot free: a ship cannot enter a city holding a full tile.
     let naval_rally = ai.naval.is_some_and(|p| p.target == target);
     let mut room = if naval_rally {
-        let held = PlayerView::new(game, me).garrison(rally).len();
-        (f4x_core::unit::MAX_STACK - 1).saturating_sub(held)
+        let view = PlayerView::new(game, me);
+        (view.max_tile() - 1).saturating_sub(view.garrison(rally).len())
     } else {
         usize::MAX
     };
@@ -451,7 +453,7 @@ fn threats(view: &PlayerView) -> Vec<(Position, f32)> {
         let near: f32 = view
             .enemies_near(pos, THREAT_RADIUS)
             .iter()
-            .map(|(_, units)| stack_strength(view, units))
+            .map(|(_, units)| fighting_strength(view, units))
             .sum();
         if near <= 0.0 {
             continue;
@@ -461,7 +463,7 @@ fn threats(view: &PlayerView) -> Vec<(Position, f32)> {
             .into_iter()
             .filter(|&u| is_fighter(view, u))
             .collect();
-        let held = stack_strength(view, &home);
+        let held = fighting_strength(view, &home);
         if near * THREAT_RATIO > held {
             found.push((pos, near / THREAT_RATIO - held));
         }
@@ -559,7 +561,7 @@ pub(crate) fn expected_defence(
 ) -> f32 {
     let guess = crate::knob("GUESS", GUESS_DEFENDERS) * average_strength(view);
     if view.sees(at) {
-        return stack_strength(view, &view.hostile_at(at).unwrap_or_default()) * 1.3;
+        return fighting_strength(view, &view.hostile_at(at).unwrap_or_default()) * 1.3;
     }
     match memory.get(&at) {
         Some(&(s, seen)) if turn.saturating_sub(seen) <= MEMORY_TURNS => s * 1.3,

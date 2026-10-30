@@ -118,6 +118,10 @@ pub struct App {
     pub(crate) race: usize,
     pub(crate) screen: Screen,
     pub(crate) selection: Vec<hecs::Entity>,
+    /// Which nine units of a crowded square the unit window shows: the units from `9 * page` on.
+    pub(crate) stack_page: usize,
+    /// The first row of the city screen's garrison list that is shown (five units to a row).
+    pub(crate) garrison_row: usize,
     pub(crate) log: Vec<String>,
     /// The production menu is open on the city screen.
     pub(crate) choosing: bool,
@@ -325,6 +329,8 @@ impl App {
             race,
             screen: Screen::Map,
             selection: Vec::new(),
+            stack_page: 0,
+            garrison_row: 0,
             log: Vec::new(),
             choosing: false,
             greetings: Default::default(),
@@ -1878,7 +1884,31 @@ impl App {
             .into_iter()
             .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
             .collect();
+        self.stack_page = 0;
         self.selection = mine;
+    }
+
+    /// The human's units on a square, all of them (a square holds more than an army does).
+    pub(crate) fn own_units_at(&self, pos: Position) -> Vec<hecs::Entity> {
+        self.game
+            .units()
+            .units_at(pos)
+            .into_iter()
+            .filter(|&u| self.game.units().unit_owner(u) == Some(HUMAN))
+            .collect()
+    }
+
+    /// Show the next nine units of a crowded square in the unit window (all of them stay
+    /// selected as they were).
+    fn next_stack_page(&mut self) {
+        let Some(at) = self.selection_position() else {
+            return;
+        };
+        let units = self.own_units_at(at);
+        let pages = units.len().div_ceil(f4x_core::unit::MAX_STACK);
+        if pages > 1 {
+            self.stack_page = (self.stack_page + 1) % pages;
+        }
     }
 
     pub(crate) fn selection_position(&self) -> Option<Position> {
@@ -1907,6 +1937,9 @@ impl App {
             }
         }
         self.cam += pan * step;
+        if self.hotkeys.pressed("next_page", input) {
+            self.next_stack_page();
+        }
         if self.hotkeys.pressed("other_plane", input) {
             self.toggle_plane();
         }

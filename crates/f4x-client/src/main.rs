@@ -30,6 +30,7 @@ mod diplomacy_text;
 mod end_scene;
 mod enemy_city_screen;
 mod event_popup;
+mod fighter_pick;
 mod fled_notice;
 mod font;
 mod frame;
@@ -148,6 +149,8 @@ struct Options {
     /// With `--shot`, ask how much mana an automatic fight may spend.
     auto_attack: bool,
     attack_box: bool,
+    pick_box: bool,
+    crowd: bool,
     /// With `--shot`, open the help for this point of the screen (320 by 200 coordinates).
     help_at: Option<(i32, i32)>,
     /// With `--shot --city`, open the description of this building (an id) in a help pop-up.
@@ -275,6 +278,8 @@ fn parse_args() -> Result<Options, String> {
         intro: None,
         auto_attack: false,
         attack_box: false,
+        pick_box: false,
+        crowd: false,
         help_at: None,
         help_building: None,
         survey_at: None,
@@ -478,6 +483,8 @@ fn parse_args() -> Result<Options, String> {
             }
             "--auto-attack" => o.auto_attack = true,
             "--attack-box" => o.attack_box = true,
+            "--pick-box" => o.pick_box = true,
+            "--crowd" => o.crowd = true,
             "--help-at" => {
                 let v = value("--help-at")?;
                 let (x, y) = v.split_once(',').ok_or("--help-at takes X,Y")?;
@@ -534,7 +541,7 @@ async fn main() {
     let options = match parse_args() {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|conquest|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--attack-box] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|conquest|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--attack-box] [--pick-box] [--crowd (with --city: fourteen units in the city, list scrolled one row)] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -615,6 +622,9 @@ async fn main() {
         app.select_first_stack();
     }
     if options.city {
+        if options.crowd {
+            app.crowd_first_city();
+        }
         app.open_first_city();
         if options.autobuild {
             app.open_test_autobuild();
@@ -792,6 +802,8 @@ async fn main() {
         app.open_slots(true);
     } else if options.settings {
         app.open_settings();
+    } else if options.pick_box {
+        app.open_test_pick();
     } else if options.auto_attack || options.attack_box {
         app.open_test_auto_attack(options.attack_box);
     } else if let Some(scene) = options.intro {

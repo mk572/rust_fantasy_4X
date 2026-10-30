@@ -21,7 +21,7 @@ use crate::item::make::{make_item, Grade};
 use crate::item::Item;
 use crate::player::{Offers, PlayerId};
 use crate::rules::{MovementType, Rules, UnitDef, UnitKind};
-use crate::unit::{Experience, MAX_STACK};
+use crate::unit::Experience;
 use crate::wizard::magic::Retort;
 
 /// No mercenaries are offered before this turn (`Generate_Mercenaries`).
@@ -382,7 +382,7 @@ impl Game {
         let count = mercenary_count(self.rng.roll(100) as i32, fame);
         let price = mercenary_price(cost, level, count, charismatic);
         let at = self.summon_point(player)?;
-        let room = self.units().units_at(at).len() + count as usize <= MAX_STACK;
+        let room = self.units().units_at(at).len() + count as usize <= self.max_tile();
         (price <= gold && room).then_some(Offer::Mercenaries {
             unit: id,
             count,
@@ -454,7 +454,7 @@ impl Game {
                 price,
             } => {
                 let at = self.summon_point(player).ok_or(OfferError::NoRoom)?;
-                if self.units().units_at(at).len() + count as usize > MAX_STACK {
+                if self.units().units_at(at).len() + count as usize > self.max_tile() {
                     return Err(OfferError::NoRoom);
                 }
                 let id = self

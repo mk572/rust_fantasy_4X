@@ -1,6 +1,6 @@
 # Larger unit stacks: design (for later)
 
-Status: **design only, not scheduled**. This is stage 4 of [`game-settings.md`](game-settings.md):
+Status: **partly done by `PLANNED.md` item 34 (30 October 2026: up to 20 units on a square, an army of nine, the `max_tile` setting); this doc still describes the larger battle side.** Was: design only, not scheduled. This is stage 4 of [`game-settings.md`](game-settings.md):
 the `max_stack` setting goes up to nine in stage 3 (lowering it is easy) and above nine only when
 this work is done. Raising the number is cheap; the cost is everything around it that was built
 for nine. This doc lists those places so the work can be planned, tested and done in one go.

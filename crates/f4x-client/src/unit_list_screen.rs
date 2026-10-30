@@ -21,8 +21,8 @@ const ROW: f32 = 19.0;
 /// The head of the window above the first row, and where the middle of the window sits.
 const HEAD: f32 = 24.0;
 const MIDDLE: f32 = 97.0;
-/// The units a stack holds at most.
-const MAX_STACK: usize = 9;
+/// The rows the window shows at once; a larger stack scrolls.
+const VISIBLE: usize = 8;
 
 /// The top of the window for `count` units: centred on the original's screen row 97.
 pub(crate) fn window_top(count: usize) -> f32 {
@@ -30,7 +30,7 @@ pub(crate) fn window_top(count: usize) -> f32 {
 }
 
 /// The units of a square the player cannot command, listed over the screen.
-pub(crate) struct UnitList(Vec<hecs::Entity>);
+pub(crate) struct UnitList(Vec<hecs::Entity>, usize);
 
 impl Modal for UnitList {
     fn kind(&self) -> &'static str {
@@ -50,12 +50,11 @@ impl App {
             .units_at(pos)
             .into_iter()
             .filter(|&u| self.game.economy().unit_visible_to(u, crate::view::HUMAN))
-            .take(MAX_STACK)
             .collect();
         if units.is_empty() {
             return false;
         }
-        self.modals.open(UnitList(units));
+        self.modals.open(UnitList(units, 0));
         true
     }
 
@@ -69,6 +68,20 @@ impl App {
             .filter(|&u| self.game.units().unit_owner(u) != Some(crate::view::HUMAN))
             .find_map(|u| self.game.units().unit_position(u));
         if let Some(at) = at {
+            // A crowded square, to see the list scroll.
+            let owner = self.game.units().units_at(at).first().and_then(|&u| {
+                Some((
+                    self.game.units().unit_owner(u)?,
+                    self.game.units().unit_def(u)?.id.clone(),
+                ))
+            });
+            if let Some((owner, id)) = owner {
+                if let Some(kind) = self.game.content().rules.units.id_of(&id) {
+                    for _ in 0..12 {
+                        self.game.spawn_unit(owner, at, kind);
+                    }
+                }
+            }
             self.reveal_all();
             self.center_on(at);
             self.open_unit_list(at);
@@ -78,24 +91,41 @@ impl App {
     /// One frame of the window over the screen below; what is left of it, `None` once it is left.
     pub(crate) fn unit_list_frame(
         &mut self,
-        UnitList(mut units): UnitList,
+        UnitList(mut units, mut first): UnitList,
         input: &Input,
     ) -> Option<UnitList> {
         units.retain(|&u| self.game.units().unit_position(u).is_some());
-        let leave = input.key_pressed(KeyCode::Escape)
-            || input.mouse_pressed(MouseButton::Left)
-            || input.mouse_pressed(MouseButton::Right)
-            || units.is_empty();
         if units.is_empty() {
             return None;
         }
-        self.draw_unit_list(&units);
-        (!leave).then_some(UnitList(units))
+        // A bigger stack scrolls: the wheel, the arrow keys and the page keys. Escape and a click
+        // close the window as before.
+        let last = units.len().saturating_sub(VISIBLE);
+        let wheel = input.mouse_wheel().1;
+        if wheel > 0.0 || input.key_pressed(KeyCode::Up) {
+            first = first.saturating_sub(1);
+        }
+        if wheel < 0.0 || input.key_pressed(KeyCode::Down) {
+            first += 1;
+        }
+        if input.key_pressed(KeyCode::PageUp) {
+            first = first.saturating_sub(VISIBLE);
+        }
+        if input.key_pressed(KeyCode::PageDown) {
+            first += VISIBLE;
+        }
+        first = first.min(last);
+        let leave = input.key_pressed(KeyCode::Escape)
+            || input.mouse_pressed(MouseButton::Left)
+            || input.mouse_pressed(MouseButton::Right);
+        self.draw_unit_list(&units, first);
+        (!leave).then_some(UnitList(units, first))
     }
 
-    fn draw_unit_list(&mut self, units: &[hecs::Entity]) {
+    fn draw_unit_list(&mut self, all: &[hecs::Entity], first: usize) {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let units = &all[first..(first + VISIBLE).min(all.len())];
         let top = window_top(units.len());
         let height = HEAD + units.len() as f32 * ROW;
         let bottom = top + height;
@@ -104,6 +134,28 @@ impl App {
             app.draw_pic(&lay, "unitview", 28, 0, LEFT, top);
         });
         self.draw_pic(&lay, "unitview", 29, 0, LEFT, bottom);
+
+        // Two arrows in the title bar say whether more units wait above or below.
+        if all.len() > VISIBLE {
+            let lit = Color::new(0.95, 0.93, 0.85, 1.0);
+            let dim = Color::new(0.95, 0.93, 0.85, 0.3);
+            let x = LEFT + WIDTH - 22.0;
+            let up = lay.rect((x, top + 5.0, 8.0, 6.0));
+            let down = lay.rect((x, top + 14.0, 8.0, 6.0));
+            let colour = |on: bool| if on { lit } else { dim };
+            draw_triangle(
+                vec2(up.x, up.y + up.h),
+                vec2(up.x + up.w, up.y + up.h),
+                vec2(up.x + up.w / 2.0, up.y),
+                colour(first > 0),
+            );
+            draw_triangle(
+                vec2(down.x, down.y),
+                vec2(down.x + down.w, down.y),
+                vec2(down.x + down.w / 2.0, down.y + down.h),
+                colour(first + VISIBLE < all.len()),
+            );
+        }
 
         let owner = self.game.units().unit_owner(units[0]);
         let neutral = owner == Some(f4x_core::player::MONSTERS);
