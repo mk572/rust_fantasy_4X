@@ -199,7 +199,6 @@ pub struct App {
     /// The screens converted to [`Page`](crate::page::Page): one page per kind of screen, kept
     /// while another screen (a unit sheet, the console) is up over it.
     pub(crate) pages: crate::page::Pages,
-    pub(crate) craft_ui: Option<crate::craft_screen::CraftUi>,
     /// Where the selected units' lines were drawn last frame: a right-click on one opens the
     /// unit's sheet instead of sending the stack anywhere.
     /// The player has seen the game-over screen and chose to look at the map.
@@ -380,7 +379,6 @@ impl App {
             test_sea: false,
             item_pool_pending: false,
             pages: Default::default(),
-            craft_ui: None,
             game_over_seen: false,
             menu: Default::default(),
             intro: Default::default(),
@@ -1501,7 +1499,7 @@ impl App {
             Screen::EnemyCity => self.page_frame(input),
             Screen::HallOfFame => self.page_frame(input),
             Screen::Items => self.page_frame(input),
-            Screen::Craft => self.craft_screen(input),
+            Screen::Craft => self.page_frame(input),
             Screen::Diplomacy => self.diplomacy_screen(input),
             Screen::Spellbook => self.spellbook_screen(input),
             Screen::Apprentice => self.apprentice_screen(input),

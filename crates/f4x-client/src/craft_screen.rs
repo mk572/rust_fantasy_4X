@@ -8,6 +8,7 @@
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use crate::ui;
 use f4x_core::game::{Command, Event};
 use f4x_core::item::crafting::{
@@ -188,8 +189,7 @@ pub(crate) fn toggle_power(
 impl App {
     /// Open the screen for Enchant Item or Create Artifact.
     pub(crate) fn open_craft(&mut self, craft: Craft) {
-        self.craft_ui = Some(CraftUi::new(craft));
-        self.screen = Screen::Craft;
+        self.open_page(Screen::Craft, CraftUi::new(craft));
     }
 
     /// The ids of the powers the wizard may put on an item of `kind`.
@@ -242,201 +242,6 @@ impl App {
             return ui.design.name.clone();
         }
         made_name(&ui.design, &self.game.content().rules).compose(self.game.content())
-    }
-
-    pub(crate) fn craft_screen(&mut self, input: &Input) {
-        let Some(mut ui) = self.craft_ui.take() else {
-            self.screen = Screen::Map;
-            return;
-        };
-        let lay = Layout::new();
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        clear_background(BLACK);
-        self.draw_pic(&lay, "spellscr", 13, 0, 0.0, 0.0);
-        let busy = ui.spells.is_some() || ui.give_up;
-        let click = input.mouse_pressed(MouseButton::Left) && !busy;
-        let allowed = self.craft_allowed(ui.craft, ui.design.kind);
-
-        // The ten kinds.
-        for (i, kind) in KINDS.into_iter().enumerate() {
-            let (x, y) = (156.0 + 33.0 * (i % 5) as f32, 3.0 + 15.0 * (i / 5) as f32);
-            let on = kind == ui.design.kind;
-            let entry = if on { 25 + i } else { 14 + i };
-            let pressed = !busy && input.mouse_down(MouseButton::Left);
-            let rect = self.draw_pic(&lay, "spellscr", entry, usize::from(pressed), x, y);
-            if rect.is_some_and(|r| ui::hit(r, click, input).clicked()) {
-                ui.set_kind(kind, &self.craft_allowed(ui.craft, kind));
-                ui.message = None;
-            }
-        }
-
-        // The picture and its arrows.
-        self.draw_pic(&lay, "items", usize::from(ui.design.picture()), 0, 4.0, 5.0);
-        for (forward, x, entry) in [(false, 4.0, 35), (true, 17.0, 36)] {
-            let rect = self.draw_pic(&lay, "spellscr", entry, 0, x, 24.0);
-            if rect.is_some_and(|r| ui::hit(r, click, input).clicked()) {
-                ui.step_icon(forward);
-            }
-        }
-
-        // The name box.
-        let name_box = lay.rect((30.0, 13.0, 118.0, 10.0));
-        if input.mouse_pressed(MouseButton::Left) && !busy {
-            let inside = ui::hit(name_box, true, input).hovered();
-            if inside && !ui.typing {
-                ui.design.name = self.craft_name(&ui);
-                ui.typing = true;
-            } else if !inside && ui.typing {
-                self.leave_name(&mut ui);
-            }
-        }
-        if ui.typing && !busy {
-            for c in input.typed() {
-                if !c.is_control() && ui.design.name.chars().count() < NAME_LEN {
-                    ui.design.name.push(c);
-                }
-            }
-            if input.key_pressed(KeyCode::Backspace) {
-                ui.design.name.pop();
-            }
-            if input.key_pressed(KeyCode::Enter) {
-                self.leave_name(&mut ui);
-            }
-        }
-        let shown = if ui.typing {
-            format!("{}_", ui.design.name)
-        } else {
-            self.craft_name(&ui)
-        };
-        self.draw_styled(
-            view,
-            &Style::nearest(1, Color::new(0.95, 0.88, 0.6, 1.0)),
-            &shown,
-            33.0,
-            15.0,
-        );
-
-        // The powers.
-        let rules = self.game.content().rules.clone();
-        let on_offer: Vec<&ItemPowerDef> = rules
-            .item_powers
-            .defs()
-            .iter()
-            .filter(|p| allowed.contains(&p.id))
-            .collect();
-        let group_of = |id: &str| rules.item_powers.by_name(id).map(|p| p.group);
-        let [first, second, special] = columns(&on_offer);
-        for (col, rows) in [first, second, special].into_iter().enumerate() {
-            let x = 10.0 + 85.0 * col as f32 + if col == 2 { 17.0 } else { 0.0 };
-            let mut y = 41.0;
-            for row in rows {
-                let Row::Power(id) = row else {
-                    y += 3.0;
-                    continue;
-                };
-                let Some(power) = rules.item_powers.by_name(&id) else {
-                    continue;
-                };
-                let charges = id == SPELL_CHARGES;
-                let chosen = if charges {
-                    ui.design.charges.is_some()
-                } else {
-                    ui.design.powers.contains(&id)
-                };
-                let color = if chosen {
-                    Color::new(1.0, 0.95, 0.55, 1.0)
-                } else {
-                    Color::new(0.62, 0.64, 0.8, 1.0)
-                };
-                if charges && chosen {
-                    let (spell, n) = ui.design.charges.clone().unwrap_or_default();
-                    let spell = rules
-                        .spells
-                        .by_name(&spell)
-                        .map_or(spell.clone(), |s| s.name.clone());
-                    let line = self.text_with(
-                        "item.name_charges",
-                        &Args::new().text("spell", &spell).count("n", n as i32),
-                    );
-                    self.draw_styled(view, &Style::nearest(3, color), &line, x, y);
-                } else if col == 2 {
-                    self.draw_styled(view, &Style::nearest(3, color), &power.name, x, y);
-                } else {
-                    // "+2 Attack": the number right-aligned, the rest after it.
-                    let (num, rest) = power.name.split_once(' ').unwrap_or(("", &power.name));
-                    self.draw_styled(view, &Style::nearest(3, color).right(), num, x + 10.0, y);
-                    self.draw_styled(view, &Style::nearest(3, color), rest, x + 14.0, y);
-                }
-                let width = if col == 2 { 98.0 } else { 78.0 };
-                if ui::hit(lay.rect((x, y - 2.0, width, 9.0)), click, input).clicked() {
-                    ui.message = None;
-                    if charges {
-                        if ui.design.charges.is_some() {
-                            ui.design.charges = None;
-                        } else if ui.used() >= MAX_POWERS {
-                            ui.message = Some(self.text("craft.too_many"));
-                        } else {
-                            ui.spells = Some(SpellPick::default());
-                        }
-                    } else if let Err(key) = toggle_power(&mut ui.design, power, &group_of) {
-                        ui.message = Some(self.text(key));
-                    }
-                }
-                y += 11.0;
-            }
-        }
-
-        // The cost and the OK button.
-        let price = self.craft_price(&ui);
-        let cost_label = self.text("craft.cost");
-        let ink = Color::new(0.95, 0.88, 0.6, 1.0);
-        let at = self.draw_styled(view, &Style::nearest(1, ink), &cost_label, 198.0, 185.0);
-        self.draw_styled(
-            view,
-            &Style::nearest(1, ink),
-            &price.to_string(),
-            198.0 + at + 4.0,
-            185.0,
-        );
-        let ok_rect = self.draw_pic(&lay, "spellscr", 24, 0, 281.0, 180.0);
-        if let Some(message) = &ui.message {
-            self.draw_styled(
-                view,
-                &Style::nearest(1, Color::new(1.0, 0.5, 0.4, 1.0)).center(),
-                message,
-                160.0,
-                170.0,
-            );
-        }
-        let ok = !busy
-            && !ui.typing
-            && (ok_rect.is_some_and(|r| ui::hit(r, click, input).clicked())
-                || input.key_pressed(KeyCode::Escape));
-        if ok {
-            if ui.used() == 0 {
-                ui.give_up = true;
-            } else {
-                self.finish_craft(&mut ui);
-            }
-        }
-
-        if ui.spells.is_some() {
-            self.craft_spell_list(&lay, &mut ui, input);
-        }
-        if ui.give_up {
-            let question = self.text("craft.give_up");
-            match self.confirm_box(&question, input) {
-                Some(true) => {
-                    self.screen = Screen::Map;
-                    return;
-                }
-                Some(false) => ui.give_up = false,
-                None => {}
-            }
-        }
-        if matches!(self.screen, Screen::Craft) {
-            self.craft_ui = Some(ui);
-        }
     }
 
     /// The name box lets go: a name left as the default one goes back to being made from the
@@ -577,6 +382,196 @@ impl App {
             ui.spells = None;
         } else if leave {
             ui.spells = None;
+        }
+    }
+}
+
+impl Page for CraftUi {
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        let ui = self;
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        clear_background(BLACK);
+        app.draw_pic(&lay, "spellscr", 13, 0, 0.0, 0.0);
+        let busy = ui.spells.is_some() || ui.give_up;
+        let click = input.mouse_pressed(MouseButton::Left) && !busy;
+        let allowed = app.craft_allowed(ui.craft, ui.design.kind);
+
+        // The ten kinds.
+        for (i, kind) in KINDS.into_iter().enumerate() {
+            let (x, y) = (156.0 + 33.0 * (i % 5) as f32, 3.0 + 15.0 * (i / 5) as f32);
+            let on = kind == ui.design.kind;
+            let entry = if on { 25 + i } else { 14 + i };
+            let pressed = !busy && input.mouse_down(MouseButton::Left);
+            let rect = app.draw_pic(&lay, "spellscr", entry, usize::from(pressed), x, y);
+            if rect.is_some_and(|r| ui::hit(r, click, input).clicked()) {
+                ui.set_kind(kind, &app.craft_allowed(ui.craft, kind));
+                ui.message = None;
+            }
+        }
+
+        // The picture and its arrows.
+        app.draw_pic(&lay, "items", usize::from(ui.design.picture()), 0, 4.0, 5.0);
+        for (forward, x, entry) in [(false, 4.0, 35), (true, 17.0, 36)] {
+            let rect = app.draw_pic(&lay, "spellscr", entry, 0, x, 24.0);
+            if rect.is_some_and(|r| ui::hit(r, click, input).clicked()) {
+                ui.step_icon(forward);
+            }
+        }
+
+        // The name box.
+        let name_box = lay.rect((30.0, 13.0, 118.0, 10.0));
+        if input.mouse_pressed(MouseButton::Left) && !busy {
+            let inside = ui::hit(name_box, true, input).hovered();
+            if inside && !ui.typing {
+                ui.design.name = app.craft_name(ui);
+                ui.typing = true;
+            } else if !inside && ui.typing {
+                app.leave_name(ui);
+            }
+        }
+        if ui.typing && !busy {
+            for c in input.typed() {
+                if !c.is_control() && ui.design.name.chars().count() < NAME_LEN {
+                    ui.design.name.push(c);
+                }
+            }
+            if input.key_pressed(KeyCode::Backspace) {
+                ui.design.name.pop();
+            }
+            if input.key_pressed(KeyCode::Enter) {
+                app.leave_name(ui);
+            }
+        }
+        let shown = if ui.typing {
+            format!("{}_", ui.design.name)
+        } else {
+            app.craft_name(ui)
+        };
+        app.draw_styled(
+            view,
+            &Style::nearest(1, Color::new(0.95, 0.88, 0.6, 1.0)),
+            &shown,
+            33.0,
+            15.0,
+        );
+
+        // The powers.
+        let rules = app.game.content().rules.clone();
+        let on_offer: Vec<&ItemPowerDef> = rules
+            .item_powers
+            .defs()
+            .iter()
+            .filter(|p| allowed.contains(&p.id))
+            .collect();
+        let group_of = |id: &str| rules.item_powers.by_name(id).map(|p| p.group);
+        let [first, second, special] = columns(&on_offer);
+        for (col, rows) in [first, second, special].into_iter().enumerate() {
+            let x = 10.0 + 85.0 * col as f32 + if col == 2 { 17.0 } else { 0.0 };
+            let mut y = 41.0;
+            for row in rows {
+                let Row::Power(id) = row else {
+                    y += 3.0;
+                    continue;
+                };
+                let Some(power) = rules.item_powers.by_name(&id) else {
+                    continue;
+                };
+                let charges = id == SPELL_CHARGES;
+                let chosen = if charges {
+                    ui.design.charges.is_some()
+                } else {
+                    ui.design.powers.contains(&id)
+                };
+                let color = if chosen {
+                    Color::new(1.0, 0.95, 0.55, 1.0)
+                } else {
+                    Color::new(0.62, 0.64, 0.8, 1.0)
+                };
+                if charges && chosen {
+                    let (spell, n) = ui.design.charges.clone().unwrap_or_default();
+                    let spell = rules
+                        .spells
+                        .by_name(&spell)
+                        .map_or(spell.clone(), |s| s.name.clone());
+                    let line = app.text_with(
+                        "item.name_charges",
+                        &Args::new().text("spell", &spell).count("n", n as i32),
+                    );
+                    app.draw_styled(view, &Style::nearest(3, color), &line, x, y);
+                } else if col == 2 {
+                    app.draw_styled(view, &Style::nearest(3, color), &power.name, x, y);
+                } else {
+                    // "+2 Attack": the number right-aligned, the rest after it.
+                    let (num, rest) = power.name.split_once(' ').unwrap_or(("", &power.name));
+                    app.draw_styled(view, &Style::nearest(3, color).right(), num, x + 10.0, y);
+                    app.draw_styled(view, &Style::nearest(3, color), rest, x + 14.0, y);
+                }
+                let width = if col == 2 { 98.0 } else { 78.0 };
+                if ui::hit(lay.rect((x, y - 2.0, width, 9.0)), click, input).clicked() {
+                    ui.message = None;
+                    if charges {
+                        if ui.design.charges.is_some() {
+                            ui.design.charges = None;
+                        } else if ui.used() >= MAX_POWERS {
+                            ui.message = Some(app.text("craft.too_many"));
+                        } else {
+                            ui.spells = Some(SpellPick::default());
+                        }
+                    } else if let Err(key) = toggle_power(&mut ui.design, power, &group_of) {
+                        ui.message = Some(app.text(key));
+                    }
+                }
+                y += 11.0;
+            }
+        }
+
+        // The cost and the OK button.
+        let price = app.craft_price(ui);
+        let cost_label = app.text("craft.cost");
+        let ink = Color::new(0.95, 0.88, 0.6, 1.0);
+        let at = app.draw_styled(view, &Style::nearest(1, ink), &cost_label, 198.0, 185.0);
+        app.draw_styled(
+            view,
+            &Style::nearest(1, ink),
+            &price.to_string(),
+            198.0 + at + 4.0,
+            185.0,
+        );
+        let ok_rect = app.draw_pic(&lay, "spellscr", 24, 0, 281.0, 180.0);
+        if let Some(message) = &ui.message {
+            app.draw_styled(
+                view,
+                &Style::nearest(1, Color::new(1.0, 0.5, 0.4, 1.0)).center(),
+                message,
+                160.0,
+                170.0,
+            );
+        }
+        let ok = !busy
+            && !ui.typing
+            && (ok_rect.is_some_and(|r| ui::hit(r, click, input).clicked())
+                || input.key_pressed(KeyCode::Escape));
+        if ok {
+            if ui.used() == 0 {
+                ui.give_up = true;
+            } else {
+                app.finish_craft(ui);
+            }
+        }
+
+        if ui.spells.is_some() {
+            app.craft_spell_list(&lay, ui, input);
+        }
+        if ui.give_up {
+            let question = app.text("craft.give_up");
+            match app.confirm_box(&question, input) {
+                Some(true) => {
+                    app.screen = Screen::Map;
+                }
+                Some(false) => ui.give_up = false,
+                None => {}
+            }
         }
     }
 }
