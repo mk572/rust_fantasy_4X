@@ -19,6 +19,17 @@ pub(crate) trait Page {
         None
     }
 
+    /// The help topic of what lies at `(x, y)` (320 by 200 coordinates) on this screen that the
+    /// generic help fields do not know, with its area.
+    fn help_at(&self, _app: &App, _x: i32, _y: i32) -> Option<(u16, (f32, f32, f32, f32))> {
+        None
+    }
+
+    /// The icon of the weapon the open unit sheet shows, which picks the melee help topic.
+    fn melee_icon(&self) -> Option<usize> {
+        None
+    }
+
     /// One frame: draw the screen and take the input. Changing `app.screen` leaves it.
     fn frame(&mut self, app: &mut App, input: &Input);
 }

@@ -25,6 +25,8 @@ pub struct OfferUi {
     name: String,
     /// The hero was hired and is being named.
     naming: bool,
+    /// The abilities page of the unit sheet shown in the pop-up.
+    panel: crate::unit_screen::SheetPanel,
 }
 
 /// The longest name a hero can be given.
@@ -140,7 +142,7 @@ impl App {
             };
             self.offer_ui.naming = false;
             self.offer_ui.shown = Some(offer.clone());
-            self.sheet_ui.first = 0;
+            self.offer_ui.panel.first = 0;
         }
         let lay = Layout::new();
         let affordable = self
@@ -253,7 +255,9 @@ impl App {
         if let Some(def) = def {
             let sheet = self.offer_sheet(def, level, HUMAN.0);
             debug_assert_eq!(sheet.source, Source::Offer);
-            self.draw_sheet_panel(lay, &sheet, (wx, wy), true, input);
+            let mut panel = std::mem::take(&mut self.offer_ui.panel);
+            self.draw_sheet_panel(lay, &sheet, (wx, wy), true, &mut panel, input);
+            self.offer_ui.panel = panel;
         }
         self.draw_pic(lay, "hire", 0, 0, 0.0, 0.0);
         let price = offer.price();

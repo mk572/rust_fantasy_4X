@@ -8,6 +8,7 @@
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use crate::ui;
 use f4x_core::battle::Battle;
 use f4x_core::game::Command;
@@ -25,20 +26,39 @@ const BATTLE_AT: (f32, f32) = (61.0, 6.0);
 const ROW: i32 = 15;
 const PER_PAGE: usize = 8;
 
-/// What the sheet remembers while it is open.
+/// What the abilities page of a sheet panel remembers, on the sheet screen and where the same
+/// panel is shown inside another screen (production, the hire pop-ups).
 #[derive(Debug, Clone, Default)]
-pub(crate) struct SheetUi {
-    pub sheet: Option<Sheet>,
-    pub back: Option<Screen>,
+pub(crate) struct SheetPanel {
     /// The first line of the abilities page shown.
     pub first: usize,
     /// Dismiss was clicked and waits for a yes.
     pub confirm: bool,
     /// A lasting spell of the viewer's was clicked and waits for a yes.
     pub turn_off: Option<TurnOff>,
+}
+
+/// The unit sheet screen.
+#[derive(Debug, Clone)]
+pub(crate) struct SheetUi {
+    pub sheet: Sheet,
+    /// The screen to return to.
+    pub back: Screen,
+    pub panel: SheetPanel,
     /// The units of the square the sheet was opened from, for the arrows to step through
     /// (empty: a sheet of one unit).
     pub group: Vec<hecs::Entity>,
+}
+
+/// Which of the sheet's panels is drawn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PanelKind {
+    /// With the small panel for the buttons to the right (the map, the hire pop-ups).
+    WithButtons,
+    /// The panel alone (in a battle).
+    Bare,
+    /// As the production screen shows it.
+    Production,
 }
 
 /// The question "turn off this spell?" (`UV_Remove_Unit_Enchantment`).
@@ -53,43 +73,22 @@ pub(crate) struct TurnOff {
 impl App {
     /// Open the sheet of a unit on the map (right-click on it in the stack).
     pub(crate) fn open_unit_sheet(&mut self, unit: hecs::Entity) {
-        if let Some(sheet) = self.overland_sheet(unit) {
-            self.show_sheet(sheet);
-        }
+        self.open_unit_sheet_of(unit, Vec::new());
     }
 
     /// Open the sheet of `unit`, one of the `group` standing on a square: the Left and Right
     /// arrows (or the buttons) step through the group's sheets.
     pub(crate) fn open_unit_sheet_of(&mut self, unit: hecs::Entity, group: Vec<hecs::Entity>) {
-        self.open_unit_sheet(unit);
-        if self.sheet_ui.sheet.is_some() && group.len() > 1 {
-            self.sheet_ui.group = group;
-        }
-    }
-
-    /// Show the sheet of the unit `step` places on in the group (wrapping round).
-    fn step_sheet(&mut self, step: isize) {
-        let Some(current) = self.sheet_ui.sheet.as_ref().and_then(|s| match s.source {
-            Source::Overland(u) => Some(u),
-            _ => None,
-        }) else {
-            return;
-        };
-        let group = self.sheet_ui.group.clone();
-        let Some(at) = group.iter().position(|&u| u == current) else {
-            return;
-        };
-        let next = group[(at as isize + step).rem_euclid(group.len() as isize) as usize];
-        if let Some(sheet) = self.overland_sheet(next) {
-            self.sheet_ui.sheet = Some(sheet);
-            self.sheet_ui.first = 0;
+        if let Some(sheet) = self.overland_sheet(unit) {
+            let group = if group.len() > 1 { group } else { Vec::new() };
+            self.show_sheet(sheet, group, None);
         }
     }
 
     /// Open the sheet of a unit in the battle.
     pub(crate) fn open_battle_sheet(&mut self, battle: &Battle, id: usize) {
         if let Some(sheet) = self.battle_sheet(battle, id) {
-            self.show_sheet(sheet);
+            self.show_sheet(sheet, Vec::new(), None);
         }
     }
 
@@ -124,144 +123,31 @@ impl App {
             let who = f4x_core::rules::exec::Target::Unit(unit);
             self.game.attach_enchantment(who, spell, crate::view::HUMAN);
         }
-        self.open_unit_sheet(unit);
-        if let (Some(spell), true) = (spell, ask) {
-            let name = self.game.content().rules.spells.get(spell).name.clone();
-            let drowned = self.game.drowned_if_off(unit, spell);
-            self.sheet_ui.turn_off = Some(TurnOff {
+        let Some(sheet) = self.overland_sheet(unit) else {
+            return;
+        };
+        let turn_off = match (spell, ask) {
+            (Some(spell), true) => Some(TurnOff {
                 spell,
-                name,
-                drowned,
-            });
-        }
-    }
-
-    fn show_sheet(&mut self, sheet: Sheet) {
-        self.sheet_ui = SheetUi {
-            sheet: Some(sheet),
-            back: Some(self.screen),
-            first: 0,
-            confirm: false,
-            turn_off: None,
-            group: Vec::new(),
+                name: self.game.content().rules.spells.get(spell).name.clone(),
+                drowned: self.game.drowned_if_off(unit, spell),
+            }),
+            _ => None,
         };
-        self.screen = Screen::UnitSheet;
+        self.show_sheet(sheet, Vec::new(), turn_off);
     }
 
-    /// The help topic of the ability or spell line at `(x, y)` (320 by 200 coordinates) of the
-    /// open sheet, with the line's area: a right-click on it opens the topic named like it
-    /// (`UV_Set_Specials_Help_Fields`).
-    pub(crate) fn sheet_special_help(&self, x: i32, y: i32) -> Option<(u16, (f32, f32, f32, f32))> {
-        let sheet = self.sheet_ui.sheet.as_ref()?;
-        let (px, py) = if matches!(sheet.source, Source::Battle(_)) {
-            BATTLE_AT
-        } else {
-            MAP_AT
+    fn show_sheet(&mut self, sheet: Sheet, group: Vec<hecs::Entity>, turn_off: Option<TurnOff>) {
+        let ui = SheetUi {
+            sheet,
+            back: self.screen,
+            panel: SheetPanel {
+                turn_off,
+                ..Default::default()
+            },
+            group,
         };
-        let first = self
-            .sheet_ui
-            .first
-            .min(sheet.specials.len().saturating_sub(1));
-        for (i, special) in sheet.specials.iter().skip(first).take(PER_PAGE).enumerate() {
-            let (col, row) = (i / 4, i % 4);
-            let left = px + 7.0 + 107.0 * col as f32;
-            let top = py + 107.0 + 17.0 * row as f32;
-            let area = (left, top, 105.0, 17.0);
-            let inside = (x as f32 >= area.0 && (x as f32) < area.0 + area.2)
-                && (y as f32 >= area.1 && (y as f32) < area.1 + area.3);
-            if inside {
-                let topic = self.help.topic_for(special.subject.as_deref()?)?;
-                return Some((topic.index, area));
-            }
-        }
-        None
-    }
-
-    fn close_sheet(&mut self) {
-        self.screen = self.sheet_ui.back.take().unwrap_or(Screen::Map);
-        self.sheet_ui.sheet = None;
-    }
-
-    pub(crate) fn unit_sheet_screen(&mut self, input: &Input) {
-        let Some(sheet) = self.sheet_ui.sheet.clone() else {
-            self.close_sheet();
-            return;
-        };
-        let in_battle = matches!(sheet.source, Source::Battle(_));
-        let (px, py) = if in_battle { BATTLE_AT } else { MAP_AT };
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        let lay = Layout::new();
-
-        // A box that opens this frame waits for the next, so its own click does not answer it.
-        let (was_confirming, was_turning_off) =
-            (self.sheet_ui.confirm, self.sheet_ui.turn_off.is_some());
-        self.draw_sheet_panel(&lay, &sheet, (px, py), !in_battle, input);
-
-        // Buttons and leaving.
-        let mut leave = input.key_pressed(KeyCode::Escape);
-        if !in_battle {
-            let (ok_label, dismiss_label) = (self.text("ui.ok"), self.text("unit.dismiss"));
-            let ok = self.red_button(&lay, &ok_label, px + 222.0, py + 162.0, input);
-            let dismiss = sheet.can_dismiss
-                && self.red_button(&lay, &dismiss_label, px + 222.0, py + 143.0, input)
-                && !self.sheet_ui.confirm
-                && self.sheet_ui.turn_off.is_none();
-            if !sheet.can_dismiss {
-                self.red_button_face(&lay, &dismiss_label, px + 222.0, py + 143.0, false, input);
-            }
-            let asking = self.sheet_ui.confirm || self.sheet_ui.turn_off.is_some();
-            if ok || (input.key_pressed(KeyCode::Enter) && !asking) {
-                leave = true;
-            }
-            if dismiss || (sheet.can_dismiss && input.key_pressed(KeyCode::D)) {
-                self.sheet_ui.confirm = true;
-            }
-            if self.sheet_ui.group.len() > 1 && !asking {
-                let n = self.sheet_ui.group.len();
-                let at = self
-                    .sheet_ui
-                    .group
-                    .iter()
-                    .position(|&u| matches!(sheet.source, Source::Overland(s) if s == u))
-                    .map_or(0, |i| i + 1);
-                let view = (lay.origin.x, lay.origin.y, lay.scale);
-                self.draw_styled(
-                    view,
-                    &Style::nearest(1, Color::new(0.95, 0.93, 0.85, 1.0)).center(),
-                    &format!("{at}/{n}"),
-                    px + 246.5,
-                    py + 108.0,
-                );
-                let back = self.red_button_sized(&lay, "<", px + 222.0, py + 121.0, 24.0, input);
-                let forward = self.red_button_sized(&lay, ">", px + 247.0, py + 121.0, 24.0, input);
-                if back || input.key_pressed(KeyCode::Left) {
-                    self.step_sheet(-1);
-                } else if forward || input.key_pressed(KeyCode::Right) {
-                    self.step_sheet(1);
-                }
-            }
-        } else if input.key_pressed(KeyCode::Enter) {
-            leave = true;
-        }
-        if was_confirming {
-            self.dismiss_confirmation(&lay, &sheet, input);
-            return;
-        }
-        if was_turning_off {
-            self.turn_off_confirmation(&lay, &sheet, input);
-            return;
-        }
-        if self.sheet_ui.confirm || self.sheet_ui.turn_off.is_some() {
-            return;
-        }
-        // A click away from the panel leaves too.
-        let panel = lay.rect((px, py, if in_battle { 218.0 } else { 282.0 }, 184.0));
-        if input.mouse_pressed(MouseButton::Left) && !ui::hit(panel, true, input).hovered() {
-            leave = true;
-        }
-        if leave {
-            self.close_sheet();
-        }
+        self.open_page(Screen::UnitSheet, ui);
     }
 
     /// The sheet's panel with everything on it but the buttons: the unit on its diamond, name,
@@ -273,9 +159,15 @@ impl App {
         sheet: &Sheet,
         at: (f32, f32),
         second_panel: bool,
+        panel: &mut SheetPanel,
         input: &Input,
     ) {
-        self.draw_sheet_panel_as(lay, sheet, at, second_panel, false, input);
+        let kind = if second_panel {
+            PanelKind::WithButtons
+        } else {
+            PanelKind::Bare
+        };
+        self.draw_sheet_panel_as(lay, sheet, at, kind, panel, input);
     }
 
     /// The same panel as the production screen shows it (`Thing_View_Draw` called from the
@@ -286,9 +178,10 @@ impl App {
         lay: &Layout,
         sheet: &Sheet,
         at: (f32, f32),
+        panel: &mut SheetPanel,
         input: &Input,
     ) {
-        self.draw_sheet_panel_as(lay, sheet, at, false, true, input);
+        self.draw_sheet_panel_as(lay, sheet, at, PanelKind::Production, panel, input);
     }
 
     fn draw_sheet_panel_as(
@@ -296,10 +189,12 @@ impl App {
         lay: &Layout,
         sheet: &Sheet,
         (px, py): (f32, f32),
-        second_panel: bool,
-        production: bool,
+        kind: PanelKind,
+        panel: &mut SheetPanel,
         input: &Input,
     ) {
+        let second_panel = kind == PanelKind::WithButtons;
+        let production = kind == PanelKind::Production;
         let (ox, row_length) = if production { (4.0, 10) } else { (0.0, ROW) };
         let (name_y, moves_y, upkeep_y) = if production {
             (7.0, 20.0, 27.0)
@@ -443,7 +338,7 @@ impl App {
         // The abilities and spells, a page at a time.
         let total = sheet.specials.len();
         let multipage = total > PER_PAGE;
-        let mut first = self.sheet_ui.first.min(total.saturating_sub(1));
+        let mut first = panel.first.min(total.saturating_sub(1));
         let shown = PER_PAGE.min(total - first.min(total));
         for (i, special) in sheet.specials.iter().skip(first).take(shown).enumerate() {
             let (col, row) = (i / 4, i % 4);
@@ -461,14 +356,14 @@ impl App {
                 x + 19.0,
                 y + 5.0,
             );
-            let asking = self.sheet_ui.confirm || self.sheet_ui.turn_off.is_some();
+            let asking = panel.confirm || panel.turn_off.is_some();
             if let (true, false, Some(spell), Source::Overland(unit)) =
                 (special.removable, asking, special.spell, sheet.source)
             {
                 let line = lay.rect((x - 1.0, y - 1.0, 105.0, 17.0));
                 if ui::hit(line, true, input).clicked() {
                     let drowned = self.game.drowned_if_off(unit, spell);
-                    self.sheet_ui.turn_off = Some(TurnOff {
+                    panel.turn_off = Some(TurnOff {
                         spell,
                         name: special.name.clone(),
                         drowned,
@@ -497,63 +392,7 @@ impl App {
             if (down || input.key_pressed(KeyCode::PageDown)) && first + PER_PAGE < total {
                 first += PER_PAGE;
             }
-            self.sheet_ui.first = first;
-        }
-    }
-
-    /// Ask whether to dismiss the unit (the original's confirmation box); Yes sends the
-    /// command and leaves.
-    fn dismiss_confirmation(&mut self, lay: &Layout, sheet: &Sheet, input: &Input) {
-        let text = self.text_with("unit.disband", &Args::new().text("unit", &sheet.name));
-        match self.confirmation_box(lay, &text, input) {
-            Some(true) => {
-                if let Source::Overland(unit) = sheet.source {
-                    let events = self.game.apply(Command::DismissUnit { unit });
-                    self.note(events);
-                    self.selection.retain(|&u| u != unit);
-                }
-                self.sheet_ui.confirm = false;
-                self.close_sheet();
-            }
-            Some(false) => self.sheet_ui.confirm = false,
-            None => {}
-        }
-    }
-
-    /// Ask whether to turn off a lasting spell of the wizard's; Yes sends the command. The
-    /// question and the warning are the original's words.
-    fn turn_off_confirmation(&mut self, lay: &Layout, sheet: &Sheet, input: &Input) {
-        let (Some(ask), Source::Overland(unit)) = (self.sheet_ui.turn_off.clone(), sheet.source)
-        else {
-            self.sheet_ui.turn_off = None;
-            return;
-        };
-        let mut text = self.text_with("sell.turn_off", &Args::new().text("spell", &ask.name));
-        match ask.drowned {
-            0 => {}
-            1 => text.push_str(&self.text("unit.dies_one")),
-            _ => text.push_str(&self.text("unit.dies_many")),
-        }
-        match self.confirmation_box(lay, &text, input) {
-            Some(true) => {
-                let events = self.game.apply(Command::TurnOffUnitSpell {
-                    player: crate::view::HUMAN,
-                    unit,
-                    spell: ask.spell,
-                });
-                self.note(events);
-                self.sheet_ui.turn_off = None;
-                // The unit may be gone; otherwise the sheet is drawn again without the line.
-                if self.game.units().unit_position(unit).is_none() {
-                    self.selection.retain(|&u| u != unit);
-                    self.close_sheet();
-                } else if let Some(fresh) = self.overland_sheet(unit) {
-                    self.sheet_ui.sheet = Some(fresh);
-                    self.sheet_ui.first = 0;
-                }
-            }
-            Some(false) => self.sheet_ui.turn_off = None,
-            None => {}
+            panel.first = first;
         }
     }
 
@@ -694,5 +533,211 @@ impl App {
             y + 3.0 + f32::from(u8::from(down)),
         );
         state.clicked()
+    }
+}
+impl SheetUi {
+    /// Show the sheet of the unit `step` places on in the group (wrapping round).
+    fn step_sheet(&mut self, app: &mut App, step: isize) {
+        let Source::Overland(current) = self.sheet.source else {
+            return;
+        };
+        let group = self.group.clone();
+        let Some(at) = group.iter().position(|&u| u == current) else {
+            return;
+        };
+        let next = group[(at as isize + step).rem_euclid(group.len() as isize) as usize];
+        if let Some(sheet) = app.overland_sheet(next) {
+            self.sheet = sheet;
+            self.panel.first = 0;
+        }
+    }
+
+    fn close_sheet(&mut self, app: &mut App) {
+        app.screen = self.back;
+    }
+
+    /// Ask whether to dismiss the unit (the original's confirmation box); Yes sends the
+    /// command and leaves.
+    fn dismiss_confirmation(&mut self, app: &mut App, lay: &Layout, sheet: &Sheet, input: &Input) {
+        let text = app.text_with("unit.disband", &Args::new().text("unit", &sheet.name));
+        match app.confirmation_box(lay, &text, input) {
+            Some(true) => {
+                if let Source::Overland(unit) = sheet.source {
+                    let events = app.game.apply(Command::DismissUnit { unit });
+                    app.note(events);
+                    app.selection.retain(|&u| u != unit);
+                }
+                self.panel.confirm = false;
+                self.close_sheet(app);
+            }
+            Some(false) => self.panel.confirm = false,
+            None => {}
+        }
+    }
+
+    /// Ask whether to turn off a lasting spell of the wizard's; Yes sends the command. The
+    /// question and the warning are the original's words.
+    fn turn_off_confirmation(&mut self, app: &mut App, lay: &Layout, sheet: &Sheet, input: &Input) {
+        let (Some(ask), Source::Overland(unit)) = (self.panel.turn_off.clone(), sheet.source)
+        else {
+            self.panel.turn_off = None;
+            return;
+        };
+        let mut text = app.text_with("sell.turn_off", &Args::new().text("spell", &ask.name));
+        match ask.drowned {
+            0 => {}
+            1 => text.push_str(&app.text("unit.dies_one")),
+            _ => text.push_str(&app.text("unit.dies_many")),
+        }
+        match app.confirmation_box(lay, &text, input) {
+            Some(true) => {
+                let events = app.game.apply(Command::TurnOffUnitSpell {
+                    player: crate::view::HUMAN,
+                    unit,
+                    spell: ask.spell,
+                });
+                app.note(events);
+                self.panel.turn_off = None;
+                // The unit may be gone; otherwise the sheet is drawn again without the line.
+                if app.game.units().unit_position(unit).is_none() {
+                    app.selection.retain(|&u| u != unit);
+                    self.close_sheet(app);
+                } else if let Some(fresh) = app.overland_sheet(unit) {
+                    self.sheet = fresh;
+                    self.panel.first = 0;
+                }
+            }
+            Some(false) => self.panel.turn_off = None,
+            None => {}
+        }
+    }
+}
+
+impl Page for SheetUi {
+    fn melee_icon(&self) -> Option<usize> {
+        Some(self.sheet.melee.icon)
+    }
+
+    /// The help topic of the ability or spell line at `(x, y)` (320 by 200 coordinates) of the
+    /// open sheet, with the line's area: a right-click on it opens the topic named like it
+    /// (`UV_Set_Specials_Help_Fields`).
+    fn help_at(&self, app: &App, x: i32, y: i32) -> Option<(u16, (f32, f32, f32, f32))> {
+        let sheet = &self.sheet;
+        let (px, py) = if matches!(sheet.source, Source::Battle(_)) {
+            BATTLE_AT
+        } else {
+            MAP_AT
+        };
+        let first = self.panel.first.min(sheet.specials.len().saturating_sub(1));
+        for (i, special) in sheet.specials.iter().skip(first).take(PER_PAGE).enumerate() {
+            let (col, row) = (i / 4, i % 4);
+            let left = px + 7.0 + 107.0 * col as f32;
+            let top = py + 107.0 + 17.0 * row as f32;
+            let area = (left, top, 105.0, 17.0);
+            let inside = (x as f32 >= area.0 && (x as f32) < area.0 + area.2)
+                && (y as f32 >= area.1 && (y as f32) < area.1 + area.3);
+            if inside {
+                let topic = app.help.topic_for(special.subject.as_deref()?)?;
+                return Some((topic.index, area));
+            }
+        }
+        None
+    }
+
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        let sheet = self.sheet.clone();
+        let in_battle = matches!(sheet.source, Source::Battle(_));
+        let (px, py) = if in_battle { BATTLE_AT } else { MAP_AT };
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        let lay = Layout::new();
+
+        // A box that opens this frame waits for the next, so its own click does not answer it.
+        let (was_confirming, was_turning_off) = (self.panel.confirm, self.panel.turn_off.is_some());
+        app.draw_sheet_panel(&lay, &sheet, (px, py), !in_battle, &mut self.panel, input);
+
+        // Buttons and leaving.
+        let mut leave = input.key_pressed(KeyCode::Escape);
+        if !in_battle {
+            let (ok_label, dismiss_label) = (app.text("ui.ok"), app.text("unit.dismiss"));
+            let ok = app.red_button(&lay, &ok_label, px + 222.0, py + 162.0, input);
+            let dismiss = sheet.can_dismiss
+                && app.red_button(&lay, &dismiss_label, px + 222.0, py + 143.0, input)
+                && !self.panel.confirm
+                && self.panel.turn_off.is_none();
+            if !sheet.can_dismiss {
+                app.red_button_face(&lay, &dismiss_label, px + 222.0, py + 143.0, false, input);
+            }
+            let asking = self.panel.confirm || self.panel.turn_off.is_some();
+            if ok || (input.key_pressed(KeyCode::Enter) && !asking) {
+                leave = true;
+            }
+            if dismiss || (sheet.can_dismiss && input.key_pressed(KeyCode::D)) {
+                self.panel.confirm = true;
+            }
+            if self.group.len() > 1 && !asking {
+                let n = self.group.len();
+                let at = self
+                    .group
+                    .iter()
+                    .position(|&u| matches!(sheet.source, Source::Overland(s) if s == u))
+                    .map_or(0, |i| i + 1);
+                let view = (lay.origin.x, lay.origin.y, lay.scale);
+                app.draw_styled(
+                    view,
+                    &Style::nearest(1, Color::new(0.95, 0.93, 0.85, 1.0)).center(),
+                    &format!("{at}/{n}"),
+                    px + 246.5,
+                    py + 108.0,
+                );
+                let back = app.red_button_sized(&lay, "<", px + 222.0, py + 121.0, 24.0, input);
+                let forward = app.red_button_sized(&lay, ">", px + 247.0, py + 121.0, 24.0, input);
+                if back || input.key_pressed(KeyCode::Left) {
+                    self.step_sheet(app, -1);
+                } else if forward || input.key_pressed(KeyCode::Right) {
+                    self.step_sheet(app, 1);
+                }
+            }
+        } else if input.key_pressed(KeyCode::Enter) {
+            leave = true;
+        }
+        if was_confirming {
+            self.dismiss_confirmation(app, &lay, &sheet, input);
+            return;
+        }
+        if was_turning_off {
+            self.turn_off_confirmation(app, &lay, &sheet, input);
+            return;
+        }
+        if self.panel.confirm || self.panel.turn_off.is_some() {
+            return;
+        }
+        // A click away from the panel leaves too.
+        let panel = lay.rect((px, py, if in_battle { 218.0 } else { 282.0 }, 184.0));
+        if input.mouse_pressed(MouseButton::Left) && !ui::hit(panel, true, input).hovered() {
+            leave = true;
+        }
+        if leave {
+            self.close_sheet(app);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_sheet_returns_to_the_screen_it_was_opened_over_and_that_screen_keeps_its_page() {
+        let mut app = App::for_test();
+        app.open_army_list();
+        app.select_first_stack();
+        let unit = app.selection[0];
+        app.open_unit_sheet(unit);
+        assert!(matches!(app.screen, Screen::UnitSheet));
+        let page = app.pages.get(&Screen::UnitSheet).unwrap();
+        assert!(page.melee_icon().is_some());
+        // Opening the sheet over the army list left that list's page where it was, for the
+        // sheet to return to.
+        assert!(app.pages.get(&Screen::ArmyList).is_some());
     }
 }

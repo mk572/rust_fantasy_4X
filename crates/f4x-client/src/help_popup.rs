@@ -204,7 +204,11 @@ impl App {
             }
         }
         if matches!(self.screen, Screen::UnitSheet) {
-            if let Some((topic, from)) = self.sheet_special_help(x, y) {
+            let hit = self
+                .pages
+                .get(&self.screen)
+                .and_then(|page| page.help_at(self, x, y));
+            if let Some((topic, from)) = hit {
                 self.help_ui.request = Some(HelpRequest {
                     topic,
                     extra: None,
@@ -233,9 +237,9 @@ impl App {
         };
         if let Some((topic, rect)) = self.help.at_where(id, x, y, allowed) {
             let extra = (topic.index == MELEE_TOPIC && matches!(self.screen, Screen::UnitSheet))
-                .then_some(self.sheet_ui.sheet.as_ref())
+                .then(|| self.pages.get(&self.screen)?.melee_icon())
                 .flatten()
-                .and_then(|sheet| weapon_topic(sheet.melee.icon));
+                .and_then(weapon_topic);
             self.help_ui.request = Some(HelpRequest {
                 topic: topic.index,
                 extra,

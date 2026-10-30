@@ -34,6 +34,8 @@ pub(crate) struct ProductionUi {
     pub warning: Option<String>,
     /// Opened this frame: the click that opened it must not answer it.
     pub fresh: bool,
+    /// The abilities page of the unit sheet shown beside the list.
+    pub panel: crate::unit_screen::SheetPanel,
 }
 
 impl App {
@@ -44,7 +46,7 @@ impl App {
             fresh: true,
             ..Default::default()
         };
-        self.sheet_ui.first = 0;
+        self.prod_ui.panel.first = 0;
         self.choosing = true;
     }
 
@@ -149,7 +151,7 @@ impl App {
                 self.start_production(city, Some(item));
             } else {
                 self.prod_ui.selected = Some(item);
-                self.sheet_ui.first = 0;
+                self.prod_ui.panel.first = 0;
             }
         }
     }
@@ -178,7 +180,9 @@ impl App {
             ProductionItem::Unit(id) => {
                 let def = self.game.content().rules.units.get(id).clone();
                 let sheet = self.offer_sheet(&def, None, HUMAN.0);
-                self.draw_production_sheet(lay, &sheet, (px, py), input);
+                let mut panel = std::mem::take(&mut self.prod_ui.panel);
+                self.draw_production_sheet(lay, &sheet, (px, py), &mut panel, input);
+                self.prod_ui.panel = panel;
                 let mut price = cost.to_string();
                 if cost != def.cost {
                     price = format!("{cost}({})", def.cost);

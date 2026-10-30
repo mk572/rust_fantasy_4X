@@ -193,7 +193,6 @@ pub struct App {
     /// The battle screen's state.
     pub(crate) battle_ui: crate::battle_screen::BattleUi,
     /// The unit statistics sheet that is open, if any.
-    pub(crate) sheet_ui: crate::unit_screen::SheetUi,
     /// Steps the units on the map are still sliding through (task 298).
     pub(crate) slides: Vec<crate::map_slide::Slide>,
     /// The army list's scroll and the unit under the mouse.
@@ -384,7 +383,6 @@ impl App {
             survey_probe: None,
             human_build: None,
             battle_ui: Default::default(),
-            sheet_ui: Default::default(),
             slides: Vec::new(),
             test_sea: false,
             item_pool_pending: false,
@@ -1503,7 +1501,7 @@ impl App {
             }
             Screen::Magic => self.page_frame(input),
             Screen::Wizard => self.page_frame(input),
-            Screen::UnitSheet => self.unit_sheet_screen(input),
+            Screen::UnitSheet => self.page_frame(input),
             Screen::ArmyList => self.page_frame(input),
             Screen::CityList => self.page_frame(input),
             Screen::Outpost => self.page_frame(input),
