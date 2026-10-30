@@ -18,8 +18,16 @@ const WEST: std::ops::RangeInclusive<u32> = 3..=10;
 const EAST: std::ops::RangeInclusive<u32> = 28..=35;
 const ROWS: std::ops::RangeInclusive<u32> = 3..=10;
 
+/// The shipped content, parsed once for all the tests of the process; each call hands out a copy
+/// because a `Game` owns its content.
 pub fn content() -> Content {
-    f4x_data::load_content(std::path::Path::new("../../content")).expect("the rules data loads")
+    static SHIPPED: std::sync::OnceLock<Content> = std::sync::OnceLock::new();
+    SHIPPED
+        .get_or_init(|| {
+            f4x_data::load_content(std::path::Path::new("../../content"))
+                .expect("the rules data loads")
+        })
+        .clone()
 }
 
 pub fn at(x: u32, y: u32) -> Position {

@@ -725,6 +725,8 @@ mod tests {
     use f4x_core::player::PlayerId;
     use f4x_core::wizard::objective::{Objective, Personality};
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     const HUMAN: PlayerId = PlayerId(0);
     const AI: PlayerId = PlayerId(1);
 
@@ -734,14 +736,20 @@ mod tests {
         }
     }
 
-    fn game() -> Game {
-        let mut g = Game::new(5);
+    /// A human and an AI wizard who have met, on the shipped content.
+    fn game_seeded(seed: u64) -> Game {
+        let mut g = Game::new(seed);
+        g.set_content(crate::testworld::content());
         for id in [HUMAN, AI] {
             g.add_player(id, "W");
         }
         g.set_human(Some(HUMAN));
         g.make_contact(HUMAN, AI);
         g
+    }
+
+    fn game() -> Game {
+        game_seeded(5)
     }
 
     #[test]
@@ -763,7 +771,10 @@ mod tests {
 
     /// The west wizard (player 0) with two cities has seen the one city of the east wizard
     /// (player 1), met it, and has the given objective and temper.
-    fn rivals(objective: Objective, temper: Personality) -> Game {
+    fn rivals(
+        objective: Objective,
+        temper: Personality,
+    ) -> Result<Game, Box<dyn std::error::Error>> {
         use crate::testworld::{at, game, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0, P1};
         let mut g = game(COAST_CITY, "high_men");
         let race = g.content().rules.races.id_of("high_men");
@@ -776,10 +787,10 @@ mod tests {
         });
         g.make_contact(P0, P1);
         g.explore(P0, at(ENEMY_CITY.0, ENEMY_CITY.1), 3);
-        let mut w = g.wizard_mut(P0).unwrap();
+        let mut w = g.wizard_mut(P0).ok_or("the west wizard exists")?;
         w.put(Some(objective));
         w.put(Some(temper));
-        g
+        Ok(g)
     }
 
     /// Whether the west wizard declared war in `turns` tries.
@@ -793,29 +804,32 @@ mod tests {
     }
 
     #[test]
-    fn a_fierce_militarist_declares_war_on_a_weaker_neighbour_in_time() {
-        let mut g = rivals(Objective::Militarist, Personality::Aggressive);
+    fn a_fierce_militarist_declares_war_on_a_weaker_neighbour_in_time() -> TestResult {
+        let mut g = rivals(Objective::Militarist, Personality::Aggressive)?;
         assert!(declares_war(&mut g, 400));
+        Ok(())
     }
 
     #[test]
-    fn a_lawful_or_peaceful_wizard_never_starts_a_war() {
+    fn a_lawful_or_peaceful_wizard_never_starts_a_war() -> TestResult {
         for temper in [Personality::Lawful, Personality::Peaceful] {
-            let mut g = rivals(Objective::Militarist, temper);
+            let mut g = rivals(Objective::Militarist, temper)?;
             assert!(!declares_war(&mut g, 400), "{temper:?}");
         }
+        Ok(())
     }
 
     #[test]
-    fn a_theurgist_never_starts_a_war() {
-        let mut g = rivals(Objective::Theurgist, Personality::Maniacal);
+    fn a_theurgist_never_starts_a_war() -> TestResult {
+        let mut g = rivals(Objective::Theurgist, Personality::Maniacal)?;
         assert!(!declares_war(&mut g, 400));
+        Ok(())
     }
 
     #[test]
-    fn nobody_attacks_a_neighbour_that_holds_as_many_cities() {
+    fn nobody_attacks_a_neighbour_that_holds_as_many_cities() -> TestResult {
         use crate::testworld::{at, ENEMY_CITY, P1};
-        let mut g = rivals(Objective::Expansionist, Personality::Ruthless);
+        let mut g = rivals(Objective::Expansionist, Personality::Ruthless)?;
         let race = g.content().rules.races.id_of("high_men");
         let events = g.apply(Command::FoundCity {
             owner: P1,
@@ -834,10 +848,12 @@ mod tests {
             3,
         );
         assert!(!declares_war(&mut g, 400));
+        Ok(())
     }
 
     #[test]
-    fn a_pact_is_refused_out_of_hand_below_the_threshold_and_the_rating_needs_no_patience() {
+    fn a_pact_is_refused_out_of_hand_below_the_threshold_and_the_rating_needs_no_patience(
+    ) -> TestResult {
         let mut g = game();
         assert_eq!(
             rate(&mut g, HUMAN, AI, ProposalKind::Pact),
@@ -849,33 +865,37 @@ mod tests {
             Verdict::Refused
         );
         // A spell swap is granted unrated.
-        let spell = g.content().rules.spells.iter().next().map(|(id, _)| id);
-        if let Some(spell) = spell {
-            assert_eq!(
-                rate(
-                    &mut g,
-                    HUMAN,
-                    AI,
-                    ProposalKind::Exchange {
-                        give: spell,
-                        get: spell
-                    }
-                ),
-                Verdict::Accepted
-            );
-        }
+        let (spell, _) = g
+            .content()
+            .rules
+            .spells
+            .iter()
+            .next()
+            .ok_or("the shipped content has spells")?;
+        assert_eq!(
+            rate(
+                &mut g,
+                HUMAN,
+                AI,
+                ProposalKind::Exchange {
+                    give: spell,
+                    get: spell
+                }
+            ),
+            Verdict::Accepted
+        );
+        Ok(())
     }
 
     #[test]
-    fn a_bigger_army_makes_a_wizard_more_pliant() {
+    fn a_bigger_army_makes_a_wizard_more_pliant() -> TestResult {
         use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
         let mut g = game(COAST_CITY, "high_men");
-        let cost = g
-            .content()
-            .rules
-            .units
-            .get(g.content().rules.units.id_of("high_men_spearmen").unwrap())
-            .cost as i32;
+        let units = &g.content().rules.units;
+        let spearmen = units
+            .id_of("high_men_spearmen")
+            .ok_or("high_men_spearmen is shipped")?;
+        let cost = units.get(spearmen).cost as i32;
         let base = threat_modifier(&g, P0, P1);
         spawn(
             &mut g,
@@ -894,14 +914,20 @@ mod tests {
             1,
         );
         assert_eq!(threat_modifier(&g, P0, P1), -50 + 4 * cost * 100 / cost);
+        Ok(())
     }
 
     #[test]
-    fn a_wizard_that_has_met_a_mastery_caster_declares_war_on_it_in_time() {
+    fn a_wizard_that_has_met_a_mastery_caster_declares_war_on_it_in_time() -> TestResult {
         use crate::testworld::{game, COAST_CITY, P0, P1};
         let mut g = game(COAST_CITY, "high_men");
         g.make_contact(P0, P1);
-        let mastery = g.content().rules.spells.id_of("spell_of_mastery").unwrap();
+        let mastery = g
+            .content()
+            .rules
+            .spells
+            .id_of("spell_of_mastery")
+            .ok_or("spell_of_mastery is shipped")?;
         let ai = Ai::new(P0);
         // Nobody casts it: nothing happens, however often it is rolled.
         for _ in 0..300 {
@@ -913,6 +939,7 @@ mod tests {
             mastery_scare(&ai, &mut g, &mut Vec::new());
         }
         assert_eq!(g.treaty(P0, P1), Treaty::War);
+        Ok(())
     }
 
     #[test]
@@ -932,32 +959,22 @@ mod tests {
     }
 
     #[test]
-    fn a_friendly_wizard_accepts_a_pact_and_a_hostile_one_does_not() {
+    fn a_friendly_wizard_accepts_a_pact_and_a_hostile_one_does_not() -> TestResult {
         let mut yes = 0;
         let mut no = 0;
         for seed in 0..40 {
-            let mut g = Game::new(seed);
-            for id in [HUMAN, AI] {
-                g.add_player(id, "W");
-            }
-            g.set_human(Some(HUMAN));
-            g.make_contact(HUMAN, AI);
+            let mut g = game_seeded(seed);
             // Friends: the human has done well by the AI, and the AI is easy-going.
             for _ in 0..8 {
                 g.change_relations(8, HUMAN, AI, f4x_core::diplomacy::Action::Friendship, None);
             }
             g.wizard_mut(AI)
-                .unwrap()
+                .ok_or("the AI wizard exists")?
                 .put(Some(f4x_core::wizard::objective::Personality::Peaceful));
             if rate(&mut g, HUMAN, AI, ProposalKind::Pact) == Verdict::Accepted {
                 yes += 1;
             }
-            let mut h = Game::new(seed);
-            for id in [HUMAN, AI] {
-                h.add_player(id, "W");
-            }
-            h.set_human(Some(HUMAN));
-            h.make_contact(HUMAN, AI);
+            let mut h = game_seeded(seed);
             for _ in 0..8 {
                 h.change_relations(
                     -8,
@@ -976,6 +993,7 @@ mod tests {
             "a hostile wizard refuses (relation is below the pact threshold)"
         );
         assert!(yes > 0, "a friendly one sometimes agrees");
+        Ok(())
     }
 
     /// The wizard `AI` likes (or hates) the human by `value`, in steps the original's damping
@@ -988,7 +1006,7 @@ mod tests {
     }
 
     #[test]
-    fn a_friendly_wizard_offers_the_human_a_pact_in_time() {
+    fn a_friendly_wizard_offers_the_human_a_pact_in_time() -> TestResult {
         let mut g = game();
         feeling(&mut g, 30);
         assert!(g.relation(HUMAN, AI) > PACT_RELATION + 10);
@@ -1004,8 +1022,9 @@ mod tests {
                 break;
             }
         }
-        let offered = offered.expect("an offer");
+        let offered = offered.ok_or("the friendly wizard made an offer")?;
         assert_eq!((offered.from, offered.kind), (AI, ProposalKind::Pact));
+        Ok(())
     }
 
     #[test]
@@ -1024,7 +1043,7 @@ mod tests {
     }
 
     #[test]
-    fn a_wizard_whose_patience_is_gone_warns_or_goes_to_war() {
+    fn a_wizard_whose_patience_is_gone_warns_or_goes_to_war() -> TestResult {
         let mut g = game();
         g.start_treaty(HUMAN, AI, Treaty::Pact);
         // Breaking a pact leaves every patience at -200.
@@ -1033,46 +1052,47 @@ mod tests {
         for _ in 0..50 {
             ai.send_approach(&mut g);
             if g.treaty(HUMAN, AI) == Treaty::War {
-                return;
+                return Ok(());
             }
         }
-        assert!(g.diplomacy.stance(AI, HUMAN).unwrap().warnings > 0);
+        let stance = g.diplomacy.stance(AI, HUMAN).ok_or("the AI has a stance")?;
+        assert!(stance.warnings > 0);
+        Ok(())
     }
 
     #[test]
-    fn a_threat_is_answered_by_war_a_refusal_or_a_payment() {
+    fn a_threat_is_answered_by_war_a_refusal_or_a_payment() -> TestResult {
         let mut outcomes = std::collections::BTreeSet::new();
         for seed in 0..80u64 {
-            let mut g = Game::new(seed);
-            for id in [HUMAN, AI] {
-                g.add_player(id, "W");
-            }
-            g.set_human(Some(HUMAN));
-            g.make_contact(HUMAN, AI);
-            g.treasury_mut(AI).unwrap().gold = 500;
+            let mut g = game_seeded(seed);
+            g.treasury_mut(AI).ok_or("the AI has a treasury")?.gold = 500;
             g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
                 from: HUMAN,
                 to: AI,
                 kind: ProposalKind::Threat,
             }));
             crate::answer_proposals(&mut g, AI);
-            let paid = g.player(AI).unwrap().treasury().gold < 500;
+            let paid = g.player(AI).ok_or("the AI exists")?.treasury().gold < 500;
             outcomes.insert((g.treaty(HUMAN, AI) == Treaty::War, paid));
         }
         assert!(outcomes.len() >= 2, "{outcomes:?}");
+        Ok(())
     }
 
     #[test]
-    fn a_wizard_without_an_army_demands_nothing() {
+    fn a_wizard_without_an_army_demands_nothing() -> TestResult {
         let mut g = game();
         feeling(&mut g, -3);
-        g.treasury_mut(HUMAN).unwrap().gold = 400;
+        g.treasury_mut(HUMAN)
+            .ok_or("the human has a treasury")?
+            .gold = 400;
         let ai = Ai::new(AI);
         let relation = g.relation(AI, HUMAN);
         for _ in 0..200 {
             demand(&ai, &mut g, &mut Vec::new(), HUMAN, relation, Treaty::None);
         }
         assert!(PlayerView::new(&g, HUMAN).proposals_to_me().is_empty());
+        Ok(())
     }
 
     #[test]
