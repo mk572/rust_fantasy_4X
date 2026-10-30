@@ -260,13 +260,11 @@ pub fn real_races() -> Vec<crate::rules::RaceDef> {
     let mut races: Vec<crate::rules::RaceDef> =
         ron::from_str(include_str!("../../../../content/races.ron"))
             .expect("the game's races parse");
-    let names = name_table(include_str!("../../../../content/text/en/name/race.ron"));
-    let plurals = name_table(include_str!(
-        "../../../../content/text/en/name/race_plural.ron"
-    ));
+    let names: std::collections::BTreeMap<u16, (String, String)> =
+        ron::from_str(include_str!("../../../../content/text/en/name/race.ron"))
+            .expect("the game's race names parse");
     for d in &mut races {
-        d.name = names[&d.num].clone();
-        d.plural = plurals.get(&d.num).cloned().unwrap_or_default();
+        (d.name, d.plural) = names[&d.num].clone();
     }
     races
 }

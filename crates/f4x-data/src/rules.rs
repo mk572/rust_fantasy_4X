@@ -121,18 +121,16 @@ fn apply_wizard_texts(dirs: &[&Path], wizards: &mut [WizardDef]) -> Result<(), C
 
 /// The names of one table in `lang`, by definition number: `text/<lang>/name/<file>.ron` of the
 /// first directory that has it, over the same file of the fallback language.
-fn name_table(
+fn name_table<V: serde::de::DeserializeOwned>(
     dirs: &[&Path],
     lang: &str,
     file: &str,
-) -> Result<std::collections::BTreeMap<u16, String>, ContentError> {
+) -> Result<std::collections::BTreeMap<u16, V>, ContentError> {
     let mut all = std::collections::BTreeMap::new();
     for l in [f4x_core::text::FALLBACK_LANGUAGE, lang] {
         let name = format!("text/{l}/name/{file}.ron");
         if find(dirs, &name).is_some() {
-            all.extend(parse::<std::collections::BTreeMap<u16, String>>(
-                dirs, &name,
-            )?);
+            all.extend(parse::<std::collections::BTreeMap<u16, V>>(dirs, &name)?);
         }
     }
     Ok(all)
@@ -142,34 +140,32 @@ fn name_table(
 type Keys<T> = (fn(&T) -> u16, fn(&T) -> &str);
 
 /// Put the names of `lang` on the definitions of one table. A definition without a name and a
-/// name for a number nobody has are problems. `plural` is optional.
-fn fill_names<T>(
+/// name for a number nobody has are problems. A value is a name, or for races the pair of name
+/// and plural.
+fn fill_names<T, V: serde::de::DeserializeOwned + Clone>(
     (dirs, lang): (&[&Path], &str),
     (kind, file): (&str, &str),
     defs: &mut [T],
     (num, id): Keys<T>,
-    set: fn(&mut T, String, bool),
+    set: fn(&mut T, V),
     problems: &mut Vec<String>,
 ) -> Result<(), ContentError> {
-    for (plural, file) in [(false, file.to_string()), (true, format!("{file}_plural"))] {
-        let names = name_table(dirs, lang, &file)?;
-        for d in defs.iter_mut() {
-            match names.get(&num(d)) {
-                Some(n) => set(d, n.clone(), plural),
-                None if !plural => problems.push(format!(
-                    "{kind} {} ({}) has no name in text/{lang}/name/{file}.ron",
-                    num(d),
-                    id(d)
-                )),
-                None => {}
-            }
+    let names = name_table::<V>(dirs, lang, file)?;
+    for d in defs.iter_mut() {
+        match names.get(&num(d)) {
+            Some(n) => set(d, n.clone()),
+            None => problems.push(format!(
+                "{kind} {} ({}) has no name in text/{lang}/name/{file}.ron",
+                num(d),
+                id(d)
+            )),
         }
-        let known: std::collections::BTreeSet<u16> = defs.iter().map(&num).collect();
-        for n in names.keys().filter(|n| !known.contains(n)) {
-            problems.push(format!(
-                "text/{lang}/name/{file}.ron names the unknown {kind} {n}"
-            ));
-        }
+    }
+    let known: std::collections::BTreeSet<u16> = defs.iter().map(&num).collect();
+    for n in names.keys().filter(|n| !known.contains(n)) {
+        problems.push(format!(
+            "text/{lang}/name/{file}.ron names the unknown {kind} {n}"
+        ));
     }
     Ok(())
 }
@@ -206,7 +202,10 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         ("race", "race"),
         &mut races,
         (|d| d.num, |d| &d.id),
-        |d, n, plural| if plural { d.plural = n } else { d.name = n },
+        |d, (name, plural): (String, String)| {
+            d.name = name;
+            d.plural = plural;
+        },
         &mut problems,
     )?;
     fill_names(
@@ -214,7 +213,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         ("unit", "unit"),
         &mut units,
         (|d| d.num, |d| &d.id),
-        |d, n, _| d.name = n,
+        |d, n: String| d.name = n,
         &mut problems,
     )?;
     fill_names(
@@ -222,7 +221,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         ("ability", "ability"),
         &mut abilities,
         (|d| d.num, |d| &d.id),
-        |d, n, _| d.name = n,
+        |d, n: String| d.name = n,
         &mut problems,
     )?;
     fill_names(
@@ -230,7 +229,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         ("building", "building"),
         &mut buildings,
         (|d| d.num, |d| &d.id),
-        |d, n, _| d.name = n,
+        |d, n: String| d.name = n,
         &mut problems,
     )?;
     fill_names(
@@ -238,7 +237,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         ("realm", "realm"),
         &mut realms,
         (|d| d.num, |d| &d.id),
-        |d, n, _| d.name = n,
+        |d, n: String| d.name = n,
         &mut problems,
     )?;
     fill_names(
@@ -246,7 +245,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         ("spell", "spell"),
         &mut spells,
         (|d| d.num, |d| &d.id),
-        |d, n, _| d.name = n,
+        |d, n: String| d.name = n,
         &mut problems,
     )?;
     fill_names(
@@ -254,7 +253,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         ("item", "item"),
         &mut items,
         (|d| d.num, |d| &d.id),
-        |d, n, _| d.name = n,
+        |d, n: String| d.name = n,
         &mut problems,
     )?;
     fill_names(
@@ -262,7 +261,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         ("item power", "item_power"),
         &mut item_powers,
         (|d| d.num, |d| &d.id),
-        |d, n, _| d.name = n,
+        |d, n: String| d.name = n,
         &mut problems,
     )?;
     if !problems.is_empty() {
@@ -1271,8 +1270,8 @@ mod tests {
         )
         .unwrap();
         std::fs::write(
-            over.join("text/xx/name/race_plural.ron"),
-            r#"{ 0: "Barbaren" }"#,
+            over.join("text/xx/name/race.ron"),
+            r#"{ 0: ("Barbar", "Barbaren") }"#,
         )
         .unwrap();
         let features = features();
@@ -1286,7 +1285,7 @@ mod tests {
             .name
             .is_empty());
         assert_eq!(rules.races.by_name("barbarian").unwrap().plural, "Barbaren");
-        assert_eq!(rules.races.by_name("barbarian").unwrap().name, "Barbarian");
+        assert_eq!(rules.races.by_name("barbarian").unwrap().name, "Barbar");
     }
 
     #[test]

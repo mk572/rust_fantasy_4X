@@ -48,7 +48,7 @@ Debug output of the console and test messages are not player-facing and stay in 
 ## What stays outside
 
 - Names of the numbered rules tables are one file each in `content/text/<lang>/name/`: `unit.ron`,
-  `spell.ron`, `building.ron`, `race.ron` (and `race_plural.ron`), `realm.ron`, `ability.ron`,
+  `spell.ron`, `building.ron`, `race.ron` (name and plural), `realm.ron`, `ability.ron`,
   `item.ron`, `item_power.ron`. A file is a RON map from the definition's `num` to its name
   (`{ 95: "Spearmen" }`). The loader puts the name of the language in `settings.ron` on each
   definition (`def.name`, so the screens need no change), a number the language leaves out is
