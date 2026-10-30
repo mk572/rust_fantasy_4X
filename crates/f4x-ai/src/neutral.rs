@@ -1,15 +1,11 @@
-//! The independent cities. Each is its own player (the `Neutral` marker) and this plays them:
-//! farmers, taxes and what the city builds, after the original's `Player_Colony_Autobuild_NP`
-//! (`AIBUILD.c`): a Barracks first, then soldiers while the garrison is short and buildings
-//! once it is not, never settlers. A city with a guarded site (tower, node or encounter site)
-//! it has explored within [`RAID_RANGE`] squares also builds a raiding party of [`RAID_PARTY`]
-//! beyond its garrison and sends it to assault the site, then home again (task 354; what a
-//! winner may keep is `claim_lair`'s rule, task 353). They never attack anyone else or cast,
-//! until one raises a raiding party (task 376): that city's player is then at war (see
-//! [`Game::is_aggressive_player`]) and every soldier it can spare marches on the lairs and
-//! cities near it, other independent cities and wizards' included. The monsters that roam the
-//! map are played here too (`monster.rs`). The game does none of this itself, so a host that
-//! ends turns must call [`play_neutrals`] (or [`play_neutrals_for`]) first, or the cities starve.
+//! The independent cities, each its own player (the `Neutral` marker), and the roaming monsters
+//! (`monster.rs`). Farmers, taxes and what a city builds follow the original's
+//! `Player_Colony_Autobuild_NP` (`AIBUILD.c`). A city raids a guarded site within [`RAID_RANGE`]
+//! with a party of [`RAID_PARTY`] beyond its garrison; one that raises such a party is at war (see
+//! [`Game::is_aggressive_player`]) and marches on the lairs and cities near it.
+//!
+//! The game plays none of this itself: a host that ends turns must call [`play_neutrals`] (or
+//! [`play_neutrals_for`]) first, or the cities starve.
 
 use f4x_core::city::autobuild::{BuildPlan, Focus, Mix};
 use f4x_core::city::production::ProductionItem;
@@ -601,16 +597,21 @@ fn production(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, game, spawn, COAST_CITY};
+    use crate::testworld::{at, game, spawn, COAST_CITY, P0};
     use f4x_core::feature::entity::Placement;
     use f4x_core::feature::lair::Lair;
     use f4x_core::player::PlayerId;
+
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     const TOWN: PlayerId = PlayerId(100);
 
     /// A world with an independent city at (4, 4), nine paladins in it and an encounter site
     /// of one guard at (6, 4).
-    fn raiding_world(guards: Option<Vec<(String, u32)>>, known: bool) -> Game {
+    fn raiding_world(
+        guards: Option<Vec<(String, u32)>>,
+        known: bool,
+    ) -> Result<Game, Box<dyn std::error::Error>> {
         let mut g = game(COAST_CITY, "high_men");
         g.add_neutral_player(TOWN);
         let race = g.content().rules.races.id_of("high_men");
@@ -622,11 +623,15 @@ mod tests {
             population: 8,
         });
         assert!(!events.iter().any(|e| matches!(e, Event::Rejected(_))));
-        g.treasury_mut(TOWN).unwrap().gold = 1_000_000;
+        g.treasury_mut(TOWN).ok_or("the town has a treasury")?.gold = 1_000_000;
         spawn(&mut g, TOWN, at(4, 4), "high_men_paladins", 9);
-        let feature = g.content().features.id_of("monster_lair").unwrap();
+        let feature = g
+            .content()
+            .features
+            .id_of("monster_lair")
+            .ok_or("monster_lair is shipped")?;
         let Some(guards) = guards else {
-            return g;
+            return Ok(g);
         };
         g.spawn_feature(Placement {
             at: at(6, 4),
@@ -643,18 +648,27 @@ mod tests {
                 fought_by: if known { vec![TOWN] } else { Vec::new() },
             }),
         });
-        g
+        Ok(g)
     }
 
     /// A world at war: the city's nine paladins are the free troops of a raid, which nobody
     /// feeds or pays.
-    fn war_world() -> Game {
-        let mut g = raiding_world(None, false);
+    fn war_world() -> Result<Game, Box<dyn std::error::Error>> {
+        let mut g = raiding_world(None, false)?;
         for unit in g.units().player_units(TOWN) {
             g.scenario_set_unpaid(unit, true);
         }
         g.scenario_set_aggressive(TOWN, true);
-        g
+        Ok(g)
+    }
+
+    /// The soldiers of the town that stand outside it.
+    fn away(g: &Game) -> usize {
+        g.units()
+            .player_units(TOWN)
+            .iter()
+            .filter(|&&u| g.units().unit_position(u) != Some(at(4, 4)))
+            .count()
     }
 
     fn turns(g: &mut Game, n: usize) {
@@ -665,8 +679,8 @@ mod tests {
     }
 
     #[test]
-    fn a_city_with_soldiers_to_spare_clears_a_weak_site_and_keeps_the_gold() {
-        let mut g = raiding_world(Some(vec![("zombies".into(), 1)]), false);
+    fn a_city_with_soldiers_to_spare_clears_a_weak_site_and_keeps_the_gold() -> TestResult {
+        let mut g = raiding_world(Some(vec![("zombies".into(), 1)]), false)?;
         let mut gold = 0;
         let mut cleared = false;
         for _ in 0..12 {
@@ -683,63 +697,61 @@ mod tests {
         assert_eq!(gold, 300, "the hoard pays out to the city");
         assert!(g.economy().lair_at(at(6, 4)).is_none());
         // What is left of the party comes home.
-        let away = g
-            .units()
-            .player_units(TOWN)
-            .iter()
-            .filter(|&&u| g.units().unit_position(u) != Some(at(4, 4)))
-            .count();
-        assert_eq!(away, 0, "{away} soldiers are still out");
+        assert_eq!(away(&g), 0, "soldiers are still out");
+        Ok(())
     }
 
     #[test]
-    fn a_city_with_no_site_in_range_sends_nobody_out() {
-        let mut g = raiding_world(None, false);
+    fn a_city_with_no_site_in_range_sends_nobody_out() -> TestResult {
+        let mut g = raiding_world(None, false)?;
         turns(&mut g, 4);
-        assert!(g
-            .units()
-            .player_units(TOWN)
-            .iter()
-            .all(|&u| g.units().unit_position(u) == Some(at(4, 4))));
+        assert_eq!(away(&g), 0);
+        Ok(())
     }
 
     #[test]
-    fn a_city_that_knows_the_guards_leaves_a_site_too_strong_for_its_party() {
-        // Two great drakes against a party of paladins; a fight the city lost earlier taught it
-        // what stands there.
-        let mut g = raiding_world(Some(vec![("great_drake".into(), 2)]), true);
+    fn a_city_that_knows_the_guards_leaves_a_site_too_strong_for_its_party() -> TestResult {
+        // The city lost a fight there earlier (`known`), so it knows what stands there.
+        let mut g = raiding_world(Some(vec![("great_drake".into(), 2)]), true)?;
         turns(&mut g, 4);
-        assert!(g
-            .units()
-            .player_units(TOWN)
-            .iter()
-            .all(|&u| g.units().unit_position(u) == Some(at(4, 4))));
+        assert_eq!(away(&g), 0);
         assert!(g.economy().lair_at(at(6, 4)).is_some());
+        Ok(())
     }
 
     #[test]
-    fn a_city_at_war_sends_all_but_its_garrison_against_a_site_in_range() {
-        // Nine paladins and a site in range: the peaceful city sends only what it has above
-        // garrison and party; at war it sends everyone but the garrison.
-        let mut g = raiding_world(Some(vec![("zombies".into(), 1)]), false);
-        g.scenario_set_aggressive(TOWN, true);
-        let mut cleared = false;
-        for _ in 0..12 {
-            for e in play_neutrals(&mut g) {
-                if let Event::SiteCleared { player, .. } = e {
-                    assert_eq!(player, TOWN);
-                    cleared = true;
-                }
+    fn a_city_at_war_sends_more_soldiers_against_a_site_than_a_peaceful_one() -> TestResult {
+        // In the second turn the party is out and the site still stands.
+        let mut sent = [0, 0];
+        for (n, war) in [false, true].into_iter().enumerate() {
+            let mut g = raiding_world(Some(vec![("zombies".into(), 1)]), false)?;
+            if war {
+                g.scenario_set_aggressive(TOWN, true);
             }
-            g.apply(Command::EndTurn);
+            turns(&mut g, 1);
+            play_neutrals(&mut g);
+            assert!(g.economy().lair_at(at(6, 4)).is_some(), "war={war}");
+            sent[n] = away(&g);
         }
-        assert!(cleared, "the site is cleared");
+        let [peace, war] = sent;
+        assert!(
+            peace >= RAID_PARTY,
+            "a peaceful city sends its party: {peace}"
+        );
+        assert!(
+            war > peace,
+            "war sends all but the garrison: {war} against {peace}"
+        );
+        Ok(())
     }
 
     #[test]
-    fn a_city_at_war_takes_an_undefended_city_of_a_wizard() {
-        let mut g = war_world();
-        let target = g.economy().city_at(at(COAST_CITY.0, COAST_CITY.1)).unwrap();
+    fn a_city_at_war_takes_an_undefended_city_of_a_wizard() -> TestResult {
+        let mut g = war_world()?;
+        let target = g
+            .economy()
+            .city_at(at(COAST_CITY.0, COAST_CITY.1))
+            .ok_or("the wizard has a city")?;
         // The wizard's city has no defenders; the free town knows the land round it.
         g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), 8);
         for _ in 0..15 {
@@ -750,23 +762,28 @@ mod tests {
             }
         }
         assert_eq!(g.economy().city_owner(target), Some(TOWN));
+        Ok(())
     }
 
     #[test]
-    fn a_peaceful_city_leaves_a_wizards_city_alone() {
-        let mut g = raiding_world(None, false);
-        let target = g.economy().city_at(at(COAST_CITY.0, COAST_CITY.1)).unwrap();
+    fn a_peaceful_city_leaves_a_wizards_city_alone() -> TestResult {
+        let mut g = raiding_world(None, false)?;
+        let target = g
+            .economy()
+            .city_at(at(COAST_CITY.0, COAST_CITY.1))
+            .ok_or("the wizard has a city")?;
         g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), 8);
         turns(&mut g, 10);
-        assert_eq!(g.economy().city_owner(target), Some(crate::testworld::P0));
+        assert_eq!(g.economy().city_owner(target), Some(P0));
+        Ok(())
     }
 
     #[test]
-    fn an_attack_on_a_player_who_defends_in_person_is_kept_for_the_host() {
-        let mut g = war_world();
+    fn an_attack_on_a_player_who_defends_in_person_is_kept_for_the_host() -> TestResult {
+        let mut g = war_world()?;
         spawn(
             &mut g,
-            crate::testworld::P0,
+            P0,
             at(COAST_CITY.0, COAST_CITY.1),
             "high_men_spearmen",
             1,
@@ -774,9 +791,9 @@ mod tests {
         g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), 8);
         let mut kept = Vec::new();
         for _ in 0..15 {
-            let (_, attacks) = play_neutrals_for(&mut g, &[crate::testworld::P0]);
+            let (_, attacks) = play_neutrals_for(&mut g, &[P0]);
             kept.extend(attacks);
-            g.balance_farmers(crate::testworld::P0);
+            g.balance_farmers(P0);
             g.apply(Command::EndTurn);
             if !kept.is_empty() {
                 break;
@@ -784,5 +801,6 @@ mod tests {
         }
         assert!(!kept.is_empty(), "the attack waits for the human");
         assert!(!g.in_battle());
+        Ok(())
     }
 }
