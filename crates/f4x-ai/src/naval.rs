@@ -225,6 +225,22 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let Some(plan) = ai.naval else {
         return;
     };
+    // The sea scout has found its enemy: the ship now carries the landing.
+    let scouting: Vec<hecs::Entity> = {
+        let view = PlayerView::new(game, me);
+        my_ships(&view)
+            .into_iter()
+            .filter(|&s| ai.scouts.contains(&view.serial_of(s)))
+            .collect()
+    };
+    if !scouting.is_empty() {
+        let serials: Vec<Serial> = {
+            let view = PlayerView::new(game, me);
+            scouting.iter().map(|&s| view.serial_of(s)).collect()
+        };
+        ai.scouts.retain(|s| !serials.contains(s));
+        ai.send(game, Command::ClearOrders { units: scouting }, events);
+    }
     let (ships, ship_here, serial_ship) = {
         let view = PlayerView::new(game, me);
         let ships = my_ships(&view);
@@ -425,6 +441,7 @@ fn voyage(
     if at == plan.port {
         ai.ferry = None;
     } else if idle {
+        make_room(ai, game, plan.port, events);
         ai.send(
             game,
             Command::GoTo {
@@ -434,6 +451,45 @@ fn voyage(
             events,
         );
     }
+}
+
+/// A ship cannot enter a city holding a full stack: the last fighter of the port steps out to a
+/// square beside it, to make room.
+fn make_room(ai: &mut Ai, game: &mut Game, port: Position, events: &mut Vec<Event>) {
+    let me = ai.player;
+    let (unit, to) = {
+        let view = PlayerView::new(game, me);
+        let mut here = view.garrison(port);
+        if here.len() < f4x_core::unit::MAX_STACK {
+            return;
+        }
+        view.sort_by_serial(&mut here);
+        let Some(&unit) = here.iter().rev().find(|&&u| is_fighter(&view, u)) else {
+            return;
+        };
+        let to = (-1i32..=1)
+            .flat_map(|dy| (-1i32..=1).map(move |dx| (dx, dy)))
+            .filter_map(|(dx, dy)| view.shift(port, dx, dy))
+            .filter(|&p| {
+                p != port
+                    && view.terrain_class(p) != Some(f4x_core::map::terrain::TerrainClass::Ocean)
+                    && view.hostile_at(p).is_none()
+                    && view.can_reach(&[unit], p)
+            })
+            .min_by_key(|p| (p.y, p.x));
+        let Some(to) = to else {
+            return;
+        };
+        (unit, to)
+    };
+    ai.send(
+        game,
+        Command::GoTo {
+            units: vec![unit],
+            to,
+        },
+        events,
+    );
 }
 
 /// With every walkable square explored and no enemy city known, a ship looks for the rest of the
@@ -676,5 +732,41 @@ mod tests {
         let mut ai = Ai::new(P0);
         sea_scout(&mut ai, &mut fresh);
         assert!(!ai.sea_scouting, "land scouting is not over");
+    }
+
+    #[test]
+    fn a_sea_scout_is_called_off_once_a_landing_is_planned() {
+        let mut g = game(COAST_CITY, "high_men");
+        g.reveal_map(P0);
+        let ship = spawn(&mut g, P0, port(), "galley", 1)[0];
+        let serial = PlayerView::new(&g, P0).serial_of(ship);
+        let mut ai = Ai::new(P0);
+        ai.scouts.push(serial);
+        ai.unreachable.push(enemy());
+        run(&mut ai, &mut g, &mut Vec::new());
+        assert!(ai.naval.is_some());
+        assert!(
+            !ai.scouts.contains(&serial),
+            "the ship carries the landing now"
+        );
+    }
+
+    #[test]
+    fn a_full_port_lets_a_fighter_out_so_the_ship_can_come_in() {
+        let mut g = game(COAST_CITY, "high_men");
+        g.reveal_map(P0);
+        let full = spawn(
+            &mut g,
+            P0,
+            port(),
+            "high_men_spearmen",
+            f4x_core::unit::MAX_STACK,
+        );
+        assert_eq!(PlayerView::new(&g, P0).garrison(port()).len(), 9);
+        let mut ai = Ai::new(P0);
+        make_room(&mut ai, &mut g, port(), &mut Vec::new());
+        let left = PlayerView::new(&g, P0).garrison(port()).len();
+        assert_eq!(left, f4x_core::unit::MAX_STACK - 1);
+        assert!(full.iter().all(|&u| g.units().unit_position(u).is_some()));
     }
 }

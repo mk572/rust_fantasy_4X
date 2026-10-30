@@ -338,6 +338,14 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let force = stack_strength(&view, &at_rally);
         (rally, expected, at_rally, elsewhere, force)
     };
+    // The port of a landing keeps a slot free: a ship cannot enter a city holding nine units.
+    let naval_rally = ai.naval.is_some_and(|p| p.target == target);
+    let mut room = if naval_rally {
+        let held = PlayerView::new(game, me).garrison(rally).len();
+        (f4x_core::unit::MAX_STACK - 1).saturating_sub(held)
+    } else {
+        usize::MAX
+    };
     for u in &elsewhere {
         // A gate is quicker than the road: an Earth Gate city sends its troops to the rally
         // city when that has one too, and an Astral Gate city sends those on the wrong plane
@@ -374,7 +382,8 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .is_some_and(|p| p.plane == rally.plane)
                 && view.can_reach(&[*u], rally)
         };
-        if comes_home {
+        if comes_home && room > 0 {
+            room = room.saturating_sub(1);
             ai.send(
                 game,
                 Command::GoTo {

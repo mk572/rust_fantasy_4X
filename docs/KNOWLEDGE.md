@@ -55,3 +55,11 @@ Non-obvious findings about this code base. General lessons (shell, tools) are in
   does the same. `Set_Animation_Frame` first sets where it starts; a frame number past the end loops back (to the
   loop frame, 0 for these pictures). Read the call count before you read the frame number.
 
+
+- **A `GoTo` that fails midway is dropped without a word.** `Game::follow_orders` clears the whole path on any
+  error but `NoMovesLeft`, and `ai.send` still reports success because the order was accepted. A ship that was
+  sent home to a city holding nine units (`StackFull`) sat outside for 80 turns while the AI believed it was on
+  its way. When a unit "has an order" and does not move, print the `MoveError` in `follow_orders` first.
+- **`scripts/fork_ai.py` must give the copy new mtimes** (it does since 30 October 2026, `copy_function=shutil.copy`):
+  with `copytree`'s preserved mtimes cargo keeps the old build of `f4x-ai-ref` and `soak-versus` plays a stale
+  reference. Check a new reference with a null test (reference = identical copy gives identical columns).

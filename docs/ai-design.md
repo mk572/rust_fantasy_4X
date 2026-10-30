@@ -6,7 +6,7 @@ battle AI (`crates/f4x-core/src/battle/ai.rs`). The learned AI is a separate des
 (Spell of Mastery), 64 to 67 (personalities, AI v1, spells, attack), planned 24 (soak runs), 106
 (battle views), 224 to 232 (this design's steps, section 9).
 
-Status (13 October 2026): steps 0 to 7 and 9 to 11 are built and tested; step 8 (ships) is not.
+Status (30 October 2026): steps 0 to 7 and 9 to 11 are built and tested; step 8 (ships) works for one ship at a time (see 11.3).
 Section 2 holds what was measured on the AI before the work, section 8.1 the results, section
 11 what was built and what was learned. The numbers there are from 8 seeds, two wizards each.
 
@@ -507,7 +507,7 @@ unit tests in `wizardry.rs` and `battle/ai.rs`, `crates/f4x-learn/tests/it/mirro
   coastal city; a stack of the ship and its passengers moves with one `GoTo`; passengers land with
   an ordinary move onto the land next to the target. What the AI would have to add: a port, the
   buildings, a gathering of nine or more units over several trips, and a landing area it holds
-  until the force is whole. Nothing of that is built.
+  until the force is whole. Built in `naval.rs` (port, ship, one landing at a time); what stays open is a second ship, planes, and war on a rival across the sea (task 230).
 - **Memory of enemy garrisons** and a **threat map** (section 5.2): a city out of sight is
   guessed at three average units.
 - **The special spells in the AI** (step 5): Earth Lore, Word of Recall, Nature's Cures,
