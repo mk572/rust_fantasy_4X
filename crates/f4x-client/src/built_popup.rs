@@ -87,7 +87,7 @@ impl App {
         let entry = if walls {
             Some(WALL_PICTURE)
         } else {
-            crate::cityscape::sprite_of(3 + building.index() as i16).map(|(entry, _)| entry)
+            crate::cityscape::sprite_of(3 + building.num() as usize as i16).map(|(entry, _)| entry)
         };
         let text = self.text_with(
             "city.built",

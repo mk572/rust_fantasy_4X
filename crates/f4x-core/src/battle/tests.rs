@@ -1703,7 +1703,7 @@ mod casting {
             1,
         );
         let m = |stat, op, value| Modifier::new(stat, op, value, Source::Other);
-        let spell = crate::rules::SpellId::new(0);
+        let spell = crate::rules::SpellId::new(1);
         let before = b.units[0].clone();
         b.enchant_unit(
             0,
@@ -1786,7 +1786,7 @@ mod fields {
     use crate::rules::SpellId;
 
     fn spell() -> SpellId {
-        SpellId::new(0)
+        SpellId::new(1)
     }
 
     fn of(side: Side, realm: Option<Realm>, cell: Pos) -> BattleUnit {
@@ -4044,7 +4044,7 @@ fn invisibility_that_begins_in_battle_hides_the_unit_at_once() {
     );
     assert!(b.seen_by(Side::Attacker, 1));
     b.units[1].revealed = true;
-    b.raise_field(Side::Defender, Field::MassInvisibility, SpellId::new(0));
+    b.raise_field(Side::Defender, Field::MassInvisibility, SpellId::new(1));
     b.refresh_fields();
     assert!(!b.units[1].revealed);
     assert!(!b.seen_by(Side::Attacker, 1));
@@ -4349,9 +4349,9 @@ fn a_battle_is_saved_and_read_back_with_its_spells_and_items() {
     .unwrap();
     let rules = &g.content.rules;
     let battle = g.battle().unwrap();
-    let text = ron::ser::to_string(&battle.to_save(rules)).unwrap();
-    let save: save::BattleSave = ron::from_str(&text).unwrap();
-    let mut back = Battle::from_save(save, rules).unwrap();
+    let text = ron::ser::to_string(battle).unwrap();
+    let mut back: Battle = ron::from_str(&text).unwrap();
+    back.check_spells(rules).unwrap();
     let wand_entity = g.items().hero_item_entity(hero, 0).unwrap();
     assert_eq!(
         back.units[0].casting.item_charges[0].item,
@@ -4364,13 +4364,12 @@ fn a_battle_is_saved_and_read_back_with_its_spells_and_items() {
     assert_eq!(back.units[0].casting.item_charges[0].charges, 1);
     // The random stream continues where it stopped.
     assert_eq!(back.rng, battle.rng);
-    // A save that names a spell the rules lack is refused.
-    let mut save = battle.to_save(rules);
-    let name = &mut save.spells[zap.index()];
-    *name = "no_such_spell".into();
+    // A save that holds a spell number the rules lack is refused.
+    let mut save = battle.clone();
+    save.fields[0].push((Field::Darkness, SpellId::new(9999)));
     assert_eq!(
-        Battle::from_save(save, rules).err(),
-        Some(save::BattleLoadError::UnknownSpell("no_such_spell".into()))
+        save.check_spells(rules).err(),
+        Some(save::BattleLoadError::UnknownSpell(9999))
     );
 }
 

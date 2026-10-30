@@ -463,7 +463,7 @@ pub fn made_name(design: &ItemDesign, rules: &Rules) -> MadeName {
         .iter()
         .filter_map(|id| {
             let at = rules.item_powers.id_of(id)?;
-            Some((at.index(), rules.item_powers.get(at)))
+            Some((at.num() as usize, rules.item_powers.get(at)))
         })
         .collect();
     let mut bonus = None;

@@ -384,6 +384,9 @@ pub enum Duration {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpellDef {
+    /// The original's spell number (`SPELLDAT.LBX` record), the id the game passes around.
+    pub num: u16,
+    /// The alias for human editing.
     pub id: String,
     pub name: String,
     pub realm: String,
@@ -630,12 +633,21 @@ impl_def!(
     AbilityDef,
     BuildingDef,
     RealmDef,
-    SpellDef,
     ItemDef,
     ItemPowerDef,
     LevelPathDef,
     WizardDef
 );
+
+impl Def for SpellDef {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn num(&self) -> Option<u16> {
+        Some(self.num)
+    }
+}
 
 /// All rules definitions.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

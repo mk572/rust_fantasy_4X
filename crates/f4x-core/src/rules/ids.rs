@@ -1,24 +1,26 @@
-//! Typed ids: an index into a [`super::registry::Registry`] of one definition type.
+//! Typed ids: the number of a definition in a [`super::registry::Registry`] of one definition type
+//! (the original game's number, kept in the content file; there is no other numbering).
 
 use std::marker::PhantomData;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 pub struct Id<T> {
-    index: u16,
+    num: u16,
     _marker: PhantomData<fn() -> T>,
 }
 
 impl<T> Id<T> {
-    pub(crate) fn new(index: u16) -> Self {
+    pub(crate) fn new(num: u16) -> Self {
         Self {
-            index,
+            num,
             _marker: PhantomData,
         }
     }
 
-    pub fn index(self) -> usize {
-        self.index as usize
+    /// The definition's number.
+    pub fn num(self) -> u16 {
+        self.num
     }
 }
 
@@ -30,7 +32,7 @@ impl<T> Clone for Id<T> {
 impl<T> Copy for Id<T> {}
 impl<T> PartialEq for Id<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.index == other.index
+        self.num == other.num
     }
 }
 impl<T> Eq for Id<T> {}
@@ -41,22 +43,22 @@ impl<T> PartialOrd for Id<T> {
 }
 impl<T> Ord for Id<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.index.cmp(&other.index)
+        self.num.cmp(&other.num)
     }
 }
 impl<T> std::hash::Hash for Id<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.index.hash(state);
+        self.num.hash(state);
     }
 }
 impl<T> std::fmt::Debug for Id<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Id({})", self.index)
+        write!(f, "Id({})", self.num)
     }
 }
 impl<T> Serialize for Id<T> {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        self.index.serialize(s)
+        self.num.serialize(s)
     }
 }
 impl<'de, T> Deserialize<'de> for Id<T> {

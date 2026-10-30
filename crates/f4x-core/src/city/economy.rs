@@ -649,8 +649,8 @@ impl<'a> Economy<'a> {
                 rules
                     .config
                     .racial_unrest
-                    .get(c.index())
-                    .and_then(|row| row.get(r.index()))
+                    .get(c.num() as usize)
+                    .and_then(|row| row.get(r.num() as usize))
                     .copied()
                     .unwrap_or(0) as i32
                     * 10

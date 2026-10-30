@@ -1,9 +1,7 @@
 //! A battle written to a save and read back.
 //!
-//! The spell ids inside a battle are indexes into the rules' spell list, which change when a spell
-//! is added or moved in `spells.ron`. A save names its spells instead: [`BattleSave`] carries the
-//! table of spell ids as they were, and loading maps every number in the battle to the spell of
-//! the same name in the rules in force (or refuses the save if the spell is gone).
+//! The spell ids inside a battle are the spells' numbers, which stay the same from one version of
+//! `spells.ron` to the next; loading only refuses a battle that holds a number the rules lack.
 //!
 //! The battle holds the overland items its fighters carry (`ItemCharge`) by creation number only;
 //! [`Battle::bind_items`] puts the entities back once the world is loaded.
@@ -17,53 +15,32 @@ use crate::game::serial::Serial;
 use crate::game::Game;
 use crate::rules::{Rules, SpellId};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BattleSave {
-    /// The id of every spell of the rules, in the order the numbers in `battle` refer to.
-    pub spells: Vec<String>,
-    pub battle: Battle,
-}
-
 /// Why a saved battle could not be loaded.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BattleLoadError {
-    /// The save names a spell the rules do not have (spell id).
-    UnknownSpell(String),
-    /// The battle refers to a spell number the save's own table does not have.
-    BadSpellNumber(usize),
+    /// The battle holds a spell number the rules do not have.
+    UnknownSpell(u16),
 }
 
 impl Battle {
-    /// The battle as a save holds it.
-    pub fn to_save(&self, rules: &Rules) -> BattleSave {
-        BattleSave {
-            spells: rules.spells.defs().iter().map(|d| d.id.clone()).collect(),
-            battle: self.clone(),
-        }
-    }
-
-    /// The battle from a save, its spell numbers mapped to the rules in force. Items still need
+    /// Check that every spell the battle holds is in the rules in force. Items still need
     /// [`Battle::bind_items`].
-    pub fn from_save(save: BattleSave, rules: &Rules) -> Result<Battle, BattleLoadError> {
-        let BattleSave { spells, mut battle } = save;
-        let mut map = |old: SpellId| -> Result<SpellId, BattleLoadError> {
-            let name = spells
-                .get(old.index())
-                .ok_or(BattleLoadError::BadSpellNumber(old.index()))?;
+    pub fn check_spells(&self, rules: &Rules) -> Result<(), BattleLoadError> {
+        let mut check = |spell: SpellId| -> Result<SpellId, BattleLoadError> {
             rules
                 .spells
-                .id_of(name)
-                .ok_or_else(|| BattleLoadError::UnknownSpell(name.clone()))
+                .id_numbered(spell.num())
+                .ok_or(BattleLoadError::UnknownSpell(spell.num()))
         };
-        for side in &mut battle.fields {
-            for (_, spell) in side {
-                *spell = map(*spell)?;
+        for side in &self.fields {
+            for &(_, spell) in side {
+                check(spell)?;
             }
         }
-        for unit in &mut battle.units {
-            map_unit_spells(unit, &mut map)?;
+        for unit in &self.units {
+            check_unit_spells(unit, &mut check)?;
         }
-        Ok(battle)
+        Ok(())
     }
 
     /// Give each item charge its entity back, by creation number. An item that is gone is an
@@ -81,23 +58,23 @@ impl Battle {
     }
 }
 
-/// Map every spell number a unit holds, and the one it was before its lasting spells.
-fn map_unit_spells(
-    unit: &mut BattleUnit,
-    map: &mut impl FnMut(SpellId) -> Result<SpellId, BattleLoadError>,
+/// Check every spell number a unit holds, and the one it was before its lasting spells.
+fn check_unit_spells(
+    unit: &BattleUnit,
+    check: &mut impl FnMut(SpellId) -> Result<SpellId, BattleLoadError>,
 ) -> Result<(), BattleLoadError> {
-    let casting = &mut unit.casting;
-    for spell in casting.innate.iter_mut().chain(&mut casting.abilities) {
-        *spell = map(*spell)?;
+    let casting = &unit.casting;
+    for &spell in casting.innate.iter().chain(&casting.abilities) {
+        check(spell)?;
     }
-    for c in &mut casting.item_charges {
-        c.spell = map(c.spell)?;
+    for c in &casting.item_charges {
+        check(c.spell)?;
     }
-    for (spell, _) in &mut unit.combat_spells {
-        *spell = map(*spell)?;
+    for &(spell, _) in &unit.combat_spells {
+        check(spell)?;
     }
-    if let Some(base) = unit.base.as_mut() {
-        map_unit_spells(base, map)?;
+    if let Some(base) = unit.base.as_ref() {
+        check_unit_spells(base, check)?;
     }
     Ok(())
 }
@@ -106,7 +83,7 @@ fn map_unit_spells(
 /// and the world's entities it refers to by creation number.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActiveBattleSave {
-    pub battle: BattleSave,
+    pub battle: Battle,
     /// `BattleUnit::source` indexes this list.
     pub sources: Vec<Serial>,
     pub left_out: Vec<(Side, Serial)>,
@@ -121,7 +98,7 @@ impl Game {
     pub(crate) fn battle_save(&self) -> Option<ActiveBattleSave> {
         let a = self.battle.as_ref()?;
         Some(ActiveBattleSave {
-            battle: a.battle.to_save(&self.content.rules),
+            battle: a.battle.clone(),
             sources: a.sources.iter().map(|&e| self.serial_of(e)).collect(),
             left_out: a
                 .left_out
@@ -137,10 +114,11 @@ impl Game {
     /// its players, the units and items it was copied from, and the side each unit fights for.
     pub(crate) fn restore_battle(&mut self, save: ActiveBattleSave) -> Result<(), LoadError> {
         let bad = |why: &str| LoadError::Inconsistent(format!("the saved battle {why}"));
-        let mut battle =
-            Battle::from_save(save.battle, &self.content.rules).map_err(|e| match e {
-                BattleLoadError::UnknownSpell(s) => LoadError::UnknownId("spell", s),
-                BattleLoadError::BadSpellNumber(_) => bad("names a spell the save does not list"),
+        let mut battle = save.battle;
+        battle
+            .check_spells(&self.content.rules)
+            .map_err(|BattleLoadError::UnknownSpell(n)| {
+                LoadError::UnknownId("spell", n.to_string())
             })?;
         for (side, player) in [
             (Side::Attacker, battle.attacker),

@@ -116,7 +116,7 @@ impl App {
             Summoned::Creature(id) => {
                 let unit = rules.units.id_of(id)?;
                 let first = rules.units.id_of("magic_spirit")?;
-                let figure = unit.index().checked_sub(first.index())?;
+                let figure = (unit.num() as usize).checked_sub(first.num() as usize)?;
                 let args = Args::new().text("unit", rules.units.get(unit).name.clone());
                 (figure, self.text_with("spell.summoned", &args))
             }

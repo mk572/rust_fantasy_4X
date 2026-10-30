@@ -66,7 +66,7 @@ impl Page for GameOverPage {
         let wizard = app.game.wizard(HUMAN);
         let name = wizard.map_or_else(String::new, |w| w.name());
         let race = wizard.and_then(|w| w.capital_race());
-        let race_icon = race.map_or(0, |r| 15 + r.index());
+        let race_icon = race.map_or(0, |r| 15 + r.num() as usize);
         app.draw_styled(view, &Style::outlined(3).center(), &name, 160.0, 3.0);
         let score = app.game.score(HUMAN);
 

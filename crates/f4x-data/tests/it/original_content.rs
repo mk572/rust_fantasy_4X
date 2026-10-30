@@ -312,7 +312,7 @@ fn every_prefab_item_has_the_originals_type_cost_bonuses_and_powers() {
         }
         // The powers: the bits of the powers it names are the bits the file sets.
         let mask = def.powers.iter().fold(0i64, |m, id| {
-            let at = c.rules.item_powers.id_of(id).map(|i| i.index());
+            let at = c.rules.item_powers.id_of(id).map(|i| i.num() as usize);
             m | at.map_or(0, |at| number(&powers[at], "mask"))
         });
         if mask != number(row, "powers") {
@@ -463,6 +463,15 @@ fn every_spell_has_the_originals_name_realm_cost_research_rarity_and_summoned_un
         if plain(&def.name) != plain(&row["name"]) {
             wrong.push(format!("{}: named {} in the original", def.id, row["name"]));
             continue;
+        }
+        // The spell's number is the original's record number (the table starts at record 1).
+        if u32::from(def.num) != number(row, "index") as u32 + 1 {
+            wrong.push(format!(
+                "{}: numbered {}, original {}",
+                def.id,
+                def.num,
+                number(row, "index") + 1
+            ));
         }
         let realm = number(row, "realm") as usize;
         if def.realm != REALMS[realm] {

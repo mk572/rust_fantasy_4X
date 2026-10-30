@@ -1076,7 +1076,7 @@ impl App {
         // The next new game keeps its own seed; a loaded game does not set it.
         // Keep playing the same race: the human player's capital race.
         if let Some(r) = game.wizard(HUMAN).and_then(|w| w.capital_race()) {
-            self.race = r.index();
+            self.race = r.num() as usize;
         }
         self.game = game;
         self.game.ensure_human(HUMAN);

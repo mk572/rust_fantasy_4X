@@ -837,7 +837,7 @@ fn done_lasts_the_turn_and_patrol_until_the_unit_moves() {
 fn a_wizard_turns_off_their_own_spell_on_a_city_and_no_one_elses() {
     let mut g = world();
     let city = found(&mut g, at(10, 6), "elf", 4);
-    let spell = crate::rules::SpellId::new(0);
+    let spell = g.content.rules.spells.id_of("earth_to_mud").unwrap();
     g.add_city_enchantment(city, spell, P0);
     g.add_city_enchantment(city, spell, PlayerId(1));
     let off = |g: &mut Game, player| {

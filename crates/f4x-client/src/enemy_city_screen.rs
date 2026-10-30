@@ -77,7 +77,7 @@ impl Page for EnemyCityPage {
             .map(|r| {
                 (
                     app.game.content().rules.races.get(r).name.clone(),
-                    r.index(),
+                    r.num() as usize,
                 )
             })
             .unwrap_or_default();

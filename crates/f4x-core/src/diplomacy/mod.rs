@@ -1889,13 +1889,13 @@ pub enum KindSave {
     Peace,
     WarOn(u8),
     BreakAllianceWith(u8),
-    Exchange { give: String, get: String },
+    Exchange { give: SpellId, get: SpellId },
     Threat,
     Demand { gold: i32 },
 }
 
 impl Diplomacy {
-    pub(crate) fn to_save(&self, spell_id: &dyn Fn(SpellId) -> String) -> DiplomacySave {
+    pub(crate) fn to_save(&self) -> DiplomacySave {
         DiplomacySave {
             pairs: self
                 .pairs
@@ -1923,21 +1923,14 @@ impl Diplomacy {
                         ProposalKind::BreakAllianceWith(t) => KindSave::BreakAllianceWith(t.0),
                         ProposalKind::Threat => KindSave::Threat,
                         ProposalKind::Demand { gold } => KindSave::Demand { gold },
-                        ProposalKind::Exchange { give, get } => KindSave::Exchange {
-                            give: spell_id(give),
-                            get: spell_id(get),
-                        },
+                        ProposalKind::Exchange { give, get } => KindSave::Exchange { give, get },
                     },
                 })
                 .collect(),
         }
     }
 
-    pub(crate) fn restore(
-        &mut self,
-        save: DiplomacySave,
-        spell_named: &dyn Fn(&str) -> Option<SpellId>,
-    ) {
+    pub(crate) fn restore(&mut self, save: DiplomacySave) {
         self.pairs = save
             .pairs
             .into_iter()
@@ -1951,7 +1944,7 @@ impl Diplomacy {
         self.proposals = save
             .proposals
             .into_iter()
-            .filter_map(|p| {
+            .map(|p| {
                 let kind = match p.kind {
                     KindSave::Pact => ProposalKind::Pact,
                     KindSave::Alliance => ProposalKind::Alliance,
@@ -1960,16 +1953,13 @@ impl Diplomacy {
                     KindSave::BreakAllianceWith(t) => ProposalKind::BreakAllianceWith(PlayerId(t)),
                     KindSave::Threat => ProposalKind::Threat,
                     KindSave::Demand { gold } => ProposalKind::Demand { gold },
-                    KindSave::Exchange { give, get } => ProposalKind::Exchange {
-                        give: spell_named(&give)?,
-                        get: spell_named(&get)?,
-                    },
+                    KindSave::Exchange { give, get } => ProposalKind::Exchange { give, get },
                 };
-                Some(Proposal {
+                Proposal {
                     from: PlayerId(p.from),
                     to: PlayerId(p.to),
                     kind,
-                })
+                }
             })
             .collect();
     }
@@ -1977,8 +1967,7 @@ impl Diplomacy {
 
 impl Game {
     pub(crate) fn diplomacy_to_save(&self) -> DiplomacySave {
-        let spells = &self.content.rules.spells;
-        let mut save = self.diplomacy.to_save(&|s| spells.get(s).id.clone());
+        let mut save = self.diplomacy.to_save();
         for id in self.player_ids() {
             if let Some(w) = self.wizard(id) {
                 if let Some(p) = w.component::<Personality>() {
@@ -2001,8 +1990,16 @@ impl Game {
                 w.put(Some(objective));
             }
         }
+        // A proposal that trades a spell the rules lack is dropped.
         let spells = &self.content.rules.spells;
-        self.diplomacy.restore(save, &|name| spells.id_of(name));
+        let mut save = save;
+        save.proposals.retain(|p| match p.kind {
+            KindSave::Exchange { give, get } => {
+                spells.id_numbered(give.num()).is_some() && spells.id_numbered(get.num()).is_some()
+            }
+            _ => true,
+        });
+        self.diplomacy.restore(save);
     }
 }
 
