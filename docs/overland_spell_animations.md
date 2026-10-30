@@ -143,7 +143,7 @@ the battle animations are done (`spell_fx.rs`, `battle_screen/spell_anim.rs`). S
 | 173 | Lycanthropy | Square animation: the Death realm picture (`specfx` 4) on the unit |
 | 175 | Black Channels | Square animation: the Death realm picture (`specfx` 4) on the unit, map scrolled to it first (`Spell_Animation_Screen`) |
 | 176 | Night Stalker | Summon scene (`Summon_Animation`): the SPELLSCR summon background of the unit's race (46 + race), the caster's figure and the flame frame, `cmbtfx` 22 over it; music "Avg Creature Summons" (MUSIC 013 to 016) |
-| 177 | Subversion | Target-wizard screen: `specfx` 13 "WARPNODE" on the target wizard's portrait (the code loads 13, not the unused "SUBVERT" 43: probably an original slip) |
+| 177 | Subversion | Target-wizard screen: `specfx` 43 "SUBVERT" on the target wizard's portrait (the original's code loads 13 "WARPNODE", probably a slip; we use the picture made for the spell) |
 | 178 | Wall of Darkness | City spell scroll (`Cast_Spell_City_Enchantment_Animation_1` and `_2`): SPELLSCR 73 "CITYSPEL" with the city's cityscape, "You cast X" or "<wizard> casts X", the positive spell music |
 | 180 | Shadow Demons | Summon scene (`Summon_Animation`): the SPELLSCR summon background of the unit's race (46 + race), the caster's figure and the flame frame, `cmbtfx` 22 over it; music "Avg Creature Summons" (MUSIC 013 to 016) |
 | 181 | Wraith Form | Square animation: the Death realm picture (`specfx` 4) on the unit, map scrolled to it first (`Spell_Animation_Screen`) |

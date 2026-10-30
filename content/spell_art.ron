@@ -101,7 +101,7 @@
         "spell_blast": [(lbx: "specfx", entry: 40, role: Cast)],
         "star_fires": [(lbx: "cmbtfx", entry: 9, role: Cast)],
         "stasis": [(lbx: "specfx", entry: 53, role: Cast)],
-        "subversion": [(lbx: "specfx", entry: 13, role: Cast)],
+        "subversion": [(lbx: "specfx", entry: 43, role: Cast)],
         "suppress_magic": [(lbx: "specfx", entry: 20, role: Global)],
         "time_stop": [(lbx: "specfx", entry: 21, role: Global)],
         "tranquility": [(lbx: "specfx", entry: 30, role: Global)],
