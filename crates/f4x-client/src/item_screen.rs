@@ -484,11 +484,7 @@ impl Page for ItemUi {
         self.item_modals(app, &lay, input);
 
         if alchemy {
-            app.open_magic();
-            app.magic_ui.alchemy = Some(crate::magic_screen::AlchemyUi {
-                gold_to_mana: true,
-                slider: 3,
-            });
+            app.open_magic_alchemy();
         } else if !busy && !held && (ok || input.key_pressed(KeyCode::Escape)) {
             app.open_page(Screen::ArmyList, crate::army_screen::ArmyUi::default());
         }

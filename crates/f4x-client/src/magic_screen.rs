@@ -11,6 +11,7 @@
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::page::Page;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
@@ -128,19 +129,31 @@ pub(crate) struct MagicUi {
 }
 
 impl App {
-    pub fn open_magic(&mut self) {
-        let (m, r, s) = {
-            let m = self.game.wizard(HUMAN);
-            m.map_or((34, 33, 33), |m| {
-                let s = m.power_split();
-                (s.mana, s.research, s.skill)
-            })
-        };
-        self.magic_ui = MagicUi {
+    /// The magic screen as it opens: the staves at the wizard's power split.
+    fn fresh_magic(&self) -> MagicUi {
+        let (m, r, s) = self.game.wizard(HUMAN).map_or((34, 33, 33), |m| {
+            let s = m.power_split();
+            (s.mana, s.research, s.skill)
+        });
+        MagicUi {
             pos: staves_from_split(m, r, s),
             ..Default::default()
-        };
-        self.screen = Screen::Magic;
+        }
+    }
+
+    pub fn open_magic(&mut self) {
+        let ui = self.fresh_magic();
+        self.open_page(Screen::Magic, ui);
+    }
+
+    /// The magic screen with the alchemy box open (from the item screen's Alchemy button).
+    pub(crate) fn open_magic_alchemy(&mut self) {
+        let mut ui = self.fresh_magic();
+        ui.alchemy = Some(AlchemyUi {
+            gold_to_mana: true,
+            slider: 3,
+        });
+        self.open_page(Screen::Magic, ui);
     }
 
     /// Every overland enchantment in play, with its wizard: the original lists all of them.
@@ -157,232 +170,6 @@ impl App {
                     .map(move |s| (s, id))
             })
             .collect()
-    }
-
-    pub(crate) fn magic_screen(&mut self, input: &Input) {
-        let modal = self.magic_ui.alchemy.is_some() || self.magic_ui.turn_off.is_some();
-        if !modal
-            && (input.key_pressed(KeyCode::Escape)
-                || input.key_pressed(KeyCode::M)
-                || input.key_pressed(KeyCode::O))
-        {
-            self.screen = Screen::Map;
-            return;
-        }
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        let lay = Layout::new();
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let full = lay.rect((0.0, 0.0, 320.0, 200.0));
-        if self.draw_pic(&lay, "magic", 0, 0, 0.0, 0.0).is_none() {
-            draw_rectangle(
-                full.x,
-                full.y,
-                full.w,
-                full.h,
-                Color::new(0.18, 0.2, 0.3, 1.0),
-            );
-        }
-        self.magic_staves(&lay, !modal, input);
-        self.magic_text(&lay, view);
-        self.magic_gems(&lay, view, !modal, input);
-        self.magic_enchantments(&lay, view, !modal, input);
-
-        // The Alchemy and OK buttons.
-        let alchemy = self.draw_pic(&lay, "magic", 13, 0, 232.0, 181.0);
-        let ok = self.draw_pic(&lay, "magic", 14, 0, 291.0, 181.0);
-        let hit = |r: Option<Rect>| r.is_some_and(|r| ui::hit(r, true, input).clicked());
-        if !modal {
-            if hit(alchemy)
-                || (alchemy.is_none()
-                    && button(
-                        lay.rect((232.0, 181.0, 58.0, 15.0)),
-                        &self.text("magic.alchemy"),
-                        true,
-                        input,
-                    ))
-            {
-                let gold_to_mana = true;
-                self.magic_ui.alchemy = Some(AlchemyUi {
-                    gold_to_mana,
-                    slider: 3,
-                });
-            }
-            if hit(ok)
-                || (ok.is_none()
-                    && button(
-                        lay.rect((291.0, 181.0, 26.0, 15.0)),
-                        &self.text("ui.ok"),
-                        true,
-                        input,
-                    ))
-            {
-                self.screen = Screen::Map;
-            }
-        }
-        if self.magic_ui.alchemy.is_some() {
-            self.alchemy_popup(&lay, view, input);
-        }
-        if let Some(spell) = self.magic_ui.turn_off {
-            let name = self.game.content().rules.spells.get(spell).name.clone();
-            let question = self.text_with("magic.cancel_spell", &Args::new().text("spell", &name));
-            match self.confirm_box(&question, input) {
-                Some(true) => {
-                    self.magic_ui.turn_off = None;
-                    let events = self.game.apply(Command::TurnOffSpell {
-                        player: HUMAN,
-                        spell,
-                    });
-                    self.note(events);
-                    self.magic_ui.first = 0;
-                }
-                Some(false) => self.magic_ui.turn_off = None,
-                None => {}
-            }
-        }
-    }
-
-    /// The three staves: drawn empty above the line and full below it, locked or not, and
-    /// dragged with the mouse (the share changes as the mouse moves and is kept on release).
-    fn magic_staves(&mut self, lay: &Layout, active: bool, input: &Input) {
-        let (_, my) = input.mouse_position();
-        let virtual_y = (my - lay.origin.y) / lay.scale;
-        if active {
-            // Locks.
-            if input.mouse_pressed(MouseButton::Left) {
-                for (i, &sx) in STAFF_X.iter().enumerate() {
-                    let lock = lay.rect((sx - 1.0, 82.0, 13.0, 19.0));
-                    let staff = lay.rect((sx - 4.0, 83.0, 22.0, 75.0));
-                    if ui::hit(lock, true, input).clicked() {
-                        self.magic_ui.locked[i] = !self.magic_ui.locked[i];
-                    } else if ui::hit(staff, true, input).clicked() {
-                        self.magic_ui.drag = Some(i);
-                    }
-                }
-            }
-            if let Some(i) = self.magic_ui.drag {
-                if input.mouse_down(MouseButton::Left) {
-                    let value = (STAFF_FLOOR - virtual_y).round() as i32;
-                    let moved = staff_adjust(self.magic_ui.pos, self.magic_ui.locked, i, value);
-                    self.magic_ui.pos = moved;
-                } else {
-                    self.magic_ui.drag = None;
-                    self.commit_staves();
-                }
-            }
-        }
-        let pos = self.magic_ui.pos;
-        let locked = self.magic_ui.locked;
-        for i in 0..3 {
-            let (empty, full, lock) = STAFF_ART[i];
-            let fill = pos[i] as f32;
-            let line = STAFF_FLOOR - fill;
-            let (ex, ey) = STAFF_AT[i][0];
-            let (fx, fy) = STAFF_AT[i][1];
-            self.draw_pic_rows(lay, "magic", empty, ex, ey, 79.0, line);
-            self.draw_pic_rows(lay, "magic", full, fx, fy, line, 166.0);
-            if locked[i] {
-                let (lx, ly) = STAFF_AT[i][2];
-                self.draw_pic(lay, "magic", lock, 0, lx, ly);
-            }
-        }
-    }
-
-    /// Keep the staves' positions as the power split.
-    fn commit_staves(&mut self) {
-        let [m, r, s] = self.magic_ui.pos;
-        let events = self.game.apply(Command::SetPowerSplit {
-            player: HUMAN,
-            mana: (2 * m) as u8,
-            research: (2 * r) as u8,
-            skill: (2 * s) as u8,
-        });
-        self.note(events);
-    }
-
-    /// The income under each staff and the block of facts below them.
-    fn magic_text(&mut self, lay: &Layout, view: (f32, f32, f32)) {
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
-        let gold = Color::new(0.95, 0.55, 0.1, 1.0);
-        let income = self.game.income(HUMAN);
-        let split = if self.magic_ui.drag.is_some() {
-            // While dragging show what the staves would give.
-            let base = income.power_base;
-            let [m, _, s] = self.magic_ui.pos;
-            let mut p = income.split;
-            p.mana = base * 2 * m / 100;
-            p.skill = base * 2 * s / 100;
-            p.research = base - p.mana - p.skill + income.city_research;
-            p
-        } else {
-            income.split
-        };
-        let researching_spell = self.game.wizard(HUMAN).and_then(|m| m.researching());
-        let casting_spell = self.game.wizard(HUMAN).and_then(|m| m.casting());
-        self.draw_styled(
-            view,
-            &Style::nearest(2, gold).right(),
-            &self.text_with("magic.mp", &Args::new().count("n", split.mana)),
-            54.0,
-            160.0,
-        );
-        self.draw_styled(
-            view,
-            &Style::nearest(2, gold).right(),
-            &self.text_with("magic.rp", &Args::new().count("n", income.research)),
-            101.0,
-            160.0,
-        );
-        self.draw_styled(
-            view,
-            &Style::nearest(2, gold).right(),
-            &self.text_with("magic.sp", &Args::new().count("n", split.skill)),
-            148.0,
-            160.0,
-        );
-
-        let skill = self.game.wizard(HUMAN).map_or(0, |m| m.casting_skill());
-        let reserve = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
-        let base = income.power_base;
-        let name =
-            |g: &f4x_core::game::Game, s: SpellId| g.content().rules.spells.get(s).name.clone();
-        let casting =
-            casting_spell.map_or_else(|| self.text("magic.none"), |c| name(&self.game, c.spell));
-        let researching =
-            researching_spell.map_or_else(|| self.text("magic.none"), |s| name(&self.game, s));
-        let summon = self
-            .game
-            .wizard(HUMAN)
-            .and_then(|w| w.summon_at())
-            .and_then(|at| self.game.economy().city_at(at))
-            .map_or_else(|| self.text("magic.none"), |c| self.city_name(c));
-        let rows = [
-            (
-                self.text("magic.casting_skill"),
-                format!("{}({skill})", skill + self.game.hero_casting_skill(HUMAN)),
-                self.text("magic.casting"),
-                casting,
-            ),
-            (
-                self.text("magic.reserve"),
-                reserve.to_string(),
-                self.text("magic.researching"),
-                researching,
-            ),
-            (
-                self.text("magic.power_base"),
-                base.to_string(),
-                self.text("magic.summon_to"),
-                summon,
-            ),
-        ];
-        for (i, (l1, v1, l2, v2)) in rows.into_iter().enumerate() {
-            let y = 177.0 + 8.0 * i as f32;
-            self.draw_styled(view, &Style::nearest(1, light), &l1, 5.0, y);
-            self.draw_styled(view, &Style::nearest(1, light).right(), &v1, 90.0, y);
-            self.draw_styled(view, &Style::nearest(1, light), &l2, 100.0, y);
-            self.draw_styled(view, &Style::nearest(1, light), &v2, 156.0, y);
-        }
-        let _ = lay;
     }
 
     /// The other wizards' gems: grey until the wizard is met, then its picture in its banner
@@ -471,157 +258,6 @@ impl App {
         }
     }
 
-    /// The overland enchantments panel: one column of up to nine, or two of up to eighteen
-    /// with a "More..." that turns the page. A click on one of your own offers to turn it off.
-    fn magic_enchantments(
-        &mut self,
-        lay: &Layout,
-        view: (f32, f32, f32),
-        active: bool,
-        input: &Input,
-    ) {
-        let list = self.overland_enchantments();
-        let two_columns = list.len() >= 10;
-        let per_page = if two_columns { 18 } else { 9 };
-        if self.magic_ui.first >= list.len() {
-            self.magic_ui.first = 0;
-        }
-        let first = self.magic_ui.first;
-        for (i, &(spell, owner)) in list.iter().skip(first).take(per_page).enumerate() {
-            let name = self.game.content().rules.spells.get(spell).name.clone();
-            let color = self.banner_color(owner.0);
-            let (x, y, style) = if two_columns {
-                (
-                    171.0 + 69.0 * (i % 2) as f32,
-                    81.0 + 9.0 * (i / 2) as f32,
-                    0,
-                )
-            } else {
-                (171.0, 80.0 + 10.0 * i as f32, 2)
-            };
-            self.draw_styled(view, &Style::nearest(style, color), &name, x, y);
-            let rect = if two_columns {
-                lay.rect((x - 2.0, y - 1.0, 65.0, 8.0))
-            } else {
-                lay.rect((x - 2.0, y - 1.0, 120.0, 9.0))
-            };
-            if active && owner == HUMAN && ui::hit(rect, true, input).clicked() {
-                self.magic_ui.turn_off = Some(spell);
-            }
-        }
-        if list.len() > 18 {
-            let more = self.text("magic.more");
-            self.draw_styled(view, &Style::nearest(0, WHITE), &more, 286.0, 163.0);
-            if active && ui::hit(lay.rect((286.0, 163.0, 21.0, 7.0)), true, input).clicked() {
-                self.magic_ui.first += 18;
-                if self.magic_ui.first >= list.len() {
-                    self.magic_ui.first = 0;
-                }
-            }
-        }
-    }
-
-    /// The alchemy window at (80, 60): drag the star along the bar to pick how much, the arrow
-    /// button turns the exchange round, OK does it.
-    fn alchemy_popup(&mut self, lay: &Layout, view: (f32, f32, f32), input: &Input) {
-        let Some(mut ui) = self.magic_ui.alchemy else {
-            return;
-        };
-        let (px, py) = (80.0, 60.0);
-        let gold = self.game.player(HUMAN).map_or(0, |p| p.treasury().gold);
-        let mana = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
-        let skilled = self
-            .game
-            .wizard(HUMAN)
-            .is_some_and(|m| m.has(Retort::Alchemy));
-        let divisor = if skilled { 1 } else { 2 };
-        let pool = if ui.gold_to_mana { gold } else { mana };
-        if pool <= 1 {
-            ui.slider = 3;
-        }
-        let amount = alchemy_amount(pool, ui.slider);
-        let (mx, _) = input.mouse_position();
-        let vx = (mx - lay.origin.x) / lay.scale;
-        // The slider bar.
-        let bar = lay.rect((px + 46.0, py + 22.0, 62.0, 12.0));
-        if ui::hit(bar, pool > 1, input).held() {
-            ui.slider = ((vx - (px + 50.0)).round() as i32 + 3).clamp(3, 53);
-        }
-        self.draw_pic(lay, "magic", 52, 0, px - 5.0, py);
-        if !ui.gold_to_mana {
-            self.draw_pic(lay, "magic", 59, 0, px + 7.0, py + 10.0);
-        }
-        // The bar's shaded part up to the star, then the star.
-        self.draw_pic_rows(lay, "magic", 57, px + 50.0, py + 25.0, 0.0, 1000.0);
-        self.draw_pic(lay, "magic", 58, 0, px + 47.0 + ui.slider as f32, py + 25.0);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
-        let (gold_amount, power_amount) = if ui.gold_to_mana {
-            (amount, amount / divisor)
-        } else {
-            (amount / divisor, amount)
-        };
-        self.draw_styled(
-            view,
-            &Style::nearest(1, light).right(),
-            &gold_amount.to_string(),
-            px + 28.0,
-            py + 26.0,
-        );
-        self.draw_styled(
-            view,
-            &Style::nearest(1, light).right(),
-            "GP",
-            px + 40.0,
-            py + 26.0,
-        );
-        self.draw_styled(
-            view,
-            &Style::nearest(1, light).right(),
-            &power_amount.to_string(),
-            px + 130.0,
-            py + 26.0,
-        );
-        self.draw_styled(
-            view,
-            &Style::nearest(1, light).right(),
-            "PP",
-            px + 142.0,
-            py + 26.0,
-        );
-        // Cancel, the arrow that turns the exchange, and OK.
-        let click = |app: &mut App, entry: usize, x: f32, y: f32| {
-            let r = app.draw_pic(lay, "magic", entry, 0, x, y);
-            r.is_some_and(|r| ui::hit(r, true, input).clicked())
-        };
-        let cancel = click(self, 53, px + 13.0, py + 39.0);
-        let turn = click(
-            self,
-            if ui.gold_to_mana { 56 } else { 55 },
-            px + 66.0,
-            py + 39.0,
-        );
-        let ok = click(self, 54, px + 96.0, py + 39.0);
-        if turn || input.key_pressed(KeyCode::Space) {
-            ui.gold_to_mana = !ui.gold_to_mana;
-            ui.slider = 3;
-        }
-        if ok && amount > 0 {
-            let events = self.game.apply(Command::Alchemy {
-                player: HUMAN,
-                amount,
-                gold_to_mana: ui.gold_to_mana,
-            });
-            self.note(events);
-            self.magic_ui.alchemy = None;
-            return;
-        }
-        if cancel || ok || input.key_pressed(KeyCode::Escape) {
-            self.magic_ui.alchemy = None;
-            return;
-        }
-        self.magic_ui.alchemy = Some(ui);
-    }
-
     /// A picture whose rows between `top` and `bottom` (in the original's pixels) are drawn:
     /// the part of a staff above or below the line its share reaches.
     #[allow(clippy::too_many_arguments)]
@@ -684,6 +320,387 @@ impl App {
             return Some(false);
         }
         None
+    }
+}
+impl MagicUi {
+    /// The three staves: drawn empty above the line and full below it, locked or not, and
+    /// dragged with the mouse (the share changes as the mouse moves and is kept on release).
+    fn magic_staves(&mut self, app: &mut App, lay: &Layout, active: bool, input: &Input) {
+        let (_, my) = input.mouse_position();
+        let virtual_y = (my - lay.origin.y) / lay.scale;
+        if active {
+            // Locks.
+            if input.mouse_pressed(MouseButton::Left) {
+                for (i, &sx) in STAFF_X.iter().enumerate() {
+                    let lock = lay.rect((sx - 1.0, 82.0, 13.0, 19.0));
+                    let staff = lay.rect((sx - 4.0, 83.0, 22.0, 75.0));
+                    if ui::hit(lock, true, input).clicked() {
+                        self.locked[i] = !self.locked[i];
+                    } else if ui::hit(staff, true, input).clicked() {
+                        self.drag = Some(i);
+                    }
+                }
+            }
+            if let Some(i) = self.drag {
+                if input.mouse_down(MouseButton::Left) {
+                    let value = (STAFF_FLOOR - virtual_y).round() as i32;
+                    let moved = staff_adjust(self.pos, self.locked, i, value);
+                    self.pos = moved;
+                } else {
+                    self.drag = None;
+                    self.commit_staves(app);
+                }
+            }
+        }
+        let pos = self.pos;
+        let locked = self.locked;
+        for i in 0..3 {
+            let (empty, full, lock) = STAFF_ART[i];
+            let fill = pos[i] as f32;
+            let line = STAFF_FLOOR - fill;
+            let (ex, ey) = STAFF_AT[i][0];
+            let (fx, fy) = STAFF_AT[i][1];
+            app.draw_pic_rows(lay, "magic", empty, ex, ey, 79.0, line);
+            app.draw_pic_rows(lay, "magic", full, fx, fy, line, 166.0);
+            if locked[i] {
+                let (lx, ly) = STAFF_AT[i][2];
+                app.draw_pic(lay, "magic", lock, 0, lx, ly);
+            }
+        }
+    }
+
+    /// Keep the staves' positions as the power split.
+    fn commit_staves(&mut self, app: &mut App) {
+        let [m, r, s] = self.pos;
+        let events = app.game.apply(Command::SetPowerSplit {
+            player: HUMAN,
+            mana: (2 * m) as u8,
+            research: (2 * r) as u8,
+            skill: (2 * s) as u8,
+        });
+        app.note(events);
+    }
+
+    /// The income under each staff and the block of facts below them.
+    fn magic_text(&mut self, app: &mut App, lay: &Layout, view: (f32, f32, f32)) {
+        let light = Color::new(0.95, 0.93, 0.85, 1.0);
+        let gold = Color::new(0.95, 0.55, 0.1, 1.0);
+        let income = app.game.income(HUMAN);
+        let split = if self.drag.is_some() {
+            // While dragging show what the staves would give.
+            let base = income.power_base;
+            let [m, _, s] = self.pos;
+            let mut p = income.split;
+            p.mana = base * 2 * m / 100;
+            p.skill = base * 2 * s / 100;
+            p.research = base - p.mana - p.skill + income.city_research;
+            p
+        } else {
+            income.split
+        };
+        let researching_spell = app.game.wizard(HUMAN).and_then(|m| m.researching());
+        let casting_spell = app.game.wizard(HUMAN).and_then(|m| m.casting());
+        app.draw_styled(
+            view,
+            &Style::nearest(2, gold).right(),
+            &app.text_with("magic.mp", &Args::new().count("n", split.mana)),
+            54.0,
+            160.0,
+        );
+        app.draw_styled(
+            view,
+            &Style::nearest(2, gold).right(),
+            &app.text_with("magic.rp", &Args::new().count("n", income.research)),
+            101.0,
+            160.0,
+        );
+        app.draw_styled(
+            view,
+            &Style::nearest(2, gold).right(),
+            &app.text_with("magic.sp", &Args::new().count("n", split.skill)),
+            148.0,
+            160.0,
+        );
+
+        let skill = app.game.wizard(HUMAN).map_or(0, |m| m.casting_skill());
+        let reserve = app.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
+        let base = income.power_base;
+        let name =
+            |g: &f4x_core::game::Game, s: SpellId| g.content().rules.spells.get(s).name.clone();
+        let casting =
+            casting_spell.map_or_else(|| app.text("magic.none"), |c| name(&app.game, c.spell));
+        let researching =
+            researching_spell.map_or_else(|| app.text("magic.none"), |s| name(&app.game, s));
+        let summon = app
+            .game
+            .wizard(HUMAN)
+            .and_then(|w| w.summon_at())
+            .and_then(|at| app.game.economy().city_at(at))
+            .map_or_else(|| app.text("magic.none"), |c| app.city_name(c));
+        let rows = [
+            (
+                app.text("magic.casting_skill"),
+                format!("{}({skill})", skill + app.game.hero_casting_skill(HUMAN)),
+                app.text("magic.casting"),
+                casting,
+            ),
+            (
+                app.text("magic.reserve"),
+                reserve.to_string(),
+                app.text("magic.researching"),
+                researching,
+            ),
+            (
+                app.text("magic.power_base"),
+                base.to_string(),
+                app.text("magic.summon_to"),
+                summon,
+            ),
+        ];
+        for (i, (l1, v1, l2, v2)) in rows.into_iter().enumerate() {
+            let y = 177.0 + 8.0 * i as f32;
+            app.draw_styled(view, &Style::nearest(1, light), &l1, 5.0, y);
+            app.draw_styled(view, &Style::nearest(1, light).right(), &v1, 90.0, y);
+            app.draw_styled(view, &Style::nearest(1, light), &l2, 100.0, y);
+            app.draw_styled(view, &Style::nearest(1, light), &v2, 156.0, y);
+        }
+        let _ = lay;
+    }
+
+    /// The overland enchantments panel: one column of up to nine, or two of up to eighteen
+    /// with a "More..." that turns the page. A click on one of your own offers to turn it off.
+    fn magic_enchantments(
+        &mut self,
+        app: &mut App,
+        lay: &Layout,
+        view: (f32, f32, f32),
+        active: bool,
+        input: &Input,
+    ) {
+        let list = app.overland_enchantments();
+        let two_columns = list.len() >= 10;
+        let per_page = if two_columns { 18 } else { 9 };
+        if self.first >= list.len() {
+            self.first = 0;
+        }
+        let first = self.first;
+        for (i, &(spell, owner)) in list.iter().skip(first).take(per_page).enumerate() {
+            let name = app.game.content().rules.spells.get(spell).name.clone();
+            let color = app.banner_color(owner.0);
+            let (x, y, style) = if two_columns {
+                (
+                    171.0 + 69.0 * (i % 2) as f32,
+                    81.0 + 9.0 * (i / 2) as f32,
+                    0,
+                )
+            } else {
+                (171.0, 80.0 + 10.0 * i as f32, 2)
+            };
+            app.draw_styled(view, &Style::nearest(style, color), &name, x, y);
+            let rect = if two_columns {
+                lay.rect((x - 2.0, y - 1.0, 65.0, 8.0))
+            } else {
+                lay.rect((x - 2.0, y - 1.0, 120.0, 9.0))
+            };
+            if active && owner == HUMAN && ui::hit(rect, true, input).clicked() {
+                self.turn_off = Some(spell);
+            }
+        }
+        if list.len() > 18 {
+            let more = app.text("magic.more");
+            app.draw_styled(view, &Style::nearest(0, WHITE), &more, 286.0, 163.0);
+            if active && ui::hit(lay.rect((286.0, 163.0, 21.0, 7.0)), true, input).clicked() {
+                self.first += 18;
+                if self.first >= list.len() {
+                    self.first = 0;
+                }
+            }
+        }
+    }
+
+    /// The alchemy window at (80, 60): drag the star along the bar to pick how much, the arrow
+    /// button turns the exchange round, OK does it.
+    fn alchemy_popup(&mut self, app: &mut App, lay: &Layout, view: (f32, f32, f32), input: &Input) {
+        let Some(mut ui) = self.alchemy else {
+            return;
+        };
+        let (px, py) = (80.0, 60.0);
+        let gold = app.game.player(HUMAN).map_or(0, |p| p.treasury().gold);
+        let mana = app.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
+        let skilled = app
+            .game
+            .wizard(HUMAN)
+            .is_some_and(|m| m.has(Retort::Alchemy));
+        let divisor = if skilled { 1 } else { 2 };
+        let pool = if ui.gold_to_mana { gold } else { mana };
+        if pool <= 1 {
+            ui.slider = 3;
+        }
+        let amount = alchemy_amount(pool, ui.slider);
+        let (mx, _) = input.mouse_position();
+        let vx = (mx - lay.origin.x) / lay.scale;
+        // The slider bar.
+        let bar = lay.rect((px + 46.0, py + 22.0, 62.0, 12.0));
+        if ui::hit(bar, pool > 1, input).held() {
+            ui.slider = ((vx - (px + 50.0)).round() as i32 + 3).clamp(3, 53);
+        }
+        app.draw_pic(lay, "magic", 52, 0, px - 5.0, py);
+        if !ui.gold_to_mana {
+            app.draw_pic(lay, "magic", 59, 0, px + 7.0, py + 10.0);
+        }
+        // The bar's shaded part up to the star, then the star.
+        app.draw_pic_rows(lay, "magic", 57, px + 50.0, py + 25.0, 0.0, 1000.0);
+        app.draw_pic(lay, "magic", 58, 0, px + 47.0 + ui.slider as f32, py + 25.0);
+        let light = Color::new(0.95, 0.93, 0.85, 1.0);
+        let (gold_amount, power_amount) = if ui.gold_to_mana {
+            (amount, amount / divisor)
+        } else {
+            (amount / divisor, amount)
+        };
+        app.draw_styled(
+            view,
+            &Style::nearest(1, light).right(),
+            &gold_amount.to_string(),
+            px + 28.0,
+            py + 26.0,
+        );
+        app.draw_styled(
+            view,
+            &Style::nearest(1, light).right(),
+            "GP",
+            px + 40.0,
+            py + 26.0,
+        );
+        app.draw_styled(
+            view,
+            &Style::nearest(1, light).right(),
+            &power_amount.to_string(),
+            px + 130.0,
+            py + 26.0,
+        );
+        app.draw_styled(
+            view,
+            &Style::nearest(1, light).right(),
+            "PP",
+            px + 142.0,
+            py + 26.0,
+        );
+        // Cancel, the arrow that turns the exchange, and OK.
+        let click = |app: &mut App, entry: usize, x: f32, y: f32| {
+            let r = app.draw_pic(lay, "magic", entry, 0, x, y);
+            r.is_some_and(|r| ui::hit(r, true, input).clicked())
+        };
+        let cancel = click(app, 53, px + 13.0, py + 39.0);
+        let turn = click(
+            app,
+            if ui.gold_to_mana { 56 } else { 55 },
+            px + 66.0,
+            py + 39.0,
+        );
+        let ok = click(app, 54, px + 96.0, py + 39.0);
+        if turn || input.key_pressed(KeyCode::Space) {
+            ui.gold_to_mana = !ui.gold_to_mana;
+            ui.slider = 3;
+        }
+        if ok && amount > 0 {
+            let events = app.game.apply(Command::Alchemy {
+                player: HUMAN,
+                amount,
+                gold_to_mana: ui.gold_to_mana,
+            });
+            app.note(events);
+            self.alchemy = None;
+            return;
+        }
+        if cancel || ok || input.key_pressed(KeyCode::Escape) {
+            self.alchemy = None;
+            return;
+        }
+        self.alchemy = Some(ui);
+    }
+}
+
+impl Page for MagicUi {
+    fn frame(&mut self, app: &mut App, input: &Input) {
+        let modal = self.alchemy.is_some() || self.turn_off.is_some();
+        if !modal
+            && (input.key_pressed(KeyCode::Escape)
+                || input.key_pressed(KeyCode::M)
+                || input.key_pressed(KeyCode::O))
+        {
+            app.screen = Screen::Map;
+            return;
+        }
+        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let full = lay.rect((0.0, 0.0, 320.0, 200.0));
+        if app.draw_pic(&lay, "magic", 0, 0, 0.0, 0.0).is_none() {
+            draw_rectangle(
+                full.x,
+                full.y,
+                full.w,
+                full.h,
+                Color::new(0.18, 0.2, 0.3, 1.0),
+            );
+        }
+        self.magic_staves(app, &lay, !modal, input);
+        self.magic_text(app, &lay, view);
+        app.magic_gems(&lay, view, !modal, input);
+        self.magic_enchantments(app, &lay, view, !modal, input);
+
+        // The Alchemy and OK buttons.
+        let alchemy = app.draw_pic(&lay, "magic", 13, 0, 232.0, 181.0);
+        let ok = app.draw_pic(&lay, "magic", 14, 0, 291.0, 181.0);
+        let hit = |r: Option<Rect>| r.is_some_and(|r| ui::hit(r, true, input).clicked());
+        if !modal {
+            if hit(alchemy)
+                || (alchemy.is_none()
+                    && button(
+                        lay.rect((232.0, 181.0, 58.0, 15.0)),
+                        &app.text("magic.alchemy"),
+                        true,
+                        input,
+                    ))
+            {
+                let gold_to_mana = true;
+                self.alchemy = Some(AlchemyUi {
+                    gold_to_mana,
+                    slider: 3,
+                });
+            }
+            if hit(ok)
+                || (ok.is_none()
+                    && button(
+                        lay.rect((291.0, 181.0, 26.0, 15.0)),
+                        &app.text("ui.ok"),
+                        true,
+                        input,
+                    ))
+            {
+                app.screen = Screen::Map;
+            }
+        }
+        if self.alchemy.is_some() {
+            self.alchemy_popup(app, &lay, view, input);
+        }
+        if let Some(spell) = self.turn_off {
+            let name = app.game.content().rules.spells.get(spell).name.clone();
+            let question = app.text_with("magic.cancel_spell", &Args::new().text("spell", &name));
+            match app.confirm_box(&question, input) {
+                Some(true) => {
+                    self.turn_off = None;
+                    let events = app.game.apply(Command::TurnOffSpell {
+                        player: HUMAN,
+                        spell,
+                    });
+                    app.note(events);
+                    self.first = 0;
+                }
+                Some(false) => self.turn_off = None,
+                None => {}
+            }
+        }
     }
 }
 
