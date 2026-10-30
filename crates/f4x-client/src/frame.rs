@@ -410,7 +410,8 @@ impl App {
     /// The minimap as the original draws it (`Create_Reduced_Map_Picture`, `Draw_World_Window`):
     /// one pixel for each of the 58 by 30 squares round the middle of the map window, black where
     /// unexplored, in the colour of the terrain type, the cities in their banner's colour, and
-    /// ticks at the corners of the box that shows the map window. A click centres the map there.
+    /// ticks at the corners of the box that shows the map window. Pressing or dragging on it centres
+    /// the map there.
     fn draw_minimap(&mut self, lay: &Layout, input: &Input) {
         const COLS: i32 = 58;
         const ROWS: i32 = 30;
@@ -516,9 +517,10 @@ impl App {
                 pixel(cx, cy + dy * k, colour);
             }
         }
-        // Clicking the minimap centres the map there.
+        // Pressing the minimap centres the map there, and so does holding the button while the
+        // pointer moves over it (the original's grid field answers every frame the button is down).
         let mouse: Vec2 = input.mouse_position().into();
-        if ui::hit(r, true, input).clicked() {
+        if ui::hit(r, true, input).held() {
             let (i, j) = (
                 ((mouse.x - r.x) / s).floor() as i32,
                 ((mouse.y - r.y) / s).floor() as i32,
