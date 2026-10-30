@@ -90,7 +90,7 @@ unit type numbers: `unit_type_number`), so the extractor must run from the proje
 Spell art is filed by the table `content/spell_art.ron` (spell id to `(lbx, entry, role)`): a picture
 of one spell goes to `art/spells/<spell id>/<lbx>_NNN_FF.png`, one that several spells use or that
 belongs to none (the realm pictures, the summon scene, the boxes, the masks) to `art/spells/_shared/`,
-and the spell book's twelve pictures (`spells.lbx`) to `art/spells/_book/`. A picture no spell names
+and the spell book's twelve pictures (`spells.lbx`) to `art/spells/_book/`. The summon scene's creature pictures (`MONSTER.LBX`: the entry is the summoned unit's number minus the Magic Spirit's, 44 and 45 the heroes, 46 the sword) go to `art/summoning/NNN_FF.png`; entries 36, 37, 38, 40 and 47 are 1x1 stubs in the original's own file, which `extract-art` skips, so Floating Island, Phantom Beast, Phantom Warriors and Air Elemental show no figure (no translucency or palette swap is involved). A picture no spell names
 stays in `art/<lbx>/`. `extract-art` writes this layout from the start. For art already extracted,
 `f4x-tools refile-art [art-dir]` moves the files to where the current rules put them (screens, units
 and spells alike; it touches only pictures whose place changed, takes their `_cycle` and `_banner`

@@ -550,6 +550,12 @@ pub fn extract(
             let Some(mut pic) = decode(lbx.entry(i)) else {
                 continue;
             };
+            // `MONSTER.LBX` has 1x1 stubs for the creatures whose summoning shows no figure
+            // (Floating Island, Phantom Beast, Phantom Warriors, Air Elemental) and one more:
+            // nothing to import.
+            if stem == "monster" && pic.width <= 1 && pic.height <= 1 {
+                continue;
+            }
             if pic.palette.is_none() {
                 pic.palette = screen_palette.clone();
             }

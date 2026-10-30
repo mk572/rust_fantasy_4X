@@ -131,6 +131,9 @@ pub struct App {
     pub(crate) greetings: std::collections::VecDeque<PlayerId>,
     /// Wizards met since the turn began: their greeting comes with the next turn.
     pub(crate) greetings_due: Vec<PlayerId>,
+    /// A Summon Hero or Summon Champion cast whose scene waits for the hero it brought (its
+    /// gender picks the figure): the caster and the spell.
+    pub(crate) hero_summon_due: Option<(PlayerId, f4x_core::rules::SpellId)>,
     /// The box that shows the offers made at the turn change (task 220).
     pub(crate) offer_ui: crate::offer_prompt::OfferUi,
     /// The rival wizards, who play their turns when the human ends theirs (task 135).
@@ -335,6 +338,7 @@ impl App {
             choosing: false,
             greetings: Default::default(),
             greetings_due: Vec::new(),
+            hero_summon_due: None,
             offer_ui: Default::default(),
             ais: Vec::new(),
             defences: Default::default(),
@@ -936,7 +940,8 @@ impl App {
                     }
                     Some(self.text_with("log.spell_ready", &self.spell_arg(Args::new(), spell)))
                 }
-                Event::HeroJoined { kind, .. } => {
+                Event::HeroJoined { player, kind, .. } => {
+                    self.announce_hero_summon(player, kind);
                     let hero = self.game.units().hero_entity(kind);
                     let args = match hero.and_then(|h| self.game.units().hero_name(h)) {
                         Some(name) => Args::new().named(
@@ -950,9 +955,10 @@ impl App {
                     };
                     Some(self.text_with("log.hero_joined", &args))
                 }
-                Event::HeroSpellFailed { spell, .. } => Some(
-                    self.text_with("log.hero_spell_failed", &self.spell_arg(Args::new(), spell)),
-                ),
+                Event::HeroSpellFailed { spell, .. } => Some({
+                    self.hero_summon_due = None;
+                    self.text_with("log.hero_spell_failed", &self.spell_arg(Args::new(), spell))
+                }),
                 Event::SpellHasNoEffectYet { spell } => {
                     Some(self.text_with("log.no_effect_yet", &self.spell_arg(Args::new(), spell)))
                 }

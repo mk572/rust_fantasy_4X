@@ -88,6 +88,11 @@ impl Placer {
         if lbx == "spells" {
             return Some(format!("art/spells/{}/{lbx}_{entry:03}", spell_art::BOOK));
         }
+        // `MONSTER.LBX` holds the pictures the summon scene shows, one for each summoned creature
+        // (entry = unit number - the Magic Spirit's), the heroes and the sword.
+        if lbx == "monster" {
+            return Some(format!("art/summoning/{entry:03}"));
+        }
         if let Some(folder) = self.spells.get(&(lbx.to_string(), entry)) {
             return Some(format!("art/spells/{folder}/{lbx}_{entry:03}"));
         }
@@ -277,6 +282,16 @@ mod tests {
         );
         // A picture no spell names stays in its file's folder.
         assert_eq!(p.place("specfx", 100), None);
+    }
+
+    #[test]
+    fn the_summoned_creatures_pictures_go_to_the_summoning_folder() {
+        let p = Placer::new(
+            rules().unwrap(),
+            &[],
+            &f4x_data::spell_art::parse_spell_art("(shared: [], spells: {})").unwrap(),
+        );
+        assert_eq!(p.place("monster", 10).as_deref(), Some("art/summoning/010"));
     }
 
     #[test]

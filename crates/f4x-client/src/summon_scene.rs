@@ -12,10 +12,11 @@ use crate::input::Input;
 use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
+use f4x_core::item::crafting::CRAFT_ITEM;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::effects::{Effect, EffectRule};
 use f4x_core::rules::{Rarity, SpellId};
-use f4x_core::text::Args;
+use f4x_core::text::{Args, Gender};
 use macroquad::prelude::*;
 
 /// Where the frame goes (`start_x`, `start_y`).
@@ -29,9 +30,12 @@ const STAGES_PLAIN: usize = 40;
 const RISE: usize = 30;
 /// `MUSIC.LBX` 13 to 16: the summon tunes by the spell's rarity.
 const MUSIC_FIRST: u16 = 13;
-/// `MONSTER.LBX` pictures of the Hero and the Champion (the male one).
-const HERO_FIGURE: usize = 45;
-const CHAMPION_FIGURE: usize = 45;
+/// `MONSTER.LBX` pictures of a summoned hero or champion: the female and the male one (the
+/// original picks by the hero's gender; a hero of neither gets the male one).
+const FEMALE_HERO_FIGURE: usize = 44;
+const MALE_HERO_FIGURE: usize = 45;
+/// The sword that rises for Enchant Item and Create Artifact.
+const ITEM_FIGURE: usize = 46;
 
 /// What stands in the flame.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,6 +44,8 @@ pub(crate) enum Summoned {
     Creature(String),
     Hero,
     Champion,
+    /// Enchant Item and Create Artifact: the sword (`MONSTER.LBX` 46) rises.
+    Item,
 }
 
 /// A summoning cast and not yet shown.
@@ -74,8 +80,17 @@ pub(crate) fn summoned_by(effects: &[EffectRule]) -> Option<Summoned> {
         Effect::Summon { unit, .. } => Some(Summoned::Creature(unit.clone())),
         Effect::Custom(name) if name == "summon_hero" => Some(Summoned::Hero),
         Effect::Custom(name) if name == "summon_champion" => Some(Summoned::Champion),
+        Effect::Custom(name) if name == CRAFT_ITEM => Some(Summoned::Item),
         _ => None,
     })
+}
+
+/// The `MONSTER.LBX` entry of a summoned hero.
+fn hero_figure(gender: Gender) -> usize {
+    match gender {
+        Gender::Feminine => FEMALE_HERO_FIGURE,
+        Gender::Masculine | Gender::Neuter => MALE_HERO_FIGURE,
+    }
 }
 
 fn tune(rarity: Rarity) -> u16 {
@@ -92,13 +107,48 @@ impl App {
     /// Queue the scene of a cast that summons, when Summoning Events is on, the caster is the
     /// human or Enemy Spells is on.
     pub(crate) fn announce_summon(&mut self, player: PlayerId, spell: SpellId) {
-        if !self.prefs.get(Pref::SummoningEvents) {
+        let rules = &self.game.content().rules;
+        let what = summoned_by(&rules.spells.get(spell).effects);
+        // Enchant Item and Create Artifact play for the human alone, whatever the settings
+        // (`OverSpel.c`, the crafting case).
+        if what == Some(Summoned::Item) && player != HUMAN {
             return;
         }
-        if player != HUMAN && !self.rival_spell_seen(player, None, true) {
+        if what != Some(Summoned::Item) {
+            if !self.prefs.get(Pref::SummoningEvents) {
+                return;
+            }
+            if player != HUMAN && !self.rival_spell_seen(player, None, true) {
+                return;
+            }
+        }
+        if matches!(what, Some(Summoned::Hero | Summoned::Champion)) {
+            // The hero is picked as the spell takes effect: the scene waits for it.
+            self.hero_summon_due = Some((player, spell));
             return;
         }
-        if let Some(scene) = self.summon_scene_for(player, spell, None) {
+        if let Some(scene) = self.summon_scene_for(player, spell, None, Gender::Neuter) {
+            self.modals.enqueue(scene);
+        }
+    }
+
+    /// The hero type `kind` joined `player`: show the summoning that brought it, if one waits.
+    pub(crate) fn announce_hero_summon(&mut self, player: PlayerId, kind: usize) {
+        let Some((by, spell)) = self.hero_summon_due else {
+            return;
+        };
+        if by != player {
+            return;
+        }
+        self.hero_summon_due = None;
+        let gender = self
+            .game
+            .content()
+            .rules
+            .hero_templates
+            .get(kind)
+            .map_or(Gender::Neuter, |t| t.gender);
+        if let Some(scene) = self.summon_scene_for(player, spell, None, gender) {
             self.modals.enqueue(scene);
         }
     }
@@ -108,6 +158,7 @@ impl App {
         player: PlayerId,
         spell: SpellId,
         started: Option<f64>,
+        hero: Gender,
     ) -> Option<SummonScene> {
         let rules = &self.game.content().rules;
         let def = rules.spells.get(spell);
@@ -120,8 +171,9 @@ impl App {
                 let args = Args::new().text("unit", rules.units.get(unit).name.clone());
                 (figure, self.text_with("spell.summoned", &args))
             }
-            Summoned::Hero => (HERO_FIGURE, self.text("spell.hero_summoned")),
-            Summoned::Champion => (CHAMPION_FIGURE, self.text("spell.champion_summoned")),
+            Summoned::Hero => (hero_figure(hero), self.text("spell.hero_summoned")),
+            Summoned::Champion => (hero_figure(hero), self.text("spell.champion_summoned")),
+            Summoned::Item => (ITEM_FIGURE, self.text("spell.item_enchanted")),
         };
         let portrait = self
             .game
@@ -143,7 +195,12 @@ impl App {
             eprintln!("unknown spell {id}");
             return;
         };
-        match self.summon_scene_for(PlayerId(by), spell, Some(get_time() - seconds)) {
+        match self.summon_scene_for(
+            PlayerId(by),
+            spell,
+            Some(get_time() - seconds),
+            Gender::Neuter,
+        ) {
             Some(scene) => self.modals.enqueue(scene),
             None => eprintln!("{id} summons nothing"),
         }
@@ -215,7 +272,16 @@ mod tests {
         );
         assert_eq!(summons("summon_hero"), Some(Summoned::Hero));
         assert_eq!(summons("summon_champion"), Some(Summoned::Champion));
+        assert_eq!(summons("enchant_item"), Some(Summoned::Item));
+        assert_eq!(summons("create_artifact"), Some(Summoned::Item));
         assert_eq!(summons("stone_skin"), None);
+    }
+
+    #[test]
+    fn a_summoned_hero_shows_the_figure_of_its_gender() {
+        assert_eq!(hero_figure(Gender::Feminine), 44);
+        assert_eq!(hero_figure(Gender::Masculine), 45);
+        assert_eq!(hero_figure(Gender::Neuter), 45);
     }
 
     #[test]
