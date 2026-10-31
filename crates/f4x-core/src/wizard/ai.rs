@@ -8,6 +8,8 @@
 //! original's refill did not check), the refill never picks Myrran (the Myrran rule makes them),
 //! and the erasure dice that clear retorts clear them all (the original's loop has an index bug
 //! that clears one slot).
+//!
+//! Tests: in wizard/ai/tests.rs.
 
 use crate::game::setting::GameSettings;
 use crate::game::Game;
@@ -336,3 +338,6 @@ fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
         b.retorts.insert(retort);
     }
 }
+
+#[cfg(test)]
+mod tests;
