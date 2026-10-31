@@ -217,6 +217,26 @@ impl Game {
         self.events.start(event, None, None);
     }
 
+    /// Found a city (or an outpost, with no figures) with no checks and no cost, as a scenario
+    /// sets it up.
+    pub fn scenario_found_city(
+        &mut self,
+        owner: PlayerId,
+        pos: Position,
+        name: &str,
+        race: Option<crate::rules::RaceId>,
+        figures: u32,
+    ) -> hecs::Entity {
+        self.spawn_city(owner, pos, name.into(), race, figures)
+    }
+
+    /// Set the moves a unit has left, in half-moves.
+    pub fn scenario_set_moves_left(&mut self, unit: hecs::Entity, half_moves: u32) {
+        let _ = self
+            .world
+            .insert_one(unit, crate::unit::MovesLeft(half_moves));
+    }
+
     /// Remove a unit from the game.
     pub fn scenario_remove_unit(&mut self, unit: hecs::Entity) {
         self.remove_unit(unit, crate::hero::Fate::Released);

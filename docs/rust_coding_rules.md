@@ -120,6 +120,23 @@ wrong reason.
   `src/` that stays keeps its hand-built content (`game/testutil.rs`) to the minimum the mechanic
   needs.
 
+### Where a test lives
+
+What a test needs decides where it goes. `python3 scripts/classify_core_tests.py` applies this rule to `f4x-core`.
+
+- **A unit test in `src/`** needs no `Game` and no `Content`: its inputs are the type under test (a
+  struct, a grid, a registry of one or two made-up definitions, a string to parse), the setup is
+  about 10 lines or fewer and the test about 25 or fewer, and it states a rule that holds for any
+  content (arithmetic, a formula, an ordering, a parser, the state machine of one type).
+- **An integration test in `f4x-core/tests/it/`**, on the shipped content, as soon as it needs a
+  `Game` with players, cities, units or a map; names a shipped unit, spell, building, race or item;
+  asserts a shipped number; crosses modules; or is longer than the limits above. It sets its
+  situation up through the public API: `Command`s, `cheat_*` and the `scenario_*` setters of
+  `game/access.rs` (add a `scenario_*` setter when a test needs one that is missing; do not widen a
+  field). `tests/it/world.rs` holds the shipped content (parsed once) and `flat_game`.
+- **A test in `f4x-data`** when its subject is the content itself (counts, cross-references, the
+  original's numbers) and no engine behaviour is involved.
+
 ### Error handling in tests
 
 A test fails when it panics or when it returns `Err`; both are fine. Choose by what the test does:
