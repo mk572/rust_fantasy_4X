@@ -12,7 +12,7 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::rules::Stat;
 
-use crate::view::{distance, is_fighter};
+use crate::view::{distance, is_fighter, is_ship};
 use crate::Ai;
 
 /// How many squares of walking a square of new ground is worth.
@@ -67,6 +67,10 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         list
     };
     let mut found_any = scouts.is_empty();
+    let ship_out = {
+        let view = PlayerView::new(game, me);
+        scouts.iter().any(|&u| is_ship(&view, u))
+    };
     for unit in scouts {
         let (serial, pos, idle) = {
             let view = PlayerView::new(game, me);
@@ -129,7 +133,8 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         // Nothing reachable shows anything new: the rest of the map needs ships or a gate.
         ai.frontier_closed = true;
         if ai.sea_scouting {
-            ai.sea_done = true;
+            // A ship lost on the way is built again; only a ship that found nothing ends it.
+            ai.sea_done = ship_out;
             ai.sea_scouting = false;
         }
         ai.scouts.clear();
@@ -350,6 +355,24 @@ mod tests {
         assert!(ai.frontier_closed);
         assert!(ai.scouts.is_empty());
         assert!(ai.scout_targets.is_empty());
+    }
+
+    #[test]
+    fn a_ship_scout_that_finds_nothing_ends_the_search_by_sea_but_a_lost_ship_does_not() {
+        let mut g = game(COAST_CITY, "high_men");
+        g.reveal_map(P0);
+        let ship = spawn(&mut g, P0, at(COAST_CITY.0, COAST_CITY.1), "galley", 1)[0];
+        let walker = spawn(&mut g, P0, at(5, 5), "high_men_spearmen", 1)[0];
+        for (scout_unit, done) in [(ship, true), (walker, false)] {
+            let mut ai = Ai::new(P0);
+            ai.sea_scouting = true;
+            ai.scouts
+                .push(PlayerView::new(&g, P0).serial_of(scout_unit));
+            scout(&mut ai, &mut g, &mut Vec::new());
+            assert!(ai.frontier_closed);
+            assert!(!ai.sea_scouting);
+            assert_eq!(ai.sea_done, done);
+        }
     }
 
     #[test]
