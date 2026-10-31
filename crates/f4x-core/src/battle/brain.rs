@@ -16,7 +16,7 @@ use super::casting::SpellAim;
 use super::{Battle, BattleCommand, BattleUnit, Side};
 use crate::game::Game;
 use crate::rules::effects::{Effect, EffectRule, TargetSel};
-use crate::rules::{SpellDef, Stat};
+use crate::rules::{ModOp, SpellDef, Stat};
 
 /// A cast must be worth at least this share of the dearest enemy unit to be made.
 const WORTH_FLOOR: f32 = 0.12;
@@ -160,7 +160,8 @@ fn victims<'a>(
     match rule.target {
         TargetSel::AllEnemyUnits => enemies.to_vec(),
         TargetSel::AllOwnUnits => friends.to_vec(),
-        TargetSel::Chosen => aimed.into_iter().collect(),
+        // A rule without a target falls on the unit the spell is aimed at (a web, a blessing).
+        TargetSel::Chosen | TargetSel::This => aimed.into_iter().collect(),
         _ => Vec::new(),
     }
 }
@@ -217,10 +218,11 @@ fn rule_value(
             // Fresh units fight at once but are an extra target: three quarters of their worth.
             0.75 * (attack * 1.5 + stat(Stat::Defense) + 1.0) * hp * f32::from(*count)
         }
-        Effect::Modify { value, .. } => {
+        Effect::Modify { op, value, .. } => {
             // A blessing on the strongest of ours is worth a share of its strength; a curse on
-            // an enemy likewise. The sign of the change says which it is.
-            let good = *value >= 0;
+            // an enemy likewise. The sign of the change says which it is; a stat set to nothing
+            // (a web holds a unit still) is a curse.
+            let good = *value >= 0 && !(*op == ModOp::Set && *value == 0);
             on.iter()
                 .filter(|u| ours(u) == good)
                 .map(|u| 0.25 * worth(u))

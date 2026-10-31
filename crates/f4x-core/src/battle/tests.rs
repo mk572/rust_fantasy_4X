@@ -3117,6 +3117,88 @@ fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it()
 }
 
 #[test]
+fn the_twelve_units_with_a_casting_ability_cast_its_spell_once_for_no_mana() -> TestResult {
+    let shipped = crate::game::testutil::shipped();
+    // Every unit of the shipped rules with one of the four abilities, and the spell it casts.
+    let casters: Vec<(&str, &str)> = [
+        ("casts_fireball", "fireball"),
+        ("casts_healing", "healing"),
+        ("casts_doom_bolt", "doom_bolt"),
+        ("casts_web", "web"),
+    ]
+    .iter()
+    .flat_map(|&(ability, spell)| {
+        shipped
+            .rules
+            .units
+            .defs()
+            .iter()
+            .filter(move |d| d.abilities.iter().any(|a| a == ability))
+            .map(move |d| (d.id.as_str(), spell))
+    })
+    .collect();
+    assert_eq!(casters.len(), 12);
+    for (unit_id, spell_id) in casters {
+        let mut g = casting_game();
+        g.content.rules.units = shipped.rules.units.clone();
+        let id = g
+            .content
+            .rules
+            .units
+            .id_of(unit_id)
+            .ok_or("the unit is not in the content")?;
+        let caster = g.spawn_unit(A, at(4, 4), id);
+        begin(&mut g, caster);
+        let spell = g
+            .content
+            .rules
+            .spells
+            .id_of(spell_id)
+            .ok_or("the spell is not in the content")?;
+        let listed = g.battle_unit_spells(0);
+        let own = listed
+            .iter()
+            .find(|s| s.spell == spell)
+            .ok_or_else(|| format!("{unit_id} does not list {spell_id}"))?;
+        assert_eq!(own.source, SpellSource::Ability, "{unit_id}");
+        assert_eq!((own.cost, own.castable), (0, true), "{unit_id}");
+        // It is a legal cast, aimed at a friend (Healing) or the enemy (the others).
+        let legal = g.legal_unit_casts();
+        let cast = legal
+            .iter()
+            .find(|(u, c)| *u == 0 && c.spell == spell)
+            .map(|(_, c)| c);
+        match (spell_id, cast) {
+            // Nothing is hurt, so Healing has no target worth a cast.
+            ("healing", None) => continue,
+            (_, Some(cast)) => assert!(!cast.aims.is_empty(), "{unit_id}"),
+            (_, None) => return Err(format!("{unit_id} cannot cast {spell_id}").into()),
+        }
+        let aim = SpellAim::Unit(if spell_id == "healing" { 0 } else { 1 });
+        // The scripted unit makes the cast at the enemy (a lone, unhurt Healing has no point).
+        let chosen = super::brain::unit_cast_choice(&g, g.battle().ok_or("no battle")?);
+        assert!(
+            spell_id == "healing"
+                || matches!(chosen, Some(BattleCommand::UnitCast { spell: s, aim: SpellAim::Unit(1), .. }) if s == spell),
+            "{unit_id}: {chosen:?}"
+        );
+        g.battle_command(BattleCommand::UnitCast {
+            unit: 0,
+            spell,
+            aim,
+            mana: 0,
+        })
+        .map_err(|e| format!("{unit_id}: {e:?}"))?;
+        // Once a battle: the ability is spent.
+        assert!(
+            g.battle_unit_spells(0).iter().all(|s| s.spell != spell),
+            "{unit_id} can cast {spell_id} twice"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn a_spell_save_makes_the_resistance_checks_of_the_cast_harder() {
     let mut unit = BattleUnit::simple(Side::Defender, "t", 1, 1, 1, 0);
     unit.resistance = 6;
