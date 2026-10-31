@@ -12,7 +12,7 @@ use f4x_core::rules::effects::Effect;
 use f4x_core::rules::exec::Target;
 use f4x_core::rules::{CastContext, Duration, SpellDef, SpellId, SpellTarget};
 
-use crate::view::{is_fighter, unit_strength};
+use crate::view::{fighting_strength, is_fighter, unit_strength};
 use crate::Ai;
 
 /// The kinds of overland spell the AI knows what to do with.
@@ -43,6 +43,10 @@ pub enum Kind {
     /// Time Stop, Meteor Storm, Great Wasting and Armageddon: a lasting spell on the world that
     /// is cast while the AI is at war.
     WorldSpell,
+    /// Spell Blast: ends the spell a wizard at war is casting, for as much mana as it has spent.
+    Blast,
+    /// Stasis: holds an enemy stack that stands near a city of the wizard.
+    Stasis,
     /// Chaos Channels: gives a fighter a lasting mutation.
     Mutate,
     /// Word of Recall: takes a hurt stack far from home back to the summoning circle.
@@ -88,6 +92,8 @@ const MAX_CASTING_TURNS: i32 = 5;
 const RECALL_DISTANCE: u32 = 8;
 /// Share of a stranded stack's hit points (percent) that must be gone to be worth a recall.
 const RECALL_PERCENT: u32 = 50;
+/// Squares from a city within which an enemy stack is worth a Stasis.
+const STASIS_RADIUS: i32 = 3;
 /// Mana kept in the reserve before the AI starts a global enchantment (the original's gate).
 const GLOBAL_RESERVE: i32 = 200;
 
@@ -123,6 +129,9 @@ pub fn kind(def: &SpellDef) -> Kind {
     }
     if has_hook(def, f4x_core::spell::special::WORD_OF_RECALL) {
         return Kind::Recall;
+    }
+    if has_hook(def, f4x_core::unit::stasis::STASIS) {
+        return Kind::Stasis;
     }
     if def.effects.is_empty()
         && def.target == SpellTarget::OwnUnit
@@ -170,9 +179,10 @@ pub fn kind(def: &SpellDef) -> Kind {
         SpellTarget::None if GOOD_GLOBALS.contains(&def.id.as_str()) => Kind::GlobalBuff,
         SpellTarget::None if WORLD_SPELLS.contains(&def.id.as_str()) => Kind::WorldSpell,
         SpellTarget::EnemyCity => Kind::CityCurse,
-        SpellTarget::EnemyWizard if !has_hook(def, f4x_core::spell::dispel::SPELL_BLAST) => {
-            Kind::WizardCurse
+        SpellTarget::EnemyWizard if has_hook(def, f4x_core::spell::dispel::SPELL_BLAST) => {
+            Kind::Blast
         }
+        SpellTarget::EnemyWizard => Kind::WizardCurse,
         _ => Kind::Other,
     }
 }
@@ -194,6 +204,8 @@ fn priority(k: Kind) -> u8 {
         Kind::Disenchant => 2,
         Kind::Disjunction => 8,
         Kind::WorldSpell => 8,
+        Kind::Blast => 1,
+        Kind::Stasis => 2,
         Kind::Mutate => 4,
         Kind::Recall => 2,
         Kind::Other => 9,
@@ -555,14 +567,38 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
         Kind::Cure => hurt_stack_unit(view)
             .map(Target::Unit)
             .filter(|&t| view.can_aim(spell, Some(t))),
+        Kind::Stasis => threat_square(view)
+            .map(Target::Tile)
+            .filter(|&t| view.can_aim(spell, Some(t))),
         Kind::CityCurse => curse_city(view, spell).map(Target::City),
-        Kind::WizardCurse => view
+        Kind::Blast | Kind::WizardCurse => view
             .rivals_at_war()
             .into_iter()
             .map(Target::Player)
             .find(|&t| view.can_aim(spell, Some(t))),
         _ => None,
     }
+}
+
+/// The square of the strongest enemy stack within `STASIS_RADIUS` of an own city that is stronger
+/// than what holds the city.
+fn threat_square(view: &PlayerView) -> Option<Position> {
+    let mut best: Option<(f32, Position)> = None;
+    for (_, city) in view.my_cities() {
+        let held: Vec<_> = view
+            .garrison(city)
+            .into_iter()
+            .filter(|&u| is_fighter(view, u))
+            .collect();
+        let held = fighting_strength(view, &held);
+        for (square, units) in view.enemies_near(city, STASIS_RADIUS) {
+            let strength = fighting_strength(view, &units);
+            if strength > held && best.is_none_or(|(b, _)| strength > b) {
+                best = Some((strength, square));
+            }
+        }
+    }
+    best.map(|(_, square)| square)
 }
 
 /// Is a spell of this cost worth beginning for a wizard that pays `power` for it each turn?
@@ -827,9 +863,12 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         && upkeep_ok(&view, def)
                         && !magic.has_global(spell)
                 }
-                Kind::Explore | Kind::Cure | Kind::Disenchant | Kind::Recall => {
-                    now && target.is_some()
-                }
+                Kind::Explore
+                | Kind::Cure
+                | Kind::Disenchant
+                | Kind::Recall
+                | Kind::Blast
+                | Kind::Stasis => now && target.is_some(),
                 // Blows at an enemy at war, from mana the AI can spare.
                 Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction => {
                     now && room && mana - cost >= GLOBAL_RESERVE && target.is_some()
@@ -949,7 +988,10 @@ mod tests {
             ("armageddon", Kind::WorldSpell),
             ("time_stop", Kind::WorldSpell),
             ("great_wasting", Kind::WorldSpell),
-            ("spell_blast", Kind::Other),
+            ("spell_blast", Kind::Blast),
+            ("stasis", Kind::Stasis),
+            ("transmute", Kind::Other),
+            ("plane_shift", Kind::Other),
         ];
         for (id, expected) in cases {
             assert_eq!(kind_of(id)?, expected, "{id}");
@@ -1198,6 +1240,51 @@ mod tests {
             .global_instance(P1, awareness)
             .ok_or("player 1 has the global spell")?;
         assert_eq!(aim(&g), Some(Target::Spell(instance)));
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_blasts_a_rival_at_war_who_is_casting_and_leaves_one_who_is_not() -> TestResult {
+        let mut g = game(COAST_CITY, "high_men");
+        g.make_contact(P0, P1);
+        let blast = spell("spell_blast")?;
+        g.cheat_learn_spell(P0, blast);
+        treasury(&mut g, P0)?.mana = 5_000;
+        let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), blast);
+        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+            player: P0,
+            on: P1,
+        }));
+        assert!(aim(&g).is_none(), "the rival casts nothing");
+        g.scenario_casting(P1, spell("meteor_storm")?, 100);
+        assert_eq!(aim(&g), Some(Target::Player(P1)));
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_holds_an_enemy_stack_near_its_city_only_while_at_war_and_stronger_than_the_garrison(
+    ) -> TestResult {
+        let mut g = game(COAST_CITY, "high_men");
+        g.make_contact(P0, P1);
+        let stasis = spell("stasis")?;
+        g.cheat_learn_spell(P0, stasis);
+        let near = at(COAST_CITY.0 - 1, COAST_CITY.1);
+        spawn(&mut g, P1, near, "high_men_spearmen", 8);
+        let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), stasis);
+        assert!(aim(&g).is_none(), "at peace: left alone");
+        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+            player: P0,
+            on: P1,
+        }));
+        assert_eq!(aim(&g), Some(Target::Tile(near)));
+        spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            "high_men_spearmen",
+            9,
+        );
+        assert!(aim(&g).is_none(), "the garrison is the stronger");
         Ok(())
     }
 
