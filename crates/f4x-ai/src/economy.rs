@@ -89,12 +89,14 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let port_item = (port == Some(pos)
                 && !broke
                 && !matches!(current, Some(ProductionItem::Building(_)))
-                && !view
+                && view
                     .my_units()
                     .iter()
-                    .any(|&u| crate::view::is_ship(&view, u)))
-            .then(|| crate::naval::port_item(&view, city))
-            .flatten();
+                    .filter(|&&u| crate::view::is_ship(&view, u))
+                    .count()
+                    < crate::knob("SHIPS", 1.0) as usize)
+                .then(|| crate::naval::port_item(&view, city))
+                .flatten();
             (
                 plan_for(
                     &view,

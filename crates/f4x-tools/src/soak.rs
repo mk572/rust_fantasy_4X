@@ -351,11 +351,13 @@ pub fn game(
     let total = tally.total();
     let seconds = started.elapsed().as_secs_f32();
     println!(
-        "{tag}: {outcome}; {}; {} battles, {} cities taken, {} wars declared, {} refused orders{open}; {seconds:.1}s",
+        "{tag}: {outcome}; {}; {} battles, {} cities taken, {} wars declared, {} wizards met, {} diplomatic actions started, {} refused orders{open}; {seconds:.1}s",
         status(&game),
         total.battles_won,
         total.cities_captured,
         total.wars_declared,
+        total.contacts_made,
+        total.diplomacy_started,
         total.refused_orders,
     );
     let standing = game

@@ -24,11 +24,12 @@ const KEEP_APART: u32 = 5;
 
 /// How many scouts the wizard wants.
 fn wanted(cities: usize) -> usize {
-    match cities {
+    let base = match cities {
         0 => 0,
         1..=3 => 1,
         _ => 2,
-    }
+    };
+    base + crate::knob("SCOUTS", 0.0) as usize
 }
 
 /// Make sure the wizard has enough scouts and send them out.

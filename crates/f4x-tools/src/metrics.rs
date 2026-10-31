@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use std::ops::AddAssign;
 
 use f4x_core::city::production::ProductionItem;
-use f4x_core::diplomacy::DiplomacyEvent;
+use f4x_core::diplomacy::{DiplomacyEvent, Proposal};
 use f4x_core::game::{Event, Game};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::player::PlayerId;
@@ -36,6 +36,10 @@ pub struct Metrics {
     pub items_made: u32,
     pub items_sold: u32,
     pub wars_declared: u32,
+    /// Wizards the player has met.
+    pub contacts_made: u32,
+    /// Diplomatic actions the player started: proposals, warnings, gifts, broken treaties and wars.
+    pub diplomacy_started: u32,
     pub refused_orders: u32,
     pub ships_built: u32,
     pub ships_lost: u32,
@@ -51,7 +55,7 @@ pub struct Metrics {
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 21] {
+    pub fn rows(&self) -> [(&'static str, u32); 23] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -68,6 +72,8 @@ impl Metrics {
             ("items made", self.items_made),
             ("items sold", self.items_sold),
             ("wars declared", self.wars_declared),
+            ("wizards met", self.contacts_made),
+            ("diplomacy started", self.diplomacy_started),
             ("refused orders", self.refused_orders),
             ("ships built", self.ships_built),
             ("ships lost", self.ships_lost),
@@ -102,6 +108,8 @@ impl AddAssign for Metrics {
             items_made,
             items_sold,
             wars_declared,
+            contacts_made,
+            diplomacy_started,
             refused_orders,
             ships_built,
             ships_lost,
@@ -125,6 +133,8 @@ impl AddAssign for Metrics {
         self.items_made += items_made;
         self.items_sold += items_sold;
         self.wars_declared += wars_declared;
+        self.contacts_made += contacts_made;
+        self.diplomacy_started += diplomacy_started;
         self.refused_orders += refused_orders;
         self.ships_built += ships_built;
         self.ships_lost += ships_lost;
@@ -289,8 +299,22 @@ impl Tally {
                 Event::ItemMade { player, .. } => self.bump(*player, |m| m.items_made += 1),
                 Event::ItemSold { player, .. } => self.bump(*player, |m| m.items_sold += 1),
                 Event::Diplomacy(DiplomacyEvent::WarDeclared { attacker, .. }) => {
-                    self.bump(*attacker, |m| m.wars_declared += 1)
+                    self.bump(*attacker, |m| {
+                        m.wars_declared += 1;
+                        m.diplomacy_started += 1;
+                    })
                 }
+                Event::Diplomacy(DiplomacyEvent::ContactMade { a, b }) => {
+                    self.bump(*a, |m| m.contacts_made += 1);
+                    self.bump(*b, |m| m.contacts_made += 1);
+                }
+                Event::Diplomacy(
+                    DiplomacyEvent::ProposalMade(Proposal { from, .. })
+                    | DiplomacyEvent::Warned { from, .. }
+                    | DiplomacyEvent::GoldGiven { from, .. }
+                    | DiplomacyEvent::SpellGiven { from, .. }
+                    | DiplomacyEvent::TreatyBroken { breaker: from, .. },
+                ) => self.bump(*from, |m| m.diplomacy_started += 1),
                 Event::Rejected(_) => {
                     if let Some(p) = source {
                         self.bump(p, |m| m.refused_orders += 1);
@@ -416,6 +440,39 @@ mod tests {
                 p.0
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn contacts_count_for_both_wizards_and_only_the_one_who_acts_starts_diplomacy() -> TestResult {
+        let game = new_game(
+            shipped(),
+            &NewGame {
+                seed: 1,
+                all_ai: true,
+                ..NewGame::with_wizards(2)
+            },
+        )?;
+        let (a, b) = (PlayerId(0), PlayerId(1));
+        let mut tally = Tally::new(&game);
+        tally.record(
+            &game,
+            None,
+            &[
+                Event::Diplomacy(DiplomacyEvent::ContactMade { a, b }),
+                Event::Diplomacy(DiplomacyEvent::Warned { from: a, to: b }),
+                Event::Diplomacy(DiplomacyEvent::WarDeclared {
+                    attacker: a,
+                    defender: b,
+                }),
+            ],
+        );
+        assert_eq!(
+            (tally.of(a).contacts_made, tally.of(b).contacts_made),
+            (1, 1)
+        );
+        assert_eq!(tally.of(a).diplomacy_started, 2);
+        assert_eq!(tally.of(b).diplomacy_started, 0);
         Ok(())
     }
 
