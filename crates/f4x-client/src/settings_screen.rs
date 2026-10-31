@@ -42,6 +42,42 @@ const ROWS: [(Pref, f32, f32); 19] = [
     (Pref::DimBehindBoxes, 192.0, 156.0),
 ];
 
+/// The help topic of a switch: the original's topics (`settings Help` in `help_screens.ron`)
+/// and 807 to 809 for the switches it has not got. The area table of the original is not used
+/// on this screen, because our rows sit elsewhere.
+pub(crate) fn help_topic(pref: Pref) -> u16 {
+    match pref {
+        Pref::SoundEffects => 675,
+        Pref::BackgroundMusic => 676,
+        Pref::EventMusic => 677,
+        Pref::CitySpellEvents => 678,
+        Pref::OverlandSpellEvents => 679,
+        Pref::SummoningEvents => 680,
+        Pref::EndOfTurnSummary => 681,
+        Pref::RazeCity => 806,
+        Pref::PlayIntro => 807,
+        Pref::RandomEvents => 683,
+        Pref::EndOfTurnWait => 684,
+        Pref::StrategicCombatOnly => 685,
+        Pref::AutoUnitInformation => 686,
+        Pref::EnemyMoves => 687,
+        Pref::EnemySpells => 688,
+        Pref::SpellAnimations => 690,
+        Pref::ExpandingHelp => 692,
+        Pref::LeftClickMoves => 808,
+        Pref::DimBehindBoxes => 809,
+    }
+}
+
+/// The switch whose row holds the point (320x200 coordinates), and the row's rectangle.
+pub(crate) fn row_at(x: f32, y: f32) -> Option<(Pref, (f32, f32, f32, f32))> {
+    ROWS.iter()
+        .find(|&&(_, left, top)| {
+            x >= left && x < left + ROW_WIDTH && y >= top && y < top + ROW_HEIGHT
+        })
+        .map(|&(pref, left, top)| (pref, (left, top, ROW_WIDTH, ROW_HEIGHT)))
+}
+
 /// The group headings: text and place.
 const HEADINGS: [(&str, f32, f32); 4] = [
     ("settings.sound", 31.0, 42.0),
@@ -221,6 +257,17 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_switch_has_a_help_topic_with_text_and_a_right_click_finds_its_row() {
+        let help = f4x_data::load_help(std::path::Path::new(crate::test_app::CONTENT))
+            .expect("the shipped help loads");
+        for &(pref, x, y) in &ROWS {
+            assert!(help.topic(help_topic(pref)).is_some(), "{pref:?}");
+            assert_eq!(row_at(x + 5.0, y + 4.0).map(|r| r.0), Some(pref));
+        }
+        assert_eq!(row_at(300.0, 100.0), None);
+    }
 
     #[test]
     fn a_click_on_each_row_picks_that_switch_and_no_other() {

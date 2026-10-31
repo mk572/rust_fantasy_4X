@@ -9,6 +9,7 @@ use crate::input::Input;
 use f4x_core::game::{Event, LossCause};
 use f4x_core::rules::SpellTarget;
 use f4x_core::text::Args;
+use f4x_core::world_event::EventKind;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -193,6 +194,7 @@ impl App {
                 _ => {}
             }
         }
+        let running = self.running_events();
         [
             ("chancellor.disbanded", disbanded),
             ("chancellor.growth", growth),
@@ -201,6 +203,7 @@ impl App {
             ("chancellor.strikes", strikes),
             ("chancellor.wizards", rivals),
             ("chancellor.ships", ships),
+            ("chancellor.running_events", running),
             ("chancellor.unit_spells", unit_spells),
             ("chancellor.city_spells", city_spells),
             ("chancellor.global_spells", global_spells),
@@ -212,6 +215,40 @@ impl App {
             lines,
         })
         .collect()
+    }
+
+    /// The lines of the events that are going on: the world event, and the plague and the
+    /// population boom in the human's cities (`REPORT.c`).
+    fn running_events(&self) -> Vec<String> {
+        let events = self.game.events();
+        let mut lines = Vec::new();
+        if let Some(kind) = events.world_event() {
+            lines.push(self.text(match kind {
+                EventKind::ConjunctionSorcery
+                | EventKind::ConjunctionChaos
+                | EventKind::ConjunctionNature => "event.conjunction",
+                EventKind::BadMoon => "event.bad_moon",
+                EventKind::GoodMoon => "event.good_moon",
+                _ => "event.mana_short",
+            }));
+        }
+        for lasting in events.ongoing() {
+            let key = match lasting.kind {
+                EventKind::Plague => "chancellor.plague",
+                EventKind::PopulationBoom => "chancellor.boom",
+                _ => continue,
+            };
+            let Some(city) = lasting
+                .city
+                .and_then(|s| self.game.units().entity_of_serial(s))
+            else {
+                continue;
+            };
+            if self.game.economy().city_owner(city) == Some(HUMAN) {
+                lines.push(self.text_with(key, &Args::new().text("city", self.city_name(city))));
+            }
+        }
+        lines
     }
 
     /// Show the scroll for a turn's news, when the switch is on and there is any.
@@ -423,5 +460,14 @@ mod tests {
             scrolled: 0.0,
         };
         assert!(long.max_scroll() > 0.0);
+    }
+
+    #[test]
+    fn the_report_names_the_running_world_event() -> f4x_core::testdir::TestResult {
+        let mut app = App::for_test();
+        assert!(app.running_events().is_empty());
+        app.game.cheat_event(EventKind::GoodMoon, HUMAN)?;
+        assert_eq!(app.running_events(), vec![app.text("event.good_moon")]);
+        Ok(())
     }
 }

@@ -1,0 +1,211 @@
+{
+  "allowed_licences": [
+    "OFL-1.1",
+    "CC0-1.0",
+    "PD",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Apache-2.0"
+  ],
+  "fonts": [
+    {
+      "id": "silkscreen",
+      "name": "Silkscreen (Jason Kottke)",
+      "licence": "OFL-1.1",
+      "role": "the small 5 to 6 px styles, capitals only",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/silkscreen/Silkscreen-Regular.ttf",
+          "dest": "silkscreen/Silkscreen-Regular.ttf",
+          "sha256": "c845473330b94c2079ce9af01c51ac8ba2d99c24f4d14c039843bbb8e642ebd8"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/silkscreen/OFL.txt",
+          "dest": "silkscreen/OFL.txt",
+          "sha256": "86c5e9c9382cdcc5948704fdfe60f2aa164a719746931219a42736ecd9cefbd3"
+        }
+      ]
+    },
+    {
+      "id": "micro5",
+      "name": "Micro 5 (Sarah Cadigan-Fried)",
+      "licence": "OFL-1.1",
+      "role": "the smallest style, lower case",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/micro5/Micro5-Regular.ttf",
+          "dest": "micro5/Micro5-Regular.ttf",
+          "sha256": "08a08c0d10129d2ecd869ff2f8914fcbf32487d3cbee3568b2a2957866dfdac8"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/micro5/OFL.txt",
+          "dest": "micro5/OFL.txt",
+          "sha256": "b4c75058634d557a621406c8eb5e243fe02d5ac9c49e0a4567eee8d65295fad8"
+        }
+      ]
+    },
+    {
+      "id": "tiny5",
+      "name": "Tiny5 (Stefan Schmidt)",
+      "licence": "OFL-1.1",
+      "role": "small text with Cyrillic and more",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/tiny5/Tiny5%5BBLED%2CJITT%2CROND%2Cwdth%2Cwght%5D.ttf",
+          "dest": "tiny5/Tiny5[BLED,JITT,ROND,wdth,wght].ttf",
+          "sha256": "588626f2c1b164f55927c0d8123f4bc134651aad7d257da68fc19b0824b0d8fa"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/tiny5/OFL.txt",
+          "dest": "tiny5/OFL.txt",
+          "sha256": "690fda321d0ebce403249c8d61dadddcee09dc8813424cc5a8f982efcff9a9a3"
+        }
+      ]
+    },
+    {
+      "id": "jersey10",
+      "name": "Jersey 10 (Sarah Cadigan-Fried)",
+      "licence": "OFL-1.1",
+      "role": "narrow body text",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jersey10/Jersey10-Regular.ttf",
+          "dest": "jersey10/Jersey10-Regular.ttf",
+          "sha256": "db9cbd091617048a145d249daa2b815fe7083be6ab66ac26626e21a4e01c3e82"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jersey10/OFL.txt",
+          "dest": "jersey10/OFL.txt",
+          "sha256": "436d5836064cec796c7ddde6fb4faeabdb6f2f17443a24a30d0c38b75d13f922"
+        }
+      ]
+    },
+    {
+      "id": "pixelifysans",
+      "name": "Pixelify Sans (Stefie Justprince)",
+      "licence": "OFL-1.1",
+      "role": "wide round body text and headings, Cyrillic",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/pixelifysans/PixelifySans%5Bwght%5D.ttf",
+          "dest": "pixelifysans/PixelifySans[wght].ttf",
+          "sha256": "9ba86cd010a4de309d263ceff8e8044092c9db7efda869620cb9ff1c4389e8a5"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/pixelifysans/OFL.txt",
+          "dest": "pixelifysans/OFL.txt",
+          "sha256": "b66ba46f511a851ab09998b5a5a9fdbb102545a3864cb993095e1745996873a7"
+        }
+      ]
+    },
+    {
+      "id": "jacquard12",
+      "name": "Jacquard 12 (Sarah Cadigan-Fried)",
+      "licence": "OFL-1.1",
+      "role": "blackletter pixel font, the title style at 12 or 24 px",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jacquard12/Jacquard12-Regular.ttf",
+          "dest": "jacquard12/Jacquard12-Regular.ttf",
+          "sha256": "b1560583565a37f3d3a25cf2572df3efd2d773ecdcbb459dcd7ea0398cb840d1"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jacquard12/OFL.txt",
+          "dest": "jacquard12/OFL.txt",
+          "sha256": "dea0ea45c7835a51c20d24b9ef2ac03f5beec858995f5eda085540f1f7c713b7"
+        }
+      ]
+    },
+    {
+      "id": "jacquard24",
+      "name": "Jacquard 24 (Sarah Cadigan-Fried)",
+      "licence": "OFL-1.1",
+      "role": "the same blackletter, larger",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jacquard24/Jacquard24-Regular.ttf",
+          "dest": "jacquard24/Jacquard24-Regular.ttf",
+          "sha256": "8e5b1bdb8b6087d6175f1d9edd2634e38b10fb109c0955c24ad55272a866ed49"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jacquard24/OFL.txt",
+          "dest": "jacquard24/OFL.txt",
+          "sha256": "dea0ea45c7835a51c20d24b9ef2ac03f5beec858995f5eda085540f1f7c713b7"
+        }
+      ]
+    },
+    {
+      "id": "jacquardabastarda9",
+      "name": "Jacquarda Bastarda 9 (Sarah Cadigan-Fried)",
+      "licence": "OFL-1.1",
+      "role": "a heavier blackletter, hard to read small",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jacquardabastarda9/JacquardaBastarda9-Regular.ttf",
+          "dest": "jacquardabastarda9/JacquardaBastarda9-Regular.ttf",
+          "sha256": "7d8e5c30bd58598913fc5fd297bc875d1fab1c05fc407c2dfc406a0be9c5a22c"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jacquardabastarda9/OFL.txt",
+          "dest": "jacquardabastarda9/OFL.txt",
+          "sha256": "de769fdfdef9f647a840e14f8f3a1d60eaeb05cf646388cf4178bf824a7e4630"
+        }
+      ]
+    },
+    {
+      "id": "unscii",
+      "name": "Unscii 8 and 16 (Viznut)",
+      "licence": "PD",
+      "role": "wide Unicode fallback, 8 px; the 'full' variant is GPL and left out",
+      "downloads": [
+        {
+          "url": "http://viznut.fi/unscii/unscii-8.ttf",
+          "dest": "unscii/unscii-8.ttf",
+          "sha256": "97a4eea8cfede2b57b3ce0f3fa111335edde58bc8b07b8670737351468a2c587"
+        },
+        {
+          "url": "http://viznut.fi/unscii/unscii-16.ttf",
+          "dest": "unscii/unscii-16.ttf",
+          "sha256": "0c889d6026f3bfe6cfa0e73833595678a548ed08dabeb1d71c5ad0fa9b309529"
+        }
+      ]
+    },
+    {
+      "id": "unifont",
+      "name": "GNU Unifont 18.0.01",
+      "licence": "OFL-1.1 OR GPL-2.0-or-later WITH Font-exception-2.0",
+      "role": "16 px, almost all of Unicode: the fallback for any script",
+      "downloads": [
+        {
+          "url": "https://unifoundry.com/pub/unifont/unifont-18.0.01/font-builds/unifont-18.0.01.otf",
+          "dest": "unifont/unifont-18.0.01.otf",
+          "sha256": "88d0a14d4aa9a96419720b39ba5da921a59560d76d4ec7d523acc06ed85cd3c2"
+        },
+        {
+          "url": "https://unifoundry.com/LICENSE.txt",
+          "dest": "unifont/LICENSE.txt",
+          "sha256": "1e74cb82bf476843e97c2596297b04219b1a7e51f7238944a8c031cb9401fa87"
+        }
+      ]
+    },
+    {
+      "id": "spleen",
+      "name": "Spleen 2.2.0 (Frederic Cambus)",
+      "licence": "BSD-2-Clause",
+      "role": "clean bitmap fonts in BDF (5x8, 6x12, 8x16): pixel sources, read by font-bmfont",
+      "downloads": [
+        {
+          "url": "https://github.com/fcambus/spleen/releases/download/2.2.0/spleen-2.2.0.tar.gz",
+          "extract": {
+            "spleen-2.2.0/spleen-5x8.bdf": "spleen/spleen-5x8.bdf",
+            "spleen-2.2.0/spleen-6x12.bdf": "spleen/spleen-6x12.bdf",
+            "spleen-2.2.0/spleen-8x16.bdf": "spleen/spleen-8x16.bdf",
+            "spleen-2.2.0/LICENSE": "spleen/LICENSE"
+          },
+          "sha256": "ec42925c6b56d2138c862b2f97147c872e472f674bf03423417d827a08d69a89"
+        }
+      ]
+    }
+  ]
+}

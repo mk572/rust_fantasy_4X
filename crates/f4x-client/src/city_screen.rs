@@ -9,7 +9,6 @@ use crate::ui;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
-use f4x_core::rules::BuildingId;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -347,7 +346,7 @@ impl App {
         if let Some(building) = built {
             self.build_in = Some(crate::built_popup::BuildIn {
                 city,
-                building,
+                idx: building.num() as i16,
                 started: None,
             });
         }
@@ -789,13 +788,13 @@ impl App {
         let water_counter = cs::anim_counter(draws, 84);
         let wall_counter = cs::anim_counter(draws, 60);
         // A building just finished fades in (ten steps), and one sold this turn is rubble.
-        let mut fading: Option<(BuildingId, u32)> = None;
+        let mut fading: Option<(i16, u32)> = None;
         if let Some(mut b) = self.build_in {
             if b.city == city {
                 let now = get_time();
                 let steps = ((now - *b.started.get_or_insert(now)) * cs::DRAWS_PER_SECOND) as u32;
                 if steps < 10 {
-                    fading = Some((b.building, steps * 10));
+                    fading = Some((b.idx, steps * 10));
                     self.build_in = Some(b);
                 } else {
                     self.build_in = None;
@@ -806,7 +805,7 @@ impl App {
         }
         let fades = |idx: i16| {
             fading
-                .filter(|&(b, _)| b.num() as i16 == idx)
+                .filter(|&(shown, _)| shown == idx)
                 .map(|(_, percent)| percent)
         };
         let flying_fortress = enchanted("flying_fortress");
@@ -1002,7 +1001,10 @@ impl App {
             .any(|&id| self.game.content().rules.buildings.get(id).id == "city_walls");
         if has_walls {
             let walls_fade = fading
-                .filter(|&(b, _)| self.game.content().rules.buildings.get(b).id == "city_walls")
+                .filter(|&(shown, _)| {
+                    let walls = self.game.content().rules.buildings.id_of("city_walls");
+                    walls.is_some_and(|w| w.num() as i16 == shown)
+                })
                 .map(|(_, percent)| percent);
             match walls_fade {
                 Some(percent) => self.city_pic_fading(lay, 76, 0, x0, y0 + 82.0, percent, draws),

@@ -417,6 +417,22 @@ mod tests {
         std::fs::read_to_string(path).expect("content/terrain.ron exists")
     }
 
+    /// `content/font_colour_sets.ron`, written by `f4x-tools extract-art`: sixteen colour sets of
+    /// fifteen colours each (a glyph colour index 1 to 15 picks one), the first one white.
+    #[test]
+    fn the_font_colour_sets_are_sixteen_sets_of_fifteen_colours() {
+        #[derive(serde::Deserialize)]
+        struct Sets {
+            sets: Vec<Vec<(u8, u8, u8)>>,
+        }
+        let path = crate::testutil::content_dir().join("font_colour_sets.ron");
+        let text = std::fs::read_to_string(path).expect("content/font_colour_sets.ron exists");
+        let parsed: Sets = ron::from_str(&text).expect("the colour sets parse");
+        assert_eq!(parsed.sets.len(), 16);
+        assert!(parsed.sets.iter().all(|set| set.len() == 15));
+        assert_eq!(parsed.sets[0][0], (255, 255, 255));
+    }
+
     /// The game's own `content/` folder (the files tests of the rules data read).
     fn real_content() -> Content {
         load_content(&crate::testutil::content_dir()).expect("the shipped content loads")
@@ -1263,6 +1279,9 @@ mod tests {
             let known = match kind {
                 "ability" => content.rules.abilities.defs().iter().any(|a| a.id == id),
                 "spell" => content.rules.spells.defs().iter().any(|s| s.id == id),
+                // A switch of the Settings screen: a key of the preferences in `settings.ron`.
+                "setting" => std::fs::read_to_string(dir.join("settings.ron"))?
+                    .contains(&format!("\"{id}\":")),
                 _ => false,
             };
             assert!(known, "help subject {t} is not in the game");

@@ -582,18 +582,17 @@ impl Game {
         e
     }
 
-    /// The unit sheet's Dismiss button: the unit leaves its owner's service for good. Heroes
-    /// are refused until the items they carry have somewhere to go.
+    /// The unit sheet's Dismiss button: the unit leaves its owner's service for good. A hero
+    /// is let go (it can be hired again, with its experience) and its items go to the armory.
     pub fn dismiss_unit(&mut self, unit: hecs::Entity) -> Vec<Event> {
         let Some(owner) = self.units().unit_owner(unit) else {
             return Vec::new();
         };
-        if self
-            .units()
-            .unit_def(unit)
-            .is_none_or(|d| d.kind == crate::rules::UnitKind::Hero)
-        {
+        let Some(def) = self.units().unit_def(unit) else {
             return Vec::new();
+        };
+        if def.kind == crate::rules::UnitKind::Hero {
+            self.pass_items(unit, owner);
         }
         self.remove_unit(unit, crate::hero::Fate::Released);
         vec![Event::UnitsDisbanded {

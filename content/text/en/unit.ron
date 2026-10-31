@@ -8,6 +8,8 @@
     "unit.armor": "Armor",
     "unit.resist": "Resist",
     "unit.hits": "Hits",
+    "unit.dismiss_hero": "Do you wish to dismiss {hero}?",
+    "unit.the": "The {type}",
     "unit.disband": "Do you wish to disband the unit of {unit}?",
     "unit.dies_one": "  This unit will die if the spell is removed!",
     "unit.dies_many": "  This unit and other units will die if the spell is removed!",

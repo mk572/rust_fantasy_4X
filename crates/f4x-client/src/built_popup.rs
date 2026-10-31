@@ -29,8 +29,9 @@ const WALL_PICTURE: usize = 114;
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct BuildIn {
     pub city: hecs::Entity,
-    pub building: BuildingId,
-    /// When the city screen first drew it.
+    /// The picture's place in the cityscape's table (`cityscape::sprite_of`).
+    pub idx: i16,
+    /// When the city screen first drew it; a time still to come holds the picture back.
     pub started: Option<f64>,
 }
 
@@ -118,7 +119,7 @@ impl App {
         if closed {
             self.build_in = Some(BuildIn {
                 city,
-                building,
+                idx: building.num() as i16,
                 started: None,
             });
             return None;

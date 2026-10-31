@@ -6,8 +6,8 @@
 //! city's damage. At most ten vortices can be on a battlefield. Units cannot walk through one.
 //!
 //! This follows the original's `Vortex_Combat_Round` and `Vortex_Move_And_Attack`. In the
-//! original the computer's vortices never get the controlled move; here a computer wizard's
-//! don't either (nothing plays it), but a human can.
+//! original the computer's vortices never get the controlled move; here the scripted side
+//! steers its own like a human (`brain::steer_choice`).
 //!
 //! Tests: in battle/tests.rs.
 

@@ -6,9 +6,11 @@
 
 mod art;
 mod audio;
+mod bdf;
 mod cache;
 mod console_cmd;
 mod contestant;
+mod font_tool;
 mod fonts;
 mod image;
 mod lbx;
@@ -48,10 +50,14 @@ const USAGE: &str = "usage:
                                               (default out: assets-local/audio)
   f4x-tools refile-art [out-dir]              move already extracted pictures to where extract-art
                                               would put them now (default: assets-local/art)
+  f4x-tools font-chars | font-coverage | font-bmfont
+                                              the characters the text uses, what a font lacks, a TrueType font as
+                                              a BMFont (run one without arguments for its usage; docs/fonts.md)
   f4x-tools console [--seed N] [--load FILE] [--content DIR] [--access readonly|play|full] [--script FILE]
                                               run the game from text commands (stdin, or the script)
   f4x-tools soak [--seeds A..B] [--turns N] [--players 2..5] [--every N] [--refused-log FILE]
-                                              AI wizards play whole games and report; with
+                                              AI wizards play whole games and report; --events adds
+                                              a line on the random events; with
                                               --refused-log, every refused command goes to FILE (TSV);
                                               --snapshots-every N --out DIR saves the game every N turns
   f4x-tools soak-versus [--seeds A..B] [--turns N] [--players 2..5] [--snapshots-every N] [--out DIR]
@@ -101,6 +107,9 @@ fn main() -> ExitCode {
             println!("moved {moved} pictures");
             Ok(())
         }),
+        Some(command @ ("font-chars" | "font-coverage" | "font-bmfont")) => {
+            font_tool::run(command, &args[1..])
+        }
         _ => Err(USAGE.to_string()),
     };
     match result {

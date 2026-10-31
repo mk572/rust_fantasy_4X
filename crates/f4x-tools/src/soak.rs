@@ -18,12 +18,13 @@ use f4x_core::game::endgame::GameOver;
 use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::Game;
 use f4x_core::player::PlayerId;
+use f4x_core::world_event::EventKind;
 use serde::{Deserialize, Serialize};
 
 use crate::contestant::{self, Contestant, Version};
 use crate::metrics::{Standing, Tally};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -34,6 +35,8 @@ pub struct Options {
     pub every: u32,
     pub trace: u32,
     pub detail: bool,
+    /// Print how the random events went in each game.
+    pub events: bool,
     pub grant_mastery: Option<u32>,
     pub battle_ai: Option<PathBuf>,
     pub refused_log: Option<PathBuf>,
@@ -58,6 +61,7 @@ impl Options {
             every: 0,
             trace: 0,
             detail: false,
+            events: false,
             grant_mastery: None,
             battle_ai: None,
             refused_log: None,
@@ -86,6 +90,7 @@ impl Options {
                     o.players = value("--players")?.parse().map_err(|_| "bad players")?
                 }
                 "--detail" => o.detail = true,
+                "--events" => o.events = true,
                 "--grant-mastery" => {
                     o.grant_mastery =
                         Some(value("--grant-mastery")?.parse().map_err(|_| "bad turn")?)
@@ -281,6 +286,7 @@ pub fn game(
     // inside the round), and the first such turn.
     let (mut open_rounds, mut first_open) = (0usize, None::<u32>);
     let mut fingerprints = Vec::new();
+    let mut watch = EventWatch::default();
     while game.turn <= opts.turns && game.game_over.is_none() {
         if opts.grant_mastery == Some(game.turn) {
             grant_mastery_to_all(&mut game);
@@ -290,6 +296,7 @@ pub fn game(
             tally.record(&game, Some(*player), events);
         }
         tally.record(&game, None, &rest);
+        watch.observe(&game);
         if game.in_battle() {
             open_rounds += 1;
             first_open.get_or_insert(game.turn);
@@ -360,6 +367,9 @@ pub fn game(
         total.diplomacy_started,
         total.refused_orders,
     );
+    if opts.events {
+        println!("{tag}: {}", watch.summary(game.turn.saturating_sub(1)));
+    }
     let standing = game
         .player_ids()
         .into_iter()
@@ -372,6 +382,76 @@ pub fn game(
         standing,
         fingerprints,
     })
+}
+
+/// What the random events did over a game (`--events`). Only the table is seen: the lasting events
+/// by kind and how long each ran, and the draws by their number, because a one-off event leaves
+/// nothing in the table and an all-AI game is told of none.
+#[derive(Default)]
+struct EventWatch {
+    last_draw: u32,
+    draws: u32,
+    running: Vec<(EventKind, u32)>,
+    ended: Vec<(EventKind, u32)>,
+}
+
+impl EventWatch {
+    /// Look at the table after a round.
+    fn observe(&mut self, game: &Game) {
+        let events = game.events();
+        if events.last_event() != self.last_draw {
+            self.last_draw = events.last_event();
+            self.draws += 1;
+        }
+        let now: Vec<(EventKind, u32)> = events.ongoing().map(|l| (l.kind, l.turns)).collect();
+        for (kind, turns) in std::mem::take(&mut self.running) {
+            if !now.iter().any(|(k, _)| *k == kind) {
+                self.ended.push((kind, turns + 1));
+            }
+        }
+        self.running = now;
+    }
+
+    /// One line: the draws, and for each lasting kind the number of runs and their lengths.
+    fn summary(&self, turns: u32) -> String {
+        let mut kinds: Vec<EventKind> = self.ended.iter().map(|(k, _)| *k).collect();
+        kinds.extend(self.running.iter().map(|(k, _)| *k));
+        kinds.sort();
+        kinds.dedup();
+        let lasting: Vec<String> = kinds
+            .into_iter()
+            .map(|kind| {
+                let runs: Vec<u32> = self
+                    .ended
+                    .iter()
+                    .filter(|(k, _)| *k == kind)
+                    .map(|(_, t)| *t)
+                    .collect();
+                let open = self.running.iter().filter(|(k, _)| *k == kind).count();
+                let longest = runs.iter().max().copied().unwrap_or(0);
+                let mean = runs.iter().sum::<u32>() as f32 / runs.len().max(1) as f32;
+                format!(
+                    "{} {}x (mean {mean:.1}, longest {longest} turns, {open} still on)",
+                    kind.id(),
+                    runs.len()
+                )
+            })
+            .collect();
+        let per = if self.draws == 0 {
+            "none".to_string()
+        } else {
+            format!("one in {:.1} turns", turns as f32 / self.draws as f32)
+        };
+        format!(
+            "events: {} drawn in {turns} turns ({per}); lasting: {}",
+            self.draws,
+            if lasting.is_empty() {
+                "none".to_string()
+            } else {
+                lasting.join(", ")
+            }
+        )
+    }
 }
 
 /// Fingerprint the saved game (without its checksum line) and, when `dir` is given, write it as

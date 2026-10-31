@@ -806,3 +806,13 @@ Left out on purpose:
   because it exists so the AI can remark on it to the human, and Subversion still spares the human, whose
   feelings are their own to have.
 
+
+## 39. Random events: the quirks decided (task 303)
+
+Rules of `events.md` where the original's code, its manual and our game part ways, and which side the game follows.
+
+- **Population Boom with Stream of Life.** Both are a +100 percent on the city's growth here, so together they triple it; the original doubles twice and quadruples. Kept as it is: the sum of bonuses is how every growth modifier of this game combines.
+- **Piracy.** The reconstructed code of the original computes `gold * 100 / (29 + d21)`, over three times the reserve, which the cap at zero turns into a theft of the whole reserve or nothing. The game follows the manual: 30 to 50 percent, rounded down to tens (`pirates_take`).
+- **When a lasting event ends.** The manual says 5 percent a turn for all of them. The original's code does that for Plague and Population Boom only (after turn 3) and gives the six world events a chance that rises with their age (`d20 <= turns run - 2`). The game follows the code (`flat_end`, `world_end`), as it plays; the help text is the part that is wrong.
+- **Depletion and New Minerals.** ReMoM stubs both and the original's are said to be bugged, so we use our own rule: a square in the area of one of the victim's cities, and for New Minerals a mineral by the spawn weights of the square's terrain (`find_deposit`).
+- **Plague.** No unrest: the +2 unrest belongs to the Pestilence spell only, as in the code.

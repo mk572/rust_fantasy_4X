@@ -125,7 +125,7 @@ all of them, and that is not what the code does; the code wins unless we decide 
   `Events::moon_mana`). The help says 50 percent more; the game follows the code, because more mana
   makes for a faster game (decision of 17 October 2026, B50).
 - **Population Boom.** Growth of the city doubles, as Stream of Life does (both are a +100 percent
-  on the growth here, so together they triple it where the original quadruples; task 303).
+  on the growth here, so together they triple it where the original quadruples; task 303; decided in `divergences.md` 39).
 - **Plague.** Marked in the city screen and the city's lines in the reports.
 
 The main screen shows the running world event by name above the minimap ("Conjunction", "Good Moon",
@@ -151,7 +151,7 @@ The main screen shows the running world event by name above the minimap ("Conjun
     text), `world_event/game.rs` (the draw, the vetoes, the playing out), `event_popup.rs` in the client
     (the `Notify2` box, the world event under the minimap, the city marks). The turn runs the
     events after the treasury and before the cities grow, as `Next_Turn_Calc` runs them before the
-    cities' changes. What is left is task 303.
+    cities' changes. Task 303 finished the help, the report, the music and the soak (`f4x-tools soak --events`).
 - Order in the turn: after the other end-of-turn steps that the original runs before it, as in
   `Next_Turn_Calc`; read the order there before placing it.
 - Randomness from `GameRng`, drawn in the original's order (event type, victim roll, then the

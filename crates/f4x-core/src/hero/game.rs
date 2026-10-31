@@ -290,24 +290,30 @@ impl Game {
             return;
         }
         if let (Fate::Slain, Some(owner)) = (fate, owner) {
-            let items = self
-                .items()
-                .held(|h| matches!(h, crate::item::entity::HeldBy::Hero(u, _) if u == unit));
             let takes = heir.unwrap_or(owner);
             if !self.is_neutral_player(takes) {
-                let winner = self.player_entity(takes);
-                for (item, data) in items {
-                    let placed = self.place_item(takes, item);
-                    let kept = placed != crate::item::armory::Placed::Lost;
-                    self.item_awards
-                        .extend(winner.map(|winner| (winner, data.name.clone(), kept)));
-                }
+                self.pass_items(unit, takes);
             }
         }
         // What the hero still holds (a neutral winner takes nothing) is gone with it.
         self.despawn_items_of(unit);
         self.despawn_spells_on(unit);
         self.release_body(unit, fate.state());
+    }
+
+    /// The items a hero holds go to the armory of `to` (the vault first); what does not fit is
+    /// lost. Each is reported as an award, so the client can show the item screen.
+    pub(crate) fn pass_items(&mut self, unit: hecs::Entity, to: PlayerId) {
+        let items = self
+            .items()
+            .held(|h| matches!(h, crate::item::entity::HeldBy::Hero(u, _) if u == unit));
+        let winner = self.player_entity(to);
+        for (item, data) in items {
+            let placed = self.place_item(to, item);
+            let kept = placed != crate::item::armory::Placed::Lost;
+            self.item_awards
+                .extend(winner.map(|winner| (winner, data.name.clone(), kept)));
+        }
     }
 
     /// The items awarded to wizards since the last call, one event for each wizard: the names
@@ -890,6 +896,22 @@ pub(crate) mod tests {
         g.remove_unit(gone, Fate::Gone);
         assert_eq!(in_armory(&g, P0), 1, "nothing more");
         assert!(g.drain_item_awards().is_empty());
+    }
+
+    #[test]
+    fn dismissing_a_hero_lets_it_go_and_keeps_its_items() {
+        let mut g = world();
+        let hero = armed_hero(&mut g, P0);
+        let events = g.dismiss_unit(hero);
+        assert_eq!(
+            events,
+            vec![Event::UnitsDisbanded {
+                player: P0,
+                units: 1
+            }]
+        );
+        assert_eq!(in_armory(&g, P0), 1, "the sword is in the armory");
+        assert!(g.units().player_units(P0).is_empty());
     }
 
     #[test]

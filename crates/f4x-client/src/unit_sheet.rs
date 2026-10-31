@@ -43,6 +43,24 @@ impl Row {
     }
 }
 
+/// The picture of an item line of a hero's list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ItemIcon {
+    /// The item's own picture, an entry of `items.lbx`.
+    Held(u16),
+    /// An empty slot: the picture of the kind of item it takes, an entry of `itemisc.lbx`.
+    Empty(usize),
+}
+
+/// What a hero's sheet shows in place of the unit on its diamond.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct HeroView {
+    /// An entry of `portrait.lbx`.
+    pub portrait: usize,
+    /// The hero's own name; the unit type's name goes under it ("The Dwarf").
+    pub name: String,
+}
+
 /// One line of the abilities list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Special {
@@ -55,6 +73,8 @@ pub(crate) struct Special {
     pub removable: bool,
     /// The help subject a right-click on the line opens (`ability:<id>`, `spell:<id>`).
     pub subject: Option<String>,
+    /// The line is one of a hero's item slots, drawn with this picture instead of `icon`.
+    pub item: Option<ItemIcon>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,6 +102,8 @@ pub(crate) struct Sheet {
     pub hurt: i32,
     pub specials: Vec<Special>,
     pub can_dismiss: bool,
+    /// A hero: its portrait and name, and its item slots head the list.
+    pub hero: Option<HeroView>,
 }
 
 /// The `(lbx, entry)` of a picture index of the original's `special_seg`.
@@ -304,6 +326,7 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         spell: None,
         removable: false,
         subject: None,
+        item: None,
     };
     if let Some((name, xp, level)) = input.level {
         let args = Args::new().text("name", name).count("xp", xp);
@@ -381,6 +404,7 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
             spell: Some(*spell),
             removable: *removable,
             subject: Some(f4x_core::help::spell_subject(id)),
+            item: None,
         });
     }
     out
@@ -567,8 +591,10 @@ impl App {
                     spell: None,
                     removable: false,
                     subject: None,
+                    item: None,
                 }),
         );
+        let hero = self.hero_view(unit, &mut specials);
         let art = def.art.clone();
         Some(Sheet {
             source: Source::Overland(unit),
@@ -604,7 +630,36 @@ impl App {
             },
             hurt: front,
             specials,
-            can_dismiss: owner == crate::view::HUMAN && def.kind != UnitKind::Hero,
+            can_dismiss: owner == crate::view::HUMAN,
+            hero,
+        })
+    }
+
+    /// A hero's portrait and name, with its three item slots put at the head of `specials` (the
+    /// original lists the items first, then the abilities); `None` for any other unit.
+    fn hero_view(&self, unit: hecs::Entity, specials: &mut Vec<Special>) -> Option<HeroView> {
+        let units = self.game.units();
+        let hero = units.unit_def(unit)?.hero.as_ref()?;
+        let held = self.game.items().hero_items(unit);
+        let lines = hero
+            .slots()
+            .into_iter()
+            .zip(held.0)
+            .map(|(kind, item)| Special {
+                name: item.as_ref().map(|i| i.name.clone()).unwrap_or_default(),
+                icon: None,
+                spell: None,
+                removable: false,
+                subject: None,
+                item: Some(match &item {
+                    Some(i) => ItemIcon::Held(i.icon),
+                    None => ItemIcon::Empty(crate::item_screen::slot_icon(kind)),
+                }),
+            });
+        specials.splice(0..0, lines);
+        Some(HeroView {
+            portrait: hero.portrait as usize,
+            name: units.hero_name(unit).unwrap_or_default(),
         })
     }
 
@@ -707,6 +762,7 @@ impl App {
             hurt: 0,
             specials,
             can_dismiss: false,
+            hero: None,
         }
     }
 
@@ -803,6 +859,7 @@ impl App {
             hurt: u.front_damage,
             specials,
             can_dismiss: false,
+            hero: None,
         })
     }
 }

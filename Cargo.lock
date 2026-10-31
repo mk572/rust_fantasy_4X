@@ -2619,6 +2619,7 @@ dependencies = [
  "f4x-data",
  "hecs",
  "macroquad",
+ "macroquad_bitmap_font_engine",
  "rand 0.8.8",
  "rand_pcg",
  "ron",
@@ -2679,6 +2680,7 @@ dependencies = [
  "f4x-core",
  "f4x-data",
  "f4x-learn",
+ "fontdue",
  "png 0.17.16",
  "ron",
  "serde",
@@ -3998,6 +4000,14 @@ dependencies = [
  "miniquad",
  "quad-rand",
  "quad-snd",
+]
+
+[[package]]
+name = "macroquad_bitmap_font_engine"
+version = "0.1.0"
+source = "git+https://github.com/mk572/macroquad_bitmap_font_engine?rev=b71e2f1d150041b1b479edf20febcf80a0d1abf9#b71e2f1d150041b1b479edf20febcf80a0d1abf9"
+dependencies = [
+ "macroquad",
 ]
 
 [[package]]

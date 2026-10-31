@@ -799,6 +799,19 @@ impl Art {
         self.texture(PathBuf::from(format!("{base}_cycle.png")))
     }
 
+    /// The node box's colour slide (`VGA_SlideColors(247, 8, ..)`): the pixels of the picture in
+    /// the sliding range, in the colours of step `step` (0 to 7), if it has any.
+    pub fn slide_frame(
+        &mut self,
+        lbx: &str,
+        entry: usize,
+        frame: usize,
+        step: usize,
+    ) -> Option<&Texture2D> {
+        let base = picture_base(&self.placed, lbx, entry, frame);
+        self.texture(PathBuf::from(format!("{base}_slide_{}.png", step % 8)))
+    }
+
     /// How many frames a picture of an `.lbx` file has (those that were extracted).
     pub fn frames(&mut self, lbx: &str, entry: usize) -> usize {
         (0..64)
@@ -1119,5 +1132,29 @@ mod figure_tests {
         let shades = [[10; 3], [20; 3], [30; 3], [40; 3], [50; 3]];
         paint_banner(&mut px, &mask, &shades);
         assert_eq!(px, [9, 9, 9, 255, 20, 20, 20, 255, 50, 50, 50, 255]);
+    }
+
+    /// The BMFonts `extract-art` writes parse and agree with `metrics.tsv` (skipped when the
+    /// original's art was not extracted, as it is local-only).
+    #[test]
+    fn the_extracted_bmfonts_match_the_font_metrics() {
+        use macroquad_bitmap_font_engine::FontData;
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets-local/art");
+        let styles = Art::load_font_metrics(&dir);
+        if !styles.iter().any(Option::is_some) {
+            return;
+        }
+        for (n, style) in styles.iter().enumerate() {
+            let Some(style) = style else { continue };
+            let text = std::fs::read_to_string(dir.join(format!("fonts/bmfont/style{n}.fnt")))
+                .unwrap_or_else(|e| panic!("style {n}: {e}; run extract-art again"));
+            let font = FontData::parse(&text).unwrap();
+            assert_eq!(font.base, style.height as f32, "style {n}");
+            assert_eq!(font.page, format!("style{n}.png"));
+            for ascii in 32u8..=127 {
+                let glyph = font.glyph(char::from(ascii));
+                assert!(glyph.is_some(), "style {n} lacks glyph {ascii}");
+            }
+        }
     }
 }

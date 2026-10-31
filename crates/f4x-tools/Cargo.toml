@@ -8,6 +8,7 @@ license.workspace = true
 f4x-core.workspace = true
 f4x-data.workspace = true
 png.workspace = true
+fontdue = "0.9"
 serde.workspace = true
 ron.workspace = true
 f4x-console.workspace = true

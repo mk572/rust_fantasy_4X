@@ -14,7 +14,7 @@ use f4x_data::spell_art::SpellArt;
 use crate::art::Art;
 use crate::view::App;
 
-const CONTENT: &str = "../../content";
+pub(crate) const CONTENT: &str = "../../content";
 
 /// The files of `content/`, each parsed once for the whole test run.
 pub(crate) mod shipped {

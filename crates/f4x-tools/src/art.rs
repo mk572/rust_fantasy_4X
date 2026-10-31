@@ -9,7 +9,7 @@
 use std::fs;
 use std::path::Path;
 
-use crate::image::{decode, to_rgba, to_rgba_glass};
+use crate::image::{decode, to_rgba, to_rgba_glass, vga_to_rgb8};
 use crate::lbx::Lbx;
 use crate::screens::{self, Placer, UnitArt};
 use f4x_data::spell_art::SpellArt;
@@ -138,7 +138,7 @@ fn find(dir: &Path, name: &str) -> Option<std::path::PathBuf> {
         })
 }
 
-fn write_png(path: &Path, w: usize, h: usize, rgba: &[u8]) -> Result<(), String> {
+pub(crate) fn write_png(path: &Path, w: usize, h: usize, rgba: &[u8]) -> Result<(), String> {
     let file = fs::File::create(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut enc = png::Encoder::new(std::io::BufWriter::new(file), w as u32, h as u32);
     enc.set_color(png::ColorType::Rgba);
@@ -345,7 +345,7 @@ fn write_minimap_colours(
     let row_in = |pal: &[u8], kind: &str, n: usize, index: u8| {
         let at = usize::from(index) * 3;
         let rgb = pal.get(at..at + 3).unwrap_or(&[0, 0, 0]);
-        let [r, g, b] = [rgb[0], rgb[1], rgb[2]].map(crate::image::vga_to_rgb8);
+        let [r, g, b] = [rgb[0], rgb[1], rgb[2]].map(vga_to_rgb8);
         format!("{kind}\t{n}\t{r}\t{g}\t{b}\n")
     };
     let row = |kind: &str, n: usize, index: u8| row_in(pal, kind, n, index);
@@ -375,7 +375,7 @@ fn write_minimap_colours(
     // Glass block 1, the colour a revealed invisible unit is drawn in: colour and percent (a sixth
     // field, out of 255).
     if let Some(&[r, g, b, percent]) = glass.get(1) {
-        let [r, g, b] = [r, g, b].map(crate::image::vga_to_rgb8);
+        let [r, g, b] = [r, g, b].map(vga_to_rgb8);
         let alpha = u32::from(percent.min(100)) * 255 / 100;
         out.push_str(&format!("glass_1\t0\t{r}\t{g}\t{b}\t{alpha}\n"));
     }
@@ -501,6 +501,37 @@ fn cycle_mask(pixels: &[u8]) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// The palette entries the original slides in a node's question box (`VGA_SlideColors(247, 8,
+/// cycle)` in `Lair_Confirm`'s draw): the first and how many.
+const SLIDE_FIRST: u8 = 247;
+const SLIDE_COUNT: u8 = 8;
+
+/// For a picture with its own palette, the pixels in the sliding range painted with the colours
+/// the slide has put there after `step` calls (entry `i` shows the colour of entry `i + step`,
+/// wrapping inside the range); everything else is transparent. `None` when no pixel is in the
+/// range.
+fn slide_frame(pixels: &[u8], palette: &[u8], step: u8) -> Option<Vec<u8>> {
+    let last = SLIDE_FIRST + SLIDE_COUNT;
+    if !pixels.iter().any(|p| (SLIDE_FIRST..last).contains(p)) {
+        return None;
+    }
+    let mut out = vec![0u8; pixels.len() * 4];
+    for (k, &p) in pixels.iter().enumerate() {
+        if !(SLIDE_FIRST..last).contains(&p) {
+            continue;
+        }
+        let shown = SLIDE_FIRST + (p - SLIDE_FIRST + step) % SLIDE_COUNT;
+        let c = usize::from(shown) * 3;
+        out[k * 4..k * 4 + 4].copy_from_slice(&[
+            vga_to_rgb8(palette[c]),
+            vga_to_rgb8(palette[c + 1]),
+            vga_to_rgb8(palette[c + 2]),
+            255,
+        ]);
+    }
+    Some(out)
+}
+
 pub fn extract(
     game_dir: &Path,
     out_dir: &Path,
@@ -602,6 +633,17 @@ pub fn extract(
                         let _ = fs::remove_file(&cycle_path);
                     }
                 }
+                if stem == "reload" && (9..=19).contains(&i) && pic.palette.is_some() {
+                    for step in 0..SLIDE_COUNT {
+                        let path = target.join(format!("{name}_{f:02}_slide_{step}.png"));
+                        match slide_frame(&frame.pixels, &pal, step) {
+                            Some(rgba) => write_png(&path, pic.width, pic.height, &rgba)?,
+                            None => {
+                                let _ = fs::remove_file(&path);
+                            }
+                        }
+                    }
+                }
                 if stem.starts_with("figure") || stem.starts_with("units") {
                     let mask = banner_mask(&frame.pixels);
                     if placed.is_some() {
@@ -688,6 +730,21 @@ mod tests {
         assert_eq!(cycle_mask(&[0, 197, 199]), None);
         let mask = cycle_mask(&[0, 198]).ok_or("index 198 is the cycling one")?;
         assert_eq!(mask, vec![0, 0, 0, 0, 255, 255, 255, 255]);
+        Ok(())
+    }
+
+    #[test]
+    fn the_slide_shows_the_colour_of_the_next_entry_and_wraps_inside_the_range() -> TestResult {
+        let mut palette = vec![0u8; 768];
+        for (k, entry) in (247..255usize).enumerate() {
+            palette[entry * 3] = k as u8;
+        }
+        assert_eq!(slide_frame(&[0, 246, 255], &palette, 0), None);
+        let frame = slide_frame(&[0, 247, 254], &palette, 1).ok_or("both are in the range")?;
+        assert_eq!(frame[3], 0);
+        assert_eq!(frame[4], vga_to_rgb8(1));
+        assert_eq!(frame[8], vga_to_rgb8(0));
+        assert_eq!(frame[11], 255);
         Ok(())
     }
 

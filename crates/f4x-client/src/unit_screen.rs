@@ -16,7 +16,9 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
-use crate::unit_sheet::{hit_cells, special_picture, stat_cells, Cell, Row, Sheet, Source};
+use crate::unit_sheet::{
+    hit_cells, special_picture, stat_cells, Cell, ItemIcon, Row, Sheet, Source,
+};
 use crate::view::{App, Screen};
 
 /// The panel's top-left on the map and in battle.
@@ -25,6 +27,28 @@ const BATTLE_AT: (f32, f32) = (61.0, 6.0);
 /// Icons in a stat row before it wraps to a second row.
 const ROW: i32 = 15;
 const PER_PAGE: usize = 8;
+
+/// A hero's first page shows its three item slots and one more line (the original's four).
+const HERO_FIRST_PAGE: usize = 4;
+
+/// How many lines the page that starts at `first` shows.
+fn page_len(first: usize, total: usize, hero: bool) -> usize {
+    let per = if hero && first == 0 {
+        HERO_FIRST_PAGE
+    } else {
+        PER_PAGE
+    };
+    per.min(total.saturating_sub(first))
+}
+
+/// Where the page before the one that starts at `first` starts.
+fn previous_page(first: usize, hero: bool) -> usize {
+    if hero && first <= HERO_FIRST_PAGE {
+        0
+    } else {
+        first.saturating_sub(PER_PAGE)
+    }
+}
 
 /// What the abilities page of a sheet panel remembers, on the sheet screen and where the same
 /// panel is shown inside another screen (production, the hire pop-ups).
@@ -105,6 +129,21 @@ impl App {
         }
         let Some(&unit) = self.selection.get(n) else {
             return;
+        };
+        // `hero`: the first hero joins the stack, and its sheet is shown.
+        let unit = if spell == Some("hero") {
+            let Some(at) = self.game.units().unit_position(unit) else {
+                return;
+            };
+            match self.game.spawn_hero(crate::view::HUMAN, at, 0) {
+                Ok(hero) => hero,
+                Err(e) => {
+                    eprintln!("cannot bring in a hero: {e:?}");
+                    return;
+                }
+            }
+        } else {
+            unit
         };
         if spell == Some("temp") {
             // Two temporary effects, to see their lines.
@@ -216,35 +255,44 @@ impl App {
             self.draw_pic(lay, "unitview", 2, 0, px + 213.0, py + 133.0);
         }
 
-        // The unit on its diamond.
-        if sheet.water {
-            self.draw_pic(lay, "unitview", 34, 0, px + ox + 6.0, py + 18.0);
-        } else {
-            self.draw_pic(lay, "cityscap", 103, 0, px + ox + 5.0, py + 5.0);
-        }
-        self.draw_sheet_figures(lay, sheet, px + ox + 11.0, py - 3.0);
-
-        // Name: a race's unit shows the race first.
+        // The unit on its diamond; a hero shows its portrait, its name and its kind instead.
         let name_x = px + ox + 51.0;
-        match &sheet.race {
-            Some(race) => {
-                let w = self.draw_styled(view, &Style::nearest(4, gold), race, name_x, py + name_y);
-                self.draw_styled(
-                    view,
-                    &Style::nearest(4, gold),
-                    &sheet.name,
-                    name_x + w + 5.0,
-                    py + name_y,
-                );
+        if let (Some(hero), false) = (&sheet.hero, production) {
+            self.draw_pic(lay, "portrait", hero.portrait, 0, px + 9.0, py + 7.0);
+            self.draw_pic(lay, "unitview", 33, 0, px + 8.0, py + 6.0);
+            self.draw_styled(view, &Style::nearest(4, gold), &hero.name, name_x, py + 6.0);
+            let kind = self.text_with("unit.the", &Args::new().text("type", &sheet.name));
+            self.draw_styled(view, &Style::nearest(4, gold), &kind, name_x, py + 17.0);
+        } else {
+            if sheet.water {
+                self.draw_pic(lay, "unitview", 34, 0, px + ox + 6.0, py + 18.0);
+            } else {
+                self.draw_pic(lay, "cityscap", 103, 0, px + ox + 5.0, py + 5.0);
             }
-            None => {
-                self.draw_styled(
-                    view,
-                    &Style::nearest(4, gold),
-                    &sheet.name,
-                    name_x,
-                    py + name_y,
-                );
+            self.draw_sheet_figures(lay, sheet, px + ox + 11.0, py - 3.0);
+
+            // Name: a race's unit shows the race first.
+            match &sheet.race {
+                Some(race) => {
+                    let w =
+                        self.draw_styled(view, &Style::nearest(4, gold), race, name_x, py + name_y);
+                    self.draw_styled(
+                        view,
+                        &Style::nearest(4, gold),
+                        &sheet.name,
+                        name_x + w + 5.0,
+                        py + name_y,
+                    );
+                }
+                None => {
+                    self.draw_styled(
+                        view,
+                        &Style::nearest(4, gold),
+                        &sheet.name,
+                        name_x,
+                        py + name_y,
+                    );
+                }
             }
         }
 
@@ -337,17 +385,28 @@ impl App {
 
         // The abilities and spells, a page at a time.
         let total = sheet.specials.len();
-        let multipage = total > PER_PAGE;
+        let hero = sheet.hero.is_some() && !production;
+        let multipage = total > if hero { HERO_FIRST_PAGE } else { PER_PAGE };
         let mut first = panel.first.min(total.saturating_sub(1));
-        let shown = PER_PAGE.min(total - first.min(total));
+        let shown = page_len(first, total, hero);
         for (i, special) in sheet.specials.iter().skip(first).take(shown).enumerate() {
             let (col, row) = (i / 4, i % 4);
             let x = px + ox + 8.0 + 107.0 * col as f32;
             let y = py + 108.0 + 17.0 * row as f32;
             self.draw_pic(lay, "unitview", 5 + i, 0, x - 1.0, y - 1.0);
-            if let Some(icon) = special.icon {
-                let (lbx, entry) = special_picture(icon);
-                self.draw_pic(lay, lbx, entry, 0, x, y);
+            match (special.item, special.icon) {
+                (Some(ItemIcon::Held(item)), _) => {
+                    self.draw_pic(lay, "special", 3, 0, x, y);
+                    self.draw_pic(lay, "items", usize::from(item), 0, x - 2.0, y - 2.0);
+                }
+                (Some(ItemIcon::Empty(slot)), _) => {
+                    self.draw_pic(lay, "itemisc", slot, 0, x, y);
+                }
+                (None, Some(icon)) => {
+                    let (lbx, entry) = special_picture(icon);
+                    self.draw_pic(lay, lbx, entry, 0, x, y);
+                }
+                (None, None) => {}
             }
             self.draw_styled(
                 view,
@@ -387,10 +446,10 @@ impl App {
                 input,
             );
             if (up || input.key_pressed(KeyCode::PageUp)) && first > 0 {
-                first = first.saturating_sub(PER_PAGE);
+                first = previous_page(first, hero);
             }
-            if (down || input.key_pressed(KeyCode::PageDown)) && first + PER_PAGE < total {
-                first += PER_PAGE;
+            if (down || input.key_pressed(KeyCode::PageDown)) && first + shown < total {
+                first += shown;
             }
             panel.first = first;
         }
@@ -559,7 +618,10 @@ impl SheetUi {
     /// Ask whether to dismiss the unit (the original's confirmation box); Yes sends the
     /// command and leaves.
     fn dismiss_confirmation(&mut self, app: &mut App, lay: &Layout, sheet: &Sheet, input: &Input) {
-        let text = app.text_with("unit.disband", &Args::new().text("unit", &sheet.name));
+        let text = match &sheet.hero {
+            Some(hero) => app.text_with("unit.dismiss_hero", &Args::new().text("hero", &hero.name)),
+            None => app.text_with("unit.disband", &Args::new().text("unit", &sheet.name)),
+        };
         match app.confirmation_box(lay, &text, input) {
             Some(true) => {
                 if let Source::Overland(unit) = sheet.source {
@@ -629,7 +691,8 @@ impl Page for SheetUi {
             MAP_AT
         };
         let first = self.panel.first.min(sheet.specials.len().saturating_sub(1));
-        for (i, special) in sheet.specials.iter().skip(first).take(PER_PAGE).enumerate() {
+        let shown = page_len(first, sheet.specials.len(), sheet.hero.is_some());
+        for (i, special) in sheet.specials.iter().skip(first).take(shown).enumerate() {
             let (col, row) = (i / 4, i % 4);
             let left = px + 7.0 + 107.0 * col as f32;
             let top = py + 107.0 + 17.0 * row as f32;

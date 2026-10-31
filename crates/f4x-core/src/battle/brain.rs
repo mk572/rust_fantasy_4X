@@ -5,14 +5,21 @@
 //! A cast is scored from the spell's data, not by name: damage and slaying by how much of an
 //! enemy unit they take, healing by how much of a hurt unit they restore, a summon by the
 //! strength of what appears, a blessing or a curse by a share of the strength of the unit it
-//! falls on. Spells the AI cannot judge (fields, dispels, counter magic, Call Chaos) are left
-//! alone. The mana kept back pays the overland upkeep, so a battle does not starve the spells and
+//! falls on, Call Chaos by an average hit on every enemy unit, a Magic Vortex by the enemy and
+//! friendly units near the square it is raised on. Spells the AI cannot judge (fields, dispels,
+//! counter magic) are left alone. The mana kept back pays the overland upkeep, so a battle does not starve the spells and
 //! creatures the wizard keeps going.
+//!
+//! A vortex of the side that has not moved yet is steered one square toward the enemy
+//! ([`steer_choice`]), as a human may (the original's computer never does).
 //!
 //! Tests: in battle/tests.rs (`the_scripted_wizard_...` for the wizard, `the_legal_unit_casts_...` for the units).
 
 use super::ai::{self, worth};
 use super::casting::SpellAim;
+use super::field::CALL_CHAOS;
+use super::map::{self, Pos};
+use super::vortex::MAGIC_VORTEX;
 use super::{Battle, BattleCommand, BattleUnit, Side};
 use crate::game::Game;
 use crate::rules::effects::{Effect, EffectRule, TargetSel};
@@ -20,6 +27,13 @@ use crate::rules::{ModOp, SpellDef, Stat};
 
 /// A cast must be worth at least this share of the dearest enemy unit to be made.
 const WORTH_FLOOR: f32 = 0.12;
+/// Hit points an average outcome of Call Chaos takes from an enemy unit (eight outcomes: nothing,
+/// five points of healing, two changes, a Fire Bolt, a Warp Lightning, a Doom Bolt, Disintegrate).
+const CHAOS_DAMAGE: f32 = 6.0;
+/// Squares from a raised vortex within which a unit is likely to be struck as it wanders.
+const VORTEX_REACH: u32 = 2;
+/// A struck unit's worth lost to one vortex, as a share of its worth. A vortex hits at random.
+const VORTEX_SHARE: f32 = 0.1;
 /// Mana added to a cost when weighing value against price, so cheap spells do not always win.
 const MANA_SOFTENING: f32 = 12.0;
 
@@ -30,6 +44,7 @@ pub fn next_command(game: &Game) -> Option<BattleCommand> {
         cast_choice(game, battle)
             .or_else(|| unit_cast_choice(game, battle))
             .or_else(|| ai::retreat(battle))
+            .or_else(|| steer_choice(battle))
             .unwrap_or_else(|| ai::next_command(battle)),
     )
 }
@@ -145,9 +160,73 @@ fn cast_value(
     };
     let mut total = 0.0;
     for rule in &def.effects {
-        total += rule_value(game, rule, aimed, side, friends, enemies);
+        total += match &rule.effect {
+            Effect::Custom(h) if h == CALL_CHAOS => enemies
+                .iter()
+                .map(|u| {
+                    (CHAOS_DAMAGE.min(u.hit_points().max(1) as f32) / u.hit_points().max(1) as f32)
+                        * worth(u)
+                })
+                .sum(),
+            Effect::Custom(h) if h == MAGIC_VORTEX => match aim {
+                SpellAim::Tile(cell) => vortex_reach_value(cell, friends, enemies),
+                _ => 0.0,
+            },
+            _ => rule_value(game, rule, aimed, side, friends, enemies),
+        };
     }
     total
+}
+
+/// What a vortex raised on `cell` is worth: a share of the worth of each enemy unit within reach,
+/// less the same for ours (it strikes whoever it comes to).
+fn vortex_reach_value(cell: Pos, friends: &[&BattleUnit], enemies: &[&BattleUnit]) -> f32 {
+    let sum = |units: &[&BattleUnit]| -> f32 {
+        units
+            .iter()
+            .filter(|u| map::distance(u.cell, cell) <= VORTEX_REACH)
+            .map(|u| worth(u))
+            .sum()
+    };
+    VORTEX_SHARE * (sum(enemies) - sum(friends))
+}
+
+/// The move of a vortex of the side to play that costs the enemy most, if any move is worth
+/// making: one square, onto a free square, scored as a vortex raised there is.
+pub fn steer_choice(battle: &Battle) -> Option<BattleCommand> {
+    let side = battle.active;
+    let enemies: Vec<&BattleUnit> = battle
+        .active_units(side.other())
+        .filter(|e| battle.seen_by(side, e.id))
+        .collect();
+    let friends: Vec<&BattleUnit> = battle.active_units(side).collect();
+    let mut best: Option<(f32, BattleCommand)> = None;
+    for (index, v) in battle.vortices.iter().enumerate() {
+        if v.owner != side || v.steered {
+            continue;
+        }
+        for dy in -1..=1 {
+            for dx in -1..=1 {
+                let to = (v.cell.0 + dx, v.cell.1 + dy);
+                if map::distance(v.cell, to) != 1
+                    || !battle.map.is_playable(to)
+                    || battle.vortex_at(to).is_some()
+                {
+                    continue;
+                }
+                // Landing on a unit strikes it for certain: weigh that square's unit again.
+                let on_square = battle.unit_at(to).map_or(0.0, |u| {
+                    let sign = if u.side == side { -1.0 } else { 1.0 };
+                    sign * worth(u)
+                });
+                let value = vortex_reach_value(to, &friends, &enemies) + 0.3 * on_square;
+                if value > 0.0 && best.as_ref().is_none_or(|(s, _)| value > *s) {
+                    best = Some((value, BattleCommand::MoveVortex { index, to }));
+                }
+            }
+        }
+    }
+    best.map(|(_, c)| c)
 }
 
 /// The units a rule falls on, given the spell's aim.

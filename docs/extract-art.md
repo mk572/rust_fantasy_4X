@@ -165,6 +165,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   The combat range is not wired up: no combat picture uses the index. The spell book ranges are
   (`cycle::SMALL_BOOK`, `BIG_BOOK`): the book's pictures hold no index 198 pixels; it is the text of the
   spell being cast or researched that is drawn in it, so the client tints that text.
+- **The node box's colour slide (task 357):** `Lair_Confirm` slides palette entries 247 to 254 (`VGA_SlideColors`) while a node's question is up. For `reload.lbx` entries 9 to 19 `extract-art` writes eight overlays, `<name>_<frame>_slide_<step>.png`, holding only those pixels in the colours of that step; the client (`site_prompt.rs`) draws one over the picture, step by time.
 - **Glass (translucent) pixels:** in a picture that brings no palette of its own, the indexes
   from 232 on are not colours but tints: each blends a colour into what is under it
   (`Create_Remap_Palette`; the 24 blocks, six-bit red, green, blue and a percent, are in the base
@@ -190,6 +191,14 @@ pick the same palette the game had loaded when it showed a picture, or the colou
 - `metrics.tsv`: `S <style> <height> <hspacing> <vspacing>` per style, and
   `G <style> <ascii> <x in the strip> <width>` per glyph. Heights are 6, 6, 9, 9, 10, 16, 5 and 10
   pixels for styles 0 to 7.
+- `fonts/bmfont/style0.fnt` to `style7.fnt` with `.png` are the same styles as AngelCode text BMFonts (for
+  `macroquad_bitmap_font_engine`): 96 glyphs on a grid with a one pixel gap, `lineHeight` =
+  height + vertical spacing, `xadvance` = width + horizontal spacing. The `.fnt` describes the first grid and the PNG
+  stacks it 16 times, once per colour set (the engine's `Ink::Set`, `Nearest` and `Tint` pick one). They are original
+  art, so they stay local like the rest of `assets-local`.
+- `fonts/colour_sets.ron` is the colour set table itself (set, colour index 1 to 15, RGB). It is only numbers, so a
+  copy is committed as `content/font_colour_sets.ron`; after `extract-art` copy it over (`cp
+  assets-local/art/fonts/colour_sets.ron content/font_colour_sets.ron`). A test in `f4x-data` checks its shape.
 - In the client (`art.rs`, `frame.rs`): `Art::text_width`, `Art::nearest_font_set(style, colour)`
   (the set whose average colour is closest to the colour wanted) and `Art::draw_bitmap_text`;
   the one function to use on a screen is `App::draw_styled(view, &Style, text, x, y)` (`font.rs`),

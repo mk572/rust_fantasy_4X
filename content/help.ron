@@ -503,4 +503,7 @@ To change a key, copy its line from hotkeys.ron into saves/hotkeys.ron."),
     (index: 803, title: "Year", text: "2000 less 2 points for each turn played. You only get these points while your fortress stands and nobody has cast the Spell of Mastery before you; late in the game they can be negative."),
     (index: 804, title: "Spell of Mastery", text: "250 points for casting the Spell of Mastery."),
     (index: 805, title: "Final score", text: "The sum of all the points, scaled by the difficulty: Intro halves it, Easy takes three quarters, Normal leaves it, Hard doubles it and Impossible triples it."),
+    (index: 807, subject: Some("setting:play_intro"), title: "Play intro", text: "Whether the opening movie plays when the game starts. It plays only if its pictures were extracted."),
+    (index: 808, subject: Some("setting:left_click_moves"), title: "Left click moves units", text: "On: a left click on the map moves the selected units there, and a right click selects what is under the pointer. Off: the buttons swap roles."),
+    (index: 809, subject: Some("setting:dim_behind_boxes"), title: "Dim behind boxes", text: "Whether the screen under a question or a notice is dimmed while the box is open."),
 ]

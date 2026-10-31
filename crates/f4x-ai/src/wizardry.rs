@@ -66,7 +66,17 @@ const GOOD_GLOBALS: &[&str] = &[
 
 /// Global enchantments that strike the whole world, begun only while the AI is at war with a
 /// wizard.
-const WORLD_SPELLS: &[&str] = &["time_stop", "meteor_storm", "great_wasting", "armageddon"];
+const WORLD_SPELLS: &[&str] = &[
+    "time_stop",
+    "meteor_storm",
+    "great_wasting",
+    "armageddon",
+    "natures_wrath",
+];
+
+/// Nature's Wrath strikes only a wizard who casts a spell of these realms: it is begun only
+/// against an enemy with a book in one.
+const WRATH_REALMS: &[&str] = &["death", "chaos"];
 
 /// Lasting spells on a unit whose effect the rules read by the spell's id, so their `effects` are
 /// empty: Heroism, and the wards against a realm. All of them help the unit they sit on.
@@ -96,6 +106,16 @@ const RECALL_PERCENT: u32 = 50;
 const STASIS_RADIUS: i32 = 3;
 /// Mana kept in the reserve before the AI starts a global enchantment (the original's gate).
 const GLOBAL_RESERVE: i32 = 200;
+
+/// Whether a spell on the world has someone to strike: any enemy wizard, and for Nature's
+/// Wrath one with a book of a realm it punishes.
+fn world_spell_has_victim(view: &PlayerView, def: &SpellDef) -> bool {
+    if def.id == "natures_wrath" {
+        view.rival_at_war_has_books(WRATH_REALMS)
+    } else {
+        !view.rivals_at_war().is_empty()
+    }
+}
 
 fn has_hook(def: &SpellDef, name: &str) -> bool {
     def.effects
@@ -878,7 +898,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         && mana - cost >= GLOBAL_RESERVE
                         && upkeep_ok(&view, def)
                         && !magic.has_global(spell)
-                        && !view.rivals_at_war().is_empty()
+                        && world_spell_has_victim(&view, def)
                 }
                 Kind::Other => false,
             };
@@ -988,6 +1008,7 @@ mod tests {
             ("armageddon", Kind::WorldSpell),
             ("time_stop", Kind::WorldSpell),
             ("great_wasting", Kind::WorldSpell),
+            ("natures_wrath", Kind::WorldSpell),
             ("spell_blast", Kind::Blast),
             ("stasis", Kind::Stasis),
             ("transmute", Kind::Other),
@@ -1193,6 +1214,33 @@ mod tests {
         }));
         cast(&ai, &mut g, &mut Vec::new());
         assert!(began(&g)?, "at war: Meteor Storm begun or cast");
+        Ok(())
+    }
+
+    #[test]
+    fn natures_wrath_has_a_victim_only_in_an_enemy_with_death_or_chaos_books() -> TestResult {
+        let mut g = game(COAST_CITY, "high_men");
+        g.make_contact(P0, P1);
+        let wrath = spell("natures_wrath")?;
+        let storm = spell("meteor_storm")?;
+        g.wizard_mut(P1)
+            .ok_or("player 1 is a wizard")?
+            .found(&[("life", 5)], &[]);
+        let victim = |g: &Game, id| {
+            let def = g.content().rules.spells.get(id);
+            world_spell_has_victim(&PlayerView::new(g, P0), def)
+        };
+        assert!(!victim(&g, wrath) && !victim(&g, storm), "at peace");
+        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+            player: P0,
+            on: P1,
+        }));
+        assert!(victim(&g, storm), "at war: the storm has a victim");
+        assert!(!victim(&g, wrath), "only Life: no Wrath");
+        g.wizard_mut(P1)
+            .ok_or("player 1 is a wizard")?
+            .found(&[("chaos", 5)], &[]);
+        assert!(victim(&g, wrath), "Chaos books: Wrath");
         Ok(())
     }
 

@@ -186,6 +186,11 @@ impl Events {
             .any(|e| e.kind == kind && e.city == Some(city))
     }
 
+    /// The turn the last event was drawn (none yet: 0).
+    pub fn last_event(&self) -> u32 {
+        self.last_event
+    }
+
     /// The world event going on, if any.
     pub fn world_event(&self) -> Option<EventKind> {
         self.ongoing.iter().map(|e| e.kind).find(|k| k.is_world())

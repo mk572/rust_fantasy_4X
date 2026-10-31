@@ -38,8 +38,29 @@ pub(crate) struct CityScroll {
     city: hecs::Entity,
     music: Track,
     shakes: bool,
+    /// The magic building the spell puts in the cityscape (`cityscape` index), which fades in
+    /// a little after the scroll opens (`Cast_Spell_City_Enchantment_Animation_2`).
+    appears: Option<i16>,
     started: Option<f64>,
 }
+
+/// The cityscape picture a spell brings to the city, if it is one that builds something.
+fn appearing_building(spell: &str) -> Option<i16> {
+    use crate::cityscape as cs;
+    match spell {
+        "summoning_circle" => Some(cs::SUMMONING_CIRCLE),
+        "earth_gate" => Some(cs::EARTH_GATE),
+        "stream_of_life" => Some(cs::STREAM_OF_LIFE),
+        "astral_gate" => Some(cs::ASTRAL_GATE),
+        "move_fortress" => Some(cs::FORTRESS),
+        "dark_rituals" => Some(cs::DARK_RITUALS),
+        "altar_of_battle" => Some(cs::ALTAR_OF_BATTLE),
+        _ => None,
+    }
+}
+
+/// The stages the scroll shows before the building starts to appear.
+const APPEAR_AFTER: usize = 8;
 
 impl Modal for CityScroll {
     fn kind(&self) -> &'static str {
@@ -106,6 +127,7 @@ impl App {
             city,
             music: Track::piece(GOOD_MUSIC[realm_slot(&def.realm)] + bad),
             shakes: def.id == "earthquake",
+            appears: appearing_building(&def.id),
             started,
         })
     }
@@ -147,6 +169,13 @@ impl App {
             let reach = (35 - stage) as f32 / 5.0;
             let wobble = |n: f32| ((get_time() as f32 * 97.0 + n).sin() * reach).round();
             lay.origin += vec2(wobble(0.0), wobble(2.0)) * lay.scale;
+        }
+        if let Some(idx) = scroll.appears.take().filter(|_| animated) {
+            self.build_in = Some(crate::built_popup::BuildIn {
+                city: scroll.city,
+                idx,
+                started: Some(started + APPEAR_AFTER as f64 * STAGE),
+            });
         }
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (x, y) = FRAME;
@@ -209,6 +238,9 @@ mod tests {
         assert!(scroll("stone_skin").is_none(), "a unit spell has no scroll");
         let curse = scroll("earthquake").expect("a city spell");
         assert!(curse.shakes);
+        assert_eq!(good.appears, None);
+        let gate = scroll("earth_gate").expect("a city spell");
+        assert_eq!(gate.appears, Some(crate::cityscape::EARTH_GATE));
         assert!(curse.music.entry >= BAD_OFFSET);
     }
 }

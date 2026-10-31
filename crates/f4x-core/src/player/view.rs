@@ -115,6 +115,16 @@ impl<'a> PlayerView<'a> {
         other != self.me && self.game.is_wizard(other)
     }
 
+    /// Whether a wizard the player is at war with has a book in one of `realms` (the books of a
+    /// wizard are on show in the diplomacy screen).
+    pub fn rival_at_war_has_books(&self, realms: &[&str]) -> bool {
+        self.rivals_at_war().into_iter().any(|p| {
+            self.game
+                .wizard(p)
+                .is_some_and(|w| realms.iter().any(|r| w.books_in(r) > 0))
+        })
+    }
+
     /// The wizards still in the game that the player is at war with.
     pub fn rivals_at_war(&self) -> Vec<PlayerId> {
         self.game

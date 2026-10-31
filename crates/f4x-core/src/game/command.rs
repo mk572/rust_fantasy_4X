@@ -97,7 +97,7 @@ pub enum Command {
         race: Option<rules::RaceId>,
         population: u32,
     },
-    /// The unit sheet's Dismiss: a unit leaves its owner's service for good (not heroes yet).
+    /// The unit sheet's Dismiss: a unit leaves its owner's service for good; a hero's items go to the armory.
     DismissUnit {
         #[serde(with = "game::replay::stable_ref::one")]
         unit: hecs::Entity,

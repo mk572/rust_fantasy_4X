@@ -5428,6 +5428,65 @@ fn the_scripted_wizard_casts_a_damage_spell_at_an_enemy_when_it_can_pay() -> Tes
 }
 
 #[test]
+fn the_scripted_wizard_casts_call_chaos_and_a_magic_vortex_when_enemies_are_there() -> TestResult {
+    for name in ["call_chaos", "magic_vortex"] {
+        let g = spell_duel(name, 3, 200, 200)?;
+        let id = g
+            .content
+            .rules
+            .spells
+            .id_of(name)
+            .ok_or("the spell is not in the content")?;
+        let Some(BattleCommand::Cast { spell, aim, .. }) = super::brain::next_command(&g) else {
+            return Err(format!("the wizard did not cast {name}").into());
+        };
+        assert_eq!(spell, id, "{name}");
+        if name == "magic_vortex" {
+            let SpellAim::Tile(cell) = aim else {
+                return Err(format!("a vortex is raised on a square, not {aim:?}").into());
+            };
+            let battle = g.battle().ok_or("battle is missing")?;
+            assert!(
+                battle
+                    .units
+                    .iter()
+                    .any(|u| u.side == Side::Defender && super::map::distance(u.cell, cell) <= 2),
+                "the vortex is raised among the enemy, not at {cell:?}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn the_scripted_side_steers_its_vortex_onto_an_enemy_once_and_leaves_the_enemys_alone() -> TestResult
+{
+    let mut b = duel(
+        spearman(Side::Attacker, (3, 10)),
+        spearman(Side::Defender, (10, 10)),
+        5,
+    );
+    b.make_vortex(Side::Attacker, (9, 10));
+    assert_eq!(
+        super::brain::steer_choice(&b),
+        Some(BattleCommand::MoveVortex {
+            index: 0,
+            to: (10, 10)
+        })
+    );
+    b.vortices[0].steered = true;
+    assert_eq!(super::brain::steer_choice(&b), None, "once a turn");
+    b.vortices[0].steered = false;
+    b.vortices[0].owner = Side::Defender;
+    assert_eq!(
+        super::brain::steer_choice(&b),
+        None,
+        "the other side's vortex is not ours to move"
+    );
+    Ok(())
+}
+
+#[test]
 fn the_scripted_wizard_with_no_mana_to_spare_moves_its_units_instead() -> TestResult {
     // No mana in the battle.
     let g = spell_duel("fire_bolt", 2, 0, 50)?;

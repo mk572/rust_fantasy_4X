@@ -71,6 +71,13 @@ pub(crate) fn site_type(site: &str) -> usize {
     SITES.iter().position(|s| s.0 == site).unwrap_or(8)
 }
 
+/// The three nodes among the sites: their question box slides the colours of its picture
+/// (`notify_color_slide` in the original's `Lair_Confirm`).
+const NODES: std::ops::RangeInclusive<usize> = 1..=3;
+
+/// How many steps of the slide a second shows: our own pace, the original's depends on its frame.
+const SLIDE_PER_SECOND: f64 = 8.0;
+
 /// One box waiting to be shown.
 #[derive(Debug, Clone)]
 pub enum SiteNotice {
@@ -360,6 +367,23 @@ impl App {
         let bottom = paragraph.max(75.0) + top_y + 6.0 + 6.0;
         self.draw_pic_rows(lay, "backgrnd", 25, BOX_X, top_y, top_y, bottom);
         self.draw_pic(lay, "reload", 9 + site, 0, BOX_X + 7.0, top_y + 7.0);
+        if NODES.contains(&site) {
+            let step = (get_time() * SLIDE_PER_SECOND) as usize;
+            if let Some(slide) = self.art.slide_frame("reload", 9 + site, 0, step).cloned() {
+                let at = lay.point(BOX_X + 7.0, top_y + 7.0);
+                let size = crate::resolution::logical_size(&slide) * lay.scale;
+                draw_texture_ex(
+                    &slide,
+                    at.x,
+                    at.y,
+                    WHITE,
+                    DrawTextureParams {
+                        dest_size: Some(size),
+                        ..Default::default()
+                    },
+                );
+            }
+        }
         self.draw_pic(
             lay,
             "backgrnd",

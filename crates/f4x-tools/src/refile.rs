@@ -8,9 +8,12 @@ use std::path::{Path, PathBuf};
 
 use crate::screens::Placer;
 
-/// The files one picture may have for each frame: the picture, its colour-cycle mask and its
-/// banner mask.
-const SUFFIXES: [&str; 3] = ["", "_cycle", "_banner"];
+/// The files one picture may have for each frame: the picture, its colour-cycle mask, its banner
+/// mask and the eight steps of the node box's colour slide.
+const SUFFIXES: [&str; 11] = [
+    "", "_cycle", "_banner", "_slide_0", "_slide_1", "_slide_2", "_slide_3", "_slide_4",
+    "_slide_5", "_slide_6", "_slide_7",
+];
 
 /// Where a picture's frames are: a folder and the file name without the frame.
 fn location(

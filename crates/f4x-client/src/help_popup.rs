@@ -15,6 +15,7 @@ use crate::frame::Layout;
 use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
 use crate::view::{App, Screen};
+use f4x_core::world_event::EventKind;
 
 /// The box's text width and the margin round it, in the original's pixels.
 const TEXT_WIDTH: f32 = 180.0;
@@ -143,6 +144,35 @@ impl App {
         true
     }
 
+    /// The help of a random event under the point (320x200 coordinates): the world event's name
+    /// under the minimap, and the Plague or Pop. Boom mark after the race on the city screen.
+    fn event_help_at(&self, x: f32, y: f32) -> Option<(u16, (f32, f32, f32, f32))> {
+        let events = self.game.events();
+        match self.screen {
+            Screen::Map => {
+                let kind = events.world_event()?;
+                let from = (240.0, 152.0, 80.0, 12.0);
+                let inside =
+                    x >= from.0 && x < from.0 + from.2 && y >= from.1 && y < from.1 + from.3;
+                inside.then(|| (event_topic(kind), from))
+            }
+            Screen::City(city) => {
+                let serial = self.game.serial_of(city);
+                let from = (0.0, 19.0, 211.0, 8.0);
+                let inside =
+                    x >= from.0 && x < from.0 + from.2 && y >= from.1 && y < from.1 + from.3;
+                if !inside {
+                    return None;
+                }
+                [EventKind::Plague, EventKind::PopulationBoom]
+                    .into_iter()
+                    .find(|k| events.on_city(*k, serial))
+                    .map(|k| (event_topic(k), from))
+            }
+            _ => None,
+        }
+    }
+
     /// Look for a right-click on a help area. Called once a frame, before the screen reacts.
     pub(crate) fn watch_for_help(&mut self, input: &Input) {
         let probe = self.help_ui.probe;
@@ -177,6 +207,27 @@ impl App {
                     extra: None,
                     own: Some(own),
                     from: (x - 2.0, y - 2.0, 4.0, 4.0),
+                });
+                return;
+            }
+        }
+        if input.mouse_pressed(MouseButton::Right) {
+            let lay = Layout::new();
+            let (mx, my) = input.mouse_position();
+            let at = (
+                (mx - lay.origin.x) / lay.scale,
+                (my - lay.origin.y) / lay.scale,
+            );
+            let settings = (matches!(self.screen, Screen::Settings))
+                .then(|| crate::settings_screen::row_at(at.0, at.1))
+                .flatten()
+                .map(|(pref, from)| (crate::settings_screen::help_topic(pref), from));
+            if let Some((topic, from)) = settings.or_else(|| self.event_help_at(at.0, at.1)) {
+                self.help_ui.request = Some(HelpRequest {
+                    topic,
+                    extra: None,
+                    own: None,
+                    from,
                 });
                 return;
             }
@@ -443,8 +494,39 @@ impl App {
     }
 }
 
+/// The help topic of a random event (`HLP_PLAGUE` and the ones after it, 768 to 775).
+fn event_topic(kind: EventKind) -> u16 {
+    match kind {
+        EventKind::Plague => 768,
+        EventKind::PopulationBoom => 769,
+        EventKind::ConjunctionSorcery => 770,
+        EventKind::ConjunctionChaos => 771,
+        EventKind::ConjunctionNature => 772,
+        EventKind::BadMoon => 773,
+        EventKind::GoodMoon => 774,
+        _ => 775,
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn every_event_has_a_topic_from_768_to_775() {
+        use super::*;
+        let all = [
+            EventKind::Plague,
+            EventKind::PopulationBoom,
+            EventKind::ConjunctionSorcery,
+            EventKind::ConjunctionChaos,
+            EventKind::ConjunctionNature,
+            EventKind::BadMoon,
+            EventKind::GoodMoon,
+            EventKind::ManaShort,
+        ];
+        let topics: Vec<u16> = all.into_iter().map(event_topic).collect();
+        assert_eq!(topics, (768..=775).collect::<Vec<_>>());
+    }
+
     use super::*;
     use crate::unit_sheet::melee_icon;
 
