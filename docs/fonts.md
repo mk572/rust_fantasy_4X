@@ -69,3 +69,16 @@ Candidates that were looked at and left out (licence; install policy in the sect
 - Pixel Symtext: freeware; the listing says to contact the designer for commercial use. Not installed.
 - Gridwright Story and tallreed: no page or licence found. Send a link and I will check them.
 - Bitcount (all six non-ink families): installed, OFL; scores below Jersey for every style.
+
+## Trying the engine and the free fonts on a screen
+
+`F4X_BMFONT=1` makes `App::draw_styled` (every screen's bitmap text) draw through `macroquad_bitmap_font_engine` from
+`assets-local/art/fonts/bmfont`; `F4X_BMFONT=DIR` takes the `style{N}.fnt` and `.png` files from DIR instead (a style
+missing there falls back to the client's own drawing). A font with one colour set (any font made by `font-bmfont`)
+is tinted: the colour asked for, or for `Style::set(n)` the average colour of the original's set n. The city screen
+(`--shot FILE --city --shot-after 1`) with `F4X_BMFONT=1` is pixel-identical to the client's own drawing (31 October
+2026, 2560 by 1600, zero differing pixels), so the engine reproduces the extracted fonts exactly. With free fonts
+(Micro 5 for style 0, Silkscreen 8 for 1, Jersey 20 at 10 and 11 for 2 and 3, Jacquard 12 for 4, Jacquard 24 at 21 for
+5) the title in Jacquard looks right; the narrow boxes overflow or clip because the free fonts' widths differ (Silkscreen
+is capitals only and wide), so the layout would need the widths measured and the text fitted, as the localization task
+plans.

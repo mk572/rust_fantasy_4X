@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use f4x_data::spell_art::{Role, SpellArt};
 use macroquad::prelude::*;
+use macroquad_bitmap_font_engine::BmFont;
 
 pub const TILE_W: f32 = 20.0;
 pub const TILE_H: f32 = 18.0;
@@ -127,6 +128,12 @@ pub struct Art {
     /// Terrain type -> the folder under `map/tiles/` its tiles are in (`arcanus/shore`).
     type_dirs: Vec<String>,
     textures: HashMap<PathBuf, Option<Texture2D>>,
+    /// The fonts as BMFonts (`fonts/bmfont/style{N}.fnt`), loaded on first use.
+    bm_fonts: HashMap<usize, Option<BmFont>>,
+    /// Whether `draw_styled` draws through the font engine (`F4X_BMFONT` set), for comparing it
+    /// with the client's own bitmap text, and the folder of the BMFonts it uses (`F4X_BMFONT=DIR`,
+    /// else `fonts/bmfont` under the art folder).
+    bm_engine: Option<PathBuf>,
     /// Pictures filed away from `art/<lbx>/`: lbx -> entry -> path from `assets-local/` without
     /// the frame (`screens/<screen>/<name>`, `art/units/<id>/<name>`; `index.tsv`, written by
     /// `extract-art`).
@@ -254,6 +261,15 @@ impl Art {
             type_tiles,
             type_dirs,
             textures: HashMap::new(),
+            bm_fonts: HashMap::new(),
+            bm_engine: std::env::var_os("F4X_BMFONT").map(|value| {
+                let dir = PathBuf::from(value);
+                if dir.is_dir() {
+                    dir
+                } else {
+                    PathBuf::new()
+                }
+            }),
             autotile,
             type_anim,
             minimap,
@@ -325,6 +341,28 @@ impl Art {
         styles
     }
 
+    /// Whether text goes through the font engine (`F4X_BMFONT` is set).
+    pub fn bm_engine(&self) -> bool {
+        self.bm_engine.is_some()
+    }
+
+    /// A font style as a BMFont (`extract-art` writes `fonts/bmfont/`), or `None` when it was
+    /// not extracted or does not load.
+    pub fn bm_font(&mut self, style: usize) -> Option<&BmFont> {
+        let dir = match &self.bm_engine {
+            Some(own) if !own.as_os_str().is_empty() => own.clone(),
+            _ => self.dir.join("fonts/bmfont"),
+        };
+        self.bm_fonts
+            .entry(style)
+            .or_insert_with(|| {
+                let text = std::fs::read_to_string(dir.join(format!("style{style}.fnt"))).ok()?;
+                let png = std::fs::read(dir.join(format!("style{style}.png"))).ok()?;
+                BmFont::from_bytes(&text, &png).ok()
+            })
+            .as_ref()
+    }
+
     /// Whether the original fonts were extracted.
     pub fn has_fonts(&self) -> bool {
         self.styles.iter().any(Option::is_some)
@@ -347,6 +385,15 @@ impl Art {
             .get(style)
             .and_then(Option::as_ref)
             .map_or(8.0, |s| s.height as f32)
+    }
+
+    /// The average colour of one of the original's colour sets of a font style.
+    pub fn font_set_colour(&mut self, style: usize, set: usize) -> Option<Color> {
+        self.ensure_set_colors(style);
+        let Some(Some(st)) = self.styles.get(style) else {
+            return None;
+        };
+        st.set_colors.get(set).copied()
     }
 
     /// The colour set whose average colour is closest to `color`.

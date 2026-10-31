@@ -4,6 +4,7 @@
 //! hands it to `draw_styled`.
 
 use macroquad::prelude::*;
+use macroquad_bitmap_font_engine as bm;
 
 use crate::frame::Align;
 use crate::view::App;
@@ -182,6 +183,11 @@ impl App {
             draw_text(text, ox + left * s, baseline, size, color);
             return w;
         }
+        if self.art.bm_engine() {
+            if let Some(w) = self.draw_with_engine((ox, oy, s), style, ink, text, (x, y)) {
+                return w;
+            }
+        }
         let w = self.art.text_width(font, text);
         let (px, py) = (ox + aligned(x, w, style.align) * s, oy + y * s);
         match ink {
@@ -195,6 +201,42 @@ impl App {
             Ink::Flat(color) => self.art.draw_flat_text(font, text, (px, py), s, color),
         }
         w
+    }
+
+    /// One line drawn by the font engine (`macroquad_bitmap_font_engine`) from the BMFont of the
+    /// style, in the same place and ink as the client's own drawing; `None` when the BMFont is
+    /// not there. Returns the width in the original's pixels.
+    fn draw_with_engine(
+        &mut self,
+        (ox, oy, s): (f32, f32, f32),
+        style: &Style,
+        ink: Ink,
+        text: &str,
+        (x, y): (f32, f32),
+    ) -> Option<f32> {
+        // A set of the original's colours stands in for a font of one colour set as a tint.
+        let set_tint = match ink {
+            Ink::Set(set) => self.art.font_set_colour(style.font, set),
+            _ => None,
+        };
+        let font = self.art.bm_font(style.font)?;
+        let w = font.measure_text(text, 1.0).width;
+        let engine_ink = match ink {
+            // A font of one colour set (a free font) cannot pick one: it is tinted instead.
+            Ink::Nearest(color) if font.colour_sets() == 1 => bm::Ink::Tint(color),
+            Ink::Nearest(color) => bm::Ink::Nearest(color),
+            Ink::Set(_) if font.colour_sets() == 1 => bm::Ink::Tint(set_tint.unwrap_or(WHITE)),
+            Ink::Set(set) => bm::Ink::Set(set),
+            Ink::Flat(color) => bm::Ink::Tint(color),
+        };
+        let params = bm::TextParams {
+            scale: s,
+            ink: engine_ink,
+            ..Default::default()
+        };
+        let left = ox + aligned(x, w, style.align) * s;
+        font.draw_text_ex(text, left, oy + (y + font.base) * s, &params);
+        Some(w)
     }
 
     /// Words wrapped to `width` pixels in one of the original's bitmap fonts.
