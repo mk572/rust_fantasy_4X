@@ -499,3 +499,87 @@ impl Line {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::battle::{BattleEvent, Side};
+    use f4x_core::testdir::TestResult;
+
+    const RIVAL: PlayerId = PlayerId(1);
+
+    fn ended(winner: PlayerId, loser: PlayerId) -> Event {
+        Event::BattleEnded { winner, loser }
+    }
+
+    /// One event for the battle, in the winner's name: its fame and the loser's loss.
+    fn spoils(winner: PlayerId, fame: i32, loser_fame: i32) -> Event {
+        Event::BattleSpoils {
+            player: winner,
+            experience: 0,
+            fame,
+            loser_fame,
+        }
+    }
+
+    fn results(app: &mut App, events: &[Event]) -> Result<CombatResults, &'static str> {
+        app.combat_results = None;
+        app.record_combat_results(events);
+        app.combat_results.clone().ok_or("no scroll was prepared")
+    }
+
+    #[test]
+    fn a_battle_the_human_was_not_in_leaves_no_scroll() {
+        let mut app = App::for_test();
+        app.record_combat_results(&[ended(RIVAL, PlayerId(2))]);
+        app.record_combat_results(&[]);
+        assert!(app.combat_results.is_none());
+    }
+
+    #[test]
+    fn a_win_and_a_loss_read_the_fame_of_the_human_side_and_pick_their_paper() -> TestResult {
+        let mut app = App::for_test();
+        let won = results(&mut app, &[spoils(HUMAN, 8, -3), ended(HUMAN, RIVAL)])?;
+        assert_eq!((won.outcome, won.fame, won.paper), (Outcome::Won, 8, 10));
+        let lost = results(&mut app, &[spoils(RIVAL, 8, -3), ended(RIVAL, HUMAN)])?;
+        assert_eq!(
+            (lost.outcome, lost.fame, lost.paper),
+            (Outcome::Lost, -3, 11)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_retreat_is_told_from_the_side_that_ran() -> TestResult {
+        let mut app = App::for_test();
+        let fled = |side| Event::Battle(BattleEvent::Fled { side });
+        app.note_battle_start(
+            HUMAN,
+            RIVAL,
+            Position {
+                x: 1,
+                y: 1,
+                ..start_of(&app)?
+            },
+        );
+        let ours = results(&mut app, &[fled(Side::Attacker), ended(RIVAL, HUMAN)])?;
+        assert_eq!(ours.outcome, Outcome::Fled);
+        let theirs = results(&mut app, &[fled(Side::Defender), ended(HUMAN, RIVAL)])?;
+        assert_eq!(theirs.outcome, Outcome::OpponentFled);
+        let slow = results(
+            &mut app,
+            &[Event::Battle(BattleEvent::Exhausted), ended(HUMAN, RIVAL)],
+        )?;
+        assert_eq!(slow.outcome, Outcome::Exhausted);
+        Ok(())
+    }
+
+    fn start_of(app: &App) -> Result<Position, &'static str> {
+        app.game
+            .units()
+            .player_units(HUMAN)
+            .first()
+            .and_then(|&u| app.game.units().unit_position(u))
+            .ok_or("the human has no unit")
+    }
+}

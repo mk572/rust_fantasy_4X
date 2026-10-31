@@ -1,6 +1,6 @@
 //! The original's full-screen scenes of conquest (`CONQUEST.c`): the victory and the defeat that
 //! come before the score, the raiders destroying a wizard, and a banished wizard beginning the
-//! Spell of Return (task 360).
+//! Spell of Return.
 //!
 //! Each scene counts stages: one stage is a few ticks of the original's clock (18 a second), the
 //! scene ends after its last stage, and a click or Esc ends it at once. The pictures are the

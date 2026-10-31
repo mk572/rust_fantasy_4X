@@ -1,4 +1,4 @@
-//! The Army list (task 138), the original's `ArmyList_Screen` (`ArmyList.c`): every stack of the
+//! The Army list, the original's `ArmyList_Screen` (`ArmyList.c`): every stack of the
 //! wizard, six rows of up to nine units on the original's stone picture (`armylist.lbx`), the
 //! unit under the mouse named below with its lasting spells, a small map showing where it
 //! stands, and the army's upkeep. A left-click on a unit selects its stack and goes to it on the

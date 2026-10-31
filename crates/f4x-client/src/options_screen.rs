@@ -113,8 +113,6 @@ impl App {
     }
 }
 
-impl App {}
-
 /// What a game was made with, one line each (the Settings screen of a running game).
 pub(crate) fn settings_lines(
     texts: &Texts,
@@ -361,7 +359,7 @@ impl Page for OptionsPage {
     }
 }
 
-/// What the game is played with (task 94), opened from the Settings screen's Game button.
+/// What the game is played with, opened from the Settings screen's Game button.
 /// In a game it shows the settings and changes nothing; from the start menu there is no
 /// game, so it is the options for the next one. Back returns to the Settings screen.
 pub(crate) struct GameSettingsPage;
@@ -467,32 +465,32 @@ impl Page for GameSettingsPage {
 mod tests {
     use super::*;
 
-    fn shipped_settings() -> f4x_core::game::setting::SettingsDef {
-        f4x_data::load_settings(&[std::path::Path::new("../../content")]).unwrap()
+    fn shipped_settings() -> &'static f4x_core::game::setting::SettingsDef {
+        crate::test_app::shipped::settings()
     }
 
     #[test]
     fn defaults_are_a_normal_two_wizard_game() {
         let settings = shipped_settings();
-        let o = OptionsState::from_settings(&settings);
+        let o = OptionsState::from_settings(settings);
         assert_eq!(o.opponents, 1);
-        assert_eq!(o.land_percent(&settings), f4x_core::game::setup::LAND_LARGE);
+        assert_eq!(o.land_percent(settings), f4x_core::game::setup::LAND_LARGE);
         assert_eq!(DIFFICULTIES[usize::from(o.difficulty)], "options.average");
     }
 
     #[test]
     fn a_running_games_settings_read_as_words() {
         let settings = shipped_settings();
-        let level = |d| f4x_core::game::setting::GameSettings::for_difficulty(&settings, d);
-        let texts = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
-        let lines = settings_lines(&texts, &level(4), &settings);
+        let level = |d| f4x_core::game::setting::GameSettings::for_difficulty(settings, d);
+        let texts = crate::test_app::shipped::texts();
+        let lines = settings_lines(texts, &level(4), settings);
         assert_eq!(lines[0], "Difficulty: Impossible");
         assert!(lines.iter().any(|l| l.contains("25 for you, 150")));
         assert!(lines.iter().any(|l| l.contains("production 400%")));
         let mut custom = level(2);
         custom.wizards.starting_gold.human = 300;
         assert_eq!(
-            settings_lines(&texts, &custom, &settings)[0],
+            settings_lines(texts, &custom, settings)[0],
             "Difficulty: Average (custom)"
         );
     }

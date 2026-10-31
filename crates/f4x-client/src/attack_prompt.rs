@@ -1,6 +1,6 @@
-//! The question before an attack (task 133): moving into an enemy stack or city asks whether to
+//! The question before an attack: moving into an enemy stack or city asks whether to
 //! fight it, leave it to the computer (Auto-resolve) or call the attack off, as a box over the
-//! map. Plain box for now; the original's picture is task 143.
+//! map.
 
 use crate::input::Input;
 use f4x_core::game::Command;
@@ -473,5 +473,68 @@ impl App {
             }
             _ => self.text_with("attack.line_monster", &counts(Args::new())),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::player::{PlayerId, MONSTERS};
+    use f4x_core::testdir::TestResult;
+
+    fn attack(
+        app: &App,
+        defender_owner: PlayerId,
+        defending: bool,
+    ) -> Result<PendingAttack, String> {
+        let mine = app.game.units().player_units(HUMAN);
+        let theirs = app.game.units().player_units(defender_owner);
+        if mine.is_empty() || theirs.is_empty() {
+            return Err(format!("no units for {HUMAN:?} and {defender_owner:?}"));
+        }
+        let (attackers, defenders) = if defending {
+            (theirs, mine)
+        } else {
+            (mine, theirs)
+        };
+        Ok(PendingAttack {
+            attackers,
+            defenders,
+            defending,
+            treaty_asked: false,
+        })
+    }
+
+    #[test]
+    fn the_question_names_who_attacks_whom() -> TestResult {
+        let mut app = App::for_test();
+        let rival = PlayerId(1);
+        let line = app.attack_line(&attack(&app, rival, false)?);
+        assert!(
+            line.starts_with("2 of your units attack 2 units of "),
+            "{line}"
+        );
+        let line = app.attack_line(&attack(&app, rival, true)?);
+        assert!(
+            line.contains("attacks your 2 units with 2 units."),
+            "{line}"
+        );
+
+        let at = app
+            .game
+            .units()
+            .unit_position(app.game.units().player_units(HUMAN)[0])
+            .ok_or("the human has no unit")?;
+        let kind = app
+            .game
+            .content()
+            .rules
+            .units
+            .id_of("magic_spirit")
+            .ok_or("no magic_spirit")?;
+        app.game.spawn_unit(MONSTERS, at, kind);
+        let line = app.attack_line(&attack(&app, MONSTERS, false)?);
+        assert_eq!(line, "2 of your units attack 1 monster unit.");
+        Ok(())
     }
 }

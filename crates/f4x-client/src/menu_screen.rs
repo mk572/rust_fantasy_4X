@@ -1,4 +1,4 @@
-//! The start menu and the save slots (tasks 86 and 145; `docs/screen_list.md`).
+//! The start menu and the save slots (`docs/screen_list.md`).
 //!
 //! Both follow the original: the menu is `Main_Menu_Screen` (Continue, Load Game, New Game, Hall
 //! of Fame, Quit; Continue loads the auto-save, Load Game opens the slots) and the slots are
@@ -537,6 +537,7 @@ impl Page for SlotsPage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::testdir::{TestDir, TestResult};
 
     #[test]
     fn times_are_written_as_utc_dates() {
@@ -564,27 +565,26 @@ mod tests {
             },
             saved_at: Some(0),
         };
-        let t = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
-        assert_eq!(filled.label(&t, 2), "3.  Merlin, turn 41  1970-01-01 00:00");
-        assert_eq!(Slot::Empty.label(&t, 0), "1.  (empty)");
-        assert!(Slot::Damaged.label(&t, 7).contains("damaged"));
+        let t = crate::test_app::shipped::texts();
+        assert_eq!(filled.label(t, 2), "3.  Merlin, turn 41  1970-01-01 00:00");
+        assert_eq!(Slot::Empty.label(t, 0), "1.  (empty)");
+        assert!(Slot::Damaged.label(t, 7).contains("damaged"));
         assert!(filled.loadable() && !Slot::Empty.loadable() && !Slot::Damaged.loadable());
     }
 
     #[test]
-    fn reading_slots_tells_empty_from_damaged() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/test-saves/slots");
-        std::fs::create_dir_all(&dir).unwrap();
+    fn reading_slots_tells_empty_from_damaged() -> TestResult {
+        let dir = TestDir::new("slots");
         assert_eq!(Slot::read(&dir.join("none.ron")), Slot::Empty);
-        std::fs::write(dir.join("bad.ron"), "nope").unwrap();
+        std::fs::write(dir.join("bad.ron"), "nope")?;
         assert_eq!(Slot::read(&dir.join("bad.ron")), Slot::Damaged);
+        Ok(())
     }
 
     #[test]
-    fn a_save_of_another_game_version_is_incompatible_not_damaged() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/test-saves/slots");
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("old.ron"), "(version: 1, game_version: \"0.0.1\")").unwrap();
+    fn a_save_of_another_game_version_is_incompatible_not_damaged() -> TestResult {
+        let dir = TestDir::new("slots");
+        std::fs::write(dir.join("old.ron"), "(version: 1, game_version: \"0.0.1\")")?;
         let slot = Slot::read(&dir.join("old.ron"));
         assert_eq!(
             slot,
@@ -592,11 +592,12 @@ mod tests {
                 version: "0.0.1".into()
             }
         );
-        let t = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
+        let t = crate::test_app::shipped::texts();
         assert_eq!(
-            slot.label(&t, 0),
+            slot.label(t, 0),
             "1.  Incompatible save (game version 0.0.1)"
         );
         assert!(!slot.loadable());
+        Ok(())
     }
 }

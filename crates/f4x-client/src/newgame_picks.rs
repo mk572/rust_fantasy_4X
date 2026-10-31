@@ -528,18 +528,16 @@ mod tests {
 
     #[test]
     fn a_retort_that_is_refused_names_what_it_needs() {
-        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
+        let content = crate::test_app::shipped::content();
         assert_eq!(
-            prerequisite_text(&content, Retort::ChaosMastery),
+            prerequisite_text(content, Retort::ChaosMastery),
             "4 picks in Chaos Magic"
         );
         assert_eq!(
-            prerequisite_text(&content, Retort::SageMaster),
+            prerequisite_text(content, Retort::SageMaster),
             "1 pick in any 2 Realms of Magic"
         );
-        assert!(
-            prerequisite_text(&content, Retort::NodeMastery).contains("1 pick in Sorcery Magic")
-        );
-        assert!(prerequisite_text(&content, Retort::Alchemy).is_empty());
+        assert!(prerequisite_text(content, Retort::NodeMastery).contains("1 pick in Sorcery Magic"));
+        assert!(prerequisite_text(content, Retort::Alchemy).is_empty());
     }
 }

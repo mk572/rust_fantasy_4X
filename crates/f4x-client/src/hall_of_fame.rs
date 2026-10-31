@@ -1,4 +1,4 @@
-//! The Hall of Fame (task 88), the original's `Hall_Of_Fame_Screen` (`SCORE.c`): the ten best
+//! The Hall of Fame, the original's `Hall_Of_Fame_Screen` (`SCORE.c`): the ten best
 //! finished games with the wizard's name, race and score, kept between games in
 //! `saves/hall_of_fame.txt` (the original keeps them in `MAGIC.SET`). Shown from the start menu
 //! and after the score screen of a game that has ended. A click or Esc leaves.
@@ -191,21 +191,21 @@ mod tests {
     }
 
     #[test]
-    fn the_file_round_trips_and_a_damaged_line_is_skipped() {
+    fn the_file_round_trips_and_a_damaged_line_is_skipped() -> f4x_core::testdir::TestResult {
         let dir = f4x_core::testdir::TestDir::new("hof");
         let path = dir.join("hall.txt");
         let table = vec![e("Merlin", 1200), e("Raven", 800)];
-        save(&path, &table).unwrap();
-        let mut text = std::fs::read_to_string(&path).unwrap();
+        save(&path, &table)?;
+        let mut text = std::fs::read_to_string(&path)?;
         text.push_str("garbage\n");
-        std::fs::write(&path, text).unwrap();
+        std::fs::write(&path, text)?;
         assert_eq!(load(&path), table);
+        Ok(())
     }
 
     #[test]
     fn races_are_made_plural_for_the_table() {
-        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
-        let races = &content.rules.races;
+        let races = &crate::test_app::shipped::content().rules.races;
         assert_eq!(plural(races, "Barbarian"), "Barbarians");
         assert_eq!(plural(races, "High Elf"), "High Elves");
         assert_eq!(plural(races, "Lizardman"), "Lizardmen");

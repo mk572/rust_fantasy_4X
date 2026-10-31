@@ -1,4 +1,4 @@
-//! Drawing and handling the unit statistics sheet (task 140; the data is in `unit_sheet.rs`).
+//! Drawing and handling the unit statistics sheet (the data is in `unit_sheet.rs`).
 //!
 //! The sheet is the original's `Unit_Statistics_Popup`: a teal panel (`unitview` 1) with the
 //! unit on a diamond, its name, moves and upkeep, five rows of icons (melee, range, armour,
@@ -107,7 +107,7 @@ impl App {
             return;
         };
         if spell == Some("temp") {
-            // Two temporary effects, to see their lines (task 152).
+            // Two temporary effects, to see their lines.
             let who = f4x_core::rules::exec::Target::Unit(unit);
             let plus = f4x_core::rules::Modifier::new(
                 f4x_core::rules::Stat::Melee,
@@ -734,7 +734,10 @@ mod tests {
         let unit = app.selection[0];
         app.open_unit_sheet(unit);
         assert!(matches!(app.screen, Screen::UnitSheet));
-        let page = app.pages.get(&Screen::UnitSheet).unwrap();
+        let page = app
+            .pages
+            .get(&Screen::UnitSheet)
+            .expect("the sheet has a page");
         assert!(page.melee_icon().is_some());
         // Opening the sheet over the army list left that list's page where it was, for the
         // sheet to return to.

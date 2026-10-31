@@ -51,11 +51,10 @@ pub enum Screen {
     Create,
     /// The new-game options (difficulty, opponents, land size, magic power).
     Options,
-    /// The player's preferences: the original's Settings screen, opened from the save slots
-    /// (task 89).
+    /// The player's preferences: the original's Settings screen, opened from the save slots.
     Settings,
     /// The settings of the game being played (read-only), or the options for the next game when
-    /// there is none; opened from the Settings screen's Game button (task 94).
+    /// there is none; opened from the Settings screen's Game button.
     GameSettings,
     /// The world map of one plane, zoomed out (F2).
     Cartographer,
@@ -69,7 +68,7 @@ pub enum Screen {
     Console,
     /// The start menu: Continue, Load Game, New Game, Hall of Fame, Quit.
     MainMenu,
-    /// The original's opening movie (`intro_screen.rs`, task 85).
+    /// The original's opening movie (`intro_screen.rs`).
     Intro,
     /// The save slots: load, save, and leave the game.
     Slots,
@@ -134,9 +133,9 @@ pub struct App {
     /// A Summon Hero or Summon Champion cast whose scene waits for the hero it brought (its
     /// gender picks the figure): the caster and the spell.
     pub(crate) hero_summon_due: Option<(PlayerId, f4x_core::rules::SpellId)>,
-    /// The box that shows the offers made at the turn change (task 220).
+    /// The box that shows the offers made at the turn change.
     pub(crate) offer_ui: crate::offer_prompt::OfferUi,
-    /// The rival wizards, who play their turns when the human ends theirs (task 135).
+    /// The rival wizards, who play their turns when the human ends theirs.
     pub(crate) ais: Vec<f4x_ai::Ai>,
     /// Attacks on the human this turn, waiting to be fought one after the other.
     pub(crate) defences: std::collections::VecDeque<crate::attack_prompt::PendingAttack>,
@@ -170,16 +169,16 @@ pub struct App {
     pub(crate) units_waited: bool,
     /// Whether the selected stack can walk to the square under the pointer, for the boot.
     pub(crate) pointer_walk: Option<((Position, Vec<hecs::Entity>), bool)>,
-    /// A road being planned (task 102).
+    /// A road being planned.
     pub(crate) road_plan: Option<crate::road_plan::RoadPlan>,
-    /// The Surveyor is describing the square under the mouse (F1, task 71).
+    /// The Surveyor is describing the square under the mouse (F1).
     pub(crate) surveyor: bool,
     /// For screenshots: the square the Surveyor describes instead of the one under the mouse.
     pub(crate) survey_probe: Option<Position>,
     /// The human wizard chosen on the creation screen; new maps reuse it.
     pub(crate) human_build: Option<f4x_core::wizard::WizardBuild>,
     /// The battle screen's state.
-    /// Steps the units on the map are still sliding through (task 298).
+    /// Steps the units on the map are still sliding through.
     pub(crate) slides: Vec<crate::map_slide::Slide>,
     /// Items have just been awarded to the human wizard: the item screen opens when the boxes
     /// before it are closed (`Process_Item_Pool`: a lair's treasure, a gift, the merchant's item
@@ -2616,5 +2615,45 @@ impl App {
         for (text, color) in self.hover_lines(input) {
             self.overlay_line(view, y, &text, color);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_player_without_a_wizard_has_the_neutral_banner() {
+        let app = App::for_test();
+        assert_eq!(app.banner_index(255), f4x_core::player::NEUTRAL_BANNER);
+        let human = app.game.wizard(HUMAN).map(|w| w.banner());
+        assert_eq!(Some(app.banner_index(HUMAN.0)), human);
+        assert_ne!(app.banner_color(HUMAN.0), app.banner_color(255));
+    }
+
+    #[test]
+    fn centring_on_a_square_puts_it_in_the_middle_of_the_map_and_never_above_the_top() {
+        let mut app = App::for_test();
+        let at = Position {
+            plane: f4x_core::map::Plane::Myrror,
+            x: 20,
+            y: 1,
+        };
+        app.center_on(at);
+        let (cols, rows) = app.visible_tiles();
+        assert_eq!(app.plane, at.plane);
+        assert_eq!(app.cam.x, 20.0 - cols / 2.0);
+        assert_eq!(app.cam.y, (1.0 - rows / 2.0).max(0.0));
+        assert!(app.cam.y >= 0.0);
+    }
+
+    #[test]
+    fn the_first_cities_of_a_race_take_its_names_in_order() {
+        let app = App::for_test();
+        let race = &app.game.content().rules.races.defs()[app.race];
+        let used = app.game.economy().cities().len();
+        let names = &race.city_names;
+        assert!(!names.is_empty());
+        assert_eq!(app.next_city_name(), names[used % names.len()]);
     }
 }

@@ -3,18 +3,62 @@
 //! events a screen turns into notices) and leave the drawing to the screenshots.
 
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
+
+use f4x_core::content::Content;
+use f4x_core::game::setting::SettingsDef;
+use f4x_core::text::Texts;
+
+use f4x_data::spell_art::SpellArt;
 
 use crate::art::Art;
 use crate::view::App;
 
+const CONTENT: &str = "../../content";
+
+/// The files of `content/`, each parsed once for the whole test run.
+pub(crate) mod shipped {
+    use super::*;
+
+    pub(crate) fn content() -> &'static Content {
+        static CELL: OnceLock<Content> = OnceLock::new();
+        CELL.get_or_init(|| {
+            f4x_data::load_content(Path::new(CONTENT)).expect("the shipped content loads")
+        })
+    }
+
+    pub(crate) fn texts() -> &'static Texts {
+        static CELL: OnceLock<Texts> = OnceLock::new();
+        CELL.get_or_init(|| {
+            f4x_data::load_texts(&[Path::new(CONTENT)], "en").expect("the shipped texts load")
+        })
+    }
+
+    pub(crate) fn settings() -> &'static SettingsDef {
+        static CELL: OnceLock<SettingsDef> = OnceLock::new();
+        CELL.get_or_init(|| {
+            f4x_data::load_settings(&[Path::new(CONTENT)]).expect("the shipped settings load")
+        })
+    }
+
+    pub(crate) fn spell_art() -> &'static SpellArt {
+        static CELL: OnceLock<SpellArt> = OnceLock::new();
+        CELL.get_or_init(|| {
+            f4x_data::spell_art::load_spell_art(&[Path::new(CONTENT)], &content().rules)
+                .expect("the shipped spell art loads")
+        })
+    }
+}
+
 impl App {
     /// A new game on the shipped content, silent, with an art folder that is not there.
     pub(crate) fn for_test() -> App {
-        let dir = Path::new("../../content");
-        let content = f4x_data::load_content(dir).unwrap();
-        let spell_art = f4x_data::spell_art::load_spell_art(&[dir], &content.rules).unwrap();
-        let art = Art::load(PathBuf::from("no-art-in-tests"), spell_art);
-        App::new(content, art, 1).unwrap()
+        let art = Art::load(
+            PathBuf::from("no-art-in-tests"),
+            shipped::spell_art().clone(),
+        );
+        App::new(shipped::content().clone(), art, 1)
+            .expect("a new game starts on the shipped content")
     }
 }
 

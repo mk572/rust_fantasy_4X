@@ -199,7 +199,7 @@ mod tests {
         let mut stack = ModalStack::default();
         stack.open(Named("no_target", 0));
         stack.open(Named("resign", 0));
-        let (at, top) = stack.take_top().unwrap();
+        let (at, top) = stack.take_top().expect("a modal is open");
         assert_eq!(top.kind(), "resign");
         // Still unanswered: it goes back where it was, below nothing.
         stack.restore(at, Some(top));
@@ -212,7 +212,7 @@ mod tests {
     fn a_modal_opened_while_one_runs_ends_up_above_it() {
         let mut stack = ModalStack::default();
         stack.open(Named("resign", 0));
-        let (at, running) = stack.take_top().unwrap();
+        let (at, running) = stack.take_top().expect("a modal is open");
         stack.open(Named("no_target", 0));
         stack.restore(at, Some(running));
         assert_eq!(top_kind(&mut stack), Some("no_target"));

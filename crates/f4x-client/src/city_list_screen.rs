@@ -1,4 +1,4 @@
-//! The City list (task 139), the original's `CityList_Screen` (`CityList.c`): the wizard's
+//! The City list, the original's `CityList_Screen` (`CityList.c`): the wizard's
 //! cities in a table of name, race, population, gold, production, what is being built and the
 //! turns it needs, nine rows at a time on the picture from `reload.lbx`, with a small map and
 //! the enchantments of the city under the mouse. A left-click opens the city (an outpost has its own screen), a right-click its production menu. U and D (or the arrows, or the wheel)

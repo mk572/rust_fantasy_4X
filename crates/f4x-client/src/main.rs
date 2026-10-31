@@ -238,7 +238,8 @@ struct Options {
     save: Option<PathBuf>,
 }
 
-fn parse_args() -> Result<Options, String> {
+fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
+    let mut args = args;
     let mut o = Options {
         content: if Path::new("content-local").exists() {
             "content-local".into()
@@ -329,7 +330,6 @@ fn parse_args() -> Result<Options, String> {
         results: None,
         upkeep: false,
     };
-    let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         let mut value = |name: &str| args.next().ok_or(format!("{name} needs a value"));
         match a.as_str() {
@@ -478,7 +478,7 @@ fn parse_args() -> Result<Options, String> {
                 o.advisor = Some(
                     value("--advisor")?
                         .parse()
-                        .map_err(|_| "--advisor must be a number, 0 to 9")?,
+                        .map_err(|_| "--advisor must be a number, 0 to 8")?,
                 )
             }
             "--auto-attack" => o.auto_attack = true,
@@ -538,7 +538,7 @@ fn window_conf() -> Conf {
 
 #[macroquad::main(window_conf)]
 async fn main() {
-    let options = match parse_args() {
+    let options = match parse_args(std::env::args().skip(1)) {
         Ok(o) => o,
         Err(e) => {
             eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|conquest|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--offer KIND] [--event KIND] [--fizzle] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--attack-box] [--pick-box] [--crowd (with --city: fourteen units in the city, list scrolled one row)] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
@@ -851,5 +851,62 @@ async fn main() {
         }
         app.draw_pointer(&input);
         next_frame().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(args: &[&str]) -> Result<Options, String> {
+        parse_args(args.iter().map(|a| a.to_string()))
+    }
+
+    #[test]
+    fn flags_and_values_set_their_options() -> Result<(), String> {
+        let o = parse(&[
+            "--seed", "7", "--mute", "--shot", "a.png", "--at", "3,4", "--turns", "5",
+        ])?;
+        assert!(o.seed_given && o.seed == 7 && o.mute);
+        assert_eq!(o.shot, Some("a.png".into()));
+        assert_eq!(o.at, Some((3.0, 4.0)));
+        assert_eq!(o.turns, 5);
+        let o = parse(&["--outpost-new", "--create-step", "race"])?;
+        assert_eq!(o.outpost, Some(true));
+        assert!(o.create && o.create_step.as_deref() == Some("race"));
+        Ok(())
+    }
+
+    #[test]
+    fn no_arguments_leave_the_defaults() -> Result<(), String> {
+        let o = parse(&[])?;
+        assert!(!o.seed_given && !o.mute && o.shot.is_none() && o.turns == 0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_pair_of_numbers_and_an_archive_entry_are_checked() -> Result<(), String> {
+        let o = parse(&["--hear", "soundfx:2", "--survey-at", "city"])?;
+        assert!(matches!(o.hear, Some((audio::Archive::SoundFx, 2))));
+        assert_eq!(o.survey_at, Some((u32::MAX, 0)));
+        assert_eq!(parse(&["--survey-at", "5,6"])?.survey_at, Some((5, 6)));
+        assert!(parse(&["--hear", "soundfx"]).is_err());
+        assert!(parse(&["--hear", "nowhere:2"]).is_err());
+        assert!(parse(&["--survey-at", "5"]).is_err());
+        assert!(parse(&["--help-at", "5"]).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn a_bad_argument_says_what_is_wrong() {
+        assert_eq!(
+            parse(&["--seed"]).err(),
+            Some("--seed needs a value".into())
+        );
+        assert_eq!(
+            parse(&["--seed", "x"]).err(),
+            Some("--seed must be a number".into())
+        );
+        assert!(parse(&["--nope"]).is_err_and(|e| e.contains("unknown argument")));
     }
 }

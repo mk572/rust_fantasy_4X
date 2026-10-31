@@ -13,7 +13,6 @@
     "advisor.mirror": "Mirror",
     "advisor.starred": "{name}*",
     "advisor.key": " (F{n})",
-    "advisor.not_yet": "The {advisor} is not in the game yet",
     "advisor.tax_gold": "{gold} gold,",
     "advisor.tax_unrest": "{n}% unrest",
     "advisor.tax_unrest_current": "{n}% unrest*",

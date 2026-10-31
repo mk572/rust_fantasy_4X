@@ -303,3 +303,53 @@ fn hint(texts: &Texts, plan: &BuildPlan) -> String {
         &Args::new(),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_app::shipped;
+
+    #[test]
+    fn stepping_wraps_in_both_directions() {
+        let all = [1, 2, 3];
+        assert_eq!(step(&all, 1, false), 2);
+        assert_eq!(step(&all, 3, false), 1);
+        assert_eq!(step(&all, 1, true), 3);
+        assert_eq!(step(&all, 2, true), 1);
+        assert_eq!(
+            step(&all, 9, false),
+            2,
+            "an unknown value starts from the first"
+        );
+    }
+
+    #[test]
+    fn the_first_primary_is_balanced_and_the_other_seven_follow() {
+        let all = primaries();
+        assert_eq!(all[0], Focus::Balanced);
+        assert_eq!(&all[1..], &Focus::ALL);
+    }
+
+    #[test]
+    fn the_button_names_the_plan_and_a_second_focus_only_beside_a_real_first() {
+        let texts = shipped::texts();
+        assert_eq!(label(texts, None), "Auto: off");
+        let plan = |primary, secondary| BuildPlan {
+            primary,
+            secondary,
+            ..BuildPlan::default()
+        };
+        let magic = label(texts, Some(&plan(Focus::Magic, None)));
+        assert_eq!(
+            magic,
+            format!("Auto: {}", texts.get(Focus::Magic.key(), &Args::new()))
+        );
+        let two = label(texts, Some(&plan(Focus::Magic, Some(Focus::Gold))));
+        assert!(two.starts_with(&magic) && two.contains(" / "), "{two}");
+        assert_eq!(
+            label(texts, Some(&plan(Focus::Balanced, Some(Focus::Gold)))),
+            label(texts, Some(&plan(Focus::Balanced, None))),
+            "a balanced plan has no second focus"
+        );
+    }
+}

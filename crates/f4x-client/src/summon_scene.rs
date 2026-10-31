@@ -219,7 +219,7 @@ impl App {
         } else {
             STAGES_PLAIN
         };
-        if stage >= stages || crate::global_spell::any_input(input) {
+        if stage >= stages || input.dismisses() {
             return None;
         }
         let lay = Layout::new();

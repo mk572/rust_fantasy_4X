@@ -1,4 +1,4 @@
-//! The advisors (task 71): the original's `Advisor_Screen` in `AdvsrScr.c`. The Info button
+//! The advisors: the original's `Advisor_Screen` in `AdvsrScr.c`. The Info button
 //! (and F1 to F9) opens a list box, "Select An Advisor", that leads to the Surveyor,
 //! Cartographer, Apprentice, History, Astrologer, Chancellor, Tax Collector, Grand Vizier and
 //! Mirror. The list box is the original's `Selection_Box` (`GENDRAW.c`), also used by the Tax
@@ -141,10 +141,7 @@ impl App {
             6 => self.open_tax_collector(),
             7 => self.toggle_grand_vizier(),
             8 => self.open_wizard(HUMAN),
-            _ => {
-                let args = Args::new().text("advisor", self.text(ADVISORS[which]));
-                self.log.push(self.text_with("advisor.not_yet", &args));
-            }
+            _ => {}
         }
     }
 
@@ -421,5 +418,49 @@ impl App {
                 });
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::modal::kind;
+
+    #[test]
+    fn the_info_button_opens_a_list_of_the_advisors_with_their_f_keys() {
+        let mut app = App::for_test();
+        app.open_advisor_menu();
+        assert!(app.modals.has(kind::SELECTION));
+        assert_eq!(ADVISORS.len(), 9);
+        assert_eq!(
+            app.text_with("advisor.key", &Args::new().count("n", 3)),
+            " (F3)"
+        );
+    }
+
+    #[test]
+    fn each_advisor_opens_its_own_screen_or_box() {
+        let mut app = App::for_test();
+        app.open_advisor(3);
+        assert!(matches!(app.screen, Screen::History));
+        app.open_advisor(4);
+        assert!(matches!(app.screen, Screen::Astrologer));
+        app.open_advisor(6);
+        assert!(app.modals.has(kind::SELECTION), "the Tax Collector's list");
+        app.modals.remove(kind::SELECTION);
+        app.open_advisor(7);
+        assert!(
+            app.modals.has(kind::VIZIER),
+            "switching the Grand Vizier on asks first"
+        );
+    }
+
+    #[test]
+    fn a_place_past_the_list_opens_nothing() {
+        let mut app = App::for_test();
+        let screen = app.screen;
+        app.open_advisor(ADVISORS.len());
+        assert_eq!(app.screen, screen);
+        assert!(app.modals.is_empty());
     }
 }

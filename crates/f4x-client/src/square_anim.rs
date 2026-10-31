@@ -111,7 +111,7 @@ impl App {
         let frames = self.art.frames(&anim.picture.0, anim.picture.1).max(1);
         let stages = MIN_STAGES.max(frames);
         let stage = ((get_time() - started) / STAGE) as usize;
-        if stage >= stages || crate::global_spell::any_input(input) {
+        if stage >= stages || input.dismisses() {
             return None;
         }
         let r = self.map_rect();
@@ -139,5 +139,58 @@ impl App {
             );
         }
         Some(anim)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::testdir::TestResult;
+
+    fn tile(app: &App) -> Result<Position, &'static str> {
+        app.game
+            .units()
+            .player_units(HUMAN)
+            .first()
+            .and_then(|&u| app.game.units().unit_position(u))
+            .ok_or("the human has no unit")
+    }
+
+    #[test]
+    fn a_spell_on_a_square_animates_unless_spell_animations_are_off() -> TestResult {
+        let mut app = App::for_test();
+        let at = tile(&app)?;
+        let spell = app
+            .game
+            .content()
+            .rules
+            .spells
+            .id_of("earth_to_mud")
+            .ok_or("no earth_to_mud")?;
+        app.prefs.set(Pref::SpellAnimations, false);
+        app.announce_square_spell(HUMAN, spell, at);
+        assert!(!app.modals.has(kind::SQUARE_ANIM));
+        app.prefs.set(Pref::SpellAnimations, true);
+        app.announce_square_spell(HUMAN, spell, at);
+        assert!(app.modals.has(kind::SQUARE_ANIM));
+        Ok(())
+    }
+
+    #[test]
+    fn summons_and_global_enchantments_have_scenes_of_their_own() -> TestResult {
+        let mut app = App::for_test();
+        let at = tile(&app)?;
+        for id in ["magic_spirit", "armageddon"] {
+            let spell = app
+                .game
+                .content()
+                .rules
+                .spells
+                .id_of(id)
+                .ok_or(format!("no spell {id}"))?;
+            app.announce_square_spell(HUMAN, spell, at);
+        }
+        assert!(!app.modals.has(kind::SQUARE_ANIM));
+        Ok(())
     }
 }

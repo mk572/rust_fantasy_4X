@@ -83,3 +83,30 @@ pub fn png(shape: usize, frame: usize, myrror: bool) -> Option<&'static [u8]> {
     let files = if myrror { &MYRROR } else { &ARCANUS };
     (shape < 6).then(|| files[shape * FRAMES + frame % FRAMES])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_of_the_six_shapes_has_five_frames_that_wrap_for_both_planes() {
+        for myrror in [false, true] {
+            for shape in 0..6 {
+                let first = png(shape, 0, myrror);
+                assert!(first.is_some_and(|b| b.starts_with(b"\x89PNG")), "{shape}");
+                assert_eq!(
+                    png(shape, FRAMES, myrror),
+                    first,
+                    "frame {FRAMES} wraps to 0"
+                );
+                assert_ne!(png(shape, 1, myrror), first);
+            }
+        }
+        assert_eq!(png(6, 0, false), None);
+        assert_ne!(
+            png(0, 0, false),
+            png(0, 0, true),
+            "Myrror's water is its own"
+        );
+    }
+}

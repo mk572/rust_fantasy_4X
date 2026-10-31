@@ -1,6 +1,10 @@
 //! Resurrection: the dead hero to raise is chosen from a list before the spell is cast
 //! (`Cast_Resurrection`), like a rival's global enchantment is for Disjunction. Up and Down
 //! move, Enter or a click casts it (the spell's target, aimed at the hero), Escape gives up.
+//!
+//! Tests: none yet, because its decisions are made in the frame function that also draws, which
+//! needs a window; they are to move into functions of `&Input` (see "UI test" in
+//! `docs/rust_coding_rules.md`).
 
 use crate::input::Input;
 use f4x_core::game::Command;

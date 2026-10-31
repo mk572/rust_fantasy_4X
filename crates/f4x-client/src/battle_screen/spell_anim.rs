@@ -1,6 +1,8 @@
 //! Spells cast in a battle, as the original plays them (`Combat_Spell_Animation`): the spell's
 //! picture on its target, a bolt flying in, a stroke of lightning, or the screen tinted in the
 //! realm's colour, under the line that says who cast what.
+//!
+//! Tests: none, because it only draws and needs a window.
 
 use super::*;
 use crate::frame::Layout;

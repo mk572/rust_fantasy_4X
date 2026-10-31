@@ -1,4 +1,4 @@
-//! A screen that owns its state (task 394). A [`Page`] is built when its screen opens, gets
+//! A screen that owns its state. A [`Page`] is built when its screen opens, gets
 //! one `frame` per frame with the whole [`App`] to draw and answer through. The `Screen` variant
 //! still names which screen is up; the page is the state and the code of it, taken out of the
 //! `App` for the frame as a modal is.

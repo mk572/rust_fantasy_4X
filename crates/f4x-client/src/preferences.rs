@@ -1,6 +1,6 @@
-//! The player's preferences (task 89): the original's Settings screen, `MAGIC.SET`, and two of
-//! ours (Left Click Moves Units; off: a right click moves; Play Intro, task 85; Dim Behind Boxes,
-//! task 389). Nineteen switches that change how the game is shown or asked about, not its rules. They live outside
+//! The player's preferences: the original's Settings screen, `MAGIC.SET`, and two of
+//! ours (Left Click Moves Units; off: a right click moves; Play Intro; Dim Behind Boxes).
+//! Nineteen switches that change how the game is shown or asked about, not its rules. They live outside
 //! the saves, in `saves/preferences.txt`, one `name=0|1` line each, so every game shares them.
 
 use std::collections::BTreeMap;
@@ -213,6 +213,7 @@ impl Preferences {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::testdir::{TestDir, TestResult};
 
     #[test]
     fn everything_is_on_but_strategic_combat() {
@@ -222,8 +223,8 @@ mod tests {
     }
 
     #[test]
-    fn preferences_survive_a_save_and_unknown_lines_are_skipped() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/test-saves/prefs");
+    fn preferences_survive_a_save_and_unknown_lines_are_skipped() -> TestResult {
+        let dir = TestDir::new("prefs");
         let path = dir.join("p.txt");
         let mut p = Preferences::default();
         p.toggle(Pref::RazeCity);
@@ -231,35 +232,38 @@ mod tests {
         p.music_volume = 30;
         p.effects_volume = 0;
         p.art_scale = 2;
-        p.save(&path).unwrap();
-        let mut text = std::fs::read_to_string(&path).unwrap();
+        p.save(&path)?;
+        let mut text = std::fs::read_to_string(&path)?;
         text.push_str("nonsense=1\njunk\n");
-        std::fs::write(&path, text).unwrap();
+        std::fs::write(&path, text)?;
         assert_eq!(Preferences::load(&path, Preferences::default()), p);
         assert_eq!(
             Preferences::load(&dir.join("gone.txt"), Preferences::default()),
             Preferences::default()
         );
+        Ok(())
     }
 
     #[test]
-    fn the_defaults_come_from_the_settings_file_and_a_saved_file_wins() {
+    fn the_defaults_come_from_the_settings_file_and_a_saved_file_wins() -> TestResult {
         let named: BTreeMap<_, _> = [("sound_effects".to_string(), false)].into();
-        let base = Preferences::from_defaults(&named).unwrap();
+        let base = Preferences::from_defaults(&named)?;
         assert!(!base.get(Pref::SoundEffects) && base.get(Pref::RazeCity));
         let gone = Path::new("no/such/preferences.txt");
         assert_eq!(Preferences::load(gone, base.clone()), base);
         let typo: BTreeMap<_, _> = [("sound_effect".to_string(), false)].into();
         assert!(Preferences::from_defaults(&typo).is_err());
+        Ok(())
     }
 
     #[test]
-    fn the_shipped_settings_name_every_preference() {
-        let def = f4x_data::load_settings(&[Path::new("../../content")]).unwrap();
+    fn the_shipped_settings_name_every_preference() -> TestResult {
+        let def = crate::test_app::shipped::settings();
         for p in PREFS {
             assert!(def.preferences.contains_key(p.key()), "{}", p.key());
         }
-        let base = Preferences::from_defaults(&def.preferences).unwrap();
+        let base = Preferences::from_defaults(&def.preferences)?;
         assert!(!base.get(Pref::StrategicCombatOnly) && base.get(Pref::SoundEffects));
+        Ok(())
     }
 }

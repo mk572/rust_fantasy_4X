@@ -3,6 +3,8 @@
 //! 10 in the picture box and the building's own picture centred on it. Walls have the big wall
 //! picture and lose the plural "s" of their name. One box per building, oldest first, after the
 //! Chancellor's scroll.
+//!
+//! Tests: none, because it only draws and needs a window.
 
 use crate::input::Input;
 use f4x_core::rules::BuildingId;

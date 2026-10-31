@@ -1,7 +1,11 @@
-//! The Settings screen (task 89): the original's `Settings_Screen`, a page of check boxes in
+//! The Settings screen: the original's `Settings_Screen`, a page of check boxes in
 //! four groups (Sound and Music, Messages, Combat, Display) reached from the save slots.
 //! Pictures: `load` entries 11 (background), 4 (OK) and 13 to 20 (check boxes). A click on a
 //! row flips its switch; OK, O or Escape leave, and the preferences are written either way.
+//!
+//! Tests: none yet, because its decisions are made in the frame function that also draws, which
+//! needs a window; they are to move into functions of `&Input` (see "UI test" in
+//! `docs/rust_coding_rules.md`).
 
 use crate::font::Style;
 use crate::input::Input;
@@ -121,7 +125,7 @@ impl Page for SettingsPage {
             }
         }
         app.volume_sliders(&lay, view, mouse, input);
-        // The game's own settings (task 94), which the original keeps on the new-game screen.
+        // The game's own settings, which the original keeps on the new-game screen.
         let game = lay.rect((31.0, 186.0, 60.0, 10.0));
         if button(game, &app.text("settings.game"), true, input) {
             app.save_preferences();

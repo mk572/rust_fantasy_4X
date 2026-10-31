@@ -192,3 +192,45 @@ impl App {
 
 // Eight lines are four rows: 49 + 4 * 17 = 117, inside the 128 pixel picture.
 const _: () = assert!(HEAD + 4.0 * ROW <= 128.0);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::testdir::TestResult;
+
+    #[test]
+    fn a_hero_that_gains_a_level_between_turns_is_announced_once() -> TestResult {
+        let mut app = App::for_test();
+        app.game
+            .treasury_mut(HUMAN)
+            .ok_or("the human has no treasury")?
+            .gold = 100_000;
+        let kinds = app.game.content().rules.hero_templates.len();
+        let hero = (0..kinds)
+            .find_map(|kind| app.game.hire_hero(HUMAN, kind).ok())
+            .ok_or("no hero can be hired")?;
+        app.check_hero_levels();
+        assert!(
+            app.modals.is_empty(),
+            "the first look only notes the levels"
+        );
+        app.game.scenario_set_experience(hero, 100_000);
+        app.check_hero_levels();
+        assert!(
+            app.modals.is_empty(),
+            "the same turn is not looked at twice"
+        );
+        app.game.turn += 1;
+        app.check_hero_levels();
+        assert!(!app.modals.is_empty());
+        let mut again = App::for_test();
+        again.check_hero_levels();
+        again.game.turn += 1;
+        again.check_hero_levels();
+        assert!(
+            again.modals.is_empty(),
+            "no level gained, nothing to announce"
+        );
+        Ok(())
+    }
+}

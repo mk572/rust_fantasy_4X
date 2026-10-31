@@ -1,4 +1,4 @@
-//! The unit statistics sheet (task 140): what the original's `Unit_Statistics_Popup` shows about
+//! The unit statistics sheet: what the original's `Unit_Statistics_Popup` shows about
 //! one unit, built from the game (this file) and drawn by `unit_screen.rs`.
 //!
 //! The layout, the icon rows and the order of the abilities list follow ReMoM (`UnitStat.c`
@@ -557,7 +557,7 @@ impl App {
             texts: self.texts(),
             enchantments,
         });
-        // What temporary effects do to the unit, after its own abilities (task 152).
+        // What temporary effects do to the unit, after its own abilities.
         specials.extend(
             self.temp_effect_lines(unit)
                 .into_iter()
@@ -813,10 +813,7 @@ mod tests {
 
     /// The English messages of the shipped content.
     fn en() -> &'static Texts {
-        static TEXTS: std::sync::OnceLock<Texts> = std::sync::OnceLock::new();
-        TEXTS.get_or_init(|| {
-            f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap()
-        })
+        crate::test_app::shipped::texts()
     }
 
     fn names(list: &[Special]) -> Vec<&str> {

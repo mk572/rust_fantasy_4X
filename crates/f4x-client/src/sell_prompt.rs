@@ -1,8 +1,12 @@
 //! Questions the city screen asks in the original's confirmation box: selling a building from
-//! the city picture (task 117) and turning off one of the player's spells on the city (task 119).
+//! the city picture and turning off one of the player's spells on the city.
 //! Selling A click on a building asks "Do you wish
 //! to sell back the ... for ... gold?" (`CityScr.c`, help topic 303); a building another one
 //! needs is refused with a notice. Yes sends `Command::SellBuilding`.
+//!
+//! Tests: none yet, because its decisions are made in the frame function that also draws, which
+//! needs a window; they are to move into functions of `&Input` (see "UI test" in
+//! `docs/rust_coding_rules.md`).
 
 use crate::font::Style;
 use crate::input::Input;

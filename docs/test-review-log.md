@@ -68,3 +68,19 @@ Reviewed with the same checks as `f4x-core`. All 72 tests (0.15 s) were already 
 | `tests/it/main.rs` | done | `mod` lines. |
 
 **`crates/f4x-data` is finished.** Not looked at: whether the pinned counts (`35` heroes, `250` items, `66` powers, `41` help screens) are stated anywhere but these tests.
+
+## crates/f4x-client (31 October 2026)
+
+Reviewed with the same checks as the other crates. 169 tests became 224 (0.1 s). The crate has 88 files; 39 had no test and no `//! Tests:` line.
+
+| Pass | Status | Notes |
+|---|---|---|
+| shipped content in tests | done | `test_app::shipped` (`content()`, `texts()`, `settings()`, `spell_art()`) parses each file once per run; eleven tests that each called `f4x_data::load_*` use it, and `App::for_test` clones from it. No test builds a unit, spell or terrain by hand. `craft_screen` built 24 invented item powers; its tests run on the shipped powers now (the column test on the powers a Misc item takes, 26 plain ones, so the split into two columns is exercised). |
+| `unwrap`/`expect`/`panic!` in tests | done | About 100 sites. Tests that call `Result` code return `TestResult` and use `?`; `Option` setup uses `expect` with a reason. Fixed folders under `target/test-saves/` (preferences, save slots) are `TestDir`s. `race_summary_key(..).unwrap_or_else(panic!)` is an assertion with the race's id. |
+| comments | done | 52 task references removed from 36 files; "Plain box for now", "until the win and lose animations exist" and "until the files' ship pictures are used" cut. Not read line by line: wordy comments are probably still there. |
+| `//! Tests:` lines and new tests | partly | 20 files gained tests: `main.rs` (`parse_args` takes the argument list now), `autobuild_dialog`, `battle_screen/bar` (range and moves text), `console_screen` (`wrap_line` split into `wrap_by`, which takes the width test), `diplomacy_prompt`, `diplomacy_screen`, `river_art`, `frame`, `page_turn`, `upkeep_prompt`, `road_plan`, `unit_window`, `temp_effect_view`, `attack_prompt`, `city_screen`, `production_screen`, `create_screen`, `map_slide`, `combat_result`, `level_up`, `advisor`, `global_spell`, `square_anim`, `wizard_anim`, `view`. Five files say they only draw. **Nine files say "none yet"** because their decisions sit in the frame function that also draws (`battle_screen/pointer`, `event_popup`, `fighter_pick`, `learn_spell`, `offer_prompt`, `pointer`, `resurrect_prompt`, `sell_prompt`, `settings_screen`): task 432. |
+| dead code found | done | `advisor.rs` indexed `ADVISORS[which]` in an arm no caller reaches, except `--advisor 9`, which panicked; the arm and the text key `advisor.not_yet` are gone and the flag says "0 to 8". `global_spell::any_input` was `Input::dismisses` under another name; five screens use `dismisses` now. Three empty `impl App {}` blocks removed. |
+| slow tests | checked | All 224 run in 0.1 s together. |
+
+Not looked at: the screenshot flags (`--shot` and its options) as a whole, and whether the client's string lookups of terrains, features and spells should be numbers (task 418).
+

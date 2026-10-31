@@ -75,7 +75,13 @@ impl App {
 
 /// `line` cut into rows that fit in `width` pixels at `size`, at spaces where it can.
 fn wrap_line(line: &str, width: f32, size: f32) -> Vec<String> {
-    let fits = |text: &str| measure_text(text, None, size as u16, 1.0).width <= width;
+    wrap_by(line, |text| {
+        measure_text(text, None, size as u16, 1.0).width <= width
+    })
+}
+
+/// `line` cut into rows of which `fits` accepts each, at spaces where it can.
+fn wrap_by(line: &str, fits: impl Fn(&str) -> bool) -> Vec<String> {
     let mut rows = Vec::new();
     let mut row = String::new();
     for word in line.split_inclusive(' ') {
@@ -231,5 +237,27 @@ impl Page for ConsolePage {
             16.0,
             GRAY,
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rows(line: &str, width: usize) -> Vec<String> {
+        wrap_by(line, |t| t.trim_end().chars().count() <= width)
+    }
+
+    #[test]
+    fn a_line_breaks_at_the_spaces() {
+        assert_eq!(rows("one two three", 7), ["one two ", "three"]);
+        assert_eq!(rows("short", 20), ["short"]);
+        assert_eq!(rows("", 5), [""]);
+    }
+
+    #[test]
+    fn a_word_longer_than_the_row_is_cut_where_it_overflows() {
+        assert_eq!(rows("abcdefgh", 3), ["abc", "def", "gh"]);
+        assert_eq!(rows("ab abcdefg", 4), ["ab ", "abcd", "efg"]);
     }
 }

@@ -1,5 +1,5 @@
 //! A stack that slides from square to square on the map, and the glow of enchanted units
-//! (task 298; `Move_Units_Draw`, `Draw_Unit_Enchantment_Outline` in the original).
+//! (`Move_Units_Draw`, `Draw_Unit_Enchantment_Outline` in the original).
 //!
 //! The core moves units at once; the client keeps what it was told (`Event::UnitsMoved`) as
 //! slides and draws each moving unit part of the way along its step until the slide is over.
@@ -127,4 +127,74 @@ impl App {
 /// The step of the glow's colours (the original moves it every other screen flip).
 pub(crate) fn glow_step() -> usize {
     (get_time() * 8.0) as usize
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::map::Plane;
+    use f4x_core::testdir::TestResult;
+
+    // The slide of a step that is shown reads the clock, which needs a window; these are the
+    // moves that are not shown at all.
+    #[test]
+    fn only_a_single_step_on_one_plane_slides() -> TestResult {
+        let mut app = App::for_test();
+        let unit = *app
+            .game
+            .units()
+            .player_units(HUMAN)
+            .first()
+            .ok_or("the human has no unit")?;
+        let from = app.game.units().unit_position(unit).ok_or("no position")?;
+        let moved = |units: Vec<hecs::Entity>, to| Event::UnitsMoved { units, from, to };
+        let far = Position {
+            x: from.x + 2,
+            ..from
+        };
+        let other_plane = Position {
+            plane: if from.plane == Plane::Arcanus {
+                Plane::Myrror
+            } else {
+                Plane::Arcanus
+            },
+            ..from
+        };
+        app.start_slide(&moved(vec![unit], far));
+        app.start_slide(&moved(vec![unit], other_plane));
+        app.start_slide(&moved(
+            Vec::new(),
+            Position {
+                x: from.x + 1,
+                ..from
+            },
+        ));
+        app.start_slide(&Event::TurnStarted { turn: 2 });
+        assert!(app.slides.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn a_rivals_step_slides_only_with_enemy_moves_on() -> TestResult {
+        let mut app = App::for_test();
+        let rival = *app
+            .game
+            .units()
+            .player_units(f4x_core::player::PlayerId(1))
+            .first()
+            .ok_or("the rival has no unit")?;
+        let from = app.game.units().unit_position(rival).ok_or("no position")?;
+        let step = Event::UnitsMoved {
+            units: vec![rival],
+            from,
+            to: Position {
+                x: from.x + 1,
+                ..from
+            },
+        };
+        app.prefs.set(Pref::EnemyMoves, false);
+        app.start_slide(&step);
+        assert!(app.slides.is_empty());
+        Ok(())
+    }
 }

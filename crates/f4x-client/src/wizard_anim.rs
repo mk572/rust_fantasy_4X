@@ -95,7 +95,7 @@ impl App {
         let frames = self.art.frames(&anim.picture.0, anim.picture.1).max(1);
         let stages = MIN_STAGES.max(frames);
         let stage = ((get_time() - started) / STAGE) as usize;
-        if stage >= stages || crate::global_spell::any_input(input) {
+        if stage >= stages || input.dismisses() {
             return None;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
@@ -106,5 +106,30 @@ impl App {
         let (lbx, entry) = (anim.picture.0.clone(), anim.picture.1);
         self.draw_pic(&lay, &lbx, entry, stage % frames, x, y);
         Some(anim)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::testdir::TestResult;
+
+    #[test]
+    fn a_spell_on_a_wizard_animates_for_the_human_and_not_when_animations_are_off() -> TestResult {
+        let mut app = App::for_test();
+        let spell = app
+            .game
+            .content()
+            .rules
+            .spells
+            .id_of("banish")
+            .ok_or("no banish")?;
+        app.prefs.set(Pref::SpellAnimations, false);
+        app.announce_wizard_spell(PlayerId(1), spell, HUMAN);
+        assert!(!app.modals.has(kind::WIZARD_ANIM));
+        app.prefs.set(Pref::SpellAnimations, true);
+        app.announce_wizard_spell(PlayerId(1), spell, HUMAN);
+        assert!(app.modals.has(kind::WIZARD_ANIM));
+        Ok(())
     }
 }

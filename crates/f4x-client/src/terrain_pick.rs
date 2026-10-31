@@ -293,7 +293,7 @@ pub fn shore_with_rivers(land: usize, rivers: usize, plain: usize) -> usize {
 /// The lake (a sea square with land all round) that a river runs into, for the sides in
 /// `rivers` (bits N 1, E 2, S 4, W 8): `_1LakeRiv_N/E/S/W`. Where more than one river runs in the
 /// original keeps one and turns the others to grassland (`River_Autotile`, block 1); ours keeps
-/// them all (task 253), so the same side is drawn, the north one first, then west, south, east.
+/// them all, so the same side is drawn, the north one first, then west, south, east.
 pub fn lake_with_river(rivers: usize) -> usize {
     match rivers {
         r if r & 1 != 0 => LAKE_RIVER_N,
@@ -449,12 +449,12 @@ mod tests {
     /// A content with the eight terrain classes in a known order, and a grid built from rows
     /// of letters: o ocean, g grass, f forest, h hills, m mountains, s swamp, d desert, t tundra.
     fn world(rows: &[&str]) -> (Grid, Content) {
-        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
+        let content = crate::test_app::shipped::content().clone();
         let terrains: &Terrains = &content.terrains;
         let id = |c: C| {
             terrains
                 .first_of_class(c, f4x_core::map::Plane::Arcanus)
-                .unwrap()
+                .expect("the shipped terrains have every class")
         };
         let mut grid = Grid::new(rows[0].len() as u32, rows.len() as u32, id(C::Grassland));
         for (y, row) in rows.iter().enumerate() {
@@ -483,6 +483,10 @@ mod tests {
         }
     }
 
+    fn ground(g: &Grid, c: &Content, x: i32, y: i32) -> usize {
+        ground_type(g, c, x, y, 0, &table).expect("the square has a ground type")
+    }
+
     #[test]
     fn variants_are_stable_and_vary_across_squares() {
         assert_eq!(variation(3, 4, 0), variation(3, 4, 0));
@@ -495,12 +499,12 @@ mod tests {
     #[test]
     fn plain_land_gets_one_of_its_variants() {
         let (g, c) = world(&["ggg", "ggg", "ggg"]);
-        let t = ground_type(&g, &c, 1, 1, 0, &table).unwrap();
+        let t = ground(&g, &c, 1, 1);
         assert!(GRASS.contains(&t));
         let (g, c) = world(&["fff", "fff", "fff"]);
-        assert!(FOREST.contains(&ground_type(&g, &c, 1, 1, 0, &table).unwrap()));
+        assert!(FOREST.contains(&ground(&g, &c, 1, 1)));
         let (g, c) = world(&["sss", "sss", "sss"]);
-        assert!(SWAMP.contains(&ground_type(&g, &c, 1, 1, 0, &table).unwrap()));
+        assert!(SWAMP.contains(&ground(&g, &c, 1, 1)));
     }
 
     #[test]
@@ -508,10 +512,10 @@ mod tests {
         let (g, c) = world(&["ggg", "gmg", "ggg"]);
         assert_eq!(ground_type(&g, &c, 1, 1, 0, &table), Some(MOUNTAIN));
         let (g, c) = world(&["ggg", "mmg", "ggg"]);
-        let t = ground_type(&g, &c, 0, 1, 0, &table).unwrap();
+        let t = ground(&g, &c, 0, 1);
         assert!((0x103..=0x112).contains(&t), "an edge piece: {t:#x}");
         let (g, c) = world(&["ggg", "hhg", "ggg"]);
-        let t = ground_type(&g, &c, 0, 1, 0, &table).unwrap();
+        let t = ground(&g, &c, 0, 1);
         assert!((0x113..=0x122).contains(&t), "a hill piece: {t:#x}");
         let (g, c) = world(&["ggg", "ghg", "ggg"]);
         assert_eq!(ground_type(&g, &c, 1, 1, 0, &table), Some(HILLS));
@@ -520,14 +524,14 @@ mod tests {
     #[test]
     fn deserts_and_tundra_edge_against_other_ground() {
         let (g, c) = world(&["ddd", "ddd", "ddd"]);
-        assert!(DESERT.contains(&ground_type(&g, &c, 1, 1, 0, &table).unwrap()));
+        assert!(DESERT.contains(&ground(&g, &c, 1, 1)));
         let (g, c) = world(&["ggg", "gdd", "ggg"]);
-        let t = ground_type(&g, &c, 1, 1, 0, &table).unwrap();
+        let t = ground(&g, &c, 1, 1);
         assert!(t >= 0x124, "an edge piece: {t:#x}");
         let (g, c) = world(&["ttt", "ttt", "ttt"]);
-        assert!(TUNDRA.contains(&ground_type(&g, &c, 1, 1, 0, &table).unwrap()));
+        assert!(TUNDRA.contains(&ground(&g, &c, 1, 1)));
         let (g, c) = world(&["ggg", "ttt", "ttt"]);
-        assert!(ground_type(&g, &c, 1, 1, 0, &table).unwrap() >= 602);
+        assert!(ground(&g, &c, 1, 1) >= 602);
     }
 
     #[test]
@@ -578,7 +582,7 @@ mod tests {
         let n_mouth = RIVER_MOUTHS
             .iter()
             .find(|(n, _)| *n == "1R000001")
-            .unwrap()
+            .expect("the piece for a river from the north")
             .1;
         assert_eq!(shore_with_rivers(1 | 2 | 128, 1, 99), n_mouth);
         // No river, or a combination without a piece, keeps the plain piece.

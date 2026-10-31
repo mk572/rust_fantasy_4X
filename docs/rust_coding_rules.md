@@ -207,7 +207,8 @@ UI testing requires the client.
 Click-flow tests (no window, no screenshot) are unit tests in the client crate. The seams:
 `App::for_test()` (`test_app.rs`: the shipped content and a new game, no art), `Input::key(..)` and
 `Input::click(..)` build one frame by hand, `frame::window_size()` gives tests a fixed window, and
-`App::modals` shows which prompts are open. Anything that draws needs a window, so put the part that
+`App::modals` shows which prompts are open. `test_app::shipped` holds the parsed `content/` (content, texts,
+settings, spell art) once per test run; a test does not call `f4x_data::load_*` itself. Anything that draws needs a window, so put the part that
 decides (what a key answers, whether a notice closes, which events open a prompt) in a function
 that takes `&Input` and returns the new state (`resign_answer`, `Input::dismisses`), draw after it,
 and test that function.

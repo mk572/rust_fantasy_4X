@@ -1,4 +1,4 @@
-//! The Item screen (task 142), the original's `Item_Screen` (`ItemScrn.c`): the wizard's
+//! The Item screen, the original's `Item_Screen` (`ItemScrn.c`): the wizard's
 //! heroes in two columns with their three item slots, the fortress vault below, the anvil, the
 //! gold and mana, and the Alchemy and OK buttons, over the Army list. A click on an item picks
 //! it up (it follows the mouse with its name), a click on another slot puts it there, swapping
@@ -463,7 +463,7 @@ impl Page for ItemUi {
         if left && ui::hit(lay.rect((wx + 9.0, wy + 155.0, 39.0, 34.0)), true, input).hovered() {
             self.scrap_held(app);
         }
-        // S sells the item in the hand for half its value in gold (task 294).
+        // S sells the item in the hand for half its value in gold.
         if held && input.key_pressed(KeyCode::S) {
             self.sell_held(app);
         }

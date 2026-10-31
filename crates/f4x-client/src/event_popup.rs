@@ -1,8 +1,12 @@
-//! The random events as the player sees them (task 68): the box that announces an event, the
+//! The random events as the player sees them: the box that announces an event, the
 //! name of the running world event under the minimap and the plague and boom marks on the city
 //! screen. The box is the original's `Notify2` (`GENDRAW.c`): the green strip with the mascot of
 //! the wizard's strongest realm on the left, the text, and the event's picture in a frame at
 //! the right end. A click or a key closes it, and the next one follows.
+//!
+//! Tests: none yet, because its decisions are made in the frame function that also draws, which
+//! needs a window; they are to move into functions of `&Input` (see "UI test" in
+//! `docs/rust_coding_rules.md`).
 
 use crate::font::Style;
 use crate::input::Input;

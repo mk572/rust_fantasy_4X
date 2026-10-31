@@ -852,12 +852,14 @@ mod tests {
 
     #[test]
     fn every_race_has_a_summary_for_the_race_step() {
-        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
-        let texts = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
-        for race in content.rules.races.defs() {
-            let key =
-                race_summary_key(&race.id).unwrap_or_else(|| panic!("no key for {}", race.id));
-            assert!(texts.has(key), "no summary {key}");
+        let texts = crate::test_app::shipped::texts();
+        for race in crate::test_app::shipped::content().rules.races.defs() {
+            let key = race_summary_key(&race.id);
+            assert!(
+                key.is_some_and(|k| texts.has(k)),
+                "no summary for {}",
+                race.id
+            );
         }
     }
 

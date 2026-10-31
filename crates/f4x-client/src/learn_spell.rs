@@ -2,6 +2,10 @@
 //! the lab with the familiar, then the open library at the spell's page, where its entry is
 //! decoded out of glowing text under the sparkle (`Role::Sparkle`). With Spell Animations off the
 //! original shows a box over the map instead: "You have mastered the spell of X".
+//!
+//! Tests: none yet, because its decisions are made in the frame function that also draws, which
+//! needs a window; they are to move into functions of `&Input` (see "UI test" in
+//! `docs/rust_coding_rules.md`).
 
 use crate::input::Input;
 use f4x_core::rules::SpellId;

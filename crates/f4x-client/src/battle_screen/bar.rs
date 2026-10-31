@@ -514,3 +514,24 @@ impl App {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_range_of_casting_reads_as_a_multiplier() {
+        assert_eq!(range_text(5), "0.5x");
+        assert_eq!(range_text(10), "1x");
+        assert_eq!(range_text(15), "1.5x");
+        assert_eq!(range_text(20), "2x");
+    }
+
+    #[test]
+    fn moves_are_written_in_whole_and_half_steps() {
+        assert_eq!(moves_text(0), "0");
+        assert_eq!(moves_text(1), "0.5");
+        assert_eq!(moves_text(4), "2");
+        assert_eq!(moves_text(5), "2.5");
+    }
+}

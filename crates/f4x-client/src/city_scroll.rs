@@ -138,7 +138,7 @@ impl App {
         } else {
             STAGES_PLAIN
         };
-        if stage >= stages || crate::global_spell::any_input(input) {
+        if stage >= stages || input.dismisses() {
             return None;
         }
         let mut lay = Layout::new();
@@ -200,7 +200,7 @@ mod tests {
             .cities()
             .first()
             .map(|c| c.0)
-            .expect("a city");
+            .expect("the new game has a city");
         let spells = &app.game.content().rules.spells;
         let scroll =
             |id: &str| app.city_scroll_for(HUMAN, spells.id_of(id).expect("spell"), city, None);

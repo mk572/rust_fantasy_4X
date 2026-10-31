@@ -570,8 +570,6 @@ pub enum Align {
     Right,
 }
 
-impl App {}
-
 /// What was clicked on the frame this frame.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct FrameClick {
@@ -585,4 +583,45 @@ pub struct FrameClick {
     pub pick_only: bool,
     /// An action button of the unit window.
     pub button: Option<crate::unit_window::StackButton>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::map::terrain::TerrainClass as T;
+
+    #[test]
+    fn the_layout_centres_the_original_screen_and_scales_its_pixels() {
+        let lay = Layout::new();
+        let (w, h) = window_size();
+        let scale = (w / ORIGINAL_W).min(h / ORIGINAL_H);
+        assert_eq!(lay.scale, scale);
+        let whole = lay.rect((0.0, 0.0, ORIGINAL_W, ORIGINAL_H));
+        assert!((whole.x - (w - whole.w) / 2.0).abs() < 1e-3);
+        assert!((whole.y - (h - whole.h) / 2.0).abs() < 1e-3);
+        assert!((whole.w - ORIGINAL_W * scale).abs() < 1e-3);
+        assert_eq!(
+            lay.point(10.0, 20.0),
+            vec2(lay.origin.x + 10.0 * scale, lay.origin.y + 20.0 * scale)
+        );
+    }
+
+    #[test]
+    fn water_stone_sand_and_snow_have_their_own_colours_and_all_land_is_green() {
+        let colours: Vec<Color> = [T::Ocean, T::Mountains, T::Desert, T::Tundra, T::Grassland]
+            .into_iter()
+            .map(mini_terrain_color)
+            .collect();
+        for (i, a) in colours.iter().enumerate() {
+            assert!(colours[i + 1..].iter().all(|b| a != b));
+        }
+        assert_eq!(
+            mini_terrain_color(T::Forest),
+            mini_terrain_color(T::Grassland)
+        );
+        assert_eq!(
+            mini_terrain_color(T::Swamp),
+            mini_terrain_color(T::Grassland)
+        );
+    }
 }

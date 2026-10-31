@@ -1,4 +1,4 @@
-//! The item crafting screen (task 260), the original's `Item_Make_Screen` (`ItemMake.c`): the
+//! The item crafting screen, the original's `Item_Make_Screen` (`ItemMake.c`): the
 //! wizard designs the item that Enchant Item or Create Artifact makes. Ten buttons for the kind,
 //! the picture with its two arrows, the name box, the powers in three columns (the plain powers
 //! in two, the special ones in the third), the cost and the OK button. Spell Charges opens the
@@ -579,59 +579,50 @@ impl Page for CraftUi {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::rules::PowerBonus;
+    use crate::test_app::shipped;
+    use f4x_core::testdir::TestResult;
 
-    fn power(id: &str, group: u8, bonus: Option<(PowerBonus, i32)>) -> ItemPowerDef {
-        ItemPowerDef {
-            num: 0,
-            id: id.into(),
-            name: id.into(),
-            group,
-            cost: 50,
-            kinds: vec![ItemKind::Sword],
-            realm: None,
-            books: 0,
-            bonus,
-            spell: None,
-            attack: None,
-        }
+    fn power(id: &str) -> Result<&'static ItemPowerDef, String> {
+        shipped::content()
+            .rules
+            .item_powers
+            .by_name(id)
+            .ok_or(format!("no item power {id}"))
     }
 
-    fn group(powers: &[ItemPowerDef]) -> impl Fn(&str) -> Option<u8> + '_ {
-        |id| powers.iter().find(|p| p.id == id).map(|p| p.group)
+    fn group_of(id: &str) -> Option<u8> {
+        shipped::content()
+            .rules
+            .item_powers
+            .by_name(id)
+            .map(|p| p.group)
     }
 
     #[test]
-    fn a_plain_power_replaces_the_one_of_its_group() {
-        let all = [
-            power("a1", 0, Some((PowerBonus::Attack, 1))),
-            power("a2", 0, Some((PowerBonus::Attack, 2))),
-            power("d1", 2, Some((PowerBonus::Defense, 1))),
-        ];
+    fn a_plain_power_replaces_the_one_of_its_group() -> TestResult {
         let mut ui = CraftUi::new(Craft::EnchantItem);
-        let g = group(&all);
-        toggle_power(&mut ui.design, &all[0], &g).unwrap();
-        toggle_power(&mut ui.design, &all[2], &g).unwrap();
-        toggle_power(&mut ui.design, &all[1], &g).unwrap();
-        assert_eq!(ui.design.powers, ["d1", "a2"]);
-        toggle_power(&mut ui.design, &all[1], &g).unwrap();
-        assert_eq!(ui.design.powers, ["d1"]);
+        toggle_power(&mut ui.design, power("attack_1")?, &group_of)?;
+        toggle_power(&mut ui.design, power("defense_1")?, &group_of)?;
+        toggle_power(&mut ui.design, power("attack_2")?, &group_of)?;
+        assert_eq!(ui.design.powers, ["defense_1", "attack_2"]);
+        toggle_power(&mut ui.design, power("attack_2")?, &group_of)?;
+        assert_eq!(ui.design.powers, ["defense_1"]);
+        Ok(())
     }
 
     #[test]
-    fn four_places_are_all_there_are_and_the_charges_take_one() {
-        let all: Vec<_> = (0..5).map(|i| power(&format!("s{i}"), 9, None)).collect();
+    fn four_places_are_all_there_are_and_the_charges_take_one() -> TestResult {
         let mut ui = CraftUi::new(Craft::CreateArtifact);
         ui.design.charges = Some(("fire_bolt".into(), 2));
-        let g = group(&all);
-        for p in &all[..3] {
-            toggle_power(&mut ui.design, p, &g).unwrap();
+        for id in ["flaming", "lightning", "chaos"] {
+            toggle_power(&mut ui.design, power(id)?, &group_of)?;
         }
         assert_eq!(ui.used(), 4);
         assert_eq!(
-            toggle_power(&mut ui.design, &all[3], &g),
+            toggle_power(&mut ui.design, power("destruction")?, &group_of),
             Err("craft.too_many")
         );
+        Ok(())
     }
 
     #[test]
@@ -649,36 +640,34 @@ mod tests {
     #[test]
     fn a_new_kind_keeps_the_powers_it_can_have() {
         let mut ui = CraftUi::new(Craft::EnchantItem);
-        ui.design.powers = vec!["a1".into(), "d1".into()];
+        ui.design.powers = vec!["attack_5".into(), "defense_1".into()];
         ui.design.charges = Some(("fire_bolt".into(), 1));
-        ui.set_kind(ItemKind::Shield, &["d1".to_string()]);
-        assert_eq!(ui.design.powers, ["d1"]);
+        ui.set_kind(ItemKind::Shield, &["defense_1".to_string()]);
+        assert_eq!(ui.design.powers, ["defense_1"]);
         assert_eq!(ui.design.charges, None);
         assert_eq!(ui.design.icon, ItemKind::Shield.icon_range().0);
     }
 
     #[test]
     fn plain_powers_split_in_two_columns_at_a_group_and_the_special_ones_stand_apart() {
-        let mut all: Vec<ItemPowerDef> = Vec::new();
-        for g in 0..6u8 {
-            for n in 0..4 {
-                all.push(power(
-                    &format!("p{g}{n}"),
-                    g,
-                    Some((PowerBonus::Attack, n + 1)),
-                ));
-            }
-        }
-        all.push(power("flaming", 9, None));
-        let refs: Vec<_> = all.iter().collect();
-        let [a, b, c] = columns(&refs);
-        assert!(a.len() <= COLUMN_ROWS);
+        let all: Vec<&ItemPowerDef> = shipped::content()
+            .rules
+            .item_powers
+            .defs()
+            .iter()
+            .filter(|p| p.kinds.contains(&ItemKind::Misc))
+            .collect();
+        let plain = all.iter().filter(|p| p.bonus.is_some()).count();
+        let [a, b, c] = columns(&all);
+        assert!(a.len() <= COLUMN_ROWS && b.len() <= COLUMN_ROWS);
         assert_eq!(a.last().map(|r| *r != Row::Gap), Some(true));
-        assert_eq!(
-            a.len() + b.len(),
-            4 * 6 + 5 - 1 /* the gap at the break */
-        );
         assert_eq!(b.first().map(|r| *r != Row::Gap), Some(true));
-        assert_eq!(c, [Row::Power("flaming".into())]);
+        let powers = |rows: &[Row]| rows.iter().filter(|r| **r != Row::Gap).count();
+        assert_eq!(powers(&a) + powers(&b), plain);
+        assert_eq!(powers(&c), all.len() - plain);
+        assert!(
+            !b.is_empty(),
+            "this many plain powers need the second column"
+        );
     }
 }

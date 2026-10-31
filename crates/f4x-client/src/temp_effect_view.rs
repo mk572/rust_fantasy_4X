@@ -1,5 +1,5 @@
-//! What the unit sheet and the city screen say about temporary effects (task 152;
-//! `temp_effect.rs` in the core holds them): each line names the change and how long it lasts.
+//! What the unit sheet and the city screen say about temporary effects
+//! (`temp_effect.rs` in the core holds them): each line names the change and how long it lasts.
 
 use f4x_core::rules::{ModOp, Stat};
 use f4x_core::spell::temp_effect::{TempEffect, TempKind};
@@ -99,6 +99,55 @@ impl App {
                 )
             }
             None => effect,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::view::HUMAN;
+    use f4x_core::rules::exec::Target;
+    use f4x_core::rules::{Modifier, Source};
+
+    #[test]
+    fn a_unit_lists_its_effects_with_their_length_and_a_lasting_one_says_none() {
+        let mut app = App::for_test();
+        let unit = app.game.units().player_units(HUMAN)[0];
+        let who = Target::Unit(unit);
+        let plus = Modifier::new(Stat::Melee, ModOp::Add, 2, Source::Other);
+        app.game.add_temp_modifier(who, plus, Some(3));
+        let set = Modifier::new(Stat::Moves, ModOp::Set, 4, Source::Other);
+        app.game.add_temp_modifier(who, set, None);
+        app.game.grant_temp_ability(who, "first_strike", Some(1));
+        let ability = app
+            .game
+            .content()
+            .rules
+            .abilities
+            .by_name("first_strike")
+            .map(|a| a.name.clone())
+            .expect("first_strike is an ability");
+        assert_eq!(
+            app.temp_effect_lines(unit),
+            [
+                "Melee +2 (3 turns)".to_string(),
+                app.text_with(
+                    "temp.modifier_set",
+                    &Args::new()
+                        .text("stat", app.text("temp.stat_moves"))
+                        .text("value", "4".to_string())
+                ),
+                format!("Gains {ability} (1 turn)"),
+            ]
+        );
+    }
+
+    #[test]
+    fn every_stat_a_modifier_can_name_has_its_text() {
+        let texts = crate::test_app::shipped::texts();
+        for (stat, key) in STAT_NAMES {
+            assert!(texts.has(key), "{stat:?} has no text {key}");
         }
     }
 }

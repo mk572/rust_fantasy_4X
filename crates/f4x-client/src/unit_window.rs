@@ -348,3 +348,68 @@ impl App {
             .any(|u| self.game.unit_is_idle(u))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::testdir::TestResult;
+
+    /// The human's first unit stands on a square; `unit` is put there and selected alone.
+    fn select_new(app: &mut App, unit: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let at = app
+            .game
+            .units()
+            .player_units(HUMAN)
+            .first()
+            .and_then(|&u| app.game.units().unit_position(u))
+            .ok_or("the human has no unit")?;
+        let id = app
+            .game
+            .content()
+            .rules
+            .units
+            .id_of(unit)
+            .ok_or(format!("no unit {unit}"))?;
+        let spawned = app.game.spawn_unit(HUMAN, at, id);
+        app.selection = vec![spawned];
+        Ok(())
+    }
+
+    #[test]
+    fn settlers_build_spirits_meld_and_priests_purify() -> TestResult {
+        let mut app = App::for_test();
+        app.selection.clear();
+        assert_eq!(app.special_action(), Special::None);
+        for (unit, action) in [
+            ("barbarian_settlers", Special::Build),
+            ("beastmen_engineers", Special::Build),
+            ("magic_spirit", Special::Meld),
+            ("beastmen_priests", Special::Purify),
+        ] {
+            select_new(&mut app, unit)?;
+            assert_eq!(app.special_action(), action, "{unit}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_stack_with_a_builder_builds_whatever_else_stands_in_it() -> TestResult {
+        let mut app = App::for_test();
+        select_new(&mut app, "magic_spirit")?;
+        let spirit = app.selection[0];
+        select_new(&mut app, "barbarian_settlers")?;
+        app.selection.push(spirit);
+        assert_eq!(app.special_action(), Special::Build);
+        Ok(())
+    }
+
+    #[test]
+    fn next_turn_shows_once_every_unit_has_moved() {
+        let mut app = App::for_test();
+        assert!(!app.all_units_moved());
+        for u in app.game.units().player_units(HUMAN) {
+            app.game.scenario_set_moves_left(u, 0);
+        }
+        assert!(app.all_units_moved());
+    }
+}

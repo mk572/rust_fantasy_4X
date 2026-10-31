@@ -1,6 +1,8 @@
-//! The Historian and Astrologer screens (task 71): `Powergraph_Screen` and `Status_Screen` in
+//! The Historian and Astrologer screens: `Powergraph_Screen` and `Status_Screen` in
 //! `AdvsrScr.c`. Both are full pictures from `reload.lbx` (entry 0 and 1) with the wizards'
 //! figures drawn over them; Esc or a click leaves.
+//!
+//! Tests: none, because it only draws and needs a window.
 
 use crate::font::Style;
 use crate::input::Input;
@@ -54,8 +56,6 @@ impl App {
 /// Where the Cartographer's map starts, and the size of a square on it.
 const CART_AT: (f32, f32) = (16.0, 27.0);
 const CART_SQUARE: f32 = 4.0;
-
-impl App {}
 
 /// "History Of Wizards Power": a line for each wizard met, one point to the turn.
 pub(crate) struct HistoryPage;

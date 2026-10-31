@@ -93,3 +93,41 @@ impl App {
         self.pending_proposal().is_some()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_app::shipped;
+    use f4x_core::player::PlayerId;
+    use f4x_core::testdir::TestResult;
+
+    #[test]
+    fn every_kind_of_proposal_asks_a_question_that_the_texts_have() -> TestResult {
+        let spell = shipped::content()
+            .rules
+            .spells
+            .id_of("fire_bolt")
+            .ok_or("fire_bolt is not in the content")?;
+        let kinds = [
+            ProposalKind::Pact,
+            ProposalKind::Alliance,
+            ProposalKind::Peace,
+            ProposalKind::WarOn(PlayerId(2)),
+            ProposalKind::BreakAllianceWith(PlayerId(2)),
+            ProposalKind::Exchange {
+                give: spell,
+                get: spell,
+            },
+            ProposalKind::Demand { gold: 50 },
+            ProposalKind::Threat,
+        ];
+        for kind in kinds {
+            let key = question_key(kind);
+            assert!(
+                shipped::texts().has(key),
+                "{kind:?} asks {key}, which is missing"
+            );
+        }
+        Ok(())
+    }
+}

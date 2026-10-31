@@ -223,8 +223,7 @@ impl App {
                         Color::new(0.2, 0.4, 0.2, 1.0),
                     ),
                 }
-                // A ship's deck: brown planks over the water, a darker plank every other square,
-                // until the files' ship pictures are used (task 233).
+                // A ship's deck: brown planks over the water, a darker plank every other square.
                 if look.is_some_and(|l| l.roads[(cgy * W + cgx) as usize] == layout::SHIP_DECK) {
                     let plank = if (cgx + cgy) & 1 == 0 {
                         Color::new(0.47, 0.31, 0.16, 1.0)

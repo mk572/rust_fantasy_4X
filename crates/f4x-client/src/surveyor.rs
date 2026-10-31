@@ -1,4 +1,4 @@
-//! The Surveyor (task 71): `Surveyor_Screen` and `Surveyor_Window_Display` in `Surveyor.c`.
+//! The Surveyor: `Surveyor_Screen` and `Surveyor_Window_Display` in `Surveyor.c`.
 //! F1 puts the side panel over the right-hand column; the square under the mouse is described:
 //! its terrain, what lies on it, and what a city founded there would get from the land around
 //! it, or why none can be founded. A click on the map centres it there, and Cancel, C or Escape
@@ -342,11 +342,11 @@ mod tests {
 
     #[test]
     fn food_reads_in_halves() {
-        let t = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
-        assert_eq!(food_text(&t, 0), "");
-        assert_eq!(food_text(&t, 1), "1/2 food");
-        assert_eq!(food_text(&t, 2), "1 food");
-        assert_eq!(food_text(&t, 3), "1 1/2 food");
-        assert_eq!(food_text(&t, 4), "2 food");
+        let t = crate::test_app::shipped::texts();
+        assert_eq!(food_text(t, 0), "");
+        assert_eq!(food_text(t, 1), "1/2 food");
+        assert_eq!(food_text(t, 2), "1 food");
+        assert_eq!(food_text(t, 3), "1 1/2 food");
+        assert_eq!(food_text(t, 4), "2 food");
     }
 }

@@ -312,3 +312,31 @@ impl App {
         });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_leaf_is_lifted_along_the_line_of_each_stretch() {
+        let curve: &[Segment] = &[(0, 0.0, 10, -10.0), (11, -10.0, 11, -12.0)];
+        assert_eq!(lift(curve, 0), 0.0);
+        assert_eq!(lift(curve, 5), -5.0);
+        assert_eq!(lift(curve, 10), -10.0);
+        assert_eq!(
+            lift(curve, 11),
+            -10.0,
+            "a one-column stretch keeps its first lift"
+        );
+        assert_eq!(lift(curve, 50), 0.0, "past the curve the leaf lies flat");
+    }
+
+    #[test]
+    fn every_stage_curve_starts_at_the_left_edge_of_the_leaf() {
+        for stages in [&SMALL_STAGES[..], &BIG_STAGES[..]] {
+            for stage in stages {
+                assert_eq!(stage.curve.first().map(|s| s.0), Some(0));
+            }
+        }
+    }
+}

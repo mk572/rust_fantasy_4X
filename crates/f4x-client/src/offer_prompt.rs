@@ -1,8 +1,12 @@
-//! The offers made at the turn change (task 220): a hero for hire, a company of mercenaries and
+//! The offers made at the turn change: a hero for hire, a company of mercenaries and
 //! the merchant's item, laid out as the original's `HIRE.c` does (`Hire_Hero_Popup`,
 //! `Hire_Merc_Popup`, `Merchant_Popup`) over the map. The box stays until the player answers,
 //! and the next offer comes after it. Without the local art the pictures are missing and the
 //! text and buttons are still drawn.
+//!
+//! Tests: none yet, because its decisions are made in the frame function that also draws, which
+//! needs a window; they are to move into functions of `&Input` (see "UI test" in
+//! `docs/rust_coding_rules.md`).
 
 use crate::font::Style;
 use crate::input::Input;

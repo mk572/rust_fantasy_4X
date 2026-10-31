@@ -1,4 +1,4 @@
-//! Sound effects and music (tasks 76 and 97). What plays when is `docs/sound.md`.
+//! Sound effects and music. What plays when is `docs/sound.md`.
 //!
 //! The sounds are the original's, extracted by `f4x-tools extract-audio` to `assets-local/audio`
 //! (`<archive>/NNN_name.ogg`); the repository ships none, and a game without them is silent. A
@@ -591,18 +591,19 @@ mod tests {
     }
 
     #[test]
-    fn files_are_found_by_archive_and_entry() {
+    fn files_are_found_by_archive_and_entry() -> f4x_core::testdir::TestResult {
         let dir = f4x_core::testdir::TestDir::new("audio-scan");
-        std::fs::create_dir_all(dir.join("soundfx")).unwrap();
-        std::fs::create_dir_all(dir.join("music")).unwrap();
-        std::fs::write(dir.join("soundfx/002_left_btn_clk.ogg"), b"x").unwrap();
-        std::fs::write(dir.join("soundfx/readme.txt"), b"x").unwrap();
-        std::fs::write(dir.join("music/104_main_menu.ogg"), b"x").unwrap();
-        std::fs::write(dir.join("music/104_main_menu.xmi"), b"x").unwrap();
+        std::fs::create_dir_all(dir.join("soundfx"))?;
+        std::fs::create_dir_all(dir.join("music"))?;
+        std::fs::write(dir.join("soundfx/002_left_btn_clk.ogg"), b"x")?;
+        std::fs::write(dir.join("soundfx/readme.txt"), b"x")?;
+        std::fs::write(dir.join("music/104_main_menu.ogg"), b"x")?;
+        std::fs::write(dir.join("music/104_main_menu.xmi"), b"x")?;
         let a = Audio::scan(&dir, SoundTable::default());
         assert!(a.files.contains_key(&(Archive::SoundFx, 2)));
         assert!(a.files.contains_key(&(Archive::Music, 104)));
         assert_eq!(a.files.len(), 2);
         assert!(!Audio::scan(&dir.join("none"), SoundTable::default()).has_files());
+        Ok(())
     }
 }

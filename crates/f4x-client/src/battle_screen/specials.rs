@@ -1,6 +1,8 @@
 //! The box at the top right of the battle screen with what the selected unit has beyond its
 //! numbers: the spells it can cast (one click casts, or aims) and its abilities. It is made of
 //! the Info window's pictures (`compix` 56 to 58) cut to size, and set in the original's font.
+//!
+//! Tests: none, because it only draws and needs a window.
 
 use super::*;
 use crate::font::Style;

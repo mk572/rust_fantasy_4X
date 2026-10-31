@@ -1,8 +1,10 @@
-//! The enemy city screen (task 141), the original's `Enemy_City_Screen` (`City_ovr55.c`): what
+//! The enemy city screen, the original's `Enemy_City_Screen` (`City_ovr55.c`): what
 //! the wizard knows of another wizard's city: its size and name, race, citizens, the units that
 //! stand in it (none unseen: "No Report" for a square never scouted; invisible units are left
 //! out), its enchantments and its cityscape. A click anywhere or Esc leaves. Positions are the
 //! original's.
+//!
+//! Tests: none, because it only draws and needs a window.
 
 use crate::font::Style;
 use crate::input::Input;

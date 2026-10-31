@@ -1,4 +1,4 @@
-//! The Outpost screen (task 141), the original's `Outpost_Screen` (`Outpost.c`): a small window
+//! The Outpost screen, the original's `Outpost_Screen` (`Outpost.c`): a small window
 //! for an outpost with its reduced cityscape, the houses it has grown (bright) and has still to
 //! grow (dark), the garrison and the enchantments on it. A newly founded outpost is named in the
 //! box of `Change_City_Name_Popup` first; its header reads "New Outpost Founded" until the

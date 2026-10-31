@@ -1,8 +1,8 @@
-//! The score screen shown when the game ends (task 134), the original's `End_Of_Game_Score`
+//! The score screen shown when the game ends, the original's `End_Of_Game_Score`
 //! (`SCORE.c`): the wizard's name, then a row of icons for each part of the score (a book for
 //! each spell known, a townsfolk for every two thousand citizens, the banished wizards' portraits,
 //! fame, time, the Spell of Mastery), the final score and a bar of `score / 40` up to 200. A click
-//! or Esc goes on: the score is entered in the Hall of Fame (task 88) and the table is shown.
+//! or Esc goes on: the score is entered in the Hall of Fame and the table is shown.
 
 use crate::font::Style;
 use crate::input::Input;
@@ -215,7 +215,7 @@ impl Page for GameOverPage {
             {
                 let _ = hall_of_fame::save(std::path::Path::new(hall_of_fame::FILE), &table);
             }
-            // Until the win and lose animations exist, the log says who won and how.
+            // The log keeps who won and how.
             let winner = app.wizard_arg(Args::new(), "winner", over.winner);
             let (title, reason) = headline(app.texts(), over.winner == HUMAN, over.kind, winner);
             app.log.push(app.text_with(
@@ -241,12 +241,12 @@ mod tests {
 
     #[test]
     fn the_headline_says_who_won_and_how() {
-        let texts = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
+        let texts = crate::test_app::shipped::texts();
         let rival = || Args::new().text("winner", "Rival");
-        let (t, r) = headline(&texts, true, EndKind::SpellOfMastery, rival());
+        let (t, r) = headline(texts, true, EndKind::SpellOfMastery, rival());
         assert_eq!(t, "Victory!");
         assert!(r.contains("Spell of Mastery"));
-        let (t, r) = headline(&texts, false, EndKind::Conquest, rival());
+        let (t, r) = headline(texts, false, EndKind::Conquest, rival());
         assert_eq!(t, "Defeat");
         assert!(r.contains("Rival"));
     }

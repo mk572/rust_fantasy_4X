@@ -440,10 +440,12 @@ mod tests {
             unit: 3,
             path: vec![(5, 5), (6, 5)],
         };
-        let v = visual_in(&anim, STEP_TIME * 0.5, 3, (4, 5), 2).unwrap();
+        let v = visual_in(&anim, STEP_TIME * 0.5, 3, (4, 5), 2)
+            .expect("the unit has a place on screen");
         assert!((v.at.0 - 4.5).abs() < 1e-4 && (v.at.1 - 5.0).abs() < 1e-4);
         assert_eq!(v.facing, 7); // east in the core is west on the original's screen
-        let v = visual_in(&anim, STEP_TIME * 1.5, 3, (4, 5), 2).unwrap();
+        let v = visual_in(&anim, STEP_TIME * 1.5, 3, (4, 5), 2)
+            .expect("the unit has a place on screen");
         assert!((v.at.0 - 5.5).abs() < 1e-4);
         // Other units are not touched.
         assert!(visual_in(&anim, 0.1, 4, (4, 5), 2).is_none());
@@ -456,16 +458,17 @@ mod tests {
             unit: 0,
             path: vec![(1, 0), (2, 0)],
         };
-        let v = visual_in(&anim, anim.duration(), 0, (0, 0), 2).unwrap();
+        let v = visual_in(&anim, anim.duration(), 0, (0, 0), 2)
+            .expect("the unit has a place on screen");
         assert!((v.at.0 - 2.0).abs() < 1e-4);
     }
 
     #[test]
     fn blood_grows_with_the_damage_and_the_figures_vanish_at_its_end() {
         assert_eq!(blood(4, 2, 0, 0.1), None);
-        let b = blood(4, 2, 5, 0.0).unwrap();
+        let b = blood(4, 2, 5, 0.0).expect("the blow draws blood");
         assert_eq!((b.gibs, b.lost), (1, 3));
-        assert_eq!(blood(1, 2, 20, 0.0).unwrap().gibs, 5);
+        assert_eq!(blood(1, 2, 20, 0.0).expect("the blow draws blood").gibs, 5);
         let late = Blood { since: 1.0, ..b };
         assert_eq!(blood_frame(0, 0, late), Some(3));
         // The last one hit stays on the third frame.
@@ -481,11 +484,15 @@ mod tests {
             dealt: 0,
             taken: 0,
         };
-        let a = |t| visual_between(&anim, t, 0, (5, 5), (6, 5), 2).unwrap();
+        let a = |t| {
+            visual_between(&anim, t, 0, (5, 5), (6, 5), 2).expect("the unit has a place on screen")
+        };
         assert_eq!(a(0.0).at, (5.0, 5.0));
         assert!(a(ATTACK_TIME * 0.5).at.0 > 5.2);
         assert!((a(ATTACK_TIME).at.0 - 5.0).abs() < 1e-3);
-        let d = |t| visual_between(&anim, t, 1, (6, 5), (5, 5), 7).unwrap();
+        let d = |t| {
+            visual_between(&anim, t, 1, (6, 5), (5, 5), 7).expect("the unit has a place on screen")
+        };
         assert_eq!(d(0.0).hurt, 0.0);
         assert!(d(ATTACK_TIME * 0.5).hurt > 0.5);
         assert_eq!(d(0.0).facing, 3);
@@ -505,13 +512,15 @@ mod tests {
             unit: 1,
             to: (7, 4),
         };
-        let first = visual_in(&anim, 0.0, 1, (2, 2), 2).unwrap();
+        let first = visual_in(&anim, 0.0, 1, (2, 2), 2).expect("the unit has a place on screen");
         assert_eq!(first.at, (2.0, 2.0));
         assert!(first.twin.is_none());
-        let middle = visual_in(&anim, INSTANT_FRAME * 4.5, 1, (2, 2), 2).unwrap();
+        let middle = visual_in(&anim, INSTANT_FRAME * 4.5, 1, (2, 2), 2)
+            .expect("the unit has a place on screen");
         assert_eq!(middle.at, (2.0, 2.0));
         assert_eq!(middle.twin.map(|(at, _)| at), Some((7.0, 4.0)));
-        let end = visual_in(&anim, anim.duration(), 1, (2, 2), 2).unwrap();
+        let end = visual_in(&anim, anim.duration(), 1, (2, 2), 2)
+            .expect("the unit has a place on screen");
         assert_eq!(end.at, (7.0, 4.0));
         assert!(end.twin.is_none() && end.alpha > 0.8);
         assert!(visual_in(&anim, 0.0, 2, (2, 2), 2).is_none());
@@ -529,18 +538,21 @@ mod tests {
             unit: 0,
             to: (9, 9),
         };
-        let down = visual_in(&anim, INSTANT_FRAME * 1.5, 0, (1, 1), 2).unwrap();
+        let down = visual_in(&anim, INSTANT_FRAME * 1.5, 0, (1, 1), 2)
+            .expect("the unit has a place on screen");
         assert_eq!(down.at, (1.0, 1.0));
         assert_eq!(down.sink, 10.0);
-        let up = visual_in(&anim, INSTANT_FRAME * 7.5, 0, (1, 1), 2).unwrap();
+        let up = visual_in(&anim, INSTANT_FRAME * 7.5, 0, (1, 1), 2)
+            .expect("the unit has a place on screen");
         assert_eq!(up.at, (9.0, 9.0));
     }
 
     #[test]
     fn the_dying_fade_out() {
         let anim = Anim::Death { unit: 2 };
-        let start = visual_in(&anim, 0.0, 2, (3, 3), 2).unwrap();
-        let end = visual_in(&anim, DEATH_TIME, 2, (3, 3), 2).unwrap();
+        let start = visual_in(&anim, 0.0, 2, (3, 3), 2).expect("the unit has a place on screen");
+        let end =
+            visual_in(&anim, DEATH_TIME, 2, (3, 3), 2).expect("the unit has a place on screen");
         assert_eq!(start.alpha, 1.0);
         assert_eq!(end.alpha, 0.0);
     }
@@ -548,7 +560,7 @@ mod tests {
     #[test]
     fn a_missile_flies_then_lands() {
         assert_eq!(missile_progress(0.0), Some(0.0));
-        assert!(missile_progress(SHOT_TIME * 0.3).unwrap() > 0.4);
+        assert!(missile_progress(SHOT_TIME * 0.3).expect("the missile is in flight") > 0.4);
         assert_eq!(missile_progress(SHOT_TIME), None);
     }
 }

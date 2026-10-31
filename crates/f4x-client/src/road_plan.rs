@@ -1,4 +1,4 @@
-//! Road-building mode (task 102): the original's topics 510-512. B with engineers selected opens
+//! Road-building mode: the original's topics 510-512. B with engineers selected opens
 //! the mode; a click on the map picks the far end, the squares between are marked (blue where
 //! a road can be built, red where it cannot) with the turns each takes, and OK builds the whole
 //! path with `Command::BuildRoad`. Cancel, Escape or a right-click leave the mode.
@@ -280,5 +280,80 @@ impl App {
         } else if cancel {
             self.road_plan_cancel();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::testdir::TestResult;
+
+    #[test]
+    fn the_mode_needs_a_selection_and_opens_where_the_stack_stands() -> TestResult {
+        let mut app = App::for_test();
+        app.selection.clear();
+        app.start_road_plan();
+        assert!(app.road_plan.is_none());
+        app.select_first_stack();
+        app.start_road_plan();
+        let plan = app.road_plan.as_ref().ok_or("the mode did not open")?;
+        assert_eq!(
+            Some(plan.start),
+            app.game.units().unit_position(plan.units[0])
+        );
+        assert!(plan.path.is_empty());
+        assert_eq!(
+            app.log.last().map(String::as_str),
+            Some("Road: click where it should end, then OK (Enter)")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_click_on_the_start_clears_the_path_and_cancel_leaves_the_mode() -> TestResult {
+        let mut app = App::for_test();
+        app.select_first_stack();
+        app.start_road_plan();
+        let start = app.road_plan.as_ref().ok_or("the mode did not open")?.start;
+        app.road_plan_click(start);
+        assert!(app.road_plan.as_ref().is_some_and(|p| p.path.is_empty()));
+        app.road_plan_cancel();
+        assert!(app.road_plan.is_none());
+        assert_eq!(app.log.last().map(String::as_str), Some("Road cancelled"));
+        let lines = app.log.len();
+        app.road_plan_cancel();
+        assert_eq!(app.log.len(), lines, "nothing to cancel, nothing said");
+        Ok(())
+    }
+
+    #[test]
+    fn confirming_without_a_far_end_asks_for_the_road_under_the_stack_and_leaves_the_mode(
+    ) -> TestResult {
+        let mut app = App::for_test();
+        app.select_first_stack();
+        app.start_road_plan();
+        let plan = app.road_plan.as_ref().ok_or("the mode did not open")?;
+        assert!(
+            app.game.road_turns(&plan.units, plan.start).unwrap_or(0) > 0,
+            "the start square has no road yet"
+        );
+        app.road_plan_confirm();
+        assert!(app.road_plan.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn moving_the_engineers_ends_the_mode() -> TestResult {
+        let mut app = App::for_test();
+        app.select_first_stack();
+        app.start_road_plan();
+        let plan = app.road_plan.as_mut().ok_or("the mode did not open")?;
+        plan.start = Position {
+            x: plan.start.x + 1,
+            ..plan.start
+        };
+        app.road_plan_keys(&Input::default());
+        assert!(app.road_plan.is_none());
+        Ok(())
     }
 }

@@ -2,6 +2,10 @@
 //! (`Assign_Mouse_Images`, `Combat_Spell_Target_Screen_Draw`): a finger by default, a winged boot
 //! on a square the unit can walk to, crossed swords on an enemy it can strike, a bow on one it can
 //! shoot, a wand on a square a spell can be aimed at, and a red cross where nothing can be done.
+//!
+//! Tests: none yet, because its decisions are made in the frame function that also draws, which
+//! needs a window; they are to move into functions of `&Input` (see "UI test" in
+//! `docs/rust_coding_rules.md`).
 
 use super::*;
 use crate::input::Input;

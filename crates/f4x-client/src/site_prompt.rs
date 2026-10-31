@@ -1,4 +1,4 @@
-//! The boxes of a guarded site (task 128, ReMoM `Lair.c`): "You have found a mysterious cave.
+//! The boxes of a guarded site (ReMoM `Lair.c`): "You have found a mysterious cave.
 //! Scouts have spotted 4 Skeletons within the mysterious cave.  Do you wish to enter?" with a
 //! Yes and a No (`Do_Lair_Confirm`), and after the fight "Inside you find 120 gold and a Sword."
 //! (`Lair_Treasure_Popup`, the original's `Notify1` box with the treasure picture). An unguarded
@@ -492,27 +492,27 @@ mod tests {
         Loot::default()
     }
 
-    fn texts() -> Texts {
-        f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap()
+    fn texts() -> &'static Texts {
+        crate::test_app::shipped::texts()
     }
 
     #[test]
     fn the_question_names_the_site_and_the_scouts_report() {
         let t = texts();
         assert_eq!(
-            found_text(&t, site_type("mysterious_cave"), Some(("Efreet", 1))),
+            found_text(t, site_type("mysterious_cave"), Some(("Efreet", 1))),
             "You have found a mysterious cave.  Scouts have spotted a single Efreet within the mysterious cave.  Do you wish to enter?"
         );
         assert_eq!(
-            found_text(&t, site_type("dungeon"), Some(("Skeletons", 6))),
+            found_text(t, site_type("dungeon"), Some(("Skeletons", 6))),
             "You have found a dungeon.  Scouts have spotted Skeletons within the dungeon.  Do you wish to enter?"
         );
         assert_eq!(
-            found_text(&t, site_type("ruins"), None),
+            found_text(t, site_type("ruins"), None),
             "You have found some ruins."
         );
         assert_eq!(
-            found_text(&t, site_type("ancient_temple"), None),
+            found_text(t, site_type("ancient_temple"), None),
             "You have found an ancient temple."
         );
     }
@@ -522,18 +522,18 @@ mod tests {
         let t = texts();
         let mut l = loot();
         assert_eq!(
-            treasure_text(&t, &l, None, &[], &[]),
+            treasure_text(t, &l, None, &[], &[]),
             "Inside you find absolutely nothing."
         );
         l.gold = 120;
         assert_eq!(
-            treasure_text(&t, &l, None, &[], &[]),
+            treasure_text(t, &l, None, &[], &[]),
             "Inside you find 120 gold."
         );
         l.mana = 30;
         l.prisoner = true;
         assert_eq!(
-            treasure_text(&t, &l, Some("Earth Lore"), &[], &[ItemKind::Sword]),
+            treasure_text(t, &l, Some("Earth Lore"), &[], &[ItemKind::Sword]),
             "Inside you find 120 gold, 30 mana crystals, a prisoner, the spell Earth Lore and a Sword."
         );
         l.gold = 1;
@@ -541,7 +541,7 @@ mod tests {
         l.prisoner = false;
         l.books = vec!["nature".into(), "nature".into()];
         assert_eq!(
-            treasure_text(&t, &l, None, &["Sage Master".to_string()], &[]),
+            treasure_text(t, &l, None, &["Sage Master".to_string()], &[]),
             "Inside you find 2 Nature spell books and a retort of Sage Master."
         );
     }

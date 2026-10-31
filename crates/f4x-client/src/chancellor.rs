@@ -1,4 +1,4 @@
-//! The Chancellor's scroll (task 272, the original's `Chancellor_Screen__WIP(0)` in
+//! The Chancellor's scroll (the original's `Chancellor_Screen__WIP(0)` in
 //! `REPORT.c`): after a turn is processed a scroll unrolls over the map with the news in
 //! sections: units disbanded, city growth and deaths, buildings lost, spells that dissipated.
 //! Escape, Enter or a click rolls it up; U, D, the arrows or the wheel scroll a long one.
@@ -239,7 +239,7 @@ impl App {
         });
     }
 
-    /// What the next turn change cannot pay for, if anything (the preview of tasks 62 and 292).
+    /// What the next turn change cannot pay for, if anything.
     fn shortfall_forecast(&self) -> Option<Section> {
         let mut lines = Vec::new();
         if let Some(m) = self.game.upkeep_shortfall(HUMAN) {

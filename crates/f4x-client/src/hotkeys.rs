@@ -374,18 +374,20 @@ pub(crate) fn fill_keys(text: &str, hotkeys: &Hotkeys) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::testdir::TestResult;
 
     #[test]
-    fn a_chord_is_parsed_and_shown() {
-        let c = Chord::parse("Ctrl+Z").unwrap();
+    fn a_chord_is_parsed_and_shown() -> TestResult {
+        let c = Chord::parse("Ctrl+Z")?;
         assert!(c.ctrl && !c.shift && c.key == KeyCode::Z);
         assert_eq!(c.label(), "Ctrl+Z");
-        assert_eq!(Chord::parse("kp1").unwrap().label(), "Numpad 1");
-        assert_eq!(Chord::parse("PageUp").unwrap().label(), "Page Up");
-        assert_eq!(Chord::parse("GraveAccent").unwrap().label(), "Backquote");
-        assert_eq!(Chord::parse("Key5").unwrap().label(), "5");
+        assert_eq!(Chord::parse("kp1")?.label(), "Numpad 1");
+        assert_eq!(Chord::parse("PageUp")?.label(), "Page Up");
+        assert_eq!(Chord::parse("GraveAccent")?.label(), "Backquote");
+        assert_eq!(Chord::parse("Key5")?.label(), "5");
         assert!(Chord::parse("Ctrl+Hyper").is_err());
         assert!(Chord::parse("Meta+Z").is_err());
+        Ok(())
     }
 
     #[test]
@@ -415,19 +417,19 @@ mod tests {
     }
 
     #[test]
-    fn a_later_file_replaces_only_the_actions_it_names_and_a_typo_is_an_error() {
-        let keys =
-            Hotkeys::from_layers(&[SHIPPED, r#"{"end_turn": ["Space"], "magic": []}"#]).unwrap();
+    fn a_later_file_replaces_only_the_actions_it_names_and_a_typo_is_an_error() -> TestResult {
+        let keys = Hotkeys::from_layers(&[SHIPPED, r#"{"end_turn": ["Space"], "magic": []}"#])?;
         assert_eq!(keys.label("end_turn"), "Space");
         assert_eq!(keys.label("magic"), "");
         assert_eq!(keys.label("spellbook"), "S");
         assert!(Hotkeys::from_layers(&[SHIPPED, r#"{"end_trun": ["N"]}"#]).is_err());
         assert!(Hotkeys::from_layers(&[SHIPPED, r#"{"end_turn": ["Nn"]}"#]).is_err());
+        Ok(())
     }
 
     #[test]
-    fn help_text_shows_the_keys_in_force() {
-        let keys = Hotkeys::from_layers(&[SHIPPED, r#"{"done": ["F"]}"#]).unwrap();
+    fn help_text_shows_the_keys_in_force() -> TestResult {
+        let keys = Hotkeys::from_layers(&[SHIPPED, r#"{"done": ["F"]}"#])?;
         assert_eq!(
             fill_keys(
                 "Press {key:done} or {key:end_turn}. {key:nothing} {key:",
@@ -435,5 +437,6 @@ mod tests {
             ),
             "Press F or Enter or N.  {key:"
         );
+        Ok(())
     }
 }

@@ -1029,3 +1029,55 @@ impl Page for DiploUi {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::testdir::TestResult;
+
+    const RIVAL: PlayerId = PlayerId(1);
+
+    #[test]
+    fn what_a_wizard_can_give_is_what_the_other_lacks_the_dearest_first() -> TestResult {
+        let mut app = App::for_test();
+        let offered = app.spells_to_give(RIVAL, HUMAN);
+        assert!(
+            !offered.is_empty(),
+            "the rival starts with spells the human lacks"
+        );
+        let human = app.game.wizard(HUMAN).ok_or("no human wizard")?;
+        assert!(offered.iter().all(|&s| !human.knows(s)));
+        let spells = &app.game.content().rules.spells;
+        assert!(offered
+            .windows(2)
+            .all(|w| spells.get(w[0]).research_cost >= spells.get(w[1]).research_cost));
+        let first = offered[0];
+        assert!(app.game.cheat_learn_spell(HUMAN, first));
+        assert!(!app.spells_to_give(RIVAL, HUMAN).contains(&first));
+        Ok(())
+    }
+
+    #[test]
+    fn the_exchange_menu_lists_the_realms_the_wizard_has_a_spell_in() {
+        let app = App::for_test();
+        let rules = &app.game.content().rules;
+        let spells = app.spells_to_give(RIVAL, HUMAN);
+        let realms = app.exchange_realms(RIVAL);
+        assert!(!realms.is_empty());
+        for (i, realm) in rules.realms.defs().iter().enumerate() {
+            let has = spells
+                .iter()
+                .any(|&s| rules.spells.get(s).realm == realm.id);
+            assert_eq!(realms.contains(&i), has, "{}", realm.id);
+        }
+    }
+
+    #[test]
+    fn a_war_on_a_third_wizard_needs_a_third_wizard() {
+        let app = App::for_test();
+        assert!(app.third_wizards(RIVAL, true).is_empty());
+        assert!(app.third_wizards(RIVAL, false).is_empty());
+        assert_eq!(app.diplo_name(PlayerId(99)), "?");
+        assert!(!app.audience_refused(RIVAL));
+    }
+}

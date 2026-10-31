@@ -583,7 +583,7 @@ impl App {
         let mut hit = false;
         let view = Self::view(lay);
         let list = self.game.city_enchantments(city);
-        // The temporary effects follow the spells, in plain text and not clickable (task 152).
+        // The temporary effects follow the spells, in plain text and not clickable.
         let effects = self.temp_effect_lines(city);
         let total = list.len() + effects.len();
         if total > PAGE {
@@ -1612,4 +1612,42 @@ fn thousands(n: u32) -> String {
         out.push(c);
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::testdir::TestResult;
+
+    #[test]
+    fn a_city_is_named_for_its_size_and_the_fortress_is_the_capital() -> TestResult {
+        let mut app = App::for_test();
+        let capital = app
+            .game
+            .economy()
+            .cities()
+            .first()
+            .map(|c| c.0)
+            .ok_or("the new game has no city")?;
+        assert_eq!(app.city_size_name(capital), "Capital");
+        let at = app.city_position(capital);
+        let at = Position { x: at.x + 3, ..at };
+        let city = app
+            .game
+            .scenario_found_city(HUMAN, at, "Testville", None, 0);
+        for (figures, name) in [
+            (0, "Outpost"),
+            (1, "Hamlet"),
+            (4, "Hamlet"),
+            (5, "Village"),
+            (9, "Town"),
+            (13, "City"),
+            (17, "Capital"),
+            (30, "Capital"),
+        ] {
+            app.game.scenario_set_citizens(city, figures);
+            assert_eq!(app.city_size_name(city), name, "{figures} figures");
+        }
+        Ok(())
+    }
 }

@@ -399,7 +399,7 @@ impl App {
     ) -> Option<MasteryNotice> {
         let started = *notice.started.get_or_insert_with(get_time);
         let stage = ((get_time() - started) / MASTERY_STAGE) as usize;
-        if stage >= MASTERY_STAGES || crate::global_spell::any_input(input) {
+        if stage >= MASTERY_STAGES || input.dismisses() {
             return None;
         }
         let lay = Layout::new();

@@ -1,4 +1,4 @@
-//! The original's opening movie (task 85): `Draw_Logos` in `INTRO.c`. Thirteen scenes of
+//! The original's opening movie: `Draw_Logos` in `INTRO.c`. Thirteen scenes of
 //! `INTRO.LBX`, each a short animation of 320 by 200 frames, with a fade out before it and a
 //! fade in on its first frame, the Simtex copyright line over scene 2, and a few sound effects at
 //! fixed frames. Any key or click skips it. The pictures are the author's own copy of the game
@@ -253,7 +253,10 @@ mod tests {
         let beats = beats();
         assert_eq!(beats[0].picture, None);
         assert_eq!(beats[0].dark, 50);
-        let first_scene_start = beats.iter().position(|b| b.picture.is_some()).unwrap();
+        let first_scene_start = beats
+            .iter()
+            .position(|b| b.picture.is_some())
+            .expect("a scene follows the dark");
         assert_eq!(beats[first_scene_start].picture, Some((0, 0)));
         assert_eq!(beats[first_scene_start].dark, 10);
         // Scene 1 fades scene 0's last frame out in twenty steps of five percent.

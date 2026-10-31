@@ -3,6 +3,10 @@
 //! boot over a square the selected stack can walk to and the red cross over one it cannot, and the
 //! wand while a spell waits for its target. The battle screen picks its own (`battle_screen/pointer.rs`)
 //! and draws through `draw_image`. Without the art the system pointer stays.
+//!
+//! Tests: none yet, because its decisions are made in the frame function that also draws, which
+//! needs a window; they are to move into functions of `&Input` (see "UI test" in
+//! `docs/rust_coding_rules.md`).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 

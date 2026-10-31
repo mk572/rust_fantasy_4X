@@ -135,3 +135,59 @@ impl CreateState {
         app.new_map(app.seed);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_five_realms_of_magic_hold_books_and_arcane_does_not() {
+        let app = App::for_test();
+        let mut realms = app.book_realms();
+        realms.sort();
+        assert_eq!(realms, ["chaos", "death", "life", "nature", "sorcery"]);
+    }
+
+    #[test]
+    fn a_ready_made_wizard_brings_its_books_and_spells_and_custom_keeps_them_under_the_full_rules()
+    {
+        let mut app = App::for_test();
+        let mut state = CreateState::empty();
+        state.pick_preset(&mut app, Some(0));
+        assert_eq!(state.preset, Some(0));
+        assert!(state.build.preset);
+        let realms = app.book_realms();
+        assert!(!state.build.spells.is_empty());
+        for &s in &state.build.spells {
+            let realm = &app.game.content().rules.spells.get(s).realm;
+            assert!(realms.contains(realm), "{realm} holds no books");
+        }
+        let spells = state.build.spells.clone();
+        state.pick_preset(&mut app, None);
+        assert_eq!(state.preset, None);
+        assert!(!state.build.preset);
+        assert_eq!(
+            state.build.spells, spells,
+            "the same books call for the same spells"
+        );
+    }
+
+    #[test]
+    fn a_wizard_without_a_name_gets_the_default_one() {
+        let mut app = App::for_test();
+        let mut state = CreateState::empty();
+        state.build.name = "   ".into();
+        state.begin_game(&mut app);
+        let default = app.text("create.default_name");
+        assert_eq!(
+            app.human_build.as_ref().map(|b| b.name.as_str()),
+            Some(default.as_str())
+        );
+        state.build.name = "  Merlin ".into();
+        state.begin_game(&mut app);
+        assert_eq!(
+            app.human_build.as_ref().map(|b| b.name.as_str()),
+            Some("Merlin")
+        );
+    }
+}

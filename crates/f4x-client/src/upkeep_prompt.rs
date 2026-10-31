@@ -1,5 +1,5 @@
 //! The question before the turn ends when the reserves cannot pay the upkeep: which lasting
-//! spells and summoned creatures, which troops, ships and heroes to give up (tasks 62 and 292).
+//! spells and summoned creatures, which troops, ships and heroes to give up.
 //! Without an answer the turn change lets go of the newest. A second page appears when released
 //! heroes bring more items home than the armory holds: which to disband for mana.
 
@@ -22,7 +22,7 @@ const ROW: f32 = 10.0;
 const SHOWN: usize = 11;
 
 /// A line of the list.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Line {
     Header(&'static str),
     Mana(usize),
@@ -549,5 +549,86 @@ impl App {
             no_at.1,
         );
         Some(prompt)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_app::shipped;
+    use f4x_core::player::upkeep::UpkeepLine;
+    use f4x_core::testdir::TestResult;
+
+    /// Three lasting global spells of 10, 20 and 30 mana a turn, oldest first, and a reserve of
+    /// `reserve` against the 60 owed.
+    fn short_of_mana(reserve: i32) -> Result<Shortfall, Box<dyn std::error::Error>> {
+        let spells = &shipped::content().rules.spells;
+        let line = |id: &str, mana| -> Result<UpkeepLine, String> {
+            let spell = spells.id_of(id).ok_or(format!("no spell {id}"))?;
+            Ok(UpkeepLine {
+                kind: UpkeepKind::Global(spell),
+                mana,
+                label: id.to_string(),
+            })
+        };
+        Ok(Shortfall {
+            reserve,
+            owed: 60,
+            lines: vec![
+                line("crusade", 10)?,
+                line("chaos_surge", 20)?,
+                line("armageddon", 30)?,
+            ],
+        })
+    }
+
+    #[test]
+    fn what_the_turn_change_would_give_up_starts_marked_and_the_cursor_skips_the_header(
+    ) -> TestResult {
+        let prompt = UpkeepPrompt::new(Some(short_of_mana(25)?), None);
+        assert_eq!(prompt.mana_marked, [false, true, true]);
+        assert_eq!(prompt.released_upkeep().len(), 2);
+        assert_eq!(prompt.lines()[prompt.cursor], Line::Mana(0));
+        assert!(prompt.marked(Line::Mana(2)) && !prompt.marked(Line::Mana(0)));
+        Ok(())
+    }
+
+    #[test]
+    fn marking_a_line_changes_what_is_released_and_what_is_still_missing() -> TestResult {
+        let texts = shipped::texts();
+        let mut prompt = UpkeepPrompt::new(Some(short_of_mana(25)?), None);
+        assert_eq!(
+            prompt.status(texts),
+            ("Enough: the rest is paid.".to_string(), true)
+        );
+        prompt.toggle(Line::Mana(2));
+        let (text, enough) = prompt.status(texts);
+        assert!(!enough);
+        assert_eq!(
+            text, "Short by 15 mana: the newest go.",
+            "20 freed, 25 in the reserve, 60 owed"
+        );
+        prompt.toggle(Line::Mana(0));
+        assert_eq!(prompt.status(texts).0, "Short by 5 mana: the newest go.");
+        prompt.toggle(Line::Mana(2));
+        assert!(prompt.status(texts).1);
+        prompt.toggle(Line::Header("upkeep.mana"));
+        assert_eq!(prompt.released_upkeep().len(), 3);
+        Ok(())
+    }
+
+    #[test]
+    fn a_line_reads_as_its_label_and_its_price() -> TestResult {
+        let prompt = UpkeepPrompt::new(Some(short_of_mana(25)?), None);
+        let texts = shipped::texts();
+        assert_eq!(
+            prompt.text(texts, Line::Mana(1)),
+            ("chaos_surge".to_string(), "20 mana".to_string())
+        );
+        assert_eq!(
+            prompt.text(texts, Line::Mana(9)),
+            (String::new(), String::new())
+        );
+        Ok(())
     }
 }

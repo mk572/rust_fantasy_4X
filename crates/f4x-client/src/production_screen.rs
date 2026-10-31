@@ -378,3 +378,34 @@ impl App {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::testdir::TestResult;
+
+    #[test]
+    fn a_building_lists_what_it_opens_until_that_is_built() -> TestResult {
+        let mut app = App::for_test();
+        let city = app
+            .game
+            .economy()
+            .cities()
+            .first()
+            .map(|c| c.0)
+            .ok_or("the new game has no city")?;
+        let rules = &app.game.content().rules;
+        let barracks = rules.buildings.id_of("barracks").ok_or("no barracks")?;
+        let armory = rules.buildings.id_of("armory").ok_or("no armory")?;
+        let armory_name = rules.buildings.get(armory).name.clone();
+        assert!(app.production_allows(city, None).is_empty());
+        assert!(app
+            .production_allows(city, Some(barracks))
+            .contains(&armory_name));
+        app.game.scenario_set_building(city, armory, true);
+        assert!(!app
+            .production_allows(city, Some(barracks))
+            .contains(&armory_name));
+        Ok(())
+    }
+}

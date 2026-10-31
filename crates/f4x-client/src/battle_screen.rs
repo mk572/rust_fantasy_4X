@@ -2331,9 +2331,9 @@ mod tests {
     fn events_are_told_with_unit_names() {
         let names = vec!["Spearmen".to_string(), "Orc".to_string()];
         let spell = |_: SpellId| "Fire Bolt".to_string();
-        let texts = f4x_data::load_texts(&[std::path::Path::new("../../content")], "en").unwrap();
+        let texts = crate::test_app::shipped::texts();
         let line = describe(
-            &texts,
+            texts,
             &names,
             &spell,
             &BattleEvent::Attacked {
@@ -2345,10 +2345,10 @@ mod tests {
                 taken_kills: 0,
             },
         )
-        .unwrap();
+        .expect("an attack is told");
         assert_eq!(line, "Spearmen hits Orc: 4 damage, 1 figure lost");
         assert!(describe(
-            &texts,
+            texts,
             &names,
             &spell,
             &BattleEvent::Moved {

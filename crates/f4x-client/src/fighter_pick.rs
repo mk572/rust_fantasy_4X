@@ -3,6 +3,10 @@
 //! name, attack, defence and abilities, and a check box for the nine at most that go in. The
 //! human sees it as the attacker (the units not chosen stay where they are with their moves) and
 //! as the defender (the units not chosen sit the fight out).
+//!
+//! Tests: none yet, because its decisions are made in the frame function that also draws, which
+//! needs a window; they are to move into functions of `&Input` (see "UI test" in
+//! `docs/rust_coding_rules.md`).
 
 use crate::font::Style;
 use crate::frame::Layout;

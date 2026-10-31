@@ -51,14 +51,6 @@ impl Modal for GlobalCast {
     }
 }
 
-pub(crate) fn any_input(input: &Input) -> bool {
-    input.mouse_pressed(MouseButton::Left)
-        || input.mouse_pressed(MouseButton::Right)
-        || input.key_pressed(KeyCode::Enter)
-        || input.key_pressed(KeyCode::Escape)
-        || input.key_pressed(KeyCode::Space)
-}
-
 impl App {
     /// Remember a cast to show, if the spell is a global enchantment with a picture.
     ///
@@ -110,7 +102,7 @@ impl App {
     ) -> Option<GlobalCast> {
         let started = *cast.started.get_or_insert_with(get_time);
         let stage = ((get_time() - started) / STAGE) as usize;
-        if stage >= STAGES || any_input(input) {
+        if stage >= STAGES || input.dismisses() {
             return None;
         }
         let lay = Layout::new();
@@ -222,5 +214,54 @@ impl App {
                 ..Default::default()
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::view::HUMAN;
+    use f4x_core::testdir::TestResult;
+
+    fn spell(app: &App) -> Result<SpellId, &'static str> {
+        app.game
+            .content()
+            .rules
+            .spells
+            .id_of("armageddon")
+            .ok_or("armageddon is not in the content")
+    }
+
+    #[test]
+    fn the_mirror_shows_a_cast_only_when_the_switches_allow_it() -> TestResult {
+        let mut app = App::for_test();
+        let spell = spell(&app)?;
+        let rival = PlayerId(1);
+        app.prefs.set(Pref::OverlandSpellEvents, false);
+        app.announce_global_cast(HUMAN, spell);
+        assert!(
+            !app.modals.has(kind::GLOBAL_CAST),
+            "Overland Spell Events off"
+        );
+        app.prefs.set(Pref::OverlandSpellEvents, true);
+        app.prefs.set(Pref::EnemySpells, false);
+        app.announce_global_cast(rival, spell);
+        assert!(
+            !app.modals.has(kind::GLOBAL_CAST),
+            "a rival's cast needs Enemy Spells"
+        );
+        app.announce_global_cast(HUMAN, spell);
+        assert!(app.modals.has(kind::GLOBAL_CAST), "your own cast does not");
+        Ok(())
+    }
+
+    #[test]
+    fn a_rivals_cast_shows_with_enemy_spells_on() -> TestResult {
+        let mut app = App::for_test();
+        let spell = spell(&app)?;
+        app.prefs.set(Pref::EnemySpells, true);
+        app.announce_global_cast(PlayerId(1), spell);
+        assert!(app.modals.has(kind::GLOBAL_CAST));
+        Ok(())
     }
 }

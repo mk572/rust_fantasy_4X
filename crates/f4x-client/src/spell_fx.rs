@@ -168,8 +168,6 @@ pub fn fx_for(art: &SpellArt, id: &str, realm: &str, summons: bool) -> SpellFx {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
-
     #[test]
     fn ice_bolt_comes_in_from_the_left_where_fire_bolt_comes_from_the_right() {
         let (_, fire_start, fire_step) = Bolt::Fire.path();
@@ -179,10 +177,8 @@ mod tests {
         assert_eq!((ice_start.1, ice_step.1), (fire_start.1, fire_step.1));
     }
 
-    fn art() -> SpellArt {
-        let dir = Path::new("../../content");
-        let content = f4x_data::load_content(dir).unwrap();
-        f4x_data::spell_art::load_spell_art(&[dir], &content.rules).unwrap()
+    fn art() -> &'static SpellArt {
+        crate::test_app::shipped::spell_art()
     }
 
     fn cell(lbx: &str, entry: usize, big: bool) -> SpellFx {
@@ -197,29 +193,29 @@ mod tests {
     fn spells_find_their_pictures() {
         let art = art();
         assert!(matches!(
-            fx_for(&art, "fireball", "chaos", false),
+            fx_for(art, "fireball", "chaos", false),
             SpellFx::Bolt { entry: 23, .. }
         ));
         assert!(matches!(
-            fx_for(&art, "prayer", "life", false),
+            fx_for(art, "prayer", "life", false),
             SpellFx::Tint { realm: 3 }
         ));
         // A spell without a picture of its own plays its realm's.
         assert_eq!(
-            fx_for(&art, "heroism", "life", false),
+            fx_for(art, "heroism", "life", false),
             cell("specfx", 3, true)
         );
         assert_eq!(
-            fx_for(&art, "hydra", "chaos", true),
+            fx_for(art, "hydra", "chaos", true),
             cell("cmbtfx", 22, false)
         );
         // Flame Strike plays over each unit, not as a tint.
         assert!(matches!(
-            fx_for(&art, "flame_strike", "chaos", false),
+            fx_for(art, "flame_strike", "chaos", false),
             SpellFx::Cell { entry: 33, .. }
         ));
         assert_eq!(
-            fx_for(&art, "earth_to_mud", "nature", false),
+            fx_for(art, "earth_to_mud", "nature", false),
             cell("cmbtfx", 14, true)
         );
     }
@@ -227,12 +223,12 @@ mod tests {
     #[test]
     fn call_chaos_has_a_picture_for_each_outcome_but_the_first() {
         let art = art();
-        assert_eq!(chaos_effect(&art, 0), None);
+        assert_eq!(chaos_effect(art, 0), None);
         assert_eq!(
-            chaos_effect(&art, 4),
+            chaos_effect(art, 4),
             Some(("cmbtfx".to_string(), 33, false))
         );
-        assert_eq!(chaos_effect(&art, 1), Some(("specfx".to_string(), 3, true)));
-        assert!((1..8).all(|n| chaos_effect(&art, n).is_some()));
+        assert_eq!(chaos_effect(art, 1), Some(("specfx".to_string(), 3, true)));
+        assert!((1..8).all(|n| chaos_effect(art, n).is_some()));
     }
 }
