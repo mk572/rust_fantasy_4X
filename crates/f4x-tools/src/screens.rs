@@ -194,9 +194,11 @@ pub fn rules() -> Result<Vec<Rule>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testutil::{content_dir, shipped};
+    use f4x_core::testdir::TestResult;
 
     #[test]
-    fn unit_art_goes_to_the_units_folder() {
+    fn unit_art_goes_to_the_units_folder() -> TestResult {
         let units = [
             UnitArt {
                 id: "dwarf".into(),
@@ -209,7 +211,7 @@ mod tests {
                 portrait: None,
             },
         ];
-        let p = Placer::new(rules().unwrap(), &units, &SpellArt::default());
+        let p = Placer::new(rules()?, &units, &SpellArt::default());
         assert_eq!(
             p.place("units1", 0).as_deref(),
             Some("art/units/dwarf/picture")
@@ -266,10 +268,11 @@ mod tests {
             p.place("cmbtwall", 1).as_deref(),
             Some("screens/combat/cmbtwall_unknown/cmbtwall_001")
         );
+        Ok(())
     }
 
     #[test]
-    fn spell_art_goes_to_the_spell_folder_or_the_shared_one() {
+    fn spell_art_goes_to_the_spell_folder_or_the_shared_one() -> TestResult {
         let art = f4x_data::spell_art::parse_spell_art(
             r#"(
                 shared: [(lbx: "specfx", entry: 49, role: Sparkle)],
@@ -279,9 +282,8 @@ mod tests {
                     "call_the_void": [(lbx: "specfx", entry: 12, role: Cast)],
                 },
             )"#,
-        )
-        .unwrap();
-        let p = Placer::new(rules().unwrap(), &[], &art);
+        )?;
+        let p = Placer::new(rules()?, &[], &art);
         assert_eq!(
             p.place("cmbtfx", 0).as_deref(),
             Some("art/spells/fire_bolt/cmbtfx_000")
@@ -300,24 +302,26 @@ mod tests {
         );
         // A picture no spell names stays in its file's folder.
         assert_eq!(p.place("specfx", 100), None);
+        Ok(())
     }
 
     #[test]
-    fn the_summoned_creatures_pictures_go_to_the_summoning_folder() {
+    fn the_summoned_creatures_pictures_go_to_the_summoning_folder() -> TestResult {
         let p = Placer::new(
-            rules().unwrap(),
+            rules()?,
             &[],
-            &f4x_data::spell_art::parse_spell_art("(shared: [], spells: {})").unwrap(),
+            &f4x_data::spell_art::parse_spell_art("(shared: [], spells: {})")?,
         );
         assert_eq!(p.place("monster", 10).as_deref(), Some("art/summoning/010"));
+        Ok(())
     }
 
     #[test]
-    fn the_ability_icons_of_both_special_files_share_one_folder() {
+    fn the_ability_icons_of_both_special_files_share_one_folder() -> TestResult {
         let p = Placer::new(
-            rules().unwrap(),
+            rules()?,
             &[],
-            &f4x_data::spell_art::parse_spell_art("(shared: [], spells: {})").unwrap(),
+            &f4x_data::spell_art::parse_spell_art("(shared: [], spells: {})")?,
         );
         assert_eq!(
             p.place("special", 5).as_deref(),
@@ -332,14 +336,13 @@ mod tests {
             Some("art/unit_ability/144")
         );
         assert_eq!(p.place("special2", 34), None);
+        Ok(())
     }
 
     #[test]
-    fn no_spell_picture_is_also_claimed_by_a_screen() {
-        let dir = std::path::Path::new("../../content");
-        let content = f4x_data::load_content(dir).unwrap();
-        let art = f4x_data::spell_art::load_spell_art(&[dir], &content.rules).unwrap();
-        let rules = rules().unwrap();
+    fn no_spell_picture_is_also_claimed_by_a_screen() -> TestResult {
+        let art = f4x_data::spell_art::load_spell_art(&[&content_dir()], &shipped().rules)?;
+        let rules = rules()?;
         for (lbx, entry) in art.folders().keys() {
             assert_eq!(
                 placement(&rules, lbx, *entry),
@@ -347,11 +350,12 @@ mod tests {
                 "{lbx} {entry} is in screens.tsv and in spell_art.ron"
             );
         }
+        Ok(())
     }
 
     #[test]
-    fn the_table_parses_and_no_entry_is_claimed_twice() {
-        let rules = rules().unwrap();
+    fn the_table_parses_and_no_entry_is_claimed_twice() -> TestResult {
+        let rules = rules()?;
         assert!(rules.len() > 50);
         for (i, a) in rules.iter().enumerate() {
             assert!(
@@ -365,11 +369,12 @@ mod tests {
                 assert!(!overlap, "{a:?} overlaps {b:?}");
             }
         }
+        Ok(())
     }
 
     #[test]
-    fn a_labelled_single_entry_is_named_and_a_range_numbered() {
-        let rules = rules().unwrap();
+    fn a_labelled_single_entry_is_named_and_a_range_numbered() -> TestResult {
+        let rules = rules()?;
         assert_eq!(
             placement(&rules, "main", 8).as_deref(),
             Some("main_screen/button_done")
@@ -395,12 +400,14 @@ mod tests {
             Some("load_save/button_ok")
         );
         assert_eq!(placement(&rules, "terrain", 0), None);
+        Ok(())
     }
 
     #[test]
-    fn bad_rows_are_refused() {
+    fn bad_rows_are_refused() -> TestResult {
         assert!(parse("main\t1\n").is_err());
         assert!(parse("main\t9\t1\tx\n").is_err());
         assert!(parse("main\ta\t1\tx\n").is_err());
+        Ok(())
     }
 }

@@ -99,3 +99,20 @@ Not looked at: the screenshot flags (`--shot` and its options) as a whole, and w
 | `args.rs` tests | done | Return `TestResult`; the error cases assert `ConsoleError::Parse`, not `is_err()`. |
 
 Not looked at: `tests.rs` is one file of 3400 lines for the whole crate; splitting it per command module (query, legal, talk, meta) would make a failing test easier to find.
+
+## crates/f4x-tools and tools/xmi-play (31 October 2026)
+
+`f4x-tools`: 15 files, 36 tests became 41 (0.2 s). `xmi-play` (its own workspace, so `cargo test` there): 0 tests became 9.
+
+| Pass | Status | Notes |
+|---|---|---|
+| shipped content in tests | done | `testutil.rs` (new, test-only) holds `content_dir()` and a cached `shipped()`; `metrics` (two tests) and `screens` used a relative `../../content` path and loaded it per test. |
+| `unwrap` in tests | done | 30 sites in `refile`, `screens`, `audio`, `art`, `lbx`, `metrics`; tests that call `Result` code return `TestResult`. |
+| `unwrap` in code | done | `soak.rs` locked its mutexes with `unwrap()`; a poisoned lock now gives the data back (`PoisonError::into_inner`), so one failed game thread does not hide its own error behind a second panic. |
+| new tests | done | `soak`: option reading (range, single seed, bad value, missing value, unknown option), `jobs()`, `in_parallel` (order and first error). `xmi-play`: the XMI reader on songs built byte by byte (note-off from the duration, delays, tempo, loop controllers dropped, bad files with their reason), the DT1 checksum, the timbre and patch addresses, the timbre upload, and `wav_bytes`. |
+| comments | done | "(task 146)" and "(task 363)" removed. |
+| `//! Tests:` lines | done | `main`, `cache`, `contestant`, `console_cmd`, `soak`, `testutil` in `f4x-tools`; `terminal` and `main` in `xmi-play`. `cache`, `console_cmd` and whole soak games are run by hand. |
+
+Not done: two clippy notes in `xmi-play` (`chunks_exact` with a constant size, which `as_chunks` replaces) in code that already worked; `console_cmd` and `cache` have no test, and `cache`'s fingerprint could be tested with a `TestDir`.
+
+**The review order is finished** (f4x-ai, f4x-core first pass, f4x-data, f4x-client, f4x-console, f4x-tools, xmi-play), except `f4x-ai-ref` (frozen) and `f4x-learn` (a separate experiment).

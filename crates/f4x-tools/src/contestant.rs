@@ -1,6 +1,8 @@
 //! The scripted strategic AI in its two versions: the live crate (`f4x-ai`, being worked on) and
 //! the frozen reference (`f4x-ai-ref`, made by `scripts/fork_ai.py`). The soak plays either, or
 //! both in one game, through the small surface the two share.
+//!
+//! Tests: none of its own, because it only picks between the two AI crates; `metrics` plays it in a test.
 
 use f4x_core::game::{Event, Game};
 use f4x_core::player::PlayerId;

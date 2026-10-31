@@ -82,6 +82,7 @@ impl<'a> Lbx<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::testdir::TestResult;
 
     fn build(entries: &[&[u8]]) -> Vec<u8> {
         let mut out = Vec::new();
@@ -101,13 +102,14 @@ mod tests {
     }
 
     #[test]
-    fn reads_entries() {
+    fn reads_entries() -> TestResult {
         let file = build(&[b"abc", b"", b"de"]);
-        let lbx = Lbx::parse(&file).unwrap();
+        let lbx = Lbx::parse(&file)?;
         assert_eq!(lbx.len(), 3);
         assert_eq!(lbx.entry(0), b"abc");
         assert_eq!(lbx.entry(1), b"");
         assert_eq!(lbx.entry(2), b"de");
+        Ok(())
     }
 
     #[test]

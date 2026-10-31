@@ -1,4 +1,8 @@
 //! Developer tooling: content validation and map preview.
+//!
+//! Tests: in the modules that have logic apart from files and the console (`art`, `audio`,
+//! `image`, `lbx`, `map_art`, `metrics`, `refile`, `screens`, `versus`); this file only dispatches
+//! to them and prints, and `soak`, `console_cmd` and `cache` are run by hand (`f4x-tools soak`).
 
 mod art;
 mod audio;
@@ -13,6 +17,8 @@ mod metrics;
 mod refile;
 mod screens;
 mod soak;
+#[cfg(test)]
+mod testutil;
 mod versus;
 
 use std::collections::BTreeMap;

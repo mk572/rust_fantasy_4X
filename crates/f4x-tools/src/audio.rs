@@ -3,7 +3,7 @@
 //! `SOUNDFX`, `CMBTSND`, `NEWSOUND` and `INTROSFX` hold Creative Voice (VOC) clips; each is decoded to
 //! 8-bit PCM here and encoded to OGG Vorbis by `oggenc` (vorbis-tools) or, failing that, `ffmpeg`. `MUSIC` and
 //! `INTROSND` hold XMI (Extended MIDI) songs; they are written unchanged as `.xmi`, because turning them
-//! into audio needs a synth (task 363). The MT-32 timbre banks (`FAT*`) are copied beside them.
+//! into audio needs a synth. The MT-32 timbre banks (`FAT*`) are copied beside them.
 //! What plays when is `docs/sound.md`.
 
 use std::fs;
@@ -587,6 +587,7 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::testdir::TestResult;
 
     fn voc(blocks: &[u8]) -> Vec<u8> {
         let mut v = b"Creative Voice File\x1a".to_vec();
@@ -597,9 +598,9 @@ mod tests {
     }
 
     #[test]
-    fn a_sound_block_gives_the_rate_and_samples() {
+    fn a_sound_block_gives_the_rate_and_samples() -> TestResult {
         // divisor 156 -> 1_000_000 / 100 = 10_000 Hz
-        let clip = parse_voc(&voc(&[1, 5, 0, 0, 156, 0, 1, 2, 3])).unwrap();
+        let clip = parse_voc(&voc(&[1, 5, 0, 0, 156, 0, 1, 2, 3]))?;
         assert_eq!(
             clip,
             Clip {
@@ -607,29 +608,30 @@ mod tests {
                 samples: vec![1, 2, 3]
             }
         );
+        Ok(())
     }
 
     #[test]
-    fn continuation_and_silence_blocks_are_joined() {
+    fn continuation_and_silence_blocks_are_joined() -> TestResult {
         let clip = parse_voc(&voc(&[
             1, 4, 0, 0, 156, 0, 7, 8, // sound
             3, 3, 0, 0, 1, 0, 156, // silence of two samples
             2, 1, 0, 0, 9, // continuation
-        ]))
-        .unwrap();
+        ]))?;
         assert_eq!(clip.samples, vec![7, 8, 128, 128, 9]);
+        Ok(())
     }
 
     #[test]
-    fn a_repeat_plays_its_blocks_again() {
+    fn a_repeat_plays_its_blocks_again() -> TestResult {
         let clip = parse_voc(&voc(&[
             1, 3, 0, 0, 156, 0, 5, // sound 5
             6, 2, 0, 0, 1, 0, // repeat the next blocks once more
             2, 1, 0, 0, 6, // continuation 6
             7, 0, 0, 0, // end repeat
-        ]))
-        .unwrap();
+        ]))?;
         assert_eq!(clip.samples, vec![5, 6, 6]);
+        Ok(())
     }
 
     #[test]
@@ -640,16 +642,17 @@ mod tests {
     }
 
     #[test]
-    fn the_wav_header_matches_the_clip() {
+    fn the_wav_header_matches_the_clip() -> TestResult {
         let wav = wav_bytes(&Clip {
             rate: 8000,
             samples: vec![1, 2, 3],
         });
         assert_eq!(&wav[0..4], b"RIFF");
-        assert_eq!(u32::from_le_bytes(wav[4..8].try_into().unwrap()), 39);
-        assert_eq!(u32::from_le_bytes(wav[24..28].try_into().unwrap()), 8000);
+        assert_eq!(u32::from_le_bytes(wav[4..8].try_into()?), 39);
+        assert_eq!(u32::from_le_bytes(wav[24..28].try_into()?), 8000);
         assert_eq!(&wav[36..40], b"data");
         assert_eq!(&wav[44..], &[1, 2, 3]);
+        Ok(())
     }
 
     #[test]

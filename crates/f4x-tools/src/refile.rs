@@ -110,36 +110,36 @@ pub fn refile(art_dir: &Path, placer: &Placer) -> Result<usize, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::testdir::TestResult;
     use f4x_data::spell_art::parse_spell_art;
 
     #[test]
-    fn a_picture_moves_to_its_spell_folder_with_its_masks_and_the_index_follows() {
+    fn a_picture_moves_to_its_spell_folder_with_its_masks_and_the_index_follows() -> TestResult {
         let root = f4x_core::testdir::TestDir::new("refile");
         let art_dir = root.join("art");
-        fs::create_dir_all(art_dir.join("cmbtfx")).unwrap();
+        fs::create_dir_all(art_dir.join("cmbtfx"))?;
         for name in ["000_00.png", "000_01.png", "000_01_cycle.png", "001_00.png"] {
-            fs::write(art_dir.join("cmbtfx").join(name), b"x").unwrap();
+            fs::write(art_dir.join("cmbtfx").join(name), b"x")?;
         }
         fs::write(
             art_dir.join("manifest.tsv"),
             "cmbtfx\t0\t2\t60\t54\ncmbtfx\t1\t1\t60\t54\n",
-        )
-        .unwrap();
-        fs::write(root.join("index.tsv"), "").unwrap();
+        )?;
+        fs::write(root.join("index.tsv"), "")?;
         let art =
-            parse_spell_art(r#"(spells: {"fire_bolt": [(lbx: "cmbtfx", entry: 0, role: Cast)]})"#)
-                .unwrap();
-        let placer = Placer::new(crate::screens::rules().unwrap(), &[], &art);
-        assert_eq!(refile(&art_dir, &placer).unwrap(), 1);
+            parse_spell_art(r#"(spells: {"fire_bolt": [(lbx: "cmbtfx", entry: 0, role: Cast)]})"#)?;
+        let placer = Placer::new(crate::screens::rules()?, &[], &art);
+        assert_eq!(refile(&art_dir, &placer)?, 1);
         let to = art_dir.join("spells/fire_bolt");
         assert!(to.join("cmbtfx_000_00.png").exists());
         assert!(to.join("cmbtfx_000_01.png").exists());
         assert!(to.join("cmbtfx_000_01_cycle.png").exists());
         assert!(!art_dir.join("cmbtfx/000_00.png").exists());
         assert!(art_dir.join("cmbtfx/001_00.png").exists());
-        let index = fs::read_to_string(root.join("index.tsv")).unwrap();
+        let index = fs::read_to_string(root.join("index.tsv"))?;
         assert_eq!(index, "cmbtfx\t0\tart/spells/fire_bolt/cmbtfx_000\n");
         // Run again: nothing is left to move.
-        assert_eq!(refile(&art_dir, &placer).unwrap(), 0);
+        assert_eq!(refile(&art_dir, &placer)?, 0);
+        Ok(())
     }
 }

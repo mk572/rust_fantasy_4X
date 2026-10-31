@@ -1,4 +1,6 @@
 //! Raw keyboard input without a dependency: `stty` switches the terminal, reads time out after 0.1 s.
+//!
+//! Tests: none, because it switches the real terminal with `stty`.
 
 use std::io::Read;
 use std::process::Command;

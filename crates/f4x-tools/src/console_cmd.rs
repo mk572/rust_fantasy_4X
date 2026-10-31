@@ -1,5 +1,7 @@
 //! `f4x-tools console`: play the game from text, without a window. Lines come from standard
 //! input (a terminal, a pipe or a script file) and each reply is printed.
+//!
+//! Tests: none, because it reads a terminal; the console it drives is tested in `f4x-console`.
 
 use std::io::{BufRead, IsTerminal, Write};
 use std::path::{Path, PathBuf};

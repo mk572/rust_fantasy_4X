@@ -5,6 +5,8 @@
 //! `EVNT` a byte below 0x80 is a delay in ticks (consecutive ones add up); a note-on carries its duration
 //! as a variable-length number after the velocity, so there are no note-offs. One tick is 1/120 s at the
 //! default tempo of 500 000 us per quarter note, which is MIDI with 60 ticks per quarter note.
+//!
+//! Tests: below, on small songs built byte by byte.
 
 /// One MIDI message at a time in seconds.
 pub struct Event {
@@ -246,4 +248,142 @@ fn timbre_address(slot: usize) -> usize {
 fn patch_address(patch: u8) -> usize {
     let n = usize::from(patch) * 8;
     0x05_0000 + (n / 128) * 128 + n % 128
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn chunk(name: &[u8; 4], body: &[u8]) -> Vec<u8> {
+        let mut c = name.to_vec();
+        c.extend((body.len() as u32).to_be_bytes());
+        c.extend(body);
+        if body.len() % 2 == 1 {
+            c.push(0);
+        }
+        c
+    }
+
+    /// An XMI file of one song with the given `TIMB` pairs and `EVNT` bytes.
+    fn file(timbres: &[(u8, u8)], evnt: &[u8]) -> Vec<u8> {
+        let mut timb = (timbres.len() as u16).to_le_bytes().to_vec();
+        timb.extend(timbres.iter().flat_map(|&(p, b)| [p, b]));
+        let mut song = b"XMID".to_vec();
+        song.extend(chunk(b"TIMB", &timb));
+        song.extend(chunk(b"EVNT", evnt));
+        let mut xdir = b"XDIR".to_vec();
+        xdir.extend(chunk(b"INFO", &1u16.to_le_bytes()));
+        let mut cat = b"XMID".to_vec();
+        cat.extend(chunk(b"FORM", &song));
+        let mut out = chunk(b"FORM", &xdir);
+        out.extend(chunk(b"CAT ", &cat));
+        out
+    }
+
+    #[test]
+    fn a_note_ends_after_its_duration_and_a_delay_moves_the_next_event() -> Result<(), String> {
+        // Program change, delay 60 ticks (half a second: 120 ticks a second), note on with
+        // duration 120 ticks, end of track.
+        let song = parse(
+            &file(&[(5, 1)], &[0xc0, 7, 60, 0x90, 64, 100, 120, 0xff, 0x2f, 0]),
+            0,
+        )?;
+        assert_eq!(song.timbres, [(5, 1)]);
+        let at: Vec<(f64, Vec<u8>)> = song
+            .events
+            .iter()
+            .map(|e| (e.seconds, e.bytes.clone()))
+            .collect();
+        assert_eq!(
+            at,
+            [
+                (0.0, vec![0xc0, 7]),
+                (0.5, vec![0x90, 64, 100]),
+                (1.5, vec![0x80, 64, 0]),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_tempo_change_slows_the_ticks_after_it() -> Result<(), String> {
+        // Twice the tempo length (1 000 000 us per quarter note) from tick 0, then a program
+        // change after 60 ticks: one second, not half.
+        let song = parse(
+            &file(&[], &[0xff, 0x51, 3, 0x0f, 0x42, 0x40, 60, 0xc0, 1]),
+            0,
+        )?;
+        assert_eq!(song.events.len(), 1);
+        assert!((song.events[0].seconds - 1.0).abs() < 1e-9);
+        Ok(())
+    }
+
+    #[test]
+    fn the_loop_controllers_are_dropped_and_a_repeated_note_is_heard_twice() -> Result<(), String> {
+        let song = parse(
+            &file(&[], &[0xb0, 116, 0, 0x90, 60, 90, 10, 10, 0x90, 60, 90, 10]),
+            0,
+        )?;
+        let status: Vec<u8> = song.events.iter().map(|e| e.bytes[0]).collect();
+        // on, off and on at tick 10 (the off first), then the off of the second note.
+        assert_eq!(status, [0x90, 0x80, 0x90, 0x80]);
+        Ok(())
+    }
+
+    #[test]
+    fn bad_files_are_refused_with_the_reason() {
+        assert_eq!(
+            parse(b"nothing at all", 0).err().as_deref(),
+            Some("not an XMI file")
+        );
+        let one = file(&[], &[]);
+        assert_eq!(
+            parse(&one, 3).err().as_deref(),
+            Some("the file has 1 songs, no song 3")
+        );
+        assert!(
+            parse(&file(&[], &[0x90, 60]), 0).is_err(),
+            "a note cut short"
+        );
+        assert!(parse(&file(&[], &[0xf8]), 0).is_err(), "an unknown status");
+    }
+
+    #[test]
+    fn numbers_are_seven_bits_a_byte() -> Result<(), String> {
+        let mut at = 0;
+        assert_eq!(variable(&[0x81, 0x00], &mut at)?, 128);
+        assert_eq!(at, 2);
+        assert!(variable(&[0x81], &mut 0).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn a_sysex_message_ends_with_the_roland_checksum() {
+        // The address and data bytes plus the checksum add up to a multiple of 128.
+        let m = dt1(0x08_0000, &[1, 2, 3]);
+        assert_eq!(&m[..5], [0xf0, 0x41, 0x10, 0x16, 0x12]);
+        assert_eq!(m.last(), Some(&0xf7));
+        let sum: u32 = m[5..m.len() - 1].iter().map(|&b| u32::from(b)).sum();
+        assert_eq!(sum % 128, 0);
+        assert_eq!(&m[5..8], [0x20, 0, 0], "08 00 00 in 7-bit bytes");
+    }
+
+    #[test]
+    fn timbre_and_patch_memory_use_seven_bit_addresses() {
+        assert_eq!(timbre_address(1), 0x08_0000 + 2 * 128);
+        assert_eq!(patch_address(0), 0x05_0000);
+        assert_eq!(patch_address(16), 0x05_0000 + 128);
+    }
+
+    #[test]
+    fn a_timbre_found_in_the_library_is_uploaded_and_one_missing_is_skipped() {
+        // A directory of one entry (patch 5, bank 1) at offset 12, ended by 0xff; the timbre is a
+        // 2-byte size then 246 bytes.
+        let mut library = vec![5, 1, 12, 0, 0, 0, 0xff, 0, 0, 0, 0, 0];
+        library.extend([0xf6, 0]);
+        library.extend(std::iter::repeat_n(9u8, 246));
+        let out = timbre_setup(&[(5, 1), (6, 1)], &library, false);
+        assert_eq!(out.len(), 2, "one timbre, one patch pointer");
+        assert_eq!(out[0].len(), 5 + 3 + 246 + 2);
+    }
 }

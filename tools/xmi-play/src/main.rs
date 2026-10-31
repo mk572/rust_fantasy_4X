@@ -3,6 +3,8 @@
 //! The song is read (`xmi`), the timbres its `TIMB` chunk names are looked up in the DOS sound
 //! system's library (`fat.mt`, a Miles "GTL" file) and uploaded to the emulated unit by SysEx, as the
 //! DOS driver did, then the song is rendered to a WAV file and handed to `afplay` (macOS).
+//!
+//! Tests: `wav_bytes` below; the rest renders with the MT-32 ROMs (not in the repository) and plays sound.
 
 mod terminal;
 mod xmi;
@@ -323,4 +325,23 @@ fn wav_bytes(samples: &[(i16, i16)], rate: u32) -> Vec<u8> {
         b.extend(r.to_le_bytes());
     }
     b
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_wav_header_describes_stereo_16_bit_pcm() -> Result<(), Box<dyn std::error::Error>> {
+        let wav = wav_bytes(&[(1, -1), (2, -2)], 32_000);
+        assert_eq!(&wav[0..4], b"RIFF");
+        assert_eq!(u32::from_le_bytes(wav[4..8].try_into()?), 36 + 8);
+        assert_eq!(u16::from_le_bytes(wav[22..24].try_into()?), 2, "channels");
+        assert_eq!(u32::from_le_bytes(wav[24..28].try_into()?), 32_000);
+        assert_eq!(u32::from_le_bytes(wav[28..32].try_into()?), 128_000);
+        assert_eq!(u32::from_le_bytes(wav[40..44].try_into()?), 8);
+        assert_eq!(wav.len(), 44 + 8);
+        assert_eq!(&wav[44..48], &[1, 0, 255, 255]);
+        Ok(())
+    }
 }

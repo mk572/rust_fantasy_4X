@@ -371,23 +371,22 @@ impl Standing {
 mod tests {
     use super::*;
     use crate::contestant::{self, Version};
+    use crate::testutil::shipped;
     use f4x_core::game::setup::{new_game, NewGame};
+    use f4x_core::testdir::TestResult;
 
     /// A real two-wizard game: every city a wizard has at the end was there at the start, was
     /// founded or was taken, and none that was lost is still there.
     #[test]
-    fn founded_cities_account_for_the_cities_a_wizard_ends_with() {
-        let content = f4x_data::load_content_layers(&[std::path::Path::new("../../content")])
-            .expect("content");
+    fn founded_cities_account_for_the_cities_a_wizard_ends_with() -> TestResult {
         let mut game = new_game(
-            &content,
+            shipped(),
             &NewGame {
                 seed: 1,
                 all_ai: true,
                 ..NewGame::with_wizards(2)
             },
-        )
-        .expect("game");
+        )?;
         let players = [PlayerId(0), PlayerId(1)];
         let start: Vec<usize> = players
             .iter()
@@ -417,13 +416,12 @@ mod tests {
                 p.0
             );
         }
+        Ok(())
     }
 
     #[test]
     fn only_a_sailing_unit_with_room_is_a_ship() {
-        let content = f4x_data::load_content_layers(&[std::path::Path::new("../../content")])
-            .expect("content");
-        let ships: Vec<_> = content
+        let ships: Vec<_> = shipped()
             .rules
             .units
             .iter()

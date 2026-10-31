@@ -2,6 +2,8 @@
 //! its result is kept in `<out>/cache/` and reused. The key is a fingerprint of everything that
 //! decides that game: the rules, the content, the reference AI, the soak's own code and the
 //! options.
+//!
+//! Tests: none, because it hashes the repository's files and writes the kept games; `f4x-tools soak-versus` is its check.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};

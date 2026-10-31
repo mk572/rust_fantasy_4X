@@ -1,13 +1,16 @@
 //! `f4x-tools soak`: let AI wizards play whole games against each other, with no window, and
 //! report how each game went. Used to find AI and rules bugs (planned 24, `docs/PLANNED.md`).
 //! `game` plays one game and is also what `soak-versus` uses.
+//!
+//! Tests: below for the option reading and the parallel runner; whole games are run by hand
+//! (`f4x-tools soak`), not by `cargo test`, because they take minutes.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
 use f4x_core::content::Content;
@@ -198,12 +201,12 @@ pub fn in_parallel<T: Sync, R: Send>(
                     break;
                 };
                 let result = work(item);
-                done.lock().unwrap()[i] = Some(result);
+                done.lock().unwrap_or_else(PoisonError::into_inner)[i] = Some(result);
             });
         }
     });
     done.into_inner()
-        .unwrap()
+        .unwrap_or_else(PoisonError::into_inner)
         .into_iter()
         .map(|r| r.expect("every item was worked on"))
         .collect()
@@ -253,7 +256,12 @@ pub fn game(
         .map(|(k, &v)| contestant::make(v, PlayerId(k as u8)))
         .collect();
     for ai in &mut ais {
-        ai.record_refusals(refused_out.lock().unwrap().is_some());
+        ai.record_refusals(
+            refused_out
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .is_some(),
+        );
     }
     let snapshot_dir = match (&opts.out, opts.snapshots_every) {
         (Some(out), Some(n)) if n > 0 => {
@@ -289,7 +297,11 @@ pub fn game(
         if game.turn <= opts.trace && opts.trace > 0 {
             trace_turn(&game, &ais, &turns, &rest);
         }
-        if let Some(out) = refused_out.lock().unwrap().as_mut() {
+        if let Some(out) = refused_out
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_mut()
+        {
             for ai in &ais {
                 for r in ai.take_refusals() {
                     writeln!(
@@ -549,5 +561,74 @@ fn grant_mastery_to_all(game: &mut Game) {
             drop(spells);
             w.get_mut::<f4x_core::wizard::sheet::Skill>().points += 2000;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::testdir::TestResult;
+
+    fn parse(line: &[&str]) -> Result<Options, String> {
+        let args: Vec<String> = line.iter().map(|s| s.to_string()).collect();
+        Options::parse(&args, "usage")
+    }
+
+    #[test]
+    fn a_seed_range_and_a_single_seed_are_read() -> TestResult {
+        let o = parse(&["--seeds", "4..9", "--turns", "50", "--players", "3"])?;
+        assert_eq!((o.first, o.last, o.turns, o.players), (4, 9, 50, 3));
+        let one = parse(&["--seeds", "7"])?;
+        assert_eq!((one.first, one.last), (7, 7));
+        Ok(())
+    }
+
+    #[test]
+    fn bad_options_are_refused_with_the_reason() {
+        assert_eq!(
+            parse(&["--seeds", "a..b"]).err().as_deref(),
+            Some("bad seed range")
+        );
+        assert_eq!(
+            parse(&["--turns"]).err().as_deref(),
+            Some("--turns needs a value")
+        );
+        let unknown = parse(&["--nope"]).err().unwrap_or_default();
+        assert!(
+            unknown.starts_with("unknown option \"--nope\""),
+            "{unknown}"
+        );
+    }
+
+    #[test]
+    fn games_that_print_as_they_go_are_played_one_at_a_time() -> TestResult {
+        for flag in ["--every", "--trace"] {
+            assert_eq!(parse(&[flag, "5", "--jobs", "4"])?.jobs(), 1, "{flag}");
+        }
+        assert_eq!(parse(&["--detail", "--jobs", "4"])?.jobs(), 1);
+        assert_eq!(parse(&["--jobs", "4"])?.jobs(), 4);
+        assert_eq!(parse(&["--jobs", "0"])?.jobs(), 1, "never fewer than one");
+        Ok(())
+    }
+
+    #[test]
+    fn parallel_results_come_back_in_the_order_of_the_items() -> TestResult {
+        let items: Vec<u32> = (0..20).collect();
+        let doubled = in_parallel(4, &items, |&n| Ok(n * 2))?;
+        assert_eq!(doubled, (0..20).map(|n| n * 2).collect::<Vec<_>>());
+        Ok(())
+    }
+
+    #[test]
+    fn a_failing_item_fails_the_run_with_its_error() {
+        let items: Vec<u32> = (0..10).collect();
+        let r = in_parallel(3, &items, |&n| {
+            if n == 6 {
+                Err(format!("item {n} failed"))
+            } else {
+                Ok(n)
+            }
+        });
+        assert_eq!(r.err().as_deref(), Some("item 6 failed"));
     }
 }

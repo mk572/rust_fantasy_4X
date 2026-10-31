@@ -489,7 +489,7 @@ const COMBAT_BOTTOM_ENTRY: usize = 3;
 const CYCLE_INDEX: u8 = 198;
 
 /// For a frame, a white picture of the pixels that use the cycling palette index, if it has any;
-/// the client tints it with the colour of the moment (task 146).
+/// the client tints it with the colour of the moment.
 fn cycle_mask(pixels: &[u8]) -> Option<Vec<u8>> {
     if !pixels.contains(&CYCLE_INDEX) {
         return None;
@@ -648,6 +648,7 @@ pub fn extract(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::testdir::TestResult;
 
     #[test]
     fn the_buttons_of_a_screen_take_its_backgrounds_palette() {
@@ -683,10 +684,11 @@ mod tests {
     }
 
     #[test]
-    fn the_cycle_mask_marks_the_cycling_index_and_only_pictures_that_use_it() {
+    fn the_cycle_mask_marks_the_cycling_index_and_only_pictures_that_use_it() -> TestResult {
         assert_eq!(cycle_mask(&[0, 197, 199]), None);
-        let mask = cycle_mask(&[0, 198]).unwrap();
+        let mask = cycle_mask(&[0, 198]).ok_or("index 198 is the cycling one")?;
         assert_eq!(mask, vec![0, 0, 0, 0, 255, 255, 255, 255]);
+        Ok(())
     }
 
     #[test]
