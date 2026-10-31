@@ -1,4 +1,6 @@
 //! Read-only commands. In legal mode they show only what the console's player can see.
+//!
+//! Tests: in `tests.rs`, through the console.
 
 use f4x_core::map::{Plane, Position};
 
@@ -258,7 +260,7 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     Ok(())
 }
 
-/// The temporary effects on a unit or city, one line each (task 152).
+/// The temporary effects on a unit or city, one line each.
 fn say_temp_effects(ctx: &mut Ctx, e: hecs::Entity) {
     use f4x_core::spell::temp_effect::TempKind;
     for t in ctx.game.units().temp_effects(e) {

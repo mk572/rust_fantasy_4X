@@ -7,11 +7,13 @@
 //! * **legal** commands are what a player may do in normal play, and go through the same
 //!   `Command` path as the client, with ownership checked.
 //!
-//! The cheat (override) commands are taken out for now; `reference/console-cheat/` has them.
+//! The cheat (override) commands are not part of the console; `reference/console-cheat/` has them.
 //!
 //! The table ([`commands`]) and [`Console::execute`] are the only hooks a front end needs: the
 //! client's console, the headless runner, an AI player, an MCP server or a remote client all
 //! send lines and read a [`Reply`]. What a front end may do at most is its [`Access`].
+//!
+//! Tests: in `tests.rs`, on the shipped content.
 
 pub mod args;
 pub mod describe;

@@ -1,23 +1,32 @@
 use std::path::Path;
+use std::sync::OnceLock;
 
+use f4x_core::content::Content;
 use f4x_core::game::Game;
 use f4x_core::player::PlayerId;
+use f4x_core::testdir::TestResult;
 
 use crate::setup::{new_game, NewGame, HUMAN};
 use crate::{commands, Access, Console, ConsoleError, Kind, Mode};
 
-fn game() -> Game {
-    let content =
+/// The shipped content, read once per test run.
+fn content() -> &'static Content {
+    static CONTENT: OnceLock<Content> = OnceLock::new();
+    CONTENT.get_or_init(|| {
         f4x_data::load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
-            .unwrap();
+            .expect("the shipped content loads")
+    })
+}
+
+fn game() -> Game {
     new_game(
-        &content,
+        content(),
         &NewGame {
             seed: 7,
             ..NewGame::default()
         },
     )
-    .unwrap()
+    .expect("the shipped content starts a game")
 }
 
 /// The wizards of a game (the independent cities have players of their own).
@@ -115,7 +124,12 @@ fn legal_commands_check_ownership() {
             x: 3,
             y: 3,
         },
-        unit: g.content().rules.units.id_of("barbarian_spearmen").unwrap(),
+        unit: g
+            .content()
+            .rules
+            .units
+            .id_of("barbarian_spearmen")
+            .expect("the shipped content has it"),
     });
     // The rival's unit is the newest one.
     let newest = g
@@ -124,7 +138,7 @@ fn legal_commands_check_ownership() {
         .into_iter()
         .map(|u| g.serial_of(u).0)
         .max()
-        .unwrap();
+        .expect("the game has units");
     let r = c.execute(&mut g, &format!("stop {newest}"));
     assert!(matches!(err(&r), ConsoleError::NotAllowed(_)), "{r:?}");
 }
@@ -137,7 +151,11 @@ fn a_player_can_run_a_turn_by_text() {
     assert!(city.ok, "{}", city.text());
     let options = c.execute(&mut g, &format!("options {n}"));
     let first = options.lines.first().expect("something to build");
-    let id = first.split_whitespace().next().unwrap().to_string();
+    let id = first
+        .split_whitespace()
+        .next()
+        .expect("there is one")
+        .to_string();
     let r = c.execute(&mut g, &format!("produce {n} {id}"));
     assert!(r.ok, "{}", r.text());
     assert!(c.execute(&mut g, &format!("farmers {n} 1")).ok);
@@ -170,22 +188,22 @@ fn unknown_and_malformed_lines_are_errors_not_panics() {
 }
 
 #[test]
-fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() {
+fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() -> TestResult {
     let (mut g, mut c) = (game(), console());
     let first_city = c.execute(&mut g, "cities");
     let at = first_city.lines[0]
         .split(" at ")
         .nth(1)
-        .unwrap()
+        .expect("a city line says where it is")
         .split_whitespace()
         .next()
-        .unwrap()
+        .expect("the place follows")
         .to_string();
     let (x, y): (u32, u32) = {
         let mut it = at.split(',');
         (
-            it.next().unwrap().parse().unwrap(),
-            it.next().unwrap().parse().unwrap(),
+            it.next().expect("there is one").parse()?,
+            it.next().expect("there is one").parse()?,
         )
     };
     g.apply(f4x_core::game::Command::CreateUnit {
@@ -195,7 +213,12 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() {
             x: x + 1,
             y,
         },
-        unit: g.content().rules.units.id_of("barbarian_spearmen").unwrap(),
+        unit: g
+            .content()
+            .rules
+            .units
+            .id_of("barbarian_spearmen")
+            .expect("the shipped content has it"),
     });
     let r = c.execute(&mut g, &format!("attack @{x},{y} {},{y}", x + 1));
     assert!(r.ok, "{}", r.text());
@@ -206,7 +229,7 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() {
         if !g.in_battle() {
             break;
         }
-        let b = g.battle().unwrap();
+        let b = g.battle().expect("a battle is on");
         if b.player_of(b.active) == PlayerId(1) {
             // The opponent's side: let the console play it as that player.
             let order = f4x_core::battle::ai::next_command(b);
@@ -246,6 +269,7 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() {
         assert!(r.ok, "{line}: {}", r.text());
     }
     assert!(!g.in_battle(), "the battle ended");
+    Ok(())
 }
 
 #[test]
@@ -285,14 +309,10 @@ fn read_only_mode_runs_queries_and_nothing_else() {
     assert!(player.execute(&mut g, "mode legal").ok);
 }
 
-fn content() -> f4x_core::content::Content {
-    f4x_data::load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")).unwrap()
-}
-
 #[test]
-fn new_game_settings_reach_the_game() {
+fn new_game_settings_reach_the_game() -> TestResult {
     let content = content();
-    let made = |spec: NewGame| new_game(&content, &spec).unwrap();
+    let made = |spec: NewGame| new_game(content, &spec).expect("the spec starts a game");
     let base = made(NewGame {
         seed: 7,
         ..NewGame::default()
@@ -331,7 +351,7 @@ fn new_game_settings_reach_the_game() {
         (4, 2)
     );
     let land = |g: &Game| {
-        let map = g.map().unwrap();
+        let map = g.map().expect("the game has a map");
         f4x_core::map::mapgen::land_percent(
             map.plane(f4x_core::map::Plane::Arcanus),
             &g.content().terrains,
@@ -341,10 +361,11 @@ fn new_game_settings_reach_the_game() {
     let near = |got: u32, asked: u32| (asked..=asked + 10).contains(&got);
     assert!(near(land(&small), 15), "small land {}", land(&small));
     assert!(near(land(&base), 30), "large land {}", land(&base));
+    Ok(())
 }
 
 #[test]
-fn up_to_ten_wizards_start_shared_between_the_planes_evenly() {
+fn up_to_ten_wizards_start_shared_between_the_planes_evenly() -> TestResult {
     use f4x_core::map::Plane;
     for wizards in 2..=10u8 {
         for seed in [3u64, 4] {
@@ -354,13 +375,23 @@ fn up_to_ten_wizards_start_shared_between_the_planes_evenly() {
                 spec.settings.basic.map_width,
                 spec.settings.basic.map_height,
             ) = (90, 60);
-            let g = new_game(&content(), &spec).unwrap();
+            let g = new_game(content(), &spec)?;
             let planes: Vec<Plane> = (0..wizards)
-                .map(|k| g.wizard(PlayerId(k)).unwrap().fortress().unwrap().plane)
+                .map(|k| {
+                    g.wizard(PlayerId(k))
+                        .expect("the player is a wizard")
+                        .fortress()
+                        .expect("the wizard has a fortress")
+                        .plane
+                })
                 .collect();
             // Every wizard has a colour of their own, and none has the neutral one.
             let mut banners: Vec<u8> = (0..wizards)
-                .map(|k| g.wizard(PlayerId(k)).unwrap().banner())
+                .map(|k| {
+                    g.wizard(PlayerId(k))
+                        .expect("the player is a wizard")
+                        .banner()
+                })
                 .collect();
             banners.sort_unstable();
             banners.dedup();
@@ -376,6 +407,7 @@ fn up_to_ten_wizards_start_shared_between_the_planes_evenly() {
             );
         }
     }
+    Ok(())
 }
 
 #[test]
@@ -392,16 +424,17 @@ fn a_crowded_game_is_warned_about_and_still_starts() {
 }
 
 #[test]
-fn the_originals_map_generator_makes_a_playable_game_with_the_real_content() {
+fn the_originals_map_generator_makes_a_playable_game_with_the_real_content() -> TestResult {
     let mut spec = NewGame::with_wizards(3);
     spec.seed = 11;
-    let noise = new_game(&content(), &spec).unwrap();
+    let noise = new_game(content(), &spec)?;
     spec.settings.basic.original_map_generator = true;
-    let mut g = new_game(&content(), &spec).unwrap();
+    let mut g = new_game(content(), &spec)?;
     assert_ne!(noise.map(), g.map());
     for _ in 0..3 {
         g.apply(f4x_core::game::Command::EndTurn);
     }
+    Ok(())
 }
 
 fn level_game(level: u8, wizards: u8, seed: u64) -> Game {
@@ -414,23 +447,30 @@ fn level_game(level: u8, wizards: u8, seed: u64) -> Game {
         difficulty: level,
         ..basic
     };
-    new_game(&content(), &spec).unwrap()
+    new_game(content(), &spec).expect("the spec starts a game")
 }
 
 #[test]
-fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() {
+fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() -> TestResult {
     for level in 0..=4u8 {
         let g = level_game(level, 2, 5);
-        let human = g.human().unwrap();
-        let ai = g.wizards().into_iter().find(|&w| w != human).unwrap();
+        let human = g.human().expect("the game has a human");
+        let ai = g
+            .wizards()
+            .into_iter()
+            .find(|&w| w != human)
+            .expect("it is there");
         assert_eq!(
-            g.player(human).unwrap().treasury().gold,
+            g.player(human).expect("the player exists").treasury().gold,
             (5 - i32::from(level)) * 25
         );
-        assert_eq!(g.player(ai).unwrap().treasury().gold, 150);
+        assert_eq!(
+            g.player(ai).expect("the player exists").treasury().gold,
+            150
+        );
         let percent = |p| {
             g.player_component::<f4x_core::player::Bonus>(p)
-                .unwrap()
+                .expect("the entity has it")
                 .production
         };
         assert_eq!(percent(human), 100);
@@ -441,24 +481,27 @@ fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() {
         );
     }
     // The symmetric game: the same gold, no bonuses.
-    let g = new_game(&content(), &NewGame::default()).unwrap();
-    assert!(g
-        .player_ids()
-        .into_iter()
-        .all(|id| g.player(id).unwrap().treasury().gold == 100
-            && g.player_component::<f4x_core::player::Bonus>(id)
-                .unwrap()
-                .gold
-                == 100));
+    let g = new_game(content(), &NewGame::default())?;
+    assert!(g.player_ids().into_iter().all(|id| g
+        .player(id)
+        .expect("the player exists")
+        .treasury()
+        .gold
+        == 100
+        && g.player_component::<f4x_core::player::Bonus>(id)
+            .expect("the entity has it")
+            .gold
+            == 100));
+    Ok(())
 }
 
 #[test]
-fn computer_wizards_are_made_to_the_levels_pick_budget() {
+fn computer_wizards_are_made_to_the_levels_pick_budget() -> TestResult {
     use f4x_core::wizard::{retort_cost, ALL_RETORTS};
     for (level, picks) in [(2u8, 11), (3, 13), (4, 15)] {
         for seed in [1u64, 2, 3, 4] {
             let g = level_game(level, 3, seed);
-            let human = g.human().unwrap();
+            let human = g.human().expect("the game has a human");
             let mut names = Vec::new();
             for (id, p) in g
                 .wizards()
@@ -477,15 +520,16 @@ fn computer_wizards_are_made_to_the_levels_pick_budget() {
                 assert!(
                     (picks..=picks + 1).contains(&spent),
                     "level {level} seed {seed}: {} spent {spent} of {picks}",
-                    g.player(id).unwrap().name()
+                    g.player(id).expect("the player exists").name()
                 );
-                names.push(g.player(id).unwrap().name());
+                names.push(g.player(id).expect("the player exists").name());
             }
             names.sort();
             names.dedup();
             assert_eq!(names.len(), 2, "two different wizards");
         }
     }
+    Ok(())
 }
 
 #[test]
@@ -493,7 +537,7 @@ fn with_four_wizards_above_average_one_or_two_computer_wizards_are_myrran() {
     for level in [3u8, 4] {
         for seed in [1u64, 2, 3, 4, 5, 6] {
             let g = level_game(level, 4, seed);
-            let human = g.human().unwrap();
+            let human = g.human().expect("the game has a human");
             let n = g
                 .wizards()
                 .into_iter()
@@ -584,7 +628,10 @@ fn the_autobuild_command_sets_and_clears_a_citys_plan() {
         &format!("autobuild {n} both defense gold settlers=5"),
     );
     assert!(r.ok, "{}", r.text());
-    let plan = g.autobuild_of(city).unwrap().plan;
+    let plan = g
+        .autobuild_of(city)
+        .expect("the city has an autobuild plan")
+        .plan;
     assert_eq!(plan.mix, f4x_core::city::autobuild::Mix::Both);
     assert_eq!(plan.primary, f4x_core::city::autobuild::Focus::Defense);
     assert_eq!(plan.secondary, Some(f4x_core::city::autobuild::Focus::Gold));
@@ -602,24 +649,32 @@ fn the_autobuild_command_sets_and_clears_a_citys_plan() {
 }
 
 #[test]
-fn a_global_enchantment_is_a_target_by_wizard_and_spell() {
+fn a_global_enchantment_is_a_target_by_wizard_and_spell() -> TestResult {
     use f4x_core::rules::exec::Target;
     let mut g = game();
-    let awareness = g.content().rules.spells.id_of("awareness").unwrap();
+    let awareness = g
+        .content()
+        .rules
+        .spells
+        .id_of("awareness")
+        .expect("the shipped content has it");
     g.attach_enchantment(Target::Player(PlayerId(1)), awareness, PlayerId(1));
-    let held = g.global_instance(PlayerId(1), awareness).unwrap();
+    let held = g
+        .global_instance(PlayerId(1), awareness)
+        .expect("the spell is held");
     assert_eq!(
-        crate::args::parse_target(&g, "global:1:awareness").unwrap(),
+        crate::args::parse_target(&g, "global:1:awareness")?,
         Target::Spell(held)
     );
     assert!(crate::args::parse_target(&g, "global:1").is_err());
     assert!(crate::args::parse_target(&g, "global:1:no_such_spell").is_err());
     // A wizard that keeps nothing of the kind going has nothing to name.
     assert!(crate::args::parse_target(&g, "global:2:awareness").is_err());
+    Ok(())
 }
 
 #[test]
-fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() {
+fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() -> TestResult {
     use f4x_core::rules::exec::Target;
     let mut g = game();
     let (city, _, _) = g
@@ -627,21 +682,31 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() {
         .cities()
         .into_iter()
         .find(|(_, c, _)| c.owner == HUMAN)
-        .unwrap();
-    let eye = g.content().rules.spells.id_of("natures_eye").unwrap();
+        .expect("it is there");
+    let eye = g
+        .content()
+        .rules
+        .spells
+        .id_of("natures_eye")
+        .expect("the shipped content has it");
     assert!(g.cheat_learn_spell(HUMAN, eye));
     assert_eq!(g.economy().city_sight(city), 5);
     // A rival's plain unit four squares away and an invisible one three squares away, and a
     // plain one five squares away.
-    let home = g.city_position(city).unwrap();
-    let width = g.map().unwrap().width();
+    let home = g.city_position(city).expect("the city is on the map");
+    let width = g.map().expect("the game has a map").width();
     let rival = PlayerId(1);
     let beside = |dx: u32| f4x_core::map::Position {
         x: (home.x + dx) % width,
         ..home
     };
     let spawn = |g: &mut Game, id: &str, dx: u32| {
-        let def = g.content().rules.units.id_of(id).unwrap();
+        let def = g
+            .content()
+            .rules
+            .units
+            .id_of(id)
+            .expect("the shipped content has it");
         g.spawn_unit(rival, beside(dx), def)
     };
     let near = spawn(&mut g, "barbarian_spearmen", 4);
@@ -649,13 +714,19 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() {
     let far = spawn(&mut g, "barbarian_spearmen", 5);
     // What the wizard makes out: the square is in sight and the unit is not hidden.
     let sees = |g: &Game, unit: hecs::Entity| {
-        let at = g.units().unit_position(unit).unwrap();
+        let at = g
+            .units()
+            .unit_position(unit)
+            .expect("the unit is on the map");
         let seen = g.economy().visibility(HUMAN, at.plane);
         seen[(at.y * width + at.x) as usize] && g.economy().unit_visible_to(unit, HUMAN)
     };
     assert!(!sees(&g, near), "four squares is out of sight at first");
-    g.treasury_mut(HUMAN).unwrap().mana = 5000;
-    g.start_cast(HUMAN, eye, Some(Target::City(city))).unwrap();
+    g.treasury_mut(HUMAN)
+        .expect("the player has a treasury")
+        .mana = 5000;
+    g.start_cast(HUMAN, eye, Some(Target::City(city)))
+        .map_err(|e| format!("{e:?}"))?;
     // Paid over turns by the casting skill, then aimed.
     for _ in 0..60 {
         if g.city_enchantments(city).iter().any(|&(s, _)| s == eye) {
@@ -672,6 +743,7 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() {
     assert!(sees(&g, near), "the eye reveals what is four squares away");
     assert!(!sees(&g, ghost), "an invisible unit stays hidden");
     assert!(!sees(&g, far), "five squares is still out of sight");
+    Ok(())
 }
 
 fn neutral_cities(g: &Game) -> Vec<(hecs::Entity, f4x_core::map::Position)> {
@@ -684,7 +756,7 @@ fn neutral_cities(g: &Game) -> Vec<(hecs::Entity, f4x_core::map::Position)> {
 }
 
 #[test]
-fn a_new_world_has_neutral_cities_on_both_planes() {
+fn a_new_world_has_neutral_cities_on_both_planes() -> TestResult {
     use f4x_core::map::Plane;
     let g = game();
     let cities = neutral_cities(&g);
@@ -692,7 +764,7 @@ fn a_new_world_has_neutral_cities_on_both_planes() {
         let here: Vec<_> = cities.iter().filter(|(_, p)| p.plane == plane).collect();
         assert!((2..=15).contains(&here.len()), "{plane:?}: {}", here.len());
         // Cities keep their distance from each other and from every fortress.
-        let grid = g.map().unwrap().plane(plane);
+        let grid = g.map().expect("the game has a map").plane(plane);
         for (i, (_, a)) in here.iter().enumerate() {
             for (_, b) in &here[i + 1..] {
                 assert!(grid.chebyshev((a.x, a.y), (b.x, b.y)) >= 4);
@@ -717,7 +789,7 @@ fn a_new_world_has_neutral_cities_on_both_planes() {
         let races = &g.content().rules.races;
         let race = races.get(
             g.component::<f4x_core::city::economy::CityRace>(*e)
-                .unwrap()
+                .expect("the entity has it")
                 .0,
         );
         assert_eq!(
@@ -729,13 +801,13 @@ fn a_new_world_has_neutral_cities_on_both_planes() {
         );
         assert!(names.insert(
             g.component::<f4x_core::city::City>(*e)
-                .unwrap()
+                .expect("the entity has it")
                 .name
                 .clone()
         ));
         let pop = g
             .component::<f4x_core::city::economy::Population>(*e)
-            .unwrap()
+            .expect("the entity has it")
             .figures;
         assert!((2..=14).contains(&pop), "population {pop}");
         // Garrison: a quarter of the population, once for each of the two kinds.
@@ -755,20 +827,21 @@ fn a_new_world_has_neutral_cities_on_both_planes() {
             .any(|(_, p)| !g.units().units_at(*p).is_empty()),
         "some city is garrisoned"
     );
+    Ok(())
 }
 
 #[test]
-fn neutral_worlds_follow_the_seed() {
+fn neutral_worlds_follow_the_seed() -> TestResult {
     let content = content();
     let made = |seed| {
         let g = new_game(
-            &content,
+            content,
             &NewGame {
                 seed,
                 ..NewGame::default()
             },
         )
-        .unwrap();
+        .expect("the seed starts a game");
         neutral_cities(&g)
             .into_iter()
             .map(|(_, p)| p)
@@ -776,6 +849,7 @@ fn neutral_worlds_follow_the_seed() {
     };
     assert_eq!(made(3), made(3));
     assert_ne!(made(3), made(4));
+    Ok(())
 }
 
 #[test]
@@ -786,12 +860,12 @@ fn neutral_cities_play_by_the_ordinary_rules() {
         .map(|(e, _)| {
             let pop = g
                 .component::<f4x_core::city::economy::Population>(e)
-                .unwrap();
+                .expect("the entity has it");
             (
                 e,
                 pop.figures,
                 g.component::<f4x_core::city::economy::Buildings>(e)
-                    .unwrap()
+                    .expect("the entity has it")
                     .0
                     .len(),
             )
@@ -800,7 +874,7 @@ fn neutral_cities_play_by_the_ordinary_rules() {
     let gold: Vec<_> = g
         .player_ids()
         .iter()
-        .map(|id| g.player(*id).unwrap().treasury().gold)
+        .map(|id| g.player(*id).expect("the player exists").treasury().gold)
         .collect();
     for _ in 0..40 {
         f4x_ai::play_round(&mut g, &mut []);
@@ -812,13 +886,13 @@ fn neutral_cities_play_by_the_ordinary_rules() {
     );
     let grew = before.iter().any(|&(e, pop, _)| {
         g.component::<f4x_core::city::economy::Population>(e)
-            .unwrap()
+            .expect("the entity has it")
             .figures
             > pop
     });
     let built = before.iter().any(|&(e, _, n)| {
         g.component::<f4x_core::city::economy::Buildings>(e)
-            .unwrap()
+            .expect("the entity has it")
             .0
             .len()
             > n
@@ -842,7 +916,9 @@ fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
         .collect();
     assert_eq!(owners.len(), cities.len(), "one player each");
     for &o in &owners {
-        assert!(g.is_neutral_player(o) && g.player(o).unwrap().treasury().gold > 0);
+        assert!(
+            g.is_neutral_player(o) && g.player(o).expect("the player exists").treasury().gold > 0
+        );
         assert!(!g.living_wizards().contains(&o), "not a wizard");
     }
     assert_eq!(wizards(&g), 2);
@@ -851,16 +927,16 @@ fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
         .player_ids()
         .into_iter()
         .filter(|id| !g.is_neutral_player(*id))
-        .map(|id| g.player(id).unwrap().treasury().gold)
+        .map(|id| g.player(id).expect("the player exists").treasury().gold)
         .collect();
     let before: Vec<_> = owners
         .iter()
-        .map(|&o| g.player(o).unwrap().treasury().gold)
+        .map(|&o| g.player(o).expect("the player exists").treasury().gold)
         .collect();
     g.apply(f4x_core::game::Command::EndTurn);
     let after: Vec<_> = owners
         .iter()
-        .map(|&o| g.player(o).unwrap().treasury().gold)
+        .map(|&o| g.player(o).expect("the player exists").treasury().gold)
         .collect();
     assert_ne!(before, after, "the treasuries moved");
     assert_eq!(
@@ -879,7 +955,7 @@ fn a_neutral_city_that_cannot_pay_loses_its_garrison() {
         .into_iter()
         .find(|(_, p)| g.units().units_at(*p).len() >= 2)
         .expect("a garrisoned city");
-    let owner = g.economy().city_owner(city).unwrap();
+    let owner = g.economy().city_owner(city).expect("the city has an owner");
     let units = g.units().units_at(pos).len();
     // Buildings the city's taxes cannot carry, and an empty treasury.
     let all: Vec<_> = (0..g.content().rules.buildings.defs().len())
@@ -889,7 +965,9 @@ fn a_neutral_city_that_cannot_pay_loses_its_garrison() {
     for id in all {
         g.scenario_set_building(city, id, true);
     }
-    g.treasury_mut(owner).unwrap().gold = 0;
+    g.treasury_mut(owner)
+        .expect("the player has a treasury")
+        .gold = 0;
     g.apply(f4x_core::game::Command::EndTurn);
     assert!(
         g.units().units_at(pos).len() < units,
@@ -902,7 +980,7 @@ fn taking_a_neutral_city_changes_its_owner_and_removes_its_player() {
     let mut g = game();
     let wizards_before = wizards(&g);
     let (city, _) = neutral_cities(&g)[0];
-    let owner = g.economy().city_owner(city).unwrap();
+    let owner = g.economy().city_owner(city).expect("the city has an owner");
     let events = g.capture_city(city, PlayerId(0));
     assert_eq!(g.economy().city_owner(city), Some(PlayerId(0)));
     assert!(events
@@ -926,26 +1004,26 @@ fn taking_a_neutral_city_changes_its_owner_and_removes_its_player() {
 }
 
 #[test]
-fn neutral_cities_survive_a_save() {
+fn neutral_cities_survive_a_save() -> TestResult {
     let g = game();
     let snap = g.snapshot();
-    let back = snap.clone().restore(g.content().clone()).unwrap();
+    let back = snap.clone().restore(g.content().clone())?;
     assert_eq!(back.snapshot(), snap);
     assert_eq!(neutral_cities(&back).len(), neutral_cities(&g).len());
+    Ok(())
 }
 
 #[test]
-fn neutral_cities_keep_their_garrisons_for_sixty_turns() {
+fn neutral_cities_keep_their_garrisons_for_sixty_turns() -> TestResult {
     let content = content();
     for seed in [1, 2] {
         let mut g = new_game(
-            &content,
+            content,
             &NewGame {
                 seed,
                 ..NewGame::default()
             },
-        )
-        .unwrap();
+        )?;
         // Cities in the mountains or the desert starve a few units in 60 turns (the land is the
         // original's mix, with little grassland); garrisons that melt away are another thing.
         let mut lost = 0;
@@ -963,21 +1041,21 @@ fn neutral_cities_keep_their_garrisons_for_sixty_turns() {
             }
         }
     }
+    Ok(())
 }
 
 #[test]
-fn a_world_has_the_originals_number_of_lairs() {
+fn a_world_has_the_originals_number_of_lairs() -> TestResult {
     use f4x_core::map::Plane;
     let content = content();
     for seed in [1, 2, 3, 4] {
         let g = new_game(
-            &content,
+            content,
             &NewGame {
                 seed,
                 ..NewGame::default()
             },
-        )
-        .unwrap();
+        )?;
         // 6 towers (one site each, on both planes), a lair at each of the 30 nodes, and
         // 25 + 32 random sites.
         assert_eq!(g.economy().nodes().len(), 30, "seed {seed}");
@@ -991,6 +1069,7 @@ fn a_world_has_the_originals_number_of_lairs() {
             assert!((2..=15).contains(&n), "seed {seed} {plane:?}: {n}");
         }
     }
+    Ok(())
 }
 
 /// The units, in the order they were made, of a player's starting army.
@@ -1009,33 +1088,37 @@ fn capital(g: &Game, p: PlayerId) -> (hecs::Entity, f4x_core::map::Position) {
         .into_iter()
         .find(|(_, c, _)| c.owner == p)
         .map(|(e, _, at)| (e, at))
-        .unwrap()
+        .expect("the game has a map")
 }
 
 #[test]
-fn a_wizard_starts_as_in_the_original() {
+fn a_wizard_starts_as_in_the_original() -> TestResult {
     let content = content();
     for seed in [1, 2, 3, 4, 5, 6] {
         let g = new_game(
-            &content,
+            content,
             &NewGame {
                 seed,
                 ..NewGame::with_wizards(4)
             },
-        )
-        .unwrap();
+        )?;
         for k in 0..4 {
             let p = PlayerId(k);
             let (city, _) = capital(&g, p);
             let mut army = start_army(&g, p);
             army.sort();
             assert_eq!(army, ["Spearmen", "Swordsmen"], "seed {seed} wizard {k}");
-            let eco = g.economy().city_economy(city).unwrap();
+            let eco = g
+                .economy()
+                .city_economy(city)
+                .expect("the city has an economy");
             assert_eq!(
                 (
                     eco.figures,
                     eco.farmers,
-                    g.player_component::<f4x_core::player::Tax>(p).unwrap().0
+                    g.player_component::<f4x_core::player::Tax>(p)
+                        .expect("the entity has it")
+                        .0
                 ),
                 (4, 3, 2)
             );
@@ -1051,23 +1134,23 @@ fn a_wizard_starts_as_in_the_original() {
                 "seed {seed} wizard {k}: {}",
                 eco.max_size
             );
-            assert_eq!(g.player(p).unwrap().treasury().gold, 100);
+            assert_eq!(g.player(p).expect("the player exists").treasury().gold, 100);
         }
     }
+    Ok(())
 }
 
 #[test]
-fn the_starting_army_and_capital_pay_their_way() {
+fn the_starting_army_and_capital_pay_their_way() -> TestResult {
     let content = content();
     for seed in [1, 2, 3, 4, 5, 6] {
         let mut g = new_game(
-            &content,
+            content,
             &NewGame {
                 seed,
                 ..NewGame::default()
             },
-        )
-        .unwrap();
+        )?;
         let t = g.budget(HUMAN);
         assert!(t.food_surplus >= t.food_upkeep, "seed {seed}: {t:?}");
         assert!(t.net_gold() >= 0, "seed {seed}: {t:?}");
@@ -1078,14 +1161,15 @@ fn the_starting_army_and_capital_pay_their_way() {
         }
         assert_eq!(start_army(&g, HUMAN).len(), 2, "seed {seed}");
         assert!(
-            g.player(HUMAN).unwrap().treasury().gold >= 100,
+            g.player(HUMAN).expect("the player exists").treasury().gold >= 100,
             "seed {seed}"
         );
     }
+    Ok(())
 }
 
 #[test]
-fn a_myrran_wizard_starts_on_myrror_with_a_myrror_race() {
+fn a_myrran_wizard_starts_on_myrror_with_a_myrror_race() -> TestResult {
     use f4x_core::map::Plane;
     use f4x_core::wizard::magic::Retort;
     let content = content();
@@ -1098,33 +1182,44 @@ fn a_myrran_wizard_starts_on_myrror_with_a_myrror_race() {
         race: race.map(str::to_string),
         ..NewGame::default()
     };
-    let g = new_game(&content, &wizard(Some("dwarven"))).unwrap();
+    let g = new_game(content, &wizard(Some("dwarven")))?;
     let (city, at) = capital(&g, HUMAN);
     assert_eq!(at.plane, Plane::Myrror);
     // Dwarves have no spearmen: two swordsmen.
     assert_eq!(start_army(&g, HUMAN), ["Swordsmen", "Swordsmen"]);
-    assert!(g.economy().city_economy(city).unwrap().max_size >= 7);
+    assert!(
+        g.economy()
+            .city_economy(city)
+            .expect("the city has an economy")
+            .max_size
+            >= 7
+    );
     // The rival is no Myrran and starts on Arcanus.
     assert_eq!(capital(&g, PlayerId(1)).1.plane, Plane::Arcanus);
     // Nobody picks an Arcanus race for a Myrran wizard.
-    assert!(new_game(&content, &wizard(Some("high_men"))).is_err());
-    let any = new_game(&content, &wizard(None)).unwrap();
+    assert!(new_game(content, &wizard(Some("high_men"))).is_err());
+    let any = new_game(content, &wizard(None))?;
     assert_eq!(capital(&any, HUMAN).1.plane, Plane::Myrror);
+    Ok(())
 }
 
 #[test]
-fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() {
+fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() -> TestResult {
     let content = content();
     let mut g = new_game(
-        &content,
+        content,
         &NewGame {
             seed: 1,
             ..NewGame::default()
         },
-    )
-    .unwrap();
+    )?;
     let (_, home) = capital(&g, HUMAN);
-    let werewolves = g.content().rules.units.id_of("werewolves").unwrap();
+    let werewolves = g
+        .content()
+        .rules
+        .units
+        .id_of("werewolves")
+        .expect("the shipped content has it");
     g.apply(f4x_core::game::Command::CreateUnit {
         owner: HUMAN,
         pos: home,
@@ -1140,8 +1235,14 @@ fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() {
             .any(|e| matches!(e, f4x_core::game::Event::Rejected(_))),
         "{events:?}"
     );
-    let battle = g.battle().unwrap();
-    let find = |name: &str| battle.units.iter().find(|u| u.name == name).unwrap();
+    let battle = g.battle().expect("a battle is on");
+    let find = |name: &str| {
+        battle
+            .units
+            .iter()
+            .find(|u| u.name == name)
+            .expect("it is there")
+    };
     let spearmen = find("Spearmen");
     assert!(!spearmen.magical_weapon);
     let wolves = find("Werewolves");
@@ -1150,24 +1251,29 @@ fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() {
         "summoned creatures fight with magical weapons"
     );
     assert!(wolves.abilities.iter().any(|a| a == "weapon_immunity"));
+    Ok(())
 }
 
 #[test]
-fn battle_units_carry_the_numbers_of_their_special_attacks() {
+fn battle_units_carry_the_numbers_of_their_special_attacks() -> TestResult {
     use f4x_core::battle::special::{Gaze, SpecialAttacks};
     use f4x_core::battle::RangedKind;
     let content = content();
     let mut g = new_game(
-        &content,
+        content,
         &NewGame {
             seed: 1,
             ..NewGame::default()
         },
-    )
-    .unwrap();
+    )?;
     let (_, home) = capital(&g, HUMAN);
     for name in ["cockatrices", "giant_spiders", "basilisk", "wraiths"] {
-        let unit = g.content().rules.units.id_of(name).unwrap();
+        let unit = g
+            .content()
+            .rules
+            .units
+            .id_of(name)
+            .expect("the shipped content has it");
         g.apply(f4x_core::game::Command::CreateUnit {
             owner: HUMAN,
             pos: home,
@@ -1178,9 +1284,13 @@ fn battle_units_carry_the_numbers_of_their_special_attacks() {
         attackers: g.units().player_units(HUMAN),
         defenders: g.units().player_units(PlayerId(1)),
     });
-    let battle = g.battle().unwrap();
+    let battle = g.battle().expect("a battle is on");
     let special = |name: &str| {
-        let u = battle.units.iter().find(|u| u.name == name).unwrap();
+        let u = battle
+            .units
+            .iter()
+            .find(|u| u.name == name)
+            .expect("it is there");
         (
             u.special_level,
             SpecialAttacks::of_unit(&u.abilities, &u.granted, u.special_level),
@@ -1199,6 +1309,7 @@ fn battle_units_carry_the_numbers_of_their_special_attacks() {
     let (_, s, _) = special("Wraiths");
     assert!(s.life_steal);
     assert_eq!(s.penalty, 3);
+    Ok(())
 }
 
 /// A two-wizard game, the rival's capital with `citizens` citizens and the buildings given.
@@ -1208,7 +1319,13 @@ fn siege_world(citizens: u32, extra: &[&str]) -> (Game, hecs::Entity) {
     g.scenario_set_citizens(city, citizens);
     let ids: Vec<_> = extra
         .iter()
-        .map(|b| g.content().rules.buildings.id_of(b).unwrap())
+        .map(|b| {
+            g.content()
+                .rules
+                .buildings
+                .id_of(b)
+                .expect("the shipped content has it")
+        })
         .collect();
     for id in ids {
         g.scenario_set_building(city, id, true);
@@ -1229,7 +1346,13 @@ fn neutral_world(citizens: u32, extra: &[&str]) -> (Game, hecs::Entity) {
     g.scenario_set_citizens(city, citizens);
     let ids: Vec<_> = extra
         .iter()
-        .map(|b| g.content().rules.buildings.id_of(b).unwrap())
+        .map(|b| {
+            g.content()
+                .rules
+                .buildings
+                .id_of(b)
+                .expect("the shipped content has it")
+        })
         .collect();
     for id in ids {
         g.scenario_set_building(city, id, true);
@@ -1240,7 +1363,7 @@ fn neutral_world(citizens: u32, extra: &[&str]) -> (Game, hecs::Entity) {
 /// A land square next to `at`, preferring the east one.
 fn land_beside(g: &Game, at: f4x_core::map::Position) -> f4x_core::map::Position {
     use f4x_core::map::terrain::TerrainClass;
-    let grid = g.map().unwrap().plane(at.plane);
+    let grid = g.map().expect("the game has a map").plane(at.plane);
     [(1, 0), (-1, 0), (0, 1), (0, -1)]
         .into_iter()
         .map(|(dx, dy)| f4x_core::map::Position {
@@ -1258,7 +1381,9 @@ fn land_beside(g: &Game, at: f4x_core::map::Position) -> f4x_core::map::Position
 
 /// Put the human wizard's two units on the square next to the city and start the battle.
 fn start_siege(g: &mut Game, city: hecs::Entity) {
-    let at = *g.component::<f4x_core::map::Position>(city).unwrap();
+    let at = *g
+        .component::<f4x_core::map::Position>(city)
+        .expect("the entity has it");
     let from = land_beside(g, at);
     for u in g.units().player_units(HUMAN) {
         g.cheat_move_unit(u, from);
@@ -1280,7 +1405,7 @@ fn a_battle_at_a_walled_city_is_fought_round_its_walls() {
     use f4x_core::battle::map::{in_city_area, GATE};
     let (mut g, city) = siege_world(6, &["city_walls"]);
     start_siege(&mut g, city);
-    let b = g.battle().unwrap();
+    let b = g.battle().expect("a battle is on");
     assert!(b.map.is_walled());
     assert_eq!(b.map.standing_walls().len(), 12);
     for u in &b.units {
@@ -1295,7 +1420,7 @@ fn a_battle_at_a_walled_city_is_fought_round_its_walls() {
     // The same city without walls: a city battle, but nothing to climb.
     let (mut g, city) = siege_world(6, &[]);
     start_siege(&mut g, city);
-    let b = g.battle().unwrap();
+    let b = g.battle().expect("a battle is on");
     assert!(b.map.is_city() && !b.map.is_walled());
 }
 
@@ -1304,7 +1429,7 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
     let (mut g, city) = siege_world(12, &["marketplace", "library"]);
     let loser = PlayerId(1);
     for (p, gold, fame) in [(HUMAN, 10, 0), (loser, 200, 5)] {
-        g.treasury_mut(p).unwrap().gold = gold;
+        g.treasury_mut(p).expect("the player has a treasury").gold = gold;
         g.set_fame(p, fame);
     }
     // The rival's other cities share the gold out by citizens: the capital is all of theirs.
@@ -1315,7 +1440,7 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
         .filter(|(_, c, _)| c.owner == loser)
         .map(|(e, ..)| {
             g.component::<f4x_core::city::economy::Population>(*e)
-                .unwrap()
+                .expect("the entity has it")
                 .figures
         })
         .sum();
@@ -1333,7 +1458,7 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
             } => Some((*gold, *citizens_lost, buildings_lost.len() as u32)),
             _ => None,
         })
-        .unwrap();
+        .expect("the city was looted");
     assert_eq!(looted.0, 200);
     // The event carries the fame the results scroll reports.
     assert!(events.iter().any(|e| matches!(
@@ -1344,17 +1469,23 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
             ..
         }
     )));
-    assert_eq!(g.player(HUMAN).unwrap().treasury().gold, 210);
-    assert_eq!(g.player(loser).unwrap().treasury().gold, 0);
+    assert_eq!(
+        g.player(HUMAN).expect("the player exists").treasury().gold,
+        210
+    );
+    assert_eq!(
+        g.player(loser).expect("the player exists").treasury().gold,
+        0
+    );
     // A city of 12 is size 3: the loser loses 3 fame (5 -> 2), the taker gains 1, and taking a
     // wizard's fortress is worth 5 more.
-    assert_eq!(g.wizard(loser).unwrap().fame(), 2);
-    assert_eq!(g.wizard(HUMAN).unwrap().fame(), 6);
+    assert_eq!(g.wizard(loser).expect("the player is a wizard").fame(), 2);
+    assert_eq!(g.wizard(HUMAN).expect("the player is a wizard").fame(), 6);
     // It is the taker's, with 50 percent as the most citizens lost and the rest alive.
     assert_eq!(g.economy().city_owner(city), Some(HUMAN));
     let now = g
         .component::<f4x_core::city::economy::Population>(city)
-        .unwrap()
+        .expect("the entity has it")
         .figures;
     assert_eq!(now, 12 - looted.1);
     assert!(now >= 1);
@@ -1386,7 +1517,7 @@ fn more_city_damage_means_more_lost_citizens_and_buildings() {
             }
             let before = g
                 .component::<f4x_core::city::economy::Buildings>(city)
-                .unwrap()
+                .expect("the entity has it")
                 .0
                 .len();
             let events = g.conquer_city(city, HUMAN, damage);
@@ -1426,13 +1557,15 @@ fn an_outpost_is_destroyed_when_taken() {
 }
 
 #[test]
-fn a_taken_city_can_be_razed_until_the_turn_ends() {
+fn a_taken_city_can_be_razed_until_the_turn_ends() -> TestResult {
     let (mut g, city) = neutral_world(12, &["marketplace", "library"]);
     g.set_fame(HUMAN, 10);
-    g.treasury_mut(HUMAN).unwrap().gold = 0;
+    g.treasury_mut(HUMAN)
+        .expect("the player has a treasury")
+        .gold = 0;
     g.conquer_city(city, HUMAN, 0);
-    let fame_after_taking = g.wizard(HUMAN).unwrap().fame();
-    let gold_after_taking = g.player(HUMAN).unwrap().treasury().gold;
+    let fame_after_taking = g.wizard(HUMAN).expect("the player is a wizard").fame();
+    let gold_after_taking = g.player(HUMAN).expect("the player exists").treasury().gold;
     // Only the taker may raze it.
     let events = g.apply(f4x_core::game::Command::RazeCity {
         player: PlayerId(2),
@@ -1446,7 +1579,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() {
     // depends on the dice), and a tenth of each building's cost is looted.
     let size = f4x_core::city::conquest::city_size_class(
         g.component::<f4x_core::city::economy::Population>(city)
-            .unwrap()
+            .expect("the entity has it")
             .figures,
     ) as i32;
     let events = g.apply(f4x_core::game::Command::RazeCity {
@@ -1461,16 +1594,16 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() {
     );
     assert!(g.component::<f4x_core::city::City>(city).is_none());
     assert_eq!(
-        g.wizard(HUMAN).unwrap().fame(),
+        g.wizard(HUMAN).expect("the player is a wizard").fame(),
         (fame_after_taking - (size + 1)).max(0)
     );
-    assert!(g.player(HUMAN).unwrap().treasury().gold > gold_after_taking);
+    assert!(g.player(HUMAN).expect("the player exists").treasury().gold > gold_after_taking);
 
     // Wait a turn and the window is shut.
     let (mut g, city) = neutral_world(12, &[]);
     g.conquer_city(city, HUMAN, 0);
     let snap = g.snapshot();
-    let mut back = snap.restore(g.content().clone()).unwrap();
+    let mut back = snap.restore(g.content().clone())?;
     let again = conquered_city(&back);
     assert!(
         back.component::<f4x_core::city::conquest::Conquered>(again)
@@ -1487,31 +1620,37 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() {
         "{events:?}"
     );
     assert!(back.component::<f4x_core::city::City>(again).is_some());
+    Ok(())
 }
 
 #[test]
-fn razing_a_wizards_fortress_city_leaves_the_wizard_banished_and_the_winner_unharmed() {
+fn razing_a_wizards_fortress_city_leaves_the_wizard_banished_and_the_winner_unharmed() -> TestResult
+{
     // Three wizards, so that the game goes on when one is out.
-    let content =
-        f4x_data::load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
-            .unwrap();
+    let content = content();
     let mut g = new_game(
-        &content,
+        content,
         &NewGame {
             seed: 7,
             ..NewGame::with_wizards(3)
         },
-    )
-    .unwrap();
+    )?;
     let loser = PlayerId(1);
     let city = g.economy().fortress_city(loser).expect("a fortress city");
-    let own_fortress = g.wizard(HUMAN).unwrap().fortress();
+    let own_fortress = g.wizard(HUMAN).expect("the player is a wizard").fortress();
     assert!(own_fortress.is_some());
     g.conquer_city(city, HUMAN, 0);
     // The fortress fell at the taking, not at the razing.
-    assert!(g.wizard(loser).unwrap().fortress().is_none());
+    assert!(g
+        .wizard(loser)
+        .expect("the player is a wizard")
+        .fortress()
+        .is_none());
     assert!(
-        g.wizard(loser).unwrap().is_banished() || g.player(loser).unwrap().is_defeated(),
+        g.wizard(loser)
+            .expect("the player is a wizard")
+            .is_banished()
+            || g.player(loser).expect("the player exists").is_defeated(),
         "banished or out"
     );
     let events = g.apply(f4x_core::game::Command::RazeCity {
@@ -1526,9 +1665,16 @@ fn razing_a_wizards_fortress_city_leaves_the_wizard_banished_and_the_winner_unha
     );
     assert!(g.component::<f4x_core::city::City>(city).is_none());
     // The winner keeps their fortress, circle and place in the game.
-    assert_eq!(g.wizard(HUMAN).unwrap().fortress(), own_fortress);
-    assert!(!g.wizard(HUMAN).unwrap().is_banished());
-    assert!(!g.player(HUMAN).unwrap().is_defeated());
+    assert_eq!(
+        g.wizard(HUMAN).expect("the player is a wizard").fortress(),
+        own_fortress
+    );
+    assert!(!g
+        .wizard(HUMAN)
+        .expect("the player is a wizard")
+        .is_banished());
+    assert!(!g.player(HUMAN).expect("the player exists").is_defeated());
+    Ok(())
 }
 
 /// The one city marked as just taken (found again after a save: entities change).
@@ -1538,7 +1684,7 @@ fn conquered_city(g: &Game) -> hecs::Entity {
         .into_iter()
         .map(|(e, ..)| e)
         .find(|&e| g.city_conquered(e))
-        .unwrap()
+        .expect("it is there")
 }
 
 #[test]
@@ -1549,9 +1695,16 @@ fn an_auto_resolved_siege_of_a_walled_city_ends_and_may_take_it() {
         for _ in 0..seed * 50 {
             g.next_u64();
         }
-        let at = *g.component::<f4x_core::map::Position>(city).unwrap();
+        let at = *g
+            .component::<f4x_core::map::Position>(city)
+            .expect("the entity has it");
         let from = f4x_core::map::Position { x: at.x + 1, ..at };
-        let giant = g.content().rules.units.id_of("storm_giant").unwrap();
+        let giant = g
+            .content()
+            .rules
+            .units
+            .id_of("storm_giant")
+            .expect("the shipped content has it");
         for _ in 0..3 {
             g.apply(f4x_core::game::Command::CreateUnit {
                 owner: HUMAN,
@@ -1583,7 +1736,7 @@ fn an_auto_resolved_siege_of_a_walled_city_ends_and_may_take_it() {
     assert!(taken + held == 4);
 }
 
-// ---- casting in battle (task 43) ------------------------------------------------------
+// ---- casting in battle ----------------------------------------------------------------
 
 /// A siege of the rival's capital in which the human wizard knows `spells`, with plenty of
 /// mana and skill; returns the game.
@@ -1603,11 +1756,13 @@ fn arm_human(g: &mut Game, spells: &[&str]) {
                 .rules
                 .spells
                 .id_of(s)
-                .unwrap_or_else(|| panic!("{s}"))
+                .expect("every spell given is a shipped one")
         })
         .collect();
-    g.treasury_mut(HUMAN).unwrap().mana = 5000;
-    let mut w = g.wizard_mut(HUMAN).unwrap();
+    g.treasury_mut(HUMAN)
+        .expect("the player has a treasury")
+        .mana = 5000;
+    let mut w = g.wizard_mut(HUMAN).expect("the player is a wizard");
     w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
     w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
         .known
@@ -1644,7 +1799,7 @@ fn pass_turn(g: &mut Game) {
 
 fn battle_units_of(g: &Game, side: f4x_core::battle::Side) -> Vec<usize> {
     g.battle()
-        .unwrap()
+        .expect("a battle is on")
         .units
         .iter()
         .filter(|u| u.side == side)
@@ -1656,16 +1811,25 @@ fn battle_units_of(g: &Game, side: f4x_core::battle::Side) -> Vec<usize> {
 fn a_wizard_goes_into_battle_with_skill_mana_and_a_range_cost() {
     use f4x_core::battle::Side;
     let g = casting_siege(&["fire_bolt"]);
-    let b = g.battle().unwrap();
+    let b = g.battle().expect("a battle is on");
     let mine = b.caster(Side::Attacker).expect("the human wizard casts");
-    assert_eq!(mine.skill_left, g.wizard(HUMAN).unwrap().casting_skill());
+    assert_eq!(
+        mine.skill_left,
+        g.wizard(HUMAN)
+            .expect("the player is a wizard")
+            .casting_skill()
+    );
     assert_eq!(mine.mana, 5000);
     assert!(mine.range >= 5 && mine.range <= 30 && mine.range % 5 == 0);
     assert!(b.caster(Side::Defender).is_some(), "so does the rival");
     // Independent cities have no wizard.
     let (mut g, city) = neutral_world(6, &[]);
     start_siege(&mut g, city);
-    assert!(g.battle().unwrap().caster(Side::Defender).is_none());
+    assert!(g
+        .battle()
+        .expect("a battle is on")
+        .caster(Side::Defender)
+        .is_none());
 }
 
 #[test]
@@ -1673,15 +1837,23 @@ fn a_spell_costs_skill_and_range_priced_mana_and_only_one_a_turn() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&["fire_bolt"]);
     let enemy = battle_units_of(&g, Side::Defender)[0];
-    let before = *g.battle().unwrap().caster(Side::Attacker).unwrap();
+    let before = *g
+        .battle()
+        .expect("a battle is on")
+        .caster(Side::Attacker)
+        .expect("the side has a caster");
     let r = cast(&mut g, &format!("bcast fire bolt unit:{enemy}"));
     assert!(r.ok, "{}", r.text());
-    let after = *g.battle().unwrap().caster(Side::Attacker).unwrap();
+    let after = *g
+        .battle()
+        .expect("a battle is on")
+        .caster(Side::Attacker)
+        .expect("the side has a caster");
     // Fire Bolt costs 5; the mana is that times the range multiplier.
     assert_eq!(before.skill_left - after.skill_left, 5);
     assert_eq!(before.mana - after.mana, 5 * before.range / 10);
     assert_eq!(
-        g.player(HUMAN).unwrap().treasury().mana,
+        g.player(HUMAN).expect("the player exists").treasury().mana,
         after.mana,
         "the reserve pays"
     );
@@ -1690,25 +1862,29 @@ fn a_spell_costs_skill_and_range_priced_mana_and_only_one_a_turn() {
     let again = cast(&mut g, &format!("bcast fire bolt unit:{enemy}"));
     assert!(!again.ok, "{}", again.text());
     pass_turn(&mut g);
-    assert_eq!(g.battle().unwrap().active, Side::Attacker);
+    assert_eq!(g.battle().expect("a battle is on").active, Side::Attacker);
     assert!(cast(&mut g, &format!("bcast fire bolt unit:{enemy}")).ok);
 }
 
 #[test]
-fn only_known_battle_spells_with_effects_can_be_cast() {
+fn a_battle_spell_is_refused_for_the_reason_it_cannot_be_cast() {
     use f4x_core::battle::Side;
-    // Warp Wood is known but not yet in the game; Earth Lore is overland only; Fireball is not
-    // known.
+    // Warp Wood needs a target with missiles, Earth Lore is overland only, Fireball is not known.
     let mut g = casting_siege(&["warp_wood", "earth_lore"]);
     let enemy = battle_units_of(&g, Side::Defender)[0];
-    for spell in ["warp wood", "earth lore", "fireball"] {
+    for (spell, why) in [
+        ("warp wood", "NeedsMissile"),
+        ("earth lore", "NotForBattle"),
+        ("fireball", "NotKnown"),
+    ] {
         let r = cast(&mut g, &format!("bcast {spell} unit:{enemy}"));
         assert!(!r.ok, "{spell}");
+        assert!(r.text().contains(why), "{spell}: {}", r.text());
     }
+    let offered = cast(&mut g, "bspells").text();
     assert!(
-        cast(&mut g, "bspells").text().is_empty()
-            || !cast(&mut g, "bspells").text().contains("warp wood"),
-        "unfinished spells are not offered"
+        !offered.contains("warp wood"),
+        "a spell with no legal target is not offered: {offered}"
     );
 }
 
@@ -1718,17 +1894,21 @@ fn a_spell_that_costs_more_than_the_wizard_has_is_refused() {
     let mut g = casting_siege(&["fire_bolt"]);
     let enemy = battle_units_of(&g, Side::Defender)[0];
     // A reserve too small for the mana the spell takes at this range.
-    g.battle.as_mut().unwrap().battle.casters[Side::Attacker.index()]
+    g.battle
         .as_mut()
-        .unwrap()
-        .mana = 1;
+        .expect("the value is there")
+        .battle
+        .casters[Side::Attacker.index()]
+    .as_mut()
+    .expect("the value is there")
+    .mana = 1;
     let r = cast(&mut g, &format!("bcast fire bolt unit:{enemy}"));
     assert!(!r.ok, "{}", r.text());
     assert!(
         !g.battle()
-            .unwrap()
+            .expect("a battle is on")
             .caster(Side::Attacker)
-            .unwrap()
+            .expect("the side has a caster")
             .cast_this_turn
     );
     assert!(
@@ -1744,21 +1924,33 @@ fn counter_magic_stops_a_spell_that_still_costs_its_mana() {
     let enemy = battle_units_of(&g, Side::Defender)[0];
     g.battle
         .as_mut()
-        .unwrap()
+        .expect("the value is there")
         .battle
         .cast_counter_magic(Side::Defender, 100_000);
-    let hits = g.battle().unwrap().unit(enemy).unwrap().hit_points();
-    let mana = g.player(HUMAN).unwrap().treasury().mana;
+    let hits = g
+        .battle()
+        .expect("a battle is on")
+        .unit(enemy)
+        .expect("the unit is alive")
+        .hit_points();
+    let mana = g.player(HUMAN).expect("the player exists").treasury().mana;
     let r = cast(&mut g, &format!("bcast fire bolt unit:{enemy}"));
     assert!(r.ok, "{}", r.text());
     assert!(r.text().contains("Counter Magic stops"), "{}", r.text());
-    assert_eq!(g.battle().unwrap().unit(enemy).unwrap().hit_points(), hits);
+    assert_eq!(
+        g.battle()
+            .expect("a battle is on")
+            .unit(enemy)
+            .expect("the unit is alive")
+            .hit_points(),
+        hits
+    );
     assert!(
-        g.player(HUMAN).unwrap().treasury().mana < mana,
+        g.player(HUMAN).expect("the player exists").treasury().mana < mana,
         "the mana is spent"
     );
     assert_eq!(
-        g.battle().unwrap().counter_magic[Side::Defender.index()],
+        g.battle().expect("a battle is on").counter_magic[Side::Defender.index()],
         100_000 - f4x_core::spell::dispel::COUNTER_MAGIC_DRAIN,
         "every attempt drains the reserve"
     );
@@ -1771,7 +1963,7 @@ fn counter_magic_is_a_reserve_of_the_mana_put_in() {
     let r = cast(&mut g, "bcast counter magic mana:25");
     assert!(r.ok, "{}", r.text());
     assert_eq!(
-        g.battle().unwrap().counter_magic[Side::Attacker.index()],
+        g.battle().expect("a battle is on").counter_magic[Side::Attacker.index()],
         25
     );
     // Less than the cost cannot be put in.
@@ -1784,12 +1976,16 @@ fn a_summoned_creature_joins_the_side_and_goes_with_the_battle() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&["phantom_warriors"]);
     let overland = g.entity_count();
-    let before = g.battle().unwrap().active_units(Side::Attacker).count();
+    let before = g
+        .battle()
+        .expect("a battle is on")
+        .active_units(Side::Attacker)
+        .count();
     let r = cast(&mut g, "bcast phantom warriors tile:4,8");
     assert!(r.ok, "{}", r.text());
-    let b = g.battle().unwrap();
+    let b = g.battle().expect("a battle is on");
     assert_eq!(b.active_units(Side::Attacker).count(), before + 1);
-    let new = b.units.last().unwrap();
+    let new = b.units.last().expect("there is one");
     assert_eq!(
         (new.side, new.cell, new.source),
         (Side::Attacker, (4, 8), None)
@@ -1798,7 +1994,7 @@ fn a_summoned_creature_joins_the_side_and_goes_with_the_battle() {
     // Not on the enemy's half, nor on an occupied square.
     let mut g = casting_siege(&["phantom_warriors"]);
     assert!(!cast(&mut g, "bcast phantom warriors tile:19,5").ok);
-    let own = g.battle().unwrap().units[0].cell;
+    let own = g.battle().expect("a battle is on").units[0].cell;
     assert!(
         !cast(
             &mut g,
@@ -1813,10 +2009,22 @@ fn a_lasting_spell_changes_a_unit_until_a_dispel_takes_it_off() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&["giant_strength"]);
     let mine = battle_units_of(&g, Side::Attacker)[0];
-    let melee = g.battle().unwrap().unit(mine).unwrap().melee;
+    let melee = g
+        .battle()
+        .expect("a battle is on")
+        .unit(mine)
+        .expect("the unit is alive")
+        .melee;
     let r = cast(&mut g, &format!("bcast giant strength unit:{mine}"));
     assert!(r.ok, "{}", r.text());
-    assert_eq!(g.battle().unwrap().unit(mine).unwrap().melee, melee + 1);
+    assert_eq!(
+        g.battle()
+            .expect("a battle is on")
+            .unit(mine)
+            .expect("the unit is alive")
+            .melee,
+        melee + 1
+    );
     // Not twice on one unit, and not on the enemy's.
     pass_turn(&mut g);
     assert!(!cast(&mut g, &format!("bcast giant strength unit:{mine}")).ok);
@@ -1829,10 +2037,15 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&["dispel_magic"]);
     let enemy = battle_units_of(&g, Side::Defender)[0];
-    let strength = g.content().rules.spells.id_of("giant_strength").unwrap();
+    let strength = g
+        .content()
+        .rules
+        .spells
+        .id_of("giant_strength")
+        .expect("the shipped content has it");
     let rival = PlayerId(1);
     {
-        let b = &mut g.battle.as_mut().unwrap().battle;
+        let b = &mut g.battle.as_mut().expect("the value is there").battle;
         let m = |stat, value| {
             f4x_core::rules::stats::Modifier::new(
                 stat,
@@ -1850,16 +2063,21 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
             &[],
         );
     }
-    let melee = g.battle().unwrap().unit(enemy).unwrap().melee;
+    let melee = g
+        .battle()
+        .expect("a battle is on")
+        .unit(enemy)
+        .expect("the unit is alive")
+        .melee;
     // So much mana that a dispel hardly ever fails; try over a few turns.
     let mut removed = false;
     for _ in 0..6 {
         let r = cast(&mut g, &format!("bcast dispel magic unit:{enemy} mana:30"));
         assert!(r.ok, "{}", r.text());
         if g.battle()
-            .unwrap()
+            .expect("a battle is on")
             .unit(enemy)
-            .unwrap()
+            .expect("the unit is alive")
             .combat_spells
             .is_empty()
         {
@@ -1869,7 +2087,11 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
         pass_turn(&mut g);
     }
     assert!(removed, "the dispel took the spell off");
-    let u = g.battle().unwrap().unit(enemy).unwrap();
+    let u = g
+        .battle()
+        .expect("a battle is on")
+        .unit(enemy)
+        .expect("the unit is alive");
     assert_eq!(u.melee, melee - 1);
     assert!(u.enchantments.is_empty() && u.base.is_none());
 }
@@ -1879,15 +2101,29 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
     use f4x_core::battle::Side;
     let (mut g, city) = siege_world(6, &[]);
     let rival = PlayerId(1);
-    let at = *g.component::<f4x_core::map::Position>(city).unwrap();
+    let at = *g
+        .component::<f4x_core::map::Position>(city)
+        .expect("the entity has it");
     let defender = g.units().units_at(at)[0];
-    let spell = g.content().rules.spells.id_of("giant_strength").unwrap();
-    let dispel = g.content().rules.spells.id_of("dispel_magic").unwrap();
+    let spell = g
+        .content()
+        .rules
+        .spells
+        .id_of("giant_strength")
+        .expect("the shipped content has it");
+    let dispel = g
+        .content()
+        .rules
+        .spells
+        .id_of("dispel_magic")
+        .expect("the shipped content has it");
     g.scenario_enchant_unit(defender, spell, rival);
     let plain = g.units().unit_stat(defender, f4x_core::rules::Stat::Melee) - 1;
     {
-        g.treasury_mut(HUMAN).unwrap().mana = 5000;
-        let mut w = g.wizard_mut(HUMAN).unwrap();
+        g.treasury_mut(HUMAN)
+            .expect("the player has a treasury")
+            .mana = 5000;
+        let mut w = g.wizard_mut(HUMAN).expect("the player is a wizard");
         w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
         w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
             .known
@@ -1896,7 +2132,7 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
     start_siege(&mut g, city);
     let enemy = g
         .battle()
-        .unwrap()
+        .expect("a battle is on")
         .units
         .iter()
         .position(|u| {
@@ -1916,7 +2152,14 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
         pass_turn(&mut g);
     }
     assert!(gone, "the overland unit lost the spell");
-    assert_eq!(g.battle().unwrap().unit(enemy).unwrap().melee, plain);
+    assert_eq!(
+        g.battle()
+            .expect("a battle is on")
+            .unit(enemy)
+            .expect("the unit is alive")
+            .melee,
+        plain
+    );
 }
 
 #[test]
@@ -1926,13 +2169,23 @@ fn a_bolt_hurts_by_its_strength_and_star_fires_only_burns_chaos_and_death() {
     let enemy = battle_units_of(&g, Side::Defender)[0];
     {
         // A tough target, so the bolt does not overkill.
-        let u = &mut g.battle.as_mut().unwrap().battle.units[enemy];
+        let u = &mut g.battle.as_mut().expect("the value is there").battle.units[enemy];
         (u.figures, u.hits, u.front_damage) = (1, 50, 0);
     }
-    let before = g.battle().unwrap().unit(enemy).unwrap().hit_points();
+    let before = g
+        .battle()
+        .expect("a battle is on")
+        .unit(enemy)
+        .expect("the unit is alive")
+        .hit_points();
     let r = cast(&mut g, &format!("bcast doom bolt unit:{enemy}"));
     assert!(r.ok, "{}", r.text());
-    let after = g.battle().unwrap().unit(enemy).unwrap().hit_points();
+    let after = g
+        .battle()
+        .expect("a battle is on")
+        .unit(enemy)
+        .expect("the unit is alive")
+        .hit_points();
     assert_eq!(
         before - after,
         10,
@@ -1944,11 +2197,18 @@ fn a_bolt_hurts_by_its_strength_and_star_fires_only_burns_chaos_and_death() {
     assert!(!cast(&mut g, &format!("bcast star fires unit:{enemy}")).ok);
     // Healing: one's own units only, and it brings figures back.
     let mine = battle_units_of(&g, Side::Attacker)[0];
-    g.battle.as_mut().unwrap().battle.units[mine].front_damage = 1;
+    g.battle.as_mut().expect("the value is there").battle.units[mine].front_damage = 1;
     assert!(!cast(&mut g, &format!("bcast healing unit:{enemy}")).ok);
     let r = cast(&mut g, &format!("bcast healing unit:{mine}"));
     assert!(r.ok, "{}", r.text());
-    assert_eq!(g.battle().unwrap().unit(mine).unwrap().front_damage, 0);
+    assert_eq!(
+        g.battle()
+            .expect("a battle is on")
+            .unit(mine)
+            .expect("the unit is alive")
+            .front_damage,
+        0
+    );
 }
 
 #[test]
@@ -1958,7 +2218,7 @@ fn a_spell_that_kills_the_last_enemy_ends_the_battle() {
     let enemies = battle_units_of(&g, Side::Defender);
     // Leave one frail defender.
     {
-        let b = &mut g.battle.as_mut().unwrap().battle;
+        let b = &mut g.battle.as_mut().expect("the value is there").battle;
         for &e in &enemies[1..] {
             b.units[e].status = f4x_core::battle::Status::Dead;
         }
@@ -1980,13 +2240,18 @@ fn hit_points_a_spell_added_do_not_kill_the_unit_when_the_battle_is_over() {
     g.scenario_set_safe_flee(true);
     let mine = battle_units_of(&g, Side::Attacker)[0];
     let entity = {
-        let a = g.battle.as_ref().unwrap();
-        a.sources[a.battle.unit(mine).unwrap().source.unwrap()]
+        let a = g.battle.as_ref().expect("the value is there");
+        a.sources[a
+            .battle
+            .unit(mine)
+            .expect("the unit is alive")
+            .source
+            .expect("the fighter has a source")]
     };
     let r = cast(&mut g, &format!("bcast lionheart unit:{mine}"));
     assert!(r.ok, "{}", r.text());
     {
-        let u = &mut g.battle.as_mut().unwrap().battle.units[mine];
+        let u = &mut g.battle.as_mut().expect("the value is there").battle.units[mine];
         assert!(u.hits > 1 && u.figures_start > 1, "{u:?}");
         u.figures = 1;
     }
@@ -2004,20 +2269,37 @@ fn a_battlefield_enchantment_goes_up_once_and_changes_the_units() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&["high_prayer"]);
     let mine = battle_units_of(&g, Side::Attacker)[0];
-    let defense = g.battle().unwrap().unit(mine).unwrap().defense;
+    let defense = g
+        .battle()
+        .expect("a battle is on")
+        .unit(mine)
+        .expect("the unit is alive")
+        .defense;
     let enemy = battle_units_of(&g, Side::Defender)[0];
-    let enemy_block = g.battle().unwrap().unit(enemy).unwrap().to_block;
+    let enemy_block = g
+        .battle()
+        .expect("a battle is on")
+        .unit(enemy)
+        .expect("the unit is alive")
+        .to_block;
     let r = cast(&mut g, "bcast high prayer");
     assert!(r.ok, "{}", r.text());
     assert!(r.text().contains("raises High Prayer"), "{}", r.text());
-    let b = g.battle().unwrap();
+    let b = g.battle().expect("a battle is on");
     assert!(b.has_field(Side::Attacker, Field::HighPrayer));
-    assert_eq!(b.unit(mine).unwrap().defense, defense + 2);
+    assert_eq!(
+        b.unit(mine).expect("the unit is alive").defense,
+        defense + 2
+    );
     // Not again; and the enemy's units are not blessed.
     pass_turn(&mut g);
     assert!(!cast(&mut g, "bcast high prayer").ok);
     assert_eq!(
-        g.battle().unwrap().unit(enemy).unwrap().to_block,
+        g.battle()
+            .expect("a battle is on")
+            .unit(enemy)
+            .expect("the unit is alive")
+            .to_block,
         enemy_block
     );
 }
@@ -2026,17 +2308,36 @@ fn a_battlefield_enchantment_goes_up_once_and_changes_the_units() {
 fn mana_leak_drains_the_rivals_reserve_in_the_game_too() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&["mana_leak"]);
-    g.treasury_mut(PlayerId(1)).unwrap().mana = 100;
-    // The rival's wizard in the battle has its reserve from the game.
-    g.battle.as_mut().unwrap().battle.casters[Side::Defender.index()]
-        .as_mut()
-        .unwrap()
+    g.treasury_mut(PlayerId(1))
+        .expect("the player has a treasury")
         .mana = 100;
+    // The rival's wizard in the battle has its reserve from the game.
+    g.battle
+        .as_mut()
+        .expect("the value is there")
+        .battle
+        .casters[Side::Defender.index()]
+    .as_mut()
+    .expect("the value is there")
+    .mana = 100;
     assert!(cast(&mut g, "bcast mana leak").ok);
     pass_turn(&mut g);
     // The rival's turn began a new turn: the attacker's.
-    assert_eq!(g.player(PlayerId(1)).unwrap().treasury().mana, 95);
-    assert_eq!(g.battle().unwrap().caster(Side::Defender).unwrap().mana, 95);
+    assert_eq!(
+        g.player(PlayerId(1))
+            .expect("the player exists")
+            .treasury()
+            .mana,
+        95
+    );
+    assert_eq!(
+        g.battle()
+            .expect("a battle is on")
+            .caster(Side::Defender)
+            .expect("the side has a caster")
+            .mana,
+        95
+    );
 }
 
 #[test]
@@ -2045,25 +2346,40 @@ fn flame_strike_hits_every_enemy_and_mass_healing_every_friend() {
     let mut g = casting_siege(&["flame_strike", "mass_healing"]);
     let enemies = battle_units_of(&g, Side::Defender);
     for &e in &enemies {
-        let u = &mut g.battle.as_mut().unwrap().battle.units[e];
+        let u = &mut g.battle.as_mut().expect("the value is there").battle.units[e];
         (u.figures, u.hits, u.front_damage, u.defense) = (1, 100, 0, 0);
     }
     let r = cast(&mut g, "bcast flame strike");
     assert!(r.ok, "{}", r.text());
     let hurt = enemies
         .iter()
-        .filter(|&&e| g.battle().unwrap().unit(e).unwrap().hit_points() < 100)
+        .filter(|&&e| {
+            g.battle()
+                .expect("a battle is on")
+                .unit(e)
+                .expect("the unit is alive")
+                .hit_points()
+                < 100
+        })
         .count();
     assert!(hurt >= 1, "a strength-15 fire attack on each: {}", r.text());
     let mine = battle_units_of(&g, Side::Attacker);
     for &m in &mine {
-        g.battle.as_mut().unwrap().battle.units[m].front_damage = 1;
+        g.battle.as_mut().expect("the value is there").battle.units[m].front_damage = 1;
     }
     pass_turn(&mut g);
     let r = cast(&mut g, "bcast mass healing");
     assert!(r.ok, "{}", r.text());
     for &m in &mine {
-        assert_eq!(g.battle().unwrap().unit(m).unwrap().front_damage, 0, "{m}");
+        assert_eq!(
+            g.battle()
+                .expect("a battle is on")
+                .unit(m)
+                .expect("the unit is alive")
+                .front_damage,
+            0,
+            "{m}"
+        );
     }
 }
 
@@ -2073,26 +2389,29 @@ fn death_spell_and_word_of_death_destroy_the_figures_that_cannot_resist() {
     let mut g = casting_siege(&["death_spell", "word_of_death"]);
     let enemies = battle_units_of(&g, Side::Defender);
     for &e in &enemies {
-        g.battle.as_mut().unwrap().battle.units[e].resistance = 0;
+        g.battle.as_mut().expect("the value is there").battle.units[e].resistance = 0;
     }
     // One enemy that cannot fall keeps the battle going.
-    let last = *enemies.last().unwrap();
-    g.battle.as_mut().unwrap().battle.units[last]
+    let last = *enemies.last().expect("there is one");
+    g.battle.as_mut().expect("the value is there").battle.units[last]
         .abilities
         .push("death_immunity".into());
     let r = cast(&mut g, "bcast death spell");
     assert!(r.ok, "{}", r.text());
-    let b = g.battle().unwrap();
+    let b = g.battle().expect("a battle is on");
     let dead = enemies
         .iter()
-        .filter(|&&e| !b.unit(e).unwrap().is_active())
+        .filter(|&&e| !b.unit(e).expect("the unit is alive").is_active())
         .count();
     // A penalty of two against resistance zero: a ten-sided die over two kills a figure about
     // eight times in ten, so most of every unit goes.
-    let left: u32 = enemies.iter().map(|&e| b.unit(e).unwrap().figures).sum();
+    let left: u32 = enemies
+        .iter()
+        .map(|&e| b.unit(e).expect("the unit is alive").figures)
+        .sum();
     let start: u32 = enemies
         .iter()
-        .map(|&e| b.unit(e).unwrap().figures_start)
+        .map(|&e| b.unit(e).expect("the unit is alive").figures_start)
         .sum();
     assert!(dead > 0 || left < start, "{}", r.text());
 }
@@ -2105,13 +2424,24 @@ fn a_curse_can_be_resisted_and_banish_only_touches_fantastic_creatures() {
     // Banish needs a fantastic creature.
     assert!(!cast(&mut g, &format!("bcast banish unit:{enemy}")).ok);
     // A unit with no resistance cannot save against Weakness.
-    g.battle.as_mut().unwrap().battle.units[enemy].resistance = 0;
-    let melee = g.battle().unwrap().unit(enemy).unwrap().melee;
+    g.battle.as_mut().expect("the value is there").battle.units[enemy].resistance = 0;
+    let melee = g
+        .battle()
+        .expect("a battle is on")
+        .unit(enemy)
+        .expect("the unit is alive")
+        .melee;
     let mut weakened = false;
     for _ in 0..8 {
         let r = cast(&mut g, &format!("bcast weakness unit:{enemy}"));
         assert!(r.ok, "{}", r.text());
-        if g.battle().unwrap().unit(enemy).unwrap().melee < melee {
+        if g.battle()
+            .expect("a battle is on")
+            .unit(enemy)
+            .expect("the unit is alive")
+            .melee
+            < melee
+        {
             weakened = true;
             break;
         }
@@ -2120,7 +2450,7 @@ fn a_curse_can_be_resisted_and_banish_only_touches_fantastic_creatures() {
     assert!(weakened, "an unresisting unit is weakened soon enough");
     // Mind Storm: no save, but illusion immunity stops it.
     let other = battle_units_of(&g, Side::Defender)[1];
-    g.battle.as_mut().unwrap().battle.units[other]
+    g.battle.as_mut().expect("the value is there").battle.units[other]
         .abilities
         .push("illusion_immunity".into());
     pass_turn(&mut g);
@@ -2135,7 +2465,7 @@ fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
     let mut g = casting_siege(&["shatter", "warp_wood", "warp_creature"]);
     let [a, b] = [0, 1].map(|i| battle_units_of(&g, Side::Defender)[i]);
     {
-        let units = &mut g.battle.as_mut().unwrap().battle.units;
+        let units = &mut g.battle.as_mut().expect("the value is there").battle.units;
         units[a].resistance = 0;
         (units[a].melee, units[a].ranged, units[a].ranged_kind) = (5, 3, RangedKind::Missile);
         units[a].ammo = 4;
@@ -2145,7 +2475,14 @@ fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
     // Warp Wood takes the arrows, and refuses a unit that has none left.
     let r = cast(&mut g, &format!("bcast warp wood unit:{a}"));
     assert!(r.ok, "{}", r.text());
-    assert_eq!(g.battle().unwrap().unit(a).unwrap().ammo, 0);
+    assert_eq!(
+        g.battle()
+            .expect("a battle is on")
+            .unit(a)
+            .expect("the unit is alive")
+            .ammo,
+        0
+    );
     pass_turn(&mut g);
     assert!(!cast(&mut g, &format!("bcast warp wood unit:{a}")).ok);
     // Shatter: attacks drop to one, though the unit gets a resistance roll.
@@ -2153,7 +2490,11 @@ fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
     for _ in 0..8 {
         let r = cast(&mut g, &format!("bcast shatter unit:{a}"));
         assert!(r.ok, "{}", r.text());
-        let u = g.battle().unwrap().unit(a).unwrap();
+        let u = g
+            .battle()
+            .expect("a battle is on")
+            .unit(a)
+            .expect("the unit is alive");
         if u.melee == 1 {
             assert_eq!(u.ranged, 1);
             shattered = true;
@@ -2164,7 +2505,11 @@ fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
     assert!(shattered, "an unresisting unit is shattered soon enough");
     // Warp Creature: one of three harms, once.
     let (melee, defense, resistance) = {
-        let u = g.battle().unwrap().unit(b).unwrap();
+        let u = g
+            .battle()
+            .expect("a battle is on")
+            .unit(b)
+            .expect("the unit is alive");
         (u.melee, u.defense, u.resistance)
     };
     let mut warped = false;
@@ -2172,7 +2517,11 @@ fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
         pass_turn(&mut g);
         let r = cast(&mut g, &format!("bcast warp creature unit:{b}"));
         assert!(r.ok, "{}", r.text());
-        let u = g.battle().unwrap().unit(b).unwrap();
+        let u = g
+            .battle()
+            .expect("a battle is on")
+            .unit(b)
+            .expect("the unit is alive");
         if u.melee < melee || u.defense < defense {
             warped = true;
             break;
@@ -2203,7 +2552,7 @@ fn creature_binding_and_possession_turn_a_unit_for_the_battle() {
         let units = battle_units_of(&g, Side::Defender);
         let (a, b) = (units[0], units[1]);
         {
-            let units = &mut g.battle.as_mut().unwrap().battle.units;
+            let units = &mut g.battle.as_mut().expect("the value is there").battle.units;
             units[a].resistance = 0;
             units[b].resistance = 0;
             (units[a].realm, units[b].realm) = (None, Some(Realm::Chaos));
@@ -2216,7 +2565,11 @@ fn creature_binding_and_possession_turn_a_unit_for_the_battle() {
         for _ in 0..12 {
             let r = cast(&mut g, &format!("bcast {name} unit:{target}"));
             assert!(r.ok, "{}", r.text());
-            let u = g.battle().unwrap().unit(target).unwrap();
+            let u = g
+                .battle()
+                .expect("a battle is on")
+                .unit(target)
+                .expect("the unit is alive");
             if u.side == Side::Attacker {
                 assert_eq!(u.bound_from, Some(Side::Defender));
                 done = true;
@@ -2226,7 +2579,11 @@ fn creature_binding_and_possession_turn_a_unit_for_the_battle() {
         }
         assert!(done, "{spell}: a unit with no resistance turns soon enough");
         assert_eq!(
-            g.battle().unwrap().unit(spared).unwrap().side,
+            g.battle()
+                .expect("a battle is on")
+                .unit(spared)
+                .expect("the unit is alive")
+                .side,
             Side::Defender
         );
     }
@@ -2243,7 +2600,12 @@ fn call_chaos_and_invisibility_cast_and_the_spell_list_offers_them() {
     );
     let mine = battle_units_of(&g, Side::Attacker)[0];
     assert!(cast(&mut g, &format!("bcast invisiblity unit:{mine}")).ok);
-    assert!(g.battle().unwrap().unit(mine).unwrap().is_invisible());
+    assert!(g
+        .battle()
+        .expect("a battle is on")
+        .unit(mine)
+        .expect("the unit is alive")
+        .is_invisible());
     pass_turn(&mut g);
     let r = cast(&mut g, "bcast call chaos");
     assert!(r.ok, "{}", r.text());
@@ -2347,29 +2709,38 @@ fn gifts_move_gold_and_spells() {
     let (mut g, mut c) = (game(), console());
     let other = meet_all(&mut g)[0];
     let w = other.0;
-    let before = g.player(HUMAN).unwrap().treasury().gold;
+    let before = g.player(HUMAN).expect("the player exists").treasury().gold;
     let r = c.execute(&mut g, &format!("givegold {w} 10"));
     assert!(r.ok, "{}", r.text());
-    assert_eq!(g.player(HUMAN).unwrap().treasury().gold, before - 10);
+    assert_eq!(
+        g.player(HUMAN).expect("the player exists").treasury().gold,
+        before - 10
+    );
     let broke = c.execute(&mut g, &format!("givegold {w} 99999"));
     assert!(broke.text().contains("not enough gold"), "{}", broke.text());
     let unknown = c.execute(&mut g, &format!("givespell {w} no-such-spell"));
     assert!(!unknown.ok);
-    let me = g.wizard(HUMAN).unwrap().known().into_iter().next().unwrap();
+    let me = g
+        .wizard(HUMAN)
+        .expect("the player is a wizard")
+        .known()
+        .into_iter()
+        .next()
+        .expect("there is one");
     g.wizard_mut(other)
-        .unwrap()
+        .expect("the player is a wizard")
         .get_mut::<f4x_core::wizard::sheet::KnownSpells>()
         .known
         .remove(&me);
     let name = g.content().rules.spells.get(me).id.clone();
     let spell = c.execute(&mut g, &format!("givespell {w} {name}"));
     assert!(spell.ok, "{}", spell.text());
-    assert!(g.wizard(other).unwrap().knows(me));
+    assert!(g.wizard(other).expect("the player is a wizard").knows(me));
 }
 
 #[test]
 fn the_talk_commands_are_legal_ones_and_diplomacy_a_query() {
-    let kind = |name: &str| crate::find(name).unwrap().kind;
+    let kind = |name: &str| crate::find(name).expect("the command exists").kind;
     assert_eq!(kind("diplomacy"), Kind::Query);
     for name in [
         "propose",
@@ -2397,14 +2768,14 @@ fn every_wizard_of_a_new_game_has_a_picture_of_its_own() {
         .into_iter()
         .filter(|id| !g.is_neutral_player(*id))
     {
-        let portrait = g.player(id).unwrap().portrait();
+        let portrait = g.player(id).expect("the player exists").portrait();
         assert!(portrait < f4x_core::player::PORTRAITS);
         assert!(seen.insert(portrait), "picture {portrait} twice");
     }
 }
 
 #[test]
-fn the_legal_casts_are_the_casts_the_game_accepts() {
+fn the_legal_casts_are_the_casts_the_game_accepts() -> TestResult {
     use f4x_core::battle::{BattleCommand, Side};
     let spells = [
         "fire_bolt",
@@ -2430,7 +2801,7 @@ fn the_legal_casts_are_the_casts_the_game_accepts() {
         assert!(!lc.aims.is_empty(), "{def}");
         assert!(lc.least_mana <= lc.most_mana, "{def}");
         // The first and last aim, at the least and the most mana, are accepted.
-        let picks = [lc.aims[0], *lc.aims.last().unwrap()];
+        let picks = [lc.aims[0], *lc.aims.last().expect("there is one")];
         for aim in picks {
             for mana in [0, lc.most_mana] {
                 let mut fresh = casting_siege(&known);
@@ -2454,7 +2825,12 @@ fn the_legal_casts_are_the_casts_the_game_accepts() {
         }
     }
     // An aim that is not listed is refused: a bolt at one's own unit.
-    let bolt = g.content().rules.spells.id_of("fire_bolt").unwrap();
+    let bolt = g
+        .content()
+        .rules
+        .spells
+        .id_of("fire_bolt")
+        .expect("the shipped content has it");
     let listed = legal.iter().find(|l| l.spell == bolt).expect("fire bolt");
     assert!(listed.aims.iter().all(|a| match a {
         f4x_core::battle::SpellAim::Unit(u) => enemy.contains(u),
@@ -2475,8 +2851,9 @@ fn the_legal_casts_are_the_casts_the_game_accepts() {
         aim: f4x_core::battle::SpellAim::Unit(enemy[0]),
         mana: 0,
     })
-    .unwrap();
+    .map_err(|e| format!("{e:?}"))?;
     assert!(g.legal_battle_casts().is_empty());
+    Ok(())
 }
 
 #[test]
@@ -2485,10 +2862,10 @@ fn healing_does_not_work_on_a_death_creature() {
     let mut g = casting_siege(&["healing"]);
     let own = battle_units_of(&g, Side::Attacker)[0];
     // A wounded living unit can be healed; the same unit as a death creature cannot.
-    g.battle.as_mut().unwrap().battle.units[own].realm = Some(Realm::Death);
+    g.battle.as_mut().expect("the value is there").battle.units[own].realm = Some(Realm::Death);
     let r = cast(&mut g, &format!("bcast healing unit:{own}"));
     assert!(!r.ok, "{}", r.text());
-    g.battle.as_mut().unwrap().battle.units[own].realm = None;
+    g.battle.as_mut().expect("the value is there").battle.units[own].realm = None;
     let r = cast(&mut g, &format!("bcast healing unit:{own}"));
     assert!(r.ok, "{}", r.text());
 }
@@ -2532,7 +2909,7 @@ fn blegal_lists_what_the_game_allows_and_the_listed_orders_work() {
 
 /// Strike one of the human side's units down by the given kinds of damage.
 fn fell(g: &mut Game, id: usize, kinds: [i32; 3]) {
-    let u = &mut g.battle.as_mut().unwrap().battle.units[id];
+    let u = &mut g.battle.as_mut().expect("the value is there").battle.units[id];
     u.figures = 0;
     u.status = f4x_core::battle::Status::Dead;
     u.damage_kinds = kinds;
@@ -2554,14 +2931,15 @@ fn animate_dead_raises_a_fallen_unit_of_the_wizard_as_undead() {
     assert!(!cast(&mut g, &format!("bcast animate dead unit:{enemy}")).ok);
     let r = cast(&mut g, &format!("bcast animate dead unit:{fallen}"));
     assert!(r.ok, "{}", r.text());
-    let b = g.battle().unwrap();
-    let u = b.unit(fallen).unwrap();
+    let b = g.battle().expect("a battle is on");
+    let u = b.unit(fallen).expect("the unit is alive");
     assert_eq!(u.status, Status::Active);
     assert_eq!(u.figures, u.figures_start);
     assert!(u.undead && u.realm == Some(f4x_core::battle::immunity::Realm::Death));
     assert!(u.has("death_immunity") && u.has("cold_immunity"));
     assert_eq!(u.side, Side::Attacker);
-    let entity = g.battle.as_ref().unwrap().sources[u.source.unwrap()];
+    let entity = g.battle.as_ref().expect("the value is there").sources
+        [u.source.expect("the fighter has a source")];
     assert!(g.units().unit_is_undead(entity), "undead for good");
 }
 
@@ -2573,18 +2951,27 @@ fn raise_dead_brings_a_fallen_normal_unit_back_with_half_its_figures() {
     let mine = battle_units_of(&g, Side::Attacker);
     let (fallen, fantastic) = (mine[0], mine[1]);
     {
-        let b = &mut g.battle.as_mut().unwrap().battle;
+        let b = &mut g.battle.as_mut().expect("the value is there").battle;
         b.units[fallen].enchantments.push("bless".into());
         b.units[fantastic].realm = Some(Realm::Chaos);
     }
-    let start = g.battle().unwrap().unit(fallen).unwrap().figures_start;
+    let start = g
+        .battle()
+        .expect("a battle is on")
+        .unit(fallen)
+        .expect("the unit is alive")
+        .figures_start;
     fell(&mut g, fallen, [4, 0, 0]);
     fell(&mut g, fantastic, [4, 0, 0]);
     // Fantastic creatures go home when slain; destroyed units cannot return.
     assert!(!cast(&mut g, &format!("bcast raise dead unit:{fantastic}")).ok);
     let r = cast(&mut g, &format!("bcast raise dead unit:{fallen}"));
     assert!(r.ok, "{}", r.text());
-    let u = g.battle().unwrap().unit(fallen).unwrap();
+    let u = g
+        .battle()
+        .expect("a battle is on")
+        .unit(fallen)
+        .expect("the unit is alive");
     assert_eq!((u.status, u.side), (Status::Active, Side::Attacker));
     assert_eq!(u.figures, start.div_ceil(2), "half, rounded up");
     assert!(!u.undead && !u.enchantments.iter().any(|e| e == "bless"));
@@ -2614,14 +3001,19 @@ fn the_units_drained_to_death_join_the_winner_as_undead() {
     let mine = battle_units_of(&g, Side::Attacker);
     let (drained, slain) = (mine[0], mine[1]);
     let entity_of = |g: &Game, id: usize| {
-        let b = g.battle.as_ref().unwrap();
-        b.sources[b.battle.unit(id).unwrap().source.unwrap()]
+        let b = g.battle.as_ref().expect("the value is there");
+        b.sources[b
+            .battle
+            .unit(id)
+            .expect("the unit is alive")
+            .source
+            .expect("the fighter has a source")]
     };
     let (drained_unit, slain_unit) = (entity_of(&g, drained), entity_of(&g, slain));
     for &id in &mine {
         fell(&mut g, id, [3, 0, 0]);
     }
-    g.battle.as_mut().unwrap().battle.units[drained].damage_kinds = [1, 4, 0];
+    g.battle.as_mut().expect("the value is there").battle.units[drained].damage_kinds = [1, 4, 0];
     let rival = PlayerId(1);
     let r = g.apply(f4x_core::game::Command::Battle(BattleCommand::EndTurn));
     assert!(
@@ -2640,12 +3032,22 @@ fn the_regeneration_spell_heals_a_hit_each_turn_in_battle() {
     use f4x_core::battle::Side;
     let mut g = casting_siege(&["regeneration"]);
     let mine = battle_units_of(&g, Side::Attacker)[0];
-    g.battle.as_mut().unwrap().battle.units[mine].front_damage = 1;
+    g.battle.as_mut().expect("the value is there").battle.units[mine].front_damage = 1;
     let r = cast(&mut g, &format!("bcast regeneration unit:{mine}"));
     assert!(r.ok, "{}", r.text());
-    let before = g.battle().unwrap().unit(mine).unwrap().hit_points();
+    let before = g
+        .battle()
+        .expect("a battle is on")
+        .unit(mine)
+        .expect("the unit is alive")
+        .hit_points();
     pass_turn(&mut g);
-    let after = g.battle().unwrap().unit(mine).unwrap().hit_points();
+    let after = g
+        .battle()
+        .expect("a battle is on")
+        .unit(mine)
+        .expect("the unit is alive")
+        .hit_points();
     assert_eq!(after, before + 1);
 }
 
@@ -2653,7 +3055,12 @@ fn the_regeneration_spell_heals_a_hit_each_turn_in_battle() {
 fn eligibility_two_and_three_spells_are_battle_spells_and_dear_on_the_map() {
     let g = casting_siege(&["flight", "wall_of_stone", "giant_strength", "ice_bolt"]);
     let cost = |name: &str, in_battle: bool| {
-        let id = g.content().rules.spells.id_of(name).unwrap();
+        let id = g
+            .content()
+            .rules
+            .spells
+            .id_of(name)
+            .expect("the shipped content has it");
         (
             g.content().rules.spells.get(id).cost as i32,
             g.casting_cost(HUMAN, id, in_battle),
@@ -2675,24 +3082,28 @@ fn eligibility_two_and_three_spells_are_battle_spells_and_dear_on_the_map() {
         assert_eq!(battle, map, "{name}");
     }
     // Flight can now be cast in a battle.
-    let flight = g.content().rules.spells.id_of("flight").unwrap();
+    let flight = g
+        .content()
+        .rules
+        .spells
+        .id_of("flight")
+        .expect("the shipped content has it");
     assert!(g.battle_spells(HUMAN).iter().any(|s| s.spell == flight));
 }
 
 #[test]
-fn ai_wizards_get_a_personality_and_an_objective_at_the_start() {
+fn ai_wizards_get_a_personality_and_an_objective_at_the_start() -> TestResult {
     let content = content();
     let g = new_game(
-        &content,
+        content,
         &NewGame {
             seed: 11,
             ..NewGame::with_wizards(4)
         },
-    )
-    .unwrap();
-    let human = g.human().unwrap();
+    )?;
+    let human = g.human().expect("the game has a human");
     assert_eq!(
-        g.wizard(human).unwrap().objective(),
+        g.wizard(human).expect("the player is a wizard").objective(),
         None,
         "the human has no objective"
     );
@@ -2702,26 +3113,33 @@ fn ai_wizards_get_a_personality_and_an_objective_at_the_start() {
         .filter(|id| !g.is_neutral_player(*id) && *id != human)
     {
         assert!(
-            g.wizard(id).unwrap().objective().is_some(),
+            g.wizard(id)
+                .expect("the player is a wizard")
+                .objective()
+                .is_some(),
             "{} has an objective",
-            g.player(id).unwrap().name()
+            g.player(id).expect("the player exists").name()
         );
     }
-    let back = g.snapshot().restore(content).unwrap();
+    let back = g.snapshot().restore(content.clone())?;
     for id in g
         .player_ids()
         .into_iter()
         .filter(|id| !g.is_neutral_player(*id))
     {
-        let (b, w) = (back.wizard(id).unwrap(), g.wizard(id).unwrap());
+        let (b, w) = (
+            back.wizard(id).expect("the player is a wizard"),
+            g.wizard(id).expect("the player is a wizard"),
+        );
         assert_eq!(b.objective(), w.objective());
         assert_eq!(b.personality(), w.personality());
     }
+    Ok(())
 }
 
 #[test]
-fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() {
-    let mut content = content();
+fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() -> TestResult {
+    let mut content = content().clone();
     // The fallback is for a rule set with no ready-made wizards.
     content.rules.wizards = f4x_core::rules::Registry::new(Vec::new());
     let names = |seed: u64| -> Vec<String> {
@@ -2732,11 +3150,13 @@ fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() {
                 ..NewGame::with_wizards(5)
             },
         )
-        .unwrap();
+        .expect("the seed starts a game");
         g.player_ids()
             .into_iter()
-            .filter(|id| !g.is_neutral_player(*id) && *id != g.human().unwrap())
-            .map(|id| g.player(id).unwrap().name())
+            .filter(|id| {
+                !g.is_neutral_player(*id) && *id != g.human().expect("the game has a human")
+            })
+            .map(|id| g.player(id).expect("the player exists").name())
             .collect()
     };
     let lists = &content.rules.wizard_names;
@@ -2758,26 +3178,32 @@ fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() {
         seen.len() > 3,
         "the first rival's name varies with the seed: {seen:?}"
     );
+    Ok(())
 }
 
 #[test]
-fn recall_hero_takes_a_hero_off_the_field_to_the_summoning_circle() {
+fn recall_hero_takes_a_hero_off_the_field_to_the_summoning_circle() -> TestResult {
     use f4x_core::battle::{Side, Status};
     let (mut g, city) = siege_world(6, &[]);
     arm_human(&mut g, &["recall_hero"]);
     let home = g.summon_point(HUMAN).expect("the wizard has a circle");
-    let hero = g.spawn_hero(HUMAN, home, 0).unwrap();
+    let hero = g.spawn_hero(HUMAN, home, 0).map_err(|e| format!("{e:?}"))?;
     start_siege(&mut g, city);
     let mine = battle_units_of(&g, Side::Attacker);
     let source_of = |g: &Game, id: usize| {
-        let b = g.battle.as_ref().unwrap();
-        b.sources[b.battle.unit(id).unwrap().source.unwrap()]
+        let b = g.battle.as_ref().expect("the value is there");
+        b.sources[b
+            .battle
+            .unit(id)
+            .expect("the unit is alive")
+            .source
+            .expect("the fighter has a source")]
     };
     let hero_id = *mine
         .iter()
         .find(|&&id| source_of(&g, id) == hero)
         .expect("the hero fights");
-    let other = *mine.iter().find(|&&id| id != hero_id).unwrap();
+    let other = *mine.iter().find(|&&id| id != hero_id).expect("it is there");
     // Only a hero of the wizard's own can be recalled.
     assert!(!cast(&mut g, &format!("bcast recall hero unit:{other}")).ok);
     let enemy = battle_units_of(&g, Side::Defender)[0];
@@ -2785,7 +3211,11 @@ fn recall_hero_takes_a_hero_off_the_field_to_the_summoning_circle() {
     let r = cast(&mut g, &format!("bcast recall hero unit:{hero_id}"));
     assert!(r.ok, "{}", r.text());
     assert_eq!(
-        g.battle().unwrap().unit(hero_id).unwrap().status,
+        g.battle()
+            .expect("a battle is on")
+            .unit(hero_id)
+            .expect("the unit is alive")
+            .status,
         Status::Recalled
     );
     // The rest of the army gives up: the hero is not among those who flee and risk their lives.
@@ -2798,6 +3228,7 @@ fn recall_hero_takes_a_hero_off_the_field_to_the_summoning_circle() {
         Some(home),
         "a recalled hero is not lost"
     );
+    Ok(())
 }
 
 #[test]
@@ -2805,7 +3236,9 @@ fn an_offer_can_be_listed_and_taken_by_number() {
     let (mut g, mut c) = (game(), console());
     assert!(c.execute(&mut g, "offers").text().contains("no offers"));
     g.add_fame(HUMAN, 100);
-    g.treasury_mut(HUMAN).unwrap().gold += 5000;
+    g.treasury_mut(HUMAN)
+        .expect("the player has a treasury")
+        .gold += 5000;
     let made = g.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero);
     assert!(made.is_some());
     let listed = c.execute(&mut g, "offers");
@@ -2828,7 +3261,9 @@ fn an_offer_can_be_listed_and_taken_by_number() {
     assert!(c.execute(&mut g, "reject 0").error.is_some());
     // The merchant's item and a rejection; the item's price is rolled, so there is gold enough
     // for any.
-    g.treasury_mut(HUMAN).unwrap().gold += 50_000;
+    g.treasury_mut(HUMAN)
+        .expect("the player has a treasury")
+        .gold += 50_000;
     assert!(g
         .cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Item)
         .is_some());
@@ -2855,7 +3290,7 @@ fn a_recorded_game_is_played_again_by_text() {
     let (turn, tax) = (
         g.turn,
         g.player_component::<f4x_core::player::Tax>(HUMAN)
-            .unwrap()
+            .expect("the entity has it")
             .0,
     );
     let mut fresh = game();
@@ -2868,7 +3303,7 @@ fn a_recorded_game_is_played_again_by_text() {
             fresh.turn,
             fresh
                 .player_component::<f4x_core::player::Tax>(HUMAN)
-                .unwrap()
+                .expect("the entity has it")
                 .0
         ),
         (turn, tax)
@@ -2883,7 +3318,7 @@ fn a_neutral_city_whose_garrison_is_gone_trains_a_new_one() {
         .into_iter()
         .find(|(_, p)| g.units().units_at(*p).len() >= 2)
         .expect("a garrisoned city");
-    let owner = g.economy().city_owner(city).unwrap();
+    let owner = g.economy().city_owner(city).expect("the city has an owner");
     for u in g.units().units_at(pos) {
         g.apply(f4x_core::game::Command::DismissUnit { unit: u });
     }
@@ -2898,7 +3333,7 @@ fn a_neutral_city_whose_garrison_is_gone_trains_a_new_one() {
 }
 
 #[test]
-fn the_start_gives_the_settings_mana_and_reveals_only_the_start_radius() {
+fn the_start_gives_the_settings_mana_and_reveals_only_the_start_radius() -> TestResult {
     use f4x_core::game::setting::{Radius, Split};
     let known = |radius: f32, mana: i32, diagonal_extra: bool| {
         let mut spec = NewGame::with_wizards(2);
@@ -2906,11 +3341,18 @@ fn the_start_gives_the_settings_mana_and_reveals_only_the_start_radius() {
         spec.settings.basic.diagonal_extra_cost = diagonal_extra;
         spec.settings.world.start_reveal_radius = Radius(radius);
         spec.settings.wizards.starting_mana = Split { human: mana, ai: 7 };
-        let g = new_game(&content(), &spec).unwrap();
-        let human = g.human().unwrap();
-        let ai = g.wizards().into_iter().find(|&w| w != human).unwrap();
-        assert_eq!(g.player(human).unwrap().treasury().mana, mana);
-        assert_eq!(g.player(ai).unwrap().treasury().mana, 7);
+        let g = new_game(content(), &spec).expect("the spec starts a game");
+        let human = g.human().expect("the game has a human");
+        let ai = g
+            .wizards()
+            .into_iter()
+            .find(|&w| w != human)
+            .expect("it is there");
+        assert_eq!(
+            g.player(human).expect("the player exists").treasury().mana,
+            mana
+        );
+        assert_eq!(g.player(ai).expect("the player exists").treasury().mana, 7);
         g.explored_squares(human)
     };
     // With a diagonal step costing extra: a plus of 5, the 3 by 3 block, and the 5 by 5 block
@@ -2921,6 +3363,7 @@ fn the_start_gives_the_settings_mana_and_reveals_only_the_start_radius() {
     // Without it, a diagonal square is as near as a straight one: whole blocks.
     assert_eq!(known(1.0, 0, false), 9);
     assert_eq!(known(2.5, 0, false), 25);
+    Ok(())
 }
 
 fn a_ring() -> f4x_core::item::Item {
@@ -2941,12 +3384,14 @@ fn a_ring() -> f4x_core::item::Item {
 }
 
 #[test]
-fn items_are_listed_equipped_and_scrapped_by_place() {
+fn items_are_listed_equipped_and_scrapped_by_place() -> TestResult {
     let (mut g, mut c) = (game(), console());
     g.add_fame(HUMAN, 100);
-    g.treasury_mut(HUMAN).unwrap().gold += 5000;
+    g.treasury_mut(HUMAN)
+        .expect("the player has a treasury")
+        .gold += 5000;
     g.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero)
-        .unwrap();
+        .ok_or("no hero can be offered")?;
     assert!(c.execute(&mut g, "accept 1 Rex").ok);
     let hero = g.units().hero_units(HUMAN)[0];
     let serial = g.serial_of(hero).0;
@@ -2979,21 +3424,29 @@ fn items_are_listed_equipped_and_scrapped_by_place() {
         c.execute(&mut g, &format!("equip hero:{serial}:3 vault:2"))
             .ok
     );
-    let mana = g.player(HUMAN).unwrap().treasury().mana;
+    let mana = g.player(HUMAN).expect("the player exists").treasury().mana;
     assert!(c.execute(&mut g, "scrap vault:2").ok);
     assert_eq!(
-        g.player(HUMAN).unwrap().treasury().mana,
+        g.player(HUMAN).expect("the player exists").treasury().mana,
         mana + 50,
         "half its value"
     );
+    Ok(())
 }
 
 #[test]
 fn an_item_is_designed_and_cast_from_the_console() {
     let (mut g, mut c) = (game(), console());
-    let spell = g.content().rules.spells.id_of("enchant_item").unwrap();
+    let spell = g
+        .content()
+        .rules
+        .spells
+        .id_of("enchant_item")
+        .expect("the shipped content has it");
     g.cheat_learn_spell(HUMAN, spell);
-    g.treasury_mut(HUMAN).unwrap().mana += 5000;
+    g.treasury_mut(HUMAN)
+        .expect("the player has a treasury")
+        .mana += 5000;
     // No power, a power the kind cannot have, and the wrong spell name are refused.
     assert!(!c.execute(&mut g, "craft enchant misc -").ok);
     assert!(!c.execute(&mut g, "craft enchant misc attack_6").ok);
@@ -3004,38 +3457,56 @@ fn an_item_is_designed_and_cast_from_the_console() {
     let made = c.execute(&mut g, "craft enchant misc defense_1 Ring of Test");
     assert!(made.ok, "{}", made.text());
     assert!(
-        g.wizard(HUMAN).unwrap().casting().is_some() || !g.items().armory(HUMAN).vault.is_empty(),
+        g.wizard(HUMAN)
+            .expect("the player is a wizard")
+            .casting()
+            .is_some()
+            || !g.items().armory(HUMAN).vault.is_empty(),
         "the spell is being cast or the item is made"
     );
 }
 
 #[test]
-fn a_dead_hero_is_listed_and_raised_from_the_console() {
+fn a_dead_hero_is_listed_and_raised_from_the_console() -> TestResult {
     let (mut g, mut c) = (game(), console());
     g.add_fame(HUMAN, 100);
-    g.treasury_mut(HUMAN).unwrap().gold += 5000;
+    g.treasury_mut(HUMAN)
+        .expect("the player has a treasury")
+        .gold += 5000;
     g.cheat_offer(HUMAN, f4x_core::player::offer::OfferKind::Hero)
-        .unwrap();
+        .ok_or("no hero can be offered")?;
     assert!(c.execute(&mut g, "accept 1 Rex").ok);
     assert!(c.execute(&mut g, "dead").text().contains("no dead heroes"));
     let hero = g.units().hero_units(HUMAN)[0];
     g.cheat_slay_unit(hero);
     let listed = c.execute(&mut g, "dead");
     assert!(listed.text().contains("Rex"), "{}", listed.text());
-    let spell = g.content().rules.spells.id_of("resurrection").unwrap();
+    let spell = g
+        .content()
+        .rules
+        .spells
+        .id_of("resurrection")
+        .expect("the shipped content has it");
     g.cheat_learn_spell(HUMAN, spell);
-    g.treasury_mut(HUMAN).unwrap().mana += 5000;
+    g.treasury_mut(HUMAN)
+        .expect("the player has a treasury")
+        .mana += 5000;
     assert!(c.execute(&mut g, "resurrect Nobody").error.is_some());
     let raised = c.execute(&mut g, "resurrect Rex");
     assert!(raised.ok, "{}", raised.text());
     assert!(
-        g.wizard(HUMAN).unwrap().casting().is_some() || !g.units().hero_units(HUMAN).is_empty(),
+        g.wizard(HUMAN)
+            .expect("the player is a wizard")
+            .casting()
+            .is_some()
+            || !g.units().hero_units(HUMAN).is_empty(),
         "the spell is being cast or the hero is back"
     );
+    Ok(())
 }
 
 #[test]
-fn every_map_size_makes_a_game_with_the_counts_in_proportion() {
+fn every_map_size_makes_a_game_with_the_counts_in_proportion() -> TestResult {
     let content = content();
     let sizes = content.settings.map_sizes.clone();
     assert_eq!(sizes.len(), 4);
@@ -3046,8 +3517,8 @@ fn every_map_size_makes_a_game_with_the_counts_in_proportion() {
             spec.settings.basic.map_width,
             spec.settings.basic.map_height,
         ) = (size.width, size.height);
-        let game = new_game(&content, &spec).unwrap();
-        let map = game.map().unwrap();
+        let game = new_game(content, &spec)?;
+        let map = game.map().expect("the game has a map");
         assert_eq!(
             (map.width(), map.height()),
             (u32::from(size.width), u32::from(size.height))
@@ -3083,9 +3554,10 @@ fn every_map_size_makes_a_game_with_the_counts_in_proportion() {
         );
         assert_eq!(cities.len() as u32, 5 + neutral, "{}", size.name);
         // A save and a load keep the size.
-        let back = game.snapshot().restore(content.clone()).unwrap();
-        assert_eq!(back.map().unwrap().width(), w);
+        let back = game.snapshot().restore(content.clone())?;
+        assert_eq!(back.map().expect("the game has a map").width(), w);
     }
+    Ok(())
 }
 
 #[test]
@@ -3109,9 +3581,9 @@ fn the_new_command_takes_a_map_size() {
     c.execute(&mut game, "new 3 map=huge");
     let r = c.execute(&mut game, "settings");
     assert!(r.text().contains("map 90 by 60 squares"), "{}", r.text());
-    assert_eq!(game.map().unwrap().width(), 90);
+    assert_eq!(game.map().expect("the game has a map").width(), 90);
     c.execute(&mut game, "new 3 map=75x50");
-    assert_eq!(game.map().unwrap().height(), 50);
+    assert_eq!(game.map().expect("the game has a map").height(), 50);
     let r = c.execute(&mut game, "new 3 map=200x200");
     assert!(r.error.is_some());
 }

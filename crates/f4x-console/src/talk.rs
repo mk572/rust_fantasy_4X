@@ -1,4 +1,6 @@
 //! Talking to the other wizards: what is known of them, proposals, answers, gifts, treaties.
+//!
+//! Tests: in `tests.rs`, through the console.
 
 use f4x_core::diplomacy::{relation_key, DiplomacyCommand, DiplomacyError, ProposalKind, Treaty};
 use f4x_core::game::Command;

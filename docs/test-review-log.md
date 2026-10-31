@@ -84,3 +84,18 @@ Reviewed with the same checks as the other crates. 169 tests became 224 (0.1 s).
 
 Not looked at: the screenshot flags (`--shot` and its options) as a whole, and whether the client's string lookups of terrains, features and spells should be numbers (task 418).
 
+
+## crates/f4x-console (31 October 2026)
+
+96 tests (94 in `tests.rs`, 2 in `args.rs`), 1.4 s together; the slowest, at about 1 s each when run alone, play 60 turns or draw five wizards, which is what they test.
+
+| Pass | Status | Notes |
+|---|---|---|
+| shipped content in tests | done | Three tests and `game()` each parsed the content; `content()` parses it once per run (`OnceLock`) and the tests take a reference. Only `rivals_without_ready_made_wizards_draw_a_name_from_their_list` clones it, because it empties the wizard list. No fixtures were hand-built. |
+| `unwrap`/`expect`/`panic!` in tests | done | 281 `unwrap`s. 28 tests return `TestResult` and use `?` (`HeroError`, `MagicError` and `BattleError` have no `Error` impl, so they go through `map_err`); `Option` lookups are `expect` with a reason. The `panic!` in `arm_human` is an `expect`. |
+| outdated test | done | `only_known_battle_spells_with_effects_can_be_cast` said Warp Wood is "not yet in the game" and asserted only `!ok`. The core has Warp Wood; it was refused because the target has no missile. The test (renamed `a_battle_spell_is_refused_for_the_reason_it_cannot_be_cast`) now asserts the reason of each of the three refusals. |
+| comments | done | "(task 152)" and "(task 43)" removed; "taken out for now" in the crate doc says what is true. |
+| `//! Tests:` lines | done | All eight source files have one; `setup.rs` only re-exports the core setup. |
+| `args.rs` tests | done | Return `TestResult`; the error cases assert `ConsoleError::Parse`, not `is_err()`. |
+
+Not looked at: `tests.rs` is one file of 3400 lines for the whole crate; splitting it per command module (query, legal, talk, meta) would make a failing test easier to find.

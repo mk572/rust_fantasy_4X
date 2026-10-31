@@ -1,5 +1,7 @@
 //! Splitting a line into words and reading the things commands take: positions, unit
 //! lists, targets and definitions by id or name.
+//!
+//! Tests: below for the word and position reading; the rest in `tests.rs`.
 
 use f4x_core::game::serial::Serial;
 use f4x_core::map::{Plane, Position};
@@ -284,26 +286,33 @@ pub fn parse_item_spot(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::testdir::TestResult;
 
     #[test]
-    fn words_split_on_spaces_and_quotes() {
+    fn words_split_on_spaces_and_quotes() -> TestResult {
         assert_eq!(
-            tokenize(r#"found 12 "New York" x"#).unwrap(),
+            tokenize(r#"found 12 "New York" x"#)?,
             ["found", "12", "New York", "x"]
         );
-        assert!(tokenize(r#"say "oops"#).is_err());
-        assert!(tokenize("   ").unwrap().is_empty());
+        assert!(matches!(
+            tokenize(r#"say "oops"#),
+            Err(ConsoleError::Parse(_))
+        ));
+        assert!(tokenize("   ")?.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn positions_take_an_optional_plane() {
-        let p = parse_pos("4,5,m", Plane::Arcanus).unwrap();
+    fn positions_take_an_optional_plane() -> TestResult {
+        let p = parse_pos("4,5,m", Plane::Arcanus)?;
         assert_eq!((p.x, p.y, p.plane), (4, 5, Plane::Myrror));
-        assert_eq!(
-            parse_pos("4,5", Plane::Myrror).unwrap().plane,
-            Plane::Myrror
-        );
-        assert!(parse_pos("4", Plane::Arcanus).is_err());
-        assert!(parse_pos("a,b", Plane::Arcanus).is_err());
+        assert_eq!(parse_pos("4,5", Plane::Myrror)?.plane, Plane::Myrror);
+        for bad in ["4", "a,b"] {
+            assert!(
+                matches!(parse_pos(bad, Plane::Arcanus), Err(ConsoleError::Parse(_))),
+                "{bad}"
+            );
+        }
+        Ok(())
     }
 }

@@ -1,4 +1,6 @@
 //! Commands about the console and the game as a whole: help, mode, save, load, new.
+//!
+//! Tests: in `tests.rs`, through the console.
 
 use std::path::PathBuf;
 

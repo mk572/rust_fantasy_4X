@@ -1,4 +1,6 @@
 //! Words for things: units, cities, positions and events, as the console prints them.
+//!
+//! Tests: in `tests.rs`, through the console.
 
 use f4x_core::city::production::ProductionItem;
 use f4x_core::map::{Plane, Position};

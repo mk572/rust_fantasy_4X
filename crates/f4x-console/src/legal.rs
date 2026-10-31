@@ -1,5 +1,7 @@
 //! Legal commands: what a player may do in normal play, one per action of the client.
 //! They build the same `Command`s the client does and send them through `Game::apply`.
+//!
+//! Tests: in `tests.rs`, through the console.
 
 use f4x_core::battle::BattleCommand;
 use f4x_core::city::production::ProductionItem;
