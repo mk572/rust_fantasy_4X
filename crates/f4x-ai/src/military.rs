@@ -269,7 +269,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
         // A campaign against another wizard's city gives way to one against the wizard casting
         // the Spell of Mastery, when a city of theirs can be reached.
-        if let (Some(c), Some(f)) = (ai.campaign, race::war_target(ai)) {
+        if let (Some(c), Some(f)) = (ai.campaign, race::enemy(ai, &view)) {
             let owner = view.city_at(c).and_then(|e| view.city_owner(e));
             let other = view
                 .known_cities()
@@ -286,7 +286,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 capital,
                 &ai.unreachable,
                 &ai.city_memory,
-                race::war_target(ai),
+                race::enemy(ai, &view),
             ) else {
                 break;
             };

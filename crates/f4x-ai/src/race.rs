@@ -131,6 +131,20 @@ pub(crate) fn war_target(ai: &Ai) -> Option<PlayerId> {
     ai.war_on.or(ai.quarrel)
 }
 
+/// The wizard whose cities the armies go for: the one the plan names, else a wizard it is at
+/// war with (whoever declared the war) that has a city it knows.
+pub(crate) fn enemy(ai: &Ai, view: &PlayerView) -> Option<PlayerId> {
+    war_target(ai).or_else(|| {
+        view.known_cities()
+            .into_iter()
+            .map(|(_, owner, _)| owner)
+            .filter(|&o| {
+                view.is_rival_wizard(o) && view.treaty_with(o) == f4x_core::diplomacy::Treaty::War
+            })
+            .min_by_key(|o| o.0)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

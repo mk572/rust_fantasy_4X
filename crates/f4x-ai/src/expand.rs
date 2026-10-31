@@ -30,6 +30,13 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
 
     for unit in mine {
+        // A settler on a ship's voyage is the ship's to carry (`colony.rs`).
+        if ai
+            .colonists
+            .is_some_and(|(_, s)| s == PlayerView::new(game, me).serial_of(unit))
+        {
+            continue;
+        }
         let (pos, serial) = {
             let view = PlayerView::new(game, me);
             let Some(pos) = view.unit_position(unit) else {

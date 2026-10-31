@@ -83,7 +83,11 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
                 continue;
             }
-            let port = ai.naval.map(|p| p.port).or(ai.sea_port);
+            let port = ai
+                .naval
+                .map(|p| p.port)
+                .or(ai.sea_port)
+                .or(ai.colony.map(|c| c.port));
             let broke = broke(&view);
             // The port of a landing builds the ship (and what the ship needs) when there is none.
             let port_item = (port == Some(pos)
@@ -93,10 +97,19 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .my_units()
                     .iter()
                     .filter(|&&u| crate::view::is_ship(&view, u))
+                    // A landing wants a ship that carries a landing party.
+                    .filter(|&&u| {
+                        (ai.naval.is_none() || ai.colony.is_some())
+                            || view.unit_stat(u, f4x_core::rules::Stat::Transport)
+                                >= crate::naval::MIN_LOAD as i32
+                    })
                     .count()
                     < crate::knob("SHIPS", 1.0) as usize)
-                .then(|| crate::naval::port_item(&view, city))
-                .flatten();
+                .then(|| {
+                    crate::naval::port_item(&view, city, ai.naval.is_some() && ai.colony.is_none())
+                })
+                .flatten()
+                .or_else(|| colonist_item(ai, &view, city, pos, broke));
             (
                 plan_for(
                     &view,
@@ -128,6 +141,35 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
     }
     spend_gold(ai, game, events);
+}
+
+/// The settler a port builds for a voyage by sea once its ship is there: none while one waits in
+/// the port.
+fn colonist_item(
+    ai: &Ai,
+    view: &PlayerView,
+    city: hecs::Entity,
+    pos: Position,
+    broke: bool,
+) -> Option<ProductionItem> {
+    let waiting = view
+        .garrison(pos)
+        .into_iter()
+        .any(|u| view.unit_has_ability(u, "create_outpost"));
+    let ship = view
+        .my_units()
+        .iter()
+        .any(|&u| crate::view::is_ship(view, u));
+    let size = view.city_economy(city).map_or(0, |e| e.figures);
+    (ai.colony.is_some_and(|c| c.port == pos)
+        && ai.colonists.is_none()
+        && ship
+        && !waiting
+        && !broke
+        && size >= 3
+        && spare_food(view) >= 0)
+        .then(|| settler_item(view, city))
+        .flatten()
 }
 
 /// The treasury cannot bear a deficit: net gold (with the gold on hand, spread over a hundred

@@ -406,7 +406,7 @@ mod tests {
         let mut game = new_game(
             shipped(),
             &NewGame {
-                seed: 1,
+                seed: 4,
                 all_ai: true,
                 ..NewGame::with_wizards(2)
             },

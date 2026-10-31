@@ -168,19 +168,26 @@ pub(crate) fn mastery_scare(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// The chance, in a turn, that a fierce militarist or expansionist starts a war (one in this).
 const QUARREL_ONE_IN: u32 = 20;
 
+/// A wizard of any temper goes for a rival that holds at most half its cities, once it holds
+/// this many: the game is won by conquest or by the Spell of Mastery, and a neighbour that small is
+/// not going to be a better target later.
+const DOMINANT_CITIES: usize = 4;
+
 /// A wizard whose objective and temper pick fights declares war, now and then, on the weakest
 /// rival it has met and has no treaty with, if that rival holds fewer cities than it does and
-/// the AI knows one of them to march on (`DIPLOMAC.c`). The armies then go for that wizard's
+/// the AI knows one of them to march on (`DIPLOMAC.c`). Any other wizard does the same only to a
+/// rival with at most half its cities, once it holds [`DOMINANT_CITIES`] (ours). The armies then go for that wizard's
 /// cities first (`race::war_target`).
 pub(crate) fn quarrel(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
-    let (fights, mine, rivals) = {
+    let (can_quarrel, fights, mine, rivals) = {
         let view = PlayerView::new(game, me);
         let Some(w) = view.wizard() else {
             return;
         };
         // A banished wizard starts no talk and no war.
-        let fights = !w.is_banished()
+        let can_quarrel = !w.is_banished();
+        let fights = can_quarrel
             && crate::objective::picks_fights(
                 w.objective(),
                 crate::objective::temper(w.personality(), view.difficulty()),
@@ -194,19 +201,19 @@ pub(crate) fn quarrel(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .map(|p| (p, known.iter().filter(|(_, o, _)| *o == p).count()))
             .filter(|&(_, n)| n > 0)
             .collect();
-        (fights, view.my_cities().len(), rivals)
+        (can_quarrel, fights, view.my_cities().len(), rivals)
     };
     if ai.quarrel.is_some_and(|p| {
         game.player(p).is_none_or(|q| q.is_defeated()) || game.treaty(me, p) != Treaty::War
     }) {
         ai.quarrel = None;
     }
-    if !fights || ai.quarrel.is_some() || game.roll(QUARREL_ONE_IN) != 1 {
+    if !can_quarrel || ai.quarrel.is_some() || game.roll(QUARREL_ONE_IN) != 1 {
         return;
     }
     let Some(&(target, _)) = rivals
         .iter()
-        .filter(|&&(_, n)| n < mine)
+        .filter(|&&(_, n)| n < mine && (fights || (mine >= DOMINANT_CITIES && n * 2 <= mine)))
         .min_by_key(|&&(p, n)| (n, p.0))
     else {
         return;
@@ -810,6 +817,28 @@ mod tests {
             let mut g = rivals(Objective::Militarist, temper)?;
             assert!(!declares_war(&mut g, 400), "{temper:?}");
         }
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_of_any_temper_goes_for_a_neighbour_with_half_its_cities() -> TestResult {
+        use crate::testworld::{at, P0};
+        let mut g = rivals(Objective::Theurgist, Personality::Lawful)?;
+        let race = g.content().rules.races.id_of("high_men");
+        for (i, (x, y)) in [(6, 10), (10, 10)].into_iter().enumerate() {
+            let events = g.apply(Command::FoundCity {
+                owner: P0,
+                pos: at(x, y),
+                name: format!("Extra{i}"),
+                race,
+                population: 5,
+            });
+            assert!(
+                !events.iter().any(|e| matches!(e, Event::Rejected(_))),
+                "{events:?}"
+            );
+        }
+        assert!(declares_war(&mut g, 400));
         Ok(())
     }
 

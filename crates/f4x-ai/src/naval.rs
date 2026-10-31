@@ -14,7 +14,7 @@ use crate::view::{garrison_wanted, is_coastal, is_fighter, is_ship};
 use crate::Ai;
 
 /// Fighters that must stand in the port before a ship sails.
-const MIN_LOAD: usize = 3;
+pub(crate) const MIN_LOAD: usize = 3;
 /// The edge a landing party wants over the garrison it expects, and how many turns it waits
 /// for it before sailing anyway.
 const LANDING_EDGE: f32 = 1.2;
@@ -42,9 +42,9 @@ pub struct Ferry {
 }
 
 /// The ship, or the building towards one, for the port to build: a galley (five units) when it
-/// can, the buildings that lead to one when the race may have them, a trireme (two) when it may
+/// can, a trireme or its guild first when the ship is not for an army (`big` false), the buildings that lead to one when the race may have them, a trireme (two) when it may
 /// not.
-pub fn port_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem> {
+pub fn port_item(view: &PlayerView, city: hecs::Entity, big: bool) -> Option<ProductionItem> {
     let rules = &view.content().rules;
     let unit = |id: &str| {
         rules
@@ -56,6 +56,17 @@ pub fn port_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem
     let building = |id: &str| rules.buildings.id_of(id).map(ProductionItem::Building);
     if let Some(galley) = unit("galley") {
         return Some(galley);
+    }
+    // A ship that only scouts or carries a settler or two is not worth the yard's chain.
+    if !big {
+        if let Some(trireme) = unit("trireme") {
+            return Some(trireme);
+        }
+        if let Some(guild) =
+            building("ship_wrights_guild").filter(|&i| view.can_build(city, i).is_ok())
+        {
+            return Some(guild);
+        }
     }
     let yard = building("ship_yard");
     let yard_possible = yard.is_some_and(|y| {
@@ -284,6 +295,10 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let Some(plan) = ai.naval else {
         return;
     };
+    // The only ship is carrying settlers (`colony.rs`): a landing waits for it.
+    if ai.colony.is_some() {
+        return;
+    }
     // The sea scout has found its enemy: the ship now carries the landing.
     let scouting: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);
@@ -629,6 +644,7 @@ fn sea_scout(ai: &mut Ai, game: &mut Game) {
         .iter()
         .any(|&(_, o, _)| view.is_rival_wizard(o));
     if ai.naval.is_some()
+        || ai.colony.is_some()
         || ai.campaign.is_some()
         || !ai.frontier_closed
         || !nothing_known
@@ -680,7 +696,7 @@ mod tests {
         let view = PlayerView::new(game, P0);
         let city = view.city_at(port())?;
         let rules = &view.content().rules;
-        Some(match port_item(&view, city)? {
+        Some(match port_item(&view, city, true)? {
             ProductionItem::Building(b) => rules.buildings.get(b).id.clone(),
             ProductionItem::Unit(u) => rules.units.get(u).id.clone(),
             other => format!("{other:?}"),
@@ -720,7 +736,7 @@ mod tests {
         );
         let view = PlayerView::new(&g, P0);
         let city = view.city_at(inland).ok_or("the city is there")?;
-        assert_eq!(port_item(&view, city), None);
+        assert_eq!(port_item(&view, city, true), None);
         Ok(())
     }
 

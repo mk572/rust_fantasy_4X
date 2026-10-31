@@ -8,6 +8,7 @@
 //! Tests: in the modules (each decision has its own file and tests); `tests/it/` has the rules of
 //! the ships and the slow whole-game behaviour tests (ignored by default).
 
+mod colony;
 mod diplomacy;
 mod economy;
 mod expand;
@@ -87,6 +88,13 @@ pub struct Ai {
     sea_party: Vec<Serial>,
     /// The scout on its way to an open tower, to change plane (`scout.rs`).
     planar: Option<Serial>,
+    /// Settlers by sea (`colony.rs`): the voyage planned, the ship and settler on it and the turn
+    /// they set out, landings that failed, and the turn the search is made again.
+    colony: Option<colony::Colony>,
+    colonists: Option<(Serial, Serial)>,
+    colony_since: u32,
+    colony_bad: Vec<Position>,
+    colony_retry: u32,
     /// Own cities with a stack of a wizard at war near and too few defenders, this turn.
     threatened: Vec<Position>,
     /// The strength last seen in each enemy city and the turn it was seen.
@@ -147,6 +155,11 @@ impl Ai {
             sea_done: false,
             sea_party: Vec::new(),
             planar: None,
+            colony: None,
+            colonists: None,
+            colony_since: 0,
+            colony_bad: Vec::new(),
+            colony_retry: 0,
             city_memory: HashMap::new(),
             threatened: Vec::new(),
             unreachable: Vec::new(),
@@ -244,6 +257,7 @@ impl Ai {
             site::run(self, game, &mut events);
             military::army(self, game, &mut events);
             naval::run(self, game, &mut events);
+            colony::run(self, game, &mut events);
         }
         raze::run(self, game, &mut events);
         economy::cities(self, game, &mut events);

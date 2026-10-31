@@ -63,3 +63,8 @@ Non-obvious findings about this code base. General lessons (shell, tools) are in
 - **`scripts/fork_ai.py` must give the copy new mtimes** (it does since 30 October 2026, `copy_function=shutil.copy`):
   with `copytree`'s preserved mtimes cargo keeps the old build of `f4x-ai-ref` and `soak-versus` plays a stale
   reference. Check a new reference with a null test (reference = identical copy gives identical columns).
+- **A rebellion makes a city independent without any event in an all-AI game.** `EventKind::Rebellion` calls
+  `make_city_neutral`, and the notice is only pushed when a human exists or hears of it (`play_event`), so the
+  soak's tally cannot count the loss and `founded_cities_account_for_the_cities_a_wizard_ends_with` fails on a
+  seed where one happens. The test pins seed 4, where none does; a different random stream (any AI change
+  that rolls the dice more or less often) may need another seed.
