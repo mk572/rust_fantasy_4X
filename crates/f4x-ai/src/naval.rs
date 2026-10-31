@@ -138,6 +138,66 @@ fn landing(view: &PlayerView, city: Position) -> Option<(Position, Position)> {
     None
 }
 
+/// Whether the plan's target is a tower, not a city.
+fn is_tower(view: &PlayerView, target: Position) -> bool {
+    view.city_at(target).is_none() && view.towers().iter().any(|&(p, _)| p == target)
+}
+
+/// A plan against the nearest guarded tower that cannot be reached on foot, when the way to the
+/// other plane is what the wizard lacks: no rival is known and the ground across the tower is
+/// unexplored.
+fn choose_tower_plan(ai: &Ai, view: &PlayerView, coastal: &[Position]) -> Option<Plan> {
+    let nothing_known = !view
+        .known_cities()
+        .iter()
+        .any(|&(_, o, _)| view.is_rival_wizard(o));
+    if !nothing_known {
+        return None;
+    }
+    let mut towers: Vec<Position> = view
+        .towers()
+        .into_iter()
+        .filter(|&(p, intact)| {
+            intact && !ai.naval_bad.contains(&p) && crate::scout::worth_crossing(view, p)
+        })
+        .map(|(p, _)| p)
+        .collect();
+    towers.sort_by_key(|p| (p.plane as u8, p.y, p.x));
+    for target in towers {
+        // A tower a soldier can walk to is cleared on foot.
+        let walkable = view.my_cities().into_iter().any(|(_, city)| {
+            view.garrison(city)
+                .into_iter()
+                .find(|&u| is_fighter(view, u))
+                .is_some_and(|u| {
+                    crate::neutral::around(view, target)
+                        .into_iter()
+                        .any(|p| view.hostile_at(p).is_none() && view.can_reach(&[u], p))
+                })
+        });
+        if walkable {
+            continue;
+        }
+        let Some((land, sea)) = landing(view, target) else {
+            continue;
+        };
+        let port = coastal
+            .iter()
+            .copied()
+            .filter(|p| p.plane == sea.plane)
+            .min_by_key(|&p| (view.distance(p, sea).unwrap_or(u32::MAX), p.y, p.x));
+        if let Some(port) = port {
+            return Some(Plan {
+                target,
+                land,
+                sea,
+                port,
+            });
+        }
+    }
+    None
+}
+
 /// A plan against the nearest enemy city that cannot be reached on foot.
 fn choose_plan(ai: &Ai, view: &PlayerView) -> Option<Plan> {
     // Real cities only: an outpost builds nothing but housing.
@@ -191,7 +251,7 @@ fn choose_plan(ai: &Ai, view: &PlayerView) -> Option<Plan> {
             });
         }
     }
-    None
+    choose_tower_plan(ai, view, &coastal)
 }
 
 /// Plan, build, load, sail, land.
@@ -201,10 +261,15 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     {
         let view = PlayerView::new(game, me);
         if let Some(plan) = ai.naval {
-            let enemy = view
-                .city_at(plan.target)
-                .and_then(|c| view.city_owner(c))
-                .is_some_and(|o| o != me);
+            let enemy = if is_tower(&view, plan.target) {
+                view.towers()
+                    .iter()
+                    .any(|&(p, intact)| p == plan.target && intact)
+            } else {
+                view.city_at(plan.target)
+                    .and_then(|c| view.city_owner(c))
+                    .is_some_and(|o| o != me)
+            };
             let port = view.city_at(plan.port).and_then(|c| view.city_owner(c)) == Some(me);
             if !enemy || !port {
                 ai.naval = None;
@@ -233,6 +298,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             scouting.iter().map(|&s| view.serial_of(s)).collect()
         };
         ai.scouts.retain(|s| !serials.contains(s));
+        ai.sea_party.clear();
         ai.send(game, Command::ClearOrders { units: scouting }, events);
     }
     let (ships, ship_here, serial_ship) = {
@@ -314,8 +380,11 @@ fn load_and_sail(
     {
         let view = PlayerView::new(game, me);
         let strength = crate::view::stack_strength(&view, &group);
-        let expected =
-            crate::military::expected_defence(&view, &ai.city_memory, game.turn, plan.target);
+        let expected = if is_tower(&view, plan.target) {
+            crate::site::expected(&view, plan.target)
+        } else {
+            crate::military::expected_defence(&view, &ai.city_memory, game.turn, plan.target)
+        };
         if strength * LANDING_EDGE < expected {
             ai.naval_wait += 1;
             if ai.naval_wait < WAIT_TURNS {
@@ -324,7 +393,9 @@ fn load_and_sail(
         }
         ai.naval_wait = 0;
     }
-    if !declare_war_on_target(ai, game, plan, events) {
+    if !is_tower(&PlayerView::new(game, me), plan.target)
+        && !declare_war_on_target(ai, game, plan, events)
+    {
         ai.naval_bad.push(plan.target);
         ai.naval = None;
         return;
@@ -420,6 +491,21 @@ fn voyage(
         return;
     };
     if !ferry.group.is_empty() {
+        // Soldiers left behind on the way (a stop in a city) cannot be put ashore: the voyage is
+        // given up and the target with it.
+        let aboard = {
+            let view = PlayerView::new(game, me);
+            group
+                .iter()
+                .filter(|&&u| view.unit_position(u) == Some(at))
+                .count()
+        };
+        if aboard == 0 && !group.is_empty() {
+            ai.naval_bad.push(plan.target);
+            ai.naval = None;
+            ai.ferry = None;
+            return;
+        }
         if at == plan.sea {
             // Step ashore: onto the planned square, else any land square next to both the ship and
             // the city.
@@ -455,6 +541,10 @@ fn voyage(
                 if !landed {
                     return;
                 }
+            }
+            // Soldiers put ashore at a tower go on to clear it.
+            if is_tower(&PlayerView::new(game, me), plan.target) {
+                ai.raiders.extend(ferry.group.iter().copied());
             }
             if let Some(f) = ai.ferry.as_mut() {
                 f.group.clear();
@@ -570,7 +660,9 @@ fn sea_scout(ai: &mut Ai, game: &mut Game) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, build, game, spawn, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0, P1};
+    use crate::testworld::{
+        at, build, game, spawn, spawn_tower, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0, P1,
+    };
     use f4x_core::map::terrain::TerrainClass;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -782,6 +874,51 @@ mod tests {
         ));
         assert_eq!(bound.treaty(P0, P1), Treaty::Pact);
         Ok(())
+    }
+
+    #[test]
+    fn a_guarded_tower_across_the_sea_is_a_target_while_no_rival_is_known() -> TestResult {
+        let mut g = game(COAST_CITY, "high_men");
+        let tower = at(33, 9);
+        spawn_tower(&mut g, tower, true)?;
+        g.explore(P0, tower, 5);
+        let ai = Ai::new(P0);
+        let plan = choose_plan(&ai, &PlayerView::new(&g, P0)).ok_or("a plan for the tower")?;
+        assert_eq!(plan.target, tower);
+        assert_eq!(plan.port, port());
+        // Once its ground across is explored, it is not worth the trip.
+        for plane in f4x_core::map::Plane::ALL {
+            g.explore(P0, Position { plane, ..tower }, 5);
+        }
+        g.reveal_map(P0);
+        assert_eq!(choose_plan(&ai, &PlayerView::new(&g, P0)), None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_voyage_whose_soldiers_were_left_behind_is_given_up() {
+        let mut g = game(COAST_CITY, "high_men");
+        let sea = at(12, 6);
+        let ship = spawn(&mut g, P0, sea, "galley", 1)[0];
+        let left = spawn(&mut g, P0, port(), "high_men_spearmen", 1)[0];
+        let view = PlayerView::new(&g, P0);
+        let ferry = Ferry {
+            ship: view.serial_of(ship),
+            group: vec![view.serial_of(left)],
+        };
+        let plan = Plan {
+            target: enemy(),
+            land: at(ENEMY_CITY.0 - 1, ENEMY_CITY.1),
+            sea,
+            port: port(),
+        };
+        let mut ai = Ai::new(P0);
+        ai.naval = Some(plan);
+        ai.ferry = Some(ferry.clone());
+        voyage(&mut ai, &mut g, plan, ferry, ship, &mut Vec::new());
+        assert_eq!(ai.naval, None);
+        assert!(ai.ferry.is_none());
+        assert!(ai.naval_bad.contains(&enemy()));
     }
 
     #[test]

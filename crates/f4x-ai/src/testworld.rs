@@ -149,6 +149,34 @@ pub fn spawn_site(
     }))
 }
 
+/// A tower at `pos`, guarded by one zombie while `intact`.
+pub fn spawn_tower(
+    game: &mut Game,
+    pos: Position,
+    intact: bool,
+) -> Result<hecs::Entity, &'static str> {
+    let feature = game
+        .content()
+        .features
+        .id_of("tower")
+        .ok_or("tower is shipped")?;
+    Ok(game.spawn_feature(Placement {
+        at: pos,
+        feature,
+        node: None,
+        lair: Some(Lair {
+            intact,
+            guards: vec![("zombies".into(), 1)],
+            gold: 0,
+            mana: 0,
+            items: Vec::new(),
+            prisoner: false,
+            special: 0,
+            fought_by: Vec::new(),
+        }),
+    }))
+}
+
 /// Give the city at `pos` the buildings (by id), in the order given.
 pub fn build(game: &mut Game, pos: Position, buildings: &[&str]) {
     let city = game.economy().city_at(pos).expect("a city there");

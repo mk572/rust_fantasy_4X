@@ -83,6 +83,10 @@ pub struct Ai {
     sea_port: Option<Position>,
     sea_scouting: bool,
     sea_done: bool,
+    /// The fighters a sea scout carries to put ashore on land nobody holds (`scout.rs`).
+    sea_party: Vec<Serial>,
+    /// The scout on its way to an open tower, to change plane (`scout.rs`).
+    planar: Option<Serial>,
     /// Own cities with a stack of a wizard at war near and too few defenders, this turn.
     threatened: Vec<Position>,
     /// The strength last seen in each enemy city and the turn it was seen.
@@ -141,6 +145,8 @@ impl Ai {
             sea_port: None,
             sea_scouting: false,
             sea_done: false,
+            sea_party: Vec::new(),
+            planar: None,
             city_memory: HashMap::new(),
             threatened: Vec::new(),
             unreachable: Vec::new(),

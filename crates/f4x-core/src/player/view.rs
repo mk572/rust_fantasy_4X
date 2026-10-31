@@ -468,6 +468,30 @@ impl<'a> PlayerView<'a> {
         self.explored(at) && self.game.economy().lair_at(at).is_some()
     }
 
+    /// The towers the player has seen, on the planes it has seen them on, and whether each still
+    /// has its guards. A stack standing on a tower with none can change plane.
+    pub fn towers(&self) -> Vec<(Position, bool)> {
+        let economy = self.game.economy();
+        let mut found = Vec::new();
+        for lair in economy.lairs() {
+            if !economy.is_tower(lair.pos) {
+                continue;
+            }
+            for plane in crate::map::Plane::ALL {
+                let at = Position { plane, ..lair.pos };
+                if self.explored(at) {
+                    found.push((at, lair.intact));
+                }
+            }
+        }
+        found
+    }
+
+    /// Could the stack change plane where it stands?
+    pub fn can_shift_plane(&self, units: &[hecs::Entity]) -> bool {
+        self.game.economy().can_shift_plane(units).is_ok()
+    }
+
     /// The explored stands nobody holds: a lair without guards, or a cleared node or tower with
     /// no owner. Monsters settle in them.
     pub fn vacant_zones(&self) -> Vec<Position> {

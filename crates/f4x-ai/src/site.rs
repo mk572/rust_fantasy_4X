@@ -15,6 +15,8 @@ use crate::Ai;
 
 /// Squares from a city (or from a party in the field) within which a site is looked for.
 const SITE_RANGE: i32 = 10;
+/// Squares within which a party looks for a tower: it is the way to the other plane.
+const TOWER_RANGE: u32 = 30;
 /// The fewest spare soldiers that make a party.
 const SITE_PARTY: usize = 3;
 /// What an unknown site's guards are guessed to be worth, in average soldiers of this wizard.
@@ -26,11 +28,11 @@ fn edge() -> f32 {
 }
 
 /// What the AI expects the site's guards to be worth.
-fn expected(view: &PlayerView, site: Position) -> f32 {
+pub(crate) fn expected(view: &PlayerView, site: Position) -> f32 {
     guard_strength(view, site).unwrap_or_else(|| GUESS_GUARDS * average_strength(view))
 }
 
-/// The explored, intact sites within [`SITE_RANGE`] of `from` that a party of `strength` should
+/// The explored, intact sites within [`SITE_RANGE`] of `from` (towers within [`TOWER_RANGE`]) that a party of `strength` should
 /// take, nearest first.
 fn sites_near(view: &PlayerView, from: Position, strength: f32) -> Vec<Position> {
     let mut found: Vec<Position> = Vec::new();
@@ -42,6 +44,15 @@ fn sites_near(view: &PlayerView, from: Position, strength: f32) -> Vec<Position>
                     found.push(p);
                 }
             }
+        }
+    }
+    for (p, intact) in view.towers() {
+        if intact
+            && !found.contains(&p)
+            && distance(view, from, p).is_some_and(|d| d <= TOWER_RANGE)
+            && strength >= expected(view, p) * edge()
+        {
+            found.push(p);
         }
     }
     found.sort_by_key(|&p| (distance(view, from, p), p.y, p.x));
@@ -151,7 +162,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, game, spawn, spawn_site, COAST_CITY, P0};
+    use crate::testworld::{at, game, spawn, spawn_site, spawn_tower, COAST_CITY, P0};
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -191,6 +202,17 @@ mod tests {
             g.balance_farmers(P0);
         }
         events
+    }
+
+    #[test]
+    fn a_tower_is_looked_for_further_away_than_other_sites() -> TestResult {
+        let mut g = game(COAST_CITY, "high_men");
+        spawn_tower(&mut g, at(33, 9), true)?;
+        spawn_site(&mut g, at(33, 7), vec![("zombies".into(), 1)], Vec::new())?;
+        g.reveal_map(P0);
+        let view = PlayerView::new(&g, P0);
+        assert_eq!(sites_near(&view, at(10, 6), 10_000.0), vec![at(33, 9)]);
+        Ok(())
     }
 
     #[test]
