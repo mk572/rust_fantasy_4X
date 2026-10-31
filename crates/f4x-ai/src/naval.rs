@@ -3,6 +3,7 @@
 //! sail from.
 
 use f4x_core::city::production::{ProductionError, ProductionItem};
+use f4x_core::diplomacy::{DiplomacyCommand, Treaty};
 use f4x_core::game::serial::Serial;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
@@ -323,6 +324,11 @@ fn load_and_sail(
         }
         ai.naval_wait = 0;
     }
+    if !declare_war_on_target(ai, game, plan, events) {
+        ai.naval_bad.push(plan.target);
+        ai.naval = None;
+        return;
+    }
     let stack: Vec<hecs::Entity> = std::iter::once(ship).chain(group.iter().copied()).collect();
     if !PlayerView::new(game, me).can_reach(&stack, plan.sea) {
         // The ship cannot get there from this port: try another port or target.
@@ -349,6 +355,44 @@ fn load_and_sail(
             ship: ship_serial,
             group: serials,
         });
+    }
+}
+
+/// The landing is an attack, so the war comes before the ship sails: a wizard with no treaty is
+/// declared war on (and the armies go for its cities from then on). Returns `false` when the owner
+/// is bound to the AI by a pact or an alliance, which it does not break for a landing.
+fn declare_war_on_target(
+    ai: &mut Ai,
+    game: &mut Game,
+    plan: Plan,
+    events: &mut Vec<Event>,
+) -> bool {
+    let me = ai.player;
+    let owner = {
+        let view = PlayerView::new(game, me);
+        view.city_at(plan.target)
+            .and_then(|c| view.city_owner(c))
+            .filter(|&o| view.is_rival_wizard(o))
+    };
+    let Some(owner) = owner else {
+        return true;
+    };
+    match game.treaty(me, owner) {
+        Treaty::War => true,
+        Treaty::None => {
+            if ai.send(
+                game,
+                Command::Diplomacy(DiplomacyCommand::DeclareWar {
+                    player: me,
+                    on: owner,
+                }),
+                events,
+            ) {
+                ai.quarrel = Some(owner);
+            }
+            true
+        }
+        Treaty::Pact | Treaty::Alliance => false,
     }
 }
 
@@ -526,7 +570,7 @@ fn sea_scout(ai: &mut Ai, game: &mut Game) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testworld::{at, build, game, spawn, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0};
+    use crate::testworld::{at, build, game, spawn, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0, P1};
     use f4x_core::map::terrain::TerrainClass;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -701,6 +745,42 @@ mod tests {
             g.units().unit_position(army[0]).is_some(),
             "the garrison fighter is still alive"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_landing_on_a_rival_is_preceded_by_a_declaration_of_war_unless_a_pact_binds() -> TestResult
+    {
+        let mut g = game(COAST_CITY, "high_men");
+        g.make_contact(P0, P1);
+        g.reveal_map(P0);
+        let plan = Plan {
+            target: enemy(),
+            land: at(ENEMY_CITY.0 - 1, ENEMY_CITY.1),
+            sea: at(ENEMY_CITY.0 - 2, ENEMY_CITY.1),
+            port: port(),
+        };
+        let mut ai = Ai::new(P0);
+        assert!(declare_war_on_target(
+            &mut ai,
+            &mut g,
+            plan,
+            &mut Vec::new()
+        ));
+        assert_eq!(g.treaty(P0, P1), Treaty::War);
+        assert_eq!(ai.quarrel, Some(P1));
+        let mut bound = game(COAST_CITY, "high_men");
+        bound.make_contact(P0, P1);
+        bound.reveal_map(P0);
+        bound.start_treaty(P0, P1, Treaty::Pact);
+        let mut ai = Ai::new(P0);
+        assert!(!declare_war_on_target(
+            &mut ai,
+            &mut bound,
+            plan,
+            &mut Vec::new()
+        ));
+        assert_eq!(bound.treaty(P0, P1), Treaty::Pact);
         Ok(())
     }
 
