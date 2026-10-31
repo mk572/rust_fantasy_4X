@@ -1,8 +1,6 @@
 //! The spells that cannot be combined, as the shipped spell data names them (`spell/stacking.rs`).
 
-fn content() -> f4x_core::content::Content {
-    f4x_data::load_content(std::path::Path::new("../../content")).expect("the rules data loads")
-}
+use crate::shipped::content;
 
 #[test]
 fn the_names_in_not_with_and_already_able_exist() {
@@ -30,7 +28,11 @@ fn the_names_in_not_with_and_already_able_exist() {
 #[test]
 fn the_original_refusals_are_in_the_data() {
     let c = content();
-    let spell = |id: &str| c.rules.spells.get(c.rules.spells.id_of(id).unwrap());
+    let spell = |id: &str| {
+        c.rules
+            .spells
+            .get(c.rules.spells.id_of(id).expect("the spell exists"))
+    };
     for (id, rival) in [
         ("stone_skin", "iron_skin"),
         ("resist_elements", "elemental_armor"),

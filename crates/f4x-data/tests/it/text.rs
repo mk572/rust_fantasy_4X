@@ -2,7 +2,10 @@
 //! is used, and a file holds only the keys of its area (`battle.ron` holds `battle.*`).
 
 use std::collections::BTreeSet;
+use std::error::Error;
 use std::path::{Path, PathBuf};
+
+use f4x_core::testdir::TestResult;
 
 /// A literal like "hall.txt" is a file name, not a key.
 const FILE_EXTENSIONS: [&str; 4] = ["ron", "txt", "png", "json"];
@@ -11,45 +14,54 @@ fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
+/// An area of the messages (a file) and its keys.
+type Area = (String, Vec<String>);
+
 /// The area of each file of the English messages, and its keys.
-fn written() -> Vec<(String, Vec<String>)> {
+fn written() -> Result<Vec<Area>, Box<dyn Error>> {
     let folder = root().join("content/text/en");
-    let mut files: Vec<_> = std::fs::read_dir(&folder)
-        .expect("content/text/en exists")
-        .map(|f| f.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|e| e == "ron"))
-        .collect();
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(&folder)? {
+        let path = entry?.path();
+        if path.extension().is_some_and(|e| e == "ron") {
+            files.push(path);
+        }
+    }
     files.sort();
-    files
-        .iter()
-        .map(|path| {
-            let entries: std::collections::BTreeMap<String, f4x_core::text::Entry> =
-                ron::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
-            let area = path.file_stem().unwrap().to_string_lossy().into_owned();
-            (area, entries.into_keys().collect())
-        })
-        .collect()
+    let mut areas = Vec::new();
+    for path in &files {
+        let entries: std::collections::BTreeMap<String, f4x_core::text::Entry> =
+            ron::from_str(&std::fs::read_to_string(path)?)?;
+        let area = path
+            .file_stem()
+            .ok_or("a text file has no name")?
+            .to_string_lossy()
+            .into_owned();
+        areas.push((area, entries.into_keys().collect()));
+    }
+    Ok(areas)
 }
 
-fn sources(dir: &Path, out: &mut Vec<PathBuf>) {
-    for entry in std::fs::read_dir(dir).unwrap() {
-        let path = entry.unwrap().path();
+fn sources(dir: &Path, out: &mut Vec<PathBuf>) -> TestResult {
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
         if path.is_dir() {
-            sources(&path, out);
+            sources(&path, out)?;
         } else if path.extension().is_some_and(|e| e == "rs") {
             out.push(path);
         }
     }
+    Ok(())
 }
 
 /// The string literals of the code that look like a key of one of the areas.
-fn named_in_code(areas: &[String]) -> BTreeSet<String> {
+fn named_in_code(areas: &[String]) -> Result<BTreeSet<String>, Box<dyn Error>> {
     let mut files = Vec::new();
-    for krate in std::fs::read_dir(root().join("crates")).unwrap() {
+    for krate in std::fs::read_dir(root().join("crates"))? {
         // Only the crate folders; stray files such as macOS's `.DS_Store` are not crates.
-        let path = krate.unwrap().path();
+        let path = krate?.path();
         if path.is_dir() {
-            sources(&path.join("src"), &mut files);
+            sources(&path.join("src"), &mut files)?;
         }
     }
     let mut found = BTreeSet::new();
@@ -58,7 +70,7 @@ fn named_in_code(areas: &[String]) -> BTreeSet<String> {
         if file.ends_with("text/tests.rs") {
             continue;
         }
-        let src = std::fs::read_to_string(&file).unwrap();
+        let src = std::fs::read_to_string(&file)?;
         for part in src.split('"').skip(1).step_by(2) {
             let key = part.split_once('.');
             if key.is_some_and(|(area, rest)| {
@@ -73,12 +85,12 @@ fn named_in_code(areas: &[String]) -> BTreeSet<String> {
             }
         }
     }
-    found
+    Ok(found)
 }
 
 #[test]
-fn a_file_holds_only_the_keys_of_its_area() {
-    for (area, keys) in written() {
+fn a_file_holds_only_the_keys_of_its_area() -> TestResult {
+    for (area, keys) in written()? {
         for key in keys {
             assert!(
                 key.starts_with(&format!("{area}.")),
@@ -86,31 +98,34 @@ fn a_file_holds_only_the_keys_of_its_area() {
             );
         }
     }
+    Ok(())
 }
 
 #[test]
-fn every_key_the_code_names_is_written() {
-    let written = written();
+fn every_key_the_code_names_is_written() -> TestResult {
+    let written = written()?;
     let areas: Vec<String> = written.iter().map(|(a, _)| a.clone()).collect();
     let keys: BTreeSet<String> = written.into_iter().flat_map(|(_, k)| k).collect();
-    let missing: Vec<_> = named_in_code(&areas).difference(&keys).cloned().collect();
+    let missing: Vec<_> = named_in_code(&areas)?.difference(&keys).cloned().collect();
     assert!(
         missing.is_empty(),
         "keys the code names but no file has: {missing:?}"
     );
+    Ok(())
 }
 
 #[test]
-fn every_key_that_is_written_is_used() {
-    let written = written();
+fn every_key_that_is_written_is_used() -> TestResult {
+    let written = written()?;
     let areas: Vec<String> = written.iter().map(|(a, _)| a.clone()).collect();
-    let used = named_in_code(&areas);
+    let used = named_in_code(&areas)?;
     let unused: Vec<_> = written
         .into_iter()
         .flat_map(|(_, k)| k)
         .filter(|k| !used.contains(k))
         .collect();
     assert!(unused.is_empty(), "keys no code uses: {unused:?}");
+    Ok(())
 }
 
 /// Files of the client whose literals are not messages: the command line, the picture files, the
@@ -155,16 +170,20 @@ const EXEMPT_FRAGMENTS: [&str; 6] = [
 ];
 
 #[test]
-fn the_client_holds_no_message_in_its_code() {
+fn the_client_holds_no_message_in_its_code() -> TestResult {
     let mut files = Vec::new();
-    sources(&root().join("crates/f4x-client/src"), &mut files);
+    sources(&root().join("crates/f4x-client/src"), &mut files)?;
     let mut found = Vec::new();
     for file in files {
-        let name = file.file_name().unwrap().to_string_lossy().into_owned();
+        let name = file
+            .file_name()
+            .ok_or("a source file has no name")?
+            .to_string_lossy()
+            .into_owned();
         if EXEMPT_FILES.contains(&name.as_str()) {
             continue;
         }
-        let src = std::fs::read_to_string(&file).unwrap();
+        let src = std::fs::read_to_string(&file)?;
         for (n, line) in src.lines().enumerate() {
             // The tests of a file come last; their literals are fixtures.
             if line.starts_with("#[cfg(test)]") {
@@ -196,6 +215,7 @@ fn the_client_holds_no_message_in_its_code() {
         "text in the client's code; move it to content/text/en/ (docs/text.md):\n{}",
         found.join("\n")
     );
+    Ok(())
 }
 
 /// A word of three letters, and not an id, a path or a picture file's name.

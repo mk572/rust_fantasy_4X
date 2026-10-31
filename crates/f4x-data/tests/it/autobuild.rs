@@ -3,9 +3,9 @@
 use f4x_core::city::autobuild::{choose, AutoBuild, BuildPlan, CityFacts, Focus, Mix, AFFINITY};
 use f4x_core::city::production::ProductionItem;
 
-fn content() -> f4x_core::content::Content {
-    f4x_data::load_content(std::path::Path::new("../../content")).expect("the rules data loads")
-}
+use f4x_core::testdir::TestResult;
+
+use crate::shipped::content;
 
 #[test]
 fn every_building_has_an_affinity_row_and_every_row_a_building() {
@@ -32,7 +32,7 @@ fn every_building_has_an_affinity_row_and_every_row_a_building() {
 
 /// A fresh size-5 city of the race with every building that needs nothing buildable.
 fn facts(c: &f4x_core::content::Content, race: &str) -> CityFacts {
-    let race_id = c.rules.races.id_of(race).unwrap();
+    let race_id = c.rules.races.id_of(race).expect("the race exists");
     let race = c.rules.races.get(race_id);
     let possible: Vec<_> = c
         .rules
@@ -69,7 +69,7 @@ fn facts(c: &f4x_core::content::Content, race: &str) -> CityFacts {
 }
 
 #[test]
-fn every_race_and_plan_gets_an_answer_and_the_focus_shows() {
+fn every_race_and_plan_gets_an_answer_and_the_focus_shows() -> TestResult {
     let c = content();
     let mut roll = |_: u32| 1;
     for (_, race) in c.rules.races.iter() {
@@ -99,10 +99,10 @@ fn every_race_and_plan_gets_an_answer_and_the_focus_shows() {
         ..BuildPlan::default()
     };
     let item = choose(&c, &AutoBuild::new(gold), &f, &mut roll);
-    let name = match item {
-        ProductionItem::Building(b) => c.rules.buildings.get(b).id.clone(),
-        other => panic!("{other:?}"),
+    let ProductionItem::Building(b) = item else {
+        return Err(format!("expected a building, got {item:?}").into());
     };
+    let name = c.rules.buildings.get(b).id.clone();
     // Only buildings without a requirement are on offer here; the best of them for gold.
     assert!(
         [
@@ -115,4 +115,5 @@ fn every_race_and_plan_gets_an_answer_and_the_focus_shows() {
         .contains(&name.as_str()),
         "{name}"
     );
+    Ok(())
 }

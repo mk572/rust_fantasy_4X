@@ -87,27 +87,21 @@ mod tests {
     use f4x_core::map::Plane;
     use f4x_core::map::Position;
     use f4x_core::player::PlayerId;
-    use std::path::PathBuf;
-
-    fn dir(name: &str) -> PathBuf {
-        let d = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../target/test-saves")
-            .join(name);
-        std::fs::create_dir_all(&d).unwrap();
-        d
-    }
+    use f4x_core::testdir::TestDir;
+    use f4x_core::testdir::TestResult;
 
     fn content() -> Content {
-        crate::load_content_layers(&[&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")])
-            .unwrap()
+        crate::load_content_layers(&[&crate::testutil::content_dir()])
+            .expect("the shipped content loads")
     }
 
     /// A real generated map with the shipped content, a city, units and a few turns.
-    fn game() -> Game {
+    fn game() -> Result<Game, Box<dyn std::error::Error>> {
         let content = content();
+        let params = GenParams::default();
         let mut g = Game::new(21);
-        g.set_content(content.clone());
-        g.set_generated(generate(21, &GenParams::default(), &content).unwrap());
+        g.set_generated(generate(21, &params, &content)?);
+        g.set_content(content);
         g.add_player(PlayerId(0), "Merlin");
         g.init_wizard(
             PlayerId(0),
@@ -115,19 +109,23 @@ mod tests {
             &[f4x_core::wizard::magic::Retort::Alchemy],
             None,
         )
-        .unwrap();
-        let first = g.wizard(PlayerId(0)).unwrap().candidates()[0];
-        g.set_research(PlayerId(0), first).unwrap();
-        let pos = (0..40u32)
+        .map_err(|e| format!("init_wizard: {e:?}"))?;
+        let first = g
+            .wizard(PlayerId(0))
+            .ok_or("the wizard is missing")?
+            .candidates()[0];
+        g.set_research(PlayerId(0), first)
+            .map_err(|e| format!("set_research: {e:?}"))?;
+        let pos = (0..params.height)
             .flat_map(|y| {
-                (0..60u32).map(move |x| Position {
+                (0..params.width).map(move |x| Position {
                     plane: Plane::Arcanus,
                     x,
                     y,
                 })
             })
             .find(|&p| g.can_found_city(p).is_ok())
-            .unwrap();
+            .ok_or("the map has no square for a city")?;
         let race = g.content().rules.races.id_of("barbarian");
         g.apply(Command::FoundCity {
             owner: PlayerId(0),
@@ -136,7 +134,12 @@ mod tests {
             race,
             population: 3,
         });
-        let spear = g.content().rules.units.id_of("barbarian_spearmen").unwrap();
+        let spear = g
+            .content()
+            .rules
+            .units
+            .id_of("barbarian_spearmen")
+            .ok_or("barbarian_spearmen is not in the content")?;
         g.apply(Command::CreateUnit {
             owner: PlayerId(0),
             pos,
@@ -145,59 +148,74 @@ mod tests {
         for _ in 0..3 {
             g.apply(Command::EndTurn);
         }
-        g
+        Ok(g)
     }
 
     #[test]
-    fn a_game_survives_the_file_round_trip() {
-        let g = game();
-        let path = dir("round-trip").join("game.ron");
-        save_game(&path, &g).unwrap();
+    fn a_game_survives_the_file_round_trip() -> TestResult {
+        let g = game()?;
+        let folder = TestDir::new("round-trip");
+        let path = folder.join("game.ron");
+        save_game(&path, &g)?;
         assert!(
             !path.with_extension("ron.tmp").exists(),
             "no temporary file is left behind"
         );
-        let (back, integrity) = load_game(&path, content()).unwrap();
+        let (back, integrity) = load_game(&path, content())?;
         assert_eq!(integrity, Integrity::Intact);
         assert_eq!(back.snapshot(), g.snapshot());
         assert_eq!(back.turn, 4);
-        assert!(back.wizard(PlayerId(0)).unwrap().researching().is_some());
+        assert!(back
+            .wizard(PlayerId(0))
+            .ok_or("the value is missing")?
+            .researching()
+            .is_some());
+        Ok(())
     }
 
     #[test]
-    fn saving_over_a_save_replaces_it() {
-        let mut g = game();
-        let path = dir("overwrite").join("game.ron");
-        save_game(&path, &g).unwrap();
+    fn saving_over_a_save_replaces_it() -> TestResult {
+        let mut g = game()?;
+        let folder = TestDir::new("overwrite");
+        let path = folder.join("game.ron");
+        save_game(&path, &g)?;
         g.apply(Command::EndTurn);
-        save_game(&path, &g).unwrap();
-        assert_eq!(load_game(&path, content()).unwrap().0.turn, 5);
+        save_game(&path, &g)?;
+        assert_eq!(load_game(&path, content())?.0.turn, 5);
+        Ok(())
     }
 
     #[test]
-    fn missing_and_damaged_files_give_clear_errors() {
-        let d = dir("errors");
-        let missing = load_game(&d.join("nope.ron"), content()).err().unwrap();
+    fn missing_and_damaged_files_give_clear_errors() -> TestResult {
+        let d = TestDir::new("errors");
+        let missing = load_game(&d.join("nope.ron"), content())
+            .err()
+            .ok_or("the value is missing")?;
         assert!(matches!(missing, SaveError::Io(_)), "{missing}");
         let path = d.join("cut.ron");
-        save_game(&path, &game()).unwrap();
-        let text = std::fs::read_to_string(&path).unwrap();
-        std::fs::write(&path, &text[..text.len() / 2]).unwrap();
-        let cut = load_game(&path, content()).err().unwrap();
+        save_game(&path, &game()?)?;
+        let text = std::fs::read_to_string(&path)?;
+        std::fs::write(&path, &text[..text.len() / 2])?;
+        let cut = load_game(&path, content())
+            .err()
+            .ok_or("the value is missing")?;
         assert!(matches!(cut, SaveError::Load(LoadError::Parse(_))), "{cut}");
+        Ok(())
     }
 
     #[test]
-    fn a_save_can_be_summarized_without_loading_it() {
-        let g = game();
-        let path = dir("summary").join("s.ron");
-        save_game(&path, &g).unwrap();
-        let s = summarize_save(&path).unwrap();
+    fn a_save_can_be_summarized_without_loading_it() -> TestResult {
+        let g = game()?;
+        let folder = TestDir::new("summary");
+        let path = folder.join("s.ron");
+        save_game(&path, &g)?;
+        let s = summarize_save(&path)?;
         assert_eq!(s.wizard, "Merlin");
         assert_eq!(s.turn, g.turn);
         assert!(!s.finished);
-        std::fs::write(&path, "not a save").unwrap();
+        std::fs::write(&path, "not a save")?;
         assert!(summarize_save(&path).is_err());
-        assert!(summarize_save(&dir("summary").join("missing.ron")).is_err());
+        assert!(summarize_save(&folder.join("missing.ron")).is_err());
+        Ok(())
     }
 }

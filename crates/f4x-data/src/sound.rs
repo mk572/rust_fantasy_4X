@@ -81,13 +81,13 @@ pub fn validate_sound(table: &SoundTable, rules: &Rules) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::testdir::TestResult;
 
     #[test]
-    fn the_table_reads_and_a_bad_id_is_reported() {
+    fn the_table_reads_and_a_bad_id_is_reported() -> TestResult {
         let table = parse_sound(
             r#"(spells: {"fireball": 93, "web": -20}, units: {"dwarf": (move: 6, melee: 6)}, global_music: {"time_stop": 25})"#,
-        )
-        .unwrap();
+        )?;
         assert_eq!(table.spells["web"], -20);
         assert_eq!(
             table.units["dwarf"],
@@ -96,23 +96,24 @@ mod tests {
                 melee: 6
             }
         );
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
-        let content = crate::load_content_layers(&[&dir]).unwrap();
+        let dir = crate::testutil::content_dir();
+        let content = crate::load_content_layers(&[&dir])?;
         assert!(validate_sound(&table, &content.rules).is_empty());
         let bad = parse_sound(
             r#"(spells: {"no_such_spell": 1}, units: {"dwarf": (move: 20, melee: 6)})"#,
-        )
-        .unwrap();
+        )?;
         assert_eq!(validate_sound(&bad, &content.rules).len(), 2);
+        Ok(())
     }
 
     #[test]
-    fn the_shipped_table_matches_the_rules() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
-        let content = crate::load_content_layers(&[&dir]).unwrap();
-        let table = load_sound(&[&dir], &content.rules).unwrap();
+    fn the_shipped_table_matches_the_rules() -> TestResult {
+        let dir = crate::testutil::content_dir();
+        let content = crate::load_content_layers(&[&dir])?;
+        let table = load_sound(&[&dir], &content.rules)?;
         assert_eq!(table.units.len(), content.rules.units.len());
         assert_eq!(table.spells["fireball"], 93);
         assert_eq!(table.global_music["time_stop"], 25);
+        Ok(())
     }
 }

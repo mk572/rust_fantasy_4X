@@ -1,4 +1,4 @@
-//! The shipped content against the original's own numbers (task 404). `tests/original/*.tsv` are
+//! The shipped content against the original's own numbers. `tests/original/*.tsv` are
 //! the original's tables as `scripts/export_original_*.py` read them from the ReMoM clone, in the
 //! original's row order; the content rows are in the same order. A number of the content may
 //! differ from the original only where `DEPARTURES` says so, with the reason.
@@ -6,9 +6,7 @@
 use f4x_core::rules::Stat;
 use std::collections::BTreeMap;
 
-fn content() -> f4x_core::content::Content {
-    f4x_data::load_content(std::path::Path::new("../../content")).expect("the rules data loads")
-}
+use crate::shipped::content;
 
 /// The rows of a TSV table as column name to value, one map per row.
 fn table(text: &str) -> Vec<BTreeMap<String, i32>> {
@@ -126,14 +124,14 @@ fn every_building_has_the_originals_cost_upkeep_requirements_and_replacement() {
     let id_of = |record: i32| -> &str { &defs[record as usize - FIRST_BUILDING].id };
     let mut wrong = Vec::new();
     for (def, row) in defs.iter().zip(&rows[FIRST_BUILDING..]) {
-        if i32::from(def.num) != row[0].parse::<i32>().unwrap() {
+        if i32::from(def.num) != row[0].parse::<i32>().expect("a record number") {
             wrong.push(format!(
                 "{}: numbered {}, original {}",
                 def.id, def.num, row[0]
             ));
             continue;
         }
-        let num = |n: usize| -> i32 { row[n].parse().unwrap() };
+        let num = |n: usize| -> i32 { row[n].parse().expect("a number") };
         if plain(&def.name) != plain(row[1]) {
             wrong.push(format!("{}: named {} in the original", def.id, row[1]));
             continue;
@@ -196,7 +194,7 @@ fn named_table(text: &str) -> Vec<BTreeMap<String, String>> {
 }
 
 fn number(row: &BTreeMap<String, String>, column: &str) -> i64 {
-    row[column].parse().unwrap()
+    row[column].parse().expect("a number")
 }
 
 /// The realms in the original's numbering.
@@ -426,7 +424,7 @@ fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
         let mut original: Vec<&str> = row["cant_build"]
             .split_whitespace()
             .map(|r| {
-                buildings[r.parse::<usize>().unwrap() - FIRST_BUILDING]
+                buildings[r.parse::<usize>().expect("a building number") - FIRST_BUILDING]
                     .id
                     .as_str()
             })

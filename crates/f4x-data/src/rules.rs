@@ -910,57 +910,62 @@ mod tests {
     use super::*;
     use f4x_core::rules::stats::{compute, passive_modifiers};
     use f4x_core::rules::Source;
+    use f4x_core::testdir::TestResult;
 
     #[test]
-    fn the_committed_wizards_are_named_after_their_ids_until_local_texts_arrive() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
-        let features =
-            crate::parse_features(&std::fs::read_to_string(dir.join("features.ron")).unwrap())
-                .unwrap();
-        let rules = load_rules(&[dir.as_path()], "en", &features).unwrap();
+    fn the_committed_wizards_are_named_after_their_ids() -> TestResult {
+        let dir = crate::testutil::content_dir();
+        let features = crate::parse_features(&std::fs::read_to_string(dir.join("features.ron"))?)?;
+        let rules = load_rules(&[dir.as_path()], "en", &features)?;
         let wizards = rules.wizards.defs();
         assert_eq!(wizards.len(), 14);
-        let lo_pan = wizards.iter().find(|w| w.id == "lo_pan").unwrap();
+        let lo_pan = wizards
+            .iter()
+            .find(|w| w.id == "lo_pan")
+            .ok_or("the value is missing")?;
         assert_eq!(lo_pan.name, "Lo Pan");
         assert_eq!(lo_pan.books.iter().map(|b| u32::from(b.1)).sum::<u32>(), 9);
         assert!(wizards.iter().all(|w| w.description.is_empty()));
+        Ok(())
     }
 
     fn content_dir() -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")
+        crate::testutil::content_dir()
     }
 
     fn features() -> Features {
-        let src = std::fs::read_to_string(content_dir().join("features.ron")).unwrap();
-        crate::parse_features(&src).unwrap()
+        let src = std::fs::read_to_string(content_dir().join("features.ron"))
+            .expect("content/features.ron exists");
+        crate::parse_features(&src).expect("the shipped features parse")
     }
 
     /// The shipped files after applying `(file, from, to)` text replacements (for the files the
     /// tests edit as text: the lair table).
     fn rules_with(edits: &[(&str, &str, &str)]) -> Rules {
-        let src = |name: &str| {
-            let mut s = std::fs::read_to_string(content_dir().join(name)).unwrap();
+        fn shipped<T: serde::de::DeserializeOwned>(name: &str, edits: &[(&str, &str, &str)]) -> T {
+            let mut s = std::fs::read_to_string(content_dir().join(name))
+                .unwrap_or_else(|e| panic!("content/{name}: {e}"));
             for (f, from, to) in edits.iter().filter(|(f, ..)| *f == name) {
                 assert!(s.contains(from), "{f} does not contain {from:?}");
                 s = s.replace(from, to);
             }
-            s
-        };
+            ron::from_str(&s).unwrap_or_else(|e| panic!("content/{name}: {e}"))
+        }
         Rules {
-            config: ron::from_str(&src("rules.ron")).unwrap(),
-            races: Registry::new(ron::from_str(&src("races.ron")).unwrap()),
-            units: Registry::new(ron::from_str(&src("units.ron")).unwrap()),
-            abilities: Registry::new(ron::from_str(&src("abilities.ron")).unwrap()),
-            buildings: Registry::new(ron::from_str(&src("buildings.ron")).unwrap()),
-            realms: Registry::new(ron::from_str(&src("realms.ron")).unwrap()),
-            spells: Registry::new(ron::from_str(&src("spells.ron")).unwrap()),
-            items: Registry::new(ron::from_str(&src("items.ron")).unwrap()),
-            item_powers: Registry::new(ron::from_str(&src("item_powers.ron")).unwrap()),
-            level_paths: Registry::new(ron::from_str(&src("level_paths.ron")).unwrap()),
+            config: shipped("rules.ron", edits),
+            races: Registry::new(shipped("races.ron", edits)),
+            units: Registry::new(shipped("units.ron", edits)),
+            abilities: Registry::new(shipped("abilities.ron", edits)),
+            buildings: Registry::new(shipped("buildings.ron", edits)),
+            realms: Registry::new(shipped("realms.ron", edits)),
+            spells: Registry::new(shipped("spells.ron", edits)),
+            items: Registry::new(shipped("items.ron", edits)),
+            item_powers: Registry::new(shipped("item_powers.ron", edits)),
+            level_paths: Registry::new(shipped("level_paths.ron", edits)),
             wizards: Registry::new(Vec::new()),
             hero_templates: Vec::new(),
             wizard_names: Vec::new(),
-            lairs: ron::from_str(&src("lairs.ron")).unwrap(),
+            lairs: shipped("lairs.ron", edits),
         }
     }
 
@@ -1044,21 +1049,31 @@ mod tests {
     }
 
     #[test]
-    fn shipped_rules_are_valid() {
+    fn shipped_rules_are_valid() -> TestResult {
         assert_eq!(problems(&[]), Vec::<String>::new());
-        let rules = load_rules(&[&content_dir()], "en", &features()).unwrap();
+        let rules = load_rules(&[&content_dir()], "en", &features())?;
         for realm in ["life", "death", "chaos", "nature", "sorcery"] {
             assert!(rules.realms.by_name(realm).is_some(), "{realm}");
         }
-        assert!(rules.units.by_name("dwarf").unwrap().hero.is_some());
+        assert!(rules
+            .units
+            .by_name("dwarf")
+            .ok_or("the value is missing")?
+            .hero
+            .is_some());
+        Ok(())
     }
 
     #[test]
-    fn typed_ids_round_trip() {
-        let rules = load_rules(&[&content_dir()], "en", &features()).unwrap();
-        let id = rules.units.id_of("barbarian_spearmen").unwrap();
+    fn typed_ids_round_trip() -> TestResult {
+        let rules = load_rules(&[&content_dir()], "en", &features())?;
+        let id = rules
+            .units
+            .id_of("barbarian_spearmen")
+            .ok_or("the value is missing")?;
         assert_eq!(rules.units.get(id).name, "Spearmen");
         assert!(rules.units.id_of("nope").is_none());
+        Ok(())
     }
 
     #[test]
@@ -1078,7 +1093,7 @@ mod tests {
     }
 
     #[test]
-    fn catches_unknown_references() {
+    fn catches_unknown_references() -> TestResult {
         let p = problems_after(|l| {
             find(&mut l.units, "dwarf", |u| &u.id)
                 .abilities
@@ -1086,7 +1101,7 @@ mod tests {
             find(&mut l.spells, "web", |s| &s.id).realm = "void".into();
             let race = find(&mut l.races, "barbarian", |r| &r.id);
             let bowmen = race.units.iter_mut().find(|u| *u == "barbarian_bowmen");
-            *bowmen.unwrap() = "ghost".into();
+            *bowmen.expect("the barbarians build bowmen") = "ghost".into();
         });
         assert!(has(&p, "unknown ability \"nope\""), "{p:?}");
         assert!(has(&p, "unknown realm \"void\""), "{p:?}");
@@ -1095,6 +1110,7 @@ mod tests {
             has(&p, "barbarian_bowmen"),
             "barbarian_bowmen is no longer buildable by anyone: {p:?}"
         );
+        Ok(())
     }
 
     #[test]
@@ -1152,7 +1168,7 @@ mod tests {
     }
 
     #[test]
-    fn catches_building_problems() {
+    fn catches_building_problems() -> TestResult {
         // The armory needs the barracks; make the barracks need the armory.
         let p = problems_after(|l| {
             find(&mut l.buildings, "barracks", |b| &b.id).requires = vec!["armory".into()];
@@ -1166,10 +1182,11 @@ mod tests {
                 .units
                 .iter_mut()
                 .find(|u| u.race.as_deref() == Some("gnoll"))
-                .unwrap();
+                .expect("a gnoll unit exists");
             unit.requires = vec!["armorers_guild".into()];
         });
         assert!(has(&q, "which its race cannot build"), "{q:?}");
+        Ok(())
     }
 
     #[test]
@@ -1209,7 +1226,7 @@ mod tests {
     }
 
     #[test]
-    fn veteran_stats_come_from_def_plus_level_modifiers() {
+    fn veteran_stats_come_from_def_plus_level_modifiers() -> TestResult {
         use f4x_core::rules::effects::Effect;
         use f4x_core::rules::ModOp;
         // What a list of effects adds to a stat.
@@ -1226,12 +1243,15 @@ mod tests {
                 })
                 .sum()
         };
-        let rules = load_rules(&[&content_dir()], "en", &features()).unwrap();
-        let unit = rules.units.by_name("barbarian_spearmen").unwrap();
+        let rules = load_rules(&[&content_dir()], "en", &features())?;
+        let unit = rules
+            .units
+            .by_name("barbarian_spearmen")
+            .ok_or("the value is missing")?;
         let path = rules
             .level_paths
-            .by_name(unit.level_path.as_deref().unwrap())
-            .unwrap();
+            .by_name(unit.level_path.as_deref().ok_or("the value is missing")?)
+            .ok_or("the value is missing")?;
         let level = &path.levels[2];
         let mods = passive_modifiers(&level.effects, Source::Level(2));
         for stat in [Stat::Melee, Stat::Defense, Stat::Resistance] {
@@ -1244,8 +1264,14 @@ mod tests {
         // The level gives something, or the loop above proves nothing.
         assert!(added(&level.effects, Stat::Defense) > 0);
         // A spell enchantment stacks with it.
-        let spell = rules.spells.by_name("stone_skin").unwrap();
-        let id = rules.spells.id_of("stone_skin").unwrap();
+        let spell = rules
+            .spells
+            .by_name("stone_skin")
+            .ok_or("the value is missing")?;
+        let id = rules
+            .spells
+            .id_of("stone_skin")
+            .ok_or("the value is missing")?;
         let mut all = mods.clone();
         all.extend(passive_modifiers(&spell.effects, Source::Spell(id)));
         assert_eq!(
@@ -1254,77 +1280,94 @@ mod tests {
                 + added(&level.effects, Stat::Defense)
                 + added(&spell.effects, Stat::Defense)
         );
+        Ok(())
     }
 
     #[test]
-    fn a_language_names_the_definitions_by_number_and_falls_back_to_english() {
+    fn a_language_names_the_definitions_by_number_and_falls_back_to_english() -> TestResult {
         let over = f4x_core::testdir::TestDir::new("lang");
-        std::fs::create_dir_all(over.join("text/xx/name")).unwrap();
+        std::fs::create_dir_all(over.join("text/xx/name"))?;
         std::fs::write(
             over.join("text/xx/name/unit.ron"),
             r#"{ 95: "Lanzenträger" }"#,
-        )
-        .unwrap();
+        )?;
         std::fs::write(
             over.join("text/xx/name/race.ron"),
             r#"{ 0: ("Barbar", "Barbaren") }"#,
-        )
-        .unwrap();
+        )?;
         let features = features();
-        let rules = load_rules(&[&over, &content_dir()], "xx", &features).unwrap();
-        let spearmen = rules.units.id_numbered(95).unwrap();
+        let rules = load_rules(&[&over, &content_dir()], "xx", &features)?;
+        let spearmen = rules.units.id_numbered(95).ok_or("the value is missing")?;
         assert_eq!(rules.units.get(spearmen).name, "Lanzenträger");
         // What the language leaves out is English.
         assert!(!rules
             .units
-            .get(rules.units.id_numbered(96).unwrap())
+            .get(rules.units.id_numbered(96).ok_or("the value is missing")?)
             .name
             .is_empty());
-        assert_eq!(rules.races.by_name("barbarian").unwrap().plural, "Barbaren");
-        assert_eq!(rules.races.by_name("barbarian").unwrap().name, "Barbar");
+        assert_eq!(
+            rules
+                .races
+                .by_name("barbarian")
+                .ok_or("the value is missing")?
+                .plural,
+            "Barbaren"
+        );
+        assert_eq!(
+            rules
+                .races
+                .by_name("barbarian")
+                .ok_or("the value is missing")?
+                .name,
+            "Barbar"
+        );
+        Ok(())
     }
 
     #[test]
-    fn a_name_for_a_number_nobody_has_is_refused() {
+    fn a_name_for_a_number_nobody_has_is_refused() -> TestResult {
         let over = f4x_core::testdir::TestDir::new("lang_bad");
-        std::fs::create_dir_all(over.join("text/en/name")).unwrap();
-        std::fs::write(over.join("text/en/name/unit.ron"), r#"{ 9999: "Nobody" }"#).unwrap();
+        std::fs::create_dir_all(over.join("text/en/name"))?;
+        std::fs::write(over.join("text/en/name/unit.ron"), r#"{ 9999: "Nobody" }"#)?;
         let err = load_rules(&[&over, &content_dir()], "en", &features()).unwrap_err();
         assert!(format!("{err:?}").contains("names the unknown unit 9999"));
+        Ok(())
     }
 
     #[test]
-    fn city_names_come_from_the_first_directory_that_has_the_file() {
+    fn city_names_come_from_the_first_directory_that_has_the_file() -> TestResult {
         let over = f4x_core::testdir::TestDir::new("names");
         std::fs::write(
             over.join("city_names.ron"),
             r#"[(race: "barbarian", names: ["Alpha", "Beta"])]"#,
-        )
-        .unwrap();
+        )?;
         let features = features();
-        let shipped = load_rules(&[&content_dir()], "en", &features).unwrap();
-        let rules = load_rules(&[&over, &content_dir()], "en", &features).unwrap();
-        let barbarian = rules.races.by_name("barbarian").unwrap();
+        let shipped = load_rules(&[&content_dir()], "en", &features)?;
+        let rules = load_rules(&[&over, &content_dir()], "en", &features)?;
+        let barbarian = rules
+            .races
+            .by_name("barbarian")
+            .ok_or("the value is missing")?;
         assert_eq!(barbarian.city_names, ["Alpha", "Beta"]);
         // The file is read whole from the first directory: the shipped table has names for
         // another race, the overriding one has none.
         assert!(!shipped
             .races
             .by_name("beastmen")
-            .unwrap()
+            .ok_or("the value is missing")?
             .city_names
             .is_empty());
         assert!(rules
             .races
             .by_name("beastmen")
-            .unwrap()
+            .ok_or("the value is missing")?
             .city_names
             .is_empty());
         std::fs::write(
             over.join("city_names.ron"),
             r#"[(race: "nobody", names: ["X"])]"#,
-        )
-        .unwrap();
+        )?;
         assert!(load_rules(&[&over, &content_dir()], "en", &features).is_err());
+        Ok(())
     }
 }

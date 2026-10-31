@@ -4,6 +4,8 @@ pub mod rules;
 pub mod save;
 pub mod sound;
 pub mod spell_art;
+#[cfg(test)]
+mod testutil;
 
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -408,23 +410,19 @@ pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::testdir::TestResult;
 
     fn shipped() -> String {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content/terrain.ron");
+        let path = crate::testutil::content_dir().join("terrain.ron");
         std::fs::read_to_string(path).expect("content/terrain.ron exists")
-    }
-
-    fn shipped_features() -> Features {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content/features.ron");
-        parse_features(&std::fs::read_to_string(path).unwrap()).unwrap()
     }
 
     /// The game's own `content/` folder (the files tests of the rules data read).
     fn real_content() -> Content {
-        load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")).unwrap()
+        load_content(&crate::testutil::content_dir()).expect("the shipped content loads")
     }
 
-    /// The bonus a level path gives in all up to `level`, for a stat (task 174).
+    /// The bonus a level path gives in all up to `level`, for a stat.
     fn level_total(
         content: &Content,
         path: &str,
@@ -433,7 +431,11 @@ mod tests {
     ) -> i32 {
         use f4x_core::rules::effects::Effect;
         use f4x_core::rules::ModOp;
-        let path = content.rules.level_paths.by_name(path).unwrap();
+        let path = content
+            .rules
+            .level_paths
+            .by_name(path)
+            .expect("the level path exists");
         (0..=level)
             .filter_map(|i| path.level(i))
             .flat_map(|(_, effects)| effects.iter())
@@ -449,11 +451,9 @@ mod tests {
     }
 
     #[test]
-    fn the_hero_types_and_their_starting_records_are_the_originals() {
+    fn the_hero_types_and_their_starting_records_are_the_originals() -> TestResult {
         use f4x_core::rules::{HeroKind, PickType};
-        let c =
-            load_content_layers(&[&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")])
-                .unwrap();
+        let c = load_content_layers(&[&crate::testutil::content_dir()])?;
         let units = &c.rules.units;
         let heroes: Vec<_> = units
             .defs()
@@ -469,7 +469,7 @@ mod tests {
         let count = |k| {
             heroes
                 .iter()
-                .filter(|h| h.hero.as_ref().unwrap().kind == k)
+                .filter(|h| h.hero.as_ref().is_some_and(|x| x.kind == k))
                 .count()
         };
         assert_eq!(
@@ -481,7 +481,12 @@ mod tests {
             ],
             [19, 4, 3, 9]
         );
-        let hero = |id: &str| units.by_name(id).unwrap().hero.clone().unwrap();
+        let hero = |id: &str| {
+            units
+                .by_name(id)
+                .and_then(|u| u.hero.clone())
+                .expect("the hero unit exists")
+        };
         assert_eq!(hero("ranger").kind, HeroKind::Bow);
         // The bow hero is the Elven Archer and the melee hero the Knight (docs/divergences.md).
         assert_eq!(hero("elven_archer").kind, HeroKind::Bow);
@@ -492,7 +497,7 @@ mod tests {
                 .hero_templates
                 .iter()
                 .find(|t| t.unit == id)
-                .unwrap()
+                .expect("the hero has a template")
         };
         assert_eq!(t("sage").spells, ["dispel_magic_true", "counter_magic"]);
         assert_eq!(t("sage").casting_skill, 2);
@@ -502,17 +507,16 @@ mod tests {
             (3, PickType::Any)
         );
         assert_eq!(t("chosen").spells.len(), 4);
+        Ok(())
     }
 
     #[test]
-    fn rolled_heroes_follow_init_heroes() {
+    fn rolled_heroes_follow_init_heroes() -> TestResult {
         use f4x_core::game::rng::GameRng;
         use f4x_core::hero::kind::roll;
         use f4x_core::hero::{HeroAbilities, Tier};
         use f4x_core::rules::PickType;
-        let c =
-            load_content_layers(&[&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")])
-                .unwrap();
+        let c = load_content_layers(&[&crate::testutil::content_dir()])?;
         let rules = &c.rules;
         // Steps of ability a record has beyond what its template gives: each tier is a step.
         let steps = |a: &HeroAbilities| -> i32 {
@@ -610,7 +614,7 @@ mod tests {
                 }
                 // The original's exclusions.
                 // Arcane Power only goes to a hero with a magic ranged attack.
-                let unit = rules.units.by_name(&t.unit).unwrap();
+                let unit = rules.units.by_name(&t.unit).ok_or("the value is missing")?;
                 if !unit
                     .abilities
                     .iter()
@@ -632,24 +636,24 @@ mod tests {
             "the draws are not varied: {}",
             distinct.len()
         );
+        Ok(())
     }
 
     #[test]
-    fn hero_names_come_from_the_local_file_when_there_is_one() {
-        let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+    fn hero_names_come_from_the_local_file_when_there_is_one() -> TestResult {
+        let committed = crate::testutil::content_dir();
         let over = f4x_core::testdir::TestDir::new("hero-names");
         std::fs::write(
             over.join("hero_names.ron"),
             r#"[(unit: "dwarf", names: ["Brax", "Dolgin"])]"#,
-        )
-        .unwrap();
-        let c = load_content_layers(&[&over, &committed]).unwrap();
+        )?;
+        let c = load_content_layers(&[&over, &committed])?;
         let t = |id: &str| {
             c.rules
                 .hero_templates
                 .iter()
                 .find(|t| t.unit == id)
-                .unwrap()
+                .expect("the hero has a template")
                 .clone()
         };
         assert_eq!(t("dwarf").names, ["Brax", "Dolgin"]);
@@ -658,17 +662,15 @@ mod tests {
         std::fs::write(
             over.join("hero_names.ron"),
             r#"[(unit: "nobody", names: [])]"#,
-        )
-        .unwrap();
+        )?;
         assert!(load_content_layers(&[&over, &committed]).is_err());
+        Ok(())
     }
 
     #[test]
-    fn the_level_paths_are_the_originals_level_bonuses() {
+    fn the_level_paths_are_the_originals_level_bonuses() -> TestResult {
         use f4x_core::rules::Stat::*;
-        let c =
-            load_content_layers(&[&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")])
-                .unwrap();
+        let c = load_content_layers(&[&crate::testutil::content_dir()])?;
         // A normal unit at Champion (level 5): resistance +5, attacks +3, defence +2, to hit +3.
         let at = |stat| level_total(&c, "standard_xp", 5, stat);
         assert_eq!(
@@ -696,36 +698,34 @@ mod tests {
             ],
             [8, 8, 4, 3, 8]
         );
+        Ok(())
     }
 
     #[test]
-    fn shipped_terrain_file_is_valid() {
-        let t = parse_terrains(&shipped()).unwrap();
+    fn shipped_terrain_file_is_valid() -> TestResult {
+        let t = parse_terrains(&shipped())?;
         assert!(t.id_of("grassland").is_some());
+        Ok(())
     }
 
     #[test]
-    fn shipped_content_generates_a_map() {
-        let t = parse_terrains(&shipped()).unwrap();
-        let c = Content {
-            terrains: t,
-            features: shipped_features(),
-            ..Default::default()
-        };
-        let g = f4x_core::game::Game::with_generated_map(1, &Default::default(), &c).unwrap();
+    fn shipped_content_generates_a_map() -> TestResult {
+        let g = f4x_core::game::Game::with_generated_map(1, &Default::default(), &real_content())?;
         assert!(g.map().is_some());
+        Ok(())
     }
 
     #[test]
-    fn reports_every_problem() {
+    fn reports_every_problem() -> TestResult {
         let src = shipped()
             .replace("id: \"forest\"", "id: \"Forest\"")
             .replace("class: Forest", "class: Hills");
         let Err(ContentError::Invalid(p)) = parse_terrains(&src) else {
-            panic!("expected invalid")
+            return Err("the broken terrain file was accepted".into());
         };
         assert!(p.iter().any(|m| m.contains("must be lowercase")));
         assert!(p.iter().any(|m| m.contains("no Forest terrain")));
+        Ok(())
     }
 
     #[test]
@@ -747,12 +747,20 @@ mod tests {
         for y in 0..grid.height() {
             for x in 0..grid.width() {
                 if let Some(f) = grid.mineral(x as i32, y as i32) {
-                    out.push((x, y, c.features.get(f).unwrap().id.clone()));
+                    out.push((
+                        x,
+                        y,
+                        c.features
+                            .get(f)
+                            .expect("a placed mineral exists")
+                            .id
+                            .clone(),
+                    ));
                 }
             }
         }
         for p in &generated.placements {
-            let def = c.features.get(p.feature).unwrap();
+            let def = c.features.get(p.feature).expect("a placed feature exists");
             if p.at.plane == plane || def.kind == FeatureKind::Tower {
                 out.push((p.at.x, p.at.y, def.id.clone()));
             }
@@ -761,16 +769,13 @@ mod tests {
     }
 
     #[test]
-    fn features_validation_reports_problems() {
-        let src = std::fs::read_to_string(
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content/features.ron"),
-        )
-        .unwrap();
+    fn features_validation_reports_problems() -> TestResult {
+        let src = std::fs::read_to_string(crate::testutil::content_dir().join("features.ron"))?;
         let broken = src
             .replace("id: \"coal\"", "id: \"iron_ore\"")
             .replace("kind: Tower", "kind: Mineral");
         let Err(ContentError::Invalid(p)) = parse_features(&broken) else {
-            panic!("expected invalid")
+            return Err("the broken features file was accepted".into());
         };
         assert!(p.iter().any(|m| m.contains("duplicate feature id")));
         assert!(p.iter().any(|m| m.contains("no Tower feature")));
@@ -778,37 +783,34 @@ mod tests {
             parse_features("[(id: 1)]"),
             Err(ContentError::Parse(_))
         ));
+        Ok(())
     }
 
     #[test]
-    fn the_buildings_that_allow_nightshade_exist() {
+    fn the_buildings_that_allow_nightshade_exist() -> TestResult {
         // The real rules data, not the small test set.
-        let c =
-            load_content(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
-                .unwrap();
+        let c = load_content(&crate::testutil::content_dir())?;
         for id in f4x_core::city::nightshade::NIGHTSHADE_BUILDINGS {
             assert!(c.rules.buildings.id_of(id).is_some(), "no building {id}");
         }
+        Ok(())
     }
 
     #[test]
-    fn the_real_rules_data_has_every_item_and_power_of_the_original() {
-        let c =
-            load_content(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
-                .unwrap();
+    fn the_real_rules_data_has_every_item_and_power_of_the_original() -> TestResult {
+        let c = load_content(&crate::testutil::content_dir())?;
         assert_eq!(c.rules.items.len(), 250);
         assert_eq!(c.rules.item_powers.len(), 66);
         assert!(c.rules.items.id_of("white_lightning_ii").is_some());
         assert!(c.rules.items.id_of("deathbringer").is_some());
+        Ok(())
     }
 
     #[test]
-    fn item_movement_is_in_half_moves_whole_moves_doubled() {
+    fn item_movement_is_in_half_moves_whole_moves_doubled() -> TestResult {
         use f4x_core::rules::effects::Effect;
         use f4x_core::rules::{ModOp, Stat};
-        let c =
-            load_content(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
-                .unwrap();
+        let c = load_content(&crate::testutil::content_dir())?;
         let mut seen = 0;
         for item in c.rules.items.defs() {
             for rule in &item.effects {
@@ -828,13 +830,12 @@ mod tests {
             }
         }
         assert_eq!(seen, 58);
+        Ok(())
     }
 
     #[test]
-    fn every_special_item_power_does_something_and_its_spell_exists() {
-        let c =
-            load_content(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
-                .unwrap();
+    fn every_special_item_power_does_something_and_its_spell_exists() -> TestResult {
+        let c = load_content(&crate::testutil::content_dir())?;
         for power in c.rules.item_powers.defs() {
             if power.bonus.is_none() {
                 assert!(
@@ -851,6 +852,7 @@ mod tests {
                 );
             }
         }
+        Ok(())
     }
 
     #[test]
@@ -928,11 +930,11 @@ mod tests {
     }
 
     #[test]
-    fn generated_maps_obey_placement_rules() {
+    fn generated_maps_obey_placement_rules() -> TestResult {
         let c = real_content();
         let p = f4x_core::map::mapgen::GenParams::default();
         for seed in 0..5 {
-            let map = f4x_core::map::mapgen::generate(seed, &p, &c).unwrap();
+            let map = f4x_core::map::mapgen::generate(seed, &p, &c)?;
             let towers = |plane| -> Vec<(u32, u32)> {
                 feature_ids(&map, plane, &c)
                     .into_iter()
@@ -962,14 +964,17 @@ mod tests {
                 for (x, y, id) in feature_ids(&map, plane, &c) {
                     let class = c
                         .terrains
-                        .get(grid.get(x as i32, y as i32).unwrap())
-                        .unwrap()
+                        .get(grid.get(x as i32, y as i32).ok_or("the value is missing")?)
+                        .ok_or("the value is missing")?
                         .class;
                     assert_ne!(class, TerrainClass::Ocean, "{id} on ocean, seed {seed}");
-                    let def = c.features.get(c.features.id_of(&id).unwrap()).unwrap();
+                    let def = c
+                        .features
+                        .get(c.features.id_of(&id).ok_or("the value is missing")?)
+                        .ok_or("the value is missing")?;
                     if def.kind == FeatureKind::Node {
                         // A node's square has its own base terrain, and no river runs there.
-                        let realm = id.strip_suffix("_node").unwrap();
+                        let realm = id.strip_suffix("_node").ok_or("the value is missing")?;
                         assert_eq!(
                             Some(class),
                             TerrainClass::of_node_realm(realm),
@@ -981,22 +986,23 @@ mod tests {
                             c.features
                                 .weighted(def.kind, class, plane)
                                 .iter()
-                                .any(|(f, _)| c.features.get(*f).unwrap().id == id),
+                                .any(|(f, _)| c.features.get(*f).is_some_and(|d| d.id == id)),
                             "{id} not allowed on {class:?}/{plane:?}, seed {seed}"
                         );
                     }
                 }
             }
         }
+        Ok(())
     }
 
     #[test]
-    fn myrror_has_its_own_minerals_and_more_of_them() {
+    fn myrror_has_its_own_minerals_and_more_of_them() -> TestResult {
         let c = real_content();
         let p = f4x_core::map::mapgen::GenParams::default();
         let (mut arc_minerals, mut myr_minerals) = (0, 0);
         for seed in 0..10 {
-            let map = f4x_core::map::mapgen::generate(seed, &p, &c).unwrap();
+            let map = f4x_core::map::mapgen::generate(seed, &p, &c)?;
             let arcanus = feature_ids(&map, Plane::Arcanus, &c);
             let myrror = feature_ids(&map, Plane::Myrror, &c);
             let is_myrror_only = |id: &str| id == "adamantium_ore" || id == "crysx_crystal";
@@ -1005,8 +1011,10 @@ mod tests {
                 "seed {seed}"
             );
             let is_mineral = |id: &String| {
-                let f = c.features.get(c.features.id_of(id).unwrap()).unwrap();
-                f.kind == FeatureKind::Mineral
+                c.features
+                    .id_of(id)
+                    .and_then(|f| c.features.get(f))
+                    .is_some_and(|f| f.kind == FeatureKind::Mineral)
             };
             arc_minerals += arcanus.iter().filter(|(_, _, id)| is_mineral(id)).count();
             myr_minerals += myrror.iter().filter(|(_, _, id)| is_mineral(id)).count();
@@ -1015,19 +1023,25 @@ mod tests {
             myr_minerals > arc_minerals,
             "myrror {myr_minerals} vs arcanus {arc_minerals}"
         );
+        Ok(())
     }
 
     #[test]
-    fn myrror_only_minerals_appear_across_many_seeds() {
+    fn myrror_only_minerals_appear_across_many_seeds() -> TestResult {
         let c = real_content();
         let p = f4x_core::map::mapgen::GenParams::default();
-        let found = (0..10).any(|seed| {
-            let map = f4x_core::map::mapgen::generate(seed, &p, &c).unwrap();
-            feature_ids(&map, Plane::Myrror, &c)
+        let mut found = false;
+        for seed in 0..10 {
+            let map = f4x_core::map::mapgen::generate(seed, &p, &c)?;
+            found |= feature_ids(&map, Plane::Myrror, &c)
                 .iter()
-                .any(|(_, _, id)| id == "adamantium_ore")
-        });
+                .any(|(_, _, id)| id == "adamantium_ore");
+            if found {
+                break;
+            }
+        }
         assert!(found, "adamantium never generated on Myrror");
+        Ok(())
     }
 
     #[test]
@@ -1064,30 +1078,32 @@ mod tests {
     }
 
     #[test]
-    fn content_without_settings_leaves_them_empty_and_a_local_file_wins() {
+    fn content_without_settings_leaves_them_empty_and_a_local_file_wins() -> TestResult {
         let none = f4x_core::testdir::TestDir::new("settings-none");
-        assert_eq!(load_settings(&[&none]).unwrap(), SettingsDef::default());
+        assert_eq!(load_settings(&[&none])?, SettingsDef::default());
         let over = f4x_core::testdir::TestDir::new("settings-layer");
-        std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 3))").unwrap();
-        let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
-        let c = load_content_layers(&[&over, &committed]).unwrap();
+        std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 3))")?;
+        let committed = crate::testutil::content_dir();
+        let c = load_content_layers(&[&over, &committed])?;
         assert_eq!(c.settings.new_game.opponents, 3);
         assert!(c.settings.levels.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn a_settings_file_out_of_range_is_refused() {
+    fn a_settings_file_out_of_range_is_refused() -> TestResult {
         let over = f4x_core::testdir::TestDir::new("settings-bad");
-        std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 10))").unwrap();
+        std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 10))")?;
         let err = load_settings(&[&over]).unwrap_err();
         assert!(err.to_string().contains("10 opponents"), "{err}");
-        std::fs::write(over.join("settings.ron"), "(levels: [])").unwrap();
+        std::fs::write(over.join("settings.ron"), "(levels: [])")?;
         assert!(load_settings(&[&over]).is_ok());
-        std::fs::write(over.join("settings.ron"), "(new_game: (difficulty: 2)").unwrap();
+        std::fs::write(over.join("settings.ron"), "(new_game: (difficulty: 2)")?;
         assert!(matches!(
             load_settings(&[&over]),
             Err(ContentError::Parse(_))
         ));
+        Ok(())
     }
 
     #[test]
@@ -1102,38 +1118,37 @@ mod tests {
     }
 
     #[test]
-    fn a_spell_library_naming_an_unknown_spell_or_realm_is_refused() {
+    fn a_spell_library_naming_an_unknown_spell_or_realm_is_refused() -> TestResult {
         let over = f4x_core::testdir::TestDir::new("settings-spells");
-        let committed = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        let committed = crate::testutil::content_dir();
         std::fs::write(
             over.join("settings.ron"),
             r#"(spell_library: (always_known: ["no_such_spell"]))"#,
-        )
-        .unwrap();
+        )?;
         let err = load_content_layers(&[&over, &committed]).unwrap_err();
         assert!(err.to_string().contains("no_such_spell"), "{err}");
         std::fs::write(
             over.join("settings.ron"),
             r#"(spell_library: (ai_main_realm_known: {"no_realm": "sprites"}))"#,
-        )
-        .unwrap();
+        )?;
         let err = load_content_layers(&[&over, &committed]).unwrap_err();
         assert!(err.to_string().contains("no_realm"), "{err}");
-        std::fs::write(over.join("settings.ron"), "(spell_library: (known: []))").unwrap();
+        std::fs::write(over.join("settings.ron"), "(spell_library: (known: []))")?;
         let err = load_content_layers(&[&over, &committed]).unwrap_err();
         assert!(err.to_string().contains("0 rows"), "{err}");
+        Ok(())
     }
 
     #[test]
-    fn every_building_description_gives_its_effects_with_their_numbers() {
+    fn every_building_description_gives_its_effects_with_their_numbers() -> TestResult {
         use f4x_core::city::description::{building_description, effect_key};
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
-        let content = load_content(&dir).unwrap();
+        let dir = crate::testutil::content_dir();
+        let content = load_content(&dir)?;
         for (id, def) in content.rules.buildings.iter() {
             let text = building_description(&content, id);
             for rule in &def.effects {
                 let (_, n) = effect_key(rule)
-                    .unwrap_or_else(|| panic!("{} has an effect without a sentence", def.id));
+                    .ok_or_else(|| format!("{} has an effect without a sentence", def.id))?;
                 assert!(
                     text.contains(&n.to_string()),
                     "the description of {} leaves out {n}: {text}",
@@ -1149,13 +1164,14 @@ mod tests {
                 assert!(text.contains("Needs"), "{}: {text}", def.id);
             }
         }
+        Ok(())
     }
 
     #[test]
-    fn each_townsfolk_topic_names_the_buildings_its_race_cannot_build() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
-        let help = load_help(&dir).unwrap();
-        let content = load_content(&dir).unwrap();
+    fn each_townsfolk_topic_names_the_buildings_its_race_cannot_build() -> TestResult {
+        let dir = crate::testutil::content_dir();
+        let help = load_help(&dir)?;
+        let content = load_content(&dir)?;
         let topics = [
             ("barbarian", 279),
             ("beastmen", 280),
@@ -1174,7 +1190,7 @@ mod tests {
         ];
         assert_eq!(topics.len(), content.rules.races.iter().count());
         for (race, index) in topics {
-            let topic = help.topic(index).unwrap();
+            let topic = help.topic(index).ok_or("the value is missing")?;
             for (_, b) in content.rules.buildings.iter() {
                 if !b.races.is_empty() && !b.races.iter().any(|r| r == race) {
                     assert!(
@@ -1185,12 +1201,13 @@ mod tests {
                 }
             }
         }
+        Ok(())
     }
 
     #[test]
-    fn the_shipped_help_is_consistent_and_every_topic_is_opened_by_an_area() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
-        let help = load_help(&dir).unwrap();
+    fn the_shipped_help_is_consistent_and_every_topic_is_opened_by_an_area() -> TestResult {
+        let dir = crate::testutil::content_dir();
+        let help = load_help(&dir)?;
         assert_eq!(help.screens.len(), 41);
         assert!(!help.topics.is_empty());
         // The game's own text is written for areas that open it: no orphan topic.
@@ -1210,17 +1227,20 @@ mod tests {
             assert!(!t.text.trim().is_empty(), "topic {} is empty", t.index);
         }
         // The main screen's Done button is first at a point that Next Turn also covers.
-        let (topic, _) = help.at(1, 250, 178).unwrap();
+        let (topic, _) = help.at(1, 250, 178).ok_or("the value is missing")?;
         assert_eq!(topic.index, 223);
-        let (topic, _) = help.at_where(1, 250, 178, |t| t != 223).unwrap();
+        let (topic, _) = help
+            .at_where(1, 250, 178, |t| t != 223)
+            .ok_or("the value is missing")?;
         assert_eq!(topic.index, 229);
+        Ok(())
     }
 
     #[test]
-    fn every_ability_and_every_spell_has_a_help_topic() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
-        let help = load_help(&dir).unwrap();
-        let content = load_content(&dir).unwrap();
+    fn every_ability_and_every_spell_has_a_help_topic() -> TestResult {
+        let dir = crate::testutil::content_dir();
+        let help = load_help(&dir)?;
+        let content = load_content(&dir)?;
         for ability in content.rules.abilities.defs() {
             let topic = help.topic_for(&format!("ability:{}", ability.id));
             assert!(
@@ -1239,7 +1259,7 @@ mod tests {
         }
         // And no topic names a subject that does not exist.
         for t in help.topics.iter().filter_map(|t| t.subject.as_deref()) {
-            let (kind, id) = t.split_once(':').unwrap();
+            let (kind, id) = t.split_once(':').ok_or("the value is missing")?;
             let known = match kind {
                 "ability" => content.rules.abilities.defs().iter().any(|a| a.id == id),
                 "spell" => content.rules.spells.defs().iter().any(|s| s.id == id),
@@ -1247,5 +1267,6 @@ mod tests {
             };
             assert!(known, "help subject {t} is not in the game");
         }
+        Ok(())
     }
 }

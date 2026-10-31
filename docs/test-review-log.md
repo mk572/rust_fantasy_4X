@@ -47,3 +47,24 @@ Done for the whole crate in four passes, by script and compiler where it was mec
 | hard-coded values | partly | The turn thresholds of marriage and meteor (`BIG_EVENTS_FROM_TURN`, was 150 in two places), of the monsters (`MONSTER_FIRST_TURN`) and of the mercenaries (`FIRST_MERCENARY_TURN`) are constants in the tests. Not searched for other literals in the tests. |
 | slow tests | checked | All 1,023 tests under 0.35 s; the slowest are `a_guarded_node_resists_rivals_three_times_in_four` (0.33 s, a loop of rolls) and `the_battle_ai_takes_a_walled_city` (0.19 s). Needless cloning was not looked for beyond that. |
 
+
+## crates/f4x-data (31 October 2026)
+
+Reviewed with the same checks as `f4x-core`. All 72 tests (0.15 s) were already on the shipped `content/`; the rest of the crate's tests either run `load_content` or edit a shipped file as text to provoke one error.
+
+| File | Status | Notes |
+|---|---|---|
+| `src/lib.rs` | done | 28 tests. 55 `unwrap`/`panic!` sites in tests are `?` (the tests return `TestResult`; an `Option` is `.ok_or("..")?`), helpers and closures use `expect`. Two `panic!("expected invalid")` are `return Err(..)`. The 10 copies of the path `../../content` are `testutil::content_dir()`. `shipped_content_generates_a_map` built a `Content` of terrains and features only; it runs `Game::with_generated_map` on the whole shipped content. Dead helper `shipped_features` removed. Comment "(task 174)" removed. |
+| `src/rules.rs` | done | 16 tests, 48 `unwrap` sites gone. `rules_with` read and parsed 11 files with 11 `unwrap`s; one generic `shipped` helper does it with a message that names the file. `find` keeps a `panic!` with the missing id (a helper for the tests that edit a definition). Test name lost "until local texts arrive" (future wording). `problems_after` copies every shipped definition list to change one of them; kept, nine tests, a few ms each. |
+| `src/save.rs` | done | 4 tests, 22 `unwrap` sites gone. The saves went to a fixed folder `target/test-saves/<name>` that outlived the run; they use a `TestDir` now. `game()` returns a `Result`, loads the content once (it cloned it) and takes the map size from `GenParams` (was 40 and 60). |
+| `src/sound.rs` | done | 2 tests on the shipped content, 5 `unwrap`s replaced. |
+| `src/spell_art.rs` | done | 5 tests (3 on made-up tables, 2 on the shipped one), 6 `unwrap`s replaced. |
+| `src/testutil.rs` | done | New: the folder of the shipped content for the unit tests (compiled for tests only; says so in a `//! Tests:` line). |
+| `tests/it/autobuild.rs` | done | `panic!("{other:?}")` is an error that names the item; the other `unwrap` is `expect`. |
+| `tests/it/original_content.rs` | done | 9 tests against the original's tables. 4 `unwrap`s are `expect` with the cell they parse; "(task 404)" removed from the module doc. **Open:** `original_retort_available` still has a `panic!` for a retort name the table does not know (a lookup in a helper, not a check). |
+| `tests/it/shipped.rs` | done | New: `content()` and `content_dir()`, replacing three copies of the loader. |
+| `tests/it/stacking.rs` | done | One `unwrap` is `expect`. |
+| `tests/it/text.rs` | done | Three helpers return `Result`, four tests return `TestResult`; 10 `unwrap`s gone. |
+| `tests/it/main.rs` | done | `mod` lines. |
+
+**`crates/f4x-data` is finished.** Not looked at: whether the pinned counts (`35` heroes, `250` items, `66` powers, `41` help screens) are stated anywhere but these tests.

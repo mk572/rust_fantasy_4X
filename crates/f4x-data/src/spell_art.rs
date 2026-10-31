@@ -187,6 +187,7 @@ pub fn validate_spell_art(art: &SpellArt, rules: &Rules) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::testdir::TestResult;
 
     fn picture(lbx: &str, entry: usize, role: Role) -> Picture {
         Picture {
@@ -197,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    fn a_picture_of_one_spell_goes_to_its_folder_and_one_of_several_is_shared() {
+    fn a_picture_of_one_spell_goes_to_its_folder_and_one_of_several_is_shared() -> TestResult {
         let art = parse_spell_art(
             r#"(
                 shared: [(lbx: "specfx", entry: 49, role: Sparkle)],
@@ -207,18 +208,18 @@ mod tests {
                     "call_the_void": [(lbx: "specfx", entry: 12, role: Cast)],
                 },
             )"#,
-        )
-        .unwrap();
+        )?;
         let folders = art.folders();
         assert_eq!(folders[&("cmbtfx".into(), 0)], "fire_bolt");
         assert_eq!(folders[&("specfx".into(), 12)], SHARED);
         assert_eq!(folders[&("specfx".into(), 49)], SHARED);
         assert_eq!(art.picture("petrify", &Role::Cast), Some(("specfx", 12)));
         assert_eq!(art.shared(&Role::Sparkle), Some(("specfx", 49)));
+        Ok(())
     }
 
     #[test]
-    fn call_chaos_reads_the_pictures_it_borrows_from_the_folders_of_their_spells() {
+    fn call_chaos_reads_the_pictures_it_borrows_from_the_folders_of_their_spells() -> TestResult {
         let art = parse_spell_art(
             r#"(
                 spells: {
@@ -229,33 +230,33 @@ mod tests {
                     ],
                 },
             )"#,
-        )
-        .unwrap();
+        )?;
         assert_eq!(art.folders()[&("cmbtfx".into(), 3)], "warp_lightning");
         assert_eq!(
             art.picture("call_chaos", &Role::Chaos(6)),
             Some(("cmbtfx", 3))
         );
+        Ok(())
     }
 
     #[test]
-    fn a_picture_listed_as_shared_stays_shared_when_one_spell_uses_it() {
+    fn a_picture_listed_as_shared_stays_shared_when_one_spell_uses_it() -> TestResult {
         let art = parse_spell_art(
             r#"(
                 shared: [(lbx: "specfx", entry: 3, role: Realm("life"))],
                 spells: {"chaos_channels": [(lbx: "specfx", entry: 3, role: Chaos(1))]},
             )"#,
-        )
-        .unwrap();
+        )?;
         assert_eq!(art.folders()[&("specfx".into(), 3)], SHARED);
         assert_eq!(art.realm("life"), Some(("specfx", 3)));
+        Ok(())
     }
 
     #[test]
-    fn the_committed_table_names_real_spells_and_real_realms() {
-        let dir = Path::new("../../content");
-        let content = crate::load_content(dir).unwrap();
-        let art = load_spell_art(&[dir], &content.rules).unwrap();
+    fn the_committed_table_names_real_spells_and_real_realms() -> TestResult {
+        let dir = crate::testutil::content_dir();
+        let content = crate::load_content(&dir)?;
+        let art = load_spell_art(&[&dir], &content.rules)?;
         for realm in ["nature", "sorcery", "chaos", "life", "death", "arcane"] {
             assert!(art.realm(realm).is_some(), "no picture for {realm}");
         }
@@ -272,11 +273,12 @@ mod tests {
                 );
             }
         }
+        Ok(())
     }
 
     #[test]
-    fn a_table_with_an_unknown_spell_or_a_repeated_role_is_refused() {
-        let content = crate::load_content(Path::new("../../content")).unwrap();
+    fn a_table_with_an_unknown_spell_or_a_repeated_role_is_refused() -> TestResult {
+        let content = crate::load_content(&crate::testutil::content_dir())?;
         let art = SpellArt {
             shared: vec![],
             spells: BTreeMap::from([
@@ -295,5 +297,6 @@ mod tests {
         };
         let problems = validate_spell_art(&art, &content.rules);
         assert_eq!(problems.len(), 2, "{problems:?}");
+        Ok(())
     }
 }
