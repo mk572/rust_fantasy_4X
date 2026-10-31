@@ -116,9 +116,24 @@ pub fn extract_fonts(
             rgba[at..at + strip.len()].copy_from_slice(&strip);
         }
         write_png(&dir.join(format!("style{style}.png")), aw, ah, &rgba)?;
-        let widths: Vec<usize> = glyphs.iter().map(|(_, w, _)| *w).collect();
-        let xs: Vec<usize> = glyphs.iter().map(|(x, _, _)| *x).collect();
-        let (atlas, fnt) = bmfont(style, height, (hspacing, vspacing), &xs, &widths, &rgba, aw);
+        let mut bm_glyphs: Vec<BmGlyph> = glyphs
+            .iter()
+            .enumerate()
+            .map(|(g, (_, width, px))| BmGlyph {
+                ch: char::from(32 + g as u8),
+                width: *width,
+                height,
+                y_offset: 0,
+                advance: width + hspacing,
+                px: px.clone(),
+            })
+            .collect();
+        // The original's fonts are ASCII only: German letters are drawn from their base letters.
+        if style < GERMAN_STYLES {
+            bm_glyphs.extend(german_glyphs(&bm_glyphs, if height > 12 { 2 } else { 1 }));
+        }
+        let colours = set_colours(palette_entry, pal);
+        let (atlas, fnt) = bmfont(style, height, vspacing, &bm_glyphs, &colours);
         let bm_dir = dir.join("bmfont");
         fs::create_dir_all(&bm_dir).map_err(|e| e.to_string())?;
         write_png(
@@ -167,48 +182,199 @@ pub fn colour_sets_ron(palette_entry: &[u8], pal: &[u8]) -> String {
 
 const BM_COLUMNS: usize = 16;
 
+/// The styles that are letters (0 to 5); 6 and 7 are rune fonts and get no German letters.
+const GERMAN_STYLES: usize = 6;
+
+/// A glyph of the BMFont export: colour indexes (0 is clear), `width` by `height`, drawn
+/// `y_offset` rows below the top of the line (negative: above it).
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BmGlyph {
+    ch: char,
+    width: usize,
+    height: usize,
+    y_offset: i32,
+    advance: usize,
+    px: Vec<u8>,
+}
+
+/// The RGBA of each colour index 1 to 15 in each of the 16 colour sets (index 0 is clear).
+fn set_colours(palette_entry: &[u8], pal: &[u8]) -> Vec<[[u8; 4]; 16]> {
+    (0..SETS)
+        .map(|set| {
+            let mut row = [[0u8; 4]; 16];
+            for (c, slot) in row.iter_mut().enumerate().skip(1) {
+                let pi = palette_entry
+                    .get(OFS_COLOR_SETS + set * 16 + c)
+                    .copied()
+                    .unwrap_or(0);
+                slot.copy_from_slice(&to_rgba(&[pi], pal));
+            }
+            row
+        })
+        .collect()
+}
+
+/// A glyph with a diaeresis (two dots) over a copy of `base`, `dot` pixels square, one clear row
+/// between them and the letter. If the letter leaves no room above it, the glyph grows upward
+/// and is drawn above the top of the line.
+fn with_diaeresis(base: &BmGlyph, ch: char, dot: usize) -> BmGlyph {
+    let Some(top) = (0..base.height).find(|&r| {
+        base.px[r * base.width..(r + 1) * base.width]
+            .iter()
+            .any(|&c| c != 0)
+    }) else {
+        return BmGlyph { ch, ..base.clone() };
+    };
+    let room = dot + 1;
+    let extra = room.saturating_sub(top);
+    let mut px = vec![0u8; base.width * (base.height + extra)];
+    px[extra * base.width..].copy_from_slice(&base.px);
+    // The colour most of the letter has.
+    let mut counts = [0usize; 16];
+    for &c in &base.px {
+        counts[usize::from(c & 0x0F)] += 1;
+    }
+    let colour = (1..16u8)
+        .max_by_key(|&c| counts[usize::from(c)])
+        .unwrap_or(1);
+    let left = base.width.saturating_sub(dot) / 4;
+    let right = base.width.saturating_sub(dot + left);
+    let first_row = top + extra - room;
+    for row in first_row..first_row + dot {
+        for x in (left..left + dot).chain(right..right + dot) {
+            if x < base.width {
+                px[row * base.width + x] = colour;
+            }
+        }
+    }
+    BmGlyph {
+        ch,
+        height: base.height + extra,
+        y_offset: base.y_offset - extra as i32,
+        px,
+        ..base.clone()
+    }
+}
+
+/// An eszett: the stem and lower bowl of a small `b`, with the upper curve of a capital `B`
+/// above the height of a small `o`, and the bowl cut loose from the stem along the bottom row.
+fn eszett(capital_b: &BmGlyph, small_b: &BmGlyph, small_o: &BmGlyph) -> BmGlyph {
+    let width = capital_b.width.max(small_b.width);
+    let height = small_b.height;
+    let cell = |g: &BmGlyph, row: usize, col: usize| {
+        if row < g.height && col < g.width {
+            g.px[row * g.width + col]
+        } else {
+            0
+        }
+    };
+    let row_is_empty = |g: &BmGlyph, row: usize| (0..g.width).all(|c| cell(g, row, c) == 0);
+    // Rows above the small o are only the stem in a `b`: the capital supplies the curve there.
+    let x_height = (0..small_o.height)
+        .find(|&r| !row_is_empty(small_o, r))
+        .unwrap_or(0);
+    let mut px = vec![0u8; width * height];
+    for row in 0..height {
+        for col in 0..width {
+            let own = cell(small_b, row, col);
+            px[row * width + col] = if row < x_height {
+                own.max(cell(capital_b, row, col))
+            } else {
+                own
+            };
+        }
+    }
+    // The stem is the first run of the row under the top; the bowl's end stops short of it.
+    if let Some(bottom) = (0..height)
+        .rev()
+        .find(|&r| px[r * width..(r + 1) * width].iter().any(|&c| c != 0))
+    {
+        let probe = (x_height.saturating_sub(1)).min(bottom);
+        let line = &px[probe * width..(probe + 1) * width];
+        let start = line.iter().position(|&c| c != 0).unwrap_or(0);
+        let stem = line[start..].iter().take_while(|&&c| c != 0).count();
+        let cut = start + stem;
+        let filled = px[bottom * width..(bottom + 1) * width]
+            .iter()
+            .filter(|&&c| c != 0)
+            .count();
+        if cut < width && filled > stem + 1 {
+            px[bottom * width + cut] = 0;
+        }
+    }
+    BmGlyph {
+        ch: 'ß',
+        width,
+        height,
+        y_offset: small_b.y_offset,
+        advance: small_b.advance.max(capital_b.advance),
+        px,
+    }
+}
+
+/// Ä, Ö, Ü, ä, ö, ü and ß from the ASCII glyphs, for German.
+fn german_glyphs(ascii: &[BmGlyph], dot: usize) -> Vec<BmGlyph> {
+    let find = |c: char| ascii.iter().find(|g| g.ch == c);
+    let mut out = Vec::new();
+    for (base, umlaut) in [
+        ('A', 'Ä'),
+        ('O', 'Ö'),
+        ('U', 'Ü'),
+        ('a', 'ä'),
+        ('o', 'ö'),
+        ('u', 'ü'),
+    ] {
+        if let Some(glyph) = find(base) {
+            out.push(with_diaeresis(glyph, umlaut, dot));
+        }
+    }
+    if let (Some(capital), Some(small), Some(o)) = (find('B'), find('b'), find('o')) {
+        out.push(eszett(capital, small, o));
+    }
+    out
+}
+
 /// A style as an AngelCode text BMFont: the atlas `(width, height, RGBA)` and the `.fnt` text.
-/// `strips` holds the glyph strip (`strip_width` wide) of each of the `SETS` colour sets one
-/// below the other. The glyphs go into a grid with a one pixel gap, so nearest scaling does not
-/// bleed, and the grid is stacked once per set. The `.fnt` describes the first grid. `xadvance` is
-/// the glyph width plus the style's horizontal spacing, `lineHeight` the height plus the vertical.
+/// The glyphs go into a grid with a one pixel gap, so nearest scaling does not bleed, and the
+/// grid is stacked once per colour set. The `.fnt` describes the first grid. `xadvance` is the
+/// glyph's advance (its width plus the style's horizontal spacing), `lineHeight` the style's
+/// height plus the vertical spacing.
 fn bmfont(
     style: usize,
     height: usize,
-    (hspacing, vspacing): (usize, usize),
-    xs: &[usize],
-    widths: &[usize],
-    strips: &[u8],
-    strip_width: usize,
+    vspacing: usize,
+    glyphs: &[BmGlyph],
+    colours: &[[[u8; 4]; 16]],
 ) -> ((usize, usize, Vec<u8>), String) {
-    let cell_w = widths.iter().copied().max().unwrap_or(1) + 1;
-    let cell_h = height + 1;
-    let rows = widths.len().div_ceil(BM_COLUMNS);
+    let cell_w = glyphs.iter().map(|g| g.width).max().unwrap_or(0) + 1;
+    let cell_h = glyphs.iter().map(|g| g.height).max().unwrap_or(0) + 1;
+    let rows = glyphs.len().div_ceil(BM_COLUMNS);
     let (aw, grid_h) = (cell_w * BM_COLUMNS, cell_h * rows);
-    let mut rgba = vec![0u8; aw * grid_h * SETS * 4];
+    let mut rgba = vec![0u8; aw * grid_h * colours.len() * 4];
     let mut fnt = format!(
         "info face=\"FONTS.LBX style {style}\" size={height}\n\
          common lineHeight={} base={height} scaleW={aw} scaleH={grid_h} pages=1 packed=0\n\
          page id=0 file=\"style{style}.png\"\nchars count={}\n",
         height + vspacing,
-        widths.len()
+        glyphs.len()
     );
-    for (g, (&gx, &gw)) in xs.iter().zip(widths).enumerate() {
-        let (cx, cy) = (g % BM_COLUMNS * cell_w, g / BM_COLUMNS * cell_h);
-        for set in 0..SETS {
-            for row in 0..height {
-                let from = ((set * height + row) * strip_width + gx) * 4;
-                let to = ((set * grid_h + cy + row) * aw + cx) * 4;
-                rgba[to..to + gw * 4].copy_from_slice(&strips[from..from + gw * 4]);
+    for (n, glyph) in glyphs.iter().enumerate() {
+        let (cx, cy) = (n % BM_COLUMNS * cell_w, n / BM_COLUMNS * cell_h);
+        for (set, palette) in colours.iter().enumerate() {
+            for row in 0..glyph.height {
+                for col in 0..glyph.width {
+                    let index = glyph.px[row * glyph.width + col];
+                    let at = ((set * grid_h + cy + row) * aw + cx + col) * 4;
+                    rgba[at..at + 4].copy_from_slice(&palette[usize::from(index & 0x0F)]);
+                }
             }
         }
         fnt.push_str(&format!(
-            "char id={} x={cx} y={cy} width={gw} height={height} xoffset=0 yoffset=0 xadvance={} page=0 chnl=15\n",
-            g + 32,
-            gw + hspacing
+            "char id={} x={cx} y={cy} width={} height={} xoffset=0 yoffset={} xadvance={} page=0 chnl=15\n",
+            glyph.ch as u32, glyph.width, glyph.height, glyph.y_offset, glyph.advance
         ));
     }
-    ((aw, grid_h * SETS, rgba), fnt)
+    ((aw, grid_h * colours.len(), rgba), fnt)
 }
 
 #[cfg(test)]
@@ -227,30 +393,114 @@ mod tests {
         assert_eq!(px, vec![5, 5, 5]);
     }
 
+    fn glyph(ch: char, width: usize, height: usize, rows: &[&str]) -> BmGlyph {
+        // Each row of `rows` is a string of colour indexes, `.` for clear.
+        let px = rows
+            .iter()
+            .flat_map(|r| r.chars().map(|c| c.to_digit(10).map_or(0, |d| d as u8)))
+            .collect();
+        BmGlyph {
+            ch,
+            width,
+            height,
+            y_offset: 0,
+            advance: width + 1,
+            px,
+        }
+    }
+
     #[test]
     fn a_style_becomes_a_bmfont_with_every_colour_set_stacked() {
-        // Two glyphs (widths 2 and 1, height 2) on strips of width 3; set 0 is grey 200, set 1
-        // is red, the other sets are empty.
-        let strip = |c: [u8; 4]| {
-            let mut s = vec![0u8; 3 * 2 * 4];
-            for px in [0, 1, 3, 4, 5] {
-                s[px * 4..px * 4 + 4].copy_from_slice(&c);
-            }
-            s
-        };
-        let mut strips = strip([200, 200, 200, 255]);
-        strips.extend(strip([255, 0, 0, 255]));
-        strips.extend(vec![0u8; 3 * 2 * 4 * (SETS - 2)]);
-        let ((aw, ah, rgba), fnt) = bmfont(1, 2, (1, 3), &[0, 2], &[2, 1], &strips, 3);
-        assert_eq!((aw, ah), (3 * BM_COLUMNS, 3 * SETS));
-        assert!(fnt.contains("common lineHeight=5 base=2 scaleW=48 scaleH=3"));
-        assert!(fnt.contains("char id=32 x=0 y=0 width=2 height=2 xoffset=0 yoffset=0 xadvance=3"));
-        assert!(fnt.contains("char id=33 x=3 y=0 width=1 height=2 xoffset=0 yoffset=0 xadvance=2"));
+        let a = glyph('A', 2, 2, &["1.", ".1"]);
+        let v = glyph('V', 3, 2, &["111", "..1"]);
+        let mut colours = vec![[[0u8; 4]; 16]; 2];
+        colours[0][1] = [200, 200, 200, 255];
+        colours[1][1] = [255, 0, 0, 255];
+        let ((aw, ah, rgba), fnt) = bmfont(1, 2, 3, &[a, v], &colours);
+        assert_eq!((aw, ah), (4 * BM_COLUMNS, 3 * 2));
+        assert!(fnt.contains("common lineHeight=5 base=2 scaleW=64 scaleH=3"));
+        assert!(fnt.contains("char id=65 x=0 y=0 width=2 height=2 xoffset=0 yoffset=0 xadvance=3"));
+        assert!(fnt.contains("char id=86 x=4 y=0 width=3 height=2 xoffset=0 yoffset=0 xadvance=4"));
         let pixel = |x: usize, y: usize| rgba[(y * aw + x) * 4..(y * aw + x) * 4 + 4].to_vec();
-        // Glyph 33 has an empty top pixel and a drawn bottom one, in set 0 and in set 1 (3 down).
-        assert_eq!(pixel(3, 0), [0, 0, 0, 0]);
-        assert_eq!(pixel(3, 1), [200, 200, 200, 255]);
-        assert_eq!(pixel(3, 3 + 1), [255, 0, 0, 255]);
+        // 'V' draws its top row in set 0 and the same pixels in set 1 (3 rows down), in red.
+        assert_eq!(pixel(4, 0), [200, 200, 200, 255]);
+        assert_eq!(pixel(4, 1), [0, 0, 0, 0]);
+        assert_eq!(pixel(4, 3), [255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn dots_go_over_a_letter_that_has_room_and_make_the_glyph_grow_when_it_has_none() {
+        // A lowercase letter starting at row 2 of 4: dots at row 0, a clear row between.
+        let a = glyph('a', 5, 4, &[".....", ".....", ".111.", "1...1"]);
+        let umlaut = with_diaeresis(&a, 'ä', 1);
+        assert_eq!((umlaut.height, umlaut.y_offset), (4, 0));
+        assert_eq!(&umlaut.px[0..5], &[0, 1, 0, 1, 0]);
+        assert_eq!(&umlaut.px[5..10], &[0; 5], "one clear row under the dots");
+        assert_eq!(&umlaut.px[10..], &a.px[10..]);
+        // A capital at the top of the cell: two rows are added above it.
+        let cap = glyph('A', 3, 3, &[".1.", "1.1", "111"]);
+        let umlaut = with_diaeresis(&cap, 'Ä', 1);
+        assert_eq!((umlaut.height, umlaut.y_offset), (5, -2));
+        assert_eq!(&umlaut.px[0..3], &[1, 0, 1]);
+        assert_eq!(&umlaut.px[3..6], &[0; 3]);
+        assert_eq!(&umlaut.px[6..], &cap.px[..]);
+    }
+
+    #[test]
+    fn dots_of_two_pixels_are_square_and_symmetric() {
+        let wide = glyph(
+            'o',
+            10,
+            6,
+            &[
+                "..........",
+                "..........",
+                "..........",
+                "..........",
+                ".11111111.",
+                ".11111111.",
+            ],
+        );
+        let umlaut = with_diaeresis(&wide, 'ö', 2);
+        let rows: Vec<&[u8]> = umlaut.px.chunks(10).collect();
+        // Room: dot 2 + gap 1 = 3 rows above the letter at row 4: starts at row 1.
+        assert_eq!(rows[1], &[0, 0, 1, 1, 0, 0, 1, 1, 0, 0]);
+        assert_eq!(rows[2], rows[1]);
+        assert!(rows[3].iter().all(|&c| c == 0));
+    }
+
+    #[test]
+    fn the_eszett_has_the_curve_of_b_over_the_bowl_of_small_b_and_a_gap_at_the_bottom() {
+        let capital = glyph('B', 4, 6, &["111.", "1..1", "111.", "1..1", "1..1", "111."]);
+        let small = glyph('b', 4, 6, &["1...", "1...", "111.", "1..1", "1..1", "111."]);
+        let o = glyph('o', 4, 6, &["....", "....", ".11.", "1..1", "1..1", ".11."]);
+        let eszett = eszett(&capital, &small, &o);
+        assert_eq!(eszett.ch, 'ß');
+        let rows: Vec<&[u8]> = eszett.px.chunks(4).collect();
+        assert_eq!(rows[0], &[1, 1, 1, 0], "the top curve is the capital's");
+        assert_eq!(rows[1], &[1, 0, 0, 1]);
+        assert_eq!(
+            rows[2],
+            &[1, 1, 1, 0],
+            "from the small o's height the bowl is the small b's"
+        );
+        assert_eq!(
+            rows[5],
+            &[1, 0, 1, 0],
+            "the bowl stops short of the stem at the bottom"
+        );
+    }
+
+    #[test]
+    fn german_gets_six_umlauts_and_an_eszett_from_the_ascii_letters() {
+        let ascii: Vec<BmGlyph> = "AOUaoubB"
+            .chars()
+            .map(|c| glyph(c, 3, 3, &["111", "1.1", "1.1"]))
+            .collect();
+        let german = german_glyphs(&ascii, 1);
+        let letters: String = german.iter().map(|g| g.ch).collect();
+        assert_eq!(letters, "ÄÖÜäöüß");
+        assert!(german_glyphs(&[], 1).is_empty());
     }
 
     #[test]

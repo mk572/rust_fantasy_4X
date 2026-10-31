@@ -194,8 +194,12 @@ pick the same palette the game had loaded when it showed a picture, or the colou
 - `fonts/bmfont/style0.fnt` to `style7.fnt` with `.png` are the same styles as AngelCode text BMFonts (for
   `macroquad_bitmap_font_engine`): 96 glyphs on a grid with a one pixel gap, `lineHeight` =
   height + vertical spacing, `xadvance` = width + horizontal spacing. The `.fnt` describes the first grid and the PNG
-  stacks it 16 times, once per colour set (the engine's `Ink::Set`, `Nearest` and `Tint` pick one). They are original
-  art, so they stay local like the rest of `assets-local`.
+  stacks it 16 times, once per colour set (the engine's `Ink::Set`, `Nearest` and `Tint` pick one). Styles 0 to 5 also get
+  **Ä Ö Ü ä ö ü ß** (for German, task on localized text), drawn by the extractor from the ASCII letters: two dots over
+  the letter (a clear row between; a letter with no room above grows upward and is drawn above the line, `yoffset` < 0)
+  and an eszett made from the capital B's curve over the bowl of a small b with a gap at the bottom. The ß is the
+  roughest of them; check it by eye. The rune styles 6 and 7 get none. They are original art, so they stay local like
+  the rest of `assets-local`.
 - `fonts/colour_sets.ron` is the colour set table itself (set, colour index 1 to 15, RGB). It is only numbers, so a
   copy is committed as `content/font_colour_sets.ron`; after `extract-art` copy it over (`cp
   assets-local/art/fonts/colour_sets.ron content/font_colour_sets.ron`). A test in `f4x-data` checks its shape.
