@@ -203,6 +203,29 @@ fn attack_value(
     taken * worth(target) * threat
 }
 
+/// A side runs when the enemy on the field is this many times as strong as what it has left.
+const FLEE_RATIO: f32 = 4.0;
+
+/// What a side has on the field: the worth of its active units.
+fn field_worth(battle: &Battle, side: Side) -> f32 {
+    battle.active_units(side).map(worth).sum()
+}
+
+/// Whether the side's fight is lost: the enemy is [`FLEE_RATIO`] times as strong as what the side
+/// has left, and it has more than one unit. Running saves the units that are still alive; staying
+/// loses them as well. A lone unit fights its duel out.
+fn hopeless(battle: &Battle, side: Side) -> bool {
+    let (mine, theirs) = (field_worth(battle, side), field_worth(battle, side.other()));
+    battle.active_units(side).count() > 1 && theirs > mine * FLEE_RATIO
+}
+
+/// The order to run, if the active side's fight is lost. It is not part of
+/// [`next_command`], which gives unit orders only (the learned player takes the unit orders from
+/// it and decides to flee on its own); the scripted wizard asks for it first (`brain.rs`).
+pub fn retreat(battle: &Battle) -> Option<BattleCommand> {
+    hopeless(battle, battle.active).then_some(BattleCommand::Flee)
+}
+
 /// The next order for the side whose turn it is: the smarter AI.
 pub fn next_command(battle: &Battle) -> BattleCommand {
     let side = battle.active;
@@ -333,6 +356,38 @@ mod tests {
         u.ammo = 5;
         u.ranged_kind = RangedKind::Missile;
         u
+    }
+
+    #[test]
+    fn a_side_that_the_enemy_outweighs_four_to_one_flees_and_an_even_one_fights() {
+        let strong = |side, cell| BattleUnit::simple(side, "s", 4, 3, 4, 3).at(cell);
+        let weak = |side, cell| BattleUnit::simple(side, "w", 1, 1, 1, 1).at(cell);
+        let fight = |units| Battle::new(PlayerId(0), PlayerId(1), BattleMap::open(), units, 1);
+        let lopsided = fight(vec![
+            weak(Side::Attacker, (3, 5)),
+            weak(Side::Attacker, (3, 6)),
+            strong(Side::Defender, (10, 5)),
+            strong(Side::Defender, (10, 6)),
+        ]);
+        assert_eq!(retreat(&lopsided), Some(BattleCommand::Flee));
+        let even = fight(vec![
+            strong(Side::Attacker, (3, 5)),
+            strong(Side::Defender, (10, 5)),
+        ]);
+        assert_eq!(retreat(&even), None);
+        // A lone unit fights its duel out.
+        let lone = fight(vec![
+            weak(Side::Attacker, (3, 5)),
+            strong(Side::Defender, (10, 5)),
+        ]);
+        assert_eq!(retreat(&lone), None);
+        // The strong side does not run from the weak one.
+        let mut strong_turn = fight(vec![
+            weak(Side::Attacker, (3, 5)),
+            strong(Side::Defender, (4, 5)),
+        ]);
+        strong_turn.active = Side::Defender;
+        assert_eq!(retreat(&strong_turn), None);
     }
 
     #[test]

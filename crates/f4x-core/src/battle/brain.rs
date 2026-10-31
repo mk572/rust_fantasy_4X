@@ -1,6 +1,6 @@
 //! The scripted wizard in a battle (`docs/ai-design.md` section 6.5): once a turn it casts the
 //! spell that is worth the most for its mana, if any is worth casting at all; otherwise the
-//! units act (`ai::next_command`).
+//! units act (`ai::next_command`), or the side runs when the fight is lost (`ai::retreat`).
 //!
 //! A cast is scored from the spell's data, not by name: damage and slaying by how much of an
 //! enemy unit they take, healing by how much of a hurt unit they restore, a summon by the
@@ -29,6 +29,7 @@ pub fn next_command(game: &Game) -> Option<BattleCommand> {
     Some(
         cast_choice(game, battle)
             .or_else(|| unit_cast_choice(game, battle))
+            .or_else(|| ai::retreat(battle))
             .unwrap_or_else(|| ai::next_command(battle)),
     )
 }
