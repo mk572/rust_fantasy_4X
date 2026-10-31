@@ -78,7 +78,7 @@ Counted against the code of each file, not by function name: five of the fourtee
 | `threat/monster.rs` | done | The turn was tested; new for the private helpers: `tally`, `monster_list` (budget, stack size, realm), `guard_realm_of`. |
 | `threat/raider.rs` | done | Tested already (clock, free troops, war). New: two thirds beside an AI fortress, halved on Myrror before turn 200, experience by turn, settlers do not raid. |
 | `unit/pathing.rs` | done | Four path tests existed. New in `unit/movement/tests.rs`: `neighbours`, `reachable_squares` (agrees with `find_path`, stops at a foe), `path_turns`. |
-| `wizard/magic.rs` | done | 9 tests: casting skill and the points for it, the upkeep plan (reserve, newest first, Channeler), spells by realm and rarity, the defaults, random picks, summoning and crafting. **Not tested here:** that each error's sentence exists in the texts; the core test content has no texts. |
+| `wizard/magic.rs` | done | 9 tests: casting skill and the points for it, the upkeep plan (reserve, newest first, Channeler), spells by realm and rarity, the defaults, random picks, summoning and crafting. That each error's sentence exists is checked by `f4x-data` (`every_key_the_code_names_is_written`), since the core test content has no texts. |
 
 The core went from 1,041 to 1,106 unit tests.
 
