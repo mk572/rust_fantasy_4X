@@ -507,7 +507,7 @@ unit tests in `wizardry.rs` and `battle/ai.rs`, `crates/f4x-learn/tests/it/mirro
   coastal city; a stack of the ship and its passengers moves with one `GoTo`; passengers land with
   an ordinary move onto the land next to the target. What the AI would have to add: a port, the
   buildings, a gathering of nine or more units over several trips, and a landing area it holds
-  until the force is whole. Built in `naval.rs` (port, ship, one landing at a time); a ship loaded for a rival's city declares war first; what stays open is a second ship, planes, and why seeds 2, 5, 7 and 8 make no landing on the other wizard (task 230).
+  until the force is whole. Built in `naval.rs` (port, ship, one landing at a time); a ship loaded for a rival's city declares war first; what stays open is a second ship, planes (seeds 5 and 7 put the wizards on different planes; it needs a scout landed inland, a cleared tower and a shift), and why seeds 2 and 8 make no landing on the other wizard (task 230).
 - **Memory of enemy garrisons** and a **threat map** (section 5.2): a city out of sight is
   guessed at three average units.
 - **The special spells in the AI** (step 5): Earth Lore, Word of Recall, Nature's Cures,
