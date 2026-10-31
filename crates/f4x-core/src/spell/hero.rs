@@ -363,6 +363,25 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn torin_alone_is_a_hero_and_a_life_creature_and_has_his_three_extra_spells() -> TestResult {
+        let rules = &caster().content.rules;
+        let last = torin(rules);
+        for t in &rules.hero_templates {
+            let def = rules
+                .units
+                .get(rules.units.id_of(&t.unit).ok_or("no unit")?);
+            let torin =
+                rules.units.id_of(&rules.hero_templates[last].unit) == rules.units.id_of(&t.unit);
+            assert_eq!(def.realm.as_deref(), torin.then_some("life"), "{}", t.unit);
+        }
+        let spells = &rules.hero_templates[last].spells;
+        for s in ["healing", "holy_armor", "lionheart"] {
+            assert!(spells.iter().any(|x| x == s), "{s}");
+        }
+        Ok(())
+    }
+
     fn raise(g: &mut Game, kind: usize) -> Vec<Event> {
         let spell = g
             .content

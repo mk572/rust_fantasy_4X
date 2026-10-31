@@ -384,6 +384,18 @@ def import_help_screens(game: Path, remom: Path) -> list[str]:
 # Each entry: (topic index, text to replace, replacement, why). The replaced text must occur
 # exactly once, so a changed source file fails loudly instead of being skipped.
 HELP_CORRECTIONS = [
+    (515, "increases the attack strength of all units in combat by one per 2 levels of the hero.",
+     "increases the attack strength of all normal units in combat by one per 3 levels of the hero (counting the first level), and the ranged attacks that are not magic by half as much; only the best hero's counts. Super leadership (*) gives one per 2 levels.",
+     "the code gives x / 3 and x / 2 for super with x = level + 1, and the manual text in ReMoM says three levels; fantastic units and the undead get nothing (B52)"),
+    (516, "increases the frequency and strength of mercenaries approaching the wizard for hire, as well as decreases the initial hiring cost. The hero adds",
+     "raises the wizard's fame, which makes mercenaries and heroes come more often and be stronger. The hero adds",
+     "nothing in the code lowers a hiring price; the hero's effect is its fame (B53)"),
+    (519, "adding the +1/level to the hero's defense.",
+     "adding +1 hit point per level to the hero.",
+     "the code adds hit points, not defence (B54)"),
+    (524, "Luck adds +1 to all of the hero's rolls, including attack, defense, and resistance.",
+     "Luck adds 10% to the hero's chance to hit and to block and +1 to its resistance, and takes 10% from the chance to hit of whoever attacks it.",
+     "the code's Lucky acts on the rolls, not on the attack strength (B55)"),
     (55, "Note that all roads on Myrror are automatically enchanted.",
      "Note that all roads on Myrror are automatically enchanted. The enchantment is permanent, but a dispel cast on a square (Disenchant Area, Disenchant True) can undo it there.",
      "our own rule: the original's enchanted roads cannot be dispelled; ours can, square by square (divergence 27)"),

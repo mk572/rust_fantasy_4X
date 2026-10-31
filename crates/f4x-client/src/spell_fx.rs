@@ -205,6 +205,11 @@ mod tests {
             fx_for(art, "heroism", "life", false),
             cell("specfx", 3, true)
         );
+        // Recall Hero has none, so it plays the Arcane picture on the hero it takes out.
+        assert_eq!(
+            fx_for(art, "recall_hero", "arcane", false),
+            cell("specfx", 5, true)
+        );
         assert_eq!(
             fx_for(art, "hydra", "chaos", true),
             cell("cmbtfx", 22, false)
