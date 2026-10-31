@@ -648,11 +648,9 @@ impl Diplomacy {
         let mut applied = v;
         if at_war && action.is_reaction() && v < 0 {
             // Wars are not made worse by what one does in them; a quarter wears down the
-            // peace patience of a human attacker.
-            if ctx.view.human() == Some(attacker) {
-                self.stance_mut(defender, attacker).peace_patience += v / 4;
-                self.stance_mut(attacker, defender).peace_patience -= v / 4;
-            }
+            // peace patience (of any attacker: the original does it for the human only).
+            self.stance_mut(defender, attacker).peace_patience += v / 4;
+            self.stance_mut(attacker, defender).peace_patience -= v / 4;
             applied = 0;
         }
         // After turn 200 the original helps its AIs along: friendships twice as strong, enmities
@@ -832,16 +830,15 @@ impl Diplomacy {
     }
 
     /// The end of a war (`Declare_Peace`): no treaty, a better relation, and `peace_duration`
-    /// turns in which a human is left alone.
+    /// turns in which each of the two is left alone by the other (the original does this for the
+    /// human only).
     pub fn declare_peace(&mut self, ctx: &mut DiplomacyCtx<'_>, a: PlayerId, b: PlayerId) {
         self.start_treaty(ctx, a, b, Treaty::None);
         let pair = self.pair_mut(ctx.view, a, b);
         pair.visible = (pair.visible + 40).min(100);
-        for (human, other) in [(a, b), (b, a)] {
-            if ctx.view.human() == Some(human) {
-                let turns = 7 + ctx.rng.roll(6);
-                self.stance_mut(other, human).peace_duration = turns;
-            }
+        for (kept, other) in [(a, b), (b, a)] {
+            let turns = 7 + ctx.rng.roll(6);
+            self.stance_mut(other, kept).peace_duration = turns;
         }
         ctx.out.push(Outcome::DropCityCurses { a, b });
     }
@@ -1587,32 +1584,37 @@ impl Diplomacy {
                 }
             }
         }
-        if let Some(human) = ctx.view.human() {
-            let strength = army_strength(ctx.view, human);
+        // A wizard whose army is much stronger, or whose cities are many, is disliked by the AI
+        // wizards that have met it: the original does this for the human only; here it holds for
+        // every wizard (`docs/ai-design.md` section 12.3 item 6).
+        let human = ctx.view.human();
+        for &big in &wizards {
+            let strength = army_strength(ctx.view, big);
             if strength > 0 {
                 for &ai in &wizards {
                     let theirs = army_strength(ctx.view, ai);
-                    if ai != human && theirs > 0 && theirs < strength {
+                    if ai != big && Some(ai) != human && theirs > 0 && theirs < strength {
                         let threshold = strength * 50 / theirs;
                         if ctx.rng.roll(100) as i32 >= threshold && ctx.rng.roll(20) == 1 {
-                            self.change_relations(ctx, -10, human, ai, Action::Threat, None);
+                            self.change_relations(ctx, -10, big, ai, Action::Threat, None);
                         }
                     }
                 }
             }
             if ctx.view.turn.is_multiple_of(2) {
-                let cities = ctx.view.city_count(human) as i32;
+                let cities = ctx.view.city_count(big) as i32;
                 let allowance = city_allowance(ctx.view);
                 for &ai in &wizards {
-                    if ai == human || allowance >= cities || ctx.rng.roll(4) != 1 {
+                    if ai == big || Some(ai) == human || allowance >= cities || ctx.rng.roll(4) != 1
+                    {
                         continue;
                     }
                     let surplus = cities - allowance;
                     let divisor = (land_size(ctx.view) + 6) - i32::from(ctx.view.difficulty());
                     let mut value = (-surplus / divisor.max(1)) * ctx.rng.roll(4) as i32 / 3 * 4;
                     value = value.min(-15);
-                    if self.treaty(ai, human) != Treaty::Alliance && self.have_met(ai, human) {
-                        self.change_relations(ctx, value, human, ai, Action::Overextension, None);
+                    if self.treaty(ai, big) != Treaty::Alliance && self.have_met(ai, big) {
+                        self.change_relations(ctx, value, big, ai, Action::Overextension, None);
                     }
                 }
             }

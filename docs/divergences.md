@@ -794,3 +794,15 @@ Left out on purpose:
 - **Line 73 (Sorcery-immune unit).** I could not find which spell the original refuses it for; ours casts
   and the unit resists. Task 351 covers the lines whose trigger is not traced.
 - **Dispelled-enchantment notices (18, 19, 20, 45, 46) and the rampage (10):** task 351.
+- **The human-only branches of the diplomacy rules (task 368).** The original's code treats the human differently
+  in five places; this game decides each. **Army size and city count** (`Diplomacy_Growth`): the original lowers
+  the AI wizards' relation to the *human* when the human's army is much stronger or the human holds too many
+  cities; **ours:** it holds for every wizard, so an AI that grows far ahead is disliked by the others (`diplomacy_growth`).
+  **Peace duration** after a war: the original leaves only the human alone for `7 + Random(6)` turns; **ours:** each of
+  the two is left alone by the other, and an AI wizard does not start a war of its own accord on a wizard with
+  time left (`f4x-ai` `diplomacy::quarrel`). **Peace patience** wears down by a quarter of what an attacker does
+  in a war: the original for a human attacker only; **ours:** for every attacker, so AI wars end by peace offers
+  too. **Kept as rules:** the strongest recent action (`last_action`) is still recorded for a human attacker only,
+  because it exists so the AI can remark on it to the human, and Subversion still spares the human, whose
+  feelings are their own to have.
+

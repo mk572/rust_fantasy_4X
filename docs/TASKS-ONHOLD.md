@@ -36,7 +36,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 364 | Client | The scenes with music that the client lacks: the summon scene, the city-spell scroll and the Force of Nature scene |
 | 365 | Client | Crossfade the music between tracks (ours; the original cuts) |
 | 367 | AI | Overland spells, heroes and items the AI never uses |
-| 368 | Diplomacy | Human-only branches in the diplomacy rules: decide each (move to the AI or keep as a rule) |
 | 369 | AI | The AI hardly fights and stops expanding (wars that end, marches, the city target) |
 | 370 | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
 | 371 | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak |
@@ -162,11 +161,6 @@ casts, Enchant Item and Create Artifact, the special spells (Word of Recall, Spe
 and research by what the enemy casts. Heroes: keep them out of lair fights they cannot win, spend
 their experience, raise them with Resurrection; items: trade and craft. Each as a function of what the
 AI sees; each gets a test and a soak line. *Needs:* nothing.
-
-**368. Human-only branches in the diplomacy rules.** List in `ai-design.md` section 12.3 item 6. For each:
-keep as a rule of the game with a reason (the human has no feelings to track; a UI hint), move it to the AI
-(the AI's mood towards a big human army is the AI's), or make it apply to every pair of wizards. Record in
-`diplomacy.md` and `divergences.md`. *Needs:* nothing.
 
 **369. The AI hardly fights and stops expanding.** The outpost rate was a bug (10 tens to a city, not 100, fixed 24 October 2026; re-run the soak first). After task 361
 (proposals): the march thresholds in `military.rs`, wars that end (peace offers, a war lasting longer than

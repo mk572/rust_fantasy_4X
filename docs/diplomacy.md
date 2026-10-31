@@ -116,7 +116,7 @@ peace and exchange types are never passed to the test for proposals.
 |---|---|---|---|
 | Wizard Pact | relation > 10, else automatic no | 75 | status 1, hostility 0 |
 | Alliance | relation > 50 | 125 | status 2 |
-| Peace Treaty | (at war) | 60 | status 0, relation +40 (a typo adds it twice), peace duration `7 + Random(6)` turns for the human, hostile city curses between the two cancelled, both re-evaluate hostility in `15 + Random(10)` turns; patience falls by 20 more |
+| Peace Treaty | (at war) | 60 | status 0, relation +40 (a typo adds it twice), peace duration `7 + Random(6)` turns for each of the two (the original: for the human only), hostile city curses between the two cancelled, both re-evaluate hostility in `15 + Random(10)` turns; patience falls by 20 more |
 | War on a third wizard | not the human themself | 150 + the AI's relation to the third (or, if the human is allied with both: yes half the time, `Random(8) < 5`) | the AI declares war on the third wizard |
 | Break alliance with a third | relation to the human > 24 else "maybe" | 175 + the AI's relation to the third | the AI breaks its treaties with the third |
 
@@ -179,8 +179,8 @@ Special value `-10000` means "declare this on the record": no numbers change, th
 |---|---|---|---|
 | Wizard pact in force | `+Random(3)` per turn, half the turns | 0 | `Diplomacy_Growth` |
 | Alliance in force | `+Random(6)` per turn, half the turns | 0 | `Diplomacy_Growth` |
-| Human army too strong | `-10` when `Random(100) >= human_strength * 50 / ai_strength` and a d20 = 1 (as written this never happens once the human has twice the AI's strength, unlike the OSG text, which says the penalty is certain at double strength) | 7 | `Diplomacy_Growth` |
-| Too many cities (on even turns) | negative, grows with the surplus over `(landsize + 1) * 3`; AI-to-AI changes halved; at least -15 | 14 | `Diplomacy_Growth` |
+| Army too strong (any wizard's, towards the AI wizards that have met it; the original: the human's only) | `-10` when `Random(100) >= strength * 50 / ai_strength` and a d20 = 1 (as written this never happens once the human has twice the AI's strength, unlike the OSG text, which says the penalty is certain at double strength) | 7 | `Diplomacy_Growth` |
+| Too many cities (on even turns; any wizard's, the original: the human's only) | negative, grows with the surplus over `(landsize + 1) * 3`; AI-to-AI changes halved; at least -15 | 14 | `Diplomacy_Growth` |
 | Attacking a wizard you have a pact or alliance with (a confirm box "You have a treaty with X. Do you still wish to attack?"; on yes the treaty is broken, see §6) | `-40` | 5 | `Combat.c` |
 | Taking a city of another wizard (any city with population) | `-40`, **and the attacker declares war** (`Declare_War`) | 9 | `Combat.c` |
 | Attacking a city of another wizard and failing (the defender wins) | `-60` if it is the defender's fortress city, else `-20` (only when the defender wins, as the code is written; the document had both added up) | 9 | `Combat.c` |

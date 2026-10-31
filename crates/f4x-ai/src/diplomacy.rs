@@ -198,6 +198,12 @@ pub(crate) fn quarrel(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .into_iter()
             .filter(|&p| p != me && view.is_rival_wizard(p))
             .filter(|&p| game.have_met(me, p) && game.treaty(me, p) == Treaty::None)
+            // After a war it ends the pair leaves each other alone for a few turns.
+            .filter(|&p| {
+                game.diplomacy
+                    .stance(me, p)
+                    .is_none_or(|s| s.peace_duration == 0)
+            })
             .map(|p| (p, known.iter().filter(|(_, o, _)| *o == p).count()))
             .filter(|&(_, n)| n > 0)
             .collect();

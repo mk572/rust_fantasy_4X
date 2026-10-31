@@ -622,7 +622,7 @@ fn a_pact_cannot_be_offered_twice_nor_in_a_war() {
 }
 
 #[test]
-fn peace_ends_a_war_and_the_human_is_left_alone_a_while() -> TestResult {
+fn peace_ends_a_war_and_each_side_is_left_alone_a_while() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
     g.declare_war(P1, P0);
@@ -652,13 +652,12 @@ fn peace_ends_a_war_and_the_human_is_left_alone_a_while() -> TestResult {
         .ok_or("stance is missing")?
         .peace_duration;
     assert!((8..=13).contains(&peace), "{peace}");
-    assert_eq!(
-        g.diplomacy
-            .stance(P0, P1)
-            .ok_or("stance is missing")?
-            .peace_duration,
-        0
-    );
+    let back = g
+        .diplomacy
+        .stance(P0, P1)
+        .ok_or("stance is missing")?
+        .peace_duration;
+    assert!((8..=13).contains(&back), "{back}");
     Ok(())
 }
 

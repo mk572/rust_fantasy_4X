@@ -610,11 +610,7 @@ Before the objectives (same code otherwise): 0 of 8 won, 12 to 78 s a game. A wi
    they should be, but the AI does not weigh a lair before it attacks it with a small party; `site.rs`
    uses a strength guess). Unit casts (hero spells, item charges) are scored like the wizard's but
    happen about 0.5 times a fight.
-6. **Human-only branches remain in the diplomacy rules** (core): relation changes towards the human
-   army size and city count (`diplomacy_growth`), the human's peace duration after a war
-   (`declare_peace`), `peace_patience` moves only for a human attacker, `last_action` is kept only for a
-   human attacker, subversion spares the human. They are the original's AI-only rules, not decisions,
-   but they are exceptions between human and AI; task 368 decides each.
+6. **Human-only branches in the diplomacy rules** (task 368, decided 31 October 2026, `divergences.md`): the growth penalties for a big army and many cities, the peace duration after a war and the peace patience of a war now hold for every wizard pair; the record of the strongest action (a remark to the human) and Subversion's sparing of the human stay.
 7. **Small refusals left:** `shortfall.rs` sells a building the city lacks (once or twice a game),
    neutral raiders and parties are refused a `GoTo` to a square they cannot reach (two or three a game),
    an `EnterSite` on an unguarded site is refused once before the fallback walk-in.
