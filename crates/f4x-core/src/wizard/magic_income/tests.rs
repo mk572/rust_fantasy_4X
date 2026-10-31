@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::shipped;
 use crate::testdir::TestResult;
 use crate::wizard::magic::Retort;
 use crate::wizard::sheet::{Books, Retorts, WizardMut};
@@ -29,7 +29,7 @@ fn fake() -> Fake {
     Fake {
         world,
         wizard,
-        content: content_with_magic(),
+        content: shipped(),
         casting_return: false,
         city: (4, 2),
         fortress: None,

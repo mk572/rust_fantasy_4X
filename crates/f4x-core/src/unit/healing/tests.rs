@@ -3,11 +3,11 @@ use crate::city::economy::Buildings;
 use crate::city::City;
 use crate::content::Content;
 use crate::game::serial::Serial;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
 
-use crate::rules::{BuildingId, Registry};
+use crate::rules::BuildingId;
 use hecs::World;
 
 const P0: PlayerId = PlayerId(0);
@@ -32,13 +32,11 @@ struct Rig {
 
 impl Rig {
     fn new() -> Rig {
-        let mut c = content_with_magic();
-        let mut units = c.rules.units.defs().to_vec();
-        for id in ["gnoll_wolf_riders", "healer", "troll_war_trolls"] {
-            crate::game::testutil::add_real_unit(&mut units, id);
-        }
-        c.rules.units = Registry::new_sorted(units);
-        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+        let c = shipped();
+        let grass = c
+            .terrains
+            .id_numbered(num::terrain::GRASSLAND)
+            .expect("id_of succeeds");
         let map = Map::new(Grid::new(12, 8, grass), Grid::new(12, 8, grass));
         Rig {
             content: c,

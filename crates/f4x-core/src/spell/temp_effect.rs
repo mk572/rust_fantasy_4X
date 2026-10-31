@@ -329,7 +329,7 @@ impl Game {
 mod tests {
     use super::*;
     use crate::battle::immunity::Realm;
-    use crate::game::testutil::content_with_magic;
+    use crate::game::testutil::{num, shipped};
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::player::PlayerId;
@@ -343,8 +343,11 @@ mod tests {
     };
 
     fn world() -> Game {
-        let c = content_with_magic();
-        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+        let c = shipped();
+        let grass = c
+            .terrains
+            .id_numbered(num::terrain::GRASSLAND)
+            .expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -542,9 +545,6 @@ mod tests {
         let mut g = world();
         // The game's ship and its catapult.
         for id in ["trireme", "catapult"] {
-            let mut defs = g.content.rules.units.defs().to_vec();
-            crate::game::testutil::add_real_unit(&mut defs, id);
-            g.content.rules.units = crate::rules::Registry::new_sorted(defs);
             let m = unit(&mut g, id);
             assert!(!g.units().unit_has_magical_weapon(m), "{id}");
         }
@@ -570,11 +570,6 @@ mod tests {
         // A hero and a summoned (fantastic) creature, as the game has them. The data's `Fantastic`
         // kind is only the ships and the catapult, whose weapons are not magical (tested above).
         for id in ["dwarf", "demon"] {
-            let mut defs = g.content.rules.units.defs().to_vec();
-            if !defs.iter().any(|d| d.id == id) {
-                crate::game::testutil::add_real_unit(&mut defs, id);
-            }
-            g.content.rules.units = crate::rules::Registry::new_sorted(defs);
             let w = unit(&mut g, id);
             assert!(g.units().unit_has_magical_weapon(w), "{id}");
         }

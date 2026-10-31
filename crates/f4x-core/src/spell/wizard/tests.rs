@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::spell::target_error::TargetError;
 use crate::testdir::TestResult;
@@ -24,7 +24,7 @@ fn at(x: u32, y: u32) -> Position {
 /// Three wizards on grassland; "high_men_cavalry" is a normal unit, "high_men_spearmen" a fantastic creature of chaos,
 /// "high_elf_pegasai" flies and "magic_spirit" has no body.
 fn world() -> Game {
-    let mut c = content_with_magic();
+    let mut c = shipped();
     let mut units = c.rules.units.defs().to_vec();
     for u in units.iter_mut() {
         match u.id.as_str() {
@@ -37,11 +37,11 @@ fn world() -> Game {
             _ => {}
         }
     }
-    crate::game::testutil::add_real_unit(&mut units, "werewolves");
-    // A unit of several figures to count them: the barbarians' spearmen, eight of one hit point.
-    crate::game::testutil::add_real_unit(&mut units, "barbarian_spearmen");
     c.rules.units = Registry::new_sorted(units);
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut g = Game::new(9);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -847,7 +847,7 @@ fn an_armageddon_volcano_can_rise_in_the_sea_and_sinks_the_ships_there() -> Test
     let ocean = g
         .content
         .terrains
-        .id_of("ocean")
+        .id_numbered(num::terrain::OCEAN)
         .ok_or("ocean is not in the content")?;
     g.map
         .as_mut()

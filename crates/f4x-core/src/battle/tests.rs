@@ -3,7 +3,7 @@ use super::map::{distance, Cell, GRID_H, GRID_W};
 use super::spell::SpellSource;
 use super::*;
 use crate::game::save::Snapshot;
-use crate::game::testutil::content_with_units;
+use crate::game::testutil::{num, shipped};
 use crate::game::{Command, Event, Game, Rejection};
 use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
@@ -517,8 +517,11 @@ fn obstacles_shape_where_units_can_go() {
 // ---- joining the game ------------------------------------------------------------------
 
 fn game() -> Game {
-    let c = content_with_units();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut g = Game::new(5);
     g.content = c;
     g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
@@ -2537,11 +2540,6 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
     use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
     let mut g = game();
-    g.content.rules.item_powers =
-        crate::rules::Registry::new(crate::game::testutil::numbered_powers(vec![
-            crate::game::testutil::item_power("vampiric", None, Some("life_steal")),
-            crate::game::testutil::item_power("flaming", None, None),
-        ]));
     // Only a hero carries items: the game's first hero, the Dwarf.
     let walker = g
         .content
@@ -2667,7 +2665,7 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestRes
 /// A game with the game's real spells, for battle units that cast them.
 fn casting_game() -> Game {
     let mut g = game();
-    g.content.rules.spells = crate::game::testutil::content_with_magic().rules.spells;
+    g.content.rules.spells = crate::game::testutil::shipped().rules.spells;
     g
 }
 
@@ -2676,10 +2674,6 @@ fn casting_game() -> Game {
 /// are set after, as the rolled ones would be.
 fn hero_unit(g: &mut Game, spells: &[&str], skill: u8) -> hecs::Entity {
     use crate::hero::{Hero, HeroAbilities, HeroState};
-    if g.content.rules.hero_templates.is_empty() {
-        // Dwarf is the first of the game's heroes.
-        g.content.rules.hero_templates = crate::game::testutil::real_hero_templates();
-    }
     g.make_hero(
         Hero {
             kind: 0,
@@ -2837,9 +2831,6 @@ fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() -> TestResult {
         m.get_mut::<crate::wizard::sheet::Skill>().left = 500;
     }
     // A normal unit, as the game has them: the barbarians' spearmen.
-    let mut defs = g.content.rules.units.defs().to_vec();
-    crate::game::testutil::add_real_unit(&mut defs, "barbarian_spearmen");
-    g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     let soldier = g
         .content
         .rules
@@ -3385,7 +3376,6 @@ fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() 
 fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() -> TestResult {
     let mut g = game();
     let mut defs = g.content.rules.units.defs().to_vec();
-    crate::game::testutil::add_real_unit(&mut defs, "demon");
     for d in defs.iter_mut().filter(|d| d.id == "high_men_cavalry") {
         d.abilities.push("summon_demon".into());
     }
@@ -3958,9 +3948,6 @@ fn finish_with_dead(
 #[test]
 fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won() -> TestResult {
     let mut g = game_with_abilities("high_men_cavalry", &[]);
-    let mut units = g.content.rules.units.defs().to_vec();
-    crate::game::testutil::add_real_unit(&mut units, "troll_war_trolls");
-    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     let walker = g
         .content
         .rules
@@ -4004,9 +3991,6 @@ fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won(
 #[test]
 fn a_regenerating_unit_that_loses_stays_dead() -> TestResult {
     let mut g = game_with_abilities("high_men_cavalry", &[]);
-    let mut units = g.content.rules.units.defs().to_vec();
-    crate::game::testutil::add_real_unit(&mut units, "troll_war_trolls");
-    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     let walker = g
         .content
         .rules

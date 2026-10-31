@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::content_with_units;
+use crate::game::testutil::{num, shipped};
 use crate::game::{Command, Event, Rejection};
 use crate::map::{Grid, Map, TerrainId};
 use crate::player::PlayerId;
@@ -20,23 +20,23 @@ fn at(x: u32, y: u32) -> Position {
 /// 12x6 world. Row 2: grass x0-1, forest x2, hills x3, mountains x4, grass x5-6, ocean x7-8,
 /// grass x9-11. Everything else grassland. A tower at (1,4) on both planes.
 fn world() -> Game {
-    let c = content_with_units();
-    let id = |n: &str| c.terrains.id_of(n).expect("id_of succeeds");
+    let c = shipped();
+    let id = |n: u16| c.terrains.id_numbered(n).expect("id_numbered succeeds");
     let build = || {
-        let mut g = Grid::new(12, 6, id("grassland"));
-        g.set(2, 2, id("forest"));
-        g.set(3, 2, id("hills"));
-        g.set(4, 2, id("mountains"));
-        g.set(7, 2, id("ocean"));
-        g.set(8, 2, id("ocean"));
-        g.set(1, 4, id("grassland"));
+        let mut g = Grid::new(12, 6, id(num::terrain::GRASSLAND));
+        g.set(2, 2, id(num::terrain::FOREST));
+        g.set(3, 2, id(num::terrain::HILLS));
+        g.set(4, 2, id(num::terrain::MOUNTAINS));
+        g.set(7, 2, id(num::terrain::OCEAN));
+        g.set(8, 2, id(num::terrain::OCEAN));
+        g.set(1, 4, id(num::terrain::GRASSLAND));
         g
     };
     let map = Map::new(build(), build());
     let mut game = Game::new(1);
     game.content = c;
     game.map = Some(map);
-    game.put_feature(at(1, 4), "tower");
+    game.put_feature(at(1, 4), num::feature::TOWER);
     for id in (0..4).map(PlayerId) {
         game.add_player(id, "");
     }
@@ -64,11 +64,7 @@ fn terrain_costs_for_a_walker() {
     let w = unit(&mut g, P0, "high_men_cavalry", at(1, 2));
     assert_eq!(cost(&g, w, at(1, 2), at(1, 1)), Ok(2), "grass is one move");
     assert_eq!(cost(&g, w, at(1, 2), at(2, 2)), Ok(4), "forest is two");
-    assert_eq!(
-        cost(&g, w, at(3, 2), at(4, 2)),
-        Ok(6),
-        "mountains are three"
-    );
+    assert_eq!(cost(&g, w, at(3, 2), at(4, 2)), Ok(8), "mountains are four");
     assert_eq!(
         cost(&g, w, at(6, 2), at(7, 2)),
         Err(MoveError::Impassable),
@@ -381,7 +377,7 @@ fn paths_go_around_water_and_across_the_seam() -> TestResult {
     let ocean = g
         .content
         .terrains
-        .id_of("ocean")
+        .id_numbered(num::terrain::OCEAN)
         .ok_or("ocean is not in the content")?;
     for y in 0..6 {
         g.map
@@ -569,13 +565,13 @@ fn a_pathfinder_gives_the_whole_stack_road_speed() -> TestResult {
 
 #[test]
 fn a_step_is_planned_from_a_hand_made_world_without_a_game() -> TestResult {
-    let c = content_with_units();
+    let c = shipped();
     let (grass, forest) = (
         c.terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .ok_or("grassland is not in the content")?,
         c.terrains
-            .id_of("forest")
+            .id_numbered(num::terrain::FOREST)
             .ok_or("forest is not in the content")?,
     );
     let build = || {

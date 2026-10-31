@@ -9,14 +9,6 @@ use crate::rules::Registry;
 /// prefab item and a plain power for the merchant.
 fn world() -> Game {
     let mut g = hero_world();
-    // Only the game's real race units are ordinary ones, not the fixture's.
-    let mut units = g.content.rules.units.defs().to_vec();
-    units.retain(|u| u.kind != crate::rules::UnitKind::Normal || u.num < 1000);
-    g.content.rules.units = Registry::new_sorted(units);
-    g.content.rules.level_paths = Registry::new(
-        ron::from_str(include_str!("../../../../../content/level_paths.ron"))
-            .expect("the game's level paths parse"),
-    );
     // Each wizard has one unit on Arcanus, so Arcanus is the plane they can be offered.
     let scout = g
         .content
@@ -257,7 +249,7 @@ fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() -> TestResult 
             x: 5,
             y: 5,
         },
-        "lair",
+        crate::game::testutil::num::feature::MONSTER_LAIR,
         crate::feature::lair::Lair {
             intact: true,
             guards: Vec::new(),
@@ -352,15 +344,18 @@ fn the_price_is_tested_after_the_charismatic_discount() -> TestResult {
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
         .insert(Retort::Charismatic);
-    // Hardly any gold: the full price could never be paid, the half price can be.
+    // Gold for half the price of a mid-priced item but not for the full price.
+    const GOLD: i32 = 400;
     for _ in 0..3000 {
-        g.tr_mut(0).gold = 100;
+        g.tr_mut(0).gold = GOLD;
         g.determine_offers();
         for offer in g.offers(P0) {
             if let Offer::Item { item, price } = offer {
-                assert_eq!(price, item.cost as i32 * 3 / 2);
-                assert!(price <= 100);
-                return Ok(());
+                if item.cost as i32 * 3 > GOLD {
+                    assert_eq!(price, item.cost as i32 * 3 / 2);
+                    assert!(price <= GOLD);
+                    return Ok(());
+                }
             }
         }
     }

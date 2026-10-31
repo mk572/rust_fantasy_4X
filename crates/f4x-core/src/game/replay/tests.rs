@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::content_with_units;
+use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
 use crate::testdir::TestResult;
@@ -16,8 +16,11 @@ fn at(x: u32, y: u32) -> Position {
 
 /// A small explored world with one walker at (5, 5).
 fn world() -> (Game, Serial) {
-    let c = content_with_units();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut g = Game::new(3);
     g.content = c;
     g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
@@ -172,8 +175,7 @@ fn a_command_naming_nothing_is_reported() -> TestResult {
 
 #[test]
 fn a_spell_in_a_command_is_written_by_its_id_and_read_back() -> TestResult {
-    let (mut g, _) = world();
-    g.content.rules.spells = crate::rules::Registry::new(crate::game::testutil::real_spells());
+    let (g, _) = world();
     let spells = &g.content.rules.spells;
     let first = spells.defs().first().expect("the test content has spells");
     let spell = spells.id_of(&first.id).ok_or("id_of is missing")?;

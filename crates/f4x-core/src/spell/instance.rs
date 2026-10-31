@@ -446,7 +446,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::content_with_magic;
+    use crate::game::testutil::shipped;
     use crate::map::{Plane, Position};
     use crate::player::PlayerId;
 
@@ -455,7 +455,7 @@ mod tests {
 
     fn game() -> Game {
         let mut g = Game::new(5);
-        g.content = content_with_magic();
+        g.content = shipped();
         g.add_player(P0, "A");
         g.add_player(P1, "B");
         g

@@ -1,7 +1,7 @@
 use super::*;
 use crate::city::economy::{Buildings, Population};
 use crate::city::production::{Production, ProductionError, ProductionItem};
-use crate::game::testutil::content_with_economy;
+use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
 use crate::testdir::TestResult;
@@ -19,11 +19,23 @@ fn at(x: u32, y: u32) -> Position {
     }
 }
 
+/// For the tests that count the gold of trade: taxes up to rate 2 cause no unrest, so no citizen
+/// turns rebel and the sums stay simple. (The game's own table has 20% unrest at rate 2.)
+fn calm_taxes(g: &mut Game) {
+    g.content.rules.config.tax_unrest_percent = vec![0, 0, 0, 30, 45, 60, 75];
+}
+
 /// 24x14 grassland with the sea at x=0. One player with 500 gold, tax rate 2.
 fn world() -> Game {
-    let c = content_with_economy();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
-    let ocean = c.terrains.id_of("ocean").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
+    let ocean = c
+        .terrains
+        .id_numbered(num::terrain::OCEAN)
+        .expect("id_of succeeds");
     let build = || {
         let mut g = Grid::new(24, 14, grass);
         for y in 0..14 {
@@ -34,8 +46,6 @@ fn world() -> Game {
     let map = Map::new(build(), build());
     let mut game = Game::new(7);
     game.content = c;
-    // No unrest from taxes up to rate 2, so income sums stay simple.
-    game.content.rules.config.tax_unrest_percent = vec![0, 0, 0, 30, 45, 60, 75];
     game.map = Some(map);
     game.add_player(P0, "Merlin");
     game.add_player(PlayerId(1), "Rival");
@@ -150,6 +160,7 @@ fn farmers_and_workers_share_the_citizens() -> TestResult {
 #[test]
 fn gold_comes_from_taxes_and_the_sea_and_markets() -> TestResult {
     let mut g = world();
+    calm_taxes(&mut g);
     let inland = found(&mut g, at(10, 6), "high_elf", 4);
     // 4 citizens x tax rate 2 / 2 = 4 gold.
     assert_eq!(
@@ -194,6 +205,7 @@ fn gold_comes_from_taxes_and_the_sea_and_markets() -> TestResult {
 #[test]
 fn a_lake_counts_as_a_shore_for_trade() -> TestResult {
     let mut g = world();
+    calm_taxes(&mut g);
     let city = found(&mut g, at(10, 6), "high_elf", 10);
     assert_eq!(
         g.economy()
@@ -228,6 +240,7 @@ fn a_lake_counts_as_a_shore_for_trade() -> TestResult {
 #[test]
 fn rivers_pay_twenty_percent_and_river_mouths_thirty() -> TestResult {
     let mut g = world();
+    calm_taxes(&mut g);
     let city = found(&mut g, at(10, 6), "high_elf", 10);
     assert_eq!(
         g.economy()
@@ -335,17 +348,17 @@ fn mines_add_gold_mana_and_cheaper_units() -> TestResult {
     let gold_ore = g
         .content
         .features
-        .id_of("gold")
+        .id_numbered(num::feature::GOLD_ORE)
         .ok_or("gold is not in the content")?;
     let adamant = g
         .content
         .features
-        .id_of("adamantium_ore")
+        .id_numbered(num::feature::ADAMANTIUM_ORE)
         .ok_or("adamantium_ore is not in the content")?;
     let iron = g
         .content
         .features
-        .id_of("iron")
+        .id_numbered(num::feature::IRON_ORE)
         .ok_or("iron is not in the content")?;
     let plane = g
         .map
@@ -1103,8 +1116,12 @@ fn a_wizard_turns_off_their_own_spell_on_a_city_and_no_one_elses() -> TestResult
     Ok(())
 }
 
-fn put_ore(g: &mut Game, ore: &str, x: u32, y: u32) {
-    let id = g.content.features.id_of(ore).expect("id_of succeeds");
+fn put_ore(g: &mut Game, ore: u16, x: u32, y: u32) {
+    let id = g
+        .content
+        .features
+        .id_numbered(ore)
+        .expect("id_numbered succeeds");
     g.map
         .as_mut()
         .expect("value succeeds")
@@ -1116,7 +1133,7 @@ fn put_ore(g: &mut Game, ore: &str, x: u32, y: u32) {
 fn weapon_quality_follows_the_alchemists_guild_and_the_ore() -> TestResult {
     let mut g = world();
     let city = found(&mut g, at(10, 6), "high_elf", 4);
-    put_ore(&mut g, "mithril_ore", 11, 6);
+    put_ore(&mut g, num::feature::MITHRIL_ORE, 11, 6);
     assert_eq!(
         g.economy().city_weapon_quality(city),
         0,
@@ -1124,7 +1141,7 @@ fn weapon_quality_follows_the_alchemists_guild_and_the_ore() -> TestResult {
     );
     add_building(&mut g, city, "alchemists_guild");
     assert_eq!(g.economy().city_weapon_quality(city), 2, "mithril");
-    put_ore(&mut g, "adamantium_ore", 9, 6);
+    put_ore(&mut g, num::feature::ADAMANTIUM_ORE, 9, 6);
     assert_eq!(
         g.economy().city_weapon_quality(city),
         3,
@@ -1179,7 +1196,7 @@ fn units_are_trained_with_the_cities_weapons_and_alchemy_gives_magic() -> TestRe
         1,
         "Alchemy: magic weapons"
     );
-    put_ore(&mut g, "mithril_ore", 11, 6);
+    put_ore(&mut g, num::feature::MITHRIL_ORE, 11, 6);
     add_building(&mut g, city, "alchemists_guild");
     let mithril = train(&mut g);
     assert_eq!(g.units().unit_weapon_quality(mithril), 2);
@@ -1375,7 +1392,7 @@ fn wild_game_raises_an_outposts_growth_chance_by_its_food_and_its_bonus() -> Tes
     let game = g
         .content
         .features
-        .id_of("game")
+        .id_numbered(num::feature::WILD_GAME)
         .ok_or("game is not in the content")?;
     g.map
         .as_mut()

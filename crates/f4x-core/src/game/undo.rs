@@ -147,7 +147,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::content_with_units;
+    use crate::game::testutil::{num, shipped};
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::player::PlayerId;
@@ -165,8 +165,11 @@ mod tests {
 
     /// A small explored world with one walker at (5, 5) and undo switched on.
     fn world() -> (Game, crate::game::serial::Serial) {
-        let c = content_with_units();
-        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+        let c = shipped();
+        let grass = c
+            .terrains
+            .id_numbered(num::terrain::GRASSLAND)
+            .expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));

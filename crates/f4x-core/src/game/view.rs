@@ -130,7 +130,7 @@ impl Game {
 mod tests {
     use super::*;
     use crate::diplomacy::army_strength;
-    use crate::game::testutil::content_with_magic;
+    use crate::game::testutil::{num, shipped};
     use crate::map::Plane;
     use crate::spell::instance::SpellTarget;
     use crate::testdir::TestResult;
@@ -149,11 +149,11 @@ mod tests {
 
     fn game() -> Game {
         let mut g = Game::new(3);
-        g.content = content_with_magic();
+        g.content = shipped();
         let grass = g
             .content
             .terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .expect("id_of succeeds");
         g.map = Some(crate::map::Map::new(
             crate::map::Grid::new(30, 20, grass),
@@ -194,11 +194,11 @@ mod tests {
     #[test]
     fn the_game_answers_what_a_wizard_sees_and_has() -> TestResult {
         let mut g = Game::new(3);
-        g.content = content_with_magic();
+        g.content = shipped();
         let grass = g
             .content
             .terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .ok_or("grassland is not in the content")?;
         g.map = Some(crate::map::Map::new(
             crate::map::Grid::new(30, 20, grass),

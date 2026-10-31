@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::testdir::TestResult;
 
@@ -22,11 +22,13 @@ fn at(x: u32, y: u32) -> Position {
 /// Two wizards on grassland, with the spells and buildings these tests need added to the
 /// test content.
 fn world() -> Game {
-    let c = content_with_magic();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut g = Game::new(3);
     g.content = c;
-    g.content.rules.config.tax_unrest_percent = vec![0, 0, 0, 30, 45, 60, 75];
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     g.fog = crate::map::fog::Fog::new(24, 14);
     for id in [P0, P1] {
@@ -663,7 +665,7 @@ fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() -> T
         .set(7, 6, chaos);
     g.put_node_data(
         at(7, 6),
-        "sorcery_node",
+        num::feature::SORCERY_NODE,
         crate::feature::node::Node {
             realm: "chaos".into(),
             power: 2,

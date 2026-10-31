@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::{num, shipped};
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::testdir::TestResult;
@@ -18,8 +18,11 @@ fn at(x: u32, y: u32) -> Position {
 
 /// Two wizards with a fortress each; P0 is the human and has a second city at (10, 5).
 fn world() -> Game {
-    let c = content_with_magic();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut g = Game::new(11);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -356,22 +359,15 @@ fn a_meteor_tells_how_many_citizens_it_killed() {
 #[test]
 fn a_depletion_removes_a_mineral_and_a_find_adds_one() -> TestResult {
     let mut g = world();
-    let mut defs = g.content.features.defs().to_vec();
-    for (id, name) in [("iron_ore", "Iron Ore"), ("coal", "Coal")] {
-        defs.push(crate::feature::def::FeatureDef {
-            num: defs.len() as u16 + 1,
-            id: id.into(),
-            name: name.into(),
-            kind: crate::feature::def::FeatureKind::Mineral,
-            city: Default::default(),
-            spawn: vec![crate::feature::def::SpawnRule {
-                terrain: vec![crate::map::terrain::TerrainClass::Grassland],
-                planes: Plane::ALL.to_vec(),
-                weight: 1,
-            }],
-        });
+    // Minerals only appear on hills and mountains: some in reach of the town at (10, 5).
+    let hills = g
+        .content
+        .terrains
+        .id_numbered(num::terrain::HILLS)
+        .ok_or("hills are not in the content")?;
+    for x in 9..=11 {
+        g.cheat_set_terrain(at(x, 4), hills);
     }
-    g.content.features = crate::feature::def::Features::new(defs);
     let mut rng = GameRng::new(8);
     let find = g
         .find_deposit(P0, true, &mut rng)
@@ -385,7 +381,7 @@ fn a_depletion_removes_a_mineral_and_a_find_adds_one() -> TestResult {
             .mineral(find.at.x as i32, find.at.y as i32),
         Some(find.ore)
     );
-    assert!(told[0].ore.contains("iron") || told[0].ore.contains("coal"));
+    assert!(!told[0].ore.is_empty(), "the message names the mineral");
     let lost = g
         .find_deposit(P0, false, &mut rng)
         .expect("a mineral to lose");

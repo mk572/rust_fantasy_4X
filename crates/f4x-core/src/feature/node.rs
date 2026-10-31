@@ -266,7 +266,7 @@ impl Game {
 pub(crate) mod tests {
     use super::*;
     use crate::feature::place::Placed;
-    use crate::game::testutil::content_with_magic;
+    use crate::game::testutil::{num, shipped};
     use crate::game::Command;
     use crate::map::Grid;
     use crate::rules::{Registry, UnitKind};
@@ -289,7 +289,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn world_seeded(seed: u64) -> Game {
-        let mut c = content_with_magic();
+        let mut c = shipped();
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
             if u.id == "magic_spirit" {
@@ -298,14 +298,16 @@ pub(crate) mod tests {
                 u.realm = Some("arcane".into());
             }
         }
-        crate::game::testutil::add_real_unit(&mut units, "guardian_spirit");
         c.rules.units = Registry::new_sorted(units);
-        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+        let grass = c
+            .terrains
+            .id_numbered(num::terrain::GRASSLAND)
+            .expect("id_of succeeds");
         let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
         let mut g = Game::new(seed);
         g.content = c;
         g.map = Some(map);
-        g.put_node(at(6, 6), "sorcery_node", 1);
+        g.put_node(at(6, 6), num::feature::SORCERY_NODE, 1);
         for id in [P0, P1] {
             g.add_player(id, "W");
             g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
@@ -357,14 +359,14 @@ pub(crate) mod tests {
 
     #[test]
     fn generation_is_deterministic_and_myrror_nodes_are_stronger() -> TestResult {
-        let c = content_with_magic();
+        let c = shipped();
         let grass = c
             .terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .ok_or("grassland is not in the content")?;
         let node = c
             .features
-            .id_of("sorcery_node")
+            .id_numbered(num::feature::SORCERY_NODE)
             .ok_or("sorcery_node is not in the content")?;
         let build = || {
             let map = Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass));

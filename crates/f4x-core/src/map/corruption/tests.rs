@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::{num, shipped};
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::rules::exec::Target;
@@ -19,7 +19,7 @@ fn at(x: u32, y: u32) -> Position {
 }
 
 fn world() -> Game {
-    let mut c = content_with_magic();
+    let mut c = shipped();
     let mut units = c.rules.units.defs().to_vec();
     for u in units.iter_mut() {
         match u.id.as_str() {
@@ -29,7 +29,10 @@ fn world() -> Game {
         }
     }
     c.rules.units = Registry::new_sorted(units);
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut g = Game::new(3);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -119,7 +122,7 @@ fn magic_nodes_cannot_be_corrupted() -> TestResult {
 #[test]
 fn corrupted_squares_give_a_city_nothing() -> TestResult {
     let mut g = world();
-    g.put_feature(at(10, 8), "gold");
+    g.put_feature(at(10, 8), num::feature::GOLD_ORE);
     g.apply(Command::FoundCity {
         owner: P0,
         pos: at(10, 6),
@@ -328,7 +331,7 @@ fn warp_node_turns_a_rivals_node_against_them() {
     let mut g = world();
     g.put_node_data(
         at(6, 6),
-        "sorcery_node",
+        num::feature::SORCERY_NODE,
         Node {
             realm: "chaos".into(),
             power: 8,

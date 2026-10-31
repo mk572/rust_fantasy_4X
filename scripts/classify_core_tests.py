@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Sort the tests in crates/f4x-core/src by the rule in docs/rust_coding_rules.md ("Where a test lives").
 
-A test moves to crates/f4x-core/tests/it/ when it needs a Game or Content (directly, or through a
-test helper of its file that does), names a shipped unit, spell, building, race or item by id, or is
-longer than LONG lines. Everything else stays a unit test.
+A test is a candidate for crates/f4x-core/tests/it/ when it needs a Game or Content (directly, or
+through a test helper of its file that does), names a shipped id, or is longer than LONG lines, AND
+reaches no internals of the crate (`g.world`, `g.content`, `g.map`, `crate::...`, `put_*`, `super::*`
+items): those stay unit tests on `testutil::shipped()`. "move" below counts the candidates.
 
     python3 scripts/classify_core_tests.py            # one line per file
     python3 scripts/classify_core_tests.py --tests    # one line per test that moves, with the reasons
@@ -17,6 +18,12 @@ SRC = ROOT / "crates/f4x-core/src"
 LONG = 25
 GAME = re.compile(
     r"\bGame\b|testutil|\bscenario_\w+|\bContent\b|\bcontent\(\)|\.apply\(|\bnew_game\b|\breal_\w+\(|\bcontent_with_\w+"
+)
+
+
+INTERNAL = re.compile(
+    r"\bg(?:ame)?\.(?:world|content|map|settings|rng|events|threat|fog|turn|next_serial)\b|\.world\.|"
+    r"\bcrate::(?!testdir|game::(?:Command|Event|Rejection))|\bput_(?:feature|lair|node)\w*\(|\bsuper::"
 )
 
 
@@ -74,6 +81,10 @@ def classify(ids):
             if not t:
                 continue
             why = []
+            internal = INTERNAL.search(body) or any(
+                re.search(rf"\b{h}\(", body) and INTERNAL.search(b2)
+                for h, b2 in [(n2, b3) for n2, t2, _, b3, _ in fns if not t2]
+            )
             if GAME.search(body) or any(re.search(rf"\b{h}\(", body) for h in heavy):
                 why.append("game")
             lits = set(re.findall(r'"([a-z0-9_]+)"', body)) & ids
@@ -81,6 +92,8 @@ def classify(ids):
                 why.append("ids " + ",".join(sorted(lits)[:3]))
             if length > LONG:
                 why.append(f"{length} lines")
+            if internal:
+                why = []
             result.setdefault(path, []).append((n, line, why))
     return result
 

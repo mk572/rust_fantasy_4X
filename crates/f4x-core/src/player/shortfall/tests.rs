@@ -1,4 +1,5 @@
 use super::*;
+use crate::game::testutil::num;
 use crate::hero::game::tests::{at, world, P0};
 use crate::item::ItemBonus;
 use crate::map::{Grid, Map};
@@ -112,9 +113,12 @@ fn sea_world() -> Game {
     let (grass, ocean) = (
         g.content
             .terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .expect("id_of succeeds"),
-        g.content.terrains.id_of("ocean").expect("id_of succeeds"),
+        g.content
+            .terrains
+            .id_numbered(num::terrain::OCEAN)
+            .expect("id_of succeeds"),
     );
     let build = || {
         let mut grid = Grid::new(30, 16, grass);

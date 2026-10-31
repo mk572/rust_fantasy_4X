@@ -533,7 +533,7 @@ impl<'a> PlayerView<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::content_with_magic;
+    use crate::game::testutil::{num, shipped};
     use crate::game::Command;
     use crate::map::{Grid, Map, Plane};
     use crate::testdir::TestResult;
@@ -550,8 +550,11 @@ mod tests {
     }
 
     fn game() -> Game {
-        let c = content_with_magic();
-        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+        let c = shipped();
+        let grass = c
+            .terrains
+            .id_numbered(num::terrain::GRASSLAND)
+            .expect("id_of succeeds");
         let mut g = Game::new(5);
         g.set_content(c);
         g.set_map(Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass)));

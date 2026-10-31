@@ -7,6 +7,9 @@ use f4x_core::game::Game;
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
 
+/// The number of grassland in `content/terrain.ron`.
+const GRASSLAND: u16 = 4;
+
 pub const P0: PlayerId = PlayerId(0);
 pub const P1: PlayerId = PlayerId(1);
 
@@ -33,7 +36,7 @@ pub fn flat_game(
 ) -> Result<Game, &'static str> {
     let grass = shipped()
         .terrains
-        .id_of("grassland")
+        .id_numbered(GRASSLAND)
         .ok_or("grassland is not in the content")?;
     let mut g = Game::new(seed);
     g.set_content(shipped().clone());

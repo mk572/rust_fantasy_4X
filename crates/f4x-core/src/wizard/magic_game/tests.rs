@@ -1,6 +1,6 @@
 use super::*;
 use crate::game::save::Snapshot;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::testdir::TestResult;
 
@@ -38,11 +38,13 @@ fn on_the_map(g: &mut Game, ids: &[&str]) {
 
 /// 24x14 grassland, one wizard with 2 life books and 100 mana.
 fn world() -> Game {
-    let c = content_with_magic();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut game = Game::new(7);
     game.content = c;
-    game.content.rules.config.tax_unrest_percent = vec![0, 0, 0, 30, 45, 60, 75];
     game.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     game.add_player(P0, "Merlin");
     game.treasury_mut(P0).expect("treasury_mut succeeds").gold = 500;
@@ -385,17 +387,7 @@ fn spells_need_a_known_spell_and_a_valid_target() -> TestResult {
 fn a_channeler_pays_half_the_spell_maintenance() -> TestResult {
     let mut g = world();
     found(&mut g, at(10, 6), 4);
-    let mut defs = g.content.rules.spells.defs().to_vec();
-    defs[0].upkeep = 6;
-    g.content.rules.spells = crate::rules::Registry::new(defs);
-    let dear = (
-        g.content
-            .rules
-            .spells
-            .id_of(&g.content.rules.spells.defs()[0].id)
-            .ok_or("id_of is missing")?,
-        6,
-    );
+    let dear = (spell_numbered(&g, LIFE_FORCE)?, 10);
     g.add_global(P0, dear.0);
     assert_eq!(g.income(P0).mana_upkeep, dear.1);
     g.wizard_mut(P0)
@@ -412,25 +404,26 @@ fn a_channeler_pays_half_the_spell_maintenance() -> TestResult {
     Ok(())
 }
 
-/// Two lasting spells of 6 mana each and a reserve of 8: one must go.
-fn short_of_mana() -> (Game, [SpellId; 2]) {
+/// The numbers of three lasting spells that cost 10 mana a turn (`content/spells.ron`).
+const LIFE_FORCE: u16 = 156;
+const TRANQUILITY: u16 = 157;
+const CRUSADE: u16 = 158;
+
+fn spell_numbered(g: &Game, num: u16) -> Result<SpellId, Box<dyn std::error::Error>> {
+    Ok(g.content
+        .rules
+        .spells
+        .id_numbered(num)
+        .ok_or("a spell number is unused")?)
+}
+
+/// Two lasting spells of 10 mana each and a reserve of 14: one must go.
+fn short_of_mana() -> Result<(Game, [SpellId; 2]), Box<dyn std::error::Error>> {
     let mut g = world();
     found(&mut g, at(10, 6), 4);
-    let mut defs = g.content.rules.spells.defs().to_vec();
-    defs[0].upkeep = 6;
-    defs[1].upkeep = 6;
-    g.content.rules.spells = crate::rules::Registry::new(defs);
     let ids = [
-        g.content
-            .rules
-            .spells
-            .id_of(&g.content.rules.spells.defs()[0].id)
-            .expect("value succeeds"),
-        g.content
-            .rules
-            .spells
-            .id_of(&g.content.rules.spells.defs()[1].id)
-            .expect("value succeeds"),
+        spell_numbered(&g, LIFE_FORCE)?,
+        spell_numbered(&g, TRANQUILITY)?,
     ];
     for s in ids {
         g.add_global(P0, s);
@@ -439,21 +432,21 @@ fn short_of_mana() -> (Game, [SpellId; 2]) {
         .expect("wizard_mut succeeds")
         .set_split(0, 100, 0)
         .ok();
-    g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 8;
-    (g, ids)
+    g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 14;
+    Ok((g, ids))
 }
 
 #[test]
 fn the_wizard_sees_the_shortfall_and_chooses_what_to_give_up() -> TestResult {
     use crate::spell::cast::UpkeepKind;
-    let (mut g, [first, second]) = short_of_mana();
-    let short = g.upkeep_shortfall(P0).expect("12 owed against 8");
-    assert_eq!((short.owed, short.reserve), (12, 8));
+    let (mut g, [first, second]) = short_of_mana()?;
+    let short = g.upkeep_shortfall(P0).expect("20 owed against 14");
+    assert_eq!((short.owed, short.reserve), (20, 14));
     assert_eq!(short.lines.len(), 2);
     assert!(short
         .lines
         .iter()
-        .all(|l| l.mana == 6 && !l.label.is_empty()));
+        .all(|l| l.mana == 10 && !l.label.is_empty()));
     // The turn change would drop the newest (the second); the wizard keeps it and loses the first.
     let events = g
         .release_upkeep(P0, &[UpkeepKind::Global(first)])
@@ -467,28 +460,15 @@ fn the_wizard_sees_the_shortfall_and_chooses_what_to_give_up() -> TestResult {
         g.wizard(P0).ok_or("wizard is missing")?.global(),
         vec![second]
     );
-    assert_eq!(g.player(P0).ok_or("player is missing")?.treasury().mana, 2);
+    assert_eq!(g.player(P0).ok_or("player is missing")?.treasury().mana, 4);
     Ok(())
 }
 
 #[test]
 fn only_real_upkeep_can_be_released() -> TestResult {
     use crate::spell::cast::UpkeepKind;
-    let (mut g, [first, _]) = short_of_mana();
-    let last = &g
-        .content
-        .rules
-        .spells
-        .defs()
-        .last()
-        .ok_or("last is missing")?
-        .id;
-    let stranger = g
-        .content
-        .rules
-        .spells
-        .id_of(last)
-        .ok_or("id_of is missing")?;
+    let (mut g, [first, _]) = short_of_mana()?;
+    let stranger = spell_numbered(&g, CRUSADE)?;
     assert_ne!(stranger, first);
     for s in g.wizard(P0).ok_or("wizard is missing")?.global() {
         if s != first {
@@ -510,7 +490,7 @@ fn only_real_upkeep_can_be_released() -> TestResult {
     );
     assert!(
         g.upkeep_shortfall(P0).is_none(),
-        "one spell of 6 against 8 is no shortfall"
+        "one spell of 10 against 14 is no shortfall"
     );
     Ok(())
 }
@@ -650,9 +630,6 @@ fn cancelling_loses_what_was_paid() -> TestResult {
 #[test]
 fn summoning_creates_units_at_the_chosen_tile() -> TestResult {
     let mut g = world();
-    let mut units = g.content.rules.units.defs().to_vec();
-    crate::game::testutil::add_real_unit(&mut units, "war_bears");
-    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     let call = spell(&g, "war_bears");
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
@@ -762,7 +739,7 @@ fn saves_keep_the_wizard_the_casting_and_unit_spells() -> TestResult {
     g.apply(Command::EndTurn);
     let text = g.snapshot().to_text()?;
     let back = Snapshot::from_text(&text)?;
-    let loaded = back.restore(content_with_magic())?;
+    let loaded = back.restore(shipped())?;
     assert_eq!(loaded.snapshot(), g.snapshot());
     let unit = loaded.units().all_units()[0];
     assert_eq!(

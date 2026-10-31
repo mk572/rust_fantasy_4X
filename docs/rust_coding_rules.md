@@ -109,31 +109,38 @@ wrong reason.
   `ecs-structure.md` section 3.3). A situation the game cannot create belongs in a test only to check
   error handling (a rejected command, a refused save).
 - Look units, spells, buildings and races up by name in the shipped content; do not invent stats.
+  Terrains and map features are called by their number (`num` in `content/`), as a save does, through
+  the constants in `game::testutil::num` (`num::terrain::GRASSLAND`, `num::feature::TOWER`). The
+  number is the single source of truth; the constant's name is only a note for the reader (the
+  display name may change or be translated), and no test checks it against the content. Do not pick a spell, unit or other row by its position in the
+  table (`defs()[0]`); name it, or call it by its number.
+- Change the rules in a test only when the change is the point of the test (a unit given an
+  ability, a spell made dearer, to see the outcome change). A change that only makes the sums easier
+  belongs to the test that needs it, with the reason, not to a shared `world()`.
 - A test whose subject needs content (spells, units) must fail when the content is missing. An empty
   registry that makes the test skip its assertions is a bug.
-- The one exception is the unit tests inside `f4x-core/src/`. `f4x-core` is below `f4x-data`, and
-  a test compiled inside the crate cannot use it: with `f4x-data` as a dev-dependency the test build
-  and `f4x-data` hold two copies of core's types (`expected content::Content, found
-  f4x_core::content::Content`). The integration tests in `f4x-core/tests/it/` can: Cargo allows the
-  dev-dependency cycle there and `f4x_data::load_content` works (adopted: `tests/it/shipped_game.rs`; task 430 is about moving more). So a core
-  test that needs the real rules goes to `f4x-core/tests/it/` (or `f4x-data/tests/`); a unit test in
-  `src/` that stays keeps its hand-built content (`game/testutil.rs`) to the minimum the mechanic
-  needs.
+- A unit test inside `f4x-core/src/` cannot use `f4x_data::load_content`: `f4x-core` is below
+  `f4x-data`, and with `f4x-data` as a dev-dependency the test build and `f4x-data` hold two copies of
+  core's types (`expected content::Content, found f4x_core::content::Content`). Such a test calls
+  `game::testutil::shipped()`, which reads the same `content/` files (the names from `text/en/name/`
+  included, the messages and the checks of the loader not) and parses them once per test process.
+  The integration tests in `f4x-core/tests/it/` use `f4x_data::load_content` itself (`tests/it/world.rs`).
+  Do not hand-build units, spells, buildings or terrains in either.
 
 ### Where a test lives
 
-What a test needs decides where it goes. `python3 scripts/classify_core_tests.py` applies this rule to `f4x-core`.
+Every test that needs rules or a game runs on the shipped content (see above). Where it lives depends on
+what it reaches. `python3 scripts/classify_core_tests.py` counts the `f4x-core` tests that need a
+game or content.
 
-- **A unit test in `src/`** needs no `Game` and no `Content`: its inputs are the type under test (a
-  struct, a grid, a registry of one or two made-up definitions, a string to parse), the setup is
-  about 10 lines or fewer and the test about 25 or fewer, and it states a rule that holds for any
-  content (arithmetic, a formula, an ordering, a parser, the state machine of one type).
-- **An integration test in `f4x-core/tests/it/`**, on the shipped content, as soon as it needs a
-  `Game` with players, cities, units or a map; names a shipped unit, spell, building, race or item;
-  asserts a shipped number; crosses modules; or is longer than the limits above. It sets its
-  situation up through the public API: `Command`s, `cheat_*` and the `scenario_*` setters of
-  `game/access.rs` (add a `scenario_*` setter when a test needs one that is missing; do not widen a
-  field). `tests/it/world.rs` holds the shipped content (parsed once) and `flat_game`.
+- **An integration test in `f4x-core/tests/it/`** when the situation can be built and the result read
+  through the public API: `Command`s, `cheat_*` and the `scenario_*` setters of `game/access.rs` (add
+  a `scenario_*` setter when one is missing; do not widen a field). This is the first choice for a
+  rule that crosses modules (movement, gates, battles through `Command`s), and for new tests.
+  `tests/it/world.rs` holds the shipped content and `flat_game`.
+- **A unit test in `src/`** (`shipped()` for the rules) when the test needs a module's internals (a
+  private system, a component, a field) or no game at all: a formula, a parser, an ordering, a
+  state machine of one type. Keep it to the minimum the mechanic needs.
 - **A test in `f4x-data`** when its subject is the content itself (counts, cross-references, the
   original's numbers) and no engine behaviour is involved.
 

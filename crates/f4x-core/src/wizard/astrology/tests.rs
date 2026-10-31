@@ -1,12 +1,15 @@
 use super::*;
-use crate::game::testutil::content_with_economy;
+use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map};
 use crate::player::PlayerId;
 use crate::testdir::TestResult;
 
 fn world() -> Game {
-    let c = content_with_economy();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let map = Map::new(Grid::new(12, 8, grass), Grid::new(12, 8, grass));
     let mut game = Game::new(3);
     game.content = c;

@@ -1,6 +1,6 @@
 use super::*;
 use crate::game::save::Snapshot;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::testdir::TestResult;
 
@@ -20,8 +20,11 @@ fn at(x: u32, y: u32) -> Position {
 
 /// Three wizards, the first of them the human, nobody met yet.
 fn world() -> Game {
-    let c = content_with_magic();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut g = Game::new(11);
     g.content = c;
     g.map = Some(Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass)));
@@ -1467,7 +1470,7 @@ fn diplomacy_survives_a_save() -> TestResult {
     let text = ron::to_string(&snap)?;
     let back: Snapshot = ron::from_str(&text)?;
     assert_eq!(back, snap);
-    let h = back.restore(content_with_magic())?;
+    let h = back.restore(shipped())?;
     assert_eq!(h.diplomacy, g.diplomacy);
     assert_eq!(h.treaty(P1, P2), Treaty::Alliance);
     assert_eq!(h.treaty(P0, P1), Treaty::War);
@@ -1480,7 +1483,7 @@ fn an_old_save_has_no_diplomacy() -> TestResult {
     let g = world();
     let mut snap = g.snapshot();
     snap.diplomacy = DiplomacySave::default();
-    let h = snap.restore(content_with_magic())?;
+    let h = snap.restore(shipped())?;
     assert!(!h.have_met(P0, P1));
     assert_eq!(h.relation(P0, P1), g.relation(P0, P1));
     Ok(())

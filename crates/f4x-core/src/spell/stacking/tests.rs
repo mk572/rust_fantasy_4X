@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::{num, shipped};
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
@@ -15,8 +15,11 @@ const AT: Position = Position {
 };
 
 fn world() -> Game {
-    let c = content_with_magic();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut g = Game::new(3);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));

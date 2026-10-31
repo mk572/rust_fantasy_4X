@@ -1,12 +1,12 @@
 use super::*;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::shipped;
 use crate::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
 
 fn game() -> Game {
     let mut g = Game::new(5);
-    g.content = content_with_magic();
+    g.content = shipped();
     g.add_player(P0, "W");
     g
 }
@@ -258,18 +258,9 @@ fn a_wizard_chooses_a_banner_and_it_is_saved() -> TestResult {
 #[test]
 fn presets_come_from_the_rules() -> TestResult {
     let mut g = game();
-    g.content.rules.wizards = crate::rules::Registry::new(vec![crate::rules::WizardDef {
-        num: 0,
-        id: "lo_pan".into(),
-        name: "Lo Pan".into(),
-        description: String::new(),
-        gender: crate::text::Gender::Masculine,
-        books: vec![("life".into(), 5), ("chaos".into(), 5)],
-        retorts: vec![Retort::Channeler],
-    }]);
     let b = g.preset_build("lo_pan").ok_or("preset_build is missing")?;
     assert!(b.preset);
-    assert_eq!(b.picks_spent(), 12, "the original's Lo Pan is over budget");
+    assert_eq!(b.picks_spent(), 11, "nine books and the Channeler");
     g.create_wizard(P0, &b).map_err(|e| format!("{e:?}"))?;
     // His picture is his place in the list, as in the original.
     let place = g

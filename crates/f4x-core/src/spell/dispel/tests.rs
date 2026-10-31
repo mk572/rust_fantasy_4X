@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::testdir::TestResult;
 
@@ -29,7 +29,7 @@ fn rng() -> rand_pcg::Pcg64Mcg {
 /// resists) so that what they clear does not depend on luck.
 fn world() -> Game {
     use crate::rules::effects::Effect;
-    let mut c = content_with_magic();
+    let mut c = shipped();
     let mut defs = c.rules.spells.defs().to_vec();
     for d in defs.iter_mut().filter(|d| d.id == "disenchant_area") {
         d.effects[0].effect = Effect::Dispel { strength: 5000 };
@@ -38,7 +38,10 @@ fn world() -> Game {
         d.cost = 5000;
     }
     c.rules.spells = Registry::new(defs);
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut g = Game::new(11);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -244,7 +247,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
     g.attach_enchantment(Target::Unit(elsewhere), strength, P0);
     g.put_node_data(
         at(6, 6),
-        "sorcery_node",
+        num::feature::SORCERY_NODE,
         Node {
             realm: "chaos".into(),
             power: 8,
@@ -595,7 +598,11 @@ fn a_wizard_turns_off_only_their_own_spell_on_a_unit() -> TestResult {
 
 /// The squares round (x, y) turn to ocean too: no shore to scramble to.
 fn open_sea(g: &mut Game, x: u32, y: u32) {
-    let ocean = g.content.terrains.id_of("ocean").expect("id_of succeeds");
+    let ocean = g
+        .content
+        .terrains
+        .id_numbered(num::terrain::OCEAN)
+        .expect("id_of succeeds");
     for dy in 0..3 {
         for dx in 0..3 {
             g.map
@@ -613,7 +620,7 @@ fn turning_off_water_walking_at_sea_drowns_the_unit() -> TestResult {
     let ocean = g
         .content
         .terrains
-        .id_of("ocean")
+        .id_numbered(num::terrain::OCEAN)
         .ok_or("ocean is not in the content")?;
     g.map
         .as_mut()
@@ -655,7 +662,7 @@ fn flight_keeps_a_unit_afloat_and_turning_it_off_drowns_it() -> TestResult {
     let ocean = g
         .content
         .terrains
-        .id_of("ocean")
+        .id_numbered(num::terrain::OCEAN)
         .ok_or("ocean is not in the content")?;
     g.map
         .as_mut()

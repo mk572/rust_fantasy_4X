@@ -517,15 +517,7 @@ mod tests {
             "vampiric".into(),
             "merging".into(),
         ];
-        let mut rules = Rules::default();
-        let power = crate::game::testutil::item_power;
-        rules.item_powers =
-            crate::rules::Registry::new(crate::game::testutil::numbered_powers(vec![
-                power("holy_avenger", Some("bless"), Some("dispel_evil")),
-                power("righteousness", Some("righteousness"), None),
-                power("vampiric", None, Some("life_steal")),
-                power("merging", None, None),
-            ]));
+        let rules = crate::game::testutil::shipped().rules;
         assert_eq!(thing.granted_spells(&rules), ["bless", "righteousness"]);
         assert_eq!(
             thing.granted_abilities(&rules),

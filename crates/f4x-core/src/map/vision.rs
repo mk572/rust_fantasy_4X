@@ -91,17 +91,17 @@ impl Economy<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::content_with_units;
+    use crate::game::testutil::{num, shipped};
     use crate::game::Game;
     use crate::map::{Grid, Map};
     use crate::testdir::TestResult;
 
     #[test]
     fn units_and_cities_see_around_them() -> TestResult {
-        let c = content_with_units();
+        let c = shipped();
         let grass = c
             .terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
         let mut g = Game::new(1);
@@ -141,10 +141,10 @@ mod tests {
     #[test]
     fn oracle_walls_and_natures_eye_widen_a_citys_sight() -> TestResult {
         use crate::rules::{ModOp, Modifier, Source};
-        let c = crate::game::testutil::content_with_economy();
+        let c = crate::game::testutil::shipped();
         let grass = c
             .terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass));
         let mut g = Game::new(1);
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn invisible_units_hide_from_everyone_but_those_who_see_through_illusions() -> TestResult {
-        let mut c = content_with_units();
+        let mut c = shipped();
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
             match u.id.as_str() {
@@ -220,7 +220,7 @@ mod tests {
         c.rules.units = crate::rules::Registry::new_sorted(units);
         let grass = c
             .terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .ok_or("grassland is not in the content")?;
         let mut g = Game::new(1);
         for id in (0..3).map(PlayerId) {
@@ -256,10 +256,10 @@ mod tests {
 
     #[test]
     fn the_handle_sees_without_a_game() -> TestResult {
-        let c = content_with_units();
+        let c = shipped();
         let grass = c
             .terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass));
         let walker = c

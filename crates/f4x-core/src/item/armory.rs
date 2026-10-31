@@ -363,7 +363,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::content_with_magic;
+    use crate::game::testutil::{num, shipped};
     use crate::item::ItemBonus;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::effects::{Effect, EffectRule};
@@ -397,7 +397,7 @@ mod tests {
 
     /// Row 4 of a 14x8 map is grass up to x4, then sea to x9. A warrior hero and a mage hero.
     fn world() -> Game {
-        let mut c = content_with_magic();
+        let mut c = shipped();
         // Flight as this test reads it: a lasting spell that gives the ability to fly.
         let mut spells = c.rules.spells.defs().to_vec();
         for flight in spells.iter_mut().filter(|s| s.id == "flight") {
@@ -409,13 +409,13 @@ mod tests {
             }];
         }
         c.rules.spells = Registry::new(spells);
-        c.rules.item_powers = Registry::new(crate::game::testutil::numbered_powers(vec![
-            crate::game::testutil::item_power("flight", Some("flight"), None),
-            crate::game::testutil::item_power("flaming", None, None),
-        ]));
         let (grass, ocean) = (
-            c.terrains.id_of("grassland").expect("id_of succeeds"),
-            c.terrains.id_of("ocean").expect("id_of succeeds"),
+            c.terrains
+                .id_numbered(num::terrain::GRASSLAND)
+                .expect("id_of succeeds"),
+            c.terrains
+                .id_numbered(num::terrain::OCEAN)
+                .expect("id_of succeeds"),
         );
         let build = || {
             let mut g = Grid::new(14, 8, grass);

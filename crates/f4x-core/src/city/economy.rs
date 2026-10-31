@@ -1002,16 +1002,16 @@ mod growth_tests {
 #[cfg(test)]
 mod handle_tests {
     use super::*;
-    use crate::game::testutil::content_with_economy;
+    use crate::game::testutil::{num, shipped};
     use crate::map::Grid;
     use crate::testdir::TestResult;
 
     #[test]
     fn a_cities_yields_come_from_a_world_a_map_and_the_content_alone() -> TestResult {
-        let content = content_with_economy();
+        let content = shipped();
         let grass = content
             .terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
         let at = Position {
@@ -1059,10 +1059,10 @@ mod handle_tests {
 
     #[test]
     fn a_computer_wizards_bonuses_multiply_its_cities_and_nobody_elses() -> TestResult {
-        let content = content_with_economy();
+        let content = shipped();
         let grass = content
             .terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .ok_or("grassland is not in the content")?;
         let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
         let at = Position {
@@ -1120,22 +1120,22 @@ mod handle_tests {
 
     #[test]
     fn a_squares_food_follows_the_original() -> TestResult {
-        let content = content_with_economy();
+        let content = shipped();
         let grass = content
             .terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .ok_or("grassland is not in the content")?;
         let swamp = content
             .terrains
-            .id_of("swamp")
+            .id_numbered(num::terrain::SWAMP)
             .ok_or("swamp is not in the content")?;
         let ocean = content
             .terrains
-            .id_of("ocean")
+            .id_numbered(num::terrain::OCEAN)
             .ok_or("ocean is not in the content")?;
         let sorcery = content
             .terrains
-            .id_of("sorcery_node")
+            .id_numbered(num::terrain::SORCERY_NODE)
             .ok_or("sorcery_node is not in the content")?;
         let mut grid = Grid::new(24, 14, grass);
         for x in 0..8 {
@@ -1171,26 +1171,26 @@ mod handle_tests {
 
     #[test]
     fn rivers_into_lakes_and_the_sea_give_two_food_and_nodes_set_production() -> TestResult {
-        let content = content_with_economy();
+        let content = shipped();
         let grass = content
             .terrains
-            .id_of("grassland")
+            .id_numbered(num::terrain::GRASSLAND)
             .ok_or("grassland is not in the content")?;
         let ocean = content
             .terrains
-            .id_of("ocean")
+            .id_numbered(num::terrain::OCEAN)
             .ok_or("ocean is not in the content")?;
         let forest = content
             .terrains
-            .id_of("forest")
+            .id_numbered(num::terrain::FOREST)
             .ok_or("forest is not in the content")?;
         let nature = content
             .terrains
-            .id_of("nature_node")
+            .id_numbered(num::terrain::NATURE_NODE)
             .ok_or("nature_node is not in the content")?;
         let chaos = content
             .terrains
-            .id_of("chaos_node")
+            .id_numbered(num::terrain::CHAOS_NODE)
             .ok_or("chaos_node is not in the content")?;
         let mut grid = Grid::new(24, 14, grass);
         // A lake with a river running into it from the north.

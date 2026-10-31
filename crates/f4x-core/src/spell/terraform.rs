@@ -301,7 +301,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::content_with_magic;
+    use crate::game::testutil::{num, shipped};
     use crate::game::Command;
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
@@ -319,8 +319,11 @@ mod tests {
     }
 
     fn world() -> Game {
-        let c = content_with_magic();
-        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+        let c = shipped();
+        let grass = c
+            .terrains
+            .id_numbered(num::terrain::GRASSLAND)
+            .expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -356,7 +359,7 @@ mod tests {
         let gold = g
             .content
             .features
-            .id_of("gold")
+            .id_numbered(num::feature::GOLD_ORE)
             .ok_or("gold is not in the content")?;
         g.map
             .as_mut()
@@ -432,7 +435,7 @@ mod tests {
             .ok_or("as_mut is missing")?
             .plane_mut(Plane::Arcanus)
             .set(2, 2, hills);
-        g.put_feature(at(3, 3), "sorcery_node");
+        g.put_feature(at(3, 3), num::feature::SORCERY_NODE);
         assert_eq!(
             g.check_raise_volcano(at(2, 2)),
             Err(TargetError::VolcanoOnHill)

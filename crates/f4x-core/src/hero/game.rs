@@ -345,7 +345,7 @@ impl Game {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::game::testutil::content_with_magic;
+    use crate::game::testutil::{num, shipped};
     use crate::hero::Tier;
     use crate::map::{Grid, Map, Plane};
     use crate::testdir::TestResult;
@@ -364,9 +364,11 @@ pub(crate) mod tests {
     /// The game's 35 heroes and its real hero templates, one wizard-less neutral and two
     /// wizards on a small map.
     pub(crate) fn world() -> Game {
-        let mut c = content_with_magic();
-        c.rules.hero_templates = crate::game::testutil::real_hero_templates();
-        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+        let c = shipped();
+        let grass = c
+            .terrains
+            .id_numbered(num::terrain::GRASSLAND)
+            .expect("id_of succeeds");
         let mut g = Game::new(5);
         g.content = c;
         g.map = Some(Map::new(Grid::new(14, 8, grass), Grid::new(14, 8, grass)));

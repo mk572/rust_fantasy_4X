@@ -1,6 +1,6 @@
 use super::*;
 use crate::game::save::{LoadError, Snapshot};
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::{num, shipped};
 use crate::game::{Command, Rejection};
 use crate::map::{Grid, Map, Plane};
 use crate::rules::exec::Target;
@@ -18,8 +18,11 @@ fn at(x: u32, y: u32) -> Position {
 }
 
 fn world() -> Game {
-    let c = content_with_magic();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut g = Game::new(3);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -29,9 +32,6 @@ fn world() -> Game {
     }
     g.init_wizard(P0, &[("life", 2)], &[], None)
         .expect("init_wizard succeeds");
-    let mut units = g.content.rules.units.defs().to_vec();
-    crate::game::testutil::add_real_unit(&mut units, "war_bears");
-    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     g
 }
 
@@ -367,16 +367,13 @@ fn saves_keep_the_fortress_and_reject_a_misplaced_one() -> TestResult {
     city(&mut g, P0, at(15, 5));
     g.capture_city(capital, P1);
     let snap = g.snapshot();
-    let loaded = Snapshot::from_text(&snap.to_text()?)?.restore(content_with_magic())?;
+    let loaded = Snapshot::from_text(&snap.to_text()?)?.restore(shipped())?;
     assert_eq!(loaded.snapshot(), g.snapshot());
     assert!(loaded.wizard(P0).ok_or("wizard is missing")?.is_banished());
     // A fortress where the wizard has no city is refused.
     let mut bad = g.snapshot();
     bad.wizards[1].fortress = Some(at(9, 9));
-    let err = bad
-        .restore(content_with_magic())
-        .err()
-        .ok_or("err is missing")?;
+    let err = bad.restore(shipped()).err().ok_or("err is missing")?;
     assert!(matches!(err, LoadError::Inconsistent(_)), "{err:?}");
     Ok(())
 }
@@ -542,7 +539,7 @@ fn the_end_of_the_game_is_saved() -> TestResult {
     g.set_human(Some(P0));
     let capital = place(&mut g, P0, at(5, 5));
     g.capture_city(capital, P1);
-    let loaded = Snapshot::from_text(&g.snapshot().to_text()?)?.restore(content_with_magic())?;
+    let loaded = Snapshot::from_text(&g.snapshot().to_text()?)?.restore(shipped())?;
     assert_eq!(loaded.game_over, g.game_over);
     assert_eq!(loaded.human(), Some(P0));
     assert_eq!(loaded.player(P0).and_then(|p| p.defeated_by()), Some(P1));
@@ -781,7 +778,7 @@ fn the_banisher_is_remembered_across_a_save() -> TestResult {
     let (mut g, capital, _) = banish_world(40);
     g.capture_city(capital, P1);
     let snap = g.snapshot();
-    let loaded = Snapshot::from_text(&snap.to_text()?)?.restore(content_with_magic())?;
+    let loaded = Snapshot::from_text(&snap.to_text()?)?.restore(shipped())?;
     assert_eq!(
         loaded.wizard(P0).ok_or("wizard is missing")?.banished_by(),
         Some(P1)

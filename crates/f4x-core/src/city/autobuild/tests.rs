@@ -1,10 +1,6 @@
 use super::*;
-use crate::game::testutil::content_with_economy;
+use crate::game::testutil::{num, shipped};
 use crate::testdir::TestResult;
-
-fn content() -> Content {
-    content_with_economy()
-}
 
 fn building(c: &Content, id: &str) -> BuildingId {
     c.rules.buildings.id_of(id).expect("id_of succeeds")
@@ -103,7 +99,7 @@ fn every_affinity_row_names_a_known_focus_count_and_is_small() {
 
 #[test]
 fn a_city_below_its_garrison_minimum_builds_the_sturdiest_defender() {
-    let c = content();
+    let c = shipped();
     let mut f = facts(&c);
     f.defenders = 1;
     let item = choose(&c, &plan(Mix::Both, Focus::Gold), &f, &mut first);
@@ -126,7 +122,7 @@ fn the_garrison_minimum_rises_with_size_a_rival_and_the_defense_focus() {
         [0, 1, 2, 3, 5, 6, 8, 9, 20].map(garrison_minimum),
         [0, 1, 1, 2, 2, 3, 3, 4, 4]
     );
-    let c = content();
+    let c = shipped();
     let mut f = facts(&c);
     f.defenders = 2;
     let p = plan(Mix::Both, Focus::Gold);
@@ -172,7 +168,7 @@ fn the_garrison_minimum_rises_with_size_a_rival_and_the_defense_focus() {
 
 #[test]
 fn rebels_call_for_a_building_that_lowers_unrest() {
-    let c = content();
+    let c = shipped();
     let mut f = facts(&c);
     f.rebels = 2;
     let item = choose(&c, &plan(Mix::Buildings, Focus::Production), &f, &mut first);
@@ -181,7 +177,7 @@ fn rebels_call_for_a_building_that_lowers_unrest() {
 
 #[test]
 fn low_gold_builds_a_gold_building_then_trade_goods() {
-    let c = content();
+    let c = shipped();
     let mut f = facts(&c);
     f.net_gold = 1;
     let p = plan(Mix::Buildings, Focus::Offense);
@@ -197,7 +193,7 @@ fn low_gold_builds_a_gold_building_then_trade_goods() {
 
 #[test]
 fn a_building_whose_upkeep_the_treasury_cannot_bear_is_skipped() {
-    let c = content();
+    let c = shipped();
     let mut f = facts(&c);
     f.net_gold = 3;
     f.buildable = vec![building(&c, "temple"), building(&c, "library")];
@@ -217,7 +213,7 @@ fn a_building_whose_upkeep_the_treasury_cannot_bear_is_skipped() {
 
 #[test]
 fn the_focus_decides_which_building_comes_first() {
-    let c = content();
+    let c = shipped();
     let f = facts(&c);
     let pick = |focus| match choose(&c, &plan(Mix::Buildings, focus), &f, &mut first) {
         ProductionItem::Building(b) => c.rules.buildings.get(b).id.clone(),
@@ -231,7 +227,7 @@ fn the_focus_decides_which_building_comes_first() {
 
 #[test]
 fn a_building_that_opens_a_better_one_gets_credit() {
-    let c = content();
+    let c = shipped();
     let mut f = facts(&c);
     // Only the armory (no value to an offense plan by itself) and the guild above it are in play.
     f.built.push(building(&c, "barracks"));
@@ -251,7 +247,7 @@ fn a_building_that_opens_a_better_one_gets_credit() {
 
 #[test]
 fn hunger_and_a_full_city_favour_food_buildings() {
-    let c = content();
+    let c = shipped();
     let mut f = facts(&c);
     let p = BuildPlan {
         mix: Mix::Buildings,
@@ -268,7 +264,7 @@ fn hunger_and_a_full_city_favour_food_buildings() {
 
 #[test]
 fn both_keeps_production_on_units_and_buildings_level() {
-    let c = content();
+    let c = shipped();
     let f = facts(&c);
     let mut a = plan(Mix::Both, Focus::Offense);
     assert!(
@@ -295,7 +291,7 @@ fn both_keeps_production_on_units_and_buildings_level() {
 
 #[test]
 fn the_unit_roll_prefers_the_best_but_varies() -> TestResult {
-    let c = content();
+    let c = shipped();
     let f = facts(&c);
     let p = BuildPlan {
         mix: Mix::Units,
@@ -322,7 +318,7 @@ fn the_unit_roll_prefers_the_best_but_varies() -> TestResult {
 
 #[test]
 fn defense_and_exploration_pick_their_own_units() {
-    let c = content();
+    let c = shipped();
     let f = facts(&c);
     let top = |focus| {
         let p = BuildPlan {
@@ -351,7 +347,7 @@ fn defense_and_exploration_pick_their_own_units() {
 
 #[test]
 fn settlers_need_room_space_and_a_wish() {
-    let c = content();
+    let c = shipped();
     let mut f = facts(&c);
     f.units.push(unit_id(&c, "high_elf_settlers"));
     f.figures = 10;
@@ -411,7 +407,7 @@ fn settlers_need_room_space_and_a_wish() {
 
 #[test]
 fn at_the_end_of_the_list_gold_is_the_last_fallback() {
-    let c = content();
+    let c = shipped();
     let mut f = facts(&c);
     f.buildable.clear();
     f.possible.clear();
@@ -429,10 +425,10 @@ fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() -> TestResult {
     use crate::game::Command;
     use crate::map::{Grid, Map, Plane};
     use crate::player::PlayerId;
-    let c = content();
+    let c = shipped();
     let grass = c
         .terrains
-        .id_of("grassland")
+        .id_numbered(num::terrain::GRASSLAND)
         .ok_or("grassland is not in the content")?;
     let mut g = Game::new(3);
     g.content = c;
@@ -480,7 +476,7 @@ fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() -> TestResult {
         plan
     );
     let snap = g.snapshot();
-    let loaded = crate::game::save::Snapshot::from_text(&snap.to_text()?)?.restore(content())?;
+    let loaded = crate::game::save::Snapshot::from_text(&snap.to_text()?)?.restore(shipped())?;
     let again = loaded.economy().cities()[0].0;
     assert_eq!(
         loaded

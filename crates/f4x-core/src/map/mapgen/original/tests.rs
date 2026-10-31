@@ -1,4 +1,4 @@
-use crate::game::testutil::content;
+use crate::game::testutil::shipped;
 use crate::map::mapgen::{generate, land_percent, GenParams};
 use crate::map::terrain::TerrainClass;
 use crate::map::Plane;
@@ -14,7 +14,7 @@ fn original(land_percent: u8) -> GenParams {
 use crate::testdir::TestResult;
 #[test]
 fn deterministic_and_unlike_the_noise_map() -> TestResult {
-    let (c, p) = (content(), original(30));
+    let (c, p) = (shipped(), original(30));
     assert_eq!(generate(3, &p, &c)?, generate(3, &p, &c)?);
     assert_ne!(generate(3, &p, &c)?, generate(4, &p, &c)?);
     let noise = GenParams::default();
@@ -24,7 +24,7 @@ fn deterministic_and_unlike_the_noise_map() -> TestResult {
 
 #[test]
 fn land_reaches_the_wanted_share_and_grows_with_it() -> TestResult {
-    let c = content();
+    let c = shipped();
     let mut shares = Vec::new();
     for pct in [15u8, 20, 30] {
         let map = generate(5, &original(pct), &c)?.map;
@@ -38,7 +38,7 @@ fn land_reaches_the_wanted_share_and_grows_with_it() -> TestResult {
 
 #[test]
 fn the_margins_are_ocean_or_tundra_and_the_poles_are_tundra() -> TestResult {
-    let c = content();
+    let c = shipped();
     let map = generate(9, &original(30), &c)?.map;
     for plane in Plane::ALL {
         let grid = map.plane(plane);
@@ -63,7 +63,7 @@ fn the_margins_are_ocean_or_tundra_and_the_poles_are_tundra() -> TestResult {
 
 #[test]
 fn works_on_every_map_size_and_a_very_high_land_share() -> TestResult {
-    let c = content();
+    let c = shipped();
     for (w, h) in [(45, 30), (90, 60)] {
         for pct in [15, 99] {
             let p = GenParams {
@@ -84,7 +84,7 @@ fn a_lone_node_gets_ground_on_every_side_over_many_seeds() -> TestResult {
     use crate::feature::place::Placed;
     use crate::map::mapgen::original::extend_islands;
     use crate::map::{Grid, Map};
-    let c = content();
+    let c = shipped();
     let ocean = c
         .terrains
         .first_of_class(TerrainClass::Ocean, Plane::Arcanus)

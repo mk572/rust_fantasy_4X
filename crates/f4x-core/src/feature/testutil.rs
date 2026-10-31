@@ -12,14 +12,14 @@ use crate::game::Game;
 use crate::map::Position;
 
 impl Game {
-    /// Put the feature called `id` on a square: a mineral in the map layer, anything else as an
+    /// Put the feature numbered `num` on a square: a mineral in the map layer, anything else as an
     /// entity with no guards and no node data. Returns the entity (none for a mineral).
-    pub(crate) fn put_feature(&mut self, at: Position, id: &str) -> Option<Entity> {
+    pub(crate) fn put_feature(&mut self, at: Position, num: u16) -> Option<Entity> {
         let feature = self
             .content
             .features
-            .id_of(id)
-            .expect("a feature of that id");
+            .id_numbered(num)
+            .expect("a feature of that number");
         if self.content.features.get(feature).map(|d| d.kind) == Some(FeatureKind::Mineral) {
             self.map
                 .as_mut()
@@ -37,12 +37,12 @@ impl Game {
     }
 
     /// Put a guarded site (a tower, a node or an encounter site) on a square.
-    pub(crate) fn put_lair(&mut self, at: Position, id: &str, lair: Lair) -> Entity {
+    pub(crate) fn put_lair(&mut self, at: Position, num: u16, lair: Lair) -> Entity {
         let feature = self
             .content
             .features
-            .id_of(id)
-            .expect("a feature of that id");
+            .id_numbered(num)
+            .expect("a feature of that number");
         self.spawn_feature(Placement {
             at,
             feature,
@@ -55,15 +55,15 @@ impl Game {
     pub(crate) fn put_node_data(
         &mut self,
         at: Position,
-        id: &str,
+        num: u16,
         node: Node,
         owner: Option<crate::player::PlayerId>,
     ) -> Entity {
         let feature = self
             .content
             .features
-            .id_of(id)
-            .expect("a feature of that id");
+            .id_numbered(num)
+            .expect("a feature of that number");
         let e = self.spawn_feature(Placement {
             at,
             feature,
@@ -77,12 +77,12 @@ impl Game {
     }
 
     /// Put a node on a square, with an aura made from `seed` as map generation does.
-    pub(crate) fn put_node(&mut self, at: Position, id: &str, seed: u64) -> Entity {
+    pub(crate) fn put_node(&mut self, at: Position, num: u16, seed: u64) -> Entity {
         let feature = self
             .content
             .features
-            .id_of(id)
-            .expect("a feature of that id");
+            .id_numbered(num)
+            .expect("a feature of that number");
         let mut placed = crate::feature::place::Placed::new(
             self.map.as_ref().expect("a map").width(),
             self.map.as_ref().expect("a map").height(),

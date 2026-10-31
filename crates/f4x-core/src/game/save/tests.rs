@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::content_with_economy;
+use crate::game::testutil::{num, shipped};
 use crate::game::Command;
 use crate::map::{Grid, Plane};
 use crate::testdir::TestResult;
@@ -17,11 +17,23 @@ fn at(x: u32, y: u32) -> Position {
 /// A small lived-in world: two cities and an outpost, an army with an order,
 /// roads, a mine, explored land, and some turns played.
 fn game() -> Game {
-    let c = content_with_economy();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
-    let ocean = c.terrains.id_of("ocean").expect("id_of succeeds");
-    let hills = c.terrains.id_of("hills").expect("id_of succeeds");
-    let gold = c.features.id_of("gold").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
+    let ocean = c
+        .terrains
+        .id_numbered(num::terrain::OCEAN)
+        .expect("id_of succeeds");
+    let hills = c
+        .terrains
+        .id_numbered(num::terrain::HILLS)
+        .expect("id_of succeeds");
+    let gold = c
+        .features
+        .id_numbered(num::feature::GOLD_ORE)
+        .expect("id_of succeeds");
     let build = || {
         let mut g = Grid::new(24, 14, grass);
         for y in 0..14 {
@@ -37,7 +49,10 @@ fn game() -> Game {
         g
     };
     let map = Map::new(build(), build());
-    let node = c.features.id_of("sorcery_node").expect("id_of succeeds");
+    let node = c
+        .features
+        .id_numbered(num::feature::SORCERY_NODE)
+        .expect("id_of succeeds");
     let mut g = Game::new(99);
     g.content = c;
     g.settings.basic.magic_strength = 2;
@@ -295,18 +310,12 @@ fn missing_content_is_reported_by_number_or_name() -> TestResult {
         Some(LoadError::UnknownId("unit", spearmen.to_string()))
     );
     let mut no_terrain = g.content.clone();
-    let hills = no_terrain
-        .terrains
-        .defs()
-        .iter()
-        .find(|t| t.id == "hills")
-        .ok_or("find is missing")?
-        .num;
+    let hills = num::terrain::HILLS;
     let terrains: Vec<_> = no_terrain
         .terrains
         .defs()
         .iter()
-        .filter(|t| t.id != "hills")
+        .filter(|t| t.num != hills)
         .cloned()
         .collect();
     no_terrain.terrains = crate::map::terrain::Terrains::new(terrains);
@@ -531,7 +540,7 @@ fn a_unit_in_stasis_stays_there_through_a_save() -> TestResult {
 #[test]
 fn a_lasting_spell_on_the_world_stays_through_a_save() -> TestResult {
     let mut g = game();
-    g.content = crate::game::testutil::content_with_magic();
+    g.content = crate::game::testutil::shipped();
     let spell = g
         .content
         .rules
@@ -556,7 +565,7 @@ fn a_lasting_spell_on_the_world_stays_through_a_save() -> TestResult {
 #[test]
 fn a_spell_on_a_city_stays_through_a_save() -> TestResult {
     let mut g = game();
-    g.content = crate::game::testutil::content_with_magic();
+    g.content = crate::game::testutil::shipped();
     let spell = g
         .content
         .rules
@@ -589,7 +598,7 @@ fn a_spell_on_a_city_stays_through_a_save() -> TestResult {
 #[test]
 fn a_spell_on_a_unit_stays_through_a_save() -> TestResult {
     let mut g = game();
-    g.content = crate::game::testutil::content_with_magic();
+    g.content = crate::game::testutil::shipped();
     let spell = g
         .content
         .rules

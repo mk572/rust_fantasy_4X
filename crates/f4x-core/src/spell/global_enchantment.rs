@@ -252,7 +252,7 @@ impl UnitView<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::content_with_magic;
+    use crate::game::testutil::{num, shipped};
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::{Registry, UnitKind};
@@ -270,7 +270,7 @@ mod tests {
     }
 
     fn world() -> Game {
-        let mut c = content_with_magic();
+        let mut c = shipped();
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
             match u.id.as_str() {
@@ -280,7 +280,10 @@ mod tests {
             }
         }
         c.rules.units = Registry::new_sorted(units);
-        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+        let grass = c
+            .terrains
+            .id_numbered(num::terrain::GRASSLAND)
+            .expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -481,7 +484,7 @@ mod tests {
             special: 0,
             fought_by: Vec::new(),
         };
-        g.put_lair(at(20, 10), "lair", lair);
+        g.put_lair(at(20, 10), num::feature::MONSTER_LAIR, lair);
         let known = |g: &Game| g.economy().lair_guards_known_to(at(20, 10), P0);
         assert_eq!(known(&g), None, "never fought, nothing shown");
         // Nature's Eye on a city nearby: sight 9 reaches four squares and a half.
@@ -506,7 +509,7 @@ mod tests {
         // Nature Awareness shows every site.
         g.put_lair(
             at(2, 2),
-            "lair",
+            num::feature::MONSTER_LAIR,
             crate::feature::lair::Lair {
                 intact: true,
                 guards: guards.clone(),

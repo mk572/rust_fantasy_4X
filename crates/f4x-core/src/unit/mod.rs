@@ -606,7 +606,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::content_with_magic;
+    use crate::game::testutil::shipped;
     use crate::map::Plane;
     use crate::testdir::TestResult;
 
@@ -618,7 +618,7 @@ mod tests {
 
     #[test]
     fn a_units_allowance_is_two_half_moves_for_each_move() -> TestResult {
-        let content = content_with_magic();
+        let content = shipped();
         let mut world = World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
         let mut max = |id: &str, n: u64| {
@@ -633,7 +633,7 @@ mod tests {
 
     #[test]
     fn basic_troops_cost_half_the_upkeep_when_the_setting_is_on() -> TestResult {
-        let mut content = content_with_magic();
+        let mut content = shipped();
         let mut world = World::new();
         let (a, b) = (
             world.spawn(crate::player::bundle(PlayerId(0))),
@@ -678,7 +678,7 @@ mod tests {
 
     #[test]
     fn a_units_figures_come_from_a_world_and_content_alone() -> TestResult {
-        let content = content_with_magic();
+        let content = shipped();
         let spear = content
             .rules
             .units
@@ -702,7 +702,7 @@ mod tests {
 
     #[test]
     fn units_come_in_the_order_they_were_made() -> TestResult {
-        let content = content_with_magic();
+        let content = shipped();
         let spear = content
             .rules
             .units

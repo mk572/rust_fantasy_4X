@@ -653,7 +653,7 @@ impl Game {
 mod tests {
     use super::*;
     use crate::city::economy::{Farmers, Population};
-    use crate::game::testutil::content_with_economy;
+    use crate::game::testutil::{num, shipped};
     use crate::map::{Grid, Map, Plane};
     use crate::testdir::TestResult;
 
@@ -667,8 +667,11 @@ mod tests {
 
     impl Rig {
         fn new() -> Rig {
-            let content = content_with_economy();
-            let grass = content.terrains.id_of("grassland").expect("id_of succeeds");
+            let content = shipped();
+            let grass = content
+                .terrains
+                .id_numbered(num::terrain::GRASSLAND)
+                .expect("id_of succeeds");
             let map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));
             let mut world = World::new();
             let owner = world.spawn(crate::player::bundle(PlayerId(0)));

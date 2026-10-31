@@ -390,7 +390,7 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::content_with_units;
+    use crate::game::testutil::{num, shipped};
     use crate::game::Command;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::Registry;
@@ -411,18 +411,21 @@ mod tests {
 
     /// 14x8: row 4 is grass x0-4, sea x5-9, grass x10-13; everything else grass.
     fn world() -> Game {
-        let mut c = content_with_units();
+        let mut c = shipped();
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
             if u.id == "warship" {
                 u.stats.insert(Stat::Transport, 2);
             }
         }
-        crate::game::testutil::add_real_unit(&mut units, "floating_island");
         c.rules.units = Registry::new_sorted(units);
         let (grass, ocean) = (
-            c.terrains.id_of("grassland").expect("id_of succeeds"),
-            c.terrains.id_of("ocean").expect("id_of succeeds"),
+            c.terrains
+                .id_numbered(num::terrain::GRASSLAND)
+                .expect("id_of succeeds"),
+            c.terrains
+                .id_numbered(num::terrain::OCEAN)
+                .expect("id_of succeeds"),
         );
         let build = || {
             let mut g = Grid::new(14, 8, grass);
@@ -448,11 +451,6 @@ mod tests {
     #[test]
     fn wind_mastery_speeds_the_owners_ships_and_slows_the_others() -> TestResult {
         let mut g = world();
-        let wm = crate::game::testutil::real_spells()
-            .into_iter()
-            .find(|s| s.id == "wind_mastery")
-            .ok_or("find is missing")?;
-        g.content.rules.spells = Registry::new(vec![wm]);
         let wm = g
             .content
             .rules
@@ -713,7 +711,7 @@ mod tests {
         let ocean = g
             .content
             .terrains
-            .id_of("ocean")
+            .id_numbered(num::terrain::OCEAN)
             .ok_or("ocean is not in the content")?;
         for (x, y) in [(4, 3), (4, 4), (4, 5), (5, 3), (5, 5), (6, 3), (6, 5)] {
             g.map

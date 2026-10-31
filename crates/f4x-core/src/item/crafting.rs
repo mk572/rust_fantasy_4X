@@ -620,85 +620,21 @@ impl crate::game::Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::game::testutil::content_with_magic;
+    use crate::game::testutil::{num, shipped};
     use crate::game::{Command, Event, Game};
     use crate::item::armory::Placed;
     use crate::map::{Grid, Map};
     use crate::player::PlayerId;
-    use crate::rules::{ItemPowerDef, PowerBonus, Registry};
     use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
 
-    fn power(
-        id: &str,
-        group: u8,
-        cost: u32,
-        kinds: &[ItemKind],
-        bonus: Option<(PowerBonus, i32)>,
-        realm: Option<(&str, u32)>,
-    ) -> ItemPowerDef {
-        ItemPowerDef {
-            num: 0,
-            id: id.into(),
-            name: id.into(),
-            group,
-            cost,
-            kinds: kinds.to_vec(),
-            realm: realm.map(|(r, _)| r.into()),
-            books: realm.map_or(0, |(_, b)| b),
-            bonus,
-            spell: None,
-            attack: None,
-        }
-    }
-
-    fn rules_with_items() -> crate::content::Content {
-        use ItemKind::*;
-        let mut c = content_with_magic();
-        c.rules.item_powers = Registry::new(crate::game::testutil::numbered_powers(vec![
-            power(
-                "attack_1",
-                0,
-                50,
-                &[Sword, Axe, Misc],
-                Some((PowerBonus::Attack, 1)),
-                None,
-            ),
-            power(
-                "attack_2",
-                0,
-                100,
-                &[Sword, Axe, Misc],
-                Some((PowerBonus::Attack, 2)),
-                None,
-            ),
-            power(
-                "defense_2",
-                2,
-                100,
-                &[Sword, Misc, Shield, Chainmail],
-                Some((PowerBonus::Defense, 2)),
-                None,
-            ),
-            power(
-                "movement_2",
-                5,
-                200,
-                &[Misc, Chainmail],
-                Some((PowerBonus::Moves, 2)),
-                None,
-            ),
-            power("flaming", 9, 300, &[Sword, Staff], None, Some(("chaos", 2))),
-            power("cloak", 9, 150, &[Sword, Misc], None, None),
-            power("spell_charges", 9, 1000, &[Staff, Wand], None, None),
-        ]));
-        c
-    }
-
     fn world(skill: i32) -> Game {
-        let c = rules_with_items();
-        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+        let c = shipped();
+        let grass = c
+            .terrains
+            .id_numbered(num::terrain::GRASSLAND)
+            .expect("id_of succeeds");
         let mut g = Game::new(7);
         g.content = c;
         g.map = Some(Map::new(Grid::new(8, 8, grass), Grid::new(8, 8, grass)));
@@ -756,7 +692,7 @@ mod tests {
         assert_eq!(cost(&design(ItemKind::Sword, &["attack_2"]), rules), 200);
         assert_eq!(cost(&design(ItemKind::Misc, &["attack_2"]), rules), 250);
         // A special power is never doubled.
-        assert_eq!(cost(&design(ItemKind::Misc, &["cloak"]), rules), 200);
+        assert_eq!(cost(&design(ItemKind::Misc, &["flight"]), rules), 250);
         let mut staff = design(ItemKind::Staff, &[]);
         staff.charges = Some(("giant_strength".into(), 3));
         // 300 base, and the spell's 8 mana times 3 charges times 20.
@@ -793,7 +729,7 @@ mod tests {
         assert_eq!(
             ok(
                 ItemKind::Misc,
-                &["attack_1", "defense_2", "movement_2", "cloak", "x"]
+                &["attack_1", "defense_2", "movement_2", "flight", "x"]
             ),
             Err(CraftError::TooManyPowers)
         );
@@ -825,7 +761,7 @@ mod tests {
             Err(CraftError::TooCostly)
         );
         assert_eq!(check_in(&g, Craft::CreateArtifact, &flaming), Ok(()));
-        let cheap = design(ItemKind::Sword, &["attack_2", "cloak"]);
+        let cheap = design(ItemKind::Sword, &["attack_2", "defense_2"]);
         assert_eq!(check_in(&g, Craft::EnchantItem, &cheap), Ok(()));
         let mut staff = design(ItemKind::Staff, &[]);
         staff.charges = Some(("giant_strength".into(), 1));
@@ -878,18 +814,24 @@ mod tests {
             .map(|p| p.id.clone())
             .collect()
         };
-        assert_eq!(
-            ids(ItemKind::Sword, Craft::EnchantItem),
-            ["attack_1", "attack_2", "defense_2", "cloak"]
-        );
-        assert_eq!(
-            ids(ItemKind::Sword, Craft::CreateArtifact),
-            ["attack_1", "attack_2", "defense_2", "flaming", "cloak"]
-        );
-        assert_eq!(
-            ids(ItemKind::Staff, Craft::EnchantItem),
-            ["spell_charges"][..0]
-        );
+        let enchant = ids(ItemKind::Sword, Craft::EnchantItem);
+        let artifact = ids(ItemKind::Sword, Craft::CreateArtifact);
+        for id in ["attack_1", "attack_2", "defense_2"] {
+            assert!(enchant.iter().any(|p| p == id), "{id}: {enchant:?}");
+        }
+        assert!(enchant.iter().all(|p| artifact.contains(p)));
+        // Flaming costs 300: only an artifact takes it, and two books in chaos are enough for it.
+        assert!(!enchant.iter().any(|p| p == "flaming"));
+        assert!(artifact.iter().any(|p| p == "flaming"));
+        // Lightning needs five books in chaos, and the charges are not a power one picks.
+        for list in [&enchant, &artifact] {
+            assert!(!list
+                .iter()
+                .any(|p| p == "lightning" || p == "spell_charges"));
+        }
+        assert!(!ids(ItemKind::Staff, Craft::EnchantItem)
+            .iter()
+            .any(|p| p == "spell_charges"));
         Ok(())
     }
 
@@ -897,17 +839,17 @@ mod tests {
     fn building_an_item_gives_bonuses_armour_extras_and_a_default_name() {
         let g = world(0);
         let rules = &g.content.rules;
-        let sword = build(&design(ItemKind::Sword, &["attack_2", "cloak"]), rules);
+        let sword = build(&design(ItemKind::Sword, &["attack_2", "flaming"]), rules);
         assert_eq!(sword.bonus.attack, 2);
-        assert_eq!(sword.powers, ["cloak"]);
-        assert_eq!(sword.cost, 100 + 100 + 150);
+        assert_eq!(sword.powers, ["flaming"]);
+        assert_eq!(sword.cost, 100 + 100 + 300);
         assert_eq!(sword.name, "");
         assert_eq!(
             sword.made,
             Some(MadeName {
                 kind: TypeName::Sword,
                 bonus: Some(2),
-                suffix: Some(Suffix::Special("cloak".into())),
+                suffix: Some(Suffix::Special("flaming".into())),
             })
         );
         // Chain mail gains a defence of its own, and a movement power is whole moves in half-moves.

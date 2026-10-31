@@ -203,8 +203,8 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::feature::def::{CityBonus, FeatureDef, FeatureKind, Features};
-    use crate::game::testutil::content_with_magic;
+    use crate::game::testutil::num::{self, feature};
+    use crate::game::testutil::shipped;
     use crate::game::Command;
     use crate::map::{Grid, Map};
     use crate::player::PlayerId;
@@ -217,20 +217,11 @@ mod tests {
     }
 
     fn world() -> Game {
-        let mut c = content_with_magic();
-        let mut defs = c.features.defs().to_vec();
-        for id in ["iron_ore", "gold_ore", "coal", "gem", "silver_ore"] {
-            defs.push(FeatureDef {
-                num: defs.len() as u16 + 1,
-                id: id.into(),
-                name: id.into(),
-                kind: FeatureKind::Mineral,
-                city: CityBonus::default(),
-                spawn: vec![],
-            });
-        }
-        c.features = Features::new(defs);
-        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+        let c = shipped();
+        let grass = c
+            .terrains
+            .id_numbered(num::terrain::GRASSLAND)
+            .expect("id_of succeeds");
         let mut g = Game::new(3);
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -278,16 +269,20 @@ mod tests {
     fn transmute_swaps_each_mineral_with_its_partner_and_refuses_the_rest() -> TestResult {
         let mut g = world();
         let pairs = [
-            ("iron_ore", "gold_ore"),
-            ("gold_ore", "iron_ore"),
-            ("coal", "gem"),
-            ("gem", "coal"),
-            ("silver_ore", "mithril_ore"),
-            ("mithril_ore", "silver_ore"),
+            (feature::IRON_ORE, feature::GOLD_ORE),
+            (feature::GOLD_ORE, feature::IRON_ORE),
+            (feature::COAL, feature::GEM),
+            (feature::GEM, feature::COAL),
+            (feature::SILVER_ORE, feature::MITHRIL_ORE),
+            (feature::MITHRIL_ORE, feature::SILVER_ORE),
         ];
         for (i, (from, to)) in pairs.into_iter().enumerate() {
             let pos = at(Plane::Arcanus, i as u32, 3);
-            let id = g.content.features.id_of(from).ok_or("id_of is missing")?;
+            let id = g
+                .content
+                .features
+                .id_numbered(from)
+                .ok_or("a feature number is unused")?;
             g.map
                 .as_mut()
                 .ok_or("as_mut is missing")?
@@ -301,12 +296,12 @@ mod tests {
                 .ok_or("as_ref is missing")?
                 .plane(Plane::Arcanus)
                 .mineral(pos.x as i32, pos.y as i32);
-            assert_eq!(now, g.content.features.id_of(to), "{from}");
+            assert_eq!(now, g.content.features.id_numbered(to), "{from}");
         }
         let adamantium = g
             .content
             .features
-            .id_of("adamantium_ore")
+            .id_numbered(num::feature::ADAMANTIUM_ORE)
             .ok_or("adamantium_ore is not in the content")?;
         let pos = at(Plane::Arcanus, 10, 3);
         g.map
@@ -411,7 +406,7 @@ mod tests {
         let ocean = g
             .content
             .terrains
-            .id_of("ocean")
+            .id_numbered(num::terrain::OCEAN)
             .ok_or("ocean is not in the content")?;
         let sea = at(Plane::Arcanus, 5, 5);
         g.map
@@ -419,11 +414,6 @@ mod tests {
             .ok_or("as_mut is missing")?
             .plane_mut(Plane::Arcanus)
             .set(sea.x, sea.y, ocean);
-        let mut units = g.content.rules.units.defs().to_vec();
-        if !units.iter().any(|u| u.id == "floating_island") {
-            crate::game::testutil::add_real_unit(&mut units, "floating_island");
-            g.content.rules.units = crate::rules::Registry::new_sorted(units);
-        }
         let land = at(Plane::Arcanus, 6, 5);
         let events = cast(&mut g, "floating_island", Target::Tile(land));
         assert!(rejected(&events), "{events:?}");

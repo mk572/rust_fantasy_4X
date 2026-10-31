@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::shipped;
 use crate::player::Treasury;
 use crate::testdir::TestResult;
 use crate::wizard::magic::Retort;
@@ -40,7 +40,7 @@ fn alchemy_refuses_what_the_wizard_cannot_pay_and_changes_nothing() {
 #[test]
 fn the_spell_being_cast_can_be_given_up_except_the_spell_of_return() -> TestResult {
     let mut g = crate::game::Game::new(3);
-    g.content = content_with_magic();
+    g.content = shipped();
     g.add_player(crate::player::PlayerId(0), "W");
     let mut w = g
         .wizard_mut(crate::player::PlayerId(0))
@@ -53,7 +53,7 @@ fn the_spell_being_cast_can_be_given_up_except_the_spell_of_return() -> TestResu
 #[test]
 fn a_famous_wizard_starts_with_fame_and_every_wizard_with_a_library() -> TestResult {
     let mut g = crate::game::Game::new(3);
-    g.content = content_with_magic();
+    g.content = shipped();
     let id = crate::player::PlayerId(0);
     g.add_player(id, "W");
     g.init_wizard(id, &[("life", 2)], &[Retort::Famous], None)

@@ -1,7 +1,6 @@
 use super::*;
-use crate::feature::def::{FeatureDef, FeatureKind, Features};
 use crate::feature::lair::Lair;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::{num, shipped};
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::player::{PlayerId, MONSTERS};
@@ -19,26 +18,14 @@ fn at(x: u32, y: u32) -> Position {
     }
 }
 
-fn content() -> crate::content::Content {
-    let mut c = content_with_magic();
-    let mut features = c.features.defs().to_vec();
-    features.push(FeatureDef {
-        num: features.len() as u16 + 1,
-        id: "ruins".into(),
-        name: "Ruins".into(),
-        kind: FeatureKind::Encounter,
-        city: Default::default(),
-        spawn: Vec::new(),
-    });
-    c.features = Features::new(features);
-    c
-}
-
 /// A grassland world of 24 by 14 with a wizard at (10, 4) and an independent city at (4, 4)
 /// that has `troops` spearmen. Raiders and monsters are switched on and Impossible is played.
 fn world(troops: usize) -> Game {
-    let c = content();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut g = Game::new(11);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -119,7 +106,7 @@ fn a_neutral_city_alone_on_its_landmass_raises_nobody_and_feeds_the_monsters_clo
     let sea = g
         .content
         .terrains
-        .id_of("ocean")
+        .id_numbered(num::terrain::OCEAN)
         .ok_or("ocean is not in the content")?;
     // A strip of sea between the two cities.
     for y in 0..14 {
@@ -170,7 +157,11 @@ fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() -> 
     let mut g = world(0);
     g.settings.world.raiders_enabled = false;
     g.turn = 100;
-    let site = g.put_lair(at(14, 8), "lair", lair(vec![("skeletons", 2)]));
+    let site = g.put_lair(
+        at(14, 8),
+        num::feature::MONSTER_LAIR,
+        lair(vec![("skeletons", 2)]),
+    );
     g.threat.monster_clock = 1000;
     let events = g.process_threats();
     let Some(Event::MonstersSettled {
@@ -210,7 +201,11 @@ fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() -> 
 fn life_lairs_keep_their_guards() {
     let mut g = world(0);
     g.turn = 100;
-    g.put_lair(at(14, 8), "lair", lair(vec![("angel", 1)]));
+    g.put_lair(
+        at(14, 8),
+        num::feature::MONSTER_LAIR,
+        lair(vec![("angel", 1)]),
+    );
     g.threat.monster_clock = 1000;
     assert!(g.process_threats().is_empty());
     assert_eq!(
@@ -223,7 +218,11 @@ fn life_lairs_keep_their_guards() {
 fn nothing_comes_before_the_first_monster_turn_and_the_clock_starts_again() {
     let mut g = world(0);
     g.turn = MONSTER_FIRST_TURN - 1;
-    g.put_lair(at(14, 8), "lair", lair(vec![("skeletons", 2)]));
+    g.put_lair(
+        at(14, 8),
+        num::feature::MONSTER_LAIR,
+        lair(vec![("skeletons", 2)]),
+    );
     g.threat.monster_clock = 1000;
     assert!(g.process_threats().is_empty());
     assert_eq!(g.threat.monster_clock, 0);
@@ -236,7 +235,7 @@ fn a_lair_on_a_landmass_without_a_player_is_not_chosen() -> TestResult {
     let sea = g
         .content
         .terrains
-        .id_of("ocean")
+        .id_numbered(num::terrain::OCEAN)
         .ok_or("ocean is not in the content")?;
     for y in 0..14 {
         for x in [12, 20] {
@@ -247,7 +246,11 @@ fn a_lair_on_a_landmass_without_a_player_is_not_chosen() -> TestResult {
                 .set(x, y, sea);
         }
     }
-    g.put_lair(at(16, 8), "lair", lair(vec![("skeletons", 2)]));
+    g.put_lair(
+        at(16, 8),
+        num::feature::MONSTER_LAIR,
+        lair(vec![("skeletons", 2)]),
+    );
     g.threat.monster_clock = 1000;
     assert!(g.process_threats().is_empty());
     Ok(())
@@ -258,7 +261,7 @@ fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() -> TestResult {
     let mut g = world(0);
     let site = g.put_lair(
         at(14, 8),
-        "sorcery_node",
+        num::feature::SORCERY_NODE,
         Lair {
             intact: false,
             guards: Vec::new(),
@@ -315,7 +318,7 @@ fn a_node_a_wizard_holds_is_not_taken() -> TestResult {
         guardian: false,
         warped: false,
     };
-    let e = g.put_node_data(at(14, 8), "sorcery_node", node, Some(P0));
+    let e = g.put_node_data(at(14, 8), num::feature::SORCERY_NODE, node, Some(P0));
     g.world.insert_one(
         e,
         Lair {

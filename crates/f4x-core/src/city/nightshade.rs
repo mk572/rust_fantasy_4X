@@ -93,7 +93,7 @@ impl Game {
 mod tests {
     use super::*;
     use crate::feature::def::{CityBonus, FeatureDef, FeatureKind, Features};
-    use crate::game::testutil::content_with_economy;
+    use crate::game::testutil::{num, shipped};
     use crate::game::Command;
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
@@ -114,7 +114,7 @@ mod tests {
     /// P0's city at (10, 6) of 4 people; a spell "famine" that curses enemy cities with the
     /// given dispel difficulty; nightshade on the squares listed.
     fn world(plants: &[(u32, u32)], difficulty: u32) -> (Game, hecs::Entity, SpellId) {
-        let mut c = content_with_economy();
+        let mut c = shipped();
         let mut defs = c.features.defs().to_vec();
         defs.push(FeatureDef {
             num: defs.len() as u16 + 1,
@@ -134,8 +134,14 @@ mod tests {
             }
         }
         c.rules.spells = Registry::new(spells);
-        let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
-        let plant = c.features.id_of("nightshade").expect("id_of succeeds");
+        let grass = c
+            .terrains
+            .id_numbered(num::terrain::GRASSLAND)
+            .expect("id_of succeeds");
+        let plant = c
+            .features
+            .id_numbered(num::feature::NIGHTSHADE)
+            .expect("id_of succeeds");
         let mut game = Game::new(3);
         game.content = c;
         let mut map = Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass));

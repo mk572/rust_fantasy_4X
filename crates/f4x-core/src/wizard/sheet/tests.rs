@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::shipped;
 use crate::game::Game;
 use crate::player::PlayerId;
 use crate::testdir::TestResult;
@@ -9,7 +9,7 @@ const P0: PlayerId = PlayerId(0);
 
 fn game_with(books: &[(&str, u8)], retorts: &[Retort]) -> Game {
     let mut g = Game::new(5);
-    g.content = content_with_magic();
+    g.content = shipped();
     g.add_player(P0, "W");
     g.init_wizard(P0, books, retorts, None)
         .expect("init_wizard succeeds");

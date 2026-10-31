@@ -142,102 +142,51 @@ pub fn random_item(rng: &mut GameRng, rules: &Rules, grade: Grade, value: u32) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rules::{ItemDef, ItemPowerDef, PowerBonus, Registry};
+    use crate::game::testutil::shipped;
+    use crate::testdir::TestResult;
 
-    fn def(id: &str, kind: ItemKind, cost: u32, powers: &[&str], flag: bool) -> ItemDef {
-        ItemDef {
-            num: 0,
-            id: id.into(),
-            name: id.into(),
-            slot: kind.slot(),
-            kind,
-            cost,
-            icon: 0,
-            effects: Vec::new(),
-            spell_skill: 0,
-            spell_save: 0,
-            powers: powers.iter().map(|p| p.to_string()).collect(),
-            charges: None,
-            flag,
-        }
-    }
-
-    fn power(
-        id: &str,
-        group: u8,
-        cost: u32,
-        bonus: Option<(PowerBonus, i32)>,
-        realm: Option<(&str, u32)>,
-    ) -> ItemPowerDef {
-        ItemPowerDef {
-            num: 0,
-            id: id.into(),
-            name: id.into(),
-            group,
-            cost,
-            kinds: vec![
-                ItemKind::Sword,
-                ItemKind::Mace,
-                ItemKind::Axe,
-                ItemKind::Bow,
-                ItemKind::Staff,
-                ItemKind::Wand,
-                ItemKind::Misc,
-                ItemKind::Shield,
-                ItemKind::Chainmail,
-                ItemKind::Platemail,
-            ],
-            realm: realm.map(|(r, _)| r.into()),
-            books: realm.map_or(0, |(_, b)| b),
-            bonus,
-            spell: None,
-            attack: None,
-        }
-    }
-
-    fn rules() -> Rules {
-        let mut rules = crate::game::testutil::content_with_magic().rules;
-        rules.item_powers = Registry::new(crate::game::testutil::numbered_powers(vec![
-            power("attack_1", 0, 50, Some((PowerBonus::Attack, 1)), None),
-            power("attack_2", 0, 100, Some((PowerBonus::Attack, 2)), None),
-            power("attack_6", 0, 800, Some((PowerBonus::Attack, 6)), None),
-            power("defense_1", 2, 50, Some((PowerBonus::Defense, 1)), None),
-            power("to_hit_1", 1, 400, Some((PowerBonus::ToHit, 1)), None),
-            power("flaming", 9, 300, None, Some(("chaos", 2))),
-            power("lightning", 9, 800, None, Some(("chaos", 5))),
-            power("true_sight", 9, 500, None, Some(("life", 6))),
-        ]));
-        rules.items = Registry::new(crate::game::testutil::numbered_items(vec![
-            def("cheap", ItemKind::Sword, 250, &[], false),
-            def("flame", ItemKind::Sword, 600, &["flaming"], true),
-            def("bolt", ItemKind::Mace, 900, &["lightning", "flaming"], true),
-            def("sight", ItemKind::Misc, 1000, &["true_sight"], true),
-        ]));
+    fn cost_of(rules: &Rules, id: &str) -> Result<u32, String> {
         rules
+            .items
+            .by_name(id)
+            .map(|d| d.cost)
+            .ok_or(format!("{id} is not in the content"))
+    }
+
+    fn flagged(rules: &Rules, id: &str) -> Result<bool, String> {
+        rules
+            .items
+            .by_name(id)
+            .map(|d| d.flag)
+            .ok_or(format!("{id} is not in the content"))
     }
 
     #[test]
-    fn a_prefab_item_is_found_by_value_and_grade_and_given_once() {
-        let rules = rules();
+    fn a_prefab_item_is_found_by_value_and_grade_and_given_once() -> TestResult {
+        let rules = shipped().rules;
         let mut rng = GameRng::new(1);
         let mut taken = Vec::new();
-        // Only "flame" costs between 350 and 700 among the flagged items.
+        // Create Artifact: a flagged prefab item whose cost lies between half the value and it.
         let item = make_item(&mut rng, &rules, Grade::Artifact, 700, &mut taken);
-        assert_eq!(item.prefab.as_deref(), Some("flame"));
-        assert_eq!(taken, vec!["flame".to_string()]);
-        // It is not given again: the next call rolls a random item instead.
+        let id = item.prefab.clone().ok_or("a prefab item was expected")?;
+        assert!(flagged(&rules, &id)?, "{id} is not a flagged item");
+        assert!((350..=700).contains(&cost_of(&rules, &id)?), "{id}");
+        assert_eq!(taken, vec![id.clone()]);
+        // It is not given again: the next call gives another item.
         let again = make_item(&mut rng, &rules, Grade::Artifact, 700, &mut taken);
-        assert_eq!(again.prefab, None);
-        assert_eq!(taken.len(), 1);
+        assert_ne!(again.prefab, Some(id));
         // Enchant Item makes only the unflagged prefab items.
         let mut taken = Vec::new();
         let item = make_item(&mut rng, &rules, Grade::Enchant, 500, &mut taken);
-        assert_eq!(item.prefab.as_deref(), Some("cheap"));
+        let id = item.prefab.ok_or("a prefab item was expected")?;
+        assert!(!flagged(&rules, &id)?, "{id} is a flagged item");
+        assert!((250..=500).contains(&cost_of(&rules, &id)?), "{id}");
+        Ok(())
     }
 
     #[test]
     fn without_a_value_any_prefab_item_may_come() {
-        let rules = rules();
+        let rules = shipped().rules;
         let mut seen = std::collections::BTreeSet::new();
         for seed in 0..60 {
             let mut taken = Vec::new();
@@ -246,29 +195,36 @@ mod tests {
                 seen.insert(id);
             }
         }
-        assert_eq!(seen.len(), 4, "{seen:?}");
+        assert!(seen.len() > 30, "{} different items", seen.len());
     }
 
     #[test]
-    fn a_random_item_has_plain_powers_only_up_to_the_count_and_value() {
-        let rules = rules();
+    fn a_random_item_has_plain_powers_only_up_to_the_count_and_value() -> TestResult {
+        let rules = shipped().rules;
         for seed in 0..200 {
             let mut rng = GameRng::new(seed);
             let item = random_item(&mut rng, &rules, Grade::Enchant, 0);
-            // Enchant Item grade: at most two powers, none costing over 200.
-            assert!(item.powers.is_empty(), "no special powers: {item:?}");
+            // Enchant Item grade: at most two powers, none costing over 200, all plain.
+            assert!(item.powers.len() <= 2, "{item:?}");
+            for power in &item.powers {
+                let def = rules
+                    .item_powers
+                    .by_name(power)
+                    .ok_or("a power is not in the content")?;
+                assert!(def.bonus.is_some(), "no special powers: {item:?}");
+                assert!(def.cost <= 200, "{item:?}");
+            }
             assert_eq!(item.prefab, None);
             assert!(item.cost >= 100, "{item:?}");
             let (first, last) = item.kind.icon_range();
             assert!((first..=last).contains(&item.icon), "{item:?}");
-            let item = random_item(&mut rng, &rules, Grade::Artifact, 1000);
-            assert!(item.powers.is_empty() && item.cost > 0, "{item:?}");
         }
+        Ok(())
     }
 
     #[test]
     fn a_random_enchant_item_takes_two_cheap_powers_at_most() {
-        let rules = rules();
+        let rules = shipped().rules;
         for seed in 0..200 {
             let mut rng = GameRng::new(seed);
             let item = random_item(&mut rng, &rules, Grade::Enchant, 100_000);
@@ -279,20 +235,30 @@ mod tests {
             // Chain and plate mail add a defence of their own.
             let armour = matches!(item.kind, ItemKind::Chainmail | ItemKind::Platemail);
             assert!(plain <= 2 + usize::from(armour), "{item:?}");
-            // Attack 6 (800) and to hit (400) cost over 200.
-            assert!(item.bonus.attack <= 2 && item.bonus.to_hit == 0, "{item:?}");
+            // Attack 4 (350) and to hit (400) cost over 200.
+            assert!(item.bonus.attack <= 3 && item.bonus.to_hit == 0, "{item:?}");
         }
     }
 
     #[test]
     fn a_random_item_with_a_value_stops_once_it_is_passed() {
-        let rules = rules();
+        let rules = shipped().rules;
         for seed in 0..100 {
             let mut rng = GameRng::new(seed);
             let item = random_item(&mut rng, &rules, Grade::Artifact, 300);
-            // The power that passes the value stays, so the cost may be over it by one power
-            // (the dearest is 800, doubled on a miscellaneous item), never by two.
-            assert!(item.cost <= 300 + 1600, "{item:?}");
+            // The power that passes the value stays, so without its last power the item costs
+            // no more than the value.
+            let Some((_, before)) = item.powers.split_last() else {
+                continue;
+            };
+            let design = ItemDesign {
+                name: String::new(),
+                kind: item.kind,
+                icon: item.icon,
+                powers: before.to_vec(),
+                charges: None,
+            };
+            assert!(crafting::cost(&design, &rules) <= 300, "{item:?}");
         }
     }
 }

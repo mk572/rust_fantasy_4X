@@ -1,7 +1,7 @@
 use super::*;
 use crate::battle::{BattleCommand, Side};
 use crate::feature::place::Placed;
-use crate::game::testutil::content_with_magic;
+use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Plane};
 use crate::player::PlayerId;
 use crate::testdir::TestResult;
@@ -19,14 +19,12 @@ fn at(x: u32, y: u32) -> Position {
     }
 }
 
-/// Magic test content: the game's real units, so the guards are the real creatures.
-fn content() -> Content {
-    content_with_magic()
-}
-
 fn world(seed: u64) -> Game {
-    let c = content();
-    let grass = c.terrains.id_of("grassland").expect("id_of succeeds");
+    let c = shipped();
+    let grass = c
+        .terrains
+        .id_numbered(num::terrain::GRASSLAND)
+        .expect("id_of succeeds");
     let mut g = Game::new(seed);
     g.content = c;
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
@@ -41,8 +39,8 @@ fn world(seed: u64) -> Game {
     g
 }
 
-/// A guarded site of kind `site` on Arcanus.
-fn put_lair(g: &mut Game, x: u32, y: u32, site: &str, guards: Vec<(&str, u32)>) -> hecs::Entity {
+/// A guarded site, the feature numbered `site`, on Arcanus.
+fn put_lair(g: &mut Game, x: u32, y: u32, site: u16, guards: Vec<(&str, u32)>) -> hecs::Entity {
     g.put_lair(at(x, y), site, lair(guards))
 }
 
@@ -81,7 +79,7 @@ fn lair(guards: Vec<(&str, u32)>) -> Lair {
 
 #[test]
 fn only_summoned_non_transport_units_of_the_realm_can_guard() {
-    let c = content();
+    let c = shipped();
     let death: Vec<String> = candidates(&c, "death")
         .into_iter()
         .map(|(id, _)| id)
@@ -138,7 +136,7 @@ fn the_dearest_affordable_unit_is_chosen_and_the_first_of_equals() -> TestResult
 
 #[test]
 fn guards_fit_the_budget_and_the_stack() {
-    let list = candidates(&content(), "death");
+    let list = candidates(&shipped(), "death");
     let rules = LairRules::default();
     let mut rng = Pcg64Mcg::seed_from_u64(1);
     for budget in [0, 20, 60, 200, 700, 1500, 4000] {
@@ -160,7 +158,7 @@ fn guards_fit_the_budget_and_the_stack() {
 
 #[test]
 fn a_site_type_decides_the_guards_realm() {
-    let rules = content();
+    let rules = shipped();
     let mut rng = Pcg64Mcg::seed_from_u64(2);
     for _ in 0..100 {
         assert_eq!(
@@ -202,12 +200,17 @@ fn a_site_type_decides_the_guards_realm() {
 fn every_site_gets_a_lair_and_a_tower_has_one_for_both_planes() -> TestResult {
     let g = world(1);
     let mut placed = Placed::new(24, 14);
-    let id = |name: &str| g.content.features.id_of(name).expect("id_of succeeds");
-    placed.set(Plane::Arcanus, 3, 3, id("tower"));
-    placed.set(Plane::Myrror, 3, 3, id("tower"));
-    placed.set(Plane::Arcanus, 8, 5, id("lair"));
-    placed.set(Plane::Myrror, 9, 5, id("lair"));
-    placed.set(Plane::Myrror, 12, 9, id("lair"));
+    let id = |n: u16| {
+        g.content
+            .features
+            .id_numbered(n)
+            .expect("id_numbered succeeds")
+    };
+    placed.set(Plane::Arcanus, 3, 3, id(num::feature::TOWER));
+    placed.set(Plane::Myrror, 3, 3, id(num::feature::TOWER));
+    placed.set(Plane::Arcanus, 8, 5, id(num::feature::MONSTER_LAIR));
+    placed.set(Plane::Myrror, 9, 5, id(num::feature::MONSTER_LAIR));
+    placed.set(Plane::Myrror, 12, 9, id(num::feature::MONSTER_LAIR));
     let params = GenParams::default();
     let map = g.map.as_ref().ok_or("as_ref is missing")?;
     let lairs = generate_lairs(11, &params, map, &placed, &[], &g.content);
@@ -285,7 +288,13 @@ fn hoards_follow_the_original_rules() {
 #[test]
 fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() -> TestResult {
     let mut g = world(2);
-    let site = put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 3)]);
+    let site = put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![("skeletons", 3)],
+    );
     let walker = g
         .content
         .rules
@@ -314,7 +323,7 @@ fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() -> TestResult {
 #[test]
 fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() -> TestResult {
     let mut g = world(3);
-    let site = put_lair(&mut g, 5, 5, "lair", vec![]);
+    let site = put_lair(&mut g, 5, 5, num::feature::MONSTER_LAIR, vec![]);
     let walker = g
         .content
         .rules
@@ -366,7 +375,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
     l.prisoner = false;
     // A spell: from a realm the wizard has books in (or arcane), newly known.
     l.special = 2;
-    let site = g.put_lair(at(5, 5), "lair", l);
+    let site = g.put_lair(at(5, 5), num::feature::MONSTER_LAIR, l);
     let known_before = g.wizard(P0).ok_or("wizard is missing")?.known().len();
     let events = g.claim_lair(site, P0);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
@@ -466,7 +475,13 @@ fn fight_to_the_end(g: &mut Game) {
 #[test]
 fn beating_the_guards_clears_the_site_pays_out_and_moves_in() -> TestResult {
     let mut g = world(5);
-    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 1)]);
+    put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![("skeletons", 1)],
+    );
     // Make the guard feeble and the attackers strong.
     let mut units = g.content.rules.units.defs().to_vec();
     for u in &mut units {
@@ -530,7 +545,7 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() -> TestResult {
 fn the_building_of_a_site_stands_in_the_middle_of_the_battlefield() -> TestResult {
     use crate::battle::map::layout::Structure;
     let mut g = world(5);
-    put_lair(&mut g, 5, 5, "tower", vec![("skeletons", 1)]);
+    put_lair(&mut g, 5, 5, num::feature::TOWER, vec![("skeletons", 1)]);
     let walker = g
         .content
         .rules
@@ -553,7 +568,13 @@ fn the_building_of_a_site_stands_in_the_middle_of_the_battlefield() -> TestResul
 fn a_guard_drained_to_death_joins_the_victors_as_undead() -> TestResult {
     use crate::battle::Status;
     let mut g = world(5);
-    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2)]);
+    put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![("skeletons", 2)],
+    );
     let walker = g
         .content
         .rules
@@ -620,7 +641,13 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() -> TestResult {
 fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() -> TestResult {
     use crate::battle::Status;
     let mut g = world(7);
-    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2)]);
+    put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![("skeletons", 2)],
+    );
     // Make the guards normal units, and give the winner Zombie Mastery.
     let mut units = g.content.rules.units.defs().to_vec();
     for d in units.iter_mut().filter(|d| d.id == "skeletons") {
@@ -675,7 +702,13 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() -> TestResult {
 fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() -> TestResult {
     use crate::battle::Status;
     let mut g = world(5);
-    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 1)]);
+    put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![("skeletons", 1)],
+    );
     let walker = g
         .content
         .rules
@@ -727,7 +760,13 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() -
 #[test]
 fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() -> TestResult {
     let mut g = world(6);
-    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 3)]);
+    put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![("skeletons", 3)],
+    );
     let walker = g
         .content
         .rules
@@ -759,8 +798,14 @@ fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() -> TestResul
 #[test]
 fn only_a_guarded_site_next_to_the_stack_can_be_entered() -> TestResult {
     let mut g = world(7);
-    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 1)]);
-    put_lair(&mut g, 9, 9, "lair", vec![]);
+    put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![("skeletons", 1)],
+    );
+    put_lair(&mut g, 9, 9, num::feature::MONSTER_LAIR, vec![]);
     let walker = g
         .content
         .rules
@@ -788,7 +833,7 @@ fn only_a_guarded_site_next_to_the_stack_can_be_entered() -> TestResult {
 #[test]
 fn a_tower_is_cleared_on_both_planes_and_stays() {
     let mut g = world(8);
-    let tower = put_lair(&mut g, 5, 5, "tower", vec![]);
+    let tower = put_lair(&mut g, 5, 5, num::feature::TOWER, vec![]);
     let other_plane = at(5, 5).on_other_plane();
     assert_eq!(g.economy().feature_entity_at(other_plane), Some(tower));
     g.claim_lair(tower, P0);
@@ -803,7 +848,13 @@ fn a_tower_is_cleared_on_both_planes_and_stays() {
 #[test]
 fn lairs_survive_a_save() -> TestResult {
     let mut g = world(9);
-    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2), ("ghouls", 1)]);
+    put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![("skeletons", 2), ("ghouls", 1)],
+    );
     let snap = g.snapshot();
     let back = snap.restore(g.content.clone())?;
     assert_eq!(back.economy().lairs(), g.economy().lairs());
@@ -813,7 +864,13 @@ fn lairs_survive_a_save() -> TestResult {
 #[test]
 fn clearing_a_site_takes_its_treasure_once() {
     let mut g = world(10);
-    let site = put_lair(&mut g, 5, 5, "lair", vec![("high_men_cavalry", 1)]);
+    let site = put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![("high_men_cavalry", 1)],
+    );
     let cleared = g.clear_site(site).expect("an intact lair");
     assert_eq!(
         (cleared.gold, cleared.mana, cleared.items),
@@ -826,8 +883,8 @@ fn clearing_a_site_takes_its_treasure_once() {
 #[test]
 fn clearing_a_tower_leaves_another_tower_alone() -> TestResult {
     let mut g = world(11);
-    let a = put_lair(&mut g, 3, 3, "tower", vec![]);
-    put_lair(&mut g, 8, 8, "tower", vec![]);
+    let a = put_lair(&mut g, 3, 3, num::feature::TOWER, vec![]);
+    put_lair(&mut g, 8, 8, num::feature::TOWER, vec![]);
     g.clear_site(a).ok_or("clear_site is missing")?;
     assert!(g.economy().lair_at(at(3, 3)).is_none());
     assert!(
@@ -896,7 +953,7 @@ fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort
 
 #[test]
 fn a_spell_award_teaches_a_spell_the_wizard_can_use() {
-    let c = content();
+    let c = shipped();
     let (mut world, e) = sheet(&[("life", 2)], &[]);
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     let mut rng = crate::game::rng::GameRng::new(9);
@@ -955,7 +1012,7 @@ fn a_neutral_winner_gets_no_spell_and_the_value_comes_back_as_gold_or_mana() -> 
     l.prisoner = false;
     l.items.clear();
     l.special = 4;
-    let site = g.put_lair(at(5, 5), "lair", l);
+    let site = g.put_lair(at(5, 5), num::feature::MONSTER_LAIR, l);
     let before = g.player(town).ok_or("player is missing")?.treasury();
     let events = g.claim_lair(site, town);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
@@ -980,7 +1037,7 @@ fn a_neutral_winner_without_a_hero_gets_no_item_and_a_prisoner_joins_it_at_home(
     let (mut g, town) = heroic_world();
     let mut l = rich_lair();
     l.special = 0;
-    let site = g.put_lair(at(5, 5), "lair", l);
+    let site = g.put_lair(at(5, 5), num::feature::MONSTER_LAIR, l);
     let events = g.claim_lair(site, town);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
         return Err(format!("{events:?}").into());
@@ -1014,7 +1071,7 @@ fn a_prisoner_with_no_free_hero_left_is_rerolled_for_a_wizard_too() -> TestResul
     l.gold = 0;
     l.mana = 0;
     l.items.clear();
-    let site = g.put_lair(at(5, 5), "lair", l);
+    let site = g.put_lair(at(5, 5), num::feature::MONSTER_LAIR, l);
     let events = g.claim_lair(site, P0);
     let Some(Event::SiteCleared { loot, .. }) = events.first() else {
         return Err(format!("{events:?}").into());
@@ -1048,7 +1105,13 @@ fn rerolled_value_never_exceeds_the_value() {
 #[test]
 fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() -> TestResult {
     let mut g = world(6);
-    put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 3)]);
+    put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![("skeletons", 3)],
+    );
     let walker = g
         .content
         .rules
@@ -1082,16 +1145,26 @@ fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() -> TestR
 fn lair_checksum() -> u64 {
     let g = world(1);
     let mut placed = Placed::new(24, 14);
-    let id = |name: &str| g.content.features.id_of(name).expect("id_of succeeds");
+    let id = |n: u16| {
+        g.content
+            .features
+            .id_numbered(n)
+            .expect("id_numbered succeeds")
+    };
     for (i, plane) in Plane::ALL.into_iter().enumerate() {
         for k in 0..10u32 {
-            placed.set(plane, 1 + k, 1 + 4 * i as u32, id("lair"));
+            placed.set(
+                plane,
+                1 + k,
+                1 + 4 * i as u32,
+                id(num::feature::MONSTER_LAIR),
+            );
         }
     }
-    placed.set(Plane::Arcanus, 3, 9, id("tower"));
-    placed.set(Plane::Myrror, 3, 9, id("tower"));
-    placed.set(Plane::Arcanus, 20, 9, id("tower"));
-    placed.set(Plane::Myrror, 20, 9, id("tower"));
+    placed.set(Plane::Arcanus, 3, 9, id(num::feature::TOWER));
+    placed.set(Plane::Myrror, 3, 9, id(num::feature::TOWER));
+    placed.set(Plane::Arcanus, 20, 9, id(num::feature::TOWER));
+    placed.set(Plane::Myrror, 20, 9, id(num::feature::TOWER));
     let nodes: Vec<(Position, Node)> = ["sorcery", "nature", "chaos"]
         .iter()
         .enumerate()
@@ -1136,7 +1209,13 @@ fn generated_lairs_for_a_seed_stay_the_same() {
 #[test]
 fn a_game_saved_in_a_lair_fight_goes_on_to_clear_the_site() -> TestResult {
     let mut g = world(5);
-    let site = put_lair(&mut g, 5, 5, "lair", vec![("skeletons", 2)]);
+    let site = put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::MONSTER_LAIR,
+        vec![("skeletons", 2)],
+    );
     let walker = g
         .content
         .rules
