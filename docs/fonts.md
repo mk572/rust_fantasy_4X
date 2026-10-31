@@ -36,3 +36,36 @@ Example: check a font against the game's text, then make the BMFont:
   default instance.
 - A font's licence goes with the generated files: copy its `OFL.txt` (or equivalent) next to them when they are
   committed.
+
+## How close are the free fonts? (`scripts/font_match.py`, 31 October 2026)
+
+The original's eight styles are: 0 to 3 small and medium sans pixel fonts (6, 6, 9 and 9 px; 3 is the bold one), 4 a
+10 px blackletter, 5 a 16 px blackletter (the title style), 6 and 7 rune-like symbol fonts (not letters), so only
+styles 0 to 5 can have a stand-in. The script scores each installed font against each style: the overlap of the
+glyph pixels (intersection over union, mean over ASCII 33 to 126, after the best shift of the whole font; 1.0 is
+identical). Best results, each with its size:
+
+| Style | Best match | Score |
+|---|---|---|
+| 0 (6 px) | Micro 5 at 10 or 11 px, Jersey 10 at 8 px | 0.62, 0.60 |
+| 1 (6 px) | Silkscreen at 8 px, Jersey 20 at 9 px | 0.57, 0.56 |
+| 2 (9 px) | Jersey 20 at 10 px, DotGothic16 at 9 px | 0.56, 0.51 |
+| 3 (9 px, bold) | Jersey 20 at 11 px, Jersey 15 at 12 px | 0.57, 0.55 |
+| 4 (10 px blackletter) | Jersey 10 at 14 px, Jacquard 24 at 14 px | 0.39, 0.32 |
+| 5 (16 px blackletter) | Jersey 25 at 17 px, Jacquard 24 at 21 px | 0.31, 0.30 |
+
+**No free font is a pixel match.** The best score is 0.62, and the blackletter styles are at 0.3 to 0.4 (the
+scores of Jacquard and the Bitcount family are in the same range). The original's fonts are drawn glyph by glyph,
+and a different design differs in a pixel or two on most letters, which an overlap score punishes. Jersey 20 is the
+closest in spirit for body text (styles 2 and 3). For the blackletter styles Jacquard 12 or 24 look right in a
+preview but not in pixels. A real match would be a font drawn to the original's glyph shapes, which is a derivative
+of the original's art: not something to commit.
+
+Candidates that were looked at and left out (licence; install policy in the section above):
+
+- Cloister Black (dafont "100% Free"): the font file reads "Copyright (c) Typographer Mediengestaltung, 2001. All
+  rights reserved. Full character set added by Dieter Steffmann", with no licence text in the download, so the use
+  is not clearly unrestricted. Not installed.
+- Pixel Symtext: freeware; the listing says to contact the designer for commercial use. Not installed.
+- Gridwright Story and tallreed: no page or licence found. Send a link and I will check them.
+- Bitcount (all six non-ink families): installed, OFL; scores below Jersey for every style.

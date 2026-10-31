@@ -154,6 +154,240 @@
       ]
     },
     {
+      "id": "jersey15",
+      "name": "Jersey 15",
+      "licence": "OFL-1.1",
+      "role": "narrow body text, a size up from Jersey 10",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jersey15/Jersey15-Regular.ttf",
+          "dest": "jersey15/Jersey15-Regular.ttf",
+          "sha256": "dbe00479d62bb3b9fcf0d28f88a021ffc4bd7b01d6ad5c6f74b5fa371bb210ed"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jersey15/OFL.txt",
+          "dest": "jersey15/OFL.txt",
+          "sha256": "436d5836064cec796c7ddde6fb4faeabdb6f2f17443a24a30d0c38b75d13f922"
+        }
+      ]
+    },
+    {
+      "id": "jersey20",
+      "name": "Jersey 20",
+      "licence": "OFL-1.1",
+      "role": "narrow body text",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jersey20/Jersey20-Regular.ttf",
+          "dest": "jersey20/Jersey20-Regular.ttf",
+          "sha256": "76670d7e8826860e3d2f2846b88bc1652135b8d54b6adfa5a87649b9fa4bd3b4"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jersey20/OFL.txt",
+          "dest": "jersey20/OFL.txt",
+          "sha256": "436d5836064cec796c7ddde6fb4faeabdb6f2f17443a24a30d0c38b75d13f922"
+        }
+      ]
+    },
+    {
+      "id": "jersey25",
+      "name": "Jersey 25",
+      "licence": "OFL-1.1",
+      "role": "narrow body text, larger",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jersey25/Jersey25-Regular.ttf",
+          "dest": "jersey25/Jersey25-Regular.ttf",
+          "sha256": "4d4acdd89a748e9548041a3046d95536c500e1a7be9197c6aeef7d980f79d370"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/jersey25/OFL.txt",
+          "dest": "jersey25/OFL.txt",
+          "sha256": "436d5836064cec796c7ddde6fb4faeabdb6f2f17443a24a30d0c38b75d13f922"
+        }
+      ]
+    },
+    {
+      "id": "pressstart2p",
+      "name": "Press Start 2P",
+      "licence": "OFL-1.1",
+      "role": "8 px arcade font, capitals and small letters",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/pressstart2p/PressStart2P-Regular.ttf",
+          "dest": "pressstart2p/PressStart2P-Regular.ttf",
+          "sha256": "034c77f1f05ec89421e4a63f0e3a4ca1ecf852cc6d2bf611f126f275728e017d"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/pressstart2p/OFL.txt",
+          "dest": "pressstart2p/OFL.txt",
+          "sha256": "705960c3281a5765ecc0b59bd4ed7ca59eed165748076bc2fc3e8fdbfeb944b0"
+        }
+      ]
+    },
+    {
+      "id": "vt323",
+      "name": "VT323",
+      "licence": "OFL-1.1",
+      "role": "terminal font, 16 px",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/vt323/VT323-Regular.ttf",
+          "dest": "vt323/VT323-Regular.ttf",
+          "sha256": "cf4de751ada78ceac033dbe16a687742939995b77bc2a052ae17a4957958594d"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/vt323/OFL.txt",
+          "dest": "vt323/OFL.txt",
+          "sha256": "27d9af34210253e7ca1251fbace86c6f65b40031d6ce1a75493a1b2093631298"
+        }
+      ]
+    },
+    {
+      "id": "dotgothic16",
+      "name": "DotGothic16",
+      "licence": "OFL-1.1",
+      "role": "16 px dot font with Japanese and Latin",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/dotgothic16/DotGothic16-Regular.ttf",
+          "dest": "dotgothic16/DotGothic16-Regular.ttf",
+          "sha256": "3ad9af88726d42b40f7f365f0dcac785af73cf20ea6f1d5b44e57cc21150b8f1"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/dotgothic16/OFL.txt",
+          "dest": "dotgothic16/OFL.txt",
+          "sha256": "b6630c61ea078cacd7fabe37d14ffe557a0b45b06683374a9aa9e24262993e33"
+        }
+      ]
+    },
+    {
+      "id": "handjet",
+      "name": "Handjet",
+      "licence": "OFL-1.1",
+      "role": "variable dot-matrix font",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/handjet/Handjet%5BELGR%2CELSH%2Cwght%5D.ttf",
+          "dest": "handjet/Handjet[ELGR,ELSH,wght].ttf",
+          "sha256": "9262749e8bb0b73ebcae0e20428689c3c59576eebeb6c4e1020300d2d41bdf4d"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/handjet/OFL.txt",
+          "dest": "handjet/OFL.txt",
+          "sha256": "934a45d3b43276e1f857301e9cb07e00b829cca3d0c13e8e6f8c6790dd6c8a2c"
+        }
+      ]
+    },
+    {
+      "id": "bitcount",
+      "name": "Bitcount",
+      "licence": "OFL-1.1",
+      "role": "variable pixel font family (Bitcount): weight, slant and shape axes",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/bitcount/Bitcount%5BCRSV%2CELSH%2CELXP%2Cslnt%2Cwght%5D.ttf",
+          "dest": "bitcount/Bitcount[CRSV,ELSH,ELXP,slnt,wght].ttf",
+          "sha256": "c7931919e67faa0e9cea2118f47d8f96383c580cc5cb6a3cef9aa1233ba3923e"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/bitcount/OFL.txt",
+          "dest": "bitcount/OFL.txt",
+          "sha256": "c214f3227a93a64c5b73d7e6a1a922c90803fcfb7312404fa2890c63f56fadf8"
+        }
+      ]
+    },
+    {
+      "id": "bitcountgriddouble",
+      "name": "Bitcount griddouble",
+      "licence": "OFL-1.1",
+      "role": "variable pixel font family (Bitcount): weight, slant and shape axes",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/bitcountgriddouble/BitcountGridDouble%5BCRSV%2CELSH%2CELXP%2Cslnt%2Cwght%5D.ttf",
+          "dest": "bitcountgriddouble/BitcountGridDouble[CRSV,ELSH,ELXP,slnt,wght].ttf",
+          "sha256": "8827445e53172735959d8ba11db8442ec5ffc8d8dc1b778781e9b5be5e20ffb2"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/bitcountgriddouble/OFL.txt",
+          "dest": "bitcountgriddouble/OFL.txt",
+          "sha256": "061dfb7681d7fff942e04f5217c40e05d2fe5a3cea6001222039fea4b0432254"
+        }
+      ]
+    },
+    {
+      "id": "bitcountgridsingle",
+      "name": "Bitcount gridsingle",
+      "licence": "OFL-1.1",
+      "role": "variable pixel font family (Bitcount): weight, slant and shape axes",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/bitcountgridsingle/BitcountGridSingle%5BCRSV%2CELSH%2CELXP%2Cslnt%2Cwght%5D.ttf",
+          "dest": "bitcountgridsingle/BitcountGridSingle[CRSV,ELSH,ELXP,slnt,wght].ttf",
+          "sha256": "f28e3429f64e9f27b32c6819a7f7b0d58164cf2716fdb9c3df8a5b35187d41a4"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/bitcountgridsingle/OFL.txt",
+          "dest": "bitcountgridsingle/OFL.txt",
+          "sha256": "061dfb7681d7fff942e04f5217c40e05d2fe5a3cea6001222039fea4b0432254"
+        }
+      ]
+    },
+    {
+      "id": "bitcountpropdouble",
+      "name": "Bitcount propdouble",
+      "licence": "OFL-1.1",
+      "role": "variable pixel font family (Bitcount): weight, slant and shape axes",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/bitcountpropdouble/BitcountPropDouble%5BCRSV%2CELSH%2CELXP%2Cslnt%2Cwght%5D.ttf",
+          "dest": "bitcountpropdouble/BitcountPropDouble[CRSV,ELSH,ELXP,slnt,wght].ttf",
+          "sha256": "c88b385f2f6083ca95b4108dac6b667f12e23c2b9738ec49d97332eeecfcef72"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/bitcountpropdouble/OFL.txt",
+          "dest": "bitcountpropdouble/OFL.txt",
+          "sha256": "061dfb7681d7fff942e04f5217c40e05d2fe5a3cea6001222039fea4b0432254"
+        }
+      ]
+    },
+    {
+      "id": "bitcountpropsingle",
+      "name": "Bitcount propsingle",
+      "licence": "OFL-1.1",
+      "role": "variable pixel font family (Bitcount): weight, slant and shape axes",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/bitcountpropsingle/BitcountPropSingle%5BCRSV%2CELSH%2CELXP%2Cslnt%2Cwght%5D.ttf",
+          "dest": "bitcountpropsingle/BitcountPropSingle[CRSV,ELSH,ELXP,slnt,wght].ttf",
+          "sha256": "e6f39bb11077484a1becaf94b712331b5c2d169a27b4a4591f6ab70c901a8405"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/bitcountpropsingle/OFL.txt",
+          "dest": "bitcountpropsingle/OFL.txt",
+          "sha256": "061dfb7681d7fff942e04f5217c40e05d2fe5a3cea6001222039fea4b0432254"
+        }
+      ]
+    },
+    {
+      "id": "bitcountsingle",
+      "name": "Bitcount single",
+      "licence": "OFL-1.1",
+      "role": "variable pixel font family (Bitcount): weight, slant and shape axes",
+      "downloads": [
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/bitcountsingle/BitcountSingle%5BCRSV%2CELSH%2CELXP%2Cslnt%2Cwght%5D.ttf",
+          "dest": "bitcountsingle/BitcountSingle[CRSV,ELSH,ELXP,slnt,wght].ttf",
+          "sha256": "007608c704d41cfff140892070b71f31971ec6d85b9f8ad5fdd0d2625f517c70"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/google/fonts/6c1dbe27dcf7d817d4b62cec033ba77fa8e2a5ec/ofl/bitcountsingle/OFL.txt",
+          "dest": "bitcountsingle/OFL.txt",
+          "sha256": "061dfb7681d7fff942e04f5217c40e05d2fe5a3cea6001222039fea4b0432254"
+        }
+      ]
+    },
+    {
       "id": "unscii",
       "name": "Unscii 8 and 16 (Viznut)",
       "licence": "PD",
