@@ -4,9 +4,8 @@
 //! human sees it as the attacker (the units not chosen stay where they are with their moves) and
 //! as the defender (the units not chosen sit the fight out).
 //!
-//! Tests: none yet, because its decisions are made in the frame function that also draws, which
-//! needs a window; they are to move into functions of `&Input` (see "UI test" in
-//! `docs/rust_coding_rules.md`).
+//! Tests: below. The list's first row is `scrolled`, a tick is `toggled`, the end of the pick is
+//! `outcome`, and `new_fighter_pick` makes the list; the drawing is left to the screenshots.
 
 use crate::font::Style;
 use crate::frame::Layout;
@@ -111,7 +110,6 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let light = Color::new(0.95, 0.93, 0.85, 1.0);
         let count = pick.picked.iter().filter(|&&p| p).count();
-        let last_first = pick.units.len().saturating_sub(VISIBLE);
 
         // The panel.
         let panel = lay.rect((LEFT, TOP, WIDTH, BOTTOM - TOP));
@@ -155,20 +153,7 @@ impl App {
         );
 
         // Scrolling: the wheel, the arrow keys and the page keys.
-        let wheel = input.mouse_wheel().1;
-        if wheel > 0.0 || input.key_pressed(KeyCode::Up) {
-            pick.first = pick.first.saturating_sub(1);
-        }
-        if wheel < 0.0 || input.key_pressed(KeyCode::Down) {
-            pick.first = (pick.first + 1).min(last_first);
-        }
-        if input.key_pressed(KeyCode::PageUp) {
-            pick.first = pick.first.saturating_sub(VISIBLE);
-        }
-        if input.key_pressed(KeyCode::PageDown) {
-            pick.first = (pick.first + VISIBLE).min(last_first);
-        }
-        pick.first = pick.first.min(last_first);
+        pick.first = scrolled(pick.first, pick.units.len(), input);
 
         // The rows.
         let body = TOP + HEAD;
@@ -240,11 +225,7 @@ impl App {
             }
         }
         if let Some(i) = toggled {
-            if pick.picked[i] {
-                pick.picked[i] = false;
-            } else if count < max {
-                pick.picked[i] = true;
-            }
+            toggle(&mut pick.picked, i, max);
         }
 
         // The scroll bar.
@@ -276,23 +257,208 @@ impl App {
         let back = pick.attacking && {
             let label = self.text("attack.cancel");
             self.red_button(&lay, &label, LEFT + 10.0, by, input)
-                || input.key_pressed(KeyCode::Escape)
         };
-        if back {
-            PickStep::Back
-        } else if ok || (count > 0 && input.key_pressed(KeyCode::Enter)) {
-            let chosen = pick
-                .units
-                .iter()
-                .zip(&pick.picked)
-                .filter(|(_, &p)| p)
-                .map(|(&u, _)| u)
-                .collect();
-            PickStep::Done(chosen)
-        } else {
-            PickStep::Picking(pick)
-        }
+        outcome(pick, ok, back, input)
+    }
+}
+
+/// The first row shown after a frame: the wheel and the arrow keys move it by one, the page
+/// keys by a page, and it never passes the last page.
+fn scrolled(first: usize, units: usize, input: &Input) -> usize {
+    let last_first = units.saturating_sub(VISIBLE);
+    let mut first = first;
+    let wheel = input.mouse_wheel().1;
+    if wheel > 0.0 || input.key_pressed(KeyCode::Up) {
+        first = first.saturating_sub(1);
+    }
+    if wheel < 0.0 || input.key_pressed(KeyCode::Down) {
+        first = (first + 1).min(last_first);
+    }
+    if input.key_pressed(KeyCode::PageUp) {
+        first = first.saturating_sub(VISIBLE);
+    }
+    if input.key_pressed(KeyCode::PageDown) {
+        first = (first + VISIBLE).min(last_first);
+    }
+    first.min(last_first)
+}
+
+/// A click on a row: a ticked unit is unticked, an unticked one is ticked while fewer than `max`
+/// are.
+fn toggle(picked: &mut [bool], i: usize, max: usize) {
+    let count = picked.iter().filter(|&&p| p).count();
+    if picked[i] {
+        picked[i] = false;
+    } else if count < max {
+        picked[i] = true;
+    }
+}
+
+/// The end of a frame: the attacker backs out on the button or Esc; Ok or Enter takes the ticked
+/// units, if there are any; otherwise the pick goes on.
+fn outcome(pick: FighterPick, ok: bool, back: bool, input: &Input) -> PickStep {
+    let count = pick.picked.iter().filter(|&&p| p).count();
+    if back || (pick.attacking && input.key_pressed(KeyCode::Escape)) {
+        PickStep::Back
+    } else if (ok || input.key_pressed(KeyCode::Enter)) && count > 0 {
+        let chosen = pick
+            .units
+            .iter()
+            .zip(&pick.picked)
+            .filter(|(_, &p)| p)
+            .map(|(&u, _)| u)
+            .collect();
+        PickStep::Done(chosen)
+    } else {
+        PickStep::Picking(pick)
     }
 }
 
 const GOLD_CHECK: Color = Color::new(0.95, 0.8, 0.3, 1.0);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::view::HUMAN;
+    use f4x_core::testdir::TestResult;
+
+    /// A pick of `n` units, the first `ticked` of them ticked.
+    fn pick_of(n: usize, ticked: usize, attacking: bool) -> FighterPick {
+        let mut world = hecs::World::new();
+        FighterPick {
+            units: (0..n).map(|_| world.spawn(())).collect(),
+            picked: (0..n).map(|i| i < ticked).collect(),
+            first: 0,
+            attacking,
+            auto: false,
+        }
+    }
+
+    fn wheel(dy: f32) -> Input {
+        Input {
+            wheel: (0.0, dy),
+            ..Input::default()
+        }
+    }
+
+    #[test]
+    fn the_list_scrolls_by_a_row_or_a_page_and_stops_at_the_ends() {
+        let units = VISIBLE + 5;
+        assert_eq!(scrolled(0, units, &Input::key(KeyCode::Down)), 1);
+        assert_eq!(scrolled(0, units, &Input::key(KeyCode::Up)), 0);
+        assert_eq!(scrolled(3, units, &Input::key(KeyCode::Up)), 2);
+        assert_eq!(scrolled(0, units, &Input::key(KeyCode::PageDown)), 5);
+        assert_eq!(scrolled(5, units, &Input::key(KeyCode::Down)), 5);
+        assert_eq!(scrolled(5, units, &Input::key(KeyCode::PageUp)), 0);
+        assert_eq!(scrolled(0, units, &wheel(-1.0)), 1, "the wheel down");
+        assert_eq!(scrolled(2, units, &wheel(1.0)), 1, "the wheel up");
+    }
+
+    #[test]
+    fn a_list_that_fits_does_not_scroll() {
+        for key in [KeyCode::Down, KeyCode::PageDown, KeyCode::Up] {
+            assert_eq!(scrolled(0, VISIBLE, &Input::key(key)), 0, "{key:?}");
+        }
+        assert_eq!(scrolled(4, 3, &Input::default()), 0, "a shrunk list");
+    }
+
+    #[test]
+    fn a_click_unticks_a_ticked_unit_and_ticks_another_only_below_the_most() {
+        let mut picked = vec![true, false, false];
+        toggle(&mut picked, 0, 2);
+        assert_eq!(picked, [false, false, false]);
+        toggle(&mut picked, 1, 2);
+        toggle(&mut picked, 2, 2);
+        assert_eq!(picked, [false, true, true]);
+        let mut full = vec![true, true, false];
+        toggle(&mut full, 2, 2);
+        assert_eq!(full, [true, true, false], "no more than the most");
+    }
+
+    #[test]
+    fn ok_or_enter_takes_the_ticked_units_in_list_order() -> TestResult {
+        let mut pick = pick_of(4, 0, true);
+        pick.picked = vec![false, true, false, true];
+        let want = vec![pick.units[1], pick.units[3]];
+        for (ok, key) in [(true, None), (false, Some(KeyCode::Enter))] {
+            let input = key.map_or_else(Input::default, Input::key);
+            let PickStep::Done(chosen) = outcome(pick.clone(), ok, false, &input) else {
+                return Err("the pick is not done".into());
+            };
+            assert_eq!(chosen, want);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn nothing_ticked_cannot_be_taken() {
+        let pick = pick_of(3, 0, true);
+        assert!(matches!(
+            outcome(pick.clone(), true, false, &Input::default()),
+            PickStep::Picking(_)
+        ));
+        assert!(matches!(
+            outcome(pick, false, false, &Input::key(KeyCode::Enter)),
+            PickStep::Picking(_)
+        ));
+    }
+
+    #[test]
+    fn only_the_attacker_can_call_the_fight_off() {
+        let esc = Input::key(KeyCode::Escape);
+        assert!(matches!(
+            outcome(pick_of(3, 2, true), false, false, &esc),
+            PickStep::Back
+        ));
+        assert!(matches!(
+            outcome(pick_of(3, 2, true), false, true, &Input::default()),
+            PickStep::Back
+        ));
+        assert!(matches!(
+            outcome(pick_of(3, 2, false), false, false, &esc),
+            PickStep::Picking(_)
+        ));
+    }
+
+    #[test]
+    fn the_list_is_strongest_first_and_ticks_the_nine_the_preset_takes() -> TestResult {
+        let mut app = crate::view::App::for_test();
+        let pos = app
+            .game
+            .units()
+            .player_units(HUMAN)
+            .first()
+            .and_then(|&u| app.game.units().unit_position(u))
+            .ok_or("the human has no unit")?;
+        let rules = &app.game.content().rules;
+        let kinds = [
+            "barbarian_spearmen",
+            "barbarian_bowmen",
+            "barbarian_cavalry",
+        ]
+        .map(|name| {
+            rules
+                .units
+                .id_of(name)
+                .ok_or("a unit is not in the content")
+        });
+        for i in 0..12 {
+            app.game.spawn_unit(HUMAN, pos, kinds[i % 3]?);
+        }
+        let units = app.own_units_at(pos);
+        assert!(units.len() > f4x_core::unit::MAX_STACK);
+        let pick = app.new_fighter_pick(&units, true, false);
+        assert_eq!(pick.units.len(), units.len());
+        let strength: Vec<f32> = pick
+            .units
+            .iter()
+            .map(|&u| app.game.fighter_strength(u))
+            .collect();
+        assert!(strength.windows(2).all(|w| w[0] >= w[1]), "{strength:?}");
+        assert_eq!(
+            pick.picked.iter().filter(|&&p| p).count(),
+            f4x_core::unit::MAX_STACK
+        );
+        Ok(())
+    }
+}

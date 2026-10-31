@@ -4,9 +4,9 @@
 //! and the next offer comes after it. Without the local art the pictures are missing and the
 //! text and buttons are still drawn.
 //!
-//! Tests: none yet, because its decisions are made in the frame function that also draws, which
-//! needs a window; they are to move into functions of `&Input` (see "UI test" in
-//! `docs/rust_coding_rules.md`).
+//! Tests: below. What the keys and buttons answer is `merchant_answer` and `hire_answer`, how a
+//! name is typed is `type_name`, what the answer sends is `settle_offer`; the drawing is left to
+//! the screenshots.
 
 use crate::font::Style;
 use crate::input::Input;
@@ -76,6 +76,45 @@ const POWER_LINES: [(&str, &str); 32] = [
 
 /// The first offer made to the human wizard; the offers themselves live in the game.
 pub(crate) struct OfferAsk;
+
+/// What the merchant's box answers, given the buttons: Buy (button, Y or Enter, only if the
+/// gold is there) or Reject (button, N or Esc). Returns (buy, reject); a rejection wins.
+fn merchant_answer(buy: bool, reject: bool, affordable: bool, input: &Input) -> (bool, bool) {
+    let buy =
+        (buy || input.key_pressed(KeyCode::Y) || input.key_pressed(KeyCode::Enter)) && affordable;
+    let reject = reject || input.key_pressed(KeyCode::N) || input.key_pressed(KeyCode::Escape);
+    (buy && !reject, reject)
+}
+
+/// What the hire box answers, given the buttons. H hires (the original's hotkey; A accepts a
+/// freed prisoner); while naming Enter ends the name and the letter keys are text. Returns
+/// (hire, reject); Esc rejects, and a rejection wins.
+fn hire_answer(
+    hire: bool,
+    reject: bool,
+    affordable: bool,
+    naming: bool,
+    free_hero: bool,
+    input: &Input,
+) -> (bool, bool) {
+    let key = input.key_pressed(KeyCode::Enter)
+        || (!naming && input.key_pressed(if free_hero { KeyCode::A } else { KeyCode::H }));
+    let hire = (hire || key) && affordable;
+    let reject = reject || input.key_pressed(KeyCode::Escape);
+    (hire && !reject, reject)
+}
+
+/// The characters typed this frame go on the name, up to `NAME_LEN`; Backspace takes one off.
+fn type_name(name: &mut String, input: &Input) {
+    for c in input.typed() {
+        if !c.is_control() && name.chars().count() < NAME_LEN {
+            name.push(c);
+        }
+    }
+    if input.key_pressed(KeyCode::Backspace) {
+        name.pop();
+    }
+}
 
 impl Modal for OfferAsk {
     fn kind(&self) -> &'static str {
@@ -162,6 +201,13 @@ impl App {
             }
             _ => self.hire_box(&lay, &offer, affordable, input),
         };
+        self.settle_offer(&offer, accept, reject);
+        true
+    }
+
+    /// What the answer does: accepting a hero first asks for the name, then hires; rejecting
+    /// while naming goes back to the offer, otherwise it declines the offer.
+    fn settle_offer(&mut self, offer: &Offer, accept: bool, reject: bool) {
         if accept {
             let hero = matches!(offer, Offer::Hero { .. });
             if hero && !self.offer_ui.naming {
@@ -189,7 +235,6 @@ impl App {
                 self.note(events);
             }
         }
-        true
     }
 
     /// `Merchant_Popup`: the banner, the merchant's words, the item's picture and the Buy and
@@ -221,10 +266,7 @@ impl App {
         let (buy_label, reject_label) = (self.text("ui.buy"), self.text("ui.reject"));
         let buy = self.red_button(lay, &buy_label, x + 252.0, y + 121.0, input);
         let reject = self.red_button(lay, &reject_label, x + 252.0, y + 140.0, input);
-        let buy = (buy || input.key_pressed(KeyCode::Y) || input.key_pressed(KeyCode::Enter))
-            && affordable;
-        let reject = reject || input.key_pressed(KeyCode::N) || input.key_pressed(KeyCode::Escape);
-        (buy && !reject, reject)
+        merchant_answer(buy, reject, affordable, input)
     }
 
     /// `Hire_Hero_Popup` and `Hire_Merc_Popup`: the unit's sheet with the banner above it, the
@@ -294,14 +336,7 @@ impl App {
                 wx + 104.0,
                 wy + 58.0,
             );
-            for c in input.typed() {
-                if !c.is_control() && self.offer_ui.name.chars().count() < NAME_LEN {
-                    self.offer_ui.name.push(c);
-                }
-            }
-            if input.key_pressed(KeyCode::Backspace) {
-                self.offer_ui.name.pop();
-            }
+            type_name(&mut self.offer_ui.name, input);
             let shown = format!("{}_", self.offer_ui.name);
             self.draw_styled(
                 view,
@@ -331,12 +366,7 @@ impl App {
         let reject_label = self.text("ui.reject");
         let hire = self.red_button(lay, &label, wx + 221.0, wy + 143.0, input);
         let reject = self.red_button(lay, &reject_label, wx + 221.0, wy + 162.0, input);
-        // H hires (the original's hotkey); while naming Enter ends the name.
-        let key = input.key_pressed(KeyCode::Enter)
-            || (!naming && input.key_pressed(if free_hero { KeyCode::A } else { KeyCode::H }));
-        let hire = (hire || key) && affordable;
-        let reject = reject || input.key_pressed(KeyCode::Escape);
-        (hire && !reject, reject)
+        hire_answer(hire, reject, affordable, naming, free_hero, input)
     }
 
     /// The item card of `Item_View_Prepare` (`itemisc` 25, 220 by 83) with the item's picture,
@@ -407,5 +437,204 @@ impl App {
             self.draw_pic(lay, "itemisc", 26, 0, x + 11.0, y + 34.0 + i as f32 * space);
             self.draw_styled(view, &Style::nearest(2, light), line, x + 20.0, at - 1.0);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::testdir::TestResult;
+
+    fn gold(app: &App) -> Result<i32, &'static str> {
+        Ok(app.game.player(HUMAN).ok_or("no human")?.treasury().gold)
+    }
+
+    fn first_offer(app: &App) -> Result<Offer, &'static str> {
+        app.game
+            .offers(HUMAN)
+            .first()
+            .cloned()
+            .ok_or("no offer was made")
+    }
+
+    #[test]
+    fn the_merchant_sells_on_buy_y_or_enter_only_when_the_gold_is_there() {
+        let nothing = Input::default();
+        assert_eq!(
+            merchant_answer(false, false, true, &nothing),
+            (false, false)
+        );
+        assert_eq!(merchant_answer(true, false, true, &nothing), (true, false));
+        for key in [KeyCode::Y, KeyCode::Enter] {
+            assert_eq!(
+                merchant_answer(false, false, true, &Input::key(key)),
+                (true, false),
+                "{key:?}"
+            );
+            assert_eq!(
+                merchant_answer(false, false, false, &Input::key(key)),
+                (false, false),
+                "{key:?} without the gold"
+            );
+        }
+        assert_eq!(
+            merchant_answer(true, false, false, &nothing),
+            (false, false)
+        );
+    }
+
+    #[test]
+    fn the_merchant_is_refused_on_reject_n_or_esc_and_a_refusal_beats_a_purchase() {
+        for key in [KeyCode::N, KeyCode::Escape] {
+            assert_eq!(
+                merchant_answer(false, false, true, &Input::key(key)),
+                (false, true),
+                "{key:?}"
+            );
+        }
+        assert_eq!(
+            merchant_answer(true, true, true, &Input::default()),
+            (false, true)
+        );
+    }
+
+    #[test]
+    fn h_hires_but_not_while_naming_and_a_freed_prisoner_is_accepted_with_a() {
+        let h = Input::key(KeyCode::H);
+        assert_eq!(
+            hire_answer(false, false, true, false, false, &h),
+            (true, false)
+        );
+        assert_eq!(
+            hire_answer(false, false, true, true, false, &h),
+            (false, false),
+            "H is a letter of the name"
+        );
+        assert_eq!(
+            hire_answer(false, false, true, false, false, &Input::key(KeyCode::A)),
+            (false, false)
+        );
+        assert_eq!(
+            hire_answer(false, false, true, false, true, &Input::key(KeyCode::A)),
+            (true, false)
+        );
+    }
+
+    #[test]
+    fn enter_ends_the_name_and_hires_only_with_the_gold() {
+        let enter = Input::key(KeyCode::Enter);
+        assert_eq!(
+            hire_answer(false, false, true, true, false, &enter),
+            (true, false)
+        );
+        assert_eq!(
+            hire_answer(false, false, false, true, false, &enter),
+            (false, false)
+        );
+        assert_eq!(
+            hire_answer(true, false, false, false, false, &Input::default()),
+            (false, false)
+        );
+    }
+
+    #[test]
+    fn esc_or_the_button_rejects_and_beats_a_hire() {
+        let esc = Input::key(KeyCode::Escape);
+        assert_eq!(
+            hire_answer(false, false, true, false, false, &esc),
+            (false, true)
+        );
+        assert_eq!(
+            hire_answer(true, true, true, false, false, &Input::default()),
+            (false, true)
+        );
+    }
+
+    #[test]
+    fn typing_adds_characters_up_to_the_limit_and_backspace_takes_one_off() {
+        let mut name = String::new();
+        let typed = |chars: &str| Input {
+            chars: chars.chars().collect(),
+            ..Input::default()
+        };
+        type_name(&mut name, &typed("Ab\u{7}c"));
+        assert_eq!(name, "Abc", "a control character is not text");
+        type_name(&mut name, &Input::key(KeyCode::Backspace));
+        assert_eq!(name, "Ab");
+        type_name(&mut name, &typed(&"x".repeat(40)));
+        assert_eq!(name.chars().count(), NAME_LEN);
+        type_name(&mut String::new(), &Input::key(KeyCode::Backspace));
+    }
+
+    #[test]
+    fn buying_the_merchants_item_pays_and_clears_the_offer() -> TestResult {
+        let mut app = App::for_test();
+        app.open_test_offer("item");
+        let offer = first_offer(&app)?;
+        let before = gold(&app)?;
+        app.settle_offer(&offer, true, false);
+        assert_eq!(gold(&app)?, before - offer.price());
+        assert!(app.game.offers(HUMAN).is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn rejecting_the_merchants_item_costs_nothing_and_clears_the_offer() -> TestResult {
+        let mut app = App::for_test();
+        app.open_test_offer("item");
+        let offer = first_offer(&app)?;
+        let before = gold(&app)?;
+        app.settle_offer(&offer, false, true);
+        assert_eq!(gold(&app)?, before);
+        assert!(app.game.offers(HUMAN).is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn mercenaries_are_hired_at_once() -> TestResult {
+        let mut app = App::for_test();
+        app.open_test_offer("mercenaries");
+        let offer = first_offer(&app)?;
+        let before = gold(&app)?;
+        app.settle_offer(&offer, true, false);
+        assert_eq!(gold(&app)?, before - offer.price());
+        assert!(!app.offer_ui.naming);
+        assert!(app.game.offers(HUMAN).is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn a_hero_is_named_first_and_hired_on_the_second_accept() -> TestResult {
+        let mut app = App::for_test();
+        app.open_test_offer("hero");
+        let offer = first_offer(&app)?;
+        assert!(matches!(offer, Offer::Hero { .. }));
+        let before = gold(&app)?;
+        app.settle_offer(&offer, true, false);
+        assert!(app.offer_ui.naming, "the first accept asks for the name");
+        assert_eq!(gold(&app)?, before, "nothing is paid yet");
+        assert_eq!(app.game.offers(HUMAN).len(), 1);
+        app.offer_ui.name = "Rhea".into();
+        app.settle_offer(&offer, true, false);
+        assert_eq!(gold(&app)?, before - offer.price());
+        assert!(app.game.offers(HUMAN).is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn rejecting_while_naming_goes_back_to_the_offer() -> TestResult {
+        let mut app = App::for_test();
+        app.open_test_offer("hero");
+        let offer = first_offer(&app)?;
+        app.settle_offer(&offer, true, false);
+        app.settle_offer(&offer, false, true);
+        assert!(!app.offer_ui.naming);
+        assert_eq!(app.game.offers(HUMAN).len(), 1, "the offer still stands");
+        app.settle_offer(&offer, false, true);
+        assert!(
+            app.game.offers(HUMAN).is_empty(),
+            "the second reject declines it"
+        );
+        Ok(())
     }
 }

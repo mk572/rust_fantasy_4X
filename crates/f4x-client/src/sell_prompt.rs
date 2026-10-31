@@ -4,9 +4,9 @@
 //! to sell back the ... for ... gold?" (`CityScr.c`, help topic 303); a building another one
 //! needs is refused with a notice. Yes sends `Command::SellBuilding`.
 //!
-//! Tests: none yet, because its decisions are made in the frame function that also draws, which
-//! needs a window; they are to move into functions of `&Input` (see "UI test" in
-//! `docs/rust_coding_rules.md`).
+//! Tests: below. What a click or key answers is `Buttons::answer`, what the answer sends is
+//! `settle_sell`, which question a click on a building asks is `start_sale`; the drawing of the
+//! boxes is left to the screenshots.
 
 use crate::font::Style;
 use crate::input::Input;
@@ -16,7 +16,7 @@ use f4x_core::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
-use crate::ui;
+use crate::ui::{self, Hit};
 use crate::view::App;
 
 /// What the box says.
@@ -87,6 +87,30 @@ pub(crate) struct CityPanel {
     pub(crate) sell: Option<SellPrompt>,
     /// The first enchantment shown on the list.
     pub(crate) spell_first: usize,
+}
+
+impl Buttons {
+    /// What the frame answers, given the mouse on the right and the left button: the right one
+    /// answers `Some(true)`, the left one `Some(false)`. Either mouse button answers on a
+    /// button, a key answers as its button, Esc and (if `elsewhere`) a click elsewhere answer
+    /// `escape`.
+    fn answer(&self, right: Hit, left: Hit, input: &Input) -> Option<bool> {
+        let right_click = input.mouse_pressed(MouseButton::Right);
+        let clicked = input.mouse_pressed(MouseButton::Left) || right_click;
+        if right.clicked() || (right_click && right.hovered()) || input.key_pressed(self.right_key)
+        {
+            Some(true)
+        } else if left.clicked()
+            || (right_click && left.hovered())
+            || input.key_pressed(self.left_key)
+        {
+            Some(false)
+        } else if input.key_pressed(KeyCode::Escape) || (clicked && self.elsewhere) {
+            Some(self.escape)
+        } else {
+            None
+        }
+    }
 }
 
 impl App {
@@ -184,48 +208,41 @@ impl App {
                 self.text_with("sell.turn_off", &Args::new().text("spell", name))
             }
         };
-        match &prompt {
-            SellPrompt::Ask { city, building, .. } => {
-                match self.confirmation_box(&lay, &text, input) {
-                    Some(true) => {
-                        let events = self.game.apply(Command::SellBuilding {
-                            city: *city,
-                            building: *building,
-                        });
-                        self.note(events);
-                    }
-                    Some(false) => {}
-                    None => panel.sell = Some(prompt),
-                }
-            }
-            SellPrompt::Buy { city, .. } => match self.confirmation_box(&lay, &text, input) {
-                Some(true) => {
-                    let events = self.game.apply(Command::BuyProduction { city: *city });
-                    self.note(events);
-                }
-                Some(false) => {}
-                None => panel.sell = Some(prompt),
-            },
-            SellPrompt::TurnOff { city, spell, .. } => {
-                match self.confirmation_box(&lay, &text, input) {
-                    Some(true) => {
-                        let events = self.game.apply(Command::TurnOffCitySpell {
-                            player: crate::view::HUMAN,
-                            city: *city,
-                            spell: *spell,
-                        });
-                        self.note(events);
-                    }
-                    Some(false) => {}
-                    None => panel.sell = Some(prompt),
-                }
-            }
-            SellPrompt::Refused(_) => {
-                if !self.warning_box(&lay, &text, input) {
-                    panel.sell = Some(prompt);
-                }
-            }
+        let answer = match &prompt {
+            SellPrompt::Refused(_) => self.warning_box(&lay, &text, input).then_some(false),
+            _ => self.confirmation_box(&lay, &text, input),
+        };
+        panel.sell = self.settle_sell(prompt, answer);
+    }
+
+    /// What an answer does to the question: Yes sends the command the question was about, No
+    /// and a closed notice send nothing. The question stays (`Some`) until it is answered.
+    pub(crate) fn settle_sell(
+        &mut self,
+        prompt: SellPrompt,
+        answer: Option<bool>,
+    ) -> Option<SellPrompt> {
+        let Some(yes) = answer else {
+            return Some(prompt);
+        };
+        let command = match &prompt {
+            SellPrompt::Ask { city, building, .. } => Some(Command::SellBuilding {
+                city: *city,
+                building: *building,
+            }),
+            SellPrompt::Buy { city, .. } => Some(Command::BuyProduction { city: *city }),
+            SellPrompt::TurnOff { city, spell, .. } => Some(Command::TurnOffCitySpell {
+                player: crate::view::HUMAN,
+                city: *city,
+                spell: *spell,
+            }),
+            SellPrompt::Refused(_) => None,
+        };
+        if let Some(command) = command.filter(|_| yes) {
+            let events = self.game.apply(command);
+            self.note(events);
         }
+        None
     }
 
     /// `Confirmation_Box`: the text, a Yes and a No (`resource.lbx` 0, 1, 3 and 4), 166 wide
@@ -286,22 +303,7 @@ impl App {
             left_at.0,
             left_at.1,
         );
-        // Either mouse button answers a question box.
-        let right_click = input.mouse_pressed(MouseButton::Right);
-        let clicked = input.mouse_pressed(MouseButton::Left) || right_click;
-        if (right.clicked() || (right_click && right.hovered()))
-            || input.key_pressed(buttons.right_key)
-        {
-            Some(true)
-        } else if (left.clicked() || (right_click && left.hovered()))
-            || input.key_pressed(buttons.left_key)
-        {
-            Some(false)
-        } else if input.key_pressed(KeyCode::Escape) || (clicked && buttons.elsewhere) {
-            Some(buttons.escape)
-        } else {
-            None
-        }
+        buttons.answer(right, left, input)
     }
 
     /// `Warn0`: the red box (`resource.lbx` 38 and 39) with the text centred; any click or key
@@ -331,10 +333,260 @@ impl App {
             );
             self.draw_styled(view, &Style::nearest(4, light).center(), l, cx, at);
         }
-        input.mouse_pressed(MouseButton::Left)
-            || input.mouse_pressed(MouseButton::Right)
-            || input.key_pressed(KeyCode::Enter)
-            || input.key_pressed(KeyCode::Escape)
-            || input.key_pressed(KeyCode::Space)
+        input.dismisses()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::view::HUMAN;
+    use f4x_core::testdir::TestResult;
+
+    fn input_at(button: MouseButton, x: f32, y: f32) -> Input {
+        Input::click(button, x, y)
+    }
+
+    #[test]
+    fn a_yes_no_box_is_answered_by_its_buttons_and_keys() {
+        let none = Input::default();
+        assert_eq!(YES_NO.answer(Hit::None, Hit::None, &none), None);
+        assert_eq!(
+            YES_NO.answer(Hit::Hover, Hit::None, &none),
+            None,
+            "a hover answers nothing"
+        );
+        assert_eq!(
+            YES_NO.answer(
+                Hit::Clicked,
+                Hit::None,
+                &input_at(MouseButton::Left, 0.0, 0.0)
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            YES_NO.answer(
+                Hit::None,
+                Hit::Clicked,
+                &input_at(MouseButton::Left, 0.0, 0.0)
+            ),
+            Some(false)
+        );
+        assert_eq!(
+            YES_NO.answer(Hit::None, Hit::None, &Input::key(KeyCode::Y)),
+            Some(true)
+        );
+        assert_eq!(
+            YES_NO.answer(Hit::None, Hit::None, &Input::key(KeyCode::N)),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn a_right_click_on_a_button_answers_as_a_left_click() {
+        let right = input_at(MouseButton::Right, 0.0, 0.0);
+        assert_eq!(YES_NO.answer(Hit::Hover, Hit::None, &right), Some(true));
+        assert_eq!(YES_NO.answer(Hit::None, Hit::Hover, &right), Some(false));
+    }
+
+    #[test]
+    fn a_click_elsewhere_or_esc_answers_no_in_a_yes_no_box() {
+        let elsewhere = input_at(MouseButton::Left, 0.0, 0.0);
+        assert_eq!(YES_NO.answer(Hit::None, Hit::None, &elsewhere), Some(false));
+        let esc = Input::key(KeyCode::Escape);
+        assert_eq!(YES_NO.answer(Hit::None, Hit::None, &esc), Some(false));
+        let other_key = Input::key(KeyCode::A);
+        assert_eq!(YES_NO.answer(Hit::None, Hit::None, &other_key), None);
+    }
+
+    #[test]
+    fn the_raze_box_ignores_a_click_elsewhere_and_esc_spares_the_city() {
+        let elsewhere = input_at(MouseButton::Left, 0.0, 0.0);
+        assert_eq!(RAZE_OR_SPARE.answer(Hit::None, Hit::None, &elsewhere), None);
+        let esc = Input::key(KeyCode::Escape);
+        assert_eq!(RAZE_OR_SPARE.answer(Hit::None, Hit::None, &esc), Some(true));
+        assert_eq!(
+            RAZE_OR_SPARE.answer(Hit::None, Hit::None, &Input::key(KeyCode::R)),
+            Some(false),
+            "R razes"
+        );
+        assert_eq!(
+            RAZE_OR_SPARE.answer(Hit::None, Hit::None, &Input::key(KeyCode::N)),
+            Some(true),
+            "N spares"
+        );
+    }
+
+    /// The human's first city, and a building of it that nothing built needs.
+    fn city_and_free_building(app: &App) -> Result<(hecs::Entity, BuildingId), &'static str> {
+        let (city, _, _) = *app
+            .game
+            .economy()
+            .cities()
+            .iter()
+            .find(|c| c.1.owner == HUMAN)
+            .ok_or("the human has no city")?;
+        let eco = app.game.economy();
+        let building = app
+            .game
+            .city_buildings(city)
+            .into_iter()
+            .find(|&b| eco.first_dependant(city, b).is_none() && eco.sale_price(city, b).is_ok())
+            .ok_or("no building can be sold")?;
+        Ok((city, building))
+    }
+
+    fn gold(app: &App) -> Result<i32, &'static str> {
+        Ok(app.game.player(HUMAN).ok_or("no human")?.treasury().gold)
+    }
+
+    fn ask(app: &App, city: hecs::Entity, building: BuildingId) -> SellPrompt {
+        let name = app
+            .game
+            .content()
+            .rules
+            .buildings
+            .get(building)
+            .name
+            .clone();
+        SellPrompt::Ask {
+            city,
+            building,
+            name,
+            gold: 0,
+            stops: None,
+        }
+    }
+
+    #[test]
+    fn yes_sells_the_building_and_pays_its_price() -> TestResult {
+        let mut app = App::for_test();
+        let (city, building) = city_and_free_building(&app)?;
+        let price = app
+            .game
+            .economy()
+            .sale_price(city, building)
+            .map_err(|e| format!("{e:?}"))?;
+        let before = gold(&app)?;
+        let left = app.settle_sell(ask(&app, city, building), Some(true));
+        assert!(left.is_none(), "an answered question closes");
+        assert!(!app.game.city_buildings(city).contains(&building));
+        assert_eq!(gold(&app)?, before + price as i32);
+        Ok(())
+    }
+
+    #[test]
+    fn no_and_no_answer_sell_nothing() -> TestResult {
+        let mut app = App::for_test();
+        let (city, building) = city_and_free_building(&app)?;
+        let before = gold(&app)?;
+        assert!(app
+            .settle_sell(ask(&app, city, building), Some(false))
+            .is_none());
+        assert!(
+            app.settle_sell(ask(&app, city, building), None).is_some(),
+            "no answer keeps the question"
+        );
+        assert!(app.game.city_buildings(city).contains(&building));
+        assert_eq!(gold(&app)?, before);
+        Ok(())
+    }
+
+    #[test]
+    fn a_notice_closes_when_answered_and_sends_nothing() -> TestResult {
+        let mut app = App::for_test();
+        let (city, _) = city_and_free_building(&app)?;
+        let before = app.game.city_buildings(city);
+        let notice = SellPrompt::Refused("no".into());
+        assert!(app.settle_sell(notice.clone(), None).is_some());
+        assert!(app.settle_sell(notice, Some(false)).is_none());
+        assert_eq!(app.game.city_buildings(city), before);
+        Ok(())
+    }
+
+    /// The human's first city with a smithy and a marketplace (which needs the smithy).
+    fn city_with_smithy_and_market(
+        app: &mut App,
+    ) -> Result<(hecs::Entity, BuildingId, BuildingId), &'static str> {
+        let (city, _, _) = *app
+            .game
+            .economy()
+            .cities()
+            .iter()
+            .find(|c| c.1.owner == HUMAN)
+            .ok_or("the human has no city")?;
+        let buildings = &app.game.content().rules.buildings;
+        let smithy = buildings.id_of("smithy").ok_or("no smithy")?;
+        let market = buildings.id_of("marketplace").ok_or("no marketplace")?;
+        app.game.scenario_set_building(city, smithy, true);
+        app.game.scenario_set_building(city, market, true);
+        Ok((city, smithy, market))
+    }
+
+    /// The index a click on the picture sends for this building.
+    fn picture_index(app: &App, building: BuildingId) -> Result<i16, &'static str> {
+        let buildings = &app.game.content().rules.buildings;
+        let at = buildings
+            .defs()
+            .iter()
+            .position(|d| buildings.id_of(&d.id) == Some(building))
+            .ok_or("the building is not in the table")?;
+        Ok(at as i16 + 3)
+    }
+
+    #[test]
+    fn a_click_on_a_building_asks_and_a_second_sale_the_same_turn_is_refused() -> TestResult {
+        let mut app = App::for_test();
+        let (city, smithy, market) = city_with_smithy_and_market(&mut app)?;
+        let mut panel = CityPanel::default();
+        app.start_sale(&mut panel, city, picture_index(&app, market)?);
+        let Some(SellPrompt::Ask { building, gold, .. }) = panel.sell.take() else {
+            return Err("the marketplace is not offered for sale".into());
+        };
+        assert_eq!(building, market);
+        assert!(gold > 0);
+        app.settle_sell(
+            SellPrompt::Ask {
+                city,
+                building,
+                name: String::new(),
+                gold,
+                stops: None,
+            },
+            Some(true),
+        );
+        app.start_sale(&mut panel, city, picture_index(&app, smithy)?);
+        let Some(SellPrompt::Refused(text)) = panel.sell else {
+            return Err("a second sale in the turn is not refused".into());
+        };
+        assert_eq!(text, app.text("sell.one_a_turn"));
+        Ok(())
+    }
+
+    #[test]
+    fn a_building_another_one_needs_is_refused_with_a_notice_naming_it() -> TestResult {
+        let mut app = App::for_test();
+        let (city, smithy, market) = city_with_smithy_and_market(&mut app)?;
+        let mut panel = CityPanel::default();
+        app.start_sale(&mut panel, city, picture_index(&app, smithy)?);
+        let Some(SellPrompt::Refused(text)) = panel.sell else {
+            return Err("the smithy is not refused".into());
+        };
+        let name = &app.game.content().rules.buildings.get(market).name;
+        assert!(
+            text.contains(name.as_str()),
+            "{text:?} does not name {name}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_click_off_the_table_asks_nothing() -> TestResult {
+        let mut app = App::for_test();
+        let (city, _, _) = city_with_smithy_and_market(&mut app)?;
+        let mut panel = CityPanel::default();
+        app.start_sale(&mut panel, city, 0);
+        assert!(panel.sell.is_none());
+        Ok(())
     }
 }

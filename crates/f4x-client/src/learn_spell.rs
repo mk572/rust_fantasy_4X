@@ -3,9 +3,8 @@
 //! decoded out of glowing text under the sparkle (`Role::Sparkle`). With Spell Animations off the
 //! original shows a box over the map instead: "You have mastered the spell of X".
 //!
-//! Tests: none yet, because its decisions are made in the frame function that also draws, which
-//! needs a window; they are to move into functions of `&Input` (see "UI test" in
-//! `docs/rust_coding_rules.md`).
+//! Tests: below. When a click or key ends a scene and when the decoding is over is `phase`, the
+//! realm of the familiar is `strongest`; the drawing is left to the screenshots.
 
 use crate::input::Input;
 use f4x_core::rules::SpellId;
@@ -96,6 +95,7 @@ impl Modal for Learned {
     }
 }
 
+/// A left click, Enter, Esc or Space: what hurries the animation on.
 fn any_input(input: &Input) -> bool {
     input.mouse_pressed(MouseButton::Left)
         || input.key_pressed(KeyCode::Enter)
@@ -103,19 +103,48 @@ fn any_input(input: &Input) -> bool {
         || input.key_pressed(KeyCode::Space)
 }
 
+/// Where the animation is `t` seconds in.
+#[derive(Debug, PartialEq)]
+enum Phase {
+    /// The lab scene, ending at this many seconds (now, if a key was pressed).
+    Lab(f64),
+    /// The decoding at this stage.
+    Decode(usize),
+    /// Over: all stages shown, a key pressed, or the spell has no place in the library.
+    Over,
+}
+
+/// The phase at `t` seconds, given when the lab scene ends, the spell's place in the library and
+/// whether a key or click came this frame.
+fn phase(t: f64, lab_end: f64, place: Option<(usize, usize)>, pressed: bool) -> Phase {
+    if t < lab_end {
+        return Phase::Lab(if pressed { t } else { lab_end });
+    }
+    let stage = ((t - lab_end) / DECODE_STEP) as usize;
+    if place.is_none() || stage >= DECODE_STAGES || pressed {
+        Phase::Over
+    } else {
+        Phase::Decode(stage)
+    }
+}
+
+/// The first of `books` with the most (nature, sorcery, chaos, life, death in that order on a tie).
+fn strongest(books: [i32; 5]) -> usize {
+    let mut best = 0;
+    for (i, &n) in books.iter().enumerate() {
+        if n > books[best] {
+            best = i;
+        }
+    }
+    best
+}
+
 impl App {
     /// The realm of the wizard's strongest books, the first of nature, sorcery, chaos, life and
     /// death on a tie (`Prim_Realm`): it colours the familiar.
     fn primary_realm(&self) -> usize {
         let books = |r: &str| self.game.wizard(HUMAN).map_or(0, |m| m.books_in(r));
-        let realms = ["nature", "sorcery", "chaos", "life", "death"];
-        let mut best = 0;
-        for (i, r) in realms.iter().enumerate() {
-            if books(r) > books(realms[best]) {
-                best = i;
-            }
-        }
-        best
+        strongest(["nature", "sorcery", "chaos", "life", "death"].map(books))
     }
 
     /// `Learn_Spell_Animation_Draw`: the wizard's lab, the wizard on the podium, the familiar
@@ -187,15 +216,16 @@ impl App {
         let lay = Layout::new();
         let t = get_time() - anim.started;
         let pressed = any_input(input);
-        if t < anim.lab_end {
-            if pressed {
-                anim.lab_end = t;
+        match phase(t, anim.lab_end, anim.place, pressed) {
+            Phase::Lab(end) => {
+                anim.lab_end = end;
+                self.draw_lab(&lay, t);
             }
-            self.draw_lab(&lay, t);
-        } else {
-            let stage = ((t - anim.lab_end) / DECODE_STEP) as usize;
-            let place = anim.place.filter(|_| stage < DECODE_STAGES && !pressed)?;
-            learned.book.draw_decode(self, &lay, spell, place, stage);
+            Phase::Decode(stage) => {
+                let place = anim.place?;
+                learned.book.draw_decode(self, &lay, spell, place, stage);
+            }
+            Phase::Over => return None,
         }
         learned.anim = Some(anim);
         Some(learned)
@@ -258,5 +288,60 @@ impl BigBookUi {
             };
             app.draw_shared_pic(lay, &Role::Sparkle, stage - 16, sx, sy + 37.0 * slot as f32);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_left_click_enter_escape_or_space_hurries_the_scene_on() {
+        assert!(any_input(&Input::click(MouseButton::Left, 1.0, 1.0)));
+        for key in [KeyCode::Enter, KeyCode::Escape, KeyCode::Space] {
+            assert!(any_input(&Input::key(key)), "{key:?}");
+        }
+        assert!(!any_input(&Input::key(KeyCode::A)));
+        assert!(!any_input(&Input::click(MouseButton::Right, 1.0, 1.0)));
+        assert!(!any_input(&Input::default()));
+    }
+
+    #[test]
+    fn the_lab_runs_its_time_and_a_key_ends_it_at_once() {
+        let end = LAB_LOOPS * LAB_STEP;
+        assert_eq!(phase(1.0, end, Some((0, 0)), false), Phase::Lab(end));
+        assert_eq!(phase(1.0, end, Some((0, 0)), true), Phase::Lab(1.0));
+    }
+
+    #[test]
+    fn the_decoding_runs_its_stages_then_ends() {
+        let place = Some((2, 1));
+        let end = 5.0;
+        assert_eq!(phase(end, end, place, false), Phase::Decode(0));
+        assert_eq!(
+            phase(end + DECODE_STEP * 10.5, end, place, false),
+            Phase::Decode(10)
+        );
+        let last = end + DECODE_STEP * (DECODE_STAGES - 1) as f64 + DECODE_STEP / 2.0;
+        assert_eq!(
+            phase(last, end, place, false),
+            Phase::Decode(DECODE_STAGES - 1)
+        );
+        let after = end + DECODE_STEP * (DECODE_STAGES as f64 + 0.5);
+        assert_eq!(phase(after, end, place, false), Phase::Over);
+    }
+
+    #[test]
+    fn a_key_ends_the_decoding_and_a_spell_with_no_page_has_none() {
+        assert_eq!(phase(6.0, 5.0, Some((0, 0)), true), Phase::Over);
+        assert_eq!(phase(6.0, 5.0, None, false), Phase::Over);
+    }
+
+    #[test]
+    fn the_familiar_takes_the_realm_of_the_most_books_and_the_first_on_a_tie() {
+        assert_eq!(strongest([0, 0, 0, 0, 0]), 0);
+        assert_eq!(strongest([1, 3, 3, 0, 0]), 1);
+        assert_eq!(strongest([1, 1, 1, 1, 4]), 4);
+        assert_eq!(strongest([2, 1, 0, 2, 2]), 0);
     }
 }

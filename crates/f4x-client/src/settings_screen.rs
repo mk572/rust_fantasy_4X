@@ -3,9 +3,8 @@
 //! Pictures: `load` entries 11 (background), 4 (OK) and 13 to 20 (check boxes). A click on a
 //! row flips its switch; OK, O or Escape leave, and the preferences are written either way.
 //!
-//! Tests: none yet, because its decisions are made in the frame function that also draws, which
-//! needs a window; they are to move into functions of `&Input` (see "UI test" in
-//! `docs/rust_coding_rules.md`).
+//! Tests: below. Which switch a click flips is `clicked_switch`, what a press on a slider sets is
+//! `volume_at`, what leaves the screen is `leaves`; the drawing is left to the screenshots.
 
 use crate::font::Style;
 use crate::input::Input;
@@ -64,6 +63,29 @@ const OK_AREA: (f32, f32, f32, f32) = (265.0, 175.0, 306.0, 189.0);
 const ROW_WIDTH: f32 = 144.0;
 const ROW_HEIGHT: f32 = 9.0;
 
+/// The switch whose row the left button went down on this frame.
+fn clicked_switch(lay: &Layout, input: &Input) -> Option<Pref> {
+    ROWS.iter()
+        .find(|&&(_, x, y)| ui::hit(lay.rect((x, y, ROW_WIDTH, ROW_HEIGHT)), true, input).clicked())
+        .map(|&(pref, _, _)| pref)
+}
+
+/// The volume (0 to 100) a press at `mouse_x` sets on a bar that starts at `bar_x` and is
+/// `bar_w` wide, all in window pixels.
+fn volume_at(mouse_x: f32, bar_x: f32, bar_w: f32) -> u8 {
+    (((mouse_x - bar_x) / bar_w) * 100.0)
+        .round()
+        .clamp(0.0, 100.0) as u8
+}
+
+/// OK (clicked), O, Enter or Escape leave the screen.
+fn leaves(ok_clicked: bool, input: &Input) -> bool {
+    ok_clicked
+        || input.key_pressed(KeyCode::O)
+        || input.key_pressed(KeyCode::Enter)
+        || input.key_pressed(KeyCode::Escape)
+}
+
 /// The preferences screen keeps nothing between frames: the preferences are the `App`'s.
 struct SettingsPage;
 
@@ -100,9 +122,9 @@ impl Page for SettingsPage {
             }
             let label = app.text(pref.label());
             app.draw_styled(view, &Style::nearest(2, WHITE), &label, x + 16.0, y + 2.0);
-            if ui::hit(lay.rect((x, y, ROW_WIDTH, ROW_HEIGHT)), true, input).clicked() {
-                app.prefs.toggle(pref);
-            }
+        }
+        if let Some(pref) = clicked_switch(&lay, input) {
+            app.prefs.toggle(pref);
         }
         for &(key, x, y) in &HEADINGS {
             let text = app.text(key);
@@ -135,11 +157,7 @@ impl Page for SettingsPage {
             );
             return;
         }
-        if ok_hit.clicked()
-            || input.key_pressed(KeyCode::O)
-            || input.key_pressed(KeyCode::Enter)
-            || input.key_pressed(KeyCode::Escape)
-        {
+        if leaves(ok_hit.clicked(), input) {
             app.leave_settings();
         }
     }
@@ -169,9 +187,7 @@ impl App {
                 &mut self.prefs.effects_volume
             };
             if ui::hit(hit, true, input).held() {
-                *volume = (((mouse.x - bar.x) / bar.w) * 100.0)
-                    .round()
-                    .clamp(0.0, 100.0) as u8;
+                *volume = volume_at(mouse.x, bar.x, bar.w);
             }
             let fraction = f32::from(*volume) / 100.0;
             draw_rectangle(bar.x, bar.y, bar.w, bar.h, Color::new(0.0, 0.0, 0.0, 0.7));
@@ -199,5 +215,67 @@ impl App {
             let args = Args::new().text("why", e.to_string());
             self.log.push(self.text_with("settings.save_failed", &args));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_click_on_each_row_picks_that_switch_and_no_other() {
+        let lay = Layout::new();
+        for &(pref, x, y) in &ROWS {
+            let at = lay.rect((x + 5.0, y + ROW_HEIGHT / 2.0, 0.0, 0.0));
+            let input = Input::click(MouseButton::Left, at.x, at.y);
+            assert_eq!(clicked_switch(&lay, &input), Some(pref), "{pref:?}");
+        }
+    }
+
+    #[test]
+    fn a_click_beside_the_rows_or_a_right_click_flips_nothing() {
+        let lay = Layout::new();
+        let off = lay.rect((300.0, 100.0, 0.0, 0.0));
+        assert_eq!(
+            clicked_switch(&lay, &Input::click(MouseButton::Left, off.x, off.y)),
+            None
+        );
+        let on_row = lay.rect((ROWS[0].1 + 5.0, ROWS[0].2 + 4.0, 0.0, 0.0));
+        assert_eq!(
+            clicked_switch(&lay, &Input::click(MouseButton::Right, on_row.x, on_row.y)),
+            None
+        );
+    }
+
+    #[test]
+    fn the_rows_do_not_overlap() {
+        for (i, a) in ROWS.iter().enumerate() {
+            for b in &ROWS[i + 1..] {
+                let apart = a.1 + ROW_WIDTH <= b.1
+                    || b.1 + ROW_WIDTH <= a.1
+                    || a.2 + ROW_HEIGHT <= b.2
+                    || b.2 + ROW_HEIGHT <= a.2;
+                assert!(apart, "{:?} and {:?}", a.0, b.0);
+            }
+        }
+    }
+
+    #[test]
+    fn a_press_on_a_bar_sets_the_volume_by_how_far_along_it_is() {
+        assert_eq!(volume_at(100.0, 100.0, 40.0), 0);
+        assert_eq!(volume_at(120.0, 100.0, 40.0), 50);
+        assert_eq!(volume_at(140.0, 100.0, 40.0), 100);
+        assert_eq!(volume_at(60.0, 100.0, 40.0), 0, "left of the bar");
+        assert_eq!(volume_at(500.0, 100.0, 40.0), 100, "right of the bar");
+    }
+
+    #[test]
+    fn ok_o_enter_and_escape_leave_and_other_keys_do_not() {
+        assert!(leaves(true, &Input::default()));
+        for key in [KeyCode::O, KeyCode::Enter, KeyCode::Escape] {
+            assert!(leaves(false, &Input::key(key)), "{key:?}");
+        }
+        assert!(!leaves(false, &Input::key(KeyCode::A)));
+        assert!(!leaves(false, &Input::default()));
     }
 }

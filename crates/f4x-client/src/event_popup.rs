@@ -4,9 +4,9 @@
 //! the wizard's strongest realm on the left, the text, and the event's picture in a frame at
 //! the right end. A click or a key closes it, and the next one follows.
 //!
-//! Tests: none yet, because its decisions are made in the frame function that also draws, which
-//! needs a window; they are to move into functions of `&Input` (see "UI test" in
-//! `docs/rust_coding_rules.md`).
+//! Tests: below. The box's place is `strip_at`, the mascot is `mascot_of`, and the boxes the
+//! spells ask for are made by `dispelled_notice`, `conquest_notice` and `fizzle_notice`; a click
+//! or key closing a box is `Input::dismisses`, and the drawing is left to the screenshots.
 
 use crate::font::Style;
 use crate::input::Input;
@@ -66,6 +66,26 @@ impl SpellNotice {
 /// The box that announces a random event.
 pub(crate) struct EventBox(pub(crate) f4x_core::world_event::EventNotice);
 
+/// The realm whose mascot stands in the box, given the books in `REALMS` order: the most, life
+/// first and a later realm only when it has more.
+fn mascot_of(books: [i32; 5]) -> usize {
+    let mut best = 2;
+    for next in [0, 1, 3, 4] {
+        if books[best] < books[next] {
+            best = next;
+        }
+    }
+    best
+}
+
+/// The strip's left edge and the right end of the text, for this realm's mascot and a text
+/// `widest` pixels wide: a mascot that hangs out to the left pushes the strip right.
+fn strip_at(realm: usize, widest: f32) -> (f32, f32) {
+    let mascot_x = MASCOT[realm].0;
+    let x = if mascot_x < 0.0 { 6.0 - mascot_x } else { 6.0 };
+    (x, TEXT_X[realm] + x + widest)
+}
+
 impl Modal for EventBox {
     fn kind(&self) -> &'static str {
         kind::EVENT
@@ -120,14 +140,7 @@ impl App {
     /// The realm whose mascot stands in the box: the human's strongest book, life first and a
     /// later realm only when it has more.
     fn mascot_realm(&self) -> usize {
-        let books = |i: usize| self.game.wizard(HUMAN).map_or(0, |m| m.books_in(REALMS[i]));
-        let mut best = 2;
-        for next in [0, 1, 3, 4] {
-            if books(best) < books(next) {
-                best = next;
-            }
-        }
-        best
+        mascot_of(REALMS.map(|r| self.game.wizard(HUMAN).map_or(0, |m| m.books_in(r))))
     }
 
     /// The event box over the screen until a click or a key closes it.
@@ -174,8 +187,7 @@ impl App {
             .fold(0.0f32, f32::max)
             .ceil();
         let (mascot_x, mascot_y) = MASCOT[realm];
-        let x = if mascot_x < 0.0 { 6.0 - mascot_x } else { 6.0 };
-        let right = TEXT_X[realm] + x + widest;
+        let (x, right) = strip_at(realm, widest);
         self.clipped(
             (0.0, 0.0, x + right + 12.0, crate::resolution::DESIGN_H),
             |app| {
@@ -256,6 +268,18 @@ impl App {
         site: DispelSite,
         count: &mut u32,
     ) {
+        if let Some(notice) = self.dispelled_notice(spell, site, count) {
+            self.modals.enqueue(notice);
+        }
+    }
+
+    /// The box for the next announced dispel, if the dispel has any left to announce.
+    fn dispelled_notice(
+        &self,
+        spell: f4x_core::rules::SpellId,
+        site: DispelSite,
+        count: &mut u32,
+    ) -> Option<SpellNotice> {
         let text = match *count {
             0..=3 => self.text_with(
                 "spell.dispelled",
@@ -266,7 +290,7 @@ impl App {
                 DispelSite::City => "spell.dispelled_on_city_more",
                 DispelSite::Field => "spell.dispelled_on_field_more",
             }),
-            _ => return,
+            _ => return None,
         };
         // The boxes of a battle sit higher (`Combat_Dispel`: y 20, not 40).
         let base = if matches!(site, DispelSite::BattleUnit | DispelSite::Field) {
@@ -281,19 +305,24 @@ impl App {
             DispelSite::Unit | DispelSite::BattleUnit => (Role::DispelledUnit, 4.0),
             DispelSite::City | DispelSite::Field => (Role::DispelledCity, 0.0),
         };
-        self.modals.enqueue(SpellNotice {
+        Some(SpellNotice {
             text,
             strip: GREEN,
             top,
             picture,
             shift,
             drop: 8.0,
-        });
+        })
     }
 
     /// The human has taken `spells` (none, one or two) from a wizard it banished or defeated
     /// (`Conquest_Spells`): the green box with the learn-spell picture.
     pub(crate) fn announce_conquest_spells(&mut self, spells: &[f4x_core::rules::SpellId]) {
+        let notice = self.conquest_notice(spells);
+        self.modals.enqueue(notice);
+    }
+
+    fn conquest_notice(&self, spells: &[f4x_core::rules::SpellId]) -> SpellNotice {
         let name = |app: &Self, spell| app.game.content().rules.spells.get(spell).name.clone();
         let text = match spells {
             [] => self.text("spell.conquest_none"),
@@ -308,14 +337,14 @@ impl App {
                 self.text_with("spell.conquest_two", &args)
             }
         };
-        self.modals.enqueue(SpellNotice {
+        SpellNotice {
             text,
             strip: GREEN,
             top: 40.0,
             picture: Role::Learned,
             shift: 0.0,
             drop: 9.0,
-        });
+        }
     }
 
     /// Announce that `counter`'s spell made `caster`'s `spell` fizzle, when the human is one of
@@ -327,19 +356,33 @@ impl App {
         spell: f4x_core::rules::SpellId,
         counter_spell: &str,
     ) {
+        if let Some(notice) = self.fizzle_notice(caster, counter, spell, counter_spell) {
+            self.modals.enqueue(notice);
+        }
+    }
+
+    /// The red box, unless the human is neither the one whose spell fizzled nor the one who
+    /// made it.
+    fn fizzle_notice(
+        &self,
+        caster: f4x_core::player::PlayerId,
+        counter: f4x_core::player::PlayerId,
+        spell: f4x_core::rules::SpellId,
+        counter_spell: &str,
+    ) -> Option<SpellNotice> {
         if caster != HUMAN && counter != HUMAN {
-            return;
+            return None;
         }
         let name = self.game.content().rules.spells.get(spell).name.clone();
         let text = self.fizzle_text(caster, counter, &name, counter_spell);
-        self.modals.enqueue(SpellNotice {
+        Some(SpellNotice {
             text,
             strip: RED,
             top: FIZZLE_TOP,
             picture: Role::Fizzle,
             shift: -1.0,
             drop: 7.0,
-        });
+        })
     }
 
     /// For screenshots: five of the human's spells dispelled at once.
@@ -419,5 +462,133 @@ impl App {
             );
         }
         self.draw_styled(view, &Style::nearest(0, colour).center(), &name, 280.0, y);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use f4x_core::testdir::TestResult;
+
+    fn spell(app: &App, id: &str) -> Result<f4x_core::rules::SpellId, String> {
+        app.game
+            .content()
+            .rules
+            .spells
+            .id_of(id)
+            .ok_or(format!("{id} is not in the content"))
+    }
+
+    #[test]
+    fn the_mascot_is_the_realm_of_the_most_books_with_life_first_on_a_tie() {
+        // chaos, death, life, nature, sorcery
+        assert_eq!(mascot_of([0, 0, 0, 0, 0]), 2);
+        assert_eq!(mascot_of([3, 3, 3, 3, 3]), 2);
+        assert_eq!(mascot_of([4, 1, 3, 0, 0]), 0);
+        assert_eq!(mascot_of([4, 4, 3, 0, 0]), 0, "chaos before death");
+        assert_eq!(mascot_of([0, 0, 1, 2, 2]), 3, "nature before sorcery");
+        assert_eq!(mascot_of([0, 0, 0, 0, 5]), 4);
+    }
+
+    #[test]
+    fn a_mascot_that_hangs_out_to_the_left_pushes_the_strip_right() {
+        let death = 1;
+        let chaos = 0;
+        assert_eq!(MASCOT[death].0, 0.0);
+        assert_eq!(strip_at(death, 100.0), (6.0, TEXT_X[death] + 6.0 + 100.0));
+        let life = 2;
+        assert_eq!(MASCOT[life].0, -22.0);
+        assert_eq!(strip_at(life, 100.0), (28.0, TEXT_X[life] + 28.0 + 100.0));
+        assert_eq!(strip_at(chaos, 0.0).0, 6.0 + 2.0);
+    }
+
+    #[test]
+    fn a_dispel_announces_four_spells_then_that_the_rest_went_too_then_nothing() -> TestResult {
+        let app = App::for_test();
+        let fire = spell(&app, "fire_bolt")?;
+        let mut count = 0;
+        for n in 0..4 {
+            let notice = app
+                .dispelled_notice(fire, DispelSite::City, &mut count)
+                .ok_or("a dispelled spell is not announced")?;
+            assert_eq!(count, n + 1);
+            assert_eq!(notice.top, 40.0 + 25.0 * n as f32);
+            assert!(notice.text.contains("Fire Bolt"), "{}", notice.text);
+        }
+        let more = app
+            .dispelled_notice(fire, DispelSite::City, &mut count)
+            .ok_or("the rest are not announced")?;
+        assert_eq!(more.text, app.text("spell.dispelled_on_city_more"));
+        assert!(app
+            .dispelled_notice(fire, DispelSite::City, &mut count)
+            .is_none());
+        assert_eq!(count, 5);
+        Ok(())
+    }
+
+    #[test]
+    fn a_dispel_in_a_battle_sits_higher_and_a_unit_picture_sits_right_of_the_citys() -> TestResult {
+        let app = App::for_test();
+        let fire = spell(&app, "fire_bolt")?;
+        let top = |site| -> Result<SpellNotice, &'static str> {
+            app.dispelled_notice(fire, site, &mut 0).ok_or("no notice")
+        };
+        assert_eq!(top(DispelSite::Field)?.top, 20.0);
+        assert_eq!(top(DispelSite::BattleUnit)?.top, 20.0);
+        assert_eq!(top(DispelSite::Unit)?.top, 40.0);
+        assert_eq!(top(DispelSite::Unit)?.shift, 4.0);
+        assert_eq!(top(DispelSite::City)?.shift, 0.0);
+        Ok(())
+    }
+
+    #[test]
+    fn the_conquest_box_names_none_one_or_two_of_the_spells_taken() -> TestResult {
+        let app = App::for_test();
+        let (a, b, c) = (
+            spell(&app, "fire_bolt")?,
+            spell(&app, "fireball")?,
+            spell(&app, "web")?,
+        );
+        assert_eq!(
+            app.conquest_notice(&[]).text,
+            app.text("spell.conquest_none")
+        );
+        let one = app.conquest_notice(&[a]).text;
+        assert!(
+            one.contains("Fire Bolt") && !one.contains("Fireball"),
+            "{one}"
+        );
+        let two = app.conquest_notice(&[a, b, c]).text;
+        assert!(
+            two.contains("Fire Bolt") && two.contains("Fireball"),
+            "{two}"
+        );
+        assert!(!two.contains("Web"), "only the first two: {two}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_fizzle_is_told_only_when_the_human_is_one_of_the_two() -> TestResult {
+        let app = App::for_test();
+        let fire = spell(&app, "fire_bolt")?;
+        let first = app
+            .game
+            .player_ids()
+            .into_iter()
+            .find(|&id| id != HUMAN && !app.game.is_neutral_player(id))
+            .ok_or("the game has no rival wizard")?;
+        let second = f4x_core::player::MONSTERS;
+        let by_you = app
+            .fizzle_notice(HUMAN, first, fire, "spell.suppress_magic")
+            .ok_or("your spell fizzling is not told")?;
+        assert!(by_you.fizzled());
+        let yours = app
+            .fizzle_notice(first, HUMAN, fire, "spell.suppress_magic")
+            .ok_or("your counter spell is not told")?;
+        assert_ne!(by_you.text, yours.text);
+        assert!(app
+            .fizzle_notice(first, second, fire, "spell.suppress_magic")
+            .is_none());
+        Ok(())
     }
 }

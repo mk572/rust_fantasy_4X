@@ -4,9 +4,7 @@
 //! wand while a spell waits for its target. The battle screen picks its own (`battle_screen/pointer.rs`)
 //! and draws through `draw_image`. Without the art the system pointer stays.
 //!
-//! Tests: none yet, because its decisions are made in the frame function that also draws, which
-//! needs a window; they are to move into functions of `&Input` (see "UI test" in
-//! `docs/rust_coding_rules.md`).
+//! Tests: below. Which pointer a frame wants is `overland_pointer`; showing it needs a window.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -90,5 +88,116 @@ impl App {
             Some((_, true)) => BOOT,
             _ => RED_CROSS,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::view::HUMAN;
+    use f4x_core::testdir::TestResult;
+
+    fn over_the_map(app: &App) -> Input {
+        let r = app.map_rect();
+        Input {
+            mouse: (r.x + r.w / 2.0, r.y + r.h / 2.0),
+            ..Input::default()
+        }
+    }
+
+    #[test]
+    fn the_hourglass_shows_while_the_computer_plays() {
+        let mut app = App::for_test();
+        app.turn_pending = 1;
+        let input = over_the_map(&app);
+        assert_eq!(app.overland_pointer(&input), HOURGLASS);
+    }
+
+    #[test]
+    fn off_the_map_screen_the_pointer_is_the_finger() {
+        let mut app = App::for_test();
+        app.screen = Screen::Magic;
+        let input = over_the_map(&app);
+        assert_eq!(app.overland_pointer(&input), FINGER);
+    }
+
+    #[test]
+    fn the_wand_shows_while_a_spell_waits_for_its_target() -> TestResult {
+        let mut app = App::for_test();
+        let spell = app
+            .game
+            .content()
+            .rules
+            .spells
+            .id_of("fireball")
+            .ok_or("fireball is not in the content")?;
+        app.targeting = Some(crate::spellbook::Targeting {
+            spell,
+            resolve: false,
+        });
+        let input = over_the_map(&app);
+        assert_eq!(app.overland_pointer(&input), WAND);
+        Ok(())
+    }
+
+    #[test]
+    fn with_nothing_selected_the_pointer_is_the_finger() {
+        let mut app = App::for_test();
+        let input = over_the_map(&app);
+        assert_eq!(app.overland_pointer(&input), FINGER);
+    }
+
+    #[test]
+    fn a_selected_stack_gets_the_boot_where_it_can_walk_and_the_cross_where_not() -> TestResult {
+        let mut app = App::for_test();
+        let unit = *app
+            .game
+            .units()
+            .player_units(HUMAN)
+            .first()
+            .ok_or("the human has no unit")?;
+        app.selection = vec![unit];
+        let rect = app.map_rect();
+        let (mut boots, mut crosses) = (0, 0);
+        for i in 0..40 {
+            for j in 0..20 {
+                let input = Input {
+                    mouse: (
+                        rect.x + rect.w * (i as f32 + 0.5) / 40.0,
+                        rect.y + rect.h * (j as f32 + 0.5) / 20.0,
+                    ),
+                    ..Input::default()
+                };
+                let Some(pos) = app.tile_at(input.mouse_position().into()) else {
+                    continue;
+                };
+                let walk = app.game.find_path(&app.selection, pos).is_some();
+                let want = if walk { BOOT } else { RED_CROSS };
+                assert_eq!(app.overland_pointer(&input), want, "{pos:?}");
+                if walk {
+                    boots += 1;
+                } else {
+                    crosses += 1;
+                }
+            }
+        }
+        assert!(boots > 0 && crosses > 0, "boots {boots}, crosses {crosses}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_planned_road_or_the_surveyor_keeps_the_finger() -> TestResult {
+        let mut app = App::for_test();
+        let unit = *app
+            .game
+            .units()
+            .player_units(HUMAN)
+            .first()
+            .ok_or("the human has no unit")?;
+        app.selection = vec![unit];
+        app.surveyor = true;
+        let input = over_the_map(&app);
+        assert_eq!(app.overland_pointer(&input), FINGER);
+        Ok(())
     }
 }

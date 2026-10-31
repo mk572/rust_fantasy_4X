@@ -96,6 +96,24 @@ Reviewed with the same checks as the other crates. 169 tests became 224 (0.1 s).
 Not looked at: the screenshot flags (`--shot` and its options) as a whole, and whether the client's string lookups of terrains, features and spells should be numbers (task 418).
 
 
+### f4x-client, task 432: the nine files with decisions in the drawing frame (31 October 2026)
+
+The decision came out of each frame function into a function of `&Input`; the frame calls it and draws. 233 client tests became 284 (0.6 s).
+
+| File | Function now tested | Tests |
+|---|---|---|
+| `sell_prompt.rs` | `Buttons::answer` (buttons, keys, right-click, click elsewhere, Esc; Yes/No and Raze/Spare), `settle_sell` (what Yes sends), `start_sale` | 10 |
+| `offer_prompt.rs` | `merchant_answer`, `hire_answer`, `type_name`, `settle_offer` (merchant, mercenaries, hero named then hired) | 11 |
+| `resurrect_prompt.rs` | `decide`, `raise_command` | 5 |
+| `fighter_pick.rs` | `scrolled`, `toggle`, `outcome`, `new_fighter_pick` on 12 real units | 7 |
+| `learn_spell.rs` | `phase`, `strongest`, `any_input` | 5 |
+| `settings_screen.rs` | `clicked_switch` (every row), `volume_at`, `leaves` | 5 |
+| `event_popup.rs` | `mascot_of`, `strip_at`, `dispelled_notice`, `conquest_notice`, `fizzle_notice` | 6 |
+| `pointer.rs` | `overland_pointer` (hourglass, wand, boot and cross over the whole map) | 6 |
+| `battle_screen/pointer.rs` | `pointer_image` on a real battle with the units placed by hand | 5 |
+
+Two behaviours were kept as they were while moving: the resurrection list pulls a pick past a shrunk list back, and a key during the lab scene ends the lab but not the decoding. Not covered: the Yes of the turn-off question (needs a city enchantment of the human's), the aiming wand of the battle pointer.
+
 ## crates/f4x-console (31 October 2026)
 
 96 tests (94 in `tests.rs`, 2 in `args.rs`), 1.4 s together; the slowest, at about 1 s each when run alone, play 60 turns or draw five wizards, which is what they test.
