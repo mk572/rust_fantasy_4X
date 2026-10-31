@@ -1,6 +1,8 @@
 //! What a building says it does. The numbers come from the building's own effects in
 //! `buildings.ron`, the data the rules read, so the text cannot drift from the rules; the
 //! building's flavour sentence (`building.<id>`) adds what no effect in the data carries.
+//!
+//! Tests: in `f4x-data` (`every_building_description_gives_its_effects_with_their_numbers`), which has the shipped content this needs.
 
 use crate::content::Content;
 use crate::rules::effects::{Effect, EffectRule, Trigger};

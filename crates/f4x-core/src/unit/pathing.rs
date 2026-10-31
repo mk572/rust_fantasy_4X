@@ -1,4 +1,6 @@
 //! Finding routes for stacks (A* over the tile grid, using the slowest unit's cost).
+//!
+//! Tests: in unit/movement/tests.rs (`paths_go_around_water_...`, `a_square_has_eight_neighbours_...`, `a_walker_reaches_...`, `a_path_takes_as_many_turns_...`).
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};

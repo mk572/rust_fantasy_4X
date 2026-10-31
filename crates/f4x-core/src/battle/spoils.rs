@@ -10,6 +10,8 @@
 //!   original takes it back from the human attacker or defender who lost).
 //!
 //! A neutral winner (monsters) gets nothing.
+//!
+//! Tests: in battle/tests.rs (`the_winners_survivors_gain_experience_and_fame_for_four_kills` and the tests after it).
 
 use super::{Battle, BattleUnit, Status};
 use crate::game::{Event, Game};

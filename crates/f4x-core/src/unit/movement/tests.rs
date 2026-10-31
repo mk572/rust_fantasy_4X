@@ -614,3 +614,92 @@ fn a_step_is_planned_from_a_hand_made_world_without_a_game() -> TestResult {
     );
     Ok(())
 }
+
+#[test]
+fn a_square_has_eight_neighbours_wrapping_east_and_west_and_stopping_at_the_poles() {
+    let g = world();
+    let near = |x, y| crate::unit::pathing::neighbours(&g, at(x, y));
+    assert_eq!(near(5, 2).len(), 8);
+    let seam = near(0, 2);
+    assert_eq!(seam.len(), 8);
+    assert!(seam.contains(&at(11, 1)) && seam.contains(&at(11, 3)));
+    assert_eq!(near(6, 0).len(), 5, "no row above the top");
+    assert_eq!(near(6, 5).len(), 5, "and none below the bottom");
+    assert!(near(0, 0).contains(&at(11, 1)));
+    assert!(
+        crate::unit::pathing::neighbours(&Game::new(1), at(1, 1)).is_empty(),
+        "no map"
+    );
+}
+
+#[test]
+fn a_walker_reaches_the_land_round_the_water_and_a_flier_all_of_it() -> TestResult {
+    let mut g = world();
+    let ocean = g
+        .content
+        .terrains
+        .id_numbered(num::terrain::OCEAN)
+        .ok_or("ocean is not in the content")?;
+    // A wall of water in columns 7 and 8 and again in 11 and 0: the seam is closed too.
+    for x in [7, 8, 11, 0] {
+        for y in 0..6 {
+            g.map
+                .as_mut()
+                .ok_or("no map")?
+                .plane_mut(Plane::Arcanus)
+                .set(x, y, ocean);
+        }
+    }
+    let walker = unit(&mut g, P0, "high_men_cavalry", at(5, 2));
+    let flier = unit(&mut g, P0, "high_elf_pegasai", at(5, 2));
+    let walked = g.reachable_squares(&[walker]);
+    assert!(walked.contains(&at(5, 2)), "the start is included");
+    assert!(walked.contains(&at(1, 5)) && walked.contains(&at(6, 0)));
+    assert!(!walked.contains(&at(9, 2)), "behind the water");
+    assert!(!walked.contains(&at(7, 3)), "not into the water");
+    assert!(g.reachable_squares(&[flier]).contains(&at(9, 2)));
+    assert!(g.reachable_squares(&[]).is_empty());
+    // The walk and the path agree: the squares are the ones a path is found to.
+    for square in &walked {
+        if *square != at(5, 2) {
+            assert!(g.find_path(&[walker], *square).is_some(), "{square:?}");
+        }
+    }
+    assert!(g.find_path(&[walker], at(9, 2)).is_none());
+    Ok(())
+}
+
+#[test]
+fn a_hostile_stack_stops_the_walk_but_can_be_the_goal() -> TestResult {
+    let mut g = world();
+    let me = unit(&mut g, P0, "high_men_cavalry", at(5, 3));
+    let foe = unit(&mut g, P1, "high_men_cavalry", at(7, 3));
+    let walked = g.reachable_squares(&[me]);
+    assert!(!walked.contains(&at(7, 3)), "not into the foe's square");
+    assert!(walked.contains(&at(8, 3)), "but round it");
+    let path = g.find_path(&[me], at(7, 3)).ok_or("no path to the foe")?;
+    assert_eq!(path.last(), Some(&at(7, 3)), "attacking it is the goal");
+    assert!(g.world.contains(foe));
+    Ok(())
+}
+
+#[test]
+fn a_path_takes_as_many_turns_as_the_moves_it_costs() -> TestResult {
+    let mut g = world();
+    // The turns follow from the unit's allowance and the half moves a grassland step costs.
+    let w = unit(&mut g, P0, "high_men_cavalry", at(0, 1));
+    let allowance = g.units().unit_max_moves(w);
+    let straight: Vec<_> = (1..=6).map(|x| at(x, 1)).collect();
+    assert_eq!(g.path_turns(&[w], &[]), 0, "nowhere to go");
+    assert_eq!(g.path_turns(&[], &straight), 0, "nobody to go");
+    let one = g.path_turns(&[w], &straight[..1]);
+    assert_eq!(one, 0, "the first step is paid for by this turn's moves");
+    let long = g.path_turns(&[w], &straight);
+    let step = 2; // a grassland step, in half moves
+    let expected = (straight.len() as u32 * step).saturating_sub(1) / allowance;
+    assert_eq!(long, expected, "allowance {allowance}");
+    // With no moves left the first step waits for next turn.
+    let _ = g.world.insert_one(w, MovesLeft(0));
+    assert_eq!(g.path_turns(&[w], &straight[..1]), 1);
+    Ok(())
+}

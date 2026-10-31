@@ -59,6 +59,29 @@ Done for the whole crate in four passes, by script and compiler where it was mec
 
 Open: the loader in `testutil.rs` is a second, smaller copy of the `f4x-data` loader and can drift; about 140 tests still to move; measure the run time again after that. The comment review of the crate was by search, not line by line.
 
+### f4x-core, task 431: the files with logic and no test of their own (31 October 2026)
+
+Counted against the code of each file, not by function name: five of the fourteen were tested already, under names that did not match.
+
+| File | Status | Notes |
+|---|---|---|
+| `battle/spoils.rs` | done | Tested already (four kills, fewer than four, a rare foe, a fallen hero, a human loser). New: monsters that win get nothing. |
+| `battle/brain.rs` | done | 4 tests: the wizard casts a bolt at an enemy, casts nothing without battle mana or with a negative reserve, heals a hurt unit and not a whole one; the units choose their legal cast. |
+| `battle/spell/unit_cast.rs` | done | Tested already (hero spells, items, demons). New: `legal_unit_casts` lists only the castable spell and only the enemy as its aim. |
+| `city/description.rs` | decided | Tested in `f4x-data` (it needs the shipped buildings); the line says so. |
+| `city/neutral.rs` | done | 6 tests: the count scales with the area, the row scan, the wrapping range, a new world's independent cities (own player each, one to a square, only their own soldiers), same seed same cities, the player numbers. |
+| `feature/place.rs` | done | 8 tests on a shipped map: towers (count, spacing, on land), nodes (spacing, an even share of each realm), encounter sites (margins, spacing), minerals, none asked for none placed, a missing tower kind is refused, the layer wraps. |
+| `game/access.rs` | done | 8 tests: a city read back as set up, buildings in build order, experience/wounds/moves, idle, a global spell and an event, a casting replaced, the flee setting, exploring. |
+| `game/cheat.rs` | done | 6 tests: remove and slay (a hero slain is dead, released is free), move, terrain and rivers (and off the map), features replacing each other, learning a spell, revealing the map for one player. |
+| `game/setup.rs` | done | 8 tests: `parse_retort`, the start points, the rivals' names, the plain builds, refusal of bad settings, the capital (buildings, farmers, army, small view), a Myrran start, same seed same world. |
+| `game/setup/original.rs` | done | 4 tests on a game with the original generator: land, fed, ten apart across the seam, same seed same sites. |
+| `threat/monster.rs` | done | The turn was tested; new for the private helpers: `tally`, `monster_list` (budget, stack size, realm), `guard_realm_of`. |
+| `threat/raider.rs` | done | Tested already (clock, free troops, war). New: two thirds beside an AI fortress, halved on Myrror before turn 200, experience by turn, settlers do not raid. |
+| `unit/pathing.rs` | done | Four path tests existed. New in `unit/movement/tests.rs`: `neighbours`, `reachable_squares` (agrees with `find_path`, stops at a foe), `path_turns`. |
+| `wizard/magic.rs` | done | 9 tests: casting skill and the points for it, the upkeep plan (reserve, newest first, Channeler), spells by realm and rarity, the defaults, random picks, summoning and crafting. **Not tested here:** that each error's sentence exists in the texts; the core test content has no texts. |
+
+The core went from 1,041 to 1,106 unit tests.
+
 ## crates/f4x-data (31 October 2026)
 
 Reviewed with the same checks as `f4x-core`. All 72 tests (0.15 s) were already on the shipped `content/`; the rest of the crate's tests either run `load_content` or edit a shipped file as text to provoke one error.

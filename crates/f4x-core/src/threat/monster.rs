@@ -5,6 +5,8 @@
 //! nobody holds and settle in it, or attack the first city they find. A city that falls to them
 //! is wrecked, and with luck turns into a lair of its own (`Rampage_Combat_City`, `Combat.c`);
 //! the monsters that did it are gone from the map either way, into the ruins or the wilderness.
+//!
+//! Tests: in threat/tests.rs for the whole turn, below for the helpers that file cannot reach.
 
 use crate::feature::def::FeatureKind;
 use crate::feature::entity::Placement;
@@ -356,4 +358,79 @@ fn tally(list: &[String]) -> Vec<(String, u32)> {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::testutil::shipped;
+
+    fn game() -> Game {
+        let mut g = Game::new(3);
+        g.content = shipped();
+        g
+    }
+
+    #[test]
+    fn a_guard_list_counts_each_kind_once_in_the_order_met() {
+        let list: Vec<String> = ["orc", "troll", "orc", "orc", "troll", "imp"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(
+            tally(&list),
+            [("orc".into(), 3), ("troll".into(), 2), ("imp".into(), 1)]
+        );
+        assert!(tally(&[]).is_empty());
+    }
+
+    #[test]
+    fn a_budget_buys_creatures_of_the_realm_within_its_means_and_the_stack_size() {
+        let mut g = game();
+        let pool = candidates(&g.content, "chaos");
+        assert!(!pool.is_empty());
+        let cost = |id: &str| {
+            pool.iter()
+                .find(|(k, _)| k == id)
+                .map(|(_, c)| *c)
+                .unwrap_or(i32::MAX)
+        };
+        for budget in [0, 24, 25, 100, 600, 100_000] {
+            let list = g.monster_list(budget, "chaos");
+            let spent: i32 = list.iter().map(|id| cost(id)).sum();
+            assert!(spent <= budget, "{spent} of {budget}");
+            assert!(list.len() <= MAX_STACK);
+            assert!(
+                list.iter().all(|id| cost(id) != i32::MAX),
+                "all of the realm"
+            );
+        }
+        assert!(g.monster_list(24, "chaos").is_empty(), "under the cheapest");
+        assert!(g.monster_list(-50, "chaos").is_empty());
+        assert!(g.monster_list(10_000, "no such realm").is_empty());
+        assert_eq!(
+            g.monster_list(100_000, "chaos").len(),
+            MAX_STACK,
+            "a rich budget fills the stack"
+        );
+    }
+
+    #[test]
+    fn the_realm_of_a_site_is_that_of_its_first_guard() {
+        let g = game();
+        let units = &g.content.rules.units;
+        let (id, realm) = units
+            .iter()
+            .find_map(|(_, d)| d.realm.clone().map(|r| (d.id.clone(), r)))
+            .expect("a unit with a realm");
+        assert_eq!(
+            g.guard_realm_of(&[(id.clone(), 2), ("no_such_unit".into(), 1)]),
+            Some(realm)
+        );
+        assert_eq!(
+            g.guard_realm_of(&[("no_such_unit".into(), 1), (id, 1)]),
+            None
+        );
+        assert_eq!(g.guard_realm_of(&[]), None, "no guards");
+    }
 }

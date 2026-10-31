@@ -8,6 +8,8 @@
 //! falls on. Spells the AI cannot judge (fields, dispels, counter magic, Call Chaos) are left
 //! alone. The mana kept back pays the overland upkeep, so a battle does not starve the spells and
 //! creatures the wizard keeps going.
+//!
+//! Tests: in battle/tests.rs (`the_scripted_wizard_...` for the wizard, `the_legal_unit_casts_...` for the units).
 
 use super::ai::{self, worth};
 use super::casting::SpellAim;

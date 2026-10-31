@@ -1,6 +1,8 @@
 //! Starting a game without the client: a map, the wizards, a fortress for each spread round
 //! the map and a few starting units. The client's new-game screen, the console, the AI soak
 //! runs and tests all start games here.
+//!
+//! Tests: below, and in game/setup/original.rs for the original's fortress sites.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -563,4 +565,145 @@ fn start_player(
         }
     }
     Err("no place for a fortress".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::testutil::shipped;
+    use crate::testdir::TestResult;
+
+    fn spec(seed: u64, wizards: u8) -> NewGame {
+        let mut spec = NewGame::with_wizards(wizards);
+        spec.seed = seed;
+        spec.all_ai = true;
+        spec
+    }
+
+    #[test]
+    fn a_retort_is_found_by_name_whatever_the_case_and_punctuation() {
+        assert_eq!(parse_retort("alchemy"), Some(Retort::Alchemy));
+        assert_eq!(parse_retort("Sage_Master"), Some(Retort::SageMaster));
+        assert_eq!(parse_retort("sage master"), Some(Retort::SageMaster));
+        assert_eq!(parse_retort("MANA-FOCUSING"), Some(Retort::ManaFocusing));
+        assert_eq!(parse_retort("no such retort"), None);
+        assert_eq!(parse_retort(""), None);
+        for r in RETORTS {
+            assert_eq!(parse_retort(&format!("{r:?}")), Some(r), "{r:?}");
+        }
+    }
+
+    #[test]
+    fn the_start_points_are_spread_round_the_middle_and_inside_the_map() {
+        let (w, h) = (60, 40);
+        for n in 1..=10u8 {
+            let spots: Vec<_> = (0..n).map(|k| anchor(w, h, k, n)).collect();
+            assert!(spots.iter().all(|&(x, y)| x < w && (2..h - 2).contains(&y)));
+            let mut unique = spots.clone();
+            unique.sort_unstable();
+            unique.dedup();
+            assert_eq!(unique.len(), spots.len(), "{n} wizards, {spots:?}");
+        }
+        // The first of two starts in the west and the second in the east.
+        assert!(anchor(w, h, 0, 2).0 < anchor(w, h, 1, 2).0);
+    }
+
+    #[test]
+    fn the_rivals_names_come_from_the_seed_and_the_slot_and_are_not_empty() {
+        let c = shipped();
+        let name = |seed, k| fallback_name(&c, seed, k).0;
+        assert_eq!(name(5, 1), name(5, 1));
+        assert!(!name(5, 1).is_empty());
+        let distinct: std::collections::BTreeSet<_> = (0..40).map(|s| name(s, 1)).collect();
+        assert!(distinct.len() > 1, "the seed picks among the ten");
+        assert_ne!(
+            (0..10).map(|k| name(3, k)).collect::<Vec<_>>(),
+            vec![name(3, 1); 10],
+            "other slots have other lists"
+        );
+        let mut none = c.clone();
+        none.rules.wizard_names.clear();
+        assert_eq!(fallback_name(&none, 5, 1), Default::default());
+    }
+
+    #[test]
+    fn the_plain_computer_wizards_alternate_between_two_builds() {
+        let c = shipped();
+        let one = plain_computer_build(&c, 4, 1);
+        let two = plain_computer_build(&c, 4, 2);
+        assert!(one.books.contains_key("chaos") && one.retorts.contains(&Retort::Warlord));
+        assert!(two.books.contains_key("life") && two.retorts.contains(&Retort::Charismatic));
+        assert!(one.preset && two.preset);
+        assert_eq!(plain_computer_build(&c, 4, 3).books, one.books);
+    }
+
+    #[test]
+    fn a_game_is_refused_for_bad_settings_or_too_many_rivals() {
+        let c = shipped();
+        let mut bad = spec(1, 3);
+        bad.settings.basic.difficulty = 9;
+        assert!(new_game(&c, &bad).is_err());
+        let mut many = spec(1, 3);
+        many.settings.basic.opponents = c.settings.max_opponents + 1;
+        let err = new_game(&c, &many).err().unwrap_or_default();
+        assert!(err.contains("opponents"), "{err}");
+    }
+
+    #[test]
+    fn every_wizard_starts_with_a_capital_an_army_and_a_small_view() -> TestResult {
+        let g = new_game(&shipped(), &spec(2, 3))?;
+        for k in 0..3 {
+            let p = PlayerId(k);
+            let fortress = g
+                .wizard(p)
+                .and_then(|w| w.fortress())
+                .ok_or("no fortress")?;
+            let city = g.economy().city_at(fortress).ok_or("no capital")?;
+            assert_eq!(g.city_population(city).figures, CAPITAL_FIGURES);
+            assert_eq!(g.city_farmers(city), CAPITAL_FARMERS);
+            let built = g.city_buildings(city);
+            for b in CAPITAL_BUILDINGS {
+                let id = g.content().rules.buildings.id_of(b).ok_or("no building")?;
+                assert!(built.contains(&id), "wizard {k} lacks {b}");
+            }
+            let army = g.units().units_at(fortress);
+            assert!(!army.is_empty() && army.len() <= 2, "{} units", army.len());
+            assert!(g.is_explored(p, fortress));
+            let seen = g.explored_squares(p);
+            let all = 2
+                * g.map().ok_or("no map")?.width() as usize
+                * g.map().ok_or("no map")?.height() as usize;
+            assert!(
+                seen > 0 && seen < all / 4,
+                "wizard {k} sees {seen} of {all}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_myrran_wizard_starts_on_myrror_and_the_others_on_arcanus() -> TestResult {
+        let mut s = spec(2, 3);
+        s.retorts.insert(Retort::Myrran);
+        let g = new_game(&shipped(), &s)?;
+        let plane = |k| {
+            g.wizard(PlayerId(k))
+                .and_then(|w| w.fortress())
+                .map(|f| f.plane)
+        };
+        assert_eq!(plane(0), Some(Plane::Myrror));
+        assert_eq!(plane(1), Some(Plane::Arcanus));
+        assert_eq!(plane(2), Some(Plane::Arcanus));
+        Ok(())
+    }
+
+    #[test]
+    fn the_same_seed_makes_the_same_world_and_another_seed_another() -> TestResult {
+        let text = |seed| -> Result<String, Box<dyn std::error::Error>> {
+            Ok(new_game(&shipped(), &spec(seed, 3))?.snapshot().to_text()?)
+        };
+        assert_eq!(text(4)?, text(4)?);
+        assert_ne!(text(4)?, text(5)?);
+        Ok(())
+    }
 }

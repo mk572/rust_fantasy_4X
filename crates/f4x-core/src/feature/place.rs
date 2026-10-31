@@ -1,6 +1,8 @@
 //! Places feature overlays (towers, nodes, encounter sites, minerals) on a
 //! generated map. Order matters: towers first (they convert water to grass and
 //! constrain nodes), then nodes, encounter sites, and finally minerals.
+//!
+//! Tests: below, on maps made from the shipped content.
 
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
@@ -430,4 +432,189 @@ fn pick(rng: &mut Pcg64Mcg, weights: &[(FeatureId, u32)]) -> Option<FeatureId> {
         roll -= w;
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::testutil::shipped;
+    use crate::map::mapgen::{generate, Generated};
+    use crate::testdir::TestResult;
+
+    fn made(seed: u64) -> Result<(Generated, GenParams, Content), GenError> {
+        let (c, p) = (shipped(), GenParams::default());
+        Ok((generate(seed, &p, &c)?, p, c))
+    }
+
+    fn of_kind<'a>(
+        g: &'a Generated,
+        c: &'a Content,
+        kind: FeatureKind,
+    ) -> impl Iterator<Item = &'a crate::feature::entity::Placement> {
+        g.placements
+            .iter()
+            .filter(move |p| c.features.get(p.feature).is_some_and(|d| d.kind == kind))
+    }
+
+    #[test]
+    fn a_map_gets_the_requested_towers_apart_from_each_other_and_on_land() -> TestResult {
+        let (g, p, c) = made(5)?;
+        let towers: Vec<_> = of_kind(&g, &c, FeatureKind::Tower).collect();
+        assert_eq!(towers.len(), p.tower_count as usize);
+        let arcanus = g.map.plane(Plane::Arcanus);
+        for (i, a) in towers.iter().enumerate() {
+            let at = (a.at.x, a.at.y);
+            assert!((POLE_MARGIN..p.height - POLE_MARGIN).contains(&a.at.y));
+            for plane in Plane::ALL {
+                let class = g
+                    .map
+                    .plane(plane)
+                    .get(a.at.x as i32, a.at.y as i32)
+                    .and_then(|t| c.terrains.get(t))
+                    .map(|d| d.class);
+                assert_ne!(class, Some(TerrainClass::Ocean), "a tower stands on land");
+            }
+            for b in &towers[i + 1..] {
+                assert!(arcanus.distance_sq(at, (b.at.x, b.at.y)) >= TOWER_SPACING.pow(2));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn nodes_keep_their_distance_and_every_kind_gets_a_share() -> TestResult {
+        let (g, p, c) = made(5)?;
+        let nodes: Vec<_> = of_kind(&g, &c, FeatureKind::Node).collect();
+        let wanted: usize = p.planes.iter().map(|q| q.node_count as usize).sum();
+        assert!(
+            nodes.len() + 3 >= wanted && nodes.len() <= wanted,
+            "{} nodes of {wanted}",
+            nodes.len()
+        );
+        let towers: Vec<_> = of_kind(&g, &c, FeatureKind::Tower).collect();
+        let grid = g.map.plane(Plane::Arcanus);
+        for (i, a) in nodes.iter().enumerate() {
+            assert!((POLE_MARGIN..p.height - POLE_MARGIN).contains(&a.at.y));
+            let near = |b: &&crate::feature::entity::Placement| {
+                grid.distance_sq((a.at.x, a.at.y), (b.at.x, b.at.y)) < NODE_SPACING.pow(2)
+            };
+            assert!(!towers.iter().any(near), "a node is clear of the towers");
+            assert!(
+                !nodes[i + 1..]
+                    .iter()
+                    .filter(|b| b.at.plane == a.at.plane)
+                    .any(near),
+                "and of the other nodes of its plane"
+            );
+        }
+        let mut per_kind = std::collections::BTreeMap::new();
+        for n in &nodes {
+            *per_kind.entry(n.feature.0).or_insert(0usize) += 1;
+        }
+        let (least, most) = (
+            per_kind.values().min().copied().unwrap_or(0),
+            per_kind.values().max().copied().unwrap_or(0),
+        );
+        assert!(
+            most - least <= 3,
+            "no realm's magic is scarce: {per_kind:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn encounter_sites_keep_off_the_margins_and_two_squares_apart() -> TestResult {
+        let (g, p, c) = made(5)?;
+        let sites: Vec<_> = of_kind(&g, &c, FeatureKind::Encounter).collect();
+        let wanted = (p.strong_sites + p.weak_sites) as usize;
+        assert!(
+            sites.len() >= wanted * 9 / 10,
+            "{} sites of {wanted}",
+            sites.len()
+        );
+        let grid = g.map.plane(Plane::Arcanus);
+        for (i, a) in sites.iter().enumerate() {
+            assert!((SITE_MARGIN..p.height - SITE_MARGIN).contains(&a.at.y));
+            assert!(
+                !sites[i + 1..].iter().any(|b| {
+                    a.at.plane == b.at.plane
+                        && grid.chebyshev((a.at.x, a.at.y), (b.at.x, b.at.y)) < SITE_SPACING
+                }),
+                "{:?} is crowded",
+                a.at
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn minerals_lie_on_both_planes_and_never_under_a_feature() -> TestResult {
+        let (g, ..) = made(5)?;
+        for plane in Plane::ALL {
+            let grid = g.map.plane(plane);
+            let minerals = (0..grid.height() as i32)
+                .flat_map(|y| (0..grid.width() as i32).map(move |x| (x, y)))
+                .filter(|&(x, y)| grid.mineral(x, y).is_some())
+                .count();
+            assert!(minerals > 0, "{plane:?} has minerals");
+            // A feature square holds no mineral.
+            for pl in g.placements.iter().filter(|pl| pl.at.plane == plane) {
+                assert!(grid.mineral(pl.at.x as i32, pl.at.y as i32).is_none());
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn no_towers_and_no_sites_when_none_are_asked_for() -> TestResult {
+        let (c, mut p) = (shipped(), GenParams::default());
+        p.tower_count = 0;
+        p.strong_sites = 0;
+        p.weak_sites = 0;
+        let g = generate(5, &p, &c)?;
+        assert_eq!(of_kind(&g, &c, FeatureKind::Tower).count(), 0);
+        assert_eq!(of_kind(&g, &c, FeatureKind::Encounter).count(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_placed_layer_reads_none_off_the_map_and_wraps_east_and_west() {
+        let mut placed = Placed::new(10, 6);
+        placed.set(Plane::Arcanus, 9, 2, FeatureId(4));
+        assert_eq!(placed.get(Plane::Arcanus, 9, 2), Some(FeatureId(4)));
+        assert_eq!(placed.get(Plane::Arcanus, -1, 2), Some(FeatureId(4)));
+        assert_eq!(placed.get(Plane::Arcanus, 19, 2), Some(FeatureId(4)));
+        assert_eq!(placed.get(Plane::Myrror, 9, 2), None, "the other plane");
+        assert_eq!(placed.get(Plane::Arcanus, 9, -1), None);
+        assert_eq!(placed.get(Plane::Arcanus, 9, 6), None);
+    }
+
+    #[test]
+    fn a_map_without_a_tower_kind_is_refused() {
+        let (mut c, p) = (shipped(), GenParams::default());
+        let defs: Vec<_> = c
+            .features
+            .defs()
+            .iter()
+            .filter(|d| d.kind != FeatureKind::Tower)
+            .cloned()
+            .collect();
+        c.features = crate::feature::def::Features::new(defs);
+        assert_eq!(
+            generate(5, &p, &c).err(),
+            Some(GenError::MissingFeature {
+                kind: FeatureKind::Tower
+            })
+        );
+    }
+
+    #[test]
+    fn the_same_seed_places_the_same_features() -> TestResult {
+        let (a, ..) = made(9)?;
+        let (b, ..) = made(9)?;
+        assert_eq!(a.placements, b.placements);
+        let (other, ..) = made(10)?;
+        assert_ne!(a.placements, other.placements);
+        Ok(())
+    }
 }

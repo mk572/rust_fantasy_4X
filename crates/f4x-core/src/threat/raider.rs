@@ -2,6 +2,8 @@
 //! a raiding party of its own kind of troops. Unlike the original, which takes the troops out
 //! of the garrison, the troops are new and the city pays no upkeep for them, and the city goes
 //! to war: its AI (`f4x_ai::play_neutrals`) sets out to conquer the lairs and cities near it.
+//!
+//! Tests: in threat/tests.rs (the raider tests and `the_party_is_...`, `a_party_on_myrror_...`, `the_raiders_are_as_experienced_...`).
 
 use crate::game::{Event, Game};
 use crate::map::Position;

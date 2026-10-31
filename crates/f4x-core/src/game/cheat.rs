@@ -1,5 +1,7 @@
 //! Override mutators: things the rules never allow a player to do, for debug screens and tests.
 //! The console's override commands are out (`reference/console-cheat/`).
+//!
+//! Tests: below.
 
 use crate::map::{Position, TerrainId};
 use crate::player::PlayerId;
@@ -125,5 +127,190 @@ impl Game {
         spells.researchable.remove(&spell);
         spells.known.insert(spell);
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::game::setup::{new_game, NewGame};
+    use crate::game::testutil::{num, shipped};
+    use crate::game::Game;
+    use crate::hero::HeroState;
+    use crate::map::{Plane, Position};
+    use crate::player::PlayerId;
+    use crate::testdir::TestResult;
+
+    const P0: PlayerId = PlayerId(0);
+
+    fn world() -> Result<Game, String> {
+        new_game(
+            &shipped(),
+            &NewGame {
+                seed: 4,
+                all_ai: true,
+                ..Default::default()
+            },
+        )
+    }
+
+    fn at(x: u32, y: u32) -> Position {
+        Position {
+            plane: Plane::Arcanus,
+            x,
+            y,
+        }
+    }
+
+    #[test]
+    fn a_unit_is_removed_or_slain_once_and_a_hero_slain_is_dead_but_released_is_free() -> TestResult
+    {
+        let mut g = world()?;
+        let soldier = g
+            .content()
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("no cavalry")?;
+        let plain = g.spawn_unit(P0, at(3, 3), soldier);
+        assert!(g.cheat_remove_unit(plain));
+        assert!(!g.world.contains(plain));
+        assert!(!g.cheat_remove_unit(plain), "nothing left to remove");
+        let other = g.spawn_unit(P0, at(3, 3), soldier);
+        assert!(g.cheat_slay_unit(other));
+        assert!(!g.world.contains(other));
+
+        let (dead, freed) = (
+            g.spawn_hero(P0, at(4, 4), 0)
+                .map_err(|e| format!("{e:?}"))?,
+            g.spawn_hero(P0, at(4, 5), 1)
+                .map_err(|e| format!("{e:?}"))?,
+        );
+        assert!(g.cheat_slay_unit(dead));
+        assert!(g.cheat_remove_unit(freed));
+        assert_eq!(g.units().hero_state(dead), Some(HeroState::Dead));
+        assert_eq!(g.units().hero_state(freed), Some(HeroState::Free));
+        Ok(())
+    }
+
+    #[test]
+    fn a_unit_moves_wherever_it_is_told() -> TestResult {
+        let mut g = world()?;
+        let soldier = g
+            .content()
+            .rules
+            .units
+            .id_of("high_men_cavalry")
+            .ok_or("no cavalry")?;
+        let unit = g.spawn_unit(P0, at(3, 3), soldier);
+        g.cheat_move_unit(unit, at(20, 12));
+        assert_eq!(g.units().unit_position(unit), Some(at(20, 12)));
+        Ok(())
+    }
+
+    #[test]
+    fn terrain_and_rivers_change_on_the_map_and_not_off_it() -> TestResult {
+        let mut g = world()?;
+        let (w, h) = g
+            .map
+            .as_ref()
+            .map(|m| (m.width(), m.height()))
+            .ok_or("no map")?;
+        let hills = g
+            .content()
+            .terrains
+            .id_numbered(num::terrain::HILLS)
+            .ok_or("no hills")?;
+        let spot = at(10, 10);
+        assert!(g.cheat_set_terrain(spot, hills));
+        let grid = |g: &Game| g.map.as_ref().map(|m| m.plane(Plane::Arcanus).clone());
+        let after = grid(&g).ok_or("no map")?;
+        assert_eq!(after.get(10, 10), Some(hills));
+        assert!(g.cheat_set_river(spot, true));
+        assert!(grid(&g).ok_or("no map")?.has_river(10, 10));
+        assert!(g.cheat_set_river(spot, false));
+        assert!(!grid(&g).ok_or("no map")?.has_river(10, 10));
+        for off in [at(w, 3), at(3, h), at(w + 5, h + 5)] {
+            assert!(!g.cheat_set_terrain(off, hills), "{off:?}");
+            assert!(!g.cheat_set_river(off, true), "{off:?}");
+            assert!(!g.cheat_set_feature(off, None), "{off:?}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_feature_put_on_a_square_replaces_what_was_there() -> TestResult {
+        let mut g = world()?;
+        let id = |n| crate::map::FeatureId(n);
+        let spot = at(12, 12);
+        // A mineral goes in the map layer.
+        assert!(g.cheat_set_feature(spot, Some(id(num::feature::GOLD_ORE))));
+        let mineral = |g: &Game| {
+            g.map
+                .as_ref()
+                .and_then(|m| m.plane(Plane::Arcanus).mineral(12, 12))
+        };
+        assert_eq!(mineral(&g), Some(id(num::feature::GOLD_ORE)));
+        assert!(g
+            .map
+            .as_ref()
+            .ok_or("no map")?
+            .feature_entity(spot)
+            .is_none());
+        // A tower is an entity, and the mineral under it goes.
+        assert!(g.cheat_set_feature(spot, Some(id(num::feature::TOWER))));
+        assert_eq!(mineral(&g), None);
+        let tower = g
+            .map
+            .as_ref()
+            .ok_or("no map")?
+            .feature_entity(spot)
+            .ok_or("the tower has no entity")?;
+        assert!(g.world.contains(tower));
+        // Another feature takes its place and the old entity is gone; none clears the square.
+        assert!(g.cheat_set_feature(spot, Some(id(num::feature::WILD_GAME))));
+        assert!(!g.world.contains(tower));
+        assert!(g.cheat_set_feature(spot, None));
+        assert!(g
+            .map
+            .as_ref()
+            .ok_or("no map")?
+            .feature_entity(spot)
+            .is_none());
+        assert_eq!(mineral(&g), None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_is_taught_a_spell_and_a_missing_one_is_refused() -> TestResult {
+        let mut g = world()?;
+        let spell = g
+            .content()
+            .rules
+            .spells
+            .id_of("fire_bolt")
+            .ok_or("no fire_bolt")?;
+        assert!(g.cheat_learn_spell(P0, spell));
+        assert!(g.wizard(P0).ok_or("no wizard")?.knows(spell));
+        assert!(!g.cheat_learn_spell(PlayerId(77), spell), "no such wizard");
+        Ok(())
+    }
+
+    #[test]
+    fn revealing_the_map_explores_it_for_one_player_only() -> TestResult {
+        let mut g = world()?;
+        let (other, p) = (PlayerId(1), P0);
+        let seen = |g: &Game, who| g.fog.explored_count(who, Plane::Arcanus);
+        let (before, theirs) = (seen(&g, p), seen(&g, other));
+        g.reveal_map(p);
+        assert!(seen(&g, p) > before);
+        assert_eq!(seen(&g, other), theirs);
+        let (w, h) = g
+            .map
+            .as_ref()
+            .map(|m| (m.width(), m.height()))
+            .ok_or("no map")?;
+        assert_eq!(seen(&g, p) as u32, w * h, "every square of the plane");
+        assert!(g.override_log().is_empty(), "revealing is not logged");
+        Ok(())
     }
 }

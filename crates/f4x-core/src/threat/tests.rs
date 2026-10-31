@@ -477,3 +477,100 @@ fn the_free_troops_cost_their_city_nothing() {
     assert_eq!(g.budget(TOWN).unit_upkeep, before);
     let _ = Stat::Melee;
 }
+
+/// The party that `world(troops)` raises at the independent city, counted.
+fn party(g: &mut Game) -> usize {
+    g.threat.raider_clock = 29;
+    match g.process_threats().first() {
+        Some(Event::RaidersRaised { count, .. }) => *count as usize,
+        _ => 0,
+    }
+}
+
+#[test]
+fn the_party_is_a_third_smaller_beside_an_ai_wizards_fortress_but_not_a_humans() -> TestResult {
+    let mut plain = world(8);
+    assert_eq!(party(&mut plain), 4, "half of eight");
+    let mut g = world(8);
+    let rival = PlayerId(1);
+    g.add_player(rival, "Rival");
+    g.place_fortress(rival, at(14, 8), "Keep".into(), None, 5)
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(party(&mut g), 2, "two thirds of four");
+    Ok(())
+}
+
+#[test]
+fn a_party_on_myrror_is_halved_until_turn_two_hundred() {
+    let on_myrror = |turn: u32| {
+        let mut g = world(0);
+        let myr = |x, y| Position {
+            plane: Plane::Myrror,
+            x,
+            y,
+        };
+        g.spawn_city(P0, myr(10, 4), "Far Capital".into(), None, 5);
+        g.spawn_city(TOWN, myr(4, 4), "Far Town".into(), None, 5);
+        let spear = g
+            .content
+            .rules
+            .units
+            .id_of("high_men_spearmen")
+            .expect("id_of succeeds");
+        for _ in 0..8 {
+            g.spawn_unit(TOWN, myr(4, 4), spear);
+        }
+        g.turn = turn;
+        party(&mut g)
+    };
+    assert_eq!(on_myrror(199), 2);
+    assert_eq!(on_myrror(200), 4);
+}
+
+#[test]
+fn the_raiders_are_as_experienced_as_the_turn_allows() {
+    let level_at = |turn: u32| {
+        let mut g = world(4);
+        g.turn = turn;
+        let before = g.units().player_units(TOWN);
+        party(&mut g);
+        let units = g.units();
+        units
+            .player_units(TOWN)
+            .into_iter()
+            .filter(|u| !before.contains(u))
+            .map(|u| units.unit_xp_level(u))
+            .max()
+            .unwrap_or(0)
+    };
+    let levels: Vec<_> = [10, 41, 121, 251].map(level_at).to_vec();
+    assert_eq!(levels[0], 0, "a young world raises green troops");
+    assert!(
+        levels.windows(2).all(|w| w[0] <= w[1]),
+        "later parties are no greener: {levels:?}"
+    );
+    assert!(levels[3] > levels[0], "and the late ones are veterans");
+}
+
+#[test]
+fn settlers_do_not_make_a_party() -> TestResult {
+    let mut g = world(0);
+    let settlers = g
+        .content
+        .rules
+        .units
+        .id_of("high_men_settlers")
+        .ok_or("no settlers")?;
+    for _ in 0..4 {
+        g.spawn_unit(TOWN, at(4, 4), settlers);
+    }
+    g.threat.raider_clock = 29;
+    let monsters_before = g.threat.monster_clock;
+    assert!(g.process_threats().is_empty());
+    assert_eq!(
+        g.threat.monster_clock,
+        monsters_before + 15,
+        "a failed raid"
+    );
+    Ok(())
+}

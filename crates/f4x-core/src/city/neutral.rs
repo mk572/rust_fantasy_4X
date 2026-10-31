@@ -12,6 +12,8 @@
 //! with its own treasury: its taxes pay for its buildings and its garrison, and a garrison it
 //! cannot pay for is disbanded. The player goes when the city is taken. Monsters, lair guards and
 //! the undead raised for them stay with the shared `player::MONSTERS`.
+//!
+//! Tests: below.
 
 use std::collections::VecDeque;
 
@@ -489,5 +491,131 @@ impl Game {
             }
         }
         (melee, ranged)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::setup::{new_game, NewGame};
+    use crate::game::testutil::shipped;
+    use crate::testdir::TestResult;
+
+    fn world(seed: u64) -> Result<Game, String> {
+        new_game(
+            &shipped(),
+            &NewGame {
+                seed,
+                all_ai: true,
+                ..Default::default()
+            },
+        )
+    }
+
+    #[test]
+    fn a_plane_of_sixty_by_forty_gets_fifteen_cities_and_a_bigger_one_more() {
+        assert_eq!(neutral_city_count(60, 40), NEUTRAL_CITIES_PER_PLANE);
+        assert!(neutral_city_count(120, 80) > neutral_city_count(60, 40));
+        assert!(neutral_city_count(30, 20) < neutral_city_count(60, 40));
+    }
+
+    #[test]
+    fn the_scan_starts_at_the_equator_and_leaves_out_the_poles() {
+        let rows = scan_rows(40);
+        assert_eq!(rows[..3], [20, 21, 19], "the equator, one below, one above");
+        let polar = u32::from(POLAR_ROWS);
+        assert!(rows.iter().all(|y| (polar..40 - polar).contains(y)));
+        let mut sorted = rows.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(sorted.len(), rows.len(), "no row twice");
+        assert_eq!(rows.len() as u32, 40 - 2 * polar, "every other row once");
+    }
+
+    #[test]
+    fn the_range_between_squares_is_the_short_way_round_a_wrapping_map() {
+        assert_eq!(range(60, 5, 5, 5, 5), 0);
+        assert_eq!(range(60, 0, 0, 3, 0), 3);
+        // The seam: 2 and 58 are four apart, not fifty-six.
+        assert_eq!(range(60, 2, 7, 58, 7), 4);
+        // Diagonals count the longer side and half the shorter one.
+        assert_eq!(range(60, 0, 0, 4, 2), 5);
+    }
+
+    #[test]
+    fn a_new_world_has_independent_cities_each_with_its_own_player_and_a_garrison() -> TestResult {
+        let g = world(7)?;
+        let neutral: Vec<_> = g
+            .economy()
+            .cities()
+            .into_iter()
+            .filter(|(_, info, _)| g.is_neutral_player(info.owner))
+            .collect();
+        let (w, h) = g
+            .map
+            .as_ref()
+            .map(|m| (m.width(), m.height()))
+            .ok_or("no map")?;
+        let most = 2 * neutral_city_count(w, h) as usize;
+        assert!(
+            !neutral.is_empty(),
+            "a world starts with independent cities"
+        );
+        assert!(neutral.len() <= most, "{} of at most {most}", neutral.len());
+        let mut owners: Vec<_> = neutral.iter().map(|(_, info, _)| info.owner).collect();
+        owners.sort();
+        owners.dedup();
+        assert_eq!(owners.len(), neutral.len(), "every city is its own player");
+        assert!(
+            !owners.contains(&crate::player::MONSTERS),
+            "not the monsters' player"
+        );
+        let mut squares: Vec<_> = neutral.iter().map(|(_, _, p)| *p).collect();
+        squares.sort_by_key(|p| (p.plane as u8, p.x, p.y));
+        squares.dedup();
+        assert_eq!(squares.len(), neutral.len(), "one city to a square");
+        for (_, info, pos) in &neutral {
+            let guards = g.units().units_at(*pos);
+            assert!(
+                guards
+                    .iter()
+                    .all(|&u| g.units().unit_owner(u) == Some(info.owner)),
+                "{} has only its own soldiers",
+                info.name
+            );
+        }
+        assert!(
+            neutral
+                .iter()
+                .any(|(_, _, pos)| !g.units().units_at(*pos).is_empty()),
+            "some city has a garrison"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_same_seed_makes_the_same_independent_cities() -> TestResult {
+        let places = |seed| -> Result<Vec<(String, Position)>, String> {
+            Ok(world(seed)?
+                .economy()
+                .cities()
+                .into_iter()
+                .map(|(_, info, p)| (info.name, p))
+                .collect())
+        };
+        assert_eq!(places(11)?, places(11)?);
+        assert_ne!(places(11)?, places(12)?);
+        Ok(())
+    }
+
+    #[test]
+    fn a_new_city_player_takes_the_lowest_number_not_yet_used() -> TestResult {
+        let mut g = world(3)?;
+        let first = g.new_city_player();
+        let second = g.new_city_player();
+        assert!(first.0 >= FIRST_CITY_PLAYER);
+        assert_eq!(second.0, first.0 + 1);
+        assert!(g.is_neutral_player(first) && g.is_neutral_player(second));
+        Ok(())
     }
 }

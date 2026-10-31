@@ -9,6 +9,8 @@
 //! Where the original is wrong this follows its evident intent: any item's spell can be cast
 //! (the original reads only the first slot, bug H22) and the charges stay on the item after the
 //! battle (`game.rs` writes them back).
+//!
+//! Tests: in battle/tests.rs (`a_hero_casts_an_innate_spell_...`, `the_legal_unit_casts_...` and the demon tests).
 
 use super::*;
 use crate::battle::{BattleUnit, UnitCasting};

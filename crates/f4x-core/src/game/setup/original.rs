@@ -8,6 +8,8 @@
 //! the distances one smaller: fortresses 16 down to 10, sites 8 down to 1 (halved when
 //! compared). Left out: the original's draw of the AI's race after the site (races are chosen
 //! first here) and its bugs in that part.
+//!
+//! Tests: below.
 
 use crate::game::Game;
 use crate::map::terrain::TerrainClass;
@@ -73,4 +75,85 @@ pub(super) fn fortress_sites(game: &mut Game, planes: &[Plane]) -> Option<Vec<Po
         clear = (clear - 1).max(1);
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::setup::{new_game, NewGame};
+    use crate::game::testutil::shipped;
+    use crate::player::PlayerId;
+    use crate::testdir::TestResult;
+
+    fn original(seed: u64, wizards: u8) -> Result<Game, String> {
+        let mut spec = NewGame::with_wizards(wizards);
+        spec.seed = seed;
+        spec.all_ai = true;
+        spec.settings.basic.original_map_generator = true;
+        new_game(&shipped(), &spec)
+    }
+
+    fn fortress(g: &Game, p: PlayerId) -> Option<Position> {
+        g.wizard(p)?.fortress()
+    }
+
+    #[test]
+    fn every_wizard_gets_a_fortress_on_land_that_can_feed_the_start() -> TestResult {
+        let g = original(3, 4)?;
+        for k in 0..4 {
+            let p = PlayerId(k);
+            let pos = fortress(&g, p).ok_or("no fortress")?;
+            let class = g
+                .map
+                .as_ref()
+                .and_then(|m| m.plane(pos.plane).get(pos.x as i32, pos.y as i32))
+                .and_then(|t| g.content.terrains.get(t))
+                .map(|d| d.class);
+            assert_ne!(
+                class,
+                Some(TerrainClass::Ocean),
+                "wizard {k} stands on land"
+            );
+            assert!(g.economy().site_max_size(pos) >= 5, "wizard {k} is fed");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn fortresses_on_one_plane_are_far_apart_across_the_wrapping_edge() -> TestResult {
+        let g = original(5, 4)?;
+        let w = g.map.as_ref().ok_or("no map")?.width();
+        let sites: Vec<Position> = (0..4)
+            .map(|k| fortress(&g, PlayerId(k)))
+            .collect::<Option<_>>()
+            .ok_or("a wizard has no fortress")?;
+        for (i, a) in sites.iter().enumerate() {
+            for b in &sites[i + 1..] {
+                if a.plane != b.plane {
+                    continue;
+                }
+                let dx = a.x.abs_diff(b.x);
+                let apart = dx.min(w - dx).max(a.y.abs_diff(b.y));
+                assert!(apart >= 10, "{a:?} and {b:?} are {apart} apart");
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn the_same_seed_rolls_the_same_sites_and_another_seed_others() -> TestResult {
+        let sites = |seed| -> Result<Vec<Position>, String> {
+            let g = original(seed, 3)?;
+            Ok((0..3).filter_map(|k| fortress(&g, PlayerId(k))).collect())
+        };
+        assert_eq!(sites(8)?, sites(8)?);
+        assert_ne!(sites(8)?, sites(9)?);
+        Ok(())
+    }
+
+    #[test]
+    fn a_game_with_no_map_has_no_sites() {
+        let mut g = Game::new(1);
+        assert_eq!(fortress_sites(&mut g, &[Plane::Arcanus]), None);
+    }
 }
