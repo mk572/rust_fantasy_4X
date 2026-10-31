@@ -40,6 +40,9 @@ pub enum Kind {
     /// Disjunction, Disjunction True and Spell Binding: end (or take) the lasting spell on the
     /// world of a wizard at war with the AI.
     Disjunction,
+    /// Time Stop, Meteor Storm, Great Wasting and Armageddon: a lasting spell on the world that
+    /// is cast while the AI is at war.
+    WorldSpell,
     /// Chaos Channels: gives a fighter a lasting mutation.
     Mutate,
     /// Word of Recall: takes a hurt stack far from home back to the summoning circle.
@@ -56,6 +59,10 @@ const GOOD_GLOBALS: &[&str] = &[
     "charm_of_life",
     "awareness",
 ];
+
+/// Global enchantments that strike the whole world, begun only while the AI is at war with a
+/// wizard.
+const WORLD_SPELLS: &[&str] = &["time_stop", "meteor_storm", "great_wasting", "armageddon"];
 
 /// Lasting spells on a unit whose effect the rules read by the spell's id, so their `effects` are
 /// empty: Heroism, and the wards against a realm. All of them help the unit they sit on.
@@ -161,6 +168,7 @@ pub fn kind(def: &SpellDef) -> Kind {
             Kind::CityBuff
         }
         SpellTarget::None if GOOD_GLOBALS.contains(&def.id.as_str()) => Kind::GlobalBuff,
+        SpellTarget::None if WORLD_SPELLS.contains(&def.id.as_str()) => Kind::WorldSpell,
         SpellTarget::EnemyCity => Kind::CityCurse,
         SpellTarget::EnemyWizard if !has_hook(def, f4x_core::spell::dispel::SPELL_BLAST) => {
             Kind::WizardCurse
@@ -185,6 +193,7 @@ fn priority(k: Kind) -> u8 {
         // A wizard under a curse wants it off before it blows at anyone.
         Kind::Disenchant => 2,
         Kind::Disjunction => 8,
+        Kind::WorldSpell => 8,
         Kind::Mutate => 4,
         Kind::Recall => 2,
         Kind::Other => 9,
@@ -202,7 +211,9 @@ fn cast_rank(k: Kind, traits: &crate::objective::Traits) -> i32 {
         Kind::CityBuff => Some(Like::CityBuff),
         Kind::GlobalBuff => Some(Like::GlobalBuff),
         Kind::Explore => Some(Like::Explore),
-        Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction => Some(Like::Curse),
+        Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction | Kind::WorldSpell => {
+            Some(Like::Curse)
+        }
         _ => None,
     };
     let boost = like
@@ -823,6 +834,13 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction => {
                     now && room && mana - cost >= GLOBAL_RESERVE && target.is_some()
                 }
+                Kind::WorldSpell => {
+                    now && room
+                        && mana - cost >= GLOBAL_RESERVE
+                        && upkeep_ok(&view, def)
+                        && !magic.has_global(spell)
+                        && !view.rivals_at_war().is_empty()
+                }
                 Kind::Other => false,
             };
             // The original's check: not more than fifty turns of what the AI can put towards it.
@@ -927,6 +945,10 @@ mod tests {
             ("famine", Kind::CityCurse),
             ("earthquake", Kind::CityCurse),
             ("cruel_unminding", Kind::WizardCurse),
+            ("meteor_storm", Kind::WorldSpell),
+            ("armageddon", Kind::WorldSpell),
+            ("time_stop", Kind::WorldSpell),
+            ("great_wasting", Kind::WorldSpell),
             ("spell_blast", Kind::Other),
         ];
         for (id, expected) in cases {
@@ -1098,6 +1120,37 @@ mod tests {
             .is_some()
             || g.city_enchantments(enemy).iter().any(|&(s, _)| s == famine);
         assert!(began, "at war: Famine begun or cast");
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_begins_a_spell_on_the_world_only_while_at_war() -> TestResult {
+        let mut g = game(COAST_CITY, "high_men");
+        g.make_contact(P0, P1);
+        let storm = spell("meteor_storm")?;
+        g.cheat_learn_spell(P0, storm);
+        treasury(&mut g, P0)?.mana = 20_000;
+        let mut wizard = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
+        wizard.found(&[("chaos", 11), ("death", 11), ("nature", 11)], &[]);
+        wizard.put(Some(f4x_core::wizard::fortress::Fortress(at(
+            COAST_CITY.0,
+            COAST_CITY.1,
+        ))));
+        wizard.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
+        wizard.set_split(55, 0, 45).map_err(|e| format!("{e:?}"))?;
+        let ai = Ai::new(P0);
+        let began = |g: &Game| -> Result<bool, &'static str> {
+            let magic = g.wizard(P0).ok_or("player 0 is a wizard")?;
+            Ok(magic.casting().is_some() || magic.has_global(storm))
+        };
+        cast(&ai, &mut g, &mut Vec::new());
+        assert!(!began(&g)?, "at peace: nothing on the world");
+        g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
+            player: P0,
+            on: P1,
+        }));
+        cast(&ai, &mut g, &mut Vec::new());
+        assert!(began(&g)?, "at war: Meteor Storm begun or cast");
         Ok(())
     }
 
