@@ -33,6 +33,15 @@ impl App {
         let Some(cell) = hovered else {
             return RED_CROSS;
         };
+        // A vortex being steered: the boot on the squares it can move to, the cross elsewhere.
+        if let Some(v) = ui.steering.and_then(|i| battle.vortices.get(i)) {
+            let free = battle.map.is_playable(cell) && battle.vortex_at(cell).is_none();
+            return if distance(v.cell, cell) == 1 && free {
+                BOOT
+            } else {
+                RED_CROSS
+            };
+        }
         let sel = ui
             .selected
             .and_then(|i| battle.unit(i))
@@ -172,6 +181,49 @@ mod tests {
         let mut ui = BattleUi::default();
         assert_eq!(image(&f, &mut ui, true, None), RED_CROSS);
         assert_eq!(image(&f, &mut ui, true, Some((5, 6))), RED_CROSS);
+        Ok(())
+    }
+
+    #[test]
+    fn a_vortex_being_steered_gets_the_boot_one_square_away_and_the_cross_elsewhere() -> TestResult
+    {
+        let mut f = fight()?;
+        f.battle.vortices.push(f4x_core::battle::vortex::Vortex {
+            cell: (5, 7),
+            owner: f.battle.active,
+            steered: false,
+        });
+        let mut ui = BattleUi {
+            steering: Some(0),
+            ..BattleUi::default()
+        };
+        assert_eq!(image(&f, &mut ui, true, Some((5, 6))), BOOT);
+        assert_eq!(image(&f, &mut ui, true, Some((5, 9))), RED_CROSS);
+        Ok(())
+    }
+
+    #[test]
+    fn the_next_pick_after_the_last_unit_is_a_vortex_that_has_not_moved_and_then_the_first_unit(
+    ) -> TestResult {
+        let mut f = fight()?;
+        let active = f.battle.active;
+        let battle = &mut f.app.game.battle.as_mut().ok_or("no battle")?.battle;
+        battle.vortices.push(f4x_core::battle::vortex::Vortex {
+            cell: (5, 7),
+            owner: active,
+            steered: false,
+        });
+        let units: Vec<usize> = battle
+            .active_units(active)
+            .filter(|u| unfinished(u))
+            .map(|u| u.id)
+            .collect();
+        let last = *units.last().ok_or("no unit")?;
+        let mut ui = BattleUi::default();
+        f.app.select_next(&mut ui, Some(last));
+        assert_eq!((ui.selected, ui.steering), (None, Some(0)));
+        f.app.select_next(&mut ui, None);
+        assert_eq!((ui.selected, ui.steering), (units.first().copied(), None));
         Ok(())
     }
 

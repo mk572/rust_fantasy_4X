@@ -1055,6 +1055,8 @@ impl App {
     }
 
     /// Select the next unit of the human's side that can still act.
+    /// Pick the next thing to move: my unfinished units in turn, then my vortices that have not
+    /// moved, then round to the first unit again.
     fn select_next(&mut self, ui: &mut BattleUi, after: Option<usize>) {
         let Some(battle) = self.game.battle() else {
             return;
@@ -1064,13 +1066,24 @@ impl App {
             .filter(|u| unfinished(u))
             .map(|u| u.id)
             .collect();
-        let start = after.unwrap_or(0);
-        let next = ids
-            .iter()
-            .copied()
-            .find(|&i| i > start)
-            .or_else(|| ids.first().copied());
-        ui.selected = next;
+        let vortices: Vec<usize> = (0..battle.vortices.len())
+            .filter(|&i| battle.vortices[i].owner == battle.active && !battle.vortices[i].steered)
+            .collect();
+        let was_steering = ui.steering.take();
+        ui.selected = None;
+        match was_steering {
+            Some(v) => match vortices.iter().copied().find(|&i| i > v) {
+                Some(next) => ui.steering = Some(next),
+                None => ui.selected = ids.first().copied(),
+            },
+            None => match ids.iter().copied().find(|&i| after.is_none_or(|a| i > a)) {
+                Some(unit) => ui.selected = Some(unit),
+                None => match vortices.first() {
+                    Some(&v) => ui.steering = Some(v),
+                    None => ui.selected = ids.first().copied(),
+                },
+            },
+        }
     }
 
     pub(crate) fn open_battle_screen(&mut self) {
@@ -1180,6 +1193,8 @@ impl App {
             if let Some(u) = sel_unit {
                 self.battle_order(ui, BattleCommand::Done { unit: u.id });
                 self.select_next(ui, Some(u.id));
+            } else if ui.steering.is_some() {
+                self.select_next(ui, None);
             }
             return;
         }
@@ -1207,6 +1222,7 @@ impl App {
         if let Some(i) = battle.vortex_at(cell) {
             if battle.vortices[i].owner == battle.active && !battle.vortices[i].steered {
                 ui.steering = Some(i);
+                ui.selected = None;
                 return;
             }
         }
@@ -1214,6 +1230,7 @@ impl App {
             let v = battle.vortices.get(i);
             if v.is_some_and(|v| distance(v.cell, cell) == 1) {
                 self.battle_order(ui, BattleCommand::MoveVortex { index: i, to: cell });
+                self.select_next(ui, None);
                 return;
             }
         }
@@ -1225,6 +1242,7 @@ impl App {
             // Pick one of my own units.
             (Some((id, side)), _) if side == battle.active => {
                 ui.selected = Some(id);
+                ui.steering = None;
             }
             // Hit an enemy: in melee when next to it, otherwise shoot.
             (Some((id, _)), Some(u)) if !u.attacked => {

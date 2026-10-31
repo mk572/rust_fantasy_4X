@@ -25,6 +25,8 @@
     "battle.mud": "The ground turns to mud",
     "battle.fissure": "The earth cracks open",
     "battle.vortex": "A magic vortex appears",
+    "battle.vortex_name": "Magic Vortex",
+    "battle.vortex_hint": "Click a square next to it",
     "battle.life_drained": "{unit} loses {points} life",
     "battle.power_drained": "{unit} loses {amount} mana",
     "battle.countered": "Counter Magic stops {spell}",

@@ -345,10 +345,54 @@ impl App {
     }
 
     /// The selected unit in the middle of the panel (`Draw_Active_Unit_Window`).
+    /// The vortex picked for steering stands where a unit would: its picture, its name and what to
+    /// do with it.
+    fn draw_active_vortex(&mut self, ui: &BattleUi, battle: &Battle, lay: &Layout) {
+        if !ui
+            .steering
+            .and_then(|i| battle.vortices.get(i))
+            .is_some_and(|v| v.owner == battle.active && !v.steered)
+        {
+            return;
+        }
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let art = self
+            .art
+            .spell_picture("magic_vortex", &f4x_data::spell_art::Role::Vortex);
+        let figure = art.and_then(|(lbx, entry)| {
+            let frames = self.art.frames(&lbx, entry).max(1);
+            self.art
+                .picture(&lbx, entry, (get_time() / 0.1) as usize % frames)
+        });
+        if let Some(tex) = figure {
+            let at = lay.point(
+                84.0 + (32.0 - crate::resolution::logical_w(tex)) / 2.0,
+                173.0 + (25.0 - crate::resolution::logical_h(tex)) / 2.0,
+            );
+            draw_texture_ex(
+                tex,
+                at.x,
+                at.y,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(crate::resolution::logical_size(tex) * lay.scale),
+                    ..Default::default()
+                },
+            );
+        }
+        let (name, hint) = (
+            self.text("battle.vortex_name"),
+            self.text("battle.vortex_hint"),
+        );
+        self.bar_text(view, 0, &name, (112.0, 167.0), Align::Center);
+        self.bar_text(view, 0, &hint, (120.0, 176.0), Align::Left);
+    }
+
     fn draw_active_unit(&mut self, ui: &mut BattleUi, battle: &Battle) {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let Some(u) = ui.selected.and_then(|i| battle.unit(i)) else {
+            self.draw_active_vortex(ui, battle, &lay);
             return;
         };
         let owner = battle.player_of(u.side).0;
