@@ -339,6 +339,48 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
 }
 
+/// Sends the passengers of the ship in port ashore, to a land square next to it, except those in
+/// `keep`. Whether there were any: the ship waits a turn for them to step off.
+pub(crate) fn unload(
+    ai: &Ai,
+    game: &mut Game,
+    ship: hecs::Entity,
+    port: Position,
+    keep: &[hecs::Entity],
+    events: &mut Vec<Event>,
+) -> bool {
+    let (passengers, shore) = {
+        let view = PlayerView::new(game, ai.player);
+        let passengers: Vec<hecs::Entity> = view
+            .passengers_of(ship)
+            .into_iter()
+            .filter(|u| !keep.contains(u))
+            .collect();
+        let shore = (-1i32..=1)
+            .flat_map(|dy| (-1i32..=1).map(move |dx| (dx, dy)))
+            .filter_map(|(dx, dy)| view.shift(port, dx, dy))
+            .find(|&p| {
+                view.terrain_class(p)
+                    .is_some_and(|t| t != f4x_core::map::terrain::TerrainClass::Ocean)
+                    && view.hostile_at(p).is_none()
+                    && view.can_reach(&passengers, p)
+            });
+        (passengers, shore)
+    };
+    let Some(shore) = shore.filter(|_| !passengers.is_empty()) else {
+        return false;
+    };
+    ai.send(
+        game,
+        Command::GoTo {
+            units: passengers,
+            to: shore,
+        },
+        events,
+    );
+    true
+}
+
 /// With a ship in port and enough fighters there, sail.
 fn load_and_sail(
     ai: &mut Ai,
@@ -383,12 +425,21 @@ fn load_and_sail(
             .filter(|&u| is_fighter(&view, u) && !ai.scouts.contains(&view.serial_of(u)))
             .collect();
         view.sort_by_serial(&mut here);
-        // The city keeps its own garrison.
+        // The city keeps its own garrison. Those still aboard from an earlier voyage sail first:
+        // a ship does not take more than its room.
         let keep = garrison_wanted(&view, plan.port);
-        let group: Vec<hecs::Entity> = here.into_iter().skip(keep).take(capacity).collect();
+        let aboard = view.passengers_of(ship);
+        let (mut group, rest): (Vec<_>, Vec<_>) = here.iter().partition(|u| aboard.contains(u));
+        group.extend(rest.into_iter().skip(keep));
+        group.truncate(capacity);
+        let group: Vec<hecs::Entity> = group;
         (group, capacity)
     };
     if group.len() < MIN_LOAD.min(capacity) {
+        return;
+    }
+    // Passengers that are not part of the landing (a sea scout's party) step off first.
+    if unload(ai, game, ship, plan.port, &group, events) {
         return;
     }
     // Strong enough for the garrison it will meet, or tired of waiting.
@@ -808,6 +859,50 @@ mod tests {
         ai.unreachable.push(enemy());
         run(&mut ai, &mut g, &mut Vec::new());
         assert!(PlayerView::new(&g, P0).unit_has_order(ship));
+    }
+
+    #[test]
+    fn a_passenger_left_aboard_in_port_sails_with_the_next_landing() -> TestResult {
+        let mut g = game(COAST_CITY, "high_men");
+        build(
+            &mut g,
+            port(),
+            &["ship_wrights_guild", "sawmill", "ship_yard"],
+        );
+        g.reveal_map(P0);
+        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold = 1_000_000;
+        let ship = spawn(&mut g, P0, port(), "galley", 1)[0];
+        let army = spawn(&mut g, P0, port(), "high_men_spearmen", 6);
+        // One of them rides out to sea and comes back aboard.
+        let out = at(COAST_CITY.0 + 1, COAST_CITY.1);
+        g.apply(Command::MoveStack {
+            units: vec![ship, army[0]],
+            to: out,
+        });
+        g.apply(Command::MoveStack {
+            units: vec![ship],
+            to: port(),
+        });
+        let view = PlayerView::new(&g, P0);
+        assert_eq!(view.unit_position(ship), Some(port()));
+        let aboard = view.passengers_of(ship);
+        assert_eq!(aboard.len(), 1, "the setup leaves a passenger aboard");
+        let mut ai = Ai::new(P0);
+        ai.unreachable.push(enemy());
+        for _ in 0..30 {
+            g.balance_farmers(P0);
+            run(&mut ai, &mut g, &mut Vec::new());
+            if ai.ferry.is_some() {
+                break;
+            }
+            g.apply(Command::EndTurn);
+        }
+        let ferry = ai.ferry.as_ref().ok_or("the landing sailed")?;
+        let view = PlayerView::new(&g, P0);
+        for p in aboard {
+            assert!(ferry.group.contains(&view.serial_of(p)));
+        }
+        Ok(())
     }
 
     #[test]

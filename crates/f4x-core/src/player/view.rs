@@ -312,6 +312,11 @@ impl<'a> PlayerView<'a> {
         self.game.unit_has_order(unit)
     }
 
+    /// The units aboard a ship (they stay aboard in a port until they step ashore).
+    pub fn passengers_of(&self, ship: hecs::Entity) -> Vec<hecs::Entity> {
+        self.game.economy().passengers_of(ship)
+    }
+
     pub fn unit_food_upkeep(&self, unit: hecs::Entity) -> i32 {
         self.game.units().unit_food_upkeep(unit)
     }

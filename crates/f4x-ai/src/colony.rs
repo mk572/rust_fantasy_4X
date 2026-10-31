@@ -287,6 +287,11 @@ fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
     let (Some(ship), Some(settler)) = (ship, settler) else {
         return;
     };
+    // Soldiers still aboard from an earlier voyage take up the ship's room: they step ashore
+    // first, and the settler sails next turn.
+    if crate::naval::unload(ai, game, ship, colony.port, &[], events) {
+        return;
+    }
     let (ship_serial, settler_serial) = {
         let view = PlayerView::new(game, me);
         (view.serial_of(ship), view.serial_of(settler))
