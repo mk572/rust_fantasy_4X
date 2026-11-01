@@ -316,8 +316,9 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
     let mut terrains = parse_terrains(&read("terrain.ron")?)?;
     let mut features = parse_features(&read("features.ron")?)?;
     let settings = load_settings(dirs)?;
+    let client_settings = load_client_settings(dirs)?;
     let mut problems = Vec::new();
-    let at = (dirs, settings.language.as_str());
+    let at = (dirs, client_settings.language.as_str());
     rules::fill_names(
         at,
         ("terrain", "terrain"),
@@ -337,21 +338,22 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
     if !problems.is_empty() {
         return Err(ContentError::Invalid(problems));
     }
-    let rules = rules::load_rules(dirs, &settings.language, &features)?;
-    if dirs.iter().any(|d| d.join("settings.ron").exists()) {
+    let rules = rules::load_rules(dirs, &client_settings.language, &features)?;
+    if dirs.iter().any(|d| d.join("rules_settings.ron").exists()) {
         check_spell_library(&settings.spell_library, &rules)?;
     }
-    let texts = load_texts(dirs, &settings.language)?;
+    let texts = load_texts(dirs, &client_settings.language)?;
     Ok(Content {
         terrains,
         features,
         rules,
         settings,
+        client_settings,
         texts,
     })
 }
 
-/// The spells and realms the `spell_library` of `settings.ron` names must exist.
+/// The spells and realms the `spell_library` of `rules_settings.ron` names must exist.
 fn check_spell_library(
     library: &f4x_core::game::setting::SpellLibraryDef,
     rules: &f4x_core::rules::Rules,
@@ -385,26 +387,43 @@ fn check_spell_library(
     }
 }
 
-/// Read `settings.ron` from the first of `dirs` that has it. The file is optional (content
+/// Read `rules_settings.ron` from the first of `dirs` that has it. The file is optional (content
 /// without it plays the symmetric game); one that is there must parse and be in range.
 pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
     let Some(path) = dirs
         .iter()
-        .map(|d| d.join("settings.ron"))
+        .map(|d| d.join("rules_settings.ron"))
         .find(|p| p.exists())
     else {
         return Ok(SettingsDef::default());
     };
     let text = std::fs::read_to_string(&path)
         .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
-    let settings: SettingsDef =
-        ron::from_str(&text).map_err(|e| ContentError::Parse(format!("settings.ron: {e}")))?;
+    let settings: SettingsDef = ron::from_str(&text)
+        .map_err(|e| ContentError::Parse(format!("rules_settings.ron: {e}")))?;
     let problems = settings.validate();
     if problems.is_empty() {
         Ok(settings)
     } else {
         Err(ContentError::Invalid(problems))
     }
+}
+
+/// Read `client_settings.ron` from the first of `dirs` that has it: the language and the
+/// switches of the client. The file is optional; one that is there must parse.
+pub fn load_client_settings(
+    dirs: &[&Path],
+) -> Result<f4x_core::game::setting::ClientSettingsDef, ContentError> {
+    let Some(path) = dirs
+        .iter()
+        .map(|d| d.join("client_settings.ron"))
+        .find(|p| p.exists())
+    else {
+        return Ok(Default::default());
+    };
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
+    ron::from_str(&text).map_err(|e| ContentError::Parse(format!("client_settings.ron: {e}")))
 }
 
 #[cfg(test)]
@@ -1081,8 +1100,30 @@ mod tests {
             .iter()
             .all(|l| l.world.start_reveal_radius.0 == 2.5));
         assert!(s.levels.iter().all(|l| l.wizards.starting_mana.human == 0));
-        assert_eq!(s.preferences.len(), 19);
-        assert!(!s.preferences["strategic_combat_only"] && s.preferences["sound_effects"]);
+    }
+
+    #[test]
+    fn the_shipped_client_settings_name_the_language_and_every_switch() -> TestResult {
+        let dir = crate::testutil::content_dir();
+        let c = load_client_settings(&[&dir])?;
+        assert_eq!(c.language, "en");
+        assert_eq!(c.preferences.len(), 19);
+        assert!(!c.preferences["strategic_combat_only"] && c.preferences["sound_effects"]);
+        Ok(())
+    }
+
+    #[test]
+    fn a_client_settings_file_can_change_the_language_and_must_parse() -> TestResult {
+        let over = f4x_core::testdir::TestDir::new("client-settings");
+        assert_eq!(load_client_settings(&[&over])?, Default::default());
+        std::fs::write(over.join("client_settings.ron"), r#"(language: "de")"#)?;
+        assert_eq!(load_client_settings(&[&over])?.language, "de");
+        std::fs::write(over.join("client_settings.ron"), "(language: ")?;
+        assert!(matches!(
+            load_client_settings(&[&over]),
+            Err(ContentError::Parse(_))
+        ));
+        Ok(())
     }
 
     #[test]
@@ -1090,7 +1131,10 @@ mod tests {
         let none = f4x_core::testdir::TestDir::new("settings-none");
         assert_eq!(load_settings(&[&none])?, SettingsDef::default());
         let over = f4x_core::testdir::TestDir::new("settings-layer");
-        std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 3))")?;
+        std::fs::write(
+            over.join("rules_settings.ron"),
+            "(new_game: (opponents: 3))",
+        )?;
         let committed = crate::testutil::content_dir();
         let c = load_content_layers(&[&over, &committed])?;
         assert_eq!(c.settings.new_game.opponents, 3);
@@ -1101,12 +1145,18 @@ mod tests {
     #[test]
     fn a_settings_file_out_of_range_is_refused() -> TestResult {
         let over = f4x_core::testdir::TestDir::new("settings-bad");
-        std::fs::write(over.join("settings.ron"), "(new_game: (opponents: 10))")?;
+        std::fs::write(
+            over.join("rules_settings.ron"),
+            "(new_game: (opponents: 10))",
+        )?;
         let err = load_settings(&[&over]).unwrap_err();
         assert!(err.to_string().contains("10 opponents"), "{err}");
-        std::fs::write(over.join("settings.ron"), "(levels: [])")?;
+        std::fs::write(over.join("rules_settings.ron"), "(levels: [])")?;
         assert!(load_settings(&[&over]).is_ok());
-        std::fs::write(over.join("settings.ron"), "(new_game: (difficulty: 2)")?;
+        std::fs::write(
+            over.join("rules_settings.ron"),
+            "(new_game: (difficulty: 2)",
+        )?;
         assert!(matches!(
             load_settings(&[&over]),
             Err(ContentError::Parse(_))
@@ -1116,7 +1166,7 @@ mod tests {
 
     #[test]
     fn the_shipped_spell_library_is_the_originals() {
-        // The built-in default (used when there is no settings.ron) is the original's numbers,
+        // The built-in default (used when there is no rules_settings.ron) is the original's numbers,
         // and so is the shipped file.
         let c = real_content();
         assert_eq!(
@@ -1130,18 +1180,21 @@ mod tests {
         let over = f4x_core::testdir::TestDir::new("settings-spells");
         let committed = crate::testutil::content_dir();
         std::fs::write(
-            over.join("settings.ron"),
+            over.join("rules_settings.ron"),
             r#"(spell_library: (always_known: ["no_such_spell"]))"#,
         )?;
         let err = load_content_layers(&[&over, &committed]).unwrap_err();
         assert!(err.to_string().contains("no_such_spell"), "{err}");
         std::fs::write(
-            over.join("settings.ron"),
+            over.join("rules_settings.ron"),
             r#"(spell_library: (ai_main_realm_known: {"no_realm": "sprites"}))"#,
         )?;
         let err = load_content_layers(&[&over, &committed]).unwrap_err();
         assert!(err.to_string().contains("no_realm"), "{err}");
-        std::fs::write(over.join("settings.ron"), "(spell_library: (known: []))")?;
+        std::fs::write(
+            over.join("rules_settings.ron"),
+            "(spell_library: (known: []))",
+        )?;
         let err = load_content_layers(&[&over, &committed]).unwrap_err();
         assert!(err.to_string().contains("0 rows"), "{err}");
         Ok(())
@@ -1271,8 +1324,8 @@ mod tests {
             let known = match kind {
                 "ability" => content.rules.abilities.defs().iter().any(|a| a.id == id),
                 "spell" => content.rules.spells.defs().iter().any(|s| s.id == id),
-                // A switch of the Settings screen: a key of the preferences in `settings.ron`.
-                "setting" => std::fs::read_to_string(dir.join("settings.ron"))?
+                // A switch of the Settings screen: a key of the preferences in `client_settings.ron`.
+                "setting" => std::fs::read_to_string(dir.join("client_settings.ron"))?
                     .contains(&format!("\"{id}\":")),
                 _ => false,
             };

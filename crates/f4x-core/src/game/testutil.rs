@@ -41,9 +41,10 @@ pub mod num {
     }
 }
 
-/// The shipped `content/settings.ron`, for tests that play a difficulty level.
+/// The shipped `content/rules_settings.ron`, for tests that play a difficulty level.
 pub fn settings() -> crate::game::setting::SettingsDef {
-    ron::from_str(include_str!("../../../../content/settings.ron")).expect("settings.ron parses")
+    ron::from_str(include_str!("../../../../content/rules_settings.ron"))
+        .expect("rules_settings.ron parses")
 }
 
 /// The game's own `content/` folder, read as `f4x_data::load_content` reads it (the names from
@@ -205,7 +206,8 @@ fn load_shipped() -> Content {
             lairs: parse(&dir, "lairs.ron"),
             wizard_names: parse(&dir, "text/en/name/rival.ron"),
         },
-        settings: parse(&dir, "settings.ron"),
+        settings: parse(&dir, "rules_settings.ron"),
+        client_settings: parse(&dir, "client_settings.ron"),
         texts: Default::default(),
     }
 }

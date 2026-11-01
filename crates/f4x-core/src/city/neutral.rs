@@ -265,7 +265,11 @@ impl Game {
         let masses = self.landmasses(plane);
         let mut default_race: std::collections::HashMap<u32, RaceId> = Default::default();
         let mut made = 0;
-        let target = neutral_city_count(w, h);
+        let target = if self.settings.basic.neutral_cities.is_some() {
+            self.settings.basic.neutral_city_count()
+        } else {
+            neutral_city_count(w, h)
+        };
         // The original rolls squares at random, 1000 tries for a plane of 60 by 40, 3 to 56
         // across and 3 to 36 down; the custom generator's land is searched row by row from the
         // equator outward, a row south and then a row north, each from west to east: a city goes

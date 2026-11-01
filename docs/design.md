@@ -175,7 +175,7 @@ Resolving differences between sources (full list in `help-vs-implementation-conf
 
 Economy and movement
 - City spacing is four squares; a city works 21 tiles; shared tiles are halved.
-- Spare food is sold for gold at two for one after units eat (one food each); units that cannot be fed or paid are disbanded.
+- Spare food is sold for gold at two for one after units eat; units that cannot be fed or paid are disbanded. What a unit eats is the `upkeep.food` of its row in `units.ron`, **in half food like moves** (2 is one food; every normal unit has 2, heroes and summoned creatures 0, as in the original). An army's halves are added first and the total is rounded up, so three units of half a food eat 2 food; the undead, the unpaid and the free half of a basic troop under `half_upkeep` eat nothing.
 - A finished building drops the city back to building housing; a finished unit repeats.
 - Buildings a newer building replaces keep their effects and requirement value but cost no upkeep.
 - A unit with any movement left may always take a step.

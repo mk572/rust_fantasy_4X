@@ -21,26 +21,7 @@ use crate::wizard::WizardBuild;
 pub const HUMAN: PlayerId = PlayerId(0);
 pub const RIVAL: PlayerId = PlayerId(1);
 
-const RETORTS: [Retort; 18] = [
-    Retort::Alchemy,
-    Retort::Warlord,
-    Retort::ChaosMastery,
-    Retort::NatureMastery,
-    Retort::SorceryMastery,
-    Retort::Channeler,
-    Retort::Archmage,
-    Retort::Artificer,
-    Retort::Conjurer,
-    Retort::SageMaster,
-    Retort::Myrran,
-    Retort::DivinePower,
-    Retort::InfernalPower,
-    Retort::Famous,
-    Retort::Runemaster,
-    Retort::Charismatic,
-    Retort::ManaFocusing,
-    Retort::NodeMastery,
-];
+const RETORTS: [Retort; 18] = Retort::LISTED;
 
 /// A retort by name (case and punctuation ignored): `alchemy`, `sage_master`, `sagemaster`.
 pub fn parse_retort(text: &str) -> Option<Retort> {
@@ -134,6 +115,10 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
             u32::from(settings.basic.map_width),
             u32::from(settings.basic.map_height),
         )
+    };
+    let params = GenParams {
+        tower_count: settings.basic.tower_count(),
+        ..params
     };
     let map = generate(spec.seed, &params, content).map_err(|e| e.to_string())?;
     let mut game = Game::new(spec.seed);

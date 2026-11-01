@@ -488,15 +488,24 @@ impl<'a> UnitView<'a> {
         !basic || self.serial_of(unit).0.is_multiple_of(2)
     }
 
-    /// Food a unit eats per turn.
-    pub fn unit_food_upkeep(&self, unit: hecs::Entity) -> i32 {
+    /// Food a unit eats per turn, in half food: the `food` of its row in the unit table (2 is one
+    /// food), or nothing when it is undead, unpaid or free by the half-upkeep setting.
+    pub fn unit_food_halves(&self, unit: hecs::Entity) -> i32 {
         if self.unit_is_undead(unit) || self.unit_is_unpaid(unit) || !self.pays_upkeep(unit) {
             return 0;
         }
-        match self.unit_def(unit).map(|d| d.kind) {
-            Some(UnitKind::Normal) => 1,
-            _ => 0,
-        }
+        self.unit_def(unit).map_or(0, |d| d.upkeep.food as i32)
+    }
+
+    /// Food one unit eats per turn, whole food (a half food counts as one). To add up an army use
+    /// [`UnitView::food_of`], which adds the halves first.
+    pub fn unit_food_upkeep(&self, unit: hecs::Entity) -> i32 {
+        halves_to_food(self.unit_food_halves(unit))
+    }
+
+    /// Food these units eat together per turn: the halves are added, then rounded up to whole food.
+    pub fn food_of(&self, units: &[hecs::Entity]) -> i32 {
+        halves_to_food(units.iter().map(|&u| self.unit_food_halves(u)).sum())
     }
 
     /// Whether the owner pays nothing for the unit (see [`Unpaid`]).
@@ -601,6 +610,11 @@ impl Game {
             units: 1,
         }]
     }
+}
+
+/// Whole food for an amount in half food: an odd half counts as a whole food.
+pub fn halves_to_food(halves: i32) -> i32 {
+    (halves + 1) / 2
 }
 
 #[cfg(test)]

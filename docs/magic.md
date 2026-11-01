@@ -184,7 +184,7 @@ The screens follow the original's (`magic_screen.rs`, `spellbook.rs`, `bigbook.r
   original's battle list too, but stays overland-only here until their battle effects exist
   (task 159).
 - Starting known spells follow the original's rules (section 13): the tables are in
-  `content/settings.ron`, `spell_library`.
+  `content/rules_settings.ron`, `spell_library`.
 
 ## 12. Fortress, summoning circle, banishment
 
@@ -254,7 +254,7 @@ books lets the wizard choose `n - 1` common spells at the start (more are filled
 chooses two uncommon and one rare (`WizardBuild::spell_choices_of`).
 
 The original's rule (`Init_Computer_Players_Spell_Library`, `Newgame_Screen_5`, `Init_Magic_Personalities_Objectives`
-in ReMoM), which the game follows, with every number in `content/settings.ron` under `spell_library`
+in ReMoM), which the game follows, with every number in `content/rules_settings.ron` under `spell_library`
 (three tables by the number of books in a realm, 0 to 11, so a mod can change them):
 - **Known** (`known`): 0 and 1 books nothing; 2 to 10 books the first `books - 1` commons (the human chooses
   them on the custom screen, `chosen`; presets, the computer wizards and anyone who does not choose get the

@@ -43,7 +43,7 @@ use crate::wizard::sheet::{
 
 /// Bumped when the snapshot layout changes in a way old files cannot be read. Version 2 saves each
 /// kind of entity as its own list (`docs/ecs-structure.md` section 3.9).
-pub const SAVE_VERSION: u32 = 2;
+pub const SAVE_VERSION: u32 = 3;
 
 /// The version of the game itself (the workspace version in `Cargo.toml`), written into every save.
 pub const GAME_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -241,6 +241,8 @@ pub struct WizardSave {
     pub fame: i32,
     /// Realm number and books.
     pub books: Vec<(u16, u8)>,
+    /// The retorts by number (`Retort::id`), not by name.
+    #[serde(with = "retort_ids")]
     pub retorts: Vec<Retort>,
     pub skill_points: i32,
     pub skill_left: i32,
@@ -1766,3 +1768,24 @@ fn restore_fog(f: FogSave, map: Option<&Map>) -> Result<Fog, LoadError> {
 
 #[cfg(test)]
 mod tests;
+
+/// Serde adapter: a list of retorts is saved as their numbers (`Retort::id`).
+mod retort_ids {
+    use crate::wizard::magic::Retort;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S: Serializer>(retorts: &[Retort], s: S) -> Result<S::Ok, S::Error> {
+        let ids: Vec<u8> = retorts.iter().map(|r| r.id()).collect();
+        ids.serialize(s)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Retort>, D::Error> {
+        Vec::<u8>::deserialize(d)?
+            .into_iter()
+            .map(|id| {
+                Retort::from_id(id)
+                    .ok_or_else(|| serde::de::Error::custom(format!("no retort number {id}")))
+            })
+            .collect()
+    }
+}

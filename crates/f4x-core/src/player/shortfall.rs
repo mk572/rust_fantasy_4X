@@ -17,6 +17,7 @@ use crate::item::armory::{ItemError, ItemSpot};
 use crate::item::Item;
 use crate::player::finance::{gold_after_income, settle};
 use crate::player::{PlayerId, MONSTERS};
+use crate::unit::halves_to_food;
 use crate::unit::movement::MoveError;
 use crate::unit::transport::{Aboard, Marooned};
 
@@ -28,6 +29,7 @@ pub struct TroopLine {
     pub unit: hecs::Entity,
     pub label: String,
     pub gold: i32,
+    /// In half food, as the unit table has it.
     pub food: i32,
     pub hero: bool,
     /// What the unit cost to make (the AI lets go of the cheap ones first).
@@ -58,7 +60,11 @@ impl TreasuryShortfall {
     /// gold either.
     pub fn missing(&self, released: &[hecs::Entity]) -> (i32, i32) {
         let gone = |l: &&TroopLine| released.contains(&l.unit);
-        let freed_food: i32 = self.troops.iter().filter(gone).map(|l| l.food).sum();
+        // The halves are added before they are rounded, so a half food freed may free nothing.
+        let eating = |keep: &dyn Fn(&TroopLine) -> bool| -> i32 {
+            halves_to_food(self.troops.iter().filter(|l| keep(l)).map(|l| l.food).sum())
+        };
+        let freed_food = eating(&|_| true) - eating(&|l| !released.contains(&l.unit));
         let food = (self.food_upkeep - freed_food - self.food_surplus).max(0);
         let gold_upkeep: i32 = self
             .troops

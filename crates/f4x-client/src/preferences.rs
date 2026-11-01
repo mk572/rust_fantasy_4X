@@ -103,7 +103,7 @@ impl Pref {
         }
     }
 
-    /// The state without a `settings.ron`: everything is on except strategic combat.
+    /// The state without a `client_settings.ron`: everything is on except strategic combat.
     fn default_on(self) -> bool {
         self != Pref::StrategicCombatOnly
     }
@@ -152,13 +152,13 @@ impl Preferences {
         self.on[p as usize] = !self.on[p as usize];
     }
 
-    /// The switches as `content/settings.ron` sets them; one it does not name stays at the
+    /// The switches as `content/client_settings.ron` sets them; one it does not name stays at the
     /// built-in default. A name that is no switch is an error (a typo would go unnoticed).
     pub fn from_defaults(named: &BTreeMap<String, bool>) -> Result<Self, String> {
         let mut prefs = Self::default();
         for (key, &on) in named {
             let Some(&p) = PREFS.iter().find(|p| p.key() == key) else {
-                return Err(format!("settings.ron: {key:?} is not a preference"));
+                return Err(format!("client_settings.ron: {key:?} is not a preference"));
             };
             prefs.set(p, on);
         }
@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn the_shipped_settings_name_every_preference() -> TestResult {
-        let def = crate::test_app::shipped::settings();
+        let def = crate::test_app::shipped::client_settings();
         for p in PREFS {
             assert!(def.preferences.contains_key(p.key()), "{}", p.key());
         }

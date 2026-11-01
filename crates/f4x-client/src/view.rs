@@ -315,7 +315,8 @@ impl App {
             .position(|r| !r.city_names.is_empty())
             .unwrap_or(0);
         let options = OptionsState::from_settings(&content.settings);
-        let prefs = crate::preferences::Preferences::from_defaults(&content.settings.preferences)?;
+        let prefs =
+            crate::preferences::Preferences::from_defaults(&content.client_settings.preferences)?;
         let game = Self::new_game(seed, &options, &content, None, race, true)?;
         let mut app = Self {
             game,
@@ -417,6 +418,9 @@ impl App {
                 s.basic.land_percent = options.land_percent(&content.settings);
                 s.basic.magic_strength = options.magic;
                 (s.basic.map_width, s.basic.map_height) = options.map_size(&content.settings);
+                let (towers, cities) = options.map_counts(&content.settings);
+                s.basic.towers = Some(towers);
+                s.basic.neutral_cities = Some(cities);
                 s.basic.original_map_generator = options.original_generator;
                 // The Random Events preference is the default for a new game; a level that
                 // plays without events (Intro) keeps them off.

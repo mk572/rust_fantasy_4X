@@ -515,7 +515,7 @@ impl<'a> WizardMut<'a> {
         *self.get_mut::<Fame>() = Fame(if famous { 10 } else { 0 });
     }
 
-    /// Known and researchable spells from books and retorts, by the tables in `settings.ron`
+    /// Known and researchable spells from books and retorts, by the tables in `rules_settings.ron`
     /// (`spell_library`, the original's `Init_Computer_Players_Spell_Library`). In each realm the
     /// known spells are the chosen ones (`start_spells`), then the realm's default list; without
     /// `start_spells` they are drawn at random. The researchable ones are drawn at random up to

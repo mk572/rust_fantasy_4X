@@ -285,7 +285,7 @@ fn a_unit_let_go_for_food_is_not_counted_for_gold() {
         unit,
         label: String::new(),
         gold,
-        food,
+        food: food * 2, // whole food in the call, half food in the line
         hero: false,
         cost: 0,
         ship: false,

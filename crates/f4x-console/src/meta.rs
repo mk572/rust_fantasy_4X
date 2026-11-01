@@ -388,7 +388,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 spec.settings.basic.opponents = n - 1;
             }
             "land" => {
-                // The sizes of `settings.ron`, by lower-case name.
+                // The sizes of `rules_settings.ron`, by lower-case name.
                 let sizes = &ctx.game.content().settings.land_sizes;
                 let names: Vec<String> = sizes.iter().map(|s| s.id.clone()).collect();
                 let table: Vec<(&str, u8)> = names
@@ -399,7 +399,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 spec.settings.basic.land_percent = parse_choice(v, "land", &table, 1, 99)?;
             }
             "map" => {
-                // A size of `settings.ron` by lower-case name, or `<width>x<height>`.
+                // A size of `rules_settings.ron` by lower-case name, or `<width>x<height>`.
                 let lower = v.to_lowercase();
                 let sizes = &ctx.game.content().settings.map_sizes;
                 let by_name = sizes.iter().find(|s| s.id == lower);

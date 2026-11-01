@@ -21,25 +21,26 @@ use crate::rules::{Rarity, SpellDef, SpellId};
 
 /// Special abilities a wizard can pick ("retorts" in the original's manual).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[repr(u8)]
 pub enum Retort {
-    Alchemy,
-    Warlord,
-    ChaosMastery,
-    NatureMastery,
-    SorceryMastery,
-    Channeler,
-    Archmage,
-    Artificer,
-    Conjurer,
-    SageMaster,
-    Myrran,
-    DivinePower,
-    InfernalPower,
-    Famous,
-    Runemaster,
-    Charismatic,
-    ManaFocusing,
-    NodeMastery,
+    Alchemy = 0,
+    Warlord = 1,
+    ChaosMastery = 2,
+    NatureMastery = 3,
+    SorceryMastery = 4,
+    InfernalPower = 5,
+    DivinePower = 6,
+    SageMaster = 7,
+    Channeler = 8,
+    Myrran = 9,
+    Archmage = 10,
+    ManaFocusing = 11,
+    NodeMastery = 12,
+    Famous = 13,
+    Runemaster = 14,
+    Conjurer = 15,
+    Charismatic = 16,
+    Artificer = 17,
 }
 
 impl Retort {
@@ -64,6 +65,32 @@ impl Retort {
         Retort::Charismatic,
         Retort::Artificer,
     ];
+
+    /// The retort's number: its place in the original's list (`LISTED`), 0 to 17, fixed by the
+    /// explicit discriminants above (the variants are in that order, so `Ord` follows it too). It is what a mod, a console command or a
+    /// table of the original can use to name a retort. The saved game writes this number; the content files write the name.
+    pub fn id(self) -> u8 {
+        self as u8
+    }
+
+    /// The retort with this number, or `None` past the last one.
+    pub fn from_id(id: u8) -> Option<Retort> {
+        Retort::LISTED.get(usize::from(id)).copied()
+    }
+}
+
+#[cfg(test)]
+mod retort_id_tests {
+    use super::Retort;
+
+    #[test]
+    fn a_retorts_number_is_its_place_in_the_originals_list() {
+        for (place, &retort) in Retort::LISTED.iter().enumerate() {
+            assert_eq!(usize::from(retort.id()), place, "{retort:?}");
+            assert_eq!(Retort::from_id(retort.id()), Some(retort));
+        }
+        assert_eq!(Retort::from_id(Retort::LISTED.len() as u8), None);
+    }
 }
 
 /// How many spells are offered for research at once.

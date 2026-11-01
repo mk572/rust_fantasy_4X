@@ -161,7 +161,7 @@ fn city_named(g: &Game, name: &str) -> hecs::Entity {
 fn a_snapshot_survives_text() -> TestResult {
     let snap = game().snapshot();
     let text = snap.to_text()?;
-    assert!(text.starts_with("// f4x save, version 2"));
+    assert!(text.starts_with(&format!("// f4x save, version {SAVE_VERSION}")));
     assert_eq!(Snapshot::from_text(&text)?, snap);
     Ok(())
 }
@@ -415,6 +415,8 @@ fn every_setting_survives_a_save() -> TestResult {
         magic_strength: 0,
         map_width: 75,
         map_height: 50,
+        towers: Some(9),
+        neutral_cities: Some(23),
         diagonal_extra_cost: true,
         original_map_generator: true,
     };

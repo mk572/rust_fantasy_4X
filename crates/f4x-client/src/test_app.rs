@@ -41,6 +41,14 @@ pub(crate) mod shipped {
         })
     }
 
+    pub(crate) fn client_settings() -> &'static f4x_core::game::setting::ClientSettingsDef {
+        static CELL: OnceLock<f4x_core::game::setting::ClientSettingsDef> = OnceLock::new();
+        CELL.get_or_init(|| {
+            f4x_data::load_client_settings(&[Path::new(CONTENT)])
+                .expect("the shipped client settings load")
+        })
+    }
+
     pub(crate) fn spell_art() -> &'static SpellArt {
         static CELL: OnceLock<SpellArt> = OnceLock::new();
         CELL.get_or_init(|| {

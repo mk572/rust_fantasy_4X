@@ -3,7 +3,7 @@
 //! (`docs/game-settings.md`).
 //!
 //! The figures of the difficulty levels and the defaults of the settings screens are
-//! data, `content/settings.ron` ([`SettingsDef`]); only [`GameSettings::flat`] and the
+//! data, `content/rules_settings.ron` ([`SettingsDef`]); only [`GameSettings::flat`] and the
 //! fallback [`BasicSettings::default`] for content without that file are in the code.
 
 use serde::{Deserialize, Serialize};
@@ -48,6 +48,14 @@ pub struct BasicSettings {
     pub map_width: u16,
     #[serde(default = "default_map_height")]
     pub map_height: u16,
+    /// Towers of wisdom, on both planes at once. `None` follows the area (6 for each 60 by 40
+    /// squares, the original's); the options step sets the number of the chosen map size.
+    #[serde(default)]
+    pub towers: Option<u8>,
+    /// The most neutral cities on each plane. `None` follows the area (15 for each 60 by 40
+    /// squares, the original's); the options step sets the number of the chosen map size.
+    #[serde(default)]
+    pub neutral_cities: Option<u8>,
     /// A diagonal step on the overland map costs half as much again as a straight one (3
     /// half-moves on open ground); off, it costs the same (the original's rule). The same goes for
     /// sight: a square seen along a diagonal costs half as much again to see, or no more.
@@ -93,6 +101,8 @@ impl Default for BasicSettings {
             magic_strength: DEFAULT_MAGIC_STRENGTH,
             map_width: MAP_WIDTH,
             map_height: MAP_HEIGHT,
+            towers: None,
+            neutral_cities: None,
             diagonal_extra_cost: false,
             original_map_generator: false,
         }
@@ -100,6 +110,28 @@ impl Default for BasicSettings {
 }
 
 impl BasicSettings {
+    /// The towers of wisdom of the map: the setting, or 6 for every 60 by 40 squares.
+    pub fn tower_count(&self) -> u8 {
+        self.towers.unwrap_or_else(|| {
+            let base = u32::from(crate::map::mapgen::GenParams::default().tower_count);
+            crate::map::mapgen::scaled_count(base, self.map_width.into(), self.map_height.into())
+                .min(255) as u8
+        })
+    }
+
+    /// The most neutral cities on each plane: the setting, or 15 for every 60 by 40 squares.
+    pub fn neutral_city_count(&self) -> u32 {
+        self.neutral_cities.map_or_else(
+            || {
+                crate::city::neutral::neutral_city_count(
+                    self.map_width.into(),
+                    self.map_height.into(),
+                )
+            },
+            u32::from,
+        )
+    }
+
     /// Squares of both planes for each wizard.
     pub fn squares_per_player(&self) -> u32 {
         2 * u32::from(self.map_width) * u32::from(self.map_height) / (u32::from(self.opponents) + 1)
@@ -311,7 +343,7 @@ pub struct GameSettings {
     pub scoring: ScoreSettings,
 }
 
-/// One difficulty level of `content/settings.ron`: what choosing it fills in.
+/// One difficulty level of `content/rules_settings.ron`: what choosing it fills in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LevelDef {
     pub wizards: WizardSettings,
@@ -342,6 +374,10 @@ pub struct MapSize {
     /// Squares across and down, each plane (see [`MAP_WIDTHS`]).
     pub width: u16,
     pub height: u16,
+    /// Towers of wisdom on this size of map (both planes share them).
+    pub towers: u8,
+    /// The most neutral cities on each plane of this size.
+    pub neutral_cities: u8,
 }
 
 /// How many opponents the game offers at most (the original: four). Nine opponents are ten
@@ -373,14 +409,34 @@ impl Default for HalfUpkeep {
     }
 }
 
-/// `content/settings.ron`: the difficulty levels, the defaults of the new-game choices and of the
-/// client's preference switches. A file without it (the test content) leaves `levels` empty, and
-/// a game then plays the symmetric [`GameSettings::flat`].
+/// `content/client_settings.ron`: what only the client uses, which no rule of a game reads: the
+/// language of the messages and the starting state of the Settings screen's switches.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ClientSettingsDef {
+    /// The language of the messages: a folder of `content/text/` (two letters, `en`).
+    pub language: String,
+    /// The Settings screen's switches by name (the client knows the names), on or off.
+    pub preferences: std::collections::BTreeMap<String, bool>,
+}
+
+impl Default for ClientSettingsDef {
+    /// Content without a `client_settings.ron`: the fallback language, every switch at the
+    /// client's own default.
+    fn default() -> Self {
+        Self {
+            language: crate::text::FALLBACK_LANGUAGE.into(),
+            preferences: Default::default(),
+        }
+    }
+}
+
+/// `content/rules_settings.ron`: the difficulty levels, the defaults of the new-game choices, the
+/// map and land sizes and the spell library. A file without it (the test content) leaves `levels`
+/// empty, and a game then plays the symmetric [`GameSettings::flat`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SettingsDef {
-    /// The language of the messages: a folder of `content/text/` (two letters, `en`).
-    pub language: String,
     /// The new-game choices before the player changes them.
     pub new_game: BasicSettings,
     /// The most computer wizards a new game can have, 1 to [`MAX_OPPONENTS`].
@@ -394,8 +450,6 @@ pub struct SettingsDef {
     pub map_sizes: Vec<MapSize>,
     /// Intro, Easy, Average, Hard, Impossible; empty or exactly [`LEVELS`].
     pub levels: Vec<LevelDef>,
-    /// The Settings screen's switches by name (the client knows the names), on or off.
-    pub preferences: std::collections::BTreeMap<String, bool>,
     /// The spells a new wizard knows and may research (the original's spell library set-up).
     pub spell_library: SpellLibraryDef,
 }
@@ -409,7 +463,7 @@ pub struct Rarities {
     pub very_rare: u8,
 }
 
-/// `settings.ron`, `spell_library`: what a new wizard starts with. The tables are indexed by the
+/// `rules_settings.ron`, `spell_library`: what a new wizard starts with. The tables are indexed by the
 /// number of books in a realm, `0` to [`SpellLibraryDef::MAX_BOOKS`] (so they have 12 rows). A
 /// count above what the realm has means all of them. The original's numbers are in
 /// `INITGAME.c` (`Init_Computer_Players_Spell_Library`) and `NewGame.c`.
@@ -540,14 +594,13 @@ impl Default for SpellLibraryDef {
 }
 
 impl Default for SettingsDef {
-    /// Content without a `settings.ron`: the original's three land sizes and four opponents.
+    /// Content without a `rules_settings.ron`: the original's three land sizes and four opponents.
     fn default() -> Self {
         let size = |id: &str, land_percent| LandSize {
             id: id.into(),
             land_percent,
         };
         Self {
-            language: crate::text::FALLBACK_LANGUAGE.into(),
             new_game: BasicSettings::default(),
             max_opponents: MAX_OPPONENTS,
             half_upkeep: HalfUpkeep::default(),
@@ -557,20 +610,21 @@ impl Default for SettingsDef {
                 size("large", LAND_LARGE),
             ],
             map_sizes: [
-                ("small", 45, 30),
-                ("medium", 60, 40),
-                ("large", 75, 50),
-                ("huge", 90, 60),
+                ("small", 45, 30, 3, 8),
+                ("medium", 60, 40, 6, 15),
+                ("large", 75, 50, 9, 23),
+                ("huge", 90, 60, 14, 34),
             ]
             .into_iter()
-            .map(|(id, width, height)| MapSize {
+            .map(|(id, width, height, towers, neutral_cities)| MapSize {
                 id: id.into(),
                 width,
                 height,
+                towers,
+                neutral_cities,
             })
             .collect(),
             levels: Vec::new(),
-            preferences: Default::default(),
             spell_library: SpellLibraryDef::default(),
         }
     }
@@ -588,7 +642,7 @@ impl SettingsDef {
         let mut problems = Vec::new();
         if !self.levels.is_empty() && self.levels.len() != LEVELS {
             problems.push(format!(
-                "settings.ron has {} levels, not {LEVELS}",
+                "rules_settings.ron has {} levels, not {LEVELS}",
                 self.levels.len()
             ));
         }

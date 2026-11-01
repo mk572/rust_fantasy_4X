@@ -10,6 +10,7 @@ use crate::city::economy::{Farmers, Population};
 use crate::game::{Event, Game};
 use crate::player::{PlayerId, Tax};
 use crate::rules::UnitKind;
+use crate::unit::halves_to_food;
 
 /// A player's projected gold and food for the coming turn change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -40,6 +41,7 @@ pub struct CityYield {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Troop {
     pub id: hecs::Entity,
+    /// The food it eats, in half food (the unit table's `upkeep.food`).
     pub food: i32,
     pub gold: i32,
     /// A noble hero brings in gold instead of costing it.
@@ -65,7 +67,7 @@ impl Budget {
             t.food_surplus += excess;
         }
         t.noble_gold = 10 * troops.iter().filter(|u| u.noble_hero).count() as i32;
-        t.food_upkeep = troops.iter().map(|u| u.food).sum();
+        t.food_upkeep = halves_to_food(troops.iter().map(|u| u.food).sum());
         // Spare food is sold at two for one gold once the army has eaten.
         t.food_gold = (sold_food_gold - t.food_upkeep / 2).max(0);
         t.unit_upkeep = (troops.iter().map(|u| u.gold).sum::<i32>() - fame).max(0);
@@ -95,13 +97,13 @@ pub fn gold_after_income(t: &Budget, gold: i32) -> i32 {
 pub fn settle(t: &Budget, gold: i32, fame: i32, troops: &[Troop]) -> Settlement {
     let gold = gold_after_income(t, gold);
     let mut disbanded = Vec::new();
-    let mut food_upkeep = t.food_upkeep;
+    let mut eating: i32 = troops.iter().map(|u| u.food).sum();
     for unit in troops.iter().rev() {
-        if food_upkeep <= t.food_surplus {
+        if halves_to_food(eating) <= t.food_surplus {
             break;
         }
         if unit.food > 0 {
-            food_upkeep -= unit.food;
+            eating -= unit.food;
             disbanded.push(unit.id);
         }
     }
@@ -175,11 +177,7 @@ impl Game {
             let _ = self.world.insert_one(city, Farmers(min));
         }
         let units = self.units();
-        let upkeep: i32 = units
-            .player_units(player)
-            .iter()
-            .map(|&u| units.unit_food_upkeep(u))
-            .sum();
+        let upkeep = units.food_of(&units.player_units(player));
         // Each extra farmer yields food beyond what he eats; add them where it pays most.
         loop {
             let surplus = self.budget(player).food_surplus;
@@ -216,7 +214,7 @@ impl Game {
             .into_iter()
             .map(|id| Troop {
                 id,
-                food: units.unit_food_upkeep(id),
+                food: units.unit_food_halves(id),
                 gold: units.unit_gold_upkeep(id),
                 noble_hero: units.unit_has_ability(id, "noble")
                     && units.unit_def(id).is_some_and(|d| d.kind == UnitKind::Hero),

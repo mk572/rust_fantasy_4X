@@ -1,6 +1,6 @@
-// f4x save, version 2, game 0.0.3, checksum f7ff2126eb2b8c36
+// f4x save, version 3, game 0.0.3, checksum 2d9fd4f765b5ffd1
 (
-    version: 2,
+    version: 3,
     game_version: "0.0.3",
     seed: 31,
     draws: 1569,
@@ -12731,7 +12731,7 @@
                 (1, 4),
             ],
             retorts: [
-                Channeler,
+                8,
             ],
             skill_points: 649,
             skill_left: 1,
@@ -12832,7 +12832,7 @@
                 (3, 4),
             ],
             retorts: [
-                Myrran,
+                9,
             ],
             skill_points: 697,
             skill_left: 26,

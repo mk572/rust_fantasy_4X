@@ -341,17 +341,17 @@ nothing refers to it, as the table says, and its `PlayerId` is not reused.
 
 ### 3.9 Saving and replaying
 
-- The save (`game/save.rs`, `SAVE_VERSION = 2`) writes each entity kind as its own list: `players`,
+- The save (`game/save.rs`, `SAVE_VERSION = 3`) writes each entity kind as its own list: `players`,
   `wizards` (one for each player that is no neutral player, naming its player by id), `heroes`,
   `units` (a unit with the creation number of a hero is that hero's body), `cities`, `features`,
   `items` and `spells` (every spell instance: the lasting ones and the cast in progress, with its
   caster's player id, its target and the mana still owed). The lists but `players` and `wizards` are in `Serial` order; a
   link is written as the linked entity's creation number (a hero's item holder, a spell's target)
-  and `PlayerId`s are written as values. Spells and other content are written by id string.
+  and `PlayerId`s are written as values. Spells and other content are written by id string; retorts are written by number (`Retort::id`, the place in the original's list, version 3), and every loop over the retorts goes in that order (`ALL_RETORTS` is `Retort::LISTED`). A retort's English name is the text `retort.<name>` in `content/text/en/retort.ron`, found by `retort_key` from the number.
   The map layers (terrain, minerals, roads, rivers, lakes, corruption) and the fog are written as
   before; nodes, lairs, towers and volcanoes are feature entities.
 - A battle in progress is the `battle` field (`battle/save.rs`).
-- **Versions.** The first line of a save is `// f4x save, version 2, game 0.0.3, checksum <hex>`. The
+- **Versions.** The first line of a save is `// f4x save, version 3, game 0.0.3, checksum <hex>`. The
   loader reads the `version` and `game_version` fields before the rest and refuses a file of
   another layout, or a game version outside `OLDEST_COMPATIBLE_VERSION..=GAME_VERSION` (`save.rs`), with a plain message ("saved by 0.0.1, this is 0.0.3 (it reads saves from 0.0.2 to 0.0.3)"); a replay
   is checked the same way, through the snapshot it starts from.

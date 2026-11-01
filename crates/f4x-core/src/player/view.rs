@@ -331,6 +331,11 @@ impl<'a> PlayerView<'a> {
         self.game.units().unit_food_upkeep(unit)
     }
 
+    /// The food these units eat together (halves added, then rounded up).
+    pub fn food_of(&self, units: &[hecs::Entity]) -> i32 {
+        self.game.units().food_of(units)
+    }
+
     pub fn city_production(&self, city: hecs::Entity) -> Production {
         self.game.economy().city_production(city)
     }

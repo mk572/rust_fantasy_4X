@@ -1,0 +1,33 @@
+// Client settings: the language and the starting state of the switches of the Settings screen (read
+// by `f4x_data::load_content_layers`, optional; `game::setting::ClientSettingsDef` is the schema).
+// None of this changes the rules of a game: the choices that do (starting gold, map size,
+// difficulty) are in `rules_settings.ron`.
+
+(
+    // The language of the messages: a folder of `content/text/`.
+    language: "en",
+
+    // The switches of the Settings screen (client preferences, kept in `saves/preferences.txt`
+    // once the player changes them): the state of each before that.
+    preferences: {
+        "sound_effects": true,
+        "background_music": true,
+        "event_music": true,
+        "city_spell_events": true,
+        "overland_spell_events": true,
+        "summoning_events": true,
+        "end_of_turn_summary": true,
+        "raze_city": true,
+        "random_events": true,
+        "end_of_turn_wait": true,
+        "strategic_combat_only": false,
+        "auto_unit_information": true,
+        "enemy_moves": true,
+        "enemy_spells": true,
+        "spell_animations": true,
+        "expanding_help": true,
+        "play_intro": true,         // true: the original's opening movie plays at start-up (only if it was extracted)
+        "left_click_moves": true,   // true: a left click moves the selected units; false: a right click does
+        "dim_behind_boxes": true,   // true: the screen under a question or notice is dimmed (the original does not); false: it stays as it is
+    },
+)

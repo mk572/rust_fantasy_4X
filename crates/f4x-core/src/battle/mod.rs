@@ -1599,3 +1599,6 @@ impl Battle {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod ability_tests;

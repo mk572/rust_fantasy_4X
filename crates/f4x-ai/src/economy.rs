@@ -267,11 +267,7 @@ fn plan_for(
 
 /// Spare food after feeding the citizens and the army.
 fn spare_food(view: &PlayerView) -> i32 {
-    let upkeep: i32 = view
-        .my_units()
-        .iter()
-        .map(|&u| view.unit_food_upkeep(u))
-        .sum();
+    let upkeep = view.food_of(&view.my_units());
     view.budget().food_surplus - upkeep
 }
 

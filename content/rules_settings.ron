@@ -1,14 +1,13 @@
-// Settings: the defaults of the settings screens and the difficulty levels (read by
-// `f4x_data::load_content_layers`, optional; `game::setting::SettingsDef` is the schema).
+// Rules settings: the defaults of the new-game choices, the map and land sizes, the difficulty
+// levels (starting gold and so on) and the spell library (read by `f4x_data::load_content_layers`,
+// optional; `game::setting::SettingsDef` is the schema). The language and the switches of the
+// client (animations, sound) are in `client_settings.ron`.
 //
 // Only settings that exist in the game today are listed. The rest of the design
 // (`docs/game-settings.md`: stack limit, starting units and mana, map size, victory conditions and
 // so on) is added here when each setting is implemented.
 
 (
-    // The language of the messages: a folder of `content/text/`.
-    language: "en",
-
     // The choices on the new-game options step and the Game settings screen, as they stand
     // before the player changes anything.
     new_game: (
@@ -42,14 +41,15 @@
     ],
 
     // The map sizes of the options step, smallest first: an id and the squares across and down
-    // of each plane (the original's is 60 by 40, the "Medium"). The counts of towers, magic
-    // nodes, encounter sites and neutral cities follow the area, the original's being for 2400
-    // squares. The tested range is 45 to 90 across and 30 to 60 down.
+    // of each plane (the original's is 60 by 40, the "Medium"), the towers of wisdom (both planes
+    // share them) and the most neutral cities on each plane. The original's 6 and 15 are for 2400
+    // squares; the others follow the area. The counts of magic nodes and encounter sites follow
+    // the area too. The tested range is 45 to 90 across and 30 to 60 down.
     map_sizes: [
-        (id: "small", width: 45, height: 30),
-        (id: "medium", width: 60, height: 40),
-        (id: "large", width: 75, height: 50),
-        (id: "huge", width: 90, height: 60),
+        (id: "small", width: 45, height: 30, towers: 3, neutral_cities: 8),
+        (id: "medium", width: 60, height: 40, towers: 6, neutral_cities: 15),
+        (id: "large", width: 75, height: 50, towers: 9, neutral_cities: 23),
+        (id: "huge", width: 90, height: 60, towers: 14, neutral_cities: 34),
     ],
 
     // What each difficulty level fills in, from Intro to Impossible (exactly five). Choosing a
@@ -340,28 +340,4 @@
             "death": "shadow_demons",
         },
     ),
-
-    // The switches of the Settings screen (client preferences, kept in `saves/preferences.txt`
-    // once the player changes them): the state of each before that.
-    preferences: {
-        "sound_effects": true,
-        "background_music": true,
-        "event_music": true,
-        "city_spell_events": true,
-        "overland_spell_events": true,
-        "summoning_events": true,
-        "end_of_turn_summary": true,
-        "raze_city": true,
-        "random_events": true,
-        "end_of_turn_wait": true,
-        "strategic_combat_only": false,
-        "auto_unit_information": true,
-        "enemy_moves": true,
-        "enemy_spells": true,
-        "spell_animations": true,
-        "expanding_help": true,
-        "play_intro": true,         // true: the original's opening movie plays at start-up (only if it was extracted)
-        "left_click_moves": true,   // true: a left click moves the selected units; false: a right click does
-        "dim_behind_boxes": true,   // true: the screen under a question or notice is dimmed (the original does not); false: it stays as it is
-    },
 )

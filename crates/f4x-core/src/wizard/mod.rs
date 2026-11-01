@@ -89,50 +89,34 @@ pub fn retort_cost(retort: Retort) -> u8 {
     }
 }
 
-/// Every retort, in the order the creation screen lists them.
-pub const ALL_RETORTS: [Retort; 18] = [
-    Retort::Alchemy,
-    Retort::Warlord,
-    Retort::Channeler,
-    Retort::Archmage,
-    Retort::Artificer,
-    Retort::Conjurer,
-    Retort::SageMaster,
-    Retort::Myrran,
-    Retort::DivinePower,
-    Retort::Famous,
-    Retort::Runemaster,
-    Retort::Charismatic,
-    Retort::ChaosMastery,
-    Retort::NatureMastery,
-    Retort::SorceryMastery,
-    Retort::InfernalPower,
-    Retort::ManaFocusing,
-    Retort::NodeMastery,
-];
+/// Every retort, in numeric order (`Retort::id`, the original's list): the creation screen, the AI
+/// and every loop over the retorts go in this order.
+pub const ALL_RETORTS: [Retort; 18] = Retort::LISTED;
 
 /// The key of the retort's name in `content/text/` (`retort.sage_master`).
 pub fn retort_key(retort: Retort) -> &'static str {
-    match retort {
-        Retort::Alchemy => "retort.alchemy",
-        Retort::Warlord => "retort.warlord",
-        Retort::ChaosMastery => "retort.chaos_mastery",
-        Retort::NatureMastery => "retort.nature_mastery",
-        Retort::SorceryMastery => "retort.sorcery_mastery",
-        Retort::Channeler => "retort.channeler",
-        Retort::Archmage => "retort.archmage",
-        Retort::Artificer => "retort.artificer",
-        Retort::Conjurer => "retort.conjurer",
-        Retort::SageMaster => "retort.sage_master",
-        Retort::Myrran => "retort.myrran",
-        Retort::DivinePower => "retort.divine_power",
-        Retort::InfernalPower => "retort.infernal_power",
-        Retort::Famous => "retort.famous",
-        Retort::Runemaster => "retort.runemaster",
-        Retort::Charismatic => "retort.charismatic",
-        Retort::ManaFocusing => "retort.mana_focusing",
-        Retort::NodeMastery => "retort.node_mastery",
-    }
+    // Indexed by the retort's number, so the table cannot fall out of order with the enum.
+    const KEYS: [&str; 18] = [
+        "retort.alchemy",
+        "retort.warlord",
+        "retort.chaos_mastery",
+        "retort.nature_mastery",
+        "retort.sorcery_mastery",
+        "retort.infernal_power",
+        "retort.divine_power",
+        "retort.sage_master",
+        "retort.channeler",
+        "retort.myrran",
+        "retort.archmage",
+        "retort.mana_focusing",
+        "retort.node_mastery",
+        "retort.famous",
+        "retort.runemaster",
+        "retort.conjurer",
+        "retort.charismatic",
+        "retort.artificer",
+    ];
+    KEYS[usize::from(retort.id())]
 }
 
 /// The books a retort needs before it may be picked (the original's `wsa_picklist_start`

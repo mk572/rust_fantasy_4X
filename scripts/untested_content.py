@@ -2,7 +2,7 @@
 """List the content ids (spells, units, buildings, abilities, ...) that no test names.
 
 For each `content/*.ron` file that has a list of rows with `id: "..."`, it looks for the id as a
-quoted string in the test code of the workspace: whole files named `tests.rs` or under a `tests/`
+quoted string in the test code of the workspace: whole files named `tests.rs` or `*_tests.rs` or under a `tests/`
 folder, and the part of any other source file from its `#[cfg(test)]` on. An id that is only
 named in the content or in ordinary code is untested here. A loop over the whole content covers
 an id without naming it; such an id still shows up, so read the list as "to look at", not as
@@ -21,7 +21,7 @@ FILES = [
 # Content kinds whose every row is compared with the original's table by a test that walks the
 # whole file (`crates/f4x-data/tests/it/original_content.rs`, task 404): all ids are covered.
 WALKED = {"units", "buildings", "items", "item_powers", "spells", "races"}
-ID = re.compile(r'\(\s*id:\s*"([^"]+)"')
+ID = re.compile(r'\(\s*(?:num:\s*\d+,\s*)?id:\s*"([^"]+)"')
 
 
 def test_code(root: Path) -> str:
@@ -30,7 +30,7 @@ def test_code(root: Path) -> str:
     for path in sorted(root.glob("crates/**/*.rs")):
         text = path.read_text(encoding="utf-8", errors="replace")
         parts = path.parts
-        if path.name == "tests.rs" or "tests" in parts[parts.index("crates"):]:
+        if path.name == "tests.rs" or path.name.endswith("_tests.rs") or "tests" in parts[parts.index("crates"):]:
             out.append(text)
             continue
         cut = text.find("#[cfg(test)]")

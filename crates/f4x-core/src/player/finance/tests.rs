@@ -8,7 +8,7 @@ fn ids(n: usize) -> Vec<hecs::Entity> {
 fn troop(id: hecs::Entity, food: i32, gold: i32) -> Troop {
     Troop {
         id,
-        food,
+        food: food * 2, // whole food in the call, half food in the troop
         gold,
         noble_hero: false,
     }
@@ -90,4 +90,22 @@ fn units_that_cost_nothing_are_never_let_go() {
     let t = Budget::default();
     let s = settle(&t, 0, 0, &troops);
     assert_eq!(s.disbanded, vec![e[1]]);
+}
+
+#[test]
+fn halves_of_food_are_added_before_they_are_rounded_up() {
+    let e = ids(3);
+    let half = |id| Troop {
+        id,
+        food: 1,
+        gold: 0,
+        noble_hero: false,
+    };
+    let one = Budget::compute(&[], &[half(e[0])], 0);
+    let two = Budget::compute(&[], &[half(e[0]), half(e[1])], 0);
+    let three = Budget::compute(&[], &[half(e[0]), half(e[1]), half(e[2])], 0);
+    assert_eq!(
+        (one.food_upkeep, two.food_upkeep, three.food_upkeep),
+        (1, 1, 2)
+    );
 }

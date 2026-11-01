@@ -43,7 +43,7 @@ const OPPONENT_NAMES: [&str; 9] = [
 ];
 pub(crate) const MAGIC_LEVELS: [&str; 3] = ["options.weak", "options.normal", "options.powerful"];
 
-/// The choices made on the options step; they start as `settings.ron` says.
+/// The choices made on the options step; they start as `rules_settings.ron` says.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct OptionsState {
     /// Index into [`DIFFICULTIES`].
@@ -88,6 +88,13 @@ impl OptionsState {
         let sizes = &settings.map_sizes;
         let m = &sizes[usize::from(self.map).min(sizes.len() - 1)];
         (m.width, m.height)
+    }
+
+    /// The towers and the most neutral cities on each plane of the chosen map size.
+    pub fn map_counts(&self, settings: &SettingsDef) -> (u8, u8) {
+        let sizes = &settings.map_sizes;
+        let m = &sizes[usize::from(self.map).min(sizes.len() - 1)];
+        (m.towers, m.neutral_cities)
     }
 
     /// The land share of the chosen size.
@@ -148,7 +155,9 @@ pub(crate) fn settings_lines(
             "options.line_map",
             &Args::new()
                 .count("w", i32::from(b.map_width))
-                .count("h", i32::from(b.map_height)),
+                .count("h", i32::from(b.map_height))
+                .count("towers", i32::from(b.tower_count()))
+                .count("cities", b.neutral_city_count() as i32),
         ),
         texts.get(
             "options.line_generator",
@@ -499,7 +508,7 @@ impl Page for GameSettingsPage {
 /// Row height of the game settings box, in the original's pixels.
 const SETTINGS_ROW: f32 = 10.0;
 
-/// The text key of a land size of `settings.ron`, by its id; an id a language has no words for
+/// The text key of a land size of `rules_settings.ron`, by its id; an id a language has no words for
 /// shows as the id itself.
 fn land_key(id: &str) -> &str {
     match id {
@@ -510,7 +519,7 @@ fn land_key(id: &str) -> &str {
     }
 }
 
-/// The text key of a map size of `settings.ron`, by its id.
+/// The text key of a map size of `rules_settings.ron`, by its id.
 fn map_key(id: &str) -> &str {
     match id {
         "small" => "options.map_small",

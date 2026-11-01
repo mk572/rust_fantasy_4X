@@ -1,6 +1,6 @@
-// f4x save, version 2, game 0.0.3, checksum d38a826142cdbebf
+// f4x save, version 3, game 0.0.3, checksum 44b82f4ecb5e3317
 (
-    version: 2,
+    version: 3,
     game_version: "0.0.3",
     seed: 21,
     draws: 670,
@@ -12025,7 +12025,7 @@
                 (3, 4),
             ],
             retorts: [
-                Myrran,
+                9,
             ],
             skill_points: 481,
             skill_left: 22,
@@ -12119,7 +12119,7 @@
                 (1, 5),
             ],
             retorts: [
-                Archmage,
+                10,
             ],
             skill_points: 541,
             skill_left: 33,

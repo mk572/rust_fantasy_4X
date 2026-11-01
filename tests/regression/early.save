@@ -1,6 +1,6 @@
-// f4x save, version 2, game 0.0.3, checksum ccf91c25e41410fd
+// f4x save, version 3, game 0.0.3, checksum ec7ba077ea278f78
 (
-    version: 2,
+    version: 3,
     game_version: "0.0.3",
     seed: 11,
     draws: 212,
@@ -14360,7 +14360,7 @@
                 (3, 10),
             ],
             retorts: [
-                Charismatic,
+                16,
             ],
             skill_points: 387,
             skill_left: 20,
@@ -14462,7 +14462,7 @@
                 (1, 5),
             ],
             retorts: [
-                Artificer,
+                17,
             ],
             skill_points: 387,
             skill_left: 20,

@@ -136,7 +136,7 @@ Decided October 2026, `spell/special.rs`.
   Nagas, Hell Hounds, Guardian Spirit and Ghouls where its comments name Water Walking, Counter Magic,
   Fire Bolt, True Light and Black Sleep, and on Hard it tests the wrong spell before making the
   uncommon one researchable. We give the first five and, from Hard, Basilisk, Phantom Beast, Chimeras,
-  Unicorns and Shadow Demons, as the wiki lists them. All of it is in `settings.ron`.
+  Unicorns and Shadow Demons, as the wiki lists them. All of it is in `rules_settings.ron`.
 
 ## 6. The Spell of Mastery's research cost (task 226)
 
@@ -738,7 +738,7 @@ immunity** protects against Terror. The other differences listed there are kept 
   2026): spearmen and swordsmen of every race cost half the food and half the gold. Upkeep is whole
   numbers for each unit, so about every second basic troop (the ones with an odd serial number, the
   order units are made in) costs nothing and the others pay in full. The unit sheet shows the
-  unit's own figure, so a free one shows none. `half_upkeep` in `content/settings.ron`
+  unit's own figure, so a free one shows none. `half_upkeep` in `content/rules_settings.ron`
   (`enabled: true` turns it on; since 30 October 2026 it is off, so the AI learns on the original's rules; `units` names the troops).
 - **No limit on the number of units** (decided by the user, 24 October 2026, task 144): the
   original's unit table holds `MAX_UNIT_COUNT` entries, so production stops and says "Maximum number
