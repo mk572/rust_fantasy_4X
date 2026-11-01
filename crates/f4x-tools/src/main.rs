@@ -58,7 +58,8 @@ const USAGE: &str = "usage:
                                               run the game from text commands (stdin, or the script)
   f4x-tools soak [--seeds A..B] [--turns N] [--players 2..5] [--every N] [--refused-log FILE]
                                               AI wizards play whole games and report; --events adds
-                                              a line on the random events; with
+                                              a line on the random events, --casts the casts
+                                              per spell and the map spells never cast; with
                                               --refused-log, every refused command goes to FILE (TSV);
                                               --snapshots-every N --out DIR saves the game every N turns
   f4x-tools soak-versus [--seeds A..B] [--turns N] [--players 2..5] [--snapshots-every N] [--out DIR]

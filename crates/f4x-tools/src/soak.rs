@@ -22,9 +22,9 @@ use f4x_core::world_event::EventKind;
 use serde::{Deserialize, Serialize};
 
 use crate::contestant::{self, Contestant, Version};
-use crate::metrics::{Standing, Tally};
+use crate::metrics::{add_casts, casts_line, never_cast, Standing, Tally};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -37,6 +37,8 @@ pub struct Options {
     pub detail: bool,
     /// Print how the random events went in each game.
     pub events: bool,
+    /// Print how often each spell was cast, and the map spells nobody cast.
+    pub casts: bool,
     pub grant_mastery: Option<u32>,
     pub battle_ai: Option<PathBuf>,
     pub refused_log: Option<PathBuf>,
@@ -62,6 +64,7 @@ impl Options {
             trace: 0,
             detail: false,
             events: false,
+            casts: false,
             grant_mastery: None,
             battle_ai: None,
             refused_log: None,
@@ -91,6 +94,7 @@ impl Options {
                 }
                 "--detail" => o.detail = true,
                 "--events" => o.events = true,
+                "--casts" => o.casts = true,
                 "--grant-mastery" => {
                     o.grant_mastery =
                         Some(value("--grant-mastery")?.parse().map_err(|_| "bad turn")?)
@@ -184,6 +188,14 @@ pub fn run(args: &[String]) -> Result<(), String> {
         summary.iter().filter(|&&w| w).count(),
         summary.len()
     );
+    if opts.casts {
+        let all = add_casts(results.iter().map(|r| r.tally.casts()));
+        println!("all games, casts: {}", casts_line(&all));
+        println!(
+            "all games, map spells never cast: {}",
+            never_cast(&content.rules, &all).join(", ")
+        );
+    }
     Ok(())
 }
 
@@ -367,6 +379,9 @@ pub fn game(
         total.diplomacy_started,
         total.refused_orders,
     );
+    if opts.casts {
+        println!("{tag}: casts: {}", casts_line(tally.casts()));
+    }
     if opts.events {
         println!("{tag}: {}", watch.summary(game.turn.saturating_sub(1)));
     }

@@ -2,7 +2,7 @@
 //! happen, and the standing at a given moment. Used by `soak` (one line per game) and
 //! `soak-versus` (the AI versions side by side).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::AddAssign;
 
 use f4x_core::city::production::ProductionItem;
@@ -10,7 +10,7 @@ use f4x_core::diplomacy::{DiplomacyEvent, Proposal};
 use f4x_core::game::{Event, Game};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::{MovementType, Stat, UnitDef};
+use f4x_core::rules::{CastContext, MovementType, Rules, Stat, UnitDef};
 use serde::{Deserialize, Serialize};
 
 /// Whether a unit kind is a ship: it sails and carries land units.
@@ -90,6 +90,40 @@ impl Metrics {
     }
 }
 
+/// The casts of several games added up: `casts` is each tally's [`Tally::casts`].
+pub fn add_casts<'a>(
+    casts: impl IntoIterator<Item = &'a BTreeMap<String, u32>>,
+) -> BTreeMap<String, u32> {
+    let mut sum = BTreeMap::new();
+    for one in casts {
+        for (spell, n) in one {
+            *sum.entry(spell.clone()).or_default() += n;
+        }
+    }
+    sum
+}
+
+/// The ids of the spells that can be cast on the map and are not in `casts`.
+pub fn never_cast(rules: &Rules, casts: &BTreeMap<String, u32>) -> Vec<String> {
+    rules
+        .spells
+        .iter()
+        .map(|(_, def)| def)
+        .filter(|def| def.contexts.contains(&CastContext::Overland) && !casts.contains_key(&def.id))
+        .map(|def| def.id.clone())
+        .collect()
+}
+
+/// `id count` pairs, the most cast first.
+pub fn casts_line(casts: &BTreeMap<String, u32>) -> String {
+    let mut all: Vec<_> = casts.iter().collect();
+    all.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+    all.iter()
+        .map(|(spell, n)| format!("{spell} {n}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 impl AddAssign for Metrics {
     fn add_assign(&mut self, other: Metrics) {
         let Metrics {
@@ -154,6 +188,9 @@ pub struct Tally {
     ships_at_start: Vec<u32>,
     /// The landmasses (plane, number) each player has landed troops on.
     landed_on: Vec<BTreeSet<(usize, u32)>>,
+    /// How often each spell was cast by anyone, by the spell's id.
+    #[serde(default)]
+    casts: BTreeMap<String, u32>,
 }
 
 impl Tally {
@@ -168,6 +205,7 @@ impl Tally {
             players: vec![Metrics::default(); count + 1],
             ships_at_start: vec![0; count + 1],
             landed_on: vec![BTreeSet::new(); count + 1],
+            casts: BTreeMap::new(),
         };
         tally.ships_at_start = tally.ships_now(game);
         tally
@@ -186,6 +224,11 @@ impl Tally {
                 .count() as u32;
         }
         ships
+    }
+
+    /// How often each spell was cast, by the spell's id; a spell never cast is not in it.
+    pub fn casts(&self) -> &BTreeMap<String, u32> {
+        &self.casts
     }
 
     pub fn of(&self, player: PlayerId) -> Metrics {
@@ -290,7 +333,13 @@ impl Tally {
                     }
                 }
                 Event::UnitLost { player, .. } => self.bump(*player, |m| m.units_lost += 1),
-                Event::SpellCast { player, .. } => self.bump(*player, |m| m.spells_cast += 1),
+                Event::SpellCast { player, spell } => {
+                    *self
+                        .casts
+                        .entry(game.content().rules.spells.get(*spell).id.clone())
+                        .or_default() += 1;
+                    self.bump(*player, |m| m.spells_cast += 1)
+                }
                 Event::SpellLearned { player, .. } => self.bump(*player, |m| m.spells_learned += 1),
                 Event::HeroJoined { player, .. } => self.bump(*player, |m| m.heroes_joined += 1),
                 Event::MercenariesHired { player, .. } => {
@@ -488,5 +537,23 @@ mod tests {
         assert!(ships.iter().any(|d| d.id == "galley"));
         assert!(ships.iter().all(|d| d.movement == MovementType::Sailing));
         assert!(!ships.iter().any(|d| d.id == "spearmen"));
+    }
+
+    /// The cast counts add up across games, are listed most-cast first, and a map spell that is
+    /// not among them is reported as never cast.
+    #[test]
+    fn casts_are_added_listed_and_the_missing_map_spells_reported() {
+        let one = BTreeMap::from([("heroism".to_string(), 2), ("bless".to_string(), 1)]);
+        let two = BTreeMap::from([("heroism".to_string(), 3)]);
+        let sum = add_casts([&one, &two]);
+        assert_eq!(sum["heroism"], 5);
+        assert_eq!(casts_line(&sum), "heroism 5, bless 1");
+        let missing = never_cast(&shipped().rules, &sum);
+        assert!(!missing.iter().any(|s| s == "heroism" || s == "bless"));
+        assert!(missing.iter().any(|s| s == "transmute"), "{missing:?}");
+        assert!(
+            !missing.iter().any(|s| s == "magic_vortex"),
+            "a battle-only spell is not a map spell"
+        );
     }
 }
