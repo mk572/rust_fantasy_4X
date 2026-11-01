@@ -17,21 +17,29 @@ use f4x_core::wizard::{retort_available, retort_cost, ALL_RETORTS, MAX_RETORTS};
 use macroquad::prelude::*;
 
 use crate::create_screen::Step;
+use crate::font::Ink;
+use crate::font_ramp;
 use crate::frame::Layout;
 use crate::newgame_flow::{book_base, GOLD_INK, GREY_INK, LIGHT, SHADOW};
 use crate::view::App;
 
 /// The realms in the order of the rows and of `TBL_Realm_Order`.
 pub(crate) const REALM_ORDER: [&str; 5] = ["life", "death", "chaos", "nature", "sorcery"];
-/// The realms' ink on the spells step.
-fn realm_ink(realm: &str) -> Color {
+/// The realms' colour on the spells step (`LIFE_WHITE` and the others of `MOX_DEF.h`), a palette index.
+fn realm_colour(realm: &str) -> u8 {
     match realm {
-        "life" => Color::new(0.95, 0.95, 0.9, 1.0),
-        "death" => Color::new(0.7, 0.5, 0.85, 1.0),
-        "chaos" => Color::new(0.95, 0.4, 0.3, 1.0),
-        "nature" => Color::new(0.4, 0.85, 0.4, 1.0),
-        _ => Color::new(0.45, 0.6, 0.98, 1.0),
+        "life" => 13,
+        "death" => 114,
+        "chaos" => 201,
+        "nature" => 216,
+        _ => 172,
     }
+}
+
+/// The spells step's text: the colour of `Set_Font_Colors_15` on its own, the shadow one pixel
+/// right and below (`Print` twice in the original).
+fn pick_ink(font: usize, colour: u8) -> Style {
+    Style::inked(font, Ink::Set(font_ramp::flat(colour)))
 }
 
 /// What a retort needs, in the words of the original's refusal ("To select X you need: ...").
@@ -288,22 +296,9 @@ impl CreateState {
         // The picks left, the abilities, the name and the OK button.
         let left = self.build.picks_left();
         let count = app.text_with("picks.left", &Args::new().count("n", left));
-        // ReMoM prints the light text first and the shadow over it, which buries the words;
-        // the shadow goes underneath.
-        app.draw_styled(
-            view,
-            &Style::nearest(3, SHADOW).center(),
-            &count,
-            222.0,
-            186.0,
-        );
-        app.draw_styled(
-            view,
-            &Style::nearest(3, LIGHT).center(),
-            &count,
-            221.0,
-            185.0,
-        );
+        // `m_dark_colors` (31) on `m_light_colors` (187), the light one pixel right and below.
+        app.draw_styled(view, &pick_ink(3, 187).center(), &count, 222.0, 186.0);
+        app.draw_styled(view, &pick_ink(3, 31).center(), &count, 221.0, 185.0);
         let name = self.build.name.clone();
         app.ng_name(lay, &name);
         self.ng_abilities(app, lay);
@@ -384,19 +379,18 @@ impl CreateState {
             .realms
             .by_name(realm)
             .map_or_else(|| realm.to_string(), |r| r.name.clone());
-        let ink = realm_ink(realm);
+        let ink = realm_colour(realm);
         let title = app.text_with(
             "picks.select_spells",
             &Args::new().text("realm", &realm_name),
         );
         app.draw_styled(
             view,
-            &Style::nearest(4, SHADOW).center(),
+            &pick_ink(4, ink).shadow().edge(SHADOW).center(),
             &title,
-            242.0,
-            7.0,
+            241.0,
+            6.0,
         );
-        app.draw_styled(view, &Style::nearest(4, ink).center(), &title, 241.0, 6.0);
         let books = self.build.books.clone();
         self.ng_shelf(app, lay, &REALM_ORDER, &|r| {
             books.get(r).copied().unwrap_or(0)
@@ -418,7 +412,7 @@ impl CreateState {
             });
             app.draw_styled(
                 view,
-                &Style::nearest(3, ink),
+                &pick_ink(3, ink).shadow().edge(SHADOW),
                 &app.text_with(
                     "picks.rarity_row",
                     &Args::new().text("rarity", label).count("n", want),
@@ -444,15 +438,11 @@ impl CreateState {
                 let y = top + 7.0 * row as f32 + 1.0;
                 let name = app.game.content().rules.spells.get(*id).name.clone();
                 let selected = self.build.spells.contains(id);
-                app.draw_styled(view, &Style::nearest(0, SHADOW), &name, x + 1.0, y + 1.0);
-                let colour = if selected {
-                    Color::new(1.0, 0.95, 0.6, 1.0)
-                } else {
-                    GREY_INK
-                };
+                // `m_select_spells_*_colors`: 178 chosen, 50 not, the shadow 16 one pixel to the right.
+                app.draw_styled(view, &pick_ink(0, 16), &name, x + 1.0, y);
                 app.draw_styled(
                     view,
-                    &Style::nearest(0, if selected { colour } else { LIGHT }),
+                    &pick_ink(0, if selected { 178 } else { 50 }),
                     &name,
                     x,
                     y,
@@ -488,22 +478,9 @@ impl CreateState {
             self.warn = Some(app.text("picks.none_left_here"));
         }
         let count = app.text_with("picks.left", &Args::new().count("n", remaining));
-        // ReMoM prints the light text first and the shadow over it, which buries the words;
-        // the shadow goes underneath.
-        app.draw_styled(
-            view,
-            &Style::nearest(3, SHADOW).center(),
-            &count,
-            222.0,
-            186.0,
-        );
-        app.draw_styled(
-            view,
-            &Style::nearest(3, LIGHT).center(),
-            &count,
-            221.0,
-            185.0,
-        );
+        // `m_dark_colors` (31) on `m_light_colors` (187), the light one pixel right and below.
+        app.draw_styled(view, &pick_ink(3, 187).center(), &count, 222.0, 186.0);
+        app.draw_styled(view, &pick_ink(3, 31).center(), &count, 221.0, 185.0);
         let name = self.build.name.clone();
         app.ng_name(lay, &name);
         self.ng_abilities(app, lay);
