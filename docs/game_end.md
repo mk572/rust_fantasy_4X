@@ -91,12 +91,14 @@ banished. One stage is a few ticks of the original's clock (18.2 a second): vict
 the victor holds up are chosen by a table the review of ReMoM could not read (`GAME_PlayVictoryAnim`'s `off_79C7F`); the
 one used gives the shaman's hands to Raven, the priestess's to Sharee, Oberic's to Oberic, the draconian's to Sss'ra,
 a woman's to Freya, Ariel and Kali, and a man's to the rest, which fits the five targets in their order.
-`--shot FILE --scene win|lose|conquest|return|parade [--shot-after SECONDS]` shows each.
+`--shot FILE --scene win|lose|mastery_lost|conquest|conquest_by_wizard|return|parade [--shot-after SECONDS]` shows each. The zap of a wizard banished or defeated by another wizard (`conquest_by_wizard`) is our own: the original returns early and shows none.
 
 ## 6. Not done
 
-- A rival's win by the Spell of Mastery is only the defeat scene: the sphere scene before it
-  (`Spell_Of_Mastery_Lose`) is task 360.
+- A rival's win by the Spell of Mastery shows the sphere scene (`--scene mastery_lost`,
+  `Spell_Of_Mastery_Lose`: the wizard bent over an arch, squeezed and drawn into the sphere of
+  their colour, with the familiar in the corner) and then the defeat. The original's `Vanish_Bitmap`
+  on the wizard's sphere is read as a fade-in, an alpha rising 8 percent a frame.
 - The AI conquest rules that would feed relations (63, 67). The "has started casting"
   announcement is in as plain text (animation: task 287).
 

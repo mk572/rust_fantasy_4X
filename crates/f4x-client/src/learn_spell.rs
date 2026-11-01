@@ -142,7 +142,7 @@ fn strongest(books: [i32; 5]) -> usize {
 impl App {
     /// The realm of the wizard's strongest books, the first of nature, sorcery, chaos, life and
     /// death on a tie (`Prim_Realm`): it colours the familiar.
-    fn primary_realm(&self) -> usize {
+    pub(crate) fn primary_realm(&self) -> usize {
         let books = |r: &str| self.game.wizard(HUMAN).map_or(0, |m| m.books_in(r));
         strongest(["nature", "sorcery", "chaos", "life", "death"].map(books))
     }

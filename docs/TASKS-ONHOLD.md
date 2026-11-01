@@ -108,7 +108,7 @@ of the player text already is (`docs/text.md`):
 
 *Needs:* nothing for 1 to 3; 358 is the same job for the names in the rules files and can share the fonts of step 4.
 
-**360. Remaining Conquest, banishment and defeat scenes (client).** **Left:** the scene a rival’s Spell of Mastery brings (`Spell_Of_Mastery_Lose`, ReMoM `SPLMASTR.c`: `spellose.lbx`, the wizard's picture sheared and shrunk into the sphere of their colour, the familiar in the corner) before the defeat; the zap of a wizard banished by another wizard, which the original does not show (its early return) and which we could add as our own; and a hand check
+**360. Remaining Conquest, banishment and defeat scenes (client).** Done 1 November 2026: the scene a rival’s Spell of Mastery brings (`Kind::MasteryLost`, `--scene mastery_lost`), before the defeat. Done 1 November 2026: the zap for a wizard banished or defeated by another wizard, which the original does not show (its early return): our own addition, the same scene with the conqueror's pictures (`--scene conquest_by_wizard`, keys `end.conquers` and `end.conquers_fortress`). **Left:** a hand check
 of the scenes in a real game (the shots were taken from `--scene`).
 
 **364. Scenes with their own music.** **Progress 30 October 2026:** (1) the summon scene and (2) the city-spell scroll are built with their music (`summon_scene.rs`, `city_scroll.rs`; the summon music follows the spell's rarity); only (3) the Force of Nature scene is left. Was: Three scenes of the original that the client does not have, each with the music

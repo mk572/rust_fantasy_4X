@@ -27,10 +27,14 @@ pub(crate) enum Kind {
     /// The human wizard rules both planes (`Win_Animation`).
     Win { wizard: usize },
     /// The human wizard is gone (`Lose_Animation`).
-    Lose {
+    Lose { wizard: usize },
+    /// A rival finishes the Spell of Mastery: the human wizard is drawn into a sphere of their
+    /// colour, under the rival's name and the spell's (`Spell_Of_Mastery_Lose`). The defeat follows.
+    MasteryLost {
         wizard: usize,
-        /// The rival who finished the Spell of Mastery: the scene says so (`Spell_Of_Mastery_Lose_Draw`).
-        caster: Option<PlayerId>,
+        caster: PlayerId,
+        /// The realm of the human wizard's strongest books, which colours the familiar.
+        realm: usize,
     },
     /// The raiders (`winner` is `None`) or a rival destroy a wizard (`Conquest_Animation`).
     Conquest {
@@ -69,6 +73,8 @@ fn timing(kind: &Kind) -> (u32, u32) {
     match kind {
         Kind::Win { .. } => (4, 90),
         Kind::Lose { .. } => (4, 45),
+        // Two ticks to the frame, 43 frames.
+        Kind::MasteryLost { .. } => (2, 42),
         Kind::Conquest { .. } => (5, 30),
         Kind::Return { .. } => (5, 40),
         Kind::Parade { rivals, .. } => (3, parade_stages(rivals.len()) - 1),
@@ -210,15 +216,19 @@ impl App {
             self.end_scenes
                 .push_back(Scene::new(Kind::Parade { wizard, rivals }));
         }
+        if over.winner != HUMAN && over.kind == f4x_core::game::endgame::EndKind::SpellOfMastery {
+            let realm = self.primary_realm();
+            self.end_scenes.push_back(Scene::new(Kind::MasteryLost {
+                wizard,
+                caster: over.winner,
+                realm,
+            }));
+        }
         self.end_scenes
             .push_back(Scene::new(if over.winner == HUMAN {
                 Kind::Win { wizard }
             } else {
-                Kind::Lose {
-                    wizard,
-                    caster: (over.kind == f4x_core::game::endgame::EndKind::SpellOfMastery)
-                        .then_some(over.winner),
-                }
+                Kind::Lose { wizard }
             }));
     }
 
@@ -237,22 +247,29 @@ impl App {
             usize::from(loser.portrait()),
             loser.gender() == Gender::Feminine,
         );
-        // The original shows the zap only when the raiders are on one side of it.
-        if by.is_none_or(|b| self.game.is_neutral_player(b)) {
-            let key = if banished {
-                "end.raiders_fortress"
-            } else {
-                "end.raiders"
-            };
-            let caption = self.text_with(key, &self.wizard_arg(Args::new(), "loser", player));
-            self.end_scenes.push_back(Scene::new(Kind::Conquest {
-                loser: portrait,
-                winner: None,
-                caption,
-                human: player == HUMAN,
-                feminine,
-            }));
+        // The original shows the zap only when the raiders are on one side of it and returns
+        // early for a wizard who banishes or defeats another: our own addition is that scene,
+        // with the conquering wizard in the raiders' place.
+        let conqueror = by.filter(|&b| !self.game.is_neutral_player(b));
+        let winner = conqueror.and_then(|b| self.game.wizard(b).map(|w| usize::from(w.portrait())));
+        let key = match (winner.is_some(), banished) {
+            (false, true) => "end.raiders_fortress",
+            (false, false) => "end.raiders",
+            (true, true) => "end.conquers_fortress",
+            (true, false) => "end.conquers",
+        };
+        let mut args = self.wizard_arg(Args::new(), "loser", player);
+        if let Some(b) = conqueror {
+            args = self.wizard_arg(args, "winner", b);
         }
+        let caption = self.text_with(key, &args);
+        self.end_scenes.push_back(Scene::new(Kind::Conquest {
+            loser: portrait,
+            winner,
+            caption,
+            human: player == HUMAN,
+            feminine,
+        }));
         if banished && player != HUMAN {
             let caption = self.text_with(
                 "end.returns",
@@ -277,10 +294,15 @@ impl App {
             .unwrap_or(HUMAN);
         match name {
             "win" => self.end_scenes.push_back(Scene::new(Kind::Win { wizard })),
-            "lose" => self.end_scenes.push_back(Scene::new(Kind::Lose {
-                wizard,
-                caster: Some(rival),
-            })),
+            "lose" => self.end_scenes.push_back(Scene::new(Kind::Lose { wizard })),
+            "mastery_lost" => {
+                let realm = self.primary_realm();
+                self.end_scenes.push_back(Scene::new(Kind::MasteryLost {
+                    wizard,
+                    caster: rival,
+                    realm,
+                }));
+            }
             "parade" => {
                 let rivals = vec![usize::from(
                     self.game.wizard(rival).map_or(1, |w| w.portrait()),
@@ -289,6 +311,7 @@ impl App {
                     .push_back(Scene::new(Kind::Parade { wizard, rivals }));
             }
             "conquest" => self.queue_conquest_scene(rival, None, true),
+            "conquest_by_wizard" => self.queue_conquest_scene(rival, Some(HUMAN), true),
             "return" => self.queue_conquest_scene(rival, Some(HUMAN), true),
             other => eprintln!("unknown scene {other}"),
         }
@@ -301,6 +324,7 @@ impl App {
         Some(Track::piece(match scene.kind {
             Kind::Win { .. } => music::WIN_MILITARY,
             Kind::Lose { .. } => music::LOSE_MILITARY,
+            Kind::MasteryLost { .. } => music::LOSE_BY_MAGIC,
             Kind::Conquest { human, .. } => {
                 if human {
                     music::LOSE_MILITARY
@@ -344,7 +368,12 @@ impl App {
         clip_to_screen(&lay, true);
         match kind {
             Kind::Win { wizard } => self.draw_win(&lay, wizard, stage),
-            Kind::Lose { wizard, caster } => self.draw_lose(&lay, wizard, caster, stage),
+            Kind::Lose { wizard } => self.draw_lose_picture(&lay, wizard, stage),
+            Kind::MasteryLost {
+                wizard,
+                caster,
+                realm,
+            } => self.draw_mastery_lost(&lay, (wizard, caster, realm), stage),
             Kind::Conquest {
                 loser,
                 winner,
@@ -405,22 +434,76 @@ impl App {
         self.scene_caption(lay, &text, 180.0, rgb(0, 0, 0));
     }
 
-    fn draw_lose(&mut self, lay: &Layout, wizard: usize, caster: Option<PlayerId>, stage: u32) {
-        self.draw_lose_picture(lay, wizard, stage);
-        if let Some(caster) = caster {
-            // The caption of a lost Spell of Mastery: the winner's name over "Spell of Mastery", in
-            // the grey of `Set_Font_Colors_15(5, 5 ...)` with `Outline` and outline colour 0.
-            let view = (lay.origin.x, lay.origin.y, lay.scale);
-            let style = Style::inked(5, Ink::Set(font_ramp::flat(5)))
-                .effect(Effect::Outline)
-                .edge(rgb(0, 0, 0))
-                .center();
-            let args = self.wizard_arg(Args::new(), "winner", caster);
-            let line = self.text_with("end.mastery_cast", &args);
-            self.draw_styled(view, &style, &line, 160.0, 5.0);
-            let name = self.text("bigbook.mastery_name");
-            self.draw_styled(view, &style, &name, 160.0, 25.0);
+    /// `Spell_Of_Mastery_Lose_Draw`, `stage` being the original's frame counter: the wizard
+    /// stands in the lab under a sphere that fills; from frame 12 the wizard is bent over a
+    /// rising arch (the original shears the picture's columns), squeezed thin and drawn across
+    /// into the sphere while the sphere takes the wizard's colours; from frame 24 the sphere
+    /// shows the wizard.
+    fn draw_mastery_lost(
+        &mut self,
+        lay: &Layout,
+        (wizard, caster, realm): (usize, PlayerId, usize),
+        stage: u32,
+    ) {
+        self.scene_pic(lay, "spellose", 28, 0, (0.0, 0.0));
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let style = Style::inked(5, Ink::Set(font_ramp::flat(5)))
+            .effect(Effect::Outline)
+            .edge(rgb(0, 0, 0))
+            .center();
+        let args = self.wizard_arg(Args::new(), "winner", caster);
+        let line = self.text_with("end.mastery_cast", &args);
+        self.draw_styled(view, &style, &line, 160.0, 5.0);
+        let name = self.text("bigbook.mastery_name");
+        self.draw_styled(view, &style, &name, 160.0, 25.0);
+        let wizard_pic = self.art_picture("spellose", 14 + wizard, 0);
+        // Where the wizard's picture has something drawn: the sphere is centred on it.
+        let bounds = wizard_pic
+            .as_ref()
+            .map_or((0.0, 0.0, 0.0, 0.0), picture_bounds);
+        let (left, top, width, _) = bounds;
+        let start_x = 35.0 + left + (width / 2.0).floor();
+        if stage < 12 {
+            self.scene_pic(lay, "spellose", 14 + wizard, 0, (61.0, 68.0));
+            let sphere = (stage / 2) as usize;
+            self.scene_pic(lay, "spellose", 29, sphere, (start_x, 34.0));
+        } else if stage < 24 {
+            self.scene_pic(lay, "spellose", 29, 5, (start_x, 34.0));
+            let step = stage - 12;
+            if let Some(tex) = &wizard_pic {
+                // How far the middle of the picture rises: the picture's top margin, in steps.
+                let peak = -top;
+                let (a, b) = match step / 2 {
+                    0 | 1 => (peak / 6.0, peak / 3.0),
+                    2 | 3 => (peak / 4.0, peak / 2.0),
+                    _ => (peak / 2.0, peak),
+                };
+                let squeeze = (100 - step as i32 * 6).max(1) as f32 / 100.0;
+                let x = 61.0 + (step * 714 / 200) as f32;
+                draw_sheared(lay, tex, (x, 68.0), squeeze, (a, b));
+            }
+            // The sphere that holds the wizard comes up as the wizard goes in.
+            let appear = (step * 8).min(100) as f32 / 100.0;
+            if let Some(tex) = self.art_picture("spellose", wizard, 0) {
+                let at = lay.point(start_x, 34.0);
+                let size = crate::resolution::logical_size(&tex) * lay.scale;
+                draw_texture_ex(
+                    &tex,
+                    at.x,
+                    at.y,
+                    Color::new(1.0, 1.0, 1.0, appear),
+                    DrawTextureParams {
+                        dest_size: Some(size),
+                        ..Default::default()
+                    },
+                );
+            }
+        } else if stage < 36 {
+            let frame = ((stage - 24) / 2) as usize;
+            self.scene_pic(lay, "spellose", wizard, frame, (start_x, 34.0));
         }
+        // The familiar in the corner, of the colour of the wizard's strongest realm.
+        self.scene_pic(lay, "spellose", 30 + realm, 0, (190.0, 160.0));
     }
 
     fn draw_lose_picture(&mut self, lay: &Layout, wizard: usize, stage: u32) {
@@ -566,6 +649,77 @@ fn clip_to_screen(lay: &Layout, on: bool) {
         )));
     } else {
         gl.quad_gl.scissor(None);
+    }
+}
+
+/// The box `(left, top, width, height)` of a picture's pixels that are drawn at all, in the
+/// original's pixels (`Get_Bitmap_Actual_Size`).
+fn picture_bounds(tex: &Texture2D) -> (f32, f32, f32, f32) {
+    let image = tex.get_texture_data();
+    let (w, h) = (usize::from(image.width), usize::from(image.height));
+    let (mut x0, mut y0, mut x1, mut y1) = (w, h, 0, 0);
+    for y in 0..h {
+        for x in 0..w {
+            if image.bytes[(y * w + x) * 4 + 3] > 0 {
+                x0 = x0.min(x);
+                y0 = y0.min(y);
+                x1 = x1.max(x + 1);
+                y1 = y1.max(y + 1);
+            }
+        }
+    }
+    if x1 <= x0 {
+        return (0.0, 0.0, w as f32, h as f32);
+    }
+    let scale = crate::resolution::logical_w(tex) / w as f32;
+    (
+        x0 as f32 * scale,
+        y0 as f32 * scale,
+        (x1 - x0) as f32 * scale,
+        (y1 - y0) as f32 * scale,
+    )
+}
+
+/// A picture drawn column by column, each lifted by an amount that rises from nothing at the
+/// left edge to `a` a quarter across, `b` in the middle, `a` three quarters across and nothing at
+/// the right edge (`Shear_Bitmap_Y` four times), and `squeeze` as wide as it is (`Scale_Bitmap`).
+fn draw_sheared(
+    lay: &Layout,
+    tex: &Texture2D,
+    (x, y): (f32, f32),
+    squeeze: f32,
+    (a, b): (f32, f32),
+) {
+    let size = crate::resolution::logical_size(tex);
+    let columns = size.x.round().max(1.0) as u32;
+    let across = |c: u32| c as f32 / columns as f32;
+    let lift = |t: f32| {
+        let (from, to, u) = if t < 0.25 {
+            (0.0, a, t / 0.25)
+        } else if t < 0.5 {
+            (a, b, (t - 0.25) / 0.25)
+        } else if t < 0.75 {
+            (b, a, (t - 0.5) / 0.25)
+        } else {
+            (a, 0.0, (t - 0.75) / 0.25)
+        };
+        from + (to - from) * u
+    };
+    let source_w = tex.width() / columns as f32;
+    for c in 0..columns {
+        let left = lay.point(x + across(c) * size.x * squeeze, y + lift(across(c)));
+        let width = (size.x / columns as f32) * squeeze * lay.scale;
+        draw_texture_ex(
+            tex,
+            left.x,
+            left.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(width.max(1.0), size.y * lay.scale)),
+                source: Some(Rect::new(c as f32 * source_w, 0.0, source_w, tex.height())),
+                ..Default::default()
+            },
+        );
     }
 }
 

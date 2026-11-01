@@ -122,7 +122,13 @@ fn palette_entry_for(stem: &str) -> Option<usize> {
 /// Magic screen's background gives the Alchemy and OK buttons their colours, the Load and Save
 /// screen's the buttons below the slots, the start menu's title its castle and menu items, the army list's background its Items and OK buttons.
 fn screen_palette_entry(stem: &str) -> Option<usize> {
-    matches!(stem, "magic" | "load" | "mainscrn" | "armylist").then_some(0)
+    match stem {
+        "magic" | "load" | "mainscrn" | "armylist" => Some(0),
+        // `Spell_Of_Mastery_Lose_Load` loads the lab's palette from entry 28 and draws the
+        // wizards, spheres and familiars with it.
+        "spellose" => Some(28),
+        _ => None,
+    }
 }
 
 /// Case-insensitive file lookup, since the game files are upper case on disk.
@@ -705,6 +711,7 @@ mod tests {
             assert_eq!(screen_palette_entry(stem), Some(0), "{stem}");
         }
         assert_eq!(screen_palette_entry("cityscap"), None);
+        assert_eq!(screen_palette_entry("spellose"), Some(28));
     }
 
     #[test]
