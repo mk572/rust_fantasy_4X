@@ -76,40 +76,6 @@ def ron_str(s: str) -> str:
 
 
 
-# The ready-made wizards' names and descriptions (help topic 659 + position). Their books and
-# retorts are game rules and live in `content/wizards.ron`, in this order (the original's
-# `_wizard_presets_table`).
-WIZARD_NAMES = [
-    ("merlin", "Merlin"),
-    ("raven", "Raven"),
-    ("sharee", "Sharee"),
-    ("lo_pan", "Lo Pan"),
-    ("jafar", "Jafar"),
-    ("oberic", "Oberic"),
-    ("rjak", "Rjak"),
-    ("sssra", "Sss'ra"),
-    ("tauron", "Tauron"),
-    ("freya", "Freya"),
-    ("horus", "Horus"),
-    ("ariel", "Ariel"),
-    ("tlaloc", "Tlaloc"),
-    ("kali", "Kali"),
-]
-WIZARD_HELP_FIRST = 659
-
-
-def wizard_text_lines(help_topics) -> list[str]:
-    by_index = {t.index: t for t in help_topics}
-    lines = []
-    for i, (wid, name) in enumerate(WIZARD_NAMES):
-        topic = by_index.get(WIZARD_HELP_FIRST + i)
-        text = topic.text if topic and topic.title.lower() == name.lower() else ""
-        lines.append(
-            f"    (id: {ron_str(wid)}, name: {ron_str(name)}, description: {ron_str(text)}),"
-        )
-    return lines
-
-
 RACE_COUNT = 14
 
 
@@ -744,7 +710,6 @@ def run(game: Path, remom: Path, out: Path, rules_out: Path) -> Report:
         f"    (race: {ron_str(race.id)}, names: [{', '.join(ron_str(n) for n in city_names[race.index] if n)}]),"
         for race in races
     ])
-    write_list(out / "wizard_texts.ron", local_header, wizard_text_lines(help_topics))
     write_list(out / "event_texts.ron", local_header, import_event_texts(game))
     write_list(out / "diplomsg.ron", local_header, import_diplomacy_lines(game, report))
     building_texts = import_building_texts(game, buildings)

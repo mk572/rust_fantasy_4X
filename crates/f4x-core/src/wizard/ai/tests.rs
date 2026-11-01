@@ -60,7 +60,7 @@ fn wizard_def(num: u16, id: &str, books: &[(&str, u8)], retorts: &[Retort]) -> W
         num,
         id: id.into(),
         name: id.into(),
-        description: String::new(),
+        help: 0,
         gender: Default::default(),
         books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
         retorts: retorts

@@ -13,10 +13,6 @@ pub struct HelpTopic {
     /// Another topic whose text is shown with this one.
     #[serde(default)]
     pub include: Option<u16>,
-    /// What the topic explains when no screen area opens it: `ability:<id>` or `spell:<id>`.
-    /// Found with [`Help::topic_for`]; a subject has one topic.
-    #[serde(default)]
-    pub subject: Option<String>,
 }
 
 /// Left, top, right and bottom in 320 by 200 screen coordinates.
@@ -43,26 +39,14 @@ pub struct Help {
     pub screens: Vec<HelpScreen>,
 }
 
-/// The help subject of an ability, as a topic's `subject` writes it.
-pub fn ability_subject(id: &str) -> String {
-    format!("ability:{id}")
-}
-
-/// The help subject of a spell.
-pub fn spell_subject(id: &str) -> String {
-    format!("spell:{id}")
-}
-
 impl Help {
     pub fn topic(&self, index: u16) -> Option<&HelpTopic> {
         self.topics.iter().find(|t| t.index == index)
     }
 
-    /// The topic that explains `subject` (`ability:forester`, `spell:web`).
-    pub fn topic_for(&self, subject: &str) -> Option<&HelpTopic> {
-        self.topics
-            .iter()
-            .find(|t| t.subject.as_deref() == Some(subject))
+    /// The topic an entity's `help` names, if it names one.
+    pub fn topic_of(&self, index: Option<u16>) -> Option<&HelpTopic> {
+        self.topic(index?)
     }
 
     /// The areas of `screen` (a [`HelpScreen::id`]).
@@ -120,17 +104,6 @@ impl Help {
                 p.push(format!("help topic {} is there twice", t.index));
             }
         }
-        let mut subjects = std::collections::HashSet::new();
-        for t in &self.topics {
-            if let Some(subject) = &t.subject {
-                if !subjects.insert(subject) {
-                    p.push(format!(
-                        "help topic {} repeats the subject {subject}",
-                        t.index
-                    ));
-                }
-            }
-        }
         for (i, t) in self.topics.iter().enumerate() {
             if let Some(other) = self.topics[..i]
                 .iter()
@@ -167,36 +140,18 @@ mod tests {
             text: String::new(),
             picture: None,
             include,
-            subject: None,
         }
     }
 
     #[test]
-    fn a_subject_finds_its_topic_and_has_one() {
-        let mut a = topic(1000, None);
-        a.subject = Some("ability:forester".into());
-        let mut b = topic(1001, None);
-        b.subject = Some("spell:web".into());
-        b.title = "Web".into();
-        let mut help = Help {
-            topics: vec![a.clone(), b],
+    fn a_topic_is_found_by_its_index() {
+        let help = Help {
+            topics: vec![topic(1000, None), topic(1001, None)],
             screens: Vec::new(),
         };
-        assert_eq!(
-            help.topic_for("ability:forester").map(|t| t.index),
-            Some(1000)
-        );
-        assert_eq!(help.topic_for("spell:web").map(|t| t.index), Some(1001));
-        assert!(help.topic_for("spell:none").is_none());
+        assert_eq!(help.topic(1001).map(|t| t.index), Some(1001));
+        assert!(help.topic(5).is_none());
         assert!(help.problems().is_empty());
-        let mut again = a;
-        again.index = 1002;
-        again.title = "Other".into();
-        help.topics.push(again);
-        assert!(help
-            .problems()
-            .iter()
-            .any(|p| p.contains("repeats the subject")));
     }
 
     #[test]

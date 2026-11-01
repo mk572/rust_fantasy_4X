@@ -132,8 +132,8 @@ impl App {
         spell: f4x_core::rules::SpellId,
         from: (f32, f32, f32, f32),
     ) -> bool {
-        let id = &self.game.content().rules.spells.get(spell).id;
-        let Some(topic) = self.help.topic_for(&f4x_core::help::spell_subject(id)) else {
+        let help = self.game.content().rules.spells.get(spell).help;
+        let Some(topic) = self.help.topic_of(help) else {
             return false;
         };
         self.help_ui.request = Some(HelpRequest {
@@ -323,7 +323,6 @@ impl App {
                 text,
                 picture: None,
                 include: None,
-                subject: None,
             });
         } else {
             let Some(topic) = self.help.topic(request.topic) else {

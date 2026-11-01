@@ -106,7 +106,7 @@ impl App {
         let name = def.name.clone();
         let text = self
             .help
-            .topic_for(&f4x_core::help::spell_subject(&def.id))
+            .topic_of(def.help)
             .map_or_else(|| self.text("picks.no_spell_help"), |t| t.text.clone());
         self.draw_styled(view, &ng_ink(1, 178), &name, x + 4.0, top + 5.0);
         let rows = (((bottom - top - 2.0) - 17.0) / 7.0).floor().max(1.0) as usize;

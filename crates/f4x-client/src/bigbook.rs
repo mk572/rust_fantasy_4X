@@ -43,9 +43,9 @@ pub(crate) struct BigBookUi {
     pub turn: Option<BookTurn>,
 }
 
-/// What a spell does: the text of its help topic (`spell:<id>`). Empty without one.
-pub(crate) fn describe_spell(help: &f4x_core::help::Help, id: &str) -> String {
-    help.topic_for(&f4x_core::help::spell_subject(id))
+/// What a spell does: the text of its help topic (`help` of the spell). Empty without one.
+pub(crate) fn describe_spell(help: &f4x_core::help::Help, topic: Option<u16>) -> String {
+    help.topic_of(topic)
         .map(|t| t.text.split_whitespace().collect::<Vec<_>>().join(" "))
         .unwrap_or_default()
 }
@@ -53,7 +53,7 @@ pub(crate) fn describe_spell(help: &f4x_core::help::Help, id: &str) -> String {
 impl App {
     /// The paragraph that tells what a spell does.
     fn spell_text(&self, spell: SpellId) -> String {
-        describe_spell(&self.help, &self.game.content().rules.spells.get(spell).id)
+        describe_spell(&self.help, self.game.content().rules.spells.get(spell).help)
     }
 
     /// Open the Apprentice's library: every spell the books allow, known or not, and the two
@@ -612,14 +612,10 @@ mod tests {
                 text: "A city's food\ngrows.".into(),
                 picture: None,
                 include: None,
-                subject: Some("spell:gaias_blessing".into()),
             }],
             screens: Vec::new(),
         };
-        assert_eq!(
-            describe_spell(&help, "gaias_blessing"),
-            "A city's food grows."
-        );
-        assert_eq!(describe_spell(&help, "nothing"), "");
+        assert_eq!(describe_spell(&help, Some(2000)), "A city's food grows.");
+        assert_eq!(describe_spell(&help, None), "");
     }
 }

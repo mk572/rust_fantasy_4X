@@ -1292,7 +1292,36 @@ mod tests {
             .collect();
         // A topic that another topic includes is shown with it.
         opened.extend(help.topics.iter().filter_map(|t| t.include.map(i32::from)));
-        for t in help.topics.iter().filter(|t| t.subject.is_none()) {
+        // An ability, a spell or a ready-made wizard names its own topic.
+        let content = load_content(&dir)?;
+        opened.extend(
+            content
+                .rules
+                .abilities
+                .defs()
+                .iter()
+                .filter_map(|a| a.help.map(i32::from)),
+        );
+        opened.extend(
+            content
+                .rules
+                .spells
+                .defs()
+                .iter()
+                .filter_map(|s| s.help.map(i32::from)),
+        );
+        opened.extend(
+            content
+                .rules
+                .wizards
+                .defs()
+                .iter()
+                .map(|w| i32::from(w.help)),
+        );
+        // The three switches of the Settings screen the original has no topic for (the screen's
+        // `help_topic` in the client names them).
+        opened.extend([807, 808, 809]);
+        for t in &help.topics {
             assert!(
                 opened.contains(&i32::from(t.index)),
                 "topic {} has no area",
@@ -1310,39 +1339,56 @@ mod tests {
         Ok(())
     }
 
+    /// A ready-made wizard names its help topic (`help` in `wizards.ron`); the topic is titled
+    /// with the wizard's name, and the text is ours.
+    #[test]
+    fn every_ready_made_wizard_has_a_help_topic_by_number() -> TestResult {
+        let dir = crate::testutil::content_dir();
+        let help = load_help(&dir)?;
+        let content = load_content(&dir)?;
+        for w in content.rules.wizards.defs() {
+            let topic = help
+                .topics
+                .iter()
+                .find(|t| t.index == w.help)
+                .ok_or_else(|| format!("no help topic {} for the wizard {}", w.help, w.num))?;
+            assert_eq!(topic.title, w.name, "wizard {}", w.num);
+            assert!(!topic.text.trim().is_empty(), "wizard {}", w.num);
+        }
+        Ok(())
+    }
+
     #[test]
     fn every_ability_and_every_spell_has_a_help_topic() -> TestResult {
         let dir = crate::testutil::content_dir();
         let help = load_help(&dir)?;
         let content = load_content(&dir)?;
+        let mut used = std::collections::HashSet::new();
         for ability in content.rules.abilities.defs() {
-            let topic = help.topic_for(&format!("ability:{}", ability.id));
+            let topic = help.topic_of(ability.help);
             assert!(
                 topic.is_some_and(|t| !t.text.trim().is_empty()),
                 "no help for the ability {}",
                 ability.id
             );
+            assert!(
+                used.insert(ability.help),
+                "ability {} shares its topic",
+                ability.id
+            );
         }
         for spell in content.rules.spells.defs() {
-            let topic = help.topic_for(&format!("spell:{}", spell.id));
+            let topic = help.topic_of(spell.help);
             assert!(
                 topic.is_some_and(|t| !t.text.trim().is_empty()),
                 "no help for the spell {}",
                 spell.id
             );
-        }
-        // And no topic names a subject that does not exist.
-        for t in help.topics.iter().filter_map(|t| t.subject.as_deref()) {
-            let (kind, id) = t.split_once(':').ok_or("the value is missing")?;
-            let known = match kind {
-                "ability" => content.rules.abilities.defs().iter().any(|a| a.id == id),
-                "spell" => content.rules.spells.defs().iter().any(|s| s.id == id),
-                // A switch of the Settings screen: a key of the preferences in `client_settings.ron`.
-                "setting" => std::fs::read_to_string(dir.join("client_settings.ron"))?
-                    .contains(&format!("\"{id}\":")),
-                _ => false,
-            };
-            assert!(known, "help subject {t} is not in the game");
+            assert!(
+                used.insert(spell.help),
+                "spell {} shares its topic",
+                spell.id
+            );
         }
         Ok(())
     }

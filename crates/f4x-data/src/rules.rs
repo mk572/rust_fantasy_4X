@@ -86,31 +86,6 @@ fn apply_hero_names(
     Ok(())
 }
 
-/// The ready-made wizards' descriptions, kept apart from their books and retorts because the
-/// original's are local only.
-#[derive(serde::Deserialize)]
-struct WizardTexts {
-    id: String,
-    #[serde(default)]
-    description: String,
-}
-
-/// Fill in each ready-made wizard's description from `wizard_texts.ron`, if any directory has it.
-fn apply_wizard_texts(dirs: &[&Path], wizards: &mut [WizardDef]) -> Result<(), ContentError> {
-    if find(dirs, "wizard_texts.ron").is_some() {
-        for t in parse::<Vec<WizardTexts>>(dirs, "wizard_texts.ron")? {
-            let Some(w) = wizards.iter_mut().find(|w| w.id == t.id) else {
-                return Err(ContentError::Invalid(vec![format!(
-                    "wizard_texts.ron names unknown wizard {:?}",
-                    t.id
-                )]));
-            };
-            w.description = t.description;
-        }
-    }
-    Ok(())
-}
-
 /// The names of one table in `lang`, by definition number: `text/<lang>/name/<file>.ron` of the
 /// first directory that has it, over the same file of the fallback language.
 fn name_table<V: serde::de::DeserializeOwned>(
@@ -193,7 +168,6 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
     } else {
         Vec::new()
     };
-    apply_wizard_texts(dir, &mut wizards)?;
     let mut units = parse::<Vec<UnitDef>>(dir, "units.ron")?;
     let mut abilities = parse::<Vec<AbilityDef>>(dir, "abilities.ron")?;
     let mut buildings = parse::<Vec<BuildingDef>>(dir, "buildings.ron")?;
@@ -960,7 +934,7 @@ mod tests {
     use f4x_core::testdir::TestResult;
 
     #[test]
-    fn the_committed_wizards_are_named_after_their_ids() -> TestResult {
+    fn the_committed_wizards_have_their_names_and_books() -> TestResult {
         let dir = crate::testutil::content_dir();
         let features = crate::parse_features(&std::fs::read_to_string(dir.join("features.ron"))?)?;
         let rules = load_rules(&[dir.as_path()], "en", &features)?;
@@ -972,7 +946,6 @@ mod tests {
             .ok_or("the value is missing")?;
         assert_eq!(lo_pan.name, "Lo Pan");
         assert_eq!(lo_pan.books.iter().map(|b| u32::from(b.1)).sum::<u32>(), 9);
-        assert!(wizards.iter().all(|w| w.description.is_empty()));
         Ok(())
     }
 

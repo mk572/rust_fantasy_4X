@@ -1,21 +1,21 @@
 // The ready-made wizards: which books and retort each has. Their order is the order of their
-// portraits. The names, descriptions and portrait art are the original's and are local-only
-// (`content-local/wizard_texts.ron`, from `scripts/import_mom.py`); without them a wizard is named
-// after its id. Lo Pan has four sorcery books, one fewer than the original (docs/divergences.md).
+// portraits. The names are in `text/en/name/wizard.ron`; the help text of each is the topic named by
+// its `help` (an index in `help.ron`, ours). Portrait art is the original's and local-only. Lo Pan has four sorcery
+// books, one fewer than the original (docs/divergences.md).
 // `num` is the wizard's place in the original's list (the portrait order); `id` is the alias for human editing.
 [
-    (num: 0, id: "merlin", gender: Masculine, books: [("life", 5), ("nature", 5)], retorts: ["sage_master"]),
-    (num: 1, id: "raven", gender: Masculine, books: [("sorcery", 6), ("nature", 5)], retorts: []),
-    (num: 2, id: "sharee", gender: Feminine, books: [("death", 5), ("chaos", 5)], retorts: ["conjurer"]),
-    (num: 3, id: "lo_pan", gender: Masculine, books: [("sorcery", 4), ("chaos", 5)], retorts: ["channeler"]),
-    (num: 4, id: "jafar", gender: Masculine, books: [("sorcery", 10)], retorts: ["alchemy"]),
-    (num: 5, id: "oberic", gender: Masculine, books: [("nature", 5), ("chaos", 5)], retorts: ["mana_focusing"]),
-    (num: 6, id: "rjak", gender: Neuter, books: [("death", 9)], retorts: ["infernal_power"]),
-    (num: 7, id: "sssra", gender: Masculine, books: [("life", 4), ("chaos", 4)], retorts: ["myrran"]),
-    (num: 8, id: "tauron", gender: Masculine, books: [("chaos", 10)], retorts: ["chaos_mastery"]),
-    (num: 9, id: "freya", gender: Feminine, books: [("nature", 10)], retorts: ["nature_mastery"]),
-    (num: 10, id: "horus", gender: Masculine, books: [("life", 5), ("sorcery", 5)], retorts: ["archmage"]),
-    (num: 11, id: "ariel", gender: Feminine, books: [("life", 10)], retorts: ["charismatic"]),
-    (num: 12, id: "tlaloc", gender: Masculine, books: [("nature", 4), ("death", 5)], retorts: ["warlord"]),
-    (num: 13, id: "kali", gender: Feminine, books: [("sorcery", 5), ("death", 5)], retorts: ["artificer"]),
+    (num: 0, id: "merlin", help: 659, gender: Masculine, books: [("life", 5), ("nature", 5)], retorts: ["sage_master"]),
+    (num: 1, id: "raven", help: 660, gender: Masculine, books: [("sorcery", 6), ("nature", 5)], retorts: []),
+    (num: 2, id: "sharee", help: 661, gender: Feminine, books: [("death", 5), ("chaos", 5)], retorts: ["conjurer"]),
+    (num: 3, id: "lo_pan", help: 662, gender: Masculine, books: [("sorcery", 4), ("chaos", 5)], retorts: ["channeler"]),
+    (num: 4, id: "jafar", help: 663, gender: Masculine, books: [("sorcery", 10)], retorts: ["alchemy"]),
+    (num: 5, id: "oberic", help: 664, gender: Masculine, books: [("nature", 5), ("chaos", 5)], retorts: ["mana_focusing"]),
+    (num: 6, id: "rjak", help: 667, gender: Neuter, books: [("death", 9)], retorts: ["infernal_power"]),
+    (num: 7, id: "sssra", help: 666, gender: Masculine, books: [("life", 4), ("chaos", 4)], retorts: ["myrran"]),
+    (num: 8, id: "tauron", help: 665, gender: Masculine, books: [("chaos", 10)], retorts: ["chaos_mastery"]),
+    (num: 9, id: "freya", help: 668, gender: Feminine, books: [("nature", 10)], retorts: ["nature_mastery"]),
+    (num: 10, id: "horus", help: 669, gender: Masculine, books: [("life", 5), ("sorcery", 5)], retorts: ["archmage"]),
+    (num: 11, id: "ariel", help: 670, gender: Feminine, books: [("life", 10)], retorts: ["charismatic"]),
+    (num: 12, id: "tlaloc", help: 671, gender: Masculine, books: [("nature", 4), ("death", 5)], retorts: ["warlord"]),
+    (num: 13, id: "kali", help: 672, gender: Feminine, books: [("sorcery", 5), ("death", 5)], retorts: ["artificer"]),
 ]

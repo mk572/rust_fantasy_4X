@@ -54,7 +54,7 @@ Debug output of the console and test messages are not player-facing and stay in 
   definition (`def.name`, so the screens need no change), a number the language leaves out is
   English, and a definition with no English name or a name for a number nobody has is a load error.
   A language is the same files in its own folder. Not yet in tables: ability descriptions, the
-  descriptions of the ready-made wizards (`wizard_texts.ron`, local). `wizard.ron` holds the ready-made
+  descriptions of the ready-made wizards (our own help topics in `help.ron`, named by `help` in `wizards.ron`). `wizard.ron` holds the ready-made
   wizards' names by `num`, `level_path.ron` the names of the experience levels by the path's `num` (levels
   in order, then the bonus levels). `hero.ron` holds
   the five names of each hero by the hero unit's `num` (the first is the hero's name in the first

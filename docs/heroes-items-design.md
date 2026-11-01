@@ -362,7 +362,7 @@ through `extract-art` (already extracted to `assets-local/art/<lbx>/<entry>_<fra
 | Hero type (slots) | unit table column `bld2` of the 35 hero rows (`UNITTYPE.c`): 0 warrior (19 heroes), 1 bow (Dervish, Huntress, Ranger, Elven Archer), 2 sword-or-staff (Warrior Mage, row 24, Chaos Warrior), 3 mage (Sage, Druid, Magician, Wind Mage, Witch, Warlock, Illusionist, Priestess, Necromancer) | Not imported yet. **Add `hero: (kind: ..., portrait: ...)` to `HeroDef`.** |
 | Hero ability roll tables | `NewGame.c:_hero_premade_table` (35 rows: picks count, picks type, fixed ability mask, casting skill, four spell numbers). `HERODATA.LBX` (one entry of 150 records of 10 bytes: five copies of 30 hero types, so one set a wizard) is **not read by ReMoM or, as far as can be told, by the game**: each record holds a 32-bit-looking ability field (bytes 2 and 3), a casting skill of 5, 10 or 15 (byte 4) and up to four spell numbers (bytes 5 to 8) that differ from the premade table's, so it is probably a leftover of an earlier design of the same data. Nothing in the game needs it (task 218). | **Import from `NewGame.c`** into `content/heroes.ron` (ability bit names from `HSA_*`; spell numbers need the importer's spell index map). |
 | Hero ability flags and icons | `HSA_*` (`MOX_DEF.h`), `LVLMAKE.c:USW_HeroAbilities` (flag, icon, help), icons in `SPECIAL.LBX` / `SPECIAL2.LBX` | Extracted; the importer needs the flag names. |
-| Hero names | `NAMES.LBX` entry 0: 200 names of 13 characters, indexed `player * 35 + type` | **Decision needed:** names are not rules. Treat like the city names: invented defaults in `content/`, the original's in `content-local/` (see `local-assets.md`). |
+| Hero names | `NAMES.LBX` entry 0: 200 names of 13 characters, indexed `player * 35 + type` | Done (task 421): the names are committed in `content/text/en/name/hero.ron`, five for each hero by the hero unit's number (`apply_hero_names` in `f4x-data/src/rules.rs`). The importer no longer writes them. |
 | Hero level names and xp | `hero_xp` in `level_paths.ron` (Hero 0, Myrmidon 20, Captain 60, Commander 120, Champion 200, Lord 300, Grand Lord 450, Super Hero 600, Demi-God 1000) | Imported already; check against `TBL_Experience` in task 174. |
 | Hire pop-up art | `HIRE.LBX` (5 entries: banners, merchant buttons, name box) | Extracted. |
 | Hero figures in battle and overland | `FIGURES1..16.LBX` | Extracted; mapping is the units' (done). |
@@ -411,7 +411,7 @@ Power Drain item ignored) are not copied; each gets its normal rule.
 
 ## 8. Open questions
 
-1. **Hero names** (decided): placeholders in `content/` (the unit's own name) until the original's are imported; the original's go to `content-local/hero_names.ron` as the city names do (task 218). The hire box lets the player name the hero (task 143).
+1. **Hero names** (decided): the names are committed in `content/text/en/name/hero.ron` (five for each hero, by the hero unit's number; task 421). The hire box lets the player name the hero (task 143).
 2. **Item entities, not ids.** Crafted items cannot be content ids, so each item is an entity with
    its full `Item`; the vault, hero slots, offers and loot are one kind of thing (`HeldBy`).
 3. **Dead heroes** (2.2, 2.4). The design replaces the original's level coding with an explicit

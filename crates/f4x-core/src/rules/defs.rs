@@ -309,6 +309,9 @@ pub struct AbilityDef {
     pub name: String,
     #[serde(default)]
     pub description: String,
+    /// The ability's topic in `help.ron` (an index).
+    #[serde(default)]
+    pub help: Option<u16>,
     pub effects: Vec<EffectRule>,
 }
 
@@ -417,8 +420,8 @@ pub struct WizardDef {
     /// From `text/<language>/name/wizard.ron` by `num`, not from the rules file.
     #[serde(default)]
     pub name: String,
-    #[serde(default)]
-    pub description: String,
+    /// The wizard's topic in `help.ron` (an index).
+    pub help: u16,
     #[serde(default)]
     pub gender: crate::text::Gender,
     /// Spell books as `(realm id, count)`.
@@ -473,6 +476,9 @@ pub struct SpellDef {
     /// From `text/<language>/name/` by `num`, not from the rules file.
     #[serde(default)]
     pub name: String,
+    /// The spell's topic in `help.ron` (an index).
+    #[serde(default)]
+    pub help: Option<u16>,
     pub realm: String,
     pub rarity: Rarity,
     /// Mana to cast.

@@ -72,8 +72,8 @@ pub(crate) struct Special {
     pub spell: Option<f4x_core::rules::SpellId>,
     /// A click on the line turns the spell off: it is the viewer's own and not in a battle.
     pub removable: bool,
-    /// The help subject a right-click on the line opens (`ability:<id>`, `spell:<id>`).
-    pub subject: Option<String>,
+    /// The help topic a right-click on the line opens: the `help` of its ability or spell.
+    pub help: Option<u16>,
     /// The line is one of a hero's item slots, drawn with this picture instead of `icon`.
     pub item: Option<ItemIcon>,
 }
@@ -314,11 +314,11 @@ pub(crate) struct SpecialsInput<'a> {
     pub transport: i32,
     /// Display name of an ability.
     pub ability_name: &'a dyn Fn(Ability) -> String,
-    /// The alias of an ability, which the help topics are named by.
-    pub ability_alias: &'a dyn Fn(Ability) -> String,
+    /// The help topic of an ability (its `help`).
+    pub ability_help: &'a dyn Fn(Ability) -> Option<u16>,
     pub texts: &'a Texts,
     /// Lasting spells on the unit: spell, id, name, and whether the viewer may turn it off.
-    pub enchantments: Vec<(f4x_core::rules::SpellId, String, String, bool)>,
+    pub enchantments: Vec<(f4x_core::rules::SpellId, String, String, bool, Option<u16>)>,
 }
 
 /// The abilities list in the original's order: level, quiver, to hit, construction, the listed
@@ -330,7 +330,7 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         icon,
         spell: None,
         removable: false,
-        subject: None,
+        help: None,
         item: None,
     };
     if let Some((name, xp, level)) = input.level {
@@ -382,7 +382,7 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
                 .get("unit.caster", &Args::new().count("n", input.mana));
         }
         out.push(Special {
-            subject: Some(f4x_core::help::ability_subject(&(input.ability_alias)(id))),
+            help: (input.ability_help)(id),
             ..plain(name, Some(icon))
         });
     }
@@ -407,13 +407,13 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
             out.push(plain(input.texts.get(key, &Args::new()), None));
         }
     }
-    for (spell, id, name, removable) in &input.enchantments {
+    for (spell, id, name, removable, help) in &input.enchantments {
         out.push(Special {
             name: name.clone(),
             icon: enchantment_icon(id),
             spell: Some(*spell),
             removable: *removable,
-            subject: Some(f4x_core::help::spell_subject(id)),
+            help: *help,
             item: None,
         });
     }
@@ -549,7 +549,7 @@ impl App {
                     .map(|(name, _)| (name, units.unit_experience(unit), i))
             });
         let ability_name = |id: Ability| content.rules.abilities.get(id).name.clone();
-        let ability_alias = |id: Ability| content.rules.abilities.get(id).id.clone();
+        let ability_help = |id: Ability| content.rules.abilities.get(id).help;
         let enchantments = units
             .unit_enchantments(unit)
             .into_iter()
@@ -560,6 +560,7 @@ impl App {
                     def.id.clone(),
                     def.name.clone(),
                     caster == crate::view::HUMAN,
+                    def.help,
                 )
             })
             .collect();
@@ -582,7 +583,7 @@ impl App {
             undead: units.unit_is_undead(unit),
             transport: stat(Stat::Transport),
             ability_name: &ability_name,
-            ability_alias: &ability_alias,
+            ability_help: &ability_help,
             texts: self.texts(),
             enchantments,
         });
@@ -595,7 +596,7 @@ impl App {
                     icon: None,
                     spell: None,
                     removable: false,
-                    subject: None,
+                    help: None,
                     item: None,
                 }),
         );
@@ -655,7 +656,7 @@ impl App {
                 icon: None,
                 spell: None,
                 removable: false,
-                subject: None,
+                help: None,
                 item: Some(match &item {
                     Some(i) => ItemIcon::Held(i.icon),
                     None => ItemIcon::Empty(crate::item_screen::slot_icon(kind)),
@@ -707,7 +708,7 @@ impl App {
         let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
         let abilities = &def.ability_ids;
         let ability_name = |id: Ability| content.rules.abilities.get(id).name.clone();
-        let ability_alias = |id: Ability| content.rules.abilities.get(id).id.clone();
+        let ability_help = |id: Ability| content.rules.abilities.get(id).help;
         let mana = if abilities.contains(&Ability::new(62)) {
             40
         } else if abilities.contains(&Ability::new(61)) {
@@ -728,7 +729,7 @@ impl App {
             undead: false,
             transport: stat(Stat::Transport),
             ability_name: &ability_name,
-            ability_alias: &ability_alias,
+            ability_help: &ability_help,
             texts: self.texts(),
             enchantments: Vec::new(),
         });
@@ -789,7 +790,7 @@ impl App {
             .find(|d| d.id == u.unit_id)?;
         let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
         let ability_name = |id: Ability| content.rules.abilities.get(id).name.clone();
-        let ability_alias = |id: Ability| content.rules.abilities.get(id).id.clone();
+        let ability_help = |id: Ability| content.rules.abilities.get(id).help;
         let enchantments = u
             .enchantments
             .iter()
@@ -800,11 +801,12 @@ impl App {
                     id.clone(),
                     content.rules.spells.get(spell).name.clone(),
                     false,
+                    content.rules.spells.get(spell).help,
                 ))
             })
             .chain(u.combat_spells.iter().map(|&(spell, _)| {
                 let s = content.rules.spells.get(spell);
-                (spell, s.id.clone(), s.name.clone(), false)
+                (spell, s.id.clone(), s.name.clone(), false, s.help)
             }))
             .collect();
         let specials = specials(&SpecialsInput {
@@ -823,7 +825,7 @@ impl App {
             undead: u.undead,
             transport: 0,
             ability_name: &ability_name,
-            ability_alias: &ability_alias,
+            ability_help: &ability_help,
             texts: self.texts(),
             enchantments,
         });
@@ -916,6 +918,7 @@ mod tests {
         // bow, first strike, poison immunity
         let abilities = [Ability::new(3), Ability::new(23), Ability::new(52)];
         let name = |id: Ability| format!("ability {}", id.num());
+        let no_help = |_: Ability| None;
         let list = specials(&SpecialsInput {
             level: Some(("Veteran", 65, 2)),
             abilities: &abilities,
@@ -927,7 +930,7 @@ mod tests {
             undead: false,
             transport: 0,
             ability_name: &name,
-            ability_alias: &name,
+            ability_help: &no_help,
             stasis_held: false,
             texts: en(),
             enchantments: Vec::new(),
@@ -950,6 +953,7 @@ mod tests {
         // forester, mountaineer, pathfinding
         let abilities = [Ability::new(25), Ability::new(45), Ability::new(50)];
         let name = |id: Ability| format!("ability {}", id.num());
+        let no_help = |_: Ability| None;
         let list = specials(&SpecialsInput {
             level: None,
             abilities: &abilities,
@@ -961,7 +965,7 @@ mod tests {
             undead: false,
             transport: 0,
             ability_name: &name,
-            ability_alias: &name,
+            ability_help: &no_help,
             stasis_held: false,
             texts: en(),
             enchantments: Vec::new(),
@@ -974,6 +978,7 @@ mod tests {
         // spellcaster, fireball attack
         let abilities = [Ability::new(61), Ability::new(22)];
         let name = |id: Ability| format!("ability {}", id.num());
+        let no_help = |_: Ability| None;
         let list = specials(&SpecialsInput {
             level: None,
             abilities: &abilities,
@@ -985,7 +990,7 @@ mod tests {
             undead: false,
             transport: 0,
             ability_name: &name,
-            ability_alias: &name,
+            ability_help: &no_help,
             stasis_held: false,
             texts: en(),
             enchantments: Vec::new(),
@@ -996,6 +1001,7 @@ mod tests {
     #[test]
     fn a_scout_lists_its_scouting_level() {
         let name = |id: Ability| format!("ability {}", id.num());
+        let no_help = |_: Ability| None;
         let input = |scouting| SpecialsInput {
             level: None,
             abilities: &[],
@@ -1007,7 +1013,7 @@ mod tests {
             undead: false,
             transport: 0,
             ability_name: &name,
-            ability_alias: &name,
+            ability_help: &no_help,
             stasis_held: false,
             texts: en(),
             enchantments: Vec::new(),
