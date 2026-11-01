@@ -568,14 +568,7 @@ fn upkeep_ok(view: &PlayerView, def: &SpellDef) -> bool {
 fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
     let kind = {
-        let spell = game
-            .content()
-            .rules
-            .spells
-            .id_of(f4x_core::spell::hero::RESURRECTION);
-        let Some(spell) = spell else {
-            return false;
-        };
+        let spell = f4x_core::spell::hero::RESURRECTION_SPELL;
         let knows = game
             .wizard(me)
             .is_some_and(|m| m.casting().is_none() && m.knows(spell));
@@ -599,14 +592,7 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let Some(kind) = kind else {
         return false;
     };
-    let spell = game
-        .content()
-        .rules
-        .spells
-        .id_of(f4x_core::spell::hero::RESURRECTION);
-    let Some(spell) = spell else {
-        return false;
-    };
+    let spell = f4x_core::spell::hero::RESURRECTION_SPELL;
     let command = Command::CastSpell {
         extra: 0,
         player: me,
@@ -787,12 +773,7 @@ mod tests {
         )
         .expect("a new game");
         let ai = Ai::new(P1);
-        let spell = g
-            .content()
-            .rules
-            .spells
-            .id_of(f4x_core::spell::hero::RESURRECTION)
-            .unwrap();
+        let spell = f4x_core::spell::hero::RESURRECTION_SPELL;
         g.treasury_mut(P1).unwrap().gold = 50_000;
         g.treasury_mut(P1).unwrap().mana = 5_000;
         for k in [1, 4] {

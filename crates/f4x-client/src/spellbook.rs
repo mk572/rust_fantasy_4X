@@ -298,8 +298,7 @@ impl App {
     /// map, any other is started and paid for over the turns.
     pub(crate) fn begin_cast(&mut self, spell: SpellId) {
         // The two spells that make items are designed first.
-        let id = self.game.content().rules.spells.get(spell).id.clone();
-        if let Some(craft) = f4x_core::item::crafting::Craft::from_spell(&id) {
+        if let Some(craft) = f4x_core::item::crafting::Craft::from_spell(spell) {
             self.open_craft(craft);
             return;
         }

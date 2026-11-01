@@ -779,14 +779,7 @@ fn upkeep_ok(view: &PlayerView, def: &SpellDef) -> bool {
 fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
     let kind = {
-        let spell = game
-            .content()
-            .rules
-            .spells
-            .id_of(f4x_core::spell::hero::RESURRECTION);
-        let Some(spell) = spell else {
-            return false;
-        };
+        let spell = f4x_core::spell::hero::RESURRECTION_SPELL;
         let knows = game
             .wizard(me)
             .is_some_and(|m| m.casting().is_none() && m.knows(spell));
@@ -810,14 +803,7 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let Some(kind) = kind else {
         return false;
     };
-    let spell = game
-        .content()
-        .rules
-        .spells
-        .id_of(f4x_core::spell::hero::RESURRECTION);
-    let Some(spell) = spell else {
-        return false;
-    };
+    let spell = f4x_core::spell::hero::RESURRECTION_SPELL;
     let command = Command::CastSpell {
         extra: 0,
         player: me,
@@ -1041,7 +1027,7 @@ mod tests {
     fn a_wizard_that_knows_resurrection_raises_the_last_dead_hero() -> TestResult {
         let mut g = fresh_game()?;
         let ai = Ai::new(P1);
-        let resurrection = spell(f4x_core::spell::hero::RESURRECTION)?;
+        let resurrection = f4x_core::spell::hero::RESURRECTION_SPELL;
         treasury(&mut g, P1)?.gold = 50_000;
         treasury(&mut g, P1)?.mana = 5_000;
         for k in [1, 4] {

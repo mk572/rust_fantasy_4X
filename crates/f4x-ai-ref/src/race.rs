@@ -68,14 +68,7 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         ai.war_on = None;
         return;
     }
-    let Some(mastery) = game
-        .content()
-        .rules
-        .spells
-        .id_of(f4x_core::game::endgame::SPELL_OF_MASTERY)
-    else {
-        return;
-    };
+    let mastery = f4x_core::game::endgame::SPELL_OF_MASTERY_SPELL;
     let (mine, own_rate, casting_other) = {
         let view = PlayerView::new(game, me);
         let rate = view

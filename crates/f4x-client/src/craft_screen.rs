@@ -248,14 +248,10 @@ impl App {
     fn craft_price(&self, ui: &CraftUi) -> i32 {
         let rules = &self.game.content().rules;
         let value = cost(&ui.design, rules) as i32;
-        let reduction = rules
-            .spells
-            .id_of(ui.craft.spell())
-            .and_then(|id| {
-                self.game
-                    .wizard(HUMAN)
-                    .map(|m| m.cost_reduction(rules.spells.get(id)))
-            })
+        let reduction = self
+            .game
+            .wizard(HUMAN)
+            .map(|m| m.cost_reduction(rules.spells.get(ui.craft.spell())))
             .unwrap_or(0);
         value - value * reduction / 100
     }

@@ -33,14 +33,14 @@ pub enum Craft {
 }
 
 impl Craft {
-    pub fn spell(self) -> &'static str {
+    pub fn spell(self) -> SpellId {
         match self {
-            Craft::EnchantItem => "enchant_item",
-            Craft::CreateArtifact => "create_artifact",
+            Craft::EnchantItem => SpellId::new(207), /* enchant_item */
+            Craft::CreateArtifact => SpellId::new(211), /* create_artifact */
         }
     }
 
-    pub fn from_spell(id: &str) -> Option<Craft> {
+    pub fn from_spell(id: SpellId) -> Option<Craft> {
         [Craft::EnchantItem, Craft::CreateArtifact]
             .into_iter()
             .find(|c| c.spell() == id)
@@ -533,14 +533,12 @@ impl crate::game::Game {
         craft: Craft,
         design: &ItemDesign,
     ) -> Result<Vec<crate::game::Event>, CraftingError> {
-        let spell = self
-            .content
-            .rules
-            .spells
-            .id_of(craft.spell())
-            .ok_or(CraftingError::Magic(
+        let spell = craft.spell();
+        if self.content.rules.spells.try_get(spell).is_none() {
+            return Err(CraftingError::Magic(
                 crate::wizard::magic::MagicError::NotAvailable,
-            ))?;
+            ));
+        }
         let reserve = self
             .player(player)
             .ok_or(CraftingError::UnknownPlayer)?

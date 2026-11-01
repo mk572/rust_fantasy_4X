@@ -660,13 +660,7 @@ fn resurrect(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     match paid {
         Some(_) => ctx.apply(Command::ResolveCast { player, target }),
         None => {
-            let spell = ctx
-                .game
-                .content()
-                .rules
-                .spells
-                .id_of(f4x_core::spell::hero::RESURRECTION)
-                .ok_or_else(|| ConsoleError::NoSuch("spell resurrection".into()))?;
+            let spell = f4x_core::spell::hero::RESURRECTION_SPELL;
             ctx.apply(Command::CastSpell {
                 extra: 0,
                 player,

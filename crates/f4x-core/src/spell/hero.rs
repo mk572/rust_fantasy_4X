@@ -19,6 +19,8 @@ pub const SUMMON_HERO: &str = "summon_hero";
 pub const SUMMON_CHAMPION: &str = "summon_champion";
 pub const INCARNATION: &str = "incarnation";
 pub const RESURRECTION: &str = "resurrection";
+/// The Resurrection spell itself, for the places that need the spell and not the hook.
+pub const RESURRECTION_SPELL: crate::rules::SpellId = crate::rules::SpellId::new(133) /* resurrection */;
 
 /// Torin the Chosen, the last hero type: only Incarnation brings him.
 pub fn torin(rules: &crate::rules::Rules) -> usize {
@@ -468,12 +470,7 @@ mod tests {
     }
 
     fn raise(g: &mut Game, kind: usize) -> Vec<Event> {
-        let spell = g
-            .content
-            .rules
-            .spells
-            .id_of(RESURRECTION)
-            .expect("id_of succeeds");
+        let spell = RESURRECTION_SPELL;
         g.apply(Command::CastSpell {
             extra: 0,
             player: P0,
@@ -524,12 +521,7 @@ mod tests {
         skill.get_mut::<crate::wizard::sheet::Skill>().left = 0;
         skill.get_mut::<crate::wizard::sheet::Skill>().points = 0;
         // Started with no hero named: the cost is paid over turns first.
-        let spell = g
-            .content
-            .rules
-            .spells
-            .id_of(RESURRECTION)
-            .ok_or("id_of is missing")?;
+        let spell = RESURRECTION_SPELL;
         let events = cast(&mut g, RESURRECTION);
         assert!(
             !events.iter().any(|e| matches!(e, Event::Rejected(_))),
@@ -585,12 +577,7 @@ mod tests {
     #[test]
     fn resurrection_warns_when_it_is_paid_and_no_hero_lies_dead() -> TestResult {
         let mut g = caster();
-        let spell = g
-            .content
-            .rules
-            .spells
-            .id_of(RESURRECTION)
-            .ok_or("id_of is missing")?;
+        let spell = RESURRECTION_SPELL;
         assert!(!g.spell_has_target(P0, spell));
         let mut skill = g.wizard_mut(P0).ok_or("wizard_mut is missing")?;
         skill.get_mut::<crate::wizard::sheet::Skill>().left = 0;

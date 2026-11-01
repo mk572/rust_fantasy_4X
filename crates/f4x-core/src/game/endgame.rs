@@ -12,6 +12,8 @@ use crate::player::PlayerId;
 
 /// The custom spell hook of the Spell of Mastery.
 pub const SPELL_OF_MASTERY: &str = "spell_of_mastery";
+/// The Spell of Mastery itself, for the places that need the spell and not the hook.
+pub const SPELL_OF_MASTERY_SPELL: crate::rules::SpellId = crate::rules::SpellId::new(213) /* spell_of_mastery */;
 
 /// The neutral player and monsters are not wizards.
 
