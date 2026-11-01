@@ -223,6 +223,17 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   the style number in ReMoM is the style number here. Which style a label uses is read from the
   screen's draw function in ReMoM. The client mostly uses styles 1 and 3, and 5 for titles; task
   118 moves the rest over.
+- **Colour ramps** (`scripts/font_ramps.py`, `content/font_colour_ramps.ron`, `crates/f4x-client/src/font_ramp.rs`):
+  the original builds most text colours at run time with `Set_Font_Colors_15(style, colours)`, not from the 16
+  sets. The script lists each such ramp (`RAMPS`: a name, the screen whose palette applies, the palette
+  indexes of colour 1 to n; entry 0 of the original's array is an alias and ignored) and the single palette
+  colours (`FLATS`, `font_ramp::flat(index)`). Run it, then `extract-art`, then copy the atlases
+  (`style*.fnt` and `.png` of `fonts/bmfont/`) to `crates/f4x-client/assets/fonts/`: the ramps become sets 16
+  and up. Use one with `Style::inked(font, Ink::Set(font_ramp::NAME))`, and `.effect(Effect::Shadow |
+  Outline | OutlineHeavy)` with `.edge(colour)` for `Set_Font_Style_Shadow_Down / Outline / Outline_Heavy`
+  and `Set_Outline_Color`. Outline colours from palette index 224 up belong to a screen's own palette: read
+  them from that screen's palette in ReMoM, or approximate and say so in a comment. The atlas must stay under
+  16384 pixels (`docs/KNOWLEDGE.md`).
 - Not done: `Print_Paragraph` word wrap and justification (task 118), and the outline, shadow and
   colour-table variants of the font calls (only `Style::outlined` and `.shadow()`).
 

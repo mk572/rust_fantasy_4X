@@ -2,7 +2,8 @@
 //! effects in force on the field and each wizard's own spells, over the battle. Any key or
 //! click closes it.
 
-use crate::font::Style;
+use crate::font::{Effect, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use f4x_core::battle::info::{BattleInfo, InfoItem};
 use f4x_core::text::Args;
@@ -16,7 +17,14 @@ const COLUMN: f32 = 112.0;
 /// The picture's width (`compix.lbx` 56 to 58).
 const WIDTH: f32 = 234.0;
 const TEXT_STYLE: usize = 2;
-const TEXT: Color = Color::new(0.98, 0.86, 0.45, 1.0);
+
+/// `Set_Font_Colors_15(2, {250, 177})` with `Shadow_Down` and outline colour 254: palette colour 177
+/// on its own, a dark shadow (254 is per screen).
+fn text_style() -> Style {
+    Style::inked(TEXT_STYLE, Ink::Set(font_ramp::flat(177)))
+        .effect(Effect::Shadow)
+        .edge(Color::new(0.0, 0.0, 0.0, 1.0))
+}
 
 /// Where the window's cells go: the cell's column and row, the common items first.
 struct Layout {
@@ -158,7 +166,7 @@ impl App {
             if let Some(name) = &info.opponent_name {
                 self.draw_styled(
                     view,
-                    &Style::nearest(TEXT_STYLE, TEXT).center(),
+                    &text_style().center(),
                     &self.text_with("battle.spells_of", &Args::new().text("wizard", name)),
                     LEFT + 54.0,
                     lay.top + heading,
@@ -167,7 +175,7 @@ impl App {
             if let Some(name) = &info.viewer_name {
                 self.draw_styled(
                     view,
-                    &Style::nearest(TEXT_STYLE, TEXT).center(),
+                    &text_style().center(),
                     &self.text_with("battle.spells_of", &Args::new().text("wizard", name)),
                     LEFT + 170.0,
                     lay.top + heading,
@@ -217,13 +225,7 @@ impl App {
                 );
             }
             let name = self.text(item.key);
-            self.draw_styled(
-                view,
-                &Style::nearest(TEXT_STYLE, TEXT),
-                &name,
-                x + 20.0,
-                y + 5.0,
-            );
+            self.draw_styled(view, &text_style(), &name, x + 20.0, y + 5.0);
         }
 
         input.key_pressed(KeyCode::Escape)

@@ -4,7 +4,8 @@
 //! Escape, Enter or a click rolls it up; U, D, the arrows or the wheel scroll a long one.
 //! The "End of Turn Summary" switch of the Settings page turns it off.
 
-use crate::font::Style;
+use crate::font::{Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use f4x_core::game::{Event, LossCause};
 use f4x_core::rules::SpellTarget;
@@ -362,7 +363,7 @@ impl App {
                 if scroll.sections.is_empty() {
                     app.draw_styled(
                         view,
-                        &Style::nearest(4, Color::new(0.4, 0.05, 0.02, 1.0)).center(),
+                        &Style::inked(4, Ink::Set(font_ramp::flat(47))).center(),
                         &app.text("chancellor.nothing"),
                         158.0,
                         y,
@@ -371,7 +372,7 @@ impl App {
                 for s in &scroll.sections {
                     app.draw_styled(
                         view,
-                        &Style::nearest(4, Color::new(0.4, 0.05, 0.02, 1.0)).center(),
+                        &Style::inked(4, Ink::Set(font_ramp::flat(47))).center(),
                         &s.title,
                         165.0,
                         y,
@@ -380,7 +381,7 @@ impl App {
                     for line in &s.lines {
                         app.draw_styled(
                             view,
-                            &Style::nearest(1, Color::new(0.2, 0.1, 0.04, 1.0)),
+                            &Style::inked(1, Ink::Set(font_ramp::flat(55))),
                             line,
                             70.0,
                             y,

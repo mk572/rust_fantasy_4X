@@ -369,7 +369,7 @@ impl App {
                 }
                 (None, None) => {}
             }
-            self.draw_styled(view, &Style::unit_view(1), &special.name, x + 19.0, y + 5.0);
+            self.draw_styled(view, &Style::unit_list(), &special.name, x + 19.0, y + 5.0);
             let asking = panel.confirm || panel.turn_off.is_some();
             if let (true, false, Some(spell), Source::Overland(unit)) =
                 (special.removable, asking, special.spell, sheet.source)

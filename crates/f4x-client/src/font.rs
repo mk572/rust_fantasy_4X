@@ -176,6 +176,13 @@ impl Style {
             .edge(rgb(0x14, 0x45, 0x45))
     }
 
+    /// The unit sheet's abilities list (`USW_DrawListPage`): style 2 in the `UV_LIST` ramp, outlined.
+    pub(crate) fn unit_list() -> Style {
+        Style::inked(2, Ink::Set(crate::font_ramp::UV_LIST))
+            .effect(Effect::Outline)
+            .edge(rgb(0x14, 0x45, 0x45))
+    }
+
     /// The race and population line, the turns to build: style 1 in the ramp of
     /// `Set_Font_Colors_15(0, 190 179)` with `Shadow_Down` and `Set_Outline_Color(19)`.
     pub(crate) fn city_figures() -> Style {

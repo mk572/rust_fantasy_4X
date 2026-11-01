@@ -63,7 +63,7 @@ RAMPS = [
 
 # Palette indexes the original makes a one-colour set of (`colors[0..5] = banner_colors[...]`): the
 # banner colours of the wizards' names and enchantments. `flat(index)` in `font_ramp.rs` gives the set.
-FLATS = [0, 6, 39, 43, 98, 166, 50, 79, 123, 124, 125, 127, 172, 179, 201, 211, 216, 218, 221, 222, 5, 45, 47, 55]
+FLATS = [0, 6, 39, 43, 98, 166, 50, 79, 123, 124, 125, 127, 172, 179, 201, 211, 216, 218, 221, 222, 5, 45, 47, 55, 177]
 
 
 def palette_lookup():
