@@ -951,7 +951,7 @@ mod tests {
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
-            .insert(crate::wizard::magic::Retort::ARTIFICER);
+            .insert(crate::wizard::magic::Retort::new(17) /* artificer */);
         g.apply(Command::CraftItem {
             player: P0,
             craft: Craft::EnchantItem,

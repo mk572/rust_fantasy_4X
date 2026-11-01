@@ -933,12 +933,12 @@ fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort
     let (mut world, e) = sheet(
         &[("nature", 3)],
         &[
-            Retort::ALCHEMY,
-            Retort::WARLORD,
-            Retort::CHARISMATIC,
-            Retort::FAMOUS,
-            Retort::ARTIFICER,
-            Retort::CONJURER,
+            Retort::new(0),  /* alchemy */
+            Retort::new(1),  /* warlord */
+            Retort::new(16), /* charismatic */
+            Retort::new(13), /* famous */
+            Retort::new(17), /* artificer */
+            Retort::new(15), /* conjurer */
         ],
     );
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);

@@ -56,7 +56,7 @@ fn a_famous_wizard_starts_with_fame_and_every_wizard_with_a_library() -> TestRes
     g.content = shipped();
     let id = crate::player::PlayerId(0);
     g.add_player(id, "W");
-    g.init_wizard(id, &[("life", 2)], &[Retort::FAMOUS], None)
+    g.init_wizard(id, &[("life", 2)], &[Retort::new(13) /* famous */], None)
         .map_err(|e| format!("{e:?}"))?;
     let w = g.wizard(id).ok_or("wizard is missing")?;
     assert_eq!(w.fame(), 10);

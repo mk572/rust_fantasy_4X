@@ -110,7 +110,7 @@ fn masteries_and_archmage_multiply_a_spells_difficulty() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
-        .insert(Retort::SORCERY_MASTERY);
+        .insert(Retort::new(4) /* sorcery_mastery */);
     assert_eq!(
         g.dispel_difficulty(aura, Some(P0)),
         800,
@@ -120,7 +120,7 @@ fn masteries_and_archmage_multiply_a_spells_difficulty() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
-        .insert(Retort::NATURE_MASTERY);
+        .insert(Retort::new(3) /* nature_mastery */);
     assert_eq!(
         g.dispel_difficulty(aura, Some(P0)),
         800,
@@ -130,7 +130,7 @@ fn masteries_and_archmage_multiply_a_spells_difficulty() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
-        .insert(Retort::ARCHMAGE);
+        .insert(Retort::new(10) /* archmage */);
     assert_eq!(g.dispel_difficulty(aura, Some(P0)), 1200);
     assert_eq!(g.dispel_difficulty(aura, Some(P1)), 400);
     assert_eq!(g.dispel_difficulty(aura, None), 400);

@@ -163,15 +163,15 @@ impl Game {
         };
         if let Some(m) = self.wizard(owner) {
             let mastery = match node.realm.as_str() {
-                "sorcery" => m.has(Retort::SORCERY_MASTERY),
-                "nature" => m.has(Retort::NATURE_MASTERY),
-                "chaos" => m.has(Retort::CHAOS_MASTERY),
+                "sorcery" => m.has(Retort::new(4) /* sorcery_mastery */),
+                "nature" => m.has(Retort::new(3) /* nature_mastery */),
+                "chaos" => m.has(Retort::new(2) /* chaos_mastery */),
                 _ => false,
             };
             if mastery {
                 power *= 2;
             }
-            if m.has(Retort::NODE_MASTERY) {
+            if m.has(Retort::new(12) /* node_mastery */) {
                 power *= 2;
             }
         }
@@ -441,7 +441,7 @@ pub(crate) mod tests {
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
-            .insert(Retort::NODE_MASTERY);
+            .insert(Retort::new(12) /* node_mastery */);
         assert_eq!(g.node_income(P0), power * 2);
         assert_eq!(
             g.income(P0).power_base,

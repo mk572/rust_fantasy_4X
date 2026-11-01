@@ -32,7 +32,7 @@ fn new_game(seed: u64) -> Game {
 }
 
 fn myrran(b: &WizardBuild) -> bool {
-    b.retorts.contains(&Retort::MYRRAN)
+    b.retorts.contains(&Retort::new(9) /* myrran */)
 }
 
 /// The rules every finished build keeps, whatever the rolls were.
@@ -147,7 +147,7 @@ fn the_human_myrran_wizard_counts_toward_the_share() {
 fn too_many_myrran_wizards_are_made_ordinary_and_refilled() {
     for seed in SEEDS {
         let mut g = new_game(seed);
-        let mut builds = vec![build(&[("nature", 1)], &[Retort::MYRRAN]); 4];
+        let mut builds = vec![build(&[("nature", 1)], &[Retort::new(9) /* myrran */]); 4];
         balance_planes(&mut g, &mut builds, false, 4, PICKS);
         let (_, most) = myrran_range(4);
         assert_eq!(
@@ -241,7 +241,7 @@ fn a_retort_needs_its_books_and_its_picks() {
         assert!(
             b.retorts
                 .iter()
-                .all(|&r| r != Retort::DIVINE_POWER && r != Retort::NATURE_MASTERY),
+                .all(|&r| r != Retort::new(6) /* divine_power */ && r != Retort::new(3) /* nature_mastery */),
             "seed {seed}: {b:?}"
         );
     }
@@ -261,11 +261,14 @@ fn a_mastery_comes_from_a_realm_of_four_books() {
             b.retorts
                 .iter()
                 .copied()
-                .filter(|&r| r == Retort::NATURE_MASTERY || r == Retort::CHAOS_MASTERY),
+                .filter(|&r| r == Retort::new(3) /* nature_mastery */ || r == Retort::new(2) /* chaos_mastery */),
         );
     }
-    assert!(got.contains(&Retort::NATURE_MASTERY));
-    assert!(!got.contains(&Retort::CHAOS_MASTERY), "chaos has one book");
+    assert!(got.contains(&Retort::new(3) /* nature_mastery */));
+    assert!(
+        !got.contains(&Retort::new(2) /* chaos_mastery */),
+        "chaos has one book"
+    );
 }
 
 #[test]
@@ -307,7 +310,14 @@ fn without_ready_made_wizards_the_fallback_builds_them() {
 #[test]
 fn the_same_seed_draws_the_same_wizards() {
     let defs: Vec<WizardDef> = (1..=6)
-        .map(|n| wizard_def(n, &format!("w{n}"), &[("life", 2)], &[Retort::ALCHEMY]))
+        .map(|n| {
+            wizard_def(
+                n,
+                &format!("w{n}"),
+                &[("life", 2)],
+                &[Retort::new(0) /* alchemy */],
+            )
+        })
         .collect();
     let run = |seed| {
         let mut g = game_with(seed, defs.clone());
@@ -355,7 +365,10 @@ fn the_erasure_dice_take_books_but_never_the_last_of_a_realm() {
         1,
         "a",
         &[("life", 4), ("nature", 4)],
-        &[Retort::ALCHEMY, Retort::WARLORD],
+        &[
+            Retort::new(0), /* alchemy */
+            Retort::new(1), /* warlord */
+        ],
     );
     let mut lost_books = false;
     let mut lost_retorts = false;
@@ -393,7 +406,7 @@ fn the_myrran_rule_keeps_the_share_within_the_planes() {
             n,
             &format!("m{n}"),
             &[("life", 3)],
-            &[Retort::MYRRAN],
+            &[Retort::new(9) /* myrran */],
         ));
     }
     for n in 4..=6 {

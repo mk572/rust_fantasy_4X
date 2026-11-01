@@ -622,7 +622,9 @@ pub(crate) fn award_special(
         let (view, books) = (wizard.view(), wizard.view().books());
         let options: Vec<_> = all_retorts(rules)
             .filter(|r| !view.has(*r) && retort_available(rules, *r, &books))
-            .filter(|r| *r != crate::wizard::magic::Retort::MYRRAN)
+            .filter(
+                |r| *r != crate::wizard::magic::Retort::new(9), /* myrran */
+            )
             .filter(|&r| if picks == 2 { double(r) } else { !double(r) })
             .collect();
         if !options.is_empty() {
@@ -873,7 +875,10 @@ impl Game {
                         &mut loot,
                     );
                     // Famous brings its ten points of fame with it.
-                    if loot.retorts.contains(&crate::wizard::magic::Retort::FAMOUS) {
+                    if loot
+                        .retorts
+                        .contains(&crate::wizard::magic::Retort::new(13) /* famous */)
+                    {
                         w.get_mut::<crate::wizard::sheet::Fame>().0 += 10;
                     }
                 }

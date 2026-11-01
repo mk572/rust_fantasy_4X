@@ -110,7 +110,7 @@ fn the_power_is_split_by_the_percentages_and_the_cities_add_research() -> TestRe
     WizardMut::new(&mut v.world, v.wizard)
         .get_mut::<Retorts>()
         .0
-        .insert(Retort::MANA_FOCUSING);
+        .insert(Retort::new(11) /* mana_focusing */);
     assert_eq!(income(&v, P0).split.mana, 7, "a quarter more mana");
     Ok(())
 }
@@ -136,6 +136,6 @@ fn a_channeler_pays_half_the_upkeep() {
     WizardMut::new(&mut v.world, v.wizard)
         .get_mut::<Retorts>()
         .0
-        .insert(Retort::CHANNELER);
+        .insert(Retort::new(8) /* channeler */);
     assert_eq!(income(&v, P0).mana_upkeep, 4);
 }

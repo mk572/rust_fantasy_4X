@@ -471,7 +471,7 @@ fn start_relation(view: &Game, a: PlayerId, b: PlayerId) -> i32 {
 
 fn charismatic(view: &Game, wizard: PlayerId) -> bool {
     view.wizard(wizard)
-        .is_some_and(|m| m.has(Retort::CHARISMATIC))
+        .is_some_and(|m| m.has(Retort::new(16) /* charismatic */))
 }
 
 /// The enchantments that sour or sweeten relations: the change, whom it touches, and the

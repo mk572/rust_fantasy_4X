@@ -272,7 +272,10 @@ impl<'a> UnitView<'a> {
             level = HEROISM_LEVEL;
         }
         if let Some(owner) = self.unit_owner(unit) {
-            if self.wizard(owner).is_some_and(|m| m.has(Retort::WARLORD)) {
+            if self
+                .wizard(owner)
+                .is_some_and(|m| m.has(Retort::new(1) /* warlord */))
+            {
                 level += 1;
             }
             let normal = self.unit_def(unit).is_some_and(|d| {

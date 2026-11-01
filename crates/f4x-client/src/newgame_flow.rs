@@ -598,7 +598,7 @@ impl CreateState {
         let myrran = self
             .build
             .retorts
-            .contains(&f4x_core::wizard::magic::Retort::MYRRAN);
+            .contains(&f4x_core::wizard::magic::Retort::new(9) /* myrran */);
         let (arcanian, myrran_list) = app.race_lists();
         let (names, ids): (Vec<String>, Vec<String>) = app
             .game
@@ -764,7 +764,7 @@ impl CreateState {
             self.build.books.insert("nature".into(), 1);
             self.build
                 .retorts
-                .insert(f4x_core::wizard::magic::Retort::ALCHEMY);
+                .insert(f4x_core::wizard::magic::Retort::new(0) /* alchemy */);
         } else {
             self.pick_preset(app, Some(0));
             self.custom = false;

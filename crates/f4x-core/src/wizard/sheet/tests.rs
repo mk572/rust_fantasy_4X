@@ -28,7 +28,7 @@ fn a_new_wizard_has_skill_from_books_and_an_archmage_more() -> TestResult {
     // Twice the books: ten points of target, reached by the triangular steps.
     assert_eq!(w.casting_skill(), 10);
     assert_eq!(w.skill_left(), 10);
-    let g = game_with(&[("life", 3)], &[Retort::ARCHMAGE]);
+    let g = game_with(&[("life", 3)], &[Retort::new(10) /* archmage */]);
     assert_eq!(
         g.wizard(P0).ok_or("wizard is missing")?.casting_skill(),
         2 * (3 + 5)
@@ -75,7 +75,7 @@ fn the_cost_of_a_spell_follows_the_books_the_retorts_and_where_it_is_cast() -> T
         "five times as much away from a battle"
     );
     // Nine books of its realm: two steps of ten percent; the mastery adds fifteen.
-    let g = game_with(&[("nature", 9)], &[Retort::NATURE_MASTERY]);
+    let g = game_with(&[("nature", 9)], &[Retort::new(3) /* nature_mastery */]);
     let deep = g.wizard(P0).ok_or("wizard is missing")?;
     assert_eq!(deep.cost_reduction(strength), 20 + 15);
     let cost = deep.casting_cost(strength, true, false);
@@ -103,7 +103,9 @@ fn the_power_is_split_by_the_percentages() -> TestResult {
     // With research off its share goes to skill, with Mana Focusing mana grows a quarter.
     let mut w = g.wizard_mut(P0).ok_or("wizard_mut is missing")?;
     w.set_split(50, 0, 50).map_err(|e| format!("{e:?}"))?;
-    w.get_mut::<Retorts>().0.insert(Retort::MANA_FOCUSING);
+    w.get_mut::<Retorts>()
+        .0
+        .insert(Retort::new(11) /* mana_focusing */);
     let split = g.wizard(P0).ok_or("wizard is missing")?.split_power(10, 0);
     assert_eq!((split.mana, split.skill, split.research), (5 + 1, 5, 0));
     Ok(())
@@ -155,7 +157,7 @@ fn the_spell_of_mastery_is_offered_last_and_costs_less_for_each_spell_known() ->
 
 #[test]
 fn research_runs_from_choice_to_a_known_spell() -> TestResult {
-    let mut g = game_with(&[("life", 3)], &[Retort::SAGE_MASTER]);
+    let mut g = game_with(&[("life", 3)], &[Retort::new(7) /* sage_master */]);
     let content = g.content.clone();
     let mut rng = GameRng::new(3);
     g.wizard_mut(P0)
@@ -279,7 +281,7 @@ fn global_spells_can_be_turned_off_only_if_they_are_on() -> TestResult {
 
 #[test]
 fn power_reaches_the_reserve_the_research_and_the_skill() -> TestResult {
-    let mut g = game_with(&[("life", 2)], &[Retort::ARCHMAGE]);
+    let mut g = game_with(&[("life", 2)], &[Retort::new(10) /* archmage */]);
     let content = g.content.clone();
     let mut rng = GameRng::new(3);
     let target = spell(&g, "healing");

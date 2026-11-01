@@ -622,7 +622,7 @@ impl Game {
             } => {
                 let skilled = self
                     .wizard(player)
-                    .is_some_and(|w| w.has(wizard::magic::Retort::ALCHEMY));
+                    .is_some_and(|w| w.has(wizard::magic::Retort::new(0) /* alchemy */));
                 reject(match self.treasury_mut(player) {
                     Some(t) => wizard::magic_command::alchemy(skilled, t, amount, gold_to_mana),
                     None => Err(wizard::magic::MagicError::UnknownPlayer),

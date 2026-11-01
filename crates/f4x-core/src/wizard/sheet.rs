@@ -135,7 +135,10 @@ impl<'a> Wizard<'a> {
 
     /// Casting skill now.
     pub fn casting_skill(&self) -> i32 {
-        base_casting_skill(self.skill_points(), self.has(Retort::ARCHMAGE))
+        base_casting_skill(
+            self.skill_points(),
+            self.has(Retort::new(10) /* archmage */),
+        )
     }
 
     pub fn power_split(&self) -> PowerSplit {
@@ -230,7 +233,7 @@ impl<'a> Wizard<'a> {
     pub fn cost_reduction(&self, def: &SpellDef) -> i32 {
         let mut cut = 0;
         if def.realm == "arcane" {
-            if self.has(Retort::RUNEMASTER) {
+            if self.has(Retort::new(14) /* runemaster */) {
                 cut += 25;
             }
         } else {
@@ -239,10 +242,10 @@ impl<'a> Wizard<'a> {
         if self.has_mastery(&def.realm) {
             cut += 15;
         }
-        if self.has(Retort::ARTIFICER) && is_crafting(def) {
+        if self.has(Retort::new(17) /* artificer */) && is_crafting(def) {
             cut += 50;
         }
-        if self.has(Retort::CONJURER) && is_summoning(def) {
+        if self.has(Retort::new(15) /* conjurer */) && is_summoning(def) {
             cut += 25;
         }
         cut
@@ -251,9 +254,9 @@ impl<'a> Wizard<'a> {
     /// Whether the wizard has the mastery of this realm.
     fn has_mastery(&self, realm: &str) -> bool {
         match realm {
-            "nature" => self.has(Retort::NATURE_MASTERY),
-            "sorcery" => self.has(Retort::SORCERY_MASTERY),
-            "chaos" => self.has(Retort::CHAOS_MASTERY),
+            "nature" => self.has(Retort::new(3) /* nature_mastery */),
+            "sorcery" => self.has(Retort::new(4) /* sorcery_mastery */),
+            "chaos" => self.has(Retort::new(2) /* chaos_mastery */),
             _ => false,
         }
     }
@@ -262,17 +265,17 @@ impl<'a> Wizard<'a> {
     /// masteries, books beyond seven in the realm, runemaster for arcane.
     pub fn research_bonus(&self, def: &SpellDef) -> i32 {
         let mut bonus = 0;
-        if self.has(Retort::SAGE_MASTER) {
+        if self.has(Retort::new(7) /* sage_master */) {
             bonus += 25;
         }
-        if self.has(Retort::CONJURER) && is_summoning(def) {
+        if self.has(Retort::new(15) /* conjurer */) && is_summoning(def) {
             bonus += 25;
         }
         if self.has_mastery(&def.realm) {
             bonus += 15;
         }
         if def.realm == "arcane" {
-            if self.has(Retort::RUNEMASTER) {
+            if self.has(Retort::new(14) /* runemaster */) {
                 bonus += 25;
             }
         } else {
@@ -298,7 +301,7 @@ impl<'a> Wizard<'a> {
             }
             research = 0;
         }
-        if self.has(Retort::MANA_FOCUSING) {
+        if self.has(Retort::new(11) /* mana_focusing */) {
             mana += mana / 4;
         }
         PowerShares {
@@ -422,7 +425,7 @@ impl<'a> Wizard<'a> {
 
     /// 2 for a Channeler (half the spell maintenance), else 1.
     pub fn upkeep_divisor(&self) -> i32 {
-        if self.has(Retort::CHANNELER) {
+        if self.has(Retort::new(8) /* channeler */) {
             2
         } else {
             1
@@ -501,8 +504,8 @@ impl<'a> WizardMut<'a> {
         }
         let total: i32 = sheet.0.values().map(|&n| i32::from(n)).sum();
         let retorts = Retorts(retorts.iter().copied().collect());
-        let archmage = retorts.0.contains(&Retort::ARCHMAGE);
-        let famous = retorts.0.contains(&Retort::FAMOUS);
+        let archmage = retorts.0.contains(&Retort::new(10) /* archmage */);
+        let famous = retorts.0.contains(&Retort::new(13) /* famous */);
         let target = 2 * (total + if archmage { 5 } else { 0 });
         let points = skill_points_for(target, archmage);
         *self.get_mut::<Books>() = sheet;
@@ -713,7 +716,7 @@ impl<'a> WizardMut<'a> {
     /// The turn's income of research and skill: research goes to the spell, skill points to
     /// casting skill (an archmage gets half as much again). Returns the mana for the reserve.
     pub fn take_power(&mut self, split: &PowerShares, research: i32) -> i32 {
-        let archmage = self.view().has(Retort::ARCHMAGE);
+        let archmage = self.view().has(Retort::new(10) /* archmage */);
         self.add_research(research);
         let skill = split.skill.max(0);
         self.get_mut::<Skill>().points += if archmage { skill * 3 / 2 } else { skill };

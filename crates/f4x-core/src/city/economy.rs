@@ -250,9 +250,10 @@ impl<'a> Economy<'a> {
             // Divine and Infernal Power add half again to the power and the pacifying of the
             // religious buildings: the original adds the buildings up, then takes 150 percent.
             let owner = self.city_owner(city);
-            let devout = owner
-                .and_then(|o| self.wizard(o))
-                .is_some_and(|m| m.has(Retort::DIVINE_POWER) || m.has(Retort::INFERNAL_POWER));
+            let devout = owner.and_then(|o| self.wizard(o)).is_some_and(|m| {
+                m.has(Retort::new(6) /* divine_power */)
+                    || m.has(Retort::new(5) /* infernal_power */)
+            });
             let (mut power, mut pacify) = (0, 0);
             // While another wizard keeps Armageddon going, the city has two more rebels' worth of
             // unrest (the buildings still calm it, as in the community patch).

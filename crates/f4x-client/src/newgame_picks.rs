@@ -498,16 +498,17 @@ mod tests {
     fn a_retort_that_is_refused_names_what_it_needs() {
         let content = crate::test_app::shipped::content();
         assert_eq!(
-            prerequisite_text(content, Retort::CHAOS_MASTERY),
+            prerequisite_text(content, Retort::new(2) /* chaos_mastery */),
             "4 picks in Chaos Magic"
         );
         assert_eq!(
-            prerequisite_text(content, Retort::SAGE_MASTER),
+            prerequisite_text(content, Retort::new(7) /* sage_master */),
             "1 pick in any 2 Realms of Magic"
         );
         assert!(
-            prerequisite_text(content, Retort::NODE_MASTERY).contains("1 pick in Sorcery Magic")
+            prerequisite_text(content, Retort::new(12) /* node_mastery */)
+                .contains("1 pick in Sorcery Magic")
         );
-        assert!(prerequisite_text(content, Retort::ALCHEMY).is_empty());
+        assert!(prerequisite_text(content, Retort::new(0) /* alchemy */).is_empty());
     }
 }

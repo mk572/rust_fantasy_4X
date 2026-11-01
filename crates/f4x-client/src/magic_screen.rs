@@ -623,7 +623,7 @@ impl MagicUi {
         let skilled = app
             .game
             .wizard(HUMAN)
-            .is_some_and(|m| m.has(Retort::ALCHEMY));
+            .is_some_and(|m| m.has(Retort::new(0) /* alchemy */));
         let divisor = if skilled { 1 } else { 2 };
         let pool = if ui.gold_to_mana { gold } else { mana };
         if pool <= 1 {

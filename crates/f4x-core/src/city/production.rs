@@ -430,7 +430,7 @@ impl Economy<'_> {
         if weapons == 0
             && self
                 .wizard(owner)
-                .is_some_and(|m| m.has(crate::wizard::magic::Retort::ALCHEMY))
+                .is_some_and(|m| m.has(crate::wizard::magic::Retort::new(0) /* alchemy */))
         {
             weapons = crate::unit::WEAPON_MAGIC;
         }

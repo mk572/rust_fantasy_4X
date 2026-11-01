@@ -74,17 +74,17 @@ fn build(books: &[(&str, u8)], retorts: &[Retort]) -> WizardBuild {
 #[test]
 fn retorts_cost_one_two_or_three_picks() {
     let rules = &shipped().rules;
-    assert_eq!(retort_cost(rules, Retort::ALCHEMY), 1);
+    assert_eq!(retort_cost(rules, Retort::new(0) /* alchemy */), 1);
     for r in [
-        Retort::WARLORD,
-        Retort::CHANNELER,
-        Retort::DIVINE_POWER,
-        Retort::FAMOUS,
-        Retort::INFERNAL_POWER,
+        Retort::new(1),  /* warlord */
+        Retort::new(8),  /* channeler */
+        Retort::new(6),  /* divine_power */
+        Retort::new(13), /* famous */
+        Retort::new(5),  /* infernal_power */
     ] {
         assert_eq!(retort_cost(rules, r), 2, "{r:?}");
     }
-    assert_eq!(retort_cost(rules, Retort::MYRRAN), 3);
+    assert_eq!(retort_cost(rules, Retort::new(9) /* myrran */), 3);
     assert_eq!(all_retorts(rules).count(), 18);
 }
 
@@ -93,40 +93,87 @@ fn some_retorts_need_books() {
     let rules = &shipped().rules;
     let none = BTreeMap::new();
     let mut b: BTreeMap<String, u8> = BTreeMap::new();
-    assert!(retort_available(rules, Retort::ALCHEMY, &none));
-    assert!(!retort_available(rules, Retort::ARCHMAGE, &none));
-    assert!(!retort_available(rules, Retort::SAGE_MASTER, &none));
+    assert!(retort_available(
+        rules,
+        Retort::new(0), /* alchemy */
+        &none
+    ));
+    assert!(!retort_available(
+        rules,
+        Retort::new(10), /* archmage */
+        &none
+    ));
+    assert!(!retort_available(
+        rules,
+        Retort::new(7), /* sage_master */
+        &none
+    ));
     b.insert("life".into(), 4);
-    assert!(retort_available(rules, Retort::DIVINE_POWER, &b));
-    assert!(retort_available(rules, Retort::ARCHMAGE, &b));
-    assert!(retort_available(rules, Retort::MANA_FOCUSING, &b));
-    assert!(!retort_available(rules, Retort::INFERNAL_POWER, &b));
+    assert!(retort_available(
+        rules,
+        Retort::new(6), /* divine_power */
+        &b
+    ));
+    assert!(retort_available(
+        rules,
+        Retort::new(10), /* archmage */
+        &b
+    ));
+    assert!(retort_available(
+        rules,
+        Retort::new(11), /* mana_focusing */
+        &b
+    ));
+    assert!(!retort_available(
+        rules,
+        Retort::new(5), /* infernal_power */
+        &b
+    ));
     assert!(
-        !retort_available(rules, Retort::SAGE_MASTER, &b),
+        !retort_available(rules, Retort::new(7) /* sage_master */, &b),
         "one realm only"
     );
     b.insert("death".into(), 1);
-    assert!(retort_available(rules, Retort::SAGE_MASTER, &b));
-    assert!(!retort_available(rules, Retort::RUNEMASTER, &b));
+    assert!(retort_available(
+        rules,
+        Retort::new(7), /* sage_master */
+        &b
+    ));
+    assert!(!retort_available(
+        rules,
+        Retort::new(14), /* runemaster */
+        &b
+    ));
     b.insert("death".into(), 2);
     b.insert("chaos".into(), 2);
     b.insert("life".into(), 2);
     assert!(
-        retort_available(rules, Retort::RUNEMASTER, &b),
+        retort_available(rules, Retort::new(14) /* runemaster */, &b),
         "two books in three realms"
     );
-    assert!(!retort_available(rules, Retort::NODE_MASTERY, &b));
+    assert!(!retort_available(
+        rules,
+        Retort::new(12), /* node_mastery */
+        &b
+    ));
     for r in ["chaos", "sorcery", "nature"] {
         b.insert(r.into(), 1);
     }
-    assert!(retort_available(rules, Retort::NODE_MASTERY, &b));
+    assert!(retort_available(
+        rules,
+        Retort::new(12), /* node_mastery */
+        &b
+    ));
 }
 
 #[test]
 fn a_wizard_spends_exactly_eleven_picks() {
     let g = game();
     assert_eq!(
-        g.check_wizard_build(&build(&[("life", 5), ("chaos", 5)], &[Retort::ALCHEMY])),
+        g.check_wizard_build(&build(
+            &[("life", 5), ("chaos", 5)],
+            &[Retort::new(0) /* alchemy */]
+        )),
         Ok(())
     );
     assert_eq!(
@@ -134,17 +181,25 @@ fn a_wizard_spends_exactly_eleven_picks() {
         Err(BuildError::UnspentPicks { left: 1 })
     );
     assert_eq!(
-        g.check_wizard_build(&build(&[("life", 6), ("chaos", 5)], &[Retort::ALCHEMY])),
+        g.check_wizard_build(&build(
+            &[("life", 6), ("chaos", 5)],
+            &[Retort::new(0) /* alchemy */]
+        )),
         Err(BuildError::TooManyPicks { spent: 12 })
     );
     assert_eq!(
-        g.check_wizard_build(&build(&[("life", 9)], &[Retort::WARLORD])),
+        g.check_wizard_build(&build(&[("life", 9)], &[Retort::new(1) /* warlord */])),
         Ok(()),
         "warlord costs two"
     );
     assert_eq!(
-        g.check_wizard_build(&build(&[("life", 3), ("chaos", 3)], &[Retort::ARCHMAGE])),
-        Err(BuildError::RetortNotAvailable(Retort::ARCHMAGE))
+        g.check_wizard_build(&build(
+            &[("life", 3), ("chaos", 3)],
+            &[Retort::new(10) /* archmage */]
+        )),
+        Err(BuildError::RetortNotAvailable(
+            Retort::new(10) /* archmage */
+        ))
     );
     assert_eq!(
         g.check_wizard_build(&build(&[("magic", 11)], &[])),
@@ -156,13 +211,13 @@ fn a_wizard_spends_exactly_eleven_picks() {
 fn at_most_six_retorts() {
     let g = game();
     let seven = [
-        Retort::ALCHEMY,
-        Retort::CONJURER,
-        Retort::ARTIFICER,
-        Retort::CHARISMATIC,
-        Retort::WARLORD,
-        Retort::FAMOUS,
-        Retort::CHANNELER,
+        Retort::new(0),  /* alchemy */
+        Retort::new(15), /* conjurer */
+        Retort::new(17), /* artificer */
+        Retort::new(16), /* charismatic */
+        Retort::new(1),  /* warlord */
+        Retort::new(13), /* famous */
+        Retort::new(8),  /* channeler */
     ];
     assert_eq!(
         g.check_wizard_build(&build(&[], &seven)),
@@ -177,7 +232,10 @@ fn starting_spells_are_chosen_then_defaulted() -> TestResult {
         nth(&g, "life", Rarity::Common, 3),
         nth(&g, "life", Rarity::Common, 7),
     );
-    let mut b = build(&[("life", 4), ("chaos", 6)], &[Retort::ALCHEMY]);
+    let mut b = build(
+        &[("life", 4), ("chaos", 6)],
+        &[Retort::new(0) /* alchemy */],
+    );
     b.spells = vec![c7, c3];
     g.create_wizard(P0, &b).map_err(|e| format!("{e:?}"))?;
     let m = g.wizard(P0).ok_or("wizard is missing")?;
@@ -206,12 +264,18 @@ fn bad_spell_choices_are_refused() {
     let uncommon = nth(&g, "life", Rarity::Uncommon, 0);
     let common = nth(&g, "life", Rarity::Common, 0);
     let other = nth(&g, "chaos", Rarity::Common, 0);
-    let mut b = build(&[("life", 5), ("chaos", 5)], &[Retort::ALCHEMY]);
+    let mut b = build(
+        &[("life", 5), ("chaos", 5)],
+        &[Retort::new(0) /* alchemy */],
+    );
     b.spells = vec![uncommon];
     assert_eq!(g.create_wizard(P0, &b), Err(BuildError::BadSpell(uncommon)));
     b.spells = vec![common, common];
     assert_eq!(g.create_wizard(P0, &b), Err(BuildError::BadSpell(common)));
-    let mut one_book = build(&[("life", 1), ("chaos", 9)], &[Retort::ALCHEMY]);
+    let mut one_book = build(
+        &[("life", 1), ("chaos", 9)],
+        &[Retort::new(0) /* alchemy */],
+    );
     one_book.spells = vec![common];
     assert_eq!(
         g.create_wizard(P0, &one_book),
@@ -225,7 +289,10 @@ fn bad_spell_choices_are_refused() {
 #[test]
 fn a_wizard_chooses_a_banner_and_it_is_saved() -> TestResult {
     let mut g = game();
-    let mut b = build(&[("life", 5), ("chaos", 5)], &[Retort::ALCHEMY]);
+    let mut b = build(
+        &[("life", 5), ("chaos", 5)],
+        &[Retort::new(0) /* alchemy */],
+    );
     assert_eq!(
         g.player(P0).ok_or("player is missing")?.banner(),
         0,
@@ -292,7 +359,7 @@ fn presets_come_from_the_rules() -> TestResult {
     assert!(g
         .wizard(P0)
         .ok_or("wizard is missing")?
-        .has(Retort::CHANNELER));
+        .has(Retort::new(8) /* channeler */));
     assert!(g.preset_build("nobody").is_none());
     Ok(())
 }
@@ -554,7 +621,10 @@ fn an_artificer_also_knows_enchant_item_and_create_artifact() -> TestResult {
     let mut g = game();
     g.create_wizard(
         P0,
-        &preset(&[("life", 2), ("chaos", 2)], &[Retort::ARTIFICER]),
+        &preset(
+            &[("life", 2), ("chaos", 2)],
+            &[Retort::new(17) /* artificer */],
+        ),
     )
     .map_err(|e| format!("{e:?}"))?;
     let m = g.wizard(P0).ok_or("wizard is missing")?;
@@ -621,24 +691,24 @@ fn from_hard_on_a_computer_wizard_may_research_an_uncommon_summoning_spell() -> 
 fn each_retort_constant_is_the_number_of_its_row_in_the_content() {
     let rules = &shipped().rules;
     let named = [
-        (Retort::ALCHEMY, "alchemy"),
-        (Retort::WARLORD, "warlord"),
-        (Retort::CHAOS_MASTERY, "chaos_mastery"),
-        (Retort::NATURE_MASTERY, "nature_mastery"),
-        (Retort::SORCERY_MASTERY, "sorcery_mastery"),
-        (Retort::INFERNAL_POWER, "infernal_power"),
-        (Retort::DIVINE_POWER, "divine_power"),
-        (Retort::SAGE_MASTER, "sage_master"),
-        (Retort::CHANNELER, "channeler"),
-        (Retort::MYRRAN, "myrran"),
-        (Retort::ARCHMAGE, "archmage"),
-        (Retort::MANA_FOCUSING, "mana_focusing"),
-        (Retort::NODE_MASTERY, "node_mastery"),
-        (Retort::FAMOUS, "famous"),
-        (Retort::RUNEMASTER, "runemaster"),
-        (Retort::CONJURER, "conjurer"),
-        (Retort::CHARISMATIC, "charismatic"),
-        (Retort::ARTIFICER, "artificer"),
+        (Retort::new(0) /* alchemy */, "alchemy"),
+        (Retort::new(1) /* warlord */, "warlord"),
+        (Retort::new(2) /* chaos_mastery */, "chaos_mastery"),
+        (Retort::new(3) /* nature_mastery */, "nature_mastery"),
+        (Retort::new(4) /* sorcery_mastery */, "sorcery_mastery"),
+        (Retort::new(5) /* infernal_power */, "infernal_power"),
+        (Retort::new(6) /* divine_power */, "divine_power"),
+        (Retort::new(7) /* sage_master */, "sage_master"),
+        (Retort::new(8) /* channeler */, "channeler"),
+        (Retort::new(9) /* myrran */, "myrran"),
+        (Retort::new(10) /* archmage */, "archmage"),
+        (Retort::new(11) /* mana_focusing */, "mana_focusing"),
+        (Retort::new(12) /* node_mastery */, "node_mastery"),
+        (Retort::new(13) /* famous */, "famous"),
+        (Retort::new(14) /* runemaster */, "runemaster"),
+        (Retort::new(15) /* conjurer */, "conjurer"),
+        (Retort::new(16) /* charismatic */, "charismatic"),
+        (Retort::new(17) /* artificer */, "artificer"),
     ];
     assert_eq!(named.len(), rules.retorts.len(), "a constant for each row");
     for (id, alias) in named {

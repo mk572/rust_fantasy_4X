@@ -22,29 +22,6 @@ use crate::rules::{Id, Rarity, RetortDef, SpellDef, SpellId};
 /// `retort.<id>`, and what a retort costs and needs is its row in the rules.
 pub type Retort = Id<RetortDef>;
 
-/// The retorts the rules code reacts to, by number. `retorts.ron` carries each one at that number
-/// (a test in `f4x-data` checks it).
-impl Retort {
-    pub const ALCHEMY: Retort = Id::new(0);
-    pub const WARLORD: Retort = Id::new(1);
-    pub const CHAOS_MASTERY: Retort = Id::new(2);
-    pub const NATURE_MASTERY: Retort = Id::new(3);
-    pub const SORCERY_MASTERY: Retort = Id::new(4);
-    pub const INFERNAL_POWER: Retort = Id::new(5);
-    pub const DIVINE_POWER: Retort = Id::new(6);
-    pub const SAGE_MASTER: Retort = Id::new(7);
-    pub const CHANNELER: Retort = Id::new(8);
-    pub const MYRRAN: Retort = Id::new(9);
-    pub const ARCHMAGE: Retort = Id::new(10);
-    pub const MANA_FOCUSING: Retort = Id::new(11);
-    pub const NODE_MASTERY: Retort = Id::new(12);
-    pub const FAMOUS: Retort = Id::new(13);
-    pub const RUNEMASTER: Retort = Id::new(14);
-    pub const CONJURER: Retort = Id::new(15);
-    pub const CHARISMATIC: Retort = Id::new(16);
-    pub const ARTIFICER: Retort = Id::new(17);
-}
-
 /// How many spells are offered for research at once.
 pub const RESEARCH_SLOTS: usize = 8;
 

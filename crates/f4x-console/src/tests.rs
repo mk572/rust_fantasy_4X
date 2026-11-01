@@ -543,7 +543,7 @@ fn with_four_wizards_above_average_one_or_two_computer_wizards_are_myrran() {
                 .into_iter()
                 .filter(|&w| w != human)
                 .filter_map(|w| g.wizard(w))
-                .filter(|p| p.has(f4x_core::wizard::magic::Retort::MYRRAN))
+                .filter(|p| p.has(f4x_core::wizard::magic::Retort::new(9) /* myrran */))
                 .count();
             assert!(
                 (1..=2).contains(&n),
@@ -1179,7 +1179,7 @@ fn a_myrran_wizard_starts_on_myrror_with_a_myrror_race() -> TestResult {
         books: [("sorcery".to_string(), 5), ("nature".to_string(), 3)]
             .into_iter()
             .collect(),
-        retorts: [Retort::MYRRAN].into_iter().collect(),
+        retorts: [Retort::new(9) /* myrran */].into_iter().collect(),
         race: race.map(str::to_string),
         ..NewGame::default()
     };

@@ -71,7 +71,7 @@ pub(crate) fn balance_planes(
     total: usize,
     picks: u8,
 ) {
-    let myrran = |b: &WizardBuild| b.retorts.contains(&Retort::MYRRAN);
+    let myrran = |b: &WizardBuild| b.retorts.contains(&Retort::new(9) /* myrran */);
     let (least, most) = myrran_range(total);
     let count = |builds: &[WizardBuild]| {
         builds.iter().filter(|b| myrran(b)).count() + usize::from(human_myrran)
@@ -101,7 +101,7 @@ pub(crate) fn balance_planes(
             }
         }
         builds[k].books.retain(|_, n| *n > 0);
-        builds[k].retorts.insert(Retort::MYRRAN);
+        builds[k].retorts.insert(Retort::new(9) /* myrran */);
         drop_unavailable(&game.content.rules, &mut builds[k]);
     }
     while count(builds) > most {
@@ -110,7 +110,7 @@ pub(crate) fn balance_planes(
             break;
         }
         let k = myrrans[game.roll(myrrans.len() as u32) as usize - 1];
-        builds[k].retorts.remove(&Retort::MYRRAN);
+        builds[k].retorts.remove(&Retort::new(9) /* myrran */);
         refill(game, &mut builds[k], picks);
     }
 }
@@ -139,7 +139,7 @@ pub(crate) fn make(
         .collect();
     let myran = |game: &Game, id: &str| {
         game.preset_build(id)
-            .is_some_and(|b| b.retorts.contains(&Retort::MYRRAN))
+            .is_some_and(|b| b.retorts.contains(&Retort::new(9) /* myrran */))
     };
 
     // Who: a random ready-made wizard each, as many of them Myrran as the planes can take.
@@ -162,7 +162,7 @@ pub(crate) fn make(
             builds.push(fallback(i));
             continue;
         };
-        if build.retorts.contains(&Retort::MYRRAN) {
+        if build.retorts.contains(&Retort::new(9) /* myrran */) {
             myrrans += 1;
         }
         taken.push(id);
@@ -273,15 +273,17 @@ fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
     let used = picks_used(&game.content.rules, b);
     let all: Vec<Retort> = all_retorts(&game.content.rules).collect();
     let r = all[game.roll(all.len() as u32) as usize - 1];
-    if b.retorts.len() >= MAX_RETORTS || r == Retort::MYRRAN {
+    if b.retorts.len() >= MAX_RETORTS || r == Retort::new(9)
+    /* myrran */
+    {
         return;
     }
     let realm_retorts = [
-        Retort::CHAOS_MASTERY,
-        Retort::NATURE_MASTERY,
-        Retort::SORCERY_MASTERY,
-        Retort::DIVINE_POWER,
-        Retort::INFERNAL_POWER,
+        Retort::new(2), /* chaos_mastery */
+        Retort::new(3), /* nature_mastery */
+        Retort::new(4), /* sorcery_mastery */
+        Retort::new(6), /* divine_power */
+        Retort::new(5), /* infernal_power */
     ];
     let two_pick = retort_cost(&game.content.rules, r) == 2;
     let retort = match r {
@@ -294,24 +296,28 @@ fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
             let shelf = [
                 (
                     "nature",
-                    Retort::NATURE_MASTERY,
-                    has(Retort::NATURE_MASTERY),
+                    Retort::new(3), /* nature_mastery */
+                    has(Retort::new(3) /* nature_mastery */),
                 ),
                 (
                     "sorcery",
-                    Retort::SORCERY_MASTERY,
-                    has(Retort::SORCERY_MASTERY),
+                    Retort::new(4), /* sorcery_mastery */
+                    has(Retort::new(4) /* sorcery_mastery */),
                 ),
-                ("chaos", Retort::CHAOS_MASTERY, has(Retort::CHAOS_MASTERY)),
+                (
+                    "chaos",
+                    Retort::new(2), /* chaos_mastery */
+                    has(Retort::new(2) /* chaos_mastery */),
+                ),
                 (
                     "life",
-                    Retort::DIVINE_POWER,
-                    has(Retort::DIVINE_POWER) || tight,
+                    Retort::new(6), /* divine_power */
+                    has(Retort::new(6) /* divine_power */) || tight,
                 ),
                 (
                     "death",
-                    Retort::INFERNAL_POWER,
-                    has(Retort::INFERNAL_POWER) || tight,
+                    Retort::new(5), /* infernal_power */
+                    has(Retort::new(5) /* infernal_power */) || tight,
                 ),
             ];
             let weights: Vec<u32> = shelf

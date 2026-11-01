@@ -118,12 +118,12 @@ impl Game {
             return 1;
         };
         let mastery = match realm {
-            "nature" => m.has(Retort::NATURE_MASTERY),
-            "sorcery" => m.has(Retort::SORCERY_MASTERY),
-            "chaos" => m.has(Retort::CHAOS_MASTERY),
+            "nature" => m.has(Retort::new(3) /* nature_mastery */),
+            "sorcery" => m.has(Retort::new(4) /* sorcery_mastery */),
+            "chaos" => m.has(Retort::new(2) /* chaos_mastery */),
             _ => false,
         };
-        1 + u32::from(mastery) + u32::from(m.has(Retort::ARCHMAGE))
+        1 + u32::from(mastery) + u32::from(m.has(Retort::new(10) /* archmage */))
     }
 
     /// The difficulty of dispelling `spell` cast by `caster` (`None` for no caster's retorts).

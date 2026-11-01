@@ -464,7 +464,7 @@ impl Game {
                 });
             let mut range = super::casting::range_percent(
                 distance,
-                magic.has(crate::wizard::magic::Retort::CHANNELER),
+                magic.has(crate::wizard::magic::Retort::new(8) /* channeler */),
             );
             // On corrupted ground a wizard who keeps Great Wasting going pays no range penalty.
             if self.is_corrupted(site) && self.has_global(player, "great_wasting") {
@@ -609,9 +609,11 @@ impl Game {
         realm: &str,
         difficulty: u32,
     ) -> bool {
-        let mastery = self
-            .wizard(player)
-            .is_some_and(|m| m.has(crate::wizard::magic::Retort::NODE_MASTERY));
+        let mastery = self.wizard(player).is_some_and(|m| {
+            m.has(
+                crate::wizard::magic::Retort::new(12), /* node_mastery */
+            )
+        });
         let Some(active) = self.battle.as_mut() else {
             return false;
         };

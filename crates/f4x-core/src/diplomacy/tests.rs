@@ -282,7 +282,7 @@ fn temper_and_charm_change_what_a_deed_is_worth() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
-        .insert(Retort::CHARISMATIC);
+        .insert(Retort::new(16) /* charismatic */);
     set_rel(&mut g, P1, P2, 0);
     g.change_relations(-10, P2, P1, Action::AttackedCity, None);
     assert_eq!(g.relation(P1, P2), -5);
