@@ -37,68 +37,9 @@ pub(crate) const SURVEY_EDGE: Color = rgb(0x5D, 0x5D, 0x79);
 pub(crate) const EDGE_BLACK: Color = rgb(0, 0, 0);
 
 /// What is drawn around the letters: the original's `Set_Font_Style_Shadow_Down`, `_Shadow_Up`,
-/// `_Shadow_Heavy`, `_Outline` and `_Outline_Heavy`, with its copies and offsets (`Print_Display`
-/// in `Fonts.c`). The copies take the style's edge colour (`Set_Outline_Color`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Effect {
-    Plain,
-    /// Three copies to the lower right (the original's `Shadow_Down`).
-    Shadow,
-    /// Three copies to the upper left (`Shadow_Up`).
-    ShadowUp,
-    /// `Shadow_Down` and a second ring two pixels out (`Shadow_Heavy`); no screen of the original
-    /// uses it, it is here for completeness.
-    #[allow(dead_code)]
-    ShadowHeavy,
-    /// Copies on all eight sides (`Outline`), as the gold, mana and income figures.
-    Outline,
-    /// `Outline` and two more pixels to the right, below and the lower right (`Outline_Heavy`).
-    OutlineHeavy,
-}
-
-const DOWN: [(f32, f32); 3] = [(1.0, 1.0), (0.0, 1.0), (1.0, 0.0)];
-const UP: [(f32, f32); 3] = [(-1.0, 0.0), (-1.0, -1.0), (0.0, -1.0)];
-const HEAVY: [(f32, f32); 3] = [(2.0, 2.0), (1.0, 2.0), (2.0, 1.0)];
-const OUTLINE: [(f32, f32); 8] = [
-    (1.0, 1.0),
-    (0.0, 1.0),
-    (1.0, 0.0),
-    (-1.0, 0.0),
-    (-1.0, -1.0),
-    (0.0, -1.0),
-    (1.0, -1.0),
-    (-1.0, 1.0),
-];
-const OUTLINE_HEAVY: [(f32, f32); 13] = [
-    (1.0, 1.0),
-    (0.0, 1.0),
-    (1.0, 0.0),
-    (-1.0, 0.0),
-    (-1.0, -1.0),
-    (0.0, -1.0),
-    (2.0, 2.0),
-    (1.0, 2.0),
-    (2.0, 1.0),
-    (1.0, -1.0),
-    (-1.0, 1.0),
-    (2.0, 0.0),
-    (0.0, 2.0),
-];
-const SHADOW_HEAVY: [(f32, f32); 6] = [DOWN[0], DOWN[1], DOWN[2], HEAVY[0], HEAVY[1], HEAVY[2]];
-
-impl Effect {
-    /// The offsets, in the original's pixels, of the copies drawn first.
-    pub(crate) fn behind(self) -> &'static [(f32, f32)] {
-        match self {
-            Effect::Plain => &[],
-            Effect::Shadow => &DOWN,
-            Effect::ShadowUp => &UP,
-            Effect::ShadowHeavy => &SHADOW_HEAVY,
-            Effect::Outline => &OUTLINE,
-            Effect::OutlineHeavy => &OUTLINE_HEAVY,
-        }
-    }
-}
+/// `_Shadow_Heavy`, `_Outline` and `_Outline_Heavy` (`Print_Display` in `Fonts.c`). The engine
+/// draws the copies, in the style's edge colour (`Set_Outline_Color`).
+pub(crate) use bm::Effect;
 
 /// How one line of text looks.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -250,37 +191,13 @@ impl Style {
     }
 }
 
-/// The left edge of a line of `width` that is placed at `x` by `align`.
-pub(crate) fn aligned(x: f32, width: f32, align: Align) -> f32 {
+/// The engine's alignment for the frame's.
+fn engine_align(align: Align) -> bm::Align {
     match align {
-        Align::Left => x,
-        Align::Center => x - width / 2.0,
-        Align::Right => x - width,
+        Align::Left => bm::Align::Left,
+        Align::Center => bm::Align::Center,
+        Align::Right => bm::Align::Right,
     }
-}
-
-/// Break `text` into lines no wider than `width`, measuring each candidate line with `measure`.
-/// A word wider than `width` stands on a line of its own.
-pub(crate) fn wrap_lines(text: &str, width: f32, measure: impl Fn(&str) -> f32) -> Vec<String> {
-    let mut lines = Vec::new();
-    let mut line = String::new();
-    for word in text.split_whitespace() {
-        let attempt = if line.is_empty() {
-            word.to_string()
-        } else {
-            format!("{line} {word}")
-        };
-        if !line.is_empty() && measure(&attempt) > width {
-            lines.push(std::mem::take(&mut line));
-            line = word.to_string();
-        } else {
-            line = attempt;
-        }
-    }
-    if !line.is_empty() {
-        lines.push(line);
-    }
-    lines
 }
 
 thread_local! {
@@ -392,9 +309,6 @@ impl App {
         x: f32,
         y: f32,
     ) -> f32 {
-        for &(dx, dy) in style.effect.behind() {
-            self.draw_line_of_text(view, style, Ink::Flat(style.edge), text, (x + dx, y + dy));
-        }
         self.draw_line_of_text(view, style, style.ink, text, (x, y))
     }
 
@@ -420,47 +334,24 @@ impl App {
         let params = bm::TextParams {
             scale: s,
             ink: engine_ink,
+            effect: style.effect,
+            edge: style.edge,
             ..Default::default()
         };
-        let left = ox + aligned(x, w, style.align) * s;
+        let left = ox + engine_align(style.align).anchor(x, w) * s;
         font.draw_text_ex(text, left, oy + (y + font.base) * s, &params);
         w
     }
 
     /// Words wrapped to `width` pixels in one of the original's bitmap fonts.
     pub(crate) fn bm_wrap(&self, font: usize, text: &str, width: f32) -> Vec<String> {
-        wrap_lines(text, width, |line| self.art.text_width(font, line))
+        bm::wrap_lines(text, width, |line| self.art.text_width(font, line))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_line_is_placed_by_its_alignment() {
-        assert_eq!(aligned(100.0, 40.0, Align::Left), 100.0);
-        assert_eq!(aligned(100.0, 40.0, Align::Center), 80.0);
-        assert_eq!(aligned(100.0, 40.0, Align::Right), 60.0);
-    }
-
-    #[test]
-    fn the_effects_have_the_originals_copies() {
-        assert!(Effect::Plain.behind().is_empty());
-        assert_eq!(Effect::Shadow.behind().len(), 3);
-        assert!(Effect::Shadow
-            .behind()
-            .iter()
-            .all(|&(x, y)| x >= 0.0 && y >= 0.0));
-        assert!(Effect::ShadowUp
-            .behind()
-            .iter()
-            .all(|&(x, y)| x <= 0.0 && y <= 0.0));
-        assert_eq!(Effect::ShadowHeavy.behind().len(), 6);
-        assert_eq!(Effect::Outline.behind().len(), 8);
-        assert!(Effect::Outline.behind().contains(&(-1.0, -1.0)));
-        assert_eq!(Effect::OutlineHeavy.behind().len(), 13);
-    }
 
     #[test]
     fn a_style_has_a_black_edge_until_told_otherwise() {
@@ -477,17 +368,5 @@ mod tests {
         assert_eq!(style.center().align, Align::Center);
         assert_eq!(Style::outlined(3).effect, Effect::Outline);
         assert_eq!(Style::flat(1, WHITE).ink, Ink::Flat(WHITE));
-    }
-
-    #[test]
-    fn words_wrap_at_the_width_and_a_long_word_stands_alone() {
-        let chars = |s: &str| s.len() as f32;
-        assert_eq!(wrap_lines("aa bb cc dd", 5.0, chars), ["aa bb", "cc dd"]);
-        assert_eq!(
-            wrap_lines("a verylongword b", 5.0, chars),
-            ["a", "verylongword", "b"]
-        );
-        assert!(wrap_lines("   ", 5.0, chars).is_empty());
-        assert_eq!(wrap_lines("one", 1.0, chars), ["one"]);
     }
 }
