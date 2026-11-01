@@ -4005,7 +4005,7 @@ dependencies = [
 [[package]]
 name = "macroquad_bitmap_font_engine"
 version = "0.1.0"
-source = "git+https://github.com/mk572/macroquad_bitmap_font_engine?rev=2196aaf7cc00c64959e5e7a7190233e2964317f2#2196aaf7cc00c64959e5e7a7190233e2964317f2"
+source = "git+https://github.com/mk572/macroquad_bitmap_font_engine?rev=11b9011627bd9680a65a1c9909fbe89d56f906c2#11b9011627bd9680a65a1c9909fbe89d56f906c2"
 dependencies = [
  "macroquad",
 ]
