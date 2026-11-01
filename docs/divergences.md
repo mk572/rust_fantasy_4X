@@ -777,8 +777,10 @@ as in the original (`spell_sight.rs`). The global-spell mirror needs Enemy Spell
 
 Added (30 October 2026): a wizard target needs contact (line 27); Spell Blast needs the mana to match
 the spell (68); Disenchant Area needs something of another wizard's on the square (28); Change Terrain on
-a node says nodes may not be changed (34); a volcano cannot rise on a river (86); Lycanthropy refuses an
-already mutated unit (64); a summoning needs room on the square (21); a finished unit waits, with its cost
+a node says nodes may not be changed (34); a volcano cannot rise on a river (86); Lycanthropy refuses a
+unit that Chaos Channels has already changed (64; the original's test forgets the wings, `CC_FLIGHT`,
+so it lets a winged unit through); Lycanthropy refuses a catapult, which our data counts as a
+fantastic unit (the wiki lists catapults as valid targets, which we take for a bug); a summoning needs room on the square (21); a finished unit waits, with its cost
 paid, while nine units stand in the city (50, 66; `Event::ProductionBlocked`); Web is refused on a
 non-corporeal unit (71); a mass spell with no unit it can touch (79 to 83) is refused at the cast
 (`NothingToHit`). Floating Island (58 to 60) was already refused by `check_floating_island`.

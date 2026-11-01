@@ -1231,3 +1231,80 @@ fn corrupted_squares_sometimes_heal_by_themselves() {
     let later = count(&g);
     assert!(later < once && later > 0, "{once} -> {later}");
 }
+
+/// Any normal unit will do, settlers and catapults included (the wiki's Lycanthropy page).
+#[test]
+fn lycanthropy_takes_settlers_and_the_stack_keeps_its_place() -> TestResult {
+    let mut g = world();
+    let settlers = unit(&mut g, P0, "high_men_settlers", at(3, 3));
+    let other = unit(&mut g, P0, "high_men_cavalry", at(3, 3));
+    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(settlers)));
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::UnitTransformed { .. })),
+        "{events:?}"
+    );
+    assert_eq!(g.units().units_at(at(3, 3)).len(), 2);
+    assert_eq!(
+        g.units().unit_def(other).ok_or("other unit")?.id,
+        "high_men_cavalry"
+    );
+    Ok(())
+}
+
+/// The wiki lists catapults among the valid targets; that is a bug we do not copy: a catapult is a
+/// war machine, not a unit of flesh, and a Lycanthropy on it is refused.
+#[test]
+fn lycanthropy_refuses_a_catapult() {
+    let mut g = world();
+    let catapult = unit(&mut g, P0, "catapult", at(4, 4));
+    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(catapult)));
+    assert!(
+        matches!(events.as_slice(), [Event::Rejected(_)]),
+        "{events:?}"
+    );
+    assert!(g.check_become_werewolf(catapult).is_err());
+    assert_eq!(
+        g.units().unit_def(catapult).map(|d| d.id.as_str()),
+        Some("catapult")
+    );
+}
+
+/// The wiki's Lycanthropy page: the new unit keeps the damage (in points, taken off the new
+/// body), the unit enchantments, the quality of the weapons and the moves left this turn.
+#[test]
+fn lycanthropy_keeps_damage_enchantments_weapons_and_moves() -> TestResult {
+    let mut g = world();
+    let u = unit(&mut g, P0, "high_men_cavalry", at(3, 3));
+    cast(&mut g, "eldritch_weapon", Some(Target::Unit(u)));
+    g.world.insert_one(u, crate::unit::Hurt(6))?;
+    g.world
+        .insert_one(u, crate::unit::WeaponQuality(crate::unit::WEAPON_MITHRIL))?;
+    g.world.insert_one(u, crate::unit::MovesLeft(3))?;
+    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(u)));
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::UnitTransformed { .. })),
+        "{events:?}"
+    );
+    // Six figures of five hit points, less the six points of damage: 24 left, five figures.
+    assert_eq!(g.units().unit_hits(u), (24, 30));
+    assert_eq!(
+        g.units().unit_weapon_quality(u),
+        crate::unit::WEAPON_MITHRIL
+    );
+    assert_eq!(g.units().unit_moves_left(u), 3);
+    let eldritch = g
+        .content
+        .rules
+        .abilities
+        .id_of("eldritch_weapon")
+        .ok_or("eldritch_weapon is an ability")?;
+    assert!(
+        g.units().unit_has_ability(u, eldritch),
+        "the enchantment stays"
+    );
+    Ok(())
+}
