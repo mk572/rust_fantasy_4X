@@ -249,8 +249,8 @@ impl App {
             );
             crate::font::plain_text(&text, ok_rect.x - 200.0, 30.0, 22.0, GOLD);
             let (ok, cancel) = (
-                Rect::new(screen_width() / 2.0 - 110.0, 8.0, 100.0, 30.0),
                 Rect::new(screen_width() / 2.0 + 10.0, 8.0, 100.0, 30.0),
+                Rect::new(screen_width() / 2.0 - 110.0, 8.0, 100.0, 30.0),
             );
             if button(ok, &self.text("ui.ok"), can, input) && can {
                 self.road_plan_confirm();

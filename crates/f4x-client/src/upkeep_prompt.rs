@@ -53,9 +53,51 @@ impl Modal for UpkeepPrompt {
 }
 
 impl App {
+    /// A stone box of `height` with the frame's bottom edge: the stone of `resource.lbx` 0 and the
+    /// last rows of 1, whose button wells a box with red buttons does not use.
+    pub(crate) fn draw_stone_box(&mut self, lay: &Layout, x: f32, y: f32, height: f32) {
+        const FOOT_ROWS: f32 = 6.0;
+        self.draw_stone(lay, x, y, height - 4.0);
+        let foot = self
+            .art_picture("resource", 1, 0)
+            .map_or(24.0, |t| crate::resolution::logical_h(&t));
+        self.draw_pic_rows(
+            lay,
+            "resource",
+            1,
+            x,
+            y + height - foot,
+            y + height - FOOT_ROWS,
+            y + height,
+        );
+    }
+
+    /// One line of text on a stone box, in the colours of the original's confirmation boxes: the
+    /// ink over the shadow colour `COL_ConfirmShadows`.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn stone_text(
+        &mut self,
+        view: (f32, f32, f32),
+        font: usize,
+        ink: Ink,
+        text: &str,
+        x: f32,
+        y: f32,
+        align: Align,
+    ) {
+        let edge = rgb(0x41, 0x2C, 0x24);
+        self.draw_styled(
+            view,
+            &Style::inked(font, ink).shadow().edge(edge).align(align),
+            text,
+            x,
+            y,
+        );
+    }
+
     /// The stone of `resource.lbx` 0 down to `height`: the picture is only as tall as the
     /// original's short boxes, so a taller one repeats a plain band from its middle.
-    fn draw_stone(&mut self, lay: &Layout, x: f32, y: f32, height: f32) {
+    pub(crate) fn draw_stone(&mut self, lay: &Layout, x: f32, y: f32, height: f32) {
         const BAND: (f32, f32) = (30.0, 20.0);
         let Some(tex) = self.art_picture("resource", 0, 0) else {
             return;

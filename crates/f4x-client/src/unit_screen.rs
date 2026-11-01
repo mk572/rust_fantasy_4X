@@ -485,7 +485,7 @@ impl App {
     }
 
     /// A red button of another width (the picture is stretched).
-    fn red_button_sized(
+    pub(crate) fn red_button_sized(
         &mut self,
         lay: &Layout,
         label: &str,
@@ -509,7 +509,7 @@ impl App {
         self.red_button_face_sized(lay, label, (x, y), enabled, 49.0, input)
     }
 
-    fn red_button_face_sized(
+    pub(crate) fn red_button_face_sized(
         &mut self,
         lay: &Layout,
         label: &str,
@@ -527,10 +527,21 @@ impl App {
         } else {
             Color::new(1.0, 1.0, 1.0, 0.5)
         };
-        if self
-            .draw_pic_tinted(lay, "backgrnd", 24, usize::from(down), x, y, tint)
-            .is_none()
-        {
+        // The picture is stretched to the width asked for.
+        if let Some(tex) = self.art_picture("backgrnd", 24, usize::from(down)) {
+            let at = lay.point(x, y);
+            let height = crate::resolution::logical_h(&tex);
+            draw_texture_ex(
+                &tex,
+                at.x,
+                at.y,
+                tint,
+                DrawTextureParams {
+                    dest_size: Some(vec2(w * lay.scale, height * lay.scale)),
+                    ..Default::default()
+                },
+            );
+        } else {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.5, 0.15, 0.1, 1.0));
         }
         let view = (lay.origin.x, lay.origin.y, lay.scale);

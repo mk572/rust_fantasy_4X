@@ -9,7 +9,8 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use crate::font::Style;
+use crate::font::{Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::spellbook::BookUi;
@@ -29,8 +30,12 @@ use crate::art::FigureEffect;
 use crate::battle_anim::{self, Anim, Visual};
 use crate::battle_ground::Piece;
 use crate::frame::{Align, Layout};
-use crate::ui::{self, bar, button, GOLD, PANEL};
+use crate::ui::{self, bar, GOLD};
 use crate::view::{App, Screen, HUMAN};
+
+/// Row height and the most rows of the list of the fallen, in the original's pixels.
+const FALLEN_ROW: f32 = 10.0;
+const FALLEN_SHOWN: usize = 10;
 
 /// Native size of a cell and the step between neighbouring squares.
 const CELL_W: f32 = 32.0;
@@ -78,6 +83,8 @@ pub(crate) struct BattleUi {
     aiming: Option<Aiming>,
     /// Animate Dead or Raise Dead chosen: the list of the fallen to pick from.
     fallen_list: Option<SpellId>,
+    /// The fallen unit ticked in that list, until OK casts the spell on it.
+    fallen_pick: Option<usize>,
     /// The Auto button is on: the computer plays the human's side too, until the battle ends
     /// or the button is pressed again.
     auto: bool,
@@ -1321,6 +1328,7 @@ impl App {
             // Only the wizard raises the fallen.
             if unit.is_none() {
                 ui.fallen_list = Some(spell.spell);
+                ui.fallen_pick = None;
             }
             return;
         }
@@ -1385,6 +1393,7 @@ impl App {
             ui.spell_list = false;
             ui.spell_unit = None;
             ui.fallen_list = None;
+            ui.fallen_pick = None;
             return;
         }
         let Some(mut aim) = ui.aiming.clone() else {
@@ -1570,9 +1579,9 @@ impl App {
             .and_then(|u| battle.unit(u))
             .map_or(0, |u| u.casting.demons);
         if let (Some(u), true) = (unit, demons > 0) {
-            let r = lay.rect((100.0, 170.0, 70.0, 16.0));
             let label = self.text_with("battle.summon_demon", &Args::new().count("n", demons));
-            if button(r, &label, self.game.can_summon_demon(u), input) {
+            let can = self.game.can_summon_demon(u);
+            if self.red_button_face_sized(&lay, &label, (100.0, 170.0), can, 70.0, input) {
                 ui.spell_list = false;
                 ui.spell_unit = None;
                 self.battle_order(ui, BattleCommand::SummonDemon { unit: u });
@@ -1605,29 +1614,33 @@ impl App {
             })
             .unwrap_or_default();
         let name = self.game.content().rules.spells.get(spell).name.clone();
-        let (row_h, width) = (26.0, 360.0);
-        let height = (fallen.len().max(1) as f32 * row_h + 34.0).min(screen_height() - 80.0);
-        let (x, y) = (20.0, 20.0);
-        draw_rectangle(x, y, width, height, PANEL);
-        draw_rectangle_lines(x, y, width, height, 2.0, GOLD);
-        crate::font::plain_text(
-            self.text_with("battle.raise_which", &Args::new().text("spell", &name)),
-            x + 10.0,
-            y + 22.0,
-            18.0,
-            WHITE,
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let bw = self
+            .art_picture("resource", 0, 0)
+            .map_or(186.0, |t| crate::resolution::logical_w(&t));
+        let title = self.text_with("battle.raise_which", &Args::new().text("spell", &name));
+        let title = self.bm_wrap(1, &title, bw - 20.0);
+        let shown = fallen.len().min(FALLEN_SHOWN);
+        let bh =
+            16.0 + title.len() as f32 * FALLEN_ROW + 4.0 + shown.max(1) as f32 * FALLEN_ROW + 30.0;
+        let (bx, by) = (
+            ((crate::resolution::DESIGN_W - bw) / 2.0).floor(),
+            ((crate::resolution::DESIGN_H - bh) / 2.0).floor(),
         );
-        if fallen.is_empty() {
-            crate::font::plain_text(
-                self.text("battle.no_fallen"),
-                x + 10.0,
-                y + 50.0,
-                18.0,
-                LIGHTGRAY,
-            );
+        self.draw_stone_box(&lay, bx, by, bh);
+        let gold = Ink::Set(font_ramp::NOTIFY_TEXT);
+        let light = Ink::Set(font_ramp::DIALOG_TEXT);
+        for (k, line) in title.iter().enumerate() {
+            let y = by + 8.0 + k as f32 * FALLEN_ROW;
+            self.stone_text(view, 1, gold, line, bx + bw / 2.0, y, Align::Center);
         }
-        let room = ((height - 34.0) / row_h) as usize;
-        for (i, &id) in fallen.iter().take(room).enumerate() {
+        let first = by + 12.0 + title.len() as f32 * FALLEN_ROW;
+        if fallen.is_empty() {
+            let none = self.text("battle.no_fallen");
+            self.stone_text(view, 1, light, &none, bx + bw / 2.0, first, Align::Center);
+        }
+        for (i, &id) in fallen.iter().take(shown).enumerate() {
             let Some(u) = battle.unit(id) else {
                 continue;
             };
@@ -1639,25 +1652,55 @@ impl App {
                 .text("unit", &u.name)
                 .count("figures", u.figures_start)
                 .text("how", how);
-            let label = self.text_with("battle.fallen_row", &args);
-            let rect = Rect::new(
-                x + 8.0,
-                y + 30.0 + i as f32 * row_h,
-                width - 16.0,
-                row_h - 2.0,
-            );
-            if button(rect, &label, true, input) {
-                ui.fallen_list = None;
-                self.battle_order(
-                    ui,
-                    BattleCommand::Cast {
-                        spell,
-                        aim: SpellAim::Unit(id),
-                        mana: 0,
-                    },
-                );
-                ui.selected = None;
+            let mut label = self.text_with("battle.fallen_row", &args);
+            while label.chars().count() > 1 && self.art.text_width(1, &label) > bw - 20.0 {
+                label.pop();
             }
+            let y = first + i as f32 * FALLEN_ROW;
+            let rect = lay.rect((bx + 6.0, y - 1.0, bw - 12.0, FALLEN_ROW));
+            let state = ui::hit(rect, true, input);
+            let picked = ui.fallen_pick == Some(id);
+            if picked || state.hovered() {
+                let shade = if picked { 0.62 } else { 0.5 };
+                draw_rectangle(
+                    rect.x,
+                    rect.y,
+                    rect.w,
+                    rect.h,
+                    Color::new(shade, shade * 0.76, shade * 0.52, 1.0),
+                );
+            }
+            let ink = if picked { gold } else { light };
+            self.stone_text(view, 1, ink, &label, bx + 9.0, y, Align::Left);
+            if state.clicked() {
+                ui.fallen_pick = Some(id);
+            }
+        }
+        let (ok_label, cancel_label) = (self.text("ui.ok"), self.text("ui.cancel"));
+        let at = by + bh - 24.0;
+        let can = ui.fallen_pick.is_some();
+        let ok =
+            self.red_button_face_sized(&lay, &ok_label, (bx + bw - 88.0, at), can, 52.0, input);
+        let cancel =
+            self.red_button_face_sized(&lay, &cancel_label, (bx + 36.0, at), true, 52.0, input);
+        if cancel {
+            ui.fallen_list = None;
+            ui.fallen_pick = None;
+        } else if let (Some(id), true) = (
+            ui.fallen_pick,
+            ok || (can && input.key_pressed(KeyCode::Enter)),
+        ) {
+            ui.fallen_list = None;
+            ui.fallen_pick = None;
+            self.battle_order(
+                ui,
+                BattleCommand::Cast {
+                    spell,
+                    aim: SpellAim::Unit(id),
+                    mana: 0,
+                },
+            );
+            ui.selected = None;
         }
     }
 
@@ -1703,8 +1746,20 @@ impl App {
             text += &self.text_with("battle.aim_mana", &args);
         }
         text += &self.text("battle.aim_cancel");
-        draw_rectangle(8.0, 6.0, text.len() as f32 * 8.5 + 16.0, 26.0, PANEL);
-        crate::font::plain_text(&text, 16.0, 25.0, 20.0, GOLD);
+        // A dark strip behind the line so it reads over any ground.
+        let lay = Layout::new();
+        let width = self.art.text_width(1, &text) + 8.0;
+        let strip = lay.rect((2.0, 2.0, width, 12.0));
+        draw_rectangle(
+            strip.x,
+            strip.y,
+            strip.w,
+            strip.h,
+            Color::new(0.0, 0.0, 0.0, 0.6),
+        );
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let gold = Ink::Set(font_ramp::NOTIFY_TEXT);
+        self.stone_text(view, 1, gold, &text, 6.0, 4.0, Align::Left);
     }
 
     /// Keep the selection on a unit that can still act.

@@ -385,13 +385,13 @@ impl App {
         draw_rectangle_lines(x, y, bw, bh, 3.0, crate::ui::GOLD);
         crate::frame::text_centered(text, w / 2.0, y + 45.0, 22.0, WHITE);
         let yes = button(
-            Rect::new(x + bw / 2.0 - 110.0, y + 70.0, 100.0, 36.0),
+            Rect::new(x + bw / 2.0 + 10.0, y + 70.0, 100.0, 36.0),
             &self.text("ui.yes"),
             true,
             input,
         );
         let no = button(
-            Rect::new(x + bw / 2.0 + 10.0, y + 70.0, 100.0, 36.0),
+            Rect::new(x + bw / 2.0 - 110.0, y + 70.0, 100.0, 36.0),
             &self.text("ui.no"),
             true,
             input,

@@ -7,9 +7,11 @@ use f4x_core::game::setting::SettingsDef;
 use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
-use crate::frame::Layout;
+use crate::font::Ink;
+use crate::font_ramp;
+use crate::frame::{Align, Layout};
 use crate::newgame_flow::ng_ink;
-use crate::ui::{self, button, GOLD, PANEL};
+use crate::ui::{self, PANEL};
 use crate::view::{App, Screen};
 
 /// The message keys of the difficulty names, easiest first.
@@ -191,25 +193,6 @@ pub(crate) fn settings_lines(
     lines
 }
 
-/// A row of radio buttons; returns the chosen index.
-fn choose(x: f32, y: &mut f32, label: &str, names: &[String], current: u8, input: &Input) -> u8 {
-    crate::font::plain_text(label, x, *y + 22.0, 24.0, WHITE);
-    let mut chosen = current;
-    for (i, name) in names.iter().enumerate() {
-        let r = Rect::new(x + 170.0 + i as f32 * 112.0, *y, 104.0, 30.0);
-        let label = if i == usize::from(current) {
-            format!("[{name}]")
-        } else {
-            name.clone()
-        };
-        if button(r, &label, true, input) {
-            chosen = i as u8;
-        }
-    }
-    *y += 46.0;
-    chosen
-}
-
 /// The options step on the original's picture (`Newgame_Screen_0`): four buttons on the
 /// right whose text is the current choice, a click goes on to the next one; OK and Cancel
 /// under them. Positions are the original's.
@@ -350,102 +333,171 @@ impl Page for OptionsPage {
 /// game, so it is the options for the next one. Back returns to the Settings screen.
 pub(crate) struct GameSettingsPage;
 
+/// The value after (or, going back, before) `current` of `count`, wrapping.
+fn cycled(current: usize, count: usize, back: bool) -> usize {
+    let count = count.max(1);
+    (current + if back { count - 1 } else { 1 }) % count
+}
+
 impl Page for GameSettingsPage {
+    /// A stone box like the original's confirmation boxes: from the start menu a row for each
+    /// choice (left-click the value for the next one, right-click for the previous one), in a
+    /// game the lines of what it is played with.
     fn frame(&mut self, app: &mut App, input: &Input) {
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
-        let (w, h) = (screen_width(), screen_height());
-        draw_rectangle(0.0, 0.0, w, h, PANEL);
-        let x = (w / 2.0 - 260.0).max(30.0);
-        crate::font::plain_text(app.text("options.settings"), x, 80.0, 36.0, GOLD);
-        let mut y = 130.0;
-        let back = if app.menu.from_menu {
-            crate::font::plain_text(app.text("options.next_game"), x, y - 6.0, 20.0, GRAY);
-            y += 16.0;
-            let difficulties = DIFFICULTIES.map(|k| app.text(k));
-            let magic_levels = MAGIC_LEVELS.map(|k| app.text(k));
-            let generator_label = app.text("options.generator");
-            let (difficulty, opponents_label, land_label, magic_label, map_label, back_label) = (
-                app.text("options.difficulty"),
-                app.text("options.opponents"),
-                app.text("options.land_size"),
-                app.text("options.magic_power"),
-                app.text("options.map_size"),
-                app.text("options.back"),
-            );
-            let o = &mut app.options;
+        let lay = Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let bw = app
+            .art_picture("resource", 0, 0)
+            .map_or(186.0, |t| crate::resolution::logical_w(&t));
+        let from_menu = app.menu.from_menu;
+        // What each row says and whether a click changes it: (label or line, value, clickable).
+        let mut items: Vec<(String, String, bool)> = Vec::new();
+        if from_menu {
             let settings = &app.game.content().settings;
-            o.difficulty = choose(x, &mut y, &difficulty, &difficulties, o.difficulty, input);
-            let opponents: Vec<String> = (1..=settings.max_opponents)
-                .map(|n| n.to_string())
-                .collect();
-            o.opponents = 1 + choose(
-                x,
-                &mut y,
-                &opponents_label,
-                &opponents,
-                o.opponents.clamp(1, settings.max_opponents) - 1,
-                input,
-            );
-            let lands: Vec<String> = settings.land_sizes.iter().map(|s| s.name.clone()).collect();
-            o.land = choose(x, &mut y, &land_label, &lands, o.land, input);
-            o.magic = choose(x, &mut y, &magic_label, &magic_levels, o.magic, input);
-            let maps: Vec<String> = settings.map_sizes.iter().map(|s| s.name.clone()).collect();
-            o.map = choose(x, &mut y, &map_label, &maps, o.map, input);
-            let generators = [
-                app.texts().get("options.generator_custom", &Args::new()),
-                app.texts().get("options.generator_original", &Args::new()),
-            ];
-            let o = &mut app.options;
-            o.original_generator = choose(
-                x,
-                &mut y,
-                &generator_label,
-                &generators,
-                u8::from(o.original_generator),
-                input,
-            ) == 1;
+            let o = &app.options;
+            let land = settings
+                .land_sizes
+                .get(usize::from(o.land))
+                .map_or(String::new(), |s| s.name.clone());
+            let map = settings
+                .map_sizes
+                .get(usize::from(o.map))
+                .map_or(String::new(), |s| s.name.clone());
+            items.push((
+                app.text("options.difficulty"),
+                app.text(DIFFICULTIES[usize::from(o.difficulty)]),
+                true,
+            ));
+            items.push((app.text("options.opponents"), o.opponents.to_string(), true));
+            items.push((app.text("options.land_size"), land, true));
+            items.push((
+                app.text("options.magic_power"),
+                app.text(MAGIC_LEVELS[usize::from(o.magic)]),
+                true,
+            ));
+            items.push((app.text("options.map_size"), map, true));
+            items.push((
+                app.text("options.generator"),
+                app.text(if o.original_generator {
+                    "options.generator_original"
+                } else {
+                    "options.generator_custom"
+                }),
+                true,
+            ));
             let seed = app.text_with(
                 "options.line_seed",
                 &Args::new().text("seed", app.seed.to_string()),
             );
-            crate::font::plain_text(&seed, x, y + 20.0, 22.0, WHITE);
-            y += 30.0;
-            button(
-                Rect::new(x, y + 20.0, 150.0, 40.0),
-                &back_label,
-                true,
-                input,
-            )
+            items.push((seed, String::new(), false));
         } else {
-            crate::font::plain_text(app.text("options.this_game"), x, y - 6.0, 20.0, GRAY);
-            y += 16.0;
-            let lines = settings_lines(
+            let mut lines = settings_lines(
                 app.texts(),
                 app.game.settings(),
                 &app.game.content().settings,
             );
-            for line in lines {
-                crate::font::plain_text(&line, x, y + 20.0, 22.0, WHITE);
-                y += 30.0;
-            }
-            let seed = app.texts().get(
+            lines.push(app.texts().get(
                 "options.line_seed",
                 &Args::new().text("seed", app.game.seed().to_string()),
-            );
-            crate::font::plain_text(&seed, x, y + 20.0, 22.0, WHITE);
-            y += 40.0;
-            button(
-                Rect::new(x, y + 20.0, 150.0, 40.0),
-                &app.text("options.back"),
-                true,
-                input,
-            )
-        };
+            ));
+            for line in lines {
+                for part in app.bm_wrap(1, &line, bw - 20.0) {
+                    items.push((part, String::new(), false));
+                }
+            }
+        }
+        let bh = 29.0 + items.len() as f32 * SETTINGS_ROW + 8.0 + 12.0 + 14.0;
+        let (bx, by) = (
+            ((crate::resolution::DESIGN_W - bw) / 2.0).floor(),
+            ((crate::resolution::DESIGN_H - bh) / 2.0).floor(),
+        );
+        app.draw_stone_box(&lay, bx, by, bh);
+        let gold = Ink::Set(font_ramp::NOTIFY_TEXT);
+        let light = Ink::Set(font_ramp::DIALOG_TEXT);
+        let (title, which) = (
+            app.text("options.settings"),
+            app.text(if from_menu {
+                "options.next_game"
+            } else {
+                "options.this_game"
+            }),
+        );
+        app.stone_text(
+            view,
+            4,
+            gold,
+            &title,
+            bx + bw / 2.0,
+            by + 6.0,
+            Align::Center,
+        );
+        app.stone_text(
+            view,
+            1,
+            light,
+            &which,
+            bx + bw / 2.0,
+            by + 17.0,
+            Align::Center,
+        );
+        let (left, right) = (
+            input.mouse_pressed(MouseButton::Left),
+            input.mouse_pressed(MouseButton::Right),
+        );
+        let mut changed: Option<usize> = None;
+        for (i, (label, value, clickable)) in items.iter().enumerate() {
+            let y = by + 29.0 + i as f32 * SETTINGS_ROW;
+            let r = lay.rect((bx + 6.0, y - 1.0, bw - 12.0, SETTINGS_ROW));
+            let hover = *clickable && ui::hit(r, true, input).hovered();
+            if hover {
+                draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.5, 0.38, 0.26, 1.0));
+            }
+            app.stone_text(view, 1, light, label, bx + 9.0, y, Align::Left);
+            app.stone_text(view, 1, gold, value, bx + bw - 9.0, y, Align::Right);
+            if hover && (left || right) {
+                changed = Some(i);
+            }
+        }
+        if let Some(i) = changed {
+            let back = right;
+            let (lands, maps) = {
+                let s = &app.game.content().settings;
+                (s.land_sizes.len(), s.map_sizes.len())
+            };
+            let most = app.game.content().settings.max_opponents;
+            let o = &mut app.options;
+            match i {
+                0 => {
+                    o.difficulty = cycled(usize::from(o.difficulty), DIFFICULTIES.len(), back) as u8
+                }
+                1 => {
+                    let at = usize::from(o.opponents.clamp(1, most)) - 1;
+                    o.opponents = 1 + cycled(at, usize::from(most), back) as u8;
+                }
+                2 => o.land = cycled(usize::from(o.land), lands, back) as u8,
+                3 => o.magic = cycled(usize::from(o.magic), MAGIC_LEVELS.len(), back) as u8,
+                4 => o.map = cycled(usize::from(o.map), maps, back) as u8,
+                _ => o.original_generator = !o.original_generator,
+            }
+        }
+        let back_label = app.text("options.back");
+        let back = app.red_button_sized(
+            &lay,
+            &back_label,
+            bx + (bw - 60.0) / 2.0,
+            by + bh - 24.0,
+            60.0,
+            input,
+        );
         if back || input.key_pressed(KeyCode::Escape) {
             app.open_settings();
         }
     }
 }
+
+/// Row height of the game settings box, in the original's pixels.
+const SETTINGS_ROW: f32 = 10.0;
 
 #[cfg(test)]
 mod tests {

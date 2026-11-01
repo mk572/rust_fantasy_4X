@@ -75,9 +75,7 @@ impl App {
 
 /// `line` cut into rows that fit in `width` pixels at `size`, at spaces where it can.
 fn wrap_line(line: &str, width: f32, size: f32) -> Vec<String> {
-    wrap_by(line, |text| {
-        measure_text(text, None, size as u16, 1.0).width <= width
-    })
+    wrap_by(line, |text| crate::font::plain_size(text, size).0 <= width)
 }
 
 /// `line` cut into rows of which `fits` accepts each, at spaces where it can.
@@ -202,11 +200,11 @@ impl Page for ConsolePage {
         let skip = furthest - app.console.scroll;
         let mut y = 28.0;
         for (row, color) in shown.iter().skip(skip).take(rows) {
-            draw_text(row, 16.0, y, size, *color);
+            crate::font::plain_text(row, 16.0, y, size, *color);
             y += size * 1.15;
         }
         if app.console.scroll > 0 {
-            draw_text(
+            crate::font::plain_text(
                 "scrolled up: PageDown or End for the newest lines",
                 w - 470.0,
                 h - 44.0,
@@ -223,14 +221,14 @@ impl Page for ConsolePage {
         } else {
             " "
         };
-        draw_text(
+        crate::font::plain_text(
             format!("{prompt} {}{blink}", app.console.input),
             16.0,
             h - 22.0,
             size,
             color,
         );
-        draw_text(
+        crate::font::plain_text(
             "` / Esc: back   PageUp / PageDown / wheel: scroll",
             w - 440.0,
             h - 22.0,

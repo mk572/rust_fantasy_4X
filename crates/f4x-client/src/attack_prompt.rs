@@ -225,7 +225,7 @@ impl App {
             1,
             x,
             below,
-            below + edge - 4.0,
+            below + edge - 6.0,
             below + edge,
         );
         self.draw_box_text(view, &lines, x + 9.0, y + 9.0, line);
@@ -239,8 +239,8 @@ impl App {
         self.draw_styled(view, &amount, &ask.amount.to_string(), x + 92.5, row - 1.0);
         let (ok_label, back_label) = (self.text("attack.mana_ok"), self.text("attack.mana_back"));
         let at = below + 7.0;
-        let ok = self.red_button(&lay, &ok_label, x + 36.0, at, input);
-        let back = self.red_button(&lay, &back_label, x + 100.0, at, input);
+        let ok = self.red_button(&lay, &ok_label, x + 100.0, at, input);
+        let back = self.red_button(&lay, &back_label, x + 36.0, at, input);
         let step = |ask: &mut ManaAsk, up: bool, by: u32| {
             ask.typed = true;
             ask.amount = if up {
@@ -393,7 +393,7 @@ impl App {
             1,
             x,
             below,
-            below + edge - 4.0,
+            below + edge - 6.0,
             below + edge,
         );
         self.draw_box_text(view, &lines, x + 9.0, y + 9.0, line);
@@ -403,10 +403,9 @@ impl App {
             self.text("attack.auto"),
             self.text("attack.cancel"),
         );
-        let fight = self.red_button(&lay, &fight_label, x + 13.0, at, input);
+        let fight = self.red_button(&lay, &fight_label, x + 121.0, at, input);
         let auto = self.red_button(&lay, &auto_label, x + 67.0, at, input);
-        let cancel =
-            !attack.defending && self.red_button(&lay, &cancel_label, x + 121.0, at, input);
+        let cancel = !attack.defending && self.red_button(&lay, &cancel_label, x + 13.0, at, input);
         let fight = fight || input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::Y);
         let auto = auto || input.key_pressed(KeyCode::A);
         let cancel = cancel

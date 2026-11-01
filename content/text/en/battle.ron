@@ -60,7 +60,7 @@
     // The spell book and the aim bar.
     "battle.no_spell": "No spell to cast here",
     "battle.summon_demon": "Summon Demon ({n})",
-    "battle.raise_which": "{spell}: raise which unit?   Esc closes",
+    "battle.raise_which": "{spell}: raise which unit?",
     "battle.no_fallen": "No fallen unit to raise",
     "battle.fate_drained": "drained",
     "battle.fate_slain": "slain",

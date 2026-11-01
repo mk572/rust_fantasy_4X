@@ -9,6 +9,9 @@ use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::city_screen::{CityPage, Layout};
+use crate::font::Ink;
+use crate::font_ramp;
+use crate::frame::{Align, Layout as FrameLayout};
 use crate::view::{App, Screen};
 
 /// The plan being edited, and whether the city had one when the dialog opened.
@@ -18,6 +21,8 @@ pub(crate) struct AutoDialog {
 }
 
 const MIXES: [Mix; 3] = [Mix::Both, Mix::Buildings, Mix::Units];
+/// Row height of the dialog's list, in the original's pixels.
+const ROW: f32 = 10.0;
 const POPULATIONS: std::ops::RangeInclusive<u32> = 2..=12;
 
 /// The next or previous of `all` after `current`, wrapping.
@@ -76,33 +81,16 @@ impl App {
     pub(crate) fn draw_autobuild_button(
         &mut self,
         page: &mut CityPage,
-        lay: Layout,
+        _lay: Layout,
         (x, y, width): (f32, f32, f32),
         input: &Input,
     ) {
         let city = page.city;
         let plan = self.game.autobuild_of(city).map(|a| a.plan);
-        let own = self.game.autobuild_of(city).is_some();
-        let r = lay.rect(x, y, width, 10.0);
-        let state = ui::hit(r, true, input);
-        let fill = if state.hovered() {
-            Color::new(0.4, 0.3, 0.15, 1.0)
-        } else {
-            Color::new(0.18, 0.14, 0.09, 1.0)
-        };
-        draw_rectangle(r.x, r.y, r.w, r.h, fill);
-        draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.0, GOLD);
+        let own = plan.is_some();
         let text = label(self.texts(), plan.as_ref());
-        let size = (5.0 * lay.scale) as u16;
-        let dims = measure_text(&text, None, size, 1.0);
-        draw_text(
-            &text,
-            r.x + (r.w - dims.width) / 2.0,
-            r.y + r.h * 0.72,
-            5.0 * lay.scale,
-            if own { WHITE } else { LIGHTGRAY },
-        );
-        if state.clicked() {
+        let frame = FrameLayout::new();
+        if self.red_button_sized(&frame, &text, x, y, width, input) {
             self.choosing = false;
             page.autobuild = Some(AutoDialog {
                 plan: plan.unwrap_or_default(),
@@ -112,36 +100,50 @@ impl App {
     }
 
     /// Draw the dialog and handle it. Returns true while it is open.
-    pub(crate) fn draw_autobuild_dialog(
-        &mut self,
-        page: &mut CityPage,
-        lay: Layout,
-        input: &Input,
-    ) -> bool {
+    ///
+    /// The box is the stone of the original's confirmation boxes (`resource.lbx` 0), the text its
+    /// readable font 1 in the colours of those boxes, the buttons the red ones of the production
+    /// screen.
+    pub(crate) fn draw_autobuild_dialog(&mut self, page: &mut CityPage, input: &Input) -> bool {
         let city = page.city;
         let Some(mut d) = page.autobuild.take() else {
             return false;
         };
-        let panel = lay.rect(40.0, 24.0, 240.0, 150.0);
-        draw_rectangle(
-            panel.x,
-            panel.y,
-            panel.w,
-            panel.h,
-            Color::new(0.1, 0.08, 0.05, 0.98),
+        let lay = FrameLayout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let stone_w = self
+            .art_picture("resource", 0, 0)
+            .map_or(186.0, |t| crate::resolution::logical_w(&t));
+        let (bw, bh) = (stone_w, 138.0);
+        let (bx, by) = (
+            ((crate::resolution::DESIGN_W - bw) / 2.0).floor(),
+            ((crate::resolution::DESIGN_H - bh) / 2.0).floor(),
         );
-        draw_rectangle_lines(panel.x, panel.y, panel.w, panel.h, 3.0, GOLD);
-        let text = |s: &str, x: f32, y: f32, color: Color| {
-            draw_text(
-                s,
-                lay.rect(x, y, 0.0, 0.0).x,
-                lay.rect(x, y, 0.0, 0.0).y,
-                6.0 * lay.scale,
-                color,
-            )
+        self.draw_stone_box(&lay, bx, by, bh);
+        let gold = Ink::Set(font_ramp::NOTIFY_TEXT);
+        let light = Ink::Set(font_ramp::DIALOG_TEXT);
+        let grey = Ink::Flat(Color::new(0.55, 0.5, 0.45, 1.0));
+        let say = |app: &mut App, ink: Ink, font: usize, text: &str, x: f32, y: f32, align| {
+            app.stone_text(view, font, ink, text, x, y, align);
         };
-        text(&self.text("autobuild.title"), 48.0, 36.0, GOLD);
-        text(&self.text("autobuild.help"), 48.0, 44.0, GRAY);
+        say(
+            self,
+            gold,
+            4,
+            &self.text("autobuild.title"),
+            bx + bw / 2.0,
+            by + 6.0,
+            Align::Center,
+        );
+        say(
+            self,
+            light,
+            1,
+            &self.text("autobuild.help"),
+            bx + bw / 2.0,
+            by + 17.0,
+            Align::Center,
+        );
         let left = input.mouse_pressed(MouseButton::Left);
         let right = input.mouse_pressed(MouseButton::Right);
         let balanced = d.plan.primary == Focus::Balanced;
@@ -180,21 +182,29 @@ impl App {
         ];
         let mut action: Option<usize> = None;
         for (i, (name, value, enabled)) in rows.iter().enumerate() {
-            let y = 54.0 + i as f32 * 11.0;
-            let r = lay.rect(46.0, y - 6.0, 228.0, 10.0);
+            let y = by + 29.0 + i as f32 * ROW;
+            let r = lay.rect((bx + 6.0, y - 1.0, bw - 12.0, ROW));
             let hover = ui::hit(r, true, input).hovered();
             if hover && *enabled {
-                draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.4, 0.3, 0.15, 1.0));
+                draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.5, 0.38, 0.26, 1.0));
             }
-            let color = if *enabled { WHITE } else { DARKGRAY };
-            text(name, 50.0, y, color);
-            let dims = measure_text(value, None, (6.0 * lay.scale) as u16, 1.0);
-            draw_text(
+            say(
+                self,
+                if *enabled { light } else { grey },
+                1,
+                name,
+                bx + 9.0,
+                y,
+                Align::Left,
+            );
+            say(
+                self,
+                if *enabled { gold } else { grey },
+                1,
                 value,
-                r.x + r.w - dims.width - 4.0,
-                lay.rect(0.0, y, 0.0, 0.0).y,
-                6.0 * lay.scale,
-                if *enabled { GOLD } else { DARKGRAY },
+                bx + bw - 9.0,
+                y,
+                Align::Right,
             );
             if hover && *enabled && (left || right) {
                 action = Some(i);
@@ -225,43 +235,30 @@ impl App {
                 _ => d.plan.event_prompt = !d.plan.event_prompt,
             }
         }
-        text(
-            &hint(self.texts(), &d.plan),
-            48.0,
-            126.0,
-            Color::new(0.8, 0.8, 0.6, 1.0),
-        );
-        let buttons = [
-            (self.text("ui.ok"), 52.0),
-            (self.text("autobuild.button_off"), 120.0),
-            (self.text("autobuild.button_cancel"), 208.0),
+        let hint_at = by + 29.0 + 6.0 * ROW + 4.0;
+        let line = self.art.text_height(1) + 1.0;
+        let hint = self.bm_wrap(1, &hint(self.texts(), &d.plan), bw - 20.0);
+        for (k, l) in hint.iter().take(3).enumerate() {
+            say(
+                self,
+                light,
+                1,
+                l,
+                bx + 10.0,
+                hint_at + line * k as f32,
+                Align::Left,
+            );
+        }
+        let labels = [
+            (self.text("ui.ok"), true),
+            (self.text("autobuild.button_off"), d.had_plan),
+            (self.text("autobuild.button_cancel"), true),
         ];
         let mut chosen: Option<usize> = None;
-        for (k, (name, x)) in buttons.iter().enumerate() {
-            let enabled = k != 1 || d.had_plan;
-            let r = lay.rect(*x, 150.0, 60.0, 11.0);
-            let hover = ui::hit(r, enabled, input).hovered();
-            draw_rectangle(
-                r.x,
-                r.y,
-                r.w,
-                r.h,
-                if hover {
-                    Color::new(0.4, 0.3, 0.15, 1.0)
-                } else {
-                    Color::new(0.2, 0.15, 0.1, 1.0)
-                },
-            );
-            draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.0, GOLD);
-            let dims = measure_text(name, None, (6.0 * lay.scale) as u16, 1.0);
-            draw_text(
-                name,
-                r.x + (r.w - dims.width) / 2.0,
-                r.y + r.h * 0.75,
-                6.0 * lay.scale,
-                if enabled { WHITE } else { DARKGRAY },
-            );
-            if hover && left {
+        for (k, (name, enabled)) in labels.iter().enumerate() {
+            // OK on the right, Cancel on the left.
+            let x = bx + 10.0 + (2 - k) as f32 * 57.0;
+            if self.red_button_face_sized(&lay, name, (x, by + bh - 24.0), *enabled, 52.0, input) {
                 chosen = Some(k);
             }
         }

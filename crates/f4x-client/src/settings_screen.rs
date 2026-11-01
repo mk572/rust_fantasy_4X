@@ -197,8 +197,8 @@ impl Page for SettingsPage {
         }
         app.volume_sliders(&lay, view, mouse, input);
         // The game's own settings, which the original keeps on the new-game screen.
-        let game = lay.rect((31.0, 186.0, 60.0, 10.0));
-        if button(game, &app.text("settings.game"), true, input) {
+        let game_label = app.text("settings.game");
+        if app.red_button_sized(&lay, &game_label, 31.0, 186.0, 60.0, input) {
             app.save_preferences();
             app.open_page(
                 Screen::GameSettings,
@@ -215,6 +215,16 @@ impl Page for SettingsPage {
 impl App {
     pub(crate) fn open_settings(&mut self) {
         self.open_page(Screen::Settings, SettingsPage);
+    }
+
+    /// The game settings box (the `--game-settings` screenshot): the choices for the next game
+    /// when `from_menu`, else what the running game is played with.
+    pub(crate) fn open_game_settings(&mut self, from_menu: bool) {
+        self.menu.from_menu = from_menu;
+        self.open_page(
+            Screen::GameSettings,
+            crate::options_screen::GameSettingsPage,
+        );
     }
 
     /// The two volume sliders in the bottom row: a press or a drag on a bar sets that volume.

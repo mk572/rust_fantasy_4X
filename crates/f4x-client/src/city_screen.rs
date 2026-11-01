@@ -214,7 +214,7 @@ impl App {
             self.draw_rename_box(page, input);
         } else if dialog {
             self.choosing = was_choosing;
-            self.draw_autobuild_dialog(page, lay, input);
+            self.draw_autobuild_dialog(page, input);
         } else if selling {
             self.choosing = was_choosing;
             self.draw_sell_prompt(&mut page.panel, input);
