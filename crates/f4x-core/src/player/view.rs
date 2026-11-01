@@ -11,6 +11,7 @@
 //! the terrain, lairs and nodes of explored squares). A handle that comes out of a list (a unit
 //! or a city) may then be asked about freely, as a player may look at a unit it sees.
 
+use crate::rules::Ability;
 use std::cell::OnceCell;
 
 use crate::city::economy::CityEconomy;
@@ -313,7 +314,7 @@ impl<'a> PlayerView<'a> {
         self.game.units().unit_hits(unit)
     }
 
-    pub fn unit_has_ability(&self, unit: hecs::Entity, ability: &str) -> bool {
+    pub fn unit_has_ability(&self, unit: hecs::Entity, ability: Ability) -> bool {
         self.game.units().unit_has_ability(unit, ability)
     }
 

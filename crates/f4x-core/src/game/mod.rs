@@ -23,6 +23,7 @@ pub mod view;
 #[cfg(test)]
 mod tests;
 
+use crate::rules::Ability;
 use crate::{
     battle, city, content, diplomacy, game, item, map, player, threat, unit, wizard, world_event,
 };
@@ -649,7 +650,7 @@ impl Game {
                 unit::movement::MoveError::BadSelection,
             ))];
         };
-        if !self.units().unit_has_ability(unit, "create_outpost") {
+        if !self.units().unit_has_ability(unit, Ability::new(12)) {
             return vec![Event::Rejected(Rejection::Production(
                 city::production::ProductionError::WrongRace,
             ))];

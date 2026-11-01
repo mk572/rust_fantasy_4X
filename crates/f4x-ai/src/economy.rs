@@ -5,6 +5,7 @@ use f4x_core::city::production::ProductionItem;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::rules::Ability;
 
 use crate::view::{garrison_wanted, is_fighter};
 use crate::Ai;
@@ -155,7 +156,7 @@ fn colonist_item(
     let waiting = view
         .garrison(pos)
         .into_iter()
-        .any(|u| view.unit_has_ability(u, "create_outpost"));
+        .any(|u| view.unit_has_ability(u, Ability::new(12)));
     let ship = view
         .my_units()
         .iter()
@@ -308,7 +309,7 @@ fn spend_gold(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 fn settlers_alive(view: &PlayerView) -> usize {
     view.my_units()
         .into_iter()
-        .filter(|&u| view.unit_has_ability(u, "create_outpost"))
+        .filter(|&u| view.unit_has_ability(u, Ability::new(12)))
         .count()
 }
 

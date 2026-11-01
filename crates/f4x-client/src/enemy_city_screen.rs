@@ -10,6 +10,7 @@ use crate::font::Style;
 use crate::input::Input;
 use crate::page::Page;
 use crate::ui;
+use f4x_core::rules::Ability;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -106,7 +107,7 @@ impl Page for EnemyCityPage {
                 .units_at(at)
                 .into_iter()
                 .filter(|&u| app.game.units().unit_owner(u) == owner)
-                .filter(|&u| !app.game.units().unit_has_ability(u, "invisibility"))
+                .filter(|&u| !app.game.units().unit_has_ability(u, Ability::new(33)))
                 .collect();
             let layout = crate::frame::Layout::new();
             for (i, &unit) in units.iter().take(12).enumerate() {

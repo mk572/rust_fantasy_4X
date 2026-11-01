@@ -59,17 +59,25 @@ pub fn port_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem
             .map(ProductionItem::Unit)
             .filter(|&i| view.can_build(city, i).is_ok())
     };
-    let building = |id: &str| rules.buildings.id_of(id).map(ProductionItem::Building);
+    let building = |num: u16| {
+        Some(ProductionItem::Building(f4x_core::rules::BuildingId::new(
+            num,
+        )))
+    };
     if let Some(galley) = unit("galley") {
         return Some(galley);
     }
-    let yard = building("ship_yard");
+    let yard = building(13 /* ship_yard */);
     let yard_possible = yard.is_some_and(|y| {
         !matches!(view.can_build(city, y), Err(ProductionError::WrongRace))
             && !matches!(view.can_build(city, y), Err(ProductionError::NotCoastal))
     });
     if yard_possible {
-        for id in ["ship_yard", "ship_wrights_guild", "sawmill"] {
+        for id in [
+            13, /* ship_yard */
+            12, /* ship_wrights_guild */
+            15, /* sawmill */
+        ] {
             if let Some(item) = building(id).filter(|&i| view.can_build(city, i).is_ok()) {
                 return Some(item);
             }
@@ -78,7 +86,7 @@ pub fn port_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem
     if let Some(trireme) = unit("trireme") {
         return Some(trireme);
     }
-    building("ship_wrights_guild").filter(|&i| view.can_build(city, i).is_ok())
+    building(12 /* ship_wrights_guild */).filter(|&i| view.can_build(city, i).is_ok())
 }
 
 /// The turn the game is at (for the age of what the AI remembers).

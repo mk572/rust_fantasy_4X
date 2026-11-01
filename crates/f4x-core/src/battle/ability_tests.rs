@@ -107,7 +107,8 @@ fn without(ability: &'static str) -> impl Fn(&mut Battle) {
     move |b: &mut Battle| {
         for u in &mut b.units {
             if u.side == Side::Attacker {
-                u.abilities.retain(|a| a != ability);
+                u.abilities
+                    .retain(|a| *a != crate::game::testutil::ability(ability));
             }
         }
     }
@@ -117,7 +118,7 @@ fn immune(ability: &'static str) -> impl Fn(&mut Battle) {
     move |b: &mut Battle| {
         for u in &mut b.units {
             if u.side == Side::Defender {
-                u.abilities.push(ability.to_string());
+                u.abilities.push(crate::game::testutil::ability(ability));
             }
         }
     }
@@ -207,7 +208,9 @@ fn assert_a_bolt(shooter: &str, ability: &str) {
     let b = duel(shooter, "high_men_spearmen", 6);
     let a = index(&b, Side::Attacker);
     assert!(
-        b.units[a].abilities.iter().any(|x| x == ability),
+        b.units[a]
+            .abilities
+            .contains(&crate::game::testutil::ability(ability)),
         "{shooter} has {ability}"
     );
     assert_eq!(
@@ -257,7 +260,7 @@ fn a_magical_weapon_hurts_what_normal_weapons_barely_scratch() {
         weapon_proof(b);
         for u in &mut b.units {
             if u.side == Side::Attacker {
-                u.abilities.push("magical_weapon".to_string());
+                u.abilities.push(Ability::new(41));
                 u.magical_weapon = true;
             }
         }
@@ -275,7 +278,7 @@ fn an_eldritch_weapon_takes_a_plus_off_the_defenders_blocks() {
     let (_, eldritch) = losses(&b, false, |b: &mut Battle| {
         for u in &mut b.units {
             if u.side == Side::Attacker {
-                u.abilities.push("eldritch_weapon".to_string());
+                u.abilities.push(Ability::new(19));
             }
         }
     });
@@ -290,7 +293,7 @@ fn a_major_spellcaster_has_forty_mana_and_casts_the_spells_of_its_realm() {
     let major = duel("arch_angel", "high_men_spearmen", 6);
     let a = index(&major, Side::Attacker);
     assert_eq!(major.units[a].mana, 40);
-    assert!(major.units[a].has("spellcaster_major"));
+    assert!(major.units[a].has(Ability::new(62)));
     let mut g = world();
     let def = g
         .content

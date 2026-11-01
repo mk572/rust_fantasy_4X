@@ -11,6 +11,7 @@ use crate::battle::immunity::{resistance_failure, Realm};
 use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
 use crate::player::PlayerId;
+use crate::rules::Ability;
 use crate::rules::UnitKind;
 use crate::spell::target_error::TargetError;
 use crate::wizard::magic::{base_casting_skill, skill_points_for, Retort};
@@ -262,8 +263,8 @@ impl Game {
                     .unit_def(unit)
                     .is_some_and(|d| d.movement == crate::rules::MovementType::Flying);
                 if flies
-                    || units.unit_has_ability(unit, "flying")
-                    || units.unit_has_ability(unit, "non_corporeal")
+                    || units.unit_has_ability(unit, Ability::new(24))
+                    || units.unit_has_ability(unit, Ability::new(49))
                 {
                     continue;
                 }

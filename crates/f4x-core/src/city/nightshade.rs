@@ -10,22 +10,23 @@
 use crate::city::economy::Population;
 use crate::game::Game;
 use crate::player::PlayerId;
+use crate::rules::BuildingId;
 use crate::rules::{SpellId, SpellTarget};
 
 /// Buildings that allow the use of nightshade. The original's code lists eight of them, with
 /// the Shrine checked twice where the Animist's Guild, which its help names, was evidently
 /// meant; we include the Animist's Guild. (The help names only four buildings and is
 /// extended in the imported help.)
-pub const NIGHTSHADE_BUILDINGS: [&str; 9] = [
-    "shrine",
-    "animists_guild",
-    "temple",
-    "parthenon",
-    "cathedral",
-    "sages_guild",
-    "oracle",
-    "alchemists_guild",
-    "wizards_guild",
+pub const NIGHTSHADE_BUILDINGS: [BuildingId; 9] = [
+    BuildingId::new(22), // shrine
+    BuildingId::new(10), // animists_guild
+    BuildingId::new(23), // temple
+    BuildingId::new(24), // parthenon
+    BuildingId::new(25), // cathedral
+    BuildingId::new(17), // sages_guild
+    BuildingId::new(18), // oracle
+    BuildingId::new(19), // alchemists_guild
+    BuildingId::new(21), // wizards_guild
 ];
 
 /// Dispel strength each plant adds.
@@ -47,11 +48,9 @@ impl Game {
         if self.world.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
             return 0;
         }
-        let rules = &self.content.rules;
         let allowed = NIGHTSHADE_BUILDINGS
             .iter()
-            .filter_map(|b| rules.buildings.id_of(b))
-            .any(|b| self.economy().has_building(city, b));
+            .any(|&b| self.economy().has_building(city, b));
         let Some(plant) = self.content.features.id_of("nightshade") else {
             return 0;
         };

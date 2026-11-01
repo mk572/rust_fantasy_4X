@@ -5,6 +5,7 @@
 
 use crate::game::rng::GameRng;
 use crate::hero::{Hero, HeroAbilities, HeroState, Tier};
+use crate::rules::Ability;
 use crate::rules::{HeroTemplate, PickType, Rules, UnitId};
 
 /// The hero types before the champions, and the champions after them (`Pick_Random_Hero`):
@@ -39,14 +40,14 @@ pub fn unit_of(rules: &Rules, kind: usize) -> Option<UnitId> {
 /// The magic ranged attacks, the only ones Arcane Power adds to. (The original's `Init_Heroes`
 /// tests the range `rat_Fireball` to `rat_Nat_Bolt`, which leaves the lightning attack out, and
 /// lets a hero without any of them draw Arcane Power; we count lightning and skip the rest.)
-pub const MAGIC_RANGED: [&str; 7] = [
-    "lightning_bolt",
-    "fireball_attack",
-    "sorcery_bolt",
-    "death_bolt",
-    "ice_bolt",
-    "shaman_bolt",
-    "nature_bolt",
+pub const MAGIC_RANGED: [Ability; 7] = [
+    Ability::new(36), // lightning bolt
+    Ability::new(22), // fireball attack
+    Ability::new(60), // sorcery bolt
+    Ability::new(14), // death bolt
+    Ability::new(29), // ice bolt
+    Ability::new(58), // shaman bolt
+    Ability::new(47), // nature bolt
 ];
 
 /// The 0-based experience level `xp` gives a unit on its level path.
@@ -88,7 +89,7 @@ pub fn roll(rng: &mut GameRng, rules: &Rules) -> Vec<Hero> {
 
 fn roll_one(rng: &mut GameRng, rules: &Rules, kind: usize, t: &HeroTemplate) -> Hero {
     let def = rules.units.id_of(&t.unit).map(|id| rules.units.get(id));
-    let has = |ability: &str| def.is_some_and(|d| d.abilities.iter().any(|a| a == ability));
+    let has = |ability: Ability| def.is_some_and(|d| d.ability_ids.contains(&ability));
     let mut abilities = HeroAbilities::from_names(&t.abilities);
     let mut skill = t.casting_skill as i32;
     let picks = t.picks as i32;
@@ -141,7 +142,7 @@ fn roll_one(rng: &mut GameRng, rules: &Rules, kind: usize, t: &HeroTemplate) -> 
                 // draw (the original gives it to anyone but the Knight).
                 if abilities.arcane_power != Tier::Super
                     && mage > 0
-                    && MAGIC_RANGED.iter().any(|a| has(a))
+                    && MAGIC_RANGED.iter().any(|&a| has(a))
                 {
                     raise(&mut abilities.arcane_power);
                     spent = true;
@@ -160,7 +161,7 @@ fn roll_one(rng: &mut GameRng, rules: &Rules, kind: usize, t: &HeroTemplate) -> 
                 }
             }
             10 => {
-                if !abilities.charmed && !has("magic_immunity") {
+                if !abilities.charmed && !has(Ability::new(40)) {
                     abilities.charmed = true;
                     spent = true;
                 }

@@ -128,6 +128,17 @@ impl<T: Def> Registry<T> {
     }
 }
 
+impl Registry<super::AbilityDef> {
+    /// The numbers of the abilities a rule lists by name; a name that is not an ability is left
+    /// out (content validation reports it).
+    pub fn ids<S: AsRef<str>>(&self, names: &[S]) -> Vec<super::Ability> {
+        names
+            .iter()
+            .filter_map(|n| self.id_of(n.as_ref()))
+            .collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

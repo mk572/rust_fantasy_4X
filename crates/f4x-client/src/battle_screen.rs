@@ -7,6 +7,7 @@
 //! mirrored one, and the picture comes out as the original's. Like the original this draws only
 //! the band of 200 squares it plays on (the field generator shuts the rest).
 
+use f4x_core::rules::Ability;
 use std::collections::{HashMap, VecDeque};
 
 use crate::font::{Ink, Style};
@@ -315,20 +316,20 @@ fn kills(texts: &Texts, count: u32) -> String {
 /// (`msl_*`: 0 lightning, 1 arrow, 2 fireball, 3 illusion, 4 rocks, 5 sling, 6 deathbolt,
 /// 7 icebolt, 9 priest, 10 drow, 11 shimmer).
 pub(crate) fn missile_type(u: &BattleUnit) -> usize {
-    let has = |a: &str| u.abilities.iter().any(|x| x == a);
+    let has = |a: Ability| u.abilities.contains(&a);
     [
-        ("rock_throwing", 4),
-        ("sling", 5),
-        ("lightning_bolt", 0),
-        ("fireball_attack", 2),
-        ("illusion_attack", 3),
-        ("sorcery_bolt", 3),
-        ("death_bolt", 6),
-        ("ice_bolt", 7),
-        ("shaman_bolt", 9),
-        ("drow_bolt", 10),
-        ("sprite_bolt", 11),
-        ("nature_bolt", 11),
+        (Ability::new(57), 4),  // rock_throwing
+        (Ability::new(59), 5),  // sling
+        (Ability::new(36), 0),  // lightning_bolt
+        (Ability::new(22), 2),  // fireball_attack
+        (Ability::new(30), 3),  // illusion_attack
+        (Ability::new(60), 3),  // sorcery_bolt
+        (Ability::new(14), 6),  // death_bolt
+        (Ability::new(29), 7),  // ice_bolt
+        (Ability::new(58), 9),  // shaman_bolt
+        (Ability::new(18), 10), // drow_bolt
+        (Ability::new(63), 11), // sprite_bolt
+        (Ability::new(47), 11), // nature_bolt
     ]
     .into_iter()
     .find_map(|(ability, kind)| has(ability).then_some(kind))
@@ -863,9 +864,9 @@ impl App {
                 // A teleporter or a merging unit crosses the field in one jump, with its
                 // own sound and picture (`Battle_Unit_Teleport`, `Battle_Unit_Tunnel`).
                 let instant = before.unit(*unit).and_then(|u| {
-                    if u.has("teleport") {
+                    if u.has(Ability::new(68)) {
                         Some(false)
-                    } else if u.has("merging") {
+                    } else if u.has(Ability::new(43)) {
                         Some(true)
                     } else {
                         None
@@ -1299,7 +1300,7 @@ impl App {
             // A wall crusher strikes a wall section: with its blows next to it, or by shooting.
             (None, Some(u))
                 if battle.map.has_wall(cell)
-                    && u.has("wall_crusher")
+                    && u.has(Ability::new(70))
                     && u.side == Side::Attacker
                     && !u.attacked =>
             {
@@ -1954,7 +1955,7 @@ impl App {
             let blink = (get_time() * 3.0) as i64 % 2 == 0;
             diamond(sx, sy, scale, if blink { GOLD } else { WHITE }, false);
             if my_turn {
-                if u.has("wall_crusher") && u.side == Side::Attacker && !u.attacked {
+                if u.has(Ability::new(70)) && u.side == Side::Attacker && !u.attacked {
                     for wall in battle.map.standing_walls() {
                         if distance(u.cell, wall) == 1 || can_shoot(u) {
                             let (wx, wy) = at(wall);

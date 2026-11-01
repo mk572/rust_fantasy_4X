@@ -13,6 +13,7 @@ use super::immunity::{AttackNature, Immunities};
 use super::map::{distance, in_city_area, Pos};
 use super::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
 use crate::game::setting::MeleeVsFliers;
+use crate::rules::Ability;
 
 /// The nearest active enemy the unit's side can see (lowest id on ties).
 fn closest_enemy<'a>(battle: &'a Battle, unit: &BattleUnit) -> Option<&'a BattleUnit> {
@@ -51,7 +52,7 @@ fn route(battle: &Battle, unit: &BattleUnit, to: Pos) -> Vec<Pos> {
 /// section nearest the enemy it can get to, struck from next to it. `None` if it should fight as
 /// usual (no wall, a breach already, or an enemy within reach).
 fn wall_order(battle: &Battle, unit: &BattleUnit, enemy: &BattleUnit) -> Option<BattleCommand> {
-    if unit.side != Side::Attacker || !unit.has("wall_crusher") || unit.attacked {
+    if unit.side != Side::Attacker || !unit.has(Ability::new(70)) || unit.attacked {
         return None;
     }
     let walls = battle.map.standing_walls();
@@ -494,7 +495,7 @@ mod tests {
                 > expected_damage(&a, &hard, false, MeleeVsFliers::default())
         );
         let mut stone = BattleUnit::simple(Side::Defender, "stone", 4, 1, 1, 0);
-        stone.abilities.push("weapon_immunity".into());
+        stone.abilities.push(crate::rules::Ability::new(72));
         assert_eq!(
             expected_damage(&a, &stone, false, MeleeVsFliers::default()),
             0.0

@@ -47,14 +47,14 @@ pub struct SpellWards(pub Vec<String>);
 /// The buildings whose magic power Evil Presence destroys.
 pub(crate) const RELIGIOUS: [&str; 4] = ["shrine", "temple", "parthenon", "cathedral"];
 
+/// City Walls (building 35).
+const CITY_WALLS: crate::rules::BuildingId = crate::rules::BuildingId::new(35);
+
 impl Game {
     /// Whether the city may be given walls by Wall of Stone: it has none (a city with walls
     /// built or replaced is refused).
     pub fn check_raise_wall_of_stone(&self, city: hecs::Entity) -> Result<(), TargetError> {
-        if self.content.rules.buildings.id_of("city_walls").is_none() {
-            return Err(TargetError::WrongTarget);
-        }
-        if self.economy().city_has_building(city, "city_walls") {
+        if self.economy().city_has_building(city, CITY_WALLS) {
             return Err(TargetError::Walled);
         }
         Ok(())
@@ -62,9 +62,7 @@ impl Game {
 
     /// Wall of Stone: the city gets City Walls.
     pub(crate) fn wall_of_stone(&mut self, city: hecs::Entity) -> Vec<Event> {
-        let Some(walls) = self.content.rules.buildings.id_of("city_walls") else {
-            return Vec::new();
-        };
+        let walls = CITY_WALLS;
         if self.check_raise_wall_of_stone(city).is_err() {
             return Vec::new();
         }

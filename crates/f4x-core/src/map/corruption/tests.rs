@@ -23,8 +23,8 @@ fn world() -> Game {
     let mut units = c.rules.units.defs().to_vec();
     for u in units.iter_mut() {
         match u.id.as_str() {
-            "high_men_cavalry" => u.abilities.push("purify".into()),
-            "high_men_spearmen" => u.abilities.push("land_corruption".into()),
+            "high_men_cavalry" => u.ability_ids.push(Ability::new(54)),
+            "high_men_spearmen" => u.ability_ids.push(Ability::new(102)),
             _ => {}
         }
     }

@@ -19,6 +19,7 @@ pub mod crafting;
 pub mod entity;
 pub mod make;
 
+use crate::rules::Ability;
 use serde::{Deserialize, Serialize};
 
 use crate::battle::game::ranged_kind_of;
@@ -233,7 +234,7 @@ pub fn power_is_handled(power: &ItemPowerDef) -> bool {
 /// (`Battle_Unit_Item_Stats`). Flaming adds 3 to both attacks and Giant Strength 1 to the melee
 /// attack (and to a thrown axe's). The item's to hit is kept apart from the unit's
 /// ([`Stat::MeleeToHit`] and [`Stat::RangedToHit`]) because it counts for one attack only.
-pub fn modifiers(item: &Item, slot: u8, abilities: &[String], has_ranged: bool) -> Vec<Modifier> {
+pub fn modifiers(item: &Item, slot: u8, abilities: &[Ability], has_ranged: bool) -> Vec<Modifier> {
     let source = Source::Item(slot);
     let mut mods = Vec::new();
     let mut add = |stat: Stat, value: i32| {
@@ -256,7 +257,7 @@ pub fn modifiers(item: &Item, slot: u8, abilities: &[String], has_ranged: bool) 
         add(Stat::MeleeToHit, b.to_hit);
     }
     let kind = ranged_kind_of(abilities);
-    let thrown = abilities.iter().any(|a| a == "thrown");
+    let thrown = abilities.iter().any(|a| *a == Ability::new(69));
     if has_ranged && item.adds_to_ranged(kind, thrown) {
         let giant = if item.kind == ItemKind::Axe { giant } else { 0 };
         add(Stat::Ranged, b.attack + flaming + giant);
@@ -346,12 +347,14 @@ impl<'a> ItemView<'a> {
 
     /// The special attack and shield abilities the unit's items give (see
     /// [`Item::granted_abilities`]), each once.
-    pub fn abilities(&self, unit: hecs::Entity) -> Vec<String> {
-        let mut out: Vec<String> = Vec::new();
+    pub fn abilities(&self, unit: hecs::Entity) -> Vec<Ability> {
+        let mut out: Vec<Ability> = Vec::new();
         for (_, item) in self.carried(unit) {
             for a in item.granted_abilities(&self.content.rules) {
-                if !out.iter().any(|x| x == a) {
-                    out.push(a.to_string());
+                if let Some(a) = self.content.rules.abilities.id_of(a) {
+                    if !out.contains(&a) {
+                        out.push(a);
+                    }
                 }
             }
         }
@@ -408,9 +411,7 @@ mod tests {
         }
     }
 
-    fn abilities(names: &[&str]) -> Vec<String> {
-        names.iter().map(|s| s.to_string()).collect()
-    }
+    use crate::game::testutil::abilities;
 
     fn total(mods: &[Modifier], stat: Stat) -> i32 {
         mods.iter()

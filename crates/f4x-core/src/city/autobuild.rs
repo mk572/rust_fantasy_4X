@@ -8,6 +8,7 @@
 //!
 //! Tests: in city/autobuild/tests.rs.
 
+use crate::rules::Ability;
 use serde::{Deserialize, Serialize};
 
 use crate::city::production::ProductionItem;
@@ -327,7 +328,7 @@ fn stat(d: &crate::rules::UnitDef, s: Stat) -> f32 {
 }
 
 fn is_settler(d: &crate::rules::UnitDef) -> bool {
-    d.abilities.iter().any(|a| a == "create_outpost")
+    d.ability_ids.contains(&Ability::new(12))
 }
 
 fn is_combat(d: &crate::rules::UnitDef) -> bool {
@@ -397,20 +398,10 @@ fn worth(content: &Content, plan: &BuildPlan, f: &CityFacts, b: BuildingId, dept
     if depth >= 2 {
         return own;
     }
-    let id = &content.rules.buildings.get(b).id;
     let opened = f
         .possible
         .iter()
-        .filter(|&&d| {
-            d != b
-                && content
-                    .rules
-                    .buildings
-                    .get(d)
-                    .requires
-                    .iter()
-                    .any(|r| r == id)
-        })
+        .filter(|&&d| d != b && content.rules.buildings.get(d).require_ids.contains(&b))
         .map(|&d| worth(content, plan, f, d, depth + 1))
         .fold(0.0, f32::max);
     own + 0.5 * opened
@@ -465,7 +456,7 @@ fn raw_profiles(d: &crate::rules::UnitDef) -> [f32; 3] {
             + stat(d, Stat::Resistance) * 0.1
             + stat(d, Stat::Melee) * 0.5);
     let flying =
-        matches!(d.movement, MovementType::Flying) || d.abilities.iter().any(|a| a == "flying");
+        matches!(d.movement, MovementType::Flying) || d.ability_ids.contains(&Ability::new(24));
     let sailing = matches!(d.movement, MovementType::Sailing);
     let exploration = moves
         + (stat(d, Stat::Sight) - 1.0) * 0.25
@@ -814,7 +805,7 @@ impl Game {
             };
             let alive = my_units
                 .iter()
-                .filter(|&&u| view.unit_has_ability(u, "create_outpost"))
+                .filter(|&&u| view.unit_has_ability(u, Ability::new(12)))
                 .filter(|&&u| near(view.unit_position(u)))
                 .count();
             let building = cities

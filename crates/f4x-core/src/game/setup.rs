@@ -13,6 +13,7 @@ use crate::game::setting::GameSettings;
 use crate::map::mapgen::{generate, GenParams};
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
+use crate::rules::BuildingId;
 
 use crate::game::{Command, Game};
 use crate::wizard::magic::Retort;
@@ -405,7 +406,11 @@ fn anchor(width: u32, height: u32, k: u8, n: u8) -> (u32, u32) {
 }
 
 /// The buildings a wizard's capital starts with.
-const CAPITAL_BUILDINGS: [&str; 3] = ["smithy", "barracks", "builders_hall"];
+const CAPITAL_BUILDINGS: [BuildingId; 3] = [
+    BuildingId::new(8),  // smithy
+    BuildingId::new(3),  // barracks
+    BuildingId::new(32), // builders_hall
+];
 
 /// Citizens in the capital at the start, and how many of them farm.
 const CAPITAL_FIGURES: u32 = 4;
@@ -463,10 +468,7 @@ fn start_player(
         .into_iter()
         .flatten()
         .collect();
-    let buildings: Vec<_> = CAPITAL_BUILDINGS
-        .iter()
-        .filter_map(|b| rules.buildings.id_of(b))
-        .collect();
+    let buildings: Vec<_> = CAPITAL_BUILDINGS.to_vec();
     let plane = if is_myrran(game, player) {
         Plane::Myrror
     } else {
@@ -660,8 +662,7 @@ mod tests {
             assert_eq!(g.city_farmers(city), CAPITAL_FARMERS);
             let built = g.city_buildings(city);
             for b in CAPITAL_BUILDINGS {
-                let id = g.content().rules.buildings.id_of(b).ok_or("no building")?;
-                assert!(built.contains(&id), "wizard {k} lacks {b}");
+                assert!(built.contains(&b), "wizard {k} lacks building {}", b.num());
             }
             let army = g.units().units_at(fortress);
             assert!(!army.is_empty() && army.len() <= 2, "{} units", army.len());

@@ -501,7 +501,7 @@ fn magic_immunity_stops_a_storm_and_each_storm_has_its_own_element() {
     ] {
         defs.iter_mut()
             .filter(|d| d.id == id)
-            .for_each(|d| d.abilities.push(ability.to_string()));
+            .for_each(|d| d.ability_ids.push(crate::game::testutil::ability(ability)));
     }
     g.content.rules.units = Registry::new_sorted(defs);
     for (storm, safe, hurt) in [
@@ -1019,11 +1019,11 @@ fn chaos_channels_gives_one_mutation_once_and_makes_a_creature_of_chaos() {
                 assert_eq!(units.unit_stat(u, crate::rules::Stat::Defense), def0 + 3)
             }
             Mutation::Wings => {
-                assert!(units.unit_has_ability(u, "flying"));
+                assert!(units.unit_has_ability(u, Ability::new(24)));
                 assert!(units.unit_stat(u, crate::rules::Stat::Moves) >= mv0.max(2));
             }
             Mutation::Breath => {
-                assert!(units.unit_has_ability(u, "fire_breath"));
+                assert!(units.unit_has_ability(u, Ability::new(20)));
                 assert_eq!(units.unit_stat(u, crate::rules::Stat::Ranged), 2);
             }
         }

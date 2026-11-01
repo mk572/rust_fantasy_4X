@@ -16,6 +16,7 @@
 //!
 //! Tests: in battle/tests.rs.
 
+use crate::rules::Ability;
 use rand::{Rng, RngCore};
 
 use super::attack::{unblockable, Damage};
@@ -144,7 +145,7 @@ impl BattleUnit {
 
     /// Invisible: attackers without immunity to illusions have a penalty to hit it.
     pub fn is_invisible(&self) -> bool {
-        self.has("invisibility") || self.field.invisible
+        self.has(Ability::new(33)) || self.field.invisible
     }
 
     pub(super) fn has_enchantment(&self, id: &str) -> bool {
@@ -242,7 +243,7 @@ impl Battle {
             if u.melee > 0 {
                 b.melee += 1;
             }
-            if u.ranged_kind == RangedKind::Missile || u.has("thrown") {
+            if u.ranged_kind == RangedKind::Missile || u.has(Ability::new(69)) {
                 b.ranged += 1;
             }
             b.magical = true;
@@ -250,7 +251,7 @@ impl Battle {
         // Holy Bonus and Resistance to All: the highest level among the side's standing units,
         // never added up. Holy Bonus gives attack (melee), defence and resistance, and counts
         // towards resistance to all (`Update_Battlefield_Bonuses`, `COMBINIT.c`).
-        let level = |ability: &str| {
+        let level = |ability: Ability| {
             self.units
                 .iter()
                 .filter(|x| x.side == mine && x.is_active() && x.has(ability))
@@ -258,7 +259,7 @@ impl Battle {
                 .max()
                 .unwrap_or(0)
         };
-        let holy = level("holy_bonus");
+        let holy = level(Ability::new(28));
         let best = |f: fn(&BattleUnit) -> i32| {
             self.units
                 .iter()
@@ -268,7 +269,7 @@ impl Battle {
                 .unwrap_or(0)
         };
         // A hero's Prayermaster counts as Resistance to All; the better of the two applies.
-        let resist_all = level("resist_all").max(best(|x| x.prayermaster));
+        let resist_all = level(Ability::new(56)).max(best(|x| x.prayermaster));
         if holy > 0 && u.melee > 0 {
             b.melee += holy;
         }
@@ -392,7 +393,7 @@ impl Battle {
         let mut events = Vec::new();
         for id in 0..self.units.len() {
             let u = &self.units[id];
-            if u.side == caster || !u.is_active() || u.has("death_immunity") {
+            if u.side == caster || !u.is_active() || u.has(Ability::new(16)) {
                 continue;
             }
             let mut state = u.defender_state();
@@ -431,7 +432,7 @@ impl Battle {
             }
             // Death immunity "negates all spells which cause death and fear" (the help; the
             // original's Terror ignores it and the Unofficial Patch fixes that).
-            if terror && !self.units[id].has("death_immunity") {
+            if terror && !self.units[id].has(Ability::new(16)) {
                 let state = self.units[id].defender_state();
                 let rng: &mut dyn RngCore = &mut self.rng;
                 if state.resistance_failure(Some(Realm::Death), 1, rng) > 0 {
@@ -443,7 +444,7 @@ impl Battle {
             }
             // Entangle holds only walkers with a body: the help says so, and the original's code,
             // which takes the move from every unit, is taken to be a bug.
-            if entangle && !self.units[id].flies && !self.units[id].has("non_corporeal") {
+            if entangle && !self.units[id].flies && !self.units[id].has(Ability::new(49)) {
                 let u = &mut self.units[id];
                 u.moves_left = u.moves_left.saturating_sub(2);
             }

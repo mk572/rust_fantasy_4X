@@ -14,6 +14,7 @@
 
 use super::*;
 use crate::battle::{BattleUnit, UnitCasting};
+use crate::rules::Ability;
 
 /// Where a unit's cast comes from, which decides what it uses up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,7 +67,7 @@ impl Game {
         for &spell in innate {
             add(spell, SpellSource::Mana);
         }
-        if !unit.hero_caster && (unit.has("spellcaster") || unit.has("spellcaster_major")) {
+        if !unit.hero_caster && (unit.has(Ability::new(61)) || unit.has(Ability::new(62))) {
             if let Some(realm) = unit.realm {
                 let spells = &self.content.rules.spells;
                 for def in spells.defs() {

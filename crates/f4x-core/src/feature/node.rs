@@ -5,6 +5,7 @@
 //! owner's mastery of its realm and again by Node Mastery; a warped node costs five instead.
 //! `strength` is the game's node setting: 0 weak, 1 normal, 2 powerful.
 
+use crate::rules::Ability;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
@@ -220,7 +221,7 @@ impl Game {
         let melders: Vec<hecs::Entity> = units
             .iter()
             .copied()
-            .filter(|&u| self.units().unit_has_ability(u, "meld"))
+            .filter(|&u| self.units().unit_has_ability(u, Ability::new(42)))
             .collect();
         let guardian = melders.iter().copied().find(|&u| {
             self.units()
@@ -293,7 +294,7 @@ pub(crate) mod tests {
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
             if u.id == "magic_spirit" {
-                u.abilities.push("meld".into());
+                u.ability_ids.push(crate::rules::Ability::new(42));
                 u.kind = UnitKind::Summoned;
                 u.realm = Some("arcane".into());
             }

@@ -148,10 +148,8 @@ pub fn build(content: &Content, s: &BattleScenario) -> Result<Game, String> {
     let (from, to) = match s.ground {
         Ground::City { walls } => {
             let (city, at) = capital;
-            let wall = game.content().rules.buildings.id_of("city_walls");
-            if let Some(wall) = wall {
-                game.scenario_set_building(city, wall, walls);
-            }
+            let wall = f4x_core::rules::BuildingId::new(35); // city_walls
+            game.scenario_set_building(city, wall, walls);
             let from = around(at)
                 .find(|&p| walkable(&game, p))
                 .ok_or("no land beside the city")?;

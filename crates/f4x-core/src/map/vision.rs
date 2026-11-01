@@ -4,6 +4,7 @@
 use crate::city::economy::Economy;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
+use crate::rules::Ability;
 
 use crate::rules::stats::compute;
 use crate::rules::Stat;
@@ -16,7 +17,8 @@ impl Economy<'_> {
     /// invisible unit shows to a viewer who has a unit immune to illusions in sight of it.
     pub fn unit_visible_to(&self, unit: hecs::Entity, viewer: PlayerId) -> bool {
         let units = self.units();
-        if units.unit_owner(unit) == Some(viewer) || !units.unit_has_ability(unit, "invisibility") {
+        if units.unit_owner(unit) == Some(viewer) || !units.unit_has_ability(unit, Ability::new(33))
+        {
             return true;
         }
         let Some(at) = units.unit_position(unit) else {
@@ -27,7 +29,7 @@ impl Economy<'_> {
         };
         let grid = map.plane(at.plane);
         units.player_units(viewer).into_iter().any(|u| {
-            units.unit_has_ability(u, "illusion_immunity")
+            units.unit_has_ability(u, Ability::new(31))
                 && units.unit_position(u).is_some_and(|p| {
                     p.plane == at.plane
                         && grid.chebyshev((p.x, p.y), (at.x, at.y)) * 2
@@ -212,8 +214,8 @@ mod tests {
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
             match u.id.as_str() {
-                "magic_spirit" => u.abilities.push("invisibility".into()),
-                "wind_mage" => u.abilities.push("illusion_immunity".into()),
+                "magic_spirit" => u.ability_ids.push(Ability::new(33)),
+                "wind_mage" => u.ability_ids.push(Ability::new(31)),
                 _ => {}
             }
         }

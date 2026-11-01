@@ -9,6 +9,7 @@ use crate::game::{Event, Game};
 use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::PlayerId;
+use crate::rules::Ability;
 use crate::spell::target_error::TargetError;
 
 pub const CORRUPT_LAND: &str = "corrupt_land";
@@ -92,7 +93,7 @@ impl Game {
         let workers: Vec<hecs::Entity> = units
             .iter()
             .copied()
-            .filter(|&u| self.units().unit_has_ability(u, "purify"))
+            .filter(|&u| self.units().unit_has_ability(u, Ability::new(54)))
             .collect();
         if workers.is_empty() {
             return Err(PurifyError::CannotPurify);
@@ -172,7 +173,7 @@ impl Game {
     pub(crate) fn process_land_corruption(&mut self) -> Vec<Event> {
         let mut events = Vec::new();
         for u in self.units().all_units() {
-            if !self.units().unit_has_ability(u, "land_corruption") {
+            if !self.units().unit_has_ability(u, Ability::new(102)) {
                 continue;
             }
             let Some(at) = self.units().unit_position(u) else {

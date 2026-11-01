@@ -9,6 +9,7 @@ use crate::city::economy::Economy;
 use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
+use crate::rules::Ability;
 
 use crate::game::Game;
 use crate::rules::MovementType;
@@ -98,18 +99,18 @@ pub struct StackTraits {
 pub struct StepProfile<'a> {
     unit: hecs::Entity,
     def: &'a crate::rules::UnitDef,
-    abilities: Vec<String>,
+    abilities: Vec<Ability>,
 }
 
 impl Economy<'_> {
     /// What a stack's units give each other: flight, pathfinding, forest and mountain walking.
     pub fn stack_traits(&self, units: &[hecs::Entity]) -> StackTraits {
-        let any = |a: &str| units.iter().any(|&u| self.units().unit_has_ability(u, a));
+        let any = |a: Ability| units.iter().any(|&u| self.units().unit_has_ability(u, a));
         StackTraits {
-            flies: any("wind_walking"),
-            pathfinding: any("pathfinding"),
-            forester: any("forester"),
-            mountaineer: any("mountaineer"),
+            flies: any(Ability::new(74)),
+            pathfinding: any(Ability::new(50)),
+            forester: any(Ability::new(25)),
+            mountaineer: any(Ability::new(45)),
             sea_lift: units.iter().any(|&u| self.is_ship(u)),
         }
     }
@@ -198,16 +199,16 @@ impl Economy<'_> {
             .get(to.x as i32, to.y as i32)
             .and_then(|t| self.content.terrains.get(t))
             .ok_or(MoveError::OffMap)?;
-        let has = |a: &str| abilities.iter().any(|x| x == a);
+        let has = |a: Ability| abilities.contains(&a);
         let is_water = terrain.class == TerrainClass::Ocean;
 
-        if has("non_corporeal") && !is_water {
+        if has(Ability::new(49)) && !is_water {
             return Ok(1);
         }
         if stack_flies
             || def.movement == MovementType::Flying
-            || has("flying")
-            || (is_water && has("water_walking"))
+            || has(Ability::new(24))
+            || (is_water && has(Ability::new(71)))
         {
             return Ok(FULL_MOVE);
         }
@@ -252,13 +253,13 @@ impl Economy<'_> {
             };
             cost = if magic(from) && magic(to) { 0 } else { 1 };
         }
-        if has("pathfinding") || traits.pathfinding {
+        if has(Ability::new(50)) || traits.pathfinding {
             cost = cost.min(1);
         }
-        if (has("forester") || traits.forester) && terrain.class.is_forest() {
+        if (has(Ability::new(25)) || traits.forester) && terrain.class.is_forest() {
             cost = cost.min(FULL_MOVE);
         }
-        if (has("mountaineer") || traits.mountaineer)
+        if (has(Ability::new(45)) || traits.mountaineer)
             && (terrain.class == TerrainClass::Hills || terrain.class.is_mountain())
         {
             cost = cost.min(FULL_MOVE);
@@ -271,14 +272,14 @@ impl Economy<'_> {
         units
             .iter()
             .copied()
-            .find(|&u| self.units().unit_has_ability(u, "wind_walking"))
+            .find(|&u| self.units().unit_has_ability(u, Ability::new(74)))
     }
 
     /// Whether any unit in `units` carries its stack through the air.
     pub fn stack_flies(&self, units: &[hecs::Entity]) -> bool {
         units
             .iter()
-            .any(|&u| self.units().unit_has_ability(u, "wind_walking"))
+            .any(|&u| self.units().unit_has_ability(u, Ability::new(74)))
     }
 
     /// Hostile units or city on `pos` from the point of view of `mover`.
@@ -433,7 +434,7 @@ impl Economy<'_> {
         let on_tower = self.is_tower(from);
         let all_travel = units
             .iter()
-            .all(|&u| self.units().unit_has_ability(u, "planar_travel"));
+            .all(|&u| self.units().unit_has_ability(u, Ability::new(51)));
         let (_, owner) = self.check_stack(units)?;
         let on_gate = self.has_gate(from, owner, crate::city::gate::ASTRAL_GATE);
         if !on_tower && !all_travel && !on_gate {

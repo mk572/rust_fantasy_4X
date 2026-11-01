@@ -18,6 +18,7 @@
 //! Not here: dispelling battlefield enchantments, the spells whose effects are not in the game,
 //! the node counter and the heroes' own casting.
 
+use crate::rules::Ability;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
@@ -108,7 +109,7 @@ enum Kind {
     /// A lasting spell on one unit; a curse has a save.
     Enchant {
         mods: Vec<Modifier>,
-        grants: Vec<String>,
+        grants: Vec<Ability>,
         save: Option<SpellSave>,
     },
     /// A dispel of this strength for each mana put in.
@@ -260,7 +261,9 @@ impl Game {
                     Effect::Modify { stat, op, value } => {
                         mods.push(Modifier::new(*stat, *op, *value, Source::Spell(spell)));
                     }
-                    Effect::GrantAbility(a) => grants.push(a.clone()),
+                    Effect::GrantAbility(a) => {
+                        grants.extend(self.content.rules.abilities.id_of(a));
+                    }
                     _ => return None,
                 }
             }
@@ -838,7 +841,7 @@ impl Game {
                     }
                 }
                 if matches!(kind, Kind::LifeDrain)
-                    && (u.realm == Some(Realm::Death) || u.has("death_immunity"))
+                    && (u.realm == Some(Realm::Death) || u.has(Ability::new(16)))
                 {
                     return Err(SpellError::Target(TargetError::Deathly));
                 }
@@ -847,7 +850,7 @@ impl Game {
                 }
                 // Warp Wood needs a missile unit; it and Warp Creature take normal units only,
                 // and a unit is warped once.
-                if def.id == "web" && u.has("non_corporeal") {
+                if def.id == "web" && u.has(Ability::new(49)) {
                     return Err(SpellError::Target(TargetError::NonCorporeal));
                 }
                 if matches!(kind, Kind::WarpWood | Kind::Warp { .. }) && u.is_fantastic() {
@@ -901,7 +904,14 @@ impl Game {
         {
             return Err(SpellError::NotCumulative);
         }
-        if def.already_able.iter().any(|a| unit.has(a)) {
+        if self
+            .content
+            .rules
+            .abilities
+            .ids(&def.already_able)
+            .iter()
+            .any(|&a| unit.has(a))
+        {
             return Err(SpellError::AlreadyAble);
         }
         Ok(())
@@ -1101,7 +1111,7 @@ impl Game {
         traits: &DamageTraits,
     ) -> Vec<BattleEvent> {
         let nature = AttackNature {
-            stopped_by: Immunities::from_names(immune.iter().map(String::as_str)),
+            stopped_by: Immunities::of(&self.content.rules.abilities.ids(immune)),
             realm,
             armor_piercing: false,
         };
@@ -1238,7 +1248,7 @@ impl Game {
                 // defence; fliers and the bodiless stand clear.
                 let over = battle
                     .unit_at(cell)
-                    .filter(|u| !u.flies && !u.has("non_corporeal"))
+                    .filter(|u| !u.flies && !u.has(Ability::new(49)))
                     .map(|u| u.id);
                 if let Some(id) = over {
                     if battle.roll(4) == 1 {
@@ -1299,13 +1309,18 @@ impl Game {
                 }]
             }
             (Kind::Turn { bind, save }, SpellAim::Unit(target)) => {
+                let immune_ids = self
+                    .content
+                    .rules
+                    .abilities
+                    .ids(save.as_ref().map_or(&[][..], |s| &s.immune[..]));
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
                 let battle = &mut active.battle;
                 if let Some(save) = save {
                     let unit = &battle.units[target];
-                    if save.immune.iter().any(|i| unit.has(i)) {
+                    if immune_ids.iter().any(|&i| unit.has(i)) {
                         return vec![BattleEvent::SpellImmune { unit: target }];
                     }
                     if !battle.resist_fails(target, Realm::from_id(&def.realm), save.modifier) {
@@ -1345,13 +1360,18 @@ impl Game {
                 let mut mods = mods;
                 mods.extend(self.superseded_bonuses(&def.id, &present));
                 mods.extend(self.battle_bonuses_by_name(&def.id, target));
+                let immune_ids = self
+                    .content
+                    .rules
+                    .abilities
+                    .ids(save.as_ref().map_or(&[][..], |s| &s.immune[..]));
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
                 let battle = &mut active.battle;
                 if let Some(save) = save {
                     let unit = &battle.units[target];
-                    if save.immune.iter().any(|i| unit.has(i)) {
+                    if immune_ids.iter().any(|&i| unit.has(i)) {
                         return vec![BattleEvent::SpellImmune { unit: target }];
                     }
                     let realm = Realm::from_id(&def.realm);
@@ -1387,6 +1407,7 @@ impl Game {
                     (false, SpellAim::Unit(t)) => vec![t],
                     _ => return Vec::new(),
                 };
+                let immune_ids = self.content.rules.abilities.ids(&immune);
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1406,7 +1427,7 @@ impl Game {
                     } else {
                         modifier
                     };
-                    match battle.spell_slay(t, realm, modifier, &immune, below) {
+                    match battle.spell_slay(t, realm, modifier, &immune_ids, below) {
                         None => events.push(BattleEvent::SpellImmune { unit: t }),
                         Some(d) => {
                             events.push(BattleEvent::SpellSlew {
@@ -1465,13 +1486,18 @@ impl Game {
         player: PlayerId,
         save: Option<&SpellSave>,
     ) -> Vec<BattleEvent> {
+        let immune_ids = self
+            .content
+            .rules
+            .abilities
+            .ids(save.map_or(&[][..], |s| &s.immune[..]));
         let Some(active) = self.battle.as_mut() else {
             return Vec::new();
         };
         let battle = &mut active.battle;
         if let Some(save) = save {
             let unit = &battle.units[target];
-            if save.immune.iter().any(|i| unit.has(i)) {
+            if immune_ids.iter().any(|&i| unit.has(i)) {
                 return vec![BattleEvent::SpellImmune { unit: target }];
             }
             if !battle.resist_fails(target, Realm::from_id(&def.realm), save.modifier) {
@@ -1724,7 +1750,7 @@ impl Game {
         kept: &[(SpellId, PlayerId)],
         base: &super::BattleUnit,
         target: usize,
-    ) -> Vec<(String, Vec<Modifier>, Vec<String>)> {
+    ) -> Vec<(String, Vec<Modifier>, Vec<Ability>)> {
         let lasting: Vec<_> = kept
             .iter()
             .filter_map(|&(s, _)| {

@@ -1,6 +1,7 @@
 //! The overworld: map, units, fog, selection and orders. The city screen is in
 //! `city_screen.rs`.
 
+use f4x_core::rules::Ability;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -2229,7 +2230,7 @@ impl App {
         let has_settlers = self
             .selection
             .iter()
-            .any(|&u| self.game.units().unit_has_ability(u, "create_outpost"));
+            .any(|&u| self.game.units().unit_has_ability(u, Ability::new(12)));
         if !builders.is_empty() && !has_settlers {
             self.start_road_plan();
             return;
@@ -2238,7 +2239,7 @@ impl App {
             .selection
             .iter()
             .copied()
-            .find(|&u| self.game.units().unit_has_ability(u, "create_outpost"));
+            .find(|&u| self.game.units().unit_has_ability(u, Ability::new(12)));
         let Some(unit) = settler else {
             self.log.push(self.text("log.select_settlers"));
             return;

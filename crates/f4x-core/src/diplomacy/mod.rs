@@ -16,6 +16,7 @@
 //!
 //! Tests: in diplomacy/tests.rs.
 
+use crate::rules::Ability;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -1466,7 +1467,7 @@ impl Diplomacy {
             else {
                 continue;
             };
-            if !view.is_wizard(owner) || units.unit_has_ability(unit, "create_outpost") {
+            if !view.is_wizard(owner) || units.unit_has_ability(unit, Ability::new(12)) {
                 continue;
             }
             let grid = map.plane(pos.plane);

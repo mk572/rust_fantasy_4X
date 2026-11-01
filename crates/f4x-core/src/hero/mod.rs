@@ -15,6 +15,7 @@ pub mod kind;
 use serde::{Deserialize, Serialize};
 
 use crate::rules::stats::{ModOp, Modifier, Source, Stat};
+use crate::rules::Ability;
 
 /// Why a hero could not be brought into service.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -171,28 +172,45 @@ impl HeroAbilities {
         })
     }
 
-    /// The ability ids the unit has, in the spellings of [`HERO_ABILITIES`](crate::rules::HERO_ABILITIES):
-    /// what `unit_abilities` adds to the unit definition's own.
-    pub fn ids(&self) -> Vec<String> {
+    /// The abilities the unit has, as numbers (`abilities.ron`): what `unit_abilities` adds to
+    /// the unit definition's own.
+    pub fn ids(&self) -> Vec<Ability> {
         let mut out = Vec::new();
         for name in TIERED {
+            let plain = tiered_number(name);
             match self.tier(name) {
-                Some(Tier::Normal) => out.push(name.to_string()),
-                Some(Tier::Super) => out.push(format!("super_{name}")),
+                Some(Tier::Normal) => out.push(Ability::new(plain)),
+                Some(Tier::Super) => out.push(Ability::new(plain + 1)),
                 _ => {}
             }
         }
-        for (on, name) in [
-            (self.lucky, "lucky"),
-            (self.charmed, "charmed"),
-            (self.noble, "noble"),
-            (self.female, "female"),
+        for (on, number) in [
+            (self.lucky, 39),
+            (self.charmed, 95),
+            (self.noble, 96),
+            (self.female, 97),
         ] {
             if on {
-                out.push(name.to_string());
+                out.push(Ability::new(number));
             }
         }
         out
+    }
+}
+
+/// The number of a tiered ability's plain form in `abilities.ron`; the doubled form is the next.
+fn tiered_number(name: &str) -> u16 {
+    match name {
+        "leadership" => 75,
+        "legendary" => 77,
+        "blademaster" => 79,
+        "armsmaster" => 81,
+        "constitution" => 83,
+        "might" => 85,
+        "arcane_power" => 87,
+        "sage" => 89,
+        "prayermaster" => 91,
+        _ => 93, // agility
     }
 }
 
@@ -385,10 +403,11 @@ mod tests {
         let a = HeroAbilities::from_names(&names);
         let ids = a.ids();
         assert_eq!(ids.len(), 4);
-        for n in names {
-            assert!(ids.iter().any(|i| i == n), "{n} missing from {ids:?}");
+        // super armsmaster, legendary, lucky, charmed
+        for n in [82, 77, 39, 95] {
+            assert!(ids.contains(&Ability::new(n)), "{n} missing from {ids:?}");
         }
-        assert_eq!(HeroAbilities::from_names(&ids), a);
+        assert_eq!(HeroAbilities::from_names(&names), a);
     }
 
     #[test]

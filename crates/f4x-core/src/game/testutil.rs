@@ -195,6 +195,9 @@ fn load_shipped() -> Content {
                 .collect::<Vec<_>>()
                 .join(" ");
     }
+    let abilities = Registry::new(abilities);
+    crate::rules::resolve_unit_abilities(&mut units, &abilities);
+    crate::rules::resolve_building_links(&mut buildings, &mut units);
     Content {
         terrains: Terrains::new(terrains),
         features: Features::new(features),
@@ -202,7 +205,7 @@ fn load_shipped() -> Content {
             config: parse(&dir, "rules.ron"),
             races: Registry::new(races),
             units: Registry::new(units),
-            abilities: Registry::new(abilities),
+            abilities,
             buildings: Registry::new(buildings),
             realms: Registry::new(realms),
             spells: Registry::new(spells),
@@ -219,4 +222,19 @@ fn load_shipped() -> Content {
         client_settings: parse(&dir, "client_settings.ron"),
         texts: Default::default(),
     }
+}
+
+/// The number of the ability the content file calls `alias`, for tests that name abilities in
+/// lists and loops (the game code itself refers to abilities by number).
+pub fn ability(alias: &str) -> crate::rules::Ability {
+    shipped()
+        .rules
+        .abilities
+        .id_of(alias)
+        .unwrap_or_else(|| panic!("no ability {alias:?} in the shipped content"))
+}
+
+/// [`ability`] for a list of aliases.
+pub fn abilities(aliases: &[&str]) -> Vec<crate::rules::Ability> {
+    aliases.iter().map(|a| ability(a)).collect()
 }

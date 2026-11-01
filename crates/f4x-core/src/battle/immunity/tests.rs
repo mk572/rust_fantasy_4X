@@ -1,9 +1,7 @@
 use super::*;
 use rand::SeedableRng;
 
-fn abilities(names: &[&str]) -> Vec<String> {
-    names.iter().map(|s| s.to_string()).collect()
-}
+use crate::game::testutil::abilities;
 
 fn unit(names: &[&str]) -> Immunities {
     Immunities::of(&abilities(names))
@@ -174,7 +172,7 @@ fn immunities_come_from_abilities() {
     assert!(all.weapon && all.magic && all.missiles && all.fire && all.cold);
     assert!(all.poison && all.stoning && all.death && all.illusion);
     assert!(unit(&["flying", "first_strike"]).is_empty());
-    assert!(Immunities::from_names(["fire_immunity", "bow"]).fire);
+    assert!(Immunities::of(&[Ability::new(21), Ability::new(3)]).fire);
 }
 
 #[test]

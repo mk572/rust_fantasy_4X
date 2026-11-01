@@ -13,6 +13,7 @@
 //!
 //! Tests: in player/offer/tests.rs.
 
+use crate::rules::Ability;
 use serde::{Deserialize, Serialize};
 
 use crate::game::{Event, Game};
@@ -203,7 +204,7 @@ pub fn mercenary_pool(rules: &Rules, arcanus: bool, myrror: bool) -> Vec<&UnitDe
         .filter(|u| {
             u.kind == UnitKind::Normal
                 && u.movement != MovementType::Sailing
-                && !u.abilities.iter().any(|a| a == "create_outpost")
+                && !u.ability_ids.contains(&Ability::new(12))
                 && u.id != DRACONIAN_ENGINEERS
                 && u.race
                     .as_deref()

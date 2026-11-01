@@ -7,6 +7,7 @@
 
 use super::*;
 use crate::input::Input;
+use f4x_core::rules::Ability;
 
 use crate::pointer::{BOOT, BOW, FINGER, RED_CROSS, SWORDS, WAND};
 
@@ -63,7 +64,7 @@ impl App {
             (Some(_), None) => RED_CROSS,
             (None, Some(u))
                 if battle.map.has_wall(cell)
-                    && u.has("wall_crusher")
+                    && u.has(Ability::new(70))
                     && u.side == Side::Attacker =>
             {
                 strike(u)

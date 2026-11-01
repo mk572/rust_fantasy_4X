@@ -10,6 +10,7 @@ use f4x_core::game::serial::Serial;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::rules::Ability;
 use f4x_core::rules::Stat;
 
 use crate::view::{distance, is_fighter};
@@ -158,7 +159,8 @@ fn recruit(ai: &Ai, game: &Game) -> Option<hecs::Entity> {
             continue;
         }
         let key = (
-            view.unit_stat(u, Stat::Moves) * 2 + i32::from(view.unit_has_ability(u, "flying")) * 2,
+            view.unit_stat(u, Stat::Moves) * 2
+                + i32::from(view.unit_has_ability(u, Ability::new(24))) * 2,
             std::cmp::Reverse(view.serial_of(u)),
             u,
         );

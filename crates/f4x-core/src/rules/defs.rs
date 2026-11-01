@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use super::effects::EffectRule;
 use super::registry::{Def, Registry};
 use super::stats::Stat;
+use super::{Ability, BuildingId};
 use crate::map::terrain::TerrainClass;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -272,9 +273,16 @@ pub struct UnitDef {
     pub movement: MovementType,
     #[serde(default)]
     pub abilities: Vec<String>,
-    /// Buildings the producing city must have.
+    /// The same abilities as numbers, filled once when the rules load ([`resolve_unit_abilities`]).
+    #[serde(skip)]
+    pub ability_ids: Vec<Ability>,
+    /// Buildings the producing city must have (author names).
     #[serde(default)]
     pub requires: Vec<String>,
+    /// The same buildings as numbers, filled once when the rules load
+    /// ([`resolve_building_links`]).
+    #[serde(skip)]
+    pub require_ids: Vec<BuildingId>,
     #[serde(default)]
     pub level_path: Option<String>,
     #[serde(default)]
@@ -292,7 +300,7 @@ pub struct UnitDef {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AbilityDef {
     /// The ability's number, the id the game passes around: the original has no table of
-    /// abilities, so they are counted from 1 in the alphabetical order of their ids.
+    /// abilities, so they are our own, counted from 1 and frozen.
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
@@ -318,10 +326,17 @@ pub struct BuildingDef {
     pub upkeep_gold: u32,
     #[serde(default)]
     pub requires: Vec<String>,
+    /// The same buildings as numbers, filled once when the rules load
+    /// ([`resolve_building_links`]).
+    #[serde(skip)]
+    pub require_ids: Vec<BuildingId>,
     /// Building made redundant by this one. It still counts as built (for requirements
     /// and effects) but costs no upkeep.
     #[serde(default)]
     pub replaces: Option<String>,
+    /// The replaced building as a number ([`resolve_building_links`]).
+    #[serde(skip)]
+    pub replace_id: Option<BuildingId>,
     /// Races that can build it; empty means every race.
     #[serde(default)]
     pub races: Vec<String>,
@@ -747,6 +762,33 @@ impl_numbered_def!(
     WizardDef,
     RetortDef
 );
+
+/// Turn each unit's ability names into numbers. The names must exist (content validation
+/// reports an unknown one); an unknown name is left out here.
+pub fn resolve_unit_abilities(units: &mut [UnitDef], abilities: &Registry<AbilityDef>) {
+    for u in units {
+        u.ability_ids = u
+            .abilities
+            .iter()
+            .filter_map(|a| abilities.id_of(a))
+            .collect();
+    }
+}
+
+/// Turn the building names in the building and unit tables into numbers. A name that is not
+/// a building is left out (content validation reports it).
+pub fn resolve_building_links(buildings: &mut [BuildingDef], units: &mut [UnitDef]) {
+    let nums: std::collections::HashMap<String, u16> =
+        buildings.iter().map(|b| (b.id.clone(), b.num)).collect();
+    let id = |name: &String| nums.get(name).map(|&n| BuildingId::new(n));
+    for b in buildings.iter_mut() {
+        b.require_ids = b.requires.iter().filter_map(id).collect();
+        b.replace_id = b.replaces.as_ref().and_then(id);
+    }
+    for u in units {
+        u.require_ids = u.requires.iter().filter_map(id).collect();
+    }
+}
 
 impl Def for UnitDef {
     fn id(&self) -> &str {

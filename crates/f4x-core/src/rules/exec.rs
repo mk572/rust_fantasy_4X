@@ -8,6 +8,7 @@
 //!
 //! Tests: in rules/exec/tests.rs.
 
+use crate::rules::{Ability, AbilityDef, Registry};
 use rand::RngCore;
 
 use super::effects::{Condition, DamageKind, Effect, EffectRule, TargetSel, Trigger};
@@ -38,7 +39,7 @@ pub enum Target {
 /// What the rules need to know about a target to evaluate a [`Condition`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Facts {
-    pub abilities: Vec<String>,
+    pub abilities: Vec<Ability>,
     pub terrain: Option<TerrainClass>,
     pub plane: Option<Plane>,
     pub race: Option<String>,
@@ -65,6 +66,8 @@ pub struct Context {
 /// Queries and primitive changes the executor needs from the world.
 pub trait EffectHost {
     fn facts(&self, who: Target) -> Facts;
+    /// The ability table, to turn the names a rule lists into numbers.
+    fn ability_defs(&self) -> &Registry<AbilityDef>;
     fn position(&self, who: Target) -> Option<Position>;
     fn owner_of(&self, who: Target) -> Option<PlayerId>;
     /// Every unit currently in the world, in a stable order.
@@ -176,10 +179,12 @@ pub enum Outcome {
 }
 
 /// Evaluate a condition against the facts about the subject.
-pub fn eval(cond: &Condition, facts: &Facts) -> bool {
+pub fn eval(cond: &Condition, facts: &Facts, abilities: &Registry<AbilityDef>) -> bool {
     match cond {
         Condition::Always => true,
-        Condition::HasAbility(a) => facts.abilities.iter().any(|x| x == a),
+        Condition::HasAbility(a) => abilities
+            .id_of(a)
+            .is_some_and(|id| facts.abilities.contains(&id)),
         Condition::TerrainIs(c) => facts.terrain == Some(*c),
         Condition::OnPlane(p) => facts.plane == Some(*p),
         Condition::RaceIs(r) => facts.race.as_deref() == Some(r.as_str()),
@@ -187,9 +192,9 @@ pub fn eval(cond: &Condition, facts: &Facts) -> bool {
         Condition::KindIs(k) => facts.kind == Some(*k),
         Condition::InBattle => facts.in_battle,
         Condition::InCity => facts.in_city,
-        Condition::All(cs) => cs.iter().all(|c| eval(c, facts)),
-        Condition::Any(cs) => cs.iter().any(|c| eval(c, facts)),
-        Condition::Not(c) => !eval(c, facts),
+        Condition::All(cs) => cs.iter().all(|c| eval(c, facts, abilities)),
+        Condition::Any(cs) => cs.iter().any(|c| eval(c, facts, abilities)),
+        Condition::Not(c) => !eval(c, facts, abilities),
     }
 }
 
@@ -295,7 +300,8 @@ fn run_effect(
         } => {
             let realm = realm.as_deref().and_then(Realm::from_id);
             let abilities = host.facts(who).abilities;
-            if immune.iter().any(|i| abilities.contains(i)) || host.protected_from(who, realm) {
+            let immune_ids = host.ability_defs().ids(immune);
+            if immune_ids.iter().any(|i| abilities.contains(i)) || host.protected_from(who, realm) {
                 out.push(Outcome::Immune { who });
             } else if *resistible && {
                 let resistance = host.resistance_against(who, realm);
@@ -386,7 +392,7 @@ pub fn run_rules(
     let mut out = Vec::new();
     for rule in rules.iter().filter(|r| r.when == when) {
         for who in resolve_targets(rule.target, ctx, host) {
-            if eval(&rule.condition, &host.facts(who)) {
+            if eval(&rule.condition, &host.facts(who), host.ability_defs()) {
                 run_effect(&rule.effect, who, ctx, host, &mut out);
             }
         }

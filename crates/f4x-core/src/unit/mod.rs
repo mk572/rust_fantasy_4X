@@ -17,6 +17,7 @@ pub mod stasis;
 pub mod transport;
 pub mod undead;
 
+use crate::rules::Ability;
 use hecs::World;
 
 use crate::content::Content;
@@ -216,8 +217,8 @@ impl<'a> UnitView<'a> {
         self.world.get::<&Position>(unit).ok().map(|p| *p)
     }
 
-    pub fn unit_has_ability(&self, unit: hecs::Entity, ability: &str) -> bool {
-        self.unit_def(unit).is_some() && self.unit_abilities(unit).iter().any(|a| a == ability)
+    pub fn unit_has_ability(&self, unit: hecs::Entity, ability: Ability) -> bool {
+        self.unit_def(unit).is_some() && self.unit_abilities(unit).contains(&ability)
     }
 
     pub(crate) fn unit_level_path(&self, unit: hecs::Entity) -> Option<&'a LevelPathDef> {
@@ -416,7 +417,7 @@ impl<'a> UnitView<'a> {
         self.unit_def(unit)
             .is_some_and(|d| matches!(d.movement, MovementType::Sailing | MovementType::Flying))
             || self.unit_stat(unit, Stat::Transport) > 0
-            || self.unit_has_ability(unit, "flying")
+            || self.unit_has_ability(unit, Ability::new(24))
     }
 
     pub fn unit_moves_left(&self, unit: hecs::Entity) -> u32 {
@@ -431,8 +432,8 @@ impl<'a> UnitView<'a> {
         let flies = self
             .unit_def(unit)
             .is_some_and(|d| d.movement == crate::rules::MovementType::Flying)
-            || self.unit_has_ability(unit, "flying")
-            || self.unit_has_ability(unit, "wind_walking");
+            || self.unit_has_ability(unit, Ability::new(24))
+            || self.unit_has_ability(unit, Ability::new(74));
         if flies {
             sight.max(5)
         } else {
@@ -523,7 +524,9 @@ impl<'a> UnitView<'a> {
         }
         let gold = match def.kind {
             UnitKind::Normal => def.upkeep.gold as i32,
-            UnitKind::Hero if !self.unit_has_ability(unit, "noble") => def.upkeep.gold as i32,
+            UnitKind::Hero if !self.unit_has_ability(unit, Ability::new(96)) => {
+                def.upkeep.gold as i32
+            }
             _ => 0,
         };
         // A computer wizard's difficulty cuts its units' upkeep.
@@ -709,7 +712,7 @@ mod tests {
         let (left, max) = units.unit_hits(e);
         assert!(max > 0 && left == max);
         assert_eq!(units.unit_level(e), 0);
-        assert!(!units.unit_has_ability(e, "flying"));
+        assert!(!units.unit_has_ability(e, Ability::new(24)));
         assert_eq!(units.units_at(AT), vec![e]);
         Ok(())
     }

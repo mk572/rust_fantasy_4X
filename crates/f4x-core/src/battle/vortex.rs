@@ -16,6 +16,7 @@ use super::immunity::{AttackNature, Immunities, Realm};
 use super::map::{self, Pos};
 use super::{Battle, BattleError, BattleEvent, Side};
 use crate::rules::effects::DamageTraits;
+use crate::rules::Ability;
 
 /// Hook of the spell.
 pub const MAGIC_VORTEX: &str = "magic_vortex";
@@ -139,7 +140,7 @@ impl Battle {
             let cell = self.units[id].cell;
             if cell == to {
                 let u = &self.units[id];
-                if !u.has("magic_immunity") && !u.has_enchantment("righteousness") {
+                if !u.has(Ability::new(40)) && !u.has_enchantment("righteousness") {
                     let mut state = u.defender_state();
                     let lost = unblockable(&mut state, CRUSH_DAMAGE);
                     if lost.points > 0 {

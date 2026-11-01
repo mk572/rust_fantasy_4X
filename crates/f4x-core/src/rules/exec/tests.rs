@@ -74,6 +74,11 @@ impl MockHost {
 }
 
 impl EffectHost for MockHost {
+    fn ability_defs(&self) -> &Registry<AbilityDef> {
+        // The shipped table, built once for all the tests.
+        static TABLE: std::sync::OnceLock<Registry<AbilityDef>> = std::sync::OnceLock::new();
+        TABLE.get_or_init(|| crate::game::testutil::shipped().rules.abilities)
+    }
     fn facts(&self, who: Target) -> Facts {
         match who {
             Target::Unit(e) => self.unit(e).facts.clone(),
@@ -113,12 +118,13 @@ impl EffectHost for MockHost {
     }
     fn grant_ability(&mut self, who: Target, a: &str) {
         if let Some(u) = self.unit_mut(who) {
-            u.facts.abilities.push(a.to_string());
+            u.facts.abilities.push(crate::game::testutil::ability(a));
         }
     }
     fn remove_ability(&mut self, who: Target, a: &str) {
         if let Some(u) = self.unit_mut(who) {
-            u.facts.abilities.retain(|x| x != a);
+            let id = crate::game::testutil::ability(a);
+            u.facts.abilities.retain(|x| *x != id);
         }
     }
     fn damage(&mut self, who: Target, amount: i32, _k: DamageKind) -> i32 {
@@ -200,29 +206,30 @@ fn rule(when: Trigger, condition: Condition, target: TargetSel, effect: Effect) 
 #[test]
 fn conditions_combine() {
     let f = Facts {
-        abilities: vec!["flying".into()],
+        abilities: vec![Ability::new(24)],
         terrain: Some(TerrainClass::Hills),
         plane: Some(Plane::Myrror),
         race: Some("orc".into()),
         in_battle: true,
         ..Facts::default()
     };
-    assert!(eval(&Condition::Always, &f));
-    assert!(eval(&Condition::HasAbility("flying".into()), &f));
-    assert!(!eval(&Condition::HasAbility("swimming".into()), &f));
-    assert!(eval(&Condition::TerrainIs(TerrainClass::Hills), &f));
-    assert!(eval(&Condition::OnPlane(Plane::Myrror), &f));
-    assert!(eval(&Condition::RaceIs("orc".into()), &f));
-    assert!(!eval(&Condition::RealmIs("life".into()), &f));
-    assert!(eval(&Condition::InBattle, &f) && !eval(&Condition::InCity, &f));
+    let table = &crate::game::testutil::shipped().rules.abilities;
+    assert!(eval(&Condition::Always, &f, table));
+    assert!(eval(&Condition::HasAbility("flying".into()), &f, table));
+    assert!(!eval(&Condition::HasAbility("swimming".into()), &f, table));
+    assert!(eval(&Condition::TerrainIs(TerrainClass::Hills), &f, table));
+    assert!(eval(&Condition::OnPlane(Plane::Myrror), &f, table));
+    assert!(eval(&Condition::RaceIs("orc".into()), &f, table));
+    assert!(!eval(&Condition::RealmIs("life".into()), &f, table));
+    assert!(eval(&Condition::InBattle, &f, table) && !eval(&Condition::InCity, &f, table));
     let all = Condition::All(vec![
         Condition::InBattle,
         Condition::HasAbility("flying".into()),
     ]);
-    assert!(eval(&all, &f));
+    assert!(eval(&all, &f, table));
     let any = Condition::Any(vec![Condition::InCity, Condition::OnPlane(Plane::Arcanus)]);
-    assert!(!eval(&any, &f));
-    assert!(eval(&Condition::Not(Box::new(any)), &f));
+    assert!(!eval(&any, &f, table));
+    assert!(eval(&Condition::Not(Box::new(any)), &f, table));
 }
 
 #[test]
@@ -314,13 +321,13 @@ fn only_matching_trigger_and_condition_run() {
         ),
         rule(
             Trigger::Passive,
-            Condition::HasAbility("blessed".into()),
+            Condition::HasAbility("holy_bonus".into()),
             TargetSel::This,
             add(Stat::Defense, 1),
         ),
     ];
     assert!(run_rules(&rules, Trigger::Passive, &cx, &mut h).is_empty());
-    h.grant_ability(Target::Unit(a), "blessed");
+    h.grant_ability(Target::Unit(a), "holy_bonus");
     let out = run_rules(&rules, Trigger::Passive, &cx, &mut h);
     assert_eq!(
         out,
@@ -521,7 +528,7 @@ fn grant_remove_heal_and_dispel() {
         &cx,
         &mut h,
     );
-    assert_eq!(h.unit(a).facts.abilities, vec!["flying".to_string()]);
+    assert_eq!(h.unit(a).facts.abilities, vec![Ability::new(24)]);
     run_rules(
         &on_cast(Effect::RemoveAbility("flying".into())),
         Trigger::OnCast,

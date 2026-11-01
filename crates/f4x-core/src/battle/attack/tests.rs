@@ -258,7 +258,7 @@ fn a_defender_rolls_the_defense_its_immunities_give_it() {
     let arrows = Combatant {
         strength: 6,
         mode: Mode::Ranged,
-        nature: AttackNature::of_unit_attack(Mode::Ranged, &["bow".to_string()], false),
+        nature: AttackNature::of_unit_attack(Mode::Ranged, &[crate::rules::Ability::new(3)], false),
         ..Combatant::default()
     };
     let archer_proof = Immunities {

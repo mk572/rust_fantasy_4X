@@ -22,6 +22,7 @@
 //!
 //! Tests: in battle/immunity/tests.rs.
 
+use crate::rules::Ability;
 use rand::{Rng, RngCore};
 
 use super::attack::Mode;
@@ -68,25 +69,19 @@ pub struct Immunities {
 
 impl Immunities {
     /// The immunities among a unit's abilities (`weapon_immunity`, `magic_immunity`, ...).
-    pub fn of(abilities: &[String]) -> Immunities {
-        let has = |name: &str| abilities.iter().any(|a| a == name);
+    pub fn of(abilities: &[Ability]) -> Immunities {
+        let has = |name: Ability| abilities.contains(&name);
         Immunities {
-            weapon: has("weapon_immunity"),
-            magic: has("magic_immunity"),
-            missiles: has("missile_immunity"),
-            fire: has("fire_immunity"),
-            cold: has("cold_immunity"),
-            poison: has("poison_immunity"),
-            stoning: has("stoning_immunity"),
-            death: has("death_immunity"),
-            illusion: has("illusion_immunity"),
+            weapon: has(Ability::new(72)),
+            magic: has(Ability::new(40)),
+            missiles: has(Ability::new(44)),
+            fire: has(Ability::new(21)),
+            cold: has(Ability::new(10)),
+            poison: has(Ability::new(52)),
+            stoning: has(Ability::new(65)),
+            death: has(Ability::new(16)),
+            illusion: has(Ability::new(31)),
         }
-    }
-
-    /// From the ability names a spell's data lists, ignoring names that are not immunities.
-    pub fn from_names<'a>(names: impl IntoIterator<Item = &'a str>) -> Immunities {
-        let list: Vec<String> = names.into_iter().map(str::to_string).collect();
-        Immunities::of(&list)
     }
 
     /// Whether the two have an immunity in common.
@@ -121,14 +116,14 @@ pub struct AttackNature {
 impl AttackNature {
     /// The nature of one of a unit's attacks. `mode` says which: its melee blows, or its
     /// thrown, breath or ranged attack (the kind found among `abilities`).
-    pub fn of_unit_attack(mode: Mode, abilities: &[String], magical_weapon: bool) -> AttackNature {
-        let has = |name: &str| abilities.iter().any(|a| a == name);
+    pub fn of_unit_attack(mode: Mode, abilities: &[Ability], magical_weapon: bool) -> AttackNature {
+        let has = |name: Ability| abilities.contains(&name);
         let mut stopped_by = Immunities {
-            illusion: has("illusion_attack"),
+            illusion: has(Ability::new(30)),
             ..Immunities::default()
         };
         let mut realm = None;
-        let mut armor_piercing = has("armor_piercing");
+        let mut armor_piercing = has(Ability::new(1));
         if mode == Mode::Melee {
             stopped_by.weapon = !magical_weapon;
             return AttackNature {
@@ -179,33 +174,37 @@ enum Flavour {
     Gaze(Realm),
 }
 
-fn ranged_flavour(abilities: &[String]) -> Flavour {
-    let has = |name: &str| abilities.iter().any(|a| a == name);
-    if has("bow") || has("sling") {
+fn ranged_flavour(abilities: &[Ability]) -> Flavour {
+    let has = |name: Ability| abilities.contains(&name);
+    if has(Ability::new(3)) || has(Ability::new(59)) {
         Flavour::Arrows
-    } else if has("rock_throwing") {
+    } else if has(Ability::new(57)) {
         Flavour::Boulders
-    } else if has("thrown") {
+    } else if has(Ability::new(69)) {
         Flavour::Thrown
-    } else if has("fire_breath") {
+    } else if has(Ability::new(20)) {
         Flavour::FireBreath
-    } else if has("lightning_breath") {
+    } else if has(Ability::new(37)) {
         Flavour::LightningBreath
-    } else if has("multi_gaze") {
+    } else if has(Ability::new(46)) {
         Flavour::Gaze(Realm::Chaos)
-    } else if has("stoning_gaze") {
+    } else if has(Ability::new(64)) {
         Flavour::Gaze(Realm::Nature)
-    } else if has("death_gaze") {
+    } else if has(Ability::new(15)) {
         Flavour::Gaze(Realm::Death)
-    } else if has("fireball_attack")
-        || has("lightning_bolt")
-        || has("drow_bolt")
-        || has("death_bolt")
+    } else if has(Ability::new(22))
+        || has(Ability::new(36))
+        || has(Ability::new(18))
+        || has(Ability::new(14))
     {
         Flavour::Bolt(Realm::Chaos)
-    } else if has("sorcery_bolt") {
+    } else if has(Ability::new(60)) {
         Flavour::Bolt(Realm::Sorcery)
-    } else if has("ice_bolt") || has("nature_bolt") || has("sprite_bolt") || has("shaman_bolt") {
+    } else if has(Ability::new(29))
+        || has(Ability::new(47))
+        || has(Ability::new(63))
+        || has(Ability::new(58))
+    {
         Flavour::Bolt(Realm::Nature)
     } else {
         Flavour::None

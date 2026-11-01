@@ -6,6 +6,7 @@
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
+use crate::rules::Ability;
 use crate::rules::{MovementType, Stat};
 use crate::unit::Hurt;
 
@@ -83,29 +84,30 @@ impl BattleStartError {
 }
 
 /// What kind of ranged attack the unit's abilities give it.
-pub fn ranged_kind_of(abilities: &[String]) -> RangedKind {
-    let has = |names: &[&str]| abilities.iter().any(|a| names.contains(&a.as_str()));
-    if has(&["bow", "sling", "rock_throwing"]) {
+pub fn ranged_kind_of(abilities: &[Ability]) -> RangedKind {
+    let has = |names: &[u16]| abilities.iter().any(|a| names.contains(&a.num()));
+    // bow, sling, rock throwing
+    if has(&[3, 59, 57]) {
         RangedKind::Missile
     } else if has(&[
-        "thrown",
-        "fire_breath",
-        "lightning_breath",
-        "stoning_gaze",
-        "death_gaze",
-        "multi_gaze",
+        69, // thrown
+        20, // fire breath
+        37, // lightning breath
+        64, // stoning gaze
+        15, // death gaze
+        46, // multi gaze
     ]) {
         RangedKind::Short
     } else if has(&[
-        "fireball_attack",
-        "lightning_bolt",
-        "ice_bolt",
-        "nature_bolt",
-        "sorcery_bolt",
-        "sprite_bolt",
-        "drow_bolt",
-        "shaman_bolt",
-        "death_bolt",
+        22, // fireball attack
+        36, // lightning bolt
+        29, // ice bolt
+        47, // nature bolt
+        60, // sorcery bolt
+        63, // sprite bolt
+        18, // drow bolt
+        58, // shaman bolt
+        14, // death bolt
     ]) {
         RangedKind::Magic
     } else {
@@ -190,7 +192,7 @@ impl Game {
     /// Copy an overland unit into battle form.
     /// What a unit can cast in a battle on its own: a hero's innate spells, the charges of its
     /// items' spells and its spell save, and the spells its abilities cast (once a battle).
-    fn unit_casting(&self, unit: hecs::Entity, abilities: &[String]) -> super::UnitCasting {
+    fn unit_casting(&self, unit: hecs::Entity, abilities: &[Ability]) -> super::UnitCasting {
         let spells = &self.content.rules.spells;
         let mut casting = super::UnitCasting::default();
         if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
@@ -211,15 +213,15 @@ impl Game {
                 }
             }
         }
-        if abilities.iter().any(|a| a == "summon_demon") {
+        if abilities.iter().any(|a| *a == Ability::new(67)) {
             casting.demons = 3;
         }
         for ability in abilities {
-            let spell = match ability.as_str() {
-                "casts_doom_bolt" => "doom_bolt",
-                "casts_fireball" => "fireball",
-                "casts_healing" => "healing",
-                "casts_web" => "web",
+            let spell = match ability.num() {
+                4 => "doom_bolt",
+                5 => "fireball",
+                6 => "healing",
+                7 => "web",
                 _ => continue,
             };
             casting.abilities.extend(spells.id_of(spell));
@@ -245,13 +247,14 @@ impl Game {
         let current = total - hurt;
         let alive = ((current + hits - 1) / hits) as u32;
         let abilities = self.units().unit_abilities(unit);
-        let flies = def.movement == MovementType::Flying || abilities.iter().any(|a| a == "flying");
-        let has = |a: &str| abilities.iter().any(|x| x == a);
+        let flies = def.movement == MovementType::Flying
+            || abilities.iter().any(|a| *a == Ability::new(24));
+        let has = |a: Ability| abilities.contains(&a);
         // Mithril adds one and adamantium two to the attacks and the defence.
         let quality = self.units().unit_weapon_quality(unit);
         let extra = i32::from(quality.max(1)) - 1;
         let ranged_kind = ranged_kind_of(&abilities);
-        let physical_shot = ranged_kind == RangedKind::Missile || has("thrown");
+        let physical_shot = ranged_kind == RangedKind::Missile || has(Ability::new(69));
         let melee = self.units().unit_stat(unit, Stat::Melee);
         let ranged = self.units().unit_stat(unit, Stat::Ranged);
         // A spell caster has mana (20, or 40 for a major one), and shoots its spells with it.
@@ -259,14 +262,14 @@ impl Game {
         let hero_mana = self.units().hero_mana(unit);
         let mana = if hero_mana > 0 {
             hero_mana
-        } else if has("spellcaster_major") {
+        } else if has(Ability::new(62)) {
             40
-        } else if has("spellcaster") {
+        } else if has(Ability::new(61)) {
             20
         } else {
             0
         };
-        let lucky = i32::from(has("lucky"));
+        let lucky = i32::from(has(Ability::new(39)));
         let hero = self.world.get::<&crate::hero::Hero>(unit).ok();
         let level = self.units().unit_level(unit);
         let mut ammo = self.units().unit_stat(unit, Stat::Ammo);
@@ -308,9 +311,9 @@ impl Game {
             flies,
             sails: def.movement == MovementType::Sailing,
             swims: def.movement == MovementType::Swimming,
-            first_strike: has("first_strike"),
-            negate_first_strike: has("negate_first_strike"),
-            long_range: has("long_range"),
+            first_strike: has(Ability::new(23)),
+            negate_first_strike: has(Ability::new(48)),
+            long_range: has(Ability::new(38)),
             magical_weapon: self.units().unit_has_magical_weapon(unit),
             weapon_quality: quality,
             special_level: self.units().unit_stat(unit, Stat::SpecialLevel),
@@ -511,7 +514,10 @@ impl Game {
         let mut sources = Vec::new();
         // A fight at a city is fought round its walls, if it has them.
         let city = self.economy().city_at(site);
-        let walled = city.is_some_and(|c| self.economy().city_has_building(c, "city_walls"));
+        let walled = city.is_some_and(|c| {
+            self.economy()
+                .city_has_building(c, crate::rules::BuildingId::new(35) /* city_walls */)
+        });
         let fortress = city.is_some_and(|c| self.economy().is_fortress_city(c));
         // A fight on the sea: only ships, fliers and swimmers take part, unless the side has a
         // Floating Island or Wind Walking, which carry the rest (`Undeployable_Battle_Units_On_Water`).
@@ -537,7 +543,7 @@ impl Game {
             let carried = ocean
                 && group
                     .iter()
-                    .any(|&u| self.units().unit_has_ability(u, "wind_walking"));
+                    .any(|&u| self.units().unit_has_ability(u, Ability::new(74)));
             let fighters: Vec<hecs::Entity> = group
                 .iter()
                 .copied()
@@ -721,7 +727,7 @@ impl Game {
                 d.movement,
                 MovementType::Flying | MovementType::Sailing | MovementType::Swimming
             )
-        }) || abilities.iter().any(|a| a == "flying")
+        }) || abilities.iter().any(|a| *a == Ability::new(24))
             || self.units().unit_stat(unit, Stat::Transport) > 0
     }
 
@@ -867,7 +873,7 @@ impl Game {
                     .and_then(|i| sources.get(i).copied())
                     .and_then(|e| self.units().unit_def(e))
                     .is_some_and(|d| d.kind == crate::rules::UnitKind::Hero);
-                (hero, u.has("create_outpost"))
+                (hero, u.has(Ability::new(12)))
             })
             .collect();
         let mut value = 0;

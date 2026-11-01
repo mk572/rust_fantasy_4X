@@ -174,11 +174,11 @@ mod tests {
         crate::testworld::build(&mut g, pos, &["stables"]);
         assert!(g
             .economy()
-            .sale_price(city, g.content().rules.buildings.id_of("smithy").unwrap())
+            .sale_price(city, f4x_core::rules::BuildingId::new(8) /* smithy */)
             .is_err());
         assert_eq!(sale(&g).as_deref(), Some("library"));
         // Without the library nothing else is both dispensable and free to sell.
-        let library = g.content().rules.buildings.id_of("library").unwrap();
+        let library = f4x_core::rules::BuildingId::new(16) /* library */;
         g.scenario_set_building(city, library, false);
         assert_eq!(sale(&g), None);
     }

@@ -8,6 +8,7 @@
 //!
 //! Tests: in battle/tests.rs.
 
+use crate::rules::Ability;
 use rand::RngCore;
 
 use super::attack::{kill_figure, spell_attack, unblockable, Combatant, Damage, Mode, Volley};
@@ -300,11 +301,11 @@ impl Battle {
         target: usize,
         realm: Realm,
         modifier: i32,
-        immune: &[String],
+        immune: &[Ability],
         below: Option<i32>,
     ) -> Option<Damage> {
         let unit = &self.units[target];
-        if immune.iter().any(|i| unit.has(i)) {
+        if immune.iter().any(|&i| unit.has(i)) {
             return None;
         }
         let mut state = unit.defender_state();
@@ -350,7 +351,7 @@ impl Battle {
     /// raise it as undead. `None` if the unit is immune: a death creature, or immune to death.
     pub fn drain_life(&mut self, target: usize, modifier: i32) -> Option<Damage> {
         let unit = &self.units[target];
-        if unit.realm == Some(Realm::Death) || unit.has("death_immunity") {
+        if unit.realm == Some(Realm::Death) || unit.has(Ability::new(16)) {
             return None;
         }
         let mut state = unit.defender_state();
@@ -409,7 +410,7 @@ impl Battle {
         id: &str,
         caster: PlayerId,
         mods: &[Modifier],
-        grants: &[String],
+        grants: &[Ability],
     ) {
         let unit = &mut self.units[target];
         // The base is the unit without the battlefield spells' changes too.
@@ -436,7 +437,7 @@ impl Battle {
         target: usize,
         base: BattleUnit,
         kept: Vec<(SpellId, PlayerId)>,
-        lasting: &[(String, Vec<Modifier>, Vec<String>)],
+        lasting: &[(String, Vec<Modifier>, Vec<Ability>)],
     ) {
         let unit = &mut self.units[target];
         unit.restore_stats_from(&base);
@@ -477,7 +478,7 @@ impl Battle {
 
 impl BattleUnit {
     /// Change the unit's numbers by a lasting spell's modifiers, and give it its abilities.
-    pub fn apply_lasting(&mut self, mods: &[Modifier], grants: &[String]) {
+    pub fn apply_lasting(&mut self, mods: &[Modifier], grants: &[Ability]) {
         let comp = |stat: Stat, base: i32| compute(stat, base, mods);
         self.melee = comp(Stat::Melee, self.melee);
         self.ranged = comp(Stat::Ranged, self.ranged);
@@ -495,12 +496,12 @@ impl BattleUnit {
             self.moves_left = self.moves_left.min(self.moves);
         }
         for g in grants {
-            if !self.has(g) {
-                self.abilities.push(g.clone());
+            if !self.has(*g) {
+                self.abilities.push(*g);
             }
         }
         // Haste: a unit that has not attacked yet may attack twice this turn.
-        if self.has("hasted") && !self.attacked {
+        if self.has(Ability::new(26)) && !self.attacked {
             self.extra_attack = true;
         }
         self.sync_abilities();
@@ -508,13 +509,13 @@ impl BattleUnit {
 
     /// The flags the battle reads, brought in line with the abilities.
     fn sync_abilities(&mut self) {
-        self.first_strike |= self.has("first_strike");
-        self.negate_first_strike |= self.has("negate_first_strike");
-        self.long_range |= self.has("long_range");
-        self.magical_weapon |= self.has("magical_weapon");
-        self.flies |= self.has("flying");
+        self.first_strike |= self.has(Ability::new(23));
+        self.negate_first_strike |= self.has(Ability::new(48));
+        self.long_range |= self.has(Ability::new(38));
+        self.magical_weapon |= self.has(Ability::new(41));
+        self.flies |= self.has(Ability::new(24));
         // A web or sleep grounds a flyer.
-        if self.has("webbed") || self.has("asleep") {
+        if self.has(Ability::new(73)) || self.has(Ability::new(2)) {
             self.flies = false;
         }
     }

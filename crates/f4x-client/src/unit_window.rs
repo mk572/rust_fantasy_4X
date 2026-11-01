@@ -9,6 +9,7 @@ use crate::input::Input;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
+use f4x_core::rules::Ability;
 use f4x_core::text::Args;
 use f4x_core::unit::Standby;
 use macroquad::prelude::*;
@@ -47,20 +48,20 @@ impl App {
     /// Which special action the selected units have (the original's `special_action_flag`).
     pub(crate) fn special_action(&self) -> Special {
         let units = self.game.units();
-        let any = |ability: &str| {
+        let any = |ability: Ability| {
             self.selection
                 .iter()
                 .any(|&u| units.unit_has_ability(u, ability))
         };
         let builds = self.selection.iter().any(|&u| {
-            units.unit_has_ability(u, "create_outpost")
+            units.unit_has_ability(u, Ability::new(12))
                 || units.unit_stat(u, f4x_core::rules::Stat::Construction) > 0
         });
         if builds {
             Special::Build
-        } else if any("meld") {
+        } else if any(Ability::new(42)) {
             Special::Meld
-        } else if any("purify") {
+        } else if any(Ability::new(54)) {
             Special::Purify
         } else {
             Special::None

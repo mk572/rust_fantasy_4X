@@ -760,7 +760,7 @@ fn units_asleep_confused_or_webbed_are_always_lost_when_their_side_flees() {
 #[test]
 fn ranged_abilities_map_to_battle_kinds() {
     use super::game::ranged_kind_of;
-    let v = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let v = crate::game::testutil::abilities;
     assert_eq!(ranged_kind_of(&v(&["bow"])), RangedKind::Missile);
     assert_eq!(ranged_kind_of(&v(&["rock_throwing"])), RangedKind::Missile);
     assert_eq!(ranged_kind_of(&v(&["thrown"])), RangedKind::Short);
@@ -924,7 +924,7 @@ fn auto_resolve_needs_an_adjacent_target() -> TestResult {
 
 fn instant_unit(side: Side, cell: Pos, ability: &str) -> BattleUnit {
     let mut u = spearman(side, cell);
-    u.abilities = vec![ability.into()];
+    u.abilities = vec![crate::game::testutil::ability(ability)];
     u
 }
 
@@ -1149,7 +1149,7 @@ fn damage_over_seeds(
 }
 
 fn with_abilities(mut u: BattleUnit, names: &[&str]) -> BattleUnit {
-    u.abilities = names.iter().map(|s| s.to_string()).collect();
+    u.abilities = crate::game::testutil::abilities(names);
     u
 }
 
@@ -1338,7 +1338,7 @@ fn crusher(side: Side, cell: Pos, ranged: bool) -> BattleUnit {
         u.ranged = 6;
         u.ammo = 4;
         u.ranged_kind = RangedKind::Missile;
-        u.abilities.push("rock_throwing".into());
+        u.abilities.push(Ability::new(57));
     }
     u
 }
@@ -1778,7 +1778,7 @@ mod casting {
 
     fn unit_with(abilities: &[&str]) -> BattleUnit {
         let mut u = BattleUnit::simple(Side::Defender, "t", 1, 20, 3, 0);
-        u.abilities = abilities.iter().map(|s| s.to_string()).collect();
+        u.abilities = crate::game::testutil::abilities(abilities);
         u
     }
 
@@ -1823,7 +1823,7 @@ mod casting {
                 m(Stat::Moves, ModOp::Percent, 100),
                 m(Stat::Melee, ModOp::Add, 1),
             ],
-            &["first_strike".to_string()],
+            &[crate::rules::Ability::new(23)],
         );
         let u = &b.units[0];
         assert_eq!(u.moves, before.moves * 2);
@@ -1833,7 +1833,7 @@ mod casting {
             "the extra moves come at once"
         );
         assert_eq!(u.melee, before.melee + 1);
-        assert!(u.first_strike && u.has("first_strike"));
+        assert!(u.first_strike && u.has(Ability::new(23)));
         assert_eq!(u.combat_spells, vec![(spell, A)]);
         // A dispel: back to the base, with no spells on.
         let base = u.base.as_deref().ok_or("as_deref is missing")?.clone();
@@ -1963,7 +1963,7 @@ mod fields {
         let enemy = b.units[1].clone();
         let with = |ability: &str, level: i32| {
             let mut u = of(Side::Attacker, None, (3, 6));
-            u.abilities.push(ability.to_string());
+            u.abilities.push(crate::game::testutil::ability(ability));
             u.special_level = level;
             u
         };
@@ -2040,7 +2040,7 @@ mod fields {
         let mut second = of(Side::Attacker, None, (4, 6));
         second.leadership = 1;
         second.prayermaster = 1;
-        second.abilities.push("resist_all".into());
+        second.abilities.push(Ability::new(56));
         second.special_level = 1;
         b.add_summoned(Side::Attacker, second, (4, 6));
         assert_eq!(b.units[0].melee, plain.melee + 3);
@@ -2192,7 +2192,7 @@ mod fields {
             if ability == "flying" {
                 free.flies = true;
             } else {
-                free.abilities.push(ability.into());
+                free.abilities.push(crate::game::testutil::ability(ability));
             }
             let mut b = pair(of(Side::Attacker, None, (3, 5)), free);
             b.raise_field(Side::Attacker, Field::Entangle, spell());
@@ -2222,7 +2222,7 @@ mod fields {
         for seed in 0..20 {
             let mut deathless = of(Side::Defender, None, (17, 5));
             deathless.resistance = 0;
-            deathless.abilities.push("death_immunity".into());
+            deathless.abilities.push(Ability::new(16));
             let mut b = duel(of(Side::Attacker, None, (3, 5)), deathless, seed);
             b.raise_field(Side::Attacker, Field::Terror, spell());
             end_turns(&mut b, 1);
@@ -2232,7 +2232,7 @@ mod fields {
 
     /// A lasting spell put on a unit the way the casting does it.
     fn put_on(b: &mut Battle, unit: usize, id: &str, mods: &[Modifier], grants: &[&str]) {
-        let grants: Vec<String> = grants.iter().map(|g| g.to_string()).collect();
+        let grants = crate::game::testutil::abilities(grants);
         b.enchant_unit(unit, spell(), id, A, mods, &grants);
     }
 
@@ -2241,7 +2241,7 @@ mod fields {
         let still = Modifier::new(Stat::Moves, ModOp::Set, 0, Source::Other);
         let mut flyer = of(Side::Defender, None, (17, 5));
         flyer.flies = true;
-        flyer.abilities.push("flying".into());
+        flyer.abilities.push(Ability::new(24));
         let mut b = pair(of(Side::Attacker, None, (3, 5)), flyer);
         put_on(&mut b, 1, "web", &[still], &["webbed"]);
         let u = &b.units[1];
@@ -2436,21 +2436,21 @@ mod fields {
             0,
             "only the blurred side's units are harder to hit"
         );
-        b.units[0].abilities.push("illusion_immunity".into());
+        b.units[0].abilities.push(Ability::new(31));
         assert_eq!(b.blur_penalty(0, 1), 0);
     }
 
     #[test]
     fn an_invisible_creature_is_harder_to_hit_unless_the_attacker_sees_through_illusions() {
         let mut ghost = of(Side::Defender, None, (6, 5));
-        ghost.abilities.push("invisibility".into());
+        ghost.abilities.push(Ability::new(33));
         let mut b = pair(of(Side::Attacker, None, (5, 5)), ghost);
         assert_eq!(b.invisibility_penalty(0, 1), 1, "adjacent");
         assert_eq!(b.invisibility_penalty(1, 0), 0);
         b.units[0].cell = (1, 5);
         assert_eq!(b.invisibility_penalty(0, 1), 5, "one for each square");
         b.units[0].cell = (5, 5);
-        b.units[0].abilities.push("illusion_immunity".into());
+        b.units[0].abilities.push(Ability::new(31));
         assert_eq!(b.invisibility_penalty(0, 1), 0);
         // Mass Invisibility does the same for the caster's whole side.
         let mut b = pair(
@@ -2476,10 +2476,10 @@ mod fields {
         // A unit with the right immunity takes no harm; one with enough resistance resists.
         let mut tough = of(Side::Defender, None, (6, 5));
         tough.resistance = 30;
-        tough.abilities.push("death_immunity".into());
+        tough.abilities.push(Ability::new(16));
         let mut b = pair(of(Side::Attacker, None, (5, 5)), tough);
         assert!(b
-            .spell_slay(1, Realm::Death, -2, &["death_immunity".into()], None)
+            .spell_slay(1, Realm::Death, -2, &[crate::rules::Ability::new(16)], None)
             .is_none());
         assert_eq!(
             b.spell_slay(1, Realm::Death, -2, &[], None)
@@ -2589,9 +2589,9 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
     assert_eq!(armed.ranged_plus, 0);
     assert_eq!(armed.defense, plain.defense + 2);
     assert_eq!(armed.resistance, plain.resistance + 1);
-    assert!(armed.has("life_steal"));
-    assert!(armed.has("large_shield"));
-    assert!(!plain.has("life_steal"));
+    assert!(armed.has(Ability::new(35)));
+    assert!(armed.has(Ability::new(34)));
+    assert!(!plain.has(Ability::new(35)));
     // The plus to hit counts for the melee blow, not for a shot.
     assert_eq!(
         armed.melee_combatant().to_hit,
@@ -3074,7 +3074,7 @@ fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it()
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let mut defs = g.content.rules.units.defs().to_vec();
     for d in defs.iter_mut().filter(|d| d.id == "high_men_cavalry") {
-        d.abilities.push("casts_healing".into());
+        d.ability_ids.push(Ability::new(6));
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     begin(&mut g, unit);
@@ -3459,7 +3459,7 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() -> Te
     let mut g = game();
     let mut defs = g.content.rules.units.defs().to_vec();
     for d in defs.iter_mut().filter(|d| d.id == "high_men_cavalry") {
-        d.abilities.push("summon_demon".into());
+        d.ability_ids.push(Ability::new(67));
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     let walker = g
@@ -3611,7 +3611,7 @@ fn a_wall_of_darkness_stops_shots_into_the_city_unless_the_shooter_sees_through(
         u.ranged_kind = RangedKind::Missile;
         u.ammo = 3;
         if illusion_immune {
-            u.abilities.push("illusion_immunity".into());
+            u.abilities.push(Ability::new(31));
         }
         u
     };
@@ -3800,8 +3800,8 @@ fn an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities() -> 
         "poison_immunity",
         "illusion_immunity",
     ] {
-        assert!(raised.has(a), "{a}");
-        assert!(!living.has(a), "{a}");
+        assert!(raised.has(crate::game::testutil::ability(a)), "{a}");
+        assert!(!living.has(crate::game::testutil::ability(a)), "{a}");
     }
     assert!(!living.undead && !living.is_fantastic());
     Ok(())
@@ -3939,7 +3939,7 @@ fn regenerating_units_heal_a_hit_as_their_sides_turn_begins() -> TestResult {
     // The Regeneration spell grants the same ability.
     let mut under_spell = dummy(&[]);
     under_spell.front_damage = 5;
-    under_spell.abilities.push("regeneration".into());
+    under_spell.abilities.push(Ability::new(55));
     let mut b = duel(spearman(Side::Attacker, (3, 10)), under_spell, 1);
     let before = b.unit(1).ok_or("unit is missing")?.hit_points();
     b.apply(BattleCommand::EndTurn)
@@ -3953,7 +3953,8 @@ fn game_with_abilities(unit_id: &str, abilities: &[&str]) -> Game {
     let mut units = g.content.rules.units.defs().to_vec();
     for u in units.iter_mut().filter(|u| u.id == unit_id) {
         u.kind = crate::rules::UnitKind::Normal;
-        u.abilities.extend(abilities.iter().map(|a| a.to_string()));
+        u.ability_ids
+            .extend(crate::game::testutil::abilities(abilities));
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
     g
@@ -4395,7 +4396,7 @@ fn a_battle_fought_after_recording_began_plays_again_the_same() -> TestResult {
 
 fn ghost(side: Side, cell: Pos) -> BattleUnit {
     let mut u = spearman(side, cell);
-    u.abilities.push("invisibility".into());
+    u.abilities.push(Ability::new(33));
     u
 }
 
@@ -4456,7 +4457,7 @@ fn an_invisible_unit_shows_after_it_attacks_until_its_next_turn_and_to_those_who
         "hidden again when its own turn begins"
     );
     assert!(!b.seen_by(Side::Attacker, 1));
-    b.units[0].abilities.push("illusion_immunity".into());
+    b.units[0].abilities.push(Ability::new(31));
     assert!(
         b.seen_by(Side::Attacker, 1),
         "a unit immune to illusions sees it"
@@ -5158,7 +5159,7 @@ fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() ->
 #[test]
 fn a_hasted_unit_attacks_twice_in_a_turn() -> TestResult {
     let mut hasted = spearman(Side::Attacker, (9, 10));
-    hasted.abilities.push("hasted".into());
+    hasted.abilities.push(Ability::new(26));
     hasted.apply_lasting(&[], &[]);
     let mut b = duel(hasted, spearman(Side::Defender, (10, 10)), 3);
     assert!(b.unit(0).ok_or("unit is missing")?.extra_attack);

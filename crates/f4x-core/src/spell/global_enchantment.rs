@@ -226,7 +226,9 @@ impl UnitView<'_> {
         for &spell in &globals {
             let sdef = self.content.rules.spells.get(spell);
             for rule in &sdef.effects {
-                if rule.when != Trigger::Passive || !eval(&rule.condition, &facts) {
+                if rule.when != Trigger::Passive
+                    || !eval(&rule.condition, &facts, &self.content.rules.abilities)
+                {
                     continue;
                 }
                 if let Effect::Modify { stat, op, value } = rule.effect {

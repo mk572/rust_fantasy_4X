@@ -165,9 +165,8 @@ mod tests {
         let pos = at(COAST_CITY.0, COAST_CITY.1);
         crate::testworld::build(&mut g, pos, &["barracks", "smithy", "library"]);
         let city = g.economy().city_at(pos).ok_or("player 0 has a city")?;
-        let buildings = &g.content().rules.buildings;
-        let smithy = buildings.id_of("smithy").ok_or("smithy is shipped")?;
-        let library = buildings.id_of("library").ok_or("library is shipped")?;
+        let smithy = f4x_core::rules::BuildingId::new(8) /* smithy */;
+        let library = f4x_core::rules::BuildingId::new(16) /* library */;
         let name = |g: &Game, b| g.content().rules.buildings.get(b).id.clone();
         let sale = |g: &Game| next_sale(g, P0).map(|(_, b)| name(g, b));
         assert_eq!(sale(&g).as_deref(), Some("library"));

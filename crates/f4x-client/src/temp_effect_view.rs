@@ -58,11 +58,7 @@ impl App {
 
     fn temp_effect_line(&self, t: &TempEffect) -> String {
         let abilities = &self.game.content().rules.abilities;
-        let ability = |id: &str| {
-            abilities
-                .by_name(id)
-                .map_or_else(|| id.to_string(), |a| a.name.clone())
-        };
+        let ability = |id: f4x_core::rules::Ability| abilities.get(id).name.clone();
         let effect = match &t.kind {
             TempKind::Modifier { stat, op, value } => {
                 let name = STAT_NAMES
@@ -83,10 +79,10 @@ impl App {
                 self.text_with(key, &Args::new().text("stat", name).text("value", shown))
             }
             TempKind::Grant(id) => {
-                self.text_with("temp.grant", &Args::new().text("ability", ability(id)))
+                self.text_with("temp.grant", &Args::new().text("ability", ability(*id)))
             }
             TempKind::Remove(id) => {
-                self.text_with("temp.remove", &Args::new().text("ability", ability(id)))
+                self.text_with("temp.remove", &Args::new().text("ability", ability(*id)))
             }
         };
         // An effect that never runs out says nothing about its length.
@@ -119,7 +115,8 @@ mod tests {
         app.game.add_temp_modifier(who, plus, Some(3));
         let set = Modifier::new(Stat::Moves, ModOp::Set, 4, Source::Other);
         app.game.add_temp_modifier(who, set, None);
-        app.game.grant_temp_ability(who, "first_strike", Some(1));
+        app.game
+            .grant_temp_ability(who, f4x_core::rules::Ability::new(23), Some(1));
         let ability = app
             .game
             .content()

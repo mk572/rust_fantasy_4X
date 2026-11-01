@@ -1,6 +1,7 @@
 use super::*;
 use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
+use crate::rules::Ability;
 use crate::testdir::TestResult;
 
 use crate::feature::node::Node;
@@ -693,7 +694,7 @@ fn flight_keeps_a_unit_afloat_and_turning_it_off_drowns_it() -> TestResult {
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let flight = sp(&g, "flight");
     g.attach_enchantment(Target::Unit(unit), flight, P0);
-    assert!(g.units().unit_has_ability(unit, "flying"));
+    assert!(g.units().unit_has_ability(unit, Ability::new(24)));
     assert!(g.drown_stranded().is_empty());
     assert_eq!(g.drowned_if_off(unit, flight), 1);
     let events = g.apply(Command::TurnOffUnitSpell {

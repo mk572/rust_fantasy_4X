@@ -598,8 +598,16 @@ fn undead_units_are_not_healed_eat_nothing_and_are_death_creatures() -> TestResu
         "poison_immunity",
         "illusion_immunity",
     ] {
-        assert!(g.units().unit_has_ability(raised, a), "{a}");
-        assert!(!g.units().unit_has_ability(living, a), "{a}");
+        assert!(
+            g.units()
+                .unit_has_ability(raised, crate::game::testutil::ability(a)),
+            "{a}"
+        );
+        assert!(
+            !g.units()
+                .unit_has_ability(living, crate::game::testutil::ability(a)),
+            "{a}"
+        );
     }
     Ok(())
 }
@@ -1398,7 +1406,7 @@ fn regenerating_units_mend_completely_each_turn() -> TestResult {
     let mut units = g.content.rules.units.defs().to_vec();
     for u in units.iter_mut() {
         if u.id == "high_elf_spearmen" {
-            u.abilities.push("regeneration".into());
+            u.ability_ids.push(crate::rules::Ability::new(55));
         }
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(units);

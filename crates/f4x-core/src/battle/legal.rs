@@ -7,6 +7,7 @@
 
 use super::map::{distance, GRID_H, GRID_W};
 use super::{Battle, BattleCommand, RangedKind, Side};
+use crate::rules::Ability;
 
 impl Battle {
     /// The commands of the active side that `apply` accepts now: for each unit that can still
@@ -40,7 +41,7 @@ impl Battle {
                         out.push(BattleCommand::Shoot { unit, target: t.id });
                     }
                 }
-                if side == Side::Attacker && u.has("wall_crusher") {
+                if side == Side::Attacker && u.has(Ability::new(70)) {
                     for y in 0..GRID_H {
                         for x in 0..GRID_W {
                             let cell = (x, y);

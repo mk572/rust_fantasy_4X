@@ -11,6 +11,7 @@
 //! in tens of people; growth is in tens of people per turn; food in whole food; production
 //! and gold in whole points.
 
+use crate::rules::Ability;
 use std::collections::{HashSet, VecDeque};
 
 use hecs::World;
@@ -144,9 +145,8 @@ impl<'a> Economy<'a> {
                 .rules
                 .units
                 .get(unit)
-                .abilities
-                .iter()
-                .any(|a| a == "create_outpost")
+                .ability_ids
+                .contains(&Ability::new(12))
     }
 
     /// The same view with diagonal steps costing half as much again, or not.
@@ -357,13 +357,14 @@ impl<'a> Economy<'a> {
         mods
     }
 
-    pub fn city_has_building(&self, city: hecs::Entity, building: &str) -> bool {
-        let Some(id) = self.content.rules.buildings.id_of(building) else {
-            return false;
-        };
+    pub fn city_has_building(
+        &self,
+        city: hecs::Entity,
+        building: crate::rules::BuildingId,
+    ) -> bool {
         self.world
             .get::<&Buildings>(city)
-            .is_ok_and(|b| b.0.contains(&id))
+            .is_ok_and(|b| b.0.contains(&building))
     }
 
     /// Total weight of citizens in cities road-connected to `at` (other races count fully,
@@ -561,8 +562,8 @@ impl<'a> Economy<'a> {
         let figures = pop.figures;
         let farmers = farmers.min(figures);
 
-        let has = |name: &str| self.city_has_building(city, name);
-        let miners = has("miners_guild");
+        let has = |b: crate::rules::BuildingId| self.city_has_building(city, b);
+        let miners = has(crate::rules::BuildingId::new(34) /* miners_guild */);
         let dwarf = race.is_some_and(|r| r.double_mining);
 
         // Worked tiles: food, production bonus, mines.
@@ -796,10 +797,10 @@ impl<'a> Economy<'a> {
                 } else {
                     0
                 };
-                if has("sawmill") {
+                if has(crate::rules::BuildingId::new(15) /* sawmill */) {
                     bonus += 10;
                 }
-                if has("builders_hall") {
+                if has(crate::rules::BuildingId::new(32) /* builders_hall */) {
                     bonus += 15;
                 }
                 bonus
@@ -851,8 +852,7 @@ impl<'a> Economy<'a> {
         let replaced: HashSet<_> = buildings
             .0
             .iter()
-            .filter_map(|&b| rules.buildings.get(b).replaces.as_deref())
-            .filter_map(|n| rules.buildings.id_of(n))
+            .filter_map(|&b| rules.buildings.get(b).replace_id)
             .collect();
         buildings
             .0

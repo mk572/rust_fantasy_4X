@@ -154,7 +154,7 @@ impl Economy<'_> {
                 if def.coastal && !self.city_is_coastal(city) {
                     return Err(ProductionError::NotCoastal);
                 }
-                self.requirements_met(&built, &def.requires)
+                self.requirements_met(&built, &def.require_ids)
             }
             ProductionItem::Unit(u) => {
                 let def = rules.units.get(u);
@@ -180,7 +180,7 @@ impl Economy<'_> {
                 {
                     return Err(ProductionError::TooSmall);
                 }
-                self.requirements_met(&built, &def.requires)
+                self.requirements_met(&built, &def.require_ids)
             }
         }
     }
@@ -188,19 +188,13 @@ impl Economy<'_> {
     fn requirements_met(
         &self,
         built: &[BuildingId],
-        requires: &[String],
+        requires: &[BuildingId],
     ) -> Result<(), ProductionError> {
-        let rules = &self.content.rules;
-        for r in requires {
-            let ok = rules
-                .buildings
-                .id_of(r)
-                .is_some_and(|id| built.contains(&id));
-            if !ok {
-                return Err(ProductionError::MissingBuilding);
-            }
+        if requires.iter().all(|r| built.contains(r)) {
+            Ok(())
+        } else {
+            Err(ProductionError::MissingBuilding)
         }
-        Ok(())
     }
 
     pub fn city_is_coastal(&self, city: hecs::Entity) -> bool {
@@ -278,22 +272,18 @@ impl Economy<'_> {
     /// the one a sale is refused for (`City_Building_Has_Requirement`).
     pub fn first_dependant(&self, city: hecs::Entity, building: BuildingId) -> Option<BuildingId> {
         let rules = &self.content.rules;
-        let mut needed = vec![rules.buildings.get(building).id.clone()];
+        let mut needed = vec![building];
         let mut i = 0;
-        while let Some(name) = needed.get(i).cloned() {
+        while let Some(need) = needed.get(i).copied() {
             i += 1;
-            for b in rules.buildings.defs() {
-                if !b.requires.contains(&name) || needed.contains(&b.id) {
+            for (id, b) in rules.buildings.iter() {
+                if !b.require_ids.contains(&need) || needed.contains(&id) {
                     continue;
                 }
-                if let Some(id) = rules
-                    .buildings
-                    .id_of(&b.id)
-                    .filter(|&id| self.has_building(city, id))
-                {
+                if self.has_building(city, id) {
                     return Some(id);
                 }
-                needed.push(b.id.clone());
+                needed.push(id);
             }
         }
         None
@@ -303,10 +293,11 @@ impl Economy<'_> {
     /// (`City_Building_Is_Currently_Required`).
     pub fn production_needs(&self, city: hecs::Entity, building: BuildingId) -> bool {
         let rules = &self.content.rules;
-        let name = &rules.buildings.get(building).id;
         match self.city_production(city).item {
-            Some(ProductionItem::Building(b)) => rules.buildings.get(b).requires.contains(name),
-            Some(ProductionItem::Unit(u)) => rules.units.get(u).requires.contains(name),
+            Some(ProductionItem::Building(b)) => {
+                rules.buildings.get(b).require_ids.contains(&building)
+            }
+            Some(ProductionItem::Unit(u)) => rules.units.get(u).require_ids.contains(&building),
             _ => false,
         }
     }
@@ -322,7 +313,10 @@ impl Economy<'_> {
     /// when the city works such an ore on a square not spoiled by corruption (adamantium wins).
     pub fn city_weapon_quality(&self, city: hecs::Entity) -> u8 {
         use crate::unit::{WEAPON_ADAMANTIUM, WEAPON_MAGIC, WEAPON_MITHRIL};
-        if !self.city_has_building(city, "alchemists_guild") {
+        if !self.city_has_building(
+            city,
+            crate::rules::BuildingId::new(19), /* alchemists_guild */
+        ) {
             return 0;
         }
         let (Some(map), Ok(at)) = (self.map, self.world.get::<&Position>(city).map(|p| *p)) else {

@@ -90,7 +90,10 @@ fn wall_of_stone_builds_walls_once() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 500;
-    assert!(!g.economy().city_has_building(city, "city_walls"));
+    assert!(!g.economy().city_has_building(
+        city,
+        crate::rules::BuildingId::new(35) /* city_walls */
+    ));
     let cast = |g: &mut Game| {
         g.apply(Command::CastSpell {
             extra: 0,
@@ -103,7 +106,10 @@ fn wall_of_stone_builds_walls_once() -> TestResult {
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::ProductionCompleted { .. })));
-    assert!(g.economy().city_has_building(city, "city_walls"));
+    assert!(g.economy().city_has_building(
+        city,
+        crate::rules::BuildingId::new(35) /* city_walls */
+    ));
     assert_eq!(
         g.check_target(P0, spell, Some(Target::City(city))),
         Err(crate::wizard::magic::MagicError::Target(
@@ -257,7 +263,9 @@ fn a_chaos_rift_bolts_the_units_inside_and_may_bring_a_building_down() -> TestRe
         });
     }
     assert!(fell, "a building fell");
-    assert!(!g.economy().city_has_building(city, "shrine"));
+    assert!(!g
+        .economy()
+        .city_has_building(city, crate::rules::BuildingId::new(22) /* shrine */));
     Ok(())
 }
 

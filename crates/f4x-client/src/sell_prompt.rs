@@ -514,9 +514,8 @@ mod tests {
             .iter()
             .find(|c| c.1.owner == HUMAN)
             .ok_or("the human has no city")?;
-        let buildings = &app.game.content().rules.buildings;
-        let smithy = buildings.id_of("smithy").ok_or("no smithy")?;
-        let market = buildings.id_of("marketplace").ok_or("no marketplace")?;
+        let smithy = BuildingId::new(8) /* smithy */;
+        let market = BuildingId::new(26) /* marketplace */;
         app.game.scenario_set_building(city, smithy, true);
         app.game.scenario_set_building(city, market, true);
         Ok((city, smithy, market))

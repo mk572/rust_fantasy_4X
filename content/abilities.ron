@@ -1,8 +1,7 @@
 // Kept by hand (the importer no longer writes this file).
 // The original has no table of unit abilities (most are flag bits, the rest attack-type fields),
-// so `num` is our own: 1, 2, 3 ... in the alphabetical order of the ids. A new ability is
-// inserted in its alphabetical place and the rows after it move up one (saved games name abilities
-// by id, so they are not affected). `id` is the alias for human editing.
+// so `num` is our own. The numbers are frozen: the code, a saved game and the text tables
+// refer to an ability by its number. A new ability is appended with the next free number. `id` is the alias for human editing.
 [
     (num: 1, id: "armor_piercing", description: "Halves the target's defence.", effects: []),
     (num: 2, id: "asleep", description: "Cannot move, attack or fly; every blow against it does full damage.", effects: []),
@@ -78,4 +77,36 @@
     (num: 72, id: "weapon_immunity", description: "Normal weapons barely hurt it: its defence is at least 10 against them, and normal arrows and thrown weapons are cut to the same. Heroes, fantastic creatures, magical weapons and spells ignore it.", effects: []),
     (num: 73, id: "webbed", description: "Held where it stands, and no longer flies, until the web is dispelled.", effects: []),
     (num: 74, id: "wind_walking", description: "Carries a stack through the air.", effects: []),
+    (num: 75, id: "leadership", description: "Hero ability: Leadership.", effects: []),
+    (num: 76, id: "super_leadership", description: "Hero ability: Super Leadership.", effects: []),
+    (num: 77, id: "legendary", description: "Hero ability: Legendary.", effects: []),
+    (num: 78, id: "super_legendary", description: "Hero ability: Super Legendary.", effects: []),
+    (num: 79, id: "blademaster", description: "Hero ability: Blademaster.", effects: []),
+    (num: 80, id: "super_blademaster", description: "Hero ability: Super Blademaster.", effects: []),
+    (num: 81, id: "armsmaster", description: "Hero ability: Armsmaster.", effects: []),
+    (num: 82, id: "super_armsmaster", description: "Hero ability: Super Armsmaster.", effects: []),
+    (num: 83, id: "constitution", description: "Hero ability: Constitution.", effects: []),
+    (num: 84, id: "super_constitution", description: "Hero ability: Super Constitution.", effects: []),
+    (num: 85, id: "might", description: "Hero ability: Might.", effects: []),
+    (num: 86, id: "super_might", description: "Hero ability: Super Might.", effects: []),
+    (num: 87, id: "arcane_power", description: "Hero ability: Arcane Power.", effects: []),
+    (num: 88, id: "super_arcane_power", description: "Hero ability: Super Arcane Power.", effects: []),
+    (num: 89, id: "sage", description: "Hero ability: Sage.", effects: []),
+    (num: 90, id: "super_sage", description: "Hero ability: Super Sage.", effects: []),
+    (num: 91, id: "prayermaster", description: "Hero ability: Prayermaster.", effects: []),
+    (num: 92, id: "super_prayermaster", description: "Hero ability: Super Prayermaster.", effects: []),
+    (num: 93, id: "agility", description: "Hero ability: Agility.", effects: []),
+    (num: 94, id: "super_agility", description: "Hero ability: Super Agility.", effects: []),
+    (num: 95, id: "charmed", description: "Hero ability: Charmed.", effects: []),
+    (num: 96, id: "noble", description: "Hero ability: Noble.", effects: []),
+    (num: 97, id: "female", description: "Hero ability: Female.", effects: []),
+    (num: 98, id: "chaos_channeled", description: "The unit was changed by Chaos Channels.", effects: []),
+    (num: 99, id: "death_touch", description: "An item gives the carrier a touch that kills a figure.", effects: []),
+    (num: 100, id: "destruction", description: "An item gives the carrier an attack that destroys a figure outright.", effects: []),
+    (num: 101, id: "doom_damage", description: "The attack ignores defence: its strength is the damage.", effects: []),
+    (num: 102, id: "land_corruption", description: "Its presence corrupts the land around it.", effects: []),
+    (num: 103, id: "power_drain", description: "The attack drains the mana of a spell caster.", effects: []),
+    (num: 104, id: "mutation_armor", description: "Marks a unit given demon-skin armour by Chaos Channels.", effects: []),
+    (num: 105, id: "mutation_wings", description: "Marks a unit given wings by Chaos Channels.", effects: []),
+    (num: 106, id: "mutation_breath", description: "Marks a unit given fire breath by Chaos Channels.", effects: []),
 ]

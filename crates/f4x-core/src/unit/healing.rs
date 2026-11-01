@@ -7,6 +7,7 @@
 use crate::city::economy::Economy;
 use crate::game::rng::GameRng;
 use crate::game::Game;
+use crate::rules::Ability;
 use crate::unit::{Hurt, UnitView};
 
 /// The wounds each hurt unit has afterwards, in the order the units are visited. The draws from
@@ -20,7 +21,7 @@ pub(crate) fn healing(
     let mut healed_by_healer: Vec<hecs::Entity> = Vec::new();
     // Stacks that contain a healer get an extra fifth of their hit points back.
     for &unit in &all {
-        if units.unit_has_ability(unit, "healer") {
+        if units.unit_has_ability(unit, Ability::new(27)) {
             if let Some(at) = units.unit_position(unit) {
                 for other in units.units_at(at) {
                     if units.unit_owner(other) == units.unit_owner(unit)
@@ -39,7 +40,7 @@ pub(crate) fn healing(
         if hurt == 0 || units.unit_is_death(unit) {
             continue;
         }
-        if units.unit_has_ability(unit, "regeneration") {
+        if units.unit_has_ability(unit, Ability::new(55)) {
             out.push((unit, 0));
             continue;
         }
@@ -54,7 +55,14 @@ pub(crate) fn healing(
             continue;
         }
         let divisor = match city {
-            Some(c) if economy.city_has_building(c, "animists_guild") => 6,
+            Some(c)
+                if economy.city_has_building(
+                    c,
+                    crate::rules::BuildingId::new(10), /* animists_guild */
+                ) =>
+            {
+                6
+            }
             Some(_) => 10,
             None => 20,
         };

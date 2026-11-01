@@ -155,7 +155,8 @@ impl App {
                 f4x_core::rules::Source::Other,
             );
             self.game.add_temp_modifier(who, plus, Some(3));
-            self.game.grant_temp_ability(who, "first_strike", None);
+            self.game
+                .grant_temp_ability(who, f4x_core::rules::Ability::new(23), None);
         }
         let spell = spell.and_then(|id| self.game.content().rules.spells.id_of(id));
         if let Some(spell) = spell {

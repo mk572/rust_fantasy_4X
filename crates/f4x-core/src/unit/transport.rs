@@ -11,6 +11,7 @@ use crate::game::serial::Serial;
 use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::{PlayerId, MONSTERS};
+use crate::rules::Ability;
 use crate::rules::{MovementType, Stat};
 
 use crate::game::{Event, Game};
@@ -41,10 +42,9 @@ impl Economy<'_> {
         !stack_flies
             && units.unit_def(unit).is_some_and(|d| {
                 d.movement == MovementType::Walking
-                    && !units
-                        .unit_abilities(unit)
-                        .iter()
-                        .any(|a| a == "flying" || a == "non_corporeal" || a == "water_walking")
+                    && !units.unit_abilities(unit).iter().any(|a| {
+                        *a == Ability::new(24) || *a == Ability::new(49) || *a == Ability::new(71)
+                    })
             })
     }
 

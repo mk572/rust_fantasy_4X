@@ -23,6 +23,8 @@
 //!
 //! Tests: in battle/tests.rs.
 
+use crate::rules::Ability;
+
 /// A gaze: a ranged attack that makes each of the target's figures resist.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Gaze {
@@ -62,10 +64,14 @@ pub struct SpecialAttacks {
 
 impl SpecialAttacks {
     /// The special attacks among a unit's abilities, with its special level.
-    pub fn of_unit(abilities: &[String], granted: &[String], special_level: i32) -> SpecialAttacks {
-        let has = |name: &str| abilities.iter().any(|a| a == name);
-        let given = |name: &str, extra: i32| {
-            if granted.iter().any(|a| a == name) {
+    pub fn of_unit(
+        abilities: &[Ability],
+        granted: &[Ability],
+        special_level: i32,
+    ) -> SpecialAttacks {
+        let has = |name: Ability| abilities.contains(&name);
+        let given = |name: Ability, extra: i32| {
+            if granted.contains(&name) {
                 extra
             } else {
                 0
@@ -73,23 +79,23 @@ impl SpecialAttacks {
         };
         let level = special_level.abs();
         SpecialAttacks {
-            poison: if has("poison_touch") { level } else { 0 },
-            life_steal: has("life_steal"),
-            stoning_touch: has("stoning_touch"),
-            death_touch: has("death_touch"),
-            destruction: has("destruction"),
-            dispel_evil: has("dispel_evil"),
-            create_undead: has("create_undead"),
-            power_drain: has("power_drain"),
+            poison: if has(Ability::new(53)) { level } else { 0 },
+            life_steal: has(Ability::new(35)),
+            stoning_touch: has(Ability::new(66)),
+            death_touch: has(Ability::new(99)),
+            destruction: has(Ability::new(100)),
+            dispel_evil: has(Ability::new(17)),
+            create_undead: has(Ability::new(13)),
+            power_drain: has(Ability::new(103)),
             penalty: level,
-            stoning_extra: given("stoning_touch", 1),
-            death_extra: given("death_touch", 3),
-            life_steal_extra: given("life_steal", 3),
-            gaze: if has("multi_gaze") {
+            stoning_extra: given(Ability::new(66), 1),
+            death_extra: given(Ability::new(99), 3),
+            life_steal_extra: given(Ability::new(35), 3),
+            gaze: if has(Ability::new(46)) {
                 Gaze::Multi
-            } else if has("stoning_gaze") {
+            } else if has(Ability::new(64)) {
                 Gaze::Stoning
-            } else if has("death_gaze") {
+            } else if has(Ability::new(15)) {
                 Gaze::Death
             } else {
                 Gaze::None

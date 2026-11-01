@@ -1,3 +1,4 @@
+use f4x_core::rules::Ability;
 use std::path::Path;
 use std::sync::OnceLock;
 
@@ -1121,10 +1122,11 @@ fn a_wizard_starts_as_in_the_original() -> TestResult {
                 ),
                 (4, 3, 2)
             );
-            for b in ["smithy", "barracks", "builders_hall"] {
+            for (b, name) in [(8, "smithy"), (3, "barracks"), (32, "builders_hall")] {
                 assert!(
-                    g.economy().city_has_building(city, b),
-                    "seed {seed} wizard {k}: {b}"
+                    g.economy()
+                        .city_has_building(city, f4x_core::rules::BuildingId::new(b)),
+                    "seed {seed} wizard {k}: {name}"
                 );
             }
             // Land that feeds eight (seven for later wizards), so the farmers feed the army.
@@ -1249,7 +1251,7 @@ fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() -
         wolves.magical_weapon,
         "summoned creatures fight with magical weapons"
     );
-    assert!(wolves.abilities.iter().any(|a| a == "weapon_immunity"));
+    assert!(wolves.abilities.contains(&Ability::new(72)));
     Ok(())
 }
 
@@ -2394,7 +2396,7 @@ fn death_spell_and_word_of_death_destroy_the_figures_that_cannot_resist() {
     let last = *enemies.last().expect("there is one");
     g.battle.as_mut().expect("the value is there").battle.units[last]
         .abilities
-        .push("death_immunity".into());
+        .push(Ability::new(16));
     let r = cast(&mut g, "bcast death spell");
     assert!(r.ok, "{}", r.text());
     let b = g.battle().expect("a battle is on");
@@ -2451,7 +2453,7 @@ fn a_curse_can_be_resisted_and_banish_only_touches_fantastic_creatures() {
     let other = battle_units_of(&g, Side::Defender)[1];
     g.battle.as_mut().expect("the value is there").battle.units[other]
         .abilities
-        .push("illusion_immunity".into());
+        .push(Ability::new(31));
     pass_turn(&mut g);
     let r = cast(&mut g, &format!("bcast mind storm unit:{other}"));
     assert!(r.ok, "{}", r.text());
@@ -2935,7 +2937,7 @@ fn animate_dead_raises_a_fallen_unit_of_the_wizard_as_undead() {
     assert_eq!(u.status, Status::Active);
     assert_eq!(u.figures, u.figures_start);
     assert!(u.undead && u.realm == Some(f4x_core::battle::immunity::Realm::Death));
-    assert!(u.has("death_immunity") && u.has("cold_immunity"));
+    assert!(u.has(Ability::new(16)) && u.has(Ability::new(10)));
     assert_eq!(u.side, Side::Attacker);
     let entity = g.battle.as_ref().expect("the value is there").sources
         [u.source.expect("the fighter has a source")];

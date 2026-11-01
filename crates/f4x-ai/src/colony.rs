@@ -4,6 +4,7 @@
 //! (`economy.rs`); here the plan is chosen and the voyage sailed. The settler then founds the city
 //! like any other (`expand.rs`).
 
+use f4x_core::rules::Ability;
 use std::collections::{HashSet, VecDeque};
 
 use f4x_core::game::serial::Serial;
@@ -267,7 +268,7 @@ fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
         let mut settlers: Vec<hecs::Entity> = view
             .garrison(colony.port)
             .into_iter()
-            .filter(|&u| view.unit_has_ability(u, "create_outpost") && !view.unit_has_order(u))
+            .filter(|&u| view.unit_has_ability(u, Ability::new(12)) && !view.unit_has_order(u))
             .filter(|&u| !ai.settler_targets.contains_key(&view.serial_of(u)))
             .collect();
         view.sort_by_serial(&mut settlers);

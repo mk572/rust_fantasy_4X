@@ -97,9 +97,9 @@ pub fn building_description(content: &Content, building: BuildingId) -> String {
         out.push_str(&texts.get(key, &Args::new()));
     }
     parts = def
-        .requires
+        .require_ids
         .iter()
-        .filter_map(|id| content.rules.buildings.by_name(id))
+        .map(|&id| content.rules.buildings.get(id))
         .map(|b| b.name.clone())
         .collect();
     if let Some(last) = parts.pop() {

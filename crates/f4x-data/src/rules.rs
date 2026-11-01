@@ -300,11 +300,14 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
     if !problems.is_empty() {
         return Err(ContentError::Invalid(problems));
     }
+    let abilities = Registry::new(abilities);
+    f4x_core::rules::resolve_unit_abilities(&mut units, &abilities);
+    f4x_core::rules::resolve_building_links(&mut buildings, &mut units);
     let rules = Rules {
         config: parse::<RulesConfig>(dir, "rules.ron")?,
         races: Registry::new(races),
         units: Registry::new(units),
-        abilities: Registry::new(abilities),
+        abilities,
         buildings: Registry::new(buildings),
         realms: Registry::new(realms),
         spells: Registry::new(spells),

@@ -655,14 +655,18 @@ mod tests {
                 // The original's exclusions.
                 // Arcane Power only goes to a hero with a magic ranged attack.
                 let unit = rules.units.by_name(&t.unit).ok_or("the value is missing")?;
-                if !unit
-                    .abilities
-                    .iter()
-                    .any(|x| f4x_core::hero::kind::MAGIC_RANGED.contains(&x.as_str()))
-                {
+                if !unit.abilities.iter().any(|x| {
+                    rules
+                        .abilities
+                        .id_of(x)
+                        .is_some_and(|id| f4x_core::hero::kind::MAGIC_RANGED.contains(&id))
+                }) {
                     assert_eq!(a.arcane_power, fixed.arcane_power, "{}", t.unit);
                 }
-                if unit.abilities.iter().any(|x| x == "magic_immunity") {
+                if unit
+                    .ability_ids
+                    .contains(&f4x_core::rules::Ability::new(40))
+                {
                     assert_eq!(a.charmed, fixed.charmed, "{} is immune already", t.unit);
                 }
             }
@@ -823,7 +827,11 @@ mod tests {
         // The real rules data, not the small test set.
         let c = load_content(&crate::testutil::content_dir())?;
         for id in f4x_core::city::nightshade::NIGHTSHADE_BUILDINGS {
-            assert!(c.rules.buildings.id_of(id).is_some(), "no building {id}");
+            assert!(
+                c.rules.buildings.id_numbered(id.num()).is_some(),
+                "no building {}",
+                id.num()
+            );
         }
         Ok(())
     }

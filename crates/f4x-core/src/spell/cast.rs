@@ -12,7 +12,7 @@ use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::effects::{DamageKind, Trigger};
 use crate::rules::exec::{run_rules, Context, EffectHost, Facts, Outcome, Target};
-use crate::rules::{Duration, Modifier, Source, SpellId, SpellTarget, Stat};
+use crate::rules::{AbilityDef, Duration, Modifier, Registry, Source, SpellId, SpellTarget, Stat};
 use crate::spell::instance::SpellTarget as Placed;
 use crate::spell::target_error::TargetError;
 use crate::unit::Hurt;
@@ -189,6 +189,9 @@ impl GameHost<'_> {
 }
 
 impl EffectHost for GameHost<'_> {
+    fn ability_defs(&self) -> &Registry<AbilityDef> {
+        &self.game.content.rules.abilities
+    }
     fn facts(&self, who: Target) -> Facts {
         let g = &*self.game;
         let mut facts = Facts::default();
@@ -277,11 +280,15 @@ impl EffectHost for GameHost<'_> {
     }
 
     fn grant_ability(&mut self, who: Target, ability: &str) {
-        self.game.grant_temp_ability(who, ability, None);
+        if let Some(id) = self.game.content.rules.abilities.id_of(ability) {
+            self.game.grant_temp_ability(who, id, None);
+        }
     }
 
     fn remove_ability(&mut self, who: Target, ability: &str) {
-        self.game.remove_temp_ability(who, ability, None);
+        if let Some(id) = self.game.content.rules.abilities.id_of(ability) {
+            self.game.remove_temp_ability(who, id, None);
+        }
     }
 
     fn damage(&mut self, who: Target, amount: i32, _kind: DamageKind) -> i32 {

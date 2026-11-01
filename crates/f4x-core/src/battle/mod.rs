@@ -30,6 +30,7 @@ pub mod vortex;
 use crate::game::rng::GameRng;
 use crate::game::serial::Serial;
 use crate::game::setting::MeleeVsFliers;
+use crate::rules::Ability;
 use rand::RngCore;
 
 use crate::map::Position;
@@ -196,11 +197,11 @@ pub struct BattleUnit {
     /// undead.
     pub realm: Option<Realm>,
     pub undead: bool,
-    pub abilities: Vec<String>,
+    pub abilities: Vec<Ability>,
     /// Of those, the ones an item or a lasting spell gives: their touches are weaker and their
     /// doom damage is halved (`SpecialAttacks::of_unit`).
     #[serde(default)]
-    pub granted: Vec<String>,
+    pub granted: Vec<Ability>,
     pub status: Status,
     /// The damage it has taken, by kind: ordinary, drained, and the kind that destroys.
     pub damage_kinds: [i32; 3],
@@ -402,8 +403,8 @@ impl BattleUnit {
             flying: self.flies,
             sails: self.sails,
             swims: self.swims,
-            through_walls: self.flies || self.moves_instantly() || self.has("non_corporeal"),
-            ignores_mud: self.has("non_corporeal"),
+            through_walls: self.flies || self.moves_instantly() || self.has(Ability::new(49)),
+            ignores_mud: self.has(Ability::new(49)),
         }
     }
 
@@ -411,7 +412,7 @@ impl BattleUnit {
     pub fn moves_instantly(&self) -> bool {
         self.abilities
             .iter()
-            .any(|a| a == "teleport" || a == "merging")
+            .any(|a| *a == Ability::new(68) || *a == Ability::new(43))
     }
 
     /// An attack or shot is used up: a hasted unit has a second one before it is spent.
@@ -450,8 +451,8 @@ impl BattleUnit {
             to_block: self.to_block,
             figures: self.figures,
             front_damage: self.front_damage,
-            large_shield: self.has("large_shield"),
-            lucky: self.has("lucky"),
+            large_shield: self.has(Ability::new(34)),
+            lucky: self.has(Ability::new(39)),
         }
     }
 
@@ -465,20 +466,20 @@ impl BattleUnit {
         }
     }
 
-    pub fn has(&self, ability: &str) -> bool {
-        self.abilities.iter().any(|a| a == ability)
+    pub fn has(&self, ability: Ability) -> bool {
+        self.abilities.contains(&ability)
     }
 
     /// Whether the unit regenerates: the ability, or the Regeneration spell, which grants it.
     pub fn regenerates(&self) -> bool {
-        self.has("regeneration")
+        self.has(Ability::new(55))
     }
 
     /// Whether the unit's spell shots are paid for with its mana: a spell caster with a magical
     /// ranged attack (the original's rule for casters and heroes).
     pub fn shoots_with_mana(&self) -> bool {
         self.ranged_kind == RangedKind::Magic
-            && (self.hero_caster || self.has("spellcaster") || self.has("spellcaster_major"))
+            && (self.hero_caster || self.has(Ability::new(61)) || self.has(Ability::new(62)))
     }
 
     /// Use up one shot (and the mana it costs a caster).
@@ -522,7 +523,7 @@ impl BattleUnit {
     fn combatant(&self, mode: Mode, strength: i32, to_hit: i32) -> Combatant {
         let special = self.special_attacks();
         // Doom damage that an item or a spell gives is half as strong.
-        let strength = if self.granted.iter().any(|a| a == "doom_damage") {
+        let strength = if self.granted.contains(&Ability::new(101)) {
             strength / 2
         } else {
             strength
@@ -531,19 +532,19 @@ impl BattleUnit {
             strength,
             to_hit,
             // Chaos damage, and the damage of a multiple gaze, ignores every defence.
-            ignores_defense: self.has("doom_damage")
+            ignores_defense: self.has(Ability::new(101))
                 || (mode == Mode::ThrownOrBreath && special.gaze == Gaze::Multi),
             mode,
             nature: AttackNature::of_unit_attack(mode, &self.abilities, self.magical_weapon),
             special,
-            eldritch: self.has("eldritch_weapon")
+            eldritch: self.has(Ability::new(19))
                 && (mode == Mode::Melee
-                    || self.has("bow")
-                    || self.has("sling")
-                    || self.has("rock_throwing")
-                    || self.has("thrown")),
-            immolation: self.has("immolation"),
-            fear: self.has("cause_fear"),
+                    || self.has(Ability::new(3))
+                    || self.has(Ability::new(59))
+                    || self.has(Ability::new(57))
+                    || self.has(Ability::new(69))),
+            immolation: self.has(Ability::new(32)),
+            fear: self.has(Ability::new(8)),
         }
     }
 
@@ -557,13 +558,13 @@ impl BattleUnit {
 
     /// The plus to hit the unit's weapons give.
     fn weapon_plus(&self) -> i32 {
-        i32::from(self.weapon_quality > 0 || self.has("eldritch_weapon"))
+        i32::from(self.weapon_quality > 0 || self.has(Ability::new(19)))
     }
 
     fn thrown_combatant(&self) -> Option<Combatant> {
         (self.ranged_kind == RangedKind::Short && self.ranged > 0).then(|| {
             // Only a thrown weapon gains the plus, not breath or a gaze.
-            let plus = if self.has("thrown") {
+            let plus = if self.has(Ability::new(69)) {
                 self.weapon_plus()
             } else {
                 0
@@ -1063,7 +1064,7 @@ impl Battle {
         {
             u.moves_left = u.moves;
             u.attacked = false;
-            u.extra_attack = u.has("hasted");
+            u.extra_attack = u.has(Ability::new(26));
             u.revealed = false;
         }
         if let Some(caster) = &mut self.casters[side.index()] {
@@ -1147,7 +1148,7 @@ impl Battle {
         if u.attacked {
             return Err(BattleError::AlreadyAttacked);
         }
-        if u.side != Side::Attacker || !u.has("wall_crusher") {
+        if u.side != Side::Attacker || !u.has(Ability::new(70)) {
             return Err(BattleError::NotWallCrusher);
         }
         if !self.map.has_wall(cell) {
@@ -1204,7 +1205,7 @@ impl Battle {
     fn crush_wall_under(&mut self, attacker: usize, target: usize) -> Vec<BattleEvent> {
         let cell = self.units[target].cell;
         let a = &self.units[attacker];
-        if a.side != Side::Attacker || !a.has("wall_crusher") || !self.map.has_wall(cell) {
+        if a.side != Side::Attacker || !a.has(Ability::new(70)) || !self.map.has_wall(cell) {
             return Vec::new();
         }
         let ranged = distance(a.cell, cell) > 1;
@@ -1222,13 +1223,13 @@ impl Battle {
     /// The penalty to hit that Blur on `hit` gives `attacker`: one, none if the attacker is
     /// immune to illusions.
     fn blur_penalty(&self, attacker: usize, hit: usize) -> i32 {
-        i32::from(self.units[hit].field.blur && !self.units[attacker].has("illusion_immunity"))
+        i32::from(self.units[hit].field.blur && !self.units[attacker].has(Ability::new(31)))
     }
 
     /// The penalty to hit that `hit`'s invisibility gives `attacker`: one for each square of
     /// distance (one when adjacent), none if the attacker is immune to illusions.
     fn invisibility_penalty(&self, attacker: usize, hit: usize) -> i32 {
-        if self.units[hit].is_invisible() && !self.units[attacker].has("illusion_immunity") {
+        if self.units[hit].is_invisible() && !self.units[attacker].has(Ability::new(31)) {
             distance(self.units[attacker].cell, self.units[hit].cell) as i32
         } else {
             0
@@ -1248,7 +1249,7 @@ impl Battle {
             return true;
         }
         self.active_units(viewer)
-            .any(|e| e.has("illusion_immunity") || distance(e.cell, u.cell) == 1)
+            .any(|e| e.has(Ability::new(31)) || distance(e.cell, u.cell) == 1)
     }
 
     /// Whether a Spell Ward keeps `side` from casting spells of `realm`: it guards the city
@@ -1291,7 +1292,7 @@ impl Battle {
         self.wall_of_darkness
             && in_city_area(self.units[target].cell)
             && !in_city_area(self.units[unit].cell)
-            && !self.units[unit].has("illusion_immunity")
+            && !self.units[unit].has(Ability::new(31))
     }
 
     fn check_target(&self, unit: usize, target: usize) -> Result<&BattleUnit, BattleError> {

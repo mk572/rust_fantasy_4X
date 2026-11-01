@@ -263,16 +263,26 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 /// The temporary effects on a unit or city, one line each.
 fn say_temp_effects(ctx: &mut Ctx, e: hecs::Entity) {
     use f4x_core::spell::temp_effect::TempKind;
-    for t in ctx.game.units().temp_effects(e) {
-        let what = match t.kind {
-            TempKind::Modifier { stat, op, value } => format!("{stat:?} {op:?} {value}"),
-            TempKind::Grant(a) => format!("grants {a}"),
-            TempKind::Remove(a) => format!("removes {a}"),
-        };
-        let turns = t
-            .turns
-            .map_or("permanent".to_string(), |n| format!("{n} turns left"));
-        ctx.say(format!("temporary: {what} ({turns})"));
+    let name = |a: f4x_core::rules::Ability| ctx.game.content().rules.abilities.get(a).id.clone();
+    let lines: Vec<String> = ctx
+        .game
+        .units()
+        .temp_effects(e)
+        .into_iter()
+        .map(|t| {
+            let what = match t.kind {
+                TempKind::Modifier { stat, op, value } => format!("{stat:?} {op:?} {value}"),
+                TempKind::Grant(a) => format!("grants {}", name(a)),
+                TempKind::Remove(a) => format!("removes {}", name(a)),
+            };
+            let turns = t
+                .turns
+                .map_or("permanent".to_string(), |n| format!("{n} turns left"));
+            format!("temporary: {what} ({turns})")
+        })
+        .collect();
+    for line in lines {
+        ctx.say(line);
     }
 }
 
@@ -360,7 +370,11 @@ fn unit(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     say_temp_effects(ctx, u);
     let abilities = ctx.game.units().unit_abilities(u);
     if !abilities.is_empty() {
-        ctx.say(format!("abilities: {}", abilities.join(", ")));
+        let names: Vec<&str> = abilities
+            .iter()
+            .map(|&a| ctx.game.content().rules.abilities.get(a).id.as_str())
+            .collect();
+        ctx.say(format!("abilities: {}", names.join(", ")));
     }
     if ctx.game.units().unit_is_undead(u) {
         ctx.say("undead: a Death creature, not healed".to_string());

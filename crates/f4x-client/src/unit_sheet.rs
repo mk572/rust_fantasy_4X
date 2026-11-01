@@ -7,6 +7,7 @@
 //! original's `special.lbx` (and `special2.lbx` from 111 on), not art.
 
 use f4x_core::battle::{Battle, BattleUnit, RangedKind};
+use f4x_core::rules::Ability;
 use f4x_core::rules::{MovementType, Stat, UnitKind};
 use f4x_core::text::{Args, Texts};
 
@@ -127,35 +128,35 @@ pub(crate) fn melee_icon(quality: u8) -> usize {
 }
 
 /// The stat-icon number of the ranged row for a unit's abilities.
-pub(crate) fn ranged_icon(abilities: &[String]) -> usize {
-    let has = |a: &str| abilities.iter().any(|x| x == a);
-    if has("fire_breath")
-        || has("lightning_breath")
-        || has("stoning_gaze")
-        || has("death_gaze")
-        || has("multi_gaze")
+pub(crate) fn ranged_icon(abilities: &[Ability]) -> usize {
+    let has = |a: Ability| abilities.contains(&a);
+    if has(Ability::new(20))
+        || has(Ability::new(37))
+        || has(Ability::new(64))
+        || has(Ability::new(15))
+        || has(Ability::new(46))
     {
         7
-    } else if has("thrown") {
+    } else if has(Ability::new(69)) {
         8
-    } else if has("rock_throwing") || has("sling") {
+    } else if has(Ability::new(57)) || has(Ability::new(59)) {
         6
-    } else if has("bow") {
+    } else if has(Ability::new(3)) {
         5
     } else if [
-        "fireball_attack",
-        "lightning_bolt",
-        "ice_bolt",
-        "shaman_bolt",
-        "sorcery_bolt",
-        "death_bolt",
-        "drow_bolt",
-        "sprite_bolt",
-        "nature_bolt",
-        "illusion_attack",
+        Ability::new(22), // fireball attack
+        Ability::new(36), // lightning bolt
+        Ability::new(29), // ice bolt
+        Ability::new(58), // shaman bolt
+        Ability::new(60), // sorcery bolt
+        Ability::new(14), // death bolt
+        Ability::new(18), // drow bolt
+        Ability::new(63), // sprite bolt
+        Ability::new(47), // nature bolt
+        Ability::new(30), // illusion attack
     ]
     .iter()
-    .any(|a| has(a))
+    .any(|&a| has(a))
     {
         1
     } else {
@@ -164,14 +165,14 @@ pub(crate) fn ranged_icon(abilities: &[String]) -> usize {
 }
 
 /// The quiver line ("Arrows x8", "Spells x3") for a ranged unit that is not a spell caster.
-pub(crate) fn quiver_name(texts: &Texts, abilities: &[String], ammo: i32) -> Option<String> {
-    let has = |a: &str| abilities.iter().any(|x| x == a);
-    let caster = has("spellcaster") || has("spellcaster_major");
-    let key = if has("rock_throwing") {
+pub(crate) fn quiver_name(texts: &Texts, abilities: &[Ability], ammo: i32) -> Option<String> {
+    let has = |a: Ability| abilities.contains(&a);
+    let caster = has(Ability::new(61)) || has(Ability::new(62));
+    let key = if has(Ability::new(57)) {
         "unit.quiver_rock"
-    } else if has("bow") {
+    } else if has(Ability::new(3)) {
         "unit.quiver_arrow"
-    } else if has("sling") {
+    } else if has(Ability::new(59)) {
         "unit.quiver_bullet"
     } else if !caster && ranged_icon(abilities) == 1 {
         "unit.quiver_spell"
@@ -182,64 +183,64 @@ pub(crate) fn quiver_name(texts: &Texts, abilities: &[String], ammo: i32) -> Opt
 }
 
 /// Abilities the list shows, in the original's order, with their picture.
-const LISTED: &[(&str, usize)] = &[
+const LISTED: &[(Ability, usize)] = &[
     // Movement and special unit abilities (`USW_Abilities`).
-    ("teleport", 0),
-    ("forester", 1),
-    ("mountaineer", 2),
-    ("pathfinding", 20),
-    ("large_shield", 14),
-    ("wall_crusher", 15),
-    ("healer", 16),
-    ("create_outpost", 17),
-    ("invisibility", 18),
-    ("create_undead", 19),
-    ("long_range", 129),
-    ("meld", 40),
-    ("non_corporeal", 22),
-    ("wind_walking", 23),
-    ("regeneration", 24),
-    ("purify", 25),
-    ("negate_first_strike", 48),
-    ("planar_travel", 91),
-    ("water_walking", 71),
+    (Ability::new(68), 0),   // teleport
+    (Ability::new(25), 1),   // forester
+    (Ability::new(45), 2),   // mountaineer
+    (Ability::new(50), 20),  // pathfinding
+    (Ability::new(34), 14),  // large_shield
+    (Ability::new(70), 15),  // wall_crusher
+    (Ability::new(27), 16),  // healer
+    (Ability::new(12), 17),  // create_outpost
+    (Ability::new(33), 18),  // invisibility
+    (Ability::new(13), 19),  // create_undead
+    (Ability::new(38), 129), // long_range
+    (Ability::new(42), 40),  // meld
+    (Ability::new(49), 22),  // non_corporeal
+    (Ability::new(74), 23),  // wind_walking
+    (Ability::new(55), 24),  // regeneration
+    (Ability::new(54), 25),  // purify
+    (Ability::new(48), 48),  // negate_first_strike
+    (Ability::new(51), 91),  // planar_travel
+    (Ability::new(71), 71),  // water_walking
     // Summoning and spell casting.
-    ("summon_demon", 139),
-    ("spellcaster", 55),
-    ("spellcaster_major", 55),
+    (Ability::new(67), 139), // summon_demon
+    (Ability::new(61), 55),  // spellcaster
+    (Ability::new(62), 55),  // spellcaster_major
     // Immunities and bonuses (`USW_Attributes_1` and `_2`).
-    ("lucky", 127),
-    ("poison_immunity", 5),
-    ("fire_immunity", 6),
-    ("stoning_immunity", 7),
-    ("weapon_immunity", 8),
-    ("missile_immunity", 9),
-    ("illusion_immunity", 10),
-    ("cold_immunity", 11),
-    ("magic_immunity", 12),
-    ("death_immunity", 49),
-    ("casts_healing", 38),
-    ("casts_fireball", 39),
-    ("casts_doom_bolt", 41),
-    ("immolation", 32),
-    ("cause_fear", 132),
-    ("casts_web", 131),
-    ("resist_all", 33),
-    ("holy_bonus", 34),
+    (Ability::new(39), 127), // lucky
+    (Ability::new(52), 5),   // poison_immunity
+    (Ability::new(21), 6),   // fire_immunity
+    (Ability::new(65), 7),   // stoning_immunity
+    (Ability::new(72), 8),   // weapon_immunity
+    (Ability::new(44), 9),   // missile_immunity
+    (Ability::new(31), 10),  // illusion_immunity
+    (Ability::new(10), 11),  // cold_immunity
+    (Ability::new(40), 12),  // magic_immunity
+    (Ability::new(16), 49),  // death_immunity
+    (Ability::new(6), 38),   // casts_healing
+    (Ability::new(5), 39),   // casts_fireball
+    (Ability::new(4), 41),   // casts_doom_bolt
+    (Ability::new(32), 32),  // immolation
+    (Ability::new(8), 132),  // cause_fear
+    (Ability::new(7), 131),  // casts_web
+    (Ability::new(56), 33),  // resist_all
+    (Ability::new(28), 34),  // holy_bonus
     // Attack flags (`USW_ATK_Flags`) and the special ranged attacks (`USW_SR_Attacks`).
-    ("armor_piercing", 28),
-    ("poison_touch", 29),
-    ("life_steal", 30),
-    ("illusion_attack", 116),
-    ("stoning_touch", 35),
-    ("dispel_evil", 142),
-    ("first_strike", 133),
-    ("thrown", 130),
-    ("fire_breath", 138),
-    ("lightning_breath", 137),
-    ("stoning_gaze", 26),
-    ("death_gaze", 135),
-    ("multi_gaze", 134),
+    (Ability::new(1), 28),   // armor_piercing
+    (Ability::new(53), 29),  // poison_touch
+    (Ability::new(35), 30),  // life_steal
+    (Ability::new(30), 116), // illusion_attack
+    (Ability::new(66), 35),  // stoning_touch
+    (Ability::new(17), 142), // dispel_evil
+    (Ability::new(23), 133), // first_strike
+    (Ability::new(69), 130), // thrown
+    (Ability::new(20), 138), // fire_breath
+    (Ability::new(37), 137), // lightning_breath
+    (Ability::new(64), 26),  // stoning_gaze
+    (Ability::new(15), 135), // death_gaze
+    (Ability::new(46), 134), // multi_gaze
 ];
 
 /// The picture of a lasting spell on a unit (`_unit_enchantment_data`, `USW_Combat_FX`).
@@ -298,7 +299,9 @@ pub(crate) fn enchantment_icon(spell: &str) -> Option<usize> {
 pub(crate) struct SpecialsInput<'a> {
     /// The level's name, the experience points and the level (0-based), for normal units.
     pub level: Option<(&'a str, u32, usize)>,
-    pub abilities: &'a [String],
+    pub abilities: &'a [Ability],
+    /// The unit is held in stasis (a line of its own, not an ability).
+    pub stasis_held: bool,
     pub ammo: i32,
     pub to_hit: i32,
     pub construction: bool,
@@ -309,8 +312,10 @@ pub(crate) struct SpecialsInput<'a> {
     pub undead: bool,
     /// How many land units a ship carries (0 for everything else).
     pub transport: i32,
-    /// Display name of an ability id.
-    pub ability_name: &'a dyn Fn(&str) -> String,
+    /// Display name of an ability.
+    pub ability_name: &'a dyn Fn(Ability) -> String,
+    /// The alias of an ability, which the help topics are named by.
+    pub ability_alias: &'a dyn Fn(Ability) -> String,
     pub texts: &'a Texts,
     /// Lasting spells on the unit: spell, id, name, and whether the viewer may turn it off.
     pub enchantments: Vec<(f4x_core::rules::SpellId, String, String, bool)>,
@@ -361,23 +366,23 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         let args = Args::new().count("n", input.transport);
         out.push(plain(input.texts.get("unit.carries", &args), None));
     }
-    let has = |a: &str| input.abilities.iter().any(|x| x == a);
+    let has = |a: Ability| input.abilities.contains(&a);
     for &(id, icon) in LISTED {
         if !has(id) {
             continue;
         }
         // Pathfinding replaces the forester and mountaineer lines it contains.
-        if has("pathfinding") && (id == "forester" || id == "mountaineer") {
+        if has(Ability::new(50)) && (id == Ability::new(25) || id == Ability::new(45)) {
             continue;
         }
         let mut name = (input.ability_name)(id);
-        if matches!(id, "spellcaster" | "spellcaster_major") && input.mana > 0 {
+        if (id == Ability::new(61) || id == Ability::new(62)) && input.mana > 0 {
             name = input
                 .texts
                 .get("unit.caster", &Args::new().count("n", input.mana));
         }
         out.push(Special {
-            subject: Some(f4x_core::help::ability_subject(id)),
+            subject: Some(f4x_core::help::ability_subject(&(input.ability_alias)(id))),
             ..plain(name, Some(icon))
         });
     }
@@ -387,11 +392,16 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
             Some(120),
         ));
     }
+    if input.stasis_held {
+        out.push(plain(
+            input.texts.get("unit.stasis_held", &Args::new()),
+            None,
+        ));
+    }
     for (marker, key) in [
-        ("stasis_held", "unit.stasis_held"),
-        ("mutation_armor", "unit.mutation_armor"),
-        ("mutation_wings", "unit.mutation_wings"),
-        ("mutation_breath", "unit.mutation_breath"),
+        (Ability::new(104), "unit.mutation_armor"),
+        (Ability::new(105), "unit.mutation_wings"),
+        (Ability::new(106), "unit.mutation_breath"),
     ] {
         if has(marker) {
             out.push(plain(input.texts.get(key, &Args::new()), None));
@@ -512,10 +522,8 @@ impl App {
         let units = game.units();
         let def = units.unit_def(unit)?;
         let content = game.content();
-        let mut abilities = units.unit_abilities(unit);
-        if game.unit_in_stasis(unit) {
-            abilities.push("stasis_held".to_string());
-        }
+        let abilities = units.unit_abilities(unit);
+        let stasis_held = game.unit_in_stasis(unit);
         let stat = |s: Stat| units.unit_stat(unit, s);
         let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
         let hp = stat(Stat::MaxHp).max(1);
@@ -540,13 +548,8 @@ impl App {
                 p.level(i)
                     .map(|(name, _)| (name, units.unit_experience(unit), i))
             });
-        let ability_name = |id: &str| {
-            content
-                .rules
-                .abilities
-                .by_name(id)
-                .map_or_else(|| id.to_string(), |a| a.name.clone())
-        };
+        let ability_name = |id: Ability| content.rules.abilities.get(id).name.clone();
+        let ability_alias = |id: Ability| content.rules.abilities.get(id).id.clone();
         let enchantments = units
             .unit_enchantments(unit)
             .into_iter()
@@ -560,9 +563,9 @@ impl App {
                 )
             })
             .collect();
-        let mana = if abilities.iter().any(|a| a == "spellcaster_major") {
+        let mana = if abilities.contains(&Ability::new(62)) {
             40
-        } else if abilities.iter().any(|a| a == "spellcaster") {
+        } else if abilities.contains(&Ability::new(61)) {
             20
         } else {
             0
@@ -570,6 +573,7 @@ impl App {
         let mut specials = specials(&SpecialsInput {
             level,
             abilities: &abilities,
+            stasis_held,
             ammo: stat(Stat::Ammo),
             to_hit: stat(Stat::ToHit),
             construction: stat(Stat::Construction) > 0,
@@ -578,6 +582,7 @@ impl App {
             undead: units.unit_is_undead(unit),
             transport: stat(Stat::Transport),
             ability_name: &ability_name,
+            ability_alias: &ability_alias,
             texts: self.texts(),
             enchantments,
         });
@@ -700,17 +705,12 @@ impl App {
         }
         let stat = |s: Stat| stats.get(&s).copied().unwrap_or(0);
         let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
-        let abilities = &def.abilities;
-        let ability_name = |id: &str| {
-            content
-                .rules
-                .abilities
-                .by_name(id)
-                .map_or_else(|| id.to_string(), |a| a.name.clone())
-        };
-        let mana = if abilities.iter().any(|a| a == "spellcaster_major") {
+        let abilities = &def.ability_ids;
+        let ability_name = |id: Ability| content.rules.abilities.get(id).name.clone();
+        let ability_alias = |id: Ability| content.rules.abilities.get(id).id.clone();
+        let mana = if abilities.contains(&Ability::new(62)) {
             40
-        } else if abilities.iter().any(|a| a == "spellcaster") {
+        } else if abilities.contains(&Ability::new(61)) {
             20
         } else {
             0
@@ -718,14 +718,17 @@ impl App {
         let specials = specials(&SpecialsInput {
             level: level_line,
             abilities,
+            stasis_held: false,
             ammo: stat(Stat::Ammo),
             to_hit: stat(Stat::ToHit),
             construction: stat(Stat::Construction) > 0,
             scouting: (stat(Stat::Sight).max(1) - 1) / 2,
             mana,
-            undead: abilities.iter().any(|a| a == "undead"),
+            // No unit definition lists "undead" among its abilities: an offered unit is never undead.
+            undead: false,
             transport: stat(Stat::Transport),
             ability_name: &ability_name,
+            ability_alias: &ability_alias,
             texts: self.texts(),
             enchantments: Vec::new(),
         });
@@ -785,13 +788,8 @@ impl App {
             .iter()
             .find(|d| d.id == u.unit_id)?;
         let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
-        let ability_name = |id: &str| {
-            content
-                .rules
-                .abilities
-                .by_name(id)
-                .map_or_else(|| id.to_string(), |a| a.name.clone())
-        };
+        let ability_name = |id: Ability| content.rules.abilities.get(id).name.clone();
+        let ability_alias = |id: Ability| content.rules.abilities.get(id).id.clone();
         let enchantments = u
             .enchantments
             .iter()
@@ -812,6 +810,7 @@ impl App {
         let specials = specials(&SpecialsInput {
             level: None,
             abilities: &u.abilities,
+            stasis_held: false,
             ammo: u.ammo,
             to_hit: u.to_hit,
             construction: false,
@@ -824,6 +823,7 @@ impl App {
             undead: u.undead,
             transport: 0,
             ability_name: &ability_name,
+            ability_alias: &ability_alias,
             texts: self.texts(),
             enchantments,
         });
@@ -913,11 +913,9 @@ mod tests {
 
     #[test]
     fn the_list_runs_level_quiver_to_hit_abilities_then_spells() {
-        let abilities: Vec<String> = ["bow", "first_strike", "poison_immunity"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-        let name = |id: &str| id.to_string();
+        // bow, first strike, poison immunity
+        let abilities = [Ability::new(3), Ability::new(23), Ability::new(52)];
+        let name = |id: Ability| format!("ability {}", id.num());
         let list = specials(&SpecialsInput {
             level: Some(("Veteran", 65, 2)),
             abilities: &abilities,
@@ -929,6 +927,8 @@ mod tests {
             undead: false,
             transport: 0,
             ability_name: &name,
+            ability_alias: &name,
+            stasis_held: false,
             texts: en(),
             enchantments: Vec::new(),
         });
@@ -938,8 +938,8 @@ mod tests {
                 "Veteran (65 ep)",
                 "Arrows x8",
                 "+1 To Hit",
-                "poison_immunity",
-                "first_strike"
+                "ability 52",
+                "ability 23"
             ]
         );
         assert_eq!(list[0].icon, Some(104));
@@ -947,11 +947,9 @@ mod tests {
 
     #[test]
     fn pathfinding_stands_in_for_forester_and_mountaineer() {
-        let abilities: Vec<String> = ["forester", "mountaineer", "pathfinding"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-        let name = |id: &str| id.to_string();
+        // forester, mountaineer, pathfinding
+        let abilities = [Ability::new(25), Ability::new(45), Ability::new(50)];
+        let name = |id: Ability| format!("ability {}", id.num());
         let list = specials(&SpecialsInput {
             level: None,
             abilities: &abilities,
@@ -963,19 +961,19 @@ mod tests {
             undead: false,
             transport: 0,
             ability_name: &name,
+            ability_alias: &name,
+            stasis_held: false,
             texts: en(),
             enchantments: Vec::new(),
         });
-        assert_eq!(names(&list), ["pathfinding"]);
+        assert_eq!(names(&list), ["ability 50"]);
     }
 
     #[test]
     fn spell_casters_show_their_mana_and_no_quiver() {
-        let abilities: Vec<String> = ["spellcaster", "fireball_attack"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
-        let name = |id: &str| id.to_string();
+        // spellcaster, fireball attack
+        let abilities = [Ability::new(61), Ability::new(22)];
+        let name = |id: Ability| format!("ability {}", id.num());
         let list = specials(&SpecialsInput {
             level: None,
             abilities: &abilities,
@@ -987,6 +985,8 @@ mod tests {
             undead: false,
             transport: 0,
             ability_name: &name,
+            ability_alias: &name,
+            stasis_held: false,
             texts: en(),
             enchantments: Vec::new(),
         });
@@ -995,7 +995,7 @@ mod tests {
 
     #[test]
     fn a_scout_lists_its_scouting_level() {
-        let name = |id: &str| id.to_string();
+        let name = |id: Ability| format!("ability {}", id.num());
         let input = |scouting| SpecialsInput {
             level: None,
             abilities: &[],
@@ -1007,6 +1007,8 @@ mod tests {
             undead: false,
             transport: 0,
             ability_name: &name,
+            ability_alias: &name,
+            stasis_held: false,
             texts: en(),
             enchantments: Vec::new(),
         };
@@ -1028,10 +1030,10 @@ mod tests {
     fn the_weapon_and_ranged_icons_follow_the_unit() {
         assert_eq!(melee_icon(0), 0);
         assert_eq!(melee_icon(2), 2);
-        let s = |a: &[&str]| a.iter().map(|x| x.to_string()).collect::<Vec<_>>();
-        assert_eq!(ranged_icon(&s(&["bow"])), 5);
-        assert_eq!(ranged_icon(&s(&["fire_breath"])), 7);
-        assert_eq!(ranged_icon(&s(&["rock_throwing"])), 6);
-        assert_eq!(ranged_icon(&s(&["ice_bolt"])), 1);
+        // bow, fire breath, rock throwing, ice bolt
+        assert_eq!(ranged_icon(&[Ability::new(3)]), 5);
+        assert_eq!(ranged_icon(&[Ability::new(20)]), 7);
+        assert_eq!(ranged_icon(&[Ability::new(57)]), 6);
+        assert_eq!(ranged_icon(&[Ability::new(29)]), 1);
     }
 }

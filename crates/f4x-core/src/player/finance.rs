@@ -9,6 +9,7 @@
 use crate::city::economy::{Farmers, Population};
 use crate::game::{Event, Game};
 use crate::player::{PlayerId, Tax};
+use crate::rules::Ability;
 use crate::rules::UnitKind;
 use crate::unit::halves_to_food;
 
@@ -216,7 +217,7 @@ impl Game {
                 id,
                 food: units.unit_food_halves(id),
                 gold: units.unit_gold_upkeep(id),
-                noble_hero: units.unit_has_ability(id, "noble")
+                noble_hero: units.unit_has_ability(id, Ability::new(96))
                     && units.unit_def(id).is_some_and(|d| d.kind == UnitKind::Hero),
             })
             .collect()

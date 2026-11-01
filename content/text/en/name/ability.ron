@@ -74,4 +74,36 @@
     72: "Weapon Immunity",  // weapon_immunity
     73: "Webbed",  // webbed
     74: "Wind Walking",  // wind_walking
+    75: "Leadership",  // leadership
+    76: "Super Leadership",  // super_leadership
+    77: "Legendary",  // legendary
+    78: "Super Legendary",  // super_legendary
+    79: "Blademaster",  // blademaster
+    80: "Super Blademaster",  // super_blademaster
+    81: "Armsmaster",  // armsmaster
+    82: "Super Armsmaster",  // super_armsmaster
+    83: "Constitution",  // constitution
+    84: "Super Constitution",  // super_constitution
+    85: "Might",  // might
+    86: "Super Might",  // super_might
+    87: "Arcane Power",  // arcane_power
+    88: "Super Arcane Power",  // super_arcane_power
+    89: "Sage",  // sage
+    90: "Super Sage",  // super_sage
+    91: "Prayermaster",  // prayermaster
+    92: "Super Prayermaster",  // super_prayermaster
+    93: "Agility",  // agility
+    94: "Super Agility",  // super_agility
+    95: "Charmed",  // charmed
+    96: "Noble",  // noble
+    97: "Female",  // female
+    98: "Chaos Channeled",  // chaos_channeled
+    99: "Death Touch",  // death_touch
+    100: "Destruction",  // destruction
+    101: "Doom Damage",  // doom_damage
+    102: "Land Corruption",  // land_corruption
+    103: "Power Drain",  // power_drain
+    104: "Demon Skin",  // mutation_armor
+    105: "Demon Wings",  // mutation_wings
+    106: "Demon Breath",  // mutation_breath
 }

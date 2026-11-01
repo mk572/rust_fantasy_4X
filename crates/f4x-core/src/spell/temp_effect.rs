@@ -10,15 +10,15 @@ use crate::game::Game;
 use crate::rules::effects::{Condition, Effect, Trigger};
 use crate::rules::exec::Target;
 use crate::rules::stats::passive_modifiers;
-use crate::rules::{ModOp, Modifier, Source, Stat};
+use crate::rules::{Ability, ModOp, Modifier, Source, Stat};
 use crate::unit::UnitView;
 use hecs::World;
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TempKind {
     Modifier { stat: Stat, op: ModOp, value: i32 },
-    Grant(String),
-    Remove(String),
+    Grant(Ability),
+    Remove(Ability),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -60,13 +60,13 @@ pub(crate) fn add_modifier(world: &mut World, who: Target, m: Modifier, turns: O
 }
 
 /// Give a unit an ability it does not have for `turns` turns (`None`: for good).
-pub(crate) fn grant_ability(world: &mut World, who: Target, ability: &str, turns: Option<u16>) {
-    push_temp(world, who, TempKind::Grant(ability.into()), turns);
+pub(crate) fn grant_ability(world: &mut World, who: Target, ability: Ability, turns: Option<u16>) {
+    push_temp(world, who, TempKind::Grant(ability), turns);
 }
 
 /// Take an ability away from a unit for `turns` turns (`None`: for good).
-pub(crate) fn remove_ability(world: &mut World, who: Target, ability: &str, turns: Option<u16>) {
-    push_temp(world, who, TempKind::Remove(ability.into()), turns);
+pub(crate) fn remove_ability(world: &mut World, who: Target, ability: Ability, turns: Option<u16>) {
+    push_temp(world, who, TempKind::Remove(ability), turns);
 }
 
 /// Count every timed effect down; drop the ones that ran out.
@@ -122,14 +122,14 @@ impl<'a> UnitView<'a> {
 
     /// The abilities that come to the unit from its items and from lasting spells, and are not
     /// its own: the original counts their special attacks as not innate (`Combat.c` 12573).
-    pub fn unit_granted_abilities(&self, unit: hecs::Entity) -> Vec<String> {
+    pub fn unit_granted_abilities(&self, unit: hecs::Entity) -> Vec<Ability> {
         let own = self
             .unit_def(unit)
-            .map(|d| d.abilities.clone())
+            .map(|d| d.ability_ids.clone())
             .unwrap_or_default();
         let hero = self.world.get::<&crate::hero::Hero>(unit).ok();
-        let mut out: Vec<String> = Vec::new();
-        let mut take = |a: String| {
+        let mut out: Vec<Ability> = Vec::new();
+        let mut take = |a: Ability| {
             let innate = own.contains(&a)
                 || hero
                     .as_ref()
@@ -148,7 +148,9 @@ impl<'a> UnitView<'a> {
                 if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
                     (rule.when, &rule.condition, &rule.effect)
                 {
-                    take(a.clone());
+                    if let Some(a) = self.content.rules.abilities.id_of(a) {
+                        take(a);
+                    }
                 }
             }
         }
@@ -161,10 +163,10 @@ impl<'a> UnitView<'a> {
     /// The unit's abilities now: its own, those its lasting spells grant (Magic Immunity,
     /// Guardian Wind), plus temporary grants, minus temporary removals. Temporary effects apply
     /// in the order they were added, so a later grant restores what an earlier removal took.
-    pub fn unit_abilities(&self, unit: hecs::Entity) -> Vec<String> {
+    pub fn unit_abilities(&self, unit: hecs::Entity) -> Vec<Ability> {
         let mut out = self
             .unit_def(unit)
-            .map(|d| d.abilities.clone())
+            .map(|d| d.ability_ids.clone())
             .unwrap_or_default();
         if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
             for a in hero.abilities.ids() {
@@ -178,8 +180,10 @@ impl<'a> UnitView<'a> {
                 if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
                     (rule.when, &rule.condition, &rule.effect)
                 {
-                    if !out.contains(a) {
-                        out.push(a.clone());
+                    if let Some(a) = self.content.rules.abilities.id_of(a) {
+                        if !out.contains(&a) {
+                            out.push(a);
+                        }
                     }
                 }
             }
@@ -194,23 +198,25 @@ impl<'a> UnitView<'a> {
                 if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
                     (rule.when, &rule.condition, &rule.effect)
                 {
-                    if !out.contains(a) {
-                        out.push(a.clone());
+                    if let Some(a) = self.content.rules.abilities.id_of(a) {
+                        if !out.contains(&a) {
+                            out.push(a);
+                        }
                     }
                 }
             }
         }
         if self.unit_counts_as_undead(unit) {
             for a in crate::unit::undead::UNDEAD_IMMUNITIES {
-                if !out.iter().any(|x| x == a) {
-                    out.push(a.to_string());
+                if !out.contains(&a) {
+                    out.push(a);
                 }
             }
         }
         if let Ok(list) = self.world.get::<&TempEffects>(unit) {
             for t in &list.0 {
                 match &t.kind {
-                    TempKind::Grant(a) if !out.contains(a) => out.push(a.clone()),
+                    TempKind::Grant(a) if !out.contains(a) => out.push(*a),
                     TempKind::Remove(a) => out.retain(|x| x != a),
                     _ => {}
                 }
@@ -231,7 +237,7 @@ impl<'a> UnitView<'a> {
             d.kind != crate::rules::UnitKind::Normal
                 && !(d.kind == crate::rules::UnitKind::Fantastic
                     && (d.movement == crate::rules::MovementType::Sailing
-                        || d.abilities.iter().any(|a| a == "wall_crusher")))
+                        || d.ability_ids.contains(&Ability::new(70))))
         }) || self.unit_weapon_quality(unit) > 0
             || (self
                 .unit_owner(unit)
@@ -240,7 +246,7 @@ impl<'a> UnitView<'a> {
             || self
                 .unit_abilities(unit)
                 .iter()
-                .any(|a| a == "magical_weapon")
+                .any(|a| *a == Ability::new(41))
     }
 
     /// The ids of the lasting spells on a unit.
@@ -291,13 +297,11 @@ impl<'a> UnitView<'a> {
     pub(crate) fn ability_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
         let rules = &self.content.rules;
         let mut mods = Vec::new();
-        for name in self.unit_abilities(unit) {
-            if let Some(id) = rules.abilities.id_of(&name) {
-                mods.extend(passive_modifiers(
-                    &rules.abilities.get(id).effects,
-                    Source::Ability(id),
-                ));
-            }
+        for id in self.unit_abilities(unit) {
+            mods.extend(passive_modifiers(
+                &rules.abilities.get(id).effects,
+                Source::Ability(id),
+            ));
         }
         mods
     }
@@ -310,12 +314,12 @@ impl Game {
     }
 
     /// Give a unit an ability it does not have for `turns` turns (`None`: for good).
-    pub fn grant_temp_ability(&mut self, who: Target, ability: &str, turns: Option<u16>) {
+    pub fn grant_temp_ability(&mut self, who: Target, ability: Ability, turns: Option<u16>) {
         grant_ability(&mut self.world, who, ability, turns);
     }
 
     /// Take an ability away from a unit for `turns` turns (`None`: for good).
-    pub fn remove_temp_ability(&mut self, who: Target, ability: &str, turns: Option<u16>) {
+    pub fn remove_temp_ability(&mut self, who: Target, ability: Ability, turns: Option<u16>) {
         remove_ability(&mut self.world, who, ability, turns);
     }
 
@@ -394,11 +398,11 @@ mod tests {
     fn a_granted_ability_counts_until_it_runs_out() {
         let mut g = world();
         let u = unit(&mut g, "high_elf_spearmen");
-        assert!(!g.units().unit_has_ability(u, "flying"));
-        g.grant_temp_ability(Target::Unit(u), "flying", Some(1));
-        assert!(g.units().unit_has_ability(u, "flying"));
+        assert!(!g.units().unit_has_ability(u, Ability::new(24)));
+        g.grant_temp_ability(Target::Unit(u), Ability::new(24), Some(1));
+        assert!(g.units().unit_has_ability(u, Ability::new(24)));
         g.tick_temp_effects();
-        assert!(!g.units().unit_has_ability(u, "flying"));
+        assert!(!g.units().unit_has_ability(u, Ability::new(24)));
     }
 
     #[test]
@@ -406,12 +410,12 @@ mod tests {
         let mut g = world();
         // The Pegasai fly by nature.
         let u = unit(&mut g, "high_elf_pegasai");
-        assert!(g.units().unit_has_ability(u, "flying"));
-        g.remove_temp_ability(Target::Unit(u), "flying", None);
-        assert!(!g.units().unit_has_ability(u, "flying"));
-        g.grant_temp_ability(Target::Unit(u), "flying", None);
+        assert!(g.units().unit_has_ability(u, Ability::new(24)));
+        g.remove_temp_ability(Target::Unit(u), Ability::new(24), None);
+        assert!(!g.units().unit_has_ability(u, Ability::new(24)));
+        g.grant_temp_ability(Target::Unit(u), Ability::new(24), None);
         assert!(
-            g.units().unit_has_ability(u, "flying"),
+            g.units().unit_has_ability(u, Ability::new(24)),
             "a later grant wins"
         );
     }
@@ -421,7 +425,7 @@ mod tests {
         let mut g = world();
         let city = g.world.spawn((crate::game::serial::Serial(900),));
         g.add_temp_modifier(Target::City(city), plus(Stat::CityGold, 4), Some(3));
-        g.grant_temp_ability(Target::City(city), "flying", None);
+        g.grant_temp_ability(Target::City(city), Ability::new(24), None);
         assert_eq!(g.units().temp_effects(city).len(), 1);
         assert!(g
             .economy()
@@ -435,13 +439,13 @@ mod tests {
         let mut g = world();
         let u = unit(&mut g, "high_elf_spearmen");
         g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 3), Some(5));
-        g.grant_temp_ability(Target::Unit(u), "flying", None);
+        g.grant_temp_ability(Target::Unit(u), Ability::new(24), None);
         let snap = g.snapshot();
         let back = snap.clone().restore(g.content.clone())?;
         assert_eq!(back.snapshot(), snap);
         let u = back.units().units_at(AT)[0];
         assert_eq!(back.units().temp_effects(u).len(), 2);
-        assert!(back.units().unit_has_ability(u, "flying"));
+        assert!(back.units().unit_has_ability(u, Ability::new(24)));
         Ok(())
     }
 
@@ -456,11 +460,11 @@ mod tests {
         host.grant_ability(Target::Unit(u), "flying");
         drop(host);
         assert_eq!(g.units().unit_stat(u, Stat::Melee), melee + 2);
-        assert!(g.units().unit_has_ability(u, "flying"));
+        assert!(g.units().unit_has_ability(u, Ability::new(24)));
         let mut host = crate::spell::cast::tests_support::host(&mut g);
         host.remove_ability(Target::Unit(u), "flying");
         drop(host);
-        assert!(!g.units().unit_has_ability(u, "flying"));
+        assert!(!g.units().unit_has_ability(u, Ability::new(24)));
     }
 
     fn enchant(g: &mut Game, u: hecs::Entity, spell: &str) {
@@ -476,20 +480,20 @@ mod tests {
             .units()
             .unit_abilities(u)
             .iter()
-            .any(|a| a == "magic_immunity"));
+            .any(|a| *a == Ability::new(40)));
         enchant(&mut g, u, "magic_immunity");
         assert!(g
             .units()
             .unit_abilities(u)
             .iter()
-            .any(|a| a == "magic_immunity"));
+            .any(|a| *a == Ability::new(40)));
         // A temporary removal still takes it away again.
-        g.remove_temp_ability(Target::Unit(u), "magic_immunity", None);
+        g.remove_temp_ability(Target::Unit(u), Ability::new(40), None);
         assert!(!g
             .units()
             .unit_abilities(u)
             .iter()
-            .any(|a| a == "magic_immunity"));
+            .any(|a| *a == Ability::new(40)));
     }
 
     #[test]

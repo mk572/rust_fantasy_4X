@@ -12,6 +12,7 @@
 
 use crate::game::rng::GameRng;
 use crate::game::Game;
+use crate::rules::Ability;
 use crate::rules::{ModOp, Modifier, MovementType, Source, Stat, UnitKind};
 use crate::spell::target_error::TargetError;
 use crate::unit::UnitView;
@@ -19,12 +20,12 @@ use crate::unit::UnitView;
 /// Hook of Chaos Channels.
 pub const CHAOS_CHANNELS: &str = "chaos_channels";
 /// The ability that marks a unit as mutated.
-pub const MUTATED: &str = "chaos_channeled";
+pub const MUTATED: Ability = Ability::new(98);
 /// The ability that says which mutation a unit has, for the unit sheet to name it.
-pub const MUTATION_MARKERS: [(Mutation, &str); 3] = [
-    (Mutation::Armor, "mutation_armor"),
-    (Mutation::Wings, "mutation_wings"),
-    (Mutation::Breath, "mutation_breath"),
+pub const MUTATION_MARKERS: [(Mutation, Ability); 3] = [
+    (Mutation::Armor, Ability::new(104)),
+    (Mutation::Wings, Ability::new(105)),
+    (Mutation::Breath, Ability::new(106)),
 ];
 
 /// Defence the demon-skin armour adds.
@@ -73,12 +74,12 @@ impl Game {
         let flies = units
             .unit_def(unit)
             .is_some_and(|d| matches!(d.movement, MovementType::Flying | MovementType::Sailing))
-            || units.unit_has_ability(unit, "flying");
+            || units.unit_has_ability(unit, Ability::new(24));
         if !flies {
             options.push(Mutation::Wings);
         }
         let ranged = units.unit_stat(unit, Stat::Ranged);
-        if ranged <= 0 || (units.unit_has_ability(unit, "thrown") && ranged <= 3) {
+        if ranged <= 0 || (units.unit_has_ability(unit, Ability::new(69)) && ranged <= 3) {
             options.push(Mutation::Breath);
         }
         options
@@ -100,7 +101,7 @@ impl Game {
                 None,
             ),
             Mutation::Wings => {
-                self.grant_temp_ability(who, "flying", None);
+                self.grant_temp_ability(who, Ability::new(24), None);
                 self.add_temp_modifier(
                     who,
                     Modifier::new(Stat::Moves, ModOp::Min, WINGS_MOVES, source),
@@ -108,7 +109,7 @@ impl Game {
                 );
             }
             Mutation::Breath => {
-                self.grant_temp_ability(who, "fire_breath", None);
+                self.grant_temp_ability(who, Ability::new(20), None);
                 for (stat, op, value) in [
                     (Stat::Ranged, ModOp::Set, BREATH_STRENGTH),
                     (Stat::Ammo, ModOp::Min, 1),
@@ -119,7 +120,7 @@ impl Game {
         }
         self.grant_temp_ability(who, MUTATED, None);
         if let Some((_, marker)) = MUTATION_MARKERS.iter().find(|(m, _)| *m == pick) {
-            self.grant_temp_ability(who, marker, None);
+            self.grant_temp_ability(who, *marker, None);
         }
         Some(pick)
     }

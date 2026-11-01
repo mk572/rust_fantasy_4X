@@ -998,12 +998,11 @@ impl App {
             .game
             .city_buildings(city)
             .iter()
-            .any(|&id| self.game.content().rules.buildings.get(id).id == "city_walls");
+            .any(|&id| id.num() == 35 /* city_walls */);
         if has_walls {
             let walls_fade = fading
                 .filter(|&(shown, _)| {
-                    let walls = self.game.content().rules.buildings.id_of("city_walls");
-                    walls.is_some_and(|w| w.num() as i16 == shown)
+                    shown == 35 /* city_walls */
                 })
                 .map(|(_, percent)| percent);
             match walls_fade {

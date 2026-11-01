@@ -15,6 +15,7 @@
 //!
 //! Tests: below.
 
+use crate::rules::{Ability, BuildingId};
 use std::collections::VecDeque;
 
 use crate::city::economy::{Buildings, Farmers};
@@ -76,17 +77,17 @@ const FORTRESS_CLEARANCE: u32 = 5;
 
 /// What a city's population gives it, in the order the original hands them out: the building
 /// comes with `population - 2` at or above the number.
-const STARTING_BUILDINGS: [(u32, &str); 10] = [
-    (0, "barracks"),
-    (1, "smithy"),
-    (2, "builders_hall"),
-    (3, "armory"),
-    (5, "granary"),
-    (6, "stables"),
-    (8, "city_walls"),
-    (10, "fighters_guild"),
-    (11, "armorers_guild"),
-    (12, "shrine"),
+const STARTING_BUILDINGS: [(u32, BuildingId); 10] = [
+    (0, BuildingId::new(3)),   // barracks
+    (1, BuildingId::new(8)),   // smithy
+    (2, BuildingId::new(32)),  // builders_hall
+    (3, BuildingId::new(4)),   // armory
+    (5, BuildingId::new(29)),  // granary
+    (6, BuildingId::new(9)),   // stables
+    (8, BuildingId::new(35)),  // city_walls
+    (10, BuildingId::new(5)),  // fighters_guild
+    (11, BuildingId::new(6)),  // armorers_guild
+    (12, BuildingId::new(22)), // shrine
 ];
 
 /// The first number given to the players of neutral cities, well clear of the wizards.
@@ -386,7 +387,7 @@ impl Game {
         let mut built: Vec<crate::rules::BuildingId> = STARTING_BUILDINGS
             .iter()
             .filter(|&&(from, _)| level >= from)
-            .filter_map(|&(_, id)| rules.buildings.id_of(id))
+            .map(|&(_, id)| id)
             .filter(|&b| {
                 let def = rules.buildings.get(b);
                 def.races.is_empty() || def.races.contains(&race_def.id)
@@ -399,12 +400,12 @@ impl Game {
                 .iter()
                 .copied()
                 .filter(|&b| {
-                    rules.buildings.get(b).requires.iter().all(|r| {
-                        rules
-                            .buildings
-                            .id_of(r)
-                            .is_some_and(|id| built.contains(&id))
-                    })
+                    rules
+                        .buildings
+                        .get(b)
+                        .require_ids
+                        .iter()
+                        .all(|r| built.contains(r))
                 })
                 .collect();
             built = keep;
@@ -472,7 +473,7 @@ impl Game {
             let plain = def.kind == UnitKind::Normal
                 && def.cost > 0
                 && def.movement != crate::rules::MovementType::Sailing
-                && !def.abilities.iter().any(|a| a == "create_outpost");
+                && !def.ability_ids.contains(&Ability::new(12));
             if !plain
                 || self
                     .economy()
@@ -487,7 +488,7 @@ impl Game {
                 .copied()
                 .unwrap_or(0)
                 > 0
-                && !def.abilities.iter().any(|a| a == "thrown");
+                && !def.ability_ids.contains(&Ability::new(69));
             if shoots {
                 ranged = Some(id);
             } else {

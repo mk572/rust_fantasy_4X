@@ -358,7 +358,6 @@ impl App {
             return Vec::new();
         };
         let rules = &self.game.content().rules;
-        let this = &rules.buildings.get(building).id;
         let race = self
             .game
             .city_race(city)
@@ -368,7 +367,7 @@ impl App {
             .buildings
             .iter()
             .filter(|(id, def)| {
-                def.requires.iter().any(|r| r == this)
+                def.require_ids.contains(&building)
                     && !built.contains(id)
                     && (def.races.is_empty()
                         || race.as_ref().is_some_and(|r| def.races.contains(r)))
@@ -394,8 +393,8 @@ mod tests {
             .map(|c| c.0)
             .ok_or("the new game has no city")?;
         let rules = &app.game.content().rules;
-        let barracks = rules.buildings.id_of("barracks").ok_or("no barracks")?;
-        let armory = rules.buildings.id_of("armory").ok_or("no armory")?;
+        let barracks = f4x_core::rules::BuildingId::new(3) /* barracks */;
+        let armory = f4x_core::rules::BuildingId::new(4) /* armory */;
         let armory_name = rules.buildings.get(armory).name.clone();
         assert!(app.production_allows(city, None).is_empty());
         assert!(app

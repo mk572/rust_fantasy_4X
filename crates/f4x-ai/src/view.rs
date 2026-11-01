@@ -5,6 +5,7 @@ use f4x_core::battle::ai::strength;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_core::rules::Ability;
 use f4x_core::rules::{MovementType, Stat};
 
 /// How hard a unit hits and how much it can take, as one number.
@@ -48,7 +49,7 @@ pub fn is_coastal(view: &PlayerView, at: Position) -> bool {
 
 /// A unit that can fight on land (settlers, ships and the like are not counted).
 pub fn is_fighter(view: &PlayerView, unit: hecs::Entity) -> bool {
-    !view.unit_has_ability(unit, "create_outpost")
+    !view.unit_has_ability(unit, Ability::new(12))
         && !is_ship(view, unit)
         && view
             .unit_stat(unit, Stat::Melee)

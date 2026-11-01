@@ -61,7 +61,9 @@ pub struct Observation {
 /// How to read a battle: the ability vocabulary of the content.
 #[derive(Debug, Clone)]
 pub struct ObsSpec {
+    /// The abilities in the order of the rules table, by name (for the signature) and number.
     abilities: Vec<String>,
+    ability_ids: Vec<f4x_core::rules::Ability>,
 }
 
 impl ObsSpec {
@@ -73,6 +75,7 @@ impl ObsSpec {
                 .iter()
                 .map(|(_, a)| a.id.clone())
                 .collect(),
+            ability_ids: content.rules.abilities.iter().map(|(id, _)| id).collect(),
         }
     }
 
@@ -186,7 +189,7 @@ impl ObsSpec {
                 f32::from(u.long_range),
             ];
             row[..f.len()].copy_from_slice(&f);
-            for (i, a) in self.abilities.iter().enumerate() {
+            for (i, &a) in self.ability_ids.iter().enumerate() {
                 if u.has(a) {
                     row[UNIT_BASE + i] = 1.0;
                 }

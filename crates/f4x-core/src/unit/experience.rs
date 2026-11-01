@@ -17,6 +17,7 @@
 use crate::content::Content;
 use crate::map::Position;
 use crate::player::PlayerId;
+use crate::rules::Ability;
 
 use crate::game::Game;
 use crate::rules::UnitKind;
@@ -24,8 +25,8 @@ use crate::unit::{Experience, UnitView, HEROISM, HEROISM_LEVEL};
 use hecs::World;
 
 /// A hero's ability ids.
-pub const ARMSMASTER: &str = "armsmaster";
-pub const SUPER_ARMSMASTER: &str = "super_armsmaster";
+pub const ARMSMASTER: Ability = Ability::new(81);
+pub const SUPER_ARMSMASTER: Ability = Ability::new(82);
 
 impl UnitView<'_> {
     /// Experience a hero with Armsmaster gives its stack each turn (0 without the ability).
