@@ -56,6 +56,10 @@ impl SpellTarget {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Owed(pub i32);
 
+/// On a cast in progress: the mana put into it beyond its cost (`Command::CastSpell::extra`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Extra(pub i32);
+
 /// On an entity (a unit, city, wizard or feature) that has an instance on it. A quick look for
 /// "nothing is on this one" that spares a query over the world, which is the most common
 /// question asked (every stat of a unit asks it). Put on by [`spawn_instance`], taken off when the
@@ -406,11 +410,36 @@ impl Game {
 
     /// A wizard begins paying `owed` mana for `spell` over turns.
     pub(crate) fn begin_casting(&mut self, player: PlayerId, spell: SpellId, owed: i32) {
+        self.begin_casting_with(player, spell, owed, 0);
+    }
+
+    /// `begin_casting` for a spell with `extra` mana put into it.
+    pub(crate) fn begin_casting_with(
+        &mut self,
+        player: PlayerId,
+        spell: SpellId,
+        owed: i32,
+        extra: i32,
+    ) {
         let Some(wizard) = self.wizard(player).map(|w| w.entity()) else {
             return;
         };
         let cast = self.spawn_spell(spell, wizard, SpellTarget::Wizard(wizard));
         let _ = self.world.insert_one(cast, Owed(owed));
+        if extra > 0 {
+            let _ = self.world.insert_one(cast, Extra(extra));
+        }
+    }
+
+    /// The extra mana in the cast a wizard is paying for (zero when there is none).
+    pub(crate) fn cast_extra(&self, player: PlayerId) -> i32 {
+        let Some(wizard) = self.wizard(player).map(|w| w.entity()) else {
+            return 0;
+        };
+        let Some(cast) = self.spells().cast_of(wizard) else {
+            return 0;
+        };
+        self.world.get::<&Extra>(cast).map_or(0, |e| e.0)
     }
 
     /// Remove one instance (dispelled, cancelled, or its effect is over).

@@ -112,8 +112,6 @@ pub fn fx_for(art: &SpellArt, id: &str, realm: &str, summons: bool) -> SpellFx {
         || matches!(
             id,
             "counter_magic"
-                | "dispel_magic"
-                | "dispel_magic_true"
                 | "disenchant_area"
                 | "disenchant_true"
                 | "disjunction"

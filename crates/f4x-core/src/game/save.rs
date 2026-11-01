@@ -27,7 +27,7 @@ use crate::game::serial::Serial;
 use crate::map::fog::Fog;
 use crate::map::{FeatureId, Grid, Map, Position, TerrainId};
 use crate::player::{Defeat, History, Offers, Owner, PlayerId, Tax, Treasury};
-use crate::spell::instance::{Owed, SpellTarget};
+use crate::spell::instance::{Extra, Owed, SpellTarget};
 use crate::wizard::entity::{Banner, CapitalRace, Portrait};
 use crate::wizard::fortress::{Banishment, Fortress, SummonAt};
 
@@ -269,6 +269,9 @@ pub struct SpellSave {
     pub target: SpellTargetSave,
     /// The mana still to pay, on a cast in progress (which is aimed at its own caster).
     pub owed: Option<i32>,
+    /// The extra mana put into that cast, when any (saves from before it have none).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extra: Option<i32>,
 }
 
 /// What a spell is on: a player id for a wizard, a creation number for the other entities.
@@ -588,6 +591,7 @@ impl Game {
                     caster: spells.caster_player(i)?.0,
                     target,
                     owed: self.world.get::<&Owed>(i).ok().map(|o| o.0),
+                    extra: self.world.get::<&Extra>(i).ok().map(|e| e.0),
                 })
             })
             .collect()
@@ -1604,6 +1608,9 @@ impl Snapshot {
                     ));
                 }
                 let _ = game.world.insert_one(instance, Owed(owed));
+                if let Some(extra) = i.extra.filter(|&e| e > 0) {
+                    let _ = game.world.insert_one(instance, Extra(extra));
+                }
             }
         }
         for id in game.player_ids() {

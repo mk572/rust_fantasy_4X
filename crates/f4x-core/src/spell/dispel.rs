@@ -4,7 +4,7 @@
 //! (the original rolls 1 to 250 against `250 s / (s + d)`). A spell's difficulty is its cost,
 //! doubled again for each of its caster's masteries that applies: the mastery of the spell's
 //! realm (nature, sorcery, chaos) and Archmage each add one more times the cost. A spell's
-//! dispel strength is the mana put into it: overland always its base cost, in a battle whatever the
+//! dispel strength is the mana put into it: overland its base cost and the extra mana the caster adds (`CastSpell::extra`), in a battle whatever the
 //! wizard puts in (`battle/spells.rs`); the "True" spells count every point as three.
 //!
 //! Users: Dispel Magic (units), Disenchant Area and True (a map square), Disjunction and True
@@ -39,6 +39,8 @@ pub const COUNTER_MAGIC_DRAIN: u32 = 5;
 pub const DISJUNCTION: &str = "disjunction";
 pub const DISJUNCTION_TRUE: &str = "disjunction_true";
 pub const SPELL_BINDING: &str = "spell_binding";
+/// The spells that attack a rival's global enchantment, which extra mana makes stronger.
+pub const GLOBAL_ATTACKS: [&str; 3] = [DISJUNCTION, DISJUNCTION_TRUE, SPELL_BINDING];
 pub const SPELL_BLAST: &str = "spell_blast";
 pub const COUNTER_MAGIC: &str = "counter_magic";
 

@@ -63,6 +63,7 @@ fn raise_command(spell: SpellId, resolve: bool, hero: usize) -> Command {
         }
     } else {
         Command::CastSpell {
+            extra: 0,
             player: HUMAN,
             spell,
             target: Some(target),
@@ -247,6 +248,7 @@ mod tests {
         assert!(matches!(
             raise_command(spell, false, 7),
             Command::CastSpell {
+                extra: 0,
                 target: Some(Target::Hero(7)),
                 ..
             }

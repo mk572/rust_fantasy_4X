@@ -183,7 +183,7 @@ spells and Nightshade have none). Spell damage values (Fireball/Ice Bolt/Lightni
 | `CMBMAGIC.c:404`, `:426` | A unit or item casting (caster below `CASTER_IDX_BASE`) pays the base cost | Unit and item spells pay `def.cost` (`battle/spells/unit_cast.rs`) | Same as the original, decided for now: spells cast from items and by units are exempt (help topic 198 corrected via `HELP_CORRECTIONS`) |
 | `CMBMAGIC.c:466` | The AI/auto-combat mana pool ignores the cost modifiers and Evil Omens | One price function (`battle_spell_price`) for every side | Deviates on purpose |
 | `CMBMAGIC.c:497` | Wizard's extra-mana total cost gets the book reduction but not Evil Omens | Base part carries Evil Omens, the extra mana does not; the reduction applies to both | Deviates; differs by rounding and the extra mana at most |
-| `SPLMASTR.c:478`, `:555` | Overland infusion slider ignores Evil Omens | Not checked whether we have an overland slider | Open |
+| `SPLMASTR.c:478`, `:555` | Overland infusion slider ignores Evil Omens | The overland slider (`extra_mana.rs`) adds the extra mana to the cost before the cost reductions and Evil Omens apply, so Evil Omens counts for the whole price | Deviates on purpose |
 | `SPLMASTR.c:675`, `:730` | Combat infusion slider ignores Evil Omens | The slider's lowest value is the base cost (it is a strength), the price shown is `battle_spell_price`, with Evil Omens | Deviates on purpose |
 | `Combat.c:5759`, `:5987`, `:6062`, `:6163` | The combat info window lists Crusade, Holy Arms and other effects but not Evil Omens (or spell wards) | We have no such window or effect list | Not applicable until one exists |
 

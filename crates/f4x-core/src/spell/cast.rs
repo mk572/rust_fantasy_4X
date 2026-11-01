@@ -43,6 +43,10 @@ struct GameHost<'a> {
     events: Vec<Event>,
     /// Units destroyed by the spell's strikes (`strike`), reported once the spell is done.
     slain: u32,
+    /// Mana put into the spell beyond its cost: it adds to a dispel's strength.
+    extra: u32,
+    /// The strength those mana add to a dispel: one a mana, three for a True spell.
+    boost: u32,
 }
 
 impl GameHost<'_> {
@@ -146,7 +150,7 @@ impl GameHost<'_> {
         };
         let by = ctx.owner;
         let cost = match ctx.source {
-            Source::Spell(s) => self.game.content.rules.spells.get(s).cost,
+            Source::Spell(s) => self.game.content.rules.spells.get(s).cost + self.extra,
             _ => 0,
         };
         let (factor, steal) = match hook {
@@ -386,6 +390,7 @@ impl EffectHost for GameHost<'_> {
     /// Other wizards' enchantments on the target are removed with chance
     /// `strength / (strength + difficulty)` (see `spell/dispel.rs`).
     fn dispel(&mut self, who: Target, strength: u32, by: PlayerId) -> u32 {
+        let strength = strength + self.boost;
         let mut gone = Vec::new();
         let removed = self
             .game
@@ -837,14 +842,32 @@ impl Game {
         spell: SpellId,
         target: Option<Target>,
     ) -> Vec<Event> {
-        let events = self.run_cast(player, spell, target);
+        let extra = self.cast_extra(player);
+        self.resolve_cast_with(player, spell, target, extra)
+    }
+
+    /// `resolve_cast` for a spell with `extra` mana put into it.
+    pub(crate) fn resolve_cast_with(
+        &mut self,
+        player: PlayerId,
+        spell: SpellId,
+        target: Option<Target>,
+        extra: i32,
+    ) -> Vec<Event> {
+        let events = self.run_cast(player, spell, target, extra);
         if let Some(mut w) = self.wizard_mut(player) {
             w.clear_casting();
         }
         events
     }
 
-    fn run_cast(&mut self, player: PlayerId, spell: SpellId, target: Option<Target>) -> Vec<Event> {
+    fn run_cast(
+        &mut self,
+        player: PlayerId,
+        spell: SpellId,
+        target: Option<Target>,
+        extra: i32,
+    ) -> Vec<Event> {
         if let Some((by, counter)) = self.suppressed_by(player, spell) {
             return vec![Event::SpellSuppressed {
                 player,
@@ -886,6 +909,16 @@ impl Game {
         };
         let def = self.content.rules.spells.get(spell).clone();
         let this = target.unwrap_or(Target::Player(player));
+        let boost = def
+            .effects
+            .iter()
+            .find_map(|e| match e.effect {
+                crate::rules::effects::Effect::Dispel { strength } if def.cost > 0 => {
+                    Some(extra.max(0) as u32 * strength / def.cost)
+                }
+                _ => None,
+            })
+            .unwrap_or(0);
         let ctx = Context {
             this,
             owner: player,
@@ -901,6 +934,8 @@ impl Game {
             rng,
             events: Vec::new(),
             slain: 0,
+            extra: extra.max(0) as u32,
+            boost,
         };
         let outcomes = run_rules(&def.effects, Trigger::OnCast, &ctx, &mut host);
         let GameHost {
@@ -1066,6 +1101,8 @@ pub(crate) mod tests_support {
             rng,
             events: Vec::new(),
             slain: 0,
+            extra: 0,
+            boost: 0,
         }
     }
 }

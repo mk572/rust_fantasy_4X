@@ -368,3 +368,4 @@ The table is a guide. For anything with an index not listed here read the loader
   data, text or sound, or a picture the decoder does not understand.
 - Animation timing, the order frames play in, and which frames are "idle" or "pressed" come from
   the original's code and are not stored with the pictures.
+- Unused effect pictures: `cmbtfx` 7 (Mind Twist), 12 (Petrify) and 32 (Zombie) are loaded by no code in the original, so no spell shows them. `cmbtfx` 27 to 31 belong to the undead rising scene (task 448) and 28 to the combat message panel.

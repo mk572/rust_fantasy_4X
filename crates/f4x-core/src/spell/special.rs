@@ -245,6 +245,7 @@ mod tests {
             .left = 500;
         g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 1000;
         g.apply(Command::CastSpell {
+            extra: 0,
             player: P0,
             spell: s,
             target: Some(target),

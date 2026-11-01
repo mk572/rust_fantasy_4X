@@ -31,6 +31,7 @@ mod diplomacy_text;
 mod end_scene;
 mod enemy_city_screen;
 mod event_popup;
+mod extra_mana;
 mod fighter_pick;
 mod fled_notice;
 mod font;
@@ -86,6 +87,7 @@ mod unit_window;
 mod upkeep_prompt;
 mod view;
 mod wizard_anim;
+mod wizard_pick;
 mod wizard_screen;
 
 use std::path::{Path, PathBuf};
@@ -189,6 +191,10 @@ struct Options {
     craft: Option<f4x_core::item::crafting::Craft>,
     /// With `--shot`, run the human out of gold and mana and open the upkeep prompt.
     upkeep: bool,
+    /// With `--shot`, open the extra-mana slider of Disenchant Area, a third of the way along.
+    extra_mana: bool,
+    /// With `--shot`, open the portrait picker of a spell aimed at a wizard.
+    wizard_pick: bool,
     /// With `--shot`, make the human wizard this offer first: `hero`, `mercenaries` or `item`.
     offer: Option<String>,
     event: Option<String>,
@@ -341,6 +347,8 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
         dispelled: None,
         results: None,
         upkeep: false,
+        extra_mana: false,
+        wizard_pick: false,
     };
     while let Some(a) = args.next() {
         let mut value = |name: &str| args.next().ok_or(format!("{name} needs a value"));
@@ -410,6 +418,8 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
             "--outpost" => o.outpost = Some(false),
             "--outpost-new" => o.outpost = Some(true),
             "--upkeep" => o.upkeep = true,
+            "--extra-mana" => o.extra_mana = true,
+            "--wizard-pick" => o.wizard_pick = true,
             "--offer" => o.offer = Some(value("--offer")?),
             "--event" => o.event = Some(value("--event")?),
             "--dispelled" => o.dispelled = Some(value("--dispelled")?),
@@ -564,7 +574,7 @@ async fn main() {
     let options = match parse_args(std::env::args().skip(1)) {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|mastery_lost|conquest|conquest_by_wizard|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--game-settings [--menu]] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--hall-demo] [--warn-box] [--craft enchant|artifact] [--offer KIND] [--event KIND] [--fizzle] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--attack-box] [--pick-box] [--crowd (with --city: fourteen units in the city, list scrolled one row)] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|mastery_lost|conquest|conquest_by_wizard|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--game-settings [--menu]] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--hall-demo] [--warn-box] [--craft enchant|artifact] [--offer KIND] [--event KIND] [--fizzle] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--extra-mana] [--wizard-pick] [--attack-box] [--pick-box] [--crowd (with --city: fourteen units in the city, list scrolled one row)] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -754,6 +764,12 @@ async fn main() {
     }
     if options.upkeep {
         app.open_test_upkeep();
+    }
+    if options.extra_mana {
+        app.open_test_extra_mana();
+    }
+    if options.wizard_pick {
+        app.open_test_wizard_pick();
     }
     if let Some(kind) = &options.offer {
         app.open_test_offer(kind);

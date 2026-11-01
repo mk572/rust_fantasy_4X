@@ -214,6 +214,7 @@ mod tests {
     fn cast(g: &mut Game, hook: &str) -> Vec<Event> {
         let spell = g.content.rules.spells.id_of(hook).expect("id_of succeeds");
         g.apply(Command::CastSpell {
+            extra: 0,
             player: P0,
             spell,
             target: None,
@@ -472,6 +473,7 @@ mod tests {
             .id_of(RESURRECTION)
             .expect("id_of succeeds");
         g.apply(Command::CastSpell {
+            extra: 0,
             player: P0,
             spell,
             target: Some(crate::rules::exec::Target::Hero(kind)),

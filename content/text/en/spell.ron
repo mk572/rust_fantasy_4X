@@ -17,6 +17,7 @@
     "spell.fizzled_yours": "The {counter_spell} spell of {wizard} has caused your {spell} spell to fizzle.",
 
     "spell.ward_select": "Select a Spell Ward for {city}",
+    "spell.additional_power": "Additional Power:",
     "spell.no_target": "There are no targets for {spell}. Do you wish to continue casting it?",
     "spell.global_row": "{wizard}: {spell} ({cost} MP)",
     "spell.choose_global": "{spell}: choose a global enchantment",
@@ -37,6 +38,9 @@
     "spell.conquest_one": "You found a {first} spell in the ruins.",
     "spell.conquest_two": "You found a {first} spell, a {second} spell in the ruins.",
     "spell.no_globals_waits": "No other wizard keeps a global enchantment going; the spell waits",
+    "spell.pick_wizard": "Cast {spell} on which wizard?",
+    "spell.no_wizards": "No wizard you have met is left to cast it on",
+    "spell.no_wizards_waits": "No wizard you have met is left to cast it on; the spell waits",
     "spell.no_globals": "No other wizard keeps a global enchantment going",
     "spell.abort": "Do you wish to abort the {spell} spell?",
     "spell.instant": "Instant Cast",

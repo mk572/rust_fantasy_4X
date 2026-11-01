@@ -67,7 +67,15 @@ impl Modal for FoodWarning {
     fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
         let lay = Layout::new();
         let text = app.text("upkeep.food_warning");
-        match app.confirmation_box(&lay, &text, input) {
+        let answer = app.confirmation_box(&lay, &text, input);
+        self.answered(app, answer)
+    }
+}
+
+impl FoodWarning {
+    /// What the answer does: Yes goes on to the turn, No closes the box, no answer keeps it.
+    fn answered(self: Box<Self>, app: &mut App, answer: Option<bool>) -> Option<Box<dyn Modal>> {
+        match answer {
             Some(true) => {
                 app.ask_for_upkeep();
                 None
@@ -696,6 +704,18 @@ mod tests {
                 line("armageddon", 30)?,
             ],
         })
+    }
+
+    #[test]
+    fn yes_to_the_food_warning_goes_on_to_the_turn_and_no_stays_on_the_map() {
+        let answer = |answer| {
+            let mut app = App::for_test();
+            let kept = Box::new(FoodWarning).answered(&mut app, answer).is_some();
+            (kept, app.turn_pending)
+        };
+        assert_eq!(answer(None), (true, 0), "no answer keeps the box");
+        assert_eq!(answer(Some(false)), (false, 0), "No closes it, no turn");
+        assert_eq!(answer(Some(true)), (false, 2), "Yes starts the turn change");
     }
 
     #[test]

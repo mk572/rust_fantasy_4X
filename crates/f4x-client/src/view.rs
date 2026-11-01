@@ -163,6 +163,8 @@ pub struct App {
     pub(crate) build_in: Option<crate::built_popup::BuildIn>,
     /// A spell waiting for a target to be clicked on the map.
     pub(crate) targeting: Option<crate::spellbook::Targeting>,
+    /// The extra mana the player put into the spell being aimed (`extra_mana.rs`).
+    pub(crate) cast_extra: i32,
     /// The turn is ending: 2 until one frame with the hourglass has been drawn, then 1 while
     /// the computer plays (`pointer.rs`).
     pub(crate) turn_pending: u8,
@@ -354,6 +356,7 @@ impl App {
             end_scenes: Default::default(),
             end_scene_queued: false,
             targeting: None,
+            cast_extra: 0,
             turn_pending: 0,
             units_waited: false,
             pointer_walk: None,
@@ -1607,6 +1610,7 @@ impl App {
                     }
                 } else {
                     Command::CastSpell {
+                        extra: 0,
                         player: HUMAN,
                         spell,
                         target: Some(target),
@@ -1729,6 +1733,7 @@ impl App {
                 }
             } else {
                 Command::CastSpell {
+                    extra: self.chosen_extra(spell),
                     player: HUMAN,
                     spell,
                     target: Some(target),

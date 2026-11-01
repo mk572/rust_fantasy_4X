@@ -312,6 +312,7 @@ fn an_affordable_spell_takes_effect_at_once() -> TestResult {
     // A spell with a target needs one.
     assert_eq!(g.start_cast(P0, mend, None), Err(MagicError::NeedsTarget));
     let events = g.apply(Command::CastSpell {
+        extra: 0,
         player: P0,
         spell: mend,
         target: Some(Target::Unit(unit)),
@@ -641,6 +642,7 @@ fn summoning_creates_units_at_the_chosen_tile() -> TestResult {
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 99;
     g.apply(Command::CastSpell {
+        extra: 0,
         player: P0,
         spell: call,
         target: Some(Target::Tile(at(5, 5))),
@@ -670,6 +672,7 @@ fn a_city_enchantment_is_cast_and_paid_for() -> TestResult {
         .ok_or("city_economy is missing")?
         .gold;
     g.apply(Command::CastSpell {
+        extra: 0,
         player: P0,
         spell: prosperity,
         target: Some(Target::City(city)),
@@ -811,5 +814,65 @@ fn a_spell_with_nothing_to_aim_at_is_not_paid_for_until_there_is_a_target() -> T
             .remaining
             < owed
     );
+    Ok(())
+}
+
+#[test]
+fn the_dispel_and_disjunction_spells_take_extra_mana_and_no_other_does() {
+    let g = world();
+    for id in [
+        "disenchant_area",
+        "disenchant_true",
+        "disjunction",
+        "disjunction_true",
+        "spell_binding",
+    ] {
+        assert!(g.spell_takes_extra_mana(spell(&g, id)), "{id}");
+    }
+    for id in ["healing", "war_bears", "prosperity"] {
+        assert!(!g.spell_takes_extra_mana(spell(&g, id)), "{id}");
+    }
+}
+
+#[test]
+fn extra_mana_is_part_of_the_price_and_only_for_a_spell_that_takes_it() -> TestResult {
+    let mut g = world();
+    let area = spell(&g, "disenchant_area");
+    let bears = spell(&g, "war_bears");
+    for s in [area, bears] {
+        g.wizard_mut(P0)
+            .ok_or("wizard_mut is missing")?
+            .get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(s);
+    }
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
+    assert_eq!(
+        g.start_cast_with(P0, bears, None, 5),
+        Err(MagicError::NotAvailable)
+    );
+    assert_eq!(
+        g.start_cast_with(P0, area, None, -1),
+        Err(MagicError::NotAvailable)
+    );
+    // More than the spell's own cost again is cut back to it.
+    let base = g.casting_cost(P0, area, false);
+    assert!(g.start_cast_with(P0, area, None, 1000).is_ok());
+    let owed = g.wizard(P0).and_then(|w| w.casting()).map(|c| c.remaining);
+    assert_eq!(owed, Some(base * 2));
+    assert_eq!(g.cast_extra(P0), 50);
+    Ok(())
+}
+
+#[test]
+fn the_extra_mana_of_a_cast_in_progress_survives_a_save() -> TestResult {
+    let mut g = world();
+    let area = spell(&g, "disenchant_area");
+    g.learn_spell(P0, area);
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
+    assert!(g.start_cast_with(P0, area, None, 20).is_ok());
+    let text = g.snapshot().to_text()?;
+    let back = crate::game::save::Snapshot::from_text(&text)?.restore(g.content.clone())?;
+    assert_eq!(back.cast_extra(P0), 20);
     Ok(())
 }

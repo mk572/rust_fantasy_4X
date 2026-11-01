@@ -58,6 +58,7 @@ fn cast(g: &mut Game, id: &str, pos: Position) -> Vec<Event> {
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 500;
     g.apply(Command::CastSpell {
+        extra: 0,
         player: P0,
         spell: s,
         target: Some(Target::Tile(pos)),

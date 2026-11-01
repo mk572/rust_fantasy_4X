@@ -99,7 +99,7 @@ A menu of nine entries, each a screen or window. All are **Done** (task 71): the
 | F6 | Chancellor (`Chancellor_Screen__WIP`, `REPORT.c`) | The report scroll: what happened this turn (see section 5). |
 | F7 | Tax Collector (`TaxCollector_Window`) | Tax rate table: gold per population and the unrest each rate causes. The tax rate is chosen here. |
 | F8 | Grand Vizier (`Grand_Vizier_Window`) | Asks whether the Grand Vizier may choose what the cities build (auto-build). **Done:** F8 asks the question over the map (a modal) when switching it on and switches it off at once; the console has `vizier on|off`. |
-| F9 | Mirror (`Mirror_Screen`, `WIZVIEW.c`) | A wizard's sheet: name, spell books, fame and, for another wizard, the treaty with you, personality and objective. Also opened from the Magic screen and used when a spell targets a wizard (`Target_Wizard_Screen`). **Done** (task 75, `wizard_screen.rs`): F9 and the right-click on a rival's gem on the Magic screen; a spell that targets a wizard is aimed by clicking one of their cities or units on the map (there is no portrait picker). |
+| F9 | Mirror (`Mirror_Screen`, `WIZVIEW.c`) | A wizard's sheet: name, spell books, fame and, for another wizard, the treaty with you, personality and objective. Also opened from the Magic screen and used when a spell targets a wizard (`Target_Wizard_Screen`). **Done** (task 75, `wizard_screen.rs`): F9 and the right-click on a rival's gem on the Magic screen; a spell that targets a wizard asks by portrait (`wizard_pick.rs`, task 401). |
 
 ## 5. Windows opened from inside a screen
 
@@ -120,8 +120,8 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 | Evict message (`Evict_Unit_With_Message`) | Tells that a unit was removed from a city that has no room. | When housing runs out. | **Partial:** the units that go are told in the log and the Chancellor's scroll; there is no box of its own. |
 | Alchemy pop-up (`Alchemy_Popup`) | Converts gold to mana or back. | Button on the Magic screen and the Item screen. | **Done** in the Magic screen (`magic_screen.rs`); the Item screen's Alchemy button opens it. |
 | Spell target selection (`Spell_Casting_Screen__WIP`, `SCastScr.c`) | Pick a square, city or unit on the map as a spell's target. | Casting a spell that needs a map target. | **Done:** the magic screen lets the player click the target on the map (`magic_screen.rs`). |
-| Target wizard (`Target_Wizard_Screen`) / target enchantment (`Spell_Target_Global_Enchantment_Screen`) | Choose a wizard (portraits) or one of another wizard's global enchantments as a spell's target. | Wizard- or enchantment-targeting spells (Spell Binding, Subversion...). | **Partial:** the rules are done (tasks 60 and 62); the player aims at a wizard by clicking one of their cities or units, and picks a rival's global enchantment or the dead hero to raise from a list over the map (`resurrect_prompt.rs`, `view.rs`); there is no portrait screen. |
-| Spell mana adder (`Spellbook_Mana_Adder_Screen`, `Combat_Spellbook_Mana_Adder_Screen`) | Choose how much extra mana to put into an infusable spell (its strength grows with the mana). | Choosing such a spell from the book, overland or in combat. | **Partial.** Combat casting has Up/Down keys for the extra mana in the battle screen's target prompt, no separate screen; overland has none. |
+| Target wizard (`Target_Wizard_Screen`) / target enchantment (`Spell_Target_Global_Enchantment_Screen`) | Choose a wizard (portraits) or one of another wizard's global enchantments as a spell's target. | Wizard- or enchantment-targeting spells (Spell Binding, Subversion...). | **Partial:** the rules are done (tasks 60 and 62); the player picks a wizard by portrait (`wizard_pick.rs`, task 401; a spell already being aimed can still be aimed by clicking one of their cities or units), and picks a rival's global enchantment or the dead hero to raise from a list over the map (`resurrect_prompt.rs`, `view.rs`); the portrait picker is a box over the map, not a screen of its own. |
+| Spell mana adder (`Spellbook_Mana_Adder_Screen`, `Combat_Spellbook_Mana_Adder_Screen`) | Choose how much extra mana to put into an infusable spell (its strength grows with the mana). | Choosing such a spell from the book, overland or in combat. | **Partial.** Overland: done (`extra_mana.rs`, task 400), a slider on the original's art for Disenchant Area and True, Disjunction, Disjunction True and Spell Binding. Combat casting has Up/Down keys for the extra mana in the battle screen's target prompt, no separate screen. |
 | Item-making (`Item_Make_Screen`, `ItemMake.c`) | Design a magic item or artifact: choose its type, powers and name, with the mana cost. | Casting Enchant Item or Create Artifact. | **Done** (`craft_screen.rs`, task 260; the rules are task 50, `Command::CraftItem`). |
 
 ### 5.2 Offers, rewards and events
@@ -147,7 +147,7 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 | Vortex move (`Vortex_Move_Screen`) | The player moves a magic vortex on the battlefield. | Each combat round with a vortex cast by the player. | **Done:** click the vortex, then a square next to it (`battle_screen.rs`). |
 | Retreat losses (`Build_Flee_Loss_Message`) | Tells which units were lost while fleeing. | After a flight from combat. | Implemented as a notice (`fled_notice.rs`) with the count of lost units; the original names them. |
 | Raze or keep (`Raze_City_Prompt`) | After taking a city: "Do you wish to completely destroy this city?" (skipped when the "raze city" option is off). | End of a combat won at a city. | **Done** (`combat_result.rs`): the question comes on the result scroll, with the Raze and No buttons. |
-| Spell cast messages (`Combat_Cast_Spell_Message`, `Combat_Spell_Counter_Message`) | Banner with the spell's name when cast or countered. | Casting in combat. | **Partial:** the spell notices of a dispel or a fizzle are boxes over the battle (`event_popup.rs`); the banner with the name of a spell cast has no box. |
+| Spell cast messages (`Combat_Cast_Spell_Message`, `Combat_Spell_Counter_Message`) | Banner with the spell's name when cast or countered. | Casting in combat. | **Done:** the banner with the name is drawn over the map during the cast's animation (`spell_anim.rs`, `draw_spell_overlay`); the notices of a dispel or a fizzle are boxes over the battle (`event_popup.rs`). |
 | Confirmations (`Confirmation_Box`, `Warn`) | Yes/No boxes: sell a building; turn off a spell ("Do you wish to turn off the ... spell?"); "Do you wish to flee?"; "... Do you still wish to attack?" (a wizard you have a treaty with); "Do you wish to completely destroy this city?"; and, when ending a turn, "Some units do not have enough food and will die unless you allocate more farmers in a city. Do you wish to allow them to die?" | Many places; the food warning when Next Turn is pressed. | **Partial:** the client asks twice for Flee; no common box (the sale of a building uses the original's box, `confirmation_box` in `sell_prompt.rs`). The upkeep prompt before Next Turn (`upkeep_prompt.rs`) lists what the turn costs; the food warning in the original's words comes before it when the food runs short (`FoodWarning`, task 399). |
 
 ## 6. The end of the game
@@ -169,12 +169,9 @@ Not part of the `e_SCREENS` loop. The "entered" column says what leads to each.
 
 ## 8. What is still missing
 
-Every screen and window above is done except these (each is a task in `TASKS.md`: 396 to 402 except 398, done; the evict box is part of task 378):
+Every screen and window above is done except these (each is a task in `TASKS.md`: 396 to 401 except 398, done; the evict box is part of task 378):
 
-- a box of its own for the units evicted from a full city;
-- the extra-mana screen for an overland spell (combat has the Up and Down keys);
-- the portrait picker for a spell that targets a wizard (the player clicks a city or unit now);
-- the banner with the name of a spell cast in combat.
+- a box of its own for the units evicted from a full city.
 
 ## 9. How the client shows a window
 

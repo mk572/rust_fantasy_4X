@@ -195,6 +195,15 @@ predefined outcome save or a diff against the loaded save.
 
 Regression testing is done without the client.
 
+They live in `crates/f4x-core/tests/it/regression.rs`, with the prepared saves and the targets in
+`tests/regression/` (`<name>.save`, `<name>.target`): an early game, a game at war and a game with three
+global enchantments in force, each loaded, played on by a fixed command list, and compared with a
+target of a short summary plus the checksum of the whole save (the game's version left out, so a
+release does not fail them). A failing test prints both texts. Change a target on purpose with
+`F4X_REFRESH_REGRESSION=targets cargo test -p f4x-core --test it regression` and read the git diff of
+`tests/regression/` before committing; after a save format change (`SAVE_VERSION`) or a change of a
+set-up rebuild the saves with `F4X_REFRESH_REGRESSION=saves` (it rewrites the targets too).
+
 ## UI test
 
 The goal of this test is to catch divergence in the user interface.
@@ -212,6 +221,16 @@ settings, spell art) once per test run; a test does not call `f4x_data::load_*` 
 decides (what a key answers, whether a notice closes, which events open a prompt) in a function
 that takes `&Input` and returns the new state (`resign_answer`, `Input::dismisses`), draw after it,
 and test that function.
+
+How to write one: split the modal's `frame` into the part that draws and asks (`confirmation_box`,
+`notify2_box`, which need a window) and a method that takes the answer, for example
+`QuitAsk::answered(self: Box<Self>, app, answer: Option<bool>) -> Option<Box<dyn Modal>>`. The test builds
+`App::for_test()`, calls it with `None`, `Some(false)` and `Some(true)`, and checks what stays open
+and what the app did (`app.quit`, `app.turn_pending`, `app.modals.has(..)`). A key or click is a
+frame built with `Input::key` or `Input::click` handed to the pure answer function
+(`Buttons::answer`, `Input::dismisses`, `ui::hit`). Examples: `the_human_who_loses_units_fleeing_gets_the_notice`
+(`fled_notice.rs`), `yes_to_the_quit_question_quits_and_no_does_not` (`menu_screen.rs`), the answer tests of
+`sell_prompt.rs`.
 
 ## Soak testing
 

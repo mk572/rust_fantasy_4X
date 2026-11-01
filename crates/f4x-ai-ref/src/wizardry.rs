@@ -605,6 +605,7 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
         return false;
     };
     let command = Command::CastSpell {
+        extra: 0,
         player: me,
         spell,
         target: Some(Target::Hero(kind)),
@@ -689,6 +690,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         ai.send(
             game,
             Command::CastSpell {
+                extra: 0,
                 player: me,
                 spell,
                 target,

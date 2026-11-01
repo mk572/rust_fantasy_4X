@@ -93,6 +93,7 @@ fn wall_of_stone_builds_walls_once() -> TestResult {
     assert!(!g.economy().city_has_building(city, "city_walls"));
     let cast = |g: &mut Game| {
         g.apply(Command::CastSpell {
+            extra: 0,
             player: P0,
             spell,
             target: Some(Target::City(city)),
@@ -367,6 +368,7 @@ fn cast_ward(g: &mut Game, city: hecs::Entity, id: &str) -> Vec<Event> {
     g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 5000;
     let realm = realm(g, id);
     g.apply(Command::CastSpell {
+        extra: 0,
         player: P0,
         spell,
         target: Some(Target::CityRealm(city, realm)),
@@ -457,6 +459,7 @@ fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() -> TestResu
             .get_mut::<crate::wizard::sheet::Skill>()
             .left = 500;
         let events = g.apply(Command::CastSpell {
+            extra: 0,
             player: P1,
             spell,
             target: Some(Target::City(city)),
@@ -738,6 +741,7 @@ fn consecration_turns_away_death_and_chaos_spells_but_not_the_others() -> TestRe
             .get_mut::<crate::wizard::sheet::Skill>()
             .left = 500;
         let events = g.apply(Command::CastSpell {
+            extra: 0,
             player: P1,
             spell,
             target: Some(Target::City(city)),

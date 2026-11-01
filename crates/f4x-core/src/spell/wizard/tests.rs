@@ -76,6 +76,7 @@ fn cast(g: &mut Game, spell: &str, target: Option<Target>) -> Vec<Event> {
         .known
         .insert(s);
     g.apply(Command::CastSpell {
+        extra: 0,
         player: P0,
         spell: s,
         target,
@@ -698,6 +699,7 @@ fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_last
         .known
         .insert(s);
     let events = g.apply(Command::CastSpell {
+        extra: 0,
         player: P1,
         spell: s,
         target: Some(Target::Player(P2)),

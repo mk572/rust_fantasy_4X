@@ -368,6 +368,7 @@ fn cast(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let spell = spell_arg(ctx, &a.words[..name_words].join(" "))?;
     let player = ctx.session.player;
     ctx.apply(Command::CastSpell {
+        extra: 0,
         player,
         spell,
         target,
@@ -666,6 +667,7 @@ fn resurrect(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 .id_of(f4x_core::spell::hero::RESURRECTION)
                 .ok_or_else(|| ConsoleError::NoSuch("spell resurrection".into()))?;
             ctx.apply(Command::CastSpell {
+                extra: 0,
                 player,
                 spell,
                 target: Some(target),

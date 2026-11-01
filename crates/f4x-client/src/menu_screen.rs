@@ -371,7 +371,15 @@ impl Modal for QuitAsk {
     fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
         let lay = Layout::new();
         let text = app.text("menu.quit_question");
-        match app.confirmation_box(&lay, &text, input) {
+        let answer = app.confirmation_box(&lay, &text, input);
+        self.answered(app, answer)
+    }
+}
+
+impl QuitAsk {
+    /// What the answer does: Yes ends the program, No closes the box, no answer keeps it.
+    fn answered(self: Box<Self>, app: &mut App, answer: Option<bool>) -> Option<Box<dyn Modal>> {
+        match answer {
             Some(true) => {
                 app.quit = true;
                 None
@@ -600,6 +608,18 @@ mod tests {
         assert!(stack.has("quit"));
         assert_eq!(stack.take_top().map(|(at, _)| at), Some(0));
         assert!(stack.take_top().is_none());
+    }
+
+    #[test]
+    fn yes_to_the_quit_question_quits_and_no_does_not() {
+        let answer = |answer| {
+            let mut app = App::for_test();
+            let kept = Box::new(QuitAsk).answered(&mut app, answer).is_some();
+            (kept, app.quit)
+        };
+        assert_eq!(answer(None), (true, false));
+        assert_eq!(answer(Some(false)), (false, false));
+        assert_eq!(answer(Some(true)), (false, true));
     }
 
     #[test]

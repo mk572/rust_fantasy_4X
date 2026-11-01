@@ -82,6 +82,7 @@ fn cast(g: &mut Game, id: &str, city: hecs::Entity) -> Vec<Event> {
         .left = 500;
     g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 500;
     g.apply(Command::CastSpell {
+        extra: 0,
         player: P0,
         spell: s,
         target: Some(Target::City(city)),
@@ -139,6 +140,7 @@ fn summoned_creatures_appear_at_the_circle() -> TestResult {
     // No target is needed: the creatures come to the circle.
     assert!(!g.spell_needs_target(P0, call));
     g.apply(Command::CastSpell {
+        extra: 0,
         player: P0,
         spell: call,
         target: None,
@@ -161,6 +163,7 @@ fn summoned_creatures_appear_at_the_circle() -> TestResult {
         .left = 99;
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 500;
     g.apply(Command::CastSpell {
+        extra: 0,
         player: P0,
         spell: call,
         target: None,
@@ -443,6 +446,7 @@ fn finishing_the_spell_of_mastery_wins_and_scores() -> TestResult {
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 9000;
     let _ = capital;
     let events = g.apply(Command::CastSpell {
+        extra: 0,
         player: P0,
         spell: s,
         target: None,
@@ -485,6 +489,7 @@ fn starting_the_spell_of_mastery_is_announced_and_visible_to_all() -> TestResult
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 500;
     assert!(g.mastery_casters().is_empty());
     let events = g.apply(Command::CastSpell {
+        extra: 0,
         player: P0,
         spell: s,
         target: None,

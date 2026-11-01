@@ -263,6 +263,10 @@ impl App {
             self.open_resurrect(spell, true);
             return;
         }
+        if self.game.content().rules.spells.get(spell).target == SpellTarget::EnemyWizard {
+            self.open_wizard_pick(spell, true);
+            return;
+        }
         if self.game.content().rules.spells.get(spell).target == SpellTarget::GlobalEnchantment {
             if self.game.rival_globals(HUMAN).is_empty() {
                 self.log.push(self.text("spell.no_globals_waits"));
@@ -290,8 +294,31 @@ impl App {
             self.open_craft(craft);
             return;
         }
+        // A spell that takes extra mana asks how much first.
+        if self.game.spell_takes_extra_mana(spell) {
+            self.cast_extra = 0;
+            self.modals.open(crate::extra_mana::ExtraMana::new(spell));
+            return;
+        }
+        self.cast_extra = 0;
+        self.continue_cast(spell);
+    }
+
+    /// The extra mana the player chose for `spell`; none for a spell that does not take it.
+    pub(crate) fn chosen_extra(&self, spell: SpellId) -> i32 {
+        if self.game.spell_takes_extra_mana(spell) {
+            self.cast_extra
+        } else {
+            0
+        }
+    }
+
+    /// The rest of `begin_cast`, once the extra mana (`cast_extra`) is settled.
+    pub(crate) fn continue_cast(&mut self, spell: SpellId) {
         let needs = self.game.spell_needs_target(HUMAN, spell);
-        let cost = self.game.casting_cost(HUMAN, spell, false);
+        let cost = self
+            .game
+            .casting_cost_with_extra(HUMAN, spell, self.chosen_extra(spell));
         let instant = self.game.wizard(HUMAN).map_or(0, |m| m.skill_left());
         let mana = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         if needs && cost <= instant.min(mana) {
@@ -301,6 +328,11 @@ impl App {
                 .spell_has_hook(spell, f4x_core::spell::hero::RESURRECTION)
             {
                 self.open_resurrect(spell, false);
+                return;
+            }
+            // A rival wizard is chosen by portrait.
+            if self.game.content().rules.spells.get(spell).target == SpellTarget::EnemyWizard {
+                self.open_wizard_pick(spell, false);
                 return;
             }
             // A rival's global enchantment is no place on the map: it is chosen from a list.
@@ -326,6 +358,7 @@ impl App {
             return;
         }
         let events = self.game.apply(Command::CastSpell {
+            extra: self.chosen_extra(spell),
             player: HUMAN,
             spell,
             target: None,
@@ -446,6 +479,7 @@ impl App {
             }
         } else {
             Command::CastSpell {
+                extra: self.chosen_extra(t.spell),
                 player: HUMAN,
                 spell: t.spell,
                 target: Some(target),

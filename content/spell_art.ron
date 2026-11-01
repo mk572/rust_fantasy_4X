@@ -62,6 +62,8 @@
         "disintegrate": [(lbx: "cmbtfx", entry: 4, role: Cast)],
         "disjunction": [(lbx: "specfx", entry: 48, role: Cast)],
         "disjunction_true": [(lbx: "specfx", entry: 47, role: Cast)],
+        "dispel_magic": [(lbx: "specfx", entry: 13, role: Cast)],
+        "dispel_magic_true": [(lbx: "cmbtfx", entry: 26, role: Cast)],
         "dispel_evil": [(lbx: "cmbtfx", entry: 10, role: Cast)],
         "disrupt": [(lbx: "cmbtfx", entry: 1, role: Cast)],
         "doom_bolt": [(lbx: "cmbtfx", entry: 5, role: Cast)],

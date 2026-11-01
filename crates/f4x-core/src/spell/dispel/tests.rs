@@ -78,6 +78,7 @@ fn cast(g: &mut Game, spell: &str, target: Target) -> Vec<Event> {
         .known
         .insert(s);
     g.apply(Command::CastSpell {
+        extra: 0,
         player: P0,
         spell: s,
         target: Some(target),
@@ -275,6 +276,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
         .known
         .insert(da);
     let events = g.apply(Command::CastSpell {
+        extra: 0,
         player: P1,
         spell: sp(&g, "disenchant_area"),
         target: Some(Target::Tile(at(6, 6))),
@@ -318,6 +320,7 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() -> TestResult {
         .known
         .insert(dj);
     let events = g.apply(Command::CastSpell {
+        extra: 0,
         player: P1,
         spell: sp(&g, "disjunction"),
         target: Some(stolen),

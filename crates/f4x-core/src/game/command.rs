@@ -246,6 +246,11 @@ pub enum Command {
         #[serde(with = "game::replay::stable_ref::spell")]
         spell: rules::SpellId,
         target: Option<rules::exec::Target>,
+        /// Mana put into the spell beyond its cost, for a spell that takes extra mana
+        /// (`Game::spell_takes_extra_mana`: Disenchant Area, Disjunction and the like); its
+        /// dispel strength grows with it. Zero for any other spell.
+        #[serde(default)]
+        extra: i32,
     },
     /// Aim a spell that has been paid for over several turns.
     ResolveCast {

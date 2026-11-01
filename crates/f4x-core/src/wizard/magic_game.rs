@@ -96,6 +96,30 @@ impl Game {
             .is_some_and(|c| self.spell_has_hook(c.spell, crate::wizard::fortress::RETURN))
     }
 
+    /// Whether mana put into `spell` beyond its cost makes it stronger overland: the spells
+    /// that dispel (Disenchant Area and True) and those that attack a rival's global enchantment
+    /// (Disjunction, Disjunction True and Spell Binding). Dispel strength is the mana, so one
+    /// extra mana adds one point of strength, three for a True spell.
+    pub fn spell_takes_extra_mana(&self, spell: SpellId) -> bool {
+        let def = self.content.rules.spells.get(spell);
+        def.contexts.contains(&CastContext::Overland)
+            && (def
+                .effects
+                .iter()
+                .any(|e| matches!(e.effect, crate::rules::effects::Effect::Dispel { .. }))
+                || crate::spell::dispel::GLOBAL_ATTACKS
+                    .iter()
+                    .any(|h| self.spell_has_hook(spell, h)))
+    }
+
+    /// The mana `spell` costs with `extra` mana put into it.
+    pub fn casting_cost_with_extra(&self, player: PlayerId, spell: SpellId, extra: i32) -> i32 {
+        let mut def = self.content.rules.spells.get(spell).clone();
+        def.cost += extra.max(0) as u32;
+        let evil_omens = self.evil_omens_active();
+        crate::wizard::sheet::casting_cost(self.wizard(player).as_ref(), &def, false, evil_omens)
+    }
+
     /// Mana needed to cast `spell` (`sheet::casting_cost`).
     pub fn casting_cost(&self, player: PlayerId, spell: SpellId, in_battle: bool) -> i32 {
         let def = self.content.rules.spells.get(spell);
@@ -329,7 +353,24 @@ impl Game {
         spell: SpellId,
         target: Option<crate::rules::exec::Target>,
     ) -> Result<Vec<Event>, MagicError> {
-        let cost = self.casting_cost(player, spell, false);
+        self.start_cast_with(player, spell, target, 0)
+    }
+
+    /// `start_cast` with `extra` mana put into a spell that takes it.
+    pub fn start_cast_with(
+        &mut self,
+        player: PlayerId,
+        spell: SpellId,
+        target: Option<crate::rules::exec::Target>,
+        extra: i32,
+    ) -> Result<Vec<Event>, MagicError> {
+        if extra < 0 || (extra > 0 && !self.spell_takes_extra_mana(spell)) {
+            return Err(MagicError::NotAvailable);
+        }
+        // The extra mana is part of the price, so that cost reductions apply to it too, and at
+        // most as much again as the spell costs.
+        let extra = extra.min(self.content.rules.spells.get(spell).cost as i32);
+        let cost = self.casting_cost_with_extra(player, spell, extra);
         let reserve = self
             .player(player)
             .ok_or(MagicError::UnknownPlayer)?
@@ -375,11 +416,11 @@ impl Game {
                 }
                 self.begin_cast_relations(player, spell);
                 let mut events = self.mastery_announcement(player, spell);
-                events.extend(self.resolve_cast(player, spell, target));
+                events.extend(self.resolve_cast_with(player, spell, target, extra));
                 Ok(events)
             }
             CastStart::Paid => {
-                self.begin_casting(player, spell, cost);
+                self.begin_casting_with(player, spell, cost, extra);
                 self.begin_cast_relations(player, spell);
                 Ok(self.mastery_announcement(player, spell))
             }

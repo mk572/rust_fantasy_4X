@@ -347,6 +347,7 @@ mod tests {
             .left = 500;
         g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 1000;
         g.apply(Command::CastSpell {
+            extra: 0,
             player: P0,
             spell: s,
             target: Some(Target::Tile(pos)),
@@ -461,6 +462,7 @@ mod tests {
             .get_mut::<crate::wizard::sheet::Skill>()
             .left = 500;
         let events = g.apply(Command::CastSpell {
+            extra: 0,
             player: P0,
             spell: s,
             target: Some(Target::Tile(at(2, 2))),

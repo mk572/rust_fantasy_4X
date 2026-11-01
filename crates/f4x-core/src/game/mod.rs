@@ -631,7 +631,8 @@ impl Game {
                 player,
                 spell,
                 target,
-            } => events_or_reject(self.start_cast(player, spell, target)),
+                extra,
+            } => events_or_reject(self.start_cast_with(player, spell, target, extra)),
             Command::ResolveCast { player, target } => {
                 events_or_reject(self.finish_cast_with_target(player, target))
             }
