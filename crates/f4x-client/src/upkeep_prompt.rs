@@ -3,7 +3,8 @@
 //! Without an answer the turn change lets go of the newest. A second page appears when released
 //! heroes bring more items home than the armory holds: which to disband for mana.
 
-use crate::font::Style;
+use crate::font::{rgb, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::player::shortfall::{ItemOverflow, TreasuryShortfall};
@@ -48,6 +49,49 @@ impl Modal for UpkeepPrompt {
     }
     fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
         keep(app.upkeep_prompt_frame(*self, input))
+    }
+}
+
+impl App {
+    /// The stone of `resource.lbx` 0 down to `height`: the picture is only as tall as the
+    /// original's short boxes, so a taller one repeats a plain band from its middle.
+    fn draw_stone(&mut self, lay: &Layout, x: f32, y: f32, height: f32) {
+        const BAND: (f32, f32) = (30.0, 20.0);
+        let Some(tex) = self.art_picture("resource", 0, 0) else {
+            return;
+        };
+        let (w, h) = (
+            crate::resolution::logical_w(&tex),
+            crate::resolution::logical_h(&tex),
+        );
+        let slice = |from: f32, rows: f32, at: f32| {
+            let p = lay.point(x, y + at);
+            draw_texture_ex(
+                &tex,
+                p.x,
+                p.y,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(vec2(w * lay.scale, rows * lay.scale)),
+                    source: Some(crate::resolution::pixel_rect(Rect::new(0.0, from, w, rows))),
+                    ..Default::default()
+                },
+            );
+        };
+        if height <= h {
+            slice(0.0, height, 0.0);
+            return;
+        }
+        // The top, then bands, then the picture's last rows.
+        let tail = 12.0;
+        slice(0.0, BAND.0, 0.0);
+        let mut at = BAND.0;
+        while at < height - tail {
+            let rows = BAND.1.min(height - tail - at);
+            slice(BAND.0, rows, at);
+            at += rows;
+        }
+        slice(h - tail, tail, at);
     }
 }
 
@@ -344,7 +388,7 @@ impl App {
         let rows = n.min(SHOWN);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let (bx, bw) = (8.0, 224.0);
+        let (bx, bw) = (68.0, 185.0);
         let bh = 62.0 + rows as f32 * ROW;
         let by = ((crate::resolution::DESIGN_H - bh) / 2.0).floor();
         let first = prompt
@@ -359,10 +403,11 @@ impl App {
                 ROW,
             ))
         };
-        let yes_at = (bx + bw - 70.0, by + bh - 21.0);
-        let no_at = (bx + bw - 138.0, by + bh - 21.0);
-        let yes = ui::hit(lay.rect((yes_at.0, yes_at.1, 65.0, 17.0)), true, input);
-        let no = ui::hit(lay.rect((no_at.0, no_at.1, 65.0, 17.0)), true, input);
+        // The buttons of `Confirmation_Box`: Yes at 101, No at 18, 15 below the text.
+        let yes_at = (bx + 101.0, by + bh - 19.0);
+        let no_at = (bx + 18.0, by + bh - 19.0);
+        let yes = ui::hit(lay.rect((yes_at.0, yes_at.1, 33.0, 17.0)), true, input);
+        let no = ui::hit(lay.rect((no_at.0, no_at.1, 33.0, 17.0)), true, input);
 
         let mut confirm = input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::Y);
         let mut cancelled = input.key_pressed(KeyCode::Escape) || input.key_pressed(KeyCode::N);
@@ -420,36 +465,24 @@ impl App {
             return None;
         }
 
-        // The box: the original's stone brown with a dark edge.
-        let panel = lay.rect((bx, by, bw, bh));
-        draw_rectangle(
-            panel.x,
-            panel.y,
-            panel.w,
-            panel.h,
-            Color::new(0.36, 0.27, 0.20, 1.0),
-        );
-        draw_rectangle_lines(
-            panel.x,
-            panel.y,
-            panel.w,
-            panel.h,
-            2.0 * lay.scale,
-            Color::new(0.12, 0.08, 0.05, 1.0),
-        );
-        let shadow = Color::new(0.05, 0.1, 0.2, 1.0);
-        let light = Color::new(0.97, 0.95, 0.85, 1.0);
-        let gold = Color::new(0.95, 0.78, 0.30, 1.0);
-        let red = Color::new(0.85, 0.20, 0.15, 1.0);
-        let say = |app: &mut App, color: Color, text: &str, x: f32, y: f32, align: Align| {
+        // The box of `Confirmation_Box_Draw`: the stone of `resource.lbx` 0 and 1, the text in the
+        // grey ramp `COL_Dialog_Text` over the shadow colour `COL_ConfirmShadows` (17).
+        self.draw_stone(&lay, bx, by, bh - 22.0);
+        self.draw_pic(&lay, "resource", 1, 0, bx, by + bh - 24.0);
+        let edge = rgb(0x41, 0x2C, 0x24);
+        let dialog = Ink::Set(font_ramp::DIALOG_TEXT);
+        let light = dialog;
+        let gold = Ink::Set(font_ramp::NOTIFY_TEXT);
+        // What is marked to go: the gold of the notification boxes, besides the red box.
+        let red = Ink::Set(font_ramp::NOTIFY_TEXT);
+        let say = |app: &mut App, ink: Ink, text: &str, x: f32, y: f32, align: Align| {
             app.draw_styled(
                 view,
-                &Style::nearest(4, shadow).align(align),
+                &Style::inked(1, ink).shadow().edge(edge).align(align),
                 text,
-                x + 1.0,
-                y + 1.0,
+                x,
+                y,
             );
-            app.draw_styled(view, &Style::nearest(4, color).align(align), text, x, y);
         };
         let middle = bx + bw / 2.0;
         say(
@@ -479,6 +512,12 @@ impl App {
                 let r = row_rect(i);
                 draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.5, 0.38, 0.26, 1.0));
             }
+            // A long name gives way to the figures that follow it.
+            let room = bw - 19.0 - 8.0 - self.art.text_width(1, &price) - 6.0;
+            let mut label = label;
+            while label.chars().count() > 1 && self.art.text_width(1, &label) > room {
+                label.pop();
+            }
             let marked = prompt.marked(line);
             let b = lay.rect((bx + 8.0, y + 1.0, 7.0, 7.0));
             draw_rectangle(b.x, b.y, b.w, b.h, Color::new(0.12, 0.08, 0.05, 1.0));
@@ -488,7 +527,7 @@ impl App {
                     b.y + lay.scale,
                     b.w - 2.0 * lay.scale,
                     b.h - 2.0 * lay.scale,
-                    red,
+                    rgb(0x75, 0x24, 0x24),
                 );
             }
             say(
@@ -509,11 +548,7 @@ impl App {
             );
         }
         let (status, fine) = prompt.status(&self.game.content().texts);
-        let ok_colour = if fine {
-            Color::new(0.55, 0.9, 0.5, 1.0)
-        } else {
-            Color::new(1.0, 0.7, 0.3, 1.0)
-        };
+        let ok_colour = if fine { light } else { red };
         say(
             self,
             ok_colour,
@@ -527,9 +562,9 @@ impl App {
                 self,
                 gold,
                 &self.text("upkeep.more_below"),
-                bx + 8.0,
-                by + bh - 15.0,
-                Align::Left,
+                bx + bw - 8.0,
+                by + bh - 33.0,
+                Align::Right,
             );
         }
         self.draw_pic(

@@ -320,18 +320,17 @@ impl App {
         self.draw_pic_rows(lay, "resource", 38, x, y, y, y + paragraph + 12.0);
         self.draw_pic(lay, "resource", 39, 0, x, y + paragraph + 10.0);
         let shadow = Color::new(0.2, 0.02, 0.02, 1.0);
-        let light = Color::new(0.95, 0.9, 0.85, 1.0);
         for (i, l) in lines.iter().enumerate() {
             let at = y + 10.0 + line * i as f32;
             let cx = x + 10.0 + 83.0;
+            // `Warn_Draw`: colour set 4 over copies in the box's dark red.
             self.draw_styled(
                 view,
-                &Style::nearest(4, shadow).center(),
+                &Style::set(4, 4).shadow().edge(shadow).center(),
                 l,
-                cx + 1.0,
-                at + 1.0,
+                cx,
+                at,
             );
-            self.draw_styled(view, &Style::nearest(4, light).center(), l, cx, at);
         }
         input.dismisses()
     }

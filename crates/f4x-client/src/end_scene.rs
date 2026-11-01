@@ -7,7 +7,8 @@
 //! original's (`win`, `lose`, `conquest`, `wizlab`, `vortex`, `cmbtfx`); without them a scene shows
 //! its caption on black and runs as long.
 
-use crate::font::Style;
+use crate::font::{rgb, Effect, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use f4x_core::player::PlayerId;
 use f4x_core::text::{Args, Gender};
@@ -26,7 +27,11 @@ pub(crate) enum Kind {
     /// The human wizard rules both planes (`Win_Animation`).
     Win { wizard: usize },
     /// The human wizard is gone (`Lose_Animation`).
-    Lose { wizard: usize },
+    Lose {
+        wizard: usize,
+        /// The rival who finished the Spell of Mastery: the scene says so (`Spell_Of_Mastery_Lose_Draw`).
+        caster: Option<PlayerId>,
+    },
     /// The raiders (`winner` is `None`) or a rival destroy a wizard (`Conquest_Animation`).
     Conquest {
         loser: usize,
@@ -209,7 +214,11 @@ impl App {
             .push_back(Scene::new(if over.winner == HUMAN {
                 Kind::Win { wizard }
             } else {
-                Kind::Lose { wizard }
+                Kind::Lose {
+                    wizard,
+                    caster: (over.kind == f4x_core::game::endgame::EndKind::SpellOfMastery)
+                        .then_some(over.winner),
+                }
             }));
     }
 
@@ -268,7 +277,10 @@ impl App {
             .unwrap_or(HUMAN);
         match name {
             "win" => self.end_scenes.push_back(Scene::new(Kind::Win { wizard })),
-            "lose" => self.end_scenes.push_back(Scene::new(Kind::Lose { wizard })),
+            "lose" => self.end_scenes.push_back(Scene::new(Kind::Lose {
+                wizard,
+                caster: Some(rival),
+            })),
             "parade" => {
                 let rivals = vec![usize::from(
                     self.game.wizard(rival).map_or(1, |w| w.portrait()),
@@ -332,7 +344,7 @@ impl App {
         clip_to_screen(&lay, true);
         match kind {
             Kind::Win { wizard } => self.draw_win(&lay, wizard, stage),
-            Kind::Lose { wizard } => self.draw_lose(&lay, wizard, stage),
+            Kind::Lose { wizard, caster } => self.draw_lose(&lay, wizard, caster, stage),
             Kind::Conquest {
                 loser,
                 winner,
@@ -362,9 +374,18 @@ impl App {
         }
     }
 
-    fn scene_caption(&mut self, lay: &Layout, text: &str, y: f32) {
+    fn scene_caption(&mut self, lay: &Layout, text: &str, y: f32, edge: Color) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        self.draw_styled(view, &Style::outlined(5).center(), text, 160.0, y);
+        self.draw_styled(
+            view,
+            &Style::set(5, 5)
+                .effect(Effect::OutlineHeavy)
+                .edge(edge)
+                .center(),
+            text,
+            160.0,
+            y,
+        );
     }
 
     fn draw_win(&mut self, lay: &Layout, wizard: usize, stage: u32) {
@@ -381,10 +402,28 @@ impl App {
         let planets = self.scene_frame("win", 2, stage);
         self.scene_pic(lay, "win", 2, planets, (0.0, 0.0));
         let text = self.text(WIN_LINES[win_line(stage)]);
-        self.scene_caption(lay, &text, 180.0);
+        self.scene_caption(lay, &text, 180.0, rgb(0, 0, 0));
     }
 
-    fn draw_lose(&mut self, lay: &Layout, wizard: usize, stage: u32) {
+    fn draw_lose(&mut self, lay: &Layout, wizard: usize, caster: Option<PlayerId>, stage: u32) {
+        self.draw_lose_picture(lay, wizard, stage);
+        if let Some(caster) = caster {
+            // The caption of a lost Spell of Mastery: the winner's name over "Spell of Mastery", in
+            // the grey of `Set_Font_Colors_15(5, 5 ...)` with `Outline` and outline colour 0.
+            let view = (lay.origin.x, lay.origin.y, lay.scale);
+            let style = Style::inked(5, Ink::Set(font_ramp::flat(5)))
+                .effect(Effect::Outline)
+                .edge(rgb(0, 0, 0))
+                .center();
+            let args = self.wizard_arg(Args::new(), "winner", caster);
+            let line = self.text_with("end.mastery_cast", &args);
+            self.draw_styled(view, &style, &line, 160.0, 5.0);
+            let name = self.text("bigbook.mastery_name");
+            self.draw_styled(view, &style, &name, 160.0, 25.0);
+        }
+    }
+
+    fn draw_lose_picture(&mut self, lay: &Layout, wizard: usize, stage: u32) {
         let vortex = self.scene_frame("lose", 0, stage);
         self.scene_pic(lay, "lose", 0, vortex, (0.0, 0.0));
         let Some(&(x, y, angle, size)) = LIMBO_FALL.get(stage as usize) else {
@@ -441,7 +480,7 @@ impl App {
             Some(w) if (7..23).contains(&stage) => self.draw_zap(lay, loser, w, feminine, stage),
             _ => {}
         }
-        self.scene_caption(lay, caption, 6.0);
+        self.scene_caption(lay, caption, 6.0, rgb(0x08, 0x04, 0x04));
     }
 
     /// Stages 7 to 22 with a conquering wizard: he seizes the loser (the zap grows), strikes

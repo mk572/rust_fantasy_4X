@@ -297,18 +297,12 @@ impl App {
         ] {
             self.draw_styled(
                 view,
-                &Style::flat(style, WHITE).shadow().right(),
+                &Style::sh_set(style, 0).right(),
                 &value.to_string(),
                 right,
                 68.0,
             );
-            self.draw_styled(
-                view,
-                &Style::flat(0, WHITE).shadow(),
-                &unit,
-                right + 3.0,
-                68.0,
-            );
+            self.draw_styled(view, &Style::sh_set(0, 0), &unit, right + 3.0, 68.0);
         }
 
         self.draw_world_event(&lay);

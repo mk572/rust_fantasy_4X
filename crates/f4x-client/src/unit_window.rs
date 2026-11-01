@@ -3,7 +3,8 @@
 //! to nine unit pictures in a grid of three, the Done, Patrol, Wait and Build buttons and the
 //! stack's moves. A click on a picture picks that unit, a right-click opens its sheet.
 
-use crate::font::Style;
+use crate::font::{rgb, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::game::Command;
@@ -207,7 +208,15 @@ impl App {
                 None
             };
             if let Some(mark) = mark {
-                self.draw_styled(view, &Style::outlined(1), mark, at.0 + 2.0, at.1 + 2.0);
+                self.draw_styled(
+                    view,
+                    &Style::inked(0, Ink::Set(font_ramp::UNIT_MARK))
+                        .shadow()
+                        .edge(rgb(0x49, 0x41, 0x3C)),
+                    mark,
+                    at.0 + 2.0,
+                    at.1 + 2.0,
+                );
             }
             let rect = lay.rect((at.0 - 1.0, at.1 - 1.0, STEP.0 - 1.0, STEP.1 - 1.0));
             let state = ui::hit(rect, true, input);

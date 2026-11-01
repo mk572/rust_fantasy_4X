@@ -4,7 +4,7 @@
 //! cast. With Spell Animations off the mirror shows the spell's picture at once, with the line
 //! "You have completed casting..." under it.
 
-use crate::font::Style;
+use crate::font::{rgb, Effect, Style};
 use crate::input::Input;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
@@ -134,12 +134,24 @@ impl App {
             .clone();
         let line = (x + 62.0, y + 133.0);
         if !animated {
-            self.draw_styled(view, &Style::outlined(5).center(), &words, line.0, line.1);
+            self.draw_styled(
+                view,
+                &Style::set(5, 0)
+                    .effect(Effect::Outline)
+                    .edge(rgb(0, 0, 0))
+                    .center(),
+                &words,
+                line.0,
+                line.1,
+            );
             self.draw_pic(lay, "backgrnd", 18, 0, x, y);
             self.draw_pic(lay, &cast.picture.0, cast.picture.1, 0, x + 10.0, y + 8.0);
             self.draw_styled(
                 view,
-                &Style::outlined(5).center(),
+                &Style::set(5, 0)
+                    .effect(Effect::Outline)
+                    .edge(rgb(0, 0, 0))
+                    .center(),
                 &name,
                 line.0,
                 line.1 + 20.0,
@@ -147,7 +159,16 @@ impl App {
             return;
         }
         if stage < 34 {
-            self.draw_styled(view, &Style::outlined(5).center(), &words, line.0, line.1);
+            self.draw_styled(
+                view,
+                &Style::set(5, 0)
+                    .effect(Effect::Outline)
+                    .edge(rgb(0, 0, 0))
+                    .center(),
+                &words,
+                line.0,
+                line.1,
+            );
         }
         let inside = (x + 12.0, y + 12.0);
         if stage < 14 {
@@ -179,7 +200,16 @@ impl App {
         } else {
             self.draw_pic(lay, "backgrnd", 18, 0, x, y);
             self.draw_pic(lay, &cast.picture.0, cast.picture.1, 0, x + 10.0, y + 8.0);
-            self.draw_styled(view, &Style::outlined(5).center(), &name, line.0, line.1);
+            self.draw_styled(
+                view,
+                &Style::set(5, 0)
+                    .effect(Effect::Outline)
+                    .edge(rgb(0, 0, 0))
+                    .center(),
+                &name,
+                line.0,
+                line.1,
+            );
         }
     }
 

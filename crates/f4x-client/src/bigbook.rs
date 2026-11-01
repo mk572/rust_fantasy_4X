@@ -421,13 +421,25 @@ impl App {
         let started_line = self.text_with("bigbook.mastery_started", &args);
         self.draw_styled(
             view,
-            &Style::outlined(5).center(),
+            &Style::set(5, 5)
+                .effect(Effect::Outline)
+                .edge(rgb(0, 0, 0))
+                .center(),
             &started_line,
             160.0,
             160.0,
         );
         let name = self.text("bigbook.mastery_name");
-        self.draw_styled(view, &Style::outlined(5).center(), &name, 160.0, 180.0);
+        self.draw_styled(
+            view,
+            &Style::set(5, 5)
+                .effect(Effect::Outline)
+                .edge(rgb(0, 0, 0))
+                .center(),
+            &name,
+            160.0,
+            180.0,
+        );
         Some(notice)
     }
 }

@@ -47,72 +47,88 @@ pub(crate) const CRAFT_POWER_ON: usize = 35;
 pub(crate) const CRAFT_POWER_OFF: usize = 36;
 /// item making: the cost (COL_DeselectItemName).
 pub(crate) const CRAFT_COST: usize = 37;
+/// the B and G of a unit in the main screen's unit window (MainScr.c).
+pub(crate) const UNIT_MARK: usize = 38;
+/// the text of the notification boxes (Notify1_Draw: notify_text_colors).
+pub(crate) const NOTIFY_TEXT: usize = 39;
+/// the copyright line of the intro (INTRO.c).
+pub(crate) const INTRO_COPYRIGHT: usize = 40;
+/// the text of the confirmation box (COL_Dialog_Text).
+pub(crate) const DIALOG_TEXT: usize = 41;
 /// hall of fame: title and entries (SCORE.c color_array).
-pub(crate) const HOF_TITLE: usize = 38;
+pub(crate) const HOF_TITLE: usize = 42;
 /// level up: the title (LVLMAKE.c).
-pub(crate) const LEVEL_TITLE: usize = 39;
+pub(crate) const LEVEL_TITLE: usize = 43;
 /// level up: the lines (LVLMAKE.c).
-pub(crate) const LEVEL_TEXT: usize = 40;
+pub(crate) const LEVEL_TEXT: usize = 44;
 /// spellbook: a spell's name and cost (Spellbook.c colors 184, 187).
-pub(crate) const BOOK_NAME: usize = 41;
+pub(crate) const BOOK_NAME: usize = 45;
 /// spellbook: the page title (Spellbook.c colors 53, 46).
-pub(crate) const BOOK_TITLE: usize = 42;
+pub(crate) const BOOK_TITLE: usize = 46;
 /// battle: the player name of banner 0 (combat_name_font_colors_by_banner).
-pub(crate) const BATTLE_NAME_0: usize = 43;
+pub(crate) const BATTLE_NAME_0: usize = 47;
 /// battle: the player name of banner 1 (combat_name_font_colors_by_banner).
-pub(crate) const BATTLE_NAME_1: usize = 44;
+pub(crate) const BATTLE_NAME_1: usize = 48;
 /// battle: the player name of banner 2 (combat_name_font_colors_by_banner).
-pub(crate) const BATTLE_NAME_2: usize = 45;
+pub(crate) const BATTLE_NAME_2: usize = 49;
 /// battle: the player name of banner 3 (combat_name_font_colors_by_banner).
-pub(crate) const BATTLE_NAME_3: usize = 46;
+pub(crate) const BATTLE_NAME_3: usize = 50;
 /// battle: the player name of banner 4 (combat_name_font_colors_by_banner).
-pub(crate) const BATTLE_NAME_4: usize = 47;
+pub(crate) const BATTLE_NAME_4: usize = 51;
 /// battle: the player name of banner 5 (combat_name_font_colors_by_banner).
-pub(crate) const BATTLE_NAME_5: usize = 48;
+pub(crate) const BATTLE_NAME_5: usize = 52;
 /// Alchemy_Popup_Draw: colors[].
-pub(crate) const ALCHEMY_AMOUNT: usize = 49;
+pub(crate) const ALCHEMY_AMOUNT: usize = 53;
 /// palette colour 0 on its own.
-pub(crate) const FLAT_0: usize = 50;
+pub(crate) const FLAT_0: usize = 54;
 /// palette colour 6 on its own.
-pub(crate) const FLAT_6: usize = 51;
+pub(crate) const FLAT_6: usize = 55;
 /// palette colour 39 on its own.
-pub(crate) const FLAT_39: usize = 52;
+pub(crate) const FLAT_39: usize = 56;
 /// palette colour 43 on its own.
-pub(crate) const FLAT_43: usize = 53;
+pub(crate) const FLAT_43: usize = 57;
 /// palette colour 98 on its own.
-pub(crate) const FLAT_98: usize = 54;
+pub(crate) const FLAT_98: usize = 58;
 /// palette colour 166 on its own.
-pub(crate) const FLAT_166: usize = 55;
+pub(crate) const FLAT_166: usize = 59;
 /// palette colour 50 on its own.
-pub(crate) const FLAT_50: usize = 56;
+pub(crate) const FLAT_50: usize = 60;
 /// palette colour 79 on its own.
-pub(crate) const FLAT_79: usize = 57;
+pub(crate) const FLAT_79: usize = 61;
 /// palette colour 123 on its own.
-pub(crate) const FLAT_123: usize = 58;
+pub(crate) const FLAT_123: usize = 62;
 /// palette colour 124 on its own.
-pub(crate) const FLAT_124: usize = 59;
+pub(crate) const FLAT_124: usize = 63;
 /// palette colour 125 on its own.
-pub(crate) const FLAT_125: usize = 60;
+pub(crate) const FLAT_125: usize = 64;
 /// palette colour 127 on its own.
-pub(crate) const FLAT_127: usize = 61;
+pub(crate) const FLAT_127: usize = 65;
 /// palette colour 172 on its own.
-pub(crate) const FLAT_172: usize = 62;
+pub(crate) const FLAT_172: usize = 66;
 /// palette colour 179 on its own.
-pub(crate) const FLAT_179: usize = 63;
+pub(crate) const FLAT_179: usize = 67;
 /// palette colour 201 on its own.
-pub(crate) const FLAT_201: usize = 64;
+pub(crate) const FLAT_201: usize = 68;
 /// palette colour 211 on its own.
-pub(crate) const FLAT_211: usize = 65;
+pub(crate) const FLAT_211: usize = 69;
 /// palette colour 216 on its own.
-pub(crate) const FLAT_216: usize = 66;
+pub(crate) const FLAT_216: usize = 70;
 /// palette colour 218 on its own.
-pub(crate) const FLAT_218: usize = 67;
+pub(crate) const FLAT_218: usize = 71;
 /// palette colour 221 on its own.
-pub(crate) const FLAT_221: usize = 68;
+pub(crate) const FLAT_221: usize = 72;
 /// palette colour 222 on its own.
-pub(crate) const FLAT_222: usize = 69;
+pub(crate) const FLAT_222: usize = 73;
+/// palette colour 5 on its own.
+pub(crate) const FLAT_5: usize = 74;
+/// palette colour 45 on its own.
+pub(crate) const FLAT_45: usize = 75;
+/// palette colour 47 on its own.
+pub(crate) const FLAT_47: usize = 76;
+/// palette colour 55 on its own.
+pub(crate) const FLAT_55: usize = 77;
 /// How many ramps there are; the atlases of styles 0 to 5 stack 16 + this many colour sets.
-pub(crate) const COUNT: usize = 54;
+pub(crate) const COUNT: usize = 62;
 
 /// The colour set of one palette colour on its own (`FLATS` in the script); a colour not
 /// listed there panics: add it to `FLATS` and run the script again.
@@ -138,6 +154,10 @@ pub(crate) fn flat(index: u8) -> usize {
         218 => FLAT_218,
         221 => FLAT_221,
         222 => FLAT_222,
+        5 => FLAT_5,
+        45 => FLAT_45,
+        47 => FLAT_47,
+        55 => FLAT_55,
         other => panic!("{other}"),
     }
 }

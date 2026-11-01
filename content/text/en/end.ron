@@ -6,6 +6,7 @@
     "end.won_mastery": "You have finished the Spell of Mastery and rule all of Arcanus and Myrror.",
     "end.won_conquest": "Every rival wizard has been defeated.",
     "end.lost_mastery": "{winner} has finished the Spell of Mastery.",
+    "end.mastery_cast": "{winner} has cast the",
     "end.lost_conquest": "You have lost your last city to {winner}.",
     "end.log": "{title} {reason}",
     // The victory speech, a line every fifteen steps of the scene.

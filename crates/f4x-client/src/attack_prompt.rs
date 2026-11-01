@@ -9,7 +9,6 @@ use macroquad::prelude::*;
 
 use crate::fighter_pick::PickStep;
 use crate::modal::{keep, kind, Modal};
-use crate::ui::{button, GOLD};
 use crate::view::{App, HUMAN};
 
 /// An attack waiting for the player's answer.
@@ -193,48 +192,55 @@ impl App {
         mut ask: ManaAsk,
         input: &Input,
     ) -> ManaStep {
-        let (w, h) = (screen_width(), screen_height());
-        let (bw, bh) = (560.0, 220.0);
-        let (x, y) = ((w - bw) / 2.0, (h - bh) / 2.0);
-        draw_rectangle(x, y, bw, bh, Color::new(0.08, 0.06, 0.04, 0.96));
-        draw_rectangle_lines(x, y, bw, bh, 3.0, GOLD);
-        crate::frame::text_centered(
-            &self.text("attack.mana_title"),
-            w / 2.0,
-            y + 36.0,
-            26.0,
-            GOLD,
-        );
-        let line = self.text_with(
+        // The stone box of `Confirmation_Box` (`resource` 0 and 1) with the title and the line in
+        // the notification text, the amount between two small buttons and the red buttons below;
+        // the original has no such question, so this is built from its parts.
+        let lay = crate::frame::Layout::new();
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let line = self.art.text_height(4) + 2.0;
+        let title = self.text("attack.mana_title");
+        let info = self.text_with(
             "attack.mana_line",
             &Args::new().count("reserve", ask.reserve),
         );
-        crate::frame::text_centered(&line, w / 2.0, y + 72.0, 18.0, WHITE);
-        let less = button(
-            Rect::new(x + 170.0, y + 100.0, 50.0, 38.0),
-            &self.text("attack.mana_less"),
-            ask.amount > 0,
-            input,
+        let lines: Vec<(f32, String)> = [title, info]
+            .iter()
+            .flat_map(|t| self.bm_wrap(4, t, 166.0))
+            .map(|l| (0.0, l))
+            .collect();
+        let paragraph = line * lines.len() as f32 + 22.0;
+        let (x, y) = (
+            68.0,
+            ((crate::resolution::DESIGN_H - (paragraph + 34.0)) / 2.0).floor(),
         );
-        let more = button(
-            Rect::new(x + bw - 220.0, y + 100.0, 50.0, 38.0),
-            &self.text("attack.mana_more"),
-            ask.amount < ask.reserve,
-            input,
+        let edge = self
+            .art
+            .picture("resource", 1, 0)
+            .map_or(24.0, crate::resolution::logical_h);
+        let below = y + paragraph + 10.0;
+        self.draw_pic_rows(&lay, "resource", 0, x, y, y, below + edge - 4.0);
+        self.draw_pic_rows(
+            &lay,
+            "resource",
+            1,
+            x,
+            below,
+            below + edge - 4.0,
+            below + edge,
         );
-        crate::frame::text_centered(&ask.amount.to_string(), w / 2.0, y + 128.0, 32.0, GOLD);
-        let ok = button(
-            Rect::new(x + 60.0, y + bh - 56.0, 200.0, 38.0),
-            &self.text("attack.mana_ok"),
-            true,
-            input,
-        );
-        let back = button(
-            Rect::new(x + bw - 260.0, y + bh - 56.0, 200.0, 38.0),
-            &self.text("attack.mana_back"),
-            true,
-            input,
-        );
+        self.draw_box_text(view, &lines, x + 9.0, y + 9.0, line);
+        let row = y + 9.0 + line * lines.len() as f32 + 2.0;
+        let (less_label, more_label) =
+            (self.text("attack.mana_less"), self.text("attack.mana_more"));
+        let less = ask.amount > 0 && self.red_button(&lay, &less_label, x + 18.0, row, input);
+        let more =
+            ask.amount < ask.reserve && self.red_button(&lay, &more_label, x + 118.0, row, input);
+        let amount = crate::font::Style::outlined(5).center();
+        self.draw_styled(view, &amount, &ask.amount.to_string(), x + 92.5, row - 1.0);
+        let (ok_label, back_label) = (self.text("attack.mana_ok"), self.text("attack.mana_back"));
+        let at = below + 7.0;
+        let ok = self.red_button(&lay, &ok_label, x + 36.0, at, input);
+        let back = self.red_button(&lay, &back_label, x + 100.0, at, input);
         let step = |ask: &mut ManaAsk, up: bool, by: u32| {
             ask.typed = true;
             ask.amount = if up {

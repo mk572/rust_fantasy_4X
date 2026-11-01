@@ -6,7 +6,7 @@
 //! own buildings are shown as they are.
 
 use crate::audio::Track;
-use crate::font::Style;
+use crate::font::{rgb, Effect, Style};
 use crate::frame::Layout;
 use crate::input::Input;
 use crate::modal::{keep, kind, Modal};
@@ -186,7 +186,16 @@ impl App {
             "spell.city_scroll_title",
             &Args::new().text("size", size).text("city", name),
         );
-        self.draw_styled(view, &Style::outlined(5).center(), &title, 160.0, 44.0);
+        self.draw_styled(
+            view,
+            &Style::set(5, 0)
+                .effect(Effect::Outline)
+                .edge(rgb(0, 0, 0))
+                .center(),
+            &title,
+            160.0,
+            44.0,
+        );
         let spell_name = self
             .game
             .content()

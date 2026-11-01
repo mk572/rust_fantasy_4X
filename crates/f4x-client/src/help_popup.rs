@@ -7,7 +7,8 @@
 //! closes the pop-up cannot reach a button below. With Expanding Help on, the box grows out of the
 //! area that was asked about, with lines from the area's corners to the box's.
 
-use crate::font::Style;
+use crate::font::{Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use macroquad::prelude::*;
 
@@ -437,8 +438,6 @@ impl App {
             }
         }
         if grown >= 1.0 {
-            let ink = Color::new(0.2, 0.1, 0.04, 1.0);
-            let red = Color::new(0.4, 0.05, 0.02, 1.0);
             let mut y = top + MARGIN;
             let heading = popup.title.clone();
             let body: Vec<String> = popup.lines[top_line..top_line + shown].to_vec();
@@ -462,14 +461,32 @@ impl App {
                 );
                 draw_triangle(a, b, c, mark);
             }
-            self.draw_styled(view, &Style::nearest(4, red), &heading, left + MARGIN, y);
+            self.draw_styled(
+                view,
+                &Style::inked(4, Ink::Set(font_ramp::flat(47))),
+                &heading,
+                left + MARGIN,
+                y,
+            );
             y += title;
             for text in body {
                 if let Some(heading) = text.strip_prefix('\u{1}') {
-                    self.draw_styled(view, &Style::nearest(4, red), heading, left + MARGIN, y);
+                    self.draw_styled(
+                        view,
+                        &Style::inked(4, Ink::Set(font_ramp::flat(47))),
+                        heading,
+                        left + MARGIN,
+                        y,
+                    );
                     y += title;
                 } else {
-                    self.draw_styled(view, &Style::nearest(1, ink), &text, left + MARGIN, y);
+                    self.draw_styled(
+                        view,
+                        &Style::inked(1, Ink::Set(font_ramp::flat(55))),
+                        &text,
+                        left + MARGIN,
+                        y,
+                    );
                     y += line;
                 }
             }

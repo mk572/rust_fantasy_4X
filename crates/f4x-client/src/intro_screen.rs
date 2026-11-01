@@ -9,7 +9,8 @@
 //! The show is made as a list of beats up front (`beats`), one picture held for a number of the
 //! original's 55 ms ticks at a darkness, so the timing can be tested without a window.
 
-use crate::font::Style;
+use crate::font::{Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use macroquad::prelude::*;
@@ -214,7 +215,7 @@ impl Page for IntroState {
             let text = app.text("intro.copyright");
             app.draw_styled(
                 view,
-                &Style::nearest(0, WHITE).center(),
+                &Style::inked(0, Ink::Set(font_ramp::INTRO_COPYRIGHT)).center(),
                 &text,
                 160.0,
                 192.0,

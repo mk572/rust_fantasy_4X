@@ -42,6 +42,10 @@ RAMPS = [
     ("CRAFT_POWER_ON", None, [0, 177, 178, 179], "item making: a power that is picked (m_itemmake_colors1)"),
     ("CRAFT_POWER_OFF", None, [0, 31, 29, 28], "item making: a power that is not picked (m_itemmake_colors2)"),
     ("CRAFT_COST", None, [17, 9, 8, 8], "item making: the cost (COL_DeselectItemName)"),
+    ("UNIT_MARK", None, [10, 15], "the B and G of a unit in the main screen's unit window (MainScr.c)"),
+    ("NOTIFY_TEXT", None, [25, 178, 179, 180, 180], "the text of the notification boxes (Notify1_Draw: notify_text_colors)"),
+    ("INTRO_COPYRIGHT", None, [79, 163], "the copyright line of the intro (INTRO.c)"),
+    ("DIALOG_TEXT", None, [6, 9, 11, 13, 15], "the text of the confirmation box (COL_Dialog_Text)"),
     ("HOF_TITLE", ("halofam", 0), [246, 49, 176, 162, 178, 179, 51, 180, 184, 185, 213, 186, 246, 246, 246, 246], "hall of fame: title and entries (SCORE.c color_array)"),
     ("LEVEL_TITLE", None, [240, 178, 179, 180, 180], "level up: the title (LVLMAKE.c)"),
     ("LEVEL_TEXT", None, [240, 178, 178, 178, 178], "level up: the lines (LVLMAKE.c)"),
@@ -59,7 +63,7 @@ RAMPS = [
 
 # Palette indexes the original makes a one-colour set of (`colors[0..5] = banner_colors[...]`): the
 # banner colours of the wizards' names and enchantments. `flat(index)` in `font_ramp.rs` gives the set.
-FLATS = [0, 6, 39, 43, 98, 166, 50, 79, 123, 124, 125, 127, 172, 179, 201, 211, 216, 218, 221, 222]
+FLATS = [0, 6, 39, 43, 98, 166, 50, 79, 123, 124, 125, 127, 172, 179, 201, 211, 216, 218, 221, 222, 5, 45, 47, 55]
 
 
 def palette_lookup():

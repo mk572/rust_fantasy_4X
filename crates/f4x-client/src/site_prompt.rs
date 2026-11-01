@@ -5,7 +5,8 @@
 //! site shows the first box without buttons on arrival. The boxes come one after another over
 //! the map, in the order the events arrived.
 
-use crate::font::Style;
+use crate::font::{rgb, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use f4x_core::feature::lair::Loot;
 use f4x_core::game::Command;
@@ -457,18 +458,14 @@ impl App {
         y: f32,
         line: f32,
     ) {
-        let shadow = Color::new(0.05, 0.1, 0.2, 1.0);
-        let light = Color::new(0.97, 0.95, 0.85, 1.0);
+        // `Notify1_Draw`: the text in the gold ramp `notify_text_colors`, over copies in the shadow
+        // colour 240 (black) a pixel right and below.
+        let style = Style::inked(4, Ink::Set(font_ramp::NOTIFY_TEXT))
+            .shadow()
+            .edge(rgb(0, 0, 0));
         for (i, (indent, text)) in lines.iter().enumerate() {
             let at = y + line * i as f32;
-            self.draw_styled(
-                view,
-                &Style::nearest(4, shadow),
-                text,
-                x + indent + 1.0,
-                at + 1.0,
-            );
-            self.draw_styled(view, &Style::nearest(4, light), text, x + indent, at);
+            self.draw_styled(view, &style, text, x + indent, at);
         }
     }
 
