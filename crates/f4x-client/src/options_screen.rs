@@ -1,7 +1,6 @@
 //! The new-game options step: difficulty, opponents, land size and node strength, shown
 //! before the wizard is made (the original's `Newgame_Screen_0`).
 
-use crate::font::Style;
 use crate::input::Input;
 use crate::page::Page;
 use f4x_core::game::setting::SettingsDef;
@@ -9,6 +8,7 @@ use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
+use crate::newgame_flow::ng_ink;
 use crate::ui::{self, button, GOLD, PANEL};
 use crate::view::{App, Screen};
 
@@ -239,8 +239,6 @@ impl Page for OptionsPage {
             app.text(MAGIC_LEVELS[usize::from(o.magic).min(2)]),
         ];
         let clicked = input.mouse_pressed(MouseButton::Left);
-        let shadow = Color::new(0.1, 0.1, 0.12, 1.0);
-        let font = Color::new(0.85, 0.85, 0.95, 1.0);
         let mut changed = None;
         for (i, ((y, text_y), label)) in ROWS.into_iter().zip(labels).enumerate() {
             let hover = ui::hit(lay.rect((250.0, y - 1.0, 66.0, 17.0)), true, input).hovered();
@@ -248,14 +246,14 @@ impl Page for OptionsPage {
             app.draw_pic(&lay, "newgame", 4 + i, 0, 251.0 + shift, y + shift);
             app.draw_styled(
                 view,
-                &Style::nearest(3, shadow).center(),
+                &ng_ink(3, 31).center(),
                 &label,
                 283.0 + shift,
                 text_y + 1.0 + shift,
             );
             app.draw_styled(
                 view,
-                &Style::nearest(3, font).center(),
+                &ng_ink(3, 187).center(),
                 &label,
                 282.0 + shift,
                 text_y + shift,
@@ -267,7 +265,6 @@ impl Page for OptionsPage {
         // The original's picture has four buttons only: the map size and the map generator are
         // two more rows of text under them, the name on the left as the four have it and the
         // choice on the right.
-        let gold = Color::new(0.95, 0.75, 0.2, 1.0);
         let (w, h) = o.map_size(&app.game.content().settings);
         let rows = [
             (
@@ -289,23 +286,19 @@ impl Page for OptionsPage {
         for (i, (y, name, value)) in rows.into_iter().enumerate() {
             let hover = ui::hit(lay.rect((166.0, y - 1.0, 150.0, 12.0)), true, input).hovered();
             let shift = if hover { 1.0 } else { 0.0 };
-            let ink = if hover {
-                Color::new(1.0, 1.0, 0.7, 1.0)
-            } else {
-                font
-            };
-            app.draw_styled(view, &Style::nearest(3, shadow), &name, 168.0, y + 1.0);
-            app.draw_styled(view, &Style::nearest(3, gold), &name, 167.0, y);
+            let ink = if hover { 178 } else { 187 };
+            app.draw_styled(view, &ng_ink(3, 31), &name, 168.0, y + 1.0);
+            app.draw_styled(view, &ng_ink(3, 178), &name, 167.0, y);
             app.draw_styled(
                 view,
-                &Style::nearest(3, shadow).center(),
+                &ng_ink(3, 31).center(),
                 &value,
                 283.0 + shift,
                 y + 1.0 + shift,
             );
             app.draw_styled(
                 view,
-                &Style::nearest(3, ink).center(),
+                &ng_ink(3, ink).center(),
                 &value,
                 282.0 + shift,
                 y + shift,
@@ -327,15 +320,8 @@ impl Page for OptionsPage {
         };
         if let Some(each) = crowded {
             let text = app.text_with("options.crowded", &Args::new().count("n", each));
-            let red = Color::new(1.0, 0.45, 0.4, 1.0);
             for (i, line) in app.bm_wrap(1, &text, 150.0).iter().enumerate() {
-                app.draw_styled(
-                    view,
-                    &Style::nearest(1, red),
-                    line,
-                    167.0,
-                    170.0 + 8.0 * i as f32,
-                );
+                app.draw_styled(view, &ng_ink(1, 201), line, 167.0, 170.0 + 8.0 * i as f32);
             }
         }
         let o = &mut app.options;
