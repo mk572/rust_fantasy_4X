@@ -1,0 +1,19 @@
+// Player-facing messages of the credits roll. One key is in one file only (docs/text.md).
+{
+    "credits.title": "Fantasy 4X",
+    "credits.tagline": "A Master of Magic-style 4X game written in Rust",
+    "credits.inspired_head": "Inspired by",
+    "credits.inspired_game": "Master of Magic",
+    "credits.inspired_by": "by SimTex, published by MicroProse in 1994",
+    "credits.licence_head": "Licence",
+    "credits.licence_1": "The code and the content of this repository",
+    "credits.licence_2": "are released under CC0 1.0",
+    "credits.software_head": "Software",
+    "credits.software_engine": "macroquad and the Rust crates named in Cargo.lock",
+    "credits.software_mt32": "mt32-rs, LGPL-2.1-or-later",
+    "credits.art_head": "Art and sound",
+    "credits.art_1": "The pictures, music and sounds you see and hear",
+    "credits.art_2": "come from your own copy of the original game",
+    "credits.art_3": "and are not part of this repository",
+    "credits.leave": "Click or press Esc to leave",
+}

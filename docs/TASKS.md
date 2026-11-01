@@ -20,8 +20,6 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 
 | # | Area | Summary |
 |---|---|---|
-| 390 | Client | Standard buttons and hit-testing |
-| 396 | Client | Main menu credits roll |
 | 397 | Client | Quit confirmation and auto-save on Quit |
 | 399 | Client | Food warning on Next Turn |
 | 400 | Client | Extra-mana screen for an overland spell |
@@ -58,10 +56,6 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 | 443 | Client | Help box drawn on the original's scroll picture |
 
 ## Descriptions
-
-**390. Standard buttons and hit-testing.** `ui::button` is called about 83 times, and about 105 places test `mouse_position()` against a rectangle by hand (picture buttons and screens in the original's coordinates each repeat hover, press and disabled states). Add one helper in `ui.rs` that takes a rect in layout space and returns `None`, `Hover`, `Pressed` or `Clicked`, maps the mouse through `Layout` in one place, and covers text buttons, picture buttons and art-less hot-zones. Give it right-click help, the hotkey label and the disabled-reason tooltip (as the Buy button's refusal text) so screens stop doing these by hand. **Done in part:** `ui::hit(rect, enabled, input)` returns `Hit` (`None`, `Hover`, `Pressed`, `Clicked`). `ui::button`, every picture button (one `App::pic_button` in `frame.rs` with a `Disabled` look, wrapped by the city, army, unit, options, city-list and battle-bar buttons), the text buttons of the menu, new-game and autobuild screens, the book screens' click areas and the plain click-in-rectangle tests of the city, magic, production and unit screens use it. **Also done:** the remaining hot-zones (craft, item, advisor, new-game, road plan, surveyor, diplomacy, the yes/no prompts, list-cell scans, the frame's menu and Next Turn) now use `ui::hit` or `pic_button`, each keeping its own gating as the `enabled` argument; no `rect.contains(mouse)` is left outside `ui::hit`. A test (`hit_answers_what_the_hand_written_tests_did`) pins that `hit` answers what the hand-written tests did. The draw side of the picture buttons cannot be unit-tested without textures; it was checked on screenshots (main frame, vault). Right-click help already has its one place, `watch_for_help` against the table in `content/help.ron`. The hotkey label and the disabled-reason tooltip moved to task 416.
-
-**396. Main menu credits roll.** The main menu has no Credits entry. Add the credits roll as a screen of its own (task 394 style: its own state struct), with its text in `content/text/en/*.ron` and the sources and licences that `PLANNED.md` asks to keep in a credits file. Listed in `screen_list.md` section 8.
 
 **397. Quit confirmation and auto-save on Quit.** Quit leaves at once. Ask first (a modal question, as the resign question) and write the auto-save before the program ends, so a quit never loses the game. Listed in `screen_list.md` section 8.
 

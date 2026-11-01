@@ -162,6 +162,7 @@ enum Entry {
     New,
     Fame,
     Quit,
+    Credits,
 }
 
 impl App {
@@ -288,6 +289,7 @@ impl Page for MainMenuPage {
                 Entry::New => ("menu.new_game", 4, KeyCode::N),
                 Entry::Fame => ("menu.hall_of_fame", 2, KeyCode::H),
                 Entry::Quit => ("menu.quit", 3, KeyCode::Q),
+                Entry::Credits => ("menu.credits", 1, KeyCode::R),
             };
             let label = app.text(label);
             let y = top + 12.0 * i as f32;
@@ -305,6 +307,22 @@ impl Page for MainMenuPage {
             if (clicked || (enabled && input.key_pressed(hotkey))) && chosen.is_none() {
                 chosen = Some(entry);
             }
+        }
+        // The original has no Credits entry (it rolls them when left alone): a small plain
+        // button in the corner, so the picture rows keep the original's places.
+        let credits_label = app.text("menu.credits");
+        let credits = app.menu_button(
+            &lay,
+            (262.0, 187.0, 54.0, 11.0),
+            None,
+            &credits_label,
+            true,
+            true,
+            false,
+            input,
+        );
+        if (credits || input.key_pressed(KeyCode::R)) && chosen.is_none() {
+            chosen = Some(Entry::Credits);
         }
         if input.key_pressed(KeyCode::Escape) {
             chosen = Some(Entry::Quit);
@@ -335,6 +353,7 @@ impl Page for MainMenuPage {
             Some(Entry::New) => app.open_options(),
             Some(Entry::Fame) => app.open_hall_of_fame(),
             Some(Entry::Quit) => app.quit = true,
+            Some(Entry::Credits) => app.open_credits(),
             None => {}
         }
     }

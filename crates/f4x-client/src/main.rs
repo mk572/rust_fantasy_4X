@@ -23,6 +23,7 @@ mod combat_result;
 mod console_screen;
 mod craft_screen;
 mod create_screen;
+mod credits_screen;
 mod cycle;
 mod diplomacy_prompt;
 mod diplomacy_screen;
@@ -183,6 +184,7 @@ struct Options {
     items: bool,
     hall: bool,
     hall_demo: bool,
+    credits: bool,
     warn_box: bool,
     craft: Option<f4x_core::item::crafting::Craft>,
     /// With `--shot`, run the human out of gold and mana and open the upkeep prompt.
@@ -315,6 +317,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
         items: false,
         hall: false,
         hall_demo: false,
+        credits: false,
         warn_box: false,
         craft: None,
         offer: None,
@@ -389,6 +392,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
             "--items" => o.items = true,
             "--hall" => o.hall = true,
             "--hall-demo" => o.hall_demo = true,
+            "--credits" => o.credits = true,
             "--warn-box" => o.warn_box = true,
             "--craft" => {
                 o.craft = Some(match value("--craft")?.as_str() {
@@ -720,6 +724,9 @@ async fn main() {
     }
     if options.warn_box {
         app.open_test_warning();
+    }
+    if options.credits {
+        app.open_credits();
     }
     if options.hall_demo {
         app.open_test_hall_of_fame();

@@ -84,6 +84,8 @@ pub enum Screen {
     EnemyCity,
     /// The table of best games (`hall_of_fame.rs`).
     HallOfFame,
+    /// The credits roll of the start menu (`credits_screen.rs`).
+    Credits,
     /// The heroes' items and the vault (`item_screen.rs`).
     Items,
     /// Designing an item for Enchant Item or Create Artifact (`craft_screen.rs`).
@@ -1499,6 +1501,7 @@ impl App {
             Screen::Outpost => self.page_frame(input),
             Screen::EnemyCity => self.page_frame(input),
             Screen::HallOfFame => self.page_frame(input),
+            Screen::Credits => self.page_frame(input),
             Screen::Items => self.page_frame(input),
             Screen::Craft => self.page_frame(input),
             Screen::Diplomacy => self.page_frame(input),
