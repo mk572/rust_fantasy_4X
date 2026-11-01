@@ -25,7 +25,7 @@ gives the values; it holds no sentence. This is what makes a second language pos
 - `count` picks a form by the plural rule of the language (`text::plural`: zero, one, few, many,
   other; `other` is required, `zero` wins for 0 when given).
 - `gender` picks a form by the gender of the named argument (`Args::named`). A hero's gender is
-  `heroes.ron` (`Game::hero_gender`), a wizard's is `wizards.ron`, `wizard_names.ron` or the choice
+  `heroes.ron` (`Game::hero_gender`), a wizard's is `wizards.ron`, `text/en/name/rival.ron` or the choice
   on the creation screen (Tab on the name step).
 - `pick` takes one of several `lines` by the number named in `pick` (a wizard's own way of saying
   the same thing): `(pick: "salt", lines: ["Hello.", "Greetings."])`.
@@ -54,7 +54,12 @@ Debug output of the console and test messages are not player-facing and stay in 
   definition (`def.name`, so the screens need no change), a number the language leaves out is
   English, and a definition with no English name or a name for a number nobody has is a load error.
   A language is the same files in its own folder. Not yet in tables: ability descriptions, the
-  names of the wizards (`wizard_texts.ron`), of the experience levels and of the heroes.
+  descriptions of the ready-made wizards (`wizard_texts.ron`, local). `wizard.ron` holds the ready-made
+  wizards' names by `num`, `level_path.ron` the names of the experience levels by the path's `num` (levels
+  in order, then the bonus levels). `hero.ron` holds
+  the five names of each hero by the hero unit's `num` (the first is the hero's name in the first
+  wizard's game) and `rival.ron` the lists of names for the rival wizards (a name and its gender, one
+  list for each rival slot); both are required.
 - Text the core builds as game data is on keys when a language must order or inflect it: the
   default name of a made item is kept as parts (`Item.made`: kind, bonus, suffix) and put together
   by `Item::display_name` from `item.name_*`, `item.type_*` and `item.suffix_*`; the words that fill

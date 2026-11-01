@@ -8,7 +8,7 @@
 //! name is typed is `type_name`, what the answer sends is `settle_offer`; the drawing is left to
 //! the screenshots.
 
-use crate::font::Style;
+use crate::font::{rgb, Style};
 use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::player::offer::Offer;
@@ -256,10 +256,15 @@ impl App {
         }
         let name = item.display_name(self.game.content());
         let text = self.text_with(key, &Args::new().text("item", &name).count("price", price));
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         let mut at = y + 9.0;
         for line in self.bm_wrap(4, &text, 182.0) {
-            self.draw_styled(view, &Style::nearest(4, gold), &line, x + 57.0, at);
+            self.draw_styled(
+                view,
+                &Style::sh_set(4, 4).edge(rgb(0x0C, 0x38, 0x38)),
+                &line,
+                x + 57.0,
+                at,
+            );
             at += self.art.text_height(4) + 2.0;
         }
         self.draw_item_card(lay, item, x + 14.0, y + 65.0);
@@ -281,8 +286,6 @@ impl App {
     ) -> (bool, bool) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (wx, wy) = WINDOW;
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
         let rules = self.game.content().rules.clone();
         let (def, level) = match offer {
             Offer::Hero { kind, .. } => {
@@ -319,7 +322,7 @@ impl App {
         };
         self.draw_styled(
             view,
-            &Style::nearest(4, gold).center(),
+            &Style::set(4, 4).center(),
             &title,
             wx + 103.0,
             wy - 14.0,
@@ -331,20 +334,14 @@ impl App {
             self.draw_pic(lay, "backgrnd", 33, 0, wx + 29.0, wy + 55.0);
             self.draw_styled(
                 view,
-                &Style::nearest(4, gold).center(),
+                &Style::set(4, 4).center(),
                 &self.text("offer.name_hero"),
                 wx + 104.0,
                 wy + 58.0,
             );
             type_name(&mut self.offer_ui.name, input);
             let shown = format!("{}_", self.offer_ui.name);
-            self.draw_styled(
-                view,
-                &Style::nearest(4, light),
-                &shown,
-                wx + 45.0,
-                wy + 75.0,
-            );
+            self.draw_styled(view, &Style::set(4, 4), &shown, wx + 45.0, wy + 75.0);
         }
         if !affordable {
             self.draw_styled(
@@ -380,12 +377,10 @@ impl App {
         y: f32,
     ) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
         self.draw_pic(lay, "itemisc", 25, 0, x, y);
         self.draw_pic(lay, "items", usize::from(item.icon), 0, x + 9.0, y + 6.0);
         let name = item.display_name(self.game.content());
-        self.draw_styled(view, &Style::nearest(4, gold), &name, x + 31.0, y + 12.0);
+        self.draw_styled(view, &Style::set(4, 4), &name, x + 31.0, y + 12.0);
         let rules = self.game.content().rules.clone();
         let b = item.bonus;
         let mut lines: Vec<String> = Vec::new();
@@ -435,7 +430,7 @@ impl App {
         for (i, line) in lines.iter().enumerate() {
             let at = y + top + i as f32 * space;
             self.draw_pic(lay, "itemisc", 26, 0, x + 11.0, y + 34.0 + i as f32 * space);
-            self.draw_styled(view, &Style::nearest(2, light), line, x + 20.0, at - 1.0);
+            self.draw_styled(view, &Style::set(0, 0), line, x + 20.0, at - 1.0);
         }
     }
 }

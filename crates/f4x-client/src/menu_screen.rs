@@ -384,7 +384,7 @@ impl Page for SlotsPage {
             };
             app.draw_styled(
                 view,
-                &Style::nearest(1, color).align(crate::frame::Align::Left),
+                &Style::nearest(3, color).align(crate::frame::Align::Left),
                 &slot.label(app.texts(), n),
                 45.0,
                 y + 1.0,
@@ -413,7 +413,7 @@ impl Page for SlotsPage {
         let quit = app.menu_button(
             &lay,
             (43.0, 171.0, 39.0, 13.0),
-            (!app.menu.from_menu).then_some(("load", 2, 43.0, 171.0)),
+            Some(("load", 2, 43.0, 171.0)),
             &quit_label,
             true,
             false,

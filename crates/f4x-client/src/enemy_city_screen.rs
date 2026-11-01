@@ -56,7 +56,6 @@ impl Page for EnemyCityPage {
         }
         let lay = Layout::new();
         let view = App::view(lay);
-        let orange = Color::new(0.95, 0.7, 0.2, 1.0);
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         if app.city_pic(lay, "reload", 26, 0, X - 1.0, 0.0) {
         } else {
@@ -72,7 +71,7 @@ impl Page for EnemyCityPage {
                 .text("size", app.city_size_name(city))
                 .text("city", app.city_name(city)),
         );
-        app.draw_styled(view, &Style::outlined(5).center(), &title, X + 106.0, 3.0);
+        app.draw_styled(view, &Style::sh_set(5, 5).center(), &title, X + 106.0, 3.0);
         let (race_name, race_index) = app
             .game
             .city_race(city)
@@ -83,9 +82,9 @@ impl Page for EnemyCityPage {
                 )
             })
             .unwrap_or_default();
-        app.draw_styled(view, &Style::nearest(1, orange), &race_name, X + 6.0, 19.0);
+        app.draw_styled(view, &Style::city_figures(), &race_name, X + 6.0, 19.0);
         let units = app.text("enemy_city.units");
-        app.draw_styled(view, &Style::nearest(1, orange), &units, X + 6.0, 43.0);
+        app.draw_styled(view, &Style::city_figures(), &units, X + 6.0, 43.0);
 
         // The citizens, farmers then workers then rebels.
         let total = (eco.farmers + eco.workers + eco.rebels).max(1) as f32;
@@ -119,7 +118,7 @@ impl Page for EnemyCityPage {
                 if ui::hit(lay.rect(ux, uy, 20.0, 18.0), true, input).hovered() {
                     let name = app.game.units().unit_def(unit).map(|d| d.name.clone());
                     if let Some(name) = name {
-                        app.draw_styled(view, &Style::nearest(1, orange), &name, X + 36.0, 43.0);
+                        app.draw_styled(view, &Style::city_figures(), &name, X + 36.0, 43.0);
                     }
                     if input.mouse_pressed(MouseButton::Right) {
                         app.open_unit_sheet(unit);
@@ -129,16 +128,16 @@ impl Page for EnemyCityPage {
             }
         } else {
             let none = app.text("enemy_city.no_report");
-            app.draw_styled(view, &Style::nearest(1, orange), &none, X + 54.0, 64.0);
+            app.draw_styled(view, &Style::city_figures(), &none, X + 54.0, 64.0);
         }
 
         // The enchantments, in the colour of whoever cast them.
         for (k, &(spell, caster)) in app.game.city_enchantments(city).iter().take(6).enumerate() {
             let name = app.game.content().rules.spells.get(spell).name.clone();
-            let colour = app.banner_color(caster.0);
+            let ink = app.city_ench_ink(caster.0);
             app.draw_styled(
                 view,
-                &Style::nearest(1, colour),
+                &Style::inked(1, ink),
                 &name,
                 X + 139.0,
                 51.0 + 6.5 * k as f32,

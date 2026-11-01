@@ -297,8 +297,8 @@ Where the item rules differ from the original's code or are read from ReMoM with
   summoning circle after the battle, not counted among the fleeing.
 - **Heroes cannot be dismissed yet**: the Dismiss button refuses them until the items they carry
   have somewhere to go (task 221).
-- **Names.** A hero's name comes from `content-local/hero_names.ron` (five a hero, one per wizard
-  number), or the unit's own name without it.
+- **Names.** A hero's name comes from `content/text/en/name/hero.ron` (five a hero, one per wizard
+  number).
 - **Hero abilities (task 47).** Legendary adds fame (3 times level plus one; 4.5 times for the
   greater one): the original's fame code for it is commented out, the help promises it, so ours
   counts it (living hero units only). Charmed is +30 resistance as in the original, but ours is a

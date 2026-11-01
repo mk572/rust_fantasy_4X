@@ -5,7 +5,8 @@
 //! window with the stats of the unit under the pointer.
 
 use super::*;
-use crate::font::Style;
+use crate::font::{rgb, Ink, Style};
+use crate::font_ramp;
 use crate::frame::Layout;
 use crate::input::Input;
 
@@ -209,15 +210,18 @@ impl App {
         let theirs = battle.player_of(mine.other());
         for (player, x) in [(theirs, 40.0), (ours, 278.0)] {
             let name = self.player_label(player);
-            let colour = self.banner_color(player.0);
-            self.flat_text(
+            // `Set_Font_Colors_15(4, ...)` with the four colours of the banner, `Shadow_Down`, and
+            // `Set_Outline_Color(241)` of the combat palette.
+            let ramp = font_ramp::BATTLE_NAME_0 + usize::from(self.banner_index(player.0).min(5));
+            self.draw_styled(
                 view,
-                4,
+                &Style::inked(4, Ink::Set(ramp))
+                    .shadow()
+                    .edge(rgb(0x30, 0x34, 0x3C))
+                    .center(),
                 &name,
-                (x, 167.0),
-                Align::Center,
-                colour,
-                Color::new(0.0, 0.0, 0.0, 1.0),
+                x,
+                167.0,
             );
         }
 
@@ -545,7 +549,12 @@ impl App {
                 (x + 48.0, y + 24.0),
                 Align::Right,
             );
-            text(self, "MP", (x + 51.0, y + 24.0), Align::Left);
+            text(
+                self,
+                &self.text("ui.mana_unit"),
+                (x + 51.0, y + 24.0),
+                Align::Left,
+            );
         } else if u.ammo > 0 {
             text(
                 self,

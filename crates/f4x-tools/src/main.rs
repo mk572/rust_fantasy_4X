@@ -4,6 +4,7 @@
 //! `image`, `lbx`, `map_art`, `metrics`, `refile`, `screens`, `versus`); this file only dispatches
 //! to them and prints, and `soak`, `console_cmd` and `cache` are run by hand (`f4x-tools soak`).
 
+mod accent;
 mod art;
 mod audio;
 mod bdf;

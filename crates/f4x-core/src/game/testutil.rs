@@ -203,7 +203,7 @@ fn load_shipped() -> Content {
             wizards: Registry::new(wizards),
             hero_templates: parse(&dir, "heroes.ron"),
             lairs: parse(&dir, "lairs.ron"),
-            wizard_names: parse(&dir, "wizard_names.ron"),
+            wizard_names: parse(&dir, "text/en/name/rival.ron"),
         },
         settings: parse(&dir, "settings.ron"),
         texts: Default::default(),

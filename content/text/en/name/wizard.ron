@@ -1,0 +1,17 @@
+// The names of the ready-made wizards, by the wizard's number (`num` in wizards.ron). A language has the same file in its own folder. (The names for rivals the game makes up are in `rival.ron`.)
+{
+    0: "Merlin",  // merlin
+    1: "Raven",  // raven
+    2: "Sharee",  // sharee
+    3: "Lo Pan",  // lo_pan
+    4: "Jafar",  // jafar
+    5: "Oberic",  // oberic
+    6: "Rjak",  // rjak
+    7: "Sss'ra",  // sssra
+    8: "Tauron",  // tauron
+    9: "Freya",  // freya
+    10: "Horus",  // horus
+    11: "Ariel",  // ariel
+    12: "Tlaloc",  // tlaloc
+    13: "Kali",  // kali
+}

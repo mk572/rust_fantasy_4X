@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use f4x_data::spell_art::{Role, SpellArt};
 use macroquad::prelude::*;
-use macroquad_bitmap_font_engine::BmFont;
+use macroquad_bitmap_font_engine::{self as bm, BmFont, FontData};
 
 pub const TILE_W: f32 = 20.0;
 pub const TILE_H: f32 = 18.0;
@@ -96,14 +96,47 @@ impl MinimapColours {
     }
 }
 
-/// One of the original's bitmap fonts: an atlas with the glyph strip once per colour set.
-struct FontStyle {
-    height: u32,
-    hspacing: i32,
-    /// `(x in the strip, width)` for ASCII 32..=127.
-    glyphs: Vec<(u32, u32)>,
-    /// Average colour of each of the 16 colour sets, to pick the nearest one to a request.
-    set_colors: Vec<Color>,
+/// The eight bitmap fonts of the original as BMFonts (`.fnt` text and atlas PNG, sixteen colour
+/// sets in each atlas), embedded in the client; the index is the font style.
+const FONTS: [(&str, &[u8]); 8] = [
+    (
+        include_str!("../assets/fonts/style0.fnt"),
+        include_bytes!("../assets/fonts/style0.png"),
+    ),
+    (
+        include_str!("../assets/fonts/style1.fnt"),
+        include_bytes!("../assets/fonts/style1.png"),
+    ),
+    (
+        include_str!("../assets/fonts/style2.fnt"),
+        include_bytes!("../assets/fonts/style2.png"),
+    ),
+    (
+        include_str!("../assets/fonts/style3.fnt"),
+        include_bytes!("../assets/fonts/style3.png"),
+    ),
+    (
+        include_str!("../assets/fonts/style4.fnt"),
+        include_bytes!("../assets/fonts/style4.png"),
+    ),
+    (
+        include_str!("../assets/fonts/style5.fnt"),
+        include_bytes!("../assets/fonts/style5.png"),
+    ),
+    (
+        include_str!("../assets/fonts/style6.fnt"),
+        include_bytes!("../assets/fonts/style6.png"),
+    ),
+    (
+        include_str!("../assets/fonts/style7.fnt"),
+        include_bytes!("../assets/fonts/style7.png"),
+    ),
+];
+
+/// Make the BMFont of a style from the embedded files (needs the window).
+pub(crate) fn load_font(style: usize) -> BmFont {
+    let (fnt, png) = FONTS[style];
+    BmFont::from_bytes(fnt, png).expect("an embedded font loads")
 }
 
 /// A combat figure: unit type, direction, animation frame and banner.
@@ -122,18 +155,13 @@ pub enum FigureEffect {
 
 pub struct Art {
     dir: PathBuf,
-    styles: Vec<Option<FontStyle>>,
+    /// The parsed metrics of the fonts (no window needed): widths and heights.
+    font_data: Vec<FontData>,
     /// Terrain type -> first tile, from `map/tiles/types.tsv`.
     type_tiles: Vec<usize>,
     /// Terrain type -> the folder under `map/tiles/` its tiles are in (`arcanus/shore`).
     type_dirs: Vec<String>,
     textures: HashMap<PathBuf, Option<Texture2D>>,
-    /// The fonts as BMFonts (`fonts/bmfont/style{N}.fnt`), loaded on first use.
-    bm_fonts: HashMap<usize, Option<BmFont>>,
-    /// Whether `draw_styled` draws through the font engine (`F4X_BMFONT` set), for comparing it
-    /// with the client's own bitmap text, and the folder of the BMFonts it uses (`F4X_BMFONT=DIR`,
-    /// else `fonts/bmfont` under the art folder).
-    bm_engine: Option<PathBuf>,
     /// Pictures filed away from `art/<lbx>/`: lbx -> entry -> path from `assets-local/` without
     /// the frame (`screens/<screen>/<name>`, `art/units/<id>/<name>`; `index.tsv`, written by
     /// `extract-art`).
@@ -250,26 +278,19 @@ impl Art {
         let minimap = MinimapColours::parse(
             &std::fs::read_to_string(dir.join("map/tiles/minimap.tsv")).unwrap_or_default(),
         );
-        let styles = Self::load_font_metrics(&dir);
         let placed = parse_placed(
             &std::fs::read_to_string(dir.with_file_name("index.tsv")).unwrap_or_default(),
         );
         Self {
             dir,
             placed,
-            styles,
+            font_data: FONTS
+                .iter()
+                .map(|(fnt, _)| FontData::parse(fnt).expect("an embedded font parses"))
+                .collect(),
             type_tiles,
             type_dirs,
             textures: HashMap::new(),
-            bm_fonts: HashMap::new(),
-            bm_engine: std::env::var_os("F4X_BMFONT").map(|value| {
-                let dir = PathBuf::from(value);
-                if dir.is_dir() {
-                    dir
-                } else {
-                    PathBuf::new()
-                }
-            }),
             autotile,
             type_anim,
             minimap,
@@ -302,251 +323,62 @@ impl Art {
         Some((lbx.to_string(), entry))
     }
 
-    /// Read `fonts/metrics.tsv` (see `f4x-tools` `extract-art`); the atlases load on demand.
-    fn load_font_metrics(dir: &std::path::Path) -> Vec<Option<FontStyle>> {
-        let mut styles: Vec<Option<FontStyle>> = (0..8).map(|_| None).collect();
-        let Ok(text) = std::fs::read_to_string(dir.join("fonts/metrics.tsv")) else {
-            return styles;
-        };
-        for line in text.lines() {
-            let f: Vec<&str> = line.split('\t').collect();
-            let num = |i: usize| f.get(i).and_then(|v| v.parse::<i64>().ok());
-            match f.first().copied() {
-                Some("S") => {
-                    if let (Some(s), Some(h), Some(hs)) = (num(1), num(2), num(3)) {
-                        if let Some(slot) = styles.get_mut(s as usize) {
-                            *slot = Some(FontStyle {
-                                height: h as u32,
-                                hspacing: hs as i32,
-                                glyphs: vec![(0, 0); 96],
-                                set_colors: Vec::new(),
-                            });
-                        }
-                    }
-                }
-                Some("G") => {
-                    if let (Some(s), Some(code), Some(x), Some(w)) =
-                        (num(1), num(2), num(3), num(4))
-                    {
-                        if let Some(Some(style)) = styles.get_mut(s as usize) {
-                            if (32..128).contains(&code) {
-                                style.glyphs[(code - 32) as usize] = (x as u32, w as u32);
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-        styles
+    /// A font style as a BMFont of the embedded files.
+    pub fn bm_font(&self, style: usize) -> std::rc::Rc<BmFont> {
+        crate::font::shared_font(style)
     }
 
-    /// Whether text goes through the font engine (`F4X_BMFONT` is set).
-    pub fn bm_engine(&self) -> bool {
-        self.bm_engine.is_some()
-    }
-
-    /// A font style as a BMFont (`extract-art` writes `fonts/bmfont/`), or `None` when it was
-    /// not extracted or does not load.
-    pub fn bm_font(&mut self, style: usize) -> Option<&BmFont> {
-        let dir = match &self.bm_engine {
-            Some(own) if !own.as_os_str().is_empty() => own.clone(),
-            _ => self.dir.join("fonts/bmfont"),
-        };
-        self.bm_fonts
-            .entry(style)
-            .or_insert_with(|| {
-                let text = std::fs::read_to_string(dir.join(format!("style{style}.fnt"))).ok()?;
-                let png = std::fs::read(dir.join(format!("style{style}.png"))).ok()?;
-                BmFont::from_bytes(&text, &png).ok()
-            })
-            .as_ref()
-    }
-
-    /// Whether the original fonts were extracted.
-    pub fn has_fonts(&self) -> bool {
-        self.styles.iter().any(Option::is_some)
-    }
-
-    /// Width in the original's pixels of `text` in a font style.
-    pub fn text_width(&self, style: usize, text: &str) -> f32 {
-        let Some(Some(st)) = self.styles.get(style) else {
-            return text.len() as f32 * 4.0;
-        };
-        text.chars()
-            .filter(|c| (32..128).contains(&(*c as u32)))
-            .map(|c| st.glyphs[(c as u32 - 32) as usize].1 as i32 + st.hspacing)
-            .sum::<i32>() as f32
-    }
-
-    /// Height of a font style in the original's pixels.
-    pub fn text_height(&self, style: usize) -> f32 {
-        self.styles
-            .get(style)
-            .and_then(Option::as_ref)
-            .map_or(8.0, |s| s.height as f32)
-    }
-
-    /// The average colour of one of the original's colour sets of a font style.
-    pub fn font_set_colour(&mut self, style: usize, set: usize) -> Option<Color> {
-        self.ensure_set_colors(style);
-        let Some(Some(st)) = self.styles.get(style) else {
-            return None;
-        };
-        st.set_colors.get(set).copied()
-    }
-
-    /// The colour set whose average colour is closest to `color`.
-    pub fn nearest_font_set(&mut self, style: usize, color: Color) -> usize {
-        self.ensure_set_colors(style);
-        let Some(Some(st)) = self.styles.get(style) else {
-            return 0;
-        };
-        st.set_colors
-            .iter()
-            .enumerate()
-            .min_by(|(_, a), (_, b)| {
-                let d = |c: &Color| {
-                    (c.r - color.r).powi(2) + (c.g - color.g).powi(2) + (c.b - color.b).powi(2)
-                };
-                d(a).total_cmp(&d(b))
-            })
-            .map_or(0, |(i, _)| i)
-    }
-
-    fn ensure_set_colors(&mut self, style: usize) {
-        let needs = matches!(self.styles.get(style), Some(Some(s)) if s.set_colors.is_empty());
-        if !needs {
-            return;
-        }
-        let Some(tex) = self
-            .texture(PathBuf::from(format!("fonts/style{style}.png")))
-            .cloned()
-        else {
-            return;
-        };
-        let img = tex.get_texture_data();
-        let (w, h) = (img.width(), img.height());
-        let fh = self.styles[style]
-            .as_ref()
-            .map_or(1, |s| s.height as usize)
-            .max(1)
-            * usize::from(crate::resolution::art_scale());
-        let mut colors = Vec::new();
-        for set in 0..16 {
-            let (mut r, mut g, mut b, mut n) = (0.0f32, 0.0f32, 0.0f32, 0.0f32);
-            for y in set * fh..((set + 1) * fh).min(h) {
-                for x in 0..w {
-                    let p = img.bytes[(y * w + x) * 4..(y * w + x) * 4 + 4].to_vec();
-                    if p[3] > 0 {
-                        r += f32::from(p[0]);
-                        g += f32::from(p[1]);
-                        b += f32::from(p[2]);
-                        n += 1.0;
-                    }
-                }
-            }
-            colors.push(if n > 0.0 {
-                Color::new(r / n / 255.0, g / n / 255.0, b / n / 255.0, 1.0)
-            } else {
-                Color::new(0.0, 0.0, 0.0, 1.0)
-            });
-        }
-        if let Some(Some(st)) = self.styles.get_mut(style) {
-            st.set_colors = colors;
-        }
-    }
-
-    /// Draw `text` in the original's font: `(x, y)` is the top-left in window pixels and
-    /// `scale` the window pixels per original pixel. Returns the width drawn.
+    /// Draw `text` in the colour set `set` of a font style: `(x, y)` is the top-left in window
+    /// pixels and `scale` the window pixels per original pixel. Returns the width drawn.
     pub fn draw_bitmap_text(
         &mut self,
         style: usize,
         set: usize,
         text: &str,
-        x: f32,
-        y: f32,
+        (x, y): (f32, f32),
         scale: f32,
     ) -> f32 {
-        self.draw_bitmap_text_tinted(style, set, text, x, y, scale, WHITE)
+        self.draw_engine_text(style, bm::Ink::Set(set), text, (x, y), scale)
     }
 
-    /// Text in one flat colour, as the original draws a font whose colours are aliased to one
-    /// palette entry: the lightest colour set, tinted so that its average is `colour`.
+    /// Text in one flat colour: the font's lightest colour set, tinted.
     pub fn draw_flat_text(
         &mut self,
         style: usize,
         text: &str,
-        (x, y): (f32, f32),
+        at: (f32, f32),
         scale: f32,
         colour: Color,
-    ) {
-        let set = self.nearest_font_set(style, WHITE);
-        let average = self
-            .styles
-            .get(style)
-            .and_then(Option::as_ref)
-            .and_then(|s| s.set_colors.get(set).copied())
-            .unwrap_or(WHITE);
-        let ratio = |c: f32, a: f32| (c / a.max(0.05)).min(1.0);
-        let tint = Color::new(
-            ratio(colour.r, average.r),
-            ratio(colour.g, average.g),
-            ratio(colour.b, average.b),
-            1.0,
-        );
-        self.draw_bitmap_text_tinted(style, set, text, x, y, scale, tint);
+    ) -> f32 {
+        self.draw_engine_text(style, bm::Ink::Tint(colour), text, at, scale)
     }
 
-    /// [`Art::draw_bitmap_text`] multiplied by a colour.
-    #[allow(clippy::too_many_arguments)]
-    pub fn draw_bitmap_text_tinted(
+    fn draw_engine_text(
         &mut self,
         style: usize,
-        set: usize,
+        ink: bm::Ink,
         text: &str,
-        x: f32,
-        y: f32,
+        (x, y): (f32, f32),
         scale: f32,
-        tint: Color,
     ) -> f32 {
-        let Some(tex) = self
-            .texture(PathBuf::from(format!("fonts/style{style}.png")))
-            .cloned()
-        else {
-            return 0.0;
+        let font = self.bm_font(style);
+        let params = bm::TextParams {
+            scale,
+            ink,
+            ..Default::default()
         };
-        let Some(Some(st)) = self.styles.get(style) else {
-            return 0.0;
-        };
-        let (height, hspacing) = (st.height as f32, st.hspacing as f32);
-        let mut at = x;
-        for c in text.chars() {
-            if !(32..128).contains(&(c as u32)) {
-                continue;
-            }
-            let (gx, gw) = st.glyphs[(c as u32 - 32) as usize];
-            if gw > 0 {
-                draw_texture_ex(
-                    &tex,
-                    at,
-                    y,
-                    tint,
-                    DrawTextureParams {
-                        dest_size: Some(vec2(gw as f32 * scale, height * scale)),
-                        source: Some(crate::resolution::pixel_rect(Rect::new(
-                            gx as f32,
-                            set.min(15) as f32 * height,
-                            gw as f32,
-                            height,
-                        ))),
-                        ..Default::default()
-                    },
-                );
-            }
-            at += (gw as f32 + hspacing) * scale;
-        }
-        at - x
+        font.draw_text_ex(text, x, y + font.base * scale, &params);
+        font.measure_text(text, scale).width
+    }
+
+    /// Width in the original's pixels of `text` in a font style.
+    pub fn text_width(&self, style: usize, text: &str) -> f32 {
+        self.font_data[style].layout(text).width()
+    }
+
+    /// Height of a font style in the original's pixels.
+    pub fn text_height(&self, style: usize) -> f32 {
+        self.font_data[style].base
     }
 
     pub fn available(&self) -> bool {
@@ -1181,27 +1013,45 @@ mod figure_tests {
         assert_eq!(px, [9, 9, 9, 255, 20, 20, 20, 255, 50, 50, 50, 255]);
     }
 
-    /// The BMFonts `extract-art` writes parse and agree with `metrics.tsv` (skipped when the
-    /// original's art was not extracted, as it is local-only).
+    /// The embedded BMFonts parse, each page names its own file, and every style has the ASCII
+    /// glyphs.
     #[test]
-    fn the_extracted_bmfonts_match_the_font_metrics() {
-        use macroquad_bitmap_font_engine::FontData;
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets-local/art");
-        let styles = Art::load_font_metrics(&dir);
-        if !styles.iter().any(Option::is_some) {
-            return;
-        }
-        for (n, style) in styles.iter().enumerate() {
-            let Some(style) = style else { continue };
-            let text = std::fs::read_to_string(dir.join(format!("fonts/bmfont/style{n}.fnt")))
-                .unwrap_or_else(|e| panic!("style {n}: {e}; run extract-art again"));
-            let font = FontData::parse(&text).unwrap();
-            assert_eq!(font.base, style.height as f32, "style {n}");
+    fn the_embedded_fonts_parse_and_cover_ascii() {
+        let art = Art::load(PathBuf::new(), SpellArt::default());
+        for (n, font) in art.font_data.iter().enumerate() {
             assert_eq!(font.page, format!("style{n}.png"));
-            for ascii in 32u8..=127 {
-                let glyph = font.glyph(char::from(ascii));
-                assert!(glyph.is_some(), "style {n} lacks glyph {ascii}");
+            for ascii in 32u8..=126 {
+                assert!(
+                    font.glyph(char::from(ascii)).is_some(),
+                    "style {n} lacks glyph {ascii}"
+                );
             }
+            assert!(art.text_height(n) > 0.0, "style {n}");
+        }
+    }
+
+    /// The atlases of styles 0 to 5 stack the original's 16 colour sets and then the ramps of
+    /// `font_ramp.rs`; regenerate them (`scripts/font_ramps.py`, `docs/extract-art.md`) when this fails.
+    #[test]
+    fn the_atlases_of_the_letter_styles_hold_the_ramps() {
+        for (n, (fnt, png)) in FONTS.iter().enumerate() {
+            let height = u32::from_be_bytes([png[20], png[21], png[22], png[23]]) as usize;
+            let line = fnt
+                .lines()
+                .find(|l| l.contains("scaleH="))
+                .expect("common line");
+            let grid: usize = line
+                .split("scaleH=")
+                .nth(1)
+                .and_then(|r| r.split_whitespace().next())
+                .and_then(|v| v.parse().ok())
+                .expect("scaleH");
+            let sets = if n < 6 {
+                16 + crate::font_ramp::COUNT
+            } else {
+                16
+            };
+            assert_eq!(height, grid * sets, "style {n}");
         }
     }
 }

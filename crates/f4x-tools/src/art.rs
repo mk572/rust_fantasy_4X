@@ -143,6 +143,8 @@ pub(crate) fn write_png(path: &Path, w: usize, h: usize, rgba: &[u8]) -> Result<
     let mut enc = png::Encoder::new(std::io::BufWriter::new(file), w as u32, h as u32);
     enc.set_color(png::ColorType::Rgba);
     enc.set_depth(png::BitDepth::Eight);
+    enc.set_compression(png::Compression::Best);
+    enc.set_filter(png::FilterType::Paeth);
     enc.write_header()
         .and_then(|mut wr| wr.write_image_data(rgba))
         .map_err(|e| format!("{}: {e}", path.display()))
@@ -453,10 +455,15 @@ fn extract_font_atlases(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<(
     if lbx.len() <= PALETTE_ENTRY {
         return Ok(());
     }
+    let ramps = match fs::read_to_string("content/font_colour_ramps.ron") {
+        Ok(text) => crate::fonts::read_ramps(&text)?,
+        Err(_) => Vec::new(),
+    };
     let n = crate::fonts::extract_fonts(
         lbx.entry(0),
         lbx.entry(PALETTE_ENTRY),
         pal,
+        &ramps,
         out_dir,
         &|p, w, h, rgba| write_png(p, w, h, rgba),
     )?;

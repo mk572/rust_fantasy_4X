@@ -5,7 +5,8 @@
 //! A click on another item picks it, a click on the picked one, or OK, starts it; Cancel and
 //! Esc leave. Positions are the original's.
 
-use crate::font::Style;
+use crate::font::{rgb, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::city::production::ProductionItem;
@@ -19,6 +20,11 @@ use crate::view::{App, Screen, HUMAN};
 /// Rows a column shows (the original's lists are cut to fit).
 const ROWS: usize = 12;
 const ROW_HEIGHT: f32 = 14.0;
+/// The shadow of a production list item: `Set_Outline_Color(PAL_TURQUOISE_LIGHT)`, 244 of the unit view's palette.
+const EDGE_ITEM: Color = rgb(0x61, 0x9A, 0x9A);
+/// The shadow of the picked item: `PAL_TURQUOISE_DARK`, 248.
+const EDGE_PICKED: Color = rgb(0x24, 0x61, 0x61);
+
 /// The panel's left edge, and the units column's.
 const PANEL_X: f32 = 74.0;
 const UNITS_X: f32 = 240.0;
@@ -114,17 +120,19 @@ impl App {
                 self.draw_pic(&lay, "unitview", 31 + column, 0, x, y);
                 let picked = selected == Some(*item);
                 let blocked = column == 1 && full;
-                let color = if blocked {
-                    Color::new(0.55, 0.55, 0.55, 1.0)
+                // The ramp by state, and the edge: the picked item's is the darker teal.
+                let ramp = if blocked {
+                    font_ramp::PROD_BLOCKED
                 } else if picked {
-                    Color::new(0.85, 1.0, 0.98, 1.0)
+                    font_ramp::PROD_PICKED
                 } else {
-                    Color::new(0.35, 0.78, 0.76, 1.0)
+                    font_ramp::PROD_NORMAL
                 };
+                let edge = if picked { EDGE_PICKED } else { EDGE_ITEM };
                 let name = self.item_name(*item);
                 self.draw_styled(
                     view,
-                    &Style::nearest(2, color),
+                    &Style::inked(2, Ink::Set(ramp)).shadow().edge(edge),
                     &name,
                     x + 2.0 + column as f32,
                     y + 1.0,
@@ -185,7 +193,6 @@ impl App {
         input: &Input,
     ) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let white = WHITE;
         let (px, py) = (PANEL_X, 0.0);
         let cost = self.game.economy().item_cost(city, item);
         match item {
@@ -198,14 +205,8 @@ impl App {
                     price = format!("{cost}({})", def.cost);
                 }
                 let word = self.text("production.cost");
-                self.draw_styled(view, &Style::nearest(1, white), &word, px + 55.0, py + 34.0);
-                self.draw_styled(
-                    view,
-                    &Style::nearest(1, white),
-                    &price,
-                    px + 77.0,
-                    py + 34.0,
-                );
+                self.draw_styled(view, &Style::unit_view(1), &word, px + 55.0, py + 34.0);
+                self.draw_styled(view, &Style::unit_view(1), &price, px + 77.0, py + 34.0);
             }
             _ => self.draw_building_panel(city, item, cost, lay),
         }
@@ -219,8 +220,6 @@ impl App {
         lay: &Layout,
     ) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let white = WHITE;
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         let (px, py) = (PANEL_X, 0.0);
         self.draw_pic(lay, "unitview", 0, 0, px, py);
         // The picture, centred in 44 by 36 pixels.
@@ -259,14 +258,14 @@ impl App {
             for (i, line) in self.bm_wrap(4, &name, 100.0).iter().enumerate() {
                 self.draw_styled(
                     view,
-                    &Style::nearest(4, gold),
+                    &Style::unit_view(4),
                     line,
                     name_x,
                     py + 7.0 + 8.0 * i as f32,
                 );
             }
         } else {
-            self.draw_styled(view, &Style::nearest(4, gold), &name, name_x, py + 11.0);
+            self.draw_styled(view, &Style::unit_view(4), &name, name_x, py + 11.0);
         }
         let rules = &self.game.content().rules;
         let (upkeep, id) = match item {
@@ -275,21 +274,21 @@ impl App {
         };
         if id.is_some() {
             let word = self.text("production.cost");
-            self.draw_styled(view, &Style::nearest(1, white), &word, px + 55.0, py + 34.0);
+            self.draw_styled(view, &Style::unit_view(1), &word, px + 55.0, py + 34.0);
             self.draw_styled(
                 view,
-                &Style::nearest(1, white),
+                &Style::unit_view(1),
                 &cost.to_string(),
                 px + 77.0,
                 py + 34.0,
             );
         }
         let word = self.text("production.maintenance");
-        self.draw_styled(view, &Style::nearest(4, gold), &word, px + 12.0, py + 47.0);
+        self.draw_styled(view, &Style::unit_view(4), &word, px + 12.0, py + 47.0);
         if upkeep == 0 {
             self.draw_styled(
                 view,
-                &Style::nearest(2, white).right(),
+                &Style::unit_view(2).right(),
                 "0",
                 px + 96.0,
                 py + 48.0,
@@ -308,7 +307,7 @@ impl App {
         }
         let allows = self.production_allows(city, id);
         let word = self.text("production.allows");
-        self.draw_styled(view, &Style::nearest(4, gold), &word, px + 12.0, py + 58.0);
+        self.draw_styled(view, &Style::unit_view(4), &word, px + 12.0, py + 58.0);
         if !allows.is_empty() {
             let and = self.text("production.and");
             let mut text = allows[..allows.len() - 1].join(", ");
@@ -320,7 +319,7 @@ impl App {
             for (i, line) in self.bm_wrap(2, &text, 100.0).iter().enumerate() {
                 self.draw_styled(
                     view,
-                    &Style::nearest(2, white),
+                    &Style::unit_view(2),
                     line,
                     px + 64.0,
                     py + 59.0 + 7.0 * i as f32,
@@ -339,7 +338,7 @@ impl App {
             for (i, line) in self.bm_wrap(4, &text, 147.0).iter().enumerate() {
                 self.draw_styled(
                     view,
-                    &Style::nearest(4, gold),
+                    &Style::unit_view(4),
                     line,
                     px + 13.0,
                     py + 107.0 + 9.0 * i as f32,

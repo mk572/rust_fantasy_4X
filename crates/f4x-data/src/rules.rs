@@ -54,44 +54,48 @@ fn apply_city_names(dirs: &[&Path], races: &mut [RaceDef]) -> Result<(), Content
     Ok(())
 }
 
-/// The hero names, kept apart from the hero table because the original's are local only.
-#[derive(serde::Deserialize)]
-struct HeroNames {
-    unit: String,
-    names: Vec<String>,
-}
-
-/// Fill in each hero template's `names` from `hero_names.ron`, if any directory has it. A hero
-/// the file does not mention keeps no names (the game then uses the unit's own).
-fn apply_hero_names(dirs: &[&Path], templates: &mut [HeroTemplate]) -> Result<(), ContentError> {
-    if find(dirs, "hero_names.ron").is_none() {
-        return Ok(());
+/// Fill in each hero template's `names` from `text/<lang>/name/hero.ron` (by the hero unit's
+/// number, five names for each; `lang` over the fallback language). A hero without names, and
+/// names for a number that is no hero, are problems.
+fn apply_hero_names(
+    (dirs, lang): (&[&Path], &str),
+    templates: &mut [HeroTemplate],
+    units: &[UnitDef],
+    problems: &mut Vec<String>,
+) -> Result<(), ContentError> {
+    let names = name_table::<Vec<String>>(dirs, lang, "hero")?;
+    for t in templates.iter_mut() {
+        let num = units.iter().find(|u| u.id == t.unit).map(|u| u.num);
+        match num.and_then(|n| names.get(&n)) {
+            Some(list) => t.names = list.clone(),
+            None => problems.push(format!(
+                "hero {} has no names in text/{lang}/name/hero.ron",
+                t.unit
+            )),
+        }
     }
-    for list in parse::<Vec<HeroNames>>(dirs, "hero_names.ron")? {
-        let Some(t) = templates.iter_mut().find(|t| t.unit == list.unit) else {
-            return Err(ContentError::Invalid(vec![format!(
-                "hero_names.ron names unknown hero {:?}",
-                list.unit
-            )]));
-        };
-        t.names = list.names;
+    let known: std::collections::BTreeSet<u16> = templates
+        .iter()
+        .filter_map(|t| units.iter().find(|u| u.id == t.unit).map(|u| u.num))
+        .collect();
+    for n in names.keys().filter(|n| !known.contains(n)) {
+        problems.push(format!(
+            "text/{lang}/name/hero.ron names the unknown hero {n}"
+        ));
     }
     Ok(())
 }
 
-/// The ready-made wizards' names and descriptions, kept apart from their books and retorts
-/// because the original's are local only.
+/// The ready-made wizards' descriptions, kept apart from their books and retorts because the
+/// original's are local only.
 #[derive(serde::Deserialize)]
 struct WizardTexts {
     id: String,
-    name: String,
     #[serde(default)]
     description: String,
 }
 
-/// Fill in each ready-made wizard's name and description from `wizard_texts.ron`, if any
-/// directory has it. A wizard the file does not mention is named after its id ("lo_pan" is
-/// "Lo Pan").
+/// Fill in each ready-made wizard's description from `wizard_texts.ron`, if any directory has it.
 fn apply_wizard_texts(dirs: &[&Path], wizards: &mut [WizardDef]) -> Result<(), ContentError> {
     if find(dirs, "wizard_texts.ron").is_some() {
         for t in parse::<Vec<WizardTexts>>(dirs, "wizard_texts.ron")? {
@@ -101,20 +105,8 @@ fn apply_wizard_texts(dirs: &[&Path], wizards: &mut [WizardDef]) -> Result<(), C
                     t.id
                 )]));
             };
-            w.name = t.name;
             w.description = t.description;
         }
-    }
-    for w in wizards.iter_mut().filter(|w| w.name.is_empty()) {
-        w.name =
-            w.id.split('_')
-                .map(|word| {
-                    let mut c = word.chars();
-                    c.next()
-                        .map_or(String::new(), |f| f.to_uppercase().chain(c).collect())
-                })
-                .collect::<Vec<_>>()
-                .join(" ");
     }
     Ok(())
 }
@@ -134,6 +126,21 @@ fn name_table<V: serde::de::DeserializeOwned>(
         }
     }
     Ok(all)
+}
+
+/// The names for rival wizards: `text/<lang>/name/rival.ron` of the first directory that has
+/// it, else the fallback language's (one list for each rival slot).
+fn rival_names(
+    dirs: &[&Path],
+    lang: &str,
+) -> Result<Vec<Vec<(String, f4x_core::text::Gender)>>, ContentError> {
+    let own = format!("text/{lang}/name/rival.ron");
+    let name = if find(dirs, &own).is_some() {
+        own
+    } else {
+        format!("text/{}/name/rival.ron", f4x_core::text::FALLBACK_LANGUAGE)
+    };
+    parse(dirs, &name)
 }
 
 /// How `fill_names` reads a definition's number and alias.
@@ -181,7 +188,6 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
     } else {
         Vec::new()
     };
-    apply_hero_names(dir, &mut hero_templates)?;
     let mut wizards = if find(dir, "wizards.ron").is_some() {
         parse::<Vec<WizardDef>>(dir, "wizards.ron")?
     } else {
@@ -197,6 +203,24 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
     let mut item_powers = parse::<Vec<ItemPowerDef>>(dir, "item_powers.ron")?;
     let mut problems = Vec::new();
     let at = (dir, lang);
+    apply_hero_names(at, &mut hero_templates, &units, &mut problems)?;
+    fill_names(
+        at,
+        ("wizard", "wizard"),
+        &mut wizards,
+        (|d| d.num, |d| &d.id),
+        |d, n: String| d.name = n,
+        &mut problems,
+    )?;
+    let mut level_paths = parse::<Vec<LevelPathDef>>(dir, "level_paths.ron")?;
+    fill_names(
+        at,
+        ("level path", "level_path"),
+        &mut level_paths,
+        (|d| d.num, |d| &d.id),
+        |d, n: Vec<String>| d.set_level_names(n),
+        &mut problems,
+    )?;
     fill_names(
         at,
         ("race", "race"),
@@ -277,7 +301,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         spells: Registry::new(spells),
         items: Registry::new(items),
         item_powers: Registry::new(item_powers),
-        level_paths: Registry::new(parse::<Vec<LevelPathDef>>(dir, "level_paths.ron")?),
+        level_paths: Registry::new(level_paths),
         // Ready-made wizards are optional: a rule set without them just has no presets.
         wizards: Registry::new(wizards),
         // The starting records of the hero types, also optional.
@@ -289,11 +313,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         } else {
             f4x_core::rules::lair::LairRules::default()
         },
-        wizard_names: if find(dir, "wizard_names.ron").is_some() {
-            parse::<Vec<Vec<(String, f4x_core::text::Gender)>>>(dir, "wizard_names.ron")?
-        } else {
-            Vec::new()
-        },
+        wizard_names: rival_names(dir, lang)?,
     };
     let problems = validate_rules(&rules, features);
     if problems.is_empty() {

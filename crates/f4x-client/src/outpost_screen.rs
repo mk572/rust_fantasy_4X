@@ -6,7 +6,8 @@
 //! on the map, a right-click on one opens its sheet. Positions are the original's.
 
 use crate::audio::{music, Track};
-use crate::font::Style;
+use crate::font::{rgb, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::modal::{keep, Modal};
 use crate::page::Page;
@@ -174,10 +175,8 @@ impl App {
         input: &Input,
     ) -> bool {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
         self.draw_pic(lay, "backgrnd", 33, 0, x, y);
-        self.draw_styled(view, &Style::nearest(4, gold), title, x + 10.0, y + 6.0);
+        self.draw_styled(view, &Style::set(4, 4), title, x + 10.0, y + 6.0);
         for c in input.typed() {
             if !c.is_control() && name.chars().count() < f4x_core::city::NAME_LEN {
                 name.push(c);
@@ -188,7 +187,7 @@ impl App {
         }
         self.draw_styled(
             view,
-            &Style::nearest(4, light),
+            &Style::inked(4, Ink::Set(font_ramp::NAME_INPUT)),
             &format!("{name}_"),
             x + 16.0,
             y + 21.0,
@@ -285,7 +284,7 @@ impl Page for OutpostUi {
         };
         app.draw_styled(
             view,
-            &Style::outlined(5).center(),
+            &Style::sh_set(5, 5).edge(rgb(0x08, 0x04, 0x04)).center(),
             &title,
             wx + 124.0,
             wy + 6.0,
@@ -295,13 +294,7 @@ impl Page for OutpostUi {
             .city_race(city)
             .map(|r| app.game.content().rules.races.get(r).name.clone())
             .unwrap_or_default();
-        app.draw_styled(
-            view,
-            &Style::nearest(1, Color::new(0.95, 0.7, 0.2, 1.0)),
-            &race,
-            wx + 6.0,
-            wy + 23.0,
-        );
+        app.draw_styled(view, &Style::city_figures(), &race, wx + 6.0, wy + 23.0);
 
         // The garrison (a new outpost shows none) and the enchantments.
         let units: Vec<_> = if ui.new {

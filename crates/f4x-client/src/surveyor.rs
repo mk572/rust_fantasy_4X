@@ -252,35 +252,45 @@ impl App {
             leave = true;
         }
         let title = self.text("surveyor.title");
-        self.draw_styled(view, &Style::set(4, 1).center(), &title, 280.0, 80.0);
+        self.draw_styled(view, &Style::survey_white(4).center(), &title, 280.0, 80.0);
         let text = self
             .tile_under_mouse(input)
             .and_then(|pos| self.describe_square(pos));
         if let Some(t) = text {
-            self.draw_styled(view, &Style::set(1, 1).center(), &t.terrain, 280.0, 91.0);
+            self.draw_styled(
+                view,
+                &Style::survey_ramp().center(),
+                &t.terrain,
+                280.0,
+                91.0,
+            );
             for (i, line) in t.effects.iter().enumerate() {
                 self.draw_styled(
                     view,
-                    &Style::set(0, 0).center(),
+                    &Style::survey_white(1).center(),
                     line,
                     280.0,
                     98.0 + 7.0 * i as f32,
                 );
             }
             for (i, line) in t.special.iter().enumerate() {
-                let set = usize::from(i == 0);
-                self.draw_styled(
-                    view,
-                    &Style::set(1, set).center(),
-                    line,
-                    280.0,
-                    114.0 + 7.0 * i as f32,
-                );
+                let style = if i == 0 {
+                    Style::survey_ramp()
+                } else {
+                    Style::survey_white(1)
+                };
+                self.draw_styled(view, &style.center(), line, 280.0, 114.0 + 7.0 * i as f32);
             }
             if !t.detail.is_empty() {
                 let y = 121.0 + 7.0 * t.special.len().saturating_sub(1) as f32;
-                for (i, line) in self.bm_wrap(0, &t.detail, 66.0).iter().enumerate() {
-                    self.draw_styled(view, &Style::set(0, 0), line, 247.0, y + 7.0 * i as f32);
+                for (i, line) in self.bm_wrap(1, &t.detail, 66.0).iter().enumerate() {
+                    self.draw_styled(
+                        view,
+                        &Style::survey_white(1),
+                        line,
+                        247.0,
+                        y + 7.0 * i as f32,
+                    );
                 }
             }
             if let Some((size, prod, gold)) = t.resources {
@@ -292,27 +302,33 @@ impl App {
                     self.text("surveyor.prod_bonus"),
                     self.text("surveyor.gold_bonus"),
                 );
-                self.draw_styled(view, &Style::set(1, 1).center(), &resources, 280.0, 143.0);
-                self.draw_styled(view, &Style::set(0, 0), &max_pop, 245.0, 151.0);
                 self.draw_styled(
                     view,
-                    &Style::set(0, 0).right(),
+                    &Style::survey_ramp().center(),
+                    &resources,
+                    280.0,
+                    143.0,
+                );
+                self.draw_styled(view, &Style::survey_white(1), &max_pop, 245.0, 151.0);
+                self.draw_styled(
+                    view,
+                    &Style::survey_white(1).right(),
                     &size.to_string(),
                     306.0,
                     151.0,
                 );
-                self.draw_styled(view, &Style::set(0, 0), &prod_bonus, 245.0, 158.0);
+                self.draw_styled(view, &Style::survey_white(1), &prod_bonus, 245.0, 158.0);
                 self.draw_styled(
                     view,
-                    &Style::set(0, 0).right(),
+                    &Style::survey_white(1).right(),
                     &format!("+{prod}%"),
                     312.0,
                     158.0,
                 );
-                self.draw_styled(view, &Style::set(0, 0), &gold_bonus, 245.0, 165.0);
+                self.draw_styled(view, &Style::survey_white(1), &gold_bonus, 245.0, 165.0);
                 self.draw_styled(
                     view,
-                    &Style::set(0, 0).right(),
+                    &Style::survey_white(1).right(),
                     &format!("+{gold}%"),
                     312.0,
                     165.0,
@@ -320,7 +336,13 @@ impl App {
             } else if let Some(why) = t.blocked {
                 let message = why;
                 for (i, line) in self.bm_wrap(0, &message, 67.0).iter().enumerate() {
-                    self.draw_styled(view, &Style::set(0, 0), line, 246.0, 143.0 + 7.0 * i as f32);
+                    self.draw_styled(
+                        view,
+                        &Style::survey_white(1),
+                        line,
+                        246.0,
+                        143.0 + 7.0 * i as f32,
+                    );
                 }
             }
         }

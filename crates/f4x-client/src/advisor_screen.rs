@@ -4,7 +4,8 @@
 //!
 //! Tests: none, because it only draws and needs a window.
 
-use crate::font::Style;
+use crate::font::{rgb, Effect, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::ui;
@@ -14,6 +15,15 @@ use macroquad::prelude::*;
 
 use crate::frame::Layout;
 use crate::view::{App, Screen, HUMAN};
+
+/// The shadow of the Advisor screens' text: `Set_Outline_Color(254)`, an entry of the screens' own palette.
+const EDGE: Color = rgb(0x18, 0x18, 0x2C);
+/// The banner colours of the wizards' names: `banner_colors[]` of `Powergraph_Screen_Draw`.
+const BANNERS: [u8; 5] = [172, 216, 124, 201, 211];
+/// The banner colours of the city names on the Cartographer map: `banner_colors[]` there.
+const CART_BANNERS: [u8; 6] = [172, 216, 123, 201, 179, 50];
+/// The outline of those names: `Set_Outline_Color(1)`.
+const CART_EDGE: Color = rgb(0x08, 0x04, 0x04);
 
 const MONTHS: [&str; 12] = [
     "advisor.january",
@@ -69,10 +79,12 @@ impl Page for HistoryPage {
             let r = lay.rect(crate::resolution::SCREEN);
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.08, 0.07, 0.06, 1.0));
         }
-        let gold = Color::new(0.95, 0.85, 0.5, 1.0);
         app.draw_styled(
             view,
-            &Style::nearest(4, gold).center(),
+            &Style::inked(4, Ink::Set(font_ramp::GOLD_TEXT))
+                .shadow()
+                .edge(EDGE)
+                .center(),
             &app.text("advisor.history_title"),
             160.0,
             10.0,
@@ -84,7 +96,16 @@ impl Page for HistoryPage {
                 .text("month", app.text(MONTHS[turn % 12]))
                 .count("year", 1400 + turn / 12),
         );
-        app.draw_styled(view, &Style::nearest(2, WHITE).right(), &date, 309.0, 11.0);
+        app.draw_styled(
+            view,
+            &Style::inked(2, Ink::Set(font_ramp::GOLD_TEXT))
+                .shadow()
+                .edge(EDGE)
+                .right(),
+            &date,
+            309.0,
+            11.0,
+        );
 
         // The time line, with a tick every year and the year written every fifth.
         let thick = lay.scale;
@@ -116,7 +137,7 @@ impl Page for HistoryPage {
                 if year % 5 == 0 {
                     app.draw_styled(
                         view,
-                        &Style::nearest(1, WHITE),
+                        &Style::sh_set(1, 0).edge(EDGE),
                         &year.to_string(),
                         x + 6.0,
                         186.0,
@@ -149,7 +170,9 @@ impl Page for HistoryPage {
             }
             app.draw_styled(
                 view,
-                &Style::nearest(3, colour),
+                &Style::inked(3, app.banner_set_ink(banner, &BANNERS))
+                    .shadow()
+                    .edge(EDGE),
                 &name,
                 10.0,
                 23.0 + row as f32 * 9.0,
@@ -172,10 +195,12 @@ impl Page for AstrologerPage {
             let r = lay.rect((sx, sy, 277.0, 181.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.08, 0.07, 0.06, 1.0));
         }
-        let gold = Color::new(0.95, 0.85, 0.5, 1.0);
         app.draw_styled(
             view,
-            &Style::nearest(4, gold).center(),
+            &Style::inked(4, Ink::Set(font_ramp::GOLD_TEXT))
+                .shadow()
+                .edge(EDGE)
+                .center(),
             &app.text("advisor.status_title"),
             sx + 138.0,
             sy + 10.0,
@@ -188,7 +213,7 @@ impl Page for AstrologerPage {
         for (i, text) in rows.iter().enumerate() {
             app.draw_styled(
                 view,
-                &Style::nearest(2, WHITE).center(),
+                &Style::sh_set(2, 3).edge(EDGE).center(),
                 text,
                 sx + 138.0,
                 sy + 23.0 + 49.0 * i as f32,
@@ -207,7 +232,15 @@ impl Page for AstrologerPage {
             let colour = app.art.banner_color(banner);
             for (section, score) in [a.strength, a.power, a.research].into_iter().enumerate() {
                 let y = sy + 35.0 + 49.0 * section as f32 + row as f32 * 7.0;
-                app.draw_styled(view, &Style::nearest(0, WHITE), &name, sx + 14.0, y);
+                app.draw_styled(
+                    view,
+                    &Style::inked(0, Ink::Set(font_ramp::GOLD_TEXT))
+                        .shadow()
+                        .edge(EDGE),
+                    &name,
+                    sx + 14.0,
+                    y,
+                );
                 let bar = lay.rect((sx + 64.0, y + 1.0, score.clamp(0, 200) as f32 + 1.0, 2.0));
                 draw_rectangle(bar.x, bar.y, bar.w, bar.h, colour);
                 let shade = lay.rect((sx + 64.0, y + 3.0, score.clamp(0, 200) as f32 + 1.0, 1.0));
@@ -318,25 +351,28 @@ impl Page for CartographerPage {
                 continue;
             }
             let (sx, sy) = px(at.x, at.y);
+            let banner = app
+                .game
+                .wizard(city.owner)
+                .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner());
             let colour = if app.game.is_neutral_player(city.owner) {
                 Color::new(0.5, 0.3, 0.1, 1.0)
             } else {
-                app.art.banner_color(
-                    app.game
-                        .wizard(city.owner)
-                        .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner()),
-                )
+                app.art.banner_color(banner)
             };
             square(sx + 1.0, sy + 1.0, 3.0, BLACK);
             square(sx, sy, 3.0, colour);
             if ui::hit(lay.rect((sx, sy, CART_SQUARE, CART_SQUARE)), true, input).hovered() {
-                hovered = Some((sx, sy, city.name.clone()));
+                hovered = Some((sx, sy, city.name.clone(), banner));
             }
         }
-        if let Some((sx, sy, name)) = hovered {
+        if let Some((sx, sy, name, owner_banner)) = hovered {
             app.draw_styled(
                 view,
-                &Style::nearest(0, WHITE).center(),
+                &Style::inked(0, app.banner_set_ink(owner_banner, &CART_BANNERS))
+                    .effect(Effect::Outline)
+                    .edge(CART_EDGE)
+                    .center(),
                 &name,
                 sx + 2.0,
                 sy - 6.0,
@@ -350,7 +386,7 @@ impl Page for CartographerPage {
         });
         app.draw_styled(
             view,
-            &Style::nearest(5, Color::new(0.2, 0.1, 0.05, 1.0)).center(),
+            &Style::sh_nearest(5, Color::new(0.2, 0.1, 0.05, 1.0)).center(),
             &title,
             160.0,
             12.0,
@@ -375,19 +411,13 @@ impl Page for CartographerPage {
                 let r = lay.rect((261.0, 81.0 + row * 9.0, 7.0, 6.0));
                 draw_rectangle(r.x, r.y, r.w, r.h, app.art.banner_color(banner));
             }
-            app.draw_styled(
-                view,
-                &Style::nearest(1, Color::new(0.2, 0.1, 0.05, 1.0)),
-                &name,
-                269.0,
-                82.0 + row * 9.0,
-            );
+            app.draw_styled(view, &Style::set(1, 1), &name, 269.0, 82.0 + row * 9.0);
             row += 1.0;
         }
         app.draw_pic(&lay, "reload", 8, 0, 260.0, 80.0 + row * 9.0);
         app.draw_styled(
             view,
-            &Style::nearest(1, Color::new(0.2, 0.1, 0.05, 1.0)),
+            &Style::set(1, 1),
             &app.text("advisor.neutral"),
             269.0,
             82.0 + row * 9.0,

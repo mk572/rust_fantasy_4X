@@ -381,7 +381,7 @@ fn plain_computer_build(content: &Content, seed: u64, k: usize) -> WizardBuild {
 }
 
 /// A name for rival `k` when no ready-made wizards are loaded: one of the ten in that slot's list
-/// (`content/wizard_names.ron`), picked from the seed without touching the game's random stream.
+/// (`content/text/en/name/rival.ron`), picked from the seed without touching the game's random stream.
 /// Empty if there is no list, which leaves the plain "Wizard N".
 fn fallback_name(content: &Content, seed: u64, k: usize) -> (String, crate::text::Gender) {
     let lists = &content.rules.wizard_names;

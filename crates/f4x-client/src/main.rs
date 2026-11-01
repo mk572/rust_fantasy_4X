@@ -33,6 +33,7 @@ mod event_popup;
 mod fighter_pick;
 mod fled_notice;
 mod font;
+mod font_ramp;
 mod frame;
 mod game_over_screen;
 mod global_spell;

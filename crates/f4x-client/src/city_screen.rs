@@ -1,7 +1,7 @@
 //! The city screen: economy, buildings, worked area and the production list, drawn on
 //! the original screen layout (320x200) when the art is available.
 
-use crate::font::Style;
+use crate::font::{rgb, Effect, Style};
 use crate::frame::Disabled;
 use crate::input::Input;
 use crate::page::Page;
@@ -50,6 +50,11 @@ impl Layout {
 }
 
 /// The top left of the first unit in the garrison window.
+/// The shadow of the enchantment names (`Set_Outline_Color(6)` in `City_Screen_Draw_City_Enchantments`).
+const EDGE_ENCHANTMENT: Color = rgb(0x69, 0x61, 0x5D);
+/// The shadow of the product name and description (`Set_Outline_Color(4)`).
+const EDGE_PRODUCT: Color = rgb(0x49, 0x41, 0x3C);
+
 const GARRISON: (f32, f32) = (215.0, 102.0);
 
 /// The city screen of one city.
@@ -399,18 +404,11 @@ impl App {
                 .text("city", &name),
         );
         let view = Self::view(lay);
-        self.draw_styled(
-            view,
-            &Style::nearest(5, Color::new(0.95, 0.85, 0.5, 1.0)).center(),
-            &title,
-            105.0,
-            0.0,
-        );
+        self.draw_styled(view, &Style::sh_set(5, 5).center(), &title, 105.0, 3.0);
         // A click on the name asks for a new one.
         if ui::hit(lay.rect(0.0, 0.0, 210.0, 17.0), !self.choosing, input).clicked() {
             page.naming = Some(name.clone());
         }
-        let orange = Color::new(0.95, 0.7, 0.2, 1.0);
         let mut race_name = race_name;
         let serial = self.game.serial_of(city);
         for (kind, mark) in [
@@ -424,12 +422,12 @@ impl App {
                 race_name += &self.text(mark);
             }
         }
-        self.draw_styled(view, &Style::nearest(3, orange), &race_name, 6.0, 19.0);
+        self.draw_styled(view, &Style::city_figures(), &race_name, 6.0, 19.0);
         let people = pop.figures * 1000 + pop.tens * 10;
         let grow = eco.growth_tens * 10;
         self.draw_styled(
             view,
-            &Style::nearest(3, orange).right(),
+            &Style::city_figures().right(),
             &self.text_with(
                 "city.population",
                 &Args::new()
@@ -633,10 +631,12 @@ impl App {
                         .text("wards", self.game.economy().city_wards(city).join(", ")),
                 );
             }
-            let color = self.banner_color(caster.0);
+            let ink = self.banner_ink(caster.0, &[222, 79, 127, 201, 211, 50]);
             self.draw_styled(
                 view,
-                &Style::nearest(1, color),
+                &Style::inked(1, ink)
+                    .effect(Effect::ShadowUp)
+                    .edge(EDGE_ENCHANTMENT),
                 &name,
                 first_x + shift,
                 first_y + shift + i * 7.0,
@@ -1062,7 +1062,16 @@ impl App {
         if let Some(n) = name {
             self.draw_styled(
                 view,
-                &Style::nearest(3, WHITE).center(),
+                &Style::set(
+                    1,
+                    if mouse_over.is_none() && over_rubble {
+                        2
+                    } else {
+                        0
+                    },
+                )
+                .effect(Effect::Outline)
+                .center(),
                 &n,
                 x0 + 102.0,
                 y0 + 84.0,
@@ -1466,7 +1475,6 @@ impl App {
         let prod = self.game.economy().city_production(city);
         let eco = self.game.economy().city_economy(city).unwrap_or_default();
         let view = Self::view(lay);
-        let white = WHITE;
         match prod.item {
             Some(item) => {
                 let name = self.item_name(item);
@@ -1476,7 +1484,7 @@ impl App {
                 for (i, line) in lines.iter().enumerate() {
                     self.draw_styled(
                         view,
-                        &Style::nearest(1, white),
+                        &Style::set(1, 0).effect(Effect::ShadowUp).edge(EDGE_PRODUCT),
                         line,
                         216.0,
                         top + 6.0 * i as f32,
@@ -1489,16 +1497,15 @@ impl App {
                         // "N Turns" as the original prints it: the number right-aligned at 286,
                         // the word after it.
                         let turns = remaining.div_ceil(eco.production as u32);
-                        let gold = Color::new(0.95, 0.7, 0.2, 1.0);
                         self.draw_styled(
                             view,
-                            &Style::nearest(1, gold).right(),
+                            &Style::city_figures().right(),
                             &turns.to_string(),
                             286.0,
                             140.0,
                         );
                         let word = self.text_with("city.turns", &Args::new().count("n", turns));
-                        self.draw_styled(view, &Style::nearest(1, gold), &word, 291.0, 140.0);
+                        self.draw_styled(view, &Style::city_figures(), &word, 291.0, 140.0);
                     }
                     self.draw_production_coins(lay, prod.progress, cost);
                 } else {
@@ -1510,10 +1517,10 @@ impl App {
                     } else {
                         self.text("city.increases_growth")
                     };
-                    for (i, line) in self.bm_wrap(1, &text, 50.0).iter().enumerate() {
+                    for (i, line) in self.bm_wrap(0, &text, 50.0).iter().enumerate() {
                         self.draw_styled(
                             view,
-                            &Style::nearest(1, white),
+                            &Style::set(0, 0).effect(Effect::ShadowUp).edge(EDGE_PRODUCT),
                             line,
                             262.0,
                             159.0 + 6.0 * i as f32,

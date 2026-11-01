@@ -194,11 +194,18 @@ pick the same palette the game had loaded when it showed a picture, or the colou
 - `fonts/bmfont/style0.fnt` to `style7.fnt` with `.png` are the same styles as AngelCode text BMFonts (for
   `macroquad_bitmap_font_engine`): 96 glyphs on a grid with a one pixel gap, `lineHeight` =
   height + vertical spacing, `xadvance` = width + horizontal spacing. The `.fnt` describes the first grid and the PNG
-  stacks it 16 times, once per colour set (the engine's `Ink::Set`, `Nearest` and `Tint` pick one). Styles 0 to 5 also get
-  **Ä Ö Ü ä ö ü ß** (for German, task on localized text), drawn by the extractor from the ASCII letters: two dots over
-  the letter (a clear row between; a letter with no room above grows upward and is drawn above the line, `yoffset` < 0)
-  and an eszett made from the capital B's curve over the bowl of a small b with a gap at the bottom. The ß is the
-  roughest of them; check it by eye. The rune styles 6 and 7 get none. They are original art, so they stay local like
+  stacks it 16 times, once per colour set (the engine's `Ink::Set`, `Nearest` and `Tint` pick one). Styles 0 to 5 also get the letters of other European languages, drawn by the extractor from the style's own ASCII
+  letters (`accent.rs`; the rune styles 6 and 7 get none): accented letters with an acute, grave, circumflex, caron,
+  breve, tilde, diaeresis, ring, dot, macron, double acute, cedilla or ogonek (a mark above leaves a clear row; a
+  letter with no room grows upward and is drawn above the line, `yoffset` < 0; a mark below grows downward; the
+  2-pixel marks of the 16 px style are 2 pixels per pixel), the tick of Czech and Slovak ď ť ľ, the strokes of
+  ł Ł ø Ø đ Đ Ð, the ligatures æ œ Æ Œ, the dotless ı, ¿ ¡, « », typographic quotes „ “ ” ‚ ‘ ’, the dashes – —
+  and the ellipsis …, and the eszett ß: a straight stem on the left, an upper half-circle and a slightly larger lower
+  one, the lower bowl's bar left unjoined to the stem at the bottom. That covers French, Spanish, Portuguese,
+  Italian, German, Dutch, Danish, Norwegian, Swedish, Finnish, Czech, Slovak, Polish, Hungarian, Romanian, Croatian
+  and Turkish; not drawn: Icelandic þ ð, the capital ẞ, ĳ and the Greek and Cyrillic scripts (see the free fonts in
+  `docs/fonts.md` for those). The accented glyphs are made, not drawn by hand: check a new language by eye
+  (draw its letters from the `.fnt` and `.png` with Pillow, enlarged 4 times). They are original art, so they stay local like
   the rest of `assets-local`.
 - `fonts/colour_sets.ron` is the colour set table itself (set, colour index 1 to 15, RGB). It is only numbers, so a
   copy is committed as `content/font_colour_sets.ron`; after `extract-art` copy it over (`cp

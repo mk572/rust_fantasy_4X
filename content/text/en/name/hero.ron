@@ -1,0 +1,38 @@
+// The names of the heroes, by the hero unit's number (`num` in units.ron): five for each, one per wizard number (the first is the hero's name in the first wizard's game). A language has the same file in its own folder.
+{
+    0: ["Brax", "Dolgin", "Grendel", "Beorn", "Flynn"],  // dwarf
+    1: ["Gunther", "Wolfar", "Angus", "Fritz", "Johan"],  // barbarian
+    2: ["Zaldron", "Jesrael", "Sardon", "Tiberius", "Zorin"],  // sage
+    3: ["B'Shan", "Abdul Shaza", "Fazeel", "Wizier", "Dolo"],  // dervish
+    4: ["Rakir", "Salkirg", "Wyn", "Reya", "Fleir"],  // beastmaster
+    5: ["Valana", "Lauren", "Lidia", "Veronica", "Adrianna"],  // bard
+    6: ["Bahgtru", "Rockfist", "Yaga", "Maktu", "Orgaak"],  // orc_warrior
+    7: ["Serena", "Shardis", "Sasha", "Karla", "Anastasia"],  // healer
+    8: ["Shuri", "Artemis", "Shanna", "Umalla", "Farra"],  // huntress
+    9: ["Theria", "Shadow", "Misty", "Doria", "Tamara"],  // thief
+    10: ["Greyfairer", "Tholin", "Greenleaf", "Blackhawk", "Feylass"],  // druid
+    11: ["Taki", "Quai Chang", "Tonaga", "Enendo", "Yomatu"],  // war_monk
+    12: ["Reywind", "Stalkaor", "Darius", "Wylas", "Deamond"],  // warrior_mage
+    13: ["Malleus", "Delian", "Furius", "Karnak", "Landreux"],  // magician
+    14: ["Tumu", "Altahza", "Shaka", "Huracus", "Kaizlar"],  // assassin
+    15: ["Jaer", "Graydon", "Aquilon", "Shadowin", "Arcus"],  // wind_mage
+    16: ["Marcus", "Cassius", "Tantris", "Waylish", "Wolf"],  // ranger
+    17: ["Fang", "Dreadwing", "Drakus", "Druel", "Hiss"],  // draconian
+    18: ["Morgana", "Tabatha", "Karlota", "Elicia", "Cassandra"],  // witch
+    19: ["Aureus", "Orlo", "Metallis", "Sheenar", "Balzius"],  // golden_one
+    20: ["Shin Bo", "Omi", "Mongo", "Reyon", "Dakan"],  // ninja
+    21: ["Spyder", "Jester", "Marco", "Dupre", "Eroll"],  // rogue
+    22: ["Shalla", "Diana", "Lana", "Delilah", "Sonja"],  // amazon
+    23: ["Yramrag", "Grofzinar", "Malefix", "Masikula", "Solnar"],  // warlock
+    24: ["Mystic X", "Nymos", "Morphis", "Beast", "Misterio"],  // unknown
+    25: ["Aerie", "Xoara", "Miranda", "Windaria", "Mira"],  // illusionist
+    26: ["Deth Stryke", "Aleron", "Destin", "Nicholas", "Walter"],  // swordsman
+    27: ["Elana", "Victoria", "Aphena", "Helena", "Justine"],  // priestess
+    28: ["Roland", "Charles", "Fairley", "Cecil", "Andreas"],  // paladin
+    29: ["Mortu", "Redblade", "Marek", "Kane", "Garrock"],  // black_knight
+    30: ["Alorra", "Gwendolyn", "Darlona", "Demeta", "Lita"],  // elven_archer
+    31: ["Sir Harold", "Sir Henry", "Stephan", "Sheldon", "Thomas"],  // knight
+    32: ["Ravashack", "Ulrik", "Narlok", "Lazarus", "Lucian"],  // necromancer
+    33: ["Warrax", "Kolimak", "Harlak", "Ruel", "Moray"],  // chaos_warrior
+    34: ["Torin", "Azrael", "Lawrence", "Purseus", "Heuron"],  // chosen
+}

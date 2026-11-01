@@ -35,4 +35,7 @@
     "ui.yes": "Yes",
     "ui.no": "No",
     "ui.cancel": "Cancel",
+    "ui.gold_unit": "GP",
+    "ui.mana_unit": "MP",
+    "ui.power_unit": "PP",
 }

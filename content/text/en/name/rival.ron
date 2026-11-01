@@ -1,5 +1,5 @@
 // Names for rival wizards when the original's ready-made wizards are not imported
-// (`content-local/wizards.ron`). One list for each rival slot, first rival first; a game draws
+// (`content-local/wizards.ron`). A language has the same file in its own folder. One list for each rival slot, first rival first; a game draws
 // one name (with its gender) from each list (a game with a fifth wizard uses the fourth list for the last).
 // Invented names, not the original's.
 [

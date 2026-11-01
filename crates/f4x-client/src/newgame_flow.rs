@@ -85,7 +85,7 @@ impl App {
     /// The wizard's name under the portrait (`(77, 119)`), the portrait, and the title.
     pub(crate) fn ng_frame(&mut self, lay: &Layout, title: &str, portrait: Option<usize>) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        self.draw_styled(view, &Style::outlined(5).center(), title, 242.0, 1.0);
+        self.draw_styled(view, &Style::shadowed(5).center(), title, 242.0, 1.0);
         if let Some(p) = portrait {
             self.draw_pic(lay, "wizards", p, 0, 24.0, 10.0);
         }
@@ -185,6 +185,9 @@ impl Page for CreateState {
 
 impl CreateState {
     /// The books on the shelf at `(36, 135)`, eight pixels each, realms in the given order.
+    ///
+    /// The books are drawn over the realm titles on the right of the picks screen ("Life" shows
+    /// as "ife"): this overlap is part of the original game, not a bug; do not "fix" it.
     pub(crate) fn ng_shelf(
         &mut self,
         app: &mut App,
@@ -422,7 +425,7 @@ impl CreateState {
         } else {
             "create.select_wizard"
         });
-        app.draw_styled(view, &Style::outlined(5).center(), &title, 242.0, 1.0);
+        app.draw_styled(view, &Style::shadowed(5).center(), &title, 242.0, 1.0);
         let clicked = input.mouse_pressed(MouseButton::Left) && self.ng_input();
         let mut chosen = None;
         let mut over = None;
@@ -523,7 +526,7 @@ impl CreateState {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         app.draw_pic(lay, "newgame", 40, 0, 181.0, 17.0);
         let title = app.text("create.wizard_name");
-        app.draw_styled(view, &Style::outlined(5).center(), &title, 242.0, 1.0);
+        app.draw_styled(view, &Style::shadowed(5).center(), &title, 242.0, 1.0);
         let portrait = self.build.portrait.map(usize::from);
         if let Some(p) = portrait {
             app.draw_pic(lay, "wizards", p, 0, 24.0, 10.0);

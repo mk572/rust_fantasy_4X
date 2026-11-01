@@ -4,7 +4,8 @@
 //! Cast"). Clicking a spell starts casting it; one that needs a target is aimed on the map.
 //! The big book (the library and research) is in `bigbook.rs`.
 
-use crate::font::Style;
+use crate::font::{Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::page_turn::{Book, BookTurn};
@@ -729,7 +730,7 @@ impl BookUi {
         if !right || starts_realm {
             app.draw_styled(
                 view,
-                &Style::nearest(4, Color::new(0.45, 0.2, 0.1, 1.0)).center(),
+                &Style::inked(4, Ink::Set(font_ramp::BOOK_TITLE)).center(),
                 &page.title,
                 title.0,
                 title.1,
@@ -781,11 +782,17 @@ impl BookUi {
         };
         // The spell being cast glows (palette index 198 cycling, `SmlBook_Draw`).
         let hot = crate::cycle::SMALL_BOOK.colour(get_time());
-        let color = if casting.is_some() { hot } else { ink };
-        app.draw_styled(view, &Style::nearest(1, color), &def.name, x, y);
+        let style = if casting.is_some() {
+            Style::nearest(1, hot)
+        } else if usable {
+            Style::inked(1, Ink::Set(font_ramp::BOOK_NAME))
+        } else {
+            Style::nearest(1, ink)
+        };
+        app.draw_styled(view, &style, &def.name, x, y);
         app.draw_styled(
             view,
-            &Style::nearest(1, color).right(),
+            &style.right(),
             &format!("{} MP", cost.max(0)),
             x + 121.0,
             y,

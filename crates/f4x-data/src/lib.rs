@@ -656,28 +656,20 @@ mod tests {
     }
 
     #[test]
-    fn hero_names_come_from_the_local_file_when_there_is_one() -> TestResult {
+    fn every_hero_has_names_in_the_text_folder() -> TestResult {
         let committed = crate::testutil::content_dir();
+        let c = load_content_layers(&[&committed])?;
+        for t in &c.rules.hero_templates {
+            assert_eq!(t.names.len(), 5, "hero {}", t.unit);
+        }
+        let dwarf = c.rules.hero_templates.iter().find(|t| t.unit == "dwarf");
+        assert_eq!(dwarf.map(|t| t.names[0].as_str()), Some("Brax"));
+        // A layer can replace the file; a number that is no hero is a load error.
         let over = f4x_core::testdir::TestDir::new("hero-names");
+        std::fs::create_dir_all(over.join("text/en/name"))?;
         std::fs::write(
-            over.join("hero_names.ron"),
-            r#"[(unit: "dwarf", names: ["Brax", "Dolgin"])]"#,
-        )?;
-        let c = load_content_layers(&[&over, &committed])?;
-        let t = |id: &str| {
-            c.rules
-                .hero_templates
-                .iter()
-                .find(|t| t.unit == id)
-                .expect("the hero has a template")
-                .clone()
-        };
-        assert_eq!(t("dwarf").names, ["Brax", "Dolgin"]);
-        // A hero the file leaves out has none, and the game uses the unit's name.
-        assert!(t("barbarian").names.is_empty());
-        std::fs::write(
-            over.join("hero_names.ron"),
-            r#"[(unit: "nobody", names: [])]"#,
+            over.join("text/en/name/hero.ron"),
+            r#"{ 9999: ["Nobody"] }"#,
         )?;
         assert!(load_content_layers(&[&over, &committed]).is_err());
         Ok(())

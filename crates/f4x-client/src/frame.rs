@@ -91,16 +91,16 @@ impl Layout {
 
 /// Text centred on `cx`, with a dark shadow so it reads on any background.
 pub fn text_centered(text: &str, cx: f32, baseline: f32, size: f32, color: Color) {
-    let w = measure_text(text, None, size as u16, 1.0).width;
+    let w = crate::font::plain_size(text, size).0;
     let x = cx - w / 2.0;
-    draw_text(
+    crate::font::plain_text(
         text,
         x + size * 0.06,
         baseline + size * 0.06,
         size,
         Color::new(0.0, 0.0, 0.0, 0.8),
     );
-    draw_text(text, x, baseline, size, color);
+    crate::font::plain_text(text, x, baseline, size, color);
 }
 
 impl App {
@@ -291,7 +291,10 @@ impl App {
         let mana = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         let view = (lay.origin.x, lay.origin.y, s);
         let style = if gold > 9999 || mana > 9999 { 0 } else { 1 };
-        for (value, right, unit) in [(gold, 265.0, "GP"), (mana, 303.0, "MP")] {
+        for (value, right, unit) in [
+            (gold, 265.0, self.text("ui.gold_unit")),
+            (mana, 303.0, self.text("ui.mana_unit")),
+        ] {
             self.draw_styled(
                 view,
                 &Style::flat(style, WHITE).shadow().right(),
@@ -302,7 +305,7 @@ impl App {
             self.draw_styled(
                 view,
                 &Style::flat(0, WHITE).shadow(),
-                unit,
+                &unit,
                 right + 3.0,
                 68.0,
             );
@@ -339,9 +342,11 @@ impl App {
             }
             let at = (ox + left * s, oy + y * s);
             match colour {
-                Some(pulse) => self.art.draw_flat_text(0, text, at, s, pulse),
+                Some(pulse) => {
+                    self.art.draw_flat_text(0, text, at, s, pulse);
+                }
                 None => {
-                    self.art.draw_bitmap_text(0, 4, text, at.0, at.1, s);
+                    self.art.draw_bitmap_text(0, 4, text, at, s);
                 }
             }
         }

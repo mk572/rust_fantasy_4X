@@ -4,7 +4,8 @@
 //! Monsters" for the neutral ones) and the unit's melee, range, armour, hits and moves. It is
 //! read only: a click or Escape closes it.
 
-use crate::font::Style;
+use crate::font::{rgb, Effect, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::modal::{keep, Modal};
 use f4x_core::map::Position;
@@ -176,10 +177,13 @@ impl App {
                 .map_or_else(String::new, |w| w.name());
             self.text_with("unit_list.units_of", &Args::new().text("owner", name))
         };
-        let banner = self.banner_color(owner.map_or(f4x_core::player::MONSTERS.0, |o| o.0));
+        let ink = self.banner_ink(
+            owner.map_or(f4x_core::player::MONSTERS.0, |o| o.0),
+            &[98, 216, 123, 43, 179, 50],
+        );
         self.draw_styled(
             view,
-            &Style::nearest(4, banner).center(),
+            &Style::inked(4, ink).shadow().center(),
             &title,
             LEFT + 118.0,
             top + 7.0,
@@ -194,7 +198,9 @@ impl App {
             };
             self.draw_styled(
                 view,
-                &Style::nearest(2, light),
+                &Style::inked(2, Ink::Set(font_ramp::UV_LIST))
+                    .effect(Effect::Outline)
+                    .edge(rgb(0x14, 0x45, 0x45)),
                 &sheet.name,
                 LEFT + 32.0,
                 y + 5.0,

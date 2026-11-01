@@ -4,7 +4,8 @@
 //! experience gives is higher than the one it last noted; so does this, from the level each of the
 //! human's heroes had at the last turn. A click or a key closes it.
 
-use crate::font::Style;
+use crate::font::{Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -139,13 +140,17 @@ impl App {
         } else {
             self.draw_sprite_in_frame(&lay, unit, (bx + 10.0, by + 10.0));
         }
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
         let title = self.text_with(
             "levelup.title",
             &Args::new().text("name", sheet.name.clone()),
         );
-        self.draw_styled(view, &Style::nearest(4, gold), &title, bx + 48.0, by + 9.0);
+        self.draw_styled(
+            view,
+            &Style::inked(4, Ink::Set(font_ramp::LEVEL_TITLE)).shadow(),
+            &title,
+            bx + 48.0,
+            by + 9.0,
+        );
         let mut gains = vec![
             ("levelup.hit_points", bx + 47.0, by + 24.0),
             ("levelup.resistance", bx + 47.0, by + 34.0),
@@ -159,7 +164,13 @@ impl App {
         for (key, x, y) in gains {
             self.draw_pic(&lay, "itemisc", 26, 0, x, y + 1.0);
             let text = self.text_with(key, &Args::new().count("n", 1));
-            self.draw_styled(view, &Style::nearest(2, light), &text, x + 8.0, y);
+            self.draw_styled(
+                view,
+                &Style::inked(2, Ink::Set(font_ramp::LEVEL_TEXT)).shadow(),
+                &text,
+                x + 8.0,
+                y,
+            );
         }
         let (mut x, mut y) = (bx + 13.0, by + 48.0);
         for (i, line) in lines.iter().enumerate() {
@@ -169,7 +180,7 @@ impl App {
             }
             self.draw_styled(
                 view,
-                &Style::nearest(2, light),
+                &Style::inked(2, Ink::Set(font_ramp::LEVEL_TEXT)).shadow(),
                 &line.name,
                 x + 19.0,
                 y + 5.0,

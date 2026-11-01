@@ -241,8 +241,6 @@ impl App {
             (11.0, 27.0, 34.0)
         };
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
         // The panels.
         if self
             .draw_pic(lay, "unitview", usize::from(!production), 0, px, py)
@@ -260,9 +258,9 @@ impl App {
         if let (Some(hero), false) = (&sheet.hero, production) {
             self.draw_pic(lay, "portrait", hero.portrait, 0, px + 9.0, py + 7.0);
             self.draw_pic(lay, "unitview", 33, 0, px + 8.0, py + 6.0);
-            self.draw_styled(view, &Style::nearest(4, gold), &hero.name, name_x, py + 6.0);
+            self.draw_styled(view, &Style::unit_view(4), &hero.name, name_x, py + 6.0);
             let kind = self.text_with("unit.the", &Args::new().text("type", &sheet.name));
-            self.draw_styled(view, &Style::nearest(4, gold), &kind, name_x, py + 17.0);
+            self.draw_styled(view, &Style::unit_view(4), &kind, name_x, py + 17.0);
         } else {
             if sheet.water {
                 self.draw_pic(lay, "unitview", 34, 0, px + ox + 6.0, py + 18.0);
@@ -274,37 +272,24 @@ impl App {
             // Name: a race's unit shows the race first.
             match &sheet.race {
                 Some(race) => {
-                    let w =
-                        self.draw_styled(view, &Style::nearest(4, gold), race, name_x, py + name_y);
+                    let w = self.draw_styled(view, &Style::unit_view(4), race, name_x, py + name_y);
                     self.draw_styled(
                         view,
-                        &Style::nearest(4, gold),
+                        &Style::unit_view(4),
                         &sheet.name,
                         name_x + w + 5.0,
                         py + name_y,
                     );
                 }
                 None => {
-                    self.draw_styled(
-                        view,
-                        &Style::nearest(4, gold),
-                        &sheet.name,
-                        name_x,
-                        py + name_y,
-                    );
+                    self.draw_styled(view, &Style::unit_view(4), &sheet.name, name_x, py + name_y);
                 }
             }
         }
 
         // Moves, and upkeep or damage.
         let moves = self.text("unit.moves");
-        self.draw_styled(
-            view,
-            &Style::nearest(1, light),
-            &moves,
-            name_x,
-            py + moves_y,
-        );
+        self.draw_styled(view, &Style::unit_view(1), &moves, name_x, py + moves_y);
         for i in 0..sheet.moves {
             self.draw_stat_icon(
                 lay,
@@ -316,13 +301,7 @@ impl App {
         }
         if let Some([gold_up, mana_up, food_up]) = sheet.upkeep {
             let word = self.text("army.upkeep");
-            self.draw_styled(
-                view,
-                &Style::nearest(1, light),
-                &word,
-                name_x,
-                py + upkeep_y,
-            );
+            self.draw_styled(view, &Style::unit_view(1), &word, name_x, py + upkeep_y);
             let (mut x, y) = (px + ox + 85.0, py + upkeep_y - 1.0);
             // Gold, then mana, then food, each a small icon from `backgrnd`.
             for (count, entry) in [(gold_up, 42), (mana_up, 43), (food_up, 40)] {
@@ -333,16 +312,10 @@ impl App {
             }
         } else if let Some(damage) = sheet.damage {
             let word = self.text("unit.damage");
+            self.draw_styled(view, &Style::unit_view(1), &word, name_x, py + upkeep_y);
             self.draw_styled(
                 view,
-                &Style::nearest(1, light),
-                &word,
-                name_x,
-                py + upkeep_y,
-            );
-            self.draw_styled(
-                view,
-                &Style::nearest(1, light).right(),
+                &Style::unit_view(1).right(),
                 &damage.to_string(),
                 px + 90.0,
                 py + upkeep_y,
@@ -357,13 +330,7 @@ impl App {
             (self.text("unit.resist"), 79.0, Some(sheet.resist)),
         ];
         for (label, y, row) in rows {
-            self.draw_styled(
-                view,
-                &Style::nearest(4, gold),
-                &label,
-                px + ox + 8.0,
-                py + y,
-            );
+            self.draw_styled(view, &Style::unit_view(4), &label, px + ox + 8.0, py + y);
             if let Some(row) = row {
                 for cell in stat_cells(row, row_length) {
                     self.draw_cell(lay, row.icon, cell, px + ox + 49.0, py + y);
@@ -371,13 +338,7 @@ impl App {
             }
         }
         let hits = self.text("unit.hits");
-        self.draw_styled(
-            view,
-            &Style::nearest(4, gold),
-            &hits,
-            px + ox + 8.0,
-            py + 90.0,
-        );
+        self.draw_styled(view, &Style::unit_view(4), &hits, px + ox + 8.0, py + 90.0);
         let bonus = sheet.hits.gold;
         for cell in hit_cells(sheet.hits.value, bonus, sheet.hurt, row_length) {
             self.draw_cell(lay, sheet.hits.icon, cell, px + ox + 49.0, py + 90.0);
@@ -408,13 +369,7 @@ impl App {
                 }
                 (None, None) => {}
             }
-            self.draw_styled(
-                view,
-                &Style::nearest(1, light),
-                &special.name,
-                x + 19.0,
-                y + 5.0,
-            );
+            self.draw_styled(view, &Style::unit_view(1), &special.name, x + 19.0, y + 5.0);
             let asking = panel.confirm || panel.turn_off.is_some();
             if let (true, false, Some(spell), Source::Overland(unit)) =
                 (special.removable, asking, special.spell, sheet.source)

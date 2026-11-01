@@ -28,12 +28,12 @@ pub fn button(rect: Rect, label: &str, enabled: bool, input: &Input) -> bool {
         Color::new(0.8, 0.65, 0.3, 1.0),
     );
     let size = (rect.h * 0.7).min(24.0);
-    let dims = measure_text(label, None, size as u16, 1.0);
+    let dims = crate::font::plain_size(label, size);
     let color = if enabled { WHITE } else { GRAY };
-    draw_text(
+    crate::font::plain_text(
         label,
-        rect.x + (rect.w - dims.width) / 2.0,
-        rect.y + (rect.h + dims.height) / 2.0 - 1.0,
+        rect.x + (rect.w - dims.0) / 2.0,
+        rect.y + (rect.h + dims.1) / 2.0 - 1.0,
         size,
         color,
     );

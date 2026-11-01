@@ -6,6 +6,7 @@
 //! or OK leaves. Positions are the original's.
 
 use crate::font::Style;
+use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::ui;
@@ -215,8 +216,6 @@ impl Page for ArmyUi {
         let stacks = app.army_stacks();
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         if app.draw_pic(&lay, "armylist", 0, 0, 0.0, 0.0).is_none() {
             let r = lay.rect(crate::resolution::SCREEN);
@@ -232,11 +231,22 @@ impl Page for ArmyUi {
             .wizard(HUMAN)
             .map_or_else(String::new, |w| w.name());
         let title = app.text_with("army.title", &Args::new().text("owner", owner));
-        app.draw_styled(view, &Style::outlined(4).center(), &title, 160.0, 7.0);
+        app.draw_title_stack(
+            view,
+            4,
+            [
+                font_ramp::LIST_TITLE_FAR,
+                font_ramp::LIST_TITLE_MID,
+                font_ramp::LIST_TITLE_NEAR,
+                font_ramp::LIST_TITLE,
+            ],
+            &title,
+            (160.0, 7.0),
+        );
         let upkeep_label = app.text("army.upkeep");
         app.draw_styled(
             view,
-            &Style::nearest(1, light).center(),
+            &Style::list_text(1).center(),
             &upkeep_label,
             30.0,
             162.0,
@@ -245,7 +255,7 @@ impl Page for ArmyUi {
         for (value, y) in upkeep.into_iter().zip([173.0, 183.0, 192.0]) {
             app.draw_styled(
                 view,
-                &Style::nearest(1, light).center(),
+                &Style::list_text(1).center(),
                 &value.to_string(),
                 45.0,
                 y,
@@ -309,7 +319,7 @@ impl Page for ArmyUi {
             .copied();
         if let Some(unit) = scanned {
             let name = app.army_unit_name(unit).to_uppercase();
-            app.draw_styled(view, &Style::nearest(1, gold).center(), &name, 188.0, 161.0);
+            app.draw_styled(view, &Style::list_text(1).center(), &name, 188.0, 161.0);
             let names: Vec<String> = app
                 .game
                 .units()
@@ -322,7 +332,7 @@ impl Page for ArmyUi {
             for (i, n) in names.iter().enumerate() {
                 app.draw_styled(
                     view,
-                    &Style::nearest(1, light),
+                    &Style::list_text(1),
                     n,
                     144.0,
                     172.0 + step * i as f32,

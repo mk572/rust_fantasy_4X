@@ -1,0 +1,5 @@
+// The names of the experience levels, by the level path's number (`num` in level_paths.ron): the levels in order, then the bonus levels. A language has the same file in its own folder.
+{
+    1: ["Hero", "Myrmidon", "Captain", "Commander", "Champion", "Lord", "Grand Lord", "Super Hero", "Demi-God"],
+    2: ["Recruit", "Regular", "Veteran", "Elite", "Ultra-Elite", "Champion"],
+}

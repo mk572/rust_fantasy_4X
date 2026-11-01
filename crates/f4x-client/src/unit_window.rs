@@ -270,7 +270,7 @@ impl App {
                 },
                 &args,
             );
-            self.draw_styled(view, &Style::outlined(1), &text, 246.0, 167.0);
+            self.draw_styled(view, &Style::sh_set(1, 0), &text, 246.0, 167.0);
         }
     }
 

@@ -1610,7 +1610,7 @@ impl App {
         let (x, y) = (20.0, 20.0);
         draw_rectangle(x, y, width, height, PANEL);
         draw_rectangle_lines(x, y, width, height, 2.0, GOLD);
-        draw_text(
+        crate::font::plain_text(
             self.text_with("battle.raise_which", &Args::new().text("spell", &name)),
             x + 10.0,
             y + 22.0,
@@ -1618,7 +1618,7 @@ impl App {
             WHITE,
         );
         if fallen.is_empty() {
-            draw_text(
+            crate::font::plain_text(
                 self.text("battle.no_fallen"),
                 x + 10.0,
                 y + 50.0,
@@ -1704,7 +1704,7 @@ impl App {
         }
         text += &self.text("battle.aim_cancel");
         draw_rectangle(8.0, 6.0, text.len() as f32 * 8.5 + 16.0, 26.0, PANEL);
-        draw_text(&text, 16.0, 25.0, 20.0, GOLD);
+        crate::font::plain_text(&text, 16.0, 25.0, 20.0, GOLD);
     }
 
     /// Keep the selection on a unit that can still act.

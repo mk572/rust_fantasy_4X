@@ -982,14 +982,12 @@ impl Page for DiploUi {
                 } else {
                     // The set the original dims them with is too dark to read on this background:
                     // the enabled colours, greyed.
-                    app.art.draw_bitmap_text_tinted(
-                        MENU_STYLE,
-                        MENU_SET,
+                    app.draw_styled(
+                        view,
+                        &Style::flat(MENU_STYLE, MENU_OFF_TINT),
                         &r.label,
-                        view.0 + TEXT_X * view.2,
-                        view.1 + ry * view.2,
-                        view.2,
-                        MENU_OFF_TINT,
+                        TEXT_X,
+                        ry,
                     );
                 }
                 if over && r.enabled && click {

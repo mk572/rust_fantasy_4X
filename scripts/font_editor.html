@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Font editor</title>
+<style>
+  :root { --bg: #1e1f26; --panel: #2a2c36; --line: #444858; --ink: #e8e8ee; --accent: #f0b84a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px system-ui, sans-serif; }
+  header { display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: var(--panel); flex-wrap: wrap; }
+  main { display: flex; gap: 16px; padding: 16px; align-items: flex-start; flex-wrap: wrap; }
+  button, select, input { background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; font: inherit; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #111; border-color: var(--accent); }
+  input[type=number] { width: 56px; }
+  #list { display: grid; grid-template-columns: repeat(auto-fill, 40px); gap: 4px; width: 440px; max-height: 80vh; overflow-y: auto; }
+  #list canvas { width: 40px; height: 40px; background: #000; border: 1px solid var(--line); cursor: pointer; image-rendering: pixelated; }
+  #list canvas.current { border-color: var(--accent); }
+  #list canvas.dirty { border-color: #e55; }
+  #stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  #grid { border: 1px solid var(--line); image-rendering: pixelated; cursor: crosshair; touch-action: none; align-self: flex-start; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #palette button { width: 28px; height: 28px; padding: 0; }
+  #palette button.chosen { outline: 2px solid var(--accent); outline-offset: 1px; }
+  #preview { background: #000; border: 1px solid var(--line); image-rendering: pixelated; max-width: 100%; }
+  #status { color: var(--accent); min-height: 1.2em; }
+  small { opacity: .7; }
+</style>
+</head>
+<body>
+<header>
+  <strong>Font editor</strong>
+  <label>Font <select id="font"></select></label>
+  <button id="save" class="primary">Save changed glyphs</button>
+  <span id="status"></span>
+</header>
+<main>
+  <div id="list"></div>
+  <div id="stage">
+    <div class="row">
+      <strong id="title"></strong>
+      <label>Width <input id="width" type="number" min="1"></label>
+      <label>Height <input id="height" type="number" min="1"></label>
+      <label>Y offset <input id="yoffset" type="number"></label>
+      <label>Advance <input id="advance" type="number" min="0"></label>
+    </div>
+    <label>Zoom <input id="zoom" type="range" min="4" max="100" step="1"> <span id="zoomValue"></span>&times;</label>
+    <canvas id="grid"></canvas>
+    <div class="row" id="palette"></div>
+    <div class="row">
+      <button id="undo">Undo</button><button id="redo">Redo</button>
+      <button id="left">&larr;</button><button id="up">&uarr;</button>
+      <button id="down">&darr;</button><button id="right">&rarr;</button>
+      <button id="flip">Flip &harr;</button><button id="clear">Clear</button>
+      <button id="revert">Revert glyph</button>
+    </div>
+    <small>Click or drag to paint with the chosen colour; right click or Shift+drag erases.
+      Keys: Ctrl+Z undo, Ctrl+Shift+Z redo, 1&ndash;9 pick a colour, arrows shift, [ ] change glyph.</small>
+    <label>Preview text <input id="text" size="48" value="Straße Größe ÄÖÜ äöü éèç"></label>
+    <canvas id="preview"></canvas>
+  </div>
+</main>
+<script>
+let GRID_ZOOM = 12;
+try { GRID_ZOOM = Number(localStorage.getItem('gridZoom')) || GRID_ZOOM; } catch (e) {}
+const THUMB_ZOOM = 4;
+const PREVIEW_ZOOM = 4;
+const $ = (id) => document.getElementById(id);
+
+let fontName = '', info = null, atlas = null;
+let glyphs = new Map();      // id -> {id, x, y, width, height, yoffset, xadvance, px: number[], original, dirty}
+let current = null, colour = 0, palette = [];
+let history = [], future = [];
+
+const pack = (r, g, b, a) => ((r << 24) | (g << 16) | (b << 8) | a) >>> 0;
+const css = (p) => `rgba(${p >>> 24}, ${(p >>> 16) & 255}, ${(p >>> 8) & 255}, ${(p & 255) / 255})`;
+const hex = (p) => p.toString(16).padStart(8, '0');
+const status = (text) => { $('status').textContent = text; };
+
+async function api(path, options) {
+  const response = await fetch(path, options);
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error);
+  return body;
+}
+
+async function loadFont(name) {
+  fontName = name;
+  info = await api(`/api/font?name=${name}`);
+  atlas = new Image();
+  atlas.src = `/atlas.png?name=${name}&t=${Date.now()}`;
+  await atlas.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = atlas.width; canvas.height = atlas.height;
+  const context = canvas.getContext('2d');
+  context.drawImage(atlas, 0, 0);
+  const data = context.getImageData(0, 0, atlas.width, atlas.height).data;
+  const counts = new Map();
+  glyphs = new Map();
+  for (const g of info.glyphs) {
+    const px = [];
+    for (let y = 0; y < g.height; y++) {
+      for (let x = 0; x < g.width; x++) {
+        const i = ((g.y + y) * atlas.width + g.x + x) * 4;
+        const p = data[i + 3] ? pack(data[i], data[i + 1], data[i + 2], data[i + 3]) : 0;
+        px.push(p);
+        if (p) counts.set(p, (counts.get(p) || 0) + 1);
+      }
+    }
+    glyphs.set(g.id, { id: g.id, x: g.x, y: g.y, width: g.width, height: g.height,
+      yoffset: g.yoffset, xadvance: g.xadvance, px, original: null, dirty: false });
+    glyphs.get(g.id).original = snapshot(glyphs.get(g.id));
+  }
+  palette = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p);
+  colour = 0;
+  buildPalette();
+  buildList();
+  select(info.glyphs.find((g) => g.id === 65)?.id ?? info.glyphs[0].id);
+  status(`${info.glyphs.length} glyphs, ${info.sets} colour sets, cell ${info.cell[0]}x${info.cell[1]}`);
+}
+
+function snapshot(g) {
+  return { width: g.width, height: g.height, yoffset: g.yoffset, xadvance: g.xadvance, px: g.px.slice() };
+}
+
+function buildPalette() {
+  const box = $('palette');
+  box.innerHTML = '';
+  palette.forEach((p, i) => {
+    const button = document.createElement('button');
+    button.style.background = css(p);
+    button.title = `colour ${i + 1}: #${hex(p).slice(0, 6)}`;
+    button.onclick = () => { colour = i; markPalette(); };
+    box.appendChild(button);
+  });
+  markPalette();
+}
+
+function markPalette() {
+  [...$('palette').children].forEach((b, i) => b.classList.toggle('chosen', i === colour));
+}
+
+function drawGlyph(context, g, zoom, gridLines) {
+  for (let y = 0; y < g.height; y++) {
+    for (let x = 0; x < g.width; x++) {
+      const p = g.px[y * g.width + x];
+      if (p) { context.fillStyle = css(p); context.fillRect(x * zoom, y * zoom, zoom, zoom); }
+    }
+  }
+  if (gridLines) {
+    context.strokeStyle = 'rgba(255,255,255,0.15)';
+    context.beginPath();
+    for (let x = 0; x <= g.width; x++) { context.moveTo(x * zoom + .5, 0); context.lineTo(x * zoom + .5, g.height * zoom); }
+    for (let y = 0; y <= g.height; y++) { context.moveTo(0, y * zoom + .5); context.lineTo(g.width * zoom, y * zoom + .5); }
+    context.stroke();
+  }
+}
+
+function thumb(g) {
+  const canvas = g.thumb || (g.thumb = document.createElement('canvas'));
+  canvas.width = canvas.height = 40;
+  canvas.title = `${String.fromCodePoint(g.id)}  U+${g.id.toString(16).toUpperCase().padStart(4, '0')}`;
+  const context = canvas.getContext('2d');
+  context.clearRect(0, 0, 40, 40);
+  const zoom = Math.max(1, Math.min(THUMB_ZOOM, Math.floor(36 / Math.max(g.width, g.height))));
+  context.translate(2, 2);
+  drawGlyph(context, g, zoom, false);
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  canvas.classList.toggle('dirty', g.dirty);
+  canvas.classList.toggle('current', current === g);
+  return canvas;
+}
+
+function buildList() {
+  const list = $('list');
+  list.innerHTML = '';
+  for (const g of glyphs.values()) {
+    const canvas = thumb(g);
+    canvas.onclick = () => select(g.id);
+    list.appendChild(canvas);
+  }
+}
+
+function select(id) {
+  const previous = current;
+  current = glyphs.get(id);
+  history = []; future = [];
+  if (previous) thumb(previous);
+  thumb(current).scrollIntoView({ block: 'nearest' });
+  $('title').textContent = `${String.fromCodePoint(id)}  (U+${id.toString(16).toUpperCase().padStart(4, '0')})`;
+  refresh();
+}
+
+$('zoom').value = GRID_ZOOM; $('zoomValue').textContent = GRID_ZOOM;
+$('zoom').addEventListener('input', () => {
+  GRID_ZOOM = Number($('zoom').value);
+  $('zoomValue').textContent = GRID_ZOOM;
+  try { localStorage.setItem('gridZoom', GRID_ZOOM); } catch (e) {}
+  if (current) refresh();
+});
+
+function refresh() {
+  const g = current;
+  $('width').value = g.width; $('height').value = g.height;
+  $('yoffset').value = g.yoffset; $('advance').value = g.xadvance;
+  $('width').max = info.cell[0]; $('height').max = info.cell[1];
+  const canvas = $('grid');
+  canvas.width = g.width * GRID_ZOOM; canvas.height = g.height * GRID_ZOOM;
+  canvas.style.width = canvas.width + 'px'; canvas.style.height = canvas.height + 'px';
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#000';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  drawGlyph(context, g, GRID_ZOOM, true);
+  g.dirty = JSON.stringify(snapshot(g)) !== JSON.stringify(g.original);
+  thumb(g);
+  drawPreview();
+}
+
+function drawPreview() {
+  const text = [...$('text').value];
+  const lineHeight = info.lineHeight;
+  const widths = text.map((c) => glyphs.get(c.codePointAt(0))?.xadvance ?? 0);
+  const canvas = $('preview');
+  const total = widths.reduce((a, b) => a + b, 0) + 4;
+  const above = info.cell[1];
+  canvas.width = total * PREVIEW_ZOOM;
+  canvas.height = (lineHeight + above * 2) * PREVIEW_ZOOM;
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#000';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.scale(PREVIEW_ZOOM, PREVIEW_ZOOM);
+  let pen = 2;
+  text.forEach((c, i) => {
+    const g = glyphs.get(c.codePointAt(0));
+    if (g) {
+      context.save();
+      context.translate(pen, above + g.yoffset);
+      drawGlyph(context, g, 1, false);
+      context.restore();
+    }
+    pen += widths[i];
+  });
+}
+
+function remember() {
+  history.push(snapshot(current));
+  if (history.length > 200) history.shift();
+  future = [];
+}
+
+function restore(from, to) {
+  if (!from.length) return;
+  to.push(snapshot(current));
+  Object.assign(current, from.pop());
+  refresh();
+}
+
+function paint(event, erase) {
+  const canvas = $('grid');
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.floor((event.clientX - rect.left) * canvas.width / rect.width / GRID_ZOOM);
+  const y = Math.floor((event.clientY - rect.top) * canvas.height / rect.height / GRID_ZOOM);
+  if (x < 0 || y < 0 || x >= current.width || y >= current.height) return;
+  const value = erase ? 0 : palette[colour];
+  if (current.px[y * current.width + x] === value) return;
+  current.px[y * current.width + x] = value;
+  refresh();
+}
+
+function resize(width, height) {
+  width = Math.max(1, Math.min(info.cell[0], width));
+  height = Math.max(1, Math.min(info.cell[1], height));
+  remember();
+  const px = new Array(width * height).fill(0);
+  for (let y = 0; y < Math.min(height, current.height); y++) {
+    for (let x = 0; x < Math.min(width, current.width); x++) px[y * width + x] = current.px[y * current.width + x];
+  }
+  Object.assign(current, { width, height, px });
+  refresh();
+}
+
+function shift(dx, dy) {
+  remember();
+  const { width, height, px } = current;
+  const moved = new Array(width * height).fill(0);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const nx = x + dx, ny = y + dy;
+      if (nx >= 0 && ny >= 0 && nx < width && ny < height) moved[ny * width + nx] = px[y * width + x];
+    }
+  }
+  current.px = moved;
+  refresh();
+}
+
+function flip() {
+  remember();
+  const { width, height, px } = current;
+  current.px = px.map((_, i) => px[Math.floor(i / width) * width + (width - 1 - (i % width))]);
+  refresh();
+}
+
+async function save() {
+  const changed = [...glyphs.values()].filter((g) => g.dirty);
+  if (!changed.length) { status('nothing changed'); return; }
+  try {
+    for (const g of changed) {
+      await api(`/api/glyph?name=${fontName}`, { method: 'POST', body: JSON.stringify({
+        id: g.id, width: g.width, height: g.height, yoffset: g.yoffset, xadvance: g.xadvance,
+        pixels: g.px.map(hex) }) });
+      g.original = snapshot(g);
+      g.dirty = false;
+      thumb(g);
+    }
+    status(`saved ${changed.length} glyph${changed.length > 1 ? 's' : ''} to ${fontName}.png and .fnt`);
+  } catch (error) {
+    status(`save failed: ${error.message}`);
+  }
+}
+
+const dragging = { erase: false, active: false };
+$('grid').addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  $('grid').setPointerCapture(event.pointerId);
+  dragging.active = true;
+  dragging.erase = event.button === 2 || event.shiftKey;
+  remember();
+  paint(event, dragging.erase);
+});
+$('grid').addEventListener('pointermove', (event) => { if (dragging.active) paint(event, dragging.erase); });
+$('grid').addEventListener('pointerup', () => { dragging.active = false; });
+$('grid').addEventListener('contextmenu', (event) => event.preventDefault());
+
+const numeric = (id) => parseInt($(id).value, 10);
+$('width').onchange = () => resize(numeric('width'), current.height);
+$('height').onchange = () => resize(current.width, numeric('height'));
+$('yoffset').onchange = () => { remember(); current.yoffset = numeric('yoffset'); refresh(); };
+$('advance').onchange = () => { remember(); current.xadvance = Math.max(0, numeric('advance')); refresh(); };
+$('undo').onclick = () => restore(history, future);
+$('redo').onclick = () => restore(future, history);
+$('left').onclick = () => shift(-1, 0);
+$('right').onclick = () => shift(1, 0);
+$('up').onclick = () => shift(0, -1);
+$('down').onclick = () => shift(0, 1);
+$('flip').onclick = flip;
+$('clear').onclick = () => { remember(); current.px.fill(0); refresh(); };
+$('revert').onclick = () => { remember(); Object.assign(current, snapshot(current.original)); refresh(); };
+$('save').onclick = save;
+$('text').oninput = drawPreview;
+$('font').onchange = () => loadFont($('font').value);
+
+document.addEventListener('keydown', (event) => {
+  if (event.target.tagName === 'INPUT' && event.target.type !== 'number') return;
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+    event.preventDefault();
+    if (event.shiftKey) restore(future, history); else restore(history, future);
+  } else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault(); save();
+  } else if (event.target.tagName === 'INPUT') {
+    return;
+  } else if (/^[1-9]$/.test(event.key) && Number(event.key) <= palette.length) {
+    colour = Number(event.key) - 1; markPalette();
+  } else if (event.key.startsWith('Arrow')) {
+    event.preventDefault();
+    shift({ ArrowLeft: -1, ArrowRight: 1 }[event.key] || 0, { ArrowUp: -1, ArrowDown: 1 }[event.key] || 0);
+  } else if (event.key === '[' || event.key === ']') {
+    const ids = [...glyphs.keys()];
+    select(ids[(ids.indexOf(current.id) + (event.key === ']' ? 1 : ids.length - 1)) % ids.length]);
+  }
+});
+window.addEventListener('beforeunload', (event) => {
+  if ([...glyphs.values()].some((g) => g.dirty)) event.preventDefault();
+});
+
+(async () => {
+  try {
+    const names = await api('/api/fonts');
+    $('font').innerHTML = names.map((n) => `<option>${n}</option>`).join('');
+    await loadFont(names[0]);
+  } catch (error) {
+    status(`failed to start: ${error.message}`);
+  }
+})();
+</script>
+</body>
+</html>

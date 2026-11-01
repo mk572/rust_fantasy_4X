@@ -8,7 +8,8 @@
 //! `Command::ScrapItem`); a move to a hero somewhere else asks to pay its mana first.
 //! Positions are the original's.
 
-use crate::font::Style;
+use crate::font::{Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::ui;
@@ -129,7 +130,7 @@ impl App {
         );
         self.draw_pic(lay, "items", usize::from(item.icon), 0, x, y);
         let name = item.display_name(self.game.content());
-        self.draw_styled(view, &Style::outlined(1), &name, x + 20.0, y + 4.0);
+        self.draw_styled(view, &Style::shadowed(1), &name, x + 20.0, y + 4.0);
     }
 
     /// Draw a triangle arrow of the scroll buttons at `at` (11 by 18) pointing left (`dir < 0`)
@@ -287,7 +288,7 @@ impl ItemUi {
             for (i, line) in lines.iter().enumerate() {
                 app.draw_styled(
                     view,
-                    &Style::nearest(1, Color::new(0.93, 0.88, 0.68, 1.0)).center(),
+                    &Style::sh_nearest(1, Color::new(0.93, 0.88, 0.68, 1.0)).center(),
                     line,
                     160.0,
                     80.0 + i as f32 * 8.0,
@@ -335,12 +336,18 @@ impl Page for ItemUi {
                 app.draw_pic(&lay, "portrait", p, 0, x1 + 1.0, y1 + 1.0);
             }
             let name = app.game.units().hero_name(hero).unwrap_or_default();
-            app.draw_styled(view, &Style::outlined(1), &name, x1 + 37.0, y1);
+            app.draw_styled(
+                view,
+                &Style::inked(1, Ink::Set(font_ramp::ITEM_NAME)).shadow(),
+                &name,
+                x1 + 37.0,
+                y1,
+            );
             if held {
                 if self.same_location(app, hero) {
                     app.draw_styled(
                         view,
-                        &Style::nearest(1, Color::new(0.6, 0.9, 0.5, 1.0)),
+                        &Style::inked(1, Ink::Set(font_ramp::ITEM_SAME)).shadow(),
                         &app.text("item.same_location"),
                         x1 + 37.0,
                         y1 + 7.0,
@@ -348,7 +355,7 @@ impl Page for ItemUi {
                 } else {
                     app.draw_styled(
                         view,
-                        &Style::nearest(1, Color::new(0.95, 0.5, 0.4, 1.0)),
+                        &Style::sh_set(1, 2),
                         &app.text("item.teleport"),
                         x1 + 37.0,
                         y1 + 7.0,
@@ -403,7 +410,7 @@ impl Page for ItemUi {
             let label = format!("{}/{}", page + 1, hero_pages);
             app.draw_styled(
                 view,
-                &Style::outlined(1).center(),
+                &Style::shadowed(1).center(),
                 &label,
                 wx + 111.0,
                 wy + 147.0,
@@ -444,20 +451,32 @@ impl Page for ItemUi {
         let style = if gold > 19999 || mana > 19999 { 0 } else { 1 };
         app.draw_styled(
             view,
-            &Style::outlined(style).right(),
+            &Style::shadowed(style).right(),
             &gold.to_string(),
             wx + 166.0,
             wy + 164.0,
         );
         app.draw_styled(
             view,
-            &Style::outlined(style).right(),
+            &Style::shadowed(style).right(),
             &mana.to_string(),
             wx + 200.0,
             wy + 164.0,
         );
-        app.draw_styled(view, &Style::outlined(0), "GP", wx + 169.0, wy + 164.0);
-        app.draw_styled(view, &Style::outlined(0), "MP", wx + 203.0, wy + 164.0);
+        app.draw_styled(
+            view,
+            &Style::shadowed(0),
+            &app.text("ui.gold_unit"),
+            wx + 169.0,
+            wy + 164.0,
+        );
+        app.draw_styled(
+            view,
+            &Style::shadowed(0),
+            &app.text("ui.mana_unit"),
+            wx + 203.0,
+            wy + 164.0,
+        );
         let alchemy = !held && app.item_button(&lay, 7, wx + 219.0, wy + 155.0, input);
         let ok = !held && app.item_button(&lay, 8, wx + 219.0, wy + 175.0, input);
         if left && ui::hit(lay.rect((wx + 9.0, wy + 155.0, 39.0, 34.0)), true, input).hovered() {
@@ -479,7 +498,7 @@ impl Page for ItemUi {
             }
         }
         if let Some(message) = self.message.clone() {
-            app.draw_styled(view, &Style::outlined(1).center(), &message, 160.0, 150.0);
+            app.draw_styled(view, &Style::shadowed(1).center(), &message, 160.0, 150.0);
         }
         self.item_modals(app, &lay, input);
 

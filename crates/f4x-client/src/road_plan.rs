@@ -247,7 +247,7 @@ impl App {
                 },
                 &Args::new().count("n", sum.turns),
             );
-            draw_text(&text, ok_rect.x - 200.0, 30.0, 22.0, GOLD);
+            crate::font::plain_text(&text, ok_rect.x - 200.0, 30.0, 22.0, GOLD);
             let (ok, cancel) = (
                 Rect::new(screen_width() / 2.0 - 110.0, 8.0, 100.0, 30.0),
                 Rect::new(screen_width() / 2.0 + 10.0, 8.0, 100.0, 30.0),
@@ -261,8 +261,14 @@ impl App {
         }
         self.draw_pic(&lay, "main", 48, 0, 240.0, 173.0);
         let (road, building) = (self.text("road.title"), self.text("road.building"));
-        self.draw_styled(view, &Style::set(4, 1).center(), &road, 280.0, 80.0);
-        self.draw_styled(view, &Style::set(4, 1).center(), &building, 280.0, 90.0);
+        self.draw_styled(view, &Style::survey_white(4).center(), &road, 280.0, 80.0);
+        self.draw_styled(
+            view,
+            &Style::survey_white(4).center(),
+            &building,
+            280.0,
+            90.0,
+        );
         let message = if sum.blocked {
             self.text("road.blocked")
         } else if sum.turns > 0 {
@@ -271,7 +277,13 @@ impl App {
             String::new()
         };
         for (i, line) in self.bm_wrap(1, &message, 60.0).iter().enumerate() {
-            self.draw_styled(view, &Style::set(1, 0), line, 250.0, 106.0 + i as f32 * 9.0);
+            self.draw_styled(
+                view,
+                &Style::survey_ramp(),
+                line,
+                250.0,
+                106.0 + i as f32 * 9.0,
+            );
         }
         let ok = self.pic_button(&lay, ("main", 46), OK_AT, (can, Disabled::Fade(0.5)), input);
         let cancel = self.pic_button_on(&lay, ("main", 41), CANCEL_AT, input);

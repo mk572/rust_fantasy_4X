@@ -6,7 +6,8 @@
 //! are the core's (`item::crafting`: what may be chosen, what it costs, `Command::CraftItem`);
 //! this file holds the choices. Positions are the original's.
 
-use crate::font::Style;
+use crate::font::{rgb, Effect, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::ui;
@@ -36,6 +37,23 @@ pub(crate) const KINDS: [ItemKind; 10] = [
     ItemKind::Platemail,
 ];
 /// Letters in an item's name (`LEN_ITEM_MAKE_NAME`).
+/// The shadow of the spell page: `Set_Outline_Color(192)`, and of the picked spell `186`.
+const EDGE_SPELL: Color = rgb(0x8E, 0x5D, 0x24);
+const EDGE_PICKED: Color = rgb(0x49, 0x38, 0x24);
+
+/// A power's label: gold when picked, grey when not, with the upper-left shadow of
+/// `Set_Font_Style_Shadow_Up(3, 15)` and `Set_Outline_Color(18)`.
+fn power_style(picked: bool) -> Style {
+    let ramp = if picked {
+        font_ramp::CRAFT_POWER_ON
+    } else {
+        font_ramp::CRAFT_POWER_OFF
+    };
+    Style::inked(3, Ink::Set(ramp))
+        .effect(Effect::ShadowUp)
+        .edge(rgb(0x49, 0x34, 0x2C))
+}
+
 const NAME_LEN: usize = 29;
 /// Rows in one column of the plain powers.
 const COLUMN_ROWS: usize = 16;
@@ -298,7 +316,9 @@ impl App {
         let title = self.text("craft.choose_spell");
         self.draw_styled(
             view,
-            &Style::nearest(4, Color::new(0.95, 0.88, 0.6, 1.0)).center(),
+            &Style::inked(4, Ink::Set(font_ramp::ITEM_TITLE))
+                .effect(Effect::Outline)
+                .center(),
             &title,
             160.0,
             2.0,
@@ -320,8 +340,6 @@ impl App {
                 pick.page += 1;
             }
         }
-        let ink = Color::new(0.2, 0.12, 0.05, 1.0);
-        let lit = Color::new(0.7, 0.2, 0.1, 1.0);
         let first = pick.page * SPELLS_PER_PAGE;
         let mut chosen = None;
         for (i, (id, name)) in spells.iter().skip(first).take(SPELLS_PER_PAGE).enumerate() {
@@ -332,7 +350,15 @@ impl App {
             let picked = pick.chosen.as_ref().is_some_and(|(at, _)| *at == i);
             self.draw_styled(
                 view,
-                &Style::nearest(1, if picked { lit } else { ink }),
+                &if picked {
+                    Style::inked(1, Ink::Set(font_ramp::flat(166)))
+                        .shadow()
+                        .edge(EDGE_PICKED)
+                } else {
+                    Style::inked(1, Ink::Set(font_ramp::flat(39)))
+                        .shadow()
+                        .edge(EDGE_SPELL)
+                },
                 name,
                 x,
                 y,
@@ -483,11 +509,6 @@ impl Page for CraftUi {
                 } else {
                     ui.design.powers.contains(&id)
                 };
-                let color = if chosen {
-                    Color::new(1.0, 0.95, 0.55, 1.0)
-                } else {
-                    Color::new(0.62, 0.64, 0.8, 1.0)
-                };
                 if charges && chosen {
                     let (spell, n) = ui.design.charges.clone().unwrap_or_default();
                     let spell = rules
@@ -498,14 +519,14 @@ impl Page for CraftUi {
                         "item.name_charges",
                         &Args::new().text("spell", &spell).count("n", n as i32),
                     );
-                    app.draw_styled(view, &Style::nearest(3, color), &line, x, y);
+                    app.draw_styled(view, &power_style(chosen), &line, x, y);
                 } else if col == 2 {
-                    app.draw_styled(view, &Style::nearest(3, color), &power.name, x, y);
+                    app.draw_styled(view, &power_style(chosen), &power.name, x, y);
                 } else {
                     // "+2 Attack": the number right-aligned, the rest after it.
                     let (num, rest) = power.name.split_once(' ').unwrap_or(("", &power.name));
-                    app.draw_styled(view, &Style::nearest(3, color).right(), num, x + 10.0, y);
-                    app.draw_styled(view, &Style::nearest(3, color), rest, x + 14.0, y);
+                    app.draw_styled(view, &power_style(chosen).right(), num, x + 10.0, y);
+                    app.draw_styled(view, &power_style(chosen), rest, x + 14.0, y);
                 }
                 let width = if col == 2 { 98.0 } else { 78.0 };
                 if ui::hit(lay.rect((x, y - 2.0, width, 9.0)), click, input).clicked() {
@@ -529,15 +550,11 @@ impl Page for CraftUi {
         // The cost and the OK button.
         let price = app.craft_price(ui);
         let cost_label = app.text("craft.cost");
-        let ink = Color::new(0.95, 0.88, 0.6, 1.0);
-        let at = app.draw_styled(view, &Style::nearest(1, ink), &cost_label, 198.0, 185.0);
-        app.draw_styled(
-            view,
-            &Style::nearest(1, ink),
-            &price.to_string(),
-            198.0 + at + 4.0,
-            185.0,
-        );
+        let cost = Style::inked(3, Ink::Set(font_ramp::CRAFT_COST))
+            .shadow()
+            .edge(rgb(0x41, 0x2C, 0x24));
+        let at = app.draw_styled(view, &cost, &cost_label, 198.0, 185.0);
+        app.draw_styled(view, &cost, &price.to_string(), 198.0 + at + 4.0, 185.0);
         let ok_rect = app.draw_pic(&lay, "spellscr", 24, 0, 281.0, 180.0);
         if let Some(message) = &ui.message {
             app.draw_styled(

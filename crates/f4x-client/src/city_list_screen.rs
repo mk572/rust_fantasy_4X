@@ -5,6 +5,7 @@
 //! scroll five rows, Esc or OK leaves. Positions are the original's.
 
 use crate::font::Style;
+use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::ui;
@@ -140,8 +141,6 @@ impl Page for CityListUi {
         let rows = app.city_rows();
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         if app.draw_pic(&lay, "reload", 21, 0, 0.0, 0.0).is_none() {
             let r = lay.rect(crate::resolution::SCREEN);
@@ -156,16 +155,22 @@ impl Page for CityListUi {
             .game
             .wizard(HUMAN)
             .map_or_else(String::new, |w| w.name());
-        app.draw_styled(
+        let title = app.text_with("cities.title", &Args::new().text("owner", owner));
+        app.draw_title_stack(
             view,
-            &Style::outlined(4).center(),
-            &app.text_with("cities.title", &Args::new().text("owner", owner)),
-            160.0,
-            3.0,
+            4,
+            [
+                font_ramp::LIST_TITLE_FAR,
+                font_ramp::LIST_TITLE_MID,
+                font_ramp::LIST_TITLE_NEAR,
+                font_ramp::LIST_TITLE,
+            ],
+            &title,
+            (160.0, 3.0),
         );
         for (head, x) in HEADS {
             let head = app.text(head);
-            app.draw_styled(view, &Style::nearest(1, gold), &head, x, 17.0);
+            app.draw_styled(view, &Style::city_list_text(1), &head, x, 17.0);
         }
         let (reserve_gold, reserve_mana) = app
             .game
@@ -173,14 +178,14 @@ impl Page for CityListUi {
             .map_or((0, 0), |p| (p.treasury().gold, p.treasury().mana));
         app.draw_styled(
             view,
-            &Style::nearest(1, light).center(),
+            &Style::city_list_text(1).center(),
             &app.text_with("cities.reserve_gold", &Args::new().count("n", reserve_gold)),
             242.0,
             172.0,
         );
         app.draw_styled(
             view,
-            &Style::nearest(1, light).center(),
+            &Style::city_list_text(1).center(),
             &app.text_with("cities.reserve_mana", &Args::new().count("n", reserve_mana)),
             276.0,
             172.0,
@@ -231,34 +236,34 @@ impl Page for CityListUi {
                 draw_rectangle(h.x, h.y, h.w, h.h, Color::new(1.0, 1.0, 1.0, 0.25));
             }
             let ty = y + 1.0;
-            app.draw_styled(view, &Style::nearest(1, light), &row.name, 31.0, ty);
-            app.draw_styled(view, &Style::nearest(1, light), &row.race, 87.0, ty);
+            app.draw_styled(view, &Style::city_list_text(1), &row.name, 31.0, ty);
+            app.draw_styled(view, &Style::city_list_text(1), &row.race, 87.0, ty);
             app.draw_styled(
                 view,
-                &Style::nearest(1, light).right(),
+                &Style::city_list_text(1).right(),
                 &row.pop.to_string(),
                 RIGHTS[0],
                 ty,
             );
             app.draw_styled(
                 view,
-                &Style::nearest(1, light).right(),
+                &Style::city_list_text(1).right(),
                 &row.gold.to_string(),
                 RIGHTS[1],
                 ty,
             );
             app.draw_styled(
                 view,
-                &Style::nearest(1, light).right(),
+                &Style::city_list_text(1).right(),
                 &row.production.to_string(),
                 RIGHTS[2],
                 ty,
             );
-            app.draw_styled(view, &Style::nearest(1, light), &row.building, 196.0, ty);
+            app.draw_styled(view, &Style::city_list_text(1), &row.building, 196.0, ty);
             let time = row.turns.map_or_else(|| "-".to_string(), |t| t.to_string());
             app.draw_styled(
                 view,
-                &Style::nearest(1, light).right(),
+                &Style::city_list_text(1).right(),
                 &time,
                 RIGHTS[3],
                 ty,
@@ -269,7 +274,7 @@ impl Page for CityListUi {
         if let Some(row) = rows.get(ui.first + ui.scanned) {
             app.draw_styled(
                 view,
-                &Style::nearest(1, gold),
+                &Style::city_list_text(1),
                 &row.name.to_uppercase(),
                 99.0,
                 158.0,
@@ -292,8 +297,8 @@ impl Page for CityListUi {
                 } else {
                     (100.0, 168.0 + 7.0 * k as f32)
                 };
-                let colour = app.banner_color(*caster);
-                app.draw_styled(view, &Style::nearest(style, colour), name, x, y);
+                let ink = app.city_ench_ink(*caster);
+                app.draw_styled(view, &Style::inked(style, ink), name, x, y);
             }
             let at = app.city_position(row.city);
             app.draw_reduced_map(&lay, at, MAP);

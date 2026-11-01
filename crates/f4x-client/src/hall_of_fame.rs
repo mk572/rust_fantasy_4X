@@ -5,7 +5,8 @@
 
 use std::path::Path;
 
-use crate::font::Style;
+use crate::font::{rgb, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use f4x_core::text::Args;
@@ -19,6 +20,14 @@ pub(crate) const FILE: &str = "saves/hall_of_fame.txt";
 /// Entries in the table (`NUM_SCORES`).
 pub(crate) const SCORES: usize = 10;
 /// The score the original's percentage is taken of.
+/// The text of the hall of fame: the ramp of `color_array` in `Hall_Of_Fame_Screen`, `Shadow_Down`,
+/// `Set_Outline_Color(250)` (an entry of the hall's own palette).
+fn hof_style(font: usize) -> Style {
+    Style::inked(font, Ink::Set(font_ramp::HOF_TITLE))
+        .shadow()
+        .edge(rgb(0x18, 0x24, 0x45))
+}
+
 const BEST_POSSIBLE: i64 = 8000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,10 +129,8 @@ impl Page for HallPage {
             let r = lay.rect(crate::resolution::SCREEN);
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.08, 0.06, 1.0));
         }
-        let gold = Color::new(0.95, 0.85, 0.5, 1.0);
-        let ink = Color::new(0.95, 0.8, 0.45, 1.0);
         let title = app.text("hall.title");
-        app.draw_styled(view, &Style::outlined(5).center(), &title, 160.0, 7.0);
+        app.draw_styled(view, &hof_style(5).center(), &title, 160.0, 7.0);
         let (x, mut y) = (72.0, 42.0);
         for (i, e) in self.table.iter().enumerate() {
             let rank = if i == 0 {
@@ -131,23 +138,23 @@ impl Page for HallPage {
             } else {
                 app.text_with("hall.rank", &Args::new().count("n", i + 1))
             };
-            app.draw_styled(view, &Style::nearest(2, gold).right(), &rank, x, y);
+            app.draw_styled(view, &hof_style(2).right(), &rank, x, y);
             let who = app.text_with(
                 "hall.of_the",
                 &Args::new()
                     .text("name", &e.name)
                     .text("race", plural(&app.game.content().rules.races, &e.race)),
             );
-            app.draw_styled(view, &Style::nearest(2, ink), &who, x + 9.0, y);
+            app.draw_styled(view, &hof_style(2), &who, x + 9.0, y);
             app.draw_styled(
                 view,
-                &Style::nearest(2, ink).right(),
+                &hof_style(2).right(),
                 &e.score.to_string(),
                 x + 170.0,
                 y,
             );
             let share = format!("({}%)", percent(e.score));
-            app.draw_styled(view, &Style::nearest(2, ink).right(), &share, x + 198.0, y);
+            app.draw_styled(view, &hof_style(2).right(), &share, x + 198.0, y);
             y += 13.0;
         }
         if input.key_pressed(KeyCode::Escape)

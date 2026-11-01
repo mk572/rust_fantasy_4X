@@ -6,7 +6,7 @@
 //! ours keeps the one palette.
 
 use crate::audio::Track;
-use crate::font::Style;
+use crate::font::{rgb, Style};
 use crate::frame::Layout;
 use crate::input::Input;
 use crate::modal::{keep, kind, Modal};
@@ -245,7 +245,10 @@ impl App {
         self.draw_pic(&lay, "spellscr", 11, stage % front, x + 64.0, y + 80.0);
         self.draw_styled(
             view,
-            &Style::outlined(4).center(),
+            &Style::set(4, 4)
+                .shadow()
+                .edge(rgb(0x38, 0x20, 0x1C))
+                .center(),
             &scene.label,
             x + 90.0,
             y + 117.0,

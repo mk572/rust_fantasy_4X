@@ -4,7 +4,7 @@
 //! fame, time, the Spell of Mastery), the final score and a bar of `score / 40` up to 200. A click
 //! or Esc goes on: the score is entered in the Hall of Fame and the table is shown.
 
-use crate::font::Style;
+use crate::font::{rgb, Style};
 use crate::input::Input;
 use crate::page::Page;
 use f4x_core::game::endgame::EndKind;
@@ -27,6 +27,12 @@ pub fn headline(texts: &Texts, won: bool, kind: EndKind, winner: Args) -> (Strin
 }
 
 /// Where the left edge of the rows is.
+/// The text of the score screen: set 4 with `Shadow_Down` and `Set_Outline_Color(250)`, an entry
+/// of the hall of fame's palette.
+fn score_style(font: usize) -> Style {
+    Style::sh_set(font, 4).edge(rgb(0x18, 0x24, 0x45))
+}
+
 const X: f32 = 47.0;
 /// The bar's width in pixels at most (`score / 40`).
 const BAR_MAX: i32 = 200;
@@ -62,18 +68,17 @@ impl Page for GameOverPage {
             let r = lay.rect(crate::resolution::SCREEN);
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.08, 0.06, 1.0));
         }
-        let ink = Color::new(0.95, 0.8, 0.45, 1.0);
         let wizard = app.game.wizard(HUMAN);
         let name = wizard.map_or_else(String::new, |w| w.name());
         let race = wizard.and_then(|w| w.capital_race());
         let race_icon = race.map_or(0, |r| 15 + r.num() as usize);
-        app.draw_styled(view, &Style::outlined(3).center(), &name, 160.0, 3.0);
+        app.draw_styled(view, &score_style(3).center(), &name, 160.0, 3.0);
         let score = app.game.score(HUMAN);
 
         // One point for each spell known, a book each (fifty at most).
         app.draw_styled(
             view,
-            &Style::nearest(2, ink),
+            &score_style(2),
             &app.text_with(
                 "end.spells",
                 &Args::new()
@@ -94,7 +99,7 @@ impl Page for GameOverPage {
         // Half a point for each thousand citizens.
         app.draw_styled(
             view,
-            &Style::nearest(2, ink),
+            &score_style(2),
             &app.text_with(
                 "end.townsfolk",
                 &Args::new()
@@ -125,7 +130,7 @@ impl Page for GameOverPage {
             .count("points", score.conquests);
         app.draw_styled(
             view,
-            &Style::nearest(2, ink),
+            &score_style(2),
             &app.text_with("end.banished", &args),
             X,
             78.0,
@@ -142,7 +147,7 @@ impl Page for GameOverPage {
         let fame = app.game.fame(HUMAN);
         app.draw_styled(
             view,
-            &Style::nearest(2, ink),
+            &score_style(2),
             &app.text_with(
                 "end.fame",
                 &Args::new().count("n", fame).count("points", score.fame),
@@ -158,11 +163,11 @@ impl Page for GameOverPage {
                 .count("year", over.turn / 12 + 1400)
                 .text("points", format!("{sign}{}", score.time)),
         );
-        app.draw_styled(view, &Style::nearest(2, ink), &time, X + 18.0, 147.0);
+        app.draw_styled(view, &score_style(2), &time, X + 18.0, 147.0);
         app.draw_pic(&lay, "halofam", 32, 0, X, 161.0);
         app.draw_styled(
             view,
-            &Style::nearest(2, ink),
+            &score_style(2),
             &app.text_with("end.mastery", &Args::new().count("points", score.mastery)),
             X + 18.0,
             166.0,
@@ -170,7 +175,7 @@ impl Page for GameOverPage {
         let total = score.total();
         app.draw_styled(
             view,
-            &Style::nearest(2, ink),
+            &score_style(2),
             &app.text_with("end.final_score", &Args::new().count("n", total)),
             X,
             180.0,

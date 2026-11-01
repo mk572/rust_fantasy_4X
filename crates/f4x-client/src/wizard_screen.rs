@@ -132,8 +132,6 @@ impl Page for WizardUi {
         else {
             return;
         };
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
-        let gold = Color::new(0.95, 0.75, 0.25, 1.0);
         let me = app.game.player(ui.who);
         let wizard_picture = crate::art::gem_entry(
             me.map_or(0, |p| p.portrait()),
@@ -145,7 +143,7 @@ impl Page for WizardUi {
         }
         app.draw_styled(
             view,
-            &Style::nearest(4, gold).center(),
+            &Style::gold_shadowed(4).center(),
             &name,
             px + 114.0,
             py + 11.0,
@@ -177,7 +175,7 @@ impl Page for WizardUi {
                 let y = py + 25.0 + 8.0 * i as f32;
                 app.draw_styled(
                     view,
-                    &Style::nearest(1, light),
+                    &Style::gold_shadowed(1),
                     &app.text_with(
                         "wizard.row",
                         &Args::new().text("label", label).text("value", value),
@@ -191,20 +189,32 @@ impl Page for WizardUi {
         // Gold and mana, then the shelf of books.
         app.draw_styled(
             view,
-            &Style::nearest(1, light).right(),
+            &Style::gold_shadowed(1).right(),
             &wallet.gold.to_string(),
             px + 31.0,
             py + 75.0,
         );
         app.draw_styled(
             view,
-            &Style::nearest(1, light).right(),
+            &Style::gold_shadowed(1).right(),
             &wallet.mana.to_string(),
             px + 159.0,
             py + 75.0,
         );
-        app.draw_styled(view, &Style::nearest(0, gold), "GP", px + 34.0, py + 75.0);
-        app.draw_styled(view, &Style::nearest(0, gold), "MP", px + 162.0, py + 75.0);
+        app.draw_styled(
+            view,
+            &Style::gold_shadowed(0),
+            &app.text("ui.gold_unit"),
+            px + 34.0,
+            py + 75.0,
+        );
+        app.draw_styled(
+            view,
+            &Style::gold_shadowed(0),
+            &app.text("ui.mana_unit"),
+            px + 162.0,
+            py + 75.0,
+        );
         let books = book_entries(|r| owned_books.get(r).map_or(0, |&n| i32::from(n)));
         let left = px + 90.0 - books.len() as f32 * BOOK_STEP / 2.0;
         for (i, &entry) in books.iter().enumerate() {
@@ -221,7 +231,7 @@ impl Page for WizardUi {
         if fame > 0 {
             app.draw_styled(
                 view,
-                &Style::nearest(2, light).right(),
+                &Style::gold_shadowed(2).right(),
                 &fame.to_string(),
                 px + 79.0,
                 py + 96.0,
@@ -229,7 +239,7 @@ impl Page for WizardUi {
             let fame_word = app.text("wizard.fame");
             app.draw_styled(
                 view,
-                &Style::nearest(2, light),
+                &Style::gold_shadowed(2),
                 &fame_word,
                 px + 85.0,
                 py + 96.0,
@@ -255,12 +265,12 @@ impl Page for WizardUi {
         };
         for (text, x, line) in pieces {
             let y = start_y + RETORT_LINE * line as f32;
-            app.draw_styled(view, &Style::nearest(1, light), &text, px + 13.0 + x, y);
+            app.draw_styled(view, &Style::gold_shadowed(1), &text, px + 13.0 + x, y);
         }
         let heroes = app.text("wizard.heroes");
         app.draw_styled(
             view,
-            &Style::nearest(2, gold),
+            &Style::gold_shadowed(2),
             &heroes,
             px + 74.0,
             py + 131.0,
@@ -268,7 +278,7 @@ impl Page for WizardUi {
         for (i, hero) in app.game.wizard_heroes(ui.who).iter().enumerate() {
             app.draw_styled(
                 view,
-                &Style::nearest(1, light),
+                &Style::gold_shadowed(1),
                 hero,
                 px + 13.0,
                 py + 142.0 + 8.0 * i as f32,

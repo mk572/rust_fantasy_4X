@@ -193,7 +193,7 @@ pub(crate) fn settings_lines(
 
 /// A row of radio buttons; returns the chosen index.
 fn choose(x: f32, y: &mut f32, label: &str, names: &[String], current: u8, input: &Input) -> u8 {
-    draw_text(label, x, *y + 22.0, 24.0, WHITE);
+    crate::font::plain_text(label, x, *y + 22.0, 24.0, WHITE);
     let mut chosen = current;
     for (i, name) in names.iter().enumerate() {
         let r = Rect::new(x + 170.0 + i as f32 * 112.0, *y, 104.0, 30.0);
@@ -370,10 +370,10 @@ impl Page for GameSettingsPage {
         let (w, h) = (screen_width(), screen_height());
         draw_rectangle(0.0, 0.0, w, h, PANEL);
         let x = (w / 2.0 - 260.0).max(30.0);
-        draw_text(app.text("options.settings"), x, 80.0, 36.0, GOLD);
+        crate::font::plain_text(app.text("options.settings"), x, 80.0, 36.0, GOLD);
         let mut y = 130.0;
         let back = if app.menu.from_menu {
-            draw_text(app.text("options.next_game"), x, y - 6.0, 20.0, GRAY);
+            crate::font::plain_text(app.text("options.next_game"), x, y - 6.0, 20.0, GRAY);
             y += 16.0;
             let difficulties = DIFFICULTIES.map(|k| app.text(k));
             let magic_levels = MAGIC_LEVELS.map(|k| app.text(k));
@@ -422,7 +422,7 @@ impl Page for GameSettingsPage {
                 "options.line_seed",
                 &Args::new().text("seed", app.seed.to_string()),
             );
-            draw_text(&seed, x, y + 20.0, 22.0, WHITE);
+            crate::font::plain_text(&seed, x, y + 20.0, 22.0, WHITE);
             y += 30.0;
             button(
                 Rect::new(x, y + 20.0, 150.0, 40.0),
@@ -431,7 +431,7 @@ impl Page for GameSettingsPage {
                 input,
             )
         } else {
-            draw_text(app.text("options.this_game"), x, y - 6.0, 20.0, GRAY);
+            crate::font::plain_text(app.text("options.this_game"), x, y - 6.0, 20.0, GRAY);
             y += 16.0;
             let lines = settings_lines(
                 app.texts(),
@@ -439,14 +439,14 @@ impl Page for GameSettingsPage {
                 &app.game.content().settings,
             );
             for line in lines {
-                draw_text(&line, x, y + 20.0, 22.0, WHITE);
+                crate::font::plain_text(&line, x, y + 20.0, 22.0, WHITE);
                 y += 30.0;
             }
             let seed = app.texts().get(
                 "options.line_seed",
                 &Args::new().text("seed", app.game.seed().to_string()),
             );
-            draw_text(&seed, x, y + 20.0, 22.0, WHITE);
+            crate::font::plain_text(&seed, x, y + 20.0, 22.0, WHITE);
             y += 40.0;
             button(
                 Rect::new(x, y + 20.0, 150.0, 40.0),

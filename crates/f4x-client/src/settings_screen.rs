@@ -6,7 +6,8 @@
 //! Tests: below. Which switch a click flips is `clicked_switch`, what a press on a slider sets is
 //! `volume_at`, what leaves the screen is `leaves`; the drawing is left to the screenshots.
 
-use crate::font::Style;
+use crate::font::{Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use f4x_core::text::Args;
@@ -134,7 +135,13 @@ impl Page for SettingsPage {
             let r = lay.rect(crate::resolution::SCREEN);
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.08, 0.07, 0.06, 1.0));
             let title = app.text("options.settings");
-            app.draw_styled(view, &Style::nearest(5, GOLD).center(), &title, 160.0, 20.0);
+            app.draw_styled(
+                view,
+                &Style::sh_nearest(5, GOLD).center(),
+                &title,
+                160.0,
+                20.0,
+            );
         }
         let mouse: Vec2 = input.mouse_position().into();
 
@@ -157,14 +164,20 @@ impl Page for SettingsPage {
                 }
             }
             let label = app.text(pref.label());
-            app.draw_styled(view, &Style::nearest(2, WHITE), &label, x + 16.0, y + 2.0);
+            app.draw_styled(view, &Style::sh_set(2, 2), &label, x + 16.0, y + 2.0);
         }
         if let Some(pref) = clicked_switch(&lay, input) {
             app.prefs.toggle(pref);
         }
         for &(key, x, y) in &HEADINGS {
             let text = app.text(key);
-            app.draw_styled(view, &Style::nearest(3, GOLD), &text, x, y);
+            app.draw_styled(
+                view,
+                &Style::inked(3, Ink::Set(font_ramp::flat(98))).shadow(),
+                &text,
+                x,
+                y,
+            );
         }
 
         let (l, t, r, b) = OK_AREA;
@@ -208,13 +221,7 @@ impl App {
     fn volume_sliders(&mut self, lay: &Layout, view: (f32, f32, f32), mouse: Vec2, input: &Input) {
         for (i, &(key, label_x, bar_x, bar_w)) in SLIDERS.iter().enumerate() {
             let label = self.text(key);
-            self.draw_styled(
-                view,
-                &Style::nearest(2, WHITE),
-                &label,
-                label_x,
-                SLIDER_Y + 1.0,
-            );
+            self.draw_styled(view, &Style::sh_set(2, 2), &label, label_x, SLIDER_Y + 1.0);
             let bar = lay.rect((bar_x, SLIDER_Y + 2.0, bar_w, 5.0));
             let hit = lay.rect((bar_x - 2.0, SLIDER_Y - 1.0, bar_w + 4.0, 11.0));
             let volume = if i == 0 {

@@ -210,7 +210,7 @@ pub struct HeroTemplate {
     /// The innate spells (ids in `spells.ron`), at most four.
     pub spells: Vec<String>,
     /// The hero's name in each wizard's game, by the wizard's number (the original's
-    /// `NAMES.LBX`, local only, from `hero_names.ron`); empty uses the unit's own name.
+    /// `NAMES.LBX`, from `text/<lang>/name/hero.ron`).
     #[serde(default)]
     pub names: Vec<String>,
     /// For the messages that name the hero (`docs/text.md`).
@@ -359,7 +359,7 @@ pub struct WizardDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
-    /// The original's name is local-only; without it the wizard is named after its id.
+    /// From `text/<language>/name/wizard.ron` by `num`, not from the rules file.
     #[serde(default)]
     pub name: String,
     #[serde(default)]
@@ -588,6 +588,8 @@ pub enum PowerBonus {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LevelDef {
+    /// From `text/<language>/name/level_path.ron`, not from the rules file.
+    #[serde(default)]
     pub name: String,
     /// Experience needed to reach this level.
     pub xp: u32,
@@ -611,11 +613,25 @@ pub struct LevelPathDef {
 /// A level that experience alone never gives.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BonusLevelDef {
+    /// From `text/<language>/name/level_path.ron`, not from the rules file.
+    #[serde(default)]
     pub name: String,
     pub effects: Vec<EffectRule>,
 }
 
 impl LevelPathDef {
+    /// Put the names of a language on the levels, the bonus levels last; a list of the wrong
+    /// length names only as many levels as it has.
+    pub fn set_level_names(&mut self, names: Vec<String>) {
+        let mut names = names.into_iter();
+        for l in &mut self.levels {
+            l.name = names.next().unwrap_or_default();
+        }
+        for b in &mut self.bonus {
+            b.name = names.next().unwrap_or_default();
+        }
+    }
+
     /// Levels in all, those experience gives and the bonus levels.
     pub fn level_count(&self) -> usize {
         self.levels.len() + self.bonus.len()

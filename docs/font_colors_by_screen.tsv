@@ -1,0 +1,262 @@
+file	function	line	style	outline	colours	hex	conditional	note
+AdvsrScr.c	Powergraph_Screen_Draw	795	4		0 ? ? ? ? ?	#000000 ? ? ? ? ?		set from: (177 + itr_players)
+AdvsrScr.c	Powergraph_Screen_Draw	906	3	254	? ? ? ? ? ?	? ? ? ? ? ?		set from: banner_colors[(_players[HUMAN_PLAYER_IDX].banner_id)]
+AdvsrScr.c	Powergraph_Screen_Draw	925	3	254	? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?, banner_colors[(_players[15].banner_id)]
+AdvsrScr.c	Status_Screen_Draw	1102	4		0 ? ? ? ? ?	#000000 ? ? ? ? ?		set from: (177 + itr_players)
+AdvsrScr.c	Cartographer_Screen_Draw__WIP	1378	0		? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: (uint8_t)banner_colors[_players[_CITIES[15].owner_idx].banner_id], ?, ST_BLACK
+AdvsrScr.c	Cartograph_Screen_Draw_Map__WIP	1474	0	254	0 1 1 1 1 1 1 1 1 1 1 1 1 0	#000000 #080404 #080404 #080404 #080404 #080404 #080404 #080404 #080404 #080404 #080404 #080404 #080404 #000000		
+ArmyList.c	ArmyList_Screen_Draw	524	4		237 237 237 237 237 0	screen screen screen screen screen #000000		
+ArmyList.c	ArmyList_Screen_Draw	532	4		238 238 238 238 238 0	screen screen screen screen screen #000000		
+ArmyList.c	ArmyList_Screen_Draw	539	4		239 239 239 239 239 0	screen screen screen screen screen #000000		
+ArmyList.c	ArmyList_Screen_Draw	546	4		236 177 178 177 176 0	screen #FFB62C #EFA624 #FFB62C #FFCB65 #000000		
+ArmyList.c	ArmyList_Screen_Draw	557	1	231	236 129 129 177 176 0	screen #C3B2B2 #C3B2B2 #FFB62C #FFCB65 #000000		
+ArmyList.c	ArmyList_Screen_Draw	637	0	240	236 129 129 ? ? ? ? ? ? ? ? ? ? ? ? ?	screen #C3B2B2 #C3B2B2 ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?
+ArmyList.c	ArmyList_Screen_Draw	734	1	231	236 129 129 ? ? ? ? ? ? ? ? ? ? ? ? ?	screen #C3B2B2 #C3B2B2 ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?
+CREDITS.c	Draw_Credits	320	2		? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?, _fade_in_colors[(CREDITS_LINE_COUNT - (line_top - 88))]
+CityList.c	CityList_Screen_Draw	479	4		237 237 237 237 237	screen screen screen screen screen		
+CityList.c	CityList_Screen_Draw	487	4		238 238 238 238 238	screen screen screen screen screen		
+CityList.c	CityList_Screen_Draw	494	4		239 239 239 239 239	screen screen screen screen screen		
+CityList.c	CityList_Screen_Draw	501	4		236 177 178 177 176	screen #FFB62C #EFA624 #FFB62C #FFCB65		
+CityList.c	CityList_Screen_Draw	511	1	231	236 129 129 239 239	screen #C3B2B2 #C3B2B2 screen screen		
+CityList.c	CityList_Screen_Draw	598	1	231	236 129 129 239 239	screen #C3B2B2 #C3B2B2 screen screen	yes	
+CityScr.c	City_Screen_Draw2__WIP	1244	0	0	190 179 0 0 0 0	#966D34 #DF961C #000000 #000000 #000000 #000000		
+CityScr.c	City_Screen_Draw2__WIP	1334	0	19	190 179 0 0 0 0	#966D34 #DF961C #000000 #000000 #000000 #000000		
+City_ovr55.c	Enemy_City_Screen_Draw	461	0	0	190 179 0 0 0 0	#966D34 #DF961C #000000 #000000 #000000 #000000		
+City_ovr55.c	Print_City_Enchantment_List	971	1		? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?, banner_colors[player_banner_id]
+City_ovr55.c	City_Screen_Draw_City_Enchantments	2003	0		? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?, banner_colors[banner_id]
+Combat.c	Combat_Screen_Draw	5238	4		241 ? ? ? ? 0	screen ? ? ? ? #000000	yes	set from: combat_name_font_colors_by_banner[_players[_combat_ai_player].banner_id][(itr - 1)]
+Combat.c	Combat_Screen_Draw	5263	4	241	241 ? ? ? ? 0	screen ? ? ? ? #000000	yes	set from: combat_name_font_colors_by_banner[_players[_combat_ai_player].banner_id][(itr - 1)]
+Combat.c	Combat_Screen_Draw	5317	4	241	241 ? ? ? ? 0	screen ? ? ? ? #000000	yes	set from: combat_name_font_colors_by_banner[_combat_ai_player][(itr - 1)]
+Combat.c	Combat_Screen_Draw	5326	4	241	241 ? ? ? ? 0	screen ? ? ? ? #000000		set from: combat_name_font_colors_by_banner[_players[_current_player_idx].banner_id][(itr - 1)]
+Combat.c	Combat_Screen_Draw	5361	0	241	227 243 ? ? ? 0	screen screen ? ? ? #000000	yes	set from: combat_name_font_colors_by_banner[_players[_current_player_idx].banner_id][(itr - 1)]
+Combat.c	Draw_Active_Unit_Window	5431	0		227 243 0 0	screen screen #000000 #000000	yes	
+Combat.c	Draw_Active_Unit_Window	5462	0	227	227 243 0 0	screen screen #000000 #000000	yes	
+Combat.c	Draw_Spell_Information_Window	5556	0		227 243 0 0	screen screen #000000 #000000		
+Combat.c	Draw_Active_Unit_Stats_And_Icons	5603	0		227 243 0 0	screen screen #000000 #000000		
+Combat.c	Combat_Information_Window_Draw	5924	2	254	250 177 0 0	screen #FFB62C #000000 #000000		
+Combat.c	Draw_Combat_Unit_Display	7562	0		182 177	#A66D1C #FFB62C	yes	
+Combat.c	Combat_Spell_Counter_Message_Box_Draw	11873	0		182 177	#A66D1C #FFB62C		
+Combat.c	Combat_Cast_Spell_Message	11940	0		182 177	#A66D1C #FFB62C		
+Combat.c	Combat_Results_Scroll_Text	14998	4		245 47 47 47 47	screen #450404 #450404 #450404 #450404		
+Combat.c	Combat_Results_Scroll_Text	15020	1		247 55 55 55 55	screen #452404 #452404 #452404 #452404	yes	
+Combat.c	Combat_Results_Scroll_Text	15045	1		247 55 55 55 55	screen #452404 #452404 #452404 #452404	yes	
+Combat.c	Combat_Results_Scroll_Text	15052	1		247 55 55 55 55	screen #452404 #452404 #452404 #452404	yes	
+Combat.c	Combat_Results_Scroll_Text	15067	1		247 55 55 55 55	screen #452404 #452404 #452404 #452404	yes	
+Combat.c	Combat_Results_Scroll_Text	15085	1		247 55 55 55 55	screen #452404 #452404 #452404 #452404	yes	
+Combat.c	Combat_Results_Scroll_Text	15095	1		247 55 55 55 55	screen #452404 #452404 #452404 #452404	yes	
+Combat.c	Combat_Results_Scroll_Text	15105	1		247 55 55 55 55	screen #452404 #452404 #452404 #452404	yes	
+Combat.c	Combat_Results_Scroll_Text	15116	4		245 47 47 47 47	screen #450404 #450404 #450404 #450404	yes	
+Combat.c	Combat_Results_Scroll_Text	15119	1		247 55 55 55 55	screen #452404 #452404 #452404 #452404	yes	
+Combat.c	Raze_City_Prompt	16626	0		6 9 11 13 15	#69615D #9E9692 #C3BAB6 #E3DBD7 #FFFFFF		
+Combat.c	Raze_City_Prompt_Draw	16693	4		17 17 17 17 17	#412C24 #412C24 #412C24 #412C24 #412C24		
+Combat.c	Raze_City_Prompt_Draw	16698	4		6 9 11 13 15	#69615D #9E9692 #C3BAB6 #E3DBD7 #FFFFFF		
+INTRO.c	Draw_Logos	210	0		79 163	#044504 #FFAE0C	yes	
+ItemMake.c	Item_Make_Screen_Draw	501	3	18	0 31 29 28	#000000 #A68669 #96755D #8E7159	yes	
+ItemMake.c	Item_Make_Screen_Draw	527	3	16	0 31 29 28	#000000 #A68669 #96755D #8E7159	yes	
+ItemMake.c	Item_Make_Screen_Draw	556	3	18	0 177 178 179	#000000 #FFB62C #EFA624 #DF961C	yes	
+ItemMake.c	Item_Make_Screen_Draw	597	3	16	0 177 178 179	#000000 #FFB62C #EFA624 #DF961C	yes	
+ItemMake.c	Item_Make_Screen_Draw	644	3	16	17 9 8 8	#412C24 #9E9692 #8E8682 #8E8682		
+ItemMake.c	Item_Make_Screen_Add_Fields	998	1		17 9 8 8	#412C24 #9E9692 #8E8682 #8E8682		
+ItemMake.c	Item_Make_Screen_Spellbook_Popup_Draw	1873	4	0	19 177 178 179 179	#513C30 #FFB62C #EFA624 #DF961C #DF961C		
+ItemMake.c	Item_Make_Screen_Spellbook_Popup_Draw	1917	3	186	0 166 166 166 166	#000000 #9A0000 #9A0000 #9A0000 #9A0000	yes	
+ItemMake.c	Item_Make_Screen_Spellbook_Popup_Draw	1925	3	192	19 39 39 39 39	#513C30 #450420 #450420 #450420 #450420	yes	
+ItemMake.c	Item_Make_Screen_Spellbook_Popup_Draw	1968	3	192	19 39 39 39 39	#513C30 #450420 #450420 #450420 #450420	yes	
+ItemScrn.c	Item_Screen_Draw	537	1		225 179 ? ? ? ? ? ? ? ? ? ? ? ? ? ?	screen #DF961C ? ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?
+ItemScrn.c	Item_Screen_Draw	586	1	0	225 157 ? ? ? ? ? ? ? ? ? ? ? ? ? ?	screen #96AECF ? ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?
+ItemView.c	Item_View_Prepare	175	1	47	46 177 0 0	#5D1010 #FFB62C #000000 #000000	yes	
+ItemView.c	Item_View_Prepare	182	2	47	46 177 0 0	#5D1010 #FFB62C #000000 #000000	yes	
+LVLMAKE.c	Hero_LevelUp_Popup_Draw	376	4		240 178 179 180 180 0	screen #EFA624 #DF961C #CF8A18 #CF8A18 #000000		
+LVLMAKE.c	Hero_LevelUp_Popup_Draw	394	2	240	240 178 178 178 178 0	screen #EFA624 #EFA624 #EFA624 #EFA624 #000000		
+Lair.c	Lair_Confirm	985	0		6 9 11 13 15	#69615D #9E9692 #C3BAB6 #E3DBD7 #FFFFFF		
+Lair.c	Lair_Confirm_Draw	1138	4		17 17 17 17 17	#412C24 #412C24 #412C24 #412C24 #412C24		
+Lair.c	Lair_Confirm_Draw	1154	4		6 9 11 13 15	#69615D #9E9692 #C3BAB6 #E3DBD7 #FFFFFF		
+LoadScr.c	Load_Screen_Draw	753	0		34 43 171 0	#BE7596 #A65555 #0CAEFF #000000		
+MagicScr.c	Magic_Screen_Draw	1306	0	0	182 177 ? ? ? ? ? ? ? ? ? ? ? ? ? ?	#A66D1C #FFB62C ? ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?
+MagicScr.c	Magic_Screen_Draw	1349	2	1	? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?, colors1[_players[ovl_ench_list_players[(magic_ovl_ench_list_first_item + itr_ovl_enchs)]].banner_id]
+MagicScr.c	Magic_Screen_Draw	1373	0	19	? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?, colors1[_players[ovl_ench_list_players[(magic_ovl_ench_list_first_item + itr_ovl_enchs)]].banner_id]
+MagicScr.c	Alchemy_Popup_Draw	1756	1		192 179 ? 0 0 0	#8E5D24 #DF961C ? #000000 #000000 #000000		set from: BANNER_COLOR_BLUE
+MainScr.c	Draw_Unit_StatFig	3907	0		10 15	#AEA6A2 #FFFFFF	yes	
+MainScr.c	Main_Screen_Draw_Summary_Window	4631	0		198 198 198 0	#C30000 #C30000 #C30000 #000000		
+MainScr.c	Main_Screen_Draw_Summary_Window	4721	0	ST_BLACK	0 172 198 0	#000000 #1079FF #C30000 #000000	yes	
+MainScr.c	Main_Screen_Draw_Summary_Window	4732	0	0	0 201 198 0	#000000 #F7000C #C30000 #000000	yes	
+MainScr.c	Main_Screen_Draw_Summary_Window	4743	0	0	0 217 198 0	#000000 #00A600 #C30000 #000000	yes	
+MainScr.c	Main_Screen_Draw_Summary_Window	4757	0	0	0 9 198 0	#000000 #9E9692 #C30000 #000000	yes	
+MainScr.c	Main_Screen_Draw_Summary_Window	4768	0	0	0 15 198 0	#000000 #FFFFFF #C30000 #000000	yes	
+MainScr.c	Main_Screen_Draw_Summary_Window	4779	0	0	0 123 198 0	#000000 #A655A6 #C30000 #000000	yes	
+NewGame.c	Newgame_Screen_0_Draw	2015	3		31 31 31 31	#A68669 #A68669 #A68669 #A68669	yes	
+NewGame.c	Newgame_Screen_0_Draw	2017	3		187 187 187 187	#34281C #34281C #34281C #34281C	yes	
+NewGame.c	Newgame_Screen_0_Draw	2023	3		31 31 31 31	#A68669 #A68669 #A68669 #A68669	yes	
+NewGame.c	Newgame_Screen_0_Draw	2025	3		187 187 187 187	#34281C #34281C #34281C #34281C	yes	
+NewGame.c	Newgame_Screen_0_Draw	2032	3		31 31 31 31	#A68669 #A68669 #A68669 #A68669	yes	
+NewGame.c	Newgame_Screen_0_Draw	2034	3		187 187 187 187	#34281C #34281C #34281C #34281C	yes	
+NewGame.c	Newgame_Screen_0_Draw	2040	3		31 31 31 31	#A68669 #A68669 #A68669 #A68669	yes	
+NewGame.c	Newgame_Screen_0_Draw	2042	3		187 187 187 187	#34281C #34281C #34281C #34281C	yes	
+NewGame.c	Newgame_Screen_0_Draw	2049	3		31 31 31 31	#A68669 #A68669 #A68669 #A68669	yes	
+NewGame.c	Newgame_Screen_0_Draw	2051	3		187 187 187 187	#34281C #34281C #34281C #34281C	yes	
+NewGame.c	Newgame_Screen_0_Draw	2057	3		31 31 31 31	#A68669 #A68669 #A68669 #A68669	yes	
+NewGame.c	Newgame_Screen_0_Draw	2059	3		187 187 187 187	#34281C #34281C #34281C #34281C	yes	
+NewGame.c	Newgame_Screen_0_Draw	2066	3		31 31 31 31	#A68669 #A68669 #A68669 #A68669	yes	
+NewGame.c	Newgame_Screen_0_Draw	2068	3		187 187 187 187	#34281C #34281C #34281C #34281C	yes	
+NewGame.c	Newgame_Screen_0_Draw	2074	3		31 31 31 31	#A68669 #A68669 #A68669 #A68669	yes	
+NewGame.c	Newgame_Screen_0_Draw	2076	3		187 187 187 187	#34281C #34281C #34281C #34281C	yes	
+NewGame.c	Newgame_Screen_1_2_Draw	2463	3		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000	yes	
+NewGame.c	Newgame_Screen_1_2_Draw	2465	3		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000	yes	
+NewGame.c	Newgame_Screen_1_2_Draw	2471	3		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000	yes	
+NewGame.c	Newgame_Screen_1_2_Draw	2473	3		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000	yes	
+NewGame.c	Newgame_Screen_1_2_Draw	2492	3		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000	yes	
+NewGame.c	Newgame_Screen_1_2_Draw	2494	3		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000	yes	
+NewGame.c	Newgame_Screen_1_2_Draw	2500	3		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000	yes	
+NewGame.c	Newgame_Screen_1_2_Draw	2502	3		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000	yes	
+NewGame.c	Newgame_Screen_1_2_Draw	2518	0		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000	yes	
+NewGame.c	Newgame_Screen_1_2_Draw	2522	0		183 178	#8E6124 #EFA624	yes	
+NewGame.c	Newgame_Screen_1_2_Draw	2535	4		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000	yes	
+NewGame.c	Newgame_Screen_1_2_Draw	2538	4		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000	yes	
+NewGame.c	Newgame_Screen_3_Draw__WIP	2818	4		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_3_Draw__WIP	2821	4		0 0 0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_7_Draw__WIP	3078	4		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_7_Draw__WIP	3082	4		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_6__WIP	3352	2		2 2	#241C18 #241C18	yes	
+NewGame.c	Newgame_Screen_6__WIP	3362	2		25 50	#715545 #BE9A75	yes	
+NewGame.c	Newgame_Screen_6__WIP	3368	2		20 176	#594134 #FFCB65	yes	
+NewGame.c	Newgame_Screen_6__WIP	3386	2		2 2	#241C18 #241C18	yes	
+NewGame.c	Newgame_Screen_6__WIP	3396	2		25 50	#715545 #BE9A75	yes	
+NewGame.c	Newgame_Screen_6__WIP	3402	2		20 176	#594134 #FFCB65	yes	
+NewGame.c	Newgame_Screen_6_Draw__WIP	3508	4		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_6_Draw__WIP	3514	4		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_6_Draw__WIP	3564	3		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_6_Draw__WIP	3573	2		2 2	#241C18 #241C18	yes	
+NewGame.c	Newgame_Screen_6_Draw__WIP	3583	2		20 176	#594134 #FFCB65	yes	
+NewGame.c	Newgame_Screen_6_Draw__WIP	3589	2		25 50	#715545 #BE9A75	yes	
+NewGame.c	Newgame_Screen_6_Draw__WIP	3600	3		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_6_Draw__WIP	3609	2		2 2	#241C18 #241C18	yes	
+NewGame.c	Newgame_Screen_6_Draw__WIP	3622	2		20 176	#594134 #FFCB65	yes	
+NewGame.c	Newgame_Screen_6_Draw__WIP	3628	2		25 50	#715545 #BE9A75	yes	
+NewGame.c	Newgame_Screen_6_Draw__WIP	3636	2		25 22	#715545 #61493C	yes	
+NewGame.c	Draw_Special_Abilities_String	3742	0		187 187 187 187	#34281C #34281C #34281C #34281C		
+NewGame.c	Draw_Special_Abilities_String	3745	0		183 178	#8E6124 #EFA624		
+NewGame.c	Newgame_Screen_4_Draw__WIP	4638	0		16 16	#38201C #38201C	yes	
+NewGame.c	Newgame_Screen_4_Draw__WIP	4640	0		25 50	#715545 #BE9A75	yes	
+NewGame.c	Newgame_Screen_4_Draw__WIP	4644	0		16 16	#38201C #38201C	yes	
+NewGame.c	Newgame_Screen_4_Draw__WIP	4646	0		25 22	#715545 #61493C	yes	
+NewGame.c	Newgame_Screen_4_Draw__WIP	4652	0		16 16	#38201C #38201C	yes	
+NewGame.c	Newgame_Screen_4_Draw__WIP	4654	0		22 178	#61493C #EFA624	yes	
+NewGame.c	Newgame_Screen_4_Draw__WIP	4688	0		16 16	#38201C #38201C	yes	
+NewGame.c	Newgame_Screen_4_Draw__WIP	4690	0		25 50	#715545 #BE9A75	yes	
+NewGame.c	Newgame_Screen_4_Draw__WIP	4694	0		16 16	#38201C #38201C	yes	
+NewGame.c	Newgame_Screen_4_Draw__WIP	4696	0		25 22	#715545 #61493C	yes	
+NewGame.c	Newgame_Screen_4_Draw__WIP	4702	0		16 16	#38201C #38201C	yes	
+NewGame.c	Newgame_Screen_4_Draw__WIP	4704	0		22 178	#61493C #EFA624	yes	
+NewGame.c	Newgame_Screen_4_Draw__WIP	4724	3		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_4_Draw__WIP	4727	3		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_4_Draw__WIP	4731	4		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_4_Draw__WIP	4735	4		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_5_Draw	5396	4		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_5_Draw	5399	4		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_5_Draw	5466	3		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_5_Draw	5468	3		0 0 0 0 0	#000000 #000000 #000000 #000000 #000000		
+NewGame.c	Newgame_Screen_5_Draw_Spells	5558	4		? ? ? ? ?	? ? ? ? ?		set from: realm_color
+NewGame.c	Newgame_Screen_5_Draw_Spells	5615	3		? ? ? ? ?	? ? ? ? ?	yes	set from: realm_color
+NewGame.c	Newgame_Screen_5_Draw_Spells	5625	0		16 16	#38201C #38201C	yes	
+NewGame.c	Newgame_Screen_5_Draw_Spells	5643	0		22 178	#61493C #EFA624	yes	
+NewGame.c	Newgame_Screen_5_Draw_Spells	5649	0		25 50	#715545 #BE9A75	yes	
+NewGame.c	Newgame_Screen_5_Draw_Spells	5691	3		? ? ? ? ?	? ? ? ? ?	yes	set from: realm_color
+NewGame.c	Newgame_Screen_5_Draw_Spells	5701	0		16 16	#38201C #38201C	yes	
+NewGame.c	Newgame_Screen_5_Draw_Spells	5719	0		22 178	#61493C #EFA624	yes	
+NewGame.c	Newgame_Screen_5_Draw_Spells	5725	0		25 50	#715545 #BE9A75	yes	
+NewGame.c	Newgame_Screen_5_Draw_Spells	5767	3		? ? ? ? ?	? ? ? ? ?	yes	set from: realm_color
+NewGame.c	Newgame_Screen_5_Draw_Spells	5777	0		16 16	#38201C #38201C	yes	
+NewGame.c	Newgame_Screen_5_Draw_Spells	5795	0		22 178	#61493C #EFA624	yes	
+NewGame.c	Newgame_Screen_5_Draw_Spells	5801	0		25 50	#715545 #BE9A75	yes	
+Outpost.c	Outpost_Screen_Draw	546	0	1	190 179 0 0 0 0	#966D34 #DF961C #000000 #000000 #000000 #000000		
+ProdScr.c	Production_Screen_Draw_	633	2	PAL_TURQUOISE_LIGHT	? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	? ? ? ? ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?, PAL_GREY_LIGHT, PAL_TURQUOISE_DIM
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	685	4		240 47 47 47 47 0	screen #450404 #450404 #450404 #450404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	691	1		247 55 55 55 55 0	screen #452404 #452404 #452404 #452404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	803	4		240 47 47 47 47 0	screen #450404 #450404 #450404 #450404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	809	1		247 55 55 55 55 0	screen #452404 #452404 #452404 #452404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	850	4		240 47 47 47 47 0	screen #450404 #450404 #450404 #450404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	856	1		247 55 55 55 55 0	screen #452404 #452404 #452404 #452404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	900	4		240 47 47 47 47 0	screen #450404 #450404 #450404 #450404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	906	1		247 55 55 55 55 0	screen #452404 #452404 #452404 #452404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	928	4		240 47 47 47 47 0	screen #450404 #450404 #450404 #450404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	934	1		247 55 55 55 55 0	screen #452404 #452404 #452404 #452404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	956	4		240 47 47 47 47 0	screen #450404 #450404 #450404 #450404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	962	1		247 55 55 55 55 0	screen #452404 #452404 #452404 #452404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	984	4		240 47 47 47 47 0	screen #450404 #450404 #450404 #450404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	990	1		247 55 55 55 55 0	screen #452404 #452404 #452404 #452404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	1008	4		240 47 47 47 47 0	screen #450404 #450404 #450404 #450404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	1014	1		247 55 55 55 55 0	screen #452404 #452404 #452404 #452404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	1033	4		240 47 47 47 47 0	screen #450404 #450404 #450404 #450404 #000000	yes	
+REPORT.c	Chancellor_Screen_Scroll_Draw__WIP	1048	4		240 47 47 47 47 0	screen #450404 #450404 #450404 #450404 #000000	yes	
+Roads.c	Draw_Road_Building_Window	399	1	166	8 161 161 0	#8E8682 #FFE761 #FFE761 #000000		
+Roads.c	Draw_Road_Building_Window	413	1	148	8 161 161 0	#8E8682 #FFE761 #FFE761 #000000		
+SCORE.c	Hall_Of_Fame_Screen_Draw	353	2		246 49 176 162 178 179 51 180 184 185 213 186 246 246 246 246	screen #D7B69A #FFCB65 #FFCB24 #EFA624 #DF961C #A67D55 #CF8A18 #795524 #614524 #655900 #493824 screen screen screen screen		
+SCORE.c	Hall_Of_Fame_Screen_Draw	367	2	250	246 179 179 179 179 179 179 179 179 179 179 179 179 179 179 179	screen #DF961C #DF961C #DF961C #DF961C #DF961C #DF961C #DF961C #DF961C #DF961C #DF961C #DF961C #DF961C #DF961C #DF961C #DF961C		
+SCastScr.c	Spell_Casting_Screen_Draw_Panel	1394	1		8 161 161 0	#8E8682 #FFE761 #FFE761 #000000		
+SPLMASTR.c	Spell_Target_Global_Enchantment_Screen_Draw	1042	4		246 ? ? ? ? ?	screen ? ? ? ? ?		set from: (177 + itr1)
+SPLMASTR.c	Spell_Of_Mastery_Lose_Draw	1693	5		5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5	#59514D #59514D #59514D #59514D #59514D #59514D #59514D #59514D #59514D #59514D #59514D #59514D #59514D #59514D #59514D #59514D		
+Settings.c	Settings_Screen_Draw	563	3		0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000		
+Spellbook.c	SmlBook_Compose	915	1		184 187 187 187 187 0	#795524 #34281C #34281C #34281C #34281C #000000	yes	
+Spellbook.c	SmlBook_Compose	1004	1		198 198 198 198 198 0	#C30000 #C30000 #C30000 #C30000 #C30000 #000000	yes	
+Spellbook.c	Combat_Spellbook_Compose	1208	1		184 187 187 187 187 0	#795524 #34281C #34281C #34281C #34281C #000000	yes	
+Spellbook.c	SmlBook_Draw	1279	4		53 46 46 46 46 0	#754D24 #5D1010 #5D1010 #5D1010 #5D1010 #000000		
+Spellbook.c	SmlBook_Draw	1289	4		53 46 46 46 46 0	#754D24 #5D1010 #5D1010 #5D1010 #5D1010 #000000		
+Spellbook.c	Combat_Spellbook_Draw	1327	4		53 46 46 46 46 0	#754D24 #5D1010 #5D1010 #5D1010 #5D1010 #000000		
+Spellbook.c	Combat_Spellbook_Draw	1338	4		53 46 46 46 46 0	#754D24 #5D1010 #5D1010 #5D1010 #5D1010 #000000		
+Spellbook.c	SmlBook_PageTurn	1409	4		53 46 46 46 46 0	#754D24 #5D1010 #5D1010 #5D1010 #5D1010 #000000	yes	
+Spellbook.c	SmlBook_PageTurn	1437	4		53 46 46 46 46 0	#754D24 #5D1010 #5D1010 #5D1010 #5D1010 #000000	yes	
+Spellbook.c	SmlBook_PageTurn	1484	4		53 46 46 46 46 0	#754D24 #5D1010 #5D1010 #5D1010 #5D1010 #000000	yes	
+Spellbook.c	Learn_Spell_Animation	2240	7		198 198 198 198 198 198 198 198 198 198 198 198 198 198 198 198	#C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000	yes	
+Spellbook.c	Learn_Spell_Animation	2243	6		198 198 198 198 198 198 198 198 198 198 198 198 198 198 198 198	#C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000	yes	
+Spellbook.c	BigBook_Compose	2642	4		198 198 198 198 198 198 198 198 198 198 198 198 198 198 198 198	#C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000	yes	
+Spellbook.c	BigBook_Compose	2652	7		186 186 186 186 186 186 186 186 186 186 186 186 186 186 186 186	#493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824	yes	
+Spellbook.c	BigBook_Compose	2656	4		186 186 186 186 186 186 186 186 186 186 186 186 186 186 186 186	#493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824 #493824	yes	
+Spellbook.c	BigBook_Compose	2667	0		198 198 198 198 198 198 198 198 198 198 198 198 198 198 198 198	#C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000	yes	
+Spellbook.c	BigBook_Compose	2675	6		184 185 198 198 198 198 198 198 198 198 198 198 198 198 198 198	#795524 #614524 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000	yes	
+Spellbook.c	BigBook_Compose	2679	0		184 185 198 198 198 198 198 198 198 198 198 198 198 198 198 198	#795524 #614524 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000 #C30000	yes	
+Spellbook.c	BigBook_Compose	2779	5		184 55 47 39 46 46 46 46 46 46 46 46 46 46 46 46	#795524 #452404 #450404 #450420 #5D1010 #5D1010 #5D1010 #5D1010 #5D1010 #5D1010 #5D1010 #5D1010 #5D1010 #5D1010 #5D1010 #5D1010		
+Spells137.c	Target_Wizard_Screen_Draw	1465	4	254	249 ? ? ? ? ?	screen ? ? ? ? ?	yes	set from: (177 + itr)
+Spells137.c	Target_Wizard_Screen_Draw	1485	4	151	249 ? ? ? ? ?	screen ? ? ? ? ?		set from: (177 + itr)
+Surveyor.c	Surveyor_IDK_Set_Font_Stuff__1	1236	1		8 161 161 0	#8E8682 #FFE761 #FFE761 #000000		
+UnitList.c	Unit_List_Window_Draw	325	4		? ? ? ? ? ?	? ? ? ? ? ?		set from: COL_Banners2[_players[m_ulw_unit_owner_idx].banner_id]
+UnitList.c	Unit_List_Window_Draw	405	2	252	197 255 80 255 ? ? ? ? ? ? ? ? ? ? ? ?	#55A6A6 screen #C3EFDB screen ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?
+UnitList.c	Unit_List_Window_Draw	420	1	251	250 252 80 255 ? ? ? ? ? ? ? ? ? ? ? ?	screen screen #C3EFDB screen ? ? ? ? ? ? ? ? ? ? ? ?	yes	set from: ?
+UnitStat.c	Thing_View_Draw__WIP	873	1		197 255 0 0 0 0	#55A6A6 screen #000000 #000000 #000000 #000000		
+UnitStat.c	Thing_View_Draw__WIP	955	4	251	197 14 255 80 255 0	#55A6A6 #F3EBE7 screen #C3EFDB screen #000000	yes	
+UnitStat.c	Thing_View_Draw__WIP	976	2	251	197 255 255 80 255 0	#55A6A6 screen screen #C3EFDB screen #000000	yes	
+UnitStat.c	Thing_View_Draw__WIP	1002	4	251	197 14 255 80 255 0	#55A6A6 #F3EBE7 screen #C3EFDB screen #000000	yes	
+UnitStat.c	Thing_View_Draw__WIP	1014	2	251	197 255 255 80 255 0	#55A6A6 screen screen #C3EFDB screen #000000	yes	
+UnitStat.c	Thing_View_Draw__WIP	1051	4	251	197 14 255 80 255 0	#55A6A6 #F3EBE7 screen #C3EFDB screen #000000	yes	
+UnitStat.c	Thing_View_Draw__WIP	1072	4	251	197 14 255 80 255 0	#55A6A6 #F3EBE7 screen #C3EFDB screen #000000	yes	
+UnitStat.c	Thing_View_Draw__WIP	1144	1	251	197 255 255 80 255 0	#55A6A6 screen screen #C3EFDB screen #000000	yes	
+UnitStat.c	Thing_View_Draw__WIP	1208	4	251	197 14 255 80 255 0	#55A6A6 #F3EBE7 screen #C3EFDB screen #000000	yes	
+UnitStat.c	USW_DrawListPage	1717	2		197 255 80 255 0 0	#55A6A6 screen #C3EFDB screen #000000 #000000		
+WIZVIEW.c	Mirror_Screen_Draw	308	4	234	150 ? ? ? ? ?	#3C3C5D ? ? ? ? ?		set from: (177 + itr)
+Fonts.c	Print_To_Bitmap_Far	2202	3		0 0 0 0 0 0	#000000 #000000 #000000 #000000 #000000 #000000		
+GENDRAW.c	Confirmation_Box	375	0		6 9 11 13 15	#69615D #9E9692 #C3BAB6 #E3DBD7 #FFFFFF		
+GENDRAW.c	Confirmation_Box_Draw	466	4		17 17 17 17 17	#412C24 #412C24 #412C24 #412C24 #412C24		
+GENDRAW.c	Confirmation_Box_Draw	471	4		6 9 11 13 15	#69615D #9E9692 #C3BAB6 #E3DBD7 #FFFFFF		
+GENDRAW.c	Warn	523	0		6 9 11 13 15	#69615D #9E9692 #C3BAB6 #E3DBD7 #FFFFFF		
+GENDRAW.c	Warn_Draw	583	4		228 228 228 228 228	screen screen screen screen screen	yes	
+GENDRAW.c	Warn_Draw	587	4		45 45 45 45 45	#752424 #752424 #752424 #752424 #752424	yes	
+GENDRAW.c	Selection_Box_Draw	1035	4		102 251 251 251 251	#10385D screen screen screen screen		
+GENDRAW.c	Selection_Box_Draw	1039	4		20 178 179 180 180	#594134 #EFA624 #DF961C #CF8A18 #CF8A18		
+GENDRAW.c	Notify1_Draw	1450	4		17 17 17 17 17	#412C24 #412C24 #412C24 #412C24 #412C24	yes	
+GENDRAW.c	Notify1_Draw	1460	4		240 240 240 240 240	screen screen screen screen screen	yes	notify_type=0
+GENDRAW.c	Notify1_Draw	1460	4		240 240 240 240 240	screen screen screen screen screen	yes	notify_type=1
+GENDRAW.c	Notify1_Draw	1460	4		240 240 240 240 240	screen screen screen screen screen	yes	notify_type=2
+GENDRAW.c	Notify1_Draw	1460	4		20 20 20 20 20	#594134 #594134 #594134 #594134 #594134	yes	notify_type=3
+GENDRAW.c	Notify1_Draw	1465	4		25 178 179 180 180	#715545 #EFA624 #DF961C #CF8A18 #CF8A18	yes	notify_type=0
+GENDRAW.c	Notify1_Draw	1465	4		25 178 179 180 180	#715545 #EFA624 #DF961C #CF8A18 #CF8A18	yes	notify_type=1
+GENDRAW.c	Notify1_Draw	1465	4		25 178 179 180 180	#715545 #EFA624 #DF961C #CF8A18 #CF8A18	yes	notify_type=2
+GENDRAW.c	Notify1_Draw	1465	4		25 178 179 180 180	#715545 #EFA624 #DF961C #CF8A18 #CF8A18	yes	notify_type=3
+GENDRAW.c	Notify2_Draw	1711	4		240 240 240 240 240	screen screen screen screen screen		notify_type=0
+GENDRAW.c	Notify2_Draw	1711	4		240 240 240 240 240	screen screen screen screen screen		notify_type=1
+GENDRAW.c	Notify2_Draw	1711	4		240 240 240 240 240	screen screen screen screen screen		notify_type=2
+GENDRAW.c	Notify2_Draw	1711	4		20 20 20 20 20	#594134 #594134 #594134 #594134 #594134		notify_type=3
+GENDRAW.c	Notify2_Draw	1718	4		25 178 179 180 180	#715545 #EFA624 #DF961C #CF8A18 #CF8A18		notify_type=0
+GENDRAW.c	Notify2_Draw	1718	4		25 178 179 180 180	#715545 #EFA624 #DF961C #CF8A18 #CF8A18		notify_type=1
+GENDRAW.c	Notify2_Draw	1718	4		25 178 179 180 180	#715545 #EFA624 #DF961C #CF8A18 #CF8A18		notify_type=2
+GENDRAW.c	Notify2_Draw	1718	4		25 178 179 180 180	#715545 #EFA624 #DF961C #CF8A18 #CF8A18		notify_type=3
+TEXTBOX.c	Draw_Help_Entry__WIP	250	1		184 55 55 55 55	#795524 #452404 #452404 #452404 #452404	yes	
+TEXTBOX.c	Draw_Help_Entry__WIP	349	4		185 47 47 47 47	#614524 #450404 #450404 #450404 #450404	yes	
+TEXTBOX.c	Draw_Help_Entry__WIP	353	1		184 55 55 55 55	#795524 #452404 #452404 #452404 #452404	yes	

@@ -19,7 +19,7 @@ An `.lbx` is a list of entries (`docs/extract-art.md` section 2). A data entry s
 | `HERODATA.LBX` | 1 | 150 records of 10 bytes: five copies of 30 hero types; a leftover of an earlier design, read by nothing (`heroes-items-design.md`, the table of sources) | no |
 | `TERRSTAT.LBX` | 2 | entry 0: 770 records of 6 bytes, the half-move cost of each terrain type per movement mode; entry 1: the 14 by 14 racial unrest table | the unrest table is in `rules.ron` (`racial_unrest`), identical; the costs are compared in `divergences.md` section 34 |
 | `TERRTYPE.LBX` | 1 | 2564 bytes: the generator's lookup from a square's neighbours to its terrain tile (the autotile table) | no (task 150, generator parity) |
-| `NAMES.LBX` | 1 | five hero names per hero unit | `import_mom.py` (`hero_names.ron`, local) |
+| `NAMES.LBX` | 1 | five hero names per hero unit | imported once into `content/text/en/name/hero.ron` |
 | `CITYNAME.LBX` | 1 | the city names by race | `import_mom.py` |
 | `HELP.LBX`, `HLPENTRY.LBX` | 3, 41 | the help text and the table of help topics and the area of each | `import_mom.py` (`help.ron`, local) |
 | `EVENTMSG.LBX` | 1 | 126 records of 200 bytes: the random events' messages | `import_mom.py` (`event_texts.ron`, local) |

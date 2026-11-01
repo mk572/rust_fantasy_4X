@@ -68,3 +68,17 @@ Non-obvious findings about this code base. General lessons (shell, tools) are in
   soak's tally cannot count the loss and `founded_cities_account_for_the_cities_a_wizard_ends_with` fails on a
   seed where one happens. The test pins seed 4, where none does; a different random stream (any AI change
   that rolls the dice more or less often) may need another seed.
+
+## A font atlas must stay under 16384 pixels in each direction
+
+The BMFont atlases stack one copy of the glyphs per colour set (16 of the original + the ramps of
+`scripts/font_ramps.py`). With 16 glyphs per row, styles 4 and 5 passed 16384 pixels in height: the
+texture failed to load ("unloadable" in the log) and every text of the style was a solid black box.
+`BM_COLUMNS` in `f4x-tools/src/fonts.rs` is 48 for this reason; check the atlas size when adding ramps.
+
+## The books hide the realm titles on the new-game picks screen (as in the original)
+
+On the spell picks screen the books of a realm are drawn over the realm's title ("Life" shows as
+"ife", "Nature" as "ture"). The original does the same: it is intended, not a bug. Do not move the
+books or the titles to avoid it.
+

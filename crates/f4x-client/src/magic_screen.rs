@@ -9,7 +9,8 @@
 //! Alchemy button opens the gold-and-power exchange. Spells are cast from the spell book
 //! (`spellbook.rs`) and chosen for research in the big book (`bigbook.rs`).
 
-use crate::font::Style;
+use crate::font::{rgb, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::ui;
@@ -25,6 +26,11 @@ use crate::ui::button;
 use crate::view::{App, Screen, HUMAN};
 
 /// The staves, in the order the split is kept: mana, research, skill.
+/// The shadow of the power figures and the enchantment names: `Set_Outline_Color(19)` (`MagicScr.c`).
+const EDGE_FIGURES: Color = rgb(0x51, 0x3C, 0x30);
+/// The shadow of the stat rows: `Set_Outline_Color(240)`, an entry of the Magic screen's own palette.
+const EDGE_STATS: Color = rgb(0x28, 0x28, 0x41);
+
 const STAFF_X: [f32; 3] = [29.0, 75.0, 122.0];
 /// The picture entries of each staff: empty, full, locked (`magic.lbx`).
 const STAFF_ART: [(usize, usize, usize); 3] = [(7, 8, 15), (9, 10, 16), (11, 12, 17)];
@@ -460,8 +466,6 @@ impl MagicUi {
 
     /// The income under each staff and the block of facts below them.
     fn magic_text(&mut self, app: &mut App, lay: &Layout, view: (f32, f32, f32)) {
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
-        let gold = Color::new(0.95, 0.55, 0.1, 1.0);
         let income = app.game.income(HUMAN);
         let split = if self.drag.is_some() {
             // While dragging show what the staves would give.
@@ -479,21 +483,21 @@ impl MagicUi {
         let casting_spell = app.game.wizard(HUMAN).and_then(|m| m.casting());
         app.draw_styled(
             view,
-            &Style::nearest(2, gold).right(),
+            &Style::sh_set(2, 3).edge(EDGE_FIGURES).right(),
             &app.text_with("magic.mp", &Args::new().count("n", split.mana)),
             54.0,
             160.0,
         );
         app.draw_styled(
             view,
-            &Style::nearest(2, gold).right(),
+            &Style::sh_set(2, 3).edge(EDGE_FIGURES).right(),
             &app.text_with("magic.rp", &Args::new().count("n", income.research)),
             101.0,
             160.0,
         );
         app.draw_styled(
             view,
-            &Style::nearest(2, gold).right(),
+            &Style::sh_set(2, 3).edge(EDGE_FIGURES).right(),
             &app.text_with("magic.sp", &Args::new().count("n", split.skill)),
             148.0,
             160.0,
@@ -536,10 +540,16 @@ impl MagicUi {
         ];
         for (i, (l1, v1, l2, v2)) in rows.into_iter().enumerate() {
             let y = 177.0 + 8.0 * i as f32;
-            app.draw_styled(view, &Style::nearest(1, light), &l1, 5.0, y);
-            app.draw_styled(view, &Style::nearest(1, light).right(), &v1, 90.0, y);
-            app.draw_styled(view, &Style::nearest(1, light), &l2, 100.0, y);
-            app.draw_styled(view, &Style::nearest(1, light), &v2, 156.0, y);
+            app.draw_styled(view, &Style::sh_set(1, 3).edge(EDGE_STATS), &l1, 5.0, y);
+            app.draw_styled(
+                view,
+                &Style::sh_set(1, 3).edge(EDGE_STATS).right(),
+                &v1,
+                90.0,
+                y,
+            );
+            app.draw_styled(view, &Style::sh_set(1, 3).edge(EDGE_STATS), &l2, 100.0, y);
+            app.draw_styled(view, &Style::sh_set(1, 3).edge(EDGE_STATS), &v2, 156.0, y);
         }
         let _ = lay;
     }
@@ -563,7 +573,7 @@ impl MagicUi {
         let first = self.first;
         for (i, &(spell, owner)) in list.iter().skip(first).take(per_page).enumerate() {
             let name = app.game.content().rules.spells.get(spell).name.clone();
-            let color = app.banner_color(owner.0);
+            let ink = app.banner_ink(owner.0, &[172, 216, 123, 201, 211]);
             let (x, y, style) = if two_columns {
                 (
                     171.0 + 69.0 * (i % 2) as f32,
@@ -573,7 +583,13 @@ impl MagicUi {
             } else {
                 (171.0, 80.0 + 10.0 * i as f32, 2)
             };
-            app.draw_styled(view, &Style::nearest(style, color), &name, x, y);
+            app.draw_styled(
+                view,
+                &Style::inked(style, ink).shadow().edge(EDGE_FIGURES),
+                &name,
+                x,
+                y,
+            );
             let rect = if two_columns {
                 lay.rect((x - 2.0, y - 1.0, 65.0, 8.0))
             } else {
@@ -585,7 +601,7 @@ impl MagicUi {
         }
         if list.len() > 18 {
             let more = app.text("magic.more");
-            app.draw_styled(view, &Style::nearest(0, WHITE), &more, 286.0, 163.0);
+            app.draw_styled(view, &Style::set(0, 13), &more, 286.0, 163.0);
             if active && ui::hit(lay.rect((286.0, 163.0, 21.0, 7.0)), true, input).clicked() {
                 self.first += 18;
                 if self.first >= list.len() {
@@ -628,7 +644,6 @@ impl MagicUi {
         // The bar's shaded part up to the star, then the star.
         app.draw_pic_rows(lay, "magic", 57, px + 50.0, py + 25.0, 0.0, 1000.0);
         app.draw_pic(lay, "magic", 58, 0, px + 47.0 + ui.slider as f32, py + 25.0);
-        let light = Color::new(0.95, 0.93, 0.85, 1.0);
         let (gold_amount, power_amount) = if ui.gold_to_mana {
             (amount, amount / divisor)
         } else {
@@ -636,29 +651,29 @@ impl MagicUi {
         };
         app.draw_styled(
             view,
-            &Style::nearest(1, light).right(),
+            &Style::inked(1, Ink::Set(font_ramp::ALCHEMY_AMOUNT)).right(),
             &gold_amount.to_string(),
             px + 28.0,
             py + 26.0,
         );
         app.draw_styled(
             view,
-            &Style::nearest(1, light).right(),
-            "GP",
+            &Style::inked(1, Ink::Set(font_ramp::ALCHEMY_AMOUNT)).right(),
+            &app.text("ui.gold_unit"),
             px + 40.0,
             py + 26.0,
         );
         app.draw_styled(
             view,
-            &Style::nearest(1, light).right(),
+            &Style::inked(1, Ink::Set(font_ramp::ALCHEMY_AMOUNT)).right(),
             &power_amount.to_string(),
             px + 130.0,
             py + 26.0,
         );
         app.draw_styled(
             view,
-            &Style::nearest(1, light).right(),
-            "PP",
+            &Style::inked(1, Ink::Set(font_ramp::ALCHEMY_AMOUNT)).right(),
+            &app.text("ui.power_unit"),
             px + 142.0,
             py + 26.0,
         );

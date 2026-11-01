@@ -3,7 +3,7 @@
 //! spell just learned. Four spells to a page, each with its cost, how long it takes and what it
 //! does, on the original's open-book picture (`scroll.lbx`).
 
-use crate::font::Style;
+use crate::font::{rgb, Effect, Style};
 use crate::input::Input;
 use crate::modal::{keep, kind, priority, Modal};
 use crate::page::Page;
@@ -573,15 +573,16 @@ impl BigBookUi {
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
         self.draw_big_book(app, &lay, view, None);
-        let prompt = Color::new(1.0, 0.95, 0.8, 1.0);
+        // `Set_Font_Style_Outline_Heavy(5, 9)` and `Set_Outline_Color(1)`.
         app.draw_styled(
             view,
-            &Style::outlined(5),
+            &Style::set(5, 9)
+                .effect(Effect::OutlineHeavy)
+                .edge(rgb(0x08, 0x04, 0x04)),
             &app.text("bigbook.choose_research"),
             43.0,
             183.0,
         );
-        let _ = prompt;
     }
 }
 
