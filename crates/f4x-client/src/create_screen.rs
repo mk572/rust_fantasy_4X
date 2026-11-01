@@ -124,10 +124,19 @@ impl CreateState {
         self.build.spells = spells;
     }
 
+    /// The name a wizard has when none is typed: the name of the portrait picked (the original
+    /// copies the preset's name into the field), else the text `create.default_name`.
+    pub(crate) fn default_name(&self, app: &App) -> String {
+        self.build
+            .portrait
+            .and_then(|p| app.game.content().rules.wizards.defs().get(usize::from(p)))
+            .map_or_else(|| app.text("create.default_name"), |w| w.name.clone())
+    }
+
     pub(crate) fn begin_game(&mut self, app: &mut App) {
         let mut build = self.build.clone();
         build.name = if build.name.trim().is_empty() {
-            app.text("create.default_name")
+            self.default_name(app)
         } else {
             build.name.trim().to_string()
         };
@@ -182,6 +191,15 @@ mod tests {
         assert_eq!(
             app.human_build.as_ref().map(|b| b.name.as_str()),
             Some(default.as_str())
+        );
+        state.build.portrait = Some(0);
+        state.build.name = "   ".into();
+        state.begin_game(&mut app);
+        let first = app.game.content().rules.wizards.defs()[0].name.clone();
+        assert_eq!(
+            app.human_build.as_ref().map(|b| b.name.as_str()),
+            Some(first.as_str()),
+            "the portrait's name stands in for a blank one"
         );
         state.build.name = "  Merlin ".into();
         state.begin_game(&mut app);

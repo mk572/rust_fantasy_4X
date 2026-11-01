@@ -113,6 +113,23 @@ impl App {
         let table = load(Path::new(FILE));
         self.open_page(Screen::HallOfFame, HallPage { table });
     }
+
+    /// For the screenshot check: a full table of made-up entries, not read from or written to the file.
+    pub(crate) fn open_test_hall_of_fame(&mut self) {
+        let races = self.game.content().rules.races.defs();
+        let table = (0..SCORES)
+            .map(|i| Entry {
+                name: [
+                    "Merlin", "Raven", "Sharee", "Lo Pan", "Jafar", "Oberic", "Rjak", "Sss'ra",
+                    "Tauron", "Freya",
+                ][i]
+                    .into(),
+                race: races[i % races.len()].name.clone(),
+                score: 7400 - 640 * i as i32,
+            })
+            .collect();
+        self.open_page(Screen::HallOfFame, HallPage { table });
+    }
 }
 
 /// The table as it was when the screen opened.

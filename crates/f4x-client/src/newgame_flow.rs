@@ -166,7 +166,7 @@ impl App {
 
     fn open_creation_with(&mut self, mut state: CreateState) {
         if state.build.name.is_empty() {
-            state.build.name = "You".into();
+            state.build.name = state.default_name(self);
         }
         self.open_page(Screen::Create, state);
     }
@@ -566,17 +566,7 @@ impl CreateState {
         let ok_clicked = ui::hit(lay.rect((251.0, 181.0, 32.0, 16.0)), true, input).clicked();
         if ok_clicked || input.key_pressed(KeyCode::Enter) || input.key_pressed(KeyCode::KpEnter) {
             if self.build.name.trim().is_empty() {
-                let fallback = portrait
-                    .and_then(|p| {
-                        app.game
-                            .content()
-                            .rules
-                            .wizards
-                            .defs()
-                            .get(p)
-                            .map(|w| w.name.clone())
-                    })
-                    .unwrap_or_else(|| app.text("create.default_name"));
+                let fallback = self.default_name(app);
                 self.build.name = fallback;
             }
             if self.custom {
