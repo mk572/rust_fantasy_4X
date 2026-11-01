@@ -142,7 +142,7 @@ impl App {
     pub fn open_test_offer(&mut self, kind: &str) {
         use f4x_core::player::offer::OfferKind;
         let what = match kind {
-            "hero" | "prisoner" => OfferKind::Hero,
+            "hero" | "prisoner" | "summoned" | "champion" => OfferKind::Hero,
             "mercenaries" => OfferKind::Mercenaries,
             _ => OfferKind::Item,
         };
@@ -155,6 +155,20 @@ impl App {
         let made = (0..200).any(|_| self.game.cheat_offer(HUMAN, what).is_some());
         if !made {
             eprintln!("nothing to offer");
+        }
+        if matches!(kind, "summoned" | "champion") {
+            // What Summon Hero (or Champion) leaves for the human wizard to accept.
+            if let Some(offers) = self
+                .game
+                .player_component_mut::<f4x_core::player::Offers>(HUMAN)
+            {
+                if let Some(Offer::Hero { kind: hero, .. }) = offers.0.first().cloned() {
+                    offers.0[0] = Offer::Summoned {
+                        kind: hero,
+                        champion: kind == "champion",
+                    };
+                }
+            }
         }
         if kind == "prisoner" {
             // The same hero, free: what a cleared lair's prisoner is.
@@ -178,7 +192,7 @@ impl App {
         };
         if self.offer_ui.shown.as_ref() != Some(&offer) {
             self.offer_ui.name = match &offer {
-                Offer::Hero { kind, .. } => {
+                Offer::Hero { kind, .. } | Offer::Summoned { kind, .. } => {
                     self.game.units().hero_type_name(*kind).unwrap_or_default()
                 }
                 _ => String::new(),
@@ -209,7 +223,7 @@ impl App {
     /// while naming goes back to the offer, otherwise it declines the offer.
     fn settle_offer(&mut self, offer: &Offer, accept: bool, reject: bool) {
         if accept {
-            let hero = matches!(offer, Offer::Hero { .. });
+            let hero = matches!(offer, Offer::Hero { .. } | Offer::Summoned { .. });
             if hero && !self.offer_ui.naming {
                 // A hero is named first (`Setup_Input_Box_Popup`), then the hire is made.
                 self.offer_ui.naming = true;
@@ -287,8 +301,12 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (wx, wy) = WINDOW;
         let rules = self.game.content().rules.clone();
+        let hero_kind = match offer {
+            Offer::Hero { kind, .. } | Offer::Summoned { kind, .. } => Some(*kind),
+            _ => None,
+        };
         let (def, level) = match offer {
-            Offer::Hero { kind, .. } => {
+            Offer::Hero { kind, .. } | Offer::Summoned { kind, .. } => {
                 let unit = rules
                     .hero_templates
                     .get(*kind)
@@ -302,7 +320,14 @@ impl App {
             Offer::Item { .. } | Offer::Resale { .. } => (None, None),
         };
         if let Some(def) = def {
-            let sheet = self.offer_sheet(def, level, HUMAN.0);
+            let mut sheet = self.offer_sheet(def, level, HUMAN.0);
+            // A noble hero pays no gold (`Unit_Gold_Upkeep`).
+            let noble = hero_kind
+                .and_then(|k| rules.hero_templates.get(k))
+                .is_some_and(|t| t.abilities.iter().any(|a| a == "noble"));
+            if let (true, Some(upkeep)) = (noble, sheet.upkeep.as_mut()) {
+                upkeep[0] = 0;
+            }
             debug_assert_eq!(sheet.source, Source::Offer);
             let mut panel = std::mem::take(&mut self.offer_ui.panel);
             self.draw_sheet_panel(lay, &sheet, (wx, wy), true, &mut panel, input);
@@ -313,6 +338,12 @@ impl App {
         let title = match offer {
             // A hero that costs nothing is a prisoner set free (`GAME_HeroHireType` 2).
             Offer::Hero { price: 0, .. } => self.text("offer.prisoner"),
+            // `GAME_HeroHireType` 1 and 3.
+            Offer::Summoned { champion, .. } => self.text(if *champion {
+                "spell.champion_summoned"
+            } else {
+                "spell.hero_summoned"
+            }),
             Offer::Hero { .. } => self.text_with("offer.hero", &Args::new().count("price", price)),
             Offer::Mercenaries { count, .. } => self.text_with(
                 "offer.mercenaries",
@@ -352,9 +383,10 @@ impl App {
                 wy + 128.0,
             );
         }
-        let free_hero = matches!(offer, Offer::Hero { price: 0, .. });
+        let free_hero = matches!(offer, Offer::Hero { price: 0, .. } | Offer::Summoned { .. });
         let label = self.text(
-            if matches!(offer, Offer::Hero { .. }) && (naming || free_hero) {
+            if matches!(offer, Offer::Hero { .. } | Offer::Summoned { .. }) && (naming || free_hero)
+            {
                 "ui.accept"
             } else {
                 "ui.hire"
@@ -630,6 +662,43 @@ mod tests {
             app.game.offers(HUMAN).is_empty(),
             "the second reject declines it"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_summoned_hero_is_named_then_joins_for_nothing() -> TestResult {
+        let mut app = App::for_test();
+        app.open_test_offer("summoned");
+        let offer = first_offer(&app)?;
+        let Offer::Summoned { kind, champion } = offer else {
+            return Err(format!("{offer:?}").into());
+        };
+        assert!(!champion);
+        let before = gold(&app)?;
+        app.settle_offer(&offer, true, false);
+        assert!(app.offer_ui.naming, "the first accept asks for the name");
+        app.offer_ui.name = "Rhea".into();
+        app.settle_offer(&offer, true, false);
+        assert_eq!(gold(&app)?, before, "a summoning costs no gold");
+        assert!(app.game.offers(HUMAN).is_empty());
+        assert!(app
+            .game
+            .units()
+            .hero_units(HUMAN)
+            .iter()
+            .any(|&h| app.game.units().hero_kind(h) == Some(kind)));
+        Ok(())
+    }
+
+    #[test]
+    fn rejecting_a_summoned_hero_sends_it_away_and_the_spell_is_spent() -> TestResult {
+        let mut app = App::for_test();
+        app.open_test_offer("champion");
+        let offer = first_offer(&app)?;
+        assert!(matches!(offer, Offer::Summoned { champion: true, .. }));
+        app.settle_offer(&offer, false, true);
+        assert!(app.game.offers(HUMAN).is_empty());
+        assert!(app.game.units().hero_units(HUMAN).is_empty());
         Ok(())
     }
 }

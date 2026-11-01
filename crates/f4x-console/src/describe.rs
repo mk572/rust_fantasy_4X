@@ -80,6 +80,14 @@ pub fn offer(game: &Game, o: &f4x_core::player::offer::Offer) -> String {
                 .map_or("a hero", |u| u.name.as_str());
             format!("{name} asks {price} gold to join you")
         }
+        Offer::Summoned { kind, .. } => {
+            let name = rules
+                .hero_templates
+                .get(*kind)
+                .and_then(|t| rules.units.by_name(&t.unit))
+                .map_or("a hero", |u| u.name.as_str());
+            format!("{name} is summoned and waits to be accepted")
+        }
         Offer::Mercenaries {
             unit,
             count,
@@ -458,6 +466,13 @@ pub fn event(game: &Game, e: &Event) -> String {
                 player(game, *p),
                 pos(*at)
             )
+        }
+        Event::HeroSummoned { player: p, kind } => {
+            let name = game
+                .units()
+                .hero_type_name(*kind)
+                .unwrap_or_else(|| "A hero".to_string());
+            format!("{name} is summoned for {}: accept or reject it", player(game, *p))
         }
         Event::OfferMade { player: p, offer: o } => {
             format!("{} is offered: {}", player(game, *p), offer(game, o))

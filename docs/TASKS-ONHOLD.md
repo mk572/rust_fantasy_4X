@@ -31,14 +31,13 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 378 | Client | Turn summary and message pop-ups: what is left |
 | 379 | Meta | Settings: races banned for computer wizards and independent cities, by difficulty |
 | 380 | Map | Check the original generator's port against real maps of the original |
-| 384 | Client | Pop-up leftovers: Hero and Champion Summoned boxes, hire sheet checks |
 | 439 | Client | Summon scene: the race colours of the frame and the creature |
 | 440 | Client | Plane Shift's transition on the map |
 | 441 | Core | Doom Bolt, Star Fires and Warp Lightning on an overland stack: decide |
 | 442 | Client | Unit statistics window: the hero's item help and level, the production sheet, the battle sheet |
 | 444 | AI | Casting leftovers of 228: Plane Shift, the weighted pick among kinds, a casts-per-spell count |
 | 445 | Meta | Speed check from scratch: the leads task 382 left unmeasured, the client's turn change and frame, memory |
-| 385 | Client | Help pop-ups: the topics, areas and screens still open |
+| 447 | Client | Help pop-ups: the topics, areas and screens still open |
 | 386 | Client | Magic screen: scroll the enemy wizard portraits |
 | 388 | Magic | Spell Images |
 | 417 | Client | Align the console to the look of the UI |
@@ -200,9 +199,7 @@ No action: the hit-points row shows one figure's hit points, and the original do
 
 **380. Check the original generator's port against real maps of the original.** `map/mapgen/original.rs` (and `game/setup/original.rs`) follow the ReMoM notes in `~/projects/ReMoM/doc`, scaled to the map size; no output of the original game has been compared. When real maps are at hand (screenshots, a dump of the world map from ReMoM's `gd_dump_world_map`, or the author's own game), compare per map the tile counts by terrain, the landmass count and the largest landmass's share, the number of rivers, nodes by type, and how many neutral cities a game gets, with `f4x-tools mapgen-stats` and `start-stats`. Fix the port where it is off (for example the size of the polar caps, the hit-count thresholds, the climate walks), and note in `divergences.md` what stays different on purpose (the node counts, the extended islands' directions, the rivers).
 
-**384. Pop-up leftovers: summon boxes and the hire sheet.** What is left of task 264: (1) the hire box variants **Hero Summoned** and **Champion Summoned** of `GAME_HeroHireType` (title, the Accept button, the summon square for types 1 and 3): the Summon Hero and Summon Champion spells place the hero at once today, so they wait for a core offer that the box can answer; (2) the hero's level in the hire sheet is the level path's bonuses added to the base numbers: check them against `Hire_Hero_Popup` and `UV_Setup_HireScr`; the hire sheet also shows the template's gold upkeep, check what the original shows for a hero. Split from task 264, 25 October 2026.
-
-**385. Help pop-ups: what is left.** What is left of task 289: (1) our own text for the topics not yet written (`Help::unwritten()` lists them; the conflicts to settle while writing are in `docs/help-conflicts-checklist.md`); (2) the areas the client draws differently from the original: check each wired screen; (3) F1; (4) the screens not yet wired. Split from task 289, 25 October 2026. **Built 30 October 2026:** (1) our text for 99 of the 101 unwritten topics (races 279 to 292 with a test against `buildings.ron`, the alchemy, production, road, surveyor and combat buttons, the wizards and retorts, the score parts, the realms). **Left:** 691 Show Node Owners and 796 Movement Animations, which have no switch in our settings screen (node auras are always drawn); the ticked-off items of `docs/help-conflicts-checklist.md` are still to be compared topic by topic; (2) to (4) as before.
+**447. Help pop-ups: what is left.** What is left of task 289: (1) our own text for the topics not yet written (`Help::unwritten()` lists them; the conflicts to settle while writing are in `docs/help-conflicts-checklist.md`); (2) the areas the client draws differently from the original: check each wired screen; (3) F1; (4) the screens not yet wired. Split from task 289, 25 October 2026. **Built 30 October 2026:** (1) our text for 99 of the 101 unwritten topics (races 279 to 292 with a test against `buildings.ron`, the alchemy, production, road, surveyor and combat buttons, the wizards and retorts, the score parts, the realms). **Left:** 691 Show Node Owners and 796 Movement Animations, which have no switch in our settings screen (node auras are always drawn); the ticked-off items of `docs/help-conflicts-checklist.md` are still to be compared topic by topic; (2) to (4) as before.
 
 **386. Magic screen: scroll the enemy wizard portraits.** The Magic screen shows four rivals' gems and portraits only (`take(4)`), so with more than five wizards (ten colours are playable, task 381) the others cannot be reached. Let the player scroll through the enemy wizard portraits (arrows or the mouse wheel, in the original's style where it has one, else our own), so that every rival can be selected for diplomacy and its details. Split from task 381, 25 October 2026.
 

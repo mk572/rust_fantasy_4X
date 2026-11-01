@@ -76,6 +76,8 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         };
         let accept = match &offer {
             Offer::Hero { price, .. } => ai_accepts_hero(*price, gold),
+            // A summoned hero is already paid for in mana.
+            Offer::Summoned { .. } => true,
             Offer::Mercenaries { price, .. } => ai_accepts_mercenaries(turn, *price, gold),
             Offer::Item { price, .. } | Offer::Resale { price, .. } => ai_accepts_item(
                 *price,

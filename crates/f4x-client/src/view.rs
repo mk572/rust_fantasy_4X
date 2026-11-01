@@ -939,6 +939,11 @@ impl App {
                     }
                     Some(self.text_with("log.spell_ready", &self.spell_arg(Args::new(), spell)))
                 }
+                Event::HeroSummoned { player, kind } => {
+                    // The scene first, then the box that asks to accept the hero.
+                    self.announce_hero_summon(player, kind);
+                    None
+                }
                 Event::HeroJoined { player, kind, .. } => {
                     self.announce_hero_summon(player, kind);
                     let hero = self.game.units().hero_entity(kind);

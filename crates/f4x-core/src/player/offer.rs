@@ -50,6 +50,10 @@ pub enum Offer {
         level: u8,
         price: i32,
     },
+    /// Summon Hero or Summon Champion found the hero `kind` for the human wizard: it asks to be
+    /// accepted (`Hire_Hero_Popup` of type 1, or 3 for a `champion`), at no cost. The spell is
+    /// spent whatever the answer; a refused hero stays free.
+    Summoned { kind: usize, champion: bool },
     /// A merchant sells a magic item.
     Item { item: Item, price: i32 },
     /// A wizard's item is sold at half its value: it is offered to the other wizards
@@ -69,6 +73,7 @@ impl Offer {
             | Offer::Mercenaries { price, .. }
             | Offer::Item { price, .. }
             | Offer::Resale { price, .. } => *price,
+            Offer::Summoned { .. } => 0,
         }
     }
 }
@@ -246,7 +251,14 @@ impl Game {
         for &id in &ids {
             let old = self
                 .player_component_mut::<Offers>(id)
-                .map(|o| std::mem::take(&mut o.0))
+                .map(|o| {
+                    // A summoned hero waits for its answer however long it takes.
+                    let (kept, lapsed) = std::mem::take(&mut o.0)
+                        .into_iter()
+                        .partition(|x| matches!(x, Offer::Summoned { .. }));
+                    o.0 = kept;
+                    lapsed
+                })
                 .unwrap_or_default();
             for offer in &old {
                 self.release_offer(id, offer);
@@ -428,7 +440,12 @@ impl Game {
         }
         let taken = offer.clone();
         let events = match offer {
-            Offer::Hero { kind, price } => {
+            Offer::Hero { .. } | Offer::Summoned { .. } => {
+                let (kind, price) = match offer {
+                    Offer::Hero { kind, price } => (kind, price),
+                    Offer::Summoned { kind, .. } => (kind, 0),
+                    _ => return Err(OfferError::NoOffer),
+                };
                 // Another wizard may have hired the hero meanwhile.
                 let hero = self
                     .units()

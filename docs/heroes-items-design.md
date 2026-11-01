@@ -122,6 +122,10 @@ stores (0 = "Hero", 8 = "Demi-God"); the original's formulas read `Level + 1`.
 - **Summon Hero, Summon Champion, Incarnation, Resurrection, Recall Hero** (`Spells132.c`): the first
   two pick with `Pick_Random_Hero(zero cost)` and fail with six heroes (ours has no limit, `divergences.md`); Resurrection lists the dead
   heroes; Recall Hero moves a hero to the fortress, in battle too.
+  The human wizard is then asked to accept the hero (`Hire_Hero_Popup`, types 1 and 3: "Hero Summoned" or
+  "Champion Summoned", Accept and Reject, then the name): the core keeps an `Offer::Summoned` that lapses
+  with nothing, `Event::HeroSummoned` tells the client to play the summon scene first, and a refused hero stays
+  free (the spell is spent either way). The computer wizards' heroes join at once, as in the original.
 - **Upkeep and income.** Gold upkeep is the unit's own, none for a Noble hero; a Noble hero
   brings in 10 gold a turn (`CITYCALC.c`). Torin the Chosen has no gold upkeep but costs 12 mana a
   turn, and is not Noble unless the roll gives it to him like any hero. Fame is subtracted from the

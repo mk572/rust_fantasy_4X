@@ -335,6 +335,12 @@ pub enum Event {
         unit: hecs::Entity,
         kind: usize,
     },
+    /// Summon Hero or Summon Champion found the hero `kind` for the human wizard, who is asked
+    /// to accept it (an `Offer::Summoned` waits); `HeroJoined` follows when it does.
+    HeroSummoned {
+        player: player::PlayerId,
+        kind: usize,
+    },
     /// The turn change made the wizard an offer (`Game::offers` lists the ones waiting).
     OfferMade {
         player: player::PlayerId,

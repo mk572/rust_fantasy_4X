@@ -11,6 +11,7 @@ use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
 use crate::hero::kind::{self, Class, Standing, HEROES};
 use crate::hero::{HeroError, HeroState};
+use crate::player::offer::Offer;
 use crate::player::PlayerId;
 use crate::unit::UnitView;
 
@@ -147,6 +148,16 @@ impl Game {
             }
             _ => return None,
         };
+        // The human wizard is asked to accept a summoned hero (`Hire_Hero_Popup`, types 1 and 3).
+        if matches!(hook, SUMMON_HERO | SUMMON_CHAMPION) && self.human() == Some(player) {
+            if let Some(kind) = kind {
+                let champion = hook == SUMMON_CHAMPION;
+                if let Some(o) = self.player_component_mut::<crate::player::Offers>(player) {
+                    o.0.push(Offer::Summoned { kind, champion });
+                    return Some(vec![Event::HeroSummoned { player, kind }]);
+                }
+            }
+        }
         let joined = kind.and_then(|k| self.arrive(player, k).ok().map(|u| (u, k)));
         Some(match joined {
             Some((unit, kind)) => vec![Event::HeroJoined { player, unit, kind }],
@@ -280,6 +291,77 @@ mod tests {
                 assert_ne!(k, necromancer);
             }
         }
+        Ok(())
+    }
+
+    /// The summoned hero of the human wizard's cast, waiting to be accepted.
+    fn waiting(g: &Game) -> Option<(usize, bool)> {
+        g.offers(P0).iter().find_map(|o| match o {
+            Offer::Summoned { kind, champion } => Some((*kind, *champion)),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn the_human_wizard_is_asked_to_accept_a_summoned_hero_and_pays_the_mana_either_way(
+    ) -> TestResult {
+        let mut g = caster();
+        g.set_human(Some(P0));
+        let events = cast(&mut g, SUMMON_CHAMPION);
+        let (player, kind) = events
+            .iter()
+            .find_map(|e| match e {
+                Event::HeroSummoned { player, kind } => Some((*player, kind)),
+                _ => None,
+            })
+            .ok_or_else(|| format!("{events:?}"))?;
+        assert_eq!(player, P0);
+        assert!(joined(&events).is_none(), "the hero does not join yet");
+        assert_eq!(waiting(&g), Some((*kind, true)));
+        assert_eq!(state(&g, *kind), HeroState::Free);
+        assert!(g.player(P0).ok_or("player is missing")?.treasury().mana < 1000);
+        // The turn change does not take the offer away.
+        g.determine_offers();
+        assert_eq!(waiting(&g), Some((*kind, true)));
+        // Accepting names the hero, costs no gold and brings it to the circle.
+        let events = g
+            .accept_offer(P0, 0, Some("Rolf".to_string()))
+            .map_err(|e| format!("{e:?}"))?;
+        let (unit, joined_kind) = joined(&events).ok_or("no HeroJoined")?;
+        assert_eq!(joined_kind, *kind);
+        assert_eq!(g.units().unit_position(unit), Some(at(3, 3)));
+        assert_eq!(state(&g, *kind), HeroState::Serving);
+        assert_eq!(g.units().hero_name(unit).as_deref(), Some("Rolf"));
+        assert_eq!(
+            g.player(P0).ok_or("player is missing")?.treasury().gold,
+            100
+        );
+        assert_eq!(waiting(&g), None);
+        Ok(())
+    }
+
+    #[test]
+    fn a_refused_summoned_hero_stays_free_and_the_computer_wizards_get_theirs_at_once() -> TestResult
+    {
+        let mut g = caster();
+        g.set_human(Some(P0));
+        let events = cast(&mut g, SUMMON_HERO);
+        let kind = events
+            .iter()
+            .find_map(|e| match e {
+                Event::HeroSummoned { kind, .. } => Some(*kind),
+                _ => None,
+            })
+            .ok_or_else(|| format!("{events:?}"))?;
+        g.reject_offer(P0, 0).map_err(|e| format!("{e:?}"))?;
+        assert_eq!(state(&g, kind), HeroState::Free);
+        assert_eq!(waiting(&g), None);
+        assert!(g.units().hero_units(P0).is_empty());
+        // No human: the hero joins without a question.
+        g.set_human(None);
+        let events = cast(&mut g, SUMMON_HERO);
+        assert!(joined(&events).is_some(), "{events:?}");
+        assert_eq!(waiting(&g), None);
         Ok(())
     }
 
