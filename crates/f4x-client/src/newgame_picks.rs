@@ -12,7 +12,7 @@ use f4x_core::content::Content;
 use f4x_core::rules::Rarity;
 use f4x_core::text::Args;
 use f4x_core::wizard::magic::Retort;
-use f4x_core::wizard::{retort_available, retort_cost, ALL_RETORTS, MAX_RETORTS};
+use f4x_core::wizard::{all_retorts, retort_available, retort_cost, MAX_RETORTS};
 use macroquad::prelude::*;
 
 use crate::create_screen::Step;
@@ -33,40 +33,41 @@ fn realm_colour(realm: &str) -> u8 {
     }
 }
 
-/// What a retort needs, in the words of the original's refusal ("To select X you need: ...").
+/// What a retort needs, in the words of the original's refusal ("To select X you need: ..."):
+/// each need of its row in `retorts.ron`, joined by commas.
 pub(crate) fn prerequisite_text(content: &Content, retort: Retort) -> String {
+    use f4x_core::rules::RetortNeed;
     let texts = &content.texts;
-    let pick = |n: u8, realm: &str| {
-        let name = content
-            .rules
-            .realms
-            .by_name(realm)
-            .map_or_else(|| realm.to_string(), |r| r.name.clone());
-        texts.get(
-            "picks.in_realm",
-            &Args::new().count("n", n).text("realm", name),
-        )
-    };
-    {
-        match retort {
-            Retort::SageMaster => texts.get("picks.sage_master", &Args::new()),
-            Retort::Runemaster => texts.get("picks.runemaster", &Args::new()),
-            Retort::Archmage | Retort::ManaFocusing => texts.get("picks.any_realm", &Args::new()),
-            Retort::ChaosMastery => pick(4, "chaos"),
-            Retort::NatureMastery => pick(4, "nature"),
-            Retort::SorceryMastery => pick(4, "sorcery"),
-            Retort::InfernalPower => pick(4, "death"),
-            Retort::DivinePower => pick(4, "life"),
-            Retort::NodeMastery => texts.get(
-                "picks.node_mastery",
-                &Args::new()
-                    .text("chaos", pick(1, "chaos"))
-                    .text("sorcery", pick(1, "sorcery"))
-                    .text("nature", pick(1, "nature")),
+    let picks = |n: u8| texts.get("picks.n_picks", &Args::new().count("n", n));
+    content
+        .rules
+        .retorts
+        .get(retort)
+        .requires
+        .iter()
+        .map(|need| match need {
+            RetortNeed::Books(realm, n) => {
+                let name = content
+                    .rules
+                    .realms
+                    .by_name(realm)
+                    .map_or_else(|| realm.clone(), |r| r.name.clone());
+                texts.get(
+                    "picks.in_realm",
+                    &Args::new().count("n", *n).text("realm", name),
+                )
+            }
+            RetortNeed::Realms(1, min) => texts.get(
+                "picks.in_any_realm",
+                &Args::new().text("picks", picks(*min)),
             ),
-            _ => String::new(),
-        }
-    }
+            RetortNeed::Realms(count, min) => texts.get(
+                "picks.in_any_realms",
+                &Args::new().text("picks", picks(*min)).count("n", *count),
+            ),
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 impl App {
@@ -135,7 +136,7 @@ impl CreateState {
     /// Set the number of books of a realm, within the picks left and the Life and Death rule.
     fn set_books(&mut self, app: &mut App, realm: &str, wanted: u8) {
         let current = i32::from(self.books_of(realm));
-        let left = i32::from(self.build.picks_left());
+        let left = i32::from(self.build.picks_left(&app.game.content().rules));
         let n = i32::from(wanted).min(current + left).clamp(0, 11) as u8;
         if n == self.books_of(realm) {
             return;
@@ -161,7 +162,7 @@ impl CreateState {
             .retorts
             .iter()
             .copied()
-            .filter(|&r| !retort_available(r, &books))
+            .filter(|&r| !retort_available(&app.game.content().rules, r, &books))
             .collect();
         for r in lost {
             self.build.retorts.remove(&r);
@@ -177,13 +178,13 @@ impl CreateState {
         if self.build.retorts.remove(&retort) {
             return;
         }
-        let left = i32::from(self.build.picks_left());
-        let cost = i32::from(retort_cost(retort));
+        let left = i32::from(self.build.picks_left(&app.game.content().rules));
+        let cost = i32::from(retort_cost(&app.game.content().rules, retort));
         let message = if left <= 0 {
             Some(app.text("picks.all_made"))
         } else if self.build.retorts.len() >= MAX_RETORTS {
             Some(app.text("picks.too_many_retorts"))
-        } else if !retort_available(retort, &self.build.books) {
+        } else if !retort_available(&app.game.content().rules, retort, &self.build.books) {
             let args = Args::new()
                 .text("retort", app.retort_name(retort))
                 .text("needs", prerequisite_text(app.game.content(), retort));
@@ -211,7 +212,7 @@ impl CreateState {
         let mouse: Vec2 = input.mouse_position().into();
         let live = self.ng_input();
         let dragging = live && !self.ignore_drag;
-        let left = self.build.picks_left();
+        let left = self.build.picks_left(&app.game.content().rules);
 
         // The rows of books: a drag sets the count (eight pixels a book).
         let mut slide = None;
@@ -247,13 +248,15 @@ impl CreateState {
 
         // The retorts: three columns of six.
         let mut clicked = None;
-        for (i, &retort) in ALL_RETORTS.iter().enumerate() {
+        let all: Vec<Retort> = all_retorts(&app.game.content().rules).collect();
+        for (i, &retort) in all.iter().enumerate() {
             let (col, row) = (i / 6, i % 6);
             let x = [171.0, 210.0, 260.0][col];
             let y = 5.0 + 7.0 * row as f32;
             let known = self.build.retorts.contains(&retort);
-            let open = retort_available(retort, &self.build.books)
-                && left >= i16::from(retort_cost(retort))
+            let rules = &app.game.content().rules;
+            let open = retort_available(rules, retort, &self.build.books)
+                && left >= i16::from(retort_cost(rules, retort))
                 && self.build.retorts.len() < MAX_RETORTS;
             // `COL_NewG_Ret_Known` 178, `COL_Available_3` 50, `COL_NEWG_NA2` 22, the shadow 16.
             let ink = if known {
@@ -280,7 +283,7 @@ impl CreateState {
         }
 
         // The picks left, the abilities, the name and the OK button.
-        let left = self.build.picks_left();
+        let left = self.build.picks_left(&app.game.content().rules);
         let count = app.text_with("picks.left", &Args::new().count("n", left));
         // `m_dark_colors` (31) on `m_light_colors` (187), the light one pixel right and below.
         app.draw_styled(view, &ng_ink(3, 187).center(), &count, 222.0, 186.0);
@@ -495,14 +498,16 @@ mod tests {
     fn a_retort_that_is_refused_names_what_it_needs() {
         let content = crate::test_app::shipped::content();
         assert_eq!(
-            prerequisite_text(content, Retort::ChaosMastery),
+            prerequisite_text(content, Retort::CHAOS_MASTERY),
             "4 picks in Chaos Magic"
         );
         assert_eq!(
-            prerequisite_text(content, Retort::SageMaster),
+            prerequisite_text(content, Retort::SAGE_MASTER),
             "1 pick in any 2 Realms of Magic"
         );
-        assert!(prerequisite_text(content, Retort::NodeMastery).contains("1 pick in Sorcery Magic"));
-        assert!(prerequisite_text(content, Retort::Alchemy).is_empty());
+        assert!(
+            prerequisite_text(content, Retort::NODE_MASTERY).contains("1 pick in Sorcery Magic")
+        );
+        assert!(prerequisite_text(content, Retort::ALCHEMY).is_empty());
     }
 }

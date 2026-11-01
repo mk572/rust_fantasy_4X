@@ -10,7 +10,6 @@ use crate::page::Page;
 use f4x_core::diplomacy::relation_key;
 use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
 use f4x_core::text::Args;
-use f4x_core::wizard::magic::Retort;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -247,11 +246,7 @@ impl Page for WizardUi {
         }
 
         // The retorts as one sentence, then the heroes.
-        let retorts: Vec<String> = Retort::LISTED
-            .into_iter()
-            .filter(|r| owned_retorts.contains(r))
-            .map(|r| app.retort_name(r))
-            .collect();
+        let retorts: Vec<String> = owned_retorts.iter().map(|&r| app.retort_name(r)).collect();
         let start_y = py + 111.0 - if retorts.len() > 5 { 2.0 } else { 0.0 };
         let (comma, and, stop) = (
             app.text("list.sep"),

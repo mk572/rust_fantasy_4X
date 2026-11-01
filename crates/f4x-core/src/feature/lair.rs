@@ -30,7 +30,7 @@ use crate::rules::{Rarity, SpellId, Stat, UnitKind};
 use crate::unit::movement::MoveError;
 
 use crate::game::{Event, Game};
-use crate::wizard::{retort_available, retort_cost, ALL_RETORTS};
+use crate::wizard::{all_retorts, retort_available, retort_cost};
 
 /// What kind of site a lair guards, for choosing its guards' realm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -593,6 +593,7 @@ pub(crate) fn award_spell(
 /// gives a two-pick retort or two books. The original's version loops and awards oddly (its
 /// own comments call these bugs); this keeps the odds and the restrictions.
 pub(crate) fn award_special(
+    rules: &crate::rules::Rules,
     wizard: &mut crate::wizard::sheet::WizardMut<'_>,
     rng: &mut crate::game::rng::GameRng,
     lair: &LairInfo,
@@ -617,13 +618,11 @@ pub(crate) fn award_special(
         rng.roll(100) > 75
     };
     if wants_retort {
-        let double = |r| retort_cost(r) == 2;
+        let double = |r| retort_cost(rules, r) == 2;
         let (view, books) = (wizard.view(), wizard.view().books());
-        let options: Vec<_> = ALL_RETORTS
-            .iter()
-            .copied()
-            .filter(|r| !view.has(*r) && retort_available(*r, &books))
-            .filter(|r| *r != crate::wizard::magic::Retort::Myrran)
+        let options: Vec<_> = all_retorts(rules)
+            .filter(|r| !view.has(*r) && retort_available(rules, *r, &books))
+            .filter(|r| *r != crate::wizard::magic::Retort::MYRRAN)
             .filter(|&r| if picks == 2 { double(r) } else { !double(r) })
             .collect();
         if !options.is_empty() {
@@ -865,9 +864,16 @@ impl Game {
             match lair.special {
                 5 | 6 => {
                     let picks = i32::from(lair.special) - 4;
-                    award_special(&mut w, &mut self.rng, &lair, picks, &mut loot);
+                    award_special(
+                        &self.content.rules,
+                        &mut w,
+                        &mut self.rng,
+                        &lair,
+                        picks,
+                        &mut loot,
+                    );
                     // Famous brings its ten points of fame with it.
-                    if loot.retorts.contains(&crate::wizard::magic::Retort::Famous) {
+                    if loot.retorts.contains(&crate::wizard::magic::Retort::FAMOUS) {
                         w.get_mut::<crate::wizard::sheet::Fame>().0 += 10;
                     }
                 }

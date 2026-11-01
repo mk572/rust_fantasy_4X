@@ -161,7 +161,7 @@ fn divine_and_infernal_power_add_half_again_to_the_religious_buildings() -> Test
     use crate::rules::stats::compute;
     use crate::rules::Stat;
     use crate::wizard::magic::Retort;
-    for retort in [Retort::DivinePower, Retort::InfernalPower] {
+    for retort in [Retort::DIVINE_POWER, Retort::INFERNAL_POWER] {
         let mut g = world();
         let city = found(&mut g, P0, at(10, 6), 10);
         for b in ["shrine", "temple", "parthenon"] {

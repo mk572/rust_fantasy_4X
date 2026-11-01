@@ -343,7 +343,7 @@ fn the_price_is_tested_after_the_charismatic_discount() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
-        .insert(Retort::Charismatic);
+        .insert(Retort::CHARISMATIC);
     // Gold for half the price of a mid-priced item but not for the full price.
     const GOLD: i32 = 400;
     for _ in 0..3000 {

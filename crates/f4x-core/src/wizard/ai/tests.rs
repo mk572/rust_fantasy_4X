@@ -1,4 +1,6 @@
 use super::*;
+use crate::game::testutil::shipped;
+use crate::rules::Rules;
 use crate::rules::{Registry, WizardDef};
 use std::collections::BTreeSet;
 
@@ -18,13 +20,27 @@ fn build(books: &[(&str, u8)], retorts: &[Retort]) -> WizardBuild {
     }
 }
 
+fn rules() -> Rules {
+    shipped().rules
+}
+
+/// A game that knows the retorts, which the computer wizards are drawn from.
+fn new_game(seed: u64) -> Game {
+    let mut g = Game::new(seed);
+    g.content.rules.retorts = rules().retorts;
+    g
+}
+
 fn myrran(b: &WizardBuild) -> bool {
-    b.retorts.contains(&Retort::Myrran)
+    b.retorts.contains(&Retort::MYRRAN)
 }
 
 /// The rules every finished build keeps, whatever the rolls were.
 fn assert_sound(b: &WizardBuild, picks: u8) {
-    assert!(b.picks_spent() <= picks, "{b:?} spends over {picks} picks");
+    assert!(
+        b.picks_spent(&rules()) <= picks,
+        "{b:?} spends over {picks} picks"
+    );
     assert!(b.retorts.len() <= MAX_RETORTS, "{b:?} has too many retorts");
     assert!(
         b.books.values().all(|&n| n <= MAX_BOOKS),
@@ -33,7 +49,7 @@ fn assert_sound(b: &WizardBuild, picks: u8) {
     assert!(book_total(b) <= 12, "{b:?} has too many books");
     for &r in &b.retorts {
         assert!(
-            retort_available(r, &b.books),
+            retort_available(&rules(), r, &b.books),
             "{b:?} holds {r:?} unlawfully"
         );
     }
@@ -47,13 +63,16 @@ fn wizard_def(num: u16, id: &str, books: &[(&str, u8)], retorts: &[Retort]) -> W
         description: String::new(),
         gender: Default::default(),
         books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
-        retorts: retorts.to_vec(),
+        retorts: retorts
+            .iter()
+            .map(|&r| rules().retorts.get(r).id.clone())
+            .collect(),
     }
 }
 
 /// A game with the given ready-made wizards and the settings the AI wizard rules read.
 fn game_with(seed: u64, defs: Vec<WizardDef>) -> Game {
-    let mut g = Game::new(seed);
+    let mut g = new_game(seed);
     g.content.rules.wizards = Registry::new(defs);
     g
 }
@@ -81,7 +100,7 @@ fn the_myrran_share_follows_the_planes_limits() {
 #[test]
 fn too_few_myrran_wizards_are_made_by_giving_up_three_books() {
     for seed in SEEDS {
-        let mut g = Game::new(seed);
+        let mut g = new_game(seed);
         let before = build(&[("life", 2), ("nature", 2), ("sorcery", 2)], &[]);
         let mut builds = vec![before.clone(); 6];
         balance_planes(&mut g, &mut builds, false, 6, PICKS);
@@ -101,7 +120,7 @@ fn too_few_myrran_wizards_are_made_by_giving_up_three_books() {
 #[test]
 fn a_wizard_with_one_book_left_gives_up_no_more() {
     for seed in SEEDS {
-        let mut g = Game::new(seed);
+        let mut g = new_game(seed);
         let mut builds = vec![build(&[("life", 2)], &[]); 2];
         balance_planes(&mut g, &mut builds, false, 4, PICKS);
         assert!(
@@ -115,7 +134,7 @@ fn a_wizard_with_one_book_left_gives_up_no_more() {
 #[test]
 fn the_human_myrran_wizard_counts_toward_the_share() {
     for seed in SEEDS {
-        let mut g = Game::new(seed);
+        let mut g = new_game(seed);
         let mut builds = vec![build(&[("life", 5)], &[]); 3];
         balance_planes(&mut g, &mut builds, true, 4, PICKS);
         // One of four is already the human: nothing is lacking.
@@ -127,8 +146,8 @@ fn the_human_myrran_wizard_counts_toward_the_share() {
 #[test]
 fn too_many_myrran_wizards_are_made_ordinary_and_refilled() {
     for seed in SEEDS {
-        let mut g = Game::new(seed);
-        let mut builds = vec![build(&[("nature", 1)], &[Retort::Myrran]); 4];
+        let mut g = new_game(seed);
+        let mut builds = vec![build(&[("nature", 1)], &[Retort::MYRRAN]); 4];
         balance_planes(&mut g, &mut builds, false, 4, PICKS);
         let (_, most) = myrran_range(4);
         assert_eq!(
@@ -138,7 +157,10 @@ fn too_many_myrran_wizards_are_made_ordinary_and_refilled() {
         );
         for b in builds.iter().filter(|b| !myrran(b)) {
             assert_sound(b, PICKS);
-            assert!(b.picks_spent() > 1, "seed {seed}: not refilled: {b:?}");
+            assert!(
+                b.picks_spent(&rules()) > 1,
+                "seed {seed}: not refilled: {b:?}"
+            );
         }
     }
 }
@@ -147,7 +169,7 @@ fn too_many_myrran_wizards_are_made_ordinary_and_refilled() {
 fn the_refill_spends_the_picks_without_breaking_a_rule() {
     let mut spent = BTreeSet::new();
     for seed in SEEDS {
-        let mut g = Game::new(seed);
+        let mut g = new_game(seed);
         let mut b = build(&[], &[]);
         refill(&mut g, &mut b, PICKS);
         assert_sound(&b, PICKS);
@@ -156,7 +178,7 @@ fn the_refill_spends_the_picks_without_breaking_a_rule() {
             books(&b, "life") == 0 || books(&b, "death") == 0,
             "seed {seed}: opposed realms in {b:?}"
         );
-        spent.insert(b.picks_spent());
+        spent.insert(b.picks_spent(&rules()));
     }
     // Most fill the budget; the odd wizard may be left a pick short when no roll fitted.
     assert!(
@@ -167,7 +189,7 @@ fn the_refill_spends_the_picks_without_breaking_a_rule() {
 
 #[test]
 fn the_refill_leaves_a_full_build_alone() {
-    let mut g = Game::new(3);
+    let mut g = new_game(3);
     let mut b = build(&[("life", 5), ("nature", 6)], &[]);
     let before = b.clone();
     refill(&mut g, &mut b, PICKS);
@@ -177,7 +199,7 @@ fn the_refill_leaves_a_full_build_alone() {
 #[test]
 fn the_same_seed_makes_the_same_wizard() {
     let make_one = |seed| {
-        let mut g = Game::new(seed);
+        let mut g = new_game(seed);
         let mut b = build(&[], &[]);
         refill(&mut g, &mut b, PICKS);
         b
@@ -208,7 +230,7 @@ fn books_stop_at_the_limit_and_at_an_opposed_realm() {
 #[test]
 fn a_retort_needs_its_books_and_its_picks() {
     for seed in SEEDS {
-        let mut g = Game::new(seed);
+        let mut g = new_game(seed);
         // No books: no mastery can come, and only picks for a one-pick retort remain.
         let mut b = build(&[("life", 1)], &[]);
         for _ in 0..200 {
@@ -219,7 +241,7 @@ fn a_retort_needs_its_books_and_its_picks() {
         assert!(
             b.retorts
                 .iter()
-                .all(|&r| !matches!(r, Retort::DivinePower | Retort::NatureMastery)),
+                .all(|&r| r != Retort::DIVINE_POWER && r != Retort::NATURE_MASTERY),
             "seed {seed}: {b:?}"
         );
     }
@@ -229,7 +251,7 @@ fn a_retort_needs_its_books_and_its_picks() {
 fn a_mastery_comes_from_a_realm_of_four_books() {
     let mut got: BTreeSet<Retort> = BTreeSet::new();
     for seed in SEEDS {
-        let mut g = Game::new(seed);
+        let mut g = new_game(seed);
         let mut b = build(&[("nature", 4), ("chaos", 1)], &[]);
         for _ in 0..300 {
             add_retort(&mut g, &mut b, PICKS);
@@ -239,11 +261,11 @@ fn a_mastery_comes_from_a_realm_of_four_books() {
             b.retorts
                 .iter()
                 .copied()
-                .filter(|r| matches!(r, Retort::NatureMastery | Retort::ChaosMastery)),
+                .filter(|&r| r == Retort::NATURE_MASTERY || r == Retort::CHAOS_MASTERY),
         );
     }
-    assert!(got.contains(&Retort::NatureMastery));
-    assert!(!got.contains(&Retort::ChaosMastery), "chaos has one book");
+    assert!(got.contains(&Retort::NATURE_MASTERY));
+    assert!(!got.contains(&Retort::CHAOS_MASTERY), "chaos has one book");
 }
 
 #[test]
@@ -285,7 +307,7 @@ fn without_ready_made_wizards_the_fallback_builds_them() {
 #[test]
 fn the_same_seed_draws_the_same_wizards() {
     let defs: Vec<WizardDef> = (1..=6)
-        .map(|n| wizard_def(n, &format!("w{n}"), &[("life", 2)], &[Retort::Alchemy]))
+        .map(|n| wizard_def(n, &format!("w{n}"), &[("life", 2)], &[Retort::ALCHEMY]))
         .collect();
     let run = |seed| {
         let mut g = game_with(seed, defs.clone());
@@ -333,7 +355,7 @@ fn the_erasure_dice_take_books_but_never_the_last_of_a_realm() {
         1,
         "a",
         &[("life", 4), ("nature", 4)],
-        &[Retort::Alchemy, Retort::Warlord],
+        &[Retort::ALCHEMY, Retort::WARLORD],
     );
     let mut lost_books = false;
     let mut lost_retorts = false;
@@ -371,7 +393,7 @@ fn the_myrran_rule_keeps_the_share_within_the_planes() {
             n,
             &format!("m{n}"),
             &[("life", 3)],
-            &[Retort::Myrran],
+            &[Retort::MYRRAN],
         ));
     }
     for n in 4..=6 {

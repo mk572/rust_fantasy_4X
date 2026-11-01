@@ -347,7 +347,7 @@ nothing refers to it, as the table says, and its `PlayerId` is not reused.
   `items` and `spells` (every spell instance: the lasting ones and the cast in progress, with its
   caster's player id, its target and the mana still owed). The lists but `players` and `wizards` are in `Serial` order; a
   link is written as the linked entity's creation number (a hero's item holder, a spell's target)
-  and `PlayerId`s are written as values. Spells and other content are written by id string; retorts are written by number (`Retort::id`, the place in the original's list, version 3), and every loop over the retorts goes in that order (`ALL_RETORTS` is `Retort::LISTED`). A retort's English name is the text `retort.<name>` in `content/text/en/retort.ron`, found by `retort_key` from the number.
+  and `PlayerId`s are written as values. Spells and other content are written by id string; retorts are written by number (`retorts.ron`, the place in the original's list, version 3), and every loop over the retorts goes in that order (`all_retorts(rules)`). A retort is a row of `content/retorts.ron` (`RetortDef`: number, alias, cost in picks, what the books must be), like a race or a realm; the game holds a `Retort` (`Id<RetortDef>`), and the rules code that reacts to one names it by number (`Retort::ALCHEMY`). A retort's English name is in `content/text/en/name/retort.ron`, by its number, like the other content.
   The map layers (terrain, minerals, roads, rivers, lakes, corruption) and the fog are written as
   before; nodes, lairs, towers and volcanoes are feature entities.
 - A battle in progress is the `battle` field (`battle/save.rs`).

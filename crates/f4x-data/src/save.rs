@@ -106,7 +106,7 @@ mod tests {
         g.init_wizard(
             PlayerId(0),
             &[("life", 2), ("chaos", 1)],
-            &[f4x_core::wizard::magic::Retort::Alchemy],
+            &[f4x_core::wizard::magic::Retort::ALCHEMY],
             None,
         )
         .map_err(|e| format!("init_wizard: {e:?}"))?;

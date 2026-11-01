@@ -21,19 +21,20 @@ use crate::wizard::WizardBuild;
 pub const HUMAN: PlayerId = PlayerId(0);
 pub const RIVAL: PlayerId = PlayerId(1);
 
-const RETORTS: [Retort; 18] = Retort::LISTED;
-
 /// A retort by name (case and punctuation ignored): `alchemy`, `sage_master`, `sagemaster`.
-pub fn parse_retort(text: &str) -> Option<Retort> {
-    let key: String = text
-        .chars()
-        .filter(|c| c.is_alphanumeric())
-        .flat_map(char::to_lowercase)
-        .collect();
-    RETORTS
+pub fn parse_retort(rules: &crate::rules::Rules, text: &str) -> Option<Retort> {
+    let squash = |s: &str| -> String {
+        s.chars()
+            .filter(|c| c.is_alphanumeric())
+            .flat_map(char::to_lowercase)
+            .collect()
+    };
+    let key = squash(text);
+    rules
+        .retorts
         .iter()
-        .copied()
-        .find(|r| format!("{r:?}").to_lowercase() == key)
+        .find(|(_, def)| squash(&def.id) == key)
+        .map(|(id, _)| id)
 }
 
 /// The original's land sizes, as a share of each plane's tiles (`NEWG_CreateLands`: 360, 480 and
@@ -157,7 +158,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     let mut builds = Vec::new();
     // The computer wizards, made together when the settings ask for it (see `ai_wizards`).
     let mut made: Option<std::collections::VecDeque<WizardBuild>> = None;
-    let myrran_build = |b: &WizardBuild| b.retorts.contains(&Retort::Myrran);
+    let myrran_build = |b: &WizardBuild| b.retorts.contains(&Retort::MYRRAN);
     for k in 0..wizards as usize {
         let build = if k == 0 && !spec.all_ai {
             if let Some(build) = &spec.build {
@@ -181,7 +182,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                     preset: false,
                 }
             } else {
-                fixed(&[("sorcery", 3), ("nature", 2)], Retort::Conjurer)
+                fixed(&[("sorcery", 3), ("nature", 2)], Retort::CONJURER)
             }
         } else if let Some(build) = settings
             .ai
@@ -348,9 +349,9 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
 /// wizard or a life and nature one, with a name from the lists.
 fn plain_computer_build(content: &Content, seed: u64, k: usize) -> WizardBuild {
     let (books, retort): (&[(&str, u8)], Retort) = if k % 2 == 1 {
-        (&[("chaos", 3), ("death", 2)], Retort::Warlord)
+        (&[("chaos", 3), ("death", 2)], Retort::WARLORD)
     } else {
-        (&[("life", 3), ("nature", 2)], Retort::Charismatic)
+        (&[("life", 3), ("nature", 2)], Retort::CHARISMATIC)
     };
     let (name, gender) = fallback_name(content, seed, k);
     WizardBuild {
@@ -388,7 +389,7 @@ fn fallback_name(content: &Content, seed: u64, k: usize) -> (String, crate::text
 
 /// Whether the wizard has the Myrran retort (and so starts on Myrror).
 fn is_myrran(game: &Game, player: PlayerId) -> bool {
-    game.wizard(player).is_some_and(|w| w.has(Retort::Myrran))
+    game.wizard(player).is_some_and(|w| w.has(Retort::MYRRAN))
 }
 
 /// Where wizard `k` of `n` starts: spread round the middle of the map.
@@ -568,14 +569,24 @@ mod tests {
 
     #[test]
     fn a_retort_is_found_by_name_whatever_the_case_and_punctuation() {
-        assert_eq!(parse_retort("alchemy"), Some(Retort::Alchemy));
-        assert_eq!(parse_retort("Sage_Master"), Some(Retort::SageMaster));
-        assert_eq!(parse_retort("sage master"), Some(Retort::SageMaster));
-        assert_eq!(parse_retort("MANA-FOCUSING"), Some(Retort::ManaFocusing));
-        assert_eq!(parse_retort("no such retort"), None);
-        assert_eq!(parse_retort(""), None);
-        for r in RETORTS {
-            assert_eq!(parse_retort(&format!("{r:?}")), Some(r), "{r:?}");
+        let rules = &shipped().rules;
+        assert_eq!(parse_retort(rules, "alchemy"), Some(Retort::ALCHEMY));
+        assert_eq!(
+            parse_retort(rules, "Sage_Master"),
+            Some(Retort::SAGE_MASTER)
+        );
+        assert_eq!(
+            parse_retort(rules, "sage master"),
+            Some(Retort::SAGE_MASTER)
+        );
+        assert_eq!(
+            parse_retort(rules, "MANA-FOCUSING"),
+            Some(Retort::MANA_FOCUSING)
+        );
+        assert_eq!(parse_retort(rules, "no such retort"), None);
+        assert_eq!(parse_retort(rules, ""), None);
+        for (id, def) in rules.retorts.iter() {
+            assert_eq!(parse_retort(rules, &def.id), Some(id), "{}", def.id);
         }
     }
 
@@ -617,8 +628,8 @@ mod tests {
         let c = shipped();
         let one = plain_computer_build(&c, 4, 1);
         let two = plain_computer_build(&c, 4, 2);
-        assert!(one.books.contains_key("chaos") && one.retorts.contains(&Retort::Warlord));
-        assert!(two.books.contains_key("life") && two.retorts.contains(&Retort::Charismatic));
+        assert!(one.books.contains_key("chaos") && one.retorts.contains(&Retort::WARLORD));
+        assert!(two.books.contains_key("life") && two.retorts.contains(&Retort::CHARISMATIC));
         assert!(one.preset && two.preset);
         assert_eq!(plain_computer_build(&c, 4, 3).books, one.books);
     }
@@ -670,7 +681,7 @@ mod tests {
     #[test]
     fn a_myrran_wizard_starts_on_myrror_and_the_others_on_arcanus() -> TestResult {
         let mut s = spec(2, 3);
-        s.retorts.insert(Retort::Myrran);
+        s.retorts.insert(Retort::MYRRAN);
         let g = new_game(&shipped(), &s)?;
         let plane = |k| {
             g.wizard(PlayerId(k))

@@ -352,6 +352,45 @@ pub struct RealmDef {
     pub default_spells: Vec<String>,
 }
 
+/// What the books must be before a retort may be picked.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RetortNeed {
+    /// At least this many books in the realm (by alias).
+    Books(String, u8),
+    /// At least `count` realms with this many books or more each.
+    Realms(u8, u8),
+}
+
+/// A retort: a special ability of a wizard, picked at the creation screen or won as loot.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RetortDef {
+    /// The retort's place in the original's wizard record, the id the game passes around and the
+    /// saved game writes.
+    pub num: u16,
+    /// The alias for human editing.
+    pub id: String,
+    /// From `text/<language>/name/retort.ron` by `num`, not from the rules file.
+    #[serde(default)]
+    pub name: String,
+    /// Picks it takes at the creation screen.
+    pub cost: u8,
+    /// What the books must be before it may be picked.
+    #[serde(default)]
+    pub requires: Vec<RetortNeed>,
+}
+
+impl RetortDef {
+    /// Do these books (per realm alias) meet every need?
+    pub fn available(&self, books: &std::collections::BTreeMap<String, u8>) -> bool {
+        self.requires.iter().all(|need| match need {
+            RetortNeed::Books(realm, min) => books.get(realm).copied().unwrap_or(0) >= *min,
+            RetortNeed::Realms(count, min) => {
+                books.values().filter(|&&n| n >= *min).count() >= usize::from(*count)
+            }
+        })
+    }
+}
+
 /// A ready-made wizard for the creation screen: a book and retort loadout, and the name and
 /// description that the local texts file fills in.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -369,7 +408,8 @@ pub struct WizardDef {
     pub gender: crate::text::Gender,
     /// Spell books as `(realm id, count)`.
     pub books: Vec<(String, u8)>,
-    pub retorts: Vec<crate::wizard::magic::Retort>,
+    /// Retort aliases (`retorts.ron`).
+    pub retorts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -699,7 +739,14 @@ macro_rules! impl_numbered_def {
     };
 }
 
-impl_numbered_def!(RealmDef, ItemDef, ItemPowerDef, LevelPathDef, WizardDef);
+impl_numbered_def!(
+    RealmDef,
+    ItemDef,
+    ItemPowerDef,
+    LevelPathDef,
+    WizardDef,
+    RetortDef
+);
 
 impl Def for UnitDef {
     fn id(&self) -> &str {
@@ -765,6 +812,7 @@ pub struct Rules {
     pub item_powers: Registry<ItemPowerDef>,
     pub level_paths: Registry<LevelPathDef>,
     pub wizards: Registry<WizardDef>,
+    pub retorts: Registry<RetortDef>,
     /// The starting record of each hero type, in the order of the hero units (optional).
     pub hero_templates: Vec<HeroTemplate>,
     /// Names for rival wizards when no ready-made wizards are loaded: a list for each rival slot.

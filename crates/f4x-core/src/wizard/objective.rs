@@ -121,23 +121,23 @@ pub fn personality_weights(books: impl Fn(&str) -> i32, has: impl Fn(Retort) -> 
     let primary = primary_realm(&books);
     let mut w = PERSONALITY_WEIGHTS[primary];
     let [maniacal, ruthless, aggressive, chaotic, lawful, peaceful] = &mut w;
-    if has(Retort::Warlord) {
+    if has(Retort::WARLORD) {
         *ruthless += 2;
         *aggressive += 3;
     }
-    if has(Retort::ChaosMastery) {
+    if has(Retort::CHAOS_MASTERY) {
         *chaotic += 3;
     }
-    if has(Retort::NatureMastery) {
+    if has(Retort::NATURE_MASTERY) {
         *lawful += 3;
     }
-    if has(Retort::InfernalPower) {
+    if has(Retort::INFERNAL_POWER) {
         *maniacal += 4;
     }
-    if has(Retort::DivinePower) {
+    if has(Retort::DIVINE_POWER) {
         *peaceful += 4;
     }
-    if has(Retort::Channeler) {
+    if has(Retort::CHANNELER) {
         *aggressive += 2;
     }
     match REALMS[primary] {
@@ -165,26 +165,26 @@ pub fn objective_weights(books: impl Fn(&str) -> i32, has: impl Fn(Retort) -> bo
     let primary = primary_realm(&books);
     let mut w = REALM_WEIGHTS[primary];
     let [_, militarist, theurgist, perfectionist, expansionist] = &mut w;
-    if has(Retort::Warlord) {
+    if has(Retort::WARLORD) {
         *militarist += 2;
         *expansionist += 3;
     }
-    if has(Retort::ChaosMastery) {
+    if has(Retort::CHAOS_MASTERY) {
         *theurgist += 1;
     }
-    if has(Retort::NatureMastery) {
+    if has(Retort::NATURE_MASTERY) {
         *theurgist += 1;
     }
-    if has(Retort::Alchemy) {
+    if has(Retort::ALCHEMY) {
         *perfectionist += 2;
     }
-    if has(Retort::Archmage) {
+    if has(Retort::ARCHMAGE) {
         *theurgist += 4;
     }
-    if has(Retort::Myrran) {
+    if has(Retort::MYRRAN) {
         *expansionist += 4;
     }
-    if has(Retort::Conjurer) {
+    if has(Retort::CONJURER) {
         *militarist += 3;
     }
     w
@@ -281,11 +281,11 @@ mod tests {
 
     #[test]
     fn retorts_add_their_bonuses() {
-        let w = weights(&[("nature", 3)], &[Retort::Warlord, Retort::Archmage]);
+        let w = weights(&[("nature", 3)], &[Retort::WARLORD, Retort::ARCHMAGE]);
         assert_eq!(w, [0, 2 + 2, 2 + 4, 4, 2 + 3]);
         let w = weights(
             &[("nature", 3)],
-            &[Retort::Alchemy, Retort::Myrran, Retort::Conjurer],
+            &[Retort::ALCHEMY, Retort::MYRRAN, Retort::CONJURER],
         );
         assert_eq!(w, [0, 2 + 3, 2, 4 + 2, 2 + 4]);
     }
@@ -321,15 +321,15 @@ mod tests {
             )
         };
         assert_eq!(
-            w(&[("life", 3)], &[Retort::InfernalPower]),
+            w(&[("life", 3)], &[Retort::INFERNAL_POWER]),
             [0, 1, 2, 0, 2, 5]
         );
         assert_eq!(
-            w(&[("death", 3)], &[Retort::DivinePower]),
+            w(&[("death", 3)], &[Retort::DIVINE_POWER]),
             [3, 3, 2, 1, 1, 0]
         );
         assert_eq!(
-            w(&[("chaos", 3)], &[Retort::Warlord, Retort::Channeler]),
+            w(&[("chaos", 3)], &[Retort::WARLORD, Retort::CHANNELER]),
             [1, 4, 7, 5, 0, 0]
         );
     }

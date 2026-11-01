@@ -290,7 +290,7 @@ fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         if !w.is_banished() || short <= 0 {
             return;
         }
-        let rate = if w.has(f4x_core::wizard::magic::Retort::Alchemy) {
+        let rate = if w.has(f4x_core::wizard::magic::Retort::ALCHEMY) {
             1
         } else {
             2

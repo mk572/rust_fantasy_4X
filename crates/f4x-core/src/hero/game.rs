@@ -144,7 +144,7 @@ impl UnitView<'_> {
         let level = kind::level_of(rules, unit, self.hero_xp(hero));
         let charismatic = self
             .wizard(player)
-            .is_some_and(|m| m.has(Retort::Charismatic));
+            .is_some_and(|m| m.has(Retort::CHARISMATIC));
         Some(kind::hire_cost(cost, level, charismatic))
     }
 
@@ -758,7 +758,7 @@ pub(crate) mod tests {
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
-            .insert(crate::wizard::magic::Retort::Charismatic);
+            .insert(crate::wizard::magic::Retort::CHARISMATIC);
         assert_eq!(
             g.units().hero_hire_price(P0, 0),
             Some((100 + level as i32 * 100 / 4) / 2)

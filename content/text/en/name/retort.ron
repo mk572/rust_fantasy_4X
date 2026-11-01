@@ -1,0 +1,21 @@
+// The names of the retort definitions, by the definition's number (`num` in retorts.ron). A language has the same file in its own folder.
+{
+    0: "Alchemy",  // alchemy
+    1: "Warlord",  // warlord
+    2: "Chaos Mastery",  // chaos_mastery
+    3: "Nature Mastery",  // nature_mastery
+    4: "Sorcery Mastery",  // sorcery_mastery
+    5: "Infernal Power",  // infernal_power
+    6: "Divine Power",  // divine_power
+    7: "Sage Master",  // sage_master
+    8: "Channeler",  // channeler
+    9: "Myrran",  // myrran
+    10: "Archmage",  // archmage
+    11: "Mana Focusing",  // mana_focusing
+    12: "Node Mastery",  // node_mastery
+    13: "Famous",  // famous
+    14: "Runemaster",  // runemaster
+    15: "Conjurer",  // conjurer
+    16: "Charismatic",  // charismatic
+    17: "Artificer",  // artificer
+}

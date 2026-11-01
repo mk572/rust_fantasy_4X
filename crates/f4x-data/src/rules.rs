@@ -7,8 +7,8 @@ use f4x_core::feature::def::Features;
 use f4x_core::rules::effects::{Condition, Effect, EffectRule, Trigger, CUSTOM_HOOKS};
 use f4x_core::rules::{
     AbilityDef, BuildingDef, Def, Duration, HeroTemplate, ItemDef, ItemPowerDef, LevelPathDef,
-    RaceDef, RealmDef, Registry, Rules, RulesConfig, SpellDef, Stat, UnitDef, UnitKind, WizardDef,
-    HERO_ABILITIES,
+    RaceDef, RealmDef, Registry, RetortDef, Rules, RulesConfig, SpellDef, Stat, UnitDef, UnitKind,
+    WizardDef, HERO_ABILITIES,
 };
 
 use crate::{id_problem, ContentError};
@@ -198,6 +198,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
     let mut abilities = parse::<Vec<AbilityDef>>(dir, "abilities.ron")?;
     let mut buildings = parse::<Vec<BuildingDef>>(dir, "buildings.ron")?;
     let mut realms = parse::<Vec<RealmDef>>(dir, "realms.ron")?;
+    let mut retorts = parse::<Vec<RetortDef>>(dir, "retorts.ron")?;
     let mut spells = parse::<Vec<SpellDef>>(dir, "spells.ron")?;
     let mut items = parse::<Vec<ItemDef>>(dir, "items.ron")?;
     let mut item_powers = parse::<Vec<ItemPowerDef>>(dir, "item_powers.ron")?;
@@ -208,6 +209,14 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         at,
         ("wizard", "wizard"),
         &mut wizards,
+        (|d| d.num, |d| &d.id),
+        |d, n: String| d.name = n,
+        &mut problems,
+    )?;
+    fill_names(
+        at,
+        ("retort", "retort"),
+        &mut retorts,
         (|d| d.num, |d| &d.id),
         |d, n: String| d.name = n,
         &mut problems,
@@ -304,6 +313,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         level_paths: Registry::new(level_paths),
         // Ready-made wizards are optional: a rule set without them just has no presets.
         wizards: Registry::new(wizards),
+        retorts: Registry::new(retorts),
         // The starting records of the hero types, also optional.
         hero_templates,
         // Fallback names for rival wizards, also optional.
@@ -502,6 +512,7 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
     check_ids("item power", &r.item_powers, &mut p);
     check_ids("level path", &r.level_paths, &mut p);
     check_ids("wizard", &r.wizards, &mut p);
+    check_ids("retort", &r.retorts, &mut p);
 
     check_races(r, &mut p);
     check_units(r, &mut p);
@@ -808,6 +819,18 @@ fn check_spells(r: &Rules, p: &mut Vec<String>) {
 }
 
 fn check_wizards(r: &Rules, p: &mut Vec<String>) {
+    for retort in r.retorts.defs() {
+        for need in &retort.requires {
+            if let f4x_core::rules::RetortNeed::Books(realm, _) = need {
+                if r.realms.id_of(realm).is_none() {
+                    p.push(format!(
+                        "retort {:?} needs books in unknown realm {realm:?}",
+                        retort.id
+                    ));
+                }
+            }
+        }
+    }
     for realm in r.realms.defs() {
         for s in &realm.default_spells {
             if r.spells.id_of(s).is_none() {
@@ -829,11 +852,12 @@ fn check_wizards(r: &Rules, p: &mut Vec<String>) {
             }
             picks += u32::from(*n);
         }
-        picks += w
-            .retorts
-            .iter()
-            .map(|&x| u32::from(f4x_core::wizard::retort_cost(x)))
-            .sum::<u32>();
+        for name in &w.retorts {
+            match r.retorts.by_name(name) {
+                Some(def) => picks += u32::from(def.cost),
+                None => p.push(format!("wizard {:?} has unknown retort {name:?}", w.id)),
+            }
+        }
         let budget = u32::from(f4x_core::wizard::PICKS);
         if picks != budget {
             p.push(format!(
@@ -978,6 +1002,7 @@ mod tests {
             abilities: Registry::new(shipped("abilities.ron", edits)),
             buildings: Registry::new(shipped("buildings.ron", edits)),
             realms: Registry::new(shipped("realms.ron", edits)),
+            retorts: Registry::new(shipped("retorts.ron", edits)),
             spells: Registry::new(shipped("spells.ron", edits)),
             items: Registry::new(shipped("items.ron", edits)),
             item_powers: Registry::new(shipped("item_powers.ron", edits)),

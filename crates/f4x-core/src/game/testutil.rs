@@ -175,6 +175,14 @@ fn load_shipped() -> Content {
         |d| d.num,
         |d, n: String| d.name = n,
     );
+    let mut retorts: Vec<crate::rules::RetortDef> = parse(&dir, "retorts.ron");
+    named(
+        &dir,
+        "retort",
+        &mut retorts,
+        |d| d.num,
+        |d, n: String| d.name = n,
+    );
     let mut wizards: Vec<crate::rules::WizardDef> = parse(&dir, "wizards.ron");
     for w in wizards.iter_mut() {
         w.name =
@@ -202,6 +210,7 @@ fn load_shipped() -> Content {
             item_powers: Registry::new(powers),
             level_paths: Registry::new(parse(&dir, "level_paths.ron")),
             wizards: Registry::new(wizards),
+            retorts: Registry::new(retorts),
             hero_templates: parse(&dir, "heroes.ron"),
             lairs: parse(&dir, "lairs.ron"),
             wizard_names: parse(&dir, "text/en/name/rival.ron"),

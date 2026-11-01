@@ -318,7 +318,7 @@ impl Game {
         if !self.can_be_offered(player) {
             return offers;
         }
-        let famous = self.wizard(player).is_some_and(|m| m.has(Retort::Famous));
+        let famous = self.wizard(player).is_some_and(|m| m.has(Retort::FAMOUS));
         let fame = self.fame(player);
         let computer = self.human() != Some(player);
 
@@ -347,7 +347,7 @@ impl Game {
 
     fn charismatic(&self, player: PlayerId) -> bool {
         self.wizard(player)
-            .is_some_and(|m| m.has(Retort::Charismatic))
+            .is_some_and(|m| m.has(Retort::CHARISMATIC))
     }
 
     /// The merchant's item, if the wizard can pay for it (`Make_Item`). An item the wizard cannot pay for is not offered and a prefab one is given back.

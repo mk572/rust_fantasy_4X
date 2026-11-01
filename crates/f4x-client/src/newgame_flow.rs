@@ -209,9 +209,10 @@ impl CreateState {
 
     /// The retorts of the build as the original writes them: "Alchemy, Warlord and Famous.".
     pub(crate) fn ng_abilities_text(&self, app: &App) -> String {
-        let names: Vec<String> = f4x_core::wizard::ALL_RETORTS
+        let names: Vec<String> = self
+            .build
+            .retorts
             .iter()
-            .filter(|r| self.build.retorts.contains(r))
             .map(|&r| app.retort_name(r))
             .collect();
         if names.is_empty() {
@@ -466,11 +467,8 @@ impl CreateState {
                         .filter(|r| books.get(*r).copied().unwrap_or(0) > 0)
                         .collect();
                     self.ng_shelf(app, lay, &shelf, &|r| books.get(r).copied().unwrap_or(0));
-                    let names: Vec<String> = f4x_core::wizard::ALL_RETORTS
-                        .iter()
-                        .filter(|r| build.retorts.contains(r))
-                        .map(|&r| app.retort_name(r))
-                        .collect();
+                    let names: Vec<String> =
+                        build.retorts.iter().map(|&r| app.retort_name(r)).collect();
                     if let Some(first) = names.first() {
                         let text = format!("{first}{}", app.text("ui.full_stop"));
                         app.draw_styled(view, &ng_ink(0, 187), &text, 13.0, 181.0);
@@ -600,7 +598,7 @@ impl CreateState {
         let myrran = self
             .build
             .retorts
-            .contains(&f4x_core::wizard::magic::Retort::Myrran);
+            .contains(&f4x_core::wizard::magic::Retort::MYRRAN);
         let (arcanian, myrran_list) = app.race_lists();
         let (names, ids): (Vec<String>, Vec<String>) = app
             .game
@@ -766,7 +764,7 @@ impl CreateState {
             self.build.books.insert("nature".into(), 1);
             self.build
                 .retorts
-                .insert(f4x_core::wizard::magic::Retort::Alchemy);
+                .insert(f4x_core::wizard::magic::Retort::ALCHEMY);
         } else {
             self.pick_preset(app, Some(0));
             self.custom = false;

@@ -13,7 +13,7 @@ pub struct Id<T> {
 }
 
 impl<T> Id<T> {
-    pub(crate) fn new(num: u16) -> Self {
+    pub(crate) const fn new(num: u16) -> Self {
         Self {
             num,
             _marker: PhantomData,

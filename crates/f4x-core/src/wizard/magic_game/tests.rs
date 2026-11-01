@@ -107,7 +107,7 @@ fn casting_skill_follows_triangular_numbers() {
 #[test]
 fn a_new_wizard_starts_with_books_spells_and_skill() -> TestResult {
     let mut g = world();
-    g.init_wizard(P0, &[("life", 3), ("chaos", 2)], &[Retort::Archmage], None)
+    g.init_wizard(P0, &[("life", 3), ("chaos", 2)], &[Retort::ARCHMAGE], None)
         .map_err(|e| format!("{e:?}"))?;
     let m = g.wizard(P0).ok_or("wizard is missing")?;
     // Three books and two books: 2 + 1 common spells known, and the two every wizard starts with.
@@ -180,7 +180,7 @@ fn power_comes_from_cities_and_is_split_by_percentages() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
-        .insert(Retort::ManaFocusing);
+        .insert(Retort::MANA_FOCUSING);
     assert_eq!(g.income(P0).split.mana, 7, "a quarter more mana");
     Ok(())
 }
@@ -188,7 +188,7 @@ fn power_comes_from_cities_and_is_split_by_percentages() -> TestResult {
 #[test]
 fn retorts_and_extra_books_change_research_and_cost() -> TestResult {
     let mut g = world();
-    g.init_wizard(P0, &[("life", 9)], &[Retort::SageMaster], None)
+    g.init_wizard(P0, &[("life", 9)], &[Retort::SAGE_MASTER], None)
         .map_err(|e| format!("{e:?}"))?;
     let mend = spell(&g, "healing");
     // Sage master 25 plus two books over seven, 10 each.
@@ -395,7 +395,7 @@ fn a_channeler_pays_half_the_spell_maintenance() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
-        .insert(Retort::Channeler);
+        .insert(Retort::CHANNELER);
     assert_eq!(g.income(P0).mana_upkeep, dear.1 / 2);
     // The reserve pays the half, and the spell stays.
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = dear.1 / 2;
@@ -499,7 +499,7 @@ fn only_real_upkeep_can_be_released() -> TestResult {
 #[test]
 fn a_famous_wizard_starts_with_ten_fame() -> TestResult {
     let mut g = world();
-    g.init_wizard(P0, &[("life", 3)], &[Retort::Famous], None)
+    g.init_wizard(P0, &[("life", 3)], &[Retort::FAMOUS], None)
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.wizard(P0).ok_or("wizard is missing")?.fame(), 10);
     g.init_wizard(P0, &[("life", 3)], &[], None)

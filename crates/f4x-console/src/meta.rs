@@ -463,7 +463,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             }
             "retorts" => {
                 for r in v.split(',').filter(|r| !r.is_empty()) {
-                    let retort = parse_retort(r)
+                    let retort = parse_retort(&ctx.game.content().rules, r)
                         .ok_or_else(|| ConsoleError::NoSuch(format!("retort {r:?}")))?;
                     spec.retorts.insert(retort);
                 }

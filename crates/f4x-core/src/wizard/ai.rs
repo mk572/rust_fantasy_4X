@@ -13,9 +13,10 @@
 
 use crate::game::setting::GameSettings;
 use crate::game::Game;
+use crate::rules::Rules;
 use crate::wizard::magic::Retort;
 use crate::wizard::{
-    retort_available, retort_cost, WizardBuild, ALL_RETORTS, MAX_BOOKS, MAX_RETORTS,
+    all_retorts, retort_available, retort_cost, WizardBuild, MAX_BOOKS, MAX_RETORTS,
 };
 
 const REALMS: [&str; 5] = ["life", "death", "chaos", "nature", "sorcery"];
@@ -41,14 +42,14 @@ fn book_total(b: &WizardBuild) -> u8 {
     b.books.values().sum()
 }
 
-fn picks_used(b: &WizardBuild) -> u8 {
-    b.picks_spent()
+fn picks_used(rules: &Rules, b: &WizardBuild) -> u8 {
+    b.picks_spent(rules)
 }
 
 /// Take away retorts the books no longer allow.
-fn drop_unavailable(b: &mut WizardBuild) {
+fn drop_unavailable(rules: &Rules, b: &mut WizardBuild) {
     let books = b.books.clone();
-    b.retorts.retain(|&r| retort_available(r, &books));
+    b.retorts.retain(|&r| retort_available(rules, r, &books));
 }
 
 /// How many of `total` wizards may start on Myrror, from least to most: the planes' wizards
@@ -70,7 +71,7 @@ pub(crate) fn balance_planes(
     total: usize,
     picks: u8,
 ) {
-    let myrran = |b: &WizardBuild| b.retorts.contains(&Retort::Myrran);
+    let myrran = |b: &WizardBuild| b.retorts.contains(&Retort::MYRRAN);
     let (least, most) = myrran_range(total);
     let count = |builds: &[WizardBuild]| {
         builds.iter().filter(|b| myrran(b)).count() + usize::from(human_myrran)
@@ -100,8 +101,8 @@ pub(crate) fn balance_planes(
             }
         }
         builds[k].books.retain(|_, n| *n > 0);
-        builds[k].retorts.insert(Retort::Myrran);
-        drop_unavailable(&mut builds[k]);
+        builds[k].retorts.insert(Retort::MYRRAN);
+        drop_unavailable(&game.content.rules, &mut builds[k]);
     }
     while count(builds) > most {
         let myrrans: Vec<usize> = (0..builds.len()).filter(|&k| myrran(&builds[k])).collect();
@@ -109,7 +110,7 @@ pub(crate) fn balance_planes(
             break;
         }
         let k = myrrans[game.roll(myrrans.len() as u32) as usize - 1];
-        builds[k].retorts.remove(&Retort::Myrran);
+        builds[k].retorts.remove(&Retort::MYRRAN);
         refill(game, &mut builds[k], picks);
     }
 }
@@ -138,7 +139,7 @@ pub(crate) fn make(
         .collect();
     let myran = |game: &Game, id: &str| {
         game.preset_build(id)
-            .is_some_and(|b| b.retorts.contains(&Retort::Myrran))
+            .is_some_and(|b| b.retorts.contains(&Retort::MYRRAN))
     };
 
     // Who: a random ready-made wizard each, as many of them Myrran as the planes can take.
@@ -161,7 +162,7 @@ pub(crate) fn make(
             builds.push(fallback(i));
             continue;
         };
-        if build.retorts.contains(&Retort::Myrran) {
+        if build.retorts.contains(&Retort::MYRRAN) {
             myrrans += 1;
         }
         taken.push(id);
@@ -188,7 +189,7 @@ pub(crate) fn make(
                 b.books.insert(to.to_string(), sum);
                 b.books.remove(from);
             }
-            drop_unavailable(b);
+            drop_unavailable(&game.content.rules, b);
         }
     }
 
@@ -210,7 +211,7 @@ pub(crate) fn make(
                     b.retorts.clear();
                 }
             }
-            drop_unavailable(b);
+            drop_unavailable(&game.content.rules, b);
         }
     }
 
@@ -229,7 +230,7 @@ pub(crate) fn make(
 /// eight add a retort.
 fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8) {
     for _ in 0..500 {
-        let used = picks_used(b);
+        let used = picks_used(&game.content.rules, b);
         if used >= picks {
             return;
         }
@@ -269,39 +270,48 @@ fn add_books(b: &mut WizardBuild, realm: &str, value: u8, opposed: &str) {
 }
 
 fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
-    let used = picks_used(b);
-    let r = ALL_RETORTS[game.roll(ALL_RETORTS.len() as u32) as usize - 1];
-    if b.retorts.len() >= MAX_RETORTS || r == Retort::Myrran {
+    let used = picks_used(&game.content.rules, b);
+    let all: Vec<Retort> = all_retorts(&game.content.rules).collect();
+    let r = all[game.roll(all.len() as u32) as usize - 1];
+    if b.retorts.len() >= MAX_RETORTS || r == Retort::MYRRAN {
         return;
     }
+    let realm_retorts = [
+        Retort::CHAOS_MASTERY,
+        Retort::NATURE_MASTERY,
+        Retort::SORCERY_MASTERY,
+        Retort::DIVINE_POWER,
+        Retort::INFERNAL_POWER,
+    ];
+    let two_pick = retort_cost(&game.content.rules, r) == 2;
     let retort = match r {
         // A realm mastery (or Divine or Infernal Power): of a realm picked by its books, among
         // those the wizard does not yet hold the mastery of, the two powers only with picks to
         // spare.
-        Retort::ChaosMastery
-        | Retort::NatureMastery
-        | Retort::SorceryMastery
-        | Retort::DivinePower
-        | Retort::InfernalPower => {
+        _ if realm_retorts.contains(&r) => {
             let has = |x| b.retorts.contains(&x);
             let tight = u16::from(picks) < u16::from(used) + 2;
             let shelf = [
-                ("nature", Retort::NatureMastery, has(Retort::NatureMastery)),
+                (
+                    "nature",
+                    Retort::NATURE_MASTERY,
+                    has(Retort::NATURE_MASTERY),
+                ),
                 (
                     "sorcery",
-                    Retort::SorceryMastery,
-                    has(Retort::SorceryMastery),
+                    Retort::SORCERY_MASTERY,
+                    has(Retort::SORCERY_MASTERY),
                 ),
-                ("chaos", Retort::ChaosMastery, has(Retort::ChaosMastery)),
+                ("chaos", Retort::CHAOS_MASTERY, has(Retort::CHAOS_MASTERY)),
                 (
                     "life",
-                    Retort::DivinePower,
-                    has(Retort::DivinePower) || tight,
+                    Retort::DIVINE_POWER,
+                    has(Retort::DIVINE_POWER) || tight,
                 ),
                 (
                     "death",
-                    Retort::InfernalPower,
-                    has(Retort::InfernalPower) || tight,
+                    Retort::INFERNAL_POWER,
+                    has(Retort::INFERNAL_POWER) || tight,
                 ),
             ];
             let weights: Vec<u32> = shelf
@@ -324,7 +334,7 @@ fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
             chosen
         }
         // The two-pick retorts need two picks to spare, as in the original.
-        Retort::Warlord | Retort::Channeler | Retort::Famous => {
+        _ if two_pick => {
             if u16::from(picks) <= u16::from(used) + 1 {
                 return;
             }
@@ -332,8 +342,8 @@ fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
         }
         other => other,
     };
-    if retort_available(retort, &b.books)
-        && u16::from(used) + u16::from(retort_cost(retort)) <= u16::from(picks)
+    if retort_available(&game.content.rules, retort, &b.books)
+        && u16::from(used) + u16::from(retort_cost(&game.content.rules, retort)) <= u16::from(picks)
     {
         b.retorts.insert(retort);
     }

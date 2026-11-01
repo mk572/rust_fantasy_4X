@@ -221,7 +221,7 @@ mod tests {
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
-            .insert(Retort::Warlord);
+            .insert(Retort::WARLORD);
         assert_eq!(g.units().unit_level(unit), 4, "warlord: ultra-elite");
         assert_eq!(g.units().unit_stat(unit, Stat::Melee), base + 2);
         enchant(&mut g, "crusade", crate::rules::exec::Target::Player(P0));
@@ -250,7 +250,7 @@ mod tests {
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
-            .insert(Retort::Warlord);
+            .insert(Retort::WARLORD);
         assert_eq!(g.units().unit_level(undead), 1, "warlord is for every unit");
         Ok(())
     }
@@ -269,7 +269,7 @@ mod tests {
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Retorts>()
             .0
-            .insert(Retort::Warlord);
+            .insert(Retort::WARLORD);
         assert_eq!(g.units().unit_level(unit), 4);
         g.wizard_mut(P0)
             .ok_or("wizard_mut is missing")?

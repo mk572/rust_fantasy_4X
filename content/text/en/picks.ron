@@ -2,10 +2,9 @@
 // One key is in one file only (docs/text.md).
 {
     "picks.in_realm": (count: "n", one: "{n} pick in {realm} Magic", other: "{n} picks in {realm} Magic"),
-    "picks.sage_master": "1 pick in any 2 Realms of Magic",
-    "picks.runemaster": "2 picks in any 3 Realms of Magic",
-    "picks.any_realm": "4 picks in any Realm of Magic",
-    "picks.node_mastery": "{chaos}, {sorcery}, {nature}",
+    "picks.n_picks": (count: "n", one: "{n} pick", other: "{n} picks"),
+    "picks.in_any_realm": "{picks} in any Realm of Magic",
+    "picks.in_any_realms": "{picks} in any {n} Realms of Magic",
     "picks.to_select": "To select {retort} you need:   {needs}",
     "picks.life_and_death": "You can not select both Life and Death magic",
     "picks.all_made": "You have already made all your picks",

@@ -21,7 +21,7 @@ ReMoM source) unless noted. For where wizard state sits in the game, see
 | Field | Meaning |
 |---|---|
 | `books` | spell books per realm id (1 to 10) |
-| `retorts` | special abilities, an enum: Alchemy, Warlord, the three masteries, Channeler, Archmage, Artificer, Conjurer, Sage Master, Myrran, Divine/Infernal Power, Famous, Runemaster, Charismatic, Mana Focusing, Node Mastery |
+| `retorts` | special abilities, a registry (`content/retorts.ron`, `RetortDef`: number, alias, cost, book needs): Alchemy, Warlord, the three masteries, Channeler, Archmage, Artificer, Conjurer, Sage Master, Myrran, Divine/Infernal Power, Famous, Runemaster, Charismatic, Mana Focusing, Node Mastery |
 | `skill_points` | invested casting skill; the skill itself is derived (below) |
 | `mana_pct`, `research_pct`, `skill_pct` | how power is split (sum 100; starts 33/34/33) |
 | `known`, `researchable` | spell sets (disjoint) |
@@ -248,7 +248,7 @@ mana of a defeat without banishment. See also tasks 70 and 82.
 ready-made wizards' books and retorts (game rules, committed); their names and descriptions come from the
 importer's local `wizard_texts.ron`, and without it a wizard is named after its id. Eleven picks buy books (one each) and
 retorts (one; two for Warlord, Channeler, Divine Power, Famous, Infernal Power; three for
-Myrran), at most six retorts, with the prerequisites in `retort_available`. A realm with `n`
+Myrran), at most six retorts, with the prerequisites in `retorts.ron` (`retort_available`). A realm with `n`
 books lets the wizard choose `n - 1` common spells at the start (more are filled from
 `RealmDef::default_spells`); with eleven books in one realm the wizard knows all ten commons and
 chooses two uncommon and one rare (`WizardBuild::spell_choices_of`).

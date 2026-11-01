@@ -58,7 +58,7 @@ impl Game {
         let Some(mut wizard) = self.wizard_mut(victim) else {
             return 0;
         };
-        let archmage = wizard.view().has(Retort::Archmage);
+        let archmage = wizard.view().has(Retort::ARCHMAGE);
         let skill = wizard.view().casting_skill();
         let lost = (skill * rng.roll(10) as i32 / 100).max(1);
         // An archmage's ten extra points are not part of what the spell eats into.

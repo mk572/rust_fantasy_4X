@@ -286,7 +286,7 @@ impl Modal for Global {
 impl App {
     /// The name of a retort.
     pub(crate) fn retort_name(&self, retort: f4x_core::wizard::magic::Retort) -> String {
-        self.text(f4x_core::wizard::retort_key(retort))
+        self.game.content().rules.retorts.get(retort).name.clone()
     }
 
     /// All the messages, for the code that picks among several.

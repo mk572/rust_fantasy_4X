@@ -164,7 +164,7 @@ fn an_archmages_ten_points_are_safe() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
-        .insert(Retort::Archmage);
+        .insert(Retort::ARCHMAGE);
     g.wizard_mut(P1)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()

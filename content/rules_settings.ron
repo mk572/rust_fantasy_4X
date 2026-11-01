@@ -311,7 +311,7 @@
         always_known: ["magic_spirit", "spell_of_return"],
         // Spells a retort gives at the start.
         retort_known: {
-            Artificer: ["enchant_item", "create_artifact"],
+            "artificer": ["enchant_item", "create_artifact"],
         },
         // Arcane spells nobody may research at the start. (Spell of Mastery is offered last, when
         // nothing else is left to research; Spell of Return is known.)

@@ -252,7 +252,7 @@ impl<'a> Economy<'a> {
             let owner = self.city_owner(city);
             let devout = owner
                 .and_then(|o| self.wizard(o))
-                .is_some_and(|m| m.has(Retort::DivinePower) || m.has(Retort::InfernalPower));
+                .is_some_and(|m| m.has(Retort::DIVINE_POWER) || m.has(Retort::INFERNAL_POWER));
             let (mut power, mut pacify) = (0, 0);
             // While another wizard keeps Armageddon going, the city has two more rebels' worth of
             // unrest (the buildings still calm it, as in the community patch).

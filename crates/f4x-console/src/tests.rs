@@ -497,7 +497,7 @@ fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() -
 
 #[test]
 fn computer_wizards_are_made_to_the_levels_pick_budget() -> TestResult {
-    use f4x_core::wizard::{retort_cost, ALL_RETORTS};
+    use f4x_core::wizard::{all_retorts, retort_cost};
     for (level, picks) in [(2u8, 11), (3, 13), (4, 15)] {
         for seed in [1u64, 2, 3, 4] {
             let g = level_game(level, 3, seed);
@@ -510,10 +510,9 @@ fn computer_wizards_are_made_to_the_levels_pick_budget() -> TestResult {
                 .filter_map(|w| Some((w, g.wizard(w)?)))
             {
                 let spent = p.total_books()
-                    + ALL_RETORTS
-                        .iter()
-                        .filter(|&&r| p.has(r))
-                        .map(|&r| i32::from(retort_cost(r)))
+                    + all_retorts(&g.content().rules)
+                        .filter(|&r| p.has(r))
+                        .map(|r| i32::from(retort_cost(&g.content().rules, r)))
                         .sum::<i32>();
                 // Erasure takes books and refilling puts them back; a wizard may end a pick or
                 // two over when the last retort did not fit, never under.
@@ -543,7 +542,7 @@ fn with_four_wizards_above_average_one_or_two_computer_wizards_are_myrran() {
                 .into_iter()
                 .filter(|&w| w != human)
                 .filter_map(|w| g.wizard(w))
-                .filter(|p| p.has(f4x_core::wizard::magic::Retort::Myrran))
+                .filter(|p| p.has(f4x_core::wizard::magic::Retort::MYRRAN))
                 .count();
             assert!(
                 (1..=2).contains(&n),
@@ -1178,7 +1177,7 @@ fn a_myrran_wizard_starts_on_myrror_with_a_myrror_race() -> TestResult {
         books: [("sorcery".to_string(), 5), ("nature".to_string(), 3)]
             .into_iter()
             .collect(),
-        retorts: [Retort::Myrran].into_iter().collect(),
+        retorts: [Retort::MYRRAN].into_iter().collect(),
         race: race.map(str::to_string),
         ..NewGame::default()
     };

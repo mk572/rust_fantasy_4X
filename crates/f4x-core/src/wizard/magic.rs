@@ -10,87 +10,39 @@
 
 use std::collections::BTreeSet;
 
-use serde::{Deserialize, Serialize};
-
 use crate::spell::cast::UpkeepItem;
 
 use crate::content::Content;
 use crate::game::rng::GameRng;
 use crate::rules::effects::Effect;
-use crate::rules::{Rarity, SpellDef, SpellId};
+use crate::rules::{Id, Rarity, RetortDef, SpellDef, SpellId};
 
-/// Special abilities a wizard can pick ("retorts" in the original's manual).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[repr(u8)]
-pub enum Retort {
-    Alchemy = 0,
-    Warlord = 1,
-    ChaosMastery = 2,
-    NatureMastery = 3,
-    SorceryMastery = 4,
-    InfernalPower = 5,
-    DivinePower = 6,
-    SageMaster = 7,
-    Channeler = 8,
-    Myrran = 9,
-    Archmage = 10,
-    ManaFocusing = 11,
-    NodeMastery = 12,
-    Famous = 13,
-    Runemaster = 14,
-    Conjurer = 15,
-    Charismatic = 16,
-    Artificer = 17,
-}
+/// A retort ("special ability" in the original's manual): its number in `retorts.ron`, which is the
+/// original's place in its wizard record. The saved game writes the number; the name is the text
+/// `retort.<id>`, and what a retort costs and needs is its row in the rules.
+pub type Retort = Id<RetortDef>;
 
+/// The retorts the rules code reacts to, by number. `retorts.ron` carries each one at that number
+/// (a test in `f4x-data` checks it).
 impl Retort {
-    /// The retorts in the order the original lists them (its wizard record's field order).
-    pub const LISTED: [Retort; 18] = [
-        Retort::Alchemy,
-        Retort::Warlord,
-        Retort::ChaosMastery,
-        Retort::NatureMastery,
-        Retort::SorceryMastery,
-        Retort::InfernalPower,
-        Retort::DivinePower,
-        Retort::SageMaster,
-        Retort::Channeler,
-        Retort::Myrran,
-        Retort::Archmage,
-        Retort::ManaFocusing,
-        Retort::NodeMastery,
-        Retort::Famous,
-        Retort::Runemaster,
-        Retort::Conjurer,
-        Retort::Charismatic,
-        Retort::Artificer,
-    ];
-
-    /// The retort's number: its place in the original's list (`LISTED`), 0 to 17, fixed by the
-    /// explicit discriminants above (the variants are in that order, so `Ord` follows it too). It is what a mod, a console command or a
-    /// table of the original can use to name a retort. The saved game writes this number; the content files write the name.
-    pub fn id(self) -> u8 {
-        self as u8
-    }
-
-    /// The retort with this number, or `None` past the last one.
-    pub fn from_id(id: u8) -> Option<Retort> {
-        Retort::LISTED.get(usize::from(id)).copied()
-    }
-}
-
-#[cfg(test)]
-mod retort_id_tests {
-    use super::Retort;
-
-    #[test]
-    fn a_retorts_number_is_its_place_in_the_originals_list() {
-        for (place, &retort) in Retort::LISTED.iter().enumerate() {
-            assert_eq!(usize::from(retort.id()), place, "{retort:?}");
-            assert_eq!(Retort::from_id(retort.id()), Some(retort));
-        }
-        assert_eq!(Retort::from_id(Retort::LISTED.len() as u8), None);
-    }
+    pub const ALCHEMY: Retort = Id::new(0);
+    pub const WARLORD: Retort = Id::new(1);
+    pub const CHAOS_MASTERY: Retort = Id::new(2);
+    pub const NATURE_MASTERY: Retort = Id::new(3);
+    pub const SORCERY_MASTERY: Retort = Id::new(4);
+    pub const INFERNAL_POWER: Retort = Id::new(5);
+    pub const DIVINE_POWER: Retort = Id::new(6);
+    pub const SAGE_MASTER: Retort = Id::new(7);
+    pub const CHANNELER: Retort = Id::new(8);
+    pub const MYRRAN: Retort = Id::new(9);
+    pub const ARCHMAGE: Retort = Id::new(10);
+    pub const MANA_FOCUSING: Retort = Id::new(11);
+    pub const NODE_MASTERY: Retort = Id::new(12);
+    pub const FAMOUS: Retort = Id::new(13);
+    pub const RUNEMASTER: Retort = Id::new(14);
+    pub const CONJURER: Retort = Id::new(15);
+    pub const CHARISMATIC: Retort = Id::new(16);
+    pub const ARTIFICER: Retort = Id::new(17);
 }
 
 /// How many spells are offered for research at once.

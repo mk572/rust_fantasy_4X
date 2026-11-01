@@ -479,8 +479,8 @@ pub struct SpellLibraryDef {
     pub chosen: Vec<Rarities>,
     /// Spells every wizard knows at the start.
     pub always_known: Vec<String>,
-    /// Spells a retort gives at the start.
-    pub retort_known: std::collections::BTreeMap<crate::wizard::magic::Retort, Vec<String>>,
+    /// Spells a retort gives at the start, by the retort's alias (`retorts.ron`).
+    pub retort_known: std::collections::BTreeMap<String, Vec<String>>,
     /// Spells of the arcane realm nobody may research at the start (they come by other ways).
     pub arcane_closed: Vec<String>,
     /// A computer wizard also knows this spell of its main realm (the realm with most books;
@@ -563,7 +563,7 @@ impl Default for SpellLibraryDef {
             }),
             always_known: vec!["magic_spirit".into(), "spell_of_return".into()],
             retort_known: [(
-                crate::wizard::magic::Retort::Artificer,
+                "artificer".to_string(),
                 vec!["enchant_item".into(), "create_artifact".into()],
             )]
             .into(),

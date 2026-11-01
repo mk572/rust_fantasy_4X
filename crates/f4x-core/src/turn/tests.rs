@@ -1222,7 +1222,7 @@ fn units_are_trained_with_the_cities_weapons_and_alchemy_gives_magic() -> TestRe
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
-        .insert(crate::wizard::magic::Retort::Alchemy);
+        .insert(crate::wizard::magic::Retort::ALCHEMY);
     let magic = train(&mut g);
     assert_eq!(
         g.units().unit_weapon_quality(magic),
@@ -1773,7 +1773,7 @@ fn dark_rituals_double_the_mana_of_the_religious_buildings_and_divine_power_make
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
-        .insert(Retort::DivinePower);
+        .insert(Retort::DIVINE_POWER);
     assert_eq!(
         mana(&g),
         plain + 4,

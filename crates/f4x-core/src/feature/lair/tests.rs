@@ -406,7 +406,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
     )
     .ok_or("of_player is missing")?;
     let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
-    award_special(&mut w, &mut g.rng, &l, 1, &mut loot);
+    award_special(&g.content.rules, &mut w, &mut g.rng, &l, 1, &mut loot);
     assert!(
         !loot.books.contains(&"death".to_string()),
         "life and death exclude each other"
@@ -422,7 +422,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
         )
         .ok_or("of_player is missing")?;
         let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
-        award_special(&mut w, &mut g.rng, &l, 1, &mut loot);
+        award_special(&g.content.rules, &mut w, &mut g.rng, &l, 1, &mut loot);
         books += loot.books.len();
         assert!(loot.books.iter().all(|b| b == "life"));
     }
@@ -907,36 +907,45 @@ fn sheet(
 
 #[test]
 fn a_hoard_of_books_obeys_the_realm_and_the_limit_without_a_game() {
+    let rules = shipped().rules;
     let (mut world, e) = sheet(&[("life", 11)], &[]);
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     let mut rng = crate::game::rng::GameRng::new(5);
     let mut l = info("ruins");
     for _ in 0..30 {
         let mut loot = Loot::default();
-        award_special(&mut magic, &mut rng, &l, 1, &mut loot);
+        award_special(&rules, &mut magic, &mut rng, &l, 1, &mut loot);
         assert!(loot.books.is_empty(), "death clashes with life");
     }
     l.site = "ancient_temple".into();
     for _ in 0..60 {
-        award_special(&mut magic, &mut rng, &l, 2, &mut Loot::default());
+        award_special(&rules, &mut magic, &mut rng, &l, 2, &mut Loot::default());
     }
     assert!(magic.view().total_books() <= 12);
 }
 
 #[test]
 fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort() {
-    use crate::wizard::magic::Retort::*;
+    let rules = shipped().rules;
+    use crate::wizard::magic::Retort;
     let l = info("nature_node");
     // Six retorts: only books can come.
     let (mut world, e) = sheet(
         &[("nature", 3)],
-        &[Alchemy, Warlord, Charismatic, Famous, Artificer, Conjurer],
+        &[
+            Retort::ALCHEMY,
+            Retort::WARLORD,
+            Retort::CHARISMATIC,
+            Retort::FAMOUS,
+            Retort::ARTIFICER,
+            Retort::CONJURER,
+        ],
     );
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     let mut rng = crate::game::rng::GameRng::new(9);
     for _ in 0..40 {
         let mut loot = Loot::default();
-        award_special(&mut magic, &mut rng, &l, 1, &mut loot);
+        award_special(&rules, &mut magic, &mut rng, &l, 1, &mut loot);
         assert!(loot.retorts.is_empty());
     }
     assert_eq!(magic.view().retorts().len(), 6);
@@ -945,7 +954,7 @@ fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     for _ in 0..40 {
         let mut loot = Loot::default();
-        award_special(&mut magic, &mut rng, &l, 1, &mut loot);
+        award_special(&rules, &mut magic, &mut rng, &l, 1, &mut loot);
         assert!(loot.books.is_empty());
     }
     assert_eq!(magic.view().total_books(), 12);

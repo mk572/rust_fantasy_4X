@@ -241,8 +241,7 @@ pub struct WizardSave {
     pub fame: i32,
     /// Realm number and books.
     pub books: Vec<(u16, u8)>,
-    /// The retorts by number (`Retort::id`), not by name.
-    #[serde(with = "retort_ids")]
+    /// The retorts by number (`retorts.ron`), not by name.
     pub retorts: Vec<Retort>,
     pub skill_points: i32,
     pub skill_left: i32,
@@ -360,6 +359,11 @@ impl WizardSave {
             books.insert(rules.realms.get(realm).id.clone(), n);
         }
         *wizard.get_mut::<Books>() = Books(books);
+        for r in &self.retorts {
+            if rules.retorts.id_numbered(r.num()).is_none() {
+                return Err(LoadError::UnknownId("retort", r.num().to_string()));
+            }
+        }
         *wizard.get_mut::<Retorts>() = Retorts(self.retorts.into_iter().collect());
         *wizard.get_mut::<Skill>() = Skill {
             points: self.skill_points,
@@ -1768,24 +1772,3 @@ fn restore_fog(f: FogSave, map: Option<&Map>) -> Result<Fog, LoadError> {
 
 #[cfg(test)]
 mod tests;
-
-/// Serde adapter: a list of retorts is saved as their numbers (`Retort::id`).
-mod retort_ids {
-    use crate::wizard::magic::Retort;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub fn serialize<S: Serializer>(retorts: &[Retort], s: S) -> Result<S::Ok, S::Error> {
-        let ids: Vec<u8> = retorts.iter().map(|r| r.id()).collect();
-        ids.serialize(s)
-    }
-
-    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Retort>, D::Error> {
-        Vec::<u8>::deserialize(d)?
-            .into_iter()
-            .map(|id| {
-                Retort::from_id(id)
-                    .ok_or_else(|| serde::de::Error::custom(format!("no retort number {id}")))
-            })
-            .collect()
-    }
-}

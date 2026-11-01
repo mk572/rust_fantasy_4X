@@ -648,7 +648,7 @@ fn every_unit_has_the_abilities_the_originals_flags_give_it() {
 }
 
 /// The original's retorts ("special abilities") in the order of its wizard record
-/// (`wsa_*` of `NewGame.c`), which is `Retort::LISTED`.
+/// (`wsa_*` of `NewGame.c`), which is the order of `retorts.ron`.
 const ORIGINAL_RETORTS: [&str; 18] = [
     "Alchemy",
     "Warlord",
@@ -704,22 +704,41 @@ fn original_retort_available(name: &str, n: [u8; 5]) -> bool {
     }
 }
 
+/// A retort's alias as the original's name for it ("sage_master" is "SageMaster").
+fn camel(alias: &str) -> String {
+    alias
+        .split('_')
+        .map(|w| {
+            let mut c = w.chars();
+            c.next()
+                .map_or_else(String::new, |f| f.to_uppercase().chain(c).collect())
+        })
+        .collect()
+}
+
 #[test]
 fn every_retort_costs_and_unlocks_as_in_the_originals_creation_screen() {
-    use f4x_core::wizard::{magic::Retort, retort_available, retort_cost, ALL_RETORTS};
-    assert_eq!(Retort::LISTED.len(), ORIGINAL_RETORTS.len());
-    for (retort, name) in Retort::LISTED.iter().zip(ORIGINAL_RETORTS) {
+    use f4x_core::wizard::{all_retorts, retort_available, retort_cost};
+    let c = content();
+    let rules = &c.rules;
+    let retorts: Vec<_> = all_retorts(rules).collect();
+    assert_eq!(retorts.len(), ORIGINAL_RETORTS.len());
+    for (&retort, name) in retorts.iter().zip(ORIGINAL_RETORTS) {
         assert_eq!(
-            format!("{retort:?}"),
+            camel(&rules.retorts.get(retort).id),
             name,
             "the retort list follows the original's order"
         );
-        assert!(
-            ALL_RETORTS.contains(retort),
-            "{name} is on the creation screen"
+        assert_eq!(
+            usize::from(retort.num()),
+            retorts
+                .iter()
+                .position(|&r| r == retort)
+                .unwrap_or(usize::MAX),
+            "{name}: the number is the place in the original's list"
         );
         assert_eq!(
-            retort_cost(*retort),
+            retort_cost(rules, retort),
             original_retort_cost(name),
             "{name} cost"
         );
@@ -738,9 +757,9 @@ fn every_retort_costs_and_unlocks_as_in_the_originals_creation_screen() {
                             .zip(n)
                             .map(|(r, b)| (r.to_string(), b))
                             .collect();
-                        for (retort, name) in Retort::LISTED.iter().zip(ORIGINAL_RETORTS) {
+                        for (&retort, name) in retorts.iter().zip(ORIGINAL_RETORTS) {
                             assert_eq!(
-                                retort_available(*retort, &books),
+                                retort_available(rules, retort, &books),
                                 original_retort_available(name, n),
                                 "{name} with life {life}, death {death}, chaos {chaos}, nature {nature}, sorcery {sorcery}"
                             );
@@ -775,8 +794,8 @@ const ORIGINAL_WIZARDS: [(&str, [u8; 5], Option<usize>); 14] = [
 
 #[test]
 fn every_ready_made_wizard_has_the_originals_books_and_retort() {
-    use f4x_core::wizard::magic::Retort;
     let c = content();
+    let rules = &c.rules;
     let defs = c.rules.wizards.defs();
     assert_eq!(defs.len(), ORIGINAL_WIZARDS.len(), "ready-made wizards");
     let realms = ["life", "sorcery", "nature", "death", "chaos"];
@@ -804,7 +823,10 @@ fn every_ready_made_wizard_has_the_originals_books_and_retort() {
         }
         theirs.sort_unstable();
         assert_eq!(ours, theirs, "{} books", def.id);
-        let retorts: Vec<Retort> = retort.map(|i| Retort::LISTED[i]).into_iter().collect();
+        let retorts: Vec<String> = retort
+            .map(|i| rules.retorts.defs()[i].id.clone())
+            .into_iter()
+            .collect();
         assert_eq!(def.retorts, retorts, "{} retorts", def.id);
     }
 }

@@ -371,6 +371,11 @@ fn check_spell_library(
             problems.push(format!("spell_library: unknown spell \"{id}\""));
         }
     }
+    for retort in library.retort_known.keys() {
+        if rules.retorts.id_of(retort).is_none() {
+            problems.push(format!("spell_library: unknown retort \"{retort}\""));
+        }
+    }
     for realm in library
         .ai_main_realm_known
         .keys()

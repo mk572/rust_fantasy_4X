@@ -1,0 +1,27 @@
+// The wizard's special abilities ("retorts" in the original's manual). Kept by hand.
+// `num` is the original's place in its wizard record (alchemy 0 ... artificer 17), the id the game
+// passes around and the saved game writes; `id` is the alias for human editing; the name shown is in
+// content/text/en/name/retort.ron, by `num`.
+// `cost`: the picks it takes at the creation screen. `requires`: what the books must be before it
+// may be picked: `Books(realm, min)` is `min` books in that realm; `Realms(count, min)` is `count`
+// realms with at least `min` books each.
+[
+    (num: 0, id: "alchemy", cost: 1, requires: []),
+    (num: 1, id: "warlord", cost: 2, requires: []),
+    (num: 2, id: "chaos_mastery", cost: 1, requires: [Books("chaos", 4)]),
+    (num: 3, id: "nature_mastery", cost: 1, requires: [Books("nature", 4)]),
+    (num: 4, id: "sorcery_mastery", cost: 1, requires: [Books("sorcery", 4)]),
+    (num: 5, id: "infernal_power", cost: 2, requires: [Books("death", 4)]),
+    (num: 6, id: "divine_power", cost: 2, requires: [Books("life", 4)]),
+    (num: 7, id: "sage_master", cost: 1, requires: [Realms(2, 1)]),
+    (num: 8, id: "channeler", cost: 2, requires: []),
+    (num: 9, id: "myrran", cost: 3, requires: []),
+    (num: 10, id: "archmage", cost: 1, requires: [Realms(1, 4)]),
+    (num: 11, id: "mana_focusing", cost: 1, requires: [Realms(1, 4)]),
+    (num: 12, id: "node_mastery", cost: 1, requires: [Books("chaos", 1), Books("sorcery", 1), Books("nature", 1)]),
+    (num: 13, id: "famous", cost: 2, requires: []),
+    (num: 14, id: "runemaster", cost: 1, requires: [Realms(3, 2)]),
+    (num: 15, id: "conjurer", cost: 1, requires: []),
+    (num: 16, id: "charismatic", cost: 1, requires: []),
+    (num: 17, id: "artificer", cost: 1, requires: []),
+]

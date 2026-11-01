@@ -24,7 +24,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::game::setting::SpellLibraryDef;
 use crate::game::Game;
 use crate::player::PlayerId;
-use crate::rules::{Rarity, SpellId};
+use crate::rules::{Rarity, Rules, SpellId};
 use crate::wizard::magic::{MagicError, Retort};
 
 /// Picks the wizard spends on books and retorts.
@@ -76,87 +76,38 @@ pub enum BuildError {
     Magic(MagicError),
 }
 
-/// Picks a retort costs.
-pub fn retort_cost(retort: Retort) -> u8 {
-    match retort {
-        Retort::Warlord
-        | Retort::Channeler
-        | Retort::DivinePower
-        | Retort::Famous
-        | Retort::InfernalPower => 2,
-        Retort::Myrran => 3,
-        _ => 1,
-    }
+/// Picks a retort costs (its row in `retorts.ron`).
+pub fn retort_cost(rules: &Rules, retort: Retort) -> u8 {
+    rules.retorts.get(retort).cost
 }
 
-/// Every retort, in numeric order (`Retort::id`, the original's list): the creation screen, the AI
-/// and every loop over the retorts go in this order.
-pub const ALL_RETORTS: [Retort; 18] = Retort::LISTED;
-
-/// The key of the retort's name in `content/text/` (`retort.sage_master`).
-pub fn retort_key(retort: Retort) -> &'static str {
-    // Indexed by the retort's number, so the table cannot fall out of order with the enum.
-    const KEYS: [&str; 18] = [
-        "retort.alchemy",
-        "retort.warlord",
-        "retort.chaos_mastery",
-        "retort.nature_mastery",
-        "retort.sorcery_mastery",
-        "retort.infernal_power",
-        "retort.divine_power",
-        "retort.sage_master",
-        "retort.channeler",
-        "retort.myrran",
-        "retort.archmage",
-        "retort.mana_focusing",
-        "retort.node_mastery",
-        "retort.famous",
-        "retort.runemaster",
-        "retort.conjurer",
-        "retort.charismatic",
-        "retort.artificer",
-    ];
-    KEYS[usize::from(retort.id())]
+/// Every retort, in numeric order (the original's list): the creation screen, the AI and every
+/// loop over the retorts go in this order.
+pub fn all_retorts(rules: &Rules) -> impl Iterator<Item = Retort> + '_ {
+    rules.retorts.iter().map(|(id, _)| id)
 }
 
-/// The books a retort needs before it may be picked (the original's `wsa_picklist_start`
-/// and the unlocks in its pick screen).
-pub fn retort_available(retort: Retort, books: &BTreeMap<String, u8>) -> bool {
-    let n = |realm: &str| books.get(realm).copied().unwrap_or(0);
-    let realms = ["life", "death", "chaos", "nature", "sorcery"];
-    let realms_with = |min: u8| realms.iter().filter(|r| n(r) >= min).count();
-    let mastery_book = realms.iter().any(|r| n(r) >= 4);
-    match retort {
-        Retort::Alchemy
-        | Retort::Warlord
-        | Retort::Channeler
-        | Retort::Artificer
-        | Retort::Conjurer
-        | Retort::Myrran
-        | Retort::Famous
-        | Retort::Charismatic => true,
-        Retort::SageMaster => realms_with(1) >= 2,
-        Retort::Runemaster => realms_with(2) >= 3,
-        Retort::Archmage | Retort::ManaFocusing => mastery_book,
-        Retort::ChaosMastery => n("chaos") >= 4,
-        Retort::NatureMastery => n("nature") >= 4,
-        Retort::SorceryMastery => n("sorcery") >= 4,
-        Retort::InfernalPower => n("death") >= 4,
-        Retort::DivinePower => n("life") >= 4,
-        Retort::NodeMastery => n("chaos") >= 1 && n("sorcery") >= 1 && n("nature") >= 1,
-    }
+/// The books a retort needs before it may be picked (its `requires` in `retorts.ron`: the
+/// original's `wsa_picklist_start` and the unlocks in its pick screen).
+pub fn retort_available(rules: &Rules, retort: Retort, books: &BTreeMap<String, u8>) -> bool {
+    rules.retorts.get(retort).available(books)
 }
 
 impl WizardBuild {
     /// Picks spent on books and retorts.
-    pub fn picks_spent(&self) -> u8 {
+    pub fn picks_spent(&self, rules: &Rules) -> u8 {
         let books: u8 = self.books.values().sum();
-        books + self.retorts.iter().map(|&r| retort_cost(r)).sum::<u8>()
+        books
+            + self
+                .retorts
+                .iter()
+                .map(|&r| retort_cost(rules, r))
+                .sum::<u8>()
     }
 
     /// Picks still to spend (negative if over budget).
-    pub fn picks_left(&self) -> i16 {
-        i16::from(PICKS) - i16::from(self.picks_spent())
+    pub fn picks_left(&self, rules: &Rules) -> i16 {
+        i16::from(PICKS) - i16::from(self.picks_spent(rules))
     }
 
     /// Spells of a rarity the wizard may choose in a realm: the `chosen` row of the library
@@ -196,11 +147,11 @@ impl Game {
             return Err(BuildError::TooManyRetorts);
         }
         for &r in &build.retorts {
-            if !retort_available(r, &build.books) {
+            if !retort_available(&self.content.rules, r, &build.books) {
                 return Err(BuildError::RetortNotAvailable(r));
             }
         }
-        let spent = build.picks_spent();
+        let spent = build.picks_spent(&self.content.rules);
         if spent > PICKS {
             return Err(BuildError::TooManyPicks { spent });
         }
@@ -270,11 +221,16 @@ impl Game {
             .iter()
             .position(|w| w.id == id)?;
         let def = &self.content.rules.wizards.defs()[place];
+        let retorts = def
+            .retorts
+            .iter()
+            .map(|r| self.content.rules.retorts.id_of(r))
+            .collect::<Option<_>>()?;
         Some(WizardBuild {
             name: def.name.clone(),
             gender: def.gender,
             books: def.books.iter().cloned().collect(),
-            retorts: def.retorts.iter().copied().collect(),
+            retorts,
             spells: Vec::new(),
             banner: None,
             portrait: u8::try_from(place)
