@@ -338,11 +338,13 @@ pub fn event(game: &Game, e: &Event) -> String {
             player: p,
             spell: s,
             by,
+            counter,
         } => format!(
-            "{}'s {} is stopped by {}'s Suppress Magic",
+            "{}'s {} is stopped by {}'s {}",
             player(game, *p),
             spell(game, *s),
-            player(game, *by)
+            player(game, *by),
+            spell(game, *counter)
         ),
         Event::NoTargetForCast { spell: s, .. } => {
             format!(

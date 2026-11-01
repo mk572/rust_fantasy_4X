@@ -373,8 +373,13 @@ impl Game {
 
     /// Another wizard's standing dispel of strength 500 against every overland spell cast:
     /// Suppress Magic against all spells, Life Force against death spells, Tranquility against
-    /// chaos spells. Returns the wizard whose enchantment stopped `spell`, if any.
-    pub(crate) fn suppressed_by(&mut self, caster: PlayerId, spell: SpellId) -> Option<PlayerId> {
+    /// chaos spells. Returns the wizard whose enchantment stopped `spell`, and that enchantment,
+    /// if any.
+    pub(crate) fn suppressed_by(
+        &mut self,
+        caster: PlayerId,
+        spell: SpellId,
+    ) -> Option<(PlayerId, SpellId)> {
         let realm = self.content.rules.spells.get(spell).realm.clone();
         let guards: Vec<&str> = ["suppress_magic", "life_force", "tranquility"]
             .into_iter()
@@ -384,7 +389,7 @@ impl Game {
                 _ => true,
             })
             .collect();
-        let holders: Vec<PlayerId> = self
+        let holders: Vec<(PlayerId, &str)> = self
             .player_ids()
             .into_iter()
             .filter(|&p| p != caster)
@@ -392,16 +397,17 @@ impl Game {
                 let has = &guards;
                 has.iter()
                     .filter(|&&g| self.has_global(p, g))
-                    .map(move |_| p)
+                    .map(move |&g| (p, g))
                     .collect::<Vec<_>>()
             })
             .collect();
         let difficulty = self.dispel_difficulty(spell, Some(caster));
-        for holder in holders {
+        for (holder, guard) in holders {
             let chance = 250 * u64::from(SUPPRESS_MAGIC_STRENGTH)
                 / u64::from(SUPPRESS_MAGIC_STRENGTH + difficulty);
             if u64::from(self.roll(250)) <= chance {
-                return Some(holder);
+                let counter = self.content.rules.spells.id_of(guard)?;
+                return Some((holder, counter));
             }
         }
         None

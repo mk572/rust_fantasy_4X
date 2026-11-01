@@ -28,7 +28,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 370 | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
 | 371 | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak |
 | 373 | Battle | Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
-| 378 | Client | Turn summary and message pop-ups: what is left |
 | 379 | Meta | Settings: races banned for computer wizards and independent cities, by difficulty |
 | 380 | Map | Check the original generator's port against real maps of the original |
 | 439 | Client | Summon scene: the race colours of the frame and the creature |
@@ -190,10 +189,6 @@ the drawing changes. *Needs:* nothing.
 4. The battle's sheet is a snapshot taken on opening on a plain background; the original draws it over the field.
 5. Scouting, the Summon Demons use count, mana left (`Caster 12 (20) mp`) and Warp Creature's three icons, once those exist in the core.
 No action: the hit-points row shows one figure's hit points, and the original does the same.
-
-**378. Turn summary and message pop-ups: what is left.** The Chancellor's scroll, the building-complete box, the combat results scroll, the fizzle and "has been dispelled" boxes (also in battle), the turn-limit heading and the rampage, ruins and raiders lines are done (task 144). **Done 30 October 2026:** (2) the raze prompt comes before the scroll when the Raze City setting is on (`combat_result.rs`); (3) the stasis "has been dispelled" box when stasis ends on the human's unit; (5) `Event::ProductionImpossible`: a city whose item needs a building it has lost (or a race or coast it lacks) says so in the log and falls back to Trade Goods. Dropped on purpose: (1) the evict message, as the unit-cap warning, because we have no unit limit and evict nothing (`divergences.md`). Still open:
-4. The Tranquility and Life Force fizzle boxes (the core has no such counter).
-6. ~~The music `MUSIC_Bldng_Finished` and `MUSIC_Spell_Failure`.~~ Done (checked 30 October 2026: `BuiltNotice` and the fizzle notice play them).
 
 **379. Settings: races banned for computer wizards and independent cities, by difficulty.** The original gives a computer wizard any of the nine Arcanus races up to Normal and only Klackon, High Elf, Halfling, High Men and Nomad above it (`Generate_Home_Cities`); ours picks any race. Add a setting instead of the fixed rule: in each difficulty level of `content/settings.ron`, a list of race ids that computer wizards may not have (`ai.wizards.banned_races`) and one for the independent cities (`world.neutral_banned_races`). Both lists are empty in the shipped file: they are for players and mods that want the original's rule or their own (the original's list can go in a comment as an example). Where to wire it: the race pick for computer wizards in `game/setup.rs` (the `races` loop) and `Game::neutral_races` in `city/neutral.rs`; if a ban leaves no race for a plane, fall back to the unbanned list and say so in `validate`. Check the ids against the races when the file is read (`game/setting.rs`, `f4x-tools validate`), add the two lists to `docs/game-settings.md` (they replace the `wizards.ai_race_limit` row), and test a game with a ban (no computer wizard and no neutral city of a banned race).
 

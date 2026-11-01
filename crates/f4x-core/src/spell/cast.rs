@@ -845,8 +845,13 @@ impl Game {
     }
 
     fn run_cast(&mut self, player: PlayerId, spell: SpellId, target: Option<Target>) -> Vec<Event> {
-        if let Some(by) = self.suppressed_by(player, spell) {
-            return vec![Event::SpellSuppressed { player, spell, by }];
+        if let Some((by, counter)) = self.suppressed_by(player, spell) {
+            return vec![Event::SpellSuppressed {
+                player,
+                spell,
+                by,
+                counter,
+            }];
         }
         if let Some(city) = self.ward_turns_away(player, spell, target) {
             return vec![Event::SpellFizzled {

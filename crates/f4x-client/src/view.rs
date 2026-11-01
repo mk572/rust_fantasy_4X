@@ -821,9 +821,20 @@ impl App {
                         .text("city", self.city_name(city));
                     Some(self.text_with("log.fizzled_nightshade", &args))
                 }
-                Event::SpellSuppressed { spell, by, player } => {
-                    self.announce_fizzle(player, by, spell, "spell.suppress_magic");
+                Event::SpellSuppressed {
+                    spell,
+                    by,
+                    player,
+                    counter,
+                } => {
+                    let key = match self.game.content().rules.spells.get(counter).id.as_str() {
+                        "life_force" => "spell.life_force",
+                        "tranquility" => "spell.tranquility",
+                        _ => "spell.suppress_magic",
+                    };
+                    self.announce_fizzle(player, by, spell, key);
                     let args = self.wizard_arg(self.spell_arg(Args::new(), spell), "wizard", by);
+                    let args = args.text("counter", self.text(key));
                     Some(self.text_with("log.suppressed", &args))
                 }
                 Event::PowerDrained { victim, amount, .. } => {

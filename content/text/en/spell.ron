@@ -8,6 +8,8 @@
 
     // The counter spells named in a fizzle notice.
     "spell.suppress_magic": "Suppress Magic",
+    "spell.life_force": "Life Force",
+    "spell.tranquility": "Tranquility",
     "spell.spell_blast": "Spell Blast",
     "spell.disjunction": "Disjunction",
     // One of the two wizards is you. The wizard is the other one.

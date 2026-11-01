@@ -290,11 +290,12 @@ pub enum Event {
         buildings_lost: u32,
         population_lost: u32,
     },
-    /// Another wizard's Suppress Magic stopped the spell.
+    /// Another wizard's Suppress Magic, Life Force or Tranquility (`counter`) stopped the spell.
     SpellSuppressed {
         player: player::PlayerId,
         spell: rules::SpellId,
         by: player::PlayerId,
+        counter: rules::SpellId,
     },
     /// A spell aimed at a city was turned away by the city's nightshade.
     SpellFizzled {

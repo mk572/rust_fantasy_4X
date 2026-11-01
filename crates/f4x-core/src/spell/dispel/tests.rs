@@ -514,6 +514,17 @@ fn a_stopped_spell_is_lost_and_reported() -> TestResult {
 }
 
 #[test]
+fn a_stopped_spell_names_the_enchantment_that_stopped_it() {
+    for (guard, spell) in [("tranquility", "fire_bolt"), ("life_force", "life_drain")] {
+        let mut g = world();
+        let (guard_id, spell_id) = (sp(&g, guard), sp(&g, spell));
+        g.attach_enchantment(Target::Player(P1), guard_id, P1);
+        let named = (0..60).find_map(|_| g.suppressed_by(P0, spell_id));
+        assert_eq!(named, Some((P1, guard_id)), "{guard} stops {spell}");
+    }
+}
+
+#[test]
 fn a_dispel_can_undo_an_enchanted_road_on_its_square_only() -> TestResult {
     let mut g = world();
     {
