@@ -117,13 +117,10 @@ impl App {
     /// For the screenshot check: a full table of made-up entries, not read from or written to the file.
     pub(crate) fn open_test_hall_of_fame(&mut self) {
         let races = self.game.content().rules.races.defs();
+        let wizards = self.game.content().rules.wizards.defs();
         let table = (0..SCORES)
             .map(|i| Entry {
-                name: [
-                    "Merlin", "Raven", "Sharee", "Lo Pan", "Jafar", "Oberic", "Rjak", "Sss'ra",
-                    "Tauron", "Freya",
-                ][i]
-                    .into(),
+                name: wizards[i % wizards.len()].name.clone(),
                 race: races[i % races.len()].name.clone(),
                 score: 7400 - 640 * i as i32,
             })

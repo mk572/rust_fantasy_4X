@@ -156,7 +156,15 @@ impl App {
         let at = movie
             .beats
             .iter()
-            .position(|b| b.picture == Some((scene, 0)) && b.dark == 0);
+            .position(|b| b.picture == Some((scene, 0)) && b.dark == 0)
+            // The copyright line shows over the later frames of scene 2.
+            .map(|first| {
+                movie.beats[first..]
+                    .iter()
+                    .position(|b| b.copyright)
+                    .filter(|_| scene == 2)
+                    .map_or(first, |off| first + off)
+            });
         movie.at = at.unwrap_or(0);
         movie.since = f64::MAX;
         self.open_page(Screen::Intro, movie);

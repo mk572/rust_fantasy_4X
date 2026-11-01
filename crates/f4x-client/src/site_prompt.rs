@@ -299,6 +299,11 @@ impl App {
 
     /// The items awarded by a site wait for the boxes before them, and for the hero, if there is
     /// one, to be dealt with first. True while this took the frame.
+    pub(crate) fn open_test_warning(&mut self) {
+        self.item_pool_pending = true;
+        self.item_pool_warning = true;
+    }
+
     pub(crate) fn item_pool_frame(&mut self, input: &Input) -> bool {
         if self.game.in_battle()
             || !matches!(self.screen, Screen::Map)
