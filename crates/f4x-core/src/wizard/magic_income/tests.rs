@@ -25,7 +25,7 @@ fn fake() -> Fake {
     WizardMut::new(&mut world, wizard)
         .get_mut::<Books>()
         .0
-        .insert("life".into(), 2);
+        .insert(crate::game::testutil::realm("life"), 2);
     Fake {
         world,
         wizard,

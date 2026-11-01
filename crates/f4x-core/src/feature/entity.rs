@@ -12,6 +12,7 @@
 //!
 //! Tests: in feature/lair/tests.rs and node.rs.
 
+use crate::rules::SpellId;
 use std::collections::HashMap;
 
 use hecs::{Entity, World};
@@ -24,6 +25,7 @@ use crate::game::serial::Serial;
 use crate::game::Game;
 use crate::map::{FeatureId, Position};
 use crate::player::{self, Owner, PlayerId};
+use crate::rules::{RealmId, UnitId};
 
 /// On a tower, a node or an encounter site: which feature of the content it is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,7 +76,7 @@ pub struct Placement {
 pub struct NodeInfo {
     pub entity: Entity,
     pub pos: Position,
-    pub realm: String,
+    pub realm: RealmId,
     pub power: u8,
     pub aura: Vec<(u32, u32)>,
     pub owner: Option<PlayerId>,
@@ -90,7 +92,7 @@ pub struct LairInfo {
     /// Id of the site's feature: `tower`, a node, or an encounter site.
     pub site: String,
     pub intact: bool,
-    pub guards: Vec<(String, u32)>,
+    pub guards: Vec<(UnitId, u32)>,
     pub gold: u32,
     pub mana: u32,
     pub items: Vec<u32>,
@@ -145,7 +147,7 @@ impl<'a> Economy<'a> {
         Some(NodeInfo {
             entity,
             pos,
-            realm: node.realm.clone(),
+            realm: node.realm,
             power: node.power,
             aura: node.aura.clone(),
             owner: owner_of(self.world, entity),
@@ -237,7 +239,7 @@ impl<'a> Economy<'a> {
         &self,
         at: Position,
         player: PlayerId,
-    ) -> Option<Vec<(String, u32)>> {
+    ) -> Option<Vec<(UnitId, u32)>> {
         let lair = self.lair_at(at)?;
         (lair.fought_by.contains(&player) || self.spell_shows_units(at, player))
             .then_some(lair.guards)
@@ -246,7 +248,10 @@ impl<'a> Economy<'a> {
     /// Does a spell of `player` show them the units on a square? Nature Awareness shows the
     /// whole world; Nature's Eye widens the sight of its city, and the units in it show.
     fn spell_shows_units(&self, at: Position, player: PlayerId) -> bool {
-        if self.units().has_global(player, "nature_awareness") {
+        if self
+            .units()
+            .has_global(player, SpellId::new(34) /* nature_awareness */)
+        {
             return true;
         }
         let Some(map) = self.map else {
@@ -256,7 +261,7 @@ impl<'a> Economy<'a> {
         self.cities().into_iter().any(|(city, info, pos)| {
             if info.owner != player
                 || pos.plane != at.plane
-                || !self.city_has_enchantment(city, "natures_eye")
+                || !self.city_has_enchantment(city, SpellId::new(12) /* natures_eye */)
             {
                 return false;
             }

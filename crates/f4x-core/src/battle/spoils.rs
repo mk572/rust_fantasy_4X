@@ -54,8 +54,8 @@ impl Game {
             out.winner_fame += 1;
         }
         let rare = battle.units.iter().filter(fallen).any(|u| {
-            let id = self.content.rules.units.id_of(&u.unit_id);
-            id.is_some_and(|id| self.content.rules.units.get(id).cost >= RARE_FOE_COST)
+            u.unit_id
+                .is_some_and(|id| self.content.rules.units.get(id).cost >= RARE_FOE_COST)
         });
         if rare {
             out.winner_fame += 1;

@@ -124,7 +124,7 @@ pub fn spawn(
 pub fn spawn_site(
     game: &mut Game,
     pos: Position,
-    guards: Vec<(String, u32)>,
+    guards: Vec<(f4x_core::rules::UnitId, u32)>,
     fought_by: Vec<PlayerId>,
 ) -> Result<hecs::Entity, &'static str> {
     let feature = game
@@ -166,7 +166,7 @@ pub fn spawn_tower(
         node: None,
         lair: Some(Lair {
             intact,
-            guards: vec![("zombies".into(), 1)],
+            guards: vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
             gold: 0,
             mana: 0,
             items: Vec::new(),

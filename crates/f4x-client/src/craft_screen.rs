@@ -16,6 +16,8 @@ use f4x_core::item::crafting::{
     available_powers, check, cost, made_name, Craft, ItemDesign, MAX_CHARGES, MAX_POWERS,
     SPELL_CHARGES,
 };
+use f4x_core::rules::ItemPowerId;
+use f4x_core::rules::SpellId;
 use f4x_core::rules::{CastContext, ItemKind, ItemPowerDef};
 use f4x_core::text::Args;
 use macroquad::prelude::*;
@@ -80,13 +82,13 @@ pub(crate) struct CraftUi {
 pub(crate) struct SpellPick {
     pub page: usize,
     /// The spell chosen, waiting for its number of charges.
-    pub chosen: Option<(usize, String)>,
+    pub chosen: Option<(usize, SpellId)>,
 }
 
 /// One entry of the power columns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Row {
-    Power(String),
+    Power(ItemPowerId),
     /// A gap between two groups.
     Gap,
 }
@@ -102,7 +104,7 @@ pub(crate) fn columns(powers: &[&ItemPowerDef]) -> [Vec<Row>; 3] {
             plain.push(Row::Gap);
         }
         last_group = Some(p.group);
-        plain.push(Row::Power(p.id.clone()));
+        plain.push(Row::Power(ItemPowerId::new(p.num)));
     }
     let mut first = plain.len();
     let mut second = Vec::new();
@@ -121,7 +123,7 @@ pub(crate) fn columns(powers: &[&ItemPowerDef]) -> [Vec<Row>; 3] {
     let special = powers
         .iter()
         .filter(|p| p.bonus.is_none())
-        .map(|p| Row::Power(p.id.clone()))
+        .map(|p| Row::Power(ItemPowerId::new(p.num)))
         .collect();
     [plain, second, special]
 }
@@ -152,11 +154,11 @@ impl CraftUi {
 
     /// Choose a kind: the picture is the kind's first, and the powers the new kind cannot
     /// have go.
-    pub(crate) fn set_kind(&mut self, kind: ItemKind, allowed: &[String]) {
+    pub(crate) fn set_kind(&mut self, kind: ItemKind, allowed: &[ItemPowerId]) {
         self.design.kind = kind;
         self.design.icon = kind.icon_range().0;
         self.design.powers.retain(|p| allowed.contains(p));
-        if !allowed.iter().any(|p| p == SPELL_CHARGES) {
+        if !allowed.contains(&SPELL_CHARGES) {
             self.design.charges = None;
         }
     }
@@ -179,9 +181,13 @@ impl CraftUi {
 pub(crate) fn toggle_power(
     design: &mut ItemDesign,
     power: &ItemPowerDef,
-    groups: &dyn Fn(&str) -> Option<u8>,
+    groups: &dyn Fn(ItemPowerId) -> Option<u8>,
 ) -> Result<(), &'static str> {
-    if let Some(at) = design.powers.iter().position(|p| *p == power.id) {
+    if let Some(at) = design
+        .powers
+        .iter()
+        .position(|p| *p == ItemPowerId::new(power.num))
+    {
         design.powers.remove(at);
         return Ok(());
     }
@@ -191,7 +197,7 @@ pub(crate) fn toggle_power(
             design
                 .powers
                 .iter()
-                .position(|p| groups(p) == Some(power.group))
+                .position(|&p| groups(p) == Some(power.group))
         })
         .flatten();
     if let Some(at) = same {
@@ -200,7 +206,7 @@ pub(crate) fn toggle_power(
     if design.powers.len() + usize::from(design.charges.is_some()) >= MAX_POWERS {
         return Err("craft.too_many");
     }
-    design.powers.push(power.id.clone());
+    design.powers.push(ItemPowerId::new(power.num));
     Ok(())
 }
 
@@ -211,30 +217,30 @@ impl App {
     }
 
     /// The ids of the powers the wizard may put on an item of `kind`.
-    fn craft_allowed(&self, craft: Craft, kind: ItemKind) -> Vec<String> {
+    fn craft_allowed(&self, craft: Craft, kind: ItemKind) -> Vec<ItemPowerId> {
         let rules = &self.game.content().rules;
         self.game
             .wizard(HUMAN)
             .map(|m| {
                 available_powers(kind, craft, &m, rules)
                     .iter()
-                    .map(|p| p.id.clone())
+                    .map(|p| ItemPowerId::new(p.num))
                     .collect()
             })
             .unwrap_or_default()
     }
 
     /// The spells that can be put in an item: those the wizard knows and can cast in battle.
-    fn charge_spells(&self) -> Vec<(String, String)> {
+    fn charge_spells(&self) -> Vec<(SpellId, String)> {
         let rules = &self.game.content().rules;
         let Some(m) = self.game.wizard(HUMAN) else {
             return Vec::new();
         };
         m.known()
             .into_iter()
-            .map(|s| rules.spells.get(s))
-            .filter(|d| d.contexts.contains(&CastContext::Battle))
-            .map(|d| (d.id.clone(), d.name.clone()))
+            .map(|s| (s, rules.spells.get(s)))
+            .filter(|(_, d)| d.contexts.contains(&CastContext::Battle))
+            .map(|(s, d)| (s, d.name.clone()))
             .collect()
     }
 
@@ -366,7 +372,7 @@ impl App {
             if pick.chosen.is_none()
                 && ui::hit(lay.rect((x - 2.0, y - 1.0, 105.0, 10.0)), click, input).clicked()
             {
-                chosen = Some((i, id.clone()));
+                chosen = Some((i, *id));
             }
         }
         if chosen.is_some() {
@@ -374,7 +380,7 @@ impl App {
         }
         // The click that is none of the spells and is not on the charges closes the list.
         let mut done = None;
-        if let Some((at, id)) = pick.chosen.clone() {
+        if let Some((at, id)) = pick.chosen {
             let (col, row) = (at / 14, (at % 14) as f32);
             let row = row.clamp(1.0, 11.0);
             let charges_x = bx + 155.0 - 140.0 * col as f32;
@@ -395,7 +401,7 @@ impl App {
                 );
                 let r = self.draw_pic(lay, "spellscr", 38 + n as usize, 0, x, y);
                 if r.is_some_and(|r| ui::hit(r, click, input).clicked()) {
-                    done = Some((id.clone(), n + 1));
+                    done = Some((id, n + 1));
                 }
             }
         }
@@ -488,9 +494,9 @@ impl Page for CraftUi {
             .item_powers
             .defs()
             .iter()
-            .filter(|p| allowed.contains(&p.id))
+            .filter(|p| allowed.contains(&ItemPowerId::new(p.num)))
             .collect();
-        let group_of = |id: &str| rules.item_powers.by_name(id).map(|p| p.group);
+        let group_of = |id: ItemPowerId| rules.item_powers.try_get(id).map(|p| p.group);
         let [first, second, special] = columns(&on_offer);
         for (col, rows) in [first, second, special].into_iter().enumerate() {
             let x = 10.0 + 85.0 * col as f32 + if col == 2 { 17.0 } else { 0.0 };
@@ -500,7 +506,7 @@ impl Page for CraftUi {
                     y += 3.0;
                     continue;
                 };
-                let Some(power) = rules.item_powers.by_name(&id) else {
+                let Some(power) = rules.item_powers.try_get(id) else {
                     continue;
                 };
                 let charges = id == SPELL_CHARGES;
@@ -509,12 +515,11 @@ impl Page for CraftUi {
                 } else {
                     ui.design.powers.contains(&id)
                 };
-                if charges && chosen {
-                    let (spell, n) = ui.design.charges.clone().unwrap_or_default();
+                if let (true, Some((spell, n))) = (charges && chosen, ui.design.charges) {
                     let spell = rules
                         .spells
-                        .by_name(&spell)
-                        .map_or(spell.clone(), |s| s.name.clone());
+                        .try_get(spell)
+                        .map_or_else(String::new, |s| s.name.clone());
                     let line = app.text_with(
                         "item.name_charges",
                         &Args::new().text("spell", &spell).count("n", n as i32),
@@ -607,11 +612,11 @@ mod tests {
             .ok_or(format!("no item power {id}"))
     }
 
-    fn group_of(id: &str) -> Option<u8> {
+    fn group_of(id: ItemPowerId) -> Option<u8> {
         shipped::content()
             .rules
             .item_powers
-            .by_name(id)
+            .try_get(id)
             .map(|p| p.group)
     }
 
@@ -621,16 +626,22 @@ mod tests {
         toggle_power(&mut ui.design, power("attack_1")?, &group_of)?;
         toggle_power(&mut ui.design, power("defense_1")?, &group_of)?;
         toggle_power(&mut ui.design, power("attack_2")?, &group_of)?;
-        assert_eq!(ui.design.powers, ["defense_1", "attack_2"]);
+        assert_eq!(
+            ui.design.powers,
+            [
+                ItemPowerId::new(6), /* defense_1 */
+                ItemPowerId::new(1)  /* attack_2 */
+            ]
+        );
         toggle_power(&mut ui.design, power("attack_2")?, &group_of)?;
-        assert_eq!(ui.design.powers, ["defense_1"]);
+        assert_eq!(ui.design.powers, [ItemPowerId::new(6) /* defense_1 */]);
         Ok(())
     }
 
     #[test]
     fn four_places_are_all_there_are_and_the_charges_take_one() -> TestResult {
         let mut ui = CraftUi::new(Craft::CreateArtifact);
-        ui.design.charges = Some(("fire_bolt".into(), 2));
+        ui.design.charges = Some((SpellId::new(83) /* fire_bolt */, 2));
         for id in ["flaming", "lightning", "chaos"] {
             toggle_power(&mut ui.design, power(id)?, &group_of)?;
         }
@@ -657,10 +668,13 @@ mod tests {
     #[test]
     fn a_new_kind_keeps_the_powers_it_can_have() {
         let mut ui = CraftUi::new(Craft::EnchantItem);
-        ui.design.powers = vec!["attack_5".into(), "defense_1".into()];
-        ui.design.charges = Some(("fire_bolt".into(), 1));
-        ui.set_kind(ItemKind::Shield, &["defense_1".to_string()]);
-        assert_eq!(ui.design.powers, ["defense_1"]);
+        ui.design.powers = vec![
+            ItemPowerId::new(4), /* attack_5 */
+            ItemPowerId::new(6), /* defense_1 */
+        ];
+        ui.design.charges = Some((SpellId::new(83) /* fire_bolt */, 1));
+        ui.set_kind(ItemKind::Shield, &[ItemPowerId::new(6) /* defense_1 */]);
+        assert_eq!(ui.design.powers, [ItemPowerId::new(6) /* defense_1 */]);
         assert_eq!(ui.design.charges, None);
         assert_eq!(ui.design.icon, ItemKind::Shield.icon_range().0);
     }

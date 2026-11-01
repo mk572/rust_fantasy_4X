@@ -28,13 +28,13 @@ pub enum Class {
 /// `Rules::hero_templates` (the data check keeps them equal).
 pub fn kind_of(rules: &Rules, unit: UnitId) -> Option<usize> {
     let kind = usize::from(unit.num());
-    (rules.hero_templates.get(kind)?.unit == rules.units.get(unit).id).then_some(kind)
+    (rules.hero_templates.get(kind)?.unit_id == Some(unit)).then_some(kind)
 }
 
 /// The unit definition of a hero type: the unit with that number.
 pub fn unit_of(rules: &Rules, kind: usize) -> Option<UnitId> {
     let id = rules.units.id_numbered(u16::try_from(kind).ok()?)?;
-    (rules.hero_templates.get(kind)?.unit == rules.units.get(id).id).then_some(id)
+    (rules.hero_templates.get(kind)?.unit_id == Some(id)).then_some(id)
 }
 
 /// The magic ranged attacks, the only ones Arcane Power adds to. (The original's `Init_Heroes`
@@ -56,8 +56,9 @@ pub fn level_of(rules: &Rules, unit: UnitId, xp: u32) -> usize {
         .units
         .get(unit)
         .level_path
-        .as_deref()
-        .and_then(|p| rules.level_paths.by_name(p))
+        .as_ref()
+        .and_then(|p| p.id())
+        .map(|p| rules.level_paths.get(p))
         .map_or(0, |path| {
             path.levels.iter().rposition(|l| l.xp <= xp).unwrap_or(0)
         })
@@ -88,7 +89,7 @@ pub fn roll(rng: &mut GameRng, rules: &Rules) -> Vec<Hero> {
 }
 
 fn roll_one(rng: &mut GameRng, rules: &Rules, kind: usize, t: &HeroTemplate) -> Hero {
-    let def = rules.units.id_of(&t.unit).map(|id| rules.units.get(id));
+    let def = t.unit_id.map(|id| rules.units.get(id));
     let has = |ability: Ability| def.is_some_and(|d| d.ability_ids.contains(&ability));
     let mut abilities = HeroAbilities::from_names(&t.abilities);
     let mut skill = t.casting_skill as i32;
@@ -192,7 +193,7 @@ fn roll_one(rng: &mut GameRng, rules: &Rules, kind: usize, t: &HeroTemplate) -> 
         name,
         abilities,
         casting_skill: skill.clamp(0, i32::from(u8::MAX)) as u8,
-        spells: t.spells.clone(),
+        spells: t.spells.iter().filter_map(|s| s.id()).collect(),
     }
 }
 

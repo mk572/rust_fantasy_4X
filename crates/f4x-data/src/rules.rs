@@ -5,6 +5,7 @@ use std::path::Path;
 
 use f4x_core::feature::def::Features;
 use f4x_core::rules::effects::{Condition, Effect, EffectRule, Trigger, CUSTOM_HOOKS};
+use f4x_core::rules::Ref;
 use f4x_core::rules::{
     AbilityDef, BuildingDef, Def, Duration, HeroTemplate, ItemDef, ItemPowerDef, LevelPathDef,
     RaceDef, RealmDef, Registry, RetortDef, Rules, RulesConfig, SpellDef, Stat, UnitDef, UnitKind,
@@ -274,11 +275,29 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
     if !problems.is_empty() {
         return Err(ContentError::Invalid(problems));
     }
+    let mut config = parse::<RulesConfig>(dir, "rules.ron")?;
+    f4x_core::rules::resolve_references(&mut f4x_core::rules::Tables {
+        races: &mut races,
+        units: &mut units,
+        abilities: &mut abilities,
+        buildings: &mut buildings,
+        realms: &mut realms,
+        retorts: &mut retorts,
+        spells: &mut spells,
+        item_powers: &mut item_powers,
+        level_paths: &mut level_paths,
+        wizards: &mut wizards,
+        items: &mut items,
+        hero_templates: &mut hero_templates,
+        config: &mut config,
+    });
     let abilities = Registry::new(abilities);
     f4x_core::rules::resolve_unit_abilities(&mut units, &abilities);
     f4x_core::rules::resolve_building_links(&mut buildings, &mut units);
+    f4x_core::rules::resolve_summons(&mut spells, &units);
+    f4x_core::rules::resolve_hero_units(&mut hero_templates, &units);
     let rules = Rules {
-        config: parse::<RulesConfig>(dir, "rules.ron")?,
+        config,
         races: Registry::new(races),
         units: Registry::new(units),
         abilities,
@@ -416,7 +435,7 @@ fn check_hero_templates(r: &Rules, p: &mut Vec<String>) {
             }
         }
         for s in &t.spells {
-            if r.spells.by_name(s).is_none() {
+            if s.id().is_none() {
                 p.push(format!("{who} has unknown spell {s:?}"));
             }
         }
@@ -435,7 +454,7 @@ fn check_items(r: &Rules, p: &mut Vec<String>) {
     for power in r.item_powers.defs() {
         let who = format!("item power {:?}", power.id);
         if let Some(realm) = &power.realm {
-            if r.realms.by_name(realm).is_none() {
+            if realm.id().is_none() {
                 p.push(format!("{who} has unknown realm {realm:?}"));
             }
         }
@@ -460,12 +479,12 @@ fn check_items(r: &Rules, p: &mut Vec<String>) {
             p.push(format!("{who} has no effects"));
         }
         for power in &item.powers {
-            if r.item_powers.by_name(power).is_none() {
+            if power.id().is_none() {
                 p.push(format!("{who} has unknown power {power:?}"));
             }
         }
         if let Some((spell, count)) = &item.charges {
-            if r.spells.by_name(spell).is_none() {
+            if spell.id().is_none() {
                 p.push(format!("{who} has unknown spell {spell:?}"));
             }
             if *count == 0 {
@@ -554,9 +573,9 @@ fn check_races(r: &Rules, p: &mut Vec<String>) {
             p.push(format!("race {:?} has no units", race.id));
         }
         for u in &race.units {
-            match r.units.by_name(u) {
+            match u.id().map(|id| r.units.get(id)) {
                 None => p.push(format!("race {:?} lists unknown unit {u:?}", race.id)),
-                Some(unit) if unit.race.as_deref() != Some(race.id.as_str()) => {
+                Some(unit) if unit.race.as_ref().map(|r| r.name()) != Some(race.id.as_str()) => {
                     p.push(format!(
                         "race {:?} lists unit {u:?}, which belongs to another race",
                         race.id
@@ -566,9 +585,9 @@ fn check_races(r: &Rules, p: &mut Vec<String>) {
             }
         }
         for b in &race.buildings {
-            match r.buildings.by_name(b) {
+            match b.id().map(|id| r.buildings.get(id)) {
                 None => p.push(format!("race {:?} lists unknown building {b:?}", race.id)),
-                Some(bd) if !bd.races.is_empty() && !bd.races.contains(&race.id) => {
+                Some(bd) if !bd.buildable_by(f4x_core::rules::RaceId::new(race.num)) => {
                     p.push(format!(
                         "race {:?} lists building {b:?}, which its races list excludes",
                         race.id
@@ -610,12 +629,12 @@ fn check_units(r: &Rules, p: &mut Vec<String>) {
             p.push(format!("{who} has a ranged attack but no ammo"));
         }
         if let Some(race) = &u.race {
-            if r.races.by_name(race).is_none() {
-                p.push(format!("{who} has unknown race {race:?}"));
+            if race.id().is_none() {
+                p.push(format!("{who} has unknown race {:?}", race.name()));
             }
         }
         if let Some(realm) = &u.realm {
-            if r.realms.by_name(realm).is_none() {
+            if realm.id().is_none() {
                 p.push(format!("{who} has unknown realm {realm:?}"));
             }
         }
@@ -639,7 +658,7 @@ fn check_units(r: &Rules, p: &mut Vec<String>) {
             }
         }
         if let Some(path) = &u.level_path {
-            if r.level_paths.by_name(path).is_none() {
+            if path.id().is_none() {
                 p.push(format!("{who} has unknown level path {path:?}"));
             }
         }
@@ -648,10 +667,11 @@ fn check_units(r: &Rules, p: &mut Vec<String>) {
                 match &u.race {
                     None => p.push(format!("{who} is Normal and needs a race")),
                     Some(race) => {
-                        let listed = r
-                            .races
-                            .by_name(race)
-                            .is_some_and(|rd| rd.units.contains(&u.id));
+                        let listed = race.id().map(|id| r.races.get(id)).is_some_and(|rd| {
+                            rd.units.iter().any(|listed| {
+                                listed.id() == Some(f4x_core::rules::UnitId::new(u.num))
+                            })
+                        });
                         if !listed {
                             p.push(format!(
                                 "{who} is not in its race's unit list, so nothing can build it"
@@ -712,8 +732,12 @@ fn check_buildings(r: &Rules, p: &mut Vec<String>) {
             }
         }
         for race in &b.races {
-            if r.races.by_name(race).is_none() {
-                p.push(format!("building {:?} lists unknown race {race:?}", b.id));
+            if race.id().is_none() {
+                p.push(format!(
+                    "building {:?} lists unknown race {:?}",
+                    b.id,
+                    race.name()
+                ));
             }
         }
         if let Some(old) = &b.replaces {
@@ -768,7 +792,7 @@ fn check_buildings(r: &Rules, p: &mut Vec<String>) {
 fn check_spells(r: &Rules, p: &mut Vec<String>) {
     for s in r.spells.defs() {
         let who = format!("spell {:?}", s.id);
-        if r.realms.by_name(&s.realm).is_none() {
+        if s.realm.id().is_none() {
             p.push(format!("{who} has unknown realm {:?}", s.realm));
         }
         if s.cost == 0 || s.research_cost == 0 {
@@ -781,6 +805,21 @@ fn check_spells(r: &Rules, p: &mut Vec<String>) {
         // (Resist Elements adds to resistance against some realms only).
         if s.effects.is_empty() && s.duration == Duration::Instant {
             p.push(format!("{who} has no effects"));
+        }
+        for other in &s.not_with {
+            if other.id().is_none() {
+                p.push(format!(
+                    "{who} is not cumulative with unknown spell {other:?}"
+                ));
+            }
+        }
+        let unknown_abilities = s
+            .already_able
+            .iter()
+            .chain(s.save.iter().flat_map(|save| &save.immune))
+            .filter(|a| a.id().is_none());
+        for a in unknown_abilities {
+            p.push(format!("{who} names unknown ability {a:?}"));
         }
         if s.duration == Duration::Instant {
             if s.upkeep != 0 {
@@ -799,7 +838,7 @@ fn check_wizards(r: &Rules, p: &mut Vec<String>) {
     for retort in r.retorts.defs() {
         for need in &retort.requires {
             if let f4x_core::rules::RetortNeed::Books(realm, _) = need {
-                if r.realms.id_of(realm).is_none() {
+                if realm.id().is_none() {
                     p.push(format!(
                         "retort {:?} needs books in unknown realm {realm:?}",
                         retort.id
@@ -810,10 +849,11 @@ fn check_wizards(r: &Rules, p: &mut Vec<String>) {
     }
     for realm in r.realms.defs() {
         for s in &realm.default_spells {
-            if r.spells.id_of(s).is_none() {
+            if s.id().is_none() {
                 p.push(format!(
-                    "realm {:?} defaults to unknown spell {s:?}",
-                    realm.id
+                    "realm {:?} defaults to unknown spell {:?}",
+                    realm.id,
+                    s.name()
                 ));
             }
         }
@@ -821,7 +861,7 @@ fn check_wizards(r: &Rules, p: &mut Vec<String>) {
     for w in r.wizards.defs() {
         let mut picks: u32 = 0;
         for (realm, n) in &w.books {
-            if r.realms.id_of(realm).is_none() {
+            if realm.id().is_none() {
                 p.push(format!(
                     "wizard {:?} has books in unknown realm {realm:?}",
                     w.id
@@ -830,7 +870,7 @@ fn check_wizards(r: &Rules, p: &mut Vec<String>) {
             picks += u32::from(*n);
         }
         for name in &w.retorts {
-            match r.retorts.by_name(name) {
+            match name.id().map(|id| r.retorts.get(id)) {
                 Some(def) => picks += u32::from(def.cost),
                 None => p.push(format!("wizard {:?} has unknown retort {name:?}", w.id)),
             }
@@ -860,16 +900,20 @@ fn check_level_paths(r: &Rules, p: &mut Vec<String>) {
 }
 
 fn check_rule(r: &Rules, features: &Features, owner: &str, rule: &EffectRule, p: &mut Vec<String>) {
-    check_condition(r, owner, &rule.condition, p);
-    let ability = |name: &str, p: &mut Vec<String>| {
-        if r.abilities.by_name(name).is_none() {
-            p.push(format!("{owner}: unknown ability {name:?}"));
+    check_condition(owner, &rule.condition, p);
+    let ability = |a: &Ref<AbilityDef>, p: &mut Vec<String>| {
+        if a.id().is_none() {
+            p.push(format!("{owner}: unknown ability {:?}", a.name()));
         }
     };
     match &rule.effect {
         Effect::GrantAbility(a) | Effect::RemoveAbility(a) => ability(a, p),
-        Effect::Summon { unit, count } => {
-            if r.units.by_name(unit).is_none() {
+        Effect::Summon {
+            unit,
+            unit_id,
+            count,
+        } => {
+            if unit_id.is_none() {
                 p.push(format!("{owner}: summons unknown unit {unit:?}"));
             }
             if *count == 0 {
@@ -881,18 +925,26 @@ fn check_rule(r: &Rules, features: &Features, owner: &str, rule: &EffectRule, p:
                 p.push(format!("{owner}: unknown feature {f:?}"));
             }
         }
-        Effect::ApplyEnchantment(s) => match r.spells.by_name(s) {
-            None => p.push(format!("{owner}: applies unknown enchantment {s:?}")),
+        Effect::ApplyEnchantment(s) => match s.id().map(|id| r.spells.get(id)) {
+            None => p.push(format!(
+                "{owner}: applies unknown enchantment {:?}",
+                s.name()
+            )),
             Some(sd) if sd.duration == Duration::Instant => {
                 p.push(format!(
-                    "{owner}: {s:?} is an instant spell, not an enchantment"
+                    "{owner}: {:?} is an instant spell, not an enchantment",
+                    s.name()
                 ));
             }
             Some(_) => {}
         },
-        Effect::Damage { amount, .. } if *amount <= 0 => {
-            p.push(format!("{owner}: damage must be positive"))
+        Effect::Damage { amount, immune, .. } => {
+            immune.iter().for_each(|a| ability(a, p));
+            if *amount <= 0 {
+                p.push(format!("{owner}: damage must be positive"));
+            }
         }
+        Effect::Slay { immune, .. } => immune.iter().for_each(|a| ability(a, p)),
         Effect::Heal(n) if *n <= 0 => p.push(format!("{owner}: heal must be positive")),
         Effect::Dispel { strength: 0 } => {
             p.push(format!("{owner}: dispel strength must be positive"))
@@ -907,21 +959,27 @@ fn check_rule(r: &Rules, features: &Features, owner: &str, rule: &EffectRule, p:
     }
 }
 
-fn check_condition(r: &Rules, owner: &str, c: &Condition, p: &mut Vec<String>) {
+fn check_condition(owner: &str, c: &Condition, p: &mut Vec<String>) {
     match c {
-        Condition::HasAbility(a) if r.abilities.by_name(a).is_none() => {
-            p.push(format!("{owner}: condition names unknown ability {a:?}"));
+        Condition::HasAbility(a) if a.id().is_none() => {
+            p.push(format!(
+                "{owner}: condition names unknown ability {:?}",
+                a.name()
+            ));
         }
-        Condition::RaceIs(x) if r.races.by_name(x).is_none() => {
-            p.push(format!("{owner}: condition names unknown race {x:?}"));
+        Condition::RaceIs(x) if x.id().is_none() => {
+            p.push(format!(
+                "{owner}: condition names unknown race {:?}",
+                x.name()
+            ));
         }
-        Condition::RealmIs(x) if r.realms.by_name(x).is_none() => {
+        Condition::RealmIs(x) if x.id().is_none() => {
             p.push(format!("{owner}: condition names unknown realm {x:?}"));
         }
         Condition::All(cs) | Condition::Any(cs) => {
-            cs.iter().for_each(|c| check_condition(r, owner, c, p))
+            cs.iter().for_each(|c| check_condition(owner, c, p))
         }
-        Condition::Not(c) => check_condition(r, owner, c, p),
+        Condition::Not(c) => check_condition(owner, c, p),
         _ => {}
     }
 }
@@ -971,20 +1029,49 @@ mod tests {
             }
             ron::from_str(&s).unwrap_or_else(|e| panic!("content/{name}: {e}"))
         }
+        let mut races: Vec<f4x_core::rules::RaceDef> = shipped("races.ron", edits);
+        let mut units: Vec<UnitDef> = shipped("units.ron", edits);
+        let mut abilities: Vec<f4x_core::rules::AbilityDef> = shipped("abilities.ron", edits);
+        let mut buildings: Vec<f4x_core::rules::BuildingDef> = shipped("buildings.ron", edits);
+        let mut realms: Vec<RealmDef> = shipped("realms.ron", edits);
+        let mut retorts: Vec<RetortDef> = shipped("retorts.ron", edits);
+        let mut spells: Vec<SpellDef> = shipped("spells.ron", edits);
+        let mut item_powers: Vec<ItemPowerDef> = shipped("item_powers.ron", edits);
+        let mut level_paths: Vec<LevelPathDef> = shipped("level_paths.ron", edits);
+        let mut wizards: Vec<f4x_core::rules::WizardDef> = Vec::new();
+        let mut items: Vec<f4x_core::rules::ItemDef> = shipped("items.ron", edits);
+        let mut hero_templates: Vec<f4x_core::rules::HeroTemplate> = Vec::new();
+        let mut config: f4x_core::rules::RulesConfig = shipped("rules.ron", edits);
+        f4x_core::rules::resolve_references(&mut f4x_core::rules::Tables {
+            races: &mut races,
+            units: &mut units,
+            abilities: &mut abilities,
+            buildings: &mut buildings,
+            realms: &mut realms,
+            retorts: &mut retorts,
+            spells: &mut spells,
+            item_powers: &mut item_powers,
+            level_paths: &mut level_paths,
+            wizards: &mut wizards,
+            items: &mut items,
+            hero_templates: &mut hero_templates,
+            config: &mut config,
+        });
+        f4x_core::rules::resolve_summons(&mut spells, &units);
         Rules {
-            config: shipped("rules.ron", edits),
-            races: Registry::new(shipped("races.ron", edits)),
-            units: Registry::new(shipped("units.ron", edits)),
-            abilities: Registry::new(shipped("abilities.ron", edits)),
-            buildings: Registry::new(shipped("buildings.ron", edits)),
-            realms: Registry::new(shipped("realms.ron", edits)),
-            retorts: Registry::new(shipped("retorts.ron", edits)),
-            spells: Registry::new(shipped("spells.ron", edits)),
-            items: Registry::new(shipped("items.ron", edits)),
-            item_powers: Registry::new(shipped("item_powers.ron", edits)),
-            level_paths: Registry::new(shipped("level_paths.ron", edits)),
-            wizards: Registry::new(Vec::new()),
-            hero_templates: Vec::new(),
+            config,
+            races: Registry::new(races),
+            units: Registry::new(units),
+            abilities: Registry::new(abilities),
+            buildings: Registry::new(buildings),
+            realms: Registry::new(realms),
+            retorts: Registry::new(retorts),
+            spells: Registry::new(spells),
+            items: Registry::new(items),
+            item_powers: Registry::new(item_powers),
+            level_paths: Registry::new(level_paths),
+            wizards: Registry::new(wizards),
+            hero_templates,
             wizard_names: Vec::new(),
             lairs: shipped("lairs.ron", edits),
         }
@@ -1121,8 +1208,11 @@ mod tests {
                 .push("nope".into());
             find(&mut l.spells, "web", |s| &s.id).realm = "void".into();
             let race = find(&mut l.races, "barbarian", |r| &r.id);
-            let bowmen = race.units.iter_mut().find(|u| *u == "barbarian_bowmen");
-            *bowmen.expect("the barbarians build bowmen") = "ghost".into();
+            let bowmen = race
+                .units
+                .iter_mut()
+                .find(|u| u.name() == "barbarian_bowmen");
+            *bowmen.expect("the barbarians build bowmen") = Ref::new("ghost");
         });
         assert!(has(&p, "unknown ability \"nope\""), "{p:?}");
         assert!(has(&p, "unknown realm \"void\""), "{p:?}");
@@ -1140,6 +1230,7 @@ mod tests {
         let mut rules = rules_with(&[]);
         let template = |unit: &str| HeroTemplate {
             unit: unit.into(),
+            unit_id: None,
             picks: 1,
             pick_type: PickType::Any,
             abilities: vec!["might".into()],
@@ -1198,11 +1289,11 @@ mod tests {
         // A unit that needs a building its race cannot build.
         let q = problems_after(|l| {
             let walls = find(&mut l.buildings, "armorers_guild", |b| &b.id);
-            assert!(!walls.races.contains(&"gnoll".to_string()));
+            assert!(!walls.races.iter().any(|r| r.name() == "gnoll"));
             let unit = l
                 .units
                 .iter_mut()
-                .find(|u| u.race.as_deref() == Some("gnoll"))
+                .find(|u| u.race.as_ref().map(|r| r.name()) == Some("gnoll"))
                 .expect("a gnoll unit exists");
             unit.requires = vec!["armorers_guild".into()];
         });
@@ -1229,7 +1320,11 @@ mod tests {
             healing.effects[0].effect = Effect::Custom("mystery".into());
             // an ability that applies an instant spell as an enchantment
             let mut rule = healing.effects[0].clone();
-            rule.effect = Effect::ApplyEnchantment("fireball".into());
+            let mut fireball = Ref::new("fireball");
+            fireball.set(Some(f4x_core::rules::SpellId::new(
+                find(&mut l.spells, "fireball", |s| &s.id).num,
+            )));
+            rule.effect = Effect::ApplyEnchantment(fireball);
             l.abilities[0].effects = vec![rule];
         });
         assert!(has(&p, "instant but has Passive"), "{p:?}");
@@ -1271,7 +1366,12 @@ mod tests {
             .ok_or("the value is missing")?;
         let path = rules
             .level_paths
-            .by_name(unit.level_path.as_deref().ok_or("the value is missing")?)
+            .by_name(
+                unit.level_path
+                    .as_ref()
+                    .ok_or("the value is missing")?
+                    .name(),
+            )
             .ok_or("the value is missing")?;
         let level = &path.levels[2];
         let mods = passive_modifiers(&level.effects, Source::Level(2));

@@ -7,7 +7,7 @@
 //! realm of the familiar is `strongest`; the drawing is left to the screenshots.
 
 use crate::input::Input;
-use f4x_core::rules::SpellId;
+use f4x_core::rules::{RealmId, SpellId};
 use f4x_core::text::Args;
 use f4x_data::spell_art::Role;
 use macroquad::prelude::*;
@@ -143,8 +143,8 @@ impl App {
     /// The realm of the wizard's strongest books, the first of nature, sorcery, chaos, life and
     /// death on a tie (`Prim_Realm`): it colours the familiar.
     pub(crate) fn primary_realm(&self) -> usize {
-        let books = |r: &str| self.game.wizard(HUMAN).map_or(0, |m| m.books_in(r));
-        strongest(["nature", "sorcery", "chaos", "life", "death"].map(books))
+        let books = |r: RealmId| self.game.wizard(HUMAN).map_or(0, |m| m.books_in(r));
+        strongest(f4x_core::rules::BOOK_REALMS.map(books))
     }
 
     /// `Learn_Spell_Animation_Draw`: the wizard's lab, the wizard on the podium, the familiar

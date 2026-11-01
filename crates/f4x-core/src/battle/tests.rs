@@ -705,7 +705,7 @@ fn wounded_units_enter_a_battle_wounded() -> TestResult {
 
 /// A fight of `n` walkers against one, at the given difficulty, with `held` enchantments put
 /// on the first attackers before the attacker flees. Returns the attackers (alive or not).
-fn flee_with(difficulty: u8, n: usize, held: &[&str]) -> (Game, Vec<hecs::Entity>) {
+fn flee_with(difficulty: u8, n: usize, held: &[SpellId]) -> (Game, Vec<hecs::Entity>) {
     let mut g = game();
     g.settings =
         crate::game::setting::GameSettings::for_difficulty(&g.content.settings, difficulty);
@@ -729,7 +729,7 @@ fn flee_with(difficulty: u8, n: usize, held: &[&str]) -> (Game, Vec<hecs::Entity
             .filter(|u| u.side == Side::Attacker)
             .nth(i)
             .expect("value succeeds");
-        unit.enchantments.push((*enchantment).to_string());
+        unit.enchantments.push(*enchantment);
     }
     g.apply(Command::Battle(BattleCommand::Flee));
     (g, att)
@@ -749,11 +749,27 @@ fn on_intro_and_easy_the_attacker_loses_nobody_by_fleeing() {
 #[test]
 fn units_asleep_confused_or_webbed_are_always_lost_when_their_side_flees() {
     // On Intro nobody else is lost, so exactly the three held units go.
-    let (g, att) = flee_with(0, 6, &["black_sleep", "confusion", "web"]);
+    let (g, att) = flee_with(
+        0,
+        6,
+        &[
+            SpellId::new(165), /* black_sleep */
+            SpellId::new(46),  /* confusion */
+            SpellId::new(5),   /* web */
+        ],
+    );
     let alive: Vec<bool> = att.iter().map(|&u| g.world.contains(u)).collect();
     assert_eq!(alive, [false, false, false, true, true, true]);
     // On Average every unit rolls, but all three held ones are certain to go.
-    let (g, att) = flee_with(2, 3, &["black_sleep", "confusion", "web"]);
+    let (g, att) = flee_with(
+        2,
+        3,
+        &[
+            SpellId::new(165), /* black_sleep */
+            SpellId::new(46),  /* confusion */
+            SpellId::new(5),   /* web */
+        ],
+    );
     assert!(att.iter().all(|&u| !g.world.contains(u)));
 }
 
@@ -1796,7 +1812,7 @@ mod casting {
         assert!(strike(unit_with(&[]), Realm::Chaos).is_some());
         assert!(strike(unit_with(&["magic_immunity"]), Realm::Chaos).is_none());
         let mut blessed = unit_with(&[]);
-        blessed.enchantments.push("righteousness".into());
+        blessed.enchantments.push(SpellId::new(144));
         assert!(strike(blessed.clone(), Realm::Death).is_none());
         assert!(
             strike(blessed, Realm::Nature).is_some(),
@@ -1817,7 +1833,6 @@ mod casting {
         b.enchant_unit(
             0,
             spell,
-            "haste",
             A,
             &[
                 m(Stat::Moves, ModOp::Percent, 100),
@@ -2147,7 +2162,7 @@ mod fields {
         let mut fantastic = of(Side::Attacker, Some(Realm::Nature), (4, 5));
         fantastic.ranged_kind = RangedKind::Missile;
         let mut blade = of(Side::Attacker, None, (5, 5));
-        blade.enchantments.push("flame_blade".into());
+        blade.enchantments.push(SpellId::new(94));
         let mut b = Battle::new(
             A,
             D,
@@ -2231,9 +2246,9 @@ mod fields {
     }
 
     /// A lasting spell put on a unit the way the casting does it.
-    fn put_on(b: &mut Battle, unit: usize, id: &str, mods: &[Modifier], grants: &[&str]) {
+    fn put_on(b: &mut Battle, unit: usize, spell: SpellId, mods: &[Modifier], grants: &[&str]) {
         let grants = crate::game::testutil::abilities(grants);
-        b.enchant_unit(unit, spell(), id, A, mods, &grants);
+        b.enchant_unit(unit, spell, A, mods, &grants);
     }
 
     #[test]
@@ -2243,7 +2258,13 @@ mod fields {
         flyer.flies = true;
         flyer.abilities.push(Ability::new(24));
         let mut b = pair(of(Side::Attacker, None, (3, 5)), flyer);
-        put_on(&mut b, 1, "web", &[still], &["webbed"]);
+        put_on(
+            &mut b,
+            1,
+            SpellId::new(5), /* web */
+            &[still],
+            &["webbed"],
+        );
         let u = &b.units[1];
         assert!(!u.flies && u.moves == 0 && u.moves_left == 0);
         assert!(!u.attacked, "a webbed unit can still fight");
@@ -2255,7 +2276,13 @@ mod fields {
             of(Side::Attacker, None, (3, 5)),
             of(Side::Defender, None, (17, 5)),
         );
-        put_on(&mut b, 1, "black_sleep", &[still], &["asleep"]);
+        put_on(
+            &mut b,
+            1,
+            SpellId::new(165), /* black_sleep */
+            &[still],
+            &["asleep"],
+        );
         assert!(b.units[1].attacked);
         end_turns(&mut b, 1);
         assert!(b.units[1].attacked && b.units[1].moves_left == 0);
@@ -2312,7 +2339,7 @@ mod fields {
             ],
             1,
         );
-        b.units[1].enchantments.push("creature_binding".into());
+        b.units[1].enchantments.push(SpellId::new(73));
         b.change_sides(1, Side::Attacker);
         b.units[2].status = Status::Dead;
         b.check_winner();
@@ -2330,7 +2357,13 @@ mod fields {
                 of(Side::Defender, None, (17, 5)),
                 seed,
             );
-            put_on(&mut b, 1, "confusion", &[], &["confused"]);
+            put_on(
+                &mut b,
+                1,
+                SpellId::new(46), /* confusion */
+                &[],
+                &["confused"],
+            );
             let events = end_turns(&mut b, 1);
             let act = events.iter().find_map(|e| match e {
                 BattleEvent::Confused { unit: 1, act } => Some(*act),
@@ -2384,7 +2417,7 @@ mod fields {
         b.units[1].resistance = 0;
         b.units[1].figures_start = 4;
         b.units[1].figures = 4;
-        b.units[1].enchantments.push("wraith_form".into());
+        b.units[1].enchantments.push(SpellId::new(181));
         b.raise_field(Side::Attacker, Field::Wrack, spell());
         end_turns(&mut b, 4);
         assert!(b.units[1].hit_points() < b.units[1].max_hit_points());
@@ -2557,7 +2590,16 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
         cost: 100,
         icon: 0,
         bonus,
-        powers: powers.iter().map(|p| p.to_string()).collect(),
+        powers: powers
+            .iter()
+            .map(|p| {
+                shipped()
+                    .rules
+                    .item_powers
+                    .id_of(p)
+                    .expect("a shipped power")
+            })
+            .collect(),
         charges: None,
         prefab: None,
         made: None,
@@ -2680,7 +2722,10 @@ fn hero_unit(g: &mut Game, spells: &[&str], skill: u8) -> hecs::Entity {
             name: "Ann".into(),
             abilities: HeroAbilities::default(),
             casting_skill: skill,
-            spells: spells.iter().map(|s| s.to_string()).collect(),
+            spells: spells
+                .iter()
+                .map(|s| shipped().rules.spells.id_of(s).expect("a shipped spell"))
+                .collect(),
         },
         HeroState::Free,
         0,
@@ -3000,7 +3045,7 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() -> TestResul
             ..ItemBonus::default()
         },
         powers: Vec::new(),
-        charges: Some(("fire_bolt".into(), 2)),
+        charges: Some((SpellId::new(83) /* fire_bolt */, 2)),
         prefab: None,
         made: None,
     };
@@ -3057,7 +3102,7 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() -> TestResul
     let items = g.items().hero_items(hero);
     assert_eq!(
         items.0[1].as_ref().ok_or("as_ref is missing")?.charges,
-        Some(("fire_bolt".into(), 1))
+        Some((SpellId::new(83) /* fire_bolt */, 1))
     );
     Ok(())
 }
@@ -3489,8 +3534,8 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() -> Te
         assert_eq!(b.units.len(), before + 1, "turn {turn}");
         let demon = b.units.last().ok_or("last is missing")?;
         assert_eq!(
-            (demon.side, demon.unit_id.as_str()),
-            (Side::Attacker, "demon")
+            (demon.side, demon.unit_id),
+            (Side::Attacker, Some(UnitId::new(169))) // demon
         );
         assert!(demon.moves_left > 0, "it arrives ready to act");
         assert_eq!(
@@ -4681,10 +4726,10 @@ fn a_dispel_does_not_bring_back_the_bonus_of_a_spell_that_gives_way() -> TestRes
             .ok_or("battle is missing")?
             .unit(0)
             .ok_or("unit is missing")?;
-        let has = |id: &str| unit.enchantments.iter().any(|e| e == id);
-        let expected = if has("iron_skin") {
+        let has = |id: SpellId| unit.enchantments.contains(&id);
+        let expected = if has(SpellId::new(24) /* iron_skin */) {
             5
-        } else if has("stone_skin") {
+        } else if has(SpellId::new(7) /* stone_skin */) {
             1
         } else {
             0
@@ -4756,9 +4801,10 @@ fn spells_the_battle_reads_by_name_can_be_cast_and_stay_on_the_unit() -> TestRes
         .ok_or("battle is missing")?
         .unit(0)
         .ok_or("unit is missing")?;
-    assert!(names
-        .iter()
-        .all(|n| unit.enchantments.iter().any(|e| e == n)));
+    let spells = &g.content.rules.spells;
+    assert!(names.iter().all(|n| spells
+        .id_of(n)
+        .is_some_and(|id| unit.enchantments.contains(&id))));
     assert_eq!(
         cast_on_first(&mut g, "bless"),
         Err(BattleError::Spell(SpellError::AlreadyEnchanted))
@@ -4821,7 +4867,7 @@ fn heroism_cast_in_a_battle_raises_the_unit_to_the_level_it_gives() -> TestResul
         .ok_or("battle is missing")?
         .unit(0)
         .ok_or("unit is missing")?;
-    let has = unit.enchantments.iter().any(|e| e == "heroism");
+    let has = unit.enchantments.contains(&SpellId::new(130) /* heroism */);
     assert_eq!(unit.melee, melee + i32::from(has));
     Ok(())
 }
@@ -4839,7 +4885,7 @@ fn a_battle_is_saved_and_read_back_with_its_spells_and_items() -> TestResult {
         icon: 0,
         bonus: ItemBonus::default(),
         powers: Vec::new(),
-        charges: Some(("fire_bolt".into(), 2)),
+        charges: Some((SpellId::new(83) /* fire_bolt */, 2)),
         prefab: None,
         made: None,
     };
@@ -4901,7 +4947,7 @@ fn battle_in_the_middle() -> (Game, hecs::Entity) {
         icon: 0,
         bonus: ItemBonus::default(),
         powers: Vec::new(),
-        charges: Some(("fire_bolt".into(), 2)),
+        charges: Some((SpellId::new(83) /* fire_bolt */, 2)),
         prefab: None,
         made: None,
     };

@@ -358,10 +358,7 @@ impl App {
             return Vec::new();
         };
         let rules = &self.game.content().rules;
-        let race = self
-            .game
-            .city_race(city)
-            .map(|r| rules.races.get(r).id.clone());
+        let race = self.game.city_race(city);
         let built = self.game.city_buildings(city);
         rules
             .buildings
@@ -369,8 +366,7 @@ impl App {
             .filter(|(id, def)| {
                 def.require_ids.contains(&building)
                     && !built.contains(id)
-                    && (def.races.is_empty()
-                        || race.as_ref().is_some_and(|r| def.races.contains(r)))
+                    && (def.races.is_empty() || race.is_some_and(|r| def.buildable_by(r)))
             })
             .map(|(_, def)| def.name.clone())
             .collect()

@@ -434,24 +434,17 @@ impl App {
             lines.push(self.text_with("item.spell_save", &args));
         }
         if let Some((spell, count)) = &item.charges {
-            let name = rules
-                .spells
-                .by_name(spell)
-                .map_or(spell.as_str(), |d| d.name.as_str());
+            let name = rules.spells.try_get(*spell).map_or("", |d| d.name.as_str());
             let args = Args::new().text("spell", name).count("n", *count);
             lines.push(self.text_with("item.charges", &args));
         }
-        for id in &item.powers {
-            let line = POWER_LINES
-                .iter()
-                .find(|(power, _)| power == id)
+        for &id in &item.powers {
+            let def = rules.item_powers.try_get(id);
+            // The table is keyed by the content's alias, as the art tables are.
+            let line = def
+                .and_then(|d| POWER_LINES.iter().find(|(power, _)| *power == d.id))
                 .map(|(_, key)| self.text(key));
-            lines.push(line.unwrap_or_else(|| {
-                rules
-                    .item_powers
-                    .by_name(id)
-                    .map_or(id.clone(), |d| d.name.clone())
-            }));
+            lines.push(line.unwrap_or_else(|| def.map_or_else(String::new, |d| d.name.clone())));
         }
         lines.truncate(5);
         let (space, top) = if lines.len() == 5 {

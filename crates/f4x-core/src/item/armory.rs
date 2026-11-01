@@ -366,8 +366,7 @@ mod tests {
     use crate::game::testutil::{num, shipped};
     use crate::item::ItemBonus;
     use crate::map::{Grid, Map, Plane};
-    use crate::rules::effects::{Effect, EffectRule};
-    use crate::rules::{HeroKind, ItemKind, Registry};
+    use crate::rules::{HeroKind, ItemKind};
     use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
@@ -397,18 +396,7 @@ mod tests {
 
     /// Row 4 of a 14x8 map is grass up to x4, then sea to x9. A warrior hero and a mage hero.
     fn world() -> Game {
-        let mut c = shipped();
-        // Flight as this test reads it: a lasting spell that gives the ability to fly.
-        let mut spells = c.rules.spells.defs().to_vec();
-        for flight in spells.iter_mut().filter(|s| s.id == "flight") {
-            flight.effects = vec![EffectRule {
-                when: crate::rules::effects::Trigger::Passive,
-                condition: crate::rules::effects::Condition::Always,
-                target: crate::rules::effects::TargetSel::This,
-                effect: Effect::GrantAbility("flying".into()),
-            }];
-        }
-        c.rules.spells = Registry::new(spells);
+        let c = shipped();
         let (grass, ocean) = (
             c.terrains
                 .id_numbered(num::terrain::GRASSLAND)
@@ -644,7 +632,7 @@ mod tests {
         // The hero stands on the sea with Flight in a misc slot; it is not a flier itself.
         let m = hero(&mut g, "dwarf", at(6, 4));
         let mut boots = item("Boots", ItemKind::Misc);
-        boots.powers = vec!["flight".into()];
+        boots.powers = vec![crate::rules::ItemPowerId::new(63) /* flight */];
         g.give_item(P0, boots);
         g.wiz_mut(0)
             .put(Some(crate::wizard::fortress::Fortress(at(6, 4))));
@@ -665,7 +653,7 @@ mod tests {
         let w = hero(&mut g, "dwarf", at(1, 1));
         let mut sword = item("Sword", ItemKind::Sword);
         sword.bonus.attack = 2;
-        sword.powers = vec!["flaming".into()];
+        sword.powers = vec![crate::rules::ItemPowerId::new(33) /* flaming */];
         g.give_item(P0, sword);
         g.give_item(P0, item("Ring", ItemKind::Misc));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(w, 0), false)

@@ -71,10 +71,8 @@ impl Game {
             if let Some(realm) = unit.realm {
                 let spells = &self.content.rules.spells;
                 for def in spells.defs() {
-                    if Realm::from_id(&def.realm) == Some(realm) {
-                        if let Some(id) = spells.id_of(&def.id) {
-                            add(id, SpellSource::Mana);
-                        }
+                    if def.realm.id().and_then(Realm::of) == Some(realm) {
+                        add(SpellId::new(def.num), SpellSource::Mana);
                     }
                 }
             }
@@ -109,7 +107,7 @@ impl Game {
                     cost,
                     takes_extra_mana: kind.takes_extra_mana(),
                     target: def.target,
-                    castable: ready && cost <= u.mana && !battle.ward_stops(u.side, &def.realm),
+                    castable: ready && cost <= u.mana && !battle.ward_stops(u.side, def.realm.id()),
                 })
             })
             .collect()
@@ -161,10 +159,10 @@ impl Game {
         if paid > u.mana {
             return Err(err(SpellError::TooExpensive));
         }
-        if battle.ward_stops(u.side, &def.realm) {
+        if battle.ward_stops(u.side, def.realm.id()) {
             return Err(err(SpellError::Warded));
         }
-        self.check_aim(battle, u.side, &def, &kind, aim)
+        self.check_aim(battle, u.side, spell, &def, &kind, aim)
             .map_err(err)?;
         Ok((def, kind, source, paid, pool))
     }
@@ -269,9 +267,10 @@ impl Game {
         unit: usize,
     ) -> Result<Vec<Event>, BattleError> {
         let squares = self.demon_squares(unit)?;
-        let Some(demon) = self.content.rules.units.id_of("demon") else {
+        let demon = crate::rules::UnitId::new(169) /* demon */;
+        if self.content.rules.units.id_numbered(demon.num()).is_none() {
             return Err(BattleError::Spell(SpellError::Unsupported));
-        };
+        }
         let battle = &mut self.battle.as_mut().ok_or(BattleError::Over)?.battle;
         let (side, player) = (battle.active, battle.player_of(battle.active));
         let cell = squares[battle.roll(squares.len() as u32) as usize - 1];
@@ -341,8 +340,9 @@ impl Game {
 
         // The enemy's Counter Magic tries to stop it (not the Web an ability casts).
         let exempt = source == SpellSource::Ability && def.id == "web";
-        let difficulty = pool as u32 * self.dispel_multiplier(&def.realm, Some(player));
-        let stopped = !exempt && self.battle_spell_stopped(side, player, &def.realm, difficulty);
+        let difficulty = pool as u32 * self.dispel_multiplier(def.realm.id(), Some(player));
+        let stopped =
+            !exempt && self.battle_spell_stopped(side, player, def.realm.id(), difficulty);
         if stopped {
             events.push(BattleEvent::SpellCountered { side, spell });
         } else {

@@ -57,22 +57,22 @@ pub enum Field {
 
 impl Field {
     /// The enchantment a spell (by its id) puts up.
-    pub fn of(spell_id: &str) -> Option<Field> {
-        Some(match spell_id {
-            "true_light" => Field::TrueLight,
-            "darkness" => Field::Darkness,
-            "warp_reality" => Field::WarpReality,
-            "black_prayer" => Field::BlackPrayer,
-            "wrack" => Field::Wrack,
-            "metal_fires" => Field::MetalFires,
-            "prayer" => Field::Prayer,
-            "high_prayer" => Field::HighPrayer,
-            "terror" => Field::Terror,
-            "call_lightning" => Field::CallLightning,
-            "mass_invisibility" => Field::MassInvisibility,
-            "entangle" => Field::Entangle,
-            "mana_leak" => Field::ManaLeak,
-            "blur" => Field::Blur,
+    pub fn of(spell: SpellId) -> Option<Field> {
+        Some(match spell.num() {
+            128 /* true_light */ => Field::TrueLight,
+            169 /* darkness */ => Field::Darkness,
+            108 /* warp_reality */ => Field::WarpReality,
+            174 /* black_prayer */ => Field::BlackPrayer,
+            182 /* wrack */ => Field::Wrack,
+            102 /* metal_fires */ => Field::MetalFires,
+            140 /* prayer */ => Field::Prayer,
+            151 /* high_prayer */ => Field::HighPrayer,
+            168 /* terror */ => Field::Terror,
+            35 /* call_lightning */ => Field::CallLightning,
+            74 /* mass_invisibility */ => Field::MassInvisibility,
+            33 /* entangle */ => Field::Entangle,
+            170 /* mana_leak */ => Field::ManaLeak,
+            51 /* blur */ => Field::Blur,
             _ => return None,
         })
     }
@@ -148,8 +148,8 @@ impl BattleUnit {
         self.has(Ability::new(33)) || self.field.invisible
     }
 
-    pub(super) fn has_enchantment(&self, id: &str) -> bool {
-        self.enchantments.iter().any(|e| e == id)
+    pub(super) fn has_enchantment(&self, id: SpellId) -> bool {
+        self.enchantments.contains(&id)
     }
 }
 
@@ -239,7 +239,10 @@ impl Battle {
             b.to_block += 1;
             b.resistance += 1;
         }
-        if own(Field::MetalFires) && !u.is_fantastic() && !u.has_enchantment("flame_blade") {
+        if own(Field::MetalFires)
+            && !u.is_fantastic()
+            && !u.has_enchantment(SpellId::new(94) /* flame_blade */)
+        {
             if u.melee > 0 {
                 b.melee += 1;
             }
@@ -451,8 +454,7 @@ impl Battle {
             events.extend(self.regenerate(id));
             if self.units[id]
                 .enchantments
-                .iter()
-                .any(|e| e == "black_sleep")
+                .contains(&SpellId::new(165) /* black_sleep */)
             {
                 self.units[id].attacked = true;
             }
@@ -475,7 +477,10 @@ impl Battle {
     /// A confused unit does one of four things each turn, each as likely: nothing, a move to a
     /// random free square, the enemy's orders, or its own business as usual.
     fn confusion(&mut self, id: usize) -> Option<BattleEvent> {
-        if !self.units[id].enchantments.iter().any(|e| e == "confusion") {
+        if !self.units[id]
+            .enchantments
+            .contains(&SpellId::new(46) /* confusion */)
+        {
             return None;
         }
         let act = match self.rng.gen_range(0..4) {

@@ -7,7 +7,7 @@
 
 use crate::game::{Event, Game};
 use crate::player::PlayerId;
-use crate::rules::{CastContext, SpellId};
+use crate::rules::{CastContext, RealmId, SpellId};
 use crate::wizard::magic::{upkeep_plan, CastStart, MagicError, PowerShares, Retort};
 
 impl Game {
@@ -21,6 +21,23 @@ impl Game {
         &mut self,
         player: PlayerId,
         books: &[(&str, u8)],
+        retorts: &[Retort],
+        start_spells: Option<&[SpellId]>,
+    ) -> Result<(), MagicError> {
+        let realms = &self.content.rules.realms;
+        let books = books
+            .iter()
+            .map(|&(name, n)| Some((realms.id_of(name)?, n)))
+            .collect::<Option<Vec<_>>>()
+            .ok_or(MagicError::UnknownRealm)?;
+        self.init_wizard_by_id(player, &books, retorts, start_spells)
+    }
+
+    /// [`Game::init_wizard`] with the realms as numbers.
+    pub fn init_wizard_by_id(
+        &mut self,
+        player: PlayerId,
+        books: &[(RealmId, u8)],
         retorts: &[Retort],
         start_spells: Option<&[SpellId]>,
     ) -> Result<(), MagicError> {
@@ -55,8 +72,11 @@ impl Game {
             .realms
             .defs()
             .iter()
-            .filter_map(|r| Some((r.id.as_str(), *books.get(&r.id)?)))
-            .fold(None, |best: Option<(&str, u8)>, (id, n)| match best {
+            .filter_map(|r| {
+                let id = RealmId::new(r.num);
+                Some((id, *books.get(&id)?))
+            })
+            .fold(None, |best: Option<(RealmId, u8)>, (id, n)| match best {
                 Some((_, b)) if b >= n => best,
                 _ => Some((id, n)),
             });
@@ -64,15 +84,12 @@ impl Game {
             return;
         };
         let library = &self.content.settings.spell_library;
-        let spells = &self.content.rules.spells;
         let known = guaranteed
-            .then(|| library.ai_main_realm_known.get(realm))
-            .flatten()
-            .and_then(|id| spells.id_of(id));
+            .then(|| library.ai_known.get(&realm).copied())
+            .flatten();
         let open = (self.settings.basic.difficulty >= library.ai_main_realm_researchable_from)
-            .then(|| library.ai_main_realm_researchable.get(realm))
-            .flatten()
-            .and_then(|id| spells.id_of(id));
+            .then(|| library.ai_researchable.get(&realm).copied())
+            .flatten();
         if let Some(open) = open {
             let known = self.wizard(player).is_some_and(|w| w.knows(open));
             if let Some(mut w) = self.wizard_mut(player).filter(|_| !known) {
@@ -326,11 +343,7 @@ impl Game {
         }
         let cities = self.economy().cities();
         let realms = &self.content.rules.realms;
-        let realms: Vec<_> = realms
-            .defs()
-            .iter()
-            .filter_map(|d| realms.id_of(&d.id))
-            .collect();
+        let realms: Vec<_> = realms.iter().map(|(id, _)| id).collect();
         if cities.iter().any(|&(c, ..)| {
             ok(Target::City(c)) || realms.iter().any(|&r| ok(Target::CityRealm(c, r)))
         }) {

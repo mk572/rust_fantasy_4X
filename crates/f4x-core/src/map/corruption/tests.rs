@@ -334,7 +334,7 @@ fn warp_node_turns_a_rivals_node_against_them() {
         at(6, 6),
         num::feature::SORCERY_NODE,
         Node {
-            realm: "chaos".into(),
+            realm: crate::game::testutil::realm("chaos"),
             power: 8,
             aura: vec![(6, 6)],
             guardian: false,

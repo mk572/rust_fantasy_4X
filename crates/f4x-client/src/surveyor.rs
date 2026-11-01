@@ -142,7 +142,7 @@ impl App {
             match f.kind {
                 FeatureKind::Node => {
                     if let Some(n) = self.game.economy().node_at(pos) {
-                        let realm = n.realm.clone();
+                        let realm = self.realm_alias(n.realm);
                         let realm = realm[..1].to_uppercase() + &realm[1..];
                         text.special = vec![
                             self.text_with("surveyor.node", &Args::new().text("realm", realm))
@@ -225,12 +225,7 @@ impl App {
         guards
             .iter()
             .take(2)
-            .filter_map(|(id, _)| {
-                rules
-                    .units
-                    .id_of(id)
-                    .map(|u| rules.units.get(u).name.clone())
-            })
+            .map(|&(id, _)| rules.units.get(id).name.clone())
             .collect()
     }
 

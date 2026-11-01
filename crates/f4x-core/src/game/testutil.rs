@@ -195,14 +195,35 @@ fn load_shipped() -> Content {
                 .collect::<Vec<_>>()
                 .join(" ");
     }
+    let mut level_paths: Vec<crate::rules::LevelPathDef> = parse(&dir, "level_paths.ron");
+    let mut hero_templates: Vec<crate::rules::HeroTemplate> = parse(&dir, "heroes.ron");
+    let mut config: crate::rules::RulesConfig = parse(&dir, "rules.ron");
+    crate::rules::resolve_references(&mut crate::rules::Tables {
+        races: &mut races,
+        units: &mut units,
+        abilities: &mut abilities,
+        buildings: &mut buildings,
+        realms: &mut realms,
+        retorts: &mut retorts,
+        spells: &mut spells,
+        item_powers: &mut powers,
+        level_paths: &mut level_paths,
+        wizards: &mut wizards,
+        items: &mut items,
+        hero_templates: &mut hero_templates,
+        config: &mut config,
+    });
+    let settings: crate::game::setting::SettingsDef = parse(&dir, "rules_settings.ron");
     let abilities = Registry::new(abilities);
     crate::rules::resolve_unit_abilities(&mut units, &abilities);
     crate::rules::resolve_building_links(&mut buildings, &mut units);
-    Content {
+    crate::rules::resolve_summons(&mut spells, &units);
+    crate::rules::resolve_hero_units(&mut hero_templates, &units);
+    let mut content = Content {
         terrains: Terrains::new(terrains),
         features: Features::new(features),
         rules: Rules {
-            config: parse(&dir, "rules.ron"),
+            config,
             races: Registry::new(races),
             units: Registry::new(units),
             abilities,
@@ -211,17 +232,23 @@ fn load_shipped() -> Content {
             spells: Registry::new(spells),
             items: Registry::new(items),
             item_powers: Registry::new(powers),
-            level_paths: Registry::new(parse(&dir, "level_paths.ron")),
+            level_paths: Registry::new(level_paths),
             wizards: Registry::new(wizards),
             retorts: Registry::new(retorts),
-            hero_templates: parse(&dir, "heroes.ron"),
+            hero_templates,
             lairs: parse(&dir, "lairs.ron"),
             wizard_names: parse(&dir, "text/en/name/rival.ron"),
         },
-        settings: parse(&dir, "rules_settings.ron"),
+        settings,
         client_settings: parse(&dir, "client_settings.ron"),
         texts: Default::default(),
-    }
+    };
+    content.settings.spell_library.resolve(
+        content.rules.spells.defs(),
+        &content.rules.retorts,
+        &content.rules.realms,
+    );
+    content
 }
 
 /// The number of the ability the content file calls `alias`, for tests that name abilities in
@@ -232,6 +259,47 @@ pub fn ability(alias: &str) -> crate::rules::Ability {
         .abilities
         .id_of(alias)
         .unwrap_or_else(|| panic!("no ability {alias:?} in the shipped content"))
+}
+
+/// The number of the realm the content file calls `alias`, for tests that name realms (the game
+/// code itself refers to realms by number).
+pub fn realm(alias: &str) -> crate::rules::RealmId {
+    shipped()
+        .rules
+        .realms
+        .id_of(alias)
+        .unwrap_or_else(|| panic!("no realm {alias:?} in the shipped content"))
+}
+
+/// A resolved reference to the realm the content file calls `alias`, for tests that set a
+/// definition's realm by hand (a name alone stays unresolved).
+pub fn realm_ref(alias: &str) -> crate::rules::Ref<crate::rules::RealmDef> {
+    let mut r = crate::rules::Ref::new(alias);
+    r.set(Some(realm(alias)));
+    r
+}
+
+/// A resolved reference to the ability the content file calls `alias`, for tests that name
+/// abilities in a condition or an effect (a name alone stays unresolved).
+pub fn ability_ref(alias: &str) -> crate::rules::Ref<crate::rules::AbilityDef> {
+    let mut r = crate::rules::Ref::new(alias);
+    r.set(Some(ability(alias)));
+    r
+}
+
+/// A resolved reference to the spell the content file calls `alias`.
+pub fn spell_ref(alias: &str) -> crate::rules::Ref<crate::rules::SpellDef> {
+    let mut r = crate::rules::Ref::new(alias);
+    r.set(shipped().rules.spells.id_of(alias));
+    r
+}
+
+/// A resolved reference to the race the content file calls `alias`, for tests that name races in
+/// a condition or a definition (a name alone stays unresolved).
+pub fn race_ref(alias: &str) -> crate::rules::Ref<crate::rules::RaceDef> {
+    let mut r = crate::rules::Ref::new(alias);
+    r.set(shipped().rules.races.id_of(alias));
+    r
 }
 
 /// [`ability`] for a list of aliases.

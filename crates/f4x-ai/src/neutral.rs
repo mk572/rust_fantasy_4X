@@ -84,12 +84,12 @@ pub(crate) fn guard_strength(view: &PlayerView, site: Position) -> Option<f32> {
     Some(
         guards
             .iter()
-            .filter_map(|(id, n)| {
-                let def = rules.units.get(rules.units.id_of(id)?);
+            .map(|(id, n)| {
+                let def = rules.units.get(*id);
                 let stat = |s: Stat| def.stats.get(&s).copied().unwrap_or(0).max(0) as f32;
                 let attack = stat(Stat::Melee).max(stat(Stat::Ranged));
                 let hits = stat(Stat::MaxHp) * stat(Stat::Figures).max(1.0);
-                Some((attack * 1.5 + stat(Stat::Defense) + 1.0) * hits * *n as f32)
+                (attack * 1.5 + stat(Stat::Defense) + 1.0) * hits * *n as f32
             })
             .sum(),
     )
@@ -543,7 +543,7 @@ fn production(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .content()
                 .rules
                 .buildings
-                .id_of("barracks")
+                .id_numbered(3) /* barracks */
                 .map(ProductionItem::Building)
                 .filter(|&item| view.can_build(city, item).is_ok())
                 .filter(|&item| view.city_production(city).item != Some(item));
@@ -607,7 +607,7 @@ mod tests {
     /// A world with an independent city at (4, 4), nine paladins in it and an encounter site
     /// of one guard at (6, 4).
     fn raiding_world(
-        guards: Option<Vec<(String, u32)>>,
+        guards: Option<Vec<(f4x_core::rules::UnitId, u32)>>,
         known: bool,
     ) -> Result<Game, Box<dyn std::error::Error>> {
         let mut g = game(COAST_CITY, "high_men");
@@ -663,7 +663,13 @@ mod tests {
 
     #[test]
     fn a_city_with_soldiers_to_spare_clears_a_weak_site_and_keeps_the_gold() -> TestResult {
-        let mut g = raiding_world(Some(vec![("zombies".into(), 1)]), false)?;
+        let mut g = raiding_world(
+            Some(vec![(
+                f4x_core::rules::UnitId::new(174), /* zombies */
+                1,
+            )]),
+            false,
+        )?;
         let mut gold = 0;
         let mut cleared = false;
         for _ in 0..12 {
@@ -695,7 +701,13 @@ mod tests {
     #[test]
     fn a_city_that_knows_the_guards_leaves_a_site_too_strong_for_its_party() -> TestResult {
         // The city lost a fight there earlier (`known`), so it knows what stands there.
-        let mut g = raiding_world(Some(vec![("great_drake".into(), 2)]), true)?;
+        let mut g = raiding_world(
+            Some(vec![(
+                f4x_core::rules::UnitId::new(164), /* great_drake */
+                2,
+            )]),
+            true,
+        )?;
         turns(&mut g, 4);
         assert_eq!(away(&g), 0);
         assert!(g.economy().lair_at(at(6, 4)).is_some());
@@ -707,7 +719,13 @@ mod tests {
         // In the second turn the party is out and the site still stands.
         let mut sent = [0, 0];
         for (n, war) in [false, true].into_iter().enumerate() {
-            let mut g = raiding_world(Some(vec![("zombies".into(), 1)]), false)?;
+            let mut g = raiding_world(
+                Some(vec![(
+                    f4x_core::rules::UnitId::new(174), /* zombies */
+                    1,
+                )]),
+                false,
+            )?;
             if war {
                 g.scenario_set_aggressive(TOWN, true);
             }

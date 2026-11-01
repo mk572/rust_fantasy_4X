@@ -1,7 +1,7 @@
 //! The overworld: map, units, fog, selection and orders. The city screen is in
 //! `city_screen.rs`.
 
-use f4x_core::rules::Ability;
+use f4x_core::rules::{Ability, RealmId};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -888,7 +888,7 @@ impl App {
                 }
                 Event::StasisEnded { unit } => {
                     // The box of a dispelled lasting spell, for a unit of the human's (message 20).
-                    let stasis = self.game.content().rules.spells.id_of("stasis");
+                    let stasis = self.game.content().rules.spells.id_numbered(68) /* stasis */;
                     if let Some(spell) = stasis {
                         if self.game.units().unit_owner(unit) == Some(HUMAN) {
                             self.announce_dispelled(
@@ -1036,7 +1036,8 @@ impl App {
             parts.push(self.text_with("log.loot_spell", &none));
         }
         for book in &loot.books {
-            parts.push(self.text_with("log.loot_book", &Args::new().text("realm", book)));
+            let realm = self.realm_alias(*book);
+            parts.push(self.text_with("log.loot_book", &Args::new().text("realm", realm)));
         }
         for _ in &loot.retorts {
             parts.push(self.text_with("log.loot_retort", &none));
@@ -1046,6 +1047,14 @@ impl App {
         } else {
             self.text_with("log.site_cleared", &Args::new().list("things", parts))
         }
+    }
+
+    /// The alias the content gives a realm (what the art and the loot texts are named by).
+    pub(crate) fn realm_alias(&self, realm: RealmId) -> String {
+        let realms = &self.game.content().rules.realms;
+        realms
+            .id_numbered(realm.num())
+            .map_or_else(String::new, |id| realms.get(id).id.clone())
     }
 
     pub(crate) fn city_name(&self, city: hecs::Entity) -> String {
@@ -1585,16 +1594,16 @@ impl App {
             city,
             resolve,
         } = ward;
-        const KEYS: [(KeyCode, &str); 5] = [
-            (KeyCode::N, "nature"),
-            (KeyCode::S, "sorcery"),
-            (KeyCode::C, "chaos"),
-            (KeyCode::L, "life"),
-            (KeyCode::D, "death"),
+        const KEYS: [(KeyCode, RealmId); 5] = [
+            (KeyCode::N, RealmId::new(0) /* nature */),
+            (KeyCode::S, RealmId::new(1) /* sorcery */),
+            (KeyCode::C, RealmId::new(2) /* chaos */),
+            (KeyCode::L, RealmId::new(3) /* life */),
+            (KeyCode::D, RealmId::new(4) /* death */),
         ];
-        let open: Vec<(KeyCode, &str)> = KEYS
+        let open: Vec<(KeyCode, RealmId)> = KEYS
             .into_iter()
-            .filter(|(_, r)| !self.game.economy().city_warded_against(city, r))
+            .filter(|&(_, r)| !self.game.economy().city_warded_against(city, r))
             .collect();
         let mut left = Some(Ward {
             spell,
@@ -1606,7 +1615,7 @@ impl App {
             self.log.push(self.text("log.cast_cancelled"));
         } else if let Some(&(_, realm)) = open.iter().find(|(k, _)| input.key_pressed(*k)) {
             left = None;
-            if let Some(realm) = self.game.content().rules.realms.id_of(realm) {
+            {
                 let target = f4x_core::rules::exec::Target::CityRealm(city, realm);
                 let cmd = if resolve {
                     Command::ResolveCast {
@@ -1644,7 +1653,8 @@ impl App {
         );
         let choices: Vec<String> = open
             .iter()
-            .map(|(_, r)| {
+            .map(|&(_, r)| {
+                let r = self.realm_alias(r);
                 let mut c = r.chars();
                 let first = c.next().map(|f| f.to_ascii_uppercase()).unwrap_or(' ');
                 format!("{first}: {r}")
@@ -2613,10 +2623,9 @@ impl App {
         // What guards a site you have fought for once.
         if let Some(guards) = self.game.economy().lair_guards_known_to(at, HUMAN) {
             for (id, n) in guards {
-                if let Some(u) = content.rules.units.by_name(&id) {
-                    let args = Args::new().text("unit", &u.name).count("n", n);
-                    lines.push((self.text_with("ui.lair_guard", &args), RED));
-                }
+                let u = content.rules.units.get(id);
+                let args = Args::new().text("unit", &u.name).count("n", n);
+                lines.push((self.text_with("ui.lair_guard", &args), RED));
             }
         }
         if let Some(city) = self.game.economy().city_at(pos) {

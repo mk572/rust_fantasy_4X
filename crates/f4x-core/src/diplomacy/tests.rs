@@ -366,9 +366,21 @@ fn the_last_strongest_act_of_the_human_is_remembered() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
     set_rel(&mut g, P0, P1, 0);
-    g.change_relations(-5, P0, P1, Action::BadCitySpell, Some("famine"));
+    g.change_relations(
+        -5,
+        P0,
+        P1,
+        Action::BadCitySpell,
+        Some(SpellId::new(189) /* famine */),
+    );
     g.change_relations(-20, P0, P1, Action::AttackedCity, None);
-    g.change_relations(-3, P0, P1, Action::BadCitySpell, Some("famine"));
+    g.change_relations(
+        -3,
+        P0,
+        P1,
+        Action::BadCitySpell,
+        Some(SpellId::new(189) /* famine */),
+    );
     let last = g
         .diplomacy
         .stance(P1, P0)
@@ -1157,21 +1169,21 @@ fn enchantments_offend_the_wizards_they_offend() -> TestResult {
         set_rel(&mut g, a, b, 0);
     }
     // Eternal Night offends both; Evil Omens only a Life or Nature wizard.
-    g.enchantment_relations(P0, "eternal_night", 1);
+    g.enchantment_relations(P0, SpellId::new(197) /* eternal_night */, 1);
     assert_eq!(g.relation(P1, P0), -12);
     assert_eq!(g.relation(P2, P0), -12);
     set_rel(&mut g, P1, P0, 0);
     set_rel(&mut g, P2, P0, 0);
-    g.enchantment_relations(P0, "evil_omens", 1);
+    g.enchantment_relations(P0, SpellId::new(198) /* evil_omens */, 1);
     assert_eq!(g.relation(P1, P0), -20);
     assert_eq!(g.relation(P2, P0), 0, "a chaos wizard does not mind");
     // The per-turn share is a tenth, rounded to zero.
     set_rel(&mut g, P1, P0, 0);
-    g.enchantment_relations(P0, "eternal_night", 10);
+    g.enchantment_relations(P0, SpellId::new(197) /* eternal_night */, 10);
     assert_eq!(g.relation(P1, P0), -1);
     // Nothing for a spell nobody minds.
     set_rel(&mut g, P1, P0, 0);
-    g.enchantment_relations(P0, "water_walking", 1);
+    g.enchantment_relations(P0, SpellId::new(8) /* water_walking */, 1);
     assert_eq!(g.relation(P1, P0), 0);
     Ok(())
 }
@@ -1437,7 +1449,7 @@ fn diplomacy_survives_a_save() -> TestResult {
     g.diplomacy.stance_mut(P2, P0).last_action = Some(LastAction {
         action: Action::AttackedCity,
         strength: -20,
-        spell: Some("famine".into()),
+        spell: Some(SpellId::new(189) /* famine */),
     });
     g.diplomacy.proposals.push(Proposal {
         from: P0,

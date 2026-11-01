@@ -539,8 +539,9 @@ impl App {
         let ranged = stat(Stat::Ranged);
         let level_path = def
             .level_path
-            .as_deref()
-            .and_then(|p| content.rules.level_paths.by_name(p));
+            .as_ref()
+            .and_then(|p| p.id())
+            .map(|p| content.rules.level_paths.get(p));
         let level = level_path
             .filter(|_| def.kind == UnitKind::Normal && !game.units().unit_is_undead(unit))
             .and_then(|p| {
@@ -684,8 +685,9 @@ impl App {
         let mut level_line = None;
         let path = def
             .level_path
-            .as_deref()
-            .and_then(|p| content.rules.level_paths.by_name(p));
+            .as_ref()
+            .and_then(|p| p.id())
+            .map(|p| content.rules.level_paths.get(p));
         if let (Some(path), Some(level)) = (path, level) {
             // Every level up to this one adds its bonuses.
             for l in path.levels.iter().take(level + 1) {
@@ -773,41 +775,27 @@ impl App {
     /// The race prefix of a race-specific unit's name ("High Elf" in "High Elf Magicians"):
     /// units of a race show it, creatures and heroes do not.
     fn sheet_race(&self, def: &f4x_core::rules::UnitDef) -> Option<String> {
-        let race = def.race.as_deref()?;
-        let races = &self.game.content().rules.races;
-        races.by_name(race).map(|r| r.name.clone())
+        let race = def.race.as_ref()?.id()?;
+        Some(self.game.content().rules.races.get(race).name.clone())
     }
 
     /// The sheet of a unit in the battle on screen.
     pub(crate) fn battle_sheet(&self, battle: &Battle, id: usize) -> Option<Sheet> {
         let u: &BattleUnit = battle.unit(id)?;
         let content = self.game.content();
-        let def = content
-            .rules
-            .units
-            .defs()
-            .iter()
-            .find(|d| d.id == u.unit_id)?;
+        let def = content.rules.units.get(u.unit_id?);
         let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
         let ability_name = |id: Ability| content.rules.abilities.get(id).name.clone();
         let ability_help = |id: Ability| content.rules.abilities.get(id).help;
         let enchantments = u
             .enchantments
             .iter()
-            .filter_map(|id| {
-                let spell = content.rules.spells.id_of(id)?;
-                Some((
-                    spell,
-                    id.clone(),
-                    content.rules.spells.get(spell).name.clone(),
-                    false,
-                    content.rules.spells.get(spell).help,
-                ))
-            })
-            .chain(u.combat_spells.iter().map(|&(spell, _)| {
+            .copied()
+            .chain(u.combat_spells.iter().map(|&(spell, _)| spell))
+            .map(|spell| {
                 let s = content.rules.spells.get(spell);
                 (spell, s.id.clone(), s.name.clone(), false, s.help)
-            }))
+            })
             .collect();
         let specials = specials(&SpecialsInput {
             level: None,

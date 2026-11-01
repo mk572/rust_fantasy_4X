@@ -105,6 +105,11 @@ it behaves as close to actual gameplay as possible. Hand-built content, a second
 test environment, or an empty `Content::default()` lets the test drift from the game and pass for the
 wrong reason.
 
+- **A test never builds its own rule set.** Do not copy a registry (`defs().to_vec()`), edit a
+  definition and put it back with `Registry::new(..)`, and do not assign `content.rules.x = ..`: pick the
+  unit, spell or setting of the shipped content that has the property the test needs, or fix the shipped
+  content if its rules are wrong. A test of the content validator may break a copy on purpose. (Task 461
+  lists the tests that still do.)
 - Build only situations the game can reach (a unit always has a real player as owner; see
   `ecs-structure.md` section 3.3). A situation the game cannot create belongs in a test only to check
   error handling (a rejected command, a refused save).

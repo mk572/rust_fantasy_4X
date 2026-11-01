@@ -5,7 +5,7 @@ game does not do. The game's own help (`content/help.ron`, written by us) must s
 so each topic below is resolved when its own text is written and matches the code. Tick the box then,
 and note the decision in `docs/help-vs-implementation-conflicts.md` if it was not recorded there.
 
-Started 24 October 2026 (task 289). The topics are in two lists: the ones where the importer already
+Started 24 October 2026 (task 289); tracked as task 453 since 1 November 2026. The topics are in two lists: the ones where the importer already
 corrects the local copy of the original (`HELP_CORRECTIONS` in `scripts/import_mom.py`; the reason is
 the game's rule), and the ones that the conflicts document marks as open or decided but not yet
 reflected in any help text. The comparison covered costs, upkeeps, building and race tables and the

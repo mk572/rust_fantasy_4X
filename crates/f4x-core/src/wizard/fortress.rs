@@ -393,7 +393,7 @@ impl Game {
             return self.defeat(loser, winner);
         }
         self.conquest_relations(winner, loser, false);
-        let spell = self.content.rules.spells.id_of("spell_of_return");
+        let spell = self.content.rules.spells.id_numbered(214) /* spell_of_return */;
         let cost = spell.map(|s| self.casting_cost(loser, s, false));
         if let Some(mut w) = self.wizard_mut(loser) {
             banish_player(&mut w, winner);

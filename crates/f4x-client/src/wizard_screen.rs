@@ -14,11 +14,12 @@ use macroquad::prelude::*;
 
 use crate::frame::Layout;
 use crate::view::{App, Screen, HUMAN};
+use f4x_core::rules::RealmId;
 
 /// Where the panel's top-left sits on the 320 by 200 screen, and its size.
 const PANEL: (f32, f32, f32, f32) = (75.0, 2.0, 180.0, 196.0);
 /// The realms in the order of the book pictures (`magic` 33 to 50: three variants each).
-const BOOK_REALMS: [&str; 5] = ["nature", "sorcery", "chaos", "life", "death"];
+const BOOK_REALMS: [RealmId; 5] = f4x_core::rules::BOOK_REALMS;
 const FIRST_BOOK: usize = 33;
 /// A book icon is eight pixels wide on the shelf.
 const BOOK_STEP: f32 = 8.0;
@@ -70,12 +71,12 @@ pub(crate) fn retort_pieces(
 /// pictures (the first, second, third, first...). ReMoM's code for the original steps with
 /// `(n + 1) / 3`, which stays on the first picture; this is a departure (`docs/divergences.md`
 /// section 7).
-pub(crate) fn book_entries(books: impl Fn(&str) -> i32) -> Vec<usize> {
+pub(crate) fn book_entries(books: impl Fn(RealmId) -> i32) -> Vec<usize> {
     BOOK_REALMS
         .iter()
         .enumerate()
         .flat_map(|(i, realm)| {
-            (0..books(realm).max(0) as usize).map(move |n| FIRST_BOOK + i * 3 + n % 3)
+            (0..books(*realm).max(0) as usize).map(move |n| FIRST_BOOK + i * 3 + n % 3)
         })
         .collect()
 }
@@ -214,7 +215,7 @@ impl Page for WizardUi {
             px + 162.0,
             py + 75.0,
         );
-        let books = book_entries(|r| owned_books.get(r).map_or(0, |&n| i32::from(n)));
+        let books = book_entries(|r| owned_books.get(&r).map_or(0, |&n| i32::from(n)));
         let left = px + 90.0 - books.len() as f32 * BOOK_STEP / 2.0;
         for (i, &entry) in books.iter().enumerate() {
             app.draw_pic(
@@ -329,9 +330,9 @@ mod tests {
 
     #[test]
     fn books_are_listed_realm_by_realm() {
-        let books = |r: &str| match r {
-            "sorcery" => 4,
-            "death" => 1,
+        let books = |r: RealmId| match r.num() {
+            1 /* sorcery */ => 4,
+            4 /* death */ => 1,
             _ => 0,
         };
         // Sorcery's three pictures in turn, then the first again; then death's first.

@@ -148,7 +148,7 @@ impl Economy<'_> {
                 if built.contains(&b) {
                     return Err(ProductionError::AlreadyBuilt);
                 }
-                if !def.races.is_empty() && !def.races.contains(&race.id) {
+                if !def.buildable_by(race_id) {
                     return Err(ProductionError::WrongRace);
                 }
                 if def.coastal && !self.city_is_coastal(city) {
@@ -159,7 +159,7 @@ impl Economy<'_> {
             ProductionItem::Unit(u) => {
                 let def = rules.units.get(u);
                 let allowed = match def.kind {
-                    UnitKind::Normal => race.units.contains(&def.id),
+                    UnitKind::Normal => race.units.iter().any(|r| r.id() == Some(u)),
                     UnitKind::Fantastic => true,
                     UnitKind::Hero | UnitKind::Summoned => false,
                 };

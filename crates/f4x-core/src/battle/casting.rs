@@ -33,8 +33,9 @@ pub(crate) fn damage_unit_with_spell(
     rng: &mut dyn RngCore,
 ) -> Option<Damage> {
     let mut state = unit.defender_state();
-    let ids = state.enchantments.iter().map(String::as_str);
-    let protected = ids.clone().any(|i| i == "righteousness")
+    let protected = state
+        .enchantments
+        .contains(&SpellId::new(144) /* righteousness */)
         && matches!(nature.realm, Some(Realm::Chaos | Realm::Death));
     if state.immunities.magic || protected {
         return None;
@@ -310,8 +311,12 @@ impl Battle {
         }
         let mut state = unit.defender_state();
         let dmg = if let Some(limit) = below {
-            let ids: Vec<&str> = state.enchantments.iter().map(String::as_str).collect();
-            let res = effective_resistance(state.resistance, &state.immunities, Some(realm), &ids);
+            let res = effective_resistance(
+                state.resistance,
+                &state.immunities,
+                Some(realm),
+                &state.enchantments,
+            );
             if res + modifier < limit {
                 let all = state.hit_points();
                 unblockable(&mut state, all)
@@ -407,7 +412,6 @@ impl Battle {
         &mut self,
         target: usize,
         spell: SpellId,
-        id: &str,
         caster: PlayerId,
         mods: &[Modifier],
         grants: &[Ability],
@@ -421,11 +425,13 @@ impl Battle {
             unit.base = Some(Box::new(base));
         }
         // Sleep ends the unit's turn.
-        if id == "black_sleep" {
+        if spell == SpellId::new(165)
+        /* black_sleep */
+        {
             unit.attacked = true;
         }
         unit.combat_spells.push((spell, caster));
-        unit.enchantments.push(id.to_string());
+        unit.enchantments.push(spell);
         unit.apply_lasting(mods, grants);
     }
 
@@ -437,7 +443,7 @@ impl Battle {
         target: usize,
         base: BattleUnit,
         kept: Vec<(SpellId, PlayerId)>,
-        lasting: &[(String, Vec<Modifier>, Vec<Ability>)],
+        lasting: &[(SpellId, Vec<Modifier>, Vec<Ability>)],
     ) {
         let unit = &mut self.units[target];
         unit.restore_stats_from(&base);
@@ -445,7 +451,7 @@ impl Battle {
         unit.base = Some(Box::new(base));
         unit.combat_spells = kept;
         for (id, mods, grants) in lasting {
-            unit.enchantments.push(id.clone());
+            unit.enchantments.push(*id);
             unit.apply_lasting(mods, grants);
         }
         if unit.combat_spells.is_empty() {

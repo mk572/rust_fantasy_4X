@@ -13,29 +13,36 @@
 
 use crate::game::setting::GameSettings;
 use crate::game::Game;
-use crate::rules::Rules;
+use crate::rules::{RealmId, Rules};
 use crate::wizard::magic::Retort;
 use crate::wizard::{
     all_retorts, retort_available, retort_cost, WizardBuild, MAX_BOOKS, MAX_RETORTS,
 };
 
-const REALMS: [&str; 5] = ["life", "death", "chaos", "nature", "sorcery"];
+const NATURE: RealmId = RealmId::new(0) /* nature */;
+const SORCERY: RealmId = RealmId::new(1) /* sorcery */;
+const CHAOS: RealmId = RealmId::new(2) /* chaos */;
+const LIFE: RealmId = RealmId::new(3) /* life */;
+const DEATH: RealmId = RealmId::new(4) /* death */;
+
+/// The realms in the order the original's loops go.
+const REALMS: [RealmId; 5] = [LIFE, DEATH, CHAOS, NATURE, SORCERY];
 
 /// The realm pairs the original merges, in its order: the first named is the one that may take
 /// the other's books.
-const OPPOSED: [(&str, &str); 8] = [
-    ("death", "chaos"),
-    ("death", "nature"),
-    ("death", "sorcery"),
-    ("life", "chaos"),
-    ("life", "nature"),
-    ("life", "sorcery"),
-    ("sorcery", "chaos"),
-    ("sorcery", "nature"),
+const OPPOSED: [(RealmId, RealmId); 8] = [
+    (DEATH, CHAOS),
+    (DEATH, NATURE),
+    (DEATH, SORCERY),
+    (LIFE, CHAOS),
+    (LIFE, NATURE),
+    (LIFE, SORCERY),
+    (SORCERY, CHAOS),
+    (SORCERY, NATURE),
 ];
 
-fn books(b: &WizardBuild, realm: &str) -> u8 {
-    b.books.get(realm).copied().unwrap_or(0)
+fn books(b: &WizardBuild, realm: RealmId) -> u8 {
+    b.books.get(&realm).copied().unwrap_or(0)
 }
 
 fn book_total(b: &WizardBuild) -> u8 {
@@ -92,7 +99,7 @@ pub(crate) fn balance_planes(
             for realm in REALMS {
                 let n = u32::from(books(&builds[k], realm));
                 if r <= n {
-                    if let Some(b) = builds[k].books.get_mut(realm) {
+                    if let Some(b) = builds[k].books.get_mut(&realm) {
                         *b -= 1;
                     }
                     break;
@@ -186,8 +193,8 @@ pub(crate) fn make(
                     (second, first)
                 };
                 let sum = (x + y).min(MAX_BOOKS);
-                b.books.insert(to.to_string(), sum);
-                b.books.remove(from);
+                b.books.insert(to, sum);
+                b.books.remove(&from);
             }
             drop_unavailable(&game.content.rules, b);
         }
@@ -203,7 +210,7 @@ pub(crate) fn make(
                 if t <= 5 {
                     let realm = REALMS[t - 1];
                     if books(b, realm) > 1 {
-                        if let Some(n) = b.books.get_mut(realm) {
+                        if let Some(n) = b.books.get_mut(&realm) {
                             *n -= 1;
                         }
                     }
@@ -250,23 +257,23 @@ fn refill(game: &mut Game, b: &mut WizardBuild, picks: u8) {
             value = 1;
         }
         match kind {
-            1 => add_books(b, "life", value, "death"),
-            2 => add_books(b, "death", value, "life"),
-            3 => add_books(b, "nature", value, ""),
-            4 => add_books(b, "sorcery", value, ""),
-            5 => add_books(b, "chaos", value, ""),
+            1 => add_books(b, LIFE, value, Some(DEATH)),
+            2 => add_books(b, DEATH, value, Some(LIFE)),
+            3 => add_books(b, NATURE, value, None),
+            4 => add_books(b, SORCERY, value, None),
+            5 => add_books(b, CHAOS, value, None),
             _ => add_retort(game, b, picks),
         }
     }
 }
 
 /// Add books to `realm` (up to the limit), unless the wizard has books in the realm opposed to it.
-fn add_books(b: &mut WizardBuild, realm: &str, value: u8, opposed: &str) {
-    if books(b, realm) >= MAX_BOOKS || (!opposed.is_empty() && books(b, opposed) > 0) {
+fn add_books(b: &mut WizardBuild, realm: RealmId, value: u8, opposed: Option<RealmId>) {
+    if books(b, realm) >= MAX_BOOKS || opposed.is_some_and(|o| books(b, o) > 0) {
         return;
     }
     let n = (books(b, realm) + value).min(MAX_BOOKS);
-    b.books.insert(realm.to_string(), n);
+    b.books.insert(realm, n);
 }
 
 fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
@@ -295,27 +302,27 @@ fn add_retort(game: &mut Game, b: &mut WizardBuild, picks: u8) {
             let tight = u16::from(picks) < u16::from(used) + 2;
             let shelf = [
                 (
-                    "nature",
+                    NATURE,
                     Retort::new(3), /* nature_mastery */
                     has(Retort::new(3) /* nature_mastery */),
                 ),
                 (
-                    "sorcery",
+                    SORCERY,
                     Retort::new(4), /* sorcery_mastery */
                     has(Retort::new(4) /* sorcery_mastery */),
                 ),
                 (
-                    "chaos",
+                    CHAOS,
                     Retort::new(2), /* chaos_mastery */
                     has(Retort::new(2) /* chaos_mastery */),
                 ),
                 (
-                    "life",
+                    LIFE,
                     Retort::new(6), /* divine_power */
                     has(Retort::new(6) /* divine_power */) || tight,
                 ),
                 (
-                    "death",
+                    DEATH,
                     Retort::new(5), /* infernal_power */
                     has(Retort::new(5) /* infernal_power */) || tight,
                 ),

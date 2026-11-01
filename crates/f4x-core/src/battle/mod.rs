@@ -35,7 +35,7 @@ use rand::RngCore;
 
 use crate::map::Position;
 use crate::player::PlayerId;
-use crate::rules::SpellId;
+use crate::rules::{SpellId, UnitId};
 
 use attack::{Combatant, DefenderState, Fighter, Mode};
 use field::{Field, FieldBonus};
@@ -127,14 +127,25 @@ pub enum Confusion {
 }
 
 /// One unit in a battle, with the statistics it fights with.
+/// The three results of Warp Creature, one of which it picks at random.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum WarpKind {
+    /// Half the melee and ranged attack.
+    Attack,
+    /// Half the defence.
+    Defense,
+    /// No resistance.
+    Resistance,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BattleUnit {
     pub id: usize,
     pub side: Side,
     /// The overland unit this was copied from (a list index, not an entity: see `game.rs`).
     pub source: Option<usize>,
-    /// The unit definition's id and display name.
-    pub unit_id: String,
+    /// The unit definition (`None` for a plain unit made for a test) and its display name.
+    pub unit_id: Option<UnitId>,
     pub name: String,
     pub cell: Pos,
     pub melee: i32,
@@ -192,7 +203,10 @@ pub struct BattleUnit {
     pub leadership: i32,
     pub prayermaster: i32,
     /// The ids of its lasting spells, which add to resistance against some realms.
-    pub enchantments: Vec<String>,
+    pub enchantments: Vec<SpellId>,
+    /// Which of Warp Creature's three curses the unit has.
+    #[serde(default)]
+    pub warp: Option<WarpKind>,
     /// The creature's realm (chaos and death creatures fear dispel evil), and whether it is
     /// undead.
     pub realm: Option<Realm>,
@@ -278,7 +292,7 @@ impl BattleUnit {
             id: 0,
             side,
             source: None,
-            unit_id: name.to_string(),
+            unit_id: None,
             name: name.to_string(),
             cell: (0, 0),
             melee,
@@ -313,6 +327,7 @@ impl BattleUnit {
             leadership: 0,
             prayermaster: 0,
             enchantments: Vec::new(),
+            warp: None,
             realm: None,
             undead: false,
             abilities: Vec::new(),
@@ -894,7 +909,7 @@ pub struct Battle {
     pub wall_of_darkness: bool,
     /// The realms (ids) a Spell Ward guards the city against: the attackers cannot cast spells
     /// of them. (The help says "including combat spells"; the original's code does not check.)
-    pub warded_realms: Vec<String>,
+    pub warded_realms: Vec<crate::rules::RealmId>,
     /// The realm of the magic node whose aura the battle is fought in: its creatures fight with
     /// +2 to attack, defence and resistance (`Battle_Unit_Special_Stats`).
     pub node_aura: Option<Realm>,
@@ -1111,7 +1126,8 @@ impl Battle {
                 // A creature still under Creature Binding is destroyed (Possession only lasts).
                 if u.is_active()
                     && u.bound_from.is_some()
-                    && u.enchantments.iter().any(|e| e == "creature_binding")
+                    && u.enchantments
+                        .contains(&SpellId::new(73) /* creature_binding */)
                 {
                     u.figures = 0;
                     u.status = Status::Dead;
@@ -1254,8 +1270,8 @@ impl Battle {
 
     /// Whether a Spell Ward keeps `side` from casting spells of `realm`: it guards the city
     /// against that realm and the side is attacking the city.
-    pub fn ward_stops(&self, side: Side, realm: &str) -> bool {
-        side == Side::Attacker && self.warded_realms.iter().any(|r| r == realm)
+    pub fn ward_stops(&self, side: Side, realm: Option<crate::rules::RealmId>) -> bool {
+        side == Side::Attacker && realm.is_some_and(|r| self.warded_realms.contains(&r))
     }
 
     /// Whether a Wall of Fire burns this unit when it crosses: walkers do, fliers and the units

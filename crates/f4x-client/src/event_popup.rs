@@ -11,6 +11,7 @@
 use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::DispelSite;
+use f4x_core::rules::RealmId;
 use f4x_core::text::Args;
 use f4x_core::world_event::{compose, EventKind};
 use f4x_data::spell_art::Role;
@@ -31,7 +32,13 @@ const MASCOT: [(f32, f32); 5] = [
     (2.0, -3.0),
 ];
 const TEXT_X: [f32; 5] = [70.0, 73.0, 62.0, 68.0, 70.0];
-const REALMS: [&str; 5] = ["chaos", "death", "life", "nature", "sorcery"];
+const REALMS: [RealmId; 5] = [
+    RealmId::new(2), /* chaos */
+    RealmId::new(4), /* death */
+    RealmId::new(3), /* life */
+    RealmId::new(0), /* nature */
+    RealmId::new(1), /* sorcery */
+];
 /// The widest a line of the message goes.
 const WIDTH: f32 = 175.0;
 /// The top of the box (`Notify2(160, 70, ...)`).

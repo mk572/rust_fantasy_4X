@@ -26,7 +26,7 @@ pub const BLACK_WIND: &str = "black_wind";
 pub const LYCANTHROPY: &str = "lycanthropy";
 
 /// The unit Lycanthropy turns a normal unit into.
-const WEREWOLVES: &str = "werewolves";
+const WEREWOLVES: crate::rules::UnitId = crate::rules::UnitId::new(168) /* werewolves */;
 /// Black Wind's resistance check is at this penalty.
 const BLACK_WIND_MODIFIER: i32 = -1;
 
@@ -172,7 +172,13 @@ impl Game {
         if units.unit_is_mutated(unit) {
             return Err(TargetError::AlreadyMutated);
         }
-        if self.content.rules.units.id_of(WEREWOLVES).is_none() {
+        if self
+            .content
+            .rules
+            .units
+            .id_numbered(WEREWOLVES.num())
+            .is_none()
+        {
             return Err(TargetError::WrongTarget);
         }
         Ok(())
@@ -187,7 +193,7 @@ impl Game {
         if self.check_become_werewolf(unit).is_err() {
             return None;
         }
-        let to = self.content.rules.units.id_of(WEREWOLVES)?;
+        let to = self.content.rules.units.id_numbered(WEREWOLVES.num())?;
         let from = self.world.get::<&crate::unit::Unit>(unit).ok()?.0;
         let _ = self.world.insert_one(unit, crate::unit::Unit(to));
         let _ = self.world.remove_one::<crate::unit::Experience>(unit);

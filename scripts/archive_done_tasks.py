@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Move finished tasks from docs/TASKS.md and docs/TASKS-ONHOLD.md to docs/TASKS-DONE.md.
+"""Move finished tasks from docs/TASKS.md to docs/TASKS-DONE.md.
 
 A task counts as done when its table summary contains "(done)" or is struck through
 (~~text~~), or when the bold title of its description contains "(done)". Both the table
@@ -33,15 +33,23 @@ def is_done(text: str) -> bool:
     return "(done)" in text.lower() or "~~" in text
 
 
+def without_priority(row: str) -> str:
+    """Drop the Priority cell (the second one), which TASKS.md has and TASKS-DONE.md has not."""
+    cells = row.split("|")
+    return "|".join(cells[:2] + cells[3:])
+
+
 def split_tasks(lines):
-    """Return (kept lines, {number: row}, {number: description lines})."""
+    """Return (kept lines, {number: row}, {number: description lines}). A moved row loses its
+    Priority cell when the file's table has that column."""
+    has_priority = any(l.startswith("| # | Priority |") for l in lines)
     kept, rows, descs = [], {}, {}
     i = 0
     while i < len(lines):
         line = lines[i]
         m = ROW.match(line)
         if m and is_done(line):
-            rows[int(m.group(1))] = line
+            rows[int(m.group(1))] = without_priority(line) if has_priority else line
             i += 1
             continue
         m = DESC.match(line)
@@ -118,8 +126,8 @@ def main() -> int:
     docs = Path(__file__).resolve().parent.parent / "docs"
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--tasks", type=Path, nargs="+",
-                    default=[docs / "TASKS.md", docs / "TASKS-ONHOLD.md"],
-                    help="task files to scan (default: TASKS.md and TASKS-ONHOLD.md)")
+                    default=[docs / "TASKS.md"],
+                    help="task files to scan (default: TASKS.md)")
     ap.add_argument("--done", type=Path, default=docs / "TASKS-DONE.md")
     ap.add_argument("--dry-run", action="store_true", help="only list what would move")
     args = ap.parse_args()

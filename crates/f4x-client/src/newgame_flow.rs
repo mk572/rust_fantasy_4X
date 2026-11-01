@@ -9,6 +9,7 @@ use crate::font::{Ink, Style};
 use crate::input::Input;
 use crate::page::Page;
 use crate::ui;
+use f4x_core::rules::RealmId;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -45,13 +46,22 @@ const MYRRAN: [&str; 5] = ["beastmen", "dark_elf", "draconian", "dwarven", "trol
 /// `BANNER_NAMES`).
 const FLAG_BANNERS: [u8; 10] = [1, 0, 3, 2, 4, 5, 6, 7, 8, 9];
 
+/// The realms in the order of the shelf on the build screens: life, sorcery, nature, death, chaos.
+const SHELF_ORDER: [RealmId; 5] = [
+    RealmId::new(3), /* life */
+    RealmId::new(1), /* sorcery */
+    RealmId::new(0), /* nature */
+    RealmId::new(4), /* death */
+    RealmId::new(2), /* chaos */
+];
+
 /// The book picture (of `newgame.lbx` 24 to 38) of a realm: white, blue, green, black, red.
-pub(crate) fn book_base(realm: &str) -> usize {
-    match realm {
-        "life" => 0,
-        "sorcery" => 3,
-        "nature" => 6,
-        "death" => 9,
+pub(crate) fn book_base(realm: RealmId) -> usize {
+    match realm.num() {
+        3 /* life */ => 0,
+        1 /* sorcery */ => 3,
+        0 /* nature */ => 6,
+        4 /* death */ => 9,
         _ => 12,
     }
 }
@@ -187,11 +197,11 @@ impl CreateState {
         &mut self,
         app: &mut App,
         lay: &Layout,
-        order: &[&str],
-        books: &dyn Fn(&str) -> u8,
+        order: &[RealmId],
+        books: &dyn Fn(RealmId) -> u8,
     ) {
         let mut x = 36.0;
-        for realm in order {
+        for &realm in order {
             for k in 0..books(realm) {
                 let var = self.shelf[usize::from(k).min(10)];
                 app.draw_pic(
@@ -241,12 +251,9 @@ impl CreateState {
     /// The shelf and abilities of a build that is being made.
     pub(crate) fn ng_build_shelf(&mut self, app: &mut App, lay: &Layout) {
         let books = self.build.books.clone();
-        self.ng_shelf(
-            app,
-            lay,
-            &["life", "sorcery", "nature", "death", "chaos"],
-            &|r| books.get(r).copied().unwrap_or(0),
-        );
+        self.ng_shelf(app, lay, &SHELF_ORDER, &|r| {
+            books.get(&r).copied().unwrap_or(0)
+        });
         self.ng_abilities(app, lay);
     }
 
@@ -460,13 +467,12 @@ impl CreateState {
                 if let Some(build) = app.game.preset_build(&defs[shown].0) {
                     let books = build.books.clone();
                     // The first two realms with books, in the original's order.
-                    let order = ["life", "sorcery", "nature", "death", "chaos"];
-                    let shelf: Vec<&str> = order
+                    let shelf: Vec<RealmId> = SHELF_ORDER
                         .iter()
                         .copied()
-                        .filter(|r| books.get(*r).copied().unwrap_or(0) > 0)
+                        .filter(|r| books.get(r).copied().unwrap_or(0) > 0)
                         .collect();
-                    self.ng_shelf(app, lay, &shelf, &|r| books.get(r).copied().unwrap_or(0));
+                    self.ng_shelf(app, lay, &shelf, &|r| books.get(&r).copied().unwrap_or(0));
                     let names: Vec<String> =
                         build.retorts.iter().map(|&r| app.retort_name(r)).collect();
                     if let Some(first) = names.first() {
@@ -759,9 +765,9 @@ impl CreateState {
             self.custom = true;
             self.build.name = "Zed".into();
             self.build.portrait = Some(3);
-            self.build.books.insert("sorcery".into(), 4);
-            self.build.books.insert("chaos".into(), 3);
-            self.build.books.insert("nature".into(), 1);
+            self.build.books.insert(RealmId::new(1) /* sorcery */, 4);
+            self.build.books.insert(RealmId::new(2) /* chaos */, 3);
+            self.build.books.insert(RealmId::new(0) /* nature */, 1);
             self.build
                 .retorts
                 .insert(f4x_core::wizard::magic::Retort::new(0) /* alchemy */);
@@ -816,11 +822,11 @@ mod tests {
 
     #[test]
     fn each_realm_has_its_own_colour_of_book() {
-        assert_eq!(book_base("life"), 0);
-        assert_eq!(book_base("sorcery"), 3);
-        assert_eq!(book_base("nature"), 6);
-        assert_eq!(book_base("death"), 9);
-        assert_eq!(book_base("chaos"), 12);
+        assert_eq!(book_base(RealmId::new(3) /* life */), 0);
+        assert_eq!(book_base(RealmId::new(1) /* sorcery */), 3);
+        assert_eq!(book_base(RealmId::new(0) /* nature */), 6);
+        assert_eq!(book_base(RealmId::new(4) /* death */), 9);
+        assert_eq!(book_base(RealmId::new(2) /* chaos */), 12);
     }
 
     #[test]

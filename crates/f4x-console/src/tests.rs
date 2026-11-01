@@ -1176,9 +1176,12 @@ fn a_myrran_wizard_starts_on_myrror_with_a_myrror_race() -> TestResult {
     let content = content();
     let wizard = |race: Option<&str>| NewGame {
         seed: 2,
-        books: [("sorcery".to_string(), 5), ("nature".to_string(), 3)]
-            .into_iter()
-            .collect(),
+        books: [
+            (content.rules.realms.id_of("sorcery").unwrap(), 5),
+            (content.rules.realms.id_of("nature").unwrap(), 3),
+        ]
+        .into_iter()
+        .collect(),
         retorts: [Retort::new(9) /* myrran */].into_iter().collect(),
         race: race.map(str::to_string),
         ..NewGame::default()
@@ -2058,7 +2061,6 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
         b.enchant_unit(
             enemy,
             strength,
-            "giant_strength",
             rival,
             &[m(f4x_core::rules::stats::Stat::Melee, 1)],
             &[],
@@ -2139,7 +2141,8 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
         .position(|u| {
             u.side == Side::Defender
                 && u.melee == plain + 1
-                && u.enchantments.contains(&"giant_strength".to_string())
+                && u.enchantments
+                    .contains(&f4x_core::rules::SpellId::new(4) /* giant_strength */)
         })
         .expect("the copy carries the spell");
     let mut gone = false;
@@ -2528,7 +2531,7 @@ fn shatter_warp_wood_and_warp_creature_harm_a_unit_for_the_battle() {
             break;
         }
         // A zero resistance cannot be told from the third harm: look at the spell list.
-        if u.enchantments.iter().any(|e| e == "warp_resistance") {
+        if u.warp == Some(f4x_core::battle::WarpKind::Resistance) {
             assert_eq!(u.resistance, resistance.min(0));
             warped = true;
             break;
@@ -2953,7 +2956,9 @@ fn raise_dead_brings_a_fallen_normal_unit_back_with_half_its_figures() {
     let (fallen, fantastic) = (mine[0], mine[1]);
     {
         let b = &mut g.battle.as_mut().expect("the value is there").battle;
-        b.units[fallen].enchantments.push("bless".into());
+        b.units[fallen]
+            .enchantments
+            .push(f4x_core::rules::SpellId::new(121) /* bless */);
         b.units[fantastic].realm = Some(Realm::Chaos);
     }
     let start = g
@@ -2975,7 +2980,12 @@ fn raise_dead_brings_a_fallen_normal_unit_back_with_half_its_figures() {
         .expect("the unit is alive");
     assert_eq!((u.status, u.side), (Status::Active, Side::Attacker));
     assert_eq!(u.figures, start.div_ceil(2), "half, rounded up");
-    assert!(!u.undead && !u.enchantments.iter().any(|e| e == "bless"));
+    assert!(
+        !u.undead
+            && !u
+                .enchantments
+                .contains(&f4x_core::rules::SpellId::new(121) /* bless */)
+    );
     assert!(
         u.hit_points() < u.max_hit_points(),
         "the missing half stays missing"

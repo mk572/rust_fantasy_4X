@@ -24,6 +24,7 @@
 
 use crate::game::Game;
 use crate::rules::Ability;
+use crate::rules::SpellId;
 use crate::unit::{Unit, UnitView};
 use hecs::World;
 
@@ -32,10 +33,7 @@ use hecs::World;
 pub struct Undead;
 
 /// The realm of the death creatures.
-pub const DEATH: &str = "death";
-
-/// The spell that makes a unit a vile undead being (a lasting enchantment on a normal unit).
-pub const BLACK_CHANNELS: &str = "black_channels";
+pub const DEATH: crate::rules::RealmId = crate::rules::RealmId::new(4) /* death */;
 
 /// What an undead unit is immune to, besides what its kind already is.
 pub const UNDEAD_IMMUNITIES: [Ability; 4] = [
@@ -53,10 +51,8 @@ impl UnitView<'_> {
 
     /// Whether the Black Channels spell is on the unit.
     pub fn unit_is_black_channeled(&self, unit: hecs::Entity) -> bool {
-        let Some(spell) = self.content.rules.spells.id_of(BLACK_CHANNELS) else {
-            return false;
-        };
-        crate::spell::instance::Spells::new(self.world).unit_has(unit, spell)
+        crate::spell::instance::Spells::new(self.world)
+            .unit_has(unit, SpellId::new(175) /* black_channels */)
     }
 
     /// Undead in the sense of the help: made undead or black channeled. Such a unit fights as
@@ -67,19 +63,19 @@ impl UnitView<'_> {
 
     /// The realm of the unit's creature: Death for an undead or black channeled unit, else its
     /// own.
-    pub fn unit_realm(&self, unit: hecs::Entity) -> Option<String> {
+    pub fn unit_realm(&self, unit: hecs::Entity) -> Option<crate::rules::RealmId> {
         if self.unit_counts_as_undead(unit) {
-            return Some(DEATH.to_string());
+            return Some(DEATH);
         }
         if self.unit_is_mutated(unit) {
-            return Some("chaos".to_string());
+            return Some(crate::rules::RealmId::new(2) /* chaos */);
         }
-        self.unit_def(unit).and_then(|d| d.realm.clone())
+        self.unit_def(unit).and_then(|d| d.realm.as_ref()?.id())
     }
 
     /// A creature of the Death realm: born so, made undead or black channeled.
     pub fn unit_is_death(&self, unit: hecs::Entity) -> bool {
-        self.unit_realm(unit).as_deref() == Some(DEATH)
+        self.unit_realm(unit) == Some(DEATH)
     }
 }
 

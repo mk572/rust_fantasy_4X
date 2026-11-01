@@ -2,6 +2,7 @@
 // One key is in one file only (docs/text.md).
 {
     "refuse_wizard.magic_error_unknown_player": "There is no such wizard.",
+    "refuse_wizard.magic_error_unknown_realm": "There is no such realm of magic.",
     "refuse_wizard.magic_error_not_available": "You do not know that spell.",
     "refuse_wizard.magic_error_already_researching": "You are researching that spell already.",
     "refuse_wizard.magic_error_already_casting": "You are casting a spell already.",

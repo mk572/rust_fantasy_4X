@@ -401,15 +401,8 @@ impl App {
         };
         let owner = battle.player_of(u.side).0;
         let banner = self.banner_index(owner);
-        let art = self
-            .game
-            .content()
-            .rules
-            .units
-            .defs()
-            .iter()
-            .find(|d| d.id == u.unit_id)
-            .and_then(|d| d.art.clone());
+        let units = &self.game.content().rules.units;
+        let art = u.unit_id.and_then(|id| units.get(id).art.clone());
         let unit_type =
             art.and_then(|(lbx, entry)| crate::art::unit_type_number(&lbx, entry as usize));
         if let Some(tex) = unit_type.and_then(|t| self.art.figure(t, 2, 0, banner).cloned()) {

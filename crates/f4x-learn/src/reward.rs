@@ -18,10 +18,8 @@ pub const FLEE_SURVIVAL: f32 = 0.5;
 
 /// The value of a battle unit: `1 + COST_VALUE * cost`.
 pub fn unit_value(content: &Content, unit: &BattleUnit) -> f32 {
-    let cost = content
-        .rules
-        .units
-        .id_of(&unit.unit_id)
+    let cost = unit
+        .unit_id
         .map_or(0, |id| content.rules.units.get(id).cost);
     1.0 + COST_VALUE * cost as f32
 }

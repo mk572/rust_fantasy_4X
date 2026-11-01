@@ -315,7 +315,7 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
     };
     let mut terrains = parse_terrains(&read("terrain.ron")?)?;
     let mut features = parse_features(&read("features.ron")?)?;
-    let settings = load_settings(dirs)?;
+    let mut settings = load_settings(dirs)?;
     let client_settings = load_client_settings(dirs)?;
     let mut problems = Vec::new();
     let at = (dirs, client_settings.language.as_str());
@@ -339,6 +339,9 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
         return Err(ContentError::Invalid(problems));
     }
     let rules = rules::load_rules(dirs, &client_settings.language, &features)?;
+    settings
+        .spell_library
+        .resolve(rules.spells.defs(), &rules.retorts, &rules.realms);
     if dirs.iter().any(|d| d.join("rules_settings.ron").exists()) {
         check_spell_library(&settings.spell_library, &rules)?;
     }
@@ -366,9 +369,9 @@ fn check_spell_library(
         .chain(&library.arcane_closed)
         .chain(library.ai_main_realm_known.values())
         .chain(library.ai_main_realm_researchable.values());
-    for id in spells {
-        if rules.spells.id_of(id).is_none() {
-            problems.push(format!("spell_library: unknown spell \"{id}\""));
+    for spell in spells {
+        if spell.id().is_none() {
+            problems.push(format!("spell_library: unknown spell \"{}\"", spell.name()));
         }
     }
     for retort in library.retort_known.keys() {
@@ -434,6 +437,7 @@ pub fn load_client_settings(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use f4x_core::rules::Ref;
     use f4x_core::testdir::TestResult;
 
     fn shipped() -> String {
@@ -539,7 +543,10 @@ mod tests {
                 .find(|t| t.unit == id)
                 .expect("the hero has a template")
         };
-        assert_eq!(t("sage").spells, ["dispel_magic_true", "counter_magic"]);
+        assert_eq!(
+            t("sage").spells,
+            [Ref::new("dispel_magic_true"), Ref::new("counter_magic")]
+        );
         assert_eq!(t("sage").casting_skill, 2);
         assert_eq!(t("bard").abilities, ["leadership", "female"]);
         assert_eq!(
@@ -601,7 +608,7 @@ mod tests {
                     t.unit,
                     t.picks
                 );
-                assert_eq!(r.spells, t.spells);
+                assert_eq!(r.spells, f4x_core::rules::refs::ids(&t.spells));
                 // Fixed abilities stay (a pick may double one).
                 let a = &r.abilities;
                 for name in [
@@ -884,10 +891,10 @@ mod tests {
                     power.id
                 );
             }
-            if let Some(spell) = power.spell.as_deref() {
+            if let Some(spell) = &power.spell {
                 assert!(
-                    c.rules.spells.id_of(spell).is_some(),
-                    "item power {} names the missing spell {spell}",
+                    spell.id().is_some(),
+                    "item power {} names the missing spell {spell:?}",
                     power.id
                 );
             }
@@ -908,7 +915,7 @@ mod tests {
             let item = make_item(&mut rng, rules, Grade::Any, 0, &mut taken);
             assert!(item.cost > 0 && (!item.name.is_empty() || item.made.is_some()));
             if let Some(id) = item.prefab {
-                assert!(!ids.contains(&id), "{id} given twice");
+                assert!(!ids.contains(&id), "{id:?} given twice");
                 ids.push(id);
             }
         }
@@ -1182,10 +1189,9 @@ mod tests {
         // The built-in default (used when there is no rules_settings.ron) is the original's numbers,
         // and so is the shipped file.
         let c = real_content();
-        assert_eq!(
-            c.settings.spell_library,
-            f4x_core::game::setting::SpellLibraryDef::default()
-        );
+        let mut default = f4x_core::game::setting::SpellLibraryDef::default();
+        default.resolve(c.rules.spells.defs(), &c.rules.retorts, &c.rules.realms);
+        assert_eq!(c.settings.spell_library, default);
     }
 
     #[test]
@@ -1256,7 +1262,7 @@ mod tests {
                 .ok_or_else(|| format!("{} has no help topic", r.id))?;
             let topic = help.topic(index).ok_or("the value is missing")?;
             for (_, b) in content.rules.buildings.iter() {
-                if !b.races.is_empty() && !b.races.iter().any(|x| *x == r.id) {
+                if !b.buildable_by(f4x_core::rules::RaceId::new(r.num)) {
                     assert!(
                         topic.text.contains(&b.name),
                         "topic {index} ({}) does not name the {}",

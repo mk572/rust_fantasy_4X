@@ -39,7 +39,7 @@ impl Game {
         let mut seen: BTreeMap<&str, i32> = BTreeMap::new();
         let mut rank = BTreeMap::new();
         for (id, def) in rules.spells.iter() {
-            let n = seen.entry(def.realm.as_str()).or_insert(0);
+            let n = seen.entry(def.realm.name()).or_insert(0);
             *n += 1;
             rank.insert(id, *n);
         }

@@ -11,6 +11,7 @@ use crate::game::rng::GameRng;
 use crate::game::Game;
 use crate::map::Position;
 use crate::player::PlayerId;
+use crate::rules::SpellId;
 
 /// Apply `delta_tens` to a city's people: tens of 100 make a citizen (up to `cap`); a city
 /// that loses people drops a citizen but never below one, and never below zero tens.
@@ -36,15 +37,15 @@ pub(crate) fn grow_population(mut pop: Population, delta_tens: i32, cap: u32) ->
 
 /// The chance (percent) that an outpost loses people in a turn: 5, and more for each curse on
 /// it. `enchanted` says whether the outpost has the enchantment of that name.
-pub(crate) fn outpost_shrink_chance(enchanted: impl Fn(&str) -> bool) -> i32 {
+pub(crate) fn outpost_shrink_chance(enchanted: impl Fn(SpellId) -> bool) -> i32 {
     let mut shrink = 5;
-    for (name, extra) in [
-        ("evil_presence", 5),
-        ("pestilence", 10),
-        ("famine", 10),
-        ("chaos_rift", 10),
+    for (spell, extra) in [
+        (SpellId::new(183) /* evil_presence */, 5),
+        (SpellId::new(196) /* pestilence */, 10),
+        (SpellId::new(189) /* famine */, 10),
+        (SpellId::new(110) /* chaos_rift */, 10),
     ] {
-        if enchanted(name) {
+        if enchanted(spell) {
             shrink += extra;
         }
     }
@@ -112,7 +113,8 @@ impl Game {
             return OutpostTurn::Stays;
         }
         let grow = self.economy().outpost_growth_chance(city);
-        let shrink = outpost_shrink_chance(|name| self.economy().city_has_enchantment(city, name));
+        let shrink =
+            outpost_shrink_chance(|spell| self.economy().city_has_enchantment(city, spell));
         let pop = self
             .world
             .get::<&Population>(city)
@@ -201,11 +203,11 @@ impl Economy<'_> {
                 }
             }
         }
-        let enchanted = |name: &str| self.city_has_enchantment(city, name);
-        if enchanted("gaias_blessing") {
+        let enchanted = |spell: SpellId| self.city_has_enchantment(city, spell);
+        if enchanted(SpellId::new(29) /* gaias_blessing */) {
             grow += 20;
         }
-        if enchanted("stream_of_life") {
+        if enchanted(SpellId::new(148) /* stream_of_life */) {
             grow += 10;
         }
         // A computer wizard's difficulty bonus (the original applied it here, too).

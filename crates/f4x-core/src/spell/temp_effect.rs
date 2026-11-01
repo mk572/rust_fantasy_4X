@@ -10,6 +10,7 @@ use crate::game::Game;
 use crate::rules::effects::{Condition, Effect, Trigger};
 use crate::rules::exec::Target;
 use crate::rules::stats::passive_modifiers;
+use crate::rules::SpellId;
 use crate::rules::{Ability, ModOp, Modifier, Source, Stat};
 use crate::unit::UnitView;
 use hecs::World;
@@ -148,7 +149,7 @@ impl<'a> UnitView<'a> {
                 if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
                     (rule.when, &rule.condition, &rule.effect)
                 {
-                    if let Some(a) = self.content.rules.abilities.id_of(a) {
+                    if let Some(a) = a.id() {
                         take(a);
                     }
                 }
@@ -180,7 +181,7 @@ impl<'a> UnitView<'a> {
                 if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
                     (rule.when, &rule.condition, &rule.effect)
                 {
-                    if let Some(a) = self.content.rules.abilities.id_of(a) {
+                    if let Some(a) = a.id() {
                         if !out.contains(&a) {
                             out.push(a);
                         }
@@ -198,7 +199,7 @@ impl<'a> UnitView<'a> {
                 if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
                     (rule.when, &rule.condition, &rule.effect)
                 {
-                    if let Some(a) = self.content.rules.abilities.id_of(a) {
+                    if let Some(a) = a.id() {
                         if !out.contains(&a) {
                             out.push(a);
                         }
@@ -241,7 +242,7 @@ impl<'a> UnitView<'a> {
         }) || self.unit_weapon_quality(unit) > 0
             || (self
                 .unit_owner(unit)
-                .is_some_and(|o| self.has_global(o, "holy_arms"))
+                .is_some_and(|o| self.has_global(o, SpellId::new(154) /* holy_arms */))
                 && !self.unit_is_undead(unit))
             || self
                 .unit_abilities(unit)
@@ -250,21 +251,20 @@ impl<'a> UnitView<'a> {
     }
 
     /// The ids of the lasting spells on a unit.
-    pub(crate) fn unit_enchantment_ids(&self, unit: hecs::Entity) -> Vec<String> {
-        let mut ids: Vec<String> = self
+    pub(crate) fn unit_enchantment_ids(&self, unit: hecs::Entity) -> Vec<SpellId> {
+        let mut ids: Vec<SpellId> = self
             .unit_enchantments(unit)
             .iter()
             .filter(|&&(spell, _)| !self.unit_spell_superseded(unit, spell))
-            .map(|&(spell, _)| self.content.rules.spells.get(spell).id.clone())
+            .map(|&(spell, _)| spell)
             .collect();
         // What its items put on the hero counts as well.
         for spell in self.items().spells(unit) {
             if self.unit_spell_superseded(unit, spell) {
                 continue;
             }
-            let id = &self.content.rules.spells.get(spell).id;
-            if !ids.contains(id) {
-                ids.push(id.clone());
+            if !ids.contains(&spell) {
+                ids.push(spell);
             }
         }
         ids
@@ -274,7 +274,6 @@ impl<'a> UnitView<'a> {
     /// immunity and its lasting spells add against that realm (`battle::immunity`).
     pub fn unit_resistance_against(&self, unit: hecs::Entity, realm: Option<Realm>) -> i32 {
         let ids = self.unit_enchantment_ids(unit);
-        let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
         effective_resistance(
             self.unit_stat(unit, Stat::Resistance),
             &Immunities::of(&self.unit_abilities(unit)),
@@ -290,7 +289,7 @@ impl<'a> UnitView<'a> {
             && self
                 .unit_enchantment_ids(unit)
                 .iter()
-                .any(|i| i == "righteousness")
+                .any(|&i| i == SpellId::new(144) /* righteousness */)
     }
 
     /// The passive modifiers of every ability the unit has now.
@@ -457,12 +456,12 @@ mod tests {
         let melee = g.units().unit_stat(u, Stat::Melee);
         let mut host = crate::spell::cast::tests_support::host(&mut g);
         host.add_modifier(Target::Unit(u), plus(Stat::Melee, 2));
-        host.grant_ability(Target::Unit(u), "flying");
+        host.grant_ability(Target::Unit(u), Ability::new(24) /* flying */);
         drop(host);
         assert_eq!(g.units().unit_stat(u, Stat::Melee), melee + 2);
         assert!(g.units().unit_has_ability(u, Ability::new(24)));
         let mut host = crate::spell::cast::tests_support::host(&mut g);
-        host.remove_ability(Target::Unit(u), "flying");
+        host.remove_ability(Target::Unit(u), Ability::new(24) /* flying */);
         drop(host);
         assert!(!g.units().unit_has_ability(u, Ability::new(24)));
     }

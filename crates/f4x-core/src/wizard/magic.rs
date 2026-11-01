@@ -15,7 +15,7 @@ use crate::spell::cast::UpkeepItem;
 use crate::content::Content;
 use crate::game::rng::GameRng;
 use crate::rules::effects::Effect;
-use crate::rules::{Id, Rarity, RetortDef, SpellDef, SpellId};
+use crate::rules::{Id, Rarity, RealmId, RetortDef, SpellDef, SpellId};
 
 /// A retort ("special ability" in the original's manual): its number in `retorts.ron`, which is the
 /// original's place in its wizard record. The saved game writes the number; the name is the text
@@ -67,6 +67,8 @@ pub struct PowerShares {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MagicError {
     UnknownPlayer,
+    /// A realm name that is none of the rules' realms.
+    UnknownRealm,
     /// The spell is not known (cast) or not researchable (research).
     NotAvailable,
     AlreadyResearching,
@@ -98,6 +100,7 @@ impl MagicError {
     pub fn key(self) -> &'static str {
         match self {
             Self::UnknownPlayer => "refuse_wizard.magic_error_unknown_player",
+            Self::UnknownRealm => "refuse_wizard.magic_error_unknown_realm",
             Self::NotAvailable => "refuse_wizard.magic_error_not_available",
             Self::AlreadyResearching => "refuse_wizard.magic_error_already_researching",
             Self::AlreadyCasting => "refuse_wizard.magic_error_already_casting",
@@ -127,26 +130,27 @@ pub(crate) fn is_crafting(def: &SpellDef) -> bool {
 }
 
 /// Spells of one realm and rarity in file order (the order the data lists them in).
-pub fn spells_of(content: &Content, realm: &str, rarity: Rarity) -> Vec<SpellId> {
+pub fn spells_of(content: &Content, realm: RealmId, rarity: Rarity) -> Vec<SpellId> {
     content
         .rules
         .spells
         .iter()
-        .filter(|(_, d)| d.realm == realm && d.rarity == rarity)
+        .filter(|(_, d)| d.realm.id() == Some(realm) && d.rarity == rarity)
         .map(|(id, _)| id)
         .collect()
 }
 
 /// The realm's default starting spells of one rarity, in the order of the realm's default list
 /// (`realms.ron`).
-pub fn default_spells(content: &Content, realm: &str, rarity: Rarity) -> Vec<SpellId> {
-    let Some(def) = content.rules.realms.defs().iter().find(|r| r.id == realm) else {
+pub fn default_spells(content: &Content, realm: RealmId, rarity: Rarity) -> Vec<SpellId> {
+    let Some(def) = content.rules.realms.id_numbered(realm.num()) else {
         return Vec::new();
     };
+    let def = content.rules.realms.get(def);
     let pool = spells_of(content, realm, rarity);
     def.default_spells
         .iter()
-        .filter_map(|s| content.rules.spells.id_of(s))
+        .filter_map(|s| s.id())
         .filter(|s| pool.contains(s))
         .collect()
 }
@@ -280,30 +284,31 @@ mod tests {
         let c = shipped();
         for realm in ["nature", "chaos"] {
             for rarity in [Rarity::Common, Rarity::VeryRare] {
-                let spells = spells_of(&c, realm, rarity);
+                let realm_id = crate::game::testutil::realm(realm);
+                let spells = spells_of(&c, realm_id, rarity);
                 assert!(!spells.is_empty(), "{realm} {rarity:?}");
                 let order: Vec<_> = c.rules.spells.iter().map(|(id, _)| id).collect();
                 let at = |s: &SpellId| order.iter().position(|o| o == s);
                 assert!(spells.windows(2).all(|w| at(&w[0]) < at(&w[1])));
                 for s in spells {
                     let def = c.rules.spells.get(s);
-                    assert_eq!((def.realm.as_str(), def.rarity), (realm, rarity));
+                    assert_eq!((def.realm.name(), def.rarity), (realm, rarity));
                 }
             }
         }
-        assert!(spells_of(&c, "no such realm", Rarity::Common).is_empty());
+        assert!(spells_of(&c, RealmId::new(99), Rarity::Common).is_empty());
     }
 
     #[test]
     fn the_default_spells_are_the_realms_list_of_that_rarity() {
         let c = shipped();
-        let chaos = default_spells(&c, "chaos", Rarity::Common);
+        let chaos = default_spells(&c, crate::game::testutil::realm("chaos"), Rarity::Common);
         let bolt = c.rules.spells.id_of("fire_bolt").expect("fire_bolt");
         assert!(chaos.contains(&bolt));
         for s in &chaos {
             assert_eq!(c.rules.spells.get(*s).rarity, Rarity::Common);
         }
-        assert!(default_spells(&c, "no such realm", Rarity::Common).is_empty());
+        assert!(default_spells(&c, RealmId::new(99), Rarity::Common).is_empty());
         let all: usize = [
             Rarity::Common,
             Rarity::Uncommon,
@@ -311,7 +316,7 @@ mod tests {
             Rarity::VeryRare,
         ]
         .iter()
-        .map(|&r| default_spells(&c, "chaos", r).len())
+        .map(|&r| default_spells(&c, crate::game::testutil::realm("chaos"), r).len())
         .sum();
         let listed = c
             .rules

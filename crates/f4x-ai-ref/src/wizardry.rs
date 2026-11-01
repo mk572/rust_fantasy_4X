@@ -13,7 +13,7 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::rules::effects::Effect;
 use f4x_core::rules::exec::Target;
-use f4x_core::rules::{CastContext, Duration, SpellDef, SpellId, SpellTarget};
+use f4x_core::rules::{CastContext, Duration, RealmId, SpellDef, SpellId, SpellTarget};
 
 use crate::view::{is_fighter, unit_strength};
 use crate::Ai;
@@ -362,7 +362,10 @@ fn liked(def: &SpellDef, kind: Kind, traits: &crate::objective::Traits) -> bool 
         Like::CityBuff => kind == Kind::CityBuff,
         Like::GlobalBuff => kind == Kind::GlobalBuff,
         Like::Explore => kind == Kind::Explore,
-        Like::Holy => def.realm == "life" || def.realm == "arcane",
+        Like::Holy => matches!(
+            def.realm.id().map(RealmId::num),
+            Some(3 /* life */ | 5 /* arcane */)
+        ),
         Like::Curse => matches!(kind, Kind::CityCurse | Kind::WizardCurse),
     })
 }

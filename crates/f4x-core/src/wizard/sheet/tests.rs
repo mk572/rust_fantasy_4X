@@ -35,7 +35,9 @@ fn a_new_wizard_has_skill_from_books_and_an_archmage_more() -> TestResult {
     );
     let g = game_with(&[("life", 15)], &[]);
     assert_eq!(
-        g.wizard(P0).ok_or("wizard is missing")?.books_in("life"),
+        g.wizard(P0)
+            .ok_or("wizard is missing")?
+            .books_in(crate::game::testutil::realm("life")),
         11,
         "no more than eleven"
     );

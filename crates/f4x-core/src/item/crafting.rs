@@ -6,6 +6,8 @@
 //! `docs/heroes-items-design.md` section 3.3). `Game::craft_item` (below) starts the casting; the
 //! item waits with the cast in progress until the spell has been paid for, then goes to the armory.
 
+use crate::rules::ItemPowerId;
+use crate::rules::SpellId;
 use serde::{Deserialize, Serialize};
 
 use crate::item::{Item, ItemBonus};
@@ -17,7 +19,7 @@ pub const MAX_POWERS: usize = 4;
 pub const MAX_CHARGES: u32 = 4;
 /// The id of the power that puts a spell in the item; a design names the spell and the number of
 /// charges in [`ItemDesign::charges`] instead of listing the power.
-pub const SPELL_CHARGES: &str = "spell_charges";
+pub const SPELL_CHARGES: ItemPowerId = ItemPowerId::new(65); /* spell_charges */
 /// The effect hook of the two crafting spells: the finished item goes to the armory.
 pub const CRAFT_ITEM: &str = "craft_item";
 
@@ -63,10 +65,10 @@ pub struct ItemDesign {
     /// gives the first of the range.
     #[serde(default)]
     pub icon: u16,
-    /// Ids in `item_powers.ron`, not [`SPELL_CHARGES`].
-    pub powers: Vec<String>,
+    /// Numbers in `item_powers.ron`, not [`SPELL_CHARGES`].
+    pub powers: Vec<ItemPowerId>,
     /// The spell the hero can cast from the item and how many times.
-    pub charges: Option<(String, u32)>,
+    pub charges: Option<(SpellId, u32)>,
 }
 
 impl ItemDesign {
@@ -147,8 +149,8 @@ fn is_plain(power: &ItemPowerDef) -> bool {
 /// (`Wizard::cost_reduction`, where Artificer takes half off).
 pub fn cost(design: &ItemDesign, rules: &Rules) -> u32 {
     let mut total = base_cost(design.kind);
-    for id in &design.powers {
-        let Some(power) = rules.item_powers.by_name(id) else {
+    for &id in &design.powers {
+        let Some(power) = rules.item_powers.try_get(id) else {
             continue;
         };
         total += if design.kind == ItemKind::Misc && is_plain(power) {
@@ -158,7 +160,7 @@ pub fn cost(design: &ItemDesign, rules: &Rules) -> u32 {
         };
     }
     if let Some((spell, count)) = &design.charges {
-        if let Some(spell) = rules.spells.by_name(spell) {
+        if let Some(spell) = rules.spells.try_get(*spell) {
             total += spell.cost * count * 20;
         }
     }
@@ -182,13 +184,13 @@ pub fn check(
         return Err(CraftError::TooManyPowers);
     }
     let mut groups = Vec::new();
-    for (i, id) in design.powers.iter().enumerate() {
+    for (i, &id) in design.powers.iter().enumerate() {
         let power = rules
             .item_powers
-            .by_name(id)
+            .try_get(id)
             .filter(|_| id != SPELL_CHARGES)
             .ok_or(CraftError::UnknownPower)?;
-        if design.powers[..i].contains(id) {
+        if design.powers[..i].contains(&id) {
             return Err(CraftError::Repeated);
         }
         check_power(power, design.kind, craft, magic)?;
@@ -202,14 +204,14 @@ pub fn check(
     if let Some((spell, charges)) = &design.charges {
         let power = rules
             .item_powers
-            .by_name(SPELL_CHARGES)
+            .try_get(SPELL_CHARGES)
             .ok_or(CraftError::UnknownPower)?;
         check_power(power, design.kind, craft, magic)?;
         if !(1..=MAX_CHARGES).contains(charges) {
             return Err(CraftError::BadCharges);
         }
-        let id = rules.spells.id_of(spell).ok_or(CraftError::BadSpell)?;
-        let def = rules.spells.get(id);
+        let id = *spell;
+        let def = rules.spells.try_get(id).ok_or(CraftError::BadSpell)?;
         if !magic.knows(id) || !def.contexts.contains(&crate::rules::CastContext::Battle) {
             return Err(CraftError::BadSpell);
         }
@@ -229,7 +231,7 @@ fn check_power(
     if power.cost > craft.max_power_cost() {
         return Err(CraftError::TooCostly);
     }
-    if let Some(realm) = &power.realm {
+    if let Some(realm) = power.realm.as_ref().and_then(|r| r.id()) {
         if magic.books_in(realm) < power.books as i32 {
             return Err(CraftError::NeedsBooks);
         }
@@ -260,8 +262,8 @@ pub fn available_powers<'a>(
 pub fn build(design: &ItemDesign, rules: &Rules) -> Item {
     let mut bonus = ItemBonus::default();
     let mut powers = Vec::new();
-    for id in &design.powers {
-        let Some(power) = rules.item_powers.by_name(id) else {
+    for &id in &design.powers {
+        let Some(power) = rules.item_powers.try_get(id) else {
             continue;
         };
         match power.bonus {
@@ -272,7 +274,7 @@ pub fn build(design: &ItemDesign, rules: &Rules) -> Item {
             Some((PowerBonus::Resistance, v)) => bonus.resistance = v,
             Some((PowerBonus::SpellSkill, v)) => bonus.spell_skill = v,
             Some((PowerBonus::SpellSave, v)) => bonus.spell_save = v,
-            None => powers.push(id.clone()),
+            None => powers.push(id),
         }
     }
     match design.kind {
@@ -292,7 +294,7 @@ pub fn build(design: &ItemDesign, rules: &Rules) -> Item {
         icon: design.picture(),
         bonus,
         powers,
-        charges: design.charges.clone(),
+        charges: design.charges,
         prefab: None,
         made,
     }
@@ -376,10 +378,10 @@ pub enum Suffix {
     Power,
     Speed,
     Protection,
-    /// A special power, by its id in `item_powers.ron` (the name is the content's).
-    Special(String),
-    /// The embedded spell, by its id, and the charges.
-    Spell(String, u32),
+    /// A special power, by its number in `item_powers.ron` (the name is the content's).
+    Special(ItemPowerId),
+    /// The embedded spell, by its number, and the charges.
+    Spell(SpellId, u32),
 }
 
 impl Suffix {
@@ -426,9 +428,9 @@ impl MadeName {
             Some(Suffix::Special(id)) => content
                 .rules
                 .item_powers
-                .by_name(id)
+                .try_get(*id)
                 .map(|p| p.name.clone()),
-            Some(Suffix::Spell(id, n)) => content.rules.spells.by_name(id).map(|s| {
+            Some(Suffix::Spell(id, n)) => content.rules.spells.try_get(*id).map(|s| {
                 texts.get(
                     "item.name_charges",
                     &Args::new().text("spell", &s.name).count("n", *n as i32),
@@ -461,10 +463,7 @@ pub fn made_name(design: &ItemDesign, rules: &Rules) -> MadeName {
     let mut left: Vec<(usize, &ItemPowerDef)> = design
         .powers
         .iter()
-        .filter_map(|id| {
-            let at = rules.item_powers.id_of(id)?;
-            Some((at.num() as usize, rules.item_powers.get(at)))
-        })
+        .filter_map(|&at| Some((at.num() as usize, rules.item_powers.try_get(at)?)))
         .collect();
     let mut bonus = None;
     if weapon {
@@ -488,13 +487,13 @@ pub fn made_name(design: &ItemDesign, rules: &Rules) -> MadeName {
             Some((PowerBonus::SpellSave, _)) => Suffix::Power,
             Some((PowerBonus::Moves, _)) => Suffix::Speed,
             Some((PowerBonus::Resistance, _)) => Suffix::Protection,
-            None => Suffix::Special(power.id.clone()),
+            None => Suffix::Special(ItemPowerId::new(power.num)),
         })
     } else {
         design
             .charges
             .as_ref()
-            .map(|(spell, count)| Suffix::Spell(spell.clone(), *count))
+            .map(|(spell, count)| Suffix::Spell(*spell, *count))
     };
     MadeName {
         kind,
@@ -671,7 +670,16 @@ mod tests {
             name: String::new(),
             kind,
             icon: 0,
-            powers: powers.iter().map(|p| p.to_string()).collect(),
+            powers: powers
+                .iter()
+                .map(|p| {
+                    shipped()
+                        .rules
+                        .item_powers
+                        .id_of(p)
+                        .unwrap_or(ItemPowerId::new(9999)) /* unknown */
+                })
+                .collect(),
             charges: None,
         }
     }
@@ -694,7 +702,7 @@ mod tests {
         // A special power is never doubled.
         assert_eq!(cost(&design(ItemKind::Misc, &["flight"]), rules), 250);
         let mut staff = design(ItemKind::Staff, &[]);
-        staff.charges = Some(("giant_strength".into(), 3));
+        staff.charges = Some((SpellId::new(4) /* giant_strength */, 3));
         // 300 base, and the spell's 8 mana times 3 charges times 20.
         assert_eq!(cost(&staff, rules), 300 + 8 * 3 * 20);
     }
@@ -740,7 +748,7 @@ mod tests {
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Books>()
             .0
-            .insert("chaos".into(), 1);
+            .insert(crate::game::testutil::realm("chaos"), 1);
         assert_eq!(
             check_in(
                 &poor,
@@ -764,7 +772,7 @@ mod tests {
         let cheap = design(ItemKind::Sword, &["attack_2", "defense_2"]);
         assert_eq!(check_in(&g, Craft::EnchantItem, &cheap), Ok(()));
         let mut staff = design(ItemKind::Staff, &[]);
-        staff.charges = Some(("giant_strength".into(), 1));
+        staff.charges = Some((SpellId::new(4) /* giant_strength */, 1));
         assert_eq!(
             check_in(&g, Craft::EnchantItem, &staff),
             Err(CraftError::TooCostly),
@@ -778,7 +786,14 @@ mod tests {
         let g = world(0);
         let mut staff = design(ItemKind::Staff, &[]);
         let mut with = |spell: &str, n: u32| {
-            staff.charges = Some((spell.into(), n));
+            staff.charges = Some((
+                shipped()
+                    .rules
+                    .spells
+                    .id_of(spell)
+                    .unwrap_or(SpellId::new(9999)), /* unknown */
+                n,
+            ));
             check_in(&g, Craft::CreateArtifact, &staff)
         };
         assert_eq!(with("giant_strength", 4), Ok(()));
@@ -791,7 +806,7 @@ mod tests {
             "not known, and not for battle"
         );
         let sword = ItemDesign {
-            charges: Some(("giant_strength".into(), 1)),
+            charges: Some((SpellId::new(4) /* giant_strength */, 1)),
             ..design(ItemKind::Sword, &["attack_1"])
         };
         assert_eq!(
@@ -841,7 +856,7 @@ mod tests {
         let rules = &g.content.rules;
         let sword = build(&design(ItemKind::Sword, &["attack_2", "flaming"]), rules);
         assert_eq!(sword.bonus.attack, 2);
-        assert_eq!(sword.powers, ["flaming"]);
+        assert_eq!(sword.powers, [ItemPowerId::new(33) /* flaming */]);
         assert_eq!(sword.cost, 100 + 100 + 300);
         assert_eq!(sword.name, "");
         assert_eq!(
@@ -849,7 +864,7 @@ mod tests {
             Some(MadeName {
                 kind: TypeName::Sword,
                 bonus: Some(2),
-                suffix: Some(Suffix::Special("flaming".into())),
+                suffix: Some(Suffix::Special(ItemPowerId::new(33) /* flaming */)),
             })
         );
         // Chain mail gains a defence of its own, and a movement power is whole moves in half-moves.
@@ -897,13 +912,19 @@ mod tests {
         };
         assert_eq!(build(&named, rules).name, "Sting");
         let mut staff = design(ItemKind::Staff, &[]);
-        staff.charges = Some(("giant_strength".into(), 2));
+        staff.charges = Some((SpellId::new(4) /* giant_strength */, 2));
         let staff = build(&staff, rules);
         assert_eq!(
             staff.made.map(|m| m.suffix),
-            Some(Some(Suffix::Spell("giant_strength".into(), 2)))
+            Some(Some(Suffix::Spell(
+                SpellId::new(4), /* giant_strength */
+                2
+            )))
         );
-        assert_eq!(staff.charges, Some(("giant_strength".into(), 2)));
+        assert_eq!(
+            staff.charges,
+            Some((SpellId::new(4) /* giant_strength */, 2))
+        );
     }
 
     #[test]

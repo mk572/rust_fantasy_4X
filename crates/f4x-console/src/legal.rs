@@ -175,8 +175,9 @@ fn outpost(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ctx.game
             .units()
             .unit_def(unit)
-            .and_then(|d| d.race.as_deref())
-            .and_then(|r| ctx.game.content().rules.races.by_name(r))
+            .and_then(|d| d.race.as_ref())
+            .and_then(|r| r.id())
+            .map(|r| ctx.game.content().rules.races.get(r))
             .and_then(|r| r.city_names.get(used % r.city_names.len().max(1)).cloned())
             .unwrap_or_else(|| format!("Outpost {}", used + 1))
     };
@@ -705,9 +706,19 @@ fn craft(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             )))
         }
     };
-    let powers: Vec<String> = match a.need(2, "powers")? {
+    let powers = match a.need(2, "powers")? {
         "-" => Vec::new(),
-        list => list.split(',').map(str::to_string).collect(),
+        list => list
+            .split(',')
+            .map(|p| {
+                resolve(
+                    &ctx.game.content().rules.item_powers,
+                    p,
+                    |d| &d.name,
+                    "power",
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?,
     };
     let mut charges = None;
     let mut name_from = 3;
@@ -718,7 +729,7 @@ fn craft(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         let n: u32 = n
             .parse()
             .map_err(|_| ConsoleError::Parse(format!("{n:?} is not a number of charges")))?;
-        charges = Some((spell.to_string(), n));
+        charges = Some((spell_arg(ctx, spell)?, n));
         name_from = 4;
     }
     let design = ItemDesign {

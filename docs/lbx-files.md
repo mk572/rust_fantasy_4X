@@ -51,7 +51,7 @@ in the program, which ReMoM transcribes (`UNITTYPE.c`, `NewGame.c`, `_wizard_pre
 `SPLMASTR.LBX` (32 entries, 1.5 MB) is the art of the Spell of Mastery's cast and loss animations
 (`SPLMASTR.c`), not data; `SPECIAL` and `SPECIAL2` are interface art (`LOADER.c` loads them by entry);
 `WIZARDS.LBX` holds the 14 wizard portraits (`gsa_WIZARDS_0to13`). None of the three carries rules or
-text. The pictures that need a task are listed in `TASKS-ONHOLD.md` (147, 287).
+text. The pictures that need a task are listed in `TASKS.md` (147, 287).
 
 ## 3. What the unread text could still give
 

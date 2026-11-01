@@ -45,12 +45,24 @@ fn a_wizard_of_both_realms_gets_both_changes() {
 #[test]
 fn a_conjunction_doubles_the_nodes_of_its_colour_and_halves_the_others() {
     let chaos = moon(EventKind::ConjunctionChaos);
-    assert_eq!(chaos.node_power("chaos", 10), 20);
-    assert_eq!(chaos.node_power("nature", 10), 5);
-    assert_eq!(chaos.node_power("sorcery", 7), 3);
-    assert_eq!(Events::default().node_power("chaos", 10), 10);
     assert_eq!(
-        moon(EventKind::ConjunctionNature).node_power("nature", 6),
+        chaos.node_power(crate::game::testutil::realm("chaos"), 10),
+        20
+    );
+    assert_eq!(
+        chaos.node_power(crate::game::testutil::realm("nature"), 10),
+        5
+    );
+    assert_eq!(
+        chaos.node_power(crate::game::testutil::realm("sorcery"), 7),
+        3
+    );
+    assert_eq!(
+        Events::default().node_power(crate::game::testutil::realm("chaos"), 10),
+        10
+    );
+    assert_eq!(
+        moon(EventKind::ConjunctionNature).node_power(crate::game::testutil::realm("nature"), 6),
         12
     );
 }

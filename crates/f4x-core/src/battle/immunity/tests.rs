@@ -1,4 +1,5 @@
 use super::*;
+use crate::rules::SpellId;
 use rand::SeedableRng;
 
 use crate::game::testutil::abilities;
@@ -179,36 +180,77 @@ fn immunities_come_from_abilities() {
 fn resistance_adds_up_by_realm() {
     let none = unit(&[]);
     let wise = unit(&["magic_immunity"]);
-    let r = |imm: &Immunities, realm, enchants: &[&str]| {
+    let r = |imm: &Immunities, realm, enchants: &[SpellId]| {
         effective_resistance(5, imm, Some(realm), enchants)
     };
     assert_eq!(r(&none, Realm::Chaos, &[]), 5);
     assert_eq!(r(&wise, Realm::Sorcery, &[]), 35);
-    assert_eq!(r(&none, Realm::Chaos, &["resist_elements"]), 8);
-    assert_eq!(r(&none, Realm::Life, &["resist_elements"]), 5);
-    assert_eq!(
-        r(
-            &none,
-            Realm::Nature,
-            &["elemental_armor", "resist_elements"]
-        ),
-        15
-    );
-    assert_eq!(r(&none, Realm::Death, &["righteousness"]), 35);
-    assert_eq!(r(&none, Realm::Nature, &["righteousness"]), 5);
-    assert_eq!(r(&none, Realm::Death, &["bless"]), 8);
-    assert_eq!(r(&none, Realm::Life, &["bless"]), 5);
-    assert_eq!(r(&none, Realm::Sorcery, &["resist_magic"]), 10);
     assert_eq!(
         r(
             &none,
             Realm::Chaos,
-            &["resist_magic", "resist_elements", "bless"]
+            &[SpellId::new(2) /* resist_elements */]
+        ),
+        8
+    );
+    assert_eq!(
+        r(&none, Realm::Life, &[SpellId::new(2) /* resist_elements */]),
+        5
+    );
+    assert_eq!(
+        r(
+            &none,
+            Realm::Nature,
+            &[
+                SpellId::new(21), /* elemental_armor */
+                SpellId::new(2)   /* resist_elements */
+            ]
+        ),
+        15
+    );
+    assert_eq!(
+        r(
+            &none,
+            Realm::Death,
+            &[SpellId::new(144) /* righteousness */]
+        ),
+        35
+    );
+    assert_eq!(
+        r(
+            &none,
+            Realm::Nature,
+            &[SpellId::new(144) /* righteousness */]
+        ),
+        5
+    );
+    assert_eq!(r(&none, Realm::Death, &[SpellId::new(121) /* bless */]), 8);
+    assert_eq!(r(&none, Realm::Life, &[SpellId::new(121) /* bless */]), 5);
+    assert_eq!(
+        r(
+            &none,
+            Realm::Sorcery,
+            &[SpellId::new(41) /* resist_magic */]
+        ),
+        10
+    );
+    assert_eq!(
+        r(
+            &none,
+            Realm::Chaos,
+            &[
+                SpellId::new(41),  /* resist_magic */
+                SpellId::new(2),   /* resist_elements */
+                SpellId::new(121)  /* bless */
+            ]
         ),
         16
     );
     // No realm, no bonus: a plain weapon is not resisted.
-    assert_eq!(effective_resistance(5, &wise, None, &["resist_magic"]), 5);
+    assert_eq!(
+        effective_resistance(5, &wise, None, &[SpellId::new(41) /* resist_magic */]),
+        5
+    );
 }
 
 #[test]
@@ -281,31 +323,70 @@ fn armor_piercing_halves_the_defense_before_immunities_set_their_floor() {
 #[test]
 fn enchantments_add_defense_against_the_realms_they_guard() {
     let ranged = Mode::Ranged;
-    let d = |realm, mode, names: &[&str]| defense_bonus(Some(realm), mode, names);
-    assert_eq!(d(Realm::Chaos, ranged, &["elemental_armor"]), 10);
-    assert_eq!(d(Realm::Nature, ranged, &["resist_elements"]), 3);
+    let d = |realm, mode, names: &[SpellId]| defense_bonus(Some(realm), mode, names);
+    assert_eq!(
+        d(
+            Realm::Chaos,
+            ranged,
+            &[SpellId::new(21) /* elemental_armor */]
+        ),
+        10
+    );
     assert_eq!(
         d(
             Realm::Nature,
             ranged,
-            &["elemental_armor", "resist_elements"]
+            &[SpellId::new(2) /* resist_elements */]
+        ),
+        3
+    );
+    assert_eq!(
+        d(
+            Realm::Nature,
+            ranged,
+            &[
+                SpellId::new(21), /* elemental_armor */
+                SpellId::new(2)   /* resist_elements */
+            ]
         ),
         10,
         "the better one counts"
     );
-    assert_eq!(d(Realm::Chaos, Mode::Melee, &["elemental_armor"]), 0);
-    assert_eq!(d(Realm::Sorcery, ranged, &["elemental_armor"]), 0);
-    assert_eq!(d(Realm::Death, ranged, &["bless"]), 3);
-    assert_eq!(d(Realm::Life, ranged, &["bless"]), 0);
     assert_eq!(
-        defense_bonus(None, ranged, &["bless", "elemental_armor"]),
+        d(
+            Realm::Chaos,
+            Mode::Melee,
+            &[SpellId::new(21) /* elemental_armor */]
+        ),
+        0
+    );
+    assert_eq!(
+        d(
+            Realm::Sorcery,
+            ranged,
+            &[SpellId::new(21) /* elemental_armor */]
+        ),
+        0
+    );
+    assert_eq!(d(Realm::Death, ranged, &[SpellId::new(121) /* bless */]), 3);
+    assert_eq!(d(Realm::Life, ranged, &[SpellId::new(121) /* bless */]), 0);
+    assert_eq!(
+        defense_bonus(
+            None,
+            ranged,
+            &[
+                SpellId::new(121), /* bless */
+                SpellId::new(21)   /* elemental_armor */
+            ]
+        ),
         0
     );
 }
 
 #[test]
 fn righteousness_turns_ranged_chaos_and_death_away() {
-    let r = |realm, mode| righteous_ward(Some(realm), mode, &["righteousness"]);
+    let r =
+        |realm, mode| righteous_ward(Some(realm), mode, &[SpellId::new(144) /* righteousness */]);
     assert!(r(Realm::Chaos, Mode::Ranged));
     assert!(r(Realm::Death, Mode::Ranged));
     assert!(!r(Realm::Nature, Mode::Ranged));
@@ -313,6 +394,6 @@ fn righteousness_turns_ranged_chaos_and_death_away() {
     assert!(!righteous_ward(
         Some(Realm::Chaos),
         Mode::Ranged,
-        &["bless"]
+        &[SpellId::new(121) /* bless */]
     ));
 }

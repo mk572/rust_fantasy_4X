@@ -21,6 +21,7 @@ use crate::player::{Owner, PlayerId};
 use crate::unit::{Experience, Hurt, MovesLeft, Unit, UnitView};
 
 use crate::game::{Event, Game};
+use crate::rules::RealmId;
 use crate::wizard::magic::Retort;
 
 impl UnitView<'_> {
@@ -129,8 +130,12 @@ impl UnitView<'_> {
         let magic = self.wizard(player);
         Standing {
             fame: self.fame(player),
-            life_books: magic.as_ref().map_or(0, |m| m.books_in("life")),
-            death_books: magic.as_ref().map_or(0, |m| m.books_in("death")),
+            life_books: magic
+                .as_ref()
+                .map_or(0, |m| m.books_in(RealmId::new(3) /* life */)),
+            death_books: magic
+                .as_ref()
+                .map_or(0, |m| m.books_in(RealmId::new(4) /* death */)),
         }
     }
 
@@ -464,7 +469,7 @@ pub(crate) mod tests {
         assert_eq!(g.units().unit_gold_upkeep(plain), 2);
         assert_eq!(
             g.world.get::<&Hero>(plain)?.spells,
-            vec!["resist_elements".to_string()]
+            vec![crate::rules::SpellId::new(2) /* resist_elements */]
         );
         // The same hero cannot serve twice, and another wizard cannot hire the one who serves.
         assert_eq!(
@@ -791,7 +796,7 @@ pub(crate) mod tests {
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Books>()
             .0
-            .insert("death".into(), 1);
+            .insert(crate::game::testutil::realm("death"), 1);
         let mut seen = std::collections::BTreeSet::new();
         for _ in 0..2000 {
             if let Some(k) = g.pick_hero(P0, true, Class::Any) {

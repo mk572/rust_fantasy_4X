@@ -14,6 +14,7 @@ pub(crate) mod game;
 use crate::game::serial::Serial;
 use crate::game::setting::EventFrequency;
 use crate::player::PlayerId;
+use crate::rules::RealmId;
 
 /// The eighteen events, numbered as in `EVENTS.LBX`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -304,12 +305,21 @@ impl Events {
 
     /// The power of a node of `realm` after the conjunctions: a conjunction doubles the nodes of
     /// its own colour and halves the others (`CITYCALC.c`, phase 3e).
-    pub fn node_power(&self, realm: &str, power: i32) -> i32 {
+    pub fn node_power(&self, realm: RealmId, power: i32) -> i32 {
         let mut power = power;
         for (kind, colour) in [
-            (EventKind::ConjunctionChaos, "chaos"),
-            (EventKind::ConjunctionSorcery, "sorcery"),
-            (EventKind::ConjunctionNature, "nature"),
+            (
+                EventKind::ConjunctionChaos,
+                RealmId::new(2), /* chaos */
+            ),
+            (
+                EventKind::ConjunctionSorcery,
+                RealmId::new(1), /* sorcery */
+            ),
+            (
+                EventKind::ConjunctionNature,
+                RealmId::new(0), /* nature */
+            ),
         ] {
             if self.is_ongoing(kind) {
                 power = if realm == colour {

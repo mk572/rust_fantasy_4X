@@ -26,7 +26,7 @@ use crate::player::{PlayerId, Treasury};
 use crate::player::finance::Budget;
 
 use crate::game::Game;
-use crate::rules::{SpellDef, SpellId, Stat, UnitDef};
+use crate::rules::{RealmId, SpellDef, SpellId, Stat, UnitDef, UnitId};
 
 pub struct PlayerView<'a> {
     game: &'a Game,
@@ -118,11 +118,11 @@ impl<'a> PlayerView<'a> {
 
     /// Whether a wizard the player is at war with has a book in one of `realms` (the books of a
     /// wizard are on show in the diplomacy screen).
-    pub fn rival_at_war_has_books(&self, realms: &[&str]) -> bool {
+    pub fn rival_at_war_has_books(&self, realms: &[RealmId]) -> bool {
         self.rivals_at_war().into_iter().any(|p| {
             self.game
                 .wizard(p)
-                .is_some_and(|w| realms.iter().any(|r| w.books_in(r) > 0))
+                .is_some_and(|w| realms.iter().any(|&r| w.books_in(r) > 0))
         })
     }
 
@@ -527,7 +527,7 @@ impl<'a> PlayerView<'a> {
 
     /// What guards the site on a square, once the player has fought for it (otherwise the
     /// player does not know).
-    pub fn lair_guards(&self, at: Position) -> Option<Vec<(String, u32)>> {
+    pub fn lair_guards(&self, at: Position) -> Option<Vec<(UnitId, u32)>> {
         self.game.economy().lair_guards_known_to(at, self.me)
     }
 

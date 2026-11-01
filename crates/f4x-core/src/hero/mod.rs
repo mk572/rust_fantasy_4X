@@ -12,6 +12,7 @@
 pub(crate) mod game;
 pub mod kind;
 
+use crate::rules::SpellId;
 use serde::{Deserialize, Serialize};
 
 use crate::rules::stats::{ModOp, Modifier, Source, Stat};
@@ -311,7 +312,7 @@ pub struct Hero {
     pub abilities: HeroAbilities,
     pub casting_skill: u8,
     /// The four innate spells (ids in `spells.ron`), fewer when the hero knows fewer.
-    pub spells: Vec<String>,
+    pub spells: Vec<SpellId>,
 }
 
 #[cfg(test)]

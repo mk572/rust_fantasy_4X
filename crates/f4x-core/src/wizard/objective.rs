@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::game::Game;
 use crate::player::PlayerId;
+use crate::rules::RealmId;
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::Retort;
 
@@ -73,7 +74,7 @@ impl Objective {
 }
 
 /// The original's realm order, which its weight table is indexed by (`sbr_Nature` to `sbr_Death`).
-const REALMS: [&str; 5] = ["nature", "sorcery", "chaos", "life", "death"];
+const REALMS: [RealmId; 5] = crate::rules::BOOK_REALMS;
 
 /// `TBL_AI_Realm_OBJ`: the base weight of each objective by primary realm
 /// (Pragmatist, Militarist, Theurgist, Perfectionist, Expansionist).
@@ -86,10 +87,10 @@ const REALM_WEIGHTS: [[i32; 5]; 5] = [
 ];
 
 /// The index (in `REALMS`) of the realm with most books; the earlier one on a tie.
-fn primary_realm(books: &impl Fn(&str) -> i32) -> usize {
+fn primary_realm(books: &impl Fn(RealmId) -> i32) -> usize {
     let mut primary = 0;
     for (i, realm) in REALMS.iter().enumerate().skip(1) {
-        if books(realm) > books(REALMS[primary]) {
+        if books(*realm) > books(REALMS[primary]) {
             primary = i;
         }
     }
@@ -117,7 +118,10 @@ const PERSONALITIES: [Personality; 6] = [
 
 /// The weight of each personality: the primary realm's row plus the retorts' bonuses; a Life
 /// wizard is never Maniacal and a Death wizard never Peaceful.
-pub fn personality_weights(books: impl Fn(&str) -> i32, has: impl Fn(Retort) -> bool) -> [i32; 6] {
+pub fn personality_weights(
+    books: impl Fn(RealmId) -> i32,
+    has: impl Fn(Retort) -> bool,
+) -> [i32; 6] {
     let primary = primary_realm(&books);
     let mut w = PERSONALITY_WEIGHTS[primary];
     let [maniacal, ruthless, aggressive, chaotic, lawful, peaceful] = &mut w;
@@ -140,9 +144,9 @@ pub fn personality_weights(books: impl Fn(&str) -> i32, has: impl Fn(Retort) -> 
     if has(Retort::new(8) /* channeler */) {
         *aggressive += 2;
     }
-    match REALMS[primary] {
-        "life" => *maniacal = 0,
-        "death" => *peaceful = 0,
+    match REALMS[primary].num() {
+        3 /* life */ => *maniacal = 0,
+        4 /* death */ => *peaceful = 0,
         _ => {}
     }
     w
@@ -161,7 +165,7 @@ pub fn pick_personality(weights: &[i32; 6], roll: i32) -> Personality {
 
 /// The weight of each objective for a wizard with these books and retorts: the table row of the
 /// primary realm (the realm with most books, the earlier one on a tie) plus the retorts' bonuses.
-pub fn objective_weights(books: impl Fn(&str) -> i32, has: impl Fn(Retort) -> bool) -> [i32; 5] {
+pub fn objective_weights(books: impl Fn(RealmId) -> i32, has: impl Fn(Retort) -> bool) -> [i32; 5] {
     let primary = primary_realm(&books);
     let mut w = REALM_WEIGHTS[primary];
     let [_, militarist, theurgist, perfectionist, expansionist] = &mut w;
@@ -260,7 +264,12 @@ mod tests {
 
     fn weights(books: &[(&str, i32)], retorts: &[Retort]) -> [i32; 5] {
         objective_weights(
-            |r| books.iter().find(|b| b.0 == r).map_or(0, |b| b.1),
+            |r| {
+                books
+                    .iter()
+                    .find(|b| crate::game::testutil::realm(b.0) == r)
+                    .map_or(0, |b| b.1)
+            },
             |r| retorts.contains(&r),
         )
     }
@@ -326,7 +335,11 @@ mod tests {
     fn personalities_follow_the_realm_and_retorts() {
         let w = |b: &[(&str, i32)], r: &[Retort]| {
             personality_weights(
-                |x| b.iter().find(|p| p.0 == x).map_or(0, |p| p.1),
+                |x| {
+                    b.iter()
+                        .find(|p| crate::game::testutil::realm(p.0) == x)
+                        .map_or(0, |p| p.1)
+                },
                 |x| r.contains(&x),
             )
         };

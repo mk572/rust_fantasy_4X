@@ -9,9 +9,7 @@ the README and `docs/ecs-structure.md` equal to it).
 
 ## Current work
 
-For current priority tasks `docs/TASKS.md` 
-
-For low-priority and deferred tasks, see `docs/TASKS-ONHOLD.md`
+For the open tasks and their priorities (High, Medium, Low) see `docs/TASKS.md`
 
 For long-term goals, see `docs/PLANNED.md`
 

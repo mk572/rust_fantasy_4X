@@ -129,26 +129,29 @@ mod tests {
         let content = content();
         let realm_of = |id: &str| {
             let spells = &content.rules.spells;
-            spells.get(spells.id_of(id).unwrap()).realm.clone()
+            spells.get(spells.id_of(id).unwrap()).realm.id().unwrap()
         };
         // Every pair of realms with the arcane spells fits whole, so a generated wizard of one or
         // two realms is never cut short.
-        let battle: Vec<String> = {
+        let battle: Vec<f4x_core::rules::RealmId> = {
             content
                 .rules
                 .spells
                 .iter()
                 .filter(|(_, d)| scenario::battle_spell(d))
-                .map(|(_, d)| d.realm.clone())
+                .filter_map(|(_, d)| d.realm.id())
                 .collect()
         };
-        let in_realm = |r: &str| battle.iter().filter(|x| *x == r).count();
-        let arcane = in_realm("arcane");
-        let names = ["nature", "sorcery", "chaos", "life", "death"];
+        let in_realm = |r: f4x_core::rules::RealmId| battle.iter().filter(|x| **x == r).count();
+        let arcane = in_realm(f4x_core::rules::RealmId::new(5) /* arcane */);
+        let names = f4x_core::rules::BOOK_REALMS;
         for a in names {
             for b in names {
                 let n = in_realm(a) + if a == b { 0 } else { in_realm(b) } + arcane;
-                assert!(n <= obs::MAX_SPELLS, "{a} and {b} have {n} battle spells");
+                assert!(
+                    n <= obs::MAX_SPELLS,
+                    "{a:?} and {b:?} have {n} battle spells"
+                );
             }
         }
         let (mut small, mut large) = (0, 0);
@@ -158,11 +161,11 @@ mod tests {
                 .into_iter()
                 .flatten()
             {
-                let mut realms: Vec<String> = w
+                let mut realms: Vec<f4x_core::rules::RealmId> = w
                     .spells
                     .iter()
                     .map(|id| realm_of(id))
-                    .filter(|r| r != "arcane")
+                    .filter(|r| r.num() != 5 /* arcane */)
                     .collect();
                 realms.sort();
                 realms.dedup();

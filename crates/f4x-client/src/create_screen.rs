@@ -2,7 +2,7 @@
 //! `newgame_flow.rs` (wizard, picture, name, race, banner) and `newgame_picks.rs` (picks and
 //! spells); a ready-made wizard skips the picture, picks and spells.
 
-use f4x_core::rules::{Rarity, SpellId};
+use f4x_core::rules::{Rarity, RealmId, SpellId};
 use f4x_core::wizard::WizardBuild;
 
 use crate::view::App;
@@ -48,16 +48,8 @@ pub(crate) struct CreateState {
 
 impl App {
     /// Realm ids that hold spell books, in the rules' order (arcane has none).
-    pub(crate) fn book_realms(&self) -> Vec<String> {
-        self.game
-            .content()
-            .rules
-            .realms
-            .defs()
-            .iter()
-            .filter(|r| r.id != "arcane")
-            .map(|r| r.id.clone())
-            .collect()
+    pub(crate) fn book_realms(&self) -> Vec<RealmId> {
+        f4x_core::rules::BOOK_REALMS.to_vec()
     }
 }
 impl CreateState {
@@ -89,7 +81,7 @@ impl CreateState {
             for rarity in [Rarity::Common, Rarity::Uncommon, Rarity::Rare] {
                 let want = self.build.spell_choices_of(
                     &app.game.content().settings.spell_library,
-                    realm,
+                    *realm,
                     rarity,
                 );
                 let mut chosen: Vec<SpellId> = self
@@ -99,15 +91,15 @@ impl CreateState {
                     .copied()
                     .filter(|&s| {
                         let d = app.game.content().rules.spells.get(s);
-                        d.realm == *realm && d.rarity == rarity
+                        d.realm.id() == Some(*realm) && d.rarity == rarity
                     })
                     .collect();
                 chosen.truncate(want);
-                for s in f4x_core::wizard::magic::default_spells(app.game.content(), realm, rarity)
+                for s in f4x_core::wizard::magic::default_spells(app.game.content(), *realm, rarity)
                     .into_iter()
                     .chain(f4x_core::wizard::magic::spells_of(
                         app.game.content(),
-                        realm,
+                        *realm,
                         rarity,
                     ))
                 {
@@ -153,8 +145,9 @@ mod tests {
     fn the_five_realms_of_magic_hold_books_and_arcane_does_not() {
         let app = App::for_test();
         let mut realms = app.book_realms();
-        realms.sort();
-        assert_eq!(realms, ["chaos", "death", "life", "nature", "sorcery"]);
+        realms.sort_by_key(|&r| app.realm_alias(r));
+        let names: Vec<String> = realms.iter().map(|&r| app.realm_alias(r)).collect();
+        assert_eq!(names, ["chaos", "death", "life", "nature", "sorcery"]);
     }
 
     #[test]
@@ -168,8 +161,8 @@ mod tests {
         let realms = app.book_realms();
         assert!(!state.build.spells.is_empty());
         for &s in &state.build.spells {
-            let realm = &app.game.content().rules.spells.get(s).realm;
-            assert!(realms.contains(realm), "{realm} holds no books");
+            let realm = app.game.content().rules.spells.get(s).realm.id().unwrap();
+            assert!(realms.contains(&realm), "{realm:?} holds no books");
         }
         let spells = state.build.spells.clone();
         state.pick_preset(&mut app, None);

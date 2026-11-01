@@ -217,9 +217,7 @@ impl ObsSpec {
                 SpellTarget::EnemyUnit => 4,
                 _ => 5,
             };
-            let realm = ["nature", "sorcery", "chaos", "life", "death", "arcane"]
-                .iter()
-                .position(|r| *r == d.realm);
+            let realm = d.realm.id().map(|r| usize::from(r.num()));
             let row = &mut spells[i * SPELL_FEATURES..(i + 1) * SPELL_FEATURES];
             row[0] = 1.0;
             row[1] = s.cost as f32 / 100.0;

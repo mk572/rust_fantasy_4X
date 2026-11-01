@@ -38,7 +38,7 @@ fn facts(c: &f4x_core::content::Content, race: &str) -> CityFacts {
         .rules
         .buildings
         .iter()
-        .filter(|(_, d)| d.races.is_empty() || d.races.contains(&race.id))
+        .filter(|(_, d)| d.buildable_by(f4x_core::rules::RaceId::new(race.num)))
         .filter(|(_, d)| !d.coastal)
         .map(|(id, _)| id)
         .collect();
@@ -51,7 +51,7 @@ fn facts(c: &f4x_core::content::Content, race: &str) -> CityFacts {
         .rules
         .units
         .iter()
-        .filter(|(_, d)| race.units.contains(&d.id) && d.requires.is_empty())
+        .filter(|(id, d)| race.units.iter().any(|u| u.id() == Some(*id)) && d.requires.is_empty())
         .map(|(id, _)| id)
         .collect();
     CityFacts {

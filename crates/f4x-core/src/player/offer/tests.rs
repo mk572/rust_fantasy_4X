@@ -388,7 +388,7 @@ fn a_rejected_or_lapsed_item_can_be_offered_again() -> TestResult {
         &mut g,
         |o| matches!(o, Offer::Item { item, .. } if item.prefab.is_some()),
     );
-    assert_eq!(g.prefab_taken, vec!["only".to_string()]);
+    assert_eq!(g.prefab_taken, vec![crate::rules::ItemId::new(0)]);
     g.reject_offer(P0, i).map_err(|e| format!("{e:?}"))?;
     assert!(g.prefab_taken.is_empty());
     // An unanswered one lapses at the next turn change.

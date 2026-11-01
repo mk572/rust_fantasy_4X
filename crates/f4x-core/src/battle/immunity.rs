@@ -22,7 +22,7 @@
 //!
 //! Tests: in battle/immunity/tests.rs.
 
-use crate::rules::Ability;
+use crate::rules::{Ability, SpellId};
 use rand::{Rng, RngCore};
 
 use super::attack::Mode;
@@ -39,16 +39,32 @@ pub enum Realm {
 }
 
 impl Realm {
-    pub fn from_id(id: &str) -> Option<Realm> {
-        Some(match id {
-            "nature" => Realm::Nature,
-            "sorcery" => Realm::Sorcery,
-            "chaos" => Realm::Chaos,
-            "life" => Realm::Life,
-            "death" => Realm::Death,
-            "arcane" => Realm::Arcane,
+    /// The realm with this number in `realms.ron` (the original's `sbr_*` numbers).
+    pub fn from_num(num: u16) -> Option<Realm> {
+        Some(match num {
+            0 => Realm::Nature,
+            1 => Realm::Sorcery,
+            2 => Realm::Chaos,
+            3 => Realm::Life,
+            4 => Realm::Death,
+            5 => Realm::Arcane,
             _ => return None,
         })
+    }
+
+    /// The realm of a definition's [`RealmId`].
+    pub fn of(id: crate::rules::RealmId) -> Option<Realm> {
+        Realm::from_num(id.num())
+    }
+
+    /// The realm's number in `realms.ron`.
+    pub fn num(self) -> u16 {
+        self as u16
+    }
+
+    /// The realm's id.
+    pub fn id(self) -> crate::rules::RealmId {
+        crate::rules::RealmId::new(self.num())
     }
 }
 
@@ -267,10 +283,10 @@ pub fn effective_resistance(
     resistance: i32,
     unit: &Immunities,
     realm: Option<Realm>,
-    enchantments: &[&str],
+    enchantments: &[SpellId],
 ) -> i32 {
     let mut out = resistance;
-    let has = |id: &str| enchantments.contains(&id);
+    let has = |num: u16| enchantments.contains(&SpellId::new(num));
     let Some(realm) = realm else {
         return out;
     };
@@ -279,20 +295,20 @@ pub fn effective_resistance(
     }
     let dark = matches!(realm, Realm::Chaos | Realm::Death);
     let elemental = matches!(realm, Realm::Chaos | Realm::Nature);
-    if dark && has("righteousness") {
+    if dark && has(144 /* righteousness */) {
         out += 30;
     }
     if elemental {
-        if has("elemental_armor") {
+        if has(21 /* elemental_armor */) {
             out += 10;
-        } else if has("resist_elements") {
+        } else if has(2 /* resist_elements */) {
             out += 3;
         }
     }
-    if dark && has("bless") {
+    if dark && has(121 /* bless */) {
         out += 3;
     }
-    if has("resist_magic") {
+    if has(41 /* resist_magic */) {
         out += 5;
     }
     out
@@ -301,27 +317,27 @@ pub fn effective_resistance(
 /// The defence a unit's lasting spells add against an attack of `realm` (`Battle_Unit_Defense_Special`):
 /// Elemental Armor +10, or else Resist Elements +3, against ranged chaos and nature; Bless +3
 /// against chaos and death.
-pub fn defense_bonus(realm: Option<Realm>, mode: Mode, enchantments: &[&str]) -> i32 {
-    let has = |id: &str| enchantments.contains(&id);
+pub fn defense_bonus(realm: Option<Realm>, mode: Mode, enchantments: &[SpellId]) -> i32 {
+    let has = |num: u16| enchantments.contains(&SpellId::new(num));
     let mut out = 0;
     if matches!(realm, Some(Realm::Chaos | Realm::Nature)) && mode != Mode::Melee {
-        if has("elemental_armor") {
+        if has(21 /* elemental_armor */) {
             out += 10;
-        } else if has("resist_elements") {
+        } else if has(2 /* resist_elements */) {
             out += 3;
         }
     }
-    if matches!(realm, Some(Realm::Chaos | Realm::Death)) && has("bless") {
+    if matches!(realm, Some(Realm::Chaos | Realm::Death)) && has(121 /* bless */) {
         out += 3;
     }
     out
 }
 
 /// Righteousness: a ranged attack of chaos or death cannot touch the unit.
-pub fn righteous_ward(realm: Option<Realm>, mode: Mode, enchantments: &[&str]) -> bool {
+pub fn righteous_ward(realm: Option<Realm>, mode: Mode, enchantments: &[SpellId]) -> bool {
     matches!(realm, Some(Realm::Chaos | Realm::Death))
         && mode != Mode::Melee
-        && enchantments.contains(&"righteousness")
+        && enchantments.contains(&SpellId::new(144) /* righteousness */)
 }
 
 /// The defence an unbeatable ward or immunity gives.

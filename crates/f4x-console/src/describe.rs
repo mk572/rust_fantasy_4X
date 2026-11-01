@@ -683,17 +683,17 @@ pub fn magic_item(game: &Game, item: &f4x_core::item::Item) -> String {
     .filter(|(_, v)| *v != 0)
     .map(|(n, v)| format!("{v:+} {n}"))
     .collect();
-    parts.extend(item.powers.iter().map(|p| {
+    parts.extend(item.powers.iter().map(|&p| {
         rules
             .item_powers
-            .by_name(p)
-            .map_or(p.clone(), |d| d.name.clone())
+            .try_get(p)
+            .map_or_else(|| format!("power {}", p.num()), |d| d.name.clone())
     }));
     if let Some((spell, n)) = &item.charges {
         let name = rules
             .spells
-            .by_name(spell)
-            .map_or(spell.as_str(), |s| s.name.as_str());
+            .try_get(*spell)
+            .map_or_else(|| format!("spell {}", spell.num()), |s| s.name.clone());
         parts.push(format!("{name} x{n}"));
     }
     format!(

@@ -163,7 +163,7 @@ mod tests {
 
     /// The west wizard with `paladins` in its city at (10, 6) and an encounter site of the
     /// given guards two squares west. `known`: the wizard has fought for the site before.
-    fn world(paladins: usize, guards: Vec<(String, u32)>, known: bool) -> Game {
+    fn world(paladins: usize, guards: Vec<(f4x_core::rules::UnitId, u32)>, known: bool) -> Game {
         let mut g = game(COAST_CITY, "high_men");
         g.treasury_mut(P0).unwrap().gold = 1_000_000;
         spawn(&mut g, P0, at(10, 6), "high_men_paladins", paladins);
@@ -199,7 +199,11 @@ mod tests {
 
     #[test]
     fn a_strong_party_next_to_an_encounter_site_clears_it() {
-        let mut g = world(5, vec![("zombies".into(), 1)], false);
+        let mut g = world(
+            5,
+            vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
+            false,
+        );
         let mut ai = Ai::new(P0);
         let events = turns(&mut g, &mut ai, 10);
         let gold: u32 = events
@@ -215,7 +219,11 @@ mod tests {
 
     #[test]
     fn a_weak_party_leaves_a_site_whose_guards_it_knows_to_be_too_strong() {
-        let mut g = world(4, vec![("great_drake".into(), 2)], true);
+        let mut g = world(
+            4,
+            vec![(f4x_core::rules::UnitId::new(164) /* great_drake */, 2)],
+            true,
+        );
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 4);
         assert!(ai.raiders.is_empty());
@@ -230,7 +238,11 @@ mod tests {
     #[test]
     fn a_city_keeps_its_garrison_and_waits_for_a_party() {
         // One spare fighter beyond the single guard is not a party.
-        let mut g = world(2, vec![("zombies".into(), 1)], false);
+        let mut g = world(
+            2,
+            vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
+            false,
+        );
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 4);
         assert!(ai.raiders.is_empty());
@@ -239,7 +251,11 @@ mod tests {
 
     #[test]
     fn the_survivors_come_home_after_the_raid() {
-        let mut g = world(6, vec![("zombies".into(), 1)], false);
+        let mut g = world(
+            6,
+            vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
+            false,
+        );
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 14);
         assert!(

@@ -14,12 +14,8 @@ use crate::unit::{Hurt, UnitView};
 use crate::wizard::magic::MagicError;
 
 /// Does this wizard keep the global spell with this id going?
-pub(crate) fn magic_has_global(
-    wizard: &crate::wizard::entity::Wizard<'_>,
-    content: &crate::content::Content,
-    id: &str,
-) -> bool {
-    wizard.any_global(|s| content.rules.spells.get(s).id == id)
+pub(crate) fn magic_has_global(wizard: &crate::wizard::entity::Wizard<'_>, id: SpellId) -> bool {
+    wizard.any_global(|s| s == id)
 }
 
 /// The hook global spells carry when the engine reads them from the wizard's spells instead of
@@ -65,9 +61,9 @@ impl Game {
     }
 
     /// Does `player` keep the global spell with this id going?
-    pub fn has_global(&self, player: PlayerId, id: &str) -> bool {
+    pub fn has_global(&self, player: PlayerId, id: SpellId) -> bool {
         self.wizard(player)
-            .is_some_and(|m| magic_has_global(&m, &self.content, id))
+            .is_some_and(|m| magic_has_global(&m, id))
     }
 
     /// The instance of `spell` that `player` keeps going on the whole world: what Disjunction
@@ -95,11 +91,11 @@ impl Game {
     pub fn time_stopper(&self) -> Option<PlayerId> {
         self.player_ids()
             .into_iter()
-            .find(|&p| self.has_global(p, "time_stop"))
+            .find(|&p| self.has_global(p, SpellId::new(80) /* time_stop */))
     }
 
     /// Does any wizard keep the global spell with this id going?
-    pub fn any_global(&self, id: &str) -> bool {
+    pub fn any_global(&self, id: SpellId) -> bool {
         self.player_ids()
             .into_iter()
             .any(|p| self.has_global(p, id))
@@ -120,7 +116,7 @@ impl Game {
     /// The spell each other wizard is casting, as far as `viewer`'s Detect Magic shows it.
     /// Empty without the spell.
     pub fn detect_magic_view(&self, viewer: PlayerId) -> Vec<(PlayerId, SpellId)> {
-        if !self.has_global(viewer, "detect_magic") {
+        if !self.has_global(viewer, SpellId::new(206) /* detect_magic */) {
             return Vec::new();
         }
         self.player_ids()
@@ -136,7 +132,7 @@ impl Game {
             return;
         };
         let (w, h) = (map.width(), map.height());
-        if self.has_global(player, "nature_awareness") {
+        if self.has_global(player, SpellId::new(34) /* nature_awareness */) {
             for plane in crate::map::Plane::ALL {
                 // One square large enough to cover the whole plane.
                 let at = crate::map::Position {
@@ -151,7 +147,7 @@ impl Game {
                     self.settings.basic.diagonal_extra_cost,
                 );
             }
-        } else if self.has_global(player, "awareness") {
+        } else if self.has_global(player, SpellId::new(209) /* awareness */) {
             let cities: Vec<_> = self
                 .economy()
                 .cities()
@@ -173,7 +169,7 @@ impl Game {
     pub(crate) fn process_globals(&mut self) {
         let ids: Vec<PlayerId> = crate::player::ids(&self.world);
         for player in ids {
-            if self.has_global(player, "herb_mastery") {
+            if self.has_global(player, SpellId::new(38) /* herb_mastery */) {
                 for unit in self.units().player_units(player) {
                     if !self.units().unit_is_death(unit) {
                         let _ = self.world.insert_one(unit, Hurt(0));
@@ -212,7 +208,7 @@ impl UnitView<'_> {
         }
         let facts = Facts {
             abilities: self.unit_abilities(unit),
-            race: def.race.clone(),
+            race: def.race.as_ref().and_then(|r| r.id()),
             realm: self.unit_realm(unit),
             // The undead are not normal units: Holy Arms and Crusade pass them by.
             kind: Some(if self.unit_is_undead(unit) {
@@ -226,9 +222,7 @@ impl UnitView<'_> {
         for &spell in &globals {
             let sdef = self.content.rules.spells.get(spell);
             for rule in &sdef.effects {
-                if rule.when != Trigger::Passive
-                    || !eval(&rule.condition, &facts, &self.content.rules.abilities)
-                {
+                if rule.when != Trigger::Passive || !eval(&rule.condition, &facts) {
                     continue;
                 }
                 if let Effect::Modify { stat, op, value } = rule.effect {
@@ -277,7 +271,7 @@ mod tests {
         for u in units.iter_mut() {
             match u.id.as_str() {
                 "high_men_cavalry" => u.kind = UnitKind::Normal,
-                "high_men_spearmen" => u.realm = Some("chaos".into()),
+                "high_men_spearmen" => u.realm = Some(crate::game::testutil::realm_ref("chaos")),
                 _ => {}
             }
         }
@@ -475,7 +469,10 @@ mod tests {
     #[test]
     fn nature_awareness_and_natures_eye_show_who_guards_a_site() -> TestResult {
         let mut g = world();
-        let guards = vec![("high_men_cavalry".to_string(), 2)];
+        let guards = vec![(
+            crate::rules::UnitId::new(107), /* high_men_cavalry */
+            2,
+        )];
         let lair = crate::feature::lair::Lair {
             intact: true,
             guards: guards.clone(),

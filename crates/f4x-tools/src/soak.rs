@@ -639,7 +639,9 @@ fn detail_lines(game: &Game, ais: &[Box<dyn Contestant>]) -> Vec<String> {
 /// Give every wizard the Spell of Mastery with the mana and skill to cast it, so a game shows
 /// whether the AI casts it and wins without waiting for the 60,000 research points.
 fn grant_mastery_to_all(game: &mut Game) {
-    let Some(spell) = game.content().rules.spells.id_of("spell_of_mastery") else {
+    let Some(spell) = game.content().rules.spells.id_numbered(213)
+    /* spell_of_mastery */
+    else {
         return;
     };
     let ids: Vec<PlayerId> = game

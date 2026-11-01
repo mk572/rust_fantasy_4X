@@ -16,7 +16,7 @@ use crate::ui;
 use f4x_core::diplomacy::{relation_level, ProposalKind, Stage, Treaty};
 use f4x_core::game::{Command, Event};
 use f4x_core::player::PlayerId;
-use f4x_core::rules::SpellId;
+use f4x_core::rules::{RealmId, SpellId};
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -341,7 +341,11 @@ impl App {
             .defs()
             .iter()
             .enumerate()
-            .filter(|(_, r)| spells.iter().any(|&s| rules.spells.get(s).realm == r.id))
+            .filter(|(_, r)| {
+                spells
+                    .iter()
+                    .any(|&s| rules.spells.get(s).realm.id() == Some(RealmId::new(r.num)))
+            })
             .map(|(i, _)| i)
             .collect()
     }
@@ -661,11 +665,11 @@ impl DiploUi {
             }
             Menu::ExchangeGet(realm) => {
                 let rules = &app.game.content().rules;
-                let id = rules.realms.defs()[realm].id.clone();
+                let id = RealmId::new(rules.realms.defs()[realm].num);
                 let mut rows: Vec<Row> = app
                     .spells_to_give(with, HUMAN)
                     .into_iter()
-                    .filter(|&s| rules.spells.get(s).realm == id)
+                    .filter(|&s| rules.spells.get(s).realm.id() == Some(id))
                     .take(5)
                     .map(|s| {
                         row(
@@ -1065,7 +1069,7 @@ mod tests {
         for (i, realm) in rules.realms.defs().iter().enumerate() {
             let has = spells
                 .iter()
-                .any(|&s| rules.spells.get(s).realm == realm.id);
+                .any(|&s| rules.spells.get(s).realm.name() == realm.id);
             assert_eq!(realms.contains(&i), has, "{}", realm.id);
         }
     }

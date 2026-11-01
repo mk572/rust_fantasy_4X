@@ -251,7 +251,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
         at(6, 6),
         num::feature::SORCERY_NODE,
         Node {
-            realm: "chaos".into(),
+            realm: crate::game::testutil::realm("chaos"),
             power: 8,
             aura: vec![(6, 6)],
             guardian: false,

@@ -8,7 +8,8 @@
 //!
 //! Tests: in rules/exec/tests.rs.
 
-use crate::rules::{Ability, AbilityDef, Registry};
+use crate::rules::SpellId;
+use crate::rules::{Ability, RealmId, UnitId};
 use rand::RngCore;
 
 use super::effects::{Condition, DamageKind, Effect, EffectRule, TargetSel, Trigger};
@@ -42,8 +43,8 @@ pub struct Facts {
     pub abilities: Vec<Ability>,
     pub terrain: Option<TerrainClass>,
     pub plane: Option<Plane>,
-    pub race: Option<String>,
-    pub realm: Option<String>,
+    pub race: Option<super::RaceId>,
+    pub realm: Option<RealmId>,
     pub kind: Option<crate::rules::UnitKind>,
     pub in_battle: bool,
     pub in_city: bool,
@@ -66,8 +67,6 @@ pub struct Context {
 /// Queries and primitive changes the executor needs from the world.
 pub trait EffectHost {
     fn facts(&self, who: Target) -> Facts;
-    /// The ability table, to turn the names a rule lists into numbers.
-    fn ability_defs(&self) -> &Registry<AbilityDef>;
     fn position(&self, who: Target) -> Option<Position>;
     fn owner_of(&self, who: Target) -> Option<PlayerId>;
     /// Every unit currently in the world, in a stable order.
@@ -86,8 +85,8 @@ pub trait EffectHost {
     }
 
     fn add_modifier(&mut self, who: Target, modifier: Modifier);
-    fn grant_ability(&mut self, who: Target, ability: &str);
-    fn remove_ability(&mut self, who: Target, ability: &str);
+    fn grant_ability(&mut self, who: Target, ability: Ability);
+    fn remove_ability(&mut self, who: Target, ability: Ability);
     /// Returns the damage actually dealt (after hp clamping), for the event log.
     fn damage(&mut self, who: Target, amount: i32, kind: DamageKind) -> i32;
     /// A damage spell of `strength` struck by the dice of a battle (every figure of the unit is
@@ -105,10 +104,10 @@ pub trait EffectHost {
     }
     fn heal(&mut self, who: Target, amount: i32) -> i32;
     fn add_resources(&mut self, who: Target, gold: i32, food: i32, mana: i32, research: i32);
-    fn summon(&mut self, owner: PlayerId, at: Position, unit: &str, count: u8);
+    fn summon(&mut self, owner: PlayerId, at: Position, unit: UnitId, count: u8);
     fn change_terrain(&mut self, at: Position, class: TerrainClass);
     fn set_feature(&mut self, at: Position, feature: &str);
-    fn apply_enchantment(&mut self, who: Target, spell: &str, caster: PlayerId);
+    fn apply_enchantment(&mut self, who: Target, spell: SpellId, caster: PlayerId);
     /// Remove other wizards' enchantments (cast by anyone but `by`) that the strength beats;
     /// returns how many were removed.
     fn dispel(&mut self, who: Target, strength: u32, by: PlayerId) -> u32;
@@ -127,11 +126,11 @@ pub enum Outcome {
     },
     AbilityGranted {
         who: Target,
-        ability: String,
+        ability: Ability,
     },
     AbilityRemoved {
         who: Target,
-        ability: String,
+        ability: Ability,
     },
     Damaged {
         who: Target,
@@ -154,7 +153,7 @@ pub enum Outcome {
         who: Target,
     },
     Summoned {
-        unit: String,
+        unit: UnitId,
         count: u8,
     },
     TerrainChanged {
@@ -167,7 +166,7 @@ pub enum Outcome {
     },
     Enchanted {
         who: Target,
-        spell: String,
+        spell: SpellId,
     },
     Dispelled {
         who: Target,
@@ -179,22 +178,20 @@ pub enum Outcome {
 }
 
 /// Evaluate a condition against the facts about the subject.
-pub fn eval(cond: &Condition, facts: &Facts, abilities: &Registry<AbilityDef>) -> bool {
+pub fn eval(cond: &Condition, facts: &Facts) -> bool {
     match cond {
         Condition::Always => true,
-        Condition::HasAbility(a) => abilities
-            .id_of(a)
-            .is_some_and(|id| facts.abilities.contains(&id)),
+        Condition::HasAbility(a) => a.id().is_some_and(|id| facts.abilities.contains(&id)),
         Condition::TerrainIs(c) => facts.terrain == Some(*c),
         Condition::OnPlane(p) => facts.plane == Some(*p),
-        Condition::RaceIs(r) => facts.race.as_deref() == Some(r.as_str()),
-        Condition::RealmIs(r) => facts.realm.as_deref() == Some(r.as_str()),
+        Condition::RaceIs(r) => facts.race.is_some() && facts.race == r.id(),
+        Condition::RealmIs(r) => r.id().is_some() && facts.realm == r.id(),
         Condition::KindIs(k) => facts.kind == Some(*k),
         Condition::InBattle => facts.in_battle,
         Condition::InCity => facts.in_city,
-        Condition::All(cs) => cs.iter().all(|c| eval(c, facts, abilities)),
-        Condition::Any(cs) => cs.iter().any(|c| eval(c, facts, abilities)),
-        Condition::Not(c) => !eval(c, facts, abilities),
+        Condition::All(cs) => cs.iter().all(|c| eval(c, facts)),
+        Condition::Any(cs) => cs.iter().any(|c| eval(c, facts)),
+        Condition::Not(c) => !eval(c, facts),
     }
 }
 
@@ -276,18 +273,16 @@ fn run_effect(
             out.push(Outcome::Modified { who, stat: *stat });
         }
         Effect::GrantAbility(a) => {
-            host.grant_ability(who, a);
-            out.push(Outcome::AbilityGranted {
-                who,
-                ability: a.clone(),
-            });
+            if let Some(ability) = a.id() {
+                host.grant_ability(who, ability);
+                out.push(Outcome::AbilityGranted { who, ability });
+            }
         }
         Effect::RemoveAbility(a) => {
-            host.remove_ability(who, a);
-            out.push(Outcome::AbilityRemoved {
-                who,
-                ability: a.clone(),
-            });
+            if let Some(ability) = a.id() {
+                host.remove_ability(who, ability);
+                out.push(Outcome::AbilityRemoved { who, ability });
+            }
         }
         Effect::Damage {
             amount,
@@ -298,9 +293,9 @@ fn run_effect(
             resist_modifier,
             traits,
         } => {
-            let realm = realm.as_deref().and_then(Realm::from_id);
+            let realm = realm.as_ref().and_then(|r| r.id()).and_then(Realm::of);
             let abilities = host.facts(who).abilities;
-            let immune_ids = host.ability_defs().ids(immune);
+            let immune_ids = crate::rules::refs::ids(immune);
             if immune_ids.iter().any(|i| abilities.contains(i)) || host.protected_from(who, realm) {
                 out.push(Outcome::Immune { who });
             } else if *resistible && {
@@ -335,15 +330,21 @@ fn run_effect(
             host.add_resources(who, *gold, *food, *mana, *research);
             out.push(Outcome::ResourcesAdded { who });
         }
-        Effect::Summon { unit, count } => {
+        Effect::Summon {
+            unit_id: Some(unit),
+            count,
+            ..
+        } => {
             if let Some(at) = tile_of(who, host) {
-                host.summon(ctx.owner, at, unit, *count);
+                host.summon(ctx.owner, at, *unit, *count);
                 out.push(Outcome::Summoned {
-                    unit: unit.clone(),
+                    unit: *unit,
                     count: *count,
                 });
             }
         }
+        // A summon of a name that is no unit does nothing (validation reports it).
+        Effect::Summon { unit_id: None, .. } => {}
         Effect::ChangeTerrain(class) => {
             if let Some(at) = tile_of(who, host) {
                 host.change_terrain(at, *class);
@@ -360,11 +361,10 @@ fn run_effect(
             }
         }
         Effect::ApplyEnchantment(spell) => {
-            host.apply_enchantment(who, spell, ctx.owner);
-            out.push(Outcome::Enchanted {
-                who,
-                spell: spell.clone(),
-            });
+            if let Some(spell) = spell.id() {
+                host.apply_enchantment(who, spell, ctx.owner);
+                out.push(Outcome::Enchanted { who, spell });
+            }
         }
         Effect::Dispel { strength } => {
             let removed = host.dispel(who, *strength, ctx.owner);
@@ -392,7 +392,7 @@ pub fn run_rules(
     let mut out = Vec::new();
     for rule in rules.iter().filter(|r| r.when == when) {
         for who in resolve_targets(rule.target, ctx, host) {
-            if eval(&rule.condition, &host.facts(who), host.ability_defs()) {
+            if eval(&rule.condition, &host.facts(who)) {
                 run_effect(&rule.effect, who, ctx, host, &mut out);
             }
         }

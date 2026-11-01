@@ -451,16 +451,18 @@ mod tests {
         let rules = &caster().content.rules;
         let last = torin(rules);
         for t in &rules.hero_templates {
-            let def = rules
-                .units
-                .get(rules.units.id_of(&t.unit).ok_or("no unit")?);
-            let torin =
-                rules.units.id_of(&rules.hero_templates[last].unit) == rules.units.id_of(&t.unit);
-            assert_eq!(def.realm.as_deref(), torin.then_some("life"), "{}", t.unit);
+            let def = rules.units.get(t.unit_id.ok_or("no unit")?);
+            let torin = rules.hero_templates[last].unit_id == t.unit_id;
+            assert_eq!(
+                def.realm.as_ref().map(|r| r.name()),
+                torin.then_some("life"),
+                "{}",
+                t.unit
+            );
         }
         let spells = &rules.hero_templates[last].spells;
         for s in ["healing", "holy_armor", "lionheart"] {
-            assert!(spells.iter().any(|x| x == s), "{s}");
+            assert!(spells.iter().any(|x| x.name() == s), "{s}");
         }
         Ok(())
     }

@@ -68,7 +68,8 @@ impl Game {
         if self.check_floating_island(owner, at).is_err() {
             return;
         }
-        if let Some(id) = self.content.rules.units.id_of("floating_island") {
+        let island = crate::rules::UnitId::new(190) /* floating_island */;
+        if let Some(id) = self.content.rules.units.id_numbered(island.num()) {
             self.spawn_unit(owner, at, id);
         }
     }

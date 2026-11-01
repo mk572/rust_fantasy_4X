@@ -9,7 +9,7 @@ use crate::create_screen::CreateState;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::content::Content;
-use f4x_core::rules::Rarity;
+use f4x_core::rules::{Rarity, RealmId};
 use f4x_core::text::Args;
 use f4x_core::wizard::magic::Retort;
 use f4x_core::wizard::{all_retorts, retort_available, retort_cost, MAX_RETORTS};
@@ -21,14 +21,20 @@ use crate::newgame_flow::{book_base, ng_ink};
 use crate::view::App;
 
 /// The realms in the order of the rows and of `TBL_Realm_Order`.
-pub(crate) const REALM_ORDER: [&str; 5] = ["life", "death", "chaos", "nature", "sorcery"];
+pub(crate) const REALM_ORDER: [RealmId; 5] = [
+    RealmId::new(3), /* life */
+    RealmId::new(4), /* death */
+    RealmId::new(2), /* chaos */
+    RealmId::new(0), /* nature */
+    RealmId::new(1), /* sorcery */
+];
 /// The realms' colour on the spells step (`LIFE_WHITE` and the others of `MOX_DEF.h`), a palette index.
-fn realm_colour(realm: &str) -> u8 {
-    match realm {
-        "life" => 13,
-        "death" => 114,
-        "chaos" => 201,
-        "nature" => 216,
+fn realm_colour(realm: RealmId) -> u8 {
+    match realm.num() {
+        3 /* life */ => 13,
+        4 /* death */ => 114,
+        2 /* chaos */ => 201,
+        0 /* nature */ => 216,
         _ => 172,
     }
 }
@@ -47,11 +53,13 @@ pub(crate) fn prerequisite_text(content: &Content, retort: Retort) -> String {
         .iter()
         .map(|need| match need {
             RetortNeed::Books(realm, n) => {
-                let name = content
-                    .rules
-                    .realms
-                    .by_name(realm)
-                    .map_or_else(|| realm.clone(), |r| r.name.clone());
+                let name = realm
+                    .id()
+                    .and_then(|r| content.rules.realms.id_numbered(r.num()))
+                    .map_or_else(
+                        || realm.name().to_string(),
+                        |r| content.rules.realms.get(r).name.clone(),
+                    );
                 texts.get(
                     "picks.in_realm",
                     &Args::new().count("n", *n).text("realm", name),
@@ -129,31 +137,31 @@ impl App {
     }
 }
 impl CreateState {
-    fn books_of(&self, realm: &str) -> u8 {
-        self.build.books.get(realm).copied().unwrap_or(0)
+    fn books_of(&self, realm: RealmId) -> u8 {
+        self.build.books.get(&realm).copied().unwrap_or(0)
     }
 
     /// Set the number of books of a realm, within the picks left and the Life and Death rule.
-    fn set_books(&mut self, app: &mut App, realm: &str, wanted: u8) {
+    fn set_books(&mut self, app: &mut App, realm: RealmId, wanted: u8) {
         let current = i32::from(self.books_of(realm));
         let left = i32::from(self.build.picks_left(&app.game.content().rules));
         let n = i32::from(wanted).min(current + left).clamp(0, 11) as u8;
         if n == self.books_of(realm) {
             return;
         }
-        let rival = match realm {
-            "life" => "death",
-            "death" => "life",
-            _ => "",
+        let rival = match realm.num() {
+            3 /* life */ => Some(RealmId::new(4) /* death */),
+            4 /* death */ => Some(RealmId::new(3) /* life */),
+            _ => None,
         };
-        if n > 0 && !rival.is_empty() && self.books_of(rival) > 0 {
+        if n > 0 && rival.is_some_and(|r| self.books_of(r) > 0) {
             self.warn = Some(app.text("picks.life_and_death"));
             return;
         }
         if n == 0 {
-            self.build.books.remove(realm);
+            self.build.books.remove(&realm);
         } else {
-            self.build.books.insert(realm.to_string(), n);
+            self.build.books.insert(realm, n);
         }
         // A retort whose books are gone is dropped, with the reason.
         let books = self.build.books.clone();
@@ -226,7 +234,7 @@ impl CreateState {
         if let Some((realm, n)) = slide {
             self.set_books(app, realm, n);
         }
-        for (i, realm) in REALM_ORDER.iter().enumerate() {
+        for (i, &realm) in REALM_ORDER.iter().enumerate() {
             for k in 0..self.books_of(realm) {
                 let var = self.rows[usize::from(k).min(10)];
                 let entry = 24 + book_base(realm) + usize::from(var);
@@ -243,7 +251,7 @@ impl CreateState {
         // The shelf under the portrait: life, death, chaos, nature, sorcery.
         let books = self.build.books.clone();
         self.ng_shelf(app, lay, &REALM_ORDER, &|r| {
-            books.get(r).copied().unwrap_or(0)
+            books.get(&r).copied().unwrap_or(0)
         });
 
         // The retorts: three columns of six.
@@ -305,7 +313,7 @@ impl CreateState {
     }
 
     /// The sections of a realm's spell step: `(rarity, choices)` for each that is shown.
-    pub(crate) fn spell_sections(&self, app: &App, realm: &str) -> Vec<(Rarity, usize)> {
+    pub(crate) fn spell_sections(&self, app: &App, realm: RealmId) -> Vec<(Rarity, usize)> {
         let build = &self.build;
         let mut out = Vec::new();
         let common = build.spell_choices_of(
@@ -334,7 +342,7 @@ impl CreateState {
                 let sections = self.spell_sections(app, realm);
                 self.build
                     .spells
-                    .retain(|&s| app.game.content().rules.spells.get(s).realm != realm);
+                    .retain(|&s| app.game.content().rules.spells.get(s).realm.id() != Some(realm));
                 for (rarity, n) in sections {
                     let defaults =
                         f4x_core::wizard::magic::default_spells(app.game.content(), realm, rarity);
@@ -366,8 +374,10 @@ impl CreateState {
             .content()
             .rules
             .realms
-            .by_name(realm)
-            .map_or_else(|| realm.to_string(), |r| r.name.clone());
+            .id_numbered(realm.num())
+            .map_or_else(String::new, |r| {
+                app.game.content().rules.realms.get(r).name.clone()
+            });
         let ink = realm_colour(realm);
         let title = app.text_with(
             "picks.select_spells",
@@ -385,7 +395,7 @@ impl CreateState {
         );
         let books = self.build.books.clone();
         self.ng_shelf(app, lay, &REALM_ORDER, &|r| {
-            books.get(r).copied().unwrap_or(0)
+            books.get(&r).copied().unwrap_or(0)
         });
         let live = self.ng_input();
         let pressed = input.mouse_pressed(MouseButton::Left) && live;

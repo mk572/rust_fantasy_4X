@@ -5,7 +5,7 @@
 //! owner's mastery of its realm and again by Node Mastery; a warped node costs five instead.
 //! `strength` is the game's node setting: 0 weak, 1 normal, 2 powerful.
 
-use crate::rules::Ability;
+use crate::rules::{Ability, RealmId};
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,7 @@ use crate::wizard::magic::Retort;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node {
     /// The realm of the node's magic: "sorcery", "nature" or "chaos".
-    pub realm: String,
+    pub realm: RealmId,
     /// Strength: how many squares the aura covers, and so the power the node yields.
     pub power: u8,
     /// The squares of the aura, the node's own tile first.
@@ -123,8 +123,10 @@ pub fn generate_nodes(
                     continue;
                 };
                 if def.kind == FeatureKind::Node {
-                    let realm = def.id.strip_suffix("_node").unwrap_or(&def.id).to_string();
-                    found.push((x, y, realm));
+                    let name = def.id.strip_suffix("_node").unwrap_or(&def.id);
+                    if let Some(realm) = content.rules.realms.id_of(name) {
+                        found.push((x, y, realm));
+                    }
                 }
             }
         }
@@ -157,15 +159,15 @@ impl Game {
         }
         let mut power =
             i32::from(node.power) * (i32::from(self.settings.basic.magic_strength) + 1) / 2;
-        power = self.events.node_power(&node.realm, power);
+        power = self.events.node_power(node.realm, power);
         let Some(owner) = node.owner else {
             return 0;
         };
         if let Some(m) = self.wizard(owner) {
-            let mastery = match node.realm.as_str() {
-                "sorcery" => m.has(Retort::new(4) /* sorcery_mastery */),
-                "nature" => m.has(Retort::new(3) /* nature_mastery */),
-                "chaos" => m.has(Retort::new(2) /* chaos_mastery */),
+            let mastery = match node.realm.num() {
+                1 /* sorcery */ => m.has(Retort::new(4) /* sorcery_mastery */),
+                0 /* nature */ => m.has(Retort::new(3) /* nature_mastery */),
+                2 /* chaos */ => m.has(Retort::new(2) /* chaos_mastery */),
                 _ => false,
             };
             if mastery {
@@ -296,7 +298,7 @@ pub(crate) mod tests {
             if u.id == "magic_spirit" {
                 u.ability_ids.push(crate::rules::Ability::new(42));
                 u.kind = UnitKind::Summoned;
-                u.realm = Some("arcane".into());
+                u.realm = Some(crate::game::testutil::realm_ref("arcane"));
             }
         }
         c.rules.units = Registry::new_sorted(units);

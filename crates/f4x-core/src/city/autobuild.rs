@@ -426,8 +426,10 @@ fn building_score(content: &Content, plan: &BuildPlan, f: &CityFacts, b: Buildin
 fn ranked_buildings(content: &Content, plan: &BuildPlan, f: &CityFacts) -> Vec<(BuildingId, f32)> {
     let order = &content.rules.config.autobuild_order;
     let place = |b: BuildingId| {
-        let id = &content.rules.buildings.get(b).id;
-        order.iter().position(|o| o == id).unwrap_or(usize::MAX)
+        order
+            .iter()
+            .position(|o| o.id() == Some(b))
+            .unwrap_or(usize::MAX)
     };
     let mut v: Vec<(BuildingId, f32)> = f
         .buildable
@@ -717,7 +719,7 @@ impl Game {
             .world
             .get::<&crate::city::economy::CityRace>(city)
             .ok()
-            .map(|r| content.rules.races.get(r.0).id.clone());
+            .map(|r| r.0);
         let built = self
             .world
             .get::<&crate::city::economy::Buildings>(city)
@@ -730,7 +732,7 @@ impl Game {
             .iter()
             .filter(|(id, d)| {
                 !built.contains(id)
-                    && (d.races.is_empty() || race.as_ref().is_some_and(|r| d.races.contains(r)))
+                    && (d.races.is_empty() || race.is_some_and(|r| d.buildable_by(r)))
                     && (!d.coastal || coastal)
             })
             .map(|(id, _)| id)

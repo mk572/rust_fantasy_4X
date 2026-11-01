@@ -458,7 +458,14 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                     let n = n
                         .parse()
                         .map_err(|_| ConsoleError::Parse(format!("{n:?} is not a count")))?;
-                    spec.books.insert(realm.to_string(), n);
+                    let realm = ctx
+                        .game
+                        .content()
+                        .rules
+                        .realms
+                        .id_of(realm)
+                        .ok_or_else(|| ConsoleError::NoSuch(format!("realm {realm:?}")))?;
+                    spec.books.insert(realm, n);
                 }
             }
             "retorts" => {

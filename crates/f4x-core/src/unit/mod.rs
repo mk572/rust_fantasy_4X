@@ -18,6 +18,7 @@ pub mod transport;
 pub mod undead;
 
 use crate::rules::Ability;
+use crate::rules::SpellId;
 use hecs::World;
 
 use crate::content::Content;
@@ -114,10 +115,9 @@ impl<'a> UnitView<'a> {
     }
 
     /// Does `player` keep the global spell with this id going?
-    pub(crate) fn has_global(&self, player: PlayerId, id: &str) -> bool {
-        self.wizard(player).is_some_and(|m| {
-            crate::spell::global_enchantment::magic_has_global(&m, self.content, id)
-        })
+    pub(crate) fn has_global(&self, player: PlayerId, id: SpellId) -> bool {
+        self.wizard(player)
+            .is_some_and(|m| crate::spell::global_enchantment::magic_has_global(&m, id))
     }
 
     /// A wizard's fame as the rules count it: what they have earned, what their Legendary heroes
@@ -139,7 +139,7 @@ impl<'a> UnitView<'a> {
             .sum();
         earned
             + legendary
-            + if self.has_global(player, "just_cause") {
+            + if self.has_global(player, SpellId::new(127) /* just_cause */) {
                 crate::spell::global_enchantment::JUST_CAUSE_FAME
             } else {
                 0
@@ -224,8 +224,9 @@ impl<'a> UnitView<'a> {
     pub(crate) fn unit_level_path(&self, unit: hecs::Entity) -> Option<&'a LevelPathDef> {
         self.unit_def(unit)?
             .level_path
-            .as_deref()
-            .and_then(|p| self.content.rules.level_paths.by_name(p))
+            .as_ref()
+            .and_then(|p| p.id())
+            .map(|p| self.content.rules.level_paths.get(p))
     }
 
     /// The level the unit's experience points alone give, 0-based (0 without a level path).
@@ -284,7 +285,10 @@ impl<'a> UnitView<'a> {
                     crate::rules::UnitKind::Normal | crate::rules::UnitKind::Hero
                 )
             });
-            if normal && !self.unit_is_undead(unit) && self.has_global(owner, "crusade") {
+            if normal
+                && !self.unit_is_undead(unit)
+                && self.has_global(owner, SpellId::new(158) /* crusade */)
+            {
                 level += 1;
             }
         }
@@ -321,8 +325,9 @@ impl<'a> UnitView<'a> {
         };
         let Some(path) = def
             .level_path
-            .as_deref()
-            .and_then(|p| self.content.rules.level_paths.by_name(p))
+            .as_ref()
+            .and_then(|p| p.id())
+            .map(|p| self.content.rules.level_paths.get(p))
         else {
             return Vec::new();
         };
@@ -403,7 +408,7 @@ impl<'a> UnitView<'a> {
         // half as far. Nothing stacks.
         if self.is_ship_or_flier(unit) {
             if let Some(owner) = self.unit_owner(unit) {
-                if self.has_global(owner, "wind_mastery") {
+                if self.has_global(owner, SpellId::new(57) /* wind_mastery */) {
                     return moves * 3 / 2;
                 }
                 if self.any_global("wind_mastery") {

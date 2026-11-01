@@ -51,7 +51,9 @@ impl Game {
         let allowed = NIGHTSHADE_BUILDINGS
             .iter()
             .any(|&b| self.economy().has_building(city, b));
-        let Some(plant) = self.content.features.id_of("nightshade") else {
+        let Some(plant) = self.content.features.id_numbered(16)
+        /* nightshade */
+        else {
             return 0;
         };
         if !allowed {

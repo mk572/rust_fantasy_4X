@@ -220,7 +220,9 @@ impl Game {
         caster: PlayerId,
         rng: &mut dyn RngCore,
     ) -> Vec<Event> {
-        let Some(spell) = self.content.rules.spells.id_of("armageddon") else {
+        let Some(spell) = self.content.rules.spells.id_numbered(120)
+        /* armageddon */
+        else {
             return Vec::new();
         };
         let Ok(at) = self.world.get::<&Position>(city).map(|p| *p) else {

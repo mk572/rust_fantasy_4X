@@ -7,7 +7,8 @@ use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::Ability;
-use crate::rules::{MovementType, Stat};
+use crate::rules::SpellId;
+use crate::rules::{MovementType, Stat, UnitId};
 use crate::unit::Hurt;
 
 use super::field::Field;
@@ -193,17 +194,16 @@ impl Game {
     /// What a unit can cast in a battle on its own: a hero's innate spells, the charges of its
     /// items' spells and its spell save, and the spells its abilities cast (once a battle).
     fn unit_casting(&self, unit: hecs::Entity, abilities: &[Ability]) -> super::UnitCasting {
-        let spells = &self.content.rules.spells;
         let mut casting = super::UnitCasting::default();
         if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
             if hero.casting_skill > 0 {
-                casting.innate = hero.spells.iter().filter_map(|s| spells.id_of(s)).collect();
+                casting.innate = hero.spells.clone();
             }
         }
         for (entity, item) in self.items().carried_entities(unit) {
             casting.spell_save += item.bonus.spell_save;
             if let Some((spell, charges)) = &item.charges {
-                if let (Some(id), true) = (spells.id_of(spell), *charges > 0) {
+                if let (id, true) = (*spell, *charges > 0) {
                     casting.item_charges.push(super::ItemCharge {
                         item: entity,
                         serial: self.serial_of(entity),
@@ -218,13 +218,13 @@ impl Game {
         }
         for ability in abilities {
             let spell = match ability.num() {
-                4 => "doom_bolt",
-                5 => "fireball",
-                6 => "healing",
-                7 => "web",
+                4 => SpellId::new(104), /* doom_bolt */
+                5 => SpellId::new(96),  /* fireball */
+                6 => SpellId::new(125), /* healing */
+                7 => SpellId::new(5),   /* web */
                 _ => continue,
             };
-            casting.abilities.extend(spells.id_of(spell));
+            casting.abilities.push(spell);
         }
         casting
     }
@@ -280,7 +280,7 @@ impl Game {
             id: 0,
             side,
             source: Some(index),
-            unit_id: def.id.clone(),
+            unit_id: Some(UnitId::new(def.num)),
             name: def.name.clone(),
             cell: (0, 0),
             melee: if melee > 0 { melee + extra } else { melee },
@@ -324,18 +324,15 @@ impl Game {
                 crate::hero::prayermaster(h.abilities.prayermaster, level)
             }),
             // A unit held in Stasis cannot act: it is as if asleep.
+            warp: None,
             enchantments: {
                 let mut list = self.units().unit_enchantment_ids(unit);
                 if self.unit_in_stasis(unit) {
-                    list.push("black_sleep".to_string());
+                    list.push(SpellId::new(165) /* black_sleep */);
                 }
                 list
             },
-            realm: self
-                .units()
-                .unit_realm(unit)
-                .as_deref()
-                .and_then(Realm::from_id),
+            realm: self.units().unit_realm(unit).and_then(Realm::of),
             undead: self.units().unit_counts_as_undead(unit),
             abilities: abilities.clone(),
             granted: self.units().unit_granted_abilities(unit),
@@ -627,10 +624,11 @@ impl Game {
         // The field is built from the square alone, as the original seeds it from the square's
         // place, so a fight on the same square is fought on the same ground.
         let mut map = self.battle_field(site, city, walled, &decks.cells());
-        let has = |name: &str| city.is_some_and(|c| self.economy().city_has_enchantment(c, name));
+        let has =
+            |spell: SpellId| city.is_some_and(|c| self.economy().city_has_enchantment(c, spell));
         if city.is_some() {
             map = map.with_city(walled);
-            if has("flying_fortress") {
+            if has(SpellId::new(77) /* flying_fortress */) {
                 map = map.with_flying_fortress();
             }
         }
@@ -639,26 +637,34 @@ impl Game {
         battle.melee_vs_fliers = self.settings.rules.melee_vs_fliers;
         (battle.node_aura, battle.node_site) = self.node_realms_at(site, city.is_none());
         battle.refresh_fields();
-        battle.wall_of_fire = has("wall_of_fire");
-        battle.wall_of_darkness = has("wall_of_darkness");
+        battle.wall_of_fire = has(SpellId::new(87) /* wall_of_fire */);
+        battle.wall_of_darkness = has(SpellId::new(178) /* wall_of_darkness */);
         if let Some(c) = city {
             battle.warded_realms = self.economy().city_shielded_realms(c);
         }
         // A Cloud of Shadow treats every fight at the city as if its owner had cast Darkness.
-        if let Some(cloud) = self.content.rules.spells.id_of("cloud_of_shadow") {
-            if has("cloud_of_shadow") {
+        if let Some(cloud) = self.content.rules.spells.id_numbered(185)
+        /* cloud_of_shadow */
+        {
+            if has(SpellId::new(185) /* cloud_of_shadow */) {
                 battle.raise_field(Side::Defender, Field::Darkness, cloud);
             }
         }
         // Heavenly Light gives the defender True Light in every fight at the city.
-        if let Some(light) = self.content.rules.spells.id_of("heavenly_light") {
-            if has("heavenly_light") {
+        if let Some(light) = self.content.rules.spells.id_numbered(139)
+        /* heavenly_light */
+        {
+            if has(SpellId::new(139) /* heavenly_light */) {
                 battle.raise_field(Side::Defender, Field::TrueLight, light);
             }
         }
         // Eternal Night covers every fight in Darkness, except at a city with Heavenly Light.
-        if let Some(night) = self.content.rules.spells.id_of("eternal_night") {
-            if self.any_global("eternal_night") && !has("heavenly_light") {
+        if let Some(night) = self.content.rules.spells.id_numbered(197)
+        /* eternal_night */
+        {
+            if self.any_global(SpellId::new(197) /* eternal_night */)
+                && !has(SpellId::new(139) /* heavenly_light */)
+            {
                 battle.raise_field(Side::Defender, Field::Darkness, night);
             }
         }
@@ -738,11 +744,11 @@ impl Game {
         let aura = self
             .economy()
             .node_covering(site)
-            .and_then(|n| Realm::from_id(&n.realm));
+            .and_then(|n| Realm::of(n.realm));
         let on = open_ground
             .then(|| self.node_at(site))
             .flatten()
-            .and_then(|n| Realm::from_id(&n.realm));
+            .and_then(|n| Realm::of(n.realm));
         (aura, on)
     }
 
@@ -1043,7 +1049,10 @@ impl Game {
         let kind = self.units().unit_def(entity).map(|d| d.kind);
         let zombies = u.fate() != super::Fate::Gone
             && kind == Some(UnitKind::Normal)
-            && self.has_global(battle.player_of(winner), "zombie_mastery");
+            && self.has_global(
+                battle.player_of(winner),
+                SpellId::new(188), /* zombie_mastery */
+            );
         zombies
             || (winner != u.side
                 && u.fate() == super::Fate::Drained
@@ -1105,7 +1114,11 @@ impl Game {
         // asleep, confused or webbed are always lost, and on Intro and Easy the player whose
         // turn it is (the attacker: a battle starts on its mover's turn) loses nothing else
         // (`Combat.c`).
-        const HELD: [&str; 3] = ["black_sleep", "confusion", "web"];
+        const HELD: [SpellId; 3] = [
+            SpellId::new(165), /* black_sleep */
+            SpellId::new(46),  /* confusion */
+            SpellId::new(5),   /* web */
+        ];
         // Heroes taken off the field by Recall Hero are at the summoning circle now.
         for u in battle.units.iter().filter(|u| u.status == Status::Recalled) {
             let to = self.summon_point(battle.player_of(u.side));
@@ -1119,7 +1132,7 @@ impl Game {
                 .iter()
                 .filter(|u| u.side == side && u.status == Status::Fled)
                 .filter_map(|u| {
-                    let held = u.enchantments.iter().any(|e| HELD.contains(&e.as_str()));
+                    let held = u.enchantments.iter().any(|e| HELD.contains(e));
                     source_of(u).map(|e| (e, held))
                 })
                 .collect();

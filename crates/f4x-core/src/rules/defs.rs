@@ -5,10 +5,11 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::effects::EffectRule;
+use super::effects::{resolve_rules, EffectRule};
+use super::refs::{Names, Ref};
 use super::registry::{Def, Registry};
 use super::stats::Stat;
-use super::{Ability, BuildingId};
+use super::{Ability, BuildingId, RealmId};
 use crate::map::terrain::TerrainClass;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,9 +29,9 @@ pub struct RaceDef {
     #[serde(default)]
     pub plural: String,
     /// Units cities of this race can build.
-    pub units: Vec<String>,
+    pub units: Vec<Ref<UnitDef>>,
     /// Buildings cities of this race can build (besides race-neutral ones).
-    pub buildings: Vec<String>,
+    pub buildings: Vec<Ref<BuildingDef>>,
     /// Terrain the race's cities prefer; used by AI and map placement.
     #[serde(default)]
     pub home_terrain: Vec<TerrainClass>,
@@ -206,6 +207,9 @@ pub enum PickType {
 pub struct HeroTemplate {
     /// The hero's unit id.
     pub unit: String,
+    /// The same unit as a number, filled once when the rules load ([`resolve_hero_units`]).
+    #[serde(skip)]
+    pub unit_id: Option<super::UnitId>,
     /// Abilities drawn at random for each wizard at the start of the game.
     pub picks: u32,
     pub pick_type: PickType,
@@ -213,7 +217,7 @@ pub struct HeroTemplate {
     pub abilities: Vec<String>,
     pub casting_skill: u32,
     /// The innate spells (ids in `spells.ron`), at most four.
-    pub spells: Vec<String>,
+    pub spells: Vec<Ref<SpellDef>>,
     /// The hero's name in each wizard's game, by the wizard's number (the original's
     /// `NAMES.LBX`, from `text/<lang>/name/hero.ron`).
     #[serde(default)]
@@ -264,10 +268,10 @@ pub struct UnitDef {
     pub kind: UnitKind,
     /// Required for `Normal` units; heroes and creatures have none.
     #[serde(default)]
-    pub race: Option<String>,
+    pub race: Option<Ref<RaceDef>>,
     /// Required for `Summoned` units.
     #[serde(default)]
-    pub realm: Option<String>,
+    pub realm: Option<Ref<RealmDef>>,
     /// Production cost (gold-equivalent) or summoning mana cost.
     pub cost: u32,
     #[serde(default)]
@@ -287,7 +291,7 @@ pub struct UnitDef {
     #[serde(skip)]
     pub require_ids: Vec<BuildingId>,
     #[serde(default)]
-    pub level_path: Option<String>,
+    pub level_path: Option<Ref<LevelPathDef>>,
     #[serde(default)]
     pub hero: Option<HeroDef>,
     /// Picture for the client: `(file, entry)` in the local art set.
@@ -349,7 +353,7 @@ pub struct BuildingDef {
     pub replace_id: Option<BuildingId>,
     /// Races that can build it; empty means every race.
     #[serde(default)]
-    pub races: Vec<String>,
+    pub races: Vec<Ref<RaceDef>>,
     #[serde(default)]
     pub effects: Vec<EffectRule>,
     /// Footprint in the city picture: 0 is 2x2, 1 is 2x3, 2 is 3x2, 3 is 3x3.
@@ -377,14 +381,24 @@ pub struct RealmDef {
     /// Spells (ids) a wizard with books in this realm starts with when they choose none, in
     /// the order they are taken: common ones first.
     #[serde(default)]
-    pub default_spells: Vec<String>,
+    pub default_spells: Vec<Ref<SpellDef>>,
 }
+
+/// The five realms that have spell books, in the original's order (`sbr_Nature` to `sbr_Death`);
+/// arcane has none.
+pub const BOOK_REALMS: [RealmId; 5] = [
+    RealmId::new(0), // nature
+    RealmId::new(1), // sorcery
+    RealmId::new(2), // chaos
+    RealmId::new(3), // life
+    RealmId::new(4), // death
+];
 
 /// What the books must be before a retort may be picked.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RetortNeed {
     /// At least this many books in the realm (by alias).
-    Books(String, u8),
+    Books(Ref<RealmDef>, u8),
     /// At least `count` realms with this many books or more each.
     Realms(u8, u8),
 }
@@ -411,10 +425,12 @@ pub struct RetortDef {
 }
 
 impl RetortDef {
-    /// Do these books (per realm alias) meet every need?
-    pub fn available(&self, books: &std::collections::BTreeMap<String, u8>) -> bool {
+    /// Do these books (per realm) meet every need?
+    pub fn available(&self, books: &std::collections::BTreeMap<RealmId, u8>) -> bool {
         self.requires.iter().all(|need| match need {
-            RetortNeed::Books(realm, min) => books.get(realm).copied().unwrap_or(0) >= *min,
+            RetortNeed::Books(realm, min) => {
+                realm.id().and_then(|r| books.get(&r)).copied().unwrap_or(0) >= *min
+            }
             RetortNeed::Realms(count, min) => {
                 books.values().filter(|&&n| n >= *min).count() >= usize::from(*count)
             }
@@ -438,9 +454,9 @@ pub struct WizardDef {
     #[serde(default)]
     pub gender: crate::text::Gender,
     /// Spell books as `(realm id, count)`.
-    pub books: Vec<(String, u8)>,
-    /// Retort aliases (`retorts.ron`).
-    pub retorts: Vec<String>,
+    pub books: Vec<(Ref<RealmDef>, u8)>,
+    /// The retorts the wizard starts with.
+    pub retorts: Vec<Ref<RetortDef>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -492,7 +508,7 @@ pub struct SpellDef {
     /// The spell's topic in `help.ron` (an index).
     #[serde(default)]
     pub help: Option<u16>,
-    pub realm: String,
+    pub realm: Ref<RealmDef>,
     pub rarity: Rarity,
     /// Mana to cast.
     pub cost: u32,
@@ -518,11 +534,11 @@ pub struct SpellDef {
     /// (or, for a global enchantment, on a wizard who keeps it), and while the unit has one its
     /// own bonuses do not count: Stone Skin gives way to Iron Skin.
     #[serde(default)]
-    pub not_with: Vec<String>,
+    pub not_with: Vec<Ref<SpellDef>>,
     /// Abilities a unit has of its own that make this spell pointless: it cannot be cast on a
     /// unit that has one (a unit that flies by nature cannot be given Wind Walking).
     #[serde(default)]
-    pub already_able: Vec<String>,
+    pub already_able: Vec<Ref<AbilityDef>>,
     pub effects: Vec<EffectRule>,
 }
 
@@ -533,7 +549,7 @@ pub struct SpellSave {
     pub modifier: i32,
     /// A target with one of these abilities cannot be affected at all.
     #[serde(default)]
-    pub immune: Vec<String>,
+    pub immune: Vec<Ref<AbilityDef>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -562,10 +578,10 @@ pub struct ItemDef {
     pub spell_save: i32,
     /// Special powers (ids in `item_powers.ron`).
     #[serde(default)]
-    pub powers: Vec<String>,
+    pub powers: Vec<Ref<ItemPowerDef>>,
     /// The spell the hero can cast from the item, and how many times (Spell Charges).
     #[serde(default)]
-    pub charges: Option<(String, u32)>,
+    pub charges: Option<(Ref<SpellDef>, u32)>,
     /// The original's flag byte: set items are left out of the Enchant Item grade, unset ones out
     /// of the Create Artifact grade (`Make_Item`).
     #[serde(default)]
@@ -636,7 +652,7 @@ pub struct ItemPowerDef {
     pub kinds: Vec<ItemKind>,
     /// Special powers: the realm and the number of books a wizard needs to add it.
     #[serde(default)]
-    pub realm: Option<String>,
+    pub realm: Option<Ref<RealmDef>>,
     #[serde(default)]
     pub books: u32,
     /// Plain bonuses: what it adds (movement in half-moves; spell save is the size of the penalty).
@@ -644,10 +660,10 @@ pub struct ItemPowerDef {
     pub bonus: Option<(PowerBonus, i32)>,
     /// The lasting spell (an id of `spells.ron`) the power puts on the hero that carries the item.
     #[serde(default)]
-    pub spell: Option<String>,
+    pub spell: Option<Ref<SpellDef>>,
     /// The special attack ability the power gives the carrier.
     #[serde(default)]
-    pub attack: Option<String>,
+    pub attack: Option<Ref<AbilityDef>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -742,7 +758,7 @@ pub struct RulesConfig {
     /// `racial_unrest[capital race][city race]`, indexed by race number. Empty means none.
     pub racial_unrest: Vec<Vec<i8>>,
     /// Building ids in the order the Grand Vizier picks them (our own list).
-    pub autobuild_order: Vec<String>,
+    pub autobuild_order: Vec<Ref<BuildingDef>>,
 }
 
 impl Default for RulesConfig {
@@ -794,6 +810,128 @@ pub fn resolve_unit_abilities(units: &mut [UnitDef], abilities: &Registry<Abilit
     }
 }
 
+/// Every table that holds names of other definitions, for [`resolve_references`].
+pub struct Tables<'a> {
+    pub races: &'a mut [RaceDef],
+    pub units: &'a mut [UnitDef],
+    pub abilities: &'a mut [AbilityDef],
+    pub buildings: &'a mut [BuildingDef],
+    pub realms: &'a mut [RealmDef],
+    pub retorts: &'a mut [RetortDef],
+    pub spells: &'a mut [SpellDef],
+    pub item_powers: &'a mut [ItemPowerDef],
+    pub level_paths: &'a mut [LevelPathDef],
+    pub wizards: &'a mut [WizardDef],
+    pub items: &'a mut [ItemDef],
+    pub hero_templates: &'a mut [HeroTemplate],
+    pub config: &'a mut RulesConfig,
+}
+
+/// Turn the names the tables hold of other definitions into numbers ([`Ref`]), once, when the
+/// rules load. A name that is no definition is left unresolved (content validation reports it).
+pub fn resolve_references(t: &mut Tables) {
+    let mut names = Names::new();
+    names.add(t.realms);
+    names.add(t.races);
+    names.add(t.spells);
+    names.add(t.abilities);
+    names.add(t.units);
+    names.add(t.buildings);
+    names.add(t.retorts);
+    names.add(t.item_powers);
+    names.add(t.level_paths);
+    for r in t.realms.iter_mut() {
+        names.resolve_all(&mut r.default_spells);
+    }
+    for r in t.races.iter_mut() {
+        names.resolve_all(&mut r.units);
+        names.resolve_all(&mut r.buildings);
+        resolve_rules(&mut r.effects, &names);
+    }
+    for u in t.units.iter_mut() {
+        names.resolve_opt(&mut u.realm);
+        names.resolve_opt(&mut u.race);
+        names.resolve_opt(&mut u.level_path);
+    }
+    for a in t.abilities.iter_mut() {
+        resolve_rules(&mut a.effects, &names);
+    }
+    for b in t.buildings.iter_mut() {
+        names.resolve_all(&mut b.races);
+        resolve_rules(&mut b.effects, &names);
+    }
+    for s in t.spells.iter_mut() {
+        names.resolve(&mut s.realm);
+        names.resolve_all(&mut s.not_with);
+        names.resolve_all(&mut s.already_able);
+        if let Some(save) = &mut s.save {
+            names.resolve_all(&mut save.immune);
+        }
+        resolve_rules(&mut s.effects, &names);
+    }
+    for p in t.item_powers.iter_mut() {
+        names.resolve_opt(&mut p.realm);
+        names.resolve_opt(&mut p.spell);
+        names.resolve_opt(&mut p.attack);
+    }
+    for p in t.level_paths.iter_mut() {
+        for l in p.levels.iter_mut() {
+            resolve_rules(&mut l.effects, &names);
+        }
+        for l in p.bonus.iter_mut() {
+            resolve_rules(&mut l.effects, &names);
+        }
+    }
+    for r in t.retorts.iter_mut() {
+        for need in r.requires.iter_mut() {
+            if let RetortNeed::Books(realm, _) = need {
+                names.resolve(realm);
+            }
+        }
+    }
+    for w in t.wizards.iter_mut() {
+        for (realm, _) in w.books.iter_mut() {
+            names.resolve(realm);
+        }
+        names.resolve_all(&mut w.retorts);
+    }
+    for i in t.items.iter_mut() {
+        names.resolve_all(&mut i.powers);
+        if let Some((spell, _)) = &mut i.charges {
+            names.resolve(spell);
+        }
+        resolve_rules(&mut i.effects, &names);
+    }
+    for h in t.hero_templates.iter_mut() {
+        names.resolve_all(&mut h.spells);
+    }
+    names.resolve_all(&mut t.config.autobuild_order);
+}
+
+/// Turn the unit each hero template names into a number. A name that is not a unit is left
+/// `None` (content validation reports it).
+pub fn resolve_hero_units(templates: &mut [HeroTemplate], units: &[UnitDef]) {
+    for t in templates {
+        t.unit_id = units
+            .iter()
+            .find(|u| u.id == t.unit)
+            .map(|u| super::UnitId::new(u.num));
+    }
+}
+
+/// Turn the unit a summoning spell names into a number. A name that is not a unit is left
+/// `None` (content validation reports it).
+pub fn resolve_summons(spells: &mut [SpellDef], units: &[UnitDef]) {
+    for rule in spells.iter_mut().flat_map(|s| s.effects.iter_mut()) {
+        if let super::effects::Effect::Summon { unit, unit_id, .. } = &mut rule.effect {
+            *unit_id = units
+                .iter()
+                .find(|u| u.id == *unit)
+                .map(|u| super::UnitId::new(u.num));
+        }
+    }
+}
+
 /// Turn the building names in the building and unit tables into numbers. A name that is not
 /// a building is left out (content validation reports it).
 pub fn resolve_building_links(buildings: &mut [BuildingDef], units: &mut [UnitDef]) {
@@ -836,6 +974,13 @@ impl Def for AbilityDef {
 
     fn num(&self) -> u16 {
         self.num
+    }
+}
+
+impl BuildingDef {
+    /// Whether a city of `race` may build it (a building with no race list is for every race).
+    pub fn buildable_by(&self, race: super::RaceId) -> bool {
+        self.races.is_empty() || self.races.iter().any(|r| r.id() == Some(race))
     }
 }
 

@@ -25,6 +25,7 @@ use rand_pcg::Pcg64Mcg;
 use super::casting::{BattleCaster, SpellAim, SpellError, MAX_SIDE_UNITS};
 use super::field::{Field, BATTLEFIELD, CALL_CHAOS};
 use super::immunity::{AttackNature, Immunities, Realm};
+use super::WarpKind;
 use super::{Battle, BattleError, BattleEvent, RangedKind, Side};
 use crate::game::{DispelSite, Event, Game};
 use crate::map::Position;
@@ -32,7 +33,7 @@ use crate::player::PlayerId;
 use crate::rules::defs::{CastContext, Duration, SpellDef, SpellSave, SpellTarget};
 use crate::rules::effects::{Condition, DamageTraits, Effect, SlayOnly, TargetSel, Trigger};
 use crate::rules::stats::{ModOp, Modifier, Source, Stat};
-use crate::rules::SpellId;
+use crate::rules::{SpellId, UnitId};
 use crate::spell::target_error::TargetError;
 
 mod unit_cast;
@@ -62,20 +63,16 @@ pub const LIFE_DRAIN: &str = "life_drain";
 pub const WARP_WOOD: &str = "warp_wood";
 /// The hook of Warp Creature.
 pub const WARP_CREATURE: &str = "warp_creature";
-/// What Warp Creature did to a unit, as the id kept among its lasting spells: half its attacks,
-/// half its defence, or no resistance.
-const WARPS: [&str; 3] = ["warp_attack", "warp_defense", "warp_resistance"];
-
 /// The changes of one of Warp Creature's three results.
-fn warp_mods(variant: usize, spell: SpellId) -> Vec<Modifier> {
+fn warp_mods(kind: WarpKind, spell: SpellId) -> Vec<Modifier> {
     let source = Source::Spell(spell);
-    match variant {
-        0 => vec![
+    match kind {
+        WarpKind::Attack => vec![
             Modifier::new(Stat::Melee, ModOp::Percent, -50, source),
             Modifier::new(Stat::Ranged, ModOp::Percent, -50, source),
         ],
-        1 => vec![Modifier::new(Stat::Defense, ModOp::Percent, -50, source)],
-        _ => vec![Modifier::new(Stat::Resistance, ModOp::Set, 0, source)],
+        WarpKind::Defense => vec![Modifier::new(Stat::Defense, ModOp::Percent, -50, source)],
+        WarpKind::Resistance => vec![Modifier::new(Stat::Resistance, ModOp::Set, 0, source)],
     }
 }
 
@@ -92,7 +89,7 @@ enum CityWall {
 enum Kind {
     Damage {
         strength: i32,
-        immune: Vec<String>,
+        immune: Vec<Ability>,
         realm: Option<Realm>,
         traits: DamageTraits,
         /// Every enemy unit, not one chosen.
@@ -105,7 +102,7 @@ enum Kind {
         /// Creatures of this realm are not healed (Mass Healing does not help the dead).
         except: Option<Realm>,
     },
-    Summon(String),
+    Summon(UnitId),
     /// A lasting spell on one unit; a curse has a save.
     Enchant {
         mods: Vec<Modifier>,
@@ -119,7 +116,7 @@ enum Kind {
     Slay {
         realm: Realm,
         modifier: i32,
-        immune: Vec<String>,
+        immune: Vec<Ability>,
         only: SlayOnly,
         below: Option<i32>,
         mana_per_step: u32,
@@ -207,9 +204,9 @@ pub struct LegalCast {
 
 /// Creatures a spell may only be thrown at, by realm: Star Fires burns chaos and death
 /// creatures and nothing else.
-fn only_against(spell_id: &str) -> Option<&'static [Realm]> {
-    match spell_id {
-        "star_fires" => Some(&[Realm::Chaos, Realm::Death]),
+fn only_against(spell: SpellId) -> Option<&'static [Realm]> {
+    match spell.num() {
+        122 /* star_fires */ => Some(&[Realm::Chaos, Realm::Death]),
         _ => None,
     }
 }
@@ -217,9 +214,9 @@ fn only_against(spell_id: &str) -> Option<&'static [Realm]> {
 /// How much harder the undead find it to resist a spell, on top of its own modifier: Dispel
 /// Evil and Holy Word (the help's "much more difficult time"; the original's Holy Word code
 /// has it the wrong way round).
-fn undead_penalty(spell_id: &str) -> i32 {
-    match spell_id {
-        "dispel_evil" | "holy_word" => 5,
+fn undead_penalty(spell: SpellId) -> i32 {
+    match spell.num() {
+        134 /* dispel_evil */ | 150 /* holy_word */ => 5,
         _ => 0,
     }
 }
@@ -262,7 +259,7 @@ impl Game {
                         mods.push(Modifier::new(*stat, *op, *value, Source::Spell(spell)));
                     }
                     Effect::GrantAbility(a) => {
-                        grants.extend(self.content.rules.abilities.id_of(a));
+                        grants.extend(a.id());
                     }
                     _ => return None,
                 }
@@ -291,8 +288,8 @@ impl Game {
                 ..
             } => Some(Kind::Damage {
                 strength: *amount,
-                immune: immune.clone(),
-                realm: realm.as_deref().and_then(Realm::from_id),
+                immune: crate::rules::refs::ids(immune),
+                realm: realm.as_ref().and_then(|r| r.id()).and_then(Realm::of),
                 traits: *traits,
                 all: all_enemies,
             }),
@@ -301,13 +298,13 @@ impl Game {
                 all: rule.target == TargetSel::AllOwnUnits,
                 except: match &rule.condition {
                     Condition::Not(c) => match &**c {
-                        Condition::RealmIs(r) => Realm::from_id(r),
+                        Condition::RealmIs(r) => r.id().and_then(Realm::of),
                         _ => None,
                     },
                     _ => None,
                 },
             }),
-            Effect::Summon { unit, .. } => Some(Kind::Summon(unit.clone())),
+            Effect::Summon { unit_id, .. } => unit_id.map(Kind::Summon),
             Effect::Dispel { strength } => Some(Kind::Dispel(*strength / def.cost.max(1))),
             Effect::Slay {
                 realm,
@@ -317,9 +314,9 @@ impl Game {
                 below,
                 mana_per_step,
             } => Some(Kind::Slay {
-                realm: Realm::from_id(realm)?,
+                realm: Realm::of(realm.id()?)?,
                 modifier: *modifier,
-                immune: immune.clone(),
+                immune: crate::rules::refs::ids(immune),
                 only: *only,
                 below: *below,
                 mana_per_step: *mana_per_step,
@@ -328,7 +325,7 @@ impl Game {
             Effect::Custom(h) if h == crate::spell::dispel::COUNTER_MAGIC => {
                 Some(Kind::CounterMagic)
             }
-            Effect::Custom(h) if h == BATTLEFIELD => Field::of(&def.id).map(Kind::Field),
+            Effect::Custom(h) if h == BATTLEFIELD => Field::of(spell).map(Kind::Field),
             Effect::Custom(h) if h == CALL_CHAOS => Some(Kind::CallChaos),
             Effect::Custom(h) if h == ANIMATE_DEAD => Some(Kind::Animate),
             Effect::Custom(h) if h == RAISE_DEAD => Some(Kind::Raise),
@@ -342,9 +339,9 @@ impl Game {
             Effect::Custom(h) if h == crate::spell::city::WALL_OF_STONE => {
                 Some(Kind::CityWall(CityWall::Stone))
             }
-            Effect::Custom(h) if h == "city_flag" => match def.id.as_str() {
-                "wall_of_fire" => Some(Kind::CityWall(CityWall::Fire)),
-                "wall_of_darkness" => Some(Kind::CityWall(CityWall::Darkness)),
+            Effect::Custom(h) if h == "city_flag" => match spell.num() {
+                87 /* wall_of_fire */ => Some(Kind::CityWall(CityWall::Fire)),
+                178 /* wall_of_darkness */ => Some(Kind::CityWall(CityWall::Darkness)),
                 _ => None,
             },
             Effect::Custom(h) if h == LIFE_DRAIN => Some(Kind::LifeDrain),
@@ -384,7 +381,7 @@ impl Game {
                     castable: caster.is_some_and(|c| !c.cast_this_turn && cost <= c.affordable())
                         && !self.battle().is_some_and(|b| {
                             b.side_of(player)
-                                .is_some_and(|side| b.ward_stops(side, &def.realm))
+                                .is_some_and(|side| b.ward_stops(side, def.realm.id()))
                         }),
                 })
             })
@@ -467,7 +464,9 @@ impl Game {
                 magic.has(crate::wizard::magic::Retort::new(8) /* channeler */),
             );
             // On corrupted ground a wizard who keeps Great Wasting going pays no range penalty.
-            if self.is_corrupted(site) && self.has_global(player, "great_wasting") {
+            if self.is_corrupted(site)
+                && self.has_global(player, SpellId::new(114) /* great_wasting */)
+            {
                 range = range.min(10);
             }
             battle.set_caster(
@@ -510,7 +509,7 @@ impl Game {
     ) -> Result<(SpellDef, Kind, i32, i32), BattleError> {
         let (def, kind, skill, pool) = self.check_spell(spell, mana)?;
         let battle = &self.battle.as_ref().ok_or(BattleError::Over)?.battle;
-        self.check_aim(battle, battle.active, &def, &kind, aim)
+        self.check_aim(battle, battle.active, spell, &def, &kind, aim)
             .map_err(BattleError::Spell)?;
         Ok((def, kind, skill, pool))
     }
@@ -541,7 +540,7 @@ impl Game {
         if skill > caster.affordable() {
             return Err(err(SpellError::TooExpensive));
         }
-        if battle.ward_stops(side, &def.realm) {
+        if battle.ward_stops(side, def.realm.id()) {
             return Err(err(SpellError::Warded));
         }
         Ok((def, kind, skill, pool))
@@ -583,7 +582,7 @@ impl Game {
             let aims: Vec<SpellAim> = candidates
                 .into_iter()
                 .filter(|&aim| {
-                    self.check_aim(battle, battle.active, &def, &kind, aim)
+                    self.check_aim(battle, battle.active, s.spell, &def, &kind, aim)
                         .is_ok()
                 })
                 .collect();
@@ -606,7 +605,7 @@ impl Game {
         &mut self,
         side: Side,
         player: PlayerId,
-        realm: &str,
+        realm: Option<crate::rules::RealmId>,
         difficulty: u32,
     ) -> bool {
         let mastery = self.wizard(player).is_some_and(|m| {
@@ -617,7 +616,11 @@ impl Game {
         let Some(active) = self.battle.as_mut() else {
             return false;
         };
-        if !mastery && active.battle.node_stops(Realm::from_id(realm), difficulty) {
+        if !mastery
+            && active
+                .battle
+                .node_stops(realm.and_then(Realm::of), difficulty)
+        {
             return true;
         }
         active.battle.counter_magic_stops(side, difficulty)
@@ -649,8 +652,8 @@ impl Game {
         }];
 
         // The node under the battle, then the enemy's Counter Magic reserve, try to stop it.
-        let difficulty = pool as u32 * self.dispel_multiplier(&def.realm, Some(player));
-        let stopped = self.battle_spell_stopped(side, player, &def.realm, difficulty);
+        let difficulty = pool as u32 * self.dispel_multiplier(def.realm.id(), Some(player));
+        let stopped = self.battle_spell_stopped(side, player, def.realm.id(), difficulty);
         if stopped {
             events.push(BattleEvent::SpellCountered { side, spell });
         } else {
@@ -675,6 +678,7 @@ impl Game {
         &self,
         battle: &Battle,
         side: Side,
+        spell: SpellId,
         def: &SpellDef,
         kind: &Kind,
         aim: SpellAim,
@@ -695,7 +699,7 @@ impl Game {
                         return Err(SpellError::Target(TargetError::NothingToHit));
                     }
                     Kind::Damage { all: true, .. }
-                        if only_against(&def.id).is_some_and(|realms| {
+                        if only_against(spell).is_some_and(|realms| {
                             !hits(&|u| u.realm.is_some_and(|r| realms.contains(&r)))
                         }) =>
                     {
@@ -848,11 +852,11 @@ impl Game {
                     return Err(SpellError::Target(TargetError::Deathly));
                 }
                 if matches!(kind, Kind::Enchant { .. }) {
-                    self.check_stacking_in_battle(battle.player_of(side), def, u)?;
+                    self.check_stacking_in_battle(battle.player_of(side), spell, def, u)?;
                 }
                 // Warp Wood needs a missile unit; it and Warp Creature take normal units only,
                 // and a unit is warped once.
-                if def.id == "web" && u.has(Ability::new(49)) {
+                if spell == SpellId::new(5) /* web */ && u.has(Ability::new(49)) {
                     return Err(SpellError::Target(TargetError::NonCorporeal));
                 }
                 if matches!(kind, Kind::WarpWood | Kind::Warp { .. }) && u.is_fantastic() {
@@ -863,12 +867,10 @@ impl Game {
                 {
                     return Err(SpellError::Target(TargetError::NeedsMissile));
                 }
-                if matches!(kind, Kind::Warp { .. })
-                    && u.enchantments.iter().any(|e| WARPS.contains(&e.as_str()))
-                {
+                if matches!(kind, Kind::Warp { .. }) && u.warp.is_some() {
                     return Err(SpellError::Target(TargetError::AlreadyWarped));
                 }
-                if let Some(realms) = only_against(&def.id) {
+                if let Some(realms) = only_against(spell) {
                     if !u.realm.is_some_and(|r| realms.contains(&r)) {
                         return Err(SpellError::Target(TargetError::NotAffected));
                     }
@@ -893,24 +895,22 @@ impl Game {
     fn check_stacking_in_battle(
         &self,
         player: PlayerId,
+        spell: SpellId,
         def: &SpellDef,
         unit: &super::BattleUnit,
     ) -> Result<(), SpellError> {
-        if unit.enchantments.contains(&def.id) {
+        if unit.enchantments.contains(&spell) {
             return Err(SpellError::AlreadyEnchanted);
         }
         if def
             .not_with
             .iter()
-            .any(|id| unit.enchantments.contains(id) || self.has_global(player, id))
+            .filter_map(|n| n.id())
+            .any(|id| unit.enchantments.contains(&id) || self.has_global(player, id))
         {
             return Err(SpellError::NotCumulative);
         }
-        if self
-            .content
-            .rules
-            .abilities
-            .ids(&def.already_able)
+        if crate::rules::refs::ids(&def.already_able)
             .iter()
             .any(|&a| unit.has(a))
         {
@@ -921,8 +921,10 @@ impl Game {
 
     /// What a lasting spell with no rules of its own gives a unit of the battle: Heroism raises it
     /// to the level the spell gives (the unit was made without it).
-    fn battle_bonuses_by_name(&self, spell_id: &str, target: usize) -> Vec<Modifier> {
-        if spell_id != crate::unit::HEROISM {
+    fn battle_bonuses_by_name(&self, spell: SpellId, target: usize) -> Vec<Modifier> {
+        if spell != SpellId::new(130)
+        /* heroism */
+        {
             return Vec::new();
         }
         let Some(active) = self.battle.as_ref() else {
@@ -938,15 +940,12 @@ impl Game {
     /// What takes a spell's bonuses back off a unit that has a spell it gives way to, so that
     /// the two are not cumulative: Iron Skin cast on a unit with Stone Skin leaves +5, not +6.
     /// Only added bonuses are taken back.
-    fn superseded_bonuses(&self, spell_id: &str, present: &[String]) -> Vec<Modifier> {
+    fn superseded_bonuses(&self, spell: SpellId, present: &[SpellId]) -> Vec<Modifier> {
         let rules = &self.content.rules;
         let mut out = Vec::new();
-        for id in present {
-            let Some(other) = rules.spells.id_of(id) else {
-                continue;
-            };
+        for &other in present {
             let def = rules.spells.get(other);
-            if !def.not_with.iter().any(|n| n == spell_id) {
+            if !def.not_with.iter().any(|n| n.id() == Some(spell)) {
                 continue;
             }
             for r in &def.effects {
@@ -1089,8 +1088,10 @@ impl Game {
     }
 
     /// The damage a spell does, by its id: strength, what stops it, its realm and traits.
-    fn damage_of(&self, id: &str) -> Option<(i32, Vec<String>, Option<Realm>, DamageTraits)> {
-        let spell = self.content.rules.spells.id_of(id)?;
+    fn damage_of(
+        &self,
+        spell: SpellId,
+    ) -> Option<(i32, Vec<Ability>, Option<Realm>, DamageTraits)> {
         match self.battle_kind(spell, self.content.rules.spells.get(spell))? {
             Kind::Damage {
                 strength,
@@ -1108,12 +1109,12 @@ impl Game {
         &mut self,
         targets: &[usize],
         strength: i32,
-        immune: &[String],
+        immune: &[Ability],
         realm: Option<Realm>,
         traits: &DamageTraits,
     ) -> Vec<BattleEvent> {
         let nature = AttackNature {
-            stopped_by: Immunities::of(&self.content.rules.abilities.ids(immune)),
+            stopped_by: Immunities::of(immune),
             realm,
             armor_piercing: false,
         };
@@ -1311,11 +1312,10 @@ impl Game {
                 }]
             }
             (Kind::Turn { bind, save }, SpellAim::Unit(target)) => {
-                let immune_ids = self
-                    .content
-                    .rules
-                    .abilities
-                    .ids(save.as_ref().map_or(&[][..], |s| &s.immune[..]));
+                let immune_ids = save
+                    .as_ref()
+                    .map(|s| crate::rules::refs::ids(&s.immune))
+                    .unwrap_or_default();
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1325,12 +1325,16 @@ impl Game {
                     if immune_ids.iter().any(|&i| unit.has(i)) {
                         return vec![BattleEvent::SpellImmune { unit: target }];
                     }
-                    if !battle.resist_fails(target, Realm::from_id(&def.realm), save.modifier) {
+                    if !battle.resist_fails(
+                        target,
+                        def.realm.id().and_then(Realm::of),
+                        save.modifier,
+                    ) {
                         return vec![BattleEvent::SpellResisted { unit: target }];
                     }
                 }
                 if bind {
-                    battle.enchant_unit(target, spell, &def.id, player, &[], &[]);
+                    battle.enchant_unit(target, spell, player, &[], &[]);
                 }
                 battle.change_sides(target, side);
                 vec![BattleEvent::SpellEnchanted {
@@ -1360,13 +1364,12 @@ impl Game {
                     .map(|a| a.battle.units[target].enchantments.clone())
                     .unwrap_or_default();
                 let mut mods = mods;
-                mods.extend(self.superseded_bonuses(&def.id, &present));
-                mods.extend(self.battle_bonuses_by_name(&def.id, target));
-                let immune_ids = self
-                    .content
-                    .rules
-                    .abilities
-                    .ids(save.as_ref().map_or(&[][..], |s| &s.immune[..]));
+                mods.extend(self.superseded_bonuses(spell, &present));
+                mods.extend(self.battle_bonuses_by_name(spell, target));
+                let immune_ids = save
+                    .as_ref()
+                    .map(|s| crate::rules::refs::ids(&s.immune))
+                    .unwrap_or_default();
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1376,12 +1379,12 @@ impl Game {
                     if immune_ids.iter().any(|&i| unit.has(i)) {
                         return vec![BattleEvent::SpellImmune { unit: target }];
                     }
-                    let realm = Realm::from_id(&def.realm);
+                    let realm = def.realm.id().and_then(Realm::of);
                     if !battle.resist_fails(target, realm, save.modifier) {
                         return vec![BattleEvent::SpellResisted { unit: target }];
                     }
                 }
-                battle.enchant_unit(target, spell, &def.id, player, &mods, &grants);
+                battle.enchant_unit(target, spell, player, &mods, &grants);
                 vec![BattleEvent::SpellEnchanted {
                     unit: target,
                     spell,
@@ -1409,7 +1412,7 @@ impl Game {
                     (false, SpellAim::Unit(t)) => vec![t],
                     _ => return Vec::new(),
                 };
-                let immune_ids = self.content.rules.abilities.ids(&immune);
+                let immune_ids = immune;
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1419,13 +1422,12 @@ impl Game {
                     // Spell Lock keeps a unit from the spells that sever or burn it.
                     let locked = battle.units[t]
                         .enchantments
-                        .iter()
-                        .any(|e| e == "spell_lock");
+                        .contains(&SpellId::new(54) /* spell_lock */);
                     if !slay_allows(only, &battle.units[t]) || locked {
                         continue;
                     }
                     let modifier = if battle.units[t].undead {
-                        modifier - undead_penalty(&def.id)
+                        modifier - undead_penalty(spell)
                     } else {
                         modifier
                     };
@@ -1444,10 +1446,7 @@ impl Game {
                 }
                 events
             }
-            (Kind::Summon(name), SpellAim::Tile(cell)) => {
-                let Some(unit_id) = self.content.rules.units.id_of(&name) else {
-                    return Vec::new();
-                };
+            (Kind::Summon(unit_id), SpellAim::Tile(cell)) => {
                 // Make the creature as the game would, copy it, and let the original go: the
                 // copy vanishes with the battle.
                 let site = self
@@ -1488,11 +1487,9 @@ impl Game {
         player: PlayerId,
         save: Option<&SpellSave>,
     ) -> Vec<BattleEvent> {
-        let immune_ids = self
-            .content
-            .rules
-            .abilities
-            .ids(save.map_or(&[][..], |s| &s.immune[..]));
+        let immune_ids = save
+            .map(|s| crate::rules::refs::ids(&s.immune))
+            .unwrap_or_default();
         let Some(active) = self.battle.as_mut() else {
             return Vec::new();
         };
@@ -1502,19 +1499,17 @@ impl Game {
             if immune_ids.iter().any(|&i| unit.has(i)) {
                 return vec![BattleEvent::SpellImmune { unit: target }];
             }
-            if !battle.resist_fails(target, Realm::from_id(&def.realm), save.modifier) {
+            if !battle.resist_fails(target, def.realm.id().and_then(Realm::of), save.modifier) {
                 return vec![BattleEvent::SpellResisted { unit: target }];
             }
         }
-        let variant = battle.roll(3) as usize - 1;
-        battle.enchant_unit(
-            target,
-            spell,
-            WARPS[variant],
-            player,
-            &warp_mods(variant, spell),
-            &[],
-        );
+        let kind = match battle.roll(3) {
+            1 => WarpKind::Attack,
+            2 => WarpKind::Defense,
+            _ => WarpKind::Resistance,
+        };
+        battle.enchant_unit(target, spell, player, &warp_mods(kind, spell), &[]);
+        battle.units[target].warp = Some(kind);
         vec![BattleEvent::SpellEnchanted {
             unit: target,
             spell,
@@ -1542,22 +1537,20 @@ impl Game {
                     .battle_source_of(t)
                     .is_some_and(|e| self.check_mutate(e).is_ok());
                 if channelable && self.channel_battle_unit(t) {
-                    if let Some(spell) = self
-                        .content
-                        .rules
-                        .spells
-                        .id_of(crate::unit::mutation::CHAOS_CHANNELS)
-                    {
-                        events.push(BattleEvent::SpellEnchanted { unit: t, spell });
-                    }
+                    events.push(BattleEvent::SpellEnchanted {
+                        unit: t,
+                        spell: SpellId::new(93), /* chaos_channels */
+                    });
                 }
                 continue;
             }
             match roll {
                 4 => {
                     let u = &active.battle.units[t];
-                    let warped = u.enchantments.iter().any(|e| WARPS.contains(&e.as_str()));
-                    if let Some(spell) = self.content.rules.spells.id_of("warp_creature") {
+                    let warped = u.warp.is_some();
+                    if let Some(spell) = self.content.rules.spells.id_numbered(89)
+                    /* warp_creature */
+                    {
                         if !u.is_fantastic() && !warped {
                             let def = self.content.rules.spells.get(spell).clone();
                             events.extend(self.warp_creature(
@@ -1581,9 +1574,9 @@ impl Game {
                 }
                 5..=7 => {
                     let (id, strength) = match roll {
-                        5 => ("fire_bolt", Some(15)),
-                        6 => ("warp_lightning", None),
-                        _ => ("doom_bolt", None),
+                        5 => (SpellId::new(83) /* fire_bolt */, Some(15)),
+                        6 => (SpellId::new(101) /* warp_lightning */, None),
+                        _ => (SpellId::new(104) /* doom_bolt */, None),
                     };
                     if let Some((base, immune, realm, traits)) = self.damage_of(id) {
                         events.extend(self.strike(
@@ -1733,9 +1726,14 @@ impl Game {
         };
         let lasting = self.lasting_spells(&unit, &kept, &base, target);
         if let Some(active) = self.battle.as_mut() {
+            let warped = kept
+                .iter()
+                .any(|&(s, _)| s == SpellId::new(89) /* warp_creature */);
             active.battle.rebuild_unit(target, base, kept, &lasting);
-            if unit.enchantments.iter().any(|e| e == CREATURE_BINDING)
-                && !lasting.iter().any(|(id, _, _)| id == CREATURE_BINDING)
+            active.battle.units[target].warp = unit.warp.filter(|_| warped);
+            let binding = SpellId::new(73) /* creature_binding */;
+            if unit.enchantments.contains(&binding)
+                && !lasting.iter().any(|(id, _, _)| *id == binding)
             {
                 active.battle.return_unit(target);
             }
@@ -1752,37 +1750,28 @@ impl Game {
         kept: &[(SpellId, PlayerId)],
         base: &super::BattleUnit,
         target: usize,
-    ) -> Vec<(String, Vec<Modifier>, Vec<Ability>)> {
+    ) -> Vec<(SpellId, Vec<Modifier>, Vec<Ability>)> {
         let lasting: Vec<_> = kept
             .iter()
             .filter_map(|&(s, _)| {
                 let def = self.content.rules.spells.get(s);
                 match self.battle_kind(s, def)? {
-                    Kind::Enchant { mods, grants, .. } => Some((def.id.clone(), mods, grants)),
-                    Kind::Turn { bind: true, .. } => Some((def.id.clone(), Vec::new(), Vec::new())),
+                    Kind::Enchant { mods, grants, .. } => Some((s, mods, grants)),
+                    Kind::Turn { bind: true, .. } => Some((s, Vec::new(), Vec::new())),
                     // The warp it got is kept among the unit's enchantment ids.
-                    Kind::Warp { .. } => {
-                        let variant = WARPS
-                            .iter()
-                            .position(|w| unit.enchantments.iter().any(|e| e == w))?;
-                        Some((
-                            WARPS[variant].to_string(),
-                            warp_mods(variant, s),
-                            Vec::new(),
-                        ))
-                    }
+                    Kind::Warp { .. } => Some((s, warp_mods(unit.warp?, s), Vec::new())),
                     _ => None,
                 }
             })
             .collect();
         // A spell that gives way to another on the unit stays out of the numbers, as in the cast.
         let mut present = base.enchantments.clone();
-        present.extend(lasting.iter().map(|(id, ..)| id.clone()));
+        present.extend(lasting.iter().map(|(id, ..)| *id));
         let lasting: Vec<_> = lasting
             .into_iter()
             .map(|(id, mut mods, grants)| {
-                mods.extend(self.superseded_bonuses(&id, &present));
-                mods.extend(self.battle_bonuses_by_name(&id, target));
+                mods.extend(self.superseded_bonuses(id, &present));
+                mods.extend(self.battle_bonuses_by_name(id, target));
                 (id, mods, grants)
             })
             .collect();
@@ -1842,11 +1831,12 @@ impl Battle {
 #[cfg(test)]
 mod tests {
     use super::undead_penalty;
+    use crate::rules::SpellId;
 
     #[test]
     fn only_dispel_evil_and_holy_word_are_harder_on_the_undead() {
-        assert_eq!(undead_penalty("dispel_evil"), 5);
-        assert_eq!(undead_penalty("holy_word"), 5);
-        assert_eq!(undead_penalty("word_of_death"), 0);
+        assert_eq!(undead_penalty(SpellId::new(134) /* dispel_evil */), 5);
+        assert_eq!(undead_penalty(SpellId::new(150) /* holy_word */), 5);
+        assert_eq!(undead_penalty(SpellId::new(192) /* word_of_death */), 0);
     }
 }

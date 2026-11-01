@@ -1,5 +1,5 @@
 use super::*;
-use crate::game::testutil::shipped;
+use crate::game::testutil::{realm, shipped};
 use crate::rules::Rules;
 use crate::rules::{Registry, WizardDef};
 use std::collections::BTreeSet;
@@ -11,7 +11,7 @@ fn build(books: &[(&str, u8)], retorts: &[Retort]) -> WizardBuild {
     WizardBuild {
         name: "W".into(),
         gender: Default::default(),
-        books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
+        books: books.iter().map(|&(r, n)| (realm(r), n)).collect(),
         retorts: retorts.iter().copied().collect(),
         spells: Vec::new(),
         banner: None,
@@ -62,10 +62,22 @@ fn wizard_def(num: u16, id: &str, books: &[(&str, u8)], retorts: &[Retort]) -> W
         name: id.into(),
         help: 0,
         gender: Default::default(),
-        books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
+        books: books
+            .iter()
+            .map(|&(r, n)| {
+                let mut r: crate::rules::Ref<crate::rules::RealmDef> = r.into();
+                r.set(Some(realm(r.name())));
+                (r, n)
+            })
+            .collect(),
         retorts: retorts
             .iter()
-            .map(|&r| rules().retorts.get(r).id.clone())
+            .map(|&r| {
+                let rules = rules();
+                let mut out = crate::rules::Ref::new(rules.retorts.get(r).id.clone());
+                out.set(Some(r));
+                out
+            })
             .collect(),
     }
 }
@@ -175,7 +187,7 @@ fn the_refill_spends_the_picks_without_breaking_a_rule() {
         assert_sound(&b, PICKS);
         assert!(!myrran(&b), "seed {seed}: the refill picked Myrran");
         assert!(
-            books(&b, "life") == 0 || books(&b, "death") == 0,
+            books(&b, realm("life")) == 0 || books(&b, realm("death")) == 0,
             "seed {seed}: opposed realms in {b:?}"
         );
         spent.insert(b.picks_spent(&rules()));
@@ -215,16 +227,16 @@ fn the_same_seed_makes_the_same_wizard() {
 #[test]
 fn books_stop_at_the_limit_and_at_an_opposed_realm() {
     let mut b = build(&[("life", 9)], &[]);
-    add_books(&mut b, "life", 4, "death");
-    assert_eq!(books(&b, "life"), MAX_BOOKS);
-    add_books(&mut b, "life", 1, "death");
-    assert_eq!(books(&b, "life"), MAX_BOOKS);
+    add_books(&mut b, realm("life"), 4, Some(realm("death")));
+    assert_eq!(books(&b, realm("life")), MAX_BOOKS);
+    add_books(&mut b, realm("life"), 1, Some(realm("death")));
+    assert_eq!(books(&b, realm("life")), MAX_BOOKS);
 
     let mut b = build(&[("life", 2)], &[]);
-    add_books(&mut b, "death", 3, "life");
-    assert_eq!(books(&b, "death"), 0);
-    add_books(&mut b, "nature", 3, "");
-    assert_eq!(books(&b, "nature"), 3);
+    add_books(&mut b, realm("death"), 3, Some(realm("life")));
+    assert_eq!(books(&b, realm("death")), 0);
+    add_books(&mut b, realm("nature"), 3, None);
+    assert_eq!(books(&b, realm("nature")), 3);
 }
 
 #[test]
@@ -301,8 +313,8 @@ fn without_ready_made_wizards_the_fallback_builds_them() {
     assert_eq!(builds.len(), 2);
     assert!(taken.is_empty());
     for b in &builds {
-        assert_eq!(books(b, "life"), 3);
-        assert_eq!(books(b, "nature"), 2);
+        assert_eq!(books(b, realm("life")), 3);
+        assert_eq!(books(b, realm("nature")), 2);
         assert!(b.preset, "they are marked as made by the same path");
     }
 }
@@ -380,11 +392,11 @@ fn the_erasure_dice_take_books_but_never_the_last_of_a_realm() {
         let builds = make(&mut g, &s, &mut Vec::new(), 1, false, &plain);
         let b = &builds[0];
         assert!(
-            books(b, "life") >= 1 && books(b, "life") <= 4,
+            books(b, realm("life")) >= 1 && books(b, realm("life")) <= 4,
             "seed {seed}: {b:?}"
         );
         assert!(
-            books(b, "nature") >= 1 && books(b, "nature") <= 4,
+            books(b, realm("nature")) >= 1 && books(b, realm("nature")) <= 4,
             "seed {seed}: {b:?}"
         );
         assert!(

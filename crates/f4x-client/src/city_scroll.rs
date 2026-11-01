@@ -14,7 +14,7 @@ use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::{SpellId, SpellTarget};
+use f4x_core::rules::{RealmId, SpellId, SpellTarget};
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -74,13 +74,13 @@ impl Modal for CityScroll {
     }
 }
 
-fn realm_slot(realm: &str) -> usize {
-    match realm {
-        "chaos" => 1,
-        "death" => 2,
-        "life" => 3,
-        "nature" => 4,
-        "sorcery" => 5,
+fn realm_slot(realm: Option<RealmId>) -> usize {
+    match realm.map(RealmId::num) {
+        Some(2 /* chaos */) => 1,
+        Some(4 /* death */) => 2,
+        Some(3 /* life */) => 3,
+        Some(0 /* nature */) => 4,
+        Some(1 /* sorcery */) => 5,
         _ => 0,
     }
 }
@@ -125,7 +125,7 @@ impl App {
             player,
             spell,
             city,
-            music: Track::piece(GOOD_MUSIC[realm_slot(&def.realm)] + bad),
+            music: Track::piece(GOOD_MUSIC[realm_slot(def.realm.id())] + bad),
             shakes: def.id == "earthquake",
             appears: appearing_building(&def.id),
             started,

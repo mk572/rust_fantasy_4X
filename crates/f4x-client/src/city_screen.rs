@@ -9,6 +9,7 @@ use crate::ui;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
+use f4x_core::rules::SpellId;
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -308,7 +309,7 @@ impl App {
             return;
         };
         let rules = &self.game.content().rules;
-        let spell_ward = rules.spells.id_of("spell_ward");
+        let spell_ward = rules.spells.id_numbered(72) /* spell_ward */;
         let mut spells = Vec::new();
         let mut wards = Vec::new();
         let (mut sell, mut built) = (false, None);
@@ -626,9 +627,16 @@ impl App {
             if def.id == "spell_ward" {
                 name = self.text_with(
                     "city.spell_ward",
-                    &Args::new()
-                        .text("spell", &name)
-                        .text("wards", self.game.economy().city_wards(city).join(", ")),
+                    &Args::new().text("spell", &name).text(
+                        "wards",
+                        self.game
+                            .economy()
+                            .city_wards(city)
+                            .into_iter()
+                            .map(|r| self.realm_alias(r))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                    ),
                 );
             }
             let ink = self.banner_ink(caster.0, &[222, 79, 127, 201, 211, 50]);
@@ -1015,7 +1023,7 @@ impl App {
         // The wards and spells that guard the city, along the bottom, and its magic walls.
         let wards = self.game.economy().city_wards(city);
         for (realm, entry, left) in cs::REALM_WARDS {
-            if wards.iter().any(|w| w == realm) {
+            if wards.iter().any(|&w| self.realm_alias(w) == realm) {
                 self.city_pic(lay, "cityscap", entry, 0, x0 + left, y0 + cs::WARD_ROW);
             }
         }
@@ -1098,7 +1106,7 @@ impl App {
         let gaia = self
             .game
             .economy()
-            .city_has_enchantment(city, "gaias_blessing");
+            .city_has_enchantment(city, SpellId::new(29) /* gaias_blessing */);
         for dy in -2i32..=2 {
             for dx in -2i32..=2 {
                 let corner = dx.abs() == 2 && dy.abs() == 2;
@@ -1215,7 +1223,7 @@ impl App {
             .defs()
             .iter()
             .find(|d| d.kind == f4x_core::rules::UnitKind::Normal && d.race.is_some())
-            .and_then(|d| self.game.content().rules.units.id_of(&d.id));
+            .map(|d| f4x_core::rules::UnitId::new(d.num));
         if let Some(kind) = kind {
             for _ in 0..14 {
                 self.game.spawn_unit(HUMAN, at, kind);

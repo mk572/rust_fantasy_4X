@@ -20,6 +20,8 @@ pub mod entity;
 pub mod make;
 
 use crate::rules::Ability;
+use crate::rules::ItemId;
+use crate::rules::ItemPowerId;
 use serde::{Deserialize, Serialize};
 
 use crate::battle::game::ranged_kind_of;
@@ -59,12 +61,12 @@ pub struct Item {
     #[serde(default)]
     pub icon: u16,
     pub bonus: ItemBonus,
-    /// The special powers (ids in `item_powers.ron`).
-    pub powers: Vec<String>,
+    /// The special powers (numbers in `item_powers.ron`).
+    pub powers: Vec<ItemPowerId>,
     /// The spell the hero can cast from the item, and how many times.
-    pub charges: Option<(String, u32)>,
-    /// The id of the prefab item this is a copy of; `None` for one made by a wizard or at random.
-    pub prefab: Option<String>,
+    pub charges: Option<(SpellId, u32)>,
+    /// The prefab item this is a copy of; `None` for one made by a wizard or at random.
+    pub prefab: Option<ItemId>,
     /// The parts of the default name of an item made without one: a language puts
     /// them in its own order. `name` is empty then.
     #[serde(default)]
@@ -102,9 +104,12 @@ impl Item {
             cost: def.cost,
             icon: def.icon,
             bonus,
-            powers: def.powers.clone(),
-            charges: def.charges.clone(),
-            prefab: Some(def.id.clone()),
+            powers: crate::rules::refs::ids(&def.powers),
+            charges: def
+                .charges
+                .as_ref()
+                .and_then(|(spell, n)| Some((spell.id()?, *n))),
+            prefab: Some(ItemId::new(def.num)),
             made: None,
         }
     }
@@ -123,8 +128,8 @@ impl Item {
         slot_of(self.kind)
     }
 
-    pub fn has_power(&self, power: &str) -> bool {
-        self.powers.iter().any(|p| p == power)
+    pub fn has_power(&self, power: ItemPowerId) -> bool {
+        self.powers.contains(&power)
     }
 
     /// What the anvil gives for it: half its value in mana (help 246).
@@ -134,11 +139,11 @@ impl Item {
 
     /// The lasting spells its powers put on the hero that carries it (the original turns them
     /// into unit enchantments, `Item_Powers_To_Unit_Enchantments`; they are not the wizard's, so
-    /// dispelling does not touch them). The ids are those of `spells.ron`.
-    pub fn granted_spells<'a>(&self, rules: &'a Rules) -> Vec<&'a str> {
+    /// dispelling does not touch them).
+    pub fn granted_spells(&self, rules: &Rules) -> Vec<SpellId> {
         self.powers
             .iter()
-            .filter_map(|p| rules.item_powers.by_name(p)?.spell.as_deref())
+            .filter_map(|&p| rules.item_powers.get(p).spell.as_ref()?.id())
             .collect()
     }
 
@@ -146,16 +151,18 @@ impl Item {
     /// powers give the matching special attack (`Item_Powers_To_Attack_Attributes`). The original
     /// puts an attack power on the melee or the ranged attack by the kind of the item; here the
     /// carrier has it for both.
-    pub fn granted_abilities<'a>(&self, rules: &'a Rules) -> Vec<&'a str> {
-        let mut out: Vec<&'a str> = Vec::new();
+    pub fn granted_abilities(&self, rules: &Rules) -> Vec<Ability> {
+        let mut out: Vec<Ability> = Vec::new();
         if self.kind == ItemKind::Shield {
-            out.push("large_shield");
+            out.push(Ability::new(34) /* large_shield */);
         }
-        for p in &self.powers {
+        for &p in &self.powers {
             if let Some(ability) = rules
                 .item_powers
-                .by_name(p)
-                .and_then(|d| d.attack.as_deref())
+                .get(p)
+                .attack
+                .as_ref()
+                .and_then(|a| a.id())
             {
                 if !out.contains(&ability) {
                     out.push(ability);
@@ -213,19 +220,26 @@ impl HeroItems {
     }
 
     /// Whether any item has the power.
-    pub fn has_power(&self, power: &str) -> bool {
+    pub fn has_power(&self, power: ItemPowerId) -> bool {
         self.iter().any(|i| i.has_power(power))
     }
 }
 
 /// The special powers that change the carrier's attacks in [`modifiers`] rather than becoming a
 /// lasting spell or an ability, or that do nothing to a unit.
-pub const OTHER_POWERS: &[&str] = &["flaming", "giant_strength", "merging", "spell_charges"];
+pub const OTHER_POWERS: [ItemPowerId; 4] = [
+    ItemPowerId::new(33), /* flaming */
+    ItemPowerId::new(44), /* giant_strength */
+    ItemPowerId::new(62), /* merging */
+    ItemPowerId::new(65), /* spell_charges */
+];
 
 /// Whether the rules do something with a special power: it puts a lasting spell on the carrier,
 /// gives an attack ability, or is one of [`OTHER_POWERS`].
 pub fn power_is_handled(power: &ItemPowerDef) -> bool {
-    power.spell.is_some() || power.attack.is_some() || OTHER_POWERS.contains(&power.id.as_str())
+    power.spell.is_some()
+        || power.attack.is_some()
+        || OTHER_POWERS.contains(&ItemPowerId::new(power.num))
 }
 
 /// The stat modifiers of the item in slot `slot` of a hero whose abilities are `abilities` and
@@ -246,8 +260,12 @@ pub fn modifiers(item: &Item, slot: u8, abilities: &[Ability], has_ranged: bool)
     add(Stat::Defense, b.defense);
     add(Stat::Resistance, b.resistance);
     add(Stat::HalfMoves, b.moves);
-    let flaming = if item.has_power("flaming") { 3 } else { 0 };
-    let giant = if item.has_power("giant_strength") {
+    let flaming = if item.has_power(ItemPowerId::new(33) /* flaming */) {
+        3
+    } else {
+        0
+    };
+    let giant = if item.has_power(ItemPowerId::new(44) /* giant_strength */) {
         1
     } else {
         0
@@ -334,11 +352,9 @@ impl<'a> ItemView<'a> {
     pub fn spells(&self, unit: hecs::Entity) -> Vec<SpellId> {
         let mut out = Vec::new();
         for (_, item) in self.carried(unit) {
-            for name in item.granted_spells(&self.content.rules) {
-                if let Some(id) = self.content.rules.spells.id_of(name) {
-                    if !out.contains(&id) {
-                        out.push(id);
-                    }
+            for id in item.granted_spells(&self.content.rules) {
+                if !out.contains(&id) {
+                    out.push(id);
                 }
             }
         }
@@ -351,10 +367,8 @@ impl<'a> ItemView<'a> {
         let mut out: Vec<Ability> = Vec::new();
         for (_, item) in self.carried(unit) {
             for a in item.granted_abilities(&self.content.rules) {
-                if let Some(a) = self.content.rules.abilities.id_of(a) {
-                    if !out.contains(&a) {
-                        out.push(a);
-                    }
+                if !out.contains(&a) {
+                    out.push(a);
                 }
             }
         }
@@ -473,7 +487,7 @@ mod tests {
     fn a_thrown_axe_counts_for_the_ranged_attack() {
         let mut axe = item(ItemKind::Axe);
         axe.bonus.attack = 1;
-        axe.powers = vec!["giant_strength".into()];
+        axe.powers = vec![ItemPowerId::new(44) /* giant_strength */];
         let thrower = abilities(&["thrown"]);
         let mods = modifiers(&axe, 0, &thrower, true);
         assert_eq!(total(&mods, Stat::Melee), 2);
@@ -485,12 +499,18 @@ mod tests {
     #[test]
     fn flaming_and_giant_strength_add_to_the_blow() {
         let mut blade = item(ItemKind::Sword);
-        blade.powers = vec!["flaming".into(), "giant_strength".into()];
+        blade.powers = vec![
+            ItemPowerId::new(33), /* flaming */
+            ItemPowerId::new(44), /* giant_strength */
+        ];
         let mods = modifiers(&blade, 0, &[], false);
         assert_eq!(total(&mods, Stat::Melee), 4);
         // A bow's flaming arrows get the 3 but no Giant Strength.
         let mut bow = item(ItemKind::Bow);
-        bow.powers = vec!["flaming".into(), "giant_strength".into()];
+        bow.powers = vec![
+            ItemPowerId::new(33), /* flaming */
+            ItemPowerId::new(44), /* giant_strength */
+        ];
         let mods = modifiers(&bow, 0, &abilities(&["bow"]), true);
         assert_eq!(total(&mods, Stat::Ranged), 3);
         assert_eq!(total(&mods, Stat::Melee), 0);
@@ -513,16 +533,26 @@ mod tests {
     fn powers_become_lasting_spells_and_attacks() {
         let mut thing = item(ItemKind::Shield);
         thing.powers = vec![
-            "holy_avenger".into(),
-            "righteousness".into(),
-            "vampiric".into(),
-            "merging".into(),
+            ItemPowerId::new(40), /* holy_avenger */
+            ItemPowerId::new(54), /* righteousness */
+            ItemPowerId::new(37), /* vampiric */
+            ItemPowerId::new(62), /* merging */
         ];
         let rules = crate::game::testutil::shipped().rules;
-        assert_eq!(thing.granted_spells(&rules), ["bless", "righteousness"]);
+        assert_eq!(
+            thing.granted_spells(&rules),
+            [
+                SpellId::new(121), /* bless */
+                SpellId::new(144)  /* righteousness */
+            ]
+        );
         assert_eq!(
             thing.granted_abilities(&rules),
-            ["large_shield", "dispel_evil", "life_steal"]
+            [
+                Ability::new(34), /* large_shield */
+                Ability::new(17), /* dispel_evil */
+                Ability::new(35), /* life_steal */
+            ]
         );
     }
 

@@ -546,7 +546,7 @@ impl App {
             self.game.cheat_move_unit(unit, to);
         }
         if kind.starts_with("river") {
-            let grass = self.game.content().terrains.id_of("grassland");
+            let grass = self.game.content().terrains.id_numbered(4) /* grassland */;
             if let Some(t) = grass {
                 self.game.cheat_set_terrain(to, t);
             }
@@ -558,7 +558,9 @@ impl App {
                 self.game.cheat_set_river(at, true);
             }
         } else {
-            if let Some(t) = self.game.content().terrains.id_of("ocean") {
+            if let Some(t) = self.game.content().terrains.id_numbered(8)
+            /* ocean */
+            {
                 self.game.cheat_set_terrain(to, t);
             }
             // The human sails a galley and a warship and brings a Floating Island.
@@ -584,14 +586,14 @@ impl App {
         use f4x_core::battle::field::Field;
         let spells = &self.game.content().rules.spells;
         let raised: Vec<_> = [
-            (Side::Attacker, "prayer"),
-            (Side::Attacker, "blur"),
-            (Side::Defender, "wrack"),
-            (Side::Defender, "terror"),
-            (Side::Defender, "entangle"),
+            (Side::Attacker, SpellId::new(140) /* prayer */),
+            (Side::Attacker, SpellId::new(51) /* blur */),
+            (Side::Defender, SpellId::new(182) /* wrack */),
+            (Side::Defender, SpellId::new(168) /* terror */),
+            (Side::Defender, SpellId::new(33) /* entangle */),
         ]
         .into_iter()
-        .filter_map(|(side, id)| Some((side, Field::of(id)?, spells.id_of(id)?)))
+        .filter_map(|(side, spell)| Some((side, Field::of(spell)?, spell)))
         .collect();
         let curses: Vec<_> = [
             "confusion",
@@ -626,14 +628,14 @@ impl App {
                 battle.cast_counter_magic(Side::Attacker, 20);
             }
             "glow" => {
-                for (u, id) in battle.units.iter_mut().zip([
-                    "bless",
-                    "flame_blade",
-                    "regeneration",
-                    "wraith_form",
-                    "flight",
+                for (u, spell) in battle.units.iter_mut().zip([
+                    SpellId::new(121), /* bless */
+                    SpellId::new(94),  /* flame_blade */
+                    SpellId::new(31),  /* regeneration */
+                    SpellId::new(181), /* wraith_form */
+                    SpellId::new(56),  /* flight */
                 ]) {
-                    u.enchantments.push(id.into());
+                    u.enchantments.push(spell);
                 }
                 for (u, spell) in battle.units.iter_mut().skip(5).zip(curses) {
                     u.combat_spells.push((spell, f4x_core::player::PlayerId(0)));
@@ -738,7 +740,7 @@ impl App {
             .iter()
             .filter(|d| d.kind == f4x_core::rules::UnitKind::Normal && d.race.is_some())
             .take(6)
-            .filter_map(|d| rules.units.id_of(&d.id))
+            .map(|d| f4x_core::rules::UnitId::new(d.num))
             .collect();
         let mut ids = ids;
         // A fight at sea needs ships on both sides.
@@ -979,7 +981,8 @@ impl App {
     /// What the original's table says the unit sounds like.
     fn unit_sound(&self, ui: &mut BattleUi, id: usize) -> Option<f4x_data::sound::UnitSound> {
         let unit = self.shown_unit(ui, id)?;
-        self.audio.table.units.get(&unit.unit_id).copied()
+        let def = self.game.content().rules.units.get(unit.unit_id?);
+        self.audio.table.units.get(&def.id).copied()
     }
 
     /// The sound that goes with an animation as it starts.
@@ -1023,12 +1026,9 @@ impl App {
         let spells = &self.game.content().rules.spells;
         u.enchantments
             .iter()
-            .cloned()
-            .chain(
-                u.combat_spells
-                    .iter()
-                    .map(|(s, _)| spells.get(*s).id.clone()),
-            )
+            .copied()
+            .chain(u.combat_spells.iter().map(|(s, _)| *s))
+            .map(|s| spells.get(s).id.clone())
             .collect()
     }
 
@@ -2024,15 +2024,8 @@ impl App {
             true,
         );
         diamond(sx, sy, scale, Color { a: fade, ..banner }, false);
-        let art = self
-            .game
-            .content()
-            .rules
-            .units
-            .defs()
-            .iter()
-            .find(|d| d.id == u.unit_id)
-            .and_then(|d| d.art.clone());
+        let units = &self.game.content().rules.units;
+        let art = u.unit_id.and_then(|id| units.get(id).art.clone());
         let unit_type = art
             .as_ref()
             .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry as usize));

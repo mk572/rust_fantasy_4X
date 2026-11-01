@@ -42,8 +42,9 @@ use crate::wizard::sheet::{
 };
 
 /// Bumped when the snapshot layout changes in a way old files cannot be read. Version 2 saves each
-/// kind of entity as its own list (`docs/ecs-structure.md` section 3.9).
-pub const SAVE_VERSION: u32 = 3;
+/// kind of entity as its own list (`docs/ecs-structure.md` section 3.9). Version 4 writes everything
+/// that has a number in the content (spells, items, powers, abilities, prefab items) by that number.
+pub const SAVE_VERSION: u32 = 4;
 
 /// The version of the game itself (the workspace version in `Cargo.toml`), written into every save.
 pub const GAME_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -82,7 +83,7 @@ pub struct Snapshot {
     /// Override (cheat) commands used in this game.
     pub override_log: Vec<String>,
     /// The prefab items already given out (`Make_Item` gives each once a game).
-    pub prefab_taken: Vec<String>,
+    pub prefab_taken: Vec<crate::rules::ItemId>,
     pub map: Option<MapSave>,
     pub fog: FogSave,
     /// The player entities, in the order of their ids.
@@ -287,7 +288,7 @@ pub enum SpellTargetSave {
 
 impl WizardSave {
     /// What the wizard's components hold.
-    fn of(id: PlayerId, w: Wizard<'_>, rules: &crate::rules::Rules) -> Self {
+    fn of(id: PlayerId, w: Wizard<'_>) -> Self {
         let name = |s: &SpellId| s.num();
         let split = w.power_split();
         Self {
@@ -301,7 +302,7 @@ impl WizardSave {
             books: w
                 .books()
                 .into_iter()
-                .filter_map(|(realm, n)| Some((rules.realms.id_of(&realm)?.num(), n)))
+                .map(|(realm, n)| (realm.num(), n))
                 .collect(),
             retorts: w.retorts().into_iter().collect(),
             skill_points: w.skill_points(),
@@ -356,7 +357,7 @@ impl WizardSave {
                 .realms
                 .id_numbered(num)
                 .ok_or_else(|| LoadError::UnknownId("realm", num.to_string()))?;
-            books.insert(rules.realms.get(realm).id.clone(), n);
+            books.insert(realm, n);
         }
         *wizard.get_mut::<Books>() = Books(books);
         for r in &self.retorts {
@@ -640,14 +641,12 @@ impl Game {
                     .world
                     .get::<&crate::feature::node::Node>(e)
                     .ok()
-                    .and_then(|n| {
-                        Some(NodeSave {
-                            realm: self.content.rules.realms.id_of(&n.realm)?.num(),
-                            power: n.power,
-                            aura: n.aura.clone(),
-                            guardian: n.guardian,
-                            warped: n.warped,
-                        })
+                    .map(|n| NodeSave {
+                        realm: n.realm.num(),
+                        power: n.power,
+                        aura: n.aura.clone(),
+                        guardian: n.guardian,
+                        warped: n.warped,
                     });
                 let lair = self
                     .world
@@ -655,13 +654,7 @@ impl Game {
                     .ok()
                     .map(|l| LairSave {
                         intact: l.intact,
-                        guards: l
-                            .guards
-                            .iter()
-                            .filter_map(|(id, n)| {
-                                Some((self.content.rules.units.id_of(id)?.num(), *n))
-                            })
-                            .collect(),
+                        guards: l.guards.iter().map(|&(id, n)| (id.num(), n)).collect(),
                         gold: l.gold,
                         mana: l.mana,
                         items: l.items.clone(),
@@ -684,7 +677,6 @@ impl Game {
 
     /// Capture everything needed to continue this game later.
     pub fn snapshot(&self) -> Snapshot {
-        let rules = &self.content.rules;
         let map = self.map.as_ref().map(|map| {
             let (mut terrains, mut features) = (Vec::new(), Vec::new());
             let planes = crate::map::Plane::ALL
@@ -788,7 +780,7 @@ impl Game {
         let wizards = self
             .player_ids()
             .iter()
-            .filter_map(|id| Some(WizardSave::of(*id, self.wizard(*id)?, rules)))
+            .filter_map(|id| Some(WizardSave::of(*id, self.wizard(*id)?)))
             .collect();
         let units = self
             .units()
@@ -873,7 +865,7 @@ impl Game {
                         .economy()
                         .city_wards(e)
                         .iter()
-                        .filter_map(|w| Some(rules.realms.id_of(w)?.num()))
+                        .map(|w| w.num())
                         .collect(),
                     item: production.item.map(item_save),
                     progress: production.progress,
@@ -1204,7 +1196,7 @@ impl Snapshot {
                         .id_numbered(n.realm)
                         .ok_or_else(|| LoadError::UnknownId("realm", n.realm.to_string()))?;
                     Ok(crate::feature::node::Node {
-                        realm: rules.realms.get(realm).id.clone(),
+                        realm,
                         power: n.power,
                         aura: n.aura,
                         guardian: n.guardian,
@@ -1222,7 +1214,7 @@ impl Snapshot {
                                     let unit = rules.units.id_numbered(num).ok_or_else(|| {
                                         LoadError::UnknownId("unit", num.to_string())
                                     })?;
-                                    Ok((rules.units.get(unit).id.clone(), n))
+                                    Ok((unit, n))
                                 })
                                 .collect::<Result<Vec<_>, LoadError>>()?;
                         Ok(crate::feature::lair::Lair {
@@ -1509,7 +1501,6 @@ impl Snapshot {
                         rules
                             .realms
                             .id_numbered(n)
-                            .map(|r| rules.realms.get(r).id.clone())
                             .ok_or(LoadError::UnknownId("realm", n.to_string()))
                     })
                     .collect::<Result<Vec<_>, _>>()?;

@@ -96,6 +96,12 @@ impl<T: Def> Registry<T> {
         &self.defs[self.row(id).expect("a number this table holds")]
     }
 
+    /// The definition numbered `id`, if the table holds one: for a number that came from a
+    /// command or a save rather than from this table.
+    pub fn try_get(&self, id: Id<T>) -> Option<&T> {
+        self.row(id).map(|row| &self.defs[row])
+    }
+
     /// The id of the definition numbered `num`, if there is one.
     pub fn id_numbered(&self, num: u16) -> Option<Id<T>> {
         let id = Id::new(num);
@@ -177,6 +183,8 @@ mod tests {
         assert!(t.id_of("z").is_none());
         assert!(t.id_numbered(2).is_none(), "a gap between numbers");
         assert!(t.id_numbered(500).is_none(), "past the last number");
+        assert!(t.try_get(Id::new(2)).is_none() && t.try_get(Id::new(500)).is_none());
+        assert_eq!(t.try_get(Id::new(4)).map(Def::num), Some(4));
     }
 
     #[test]

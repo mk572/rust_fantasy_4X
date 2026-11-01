@@ -12,6 +12,8 @@
 use super::crafting::{self, ItemDesign};
 use super::Item;
 use crate::game::rng::GameRng;
+use crate::rules::ItemId;
+use crate::rules::ItemPowerId;
 use crate::rules::{ItemKind, Rules};
 
 /// How many tries the prefab search and the random item's power search get.
@@ -52,7 +54,7 @@ pub fn make_item(
     rules: &Rules,
     grade: Grade,
     value: u32,
-    taken: &mut Vec<String>,
+    taken: &mut Vec<ItemId>,
 ) -> Item {
     let defs = rules.items.defs();
     for _ in 0..TRIES {
@@ -66,10 +68,11 @@ pub fn make_item(
             Grade::Artifact => !def.flag,
         };
         let out_of_range = value != 0 && (def.cost > value || value / 2 > def.cost);
-        if taken.contains(&def.id) || wrong_grade || out_of_range {
+        let id = ItemId::new(def.num);
+        if taken.contains(&id) || wrong_grade || out_of_range {
             continue;
         }
-        taken.push(def.id.clone());
+        taken.push(id);
         return Item::from_def(def);
     }
     random_item(rng, rules, grade, value)
@@ -122,7 +125,7 @@ pub fn random_item(rng: &mut GameRng, rules: &Rules, grade: Grade, value: u32) -
         let power = plain[rng.roll(plain.len() as u32) as usize - 1];
         if power.kinds.contains(&kind) && power.cost <= max_cost && !groups.contains(&power.group) {
             groups.push(power.group);
-            design.powers.push(power.id.clone());
+            design.powers.push(ItemPowerId::new(power.num));
         }
         if !design.powers.is_empty()
             && (design.powers.len() == max_powers
@@ -145,20 +148,20 @@ mod tests {
     use crate::game::testutil::shipped;
     use crate::testdir::TestResult;
 
-    fn cost_of(rules: &Rules, id: &str) -> Result<u32, String> {
+    fn cost_of(rules: &Rules, id: &ItemId) -> Result<u32, String> {
         rules
             .items
-            .by_name(id)
+            .try_get(*id)
             .map(|d| d.cost)
-            .ok_or(format!("{id} is not in the content"))
+            .ok_or(format!("{id:?} is not in the content"))
     }
 
-    fn flagged(rules: &Rules, id: &str) -> Result<bool, String> {
+    fn flagged(rules: &Rules, id: &ItemId) -> Result<bool, String> {
         rules
             .items
-            .by_name(id)
+            .try_get(*id)
             .map(|d| d.flag)
-            .ok_or(format!("{id} is not in the content"))
+            .ok_or(format!("{id:?} is not in the content"))
     }
 
     #[test]
@@ -168,10 +171,10 @@ mod tests {
         let mut taken = Vec::new();
         // Create Artifact: a flagged prefab item whose cost lies between half the value and it.
         let item = make_item(&mut rng, &rules, Grade::Artifact, 700, &mut taken);
-        let id = item.prefab.clone().ok_or("a prefab item was expected")?;
-        assert!(flagged(&rules, &id)?, "{id} is not a flagged item");
-        assert!((350..=700).contains(&cost_of(&rules, &id)?), "{id}");
-        assert_eq!(taken, vec![id.clone()]);
+        let id = item.prefab.ok_or("a prefab item was expected")?;
+        assert!(flagged(&rules, &id)?, "{id:?} is not a flagged item");
+        assert!((350..=700).contains(&cost_of(&rules, &id)?), "{id:?}");
+        assert_eq!(taken, vec![id]);
         // It is not given again: the next call gives another item.
         let again = make_item(&mut rng, &rules, Grade::Artifact, 700, &mut taken);
         assert_ne!(again.prefab, Some(id));
@@ -179,8 +182,8 @@ mod tests {
         let mut taken = Vec::new();
         let item = make_item(&mut rng, &rules, Grade::Enchant, 500, &mut taken);
         let id = item.prefab.ok_or("a prefab item was expected")?;
-        assert!(!flagged(&rules, &id)?, "{id} is a flagged item");
-        assert!((250..=500).contains(&cost_of(&rules, &id)?), "{id}");
+        assert!(!flagged(&rules, &id)?, "{id:?} is a flagged item");
+        assert!((250..=500).contains(&cost_of(&rules, &id)?), "{id:?}");
         Ok(())
     }
 
@@ -206,10 +209,10 @@ mod tests {
             let item = random_item(&mut rng, &rules, Grade::Enchant, 0);
             // Enchant Item grade: at most two powers, none costing over 200, all plain.
             assert!(item.powers.len() <= 2, "{item:?}");
-            for power in &item.powers {
+            for &power in &item.powers {
                 let def = rules
                     .item_powers
-                    .by_name(power)
+                    .try_get(power)
                     .ok_or("a power is not in the content")?;
                 assert!(def.bonus.is_some(), "no special powers: {item:?}");
                 assert!(def.cost <= 200, "{item:?}");

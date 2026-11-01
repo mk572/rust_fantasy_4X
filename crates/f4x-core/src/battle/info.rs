@@ -17,6 +17,7 @@ use super::immunity::Realm;
 use super::Battle;
 use crate::game::Game;
 use crate::player::PlayerId;
+use crate::rules::SpellId;
 
 /// One line of the window.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,10 +181,10 @@ impl Game {
             Some((
                 name,
                 WizardSpells {
-                    crusade: self.has_global(p, "crusade"),
-                    holy_arms: self.has_global(p, "holy_arms"),
-                    charm_of_life: self.has_global(p, "charm_of_life"),
-                    zombie_mastery: self.has_global(p, "zombie_mastery"),
+                    crusade: self.has_global(p, SpellId::new(158) /* crusade */),
+                    holy_arms: self.has_global(p, SpellId::new(154) /* holy_arms */),
+                    charm_of_life: self.has_global(p, SpellId::new(160) /* charm_of_life */),
+                    zombie_mastery: self.has_global(p, SpellId::new(188) /* zombie_mastery */),
                 },
             ))
         };
@@ -194,15 +195,15 @@ impl Game {
             .and_then(|s| self.economy().city_at(s))
             .filter(|&c| self.economy().city_owner(c) != Some(viewer));
         let on_city =
-            |name: &str| city.is_some_and(|c| self.economy().city_has_enchantment(c, name));
+            |spell: SpellId| city.is_some_and(|c| self.economy().city_has_enchantment(c, spell));
         Some(build(InfoFacts {
             node_site: battle.node_site,
             node_aura: battle.node_aura,
-            cloud_of_shadow: on_city("cloud_of_shadow"),
-            heavenly_light: on_city("heavenly_light"),
-            chaos_surge: self.any_global("chaos_surge"),
-            eternal_night: self.any_global("eternal_night"),
-            evil_omens: self.any_global("evil_omens"),
+            cloud_of_shadow: on_city(SpellId::new(185) /* cloud_of_shadow */),
+            heavenly_light: on_city(SpellId::new(139) /* heavenly_light */),
+            chaos_surge: self.any_global(SpellId::new(116) /* chaos_surge */),
+            eternal_night: self.any_global(SpellId::new(197) /* eternal_night */),
+            evil_omens: self.any_global(SpellId::new(198) /* evil_omens */),
             opponent: wizard(opponent),
             viewer: wizard(viewer),
         }))

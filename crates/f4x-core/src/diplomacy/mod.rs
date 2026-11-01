@@ -24,7 +24,7 @@ use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
-use crate::rules::SpellId;
+use crate::rules::{RealmId, SpellId};
 use crate::wizard::magic::Retort;
 use crate::wizard::objective::Personality;
 
@@ -103,7 +103,7 @@ impl Action {
 pub struct LastAction {
     pub action: Action,
     pub strength: i32,
-    pub spell: Option<String>,
+    pub spell: Option<SpellId>,
 }
 
 /// What holds between two wizards, the same both ways.
@@ -453,17 +453,25 @@ pub fn wizards(view: &Game) -> Vec<PlayerId> {
 /// The relation two wizards start with, from their books (`Init_Diplomatic_Relations`).
 fn start_relation(view: &Game, a: PlayerId, b: PlayerId) -> i32 {
     let books =
-        |p: PlayerId, realm: &str| -> i32 { view.wizard(p).map_or(0, |m| m.books_in(realm)) };
-    let max_death = books(a, "death").max(books(b, "death"));
-    let sum_life = books(a, "life") + books(b, "life");
-    let max_chaos = books(a, "chaos").max(books(b, "chaos"));
+        |p: PlayerId, realm: RealmId| -> i32 { view.wizard(p).map_or(0, |m| m.books_in(realm)) };
+    let death = RealmId::new(4); // death
+    let life = RealmId::new(3); // life
+    let chaos = RealmId::new(2); // chaos
+    let max_death = books(a, death).max(books(b, death));
+    let sum_life = books(a, life) + books(b, life);
+    let max_chaos = books(a, chaos).max(books(b, chaos));
     let mut score = if sum_life > 0 && max_death > 0 {
         -(sum_life + max_death) * 5
     } else {
         sum_life * 2 - max_death * 3
     };
     score -= max_chaos * 2;
-    for realm in ["sorcery", "chaos", "nature", "life"] {
+    for realm in [
+        RealmId::new(1), // sorcery
+        chaos,
+        RealmId::new(0), // nature
+        life,
+    ] {
         score += books(a, realm).min(books(b, realm)) * 2;
     }
     score.max(-90)
@@ -477,25 +485,31 @@ fn charismatic(view: &Game, wizard: PlayerId) -> bool {
 /// The enchantments that sour or sweeten relations: the change, whom it touches, and the
 /// divisor of the once-a-turn reaction (`Change_Relations_For_Enchantments`, whose cast-time
 /// divisor is 1 and, for the Spell of Mastery, 2 while it is being cast).
-fn enchantment_reaction(view: &Game, spell: &str, other: PlayerId) -> Option<(i32, Action)> {
-    let books = |realm: &str| view.wizard(other).map_or(0, |m| m.books_in(realm));
-    let reaction = match spell {
-        "spell_of_mastery" => (-50, Action::SpellOfMastery),
-        "eternal_night" => (-12, Action::Enchantment),
-        "evil_omens" if books("life") > 0 || books("nature") > 0 => (-20, Action::Enchantment),
-        "zombie_mastery" => (-14, Action::Enchantment),
-        "aura_of_majesty" => (10, Action::Friendship),
-        "wind_mastery" | "suppress_magic" => (-4, Action::Enchantment),
-        "natures_wrath" if books("chaos") > 0 || books("death") > 0 => (-20, Action::Enchantment),
-        "chaos_surge" if books("chaos") == 0 => (-10, Action::Enchantment),
-        "doom_mastery" => (-8, Action::Enchantment),
-        "great_wasting" => (-20, Action::Enchantment),
-        "meteor_storms" => (-15, Action::Enchantment),
-        "armageddon" => (-25, Action::Enchantment),
-        "tranquility" if books("chaos") > 0 => (-20, Action::Enchantment),
-        "life_force" if books("death") > 0 => (-20, Action::Enchantment),
-        "crusade" => (-10, Action::Enchantment),
-        "holy_arms" => (-5, Action::Enchantment),
+fn enchantment_reaction(view: &Game, spell: SpellId, other: PlayerId) -> Option<(i32, Action)> {
+    let books = |realm: RealmId| view.wizard(other).map_or(0, |m| m.books_in(realm));
+    let (nature, chaos, life, death) = (
+        RealmId::new(0), // nature
+        RealmId::new(2), // chaos
+        RealmId::new(3), // life
+        RealmId::new(4), // death
+    );
+    let reaction = match spell.num() {
+        213 /* spell_of_mastery */ => (-50, Action::SpellOfMastery),
+        197 /* eternal_night */ => (-12, Action::Enchantment),
+        198 /* evil_omens */ if books(life) > 0 || books(nature) > 0 => (-20, Action::Enchantment),
+        188 /* zombie_mastery */ => (-14, Action::Enchantment),
+        59 /* aura_of_majesty */ => (10, Action::Friendship),
+        57 /* wind_mastery */ | 79 /* suppress_magic */ => (-4, Action::Enchantment),
+        40 /* natures_wrath */ if books(chaos) > 0 || books(death) > 0 => (-20, Action::Enchantment),
+        116 /* chaos_surge */ if books(chaos) == 0 => (-10, Action::Enchantment),
+        117 /* doom_mastery */ => (-8, Action::Enchantment),
+        114 /* great_wasting */ => (-20, Action::Enchantment),
+        113 /* meteor_storm */ => (-15, Action::Enchantment),
+        120 /* armageddon */ => (-25, Action::Enchantment),
+        157 /* tranquility */ if books(chaos) > 0 => (-20, Action::Enchantment),
+        156 /* life_force */ if books(death) > 0 => (-20, Action::Enchantment),
+        158 /* crusade */ => (-10, Action::Enchantment),
+        154 /* holy_arms */ => (-5, Action::Enchantment),
         _ => return None,
     };
     Some(reaction)
@@ -581,7 +595,10 @@ impl Diplomacy {
     fn contact_sweep(&mut self, ctx: &mut DiplomacyCtx<'_>) {
         let wizards = wizards(ctx.view);
         for &player in &wizards {
-            if ctx.view.has_global(player, "nature_awareness") {
+            if ctx
+                .view
+                .has_global(player, SpellId::new(34) /* nature_awareness */)
+            {
                 for &other in &wizards {
                     self.make_contact(ctx, player, other);
                 }
@@ -604,7 +621,7 @@ impl Diplomacy {
         attacker: PlayerId,
         defender: PlayerId,
         action: Action,
-        spell: Option<&str>,
+        spell: Option<SpellId>,
     ) {
         if value == 0
             || attacker == defender
@@ -683,7 +700,7 @@ impl Diplomacy {
                     stance.last_action = Some(LastAction {
                         action,
                         strength: applied,
-                        spell: spell.map(str::to_string),
+                        spell,
                     });
                 }
             }
@@ -1190,7 +1207,7 @@ impl Diplomacy {
         &mut self,
         ctx: &mut DiplomacyCtx<'_>,
         caster: PlayerId,
-        spell: &str,
+        spell: SpellId,
         divisor: i32,
     ) {
         for other in wizards(ctx.view) {
@@ -1224,17 +1241,17 @@ impl Diplomacy {
     }
 
     /// What a curse on a city costs in relations (`Change_Relations_For_Bad_City_Spell`).
-    fn bad_city_spell_value(spell: &str) -> Option<i32> {
-        Some(match spell {
-            "earthquake" => -9,
-            "corruption" => -25,
-            "raise_volcano" => -50,
-            "chaos_rift" => -5,
-            "call_the_void" => -20,
-            "evil_presence" => -5,
-            "famine" => -5,
-            "cursed_lands" => -5,
-            "pestilence" => -8,
+    fn bad_city_spell_value(spell: SpellId) -> Option<i32> {
+        Some(match spell.num() {
+            26 /* earthquake */ => -9,
+            85 /* corruption */ => -25,
+            98 /* raise_volcano */ => -50,
+            110 /* chaos_rift */ => -5,
+            119 /* call_the_void */ => -20,
+            183 /* evil_presence */ => -5,
+            189 /* famine */ => -5,
+            190 /* cursed_lands */ => -5,
+            196 /* pestilence */ => -8,
             _ => return None,
         })
     }
@@ -1247,14 +1264,16 @@ impl Diplomacy {
         spell: SpellId,
         target_owner: Option<PlayerId>,
     ) {
-        let id = ctx.view.content().rules.spells.get(spell).id.clone();
-        if let (Some(value), Some(owner)) = (Self::bad_city_spell_value(&id), target_owner) {
-            self.change_relations(ctx, value, caster, owner, Action::BadCitySpell, Some(&id));
+        if let (Some(value), Some(owner)) = (Self::bad_city_spell_value(spell), target_owner) {
+            self.change_relations(ctx, value, caster, owner, Action::BadCitySpell, Some(spell));
         }
         // Lasting enchantments on the wizard are noticed as they are cast (the Spell of Mastery
         // as it is begun, see `start_cast`).
-        if id != crate::game::endgame::SPELL_OF_MASTERY {
-            self.enchantment_relations(ctx, caster, &id, 1);
+        if !ctx
+            .view
+            .spell_has_hook(spell, crate::game::endgame::SPELL_OF_MASTERY)
+        {
+            self.enchantment_relations(ctx, caster, spell, 1);
         }
     }
 
@@ -1265,8 +1284,11 @@ impl Diplomacy {
         player: PlayerId,
         spell: SpellId,
     ) {
-        if ctx.view.content().rules.spells.get(spell).id == crate::game::endgame::SPELL_OF_MASTERY {
-            self.enchantment_relations(ctx, player, crate::game::endgame::SPELL_OF_MASTERY, 1);
+        if ctx
+            .view
+            .spell_has_hook(spell, crate::game::endgame::SPELL_OF_MASTERY)
+        {
+            self.enchantment_relations(ctx, player, spell, 1);
         }
     }
 
@@ -1535,30 +1557,26 @@ impl Diplomacy {
     /// (`Diplomacy_Growth_For_Enchantments`).
     fn enchantments_in_force(&mut self, ctx: &mut DiplomacyCtx<'_>) {
         for wizard in wizards(ctx.view) {
-            let mut active: Vec<(String, i32)> = ctx
+            let mut active: Vec<(SpellId, i32)> = ctx
                 .view
                 .wizard(wizard)
-                .map(|m| {
-                    m.global()
-                        .iter()
-                        .map(|&s| (ctx.view.content().rules.spells.get(s).id.clone(), 10))
-                        .collect()
-                })
+                .map(|m| m.global().iter().map(|&s| (s, 10)).collect())
                 .unwrap_or_default();
             // The Spell of Mastery is felt while it is being cast.
             let casting_mastery = ctx
                 .view
                 .wizard(wizard)
                 .and_then(|m| m.casting())
-                .is_some_and(|c| {
-                    ctx.view.content().rules.spells.get(c.spell).id
-                        == crate::game::endgame::SPELL_OF_MASTERY
-                });
-            if casting_mastery {
-                active.push((crate::game::endgame::SPELL_OF_MASTERY.to_string(), 2));
+                .filter(|c| {
+                    ctx.view
+                        .spell_has_hook(c.spell, crate::game::endgame::SPELL_OF_MASTERY)
+                })
+                .map(|c| c.spell);
+            if let Some(mastery) = casting_mastery {
+                active.push((mastery, 2));
             }
             for (spell, divisor) in active {
-                self.enchantment_relations(ctx, wizard, &spell, divisor);
+                self.enchantment_relations(ctx, wizard, spell, divisor);
             }
         }
     }
@@ -1759,7 +1777,7 @@ impl Game {
         attacker: PlayerId,
         defender: PlayerId,
         action: Action,
-        spell: Option<&str>,
+        spell: Option<SpellId>,
     ) {
         self.with_diplomacy(|d, ctx| {
             d.change_relations(ctx, value, attacker, defender, action, spell)
@@ -1814,7 +1832,7 @@ impl Game {
     }
 
     #[cfg(test)]
-    pub(crate) fn enchantment_relations(&mut self, caster: PlayerId, spell: &str, divisor: i32) {
+    pub(crate) fn enchantment_relations(&mut self, caster: PlayerId, spell: SpellId, divisor: i32) {
         self.with_diplomacy(|d, ctx| d.enchantment_relations(ctx, caster, spell, divisor));
     }
 

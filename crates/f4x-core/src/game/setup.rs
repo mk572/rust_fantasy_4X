@@ -13,7 +13,7 @@ use crate::game::setting::GameSettings;
 use crate::map::mapgen::{generate, GenParams};
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
-use crate::rules::BuildingId;
+use crate::rules::{BuildingId, RealmId};
 
 use crate::game::{Command, Game};
 use crate::wizard::magic::Retort;
@@ -53,7 +53,7 @@ pub struct NewGame {
     /// A custom wizard for player 0 (used when no preset is given).
     pub name: Option<String>,
     pub gender: crate::text::Gender,
-    pub books: BTreeMap<String, u8>,
+    pub books: BTreeMap<RealmId, u8>,
     pub retorts: BTreeSet<Retort>,
     /// Player 0's race id; the default is the first race with city names.
     pub race: Option<String>,
@@ -137,10 +137,10 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         };
         game.add_player(PlayerId(k), name);
     }
-    let fixed = |books: &[(&str, u8)], retort| WizardBuild {
+    let fixed = |books: &[(RealmId, u8)], retort| WizardBuild {
         name: String::new(),
         gender: Default::default(),
-        books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
+        books: books.iter().map(|&(r, n)| (r, n)).collect(),
         retorts: [retort].into_iter().collect(),
         spells: Vec::new(),
         banner: None,
@@ -184,7 +184,10 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                 }
             } else {
                 fixed(
-                    &[("sorcery", 3), ("nature", 2)],
+                    &[
+                        (RealmId::new(1) /* sorcery */, 3),
+                        (RealmId::new(0) /* nature */, 2),
+                    ],
                     Retort::new(15), /* conjurer */
                 )
             }
@@ -352,14 +355,20 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
 /// The plain build of computer wizard `k` when no ready-made wizard is free: a chaos and death
 /// wizard or a life and nature one, with a name from the lists.
 fn plain_computer_build(content: &Content, seed: u64, k: usize) -> WizardBuild {
-    let (books, retort): (&[(&str, u8)], Retort) = if k % 2 == 1 {
+    let (books, retort): (&[(RealmId, u8)], Retort) = if k % 2 == 1 {
         (
-            &[("chaos", 3), ("death", 2)],
+            &[
+                (RealmId::new(2) /* chaos */, 3),
+                (RealmId::new(4) /* death */, 2),
+            ],
             Retort::new(1), /* warlord */
         )
     } else {
         (
-            &[("life", 3), ("nature", 2)],
+            &[
+                (RealmId::new(3) /* life */, 3),
+                (RealmId::new(0) /* nature */, 2),
+            ],
             Retort::new(16), /* charismatic */
         )
     };
@@ -367,7 +376,7 @@ fn plain_computer_build(content: &Content, seed: u64, k: usize) -> WizardBuild {
     WizardBuild {
         name,
         gender,
-        books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
+        books: books.iter().map(|&(r, n)| (r, n)).collect(),
         retorts: [retort].into_iter().collect(),
         spells: Vec::new(),
         banner: None,
@@ -470,8 +479,8 @@ fn start_player(
         race_def
             .units
             .iter()
-            .find(|u| u.ends_with(&format!("_{what}")))
-            .and_then(|u| rules.units.id_of(u))
+            .find(|u| u.name().ends_with(&format!("_{what}")))
+            .and_then(|u| u.id())
     };
     let swordsmen = named("swordsmen");
     let army: Vec<_> = [named("spearmen").or(swordsmen), swordsmen]
@@ -644,10 +653,11 @@ mod tests {
         let one = plain_computer_build(&c, 4, 1);
         let two = plain_computer_build(&c, 4, 2);
         assert!(
-            one.books.contains_key("chaos") && one.retorts.contains(&Retort::new(1) /* warlord */)
+            one.books.contains_key(&RealmId::new(2) /* chaos */)
+                && one.retorts.contains(&Retort::new(1) /* warlord */)
         );
         assert!(
-            two.books.contains_key("life")
+            two.books.contains_key(&RealmId::new(3) /* life */)
                 && two.retorts.contains(&Retort::new(16) /* charismatic */)
         );
         assert!(one.preset && two.preset);

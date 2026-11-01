@@ -2,7 +2,6 @@
 //! in ReMoM): how its animation moves. Which file and entry hold its pictures is in
 //! `content/spell_art.ron` (`f4x_data::spell_art`), under the files `cmbtfx` and `specfx`.
 
-use f4x_core::battle::field::Field;
 use f4x_data::spell_art::{Role, SpellArt};
 
 /// The four spells whose picture flies in from the top right (Ice Bolt's from the top left) (`Combat_Spell_Animation_Bolt`).
@@ -107,8 +106,8 @@ pub fn chaos_effect(art: &SpellArt, outcome: u8) -> Option<(String, usize, bool)
 
 /// What a spell looks like. `summons` is whether it brings a creature in; `lasting` whether it is
 /// a spell that works on the whole field.
-pub fn fx_for(art: &SpellArt, id: &str, realm: &str, summons: bool) -> SpellFx {
-    let battlefield = Field::of(id).is_some()
+pub fn fx_for(art: &SpellArt, id: &str, realm: &str, summons: bool, field: bool) -> SpellFx {
+    let battlefield = field
         || matches!(
             id,
             "counter_magic"
@@ -191,34 +190,34 @@ mod tests {
     fn spells_find_their_pictures() {
         let art = art();
         assert!(matches!(
-            fx_for(art, "fireball", "chaos", false),
+            fx_for(art, "fireball", "chaos", false, false),
             SpellFx::Bolt { entry: 23, .. }
         ));
         assert!(matches!(
-            fx_for(art, "prayer", "life", false),
+            fx_for(art, "prayer", "life", false, true),
             SpellFx::Tint { realm: 3 }
         ));
         // A spell without a picture of its own plays its realm's.
         assert_eq!(
-            fx_for(art, "heroism", "life", false),
+            fx_for(art, "heroism", "life", false, false),
             cell("specfx", 3, true)
         );
         // Recall Hero has none, so it plays the Arcane picture on the hero it takes out.
         assert_eq!(
-            fx_for(art, "recall_hero", "arcane", false),
+            fx_for(art, "recall_hero", "arcane", false, false),
             cell("specfx", 5, true)
         );
         assert_eq!(
-            fx_for(art, "hydra", "chaos", true),
+            fx_for(art, "hydra", "chaos", true, false),
             cell("cmbtfx", 22, false)
         );
         // Flame Strike plays over each unit, not as a tint.
         assert!(matches!(
-            fx_for(art, "flame_strike", "chaos", false),
+            fx_for(art, "flame_strike", "chaos", false, false),
             SpellFx::Cell { entry: 33, .. }
         ));
         assert_eq!(
-            fx_for(art, "earth_to_mud", "nature", false),
+            fx_for(art, "earth_to_mud", "nature", false, false),
             cell("cmbtfx", 14, true)
         );
     }

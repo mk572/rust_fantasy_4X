@@ -70,7 +70,9 @@ impl App {
 
     /// For screenshots: the picker for Subversion with the wizards met.
     pub(crate) fn open_test_wizard_pick(&mut self) {
-        let Some(spell) = self.game.content().rules.spells.id_of("subversion") else {
+        let Some(spell) = self.game.content().rules.spells.id_numbered(177)
+        /* subversion */
+        else {
             return;
         };
         for id in self.game.player_ids() {

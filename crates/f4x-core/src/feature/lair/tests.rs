@@ -1,9 +1,10 @@
 use super::*;
 use crate::battle::{BattleCommand, Side};
 use crate::feature::place::Placed;
-use crate::game::testutil::{num, shipped};
+use crate::game::testutil::{num, realm, shipped};
 use crate::map::{Grid, Plane};
 use crate::player::PlayerId;
+use crate::rules::RealmId;
 use crate::testdir::TestResult;
 
 use crate::game::Command;
@@ -40,7 +41,7 @@ fn world(seed: u64) -> Game {
 }
 
 /// A guarded site, the feature numbered `site`, on Arcanus.
-fn put_lair(g: &mut Game, x: u32, y: u32, site: u16, guards: Vec<(&str, u32)>) -> hecs::Entity {
+fn put_lair(g: &mut Game, x: u32, y: u32, site: u16, guards: Vec<(u16, u32)>) -> hecs::Entity {
     g.put_lair(at(x, y), site, lair(guards))
 }
 
@@ -61,12 +62,12 @@ fn info(site: &str) -> LairInfo {
     }
 }
 
-fn lair(guards: Vec<(&str, u32)>) -> Lair {
+fn lair(guards: Vec<(u16, u32)>) -> Lair {
     Lair {
         intact: true,
         guards: guards
             .into_iter()
-            .map(|(g, n)| (g.to_string(), n))
+            .map(|(g, n)| (UnitId::new(g), n))
             .collect(),
         gold: 120,
         mana: 30,
@@ -80,9 +81,9 @@ fn lair(guards: Vec<(&str, u32)>) -> Lair {
 #[test]
 fn only_summoned_non_transport_units_of_the_realm_can_guard() {
     let c = shipped();
-    let death: Vec<String> = candidates(&c, "death")
+    let death: Vec<&str> = candidates(&c, realm("death"))
         .into_iter()
-        .map(|(id, _)| id)
+        .map(|(id, _)| c.rules.units.get(id).id.as_str())
         .collect();
     assert_eq!(
         death,
@@ -100,35 +101,35 @@ fn only_summoned_non_transport_units_of_the_realm_can_guard() {
         ],
         "every summoned creature of death, in the original's order, no ship and no other realm"
     );
-    assert!(candidates(&c, "no_such_realm").is_empty());
+    assert!(candidates(&c, RealmId::new(99)).is_empty());
 }
 
 #[test]
 fn the_dearest_affordable_unit_is_chosen_and_the_first_of_equals() -> TestResult {
     let list = vec![
-        ("a".to_string(), 25),
-        ("b".to_string(), 80),
-        ("c".to_string(), 80),
-        ("d".to_string(), 500),
+        (UnitId::new(1), 25),
+        (UnitId::new(2), 80),
+        (UnitId::new(3), 80),
+        (UnitId::new(4), 500),
     ];
     assert_eq!(
         dearest_under(&list, 501, None)
             .ok_or("dearest_under is missing")?
             .0,
-        "d"
+        UnitId::new(4)
     );
     assert_eq!(
         dearest_under(&list, 500, None)
             .ok_or("dearest_under is missing")?
             .0,
-        "b",
+        UnitId::new(2),
         "strictly cheaper"
     );
     assert_eq!(
-        dearest_under(&list, 500, Some("b"))
+        dearest_under(&list, 500, Some(UnitId::new(2)))
             .ok_or("dearest_under is missing")?
             .0,
-        "c"
+        UnitId::new(3)
     );
     assert_eq!(dearest_under(&list, 25, None), None);
     Ok(())
@@ -136,7 +137,7 @@ fn the_dearest_affordable_unit_is_chosen_and_the_first_of_equals() -> TestResult
 
 #[test]
 fn guards_fit_the_budget_and_the_stack() {
-    let list = candidates(&shipped(), "death");
+    let list = candidates(&shipped(), realm("death"));
     let rules = LairRules::default();
     let mut rng = Pcg64Mcg::seed_from_u64(1);
     for budget in [0, 20, 60, 200, 700, 1500, 4000] {
@@ -162,37 +163,45 @@ fn a_site_type_decides_the_guards_realm() {
     let mut rng = Pcg64Mcg::seed_from_u64(2);
     for _ in 0..100 {
         assert_eq!(
-            guard_realm(&mut rng, SiteType::Node("sorcery"), &rules),
-            "sorcery"
+            guard_realm(&mut rng, SiteType::Node(realm("sorcery")), &rules),
+            Some(realm("sorcery"))
         );
         assert_eq!(
-            guard_realm(&mut rng, SiteType::Node("nature"), &rules),
-            "nature"
+            guard_realm(&mut rng, SiteType::Node(realm("nature")), &rules),
+            Some(realm("nature"))
         );
         assert_eq!(
-            guard_realm(&mut rng, SiteType::Node("chaos"), &rules),
-            "chaos"
+            guard_realm(&mut rng, SiteType::Node(realm("chaos")), &rules),
+            Some(realm("chaos"))
         );
-        assert!(["death", "life"].contains(&guard_realm(&mut rng, SiteType::Holy, &rules)));
-        assert!(["death", "chaos", "nature"].contains(&guard_realm(
-            &mut rng,
-            SiteType::Wild,
-            &rules
-        )));
+        let holy = guard_realm(&mut rng, SiteType::Holy, &rules).unwrap();
+        assert!([realm("death"), realm("life")].contains(&holy));
+        let wild = guard_realm(&mut rng, SiteType::Wild, &rules).unwrap();
+        assert!([realm("death"), realm("chaos"), realm("nature")].contains(&wild));
     }
     let seen: std::collections::BTreeSet<_> = (0..300)
         .map(|_| guard_realm(&mut rng, SiteType::Tower, &rules))
         .collect();
     assert_eq!(seen.len(), 5, "towers draw on every realm");
     assert_eq!(
-        site_type("ancient_temple", FeatureKind::Encounter),
+        site_type(
+            "ancient_temple",
+            FeatureKind::Encounter,
+            &rules.rules.realms
+        ),
         SiteType::Holy
     );
-    assert_eq!(site_type("ruins", FeatureKind::Encounter), SiteType::Holy);
-    assert_eq!(site_type("dungeon", FeatureKind::Encounter), SiteType::Wild);
     assert_eq!(
-        site_type("chaos_node", FeatureKind::Node),
-        SiteType::Node("chaos")
+        site_type("ruins", FeatureKind::Encounter, &rules.rules.realms),
+        SiteType::Holy
+    );
+    assert_eq!(
+        site_type("dungeon", FeatureKind::Encounter, &rules.rules.realms),
+        SiteType::Wild
+    );
+    assert_eq!(
+        site_type("chaos_node", FeatureKind::Node, &rules.rules.realms),
+        SiteType::Node(realm("chaos"))
     );
 }
 
@@ -293,7 +302,7 @@ fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() -> TestResult {
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![("skeletons", 3)],
+        vec![(165 /* skeletons */, 3)],
     );
     let walker = g
         .content
@@ -389,7 +398,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
     );
     assert!(
         matches!(
-            g.content.rules.spells.get(spell).realm.as_str(),
+            g.content.rules.spells.get(spell).realm.name(),
             "life" | "arcane"
         ),
         "a realm with books, or arcane"
@@ -408,7 +417,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
     let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
     award_special(&g.content.rules, &mut w, &mut g.rng, &l, 1, &mut loot);
     assert!(
-        !loot.books.contains(&"death".to_string()),
+        !loot.books.contains(&realm("death")),
         "life and death exclude each other"
     );
     // A temple gives a life book, up to the twelve-book limit.
@@ -424,7 +433,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
         let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
         award_special(&g.content.rules, &mut w, &mut g.rng, &l, 1, &mut loot);
         books += loot.books.len();
-        assert!(loot.books.iter().all(|b| b == "life"));
+        assert!(loot.books.iter().all(|&b| b == realm("life")));
     }
     assert!(books > 0);
     assert!(g.wizard(P0).ok_or("wizard is missing")?.total_books() <= 12);
@@ -480,7 +489,7 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() -> TestResult {
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![("skeletons", 1)],
+        vec![(165, 1)], /* skeletons */
     );
     // Make the guard feeble and the attackers strong.
     let mut units = g.content.rules.units.defs().to_vec();
@@ -545,7 +554,13 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() -> TestResult {
 fn the_building_of_a_site_stands_in_the_middle_of_the_battlefield() -> TestResult {
     use crate::battle::map::layout::Structure;
     let mut g = world(5);
-    put_lair(&mut g, 5, 5, num::feature::TOWER, vec![("skeletons", 1)]);
+    put_lair(
+        &mut g,
+        5,
+        5,
+        num::feature::TOWER,
+        vec![(165, 1)], /* skeletons */
+    );
     let walker = g
         .content
         .rules
@@ -573,7 +588,7 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() -> TestResult {
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![("skeletons", 2)],
+        vec![(165 /* skeletons */, 2)],
     );
     let walker = g
         .content
@@ -646,7 +661,7 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() -> TestResult {
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![("skeletons", 2)],
+        vec![(165 /* skeletons */, 2)],
     );
     // Make the guards normal units, and give the winner Zombie Mastery.
     let mut units = g.content.rules.units.defs().to_vec();
@@ -707,7 +722,7 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() -
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![("skeletons", 1)],
+        vec![(165, 1)], /* skeletons */
     );
     let walker = g
         .content
@@ -765,7 +780,7 @@ fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() -> TestResul
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![("skeletons", 3)],
+        vec![(165 /* skeletons */, 3)],
     );
     let walker = g
         .content
@@ -803,7 +818,7 @@ fn only_a_guarded_site_next_to_the_stack_can_be_entered() -> TestResult {
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![("skeletons", 1)],
+        vec![(165, 1)], /* skeletons */
     );
     put_lair(&mut g, 9, 9, num::feature::MONSTER_LAIR, vec![]);
     let walker = g
@@ -853,7 +868,7 @@ fn lairs_survive_a_save() -> TestResult {
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![("skeletons", 2), ("ghouls", 1)],
+        vec![(165 /* skeletons */, 2), (166 /* ghouls */, 1)],
     );
     let snap = g.snapshot();
     let back = snap.restore(g.content.clone())?;
@@ -869,7 +884,7 @@ fn clearing_a_site_takes_its_treasure_once() {
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![("high_men_cavalry", 1)],
+        vec![(107 /* high_men_cavalry */, 1)],
     );
     let cleared = g.clear_site(site).expect("an intact lair");
     assert_eq!(
@@ -901,7 +916,13 @@ fn sheet(
 ) -> (hecs::World, hecs::Entity) {
     let mut world = hecs::World::new();
     let e = world.spawn(crate::wizard::sheet::bundle());
-    crate::wizard::sheet::WizardMut::new(&mut world, e).found(books, retorts);
+    crate::wizard::sheet::WizardMut::new(&mut world, e).found(
+        &books
+            .iter()
+            .map(|&(r, n)| (realm(r), n))
+            .collect::<Vec<_>>(),
+        retorts,
+    );
     (world, e)
 }
 
@@ -970,8 +991,8 @@ fn a_spell_award_teaches_a_spell_the_wizard_can_use() {
     assert!(magic.view().knows(spell));
     let def = c.rules.spells.get(spell);
     assert!(
-        matches!(def.realm.as_str(), "life" | "arcane"),
-        "{}",
+        matches!(def.realm.name(), "life" | "arcane"),
+        "{:?}",
         def.realm
     );
     // One book gives up to uncommon spells, arcane up to rare, even from the dearest hoard.
@@ -981,7 +1002,7 @@ fn a_spell_award_teaches_a_spell_the_wizard_can_use() {
         let mut rng = crate::game::rng::GameRng::new(seed);
         let spell = award_spell(&mut magic, &c, &mut rng, 4).expect("a spell");
         let def = c.rules.spells.get(spell);
-        let cap = if def.realm == "arcane" {
+        let cap = if def.realm.name() == "arcane" {
             Rarity::Rare
         } else {
             Rarity::Uncommon
@@ -1119,7 +1140,7 @@ fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() -> TestR
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![("skeletons", 3)],
+        vec![(165 /* skeletons */, 3)],
     );
     let walker = g
         .content
@@ -1136,7 +1157,7 @@ fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() -> TestR
     g.apply(Command::Battle(BattleCommand::Flee));
     assert_eq!(
         g.economy().lair_guards_known_to(at(5, 5), P0),
-        Some(vec![("skeletons".to_string(), 3)])
+        Some(vec![(UnitId::new(165) /* skeletons */, 3)])
     );
     // Only the one who fought knows.
     assert_eq!(
@@ -1185,7 +1206,7 @@ fn lair_checksum() -> u64 {
                     y: 12,
                 },
                 Node {
-                    realm: realm.to_string(),
+                    realm: self::realm(realm),
                     power: 5 + i as u8,
                     aura: Vec::new(),
                     guardian: false,
@@ -1212,7 +1233,7 @@ fn lair_checksum() -> u64 {
 
 #[test]
 fn generated_lairs_for_a_seed_stay_the_same() {
-    assert_eq!(lair_checksum(), 5_616_198_016_045_802_196);
+    assert_eq!(lair_checksum(), 11_489_091_015_628_393_938);
 }
 
 #[test]
@@ -1223,7 +1244,7 @@ fn a_game_saved_in_a_lair_fight_goes_on_to_clear_the_site() -> TestResult {
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![("skeletons", 2)],
+        vec![(165 /* skeletons */, 2)],
     );
     let walker = g
         .content

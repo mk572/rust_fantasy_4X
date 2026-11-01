@@ -180,14 +180,14 @@ mod tests {
             .rules
             .spells
             .iter()
-            .map(|(id, d)| (id, d.id.clone()))
+            .map(|(id, _)| (id, id))
             .next()
             .ok_or("next is missing")?;
-        assert!(!g.has_global(P0, &id));
+        assert!(!g.has_global(P0, id));
         let wizard = g.wizard(P0).ok_or("wizard is missing")?.entity();
         g.spawn_spell(spell, wizard, SpellTarget::Global);
-        assert!(g.has_global(P0, &id));
-        assert!(!g.has_global(P1, &id));
+        assert!(g.has_global(P0, id));
+        assert!(!g.has_global(P1, id));
         Ok(())
     }
 

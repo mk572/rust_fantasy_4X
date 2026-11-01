@@ -55,7 +55,9 @@ pub(crate) fn thumb_at(extra: i32, most: i32) -> f32 {
 impl App {
     /// For screenshots: the slider of Disenchant Area, a third of the way along.
     pub(crate) fn open_test_extra_mana(&mut self) {
-        let Some(spell) = self.game.content().rules.spells.id_of("disenchant_area") else {
+        let Some(spell) = self.game.content().rules.spells.id_numbered(204)
+        /* disenchant_area */
+        else {
             return;
         };
         let most = most_extra(self.game.content().rules.spells.get(spell).cost as i32);

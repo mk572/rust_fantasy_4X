@@ -11,6 +11,7 @@ use crate::input::Input;
 use f4x_core::feature::lair::Loot;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
+use f4x_core::rules::RealmId;
 use f4x_core::text::{Args, Texts};
 use macroquad::prelude::*;
 
@@ -147,6 +148,7 @@ pub(crate) fn treasure_text(
     texts: &Texts,
     loot: &Loot,
     spell: Option<&str>,
+    books: &[String],
     retorts: &[String],
     item_kinds: &[f4x_core::rules::ItemKind],
 ) -> String {
@@ -165,13 +167,13 @@ pub(crate) fn treasure_text(
         parts.push(texts.get("site.spell", &Args::new().text("spell", spell)));
     }
     let mut realms: Vec<&String> = Vec::new();
-    for realm in &loot.books {
+    for realm in books {
         if !realms.contains(&realm) {
             realms.push(realm);
         }
     }
     for realm in realms {
-        let n = loot.books.iter().filter(|r| *r == realm).count();
+        let n = books.iter().filter(|r| *r == realm).count();
         let args = Args::new()
             .count("n", n)
             .text("realm", crate::bigbook::capitalise(realm));
@@ -202,10 +204,10 @@ impl App {
             return;
         };
         let site = site_type(&lair.site);
-        let first = lair.guards.first().and_then(|(id, _)| {
-            let unit = self.game.content().rules.units.by_name(id)?;
+        let first = lair.guards.first().map(|&(id, _)| {
+            let unit = self.game.content().rules.units.get(id);
             let figures = unit.stats.get(&f4x_core::rules::Stat::Figures).copied();
-            Some((unit.name.clone(), figures.unwrap_or(1) as u32))
+            (unit.name.clone(), figures.unwrap_or(1) as u32)
         });
         let text = found_text(
             &self.game.content().texts,
@@ -233,11 +235,13 @@ impl App {
             .spell
             .map(|s| self.game.content().rules.spells.get(s).name.clone());
         let retorts: Vec<String> = loot.retorts.iter().map(|&r| self.retort_name(r)).collect();
+        let books: Vec<String> = loot.books.iter().map(|&r| self.realm_alias(r)).collect();
         let kinds: Vec<_> = loot.items.iter().map(|i| i.kind).collect();
         let text = treasure_text(
             &self.game.content().texts,
             loot,
             spell.as_deref(),
+            &books,
             &retorts,
             &kinds,
         );
@@ -264,10 +268,10 @@ impl App {
         let site = site_type(&lair.site);
         match kind {
             "ask" => {
-                let first = lair.guards.first().and_then(|(id, _)| {
-                    let unit = self.game.content().rules.units.by_name(id)?;
-                    Some((unit.name.clone(), 1))
-                });
+                let first = lair
+                    .guards
+                    .first()
+                    .map(|&(id, _)| (self.game.content().rules.units.get(id).name.clone(), 1));
                 let text = found_text(
                     &self.game.content().texts,
                     site,
@@ -289,7 +293,7 @@ impl App {
                     gold: 120,
                     mana: 30,
                     prisoner: true,
-                    books: vec!["nature".into()],
+                    books: vec![RealmId::new(0) /* nature */],
                     ..Loot::default()
                 };
                 self.site_cleared(&lair.site, true, &loot);
@@ -548,26 +552,26 @@ mod tests {
         let t = texts();
         let mut l = loot();
         assert_eq!(
-            treasure_text(t, &l, None, &[], &[]),
+            treasure_text(t, &l, None, &[], &[], &[]),
             "Inside you find absolutely nothing."
         );
         l.gold = 120;
         assert_eq!(
-            treasure_text(t, &l, None, &[], &[]),
+            treasure_text(t, &l, None, &[], &[], &[]),
             "Inside you find 120 gold."
         );
         l.mana = 30;
         l.prisoner = true;
         assert_eq!(
-            treasure_text(t, &l, Some("Earth Lore"), &[], &[ItemKind::Sword]),
+            treasure_text(t, &l, Some("Earth Lore"), &[], &[], &[ItemKind::Sword]),
             "Inside you find 120 gold, 30 mana crystals, a prisoner, the spell Earth Lore and a Sword."
         );
         l.gold = 1;
         l.mana = 0;
         l.prisoner = false;
-        l.books = vec!["nature".into(), "nature".into()];
+        let books = ["nature".to_string(), "nature".to_string()];
         assert_eq!(
-            treasure_text(t, &l, None, &["Sage Master".to_string()], &[]),
+            treasure_text(t, &l, None, &books, &["Sage Master".to_string()], &[]),
             "Inside you find 2 Nature spell books and a retort of Sage Master."
         );
     }

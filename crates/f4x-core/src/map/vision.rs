@@ -5,6 +5,7 @@ use crate::city::economy::Economy;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
 use crate::rules::Ability;
+use crate::rules::SpellId;
 
 use crate::rules::stats::compute;
 use crate::rules::Stat;
@@ -51,7 +52,10 @@ impl Economy<'_> {
             return Vec::new();
         };
         let (w, h) = (map.width() as i32, map.height() as i32);
-        if self.units().has_global(player, "nature_awareness") {
+        if self
+            .units()
+            .has_global(player, SpellId::new(34) /* nature_awareness */)
+        {
             return vec![true; (w * h) as usize];
         }
         let mut seen = vec![false; (w * h) as usize];

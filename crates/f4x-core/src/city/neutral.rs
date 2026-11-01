@@ -324,7 +324,9 @@ impl Game {
             let mut race = races[slot];
             // The second high men slot is high elves on forest.
             if forest && races[..slot].contains(&race) {
-                if let Some(elf) = self.content.rules.races.id_of("high_elf") {
+                if let Some(elf) = self.content.rules.races.id_numbered(7)
+                /* high_elf */
+                {
                     race = elf;
                 }
             }
@@ -383,14 +385,13 @@ impl Game {
 
         let rules = &self.content.rules;
         let level = population.saturating_sub(2);
-        let race_def = rules.races.get(race);
         let mut built: Vec<crate::rules::BuildingId> = STARTING_BUILDINGS
             .iter()
             .filter(|&&(from, _)| level >= from)
             .map(|&(_, id)| id)
             .filter(|&b| {
                 let def = rules.buildings.get(b);
-                def.races.is_empty() || def.races.contains(&race_def.id)
+                def.buildable_by(race)
             })
             .collect();
         // A building whose requirements fell away goes too.
@@ -465,8 +466,8 @@ impl Game {
             return (None, None);
         };
         let (mut melee, mut ranged) = (None, None);
-        for name in &rules.races.get(race).units {
-            let Some(id) = rules.units.id_of(name) else {
+        for unit in &rules.races.get(race).units {
+            let Some(id) = unit.id() else {
                 continue;
             };
             let def = rules.units.get(id);

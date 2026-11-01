@@ -12,6 +12,7 @@
 //! and gold in whole points.
 
 use crate::rules::Ability;
+use crate::rules::SpellId;
 use std::collections::{HashSet, VecDeque};
 
 use hecs::World;
@@ -23,7 +24,7 @@ use crate::map::{Map, Plane, Position};
 use crate::player::{Owner, PlayerId};
 
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
-use crate::rules::{RaceDef, Stat};
+use crate::rules::{RaceDef, RealmId, Stat};
 use crate::spell::city::RELIGIOUS;
 use crate::unit::UnitView;
 
@@ -257,17 +258,15 @@ impl<'a> Economy<'a> {
             let (mut power, mut pacify) = (0, 0);
             // While another wizard keeps Armageddon going, the city has two more rebels' worth of
             // unrest (the buildings still calm it, as in the community patch).
-            let others_keep = |spell: &str| {
+            let others_keep = |spell: SpellId| {
                 crate::player::ids(self.world)
                     .into_iter()
                     .filter(|&id| Some(id) != owner)
                     .filter_map(|id| self.wizard(id))
-                    .any(|w| {
-                        crate::spell::global_enchantment::magic_has_global(&w, self.content, spell)
-                    })
+                    .any(|w| crate::spell::global_enchantment::magic_has_global(&w, spell))
             };
-            let armageddon = others_keep("armageddon");
-            let wasting = !armageddon && others_keep("great_wasting");
+            let armageddon = others_keep(SpellId::new(120) /* armageddon */);
+            let wasting = !armageddon && others_keep(SpellId::new(114) /* great_wasting */);
             for &b in &buildings.0 {
                 let def = rules.buildings.get(b);
                 let mut found = passive_modifiers(&def.effects, Source::Building(b));
@@ -299,7 +298,8 @@ impl<'a> Economy<'a> {
             }
             // Divine and Infernal Power take 150 percent of the religious buildings' power,
             // Dark Rituals doubles it, and the two together make 300 percent (`CITYCALC.c`).
-            let rituals = self.city_has_enchantment(city, "dark_rituals");
+            let rituals =
+                self.city_has_enchantment(city, SpellId::new(163) /* dark_rituals */);
             let percent = if devout { 150 } else { 100 } * if rituals { 2 } else { 1 };
             let religious = power * percent / 100;
             if religious > power {
@@ -324,9 +324,11 @@ impl<'a> Economy<'a> {
                     .and_then(|o| self.wizard(o))
                     .is_some_and(|m| m.books_in(realm) > 0)
             };
-            let moon = self
-                .events
-                .moon_mana(religious, books("life"), books("death"));
+            let moon = self.events.moon_mana(
+                religious,
+                books(RealmId::new(3) /* life */),
+                books(RealmId::new(4) /* death */),
+            );
             if moon != 0 {
                 mods.push(Modifier::new(
                     Stat::CityMana,
@@ -525,7 +527,10 @@ impl<'a> Economy<'a> {
     /// volcano's, outside the cities' own mana.
     pub fn blight_power(&self, owner: PlayerId) -> i32 {
         let kept = self.wizard(owner).is_some_and(|m| {
-            crate::spell::global_enchantment::magic_has_global(&m, self.content, "great_wasting")
+            crate::spell::global_enchantment::magic_has_global(
+                &m,
+                SpellId::new(114), /* great_wasting */
+            )
         });
         let Some(map) = self.map.filter(|_| kept) else {
             return 0;
@@ -572,9 +577,12 @@ impl<'a> Economy<'a> {
         // A wizard who keeps Great Wasting going is proof against the blight: their corrupted
         // squares still yield and add no unrest (and add power, see `blight_power`).
         let blight_proof = self.wizard(owner).is_some_and(|m| {
-            crate::spell::global_enchantment::magic_has_global(&m, self.content, "great_wasting")
+            crate::spell::global_enchantment::magic_has_global(
+                &m,
+                SpellId::new(114), /* great_wasting */
+            )
         });
-        let gaia = self.city_has_enchantment(city, "gaias_blessing");
+        let gaia = self.city_has_enchantment(city, SpellId::new(29) /* gaias_blessing */);
         let mut blighted = 0i32;
         let (mut terrain_food_x2, mut production_percent) = (0i32, 0i32);
         let (mut wild_food, mut mine_gold, mut mine_mana, mut cost_reduction) = (0, 0, 0, 0);
@@ -637,7 +645,7 @@ impl<'a> Economy<'a> {
                 cost_reduction += cut;
             }
         }
-        if self.city_has_enchantment(city, "gaias_blessing") {
+        if self.city_has_enchantment(city, SpellId::new(29) /* gaias_blessing */) {
             terrain_food_x2 = terrain_food_x2 * 3 / 2;
         }
         let terrain_food = terrain_food_x2 / 4;
@@ -673,12 +681,15 @@ impl<'a> Economy<'a> {
         let mut pacify = -compute(Stat::CityUnrest, 0, &mods);
         // Gaia's Blessing pacifies two (the wiki and the original's code say so; its help text
         // does not).
-        if self.city_has_enchantment(city, "gaias_blessing") {
+        if self.city_has_enchantment(city, SpellId::new(29) /* gaias_blessing */) {
             pacify += 2;
         }
         // Just Cause calms every city of its wizard by one.
         if self.wizard(owner).is_some_and(|m| {
-            crate::spell::global_enchantment::magic_has_global(&m, self.content, "just_cause")
+            crate::spell::global_enchantment::magic_has_global(
+                &m,
+                SpellId::new(127), /* just_cause */
+            )
         }) {
             pacify += 1;
         }
@@ -703,7 +714,7 @@ impl<'a> Economy<'a> {
         }
         // Stream of Life: the citizens are so pleased that unrest disappears (the original's
         // code reads the owner's table instead of the city's, see B8).
-        let rebels = if self.city_has_enchantment(city, "stream_of_life") {
+        let rebels = if self.city_has_enchantment(city, SpellId::new(148) /* stream_of_life */) {
             0
         } else {
             (raw_rebels - pacify).clamp(0, figures as i32) as u32
@@ -721,7 +732,7 @@ impl<'a> Economy<'a> {
         let flat = compute(Stat::CityFoodFlat, 0, &mods);
         food += flat + wild_food;
         // The city feeds as many as its land, farm work and buildings allow.
-        let famine = self.city_has_enchantment(city, "famine");
+        let famine = self.city_has_enchantment(city, SpellId::new(189) /* famine */);
         let pre_cap_adds = compute(Stat::CityFood, 0, &mods);
         let mut max_size = terrain_food;
         if famine {

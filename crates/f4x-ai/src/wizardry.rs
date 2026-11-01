@@ -10,7 +10,7 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::rules::effects::Effect;
 use f4x_core::rules::exec::Target;
-use f4x_core::rules::{CastContext, Duration, SpellDef, SpellId, SpellTarget};
+use f4x_core::rules::{CastContext, Duration, RealmId, SpellDef, SpellId, SpellTarget};
 
 use crate::view::{fighting_strength, is_fighter, unit_strength};
 use crate::Ai;
@@ -76,7 +76,10 @@ const WORLD_SPELLS: &[&str] = &[
 
 /// Nature's Wrath strikes only a wizard who casts a spell of these realms: it is begun only
 /// against an enemy with a book in one.
-const WRATH_REALMS: &[&str] = &["death", "chaos"];
+const WRATH_REALMS: &[RealmId] = &[
+    RealmId::new(4), /* death */
+    RealmId::new(2), /* chaos */
+];
 
 /// Lasting spells on a unit whose effect the rules read by the spell's id, so their `effects` are
 /// empty: Heroism, and the wards against a realm. All of them help the unit they sit on.
@@ -442,7 +445,10 @@ fn liked(def: &SpellDef, kind: Kind, traits: &crate::objective::Traits) -> bool 
         Like::CityBuff => kind == Kind::CityBuff,
         Like::GlobalBuff => kind == Kind::GlobalBuff,
         Like::Explore => kind == Kind::Explore,
-        Like::Holy => def.realm == "life" || def.realm == "arcane",
+        Like::Holy => matches!(
+            def.realm.id().map(RealmId::num),
+            Some(3 /* life */ | 5 /* arcane */)
+        ),
         Like::Curse => matches!(
             kind,
             Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction
@@ -1196,7 +1202,14 @@ mod tests {
         g.cheat_learn_spell(P0, storm);
         treasury(&mut g, P0)?.mana = 20_000;
         let mut wizard = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
-        wizard.found(&[("chaos", 11), ("death", 11), ("nature", 11)], &[]);
+        wizard.found(
+            &[
+                (RealmId::new(2) /* chaos */, 11),
+                (RealmId::new(4) /* death */, 11),
+                (RealmId::new(0) /* nature */, 11),
+            ],
+            &[],
+        );
         wizard.put(Some(f4x_core::wizard::fortress::Fortress(at(
             COAST_CITY.0,
             COAST_CITY.1,
@@ -1227,7 +1240,7 @@ mod tests {
         let storm = spell("meteor_storm")?;
         g.wizard_mut(P1)
             .ok_or("player 1 is a wizard")?
-            .found(&[("life", 5)], &[]);
+            .found(&[(RealmId::new(3) /* life */, 5)], &[]);
         let victim = |g: &Game, id| {
             let def = g.content().rules.spells.get(id);
             world_spell_has_victim(&PlayerView::new(g, P0), def)
@@ -1241,7 +1254,7 @@ mod tests {
         assert!(!victim(&g, wrath), "only Life: no Wrath");
         g.wizard_mut(P1)
             .ok_or("player 1 is a wizard")?
-            .found(&[("chaos", 5)], &[]);
+            .found(&[(RealmId::new(2) /* chaos */, 5)], &[]);
         assert!(victim(&g, wrath), "Chaos books: Wrath");
         Ok(())
     }

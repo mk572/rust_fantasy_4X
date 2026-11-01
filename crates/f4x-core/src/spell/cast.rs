@@ -2,6 +2,7 @@
 //!
 //! Tests: in rules/exec/tests.rs, wizard/magic_game/tests.rs and spell/wizard/tests.rs.
 
+use crate::rules::Ability;
 use rand::RngCore;
 
 use crate::battle::immunity::Realm;
@@ -12,7 +13,7 @@ use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::effects::{DamageKind, Trigger};
 use crate::rules::exec::{run_rules, Context, EffectHost, Facts, Outcome, Target};
-use crate::rules::{AbilityDef, Duration, Modifier, Registry, Source, SpellId, SpellTarget, Stat};
+use crate::rules::{Duration, Modifier, Source, SpellId, SpellTarget, Stat, UnitId};
 use crate::spell::instance::SpellTarget as Placed;
 use crate::spell::target_error::TargetError;
 use crate::unit::Hurt;
@@ -189,9 +190,6 @@ impl GameHost<'_> {
 }
 
 impl EffectHost for GameHost<'_> {
-    fn ability_defs(&self) -> &Registry<AbilityDef> {
-        &self.game.content.rules.abilities
-    }
     fn facts(&self, who: Target) -> Facts {
         let g = &*self.game;
         let mut facts = Facts::default();
@@ -204,7 +202,7 @@ impl EffectHost for GameHost<'_> {
         if let Target::Unit(u) = who {
             if let Some(def) = g.units().unit_def(u) {
                 facts.abilities = g.units().unit_abilities(u);
-                facts.race = def.race.clone();
+                facts.race = def.race.as_ref().and_then(|r| r.id());
                 facts.realm = g.units().unit_realm(u);
                 facts.kind = Some(if g.units().unit_is_undead(u) {
                     crate::rules::UnitKind::Summoned
@@ -279,16 +277,12 @@ impl EffectHost for GameHost<'_> {
         self.game.add_temp_modifier(who, modifier, None);
     }
 
-    fn grant_ability(&mut self, who: Target, ability: &str) {
-        if let Some(id) = self.game.content.rules.abilities.id_of(ability) {
-            self.game.grant_temp_ability(who, id, None);
-        }
+    fn grant_ability(&mut self, who: Target, ability: Ability) {
+        self.game.grant_temp_ability(who, ability, None);
     }
 
-    fn remove_ability(&mut self, who: Target, ability: &str) {
-        if let Some(id) = self.game.content.rules.abilities.id_of(ability) {
-            self.game.remove_temp_ability(who, id, None);
-        }
+    fn remove_ability(&mut self, who: Target, ability: Ability) {
+        self.game.remove_temp_ability(who, ability, None);
     }
 
     fn damage(&mut self, who: Target, amount: i32, _kind: DamageKind) -> i32 {
@@ -358,10 +352,7 @@ impl EffectHost for GameHost<'_> {
         }
     }
 
-    fn summon(&mut self, owner: PlayerId, at: Position, unit: &str, count: u8) {
-        let Some(id) = self.game.content.rules.units.id_of(unit) else {
-            return;
-        };
+    fn summon(&mut self, owner: PlayerId, at: Position, id: UnitId, count: u8) {
         // Summoned creatures appear at the summoning circle; without one, where aimed.
         let at = self.game.summon_point(owner).unwrap_or(at);
         for _ in 0..count {
@@ -387,11 +378,8 @@ impl EffectHost for GameHost<'_> {
         }
     }
 
-    fn apply_enchantment(&mut self, who: Target, spell: &str, caster: PlayerId) {
-        let Some(id) = self.game.content.rules.spells.id_of(spell) else {
-            return;
-        };
-        self.game.attach_enchantment(who, id, caster);
+    fn apply_enchantment(&mut self, who: Target, spell: SpellId, caster: PlayerId) {
+        self.game.attach_enchantment(who, spell, caster);
     }
 
     /// Other wizards' enchantments on the target are removed with chance

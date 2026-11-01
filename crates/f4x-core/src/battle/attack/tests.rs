@@ -643,7 +643,7 @@ fn invulnerability_blocks_two_more_points_of_each_hit() {
     for _ in 0..2_000 {
         let mut a = def(100, 100, 0);
         let mut b = def(100, 100, 0);
-        b.enchantments.push("invulnerability".into());
+        b.enchantments.push(SpellId::new(143));
         plain += process_attack(&combatant(5, 0), 4, &mut a, &mut r).points;
         invulnerable += process_attack(&combatant(5, 0), 4, &mut b, &mut r).points;
     }
@@ -663,9 +663,9 @@ fn righteousness_and_bonuses_change_the_defense_a_bolt_meets() {
     };
     let mut d = def(1, 10, 2);
     assert_eq!(d.defense_versus(&bolt), 2);
-    d.enchantments.push("elemental_armor".into());
+    d.enchantments.push(SpellId::new(21));
     assert_eq!(d.defense_versus(&bolt), 12);
-    d.enchantments.push("righteousness".into());
+    d.enchantments.push(SpellId::new(144));
     assert_eq!(d.defense_versus(&bolt), 50);
 }
 
@@ -673,7 +673,7 @@ fn righteousness_and_bonuses_change_the_defense_a_bolt_meets() {
 fn a_sleeper_takes_every_blow_at_full_strength() {
     let mut r = rng(5);
     let mut d = def(1, 100, 100);
-    d.enchantments.push("black_sleep".into());
+    d.enchantments.push(SpellId::new(165));
     d.figures = 1;
     d.figures_max = 1;
     let hit = process_attack(&combatant(5, 0), 1, &mut d, &mut r);
@@ -691,8 +691,8 @@ fn berserk_leaves_no_defense_whatever_the_bonuses() {
         ..combatant(5, 0)
     };
     let mut d = def(1, 10, 4);
-    d.enchantments.push("elemental_armor".into());
-    d.enchantments.push("berserk".into());
+    d.enchantments.push(SpellId::new(21));
+    d.enchantments.push(SpellId::new(179));
     assert_eq!(d.defense_versus(&bolt), 0);
 }
 

@@ -12,7 +12,7 @@ use crate::page_turn::{Book, BookTurn};
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::rules::exec::Target;
-use f4x_core::rules::{CastContext, SpellId, SpellTarget};
+use f4x_core::rules::{CastContext, RealmId, SpellId, SpellTarget};
 use f4x_core::text::Args;
 use macroquad::prelude::*;
 
@@ -147,7 +147,14 @@ pub(crate) struct CombatEntry {
 }
 
 /// The realms in the order of the book's pages.
-const BOOK_REALMS: [&str; 6] = ["arcane", "chaos", "death", "life", "nature", "sorcery"];
+const BOOK_REALMS: [RealmId; 6] = [
+    RealmId::new(5), /* arcane */
+    RealmId::new(2), /* chaos */
+    RealmId::new(4), /* death */
+    RealmId::new(3), /* life */
+    RealmId::new(0), /* nature */
+    RealmId::new(1), /* sorcery */
+];
 
 /// Spells per page of the small book and of the big one.
 pub(crate) const SMALL_PAGE: usize = 6;
@@ -172,7 +179,7 @@ impl App {
             let mut of: Vec<SpellId> = spells
                 .iter()
                 .copied()
-                .filter(|&s| rules.spells.get(s).realm == realm)
+                .filter(|&s| rules.spells.get(s).realm.id() == Some(realm))
                 .collect();
             match sort {
                 None => of.sort(),
@@ -186,8 +193,8 @@ impl App {
             }
             let title = rules
                 .realms
-                .by_name(realm)
-                .map_or(realm, |r| r.name.as_str());
+                .id_numbered(realm.num())
+                .map_or("", |r| rules.realms.get(r).name.as_str());
             for chunk in of.chunks(per_page) {
                 pages.push(BookPage {
                     title: title.to_string(),
@@ -221,9 +228,11 @@ impl App {
         let Some(m) = self.game.wizard(HUMAN) else {
             return BookAsk::Say("spell.cannot_learn_yet");
         };
-        let realm = self.game.content().rules.spells.get(spell).realm.clone();
+        let realm = self.game.content().rules.spells.get(spell).realm.id();
         // Arcane spells need no book; every other realm does.
-        if realm != "arcane" && m.books().get(&realm).copied().unwrap_or(0) == 0 {
+        if realm.is_some_and(|r| r.num() != 5 /* arcane */)
+            && realm.is_some_and(|r| m.books().get(&r).copied().unwrap_or(0) == 0)
+        {
             return BookAsk::Say("spell.lack_books");
         }
         if m.candidates().contains(&spell) {
@@ -376,7 +385,7 @@ impl App {
         lay: &Layout,
         view: (f32, f32, f32),
         name: &str,
-        realm: &str,
+        realm: Option<RealmId>,
         entry: CombatEntry,
         x: f32,
         y: f32,
@@ -391,10 +400,7 @@ impl App {
             format!("{}{} MP", entry.cost, if entry.extra { "+" } else { "" })
         };
         self.draw_styled(view, &Style::nearest(1, color).right(), &cost, x + 121.0, y);
-        let symbol = ["nature", "sorcery", "chaos", "life", "death", "arcane"]
-            .iter()
-            .position(|r| *r == realm)
-            .map_or(9, |i| 4 + i);
+        let symbol = realm.map_or(9, |r| 4 + usize::from(r.num()));
         for t in 0..entry.icons.min(40) {
             let (col, row) = (t % 20, t / 20);
             self.draw_pic(
@@ -787,7 +793,7 @@ impl BookUi {
     ) {
         let def = app.game.content().rules.spells.get(spell).clone();
         if let Some(entry) = self.combat.as_ref().and_then(|m| m.get(&spell)).copied() {
-            app.draw_combat_entry(lay, view, &def.name, &def.realm, entry, x, y);
+            app.draw_combat_entry(lay, view, &def.name, def.realm.id(), entry, x, y);
             return;
         }
         let casting = app
@@ -841,10 +847,7 @@ impl BookUi {
         } else {
             (cost / limit).min(40)
         };
-        let realm_symbol = ["nature", "sorcery", "chaos", "life", "death", "arcane"]
-            .iter()
-            .position(|r| *r == def.realm)
-            .map_or(9, |i| 4 + i);
+        let realm_symbol = def.realm.id().map_or(9, |r| 4 + usize::from(r.num()));
         if turns < 1 {
             let instant = app
                 .game

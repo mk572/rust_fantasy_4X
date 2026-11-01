@@ -157,7 +157,7 @@ fn evil_presence_destroys_the_power_of_shrines_unless_the_owner_has_death_magic(
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Books>()
         .0
-        .insert("death".into(), 1);
+        .insert(crate::game::testutil::realm("death"), 1);
     assert_eq!(mana(&g), blessed, "a wizard with death magic is unharmed");
     Ok(())
 }
@@ -416,7 +416,10 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() -> TestRe
         "a city alone is not enough"
     );
     cast_ward(&mut g, city, "death");
-    assert_eq!(g.economy().city_wards(city), vec!["death".to_string()]);
+    assert_eq!(
+        g.economy().city_wards(city),
+        vec![crate::game::testutil::realm("death")]
+    );
     let upkeep = |g: &Game| {
         g.upkeep_items(P0)
             .iter()
@@ -436,14 +439,20 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() -> TestRe
     cast_ward(&mut g, city, "chaos");
     assert_eq!(
         g.economy().city_wards(city),
-        vec!["death".to_string(), "chaos".into()]
+        vec![
+            crate::game::testutil::realm("death"),
+            crate::game::testutil::realm("chaos")
+        ]
     );
     assert_eq!(upkeep(&g), 10, "five for each ward");
     // Lose the spell and the wards go with it; a new one starts afresh.
     g.clear_city_enchantments(city);
     assert!(g.economy().city_wards(city).is_empty());
     cast_ward(&mut g, city, "life");
-    assert_eq!(g.economy().city_wards(city), vec!["life".to_string()]);
+    assert_eq!(
+        g.economy().city_wards(city),
+        vec![crate::game::testutil::realm("life")]
+    );
     Ok(())
 }
 
@@ -483,7 +492,7 @@ fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() -> TestResu
             "{name}"
         );
         assert_eq!(
-            g.economy().city_has_enchantment(city, name),
+            g.economy().city_has_enchantment(city, spell),
             !fizzles,
             "{name}"
         );
@@ -513,10 +522,19 @@ fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() -> TestResu
     g.start_battle(&[ghoul], &[defender])
         .map_err(|e| format!("{e:?}"))?;
     let b = g.battle().ok_or("battle is missing")?;
-    assert_eq!(b.warded_realms, vec!["death".to_string()]);
-    assert!(b.ward_stops(crate::battle::Side::Attacker, "death"));
-    assert!(!b.ward_stops(crate::battle::Side::Defender, "death"));
-    assert!(!b.ward_stops(crate::battle::Side::Attacker, "chaos"));
+    assert_eq!(b.warded_realms, vec![crate::game::testutil::realm("death")]);
+    assert!(b.ward_stops(
+        crate::battle::Side::Attacker,
+        Some(crate::game::testutil::realm("death"))
+    ));
+    assert!(!b.ward_stops(
+        crate::battle::Side::Defender,
+        Some(crate::game::testutil::realm("death"))
+    ));
+    assert!(!b.ward_stops(
+        crate::battle::Side::Attacker,
+        Some(crate::game::testutil::realm("chaos"))
+    ));
     Ok(())
 }
 
@@ -534,7 +552,10 @@ fn wards_survive_a_save() -> TestResult {
         .ok_or("city_at is missing")?;
     assert_eq!(
         back.economy().city_wards(again),
-        vec!["death".to_string(), "life".to_string()]
+        vec![
+            crate::game::testutil::realm("death"),
+            crate::game::testutil::realm("life")
+        ]
     );
     Ok(())
 }
@@ -554,7 +575,7 @@ fn evil_presence_is_refused_where_its_owner_can_use_death_magic() -> TestResult 
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Books>()
         .0
-        .insert("death".into(), 1);
+        .insert(crate::game::testutil::realm("death"), 1);
     assert_eq!(
         g.check_target(P1, spell, Some(Target::City(city))),
         Err(crate::wizard::magic::MagicError::Target(
@@ -681,7 +702,7 @@ fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() -> T
         at(7, 6),
         num::feature::SORCERY_NODE,
         crate::feature::node::Node {
-            realm: "chaos".into(),
+            realm: crate::game::testutil::realm("chaos"),
             power: 2,
             aura: vec![(7, 6), (8, 6)],
             guardian: false,
@@ -728,7 +749,10 @@ fn consecration_turns_away_death_and_chaos_spells_but_not_the_others() -> TestRe
     g.add_city_enchantment(city, consecration, P0);
     assert_eq!(
         g.economy().city_shielded_realms(city),
-        vec!["death".to_string(), "chaos".to_string()]
+        vec![
+            crate::game::testutil::realm("death"),
+            crate::game::testutil::realm("chaos")
+        ]
     );
     assert!(
         g.economy().city_wards(city).is_empty(),

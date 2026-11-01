@@ -52,20 +52,25 @@ fn an_independent_city_has_no_wizard_and_is_called_by_its_city() -> TestResult {
 
 /// The `n`th real spell of a realm and rarity, in the order of the game's spell list.
 fn nth(g: &Game, realm: &str, rarity: Rarity, n: usize) -> crate::rules::SpellId {
+    let realm = realm_id(realm);
     g.content
         .rules
         .spells
         .iter()
-        .filter(|(_, d)| d.realm == realm && d.rarity == rarity)
+        .filter(|(_, d)| d.realm.id() == Some(realm) && d.rarity == rarity)
         .nth(n)
         .map(|(id, _)| id)
         .expect("the game has ten spells of each realm and rarity")
 }
 
+fn realm_id(alias: &str) -> crate::rules::RealmId {
+    crate::game::testutil::realm(alias)
+}
+
 fn build(books: &[(&str, u8)], retorts: &[Retort]) -> WizardBuild {
     WizardBuild {
         name: "Test".into(),
-        books: books.iter().map(|&(r, n)| (r.to_string(), n)).collect(),
+        books: books.iter().map(|&(r, n)| (realm_id(r), n)).collect(),
         retorts: retorts.iter().copied().collect(),
         ..Default::default()
     }
@@ -92,7 +97,7 @@ fn retorts_cost_one_two_or_three_picks() {
 fn some_retorts_need_books() {
     let rules = &shipped().rules;
     let none = BTreeMap::new();
-    let mut b: BTreeMap<String, u8> = BTreeMap::new();
+    let mut b: BTreeMap<crate::rules::RealmId, u8> = BTreeMap::new();
     assert!(retort_available(
         rules,
         Retort::new(0), /* alchemy */
@@ -108,7 +113,7 @@ fn some_retorts_need_books() {
         Retort::new(7), /* sage_master */
         &none
     ));
-    b.insert("life".into(), 4);
+    b.insert(crate::game::testutil::realm("life"), 4);
     assert!(retort_available(
         rules,
         Retort::new(6), /* divine_power */
@@ -133,7 +138,7 @@ fn some_retorts_need_books() {
         !retort_available(rules, Retort::new(7) /* sage_master */, &b),
         "one realm only"
     );
-    b.insert("death".into(), 1);
+    b.insert(crate::game::testutil::realm("death"), 1);
     assert!(retort_available(
         rules,
         Retort::new(7), /* sage_master */
@@ -144,9 +149,9 @@ fn some_retorts_need_books() {
         Retort::new(14), /* runemaster */
         &b
     ));
-    b.insert("death".into(), 2);
-    b.insert("chaos".into(), 2);
-    b.insert("life".into(), 2);
+    b.insert(crate::game::testutil::realm("death"), 2);
+    b.insert(crate::game::testutil::realm("chaos"), 2);
+    b.insert(crate::game::testutil::realm("life"), 2);
     assert!(
         retort_available(rules, Retort::new(14) /* runemaster */, &b),
         "two books in three realms"
@@ -157,7 +162,7 @@ fn some_retorts_need_books() {
         &b
     ));
     for r in ["chaos", "sorcery", "nature"] {
-        b.insert(r.into(), 1);
+        b.insert(realm_id(r), 1);
     }
     assert!(retort_available(
         rules,
@@ -202,8 +207,11 @@ fn a_wizard_spends_exactly_eleven_picks() {
         ))
     );
     assert_eq!(
-        g.check_wizard_build(&build(&[("magic", 11)], &[])),
-        Err(BuildError::UnknownRealm("magic".into()))
+        g.check_wizard_build(&WizardBuild {
+            books: [(crate::rules::RealmId::new(99), 11)].into_iter().collect(),
+            ..Default::default()
+        }),
+        Err(BuildError::UnknownRealm(crate::rules::RealmId::new(99)))
     );
 }
 
@@ -243,7 +251,7 @@ fn starting_spells_are_chosen_then_defaulted() -> TestResult {
     let known = m.known();
     let life: Vec<_> = known
         .iter()
-        .filter(|&&s| g.content.rules.spells.get(s).realm == "life")
+        .filter(|&&s| g.content.rules.spells.get(s).realm.name() == "life")
         .collect();
     assert_eq!(life.len(), 3);
     assert!(m.knows(c7) && m.knows(c3));
@@ -251,7 +259,7 @@ fn starting_spells_are_chosen_then_defaulted() -> TestResult {
     let chaos = m
         .known()
         .iter()
-        .filter(|&&s| g.content.rules.spells.get(s).realm == "chaos")
+        .filter(|&&s| g.content.rules.spells.get(s).realm.name() == "chaos")
         .count();
     assert_eq!(chaos, 5);
     assert_eq!(g.player(P0).ok_or("player is missing")?.name(), "Test");
@@ -382,12 +390,15 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() -> 
     let b = build(&[("life", 11)], &[]);
     let lib = &g.content.settings.spell_library;
     assert_eq!(
-        b.spell_choices_of(lib, "life", Rarity::Common),
+        b.spell_choices_of(lib, realm_id("life"), Rarity::Common),
         0,
         "the commons are all given"
     );
-    assert_eq!(b.spell_choices_of(lib, "life", Rarity::Uncommon), 2);
-    assert_eq!(b.spell_choices_of(lib, "life", Rarity::Rare), 1);
+    assert_eq!(
+        b.spell_choices_of(lib, realm_id("life"), Rarity::Uncommon),
+        2
+    );
+    assert_eq!(b.spell_choices_of(lib, realm_id("life"), Rarity::Rare), 1);
     // Too many, or the wrong sort, are refused.
     for bad in [vec![u0, u1, u2], vec![rare, r4]] {
         let mut b = b.clone();
@@ -401,7 +412,7 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() -> 
     chosen.spells = vec![u1, u2, rare];
     g.create_wizard(P0, &chosen).map_err(|e| format!("{e:?}"))?;
     let magic = g.wizard(P0).ok_or("wizard is missing")?;
-    assert_eq!(magic.books_in("life"), 11);
+    assert_eq!(magic.books_in(realm_id("life")), 11);
     let known = |spell| magic.knows(spell);
     assert!(
         (0..10).all(|i| known(life(&g, Rarity::Common, i))),
@@ -421,7 +432,7 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() -> 
             .iter()
             .filter(|&&s| {
                 let d = g.content.rules.spells.get(s);
-                d.realm == "life" && d.rarity == r
+                d.realm.name() == "life" && d.rarity == r
             })
             .count()
     };
@@ -433,9 +444,12 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() -> 
 fn ten_books_still_choose_nine_commons_and_nothing_else() {
     let b = build(&[("life", 10)], &[]);
     let lib = &game().content.settings.spell_library;
-    assert_eq!(b.spell_choices_of(lib, "life", Rarity::Common), 9);
-    assert_eq!(b.spell_choices_of(lib, "life", Rarity::Uncommon), 0);
-    assert_eq!(b.spell_choices_of(lib, "life", Rarity::Rare), 0);
+    assert_eq!(b.spell_choices_of(lib, realm_id("life"), Rarity::Common), 9);
+    assert_eq!(
+        b.spell_choices_of(lib, realm_id("life"), Rarity::Uncommon),
+        0
+    );
+    assert_eq!(b.spell_choices_of(lib, realm_id("life"), Rarity::Rare), 0);
     assert_eq!(b.picks_spent(&game().content.rules), 10);
 }
 
@@ -451,7 +465,8 @@ fn eight_spells_are_on_offer_for_research_lowest_rarity_first() -> TestResult {
     // Lowest rarity first: a realm's uncommon spell is offered only once all its researchable
     // commons are on the offer.
     for realm in ["life", "chaos"] {
-        let of_realm = |s: &&crate::rules::SpellId| g.content.rules.spells.get(**s).realm == realm;
+        let of_realm =
+            |s: &&crate::rules::SpellId| g.content.rules.spells.get(**s).realm.name() == realm;
         let commons_left_out = magic
             .researchable()
             .iter()
@@ -514,7 +529,7 @@ fn of_kind(
     set.iter()
         .filter(|&&s| {
             let d = g.content.rules.spells.get(s);
-            d.realm == realm && d.rarity == rarity
+            d.realm.name() == realm && d.rarity == rarity
         })
         .count()
 }

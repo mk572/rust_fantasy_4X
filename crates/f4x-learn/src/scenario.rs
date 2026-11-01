@@ -7,8 +7,8 @@
 use f4x_core::content::Content;
 
 use crate::obs::MAX_SPELLS;
-use f4x_core::rules::Stat;
 use f4x_core::rules::UnitKind;
+use f4x_core::rules::{RealmId, Stat};
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
@@ -164,7 +164,7 @@ pub fn battle_spell(d: &f4x_core::rules::defs::SpellDef) -> bool {
 }
 
 /// The realms a wizard's books can be in.
-const REALMS: [&str; 5] = ["nature", "sorcery", "chaos", "life", "death"];
+const REALMS: [RealmId; 5] = f4x_core::rules::BOOK_REALMS;
 
 /// How many realms a generated wizard has books in: mostly one or two, as in real games, and
 /// now and then three to five so the agent is not helpless against the rest.
@@ -191,7 +191,11 @@ fn wizard(content: &Content, rng: &mut Pcg64Mcg) -> Option<WizardSpec> {
         .spells
         .iter()
         .filter(|(_, d)| battle_spell(d))
-        .filter(|(_, d)| d.realm == "arcane" || realms.contains(&d.realm.as_str()))
+        .filter(|(_, d)| {
+            d.realm
+                .id()
+                .is_some_and(|r| r.num() == 5 /* arcane */ || realms.contains(&r))
+        })
         .filter(|_| rng.gen_bool(share))
         .map(|(_, d)| d.id.clone())
         .collect();

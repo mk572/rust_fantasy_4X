@@ -113,14 +113,18 @@ impl Game {
 
     /// How many times its cost a spell cast by `caster` resists: one, plus one for the
     /// caster's mastery of its realm and one for Archmage.
-    pub fn dispel_multiplier(&self, realm: &str, caster: Option<PlayerId>) -> u32 {
+    pub fn dispel_multiplier(
+        &self,
+        realm: Option<crate::rules::RealmId>,
+        caster: Option<PlayerId>,
+    ) -> u32 {
         let Some(m) = caster.and_then(|c| self.wizard(c)) else {
             return 1;
         };
-        let mastery = match realm {
-            "nature" => m.has(Retort::new(3) /* nature_mastery */),
-            "sorcery" => m.has(Retort::new(4) /* sorcery_mastery */),
-            "chaos" => m.has(Retort::new(2) /* chaos_mastery */),
+        let mastery = match realm.map(|r| r.num()) {
+            Some(0 /* nature */) => m.has(Retort::new(3) /* nature_mastery */),
+            Some(1 /* sorcery */) => m.has(Retort::new(4) /* sorcery_mastery */),
+            Some(2 /* chaos */) => m.has(Retort::new(2) /* chaos_mastery */),
             _ => false,
         };
         1 + u32::from(mastery) + u32::from(m.has(Retort::new(10) /* archmage */))
@@ -134,7 +138,7 @@ impl Game {
         } else {
             def.cost
         };
-        base * self.dispel_multiplier(&def.realm, caster)
+        base * self.dispel_multiplier(def.realm.id(), caster)
     }
 
     /// Try each enchantment in `list` cast by someone other than `by`; returns what is left
@@ -148,11 +152,14 @@ impl Game {
         guarded_by_lock: bool,
         rng: &mut dyn RngCore,
     ) -> (Spells, Spells) {
-        let lock = self.content.rules.spells.id_of("spell_lock");
+        let lock = self.content.rules.spells.id_numbered(54) /* spell_lock */;
         if guarded_by_lock {
             if let Some(&(_, caster)) = list.iter().find(|&&(s, c)| Some(s) == lock && c != by) {
-                let difficulty =
-                    SPELL_LOCK_DIFFICULTY * self.dispel_multiplier("sorcery", Some(caster));
+                let difficulty = SPELL_LOCK_DIFFICULTY
+                    * self.dispel_multiplier(
+                        Some(crate::rules::RealmId::new(1) /* sorcery */),
+                        Some(caster),
+                    );
                 if dispel_roll(strength, difficulty, rng) {
                     let (gone, kept) = list.into_iter().partition(|&(s, _)| Some(s) == lock);
                     return (kept, gone);
@@ -254,7 +261,7 @@ impl Game {
             .content
             .rules
             .spells
-            .id_of("enchant_road")
+            .id_numbered(55) /* enchant_road */
             .map_or(100, |s| self.dispel_difficulty(s, None));
         if !dispel_roll(strength, difficulty, rng) {
             return 0;
@@ -382,16 +389,27 @@ impl Game {
         caster: PlayerId,
         spell: SpellId,
     ) -> Option<(PlayerId, SpellId)> {
-        let realm = self.content.rules.spells.get(spell).realm.clone();
-        let guards: Vec<&str> = ["suppress_magic", "life_force", "tranquility"]
-            .into_iter()
-            .filter(|&g| match g {
-                "life_force" => realm == "death",
-                "tranquility" => realm == "chaos",
+        let realm = self
+            .content
+            .rules
+            .spells
+            .get(spell)
+            .realm
+            .id()
+            .map(|r| r.num());
+        let guards: Vec<SpellId> = [
+            SpellId::new(79),  /* suppress_magic */
+            SpellId::new(156), /* life_force */
+            SpellId::new(157), /* tranquility */
+        ]
+        .into_iter()
+        .filter(|&g| match g.num() {
+                156 /* life_force */ => realm == Some(4 /* death */),
+                157 /* tranquility */ => realm == Some(2 /* chaos */),
                 _ => true,
             })
-            .collect();
-        let holders: Vec<(PlayerId, &str)> = self
+        .collect();
+        let holders: Vec<(PlayerId, SpellId)> = self
             .player_ids()
             .into_iter()
             .filter(|&p| p != caster)
@@ -408,8 +426,7 @@ impl Game {
             let chance = 250 * u64::from(SUPPRESS_MAGIC_STRENGTH)
                 / u64::from(SUPPRESS_MAGIC_STRENGTH + difficulty);
             if u64::from(self.roll(250)) <= chance {
-                let counter = self.content.rules.spells.id_of(guard)?;
-                return Some((holder, counter));
+                return Some((holder, guard));
             }
         }
         None

@@ -17,6 +17,8 @@ use crate::city::economy::{Buildings, Economy};
 use crate::city::production::ProductionItem;
 use crate::game::{Event, Game};
 use crate::player::PlayerId;
+use crate::rules::RealmId;
+use crate::rules::SpellId;
 use crate::spell::target_error::TargetError;
 
 /// The hook of the city enchantments the engine reads by name: casting only enchants the city.
@@ -33,16 +35,19 @@ const CHAOS_RIFT_STRENGTH: i32 = 8;
 const CHAOS_RIFT_BUILDING_PERCENT: u32 = 5;
 
 /// The realms a Spell Ward can be set against, in the original's order.
-pub const WARD_REALMS: [&str; 5] = ["nature", "sorcery", "chaos", "life", "death"];
+pub const WARD_REALMS: [RealmId; 5] = crate::rules::BOOK_REALMS;
 
 /// The realms whose spells Consecration keeps off the city and the units in it.
-pub const CONSECRATION_REALMS: [&str; 2] = ["death", "chaos"];
+pub const CONSECRATION_REALMS: [RealmId; 2] = [
+    RealmId::new(4), // death
+    RealmId::new(2), // chaos
+];
 
 /// The realms a city has Spell Wards against (the ward spell itself, with its caster and its
 /// upkeep, is in the city's enchantments; this says which realms it was set to). Read through
 /// [`Game::city_wards`], which ignores it once the spell is gone.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SpellWards(pub Vec<String>);
+pub struct SpellWards(pub Vec<RealmId>);
 
 /// The buildings whose magic power Evil Presence destroys.
 pub(crate) const RELIGIOUS: [&str; 4] = ["shrine", "temple", "parthenon", "cathedral"];
@@ -89,7 +94,10 @@ impl Game {
             .cities()
             .into_iter()
             .map(|(city, _, _)| city)
-            .filter(|&c| self.economy().city_has_enchantment(c, "chaos_rift"))
+            .filter(|&c| {
+                self.economy()
+                    .city_has_enchantment(c, SpellId::new(110) /* chaos_rift */)
+            })
             .collect();
         for city in rifts {
             let Ok(at) = self.world.get::<&crate::map::Position>(city).map(|p| *p) else {
@@ -156,11 +164,10 @@ impl Game {
         city: hecs::Entity,
         realm: crate::rules::RealmId,
     ) -> Result<(), TargetError> {
-        let id = &self.content.rules.realms.get(realm).id;
-        if !WARD_REALMS.contains(&id.as_str()) {
+        if !WARD_REALMS.contains(&realm) {
             return Err(TargetError::NotWardRealm);
         }
-        if self.economy().city_warded_against(city, id) {
+        if self.economy().city_warded_against(city, realm) {
             return Err(TargetError::Warded);
         }
         Ok(())
@@ -170,16 +177,15 @@ impl Game {
     pub fn fully_warded(&self, city: hecs::Entity) -> bool {
         WARD_REALMS
             .iter()
-            .all(|r| self.economy().city_warded_against(city, r))
+            .all(|&r| self.economy().city_warded_against(city, r))
     }
 
     /// Set a Spell Ward against `realm` on the city. The first ward of a city starts its list
     /// afresh, so wards left over from a spell that was dispelled or lost with the city are gone.
     pub fn add_spell_ward(&mut self, city: hecs::Entity, realm: crate::rules::RealmId) {
-        let id = self.content.rules.realms.get(realm).id.clone();
         let mut wards = self.economy().city_wards(city);
-        if !wards.contains(&id) {
-            wards.push(id);
+        if !wards.contains(&realm) {
+            wards.push(realm);
         }
         let _ = self.world.insert_one(city, SpellWards(wards));
     }
@@ -216,7 +222,8 @@ impl Game {
         };
         self.economy()
             .city_shielded_realms(city)
-            .contains(&def.realm)
+            .iter()
+            .any(|&r| Some(r) == def.realm.id())
             .then_some(city)
     }
 
@@ -232,14 +239,12 @@ impl Game {
 }
 
 impl Economy<'_> {
-    /// Whether the city carries the named lasting spell, whoever cast it.
-    pub fn city_has_enchantment(&self, city: hecs::Entity, name: &str) -> bool {
-        self.content.rules.spells.id_of(name).is_some_and(|id| {
-            crate::spell::instance::Spells::new(self.world)
-                .city_enchantments(city)
-                .iter()
-                .any(|&(s, _)| s == id)
-        })
+    /// Whether the city carries the lasting spell, whoever cast it.
+    pub fn city_has_enchantment(&self, city: hecs::Entity, spell: SpellId) -> bool {
+        crate::spell::instance::Spells::new(self.world)
+            .city_enchantments(city)
+            .iter()
+            .any(|&(s, _)| s == spell)
     }
 
     /// Evil Presence does nothing to a city whose owner can use death magic, and the original
@@ -247,20 +252,21 @@ impl Economy<'_> {
     pub fn evil_presence_is_wasted_on(&self, city: hecs::Entity) -> bool {
         self.city_owner(city)
             .and_then(|o| self.wizard(o))
-            .is_some_and(|m| m.books_in("death") > 0)
+            .is_some_and(|m| m.books_in(RealmId::new(4) /* death */) > 0)
     }
 
     /// Whether Evil Presence is destroying the city's religious buildings' power: the spell is
     /// on the city and its owner cannot use death magic.
     pub(crate) fn evil_presence_active(&self, city: hecs::Entity) -> bool {
-        self.city_has_enchantment(city, "evil_presence") && !self.evil_presence_is_wasted_on(city)
+        self.city_has_enchantment(city, SpellId::new(183) /* evil_presence */)
+            && !self.evil_presence_is_wasted_on(city)
     }
 }
 
 impl Economy<'_> {
     /// The realms the city is warded against.
-    pub fn city_wards(&self, city: hecs::Entity) -> Vec<String> {
-        if !self.city_has_enchantment(city, "spell_ward") {
+    pub fn city_wards(&self, city: hecs::Entity) -> Vec<RealmId> {
+        if !self.city_has_enchantment(city, SpellId::new(72) /* spell_ward */) {
             return Vec::new();
         }
         self.world
@@ -269,19 +275,19 @@ impl Economy<'_> {
             .unwrap_or_default()
     }
 
-    /// Whether the city is warded against spells of `realm` (a realm's id).
-    pub fn city_warded_against(&self, city: hecs::Entity, realm: &str) -> bool {
-        self.city_wards(city).iter().any(|w| w == realm)
+    /// Whether the city is warded against spells of `realm`.
+    pub fn city_warded_against(&self, city: hecs::Entity, realm: RealmId) -> bool {
+        self.city_wards(city).contains(&realm)
     }
 
     /// The realms whose spells cannot be cast on the city or the units in it: the Spell Ward's,
     /// and death and chaos under Consecration.
-    pub fn city_shielded_realms(&self, city: hecs::Entity) -> Vec<String> {
+    pub fn city_shielded_realms(&self, city: hecs::Entity) -> Vec<RealmId> {
         let mut realms = self.city_wards(city);
-        if self.city_has_enchantment(city, "consecration") {
+        if self.city_has_enchantment(city, SpellId::new(155) /* consecration */) {
             for realm in CONSECRATION_REALMS {
-                if !realms.iter().any(|r| r == realm) {
-                    realms.push(realm.to_string());
+                if !realms.contains(&realm) {
+                    realms.push(realm);
                 }
             }
         }
@@ -299,7 +305,8 @@ impl Economy<'_> {
         matches!(def.kind, UnitKind::Fantastic | UnitKind::Summoned)
             && def
                 .realm
-                .as_deref()
+                .as_ref()
+                .and_then(|r| r.id())
                 .is_some_and(|r| self.city_warded_against(city, r))
     }
 }

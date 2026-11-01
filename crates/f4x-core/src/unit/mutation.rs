@@ -13,6 +13,7 @@
 use crate::game::rng::GameRng;
 use crate::game::Game;
 use crate::rules::Ability;
+use crate::rules::SpellId;
 use crate::rules::{ModOp, Modifier, MovementType, Source, Stat, UnitKind};
 use crate::spell::target_error::TargetError;
 use crate::unit::UnitView;
@@ -131,7 +132,9 @@ impl Game {
         unit: hecs::Entity,
         owner: crate::player::PlayerId,
     ) {
-        if !self.has_global(owner, "doom_mastery") || self.check_mutate(unit).is_err() {
+        if !self.has_global(owner, SpellId::new(117) /* doom_mastery */)
+            || self.check_mutate(unit).is_err()
+        {
             return;
         }
         let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());

@@ -110,7 +110,7 @@ impl App {
             .defs()
             .iter()
             .find(|d| d.kind == f4x_core::rules::UnitKind::Normal && d.race.is_some())
-            .and_then(|d| rules.units.id_of(&d.id))
+            .map(|d| f4x_core::rules::UnitId::new(d.num))
         else {
             return;
         };
@@ -153,7 +153,7 @@ impl App {
                 .defs()
                 .iter()
                 .filter(|d| d.kind == f4x_core::rules::UnitKind::Normal && d.race.is_some())
-                .filter_map(|d| rules.units.id_of(&d.id))
+                .map(|d| f4x_core::rules::UnitId::new(d.num))
                 .collect()
         };
         for i in 0..14usize.saturating_sub(self.own_units_at(pos).len()) {

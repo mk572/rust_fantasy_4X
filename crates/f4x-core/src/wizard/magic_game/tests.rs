@@ -119,8 +119,9 @@ fn a_new_wizard_starts_with_books_spells_and_skill() -> TestResult {
     assert_eq!(m.known().len(), 3 + 2);
     assert!(m.known().is_disjoint(&m.researchable()));
     let in_realm = |set: &BTreeSet<SpellId>, realm: &str| {
+        let realm = crate::game::testutil::realm(realm);
         set.iter()
-            .filter(|&&s| g.content.rules.spells.get(s).realm == realm)
+            .filter(|&&s| g.content.rules.spells.get(s).realm.id() == Some(realm))
             .count()
     };
     // Life, 3 books: 6 common + 3 uncommon + 2 rare + 1 very rare, of which 2 known.

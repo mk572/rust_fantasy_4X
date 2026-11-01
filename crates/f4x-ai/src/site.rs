@@ -170,7 +170,7 @@ mod tests {
     /// given guards two squares west. `known`: the wizard has fought for the site before.
     fn world(
         paladins: usize,
-        guards: Vec<(String, u32)>,
+        guards: Vec<(f4x_core::rules::UnitId, u32)>,
         known: bool,
     ) -> Result<Game, Box<dyn std::error::Error>> {
         let mut g = game(COAST_CITY, "high_men");
@@ -208,7 +208,12 @@ mod tests {
     fn a_tower_is_looked_for_further_away_than_other_sites() -> TestResult {
         let mut g = game(COAST_CITY, "high_men");
         spawn_tower(&mut g, at(33, 9), true)?;
-        spawn_site(&mut g, at(33, 7), vec![("zombies".into(), 1)], Vec::new())?;
+        spawn_site(
+            &mut g,
+            at(33, 7),
+            vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
+            Vec::new(),
+        )?;
         g.reveal_map(P0);
         let view = PlayerView::new(&g, P0);
         assert_eq!(sites_near(&view, at(10, 6), 10_000.0), vec![at(33, 9)]);
@@ -217,7 +222,11 @@ mod tests {
 
     #[test]
     fn a_strong_party_next_to_an_encounter_site_clears_it() -> TestResult {
-        let mut g = world(5, vec![("zombies".into(), 1)], false)?;
+        let mut g = world(
+            5,
+            vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
+            false,
+        )?;
         let mut ai = Ai::new(P0);
         let events = turns(&mut g, &mut ai, 10);
         let gold: u32 = events
@@ -234,7 +243,11 @@ mod tests {
 
     #[test]
     fn a_weak_party_leaves_a_site_whose_guards_it_knows_to_be_too_strong() -> TestResult {
-        let mut g = world(4, vec![("great_drake".into(), 2)], true)?;
+        let mut g = world(
+            4,
+            vec![(f4x_core::rules::UnitId::new(164) /* great_drake */, 2)],
+            true,
+        )?;
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 4);
         assert!(ai.raiders.is_empty());
@@ -246,7 +259,11 @@ mod tests {
     #[test]
     fn a_city_keeps_its_garrison_and_waits_for_a_party() -> TestResult {
         // One spare fighter beyond the single guard is not a party.
-        let mut g = world(2, vec![("zombies".into(), 1)], false)?;
+        let mut g = world(
+            2,
+            vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
+            false,
+        )?;
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 4);
         assert!(ai.raiders.is_empty());
@@ -256,7 +273,11 @@ mod tests {
 
     #[test]
     fn the_survivors_come_home_after_the_raid() -> TestResult {
-        let mut g = world(6, vec![("zombies".into(), 1)], false)?;
+        let mut g = world(
+            6,
+            vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
+            false,
+        )?;
         let mut ai = Ai::new(P0);
         turns(&mut g, &mut ai, 14);
         assert!(

@@ -4,6 +4,7 @@
 //!
 //! Tests: in spell/wizard/tests.rs.
 
+use crate::rules::SpellId;
 use rand::SeedableRng;
 
 use crate::battle::immunity::{AttackNature, Immunities, Realm};
@@ -47,13 +48,13 @@ impl Game {
         let mut events = Vec::new();
         let players: Vec<PlayerId> = crate::player::ids(&self.world);
         for player in players {
-            if self.has_global(player, "great_wasting") {
+            if self.has_global(player, SpellId::new(114) /* great_wasting */) {
                 events.extend(self.great_wasting(player));
             }
-            if self.has_global(player, "armageddon") {
+            if self.has_global(player, SpellId::new(120) /* armageddon */) {
                 events.extend(self.armageddon(player));
             }
-            if self.has_global(player, "meteor_storm") {
+            if self.has_global(player, SpellId::new(113) /* meteor_storm */) {
                 events.extend(self.meteor_storm(player));
             }
         }
@@ -145,7 +146,9 @@ impl Game {
     /// Meteor Storm: every unit outside a city is struck, the caster's too, and buildings of
     /// other wizards' cities may fall. The caster's cities are safe.
     fn meteor_storm(&mut self, player: PlayerId) -> Vec<Event> {
-        let Some(spell) = self.content.rules.spells.id_of("meteor_storm") else {
+        let Some(spell) = self.content.rules.spells.id_numbered(113)
+        /* meteor_storm */
+        else {
             return Vec::new();
         };
         let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(self.next_u64() ^ 0x3E7E);
@@ -275,18 +278,27 @@ impl Game {
         caster: PlayerId,
         spell: crate::rules::SpellId,
     ) -> Vec<Event> {
-        let realm = &self.content.rules.spells.get(spell).realm;
-        if realm != "death" && realm != "chaos" {
+        let realm = self
+            .content
+            .rules
+            .spells
+            .get(spell)
+            .realm
+            .id()
+            .map(|r| r.num());
+        if realm != Some(4 /* death */) && realm != Some(2 /* chaos */) {
             return Vec::new();
         }
         if !self
             .player_ids()
             .into_iter()
-            .any(|p| p != caster && self.has_global(p, "natures_wrath"))
+            .any(|p| p != caster && self.has_global(p, SpellId::new(40) /* natures_wrath */))
         {
             return Vec::new();
         }
-        let Some(wrath) = self.content.rules.spells.id_of("natures_wrath") else {
+        let Some(wrath) = self.content.rules.spells.id_numbered(40)
+        /* natures_wrath */
+        else {
             return Vec::new();
         };
         let cities: Vec<_> = self

@@ -589,7 +589,10 @@ fn undead_units_are_not_healed_eat_nothing_and_are_death_creatures() -> TestResu
     assert_eq!(g.units().unit_food_upkeep(living), 1);
     assert_eq!(g.units().unit_food_upkeep(raised), 0);
     assert_eq!(g.units().unit_gold_upkeep(raised), 0);
-    assert_eq!(g.units().unit_realm(raised).as_deref(), Some("death"));
+    assert_eq!(
+        g.units().unit_realm(raised),
+        Some(crate::game::testutil::realm("death"))
+    );
     assert_eq!(g.units().unit_realm(living), None);
     assert!(g.units().unit_is_death(raised) && !g.units().unit_is_death(living));
     for a in [
@@ -812,16 +815,6 @@ fn requirements_and_races_limit_what_can_be_built() -> TestResult {
 /// A city that has just finished the barracks, with the Vizier's list set.
 fn vizier_city(on: bool) -> (Game, hecs::Entity) {
     let mut g = world();
-    g.content.rules.config.autobuild_order = [
-        "barracks",
-        "smithy",
-        "armory",
-        "fighters_guild",
-        "granary",
-        "nope",
-    ]
-    .map(String::from)
-    .to_vec();
     let city = found(&mut g, at(10, 6), "high_elf", 4);
     g.apply(Command::SetGrandVizier { player: P0, on });
     let barracks = building(&g, "barracks");

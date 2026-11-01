@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::content::Content;
 use crate::game::rng::GameRng;
 use crate::game::setting::SpellLibraryDef;
-use crate::rules::{Rarity, SpellDef, SpellId};
+use crate::rules::{Rarity, RealmId, SpellDef, SpellId};
 use crate::spell::instance::{Owed, Spells};
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::{
@@ -24,7 +24,7 @@ use crate::wizard::magic::{
 
 /// Spell books per realm id.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Books(pub BTreeMap<String, u8>);
+pub struct Books(pub BTreeMap<RealmId, u8>);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Retorts(pub BTreeSet<Retort>);
@@ -100,9 +100,9 @@ impl<'a> Wizard<'a> {
             .is_some_and(|r| r.0.contains(&retort))
     }
 
-    pub fn books_in(&self, realm: &str) -> i32 {
+    pub fn books_in(&self, realm: RealmId) -> i32 {
         self.component::<Books>()
-            .and_then(|b| b.0.get(realm).copied())
+            .and_then(|b| b.0.get(&realm).copied())
             .map_or(0, i32::from)
     }
 
@@ -112,7 +112,7 @@ impl<'a> Wizard<'a> {
     }
 
     /// Books per realm id.
-    pub fn books(&self) -> BTreeMap<String, u8> {
+    pub fn books(&self) -> BTreeMap<RealmId, u8> {
         self.component::<Books>()
             .map(|b| b.0.clone())
             .unwrap_or_default()
@@ -232,14 +232,15 @@ impl<'a> Wizard<'a> {
     /// Percent off the cost of `def`.
     pub fn cost_reduction(&self, def: &SpellDef) -> i32 {
         let mut cut = 0;
-        if def.realm == "arcane" {
+        let realm = def.realm.id();
+        if realm == Some(RealmId::new(5) /* arcane */) {
             if self.has(Retort::new(14) /* runemaster */) {
                 cut += 25;
             }
-        } else {
-            cut += (self.books_in(&def.realm) - 7).max(0) * 10;
+        } else if let Some(realm) = realm {
+            cut += (self.books_in(realm) - 7).max(0) * 10;
         }
-        if self.has_mastery(&def.realm) {
+        if self.has_mastery(realm) {
             cut += 15;
         }
         if self.has(Retort::new(17) /* artificer */) && is_crafting(def) {
@@ -252,11 +253,11 @@ impl<'a> Wizard<'a> {
     }
 
     /// Whether the wizard has the mastery of this realm.
-    fn has_mastery(&self, realm: &str) -> bool {
-        match realm {
-            "nature" => self.has(Retort::new(3) /* nature_mastery */),
-            "sorcery" => self.has(Retort::new(4) /* sorcery_mastery */),
-            "chaos" => self.has(Retort::new(2) /* chaos_mastery */),
+    fn has_mastery(&self, realm: Option<RealmId>) -> bool {
+        match realm.map(RealmId::num) {
+            Some(0 /* nature */) => self.has(Retort::new(3) /* nature_mastery */),
+            Some(1 /* sorcery */) => self.has(Retort::new(4) /* sorcery_mastery */),
+            Some(2 /* chaos */) => self.has(Retort::new(2) /* chaos_mastery */),
             _ => false,
         }
     }
@@ -271,15 +272,16 @@ impl<'a> Wizard<'a> {
         if self.has(Retort::new(15) /* conjurer */) && is_summoning(def) {
             bonus += 25;
         }
-        if self.has_mastery(&def.realm) {
+        let realm = def.realm.id();
+        if self.has_mastery(realm) {
             bonus += 15;
         }
-        if def.realm == "arcane" {
+        if realm == Some(RealmId::new(5) /* arcane */) {
             if self.has(Retort::new(14) /* runemaster */) {
                 bonus += 25;
             }
-        } else {
-            bonus += (self.books_in(&def.realm) - 7).max(0) * 10;
+        } else if let Some(realm) = realm {
+            bonus += (self.books_in(realm) - 7).max(0) * 10;
         }
         bonus
     }
@@ -350,11 +352,11 @@ impl<'a> Wizard<'a> {
         let candidates = self.candidates();
         let open = |s: &SpellId| researchable.contains(s) && !candidates.contains(s);
         let mut pool = Vec::new();
-        for realm in ["nature", "sorcery", "chaos", "life", "death"] {
+        for realm in crate::rules::BOOK_REALMS {
             let mut of: Vec<(Rarity, SpellId)> = rules
                 .spells
                 .iter()
-                .filter(|(id, d)| d.realm == realm && open(id))
+                .filter(|(id, d)| d.realm.id() == Some(realm) && open(id))
                 .map(|(id, d)| (d.rarity, id))
                 .collect();
             if let Some(lowest) = of.iter().map(|&(r, _)| r).min() {
@@ -365,7 +367,7 @@ impl<'a> Wizard<'a> {
         let arcane: Vec<SpellId> = rules
             .spells
             .iter()
-            .filter(|(_, d)| d.realm == "arcane")
+            .filter(|(_, d)| d.realm.id() == Some(RealmId::new(5) /* arcane */))
             .map(|(id, _)| id)
             .collect();
         let step = |at: usize| match at {
@@ -447,7 +449,11 @@ pub fn casting_cost(
     if let Some(w) = wizard {
         cost -= cost * w.cost_reduction(def) / 100;
     }
-    if matches!(def.realm.as_str(), "life" | "nature") && evil_omens {
+    if matches!(
+        def.realm.id().map(RealmId::num),
+        Some(3 /* life */ | 0 /* nature */)
+    ) && evil_omens
+    {
         cost += cost / 2;
     }
     cost
@@ -495,11 +501,11 @@ impl<'a> WizardMut<'a> {
     /// (twice the books, plus 5 books' worth for an archmage), found by growing the invested
     /// total until the skill reaches it; a Famous wizard starts with a fame of 10. The spell
     /// library comes with [`WizardMut::init_library`].
-    pub fn found(&mut self, books: &[(&str, u8)], retorts: &[Retort]) {
+    pub fn found(&mut self, books: &[(RealmId, u8)], retorts: &[Retort]) {
         let mut sheet = Books::default();
         for &(realm, n) in books {
             if n > 0 {
-                sheet.0.insert(realm.to_string(), n.min(11));
+                sheet.0.insert(realm, n.min(11));
             }
         }
         let total: i32 = sheet.0.values().map(|&n| i32::from(n)).sum();
@@ -550,7 +556,7 @@ impl<'a> WizardMut<'a> {
                 (Rarity::Rare, want.rare, open.rare),
                 (Rarity::VeryRare, want.very_rare, open.very_rare),
             ] {
-                let pool = spells_of(content, &realm, rarity);
+                let pool = spells_of(content, realm, rarity);
                 let count = usize::from(count).min(pool.len());
                 let start: Vec<SpellId> = match start_spells {
                     Some(chosen) => {
@@ -560,7 +566,7 @@ impl<'a> WizardMut<'a> {
                             .filter(|s| pool.contains(s))
                             .take(count)
                             .collect();
-                        let defaults = default_spells(content, &realm, rarity);
+                        let defaults = default_spells(content, realm, rarity);
                         for s in defaults.into_iter().chain(pool.iter().copied()) {
                             if start.len() >= count {
                                 break;
@@ -586,29 +592,22 @@ impl<'a> WizardMut<'a> {
             .rules
             .spells
             .iter()
-            .filter(|(_, d)| d.realm == "arcane" && !library.arcane_closed.contains(&d.id))
+            .filter(|&(id, d)| {
+                d.realm.id() == Some(RealmId::new(5) /* arcane */)
+                    && !library.arcane_closed.iter().any(|c| c.id() == Some(id))
+            })
             .map(|(id, _)| id)
             .collect();
         available.extend(arcane);
         // What everyone, or a retort, starts with.
-        let given = library.always_known.iter().chain(
+        let given = library.always_known.iter().filter_map(|s| s.id()).chain(
             library
-                .retort_known
+                .retort_spells
                 .iter()
-                .filter(|(r, _)| {
-                    content
-                        .rules
-                        .retorts
-                        .id_of(r)
-                        .is_some_and(|id| retorts.contains(&id))
-                })
-                .flat_map(|(_, spells)| spells),
+                .filter(|(r, _)| retorts.contains(r))
+                .flat_map(|(_, spells)| spells.iter().copied()),
         );
-        for id in given {
-            if let Some(spell) = content.rules.spells.id_of(id) {
-                known.insert(spell);
-            }
-        }
+        known.extend(given);
         *self.get_mut::<KnownSpells>() = KnownSpells {
             researchable: available.difference(&known).copied().collect(),
             known,
@@ -673,7 +672,9 @@ impl<'a> WizardMut<'a> {
         }
         // With nothing left to offer, the Spell of Mastery is: the last thing to research.
         if candidates.len() < RESEARCH_SLOTS {
-            if let Some(som) = content.rules.spells.id_of("spell_of_mastery") {
+            if let Some(som) = content.rules.spells.id_numbered(213)
+            /* spell_of_mastery */
+            {
                 if !self.view().knows(som)
                     && !candidates.contains(&som)
                     && self.view().research_pool(content).is_empty()

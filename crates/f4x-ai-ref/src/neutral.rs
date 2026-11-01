@@ -88,12 +88,12 @@ pub(crate) fn guard_strength(view: &PlayerView, site: Position) -> Option<f32> {
     Some(
         guards
             .iter()
-            .filter_map(|(id, n)| {
-                let def = rules.units.get(rules.units.id_of(id)?);
+            .map(|(id, n)| {
+                let def = rules.units.get(*id);
                 let stat = |s: Stat| def.stats.get(&s).copied().unwrap_or(0).max(0) as f32;
                 let attack = stat(Stat::Melee).max(stat(Stat::Ranged));
                 let hits = stat(Stat::MaxHp) * stat(Stat::Figures).max(1.0);
-                Some((attack * 1.5 + stat(Stat::Defense) + 1.0) * hits * *n as f32)
+                (attack * 1.5 + stat(Stat::Defense) + 1.0) * hits * *n as f32
             })
             .sum(),
     )
@@ -547,7 +547,7 @@ fn production(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .content()
                 .rules
                 .buildings
-                .id_of("barracks")
+                .id_numbered(3) /* barracks */
                 .map(ProductionItem::Building)
                 .filter(|&item| view.can_build(city, item).is_ok())
                 .filter(|&item| view.city_production(city).item != Some(item));
@@ -610,7 +610,7 @@ mod tests {
 
     /// A world with an independent city at (4, 4), nine paladins in it and an encounter site
     /// of one guard at (6, 4).
-    fn raiding_world(guards: Option<Vec<(String, u32)>>, known: bool) -> Game {
+    fn raiding_world(guards: Option<Vec<(f4x_core::rules::UnitId, u32)>>, known: bool) -> Game {
         let mut g = game(COAST_CITY, "high_men");
         g.add_neutral_player(TOWN);
         let race = g.content().rules.races.id_of("high_men");
@@ -666,7 +666,13 @@ mod tests {
 
     #[test]
     fn a_city_with_soldiers_to_spare_clears_a_weak_site_and_keeps_the_gold() {
-        let mut g = raiding_world(Some(vec![("zombies".into(), 1)]), false);
+        let mut g = raiding_world(
+            Some(vec![(
+                f4x_core::rules::UnitId::new(174), /* zombies */
+                1,
+            )]),
+            false,
+        );
         let mut gold = 0;
         let mut cleared = false;
         for _ in 0..12 {
@@ -707,7 +713,13 @@ mod tests {
     fn a_city_that_knows_the_guards_leaves_a_site_too_strong_for_its_party() {
         // Two great drakes against a party of paladins; a fight the city lost earlier taught it
         // what stands there.
-        let mut g = raiding_world(Some(vec![("great_drake".into(), 2)]), true);
+        let mut g = raiding_world(
+            Some(vec![(
+                f4x_core::rules::UnitId::new(164), /* great_drake */
+                2,
+            )]),
+            true,
+        );
         turns(&mut g, 4);
         assert!(g
             .units()
@@ -721,7 +733,13 @@ mod tests {
     fn a_city_at_war_sends_all_but_its_garrison_against_a_site_in_range() {
         // Nine paladins and a site in range: the peaceful city sends only what it has above
         // garrison and party; at war it sends everyone but the garrison.
-        let mut g = raiding_world(Some(vec![("zombies".into(), 1)]), false);
+        let mut g = raiding_world(
+            Some(vec![(
+                f4x_core::rules::UnitId::new(174), /* zombies */
+                1,
+            )]),
+            false,
+        );
         g.scenario_set_aggressive(TOWN, true);
         let mut cleared = false;
         for _ in 0..12 {

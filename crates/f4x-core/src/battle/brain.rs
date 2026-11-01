@@ -285,12 +285,12 @@ fn rule_value(
                 (missing.min(*points as f32) / u.max_hit_points().max(1) as f32) * worth(u)
             })
             .sum(),
-        Effect::Summon { unit, count } => {
-            let rules = &game.content().rules;
-            let Some(id) = rules.units.id_of(unit) else {
-                return 0.0;
-            };
-            let d = rules.units.get(id);
+        Effect::Summon {
+            unit_id: Some(id),
+            count,
+            ..
+        } => {
+            let d = game.content().rules.units.get(*id);
             let stat = |s: Stat| d.stats.get(&s).copied().unwrap_or(0) as f32;
             let attack = stat(Stat::Melee).max(stat(Stat::Ranged));
             let hp = stat(Stat::MaxHp).max(1.0) * stat(Stat::Figures).max(1.0);

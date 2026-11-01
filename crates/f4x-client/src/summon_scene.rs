@@ -15,7 +15,7 @@ use crate::view::{App, HUMAN};
 use f4x_core::item::crafting::CRAFT_ITEM;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::effects::{Effect, EffectRule};
-use f4x_core::rules::{Rarity, SpellId};
+use f4x_core::rules::{Rarity, SpellId, UnitId};
 use f4x_core::text::{Args, Gender};
 use macroquad::prelude::*;
 
@@ -41,7 +41,7 @@ const ITEM_FIGURE: usize = 46;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Summoned {
     /// A creature: its unit id.
-    Creature(String),
+    Creature(UnitId),
     Hero,
     Champion,
     /// Enchant Item and Create Artifact: the sword (`MONSTER.LBX` 46) rises.
@@ -77,7 +77,7 @@ impl Modal for SummonScene {
 /// What a spell summons, if it does.
 pub(crate) fn summoned_by(effects: &[EffectRule]) -> Option<Summoned> {
     effects.iter().find_map(|e| match &e.effect {
-        Effect::Summon { unit, .. } => Some(Summoned::Creature(unit.clone())),
+        Effect::Summon { unit_id, .. } => unit_id.map(Summoned::Creature),
         Effect::Custom(name) if name == "summon_hero" => Some(Summoned::Hero),
         Effect::Custom(name) if name == "summon_champion" => Some(Summoned::Champion),
         Effect::Custom(name) if name == CRAFT_ITEM => Some(Summoned::Item),
@@ -164,11 +164,10 @@ impl App {
         let def = rules.spells.get(spell);
         let what = summoned_by(&def.effects)?;
         let (figure, label) = match &what {
-            Summoned::Creature(id) => {
-                let unit = rules.units.id_of(id)?;
-                let first = rules.units.id_of("magic_spirit")?;
+            Summoned::Creature(unit) => {
+                let first = UnitId::new(154) /* magic_spirit */;
                 let figure = (unit.num() as usize).checked_sub(first.num() as usize)?;
-                let args = Args::new().text("unit", rules.units.get(unit).name.clone());
+                let args = Args::new().text("unit", rules.units.get(*unit).name.clone());
                 (figure, self.text_with("spell.summoned", &args))
             }
             Summoned::Hero => (hero_figure(hero), self.text("spell.hero_summoned")),
@@ -271,7 +270,7 @@ mod tests {
         };
         assert_eq!(
             summons("war_bears"),
-            Some(Summoned::Creature("war_bears".into()))
+            Some(Summoned::Creature(UnitId::new(179))) // war_bears
         );
         assert_eq!(summons("summon_hero"), Some(Summoned::Hero));
         assert_eq!(summons("summon_champion"), Some(Summoned::Champion));

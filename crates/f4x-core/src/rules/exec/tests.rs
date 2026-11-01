@@ -11,7 +11,7 @@ struct MockUnit {
     hp: i32,
     resistance: i32,
     mods: Vec<Modifier>,
-    enchants: Vec<String>,
+    enchants: Vec<SpellId>,
 }
 
 /// A tiny synthetic world: units keyed by entity, one optional city.
@@ -19,7 +19,7 @@ struct MockUnit {
 struct MockHost {
     units: BTreeMap<u32, (hecs::Entity, MockUnit)>,
     city: Option<(hecs::Entity, Position)>,
-    summoned: Vec<(String, u8, Position)>,
+    summoned: Vec<(UnitId, u8, Position)>,
     terrain: Vec<(Position, TerrainClass)>,
     features: Vec<(Position, String)>,
     resources: Vec<(i32, i32, i32, i32)>,
@@ -74,11 +74,6 @@ impl MockHost {
 }
 
 impl EffectHost for MockHost {
-    fn ability_defs(&self) -> &Registry<AbilityDef> {
-        // The shipped table, built once for all the tests.
-        static TABLE: std::sync::OnceLock<Registry<AbilityDef>> = std::sync::OnceLock::new();
-        TABLE.get_or_init(|| crate::game::testutil::shipped().rules.abilities)
-    }
     fn facts(&self, who: Target) -> Facts {
         match who {
             Target::Unit(e) => self.unit(e).facts.clone(),
@@ -116,15 +111,14 @@ impl EffectHost for MockHost {
             u.mods.push(m);
         }
     }
-    fn grant_ability(&mut self, who: Target, a: &str) {
+    fn grant_ability(&mut self, who: Target, a: Ability) {
         if let Some(u) = self.unit_mut(who) {
-            u.facts.abilities.push(crate::game::testutil::ability(a));
+            u.facts.abilities.push(a);
         }
     }
-    fn remove_ability(&mut self, who: Target, a: &str) {
+    fn remove_ability(&mut self, who: Target, a: Ability) {
         if let Some(u) = self.unit_mut(who) {
-            let id = crate::game::testutil::ability(a);
-            u.facts.abilities.retain(|x| *x != id);
+            u.facts.abilities.retain(|x| *x != a);
         }
     }
     fn damage(&mut self, who: Target, amount: i32, _k: DamageKind) -> i32 {
@@ -141,8 +135,8 @@ impl EffectHost for MockHost {
     fn add_resources(&mut self, _w: Target, g: i32, f: i32, m: i32, r: i32) {
         self.resources.push((g, f, m, r));
     }
-    fn summon(&mut self, _o: PlayerId, at: Position, unit: &str, count: u8) {
-        self.summoned.push((unit.to_string(), count, at));
+    fn summon(&mut self, _o: PlayerId, at: Position, unit: UnitId, count: u8) {
+        self.summoned.push((unit, count, at));
     }
     fn change_terrain(&mut self, at: Position, class: TerrainClass) {
         self.terrain.push((at, class));
@@ -150,9 +144,9 @@ impl EffectHost for MockHost {
     fn set_feature(&mut self, at: Position, f: &str) {
         self.features.push((at, f.to_string()));
     }
-    fn apply_enchantment(&mut self, who: Target, spell: &str, _c: PlayerId) {
+    fn apply_enchantment(&mut self, who: Target, spell: SpellId, _c: PlayerId) {
         if let Some(u) = self.unit_mut(who) {
-            u.enchants.push(spell.to_string());
+            u.enchants.push(spell);
         }
     }
     fn dispel(&mut self, who: Target, strength: u32, _by: PlayerId) -> u32 {
@@ -209,27 +203,38 @@ fn conditions_combine() {
         abilities: vec![Ability::new(24)],
         terrain: Some(TerrainClass::Hills),
         plane: Some(Plane::Myrror),
-        race: Some("orc".into()),
+        race: Some(crate::rules::RaceId::new(12) /* orc */),
         in_battle: true,
         ..Facts::default()
     };
-    let table = &crate::game::testutil::shipped().rules.abilities;
-    assert!(eval(&Condition::Always, &f, table));
-    assert!(eval(&Condition::HasAbility("flying".into()), &f, table));
-    assert!(!eval(&Condition::HasAbility("swimming".into()), &f, table));
-    assert!(eval(&Condition::TerrainIs(TerrainClass::Hills), &f, table));
-    assert!(eval(&Condition::OnPlane(Plane::Myrror), &f, table));
-    assert!(eval(&Condition::RaceIs("orc".into()), &f, table));
-    assert!(!eval(&Condition::RealmIs("life".into()), &f, table));
-    assert!(eval(&Condition::InBattle, &f, table) && !eval(&Condition::InCity, &f, table));
+    assert!(eval(&Condition::Always, &f));
+    assert!(eval(
+        &Condition::HasAbility(crate::game::testutil::ability_ref("flying")),
+        &f
+    ));
+    assert!(!eval(
+        &Condition::HasAbility(crate::rules::Ref::new("swimming")),
+        &f
+    ));
+    assert!(eval(&Condition::TerrainIs(TerrainClass::Hills), &f));
+    assert!(eval(&Condition::OnPlane(Plane::Myrror), &f));
+    assert!(eval(
+        &Condition::RaceIs(crate::game::testutil::race_ref("orc")),
+        &f
+    ));
+    assert!(!eval(
+        &Condition::RealmIs(crate::game::testutil::realm_ref("life")),
+        &f
+    ));
+    assert!(eval(&Condition::InBattle, &f) && !eval(&Condition::InCity, &f));
     let all = Condition::All(vec![
         Condition::InBattle,
-        Condition::HasAbility("flying".into()),
+        Condition::HasAbility(crate::game::testutil::ability_ref("flying")),
     ]);
-    assert!(eval(&all, &f, table));
+    assert!(eval(&all, &f));
     let any = Condition::Any(vec![Condition::InCity, Condition::OnPlane(Plane::Arcanus)]);
-    assert!(!eval(&any, &f, table));
-    assert!(eval(&Condition::Not(Box::new(any)), &f, table));
+    assert!(!eval(&any, &f));
+    assert!(eval(&Condition::Not(Box::new(any)), &f));
 }
 
 #[test]
@@ -321,13 +326,16 @@ fn only_matching_trigger_and_condition_run() {
         ),
         rule(
             Trigger::Passive,
-            Condition::HasAbility("holy_bonus".into()),
+            Condition::HasAbility(crate::game::testutil::ability_ref("holy_bonus")),
             TargetSel::This,
             add(Stat::Defense, 1),
         ),
     ];
     assert!(run_rules(&rules, Trigger::Passive, &cx, &mut h).is_empty());
-    h.grant_ability(Target::Unit(a), "holy_bonus");
+    h.grant_ability(
+        Target::Unit(a),
+        crate::game::testutil::ability("holy_bonus"),
+    );
     let out = run_rules(&rules, Trigger::Passive, &cx, &mut h);
     assert_eq!(
         out,
@@ -391,7 +399,10 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
     let mut h = MockHost::default();
     let caster = h.spawn(0, pos(0, 0), 5, 0);
     let salamander = h.spawn(1, pos(1, 0), 9, 0);
-    h.grant_ability(Target::Unit(salamander), "fire_immunity");
+    h.grant_ability(
+        Target::Unit(salamander),
+        crate::game::testutil::ability("fire_immunity"),
+    );
     let plain = h.spawn(1, pos(2, 0), 9, 0);
     let bolt = |immune: &[&str], resist_modifier| {
         [rule(
@@ -402,8 +413,11 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
                 amount: 4,
                 kind: DamageKind::Fire,
                 resistible: true,
-                immune: immune.iter().map(|s| s.to_string()).collect(),
-                realm: Some("chaos".into()),
+                immune: immune
+                    .iter()
+                    .map(|s| crate::game::testutil::ability_ref(s))
+                    .collect(),
+                realm: Some(crate::game::testutil::realm_ref("chaos")),
                 resist_modifier,
                 traits: Default::default(),
             },
@@ -480,6 +494,7 @@ fn world_changing_effects_reach_the_host() {
             TargetSel::Tile,
             Effect::Summon {
                 unit: "wolf".into(),
+                unit_id: Some(UnitId::new(7)),
                 count: 2,
             },
         ),
@@ -498,7 +513,7 @@ fn world_changing_effects_reach_the_host() {
             Trigger::OnCast,
             Condition::Always,
             TargetSel::This,
-            Effect::ApplyEnchantment("haste".into()),
+            Effect::ApplyEnchantment(crate::game::testutil::spell_ref("haste")),
         ),
         rule(
             Trigger::OnCast,
@@ -510,9 +525,9 @@ fn world_changing_effects_reach_the_host() {
     run_rules(&rules, Trigger::OnCast, &cx, &mut h);
     assert_eq!(h.terrain, vec![(pos(3, 4), TerrainClass::Forest)]);
     assert_eq!(h.features, vec![(pos(3, 4), "ruin".to_string())]);
-    assert_eq!(h.summoned, vec![("wolf".to_string(), 2, pos(3, 4))]);
+    assert_eq!(h.summoned, vec![(UnitId::new(7), 2, pos(3, 4))]);
     assert_eq!(h.resources, vec![(5, 0, 3, 0)]);
-    assert_eq!(h.unit(a).enchants, vec!["haste".to_string()]);
+    assert_eq!(h.unit(a).enchants, vec![SpellId::new(70) /* haste */]);
     assert_eq!(h.customs, vec!["hook".to_string()]);
 }
 
@@ -523,14 +538,18 @@ fn grant_remove_heal_and_dispel() {
     let cx = ctx(Target::Unit(a), 0);
     let on_cast = |e| [rule(Trigger::OnCast, Condition::Always, TargetSel::This, e)];
     run_rules(
-        &on_cast(Effect::GrantAbility("flying".into())),
+        &on_cast(Effect::GrantAbility(crate::game::testutil::ability_ref(
+            "flying",
+        ))),
         Trigger::OnCast,
         &cx,
         &mut h,
     );
     assert_eq!(h.unit(a).facts.abilities, vec![Ability::new(24)]);
     run_rules(
-        &on_cast(Effect::RemoveAbility("flying".into())),
+        &on_cast(Effect::RemoveAbility(crate::game::testutil::ability_ref(
+            "flying",
+        ))),
         Trigger::OnCast,
         &cx,
         &mut h,
@@ -539,7 +558,9 @@ fn grant_remove_heal_and_dispel() {
     run_rules(&on_cast(Effect::Heal(3)), Trigger::OnCast, &cx, &mut h);
     assert_eq!(h.unit(a).hp, 5);
     run_rules(
-        &on_cast(Effect::ApplyEnchantment("x".into())),
+        &on_cast(Effect::ApplyEnchantment(crate::game::testutil::spell_ref(
+            "haste",
+        ))),
         Trigger::OnCast,
         &cx,
         &mut h,

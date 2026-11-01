@@ -27,9 +27,20 @@ impl App {
                 .effects
                 .iter()
                 .any(|e| matches!(e.effect, Effect::Summon { .. }));
-            (def.id.clone(), def.realm.clone(), summons, def.name.clone())
+            (
+                def.id.clone(),
+                def.realm.name().to_string(),
+                summons,
+                def.name.clone(),
+            )
         };
-        let fx = spell_fx::fx_for(self.art.spells(), &id, &realm, summons);
+        let fx = spell_fx::fx_for(
+            self.art.spells(),
+            &id,
+            &realm,
+            summons,
+            f4x_core::battle::field::Field::of(spell).is_some(),
+        );
         let side = match caster {
             Ok(side) => side,
             Err(unit) => before.unit(unit)?.side,

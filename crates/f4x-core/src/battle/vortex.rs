@@ -17,6 +17,7 @@ use super::map::{self, Pos};
 use super::{Battle, BattleError, BattleEvent, Side};
 use crate::rules::effects::DamageTraits;
 use crate::rules::Ability;
+use crate::rules::SpellId;
 
 /// Hook of the spell.
 pub const MAGIC_VORTEX: &str = "magic_vortex";
@@ -140,7 +141,9 @@ impl Battle {
             let cell = self.units[id].cell;
             if cell == to {
                 let u = &self.units[id];
-                if !u.has(Ability::new(40)) && !u.has_enchantment("righteousness") {
+                if !u.has(Ability::new(40))
+                    && !u.has_enchantment(SpellId::new(144) /* righteousness */)
+                {
                     let mut state = u.defender_state();
                     let lost = unblockable(&mut state, CRUSH_DAMAGE);
                     if lost.points > 0 {

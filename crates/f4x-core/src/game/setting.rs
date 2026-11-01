@@ -8,7 +8,11 @@
 
 use serde::{Deserialize, Serialize};
 
+use std::collections::BTreeMap;
+
 use crate::player::PlayerId;
+use crate::rules::refs::{Names, Ref};
+use crate::rules::SpellDef;
 
 /// Land as a share of each plane's tiles for the original's three sizes.
 pub const LAND_SMALL: u8 = 15;
@@ -478,23 +482,71 @@ pub struct SpellLibraryDef {
     /// Spells of the realm the wizard chooses at creation (the rest of `known` are defaults).
     pub chosen: Vec<Rarities>,
     /// Spells every wizard knows at the start.
-    pub always_known: Vec<String>,
+    pub always_known: Vec<Ref<SpellDef>>,
     /// Spells a retort gives at the start, by the retort's alias (`retorts.ron`).
-    pub retort_known: std::collections::BTreeMap<String, Vec<String>>,
+    pub retort_known: std::collections::BTreeMap<String, Vec<Ref<SpellDef>>>,
     /// Spells of the arcane realm nobody may research at the start (they come by other ways).
-    pub arcane_closed: Vec<String>,
+    pub arcane_closed: Vec<Ref<SpellDef>>,
     /// A computer wizard also knows this spell of its main realm (the realm with most books;
     /// the first of the realms in file order on a tie), by realm id. The original's table is
     /// off by one spell from what its code names (`INITGAME.c`, `OGBUG`); these are the spells
     /// it really gives, and the ones the wiki lists.
-    pub ai_main_realm_known: std::collections::BTreeMap<String, String>,
+    pub ai_main_realm_known: std::collections::BTreeMap<String, Ref<SpellDef>>,
     /// From this difficulty on (3 is Hard) a computer wizard may also research this spell of its
     /// main realm, by realm id.
-    pub ai_main_realm_researchable: std::collections::BTreeMap<String, String>,
+    pub ai_main_realm_researchable: std::collections::BTreeMap<String, Ref<SpellDef>>,
     pub ai_main_realm_researchable_from: u8,
+    /// `retort_known` as numbers, filled once when the content loads ([`Self::resolve`]).
+    #[serde(skip)]
+    pub retort_spells: Vec<(crate::wizard::magic::Retort, Vec<crate::rules::SpellId>)>,
+    /// `ai_main_realm_known` as numbers.
+    #[serde(skip)]
+    pub ai_known: BTreeMap<crate::rules::RealmId, crate::rules::SpellId>,
+    /// `ai_main_realm_researchable` as numbers.
+    #[serde(skip)]
+    pub ai_researchable: BTreeMap<crate::rules::RealmId, crate::rules::SpellId>,
 }
 
 impl SpellLibraryDef {
+    /// Turn the spell names into numbers, once, when the content loads (the rules' spells are
+    /// needed, so this runs after them). A name that is no spell stays unresolved and
+    /// content validation reports it.
+    pub fn resolve(
+        &mut self,
+        spells: &[SpellDef],
+        retorts: &crate::rules::Registry<crate::rules::RetortDef>,
+        realms: &crate::rules::Registry<crate::rules::RealmDef>,
+    ) {
+        let mut names = Names::new();
+        names.add(spells);
+        names.resolve_all(&mut self.always_known);
+        names.resolve_all(&mut self.arcane_closed);
+        for list in self.retort_known.values_mut() {
+            names.resolve_all(list);
+        }
+        for r in self.ai_main_realm_known.values_mut() {
+            names.resolve(r);
+        }
+        for r in self.ai_main_realm_researchable.values_mut() {
+            names.resolve(r);
+        }
+        self.retort_spells = self
+            .retort_known
+            .iter()
+            .filter_map(|(r, list)| {
+                let spells = list.iter().filter_map(|s| s.id()).collect();
+                Some((retorts.id_of(r)?, spells))
+            })
+            .collect();
+        let by_realm = |map: &BTreeMap<String, Ref<SpellDef>>| {
+            map.iter()
+                .filter_map(|(r, s)| Some((realms.id_of(r)?, s.id()?)))
+                .collect()
+        };
+        self.ai_known = by_realm(&self.ai_main_realm_known);
+        self.ai_researchable = by_realm(&self.ai_main_realm_researchable);
+    }
+
     /// Most books in a realm; the tables have one row more.
     pub const MAX_BOOKS: usize = 11;
 
@@ -589,6 +641,9 @@ impl Default for SpellLibraryDef {
             .map(|(a, b)| (a.into(), b.into()))
             .collect(),
             ai_main_realm_researchable_from: 3,
+            retort_spells: Vec::new(),
+            ai_known: BTreeMap::new(),
+            ai_researchable: BTreeMap::new(),
         }
     }
 }

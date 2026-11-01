@@ -26,7 +26,7 @@ use crate::map::{Map, Plane, Position};
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::lair::{HoardKind, LairRules};
 
-use crate::rules::{Rarity, SpellId, Stat, UnitKind};
+use crate::rules::{Rarity, RealmDef, RealmId, SpellId, Stat, UnitId, UnitKind};
 use crate::unit::movement::MoveError;
 
 use crate::game::{Event, Game};
@@ -34,19 +34,25 @@ use crate::wizard::{all_retorts, retort_available, retort_cost};
 
 /// What kind of site a lair guards, for choosing its guards' realm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SiteType<'a> {
+enum SiteType {
     Tower,
-    Node(&'a str),
+    Node(RealmId),
     /// Temples and ruins draw on death and life.
     Holy,
     /// Caves, lairs, dungeons and keeps draw on death, chaos and nature.
     Wild,
 }
 
-fn site_type<'a>(def_id: &'a str, kind: FeatureKind) -> SiteType<'a> {
+fn site_type(
+    def_id: &str,
+    kind: FeatureKind,
+    realms: &crate::rules::Registry<RealmDef>,
+) -> SiteType {
     match kind {
         FeatureKind::Tower => SiteType::Tower,
-        FeatureKind::Node => SiteType::Node(def_id.strip_suffix("_node").unwrap_or(def_id)),
+        FeatureKind::Node => realms
+            .id_of(def_id.strip_suffix("_node").unwrap_or(def_id))
+            .map_or(SiteType::Wild, SiteType::Node),
         _ if def_id.contains("temple") || def_id.contains("ruin") => SiteType::Holy,
         _ => SiteType::Wild,
     }
@@ -58,7 +64,7 @@ fn random(rng: &mut Pcg64Mcg, n: i32) -> i32 {
 }
 
 /// The realm of a site's guards.
-fn guard_realm<'a>(rng: &mut Pcg64Mcg, site: SiteType, content: &'a Content) -> &'a str {
+fn guard_realm(rng: &mut Pcg64Mcg, site: SiteType, content: &Content) -> Option<RealmId> {
     let rules = &content.rules.lairs;
     let realms = &content.rules.realms;
     let table = |rng: &mut Pcg64Mcg, weights| {
@@ -68,25 +74,21 @@ fn guard_realm<'a>(rng: &mut Pcg64Mcg, site: SiteType, content: &'a Content) -> 
         )
     };
     let num = match site {
-        SiteType::Node(realm) => {
-            let own = realms.id_of(realm).map(|r| r.num());
-            own.filter(|n| rules.node_own_realms.contains(n))
-                .unwrap_or(rules.node_other)
-        }
+        SiteType::Node(realm) => Some(realm.num())
+            .filter(|n| rules.node_own_realms.contains(n))
+            .unwrap_or(rules.node_other),
         SiteType::Tower => table(rng, &rules.tower_realms),
         SiteType::Holy => table(rng, &rules.holy_realms),
         // The original's switch falls through to nature in every case; the intended split
         // (ReMoM marks it a bug) is two parts death, two chaos, one nature.
         SiteType::Wild => table(rng, &rules.wild_realms),
     };
-    realms
-        .id_numbered(num)
-        .map_or("", |id| realms.get(id).id.as_str())
+    realms.id_numbered(num)
 }
 
 /// Units that can guard a site of `realm`: summoned creatures of that realm that are not
 /// transports, with their costs, in the data's order.
-pub(crate) fn candidates(content: &Content, realm: &str) -> Vec<(String, i32)> {
+pub(crate) fn candidates(content: &Content, realm: RealmId) -> Vec<(UnitId, i32)> {
     content
         .rules
         .units
@@ -94,22 +96,22 @@ pub(crate) fn candidates(content: &Content, realm: &str) -> Vec<(String, i32)> {
         .iter()
         .filter(|d| {
             d.kind == UnitKind::Summoned
-                && d.realm.as_deref() == Some(realm)
+                && d.realm.as_ref().and_then(|r| r.id()) == Some(realm)
                 && d.stats.get(&Stat::Transport).copied().unwrap_or(0) == 0
         })
-        .map(|d| (d.id.clone(), d.cost as i32))
+        .map(|d| (UnitId::new(d.num), d.cost as i32))
         .collect()
 }
 
 /// The dearest candidate costing less than `limit` (the first of equals), skipping `not`.
-fn dearest_under<'a>(
-    list: &'a [(String, i32)],
+fn dearest_under(
+    list: &[(UnitId, i32)],
     limit: i32,
-    not: Option<&str>,
-) -> Option<&'a (String, i32)> {
-    let mut best: Option<&(String, i32)> = None;
+    not: Option<UnitId>,
+) -> Option<&(UnitId, i32)> {
+    let mut best: Option<&(UnitId, i32)> = None;
     for c in list {
-        if not == Some(c.0.as_str()) {
+        if not == Some(c.0) {
             continue;
         }
         if c.1 > best.map_or(0, |b| b.1) && c.1 < limit {
@@ -124,15 +126,15 @@ fn dearest_under<'a>(
 fn pick_guards(
     rng: &mut Pcg64Mcg,
     rules: &LairRules,
-    list: &[(String, i32)],
+    list: &[(UnitId, i32)],
     mut budget: i32,
-) -> (Vec<(String, u32)>, i32, i32) {
-    let mut guards: Vec<(String, u32)> = Vec::new();
-    let draw = |rng: &mut Pcg64Mcg, budget: i32, spread: i32, not: Option<&str>| {
+) -> (Vec<(UnitId, u32)>, i32, i32) {
+    let mut guards: Vec<(UnitId, u32)> = Vec::new();
+    let draw = |rng: &mut Pcg64Mcg, budget: i32, spread: i32, not: Option<UnitId>| {
         for _ in 0..200 {
             let limit = budget / random(rng, spread);
             if let Some(c) = dearest_under(list, limit, not) {
-                return Some(c.clone());
+                return Some(*c);
             }
         }
         None
@@ -152,12 +154,12 @@ fn pick_guards(
         guards.push((id, count as u32));
     }
     if first_count > 0 {
-        let first_id = guards[0].0.clone();
+        let first_id = guards[0].0;
         if let Some((id, cost)) = draw(
             rng,
             budget,
             rules.second_spread - first_count,
-            Some(&first_id),
+            Some(first_id),
         ) {
             let count = (budget / cost).min(rules.max_guards as i32 - first_count);
             if count > 0 {
@@ -318,8 +320,8 @@ fn make_lair(
 ) -> Lair {
     let rules = &content.rules.lairs;
     let budget = budget * guard_percent / 100;
-    let realm = guard_realm(rng, site, content);
-    let list = candidates(content, realm);
+    let list =
+        guard_realm(rng, site, content).map_or_else(Vec::new, |realm| candidates(content, realm));
     let (guards, first, second) = pick_guards(rng, rules, &list, budget);
     let mut lair = Lair {
         intact: true,
@@ -350,8 +352,8 @@ fn make_lair(
 pub struct Lair {
     /// False once cleared.
     pub intact: bool,
-    /// Guard unit ids with counts; empty for an unguarded site.
-    pub guards: Vec<(String, u32)>,
+    /// Guard units with counts; empty for an unguarded site.
+    pub guards: Vec<(UnitId, u32)>,
     pub gold: u32,
     pub mana: u32,
     /// The value of each magic item inside (items themselves wait for the hero tasks).
@@ -430,7 +432,7 @@ pub fn generate_lairs(
             &mut rng,
             content,
             pos.plane,
-            SiteType::Node(&node.realm),
+            SiteType::Node(node.realm),
             budget,
             guards,
             treasure,
@@ -479,7 +481,7 @@ pub fn generate_lairs(
             &mut rng,
             content,
             plane,
-            site_type(&def.id, def.kind),
+            site_type(&def.id, def.kind, &content.rules.realms),
             budget,
             guards,
             treasure,
@@ -507,7 +509,7 @@ pub struct Loot {
     pub prisoner: bool,
     pub spell: Option<SpellId>,
     /// Spell books gained, by realm.
-    pub books: Vec<String>,
+    pub books: Vec<RealmId>,
     pub retorts: Vec<crate::wizard::magic::Retort>,
 }
 
@@ -544,17 +546,16 @@ pub(crate) fn award_spell(
     rng: &mut crate::game::rng::GameRng,
     rarity: i32,
 ) -> Option<SpellId> {
-    let mut realms: Vec<String> = ["nature", "sorcery", "chaos", "life", "death"]
-        .iter()
-        .filter(|r| wizard.view().books_in(r) > 0)
-        .map(|r| r.to_string())
+    let mut realms: Vec<RealmId> = crate::rules::BOOK_REALMS
+        .into_iter()
+        .filter(|&r| wizard.view().books_in(r) > 0)
         .collect();
-    realms.push("arcane".to_string());
+    realms.push(RealmId::new(5) /* arcane */);
     while !realms.is_empty() {
         let r = rng.roll(realms.len() as u32) as usize - 1;
         let realm = realms.remove(r);
-        let cap = match (realm.as_str(), wizard.view().books_in(&realm)) {
-            ("arcane", _) => 3,
+        let cap = match (realm.num(), wizard.view().books_in(realm)) {
+            (5 /* arcane */, _) => 3,
             (_, 1) => 2,
             (_, 2) => 3,
             _ => 4,
@@ -566,7 +567,7 @@ pub(crate) fn award_spell(
                 3 => Rarity::Rare,
                 _ => Rarity::VeryRare,
             };
-            let pool: Vec<SpellId> = crate::wizard::magic::spells_of(content, &realm, level)
+            let pool: Vec<SpellId> = crate::wizard::magic::spells_of(content, realm, level)
                 .into_iter()
                 .filter(|s| !wizard.view().knows(*s))
                 .filter(|s| {
@@ -600,13 +601,14 @@ pub(crate) fn award_special(
     picks: i32,
     loot: &mut Loot,
 ) {
+    let [nature, sorcery, chaos, life, death] = crate::rules::BOOK_REALMS;
     let realm = match lair.site.as_str() {
-        "nature_node" => "nature".to_string(),
-        "sorcery_node" => "sorcery".to_string(),
-        "chaos_node" => "chaos".to_string(),
-        s if s.contains("temple") => "life".to_string(),
-        "dungeon" | "abandoned_keep" | "ruins" => "death".to_string(),
-        _ => ["nature", "sorcery", "chaos", "life", "death"][rng.roll(5) as usize - 1].to_string(),
+        "nature_node" => nature,
+        "sorcery_node" => sorcery,
+        "chaos_node" => chaos,
+        s if s.contains("temple") => life,
+        "dungeon" | "abandoned_keep" | "ruins" => death,
+        _ => crate::rules::BOOK_REALMS[rng.roll(5) as usize - 1],
     };
     // Three times in four a book; the original turns to the other kind when the wizard is at
     // the limit of six retorts or twelve books.
@@ -638,17 +640,17 @@ pub(crate) fn award_special(
         }
     }
     for _ in 0..picks {
-        let clash = (realm == "life" && wizard.view().books_in("death") > 0)
-            || (realm == "death" && wizard.view().books_in("life") > 0);
+        let clash = (realm == life && wizard.view().books_in(death) > 0)
+            || (realm == death && wizard.view().books_in(life) > 0);
         if clash || wizard.view().total_books() >= 12 {
             continue;
         }
         *wizard
             .get_mut::<crate::wizard::sheet::Books>()
             .0
-            .entry(realm.clone())
+            .entry(realm)
             .or_insert(0) += 1;
-        loot.books.push(realm.clone());
+        loot.books.push(realm);
     }
 }
 
@@ -685,12 +687,9 @@ impl Game {
         if !matches!(entry, crate::unit::movement::Entry::Site(e) if e == site) {
             return Err(SiteError::NoSite);
         }
-        let guards: Vec<(String, u32)> = lair.guards.clone();
+        let guards: Vec<(UnitId, u32)> = lair.guards.clone();
         let mut defenders = Vec::new();
-        for (id, count) in guards {
-            let Some(unit) = self.content.rules.units.id_of(&id) else {
-                continue;
-            };
+        for (unit, count) in guards {
             for _ in 0..count {
                 if defenders.len() < crate::unit::MAX_STACK {
                     defenders.push(self.spawn_unit(MONSTERS, to, unit));

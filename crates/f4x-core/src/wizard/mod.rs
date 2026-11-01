@@ -24,7 +24,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::game::setting::SpellLibraryDef;
 use crate::game::Game;
 use crate::player::PlayerId;
-use crate::rules::{Rarity, Rules, SpellId};
+use crate::rules::{Rarity, RealmId, Rules, SpellId};
 use crate::wizard::magic::{MagicError, Retort};
 
 /// Picks the wizard spends on books and retorts.
@@ -41,7 +41,7 @@ pub struct WizardBuild {
     /// For the messages that name the wizard (`docs/text.md`).
     pub gender: crate::text::Gender,
     /// Books by realm id.
-    pub books: BTreeMap<String, u8>,
+    pub books: BTreeMap<RealmId, u8>,
     pub retorts: BTreeSet<Retort>,
     /// Chosen starting spells; realms with fewer than `books - 1` choices are filled from
     /// the realm's defaults.
@@ -69,8 +69,8 @@ pub enum BuildError {
     TooManyRetorts,
     /// The retort's prerequisites are not met.
     RetortNotAvailable(Retort),
-    UnknownRealm(String),
-    TooManyBooks(String),
+    UnknownRealm(RealmId),
+    TooManyBooks(RealmId),
     /// A chosen spell is not a common spell of one of the wizard's realms, or too many.
     BadSpell(SpellId),
     Magic(MagicError),
@@ -89,7 +89,7 @@ pub fn all_retorts(rules: &Rules) -> impl Iterator<Item = Retort> + '_ {
 
 /// The books a retort needs before it may be picked (its `requires` in `retorts.ron`: the
 /// original's `wsa_picklist_start` and the unlocks in its pick screen).
-pub fn retort_available(rules: &Rules, retort: Retort, books: &BTreeMap<String, u8>) -> bool {
+pub fn retort_available(rules: &Rules, retort: Retort, books: &BTreeMap<RealmId, u8>) -> bool {
     rules.retorts.get(retort).available(books)
 }
 
@@ -115,11 +115,13 @@ impl WizardBuild {
     pub fn spell_choices_of(
         &self,
         library: &SpellLibraryDef,
-        realm: &str,
+        realm: RealmId,
         rarity: Rarity,
     ) -> usize {
-        let row =
-            SpellLibraryDef::row(&library.chosen, self.books.get(realm).copied().unwrap_or(0));
+        let row = SpellLibraryDef::row(
+            &library.chosen,
+            self.books.get(&realm).copied().unwrap_or(0),
+        );
         usize::from(match rarity {
             Rarity::Common => row.common,
             Rarity::Uncommon => row.uncommon,
@@ -132,12 +134,12 @@ impl WizardBuild {
 impl Game {
     /// Check a build against the pick rules (not the starting spells).
     pub fn check_wizard_build(&self, build: &WizardBuild) -> Result<(), BuildError> {
-        for (realm, &n) in &build.books {
-            if n > 0 && self.content.rules.realms.id_of(realm).is_none() {
-                return Err(BuildError::UnknownRealm(realm.clone()));
+        for (&realm, &n) in &build.books {
+            if n > 0 && self.content.rules.realms.id_numbered(realm.num()).is_none() {
+                return Err(BuildError::UnknownRealm(realm));
             }
             if n > MAX_BOOKS {
-                return Err(BuildError::TooManyBooks(realm.clone()));
+                return Err(BuildError::TooManyBooks(realm));
             }
         }
         if build.preset {
@@ -173,24 +175,23 @@ impl Game {
         self.check_wizard_build(build)?;
         // Chosen spells must be of a realm the wizard has books in, and of a rarity and number
         // the books allow.
-        let mut per_realm: BTreeMap<(String, Rarity), Vec<SpellId>> = BTreeMap::new();
+        let mut per_realm: BTreeMap<(Option<RealmId>, Rarity), Vec<SpellId>> = BTreeMap::new();
         for &s in &build.spells {
             let def = self.content.rules.spells.get(s);
-            let key = (def.realm.clone(), def.rarity);
-            let room = build.spell_choices_of(
-                &self.content.settings.spell_library,
-                &def.realm,
-                def.rarity,
-            );
+            let realm = def.realm.id();
+            let key = (realm, def.rarity);
+            let room = realm.map_or(0, |realm| {
+                build.spell_choices_of(&self.content.settings.spell_library, realm, def.rarity)
+            });
             let list = per_realm.entry(key).or_default();
             if list.contains(&s) || list.len() >= room {
                 return Err(BuildError::BadSpell(s));
             }
             list.push(s);
         }
-        let books: Vec<(&str, u8)> = build.books.iter().map(|(r, &n)| (r.as_str(), n)).collect();
+        let books: Vec<(RealmId, u8)> = build.books.iter().map(|(&r, &n)| (r, n)).collect();
         let retorts: Vec<Retort> = build.retorts.iter().copied().collect();
-        self.init_wizard(player, &books, &retorts, Some(&build.spells))
+        self.init_wizard_by_id(player, &books, &retorts, Some(&build.spells))
             .map_err(BuildError::Magic)?;
         if !build.name.is_empty() {
             self.wizard_set(player, entity::Name(build.name.clone()));
@@ -221,15 +222,15 @@ impl Game {
             .iter()
             .position(|w| w.id == id)?;
         let def = &self.content.rules.wizards.defs()[place];
-        let retorts = def
-            .retorts
-            .iter()
-            .map(|r| self.content.rules.retorts.id_of(r))
-            .collect::<Option<_>>()?;
+        let retorts = def.retorts.iter().map(|r| r.id()).collect::<Option<_>>()?;
         Some(WizardBuild {
             name: def.name.clone(),
             gender: def.gender,
-            books: def.books.iter().cloned().collect(),
+            books: def
+                .books
+                .iter()
+                .filter_map(|(r, n)| Some((r.id()?, *n)))
+                .collect(),
             retorts,
             spells: Vec::new(),
             banner: None,

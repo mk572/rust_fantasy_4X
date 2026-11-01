@@ -207,8 +207,9 @@ pub fn mercenary_pool(rules: &Rules, arcanus: bool, myrror: bool) -> Vec<&UnitDe
                 && !u.ability_ids.contains(&Ability::new(12))
                 && u.id != DRACONIAN_ENGINEERS
                 && u.race
-                    .as_deref()
-                    .and_then(|r| rules.races.by_name(r))
+                    .as_ref()
+                    .and_then(|r| r.id())
+                    .map(|r| rules.races.get(r))
                     .is_some_and(|race| if race.myrror { myrror } else { arcanus })
         })
         .collect()
@@ -491,8 +492,9 @@ impl Game {
                     .units
                     .get(id)
                     .level_path
-                    .as_deref()
-                    .and_then(|p| self.content.rules.level_paths.by_name(p))
+                    .as_ref()
+                    .and_then(|p| p.id())
+                    .map(|p| self.content.rules.level_paths.get(p))
                     .and_then(|path| {
                         // A path with fewer levels gives its highest.
                         path.levels

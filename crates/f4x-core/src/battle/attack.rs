@@ -17,6 +17,7 @@
 //!
 //! Tests: in battle/attack/tests.rs.
 
+use crate::rules::SpellId;
 use rand::{Rng, RngCore};
 
 use super::immunity::{
@@ -80,7 +81,7 @@ pub struct DefenderState {
     /// Its resistance and the lasting spells that add to it, for the resistance checks of
     /// special attacks.
     pub resistance: i32,
-    pub enchantments: Vec<String>,
+    pub enchantments: Vec<SpellId>,
     /// The realm of the creature, for dispel evil (chaos and death creatures); the undead.
     pub realm: Option<Realm>,
     pub undead: bool,
@@ -111,30 +112,33 @@ impl DefenderState {
 
     /// Under Black Sleep: every blow against it does its full strength.
     fn asleep(&self) -> bool {
-        self.enchantments.iter().any(|e| e == "black_sleep")
+        self.enchantments
+            .contains(&SpellId::new(165) /* black_sleep */)
     }
 
     /// The defence it rolls against one of `attacker`'s attacks: its own, the bonuses its
     /// lasting spells give against the attack's realm, then what its immunities make of it.
     /// Righteousness turns a ranged chaos or death attack away outright.
     fn defense_versus(&self, attacker: &Combatant) -> i32 {
-        let ids: Vec<&str> = self.enchantments.iter().map(String::as_str).collect();
+        let ids = &self.enchantments;
         let (realm, mode) = (attacker.nature.realm, attacker.mode);
-        if righteous_ward(realm, mode, &ids) {
+        if righteous_ward(realm, mode, ids) {
             return IMMUNE_DEFENSE;
         }
         // Berserk: no defence at all, whatever else the unit has (immunities still count).
-        let defense = if ids.contains(&"berserk") {
+        let defense = if ids.contains(&SpellId::new(179) /* berserk */) {
             0
         } else {
-            self.defense_against(mode) + defense_bonus(realm, mode, &ids)
+            self.defense_against(mode) + defense_bonus(realm, mode, ids)
         };
         effective_defense(defense, &self.immunities, &attacker.nature, mode)
     }
 
     /// The blows one roll of `defense` stops: Invulnerability stops two more.
     fn blocks(&self, defense: i32, eldritch: bool, rng: &mut dyn RngCore) -> i32 {
-        let invulnerable = self.enchantments.iter().any(|e| e == "invulnerability");
+        let invulnerable = self
+            .enchantments
+            .contains(&SpellId::new(143) /* invulnerability */);
         roll_successes(defense, self.to_block - i32::from(eldritch), rng)
             + if invulnerable {
                 INVULNERABILITY_BLOCK
@@ -159,8 +163,8 @@ impl DefenderState {
         modifier: i32,
         rng: &mut dyn RngCore,
     ) -> i32 {
-        let ids: Vec<&str> = self.enchantments.iter().map(String::as_str).collect();
-        let resistance = effective_resistance(self.resistance, &self.immunities, realm, &ids);
+        let resistance =
+            effective_resistance(self.resistance, &self.immunities, realm, &self.enchantments);
         resistance_failure(resistance, modifier, rng)
     }
 

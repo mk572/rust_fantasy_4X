@@ -72,9 +72,12 @@ impl App {
             .spell_picture(&def.id, &Role::Cast)
             .or_else(|| {
                 self.art
-                    .spell_picture(&def.id, &Role::Realm(def.realm.clone()))
+                    .spell_picture(&def.id, &Role::Realm(def.realm.name().to_string()))
             })
-            .or_else(|| self.art.shared_picture(&Role::Realm(def.realm.clone())))?;
+            .or_else(|| {
+                self.art
+                    .shared_picture(&Role::Realm(def.realm.name().to_string()))
+            })?;
         Some(SquareAnim {
             at,
             picture,

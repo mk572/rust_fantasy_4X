@@ -32,7 +32,7 @@ fn world() -> Game {
             "high_elf_pegasai" | "magic_spirit" => u.kind = UnitKind::Normal,
             "high_men_spearmen" => {
                 u.kind = UnitKind::Summoned;
-                u.realm = Some("chaos".into());
+                u.realm = Some(crate::game::testutil::realm_ref("chaos"));
             }
             _ => {}
         }
@@ -1006,7 +1006,10 @@ fn chaos_channels_gives_one_mutation_once_and_makes_a_creature_of_chaos() {
             .unwrap_or_else(|| panic!("{events:?}"));
         seen.insert(format!("{m:?}"));
         let units = g.units();
-        assert_eq!(units.unit_realm(u).as_deref(), Some("chaos"));
+        assert_eq!(
+            units.unit_realm(u),
+            Some(crate::game::testutil::realm("chaos"))
+        );
         // The unit sheet names the mutation by this marker.
         let marker = crate::unit::mutation::MUTATION_MARKERS
             .iter()

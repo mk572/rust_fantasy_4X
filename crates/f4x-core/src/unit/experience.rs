@@ -51,8 +51,9 @@ impl UnitView<'_> {
         }
         let cap = def
             .level_path
-            .as_deref()
-            .and_then(|p| self.content.rules.level_paths.by_name(p))
+            .as_ref()
+            .and_then(|p| p.id())
+            .map(|p| self.content.rules.level_paths.get(p))
             .and_then(|p| p.levels.last())
             .map(|l| l.xp)?;
         let xp = self.world.get::<&Experience>(unit).map_or(0, |x| x.0);

@@ -100,14 +100,11 @@ impl App {
         let Some(def) = self.game.units().unit_def(unit) else {
             return String::new();
         };
-        let race = def.race.as_deref().and_then(|r| {
-            self.game
-                .content()
-                .rules
-                .races
-                .by_name(r)
-                .map(|r| r.name.clone())
-        });
+        let race = def
+            .race
+            .as_ref()
+            .and_then(|r| r.id())
+            .map(|r| self.game.content().rules.races.get(r).name.clone());
         match race {
             Some(r) => format!("{r} {}", def.name),
             None => def.name.clone(),

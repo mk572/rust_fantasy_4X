@@ -4,7 +4,7 @@ use crate::game::testutil::{num, shipped};
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::player::{PlayerId, MONSTERS};
-use crate::rules::Stat;
+use crate::rules::{Stat, UnitId};
 use crate::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
@@ -51,12 +51,12 @@ fn world(troops: usize) -> Game {
     g
 }
 
-fn lair(guards: Vec<(&str, u32)>) -> Lair {
+fn lair(guards: Vec<(u16, u32)>) -> Lair {
     Lair {
         intact: true,
         guards: guards
             .into_iter()
-            .map(|(g, n)| (g.to_string(), n))
+            .map(|(g, n)| (UnitId::new(g), n))
             .collect(),
         gold: 120,
         mana: 0,
@@ -160,7 +160,7 @@ fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() -> 
     let site = g.put_lair(
         at(14, 8),
         num::feature::MONSTER_LAIR,
-        lair(vec![("skeletons", 2)]),
+        lair(vec![(165, 2)]), /* skeletons */
     );
     g.threat.monster_clock = 1000;
     let events = g.process_threats();
@@ -179,8 +179,9 @@ fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() -> 
     let lair = g.economy().lair_of(site).ok_or("lair_of is missing")?;
     assert_eq!(lair.guards.iter().map(|(_, n)| n).sum::<u32>(), count);
     assert!(lair.guards.iter().all(|(id, _)| {
-        let def = g.content.rules.units.by_name(id).expect("by_name succeeds");
-        def.kind == crate::rules::UnitKind::Summoned && def.realm.as_deref() == Some("death")
+        let def = g.content.rules.units.get(*id);
+        def.kind == crate::rules::UnitKind::Summoned
+            && def.realm.as_ref().map(|r| r.name()) == Some("death")
     }));
     assert!(lair.fought_by.is_empty(), "nobody knows the new guards");
     let roaming = g.units().player_units(MONSTERS);
@@ -204,7 +205,7 @@ fn life_lairs_keep_their_guards() {
     g.put_lair(
         at(14, 8),
         num::feature::MONSTER_LAIR,
-        lair(vec![("angel", 1)]),
+        lair(vec![(177, 1)]), /* angel */
     );
     g.threat.monster_clock = 1000;
     assert!(g.process_threats().is_empty());
@@ -221,7 +222,7 @@ fn nothing_comes_before_the_first_monster_turn_and_the_clock_starts_again() {
     g.put_lair(
         at(14, 8),
         num::feature::MONSTER_LAIR,
-        lair(vec![("skeletons", 2)]),
+        lair(vec![(165, 2)]), /* skeletons */
     );
     g.threat.monster_clock = 1000;
     assert!(g.process_threats().is_empty());
@@ -249,7 +250,7 @@ fn a_lair_on_a_landmass_without_a_player_is_not_chosen() -> TestResult {
     g.put_lair(
         at(16, 8),
         num::feature::MONSTER_LAIR,
-        lair(vec![("skeletons", 2)]),
+        lair(vec![(165, 2)]), /* skeletons */
     );
     g.threat.monster_clock = 1000;
     assert!(g.process_threats().is_empty());
@@ -300,7 +301,7 @@ fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() -> TestResult {
     );
     let lair = g.economy().lair_of(site).ok_or("lair_of is missing")?;
     assert!(lair.intact);
-    assert_eq!(lair.guards, vec![("ghouls".to_string(), 2)]);
+    assert_eq!(lair.guards, vec![(UnitId::new(166) /* ghouls */, 2)]);
     assert!(
         g.units().player_units(MONSTERS).is_empty(),
         "the units became the guards"
@@ -312,7 +313,7 @@ fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() -> TestResult {
 fn a_node_a_wizard_holds_is_not_taken() -> TestResult {
     let mut g = world(0);
     let node = crate::feature::node::Node {
-        realm: "chaos".into(),
+        realm: crate::game::testutil::realm("chaos"),
         power: 5,
         aura: vec![(14, 8)],
         guardian: false,
@@ -386,7 +387,7 @@ fn monsters_that_win_a_city_wreck_it_and_vanish_and_sometimes_leave_ruins() -> T
                 .economy()
                 .lair_at(at(16, 9))
                 .expect("the ruins hold a lair");
-            assert_eq!(lair.guards, vec![("ghouls".to_string(), 2)]);
+            assert_eq!(lair.guards, vec![(UnitId::new(166) /* ghouls */, 2)]);
             assert!(g.units().player_units(MONSTERS).is_empty());
         } else {
             kept += 1;

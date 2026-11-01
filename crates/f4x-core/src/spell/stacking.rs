@@ -30,26 +30,24 @@ impl Game {
                 if spells.unit_has(u, spell) {
                     return Err(MagicError::AlreadyEnchanted);
                 }
-                let rival = def.not_with.iter().filter_map(|id| {
-                    self.content
-                        .rules
-                        .spells
-                        .id_of(id)
-                        .map(|s| (s, id.as_str()))
-                });
-                for (other, id) in rival {
-                    if spells.unit_has(u, other) || self.has_global(player, id) {
+                for other in crate::rules::refs::ids(&def.not_with) {
+                    if spells.unit_has(u, other) || self.has_global(player, other) {
                         return Err(MagicError::NotCumulative);
                     }
                 }
-                let own = self.units().unit_def(u).map(|d| d.abilities.as_slice());
-                if own.is_some_and(|own| def.already_able.iter().any(|a| own.contains(a))) {
+                let own = self.units().unit_def(u).map(|d| d.ability_ids.as_slice());
+                if own.is_some_and(|own| {
+                    def.already_able
+                        .iter()
+                        .filter_map(|a| a.id())
+                        .any(|a| own.contains(&a))
+                }) {
                     return Err(MagicError::AlreadyAble);
                 }
                 Ok(())
             }
             (SpellTarget::OwnCity | SpellTarget::EnemyCity, Some(Target::City(c)))
-                if self.economy().city_has_enchantment(c, &def.id) =>
+                if self.economy().city_has_enchantment(c, spell) =>
             {
                 Err(MagicError::AlreadyEnchanted)
             }
@@ -63,12 +61,12 @@ impl crate::unit::UnitView<'_> {
     /// the unit's own enchantments or one its items carry (Stone Skin under Iron Skin).
     pub(crate) fn unit_spell_superseded(&self, unit: hecs::Entity, spell: SpellId) -> bool {
         let def = self.content.rules.spells.get(spell);
-        def.not_with.iter().any(|id| {
-            self.content.rules.spells.id_of(id).is_some_and(|other| {
+        crate::rules::refs::ids(&def.not_with)
+            .into_iter()
+            .any(|other| {
                 crate::spell::instance::Spells::new(self.world).unit_has(unit, other)
                     || self.items().spells(unit).contains(&other)
             })
-        })
     }
 }
 
