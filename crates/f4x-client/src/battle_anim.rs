@@ -105,6 +105,8 @@ impl Anim {
 
 /// Seconds a frame of a spell's picture is shown, and of the first part of a bolt's flight.
 pub const SPELL_FRAME: f32 = 0.1;
+/// The frames a Wall of Stone takes to rise.
+pub const STONE_RISE_FRAMES: usize = 10;
 pub const BOLT_FRAME: f32 = 0.06;
 
 /// How long a spell's animation plays: its frames one after the other (the later squares start

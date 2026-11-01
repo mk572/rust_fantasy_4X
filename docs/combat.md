@@ -366,7 +366,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
 
 ## 7. Differences from the original and open work
 
-- The cell effect (`cmbtcity` 120) and the wall-rise animation belong to the spell animations (task 159(6)).
+- Wall-rise animations: Wall of Fire and Wall of Darkness play the original's `wallrise` pictures (entries 36 to 63, embers that grow into the wall). The original's own Wall of Stone frames (`WALLRISE` entries 0 to 35) are empty in the file, so ours raises the city wall's pictures (`citywall`) from the ground up over ten frames (our own addition). Check with `--shot F --battle --battle-field fx-wall_of_stone` (or `fx-wall_of_fire`, `fx-wall_of_darkness`) and `--shot-after 0.6`.
 - No unit figures, animation, projectiles or combat frame (task 132); the field's art is task 112 (done).
 - No experience/fame/loot write-back (42).
 - The attacking stack does not move onto the defenders' square after a win; no attack prompt and

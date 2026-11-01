@@ -15,7 +15,7 @@ use crate::input::Input;
 use crate::page::Page;
 use crate::spellbook::BookUi;
 use f4x_core::battle::ai::next_command;
-use f4x_core::battle::map::{distance, Pos, Wall, GRID_H, GRID_W};
+use f4x_core::battle::map::{distance, BattleMap, Pos, Wall, GRID_H, GRID_W};
 use f4x_core::battle::{
     Battle, BattleCommand, BattleEvent, BattleUnit, Confusion, Fate, RangedKind, Side, SpellAim,
 };
@@ -28,7 +28,7 @@ use macroquad::prelude::*;
 
 use crate::art::FigureEffect;
 use crate::battle_anim::{self, Anim, Visual};
-use crate::battle_ground::Piece;
+use crate::battle_ground::{self, Piece};
 use crate::frame::{Align, Layout};
 use crate::ui::{self, bar, GOLD};
 use crate::view::{App, Screen, HUMAN};
@@ -114,12 +114,10 @@ impl BattleUi {
     /// and the frame it is at.
     pub(crate) fn rising_wall(&self) -> Option<(u8, usize)> {
         match &self.playing {
-            Some((
-                Anim::WallRise {
-                    wall: Some(dark), ..
-                },
-                t,
-            )) => Some((u8::from(*dark), (*t / battle_anim::SPELL_FRAME) as usize)),
+            Some((Anim::WallRise { wall, .. }, t)) => Some((
+                wall.map_or(battle_ground::STONE, u8::from),
+                (*t / battle_anim::SPELL_FRAME) as usize,
+            )),
             _ => None,
         }
     }
@@ -669,7 +667,36 @@ impl App {
     /// For screenshots: the animation of a spell (`--battle-field fx-fireball`) cast on the first
     /// defender, a moment in.
     fn test_spell_fx(&mut self, ui: &mut BattleUi, id: &str) {
-        let Some(battle) = self.game.battle().cloned() else {
+        // A Wall of Stone shows the field without walls first and the battle as it stands
+        // (walled) after.
+        let unwalled = if id == "wall_of_stone" {
+            let Some(active) = self.game.battle.as_mut() else {
+                return;
+            };
+            let map = std::mem::replace(&mut active.battle.map, BattleMap::open());
+            active.battle.map = map.clone().with_city(true);
+            let mut before = active.battle.clone();
+            before.map = map.with_city(false);
+            Some(before)
+        } else {
+            None
+        };
+        // The magic walls too: the flag is set in the battle, not in the one shown first.
+        let unwalled = unwalled.or_else(|| {
+            let fire = id == "wall_of_fire";
+            if !fire && id != "wall_of_darkness" {
+                return None;
+            }
+            let active = self.game.battle.as_mut()?;
+            let before = active.battle.clone();
+            if fire {
+                active.battle.wall_of_fire = true;
+            } else {
+                active.battle.wall_of_darkness = true;
+            }
+            Some(before)
+        });
+        let Some(battle) = unwalled.or_else(|| self.game.battle().cloned()) else {
             return;
         };
         let Some(spell) = self.game.content().rules.spells.id_of(id) else {
@@ -1833,7 +1860,13 @@ impl App {
         }
 
         // Scenery, walls and units, far rows first so near ones cover them.
-        let mut items = self.scenery_pieces(battle, ui.rising_wall());
+        // A Wall of Stone that is rising is not in the battle being shown yet: take its squares
+        // from the battle as it stands.
+        let rising = ui.rising_wall();
+        let after = rising
+            .filter(|&(kind, _)| kind == battle_ground::STONE)
+            .and_then(|_| self.game.battle().cloned());
+        let mut items = self.scenery_pieces(after.as_ref().unwrap_or(battle), rising);
         let mut looks: HashMap<usize, Visual> = HashMap::new();
         let viewer = Self::human_side(battle);
         for u in battle

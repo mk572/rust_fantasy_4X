@@ -69,7 +69,7 @@ impl App {
             };
             let frames = match wall {
                 Some(false) => 8,
-                _ => 10,
+                _ => crate::battle_anim::STONE_RISE_FRAMES,
             };
             return Some(Anim::WallRise { wall, frames, line });
         }

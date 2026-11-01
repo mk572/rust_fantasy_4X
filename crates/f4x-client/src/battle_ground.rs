@@ -64,6 +64,9 @@ const MUD: usize = 118;
 
 const FORTRESS_CLOUD: usize = 113;
 
+/// The `rising` kind of a Wall of Stone (0 is fire, 1 darkness).
+pub(crate) const STONE: u8 = 2;
+
 /// What the depth sort puts in order: scenery, walls and units.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Piece {
@@ -72,6 +75,9 @@ pub(crate) enum Piece {
     House(usize),
     Structure,
     Wall(Pos),
+    /// A stone wall section that a Wall of Stone is raising: its square and the frame (of
+    /// [`crate::battle_anim::STONE_RISE_FRAMES`]); the picture shows from the ground up.
+    RisingStone(Pos, usize),
     /// A section of a Wall of Fire (`0`) or Wall of Darkness (`1`): which of the fourteen.
     MagicWall(u8, usize),
     /// A section of a magic wall that is rising: its kind, which of the fourteen and the frame.
@@ -355,6 +361,36 @@ impl App {
         }
     }
 
+    /// Like [`Self::draw_native`], but only the lower `shown` (0 to 1) of the picture, which
+    /// grows up out of the ground.
+    fn draw_native_rising(
+        &mut self,
+        lbx: &str,
+        entry: usize,
+        frame: usize,
+        at: (f32, f32),
+        scale: f32,
+        shown: f32,
+    ) {
+        let Some(tex) = self.art.picture(lbx, entry, frame).cloned() else {
+            return;
+        };
+        let size = crate::resolution::logical_size(&tex) * scale;
+        let shown = shown.clamp(0.0, 1.0);
+        let (w, h) = (tex.width(), tex.height());
+        draw_texture_ex(
+            &tex,
+            at.0,
+            at.1 + size.y * (1.0 - shown),
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(size.x, size.y * shown)),
+                source: Some(Rect::new(0.0, h * (1.0 - shown), w, h * shown)),
+                ..Default::default()
+            },
+        );
+    }
+
     /// The scenery and walls of the field with the depth each sorts by, to be put in order with
     /// the units: `(depth, rank, square, piece)`, the rank putting scenery before walls before
     /// units on one depth.
@@ -401,7 +437,11 @@ impl App {
                     if let Some((_, (_, dy), _)) = wall_sprite(cgx, cgy) {
                         if (dy > 1.0) == near {
                             let extra = if near { 50 } else { 10 };
-                            out.push((depth_of(cgx, cgy, extra), 1, pos, Piece::Wall(pos)));
+                            let piece = match rising.filter(|&(k, _)| k == STONE) {
+                                Some((_, frame)) => Piece::RisingStone(pos, frame),
+                                None => Piece::Wall(pos),
+                            };
+                            out.push((depth_of(cgx, cgy, extra), 1, pos, piece));
                         }
                     }
                 }
@@ -528,7 +568,7 @@ impl App {
                 };
                 ("cmbtcity", entry, 0, (px - hang_x, py - hang_y))
             }
-            Piece::Wall(pos) => {
+            Piece::Wall(pos) | Piece::RisingStone(pos, _) => {
                 let (cgx, cgy) = (GRID_W - 1 - pos.0, pos.1);
                 let Some((itr, (dx, dy), (shift_x, shift_y))) = wall_sprite(cgx, cgy) else {
                     return;
@@ -591,6 +631,18 @@ impl App {
             }
             Piece::Unit(_) => return,
         };
+        if let Piece::RisingStone(_, step) = piece {
+            let shown = (step + 1) as f32 / crate::battle_anim::STONE_RISE_FRAMES as f32;
+            self.draw_native_rising(
+                lbx,
+                entry,
+                frame,
+                (ox + x * scale, oy + y * scale),
+                scale,
+                shown,
+            );
+            return;
+        }
         self.draw_native(lbx, entry, frame, (ox + x * scale, oy + y * scale), scale);
     }
 }
