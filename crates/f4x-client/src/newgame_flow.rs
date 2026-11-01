@@ -5,7 +5,7 @@
 //! Picture, Name, Picks, Spells, Race, Banner. Esc goes one step back. Positions are the
 //! original's. The rules behind the choices are the core's (`WizardBuild`).
 
-use crate::font::Style;
+use crate::font::{Ink, Style};
 use crate::input::Input;
 use crate::page::Page;
 use crate::ui;
@@ -21,10 +21,11 @@ const LEFT: (f32, f32) = (168.0, 26.0);
 const RIGHT: (f32, f32) = (244.0, 26.0);
 const ROW_STEP: f32 = 22.0;
 /// The wizards' own order on the lists is the rules' order (the original's).
-pub(crate) const LIGHT: Color = Color::new(0.93, 0.88, 0.68, 1.0);
-pub(crate) const SHADOW: Color = Color::new(0.1, 0.07, 0.06, 1.0);
-pub(crate) const GOLD_INK: Color = Color::new(0.95, 0.75, 0.25, 1.0);
-pub(crate) const GREY_INK: Color = Color::new(0.5, 0.45, 0.4, 1.0);
+/// A new-game screen's text in one palette colour (`COL_NEWG_Font` 187, `COL_NEWG_FontShadow` 31 and the
+/// others of `NewGame.c`): `Set_Font_Colors_15` with the same colour in every entry.
+pub(crate) fn ng_ink(font: usize, colour: u8) -> Style {
+    Style::inked(font, Ink::Set(crate::font_ramp::flat(colour)))
+}
 
 /// The Arcanian and Myrran races of the race step, by id, in the original's order.
 const ARCANIAN: [&str; 9] = [
@@ -93,9 +94,9 @@ impl App {
 
     pub(crate) fn ng_name(&mut self, lay: &Layout, name: &str) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        self.draw_styled(view, &Style::nearest(4, SHADOW).center(), name, 78.0, 120.0);
-        self.draw_styled(view, &Style::nearest(4, SHADOW).center(), name, 77.0, 120.0);
-        self.draw_styled(view, &Style::nearest(4, LIGHT).center(), name, 77.0, 119.0);
+        self.draw_styled(view, &ng_ink(4, 31).center(), name, 78.0, 120.0);
+        self.draw_styled(view, &ng_ink(4, 31).center(), name, 77.0, 120.0);
+        self.draw_styled(view, &ng_ink(4, 187).center(), name, 77.0, 119.0);
     }
 
     /// The race indices of the Arcanian and Myrran lists.
@@ -127,7 +128,7 @@ impl App {
             for (i, line) in self.bm_wrap(0, &hint, w - 8.0).iter().enumerate() {
                 self.draw_styled(
                     view,
-                    &Style::nearest(0, GREY_INK),
+                    &ng_ink(0, 50),
                     line,
                     x + 4.0,
                     top + 5.0 + 7.0 * i as f32,
@@ -135,13 +136,7 @@ impl App {
             }
             return;
         };
-        self.draw_styled(
-            view,
-            &Style::nearest(1, Color::new(1.0, 0.95, 0.6, 1.0)),
-            &names[race],
-            x + 4.0,
-            top + 4.0,
-        );
+        self.draw_styled(view, &ng_ink(1, 178), &names[race], x + 4.0, top + 4.0);
         let text = match race_summary_key(&ids[race]) {
             Some(key) => self.text(key),
             None => String::new(),
@@ -149,7 +144,7 @@ impl App {
         for (i, line) in self.bm_wrap(0, &text, w - 8.0).iter().enumerate() {
             self.draw_styled(
                 view,
-                &Style::nearest(0, LIGHT),
+                &ng_ink(0, 187),
                 line,
                 x + 4.0,
                 top + 15.0 + 7.0 * i as f32,
@@ -235,11 +230,10 @@ impl CreateState {
             180.0
         };
         let lines = app.bm_wrap(0, &text, 138.0);
-        let gold = Color::new(0.95, 0.7, 0.2, 1.0);
         for (i, line) in lines.iter().enumerate() {
             let y = start + i as f32 * 7.0;
-            app.draw_styled(view, &Style::nearest(0, SHADOW), line, 13.0, y + 1.0);
-            app.draw_styled(view, &Style::nearest(0, gold), line, 12.0, y);
+            app.draw_styled(view, &ng_ink(0, 187), line, 13.0, y + 1.0);
+            app.draw_styled(view, &ng_ink(0, 178), line, 12.0, y);
         }
     }
 
@@ -276,7 +270,7 @@ impl CreateState {
         for (i, line) in lines.iter().enumerate() {
             app.draw_styled(
                 view,
-                &Style::nearest(1, LIGHT).center(),
+                &ng_ink(1, 187).center(),
                 line,
                 x + 93.0,
                 top + i as f32 * 8.0,
@@ -350,16 +344,10 @@ impl CreateState {
         draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::new(0.1, 0.07, 0.05, 1.0));
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let label = app.text("create.back");
+        app.draw_styled(view, &ng_ink(3, 31).center(), &label, left + 16.0, 187.0);
         app.draw_styled(
             view,
-            &Style::nearest(3, SHADOW).center(),
-            &label,
-            left + 16.0,
-            187.0,
-        );
-        app.draw_styled(
-            view,
-            &Style::nearest(3, if hover { GOLD_INK } else { LIGHT }).center(),
+            &ng_ink(3, if hover { 178 } else { 187 }).center(),
             &label,
             left + 15.0,
             186.0,
@@ -455,18 +443,12 @@ impl CreateState {
             let cx = x0 + 34.0 + shift;
             app.draw_styled(
                 view,
-                &Style::nearest(3, SHADOW).center(),
+                &ng_ink(3, 31).center(),
                 &name,
                 cx + 1.0,
                 y + 4.0 + shift + 1.0,
             );
-            app.draw_styled(
-                view,
-                &Style::nearest(3, LIGHT).center(),
-                &name,
-                cx,
-                y + 3.0 + shift,
-            );
+            app.draw_styled(view, &ng_ink(3, 187).center(), &name, cx, y + 3.0 + shift);
         }
         // The wizard under the mouse.
         let shown = self.hover;
@@ -491,8 +473,8 @@ impl CreateState {
                         .collect();
                     if let Some(first) = names.first() {
                         let text = format!("{first}{}", app.text("ui.full_stop"));
-                        app.draw_styled(view, &Style::nearest(0, SHADOW), &text, 13.0, 181.0);
-                        app.draw_styled(view, &Style::nearest(0, GOLD_INK), &text, 12.0, 180.0);
+                        app.draw_styled(view, &ng_ink(0, 187), &text, 13.0, 181.0);
+                        app.draw_styled(view, &ng_ink(0, 178), &text, 12.0, 180.0);
                     }
                 }
             }
@@ -562,7 +544,7 @@ impl CreateState {
                 "create.gender_hint",
                 &Args::new().named("wizard", &typed, self.build.gender),
             );
-            app.draw_styled(view, &Style::nearest(0, LIGHT), &hint, 196.0, 52.0);
+            app.draw_styled(view, &ng_ink(0, 187), &hint, 196.0, 52.0);
         }
         let cursor = if ((get_time() * 2.0) as u32).is_multiple_of(2) {
             "_"
@@ -571,7 +553,7 @@ impl CreateState {
         };
         app.draw_styled(
             view,
-            &Style::nearest(3, LIGHT),
+            &ng_ink(3, 187),
             &format!("{typed}{cursor}"),
             196.0,
             38.0,
@@ -639,22 +621,26 @@ impl CreateState {
             .iter()
             .map(|r| (r.name.clone(), r.id.clone()))
             .unzip();
-        let title = Color::new(0.85, 0.65, 0.2, 1.0);
-        let bright = Color::new(1.0, 0.95, 0.6, 1.0);
         let live = self.ng_input();
         let clicked = input.mouse_pressed(MouseButton::Left) && live;
         let (arcanian_title, myrran_title) =
             (app.text("create.arcanian"), app.text("create.myrran"));
         app.draw_styled(
             view,
-            &Style::nearest(3, title).center(),
+            &ng_ink(3, 180)
+                .shadow()
+                .edge(Color::new(0.0, 0.0, 0.0, 1.0))
+                .center(),
             &arcanian_title,
             199.0,
             25.0,
         );
         app.draw_styled(
             view,
-            &Style::nearest(3, title).center(),
+            &ng_ink(3, 180)
+                .shadow()
+                .edge(Color::new(0.0, 0.0, 0.0, 1.0))
+                .center(),
             &myrran_title,
             199.0,
             134.0,
@@ -671,21 +657,17 @@ impl CreateState {
                     hovered = Some(race);
                 }
                 let picked = self.race_pick == Some(race);
+                // `COL_NEWG_RacesShdw2` 2 under, then `COL_NEWG_NA` 22, `COL_NEWG_Highlight2` 176 or
+                // `COL_Available_2` 50.
                 let ink = if !allowed {
-                    GREY_INK
+                    22
                 } else if hot || picked {
-                    bright
+                    176
                 } else {
-                    LIGHT
+                    50
                 };
-                app.draw_styled(
-                    view,
-                    &Style::nearest(2, Color::new(0.0, 0.0, 0.0, 1.0)),
-                    &names[race],
-                    189.0,
-                    y + 1.0,
-                );
-                app.draw_styled(view, &Style::nearest(2, ink), &names[race], 178.0, y);
+                app.draw_styled(view, &ng_ink(2, 2), &names[race], 179.0, y + 1.0);
+                app.draw_styled(view, &ng_ink(2, ink), &names[race], 178.0, y);
                 if picked {
                     app.draw_pic(lay, "newgame", 52, 0, 169.0, y);
                 }

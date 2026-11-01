@@ -141,8 +141,18 @@ pub(crate) const FLAT_31: usize = 82;
 pub(crate) const FLAT_187: usize = 83;
 /// palette colour 178 on its own.
 pub(crate) const FLAT_178: usize = 84;
+/// palette colour 2 on its own.
+pub(crate) const FLAT_2: usize = 85;
+/// palette colour 20 on its own.
+pub(crate) const FLAT_20: usize = 86;
+/// palette colour 22 on its own.
+pub(crate) const FLAT_22: usize = 87;
+/// palette colour 176 on its own.
+pub(crate) const FLAT_176: usize = 88;
+/// palette colour 180 on its own.
+pub(crate) const FLAT_180: usize = 89;
 /// How many ramps there are; the atlases of styles 0 to 5 stack 16 + this many colour sets.
-pub(crate) const COUNT: usize = 69;
+pub(crate) const COUNT: usize = 74;
 
 /// The colour set of one palette colour on its own (`FLATS` in the script); a colour not
 /// listed there panics: add it to `FLATS` and run the script again.
@@ -179,6 +189,11 @@ pub(crate) fn flat(index: u8) -> usize {
         31 => FLAT_31,
         187 => FLAT_187,
         178 => FLAT_178,
+        2 => FLAT_2,
+        20 => FLAT_20,
+        22 => FLAT_22,
+        176 => FLAT_176,
+        180 => FLAT_180,
         other => panic!("{other}"),
     }
 }

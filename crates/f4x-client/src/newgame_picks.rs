@@ -6,7 +6,6 @@
 //! this file is the pictures and the clicks. Positions are the original's.
 
 use crate::create_screen::CreateState;
-use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::content::Content;
@@ -17,10 +16,8 @@ use f4x_core::wizard::{retort_available, retort_cost, ALL_RETORTS, MAX_RETORTS};
 use macroquad::prelude::*;
 
 use crate::create_screen::Step;
-use crate::font::Ink;
-use crate::font_ramp;
 use crate::frame::Layout;
-use crate::newgame_flow::{book_base, GOLD_INK, GREY_INK, LIGHT, SHADOW};
+use crate::newgame_flow::{book_base, ng_ink};
 use crate::view::App;
 
 /// The realms in the order of the rows and of `TBL_Realm_Order`.
@@ -34,12 +31,6 @@ fn realm_colour(realm: &str) -> u8 {
         "nature" => 216,
         _ => 172,
     }
-}
-
-/// The spells step's text: the colour of `Set_Font_Colors_15` on its own, the shadow one pixel
-/// right and below (`Print` twice in the original).
-fn pick_ink(font: usize, colour: u8) -> Style {
-    Style::inked(font, Ink::Set(font_ramp::flat(colour)))
 }
 
 /// What a retort needs, in the words of the original's refusal ("To select X you need: ...").
@@ -102,7 +93,7 @@ impl App {
             for (i, line) in lines.iter().enumerate() {
                 self.draw_styled(
                     view,
-                    &Style::nearest(0, GREY_INK),
+                    &ng_ink(0, 50),
                     line,
                     x + 4.0,
                     top + 6.0 + 7.0 * i as f32,
@@ -116,13 +107,7 @@ impl App {
             .help
             .topic_for(&f4x_core::help::spell_subject(&def.id))
             .map_or_else(|| self.text("picks.no_spell_help"), |t| t.text.clone());
-        self.draw_styled(
-            view,
-            &Style::nearest(1, Color::new(1.0, 0.95, 0.6, 1.0)),
-            &name,
-            x + 4.0,
-            top + 5.0,
-        );
+        self.draw_styled(view, &ng_ink(1, 178), &name, x + 4.0, top + 5.0);
         let rows = (((bottom - top - 2.0) - 17.0) / 7.0).floor().max(1.0) as usize;
         let mut lines = self.bm_wrap(0, &text, w - 8.0);
         if lines.len() > rows {
@@ -134,7 +119,7 @@ impl App {
         for (i, line) in lines.iter().enumerate() {
             self.draw_styled(
                 view,
-                &Style::nearest(0, LIGHT),
+                &ng_ink(0, 187),
                 line,
                 x + 4.0,
                 top + 15.0 + 7.0 * i as f32,
@@ -270,16 +255,17 @@ impl CreateState {
             let open = retort_available(retort, &self.build.books)
                 && left >= i16::from(retort_cost(retort))
                 && self.build.retorts.len() < MAX_RETORTS;
+            // `COL_NewG_Ret_Known` 178, `COL_Available_3` 50, `COL_NEWG_NA2` 22, the shadow 16.
             let ink = if known {
-                Color::new(1.0, 0.95, 0.6, 1.0)
+                178
             } else if open {
-                LIGHT
+                50
             } else {
-                GREY_INK
+                22
             };
             let name = app.retort_name(retort);
-            app.draw_styled(view, &Style::nearest(0, SHADOW), &name, x + 1.0, y + 1.0);
-            app.draw_styled(view, &Style::nearest(0, ink), &name, x, y);
+            app.draw_styled(view, &ng_ink(0, 16), &name, x + 1.0, y + 1.0);
+            app.draw_styled(view, &ng_ink(0, ink), &name, x, y);
             if known {
                 let mark = [165.0, 204.0, 254.0][col];
                 app.draw_pic(lay, "newgame", 52, 0, mark, y + 1.0);
@@ -297,8 +283,8 @@ impl CreateState {
         let left = self.build.picks_left();
         let count = app.text_with("picks.left", &Args::new().count("n", left));
         // `m_dark_colors` (31) on `m_light_colors` (187), the light one pixel right and below.
-        app.draw_styled(view, &pick_ink(3, 187).center(), &count, 222.0, 186.0);
-        app.draw_styled(view, &pick_ink(3, 31).center(), &count, 221.0, 185.0);
+        app.draw_styled(view, &ng_ink(3, 187).center(), &count, 222.0, 186.0);
+        app.draw_styled(view, &ng_ink(3, 31).center(), &count, 221.0, 185.0);
         let name = self.build.name.clone();
         app.ng_name(lay, &name);
         self.ng_abilities(app, lay);
@@ -386,7 +372,10 @@ impl CreateState {
         );
         app.draw_styled(
             view,
-            &pick_ink(4, ink).shadow().edge(SHADOW).center(),
+            &ng_ink(4, ink)
+                .shadow()
+                .edge(Color::new(0.0, 0.0, 0.0, 1.0))
+                .center(),
             &title,
             241.0,
             6.0,
@@ -412,7 +401,7 @@ impl CreateState {
             });
             app.draw_styled(
                 view,
-                &pick_ink(3, ink).shadow().edge(SHADOW),
+                &ng_ink(3, ink).shadow().edge(Color::new(0.0, 0.0, 0.0, 1.0)),
                 &app.text_with(
                     "picks.rarity_row",
                     &Args::new().text("rarity", label).count("n", want),
@@ -439,10 +428,10 @@ impl CreateState {
                 let name = app.game.content().rules.spells.get(*id).name.clone();
                 let selected = self.build.spells.contains(id);
                 // `m_select_spells_*_colors`: 178 chosen, 50 not, the shadow 16 one pixel to the right.
-                app.draw_styled(view, &pick_ink(0, 16), &name, x + 1.0, y);
+                app.draw_styled(view, &ng_ink(0, 16), &name, x + 1.0, y);
                 app.draw_styled(
                     view,
-                    &pick_ink(0, if selected { 178 } else { 50 }),
+                    &ng_ink(0, if selected { 178 } else { 50 }),
                     &name,
                     x,
                     y,
@@ -479,8 +468,8 @@ impl CreateState {
         }
         let count = app.text_with("picks.left", &Args::new().count("n", remaining));
         // `m_dark_colors` (31) on `m_light_colors` (187), the light one pixel right and below.
-        app.draw_styled(view, &pick_ink(3, 187).center(), &count, 222.0, 186.0);
-        app.draw_styled(view, &pick_ink(3, 31).center(), &count, 221.0, 185.0);
+        app.draw_styled(view, &ng_ink(3, 187).center(), &count, 222.0, 186.0);
+        app.draw_styled(view, &ng_ink(3, 31).center(), &count, 221.0, 185.0);
         let name = self.build.name.clone();
         app.ng_name(lay, &name);
         self.ng_abilities(app, lay);
@@ -495,7 +484,6 @@ impl CreateState {
         } else if live && input.key_pressed(KeyCode::Escape) {
             self.create_back(app);
         }
-        let _ = GOLD_INK;
     }
 }
 
