@@ -419,8 +419,8 @@ in section 8.1.
 | 1 | 225 | Exploration and scouts (5.1) | done |
 | 2 | 226 | Spell of Mastery in the engine: data, research list, cost (7.1, 7.2) | done |
 | 3 | 227 | Research choice and power split (5.3) | done |
-| 4 | 228 | Casting beyond summons; the win spell cast (5.3, 7.3) | done, except the special spells |
-| 5 | 228 | The special spells in the AI (Earth Lore, Word of Recall, Nature's Cures...) | not done |
+| 4 | 228 | Casting beyond summons; the win spell cast (5.3, 7.3) | done (task 228) |
+| 5 | 228 | The special spells in the AI (Earth Lore, Word of Recall, Nature's Cures...) | done, except Transmute (task 434) and Plane Shift (task 444) |
 | 6 | 229 | War: target value, memory of garrisons, defence (5.2, 5.4) | partly: unreachable targets, committed marches, strike force; no garrison memory yet |
 | 7 | 229 | Stack strength shared with the battle AI | not done (`worth` and `expected_damage` exist in `battle/ai.rs`) |
 | 8 | 230 | Ships and other land masses | not done |
@@ -511,8 +511,8 @@ unit tests in `wizardry.rs` and `battle/ai.rs`, `crates/f4x-learn/tests/it/mirro
 - **Settlers by sea** (`colony.rs`, 31 October 2026). A wizard whose land mass has no site left for a city and who holds fewer cities than its objective wants plans a voyage: the nearest explored land of another land mass that none of its own stands on and that has a site. The port builds a ship (a trireme or its guild first, not the yard chain: a ship that only scouts or carries one settler does not need a galley) and then a settler; the ship takes the settler to the sea square beside the land, and the settler steps ashore and is then an ordinary settler (`expand.rs`). The voyage waits for the sea scout to find land (it takes the scout's ship), and a landing on a rival's city waits for it (`naval::run`).
 - **Memory of enemy garrisons** and a **threat map** (section 5.2): a city out of sight is
   guessed at three average units.
-- **The special spells in the AI** (step 5): Earth Lore, Word of Recall, Nature's Cures,
-  Transmute, Plane Shift exist in the core; the AI casts none.
+- **The special spells in the AI** (step 5): Earth Lore, Word of Recall and Nature's Cures are
+  cast; Transmute waits for task 434, Plane Shift for task 444.
 - **Sallying out and fleeing** (6.4), **a shared strength function** (step 7): `worth` and
   `expected_damage` in `battle/ai.rs` are the pieces.
 - **Heroes and items** (`heroes-items-design.md`) once they exist.
