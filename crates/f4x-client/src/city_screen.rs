@@ -1049,11 +1049,9 @@ impl App {
                 .buildings
                 .iter()
                 .nth((i - 3) as usize)
-                .map(|(id, b)| {
-                    // A right-click on it opens its description.
-                    let content = self.game.content();
-                    let text = f4x_core::city::description::building_description(content, id);
-                    self.help_ui.building = Some((b.name.clone(), text));
+                .map(|(_, b)| {
+                    // A right-click on it opens its help topic.
+                    self.help_ui.building = b.help;
                     b.name.clone()
                 }),
             _ => None,

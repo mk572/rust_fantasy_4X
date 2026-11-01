@@ -72,3 +72,12 @@ Debug output of the console and test messages are not player-facing and stay in 
 - The console prints English from the core and from its own words; it is a developer tool, and
   so are the validation errors of `rules_settings.ron` and `setup.rs` (they are written for the content
   author).
+
+## Help topics
+
+The help text is `content/help.ron`, one topic per index. A screen area names the topic it opens
+(`help_screens.ron`). An entity names its own topic with `help: Some(index)` on its row: abilities,
+spells, buildings, retorts, races, spell realms and ready-made wizards. The code never looks a topic up
+by the entity's name; it follows the entity's `help`. A test (`f4x-data`) keeps every such link
+pointing at a topic with text, and every topic opened by an area or an entity. Units have no help
+topic; the Settings switches are mapped to their topics in `settings_screen.rs`.

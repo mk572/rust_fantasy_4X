@@ -38,8 +38,6 @@ pub(crate) struct HelpRequest {
     topic: u16,
     /// A second topic shown under the first (the weapon of the melee row).
     extra: Option<u16>,
-    /// A title and text of its own, in place of a topic's (a building's description).
-    own: Option<(String, String)>,
     from: (f32, f32, f32, f32),
 }
 
@@ -79,7 +77,7 @@ pub(crate) struct HelpUi {
     pub probe: Option<(i32, i32)>,
     /// The name and description of the building under the mouse on the city screen, set while
     /// that screen is drawn.
-    pub building: Option<(String, String)>,
+    pub building: Option<u16>,
     /// For the screenshot check (`--help-building ID`): open the description of this building
     /// on the city screen at once.
     pub probe_building: Option<String>,
@@ -139,7 +137,6 @@ impl App {
         self.help_ui.request = Some(HelpRequest {
             topic: topic.index,
             extra: None,
-            own: None,
             from,
         });
         true
@@ -180,15 +177,10 @@ impl App {
         if matches!(self.screen, Screen::City(_)) {
             if let Some(name) = self.help_ui.probe_building.take() {
                 let content = self.game.content();
-                if let Some(id) = content.rules.buildings.id_of(&name) {
-                    let own = (
-                        content.rules.buildings.get(id).name.clone(),
-                        f4x_core::city::description::building_description(content, id),
-                    );
+                if let Some(topic) = content.rules.buildings.by_name(&name).and_then(|b| b.help) {
                     self.help_ui.request = Some(HelpRequest {
-                        topic: 0,
+                        topic,
                         extra: None,
-                        own: Some(own),
                         from: (158.0, 98.0, 4.0, 4.0),
                     });
                 }
@@ -196,7 +188,7 @@ impl App {
             }
         }
         if input.mouse_pressed(MouseButton::Right) && matches!(self.screen, Screen::City(_)) {
-            if let Some(own) = self.help_ui.building.take() {
+            if let Some(topic) = self.help_ui.building.take() {
                 let lay = Layout::new();
                 let (mx, my) = input.mouse_position();
                 let (x, y) = (
@@ -204,9 +196,8 @@ impl App {
                     (my - lay.origin.y) / lay.scale,
                 );
                 self.help_ui.request = Some(HelpRequest {
-                    topic: 0,
+                    topic,
                     extra: None,
-                    own: Some(own),
                     from: (x - 2.0, y - 2.0, 4.0, 4.0),
                 });
                 return;
@@ -227,7 +218,6 @@ impl App {
                 self.help_ui.request = Some(HelpRequest {
                     topic,
                     extra: None,
-                    own: None,
                     from,
                 });
                 return;
@@ -268,7 +258,6 @@ impl App {
                 self.help_ui.request = Some(HelpRequest {
                     topic,
                     extra: None,
-                    own: None,
                     from,
                 });
                 return;
@@ -299,7 +288,6 @@ impl App {
             self.help_ui.request = Some(HelpRequest {
                 topic: topic.index,
                 extra,
-                own: None,
                 from: (
                     rect.0 as f32,
                     rect.1 as f32,
@@ -316,22 +304,12 @@ impl App {
             return;
         };
         let mut parts = Vec::new();
-        if let Some((title, text)) = request.own.clone() {
-            parts.push(f4x_core::help::HelpTopic {
-                index: 0,
-                title,
-                text,
-                picture: None,
-                include: None,
-            });
-        } else {
-            let Some(topic) = self.help.topic(request.topic) else {
-                return;
-            };
-            parts.push(topic.clone());
-            if let Some(more) = topic.include.and_then(|i| self.help.topic(i)) {
-                parts.push(more.clone());
-            }
+        let Some(topic) = self.help.topic(request.topic) else {
+            return;
+        };
+        parts.push(topic.clone());
+        if let Some(more) = topic.include.and_then(|i| self.help.topic(i)) {
+            parts.push(more.clone());
         }
         if let Some(weapon) = request.extra.and_then(|i| self.help.topic(i)) {
             parts.push(weapon.clone());

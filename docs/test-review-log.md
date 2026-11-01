@@ -68,7 +68,6 @@ Counted against the code of each file, not by function name: five of the fourtee
 | `battle/spoils.rs` | done | Tested already (four kills, fewer than four, a rare foe, a fallen hero, a human loser). New: monsters that win get nothing. |
 | `battle/brain.rs` | done | 4 tests: the wizard casts a bolt at an enemy, casts nothing without battle mana or with a negative reserve, heals a hurt unit and not a whole one; the units choose their legal cast. |
 | `battle/spell/unit_cast.rs` | done | Tested already (hero spells, items, demons). New: `legal_unit_casts` lists only the castable spell and only the enemy as its aim. |
-| `city/description.rs` | decided | Tested in `f4x-data` (it needs the shipped buildings); the line says so. |
 | `city/neutral.rs` | done | 6 tests: the count scales with the area, the row scan, the wrapping range, a new world's independent cities (own player each, one to a square, only their own soldiers), same seed same cities, the player numbers. |
 | `feature/place.rs` | done | 8 tests on a shipped map: towers (count, spacing, on land), nodes (spacing, an even share of each realm), encounter sites (margins, spacing), minerals, none asked for none placed, a missing tower kind is refused, the layer wraps. |
 | `game/access.rs` | done | 8 tests: a city read back as set up, buildings in build order, experience/wounds/moves, idle, a global spell and an event, a casting replaced, the flee setting, exploring. |

@@ -21,6 +21,9 @@ pub struct RaceDef {
     /// From `text/<language>/name/` by `num`, not from the rules file.
     #[serde(default)]
     pub name: String,
+    /// The race's townsfolk topic in `help.ron` (an index).
+    #[serde(default)]
+    pub help: Option<u16>,
     /// The name for more than one ("Barbarians"); empty uses the name.
     #[serde(default)]
     pub plural: String,
@@ -324,6 +327,10 @@ pub struct BuildingDef {
     /// From `text/<language>/name/` by `num`, not from the rules file.
     #[serde(default)]
     pub name: String,
+    /// The building's topic in `help.ron` (an index): its description in the city builder and its
+    /// help pop-up.
+    #[serde(default)]
+    pub help: Option<u16>,
     pub cost: u32,
     #[serde(default)]
     pub upkeep_gold: u32,
@@ -363,6 +370,9 @@ pub struct RealmDef {
     /// From `text/<language>/name/` by `num`, not from the rules file.
     #[serde(default)]
     pub name: String,
+    /// The realm's spells topic in `help.ron` (an index).
+    #[serde(default)]
+    pub help: Option<u16>,
     pub color: (u8, u8, u8),
     /// Spells (ids) a wizard with books in this realm starts with when they choose none, in
     /// the order they are taken: common ones first.
@@ -390,6 +400,9 @@ pub struct RetortDef {
     /// From `text/<language>/name/retort.ron` by `num`, not from the rules file.
     #[serde(default)]
     pub name: String,
+    /// The retort's topic in `help.ron` (an index).
+    #[serde(default)]
+    pub help: Option<u16>,
     /// Picks it takes at the creation screen.
     pub cost: u8,
     /// What the books must be before it may be picked.

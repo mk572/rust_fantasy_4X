@@ -1213,29 +1213,32 @@ mod tests {
         Ok(())
     }
 
+    /// A building's help topic is its description in the city builder: it names the topic,
+    /// is titled with the building's name, and gives each plain effect with its number.
     #[test]
-    fn every_building_description_gives_its_effects_with_their_numbers() -> TestResult {
-        use f4x_core::city::description::{building_description, effect_key};
+    fn every_building_has_a_help_topic_that_gives_its_effects_with_their_numbers() -> TestResult {
+        use f4x_core::rules::effects::{Effect, Trigger};
         let dir = crate::testutil::content_dir();
+        let help = load_help(&dir)?;
         let content = load_content(&dir)?;
-        for (id, def) in content.rules.buildings.iter() {
-            let text = building_description(&content, id);
+        for (_, def) in content.rules.buildings.iter() {
+            let topic = help
+                .topic_of(def.help)
+                .ok_or_else(|| format!("{} has no help topic", def.id))?;
+            assert_eq!(topic.title, def.name, "{}", def.id);
             for rule in &def.effects {
-                let (_, n) = effect_key(rule)
-                    .ok_or_else(|| format!("{} has an effect without a sentence", def.id))?;
-                assert!(
-                    text.contains(&n.to_string()),
-                    "the description of {} leaves out {n}: {text}",
-                    def.id
-                );
+                if let (Trigger::Passive, Effect::Modify { value, .. }) = (&rule.when, &rule.effect)
+                {
+                    assert!(
+                        topic.text.contains(&value.abs().to_string()),
+                        "the help of {} leaves out {value}: {}",
+                        def.id,
+                        topic.text
+                    );
+                }
             }
-            assert!(
-                !text.contains('{'),
-                "{} has an unfilled slot: {text}",
-                def.id
-            );
             if !def.requires.is_empty() {
-                assert!(text.contains("Needs"), "{}: {text}", def.id);
+                assert!(topic.text.contains("Needs"), "{}: {}", def.id, topic.text);
             }
         }
         Ok(())
@@ -1246,33 +1249,47 @@ mod tests {
         let dir = crate::testutil::content_dir();
         let help = load_help(&dir)?;
         let content = load_content(&dir)?;
-        let topics = [
-            ("barbarian", 279),
-            ("beastmen", 280),
-            ("dark_elf", 281),
-            ("draconian", 282),
-            ("dwarven", 283),
-            ("gnoll", 284),
-            ("halfling", 285),
-            ("high_elf", 286),
-            ("high_men", 287),
-            ("klackon", 288),
-            ("lizardman", 289),
-            ("nomad", 290),
-            ("orc", 291),
-            ("troll", 292),
-        ];
-        assert_eq!(topics.len(), content.rules.races.iter().count());
-        for (race, index) in topics {
+        assert_eq!(content.rules.races.iter().count(), 14);
+        for (_, r) in content.rules.races.iter() {
+            let index = r
+                .help
+                .ok_or_else(|| format!("{} has no help topic", r.id))?;
             let topic = help.topic(index).ok_or("the value is missing")?;
             for (_, b) in content.rules.buildings.iter() {
-                if !b.races.is_empty() && !b.races.iter().any(|r| r == race) {
+                if !b.races.is_empty() && !b.races.iter().any(|x| *x == r.id) {
                     assert!(
                         topic.text.contains(&b.name),
-                        "topic {index} ({race}) does not name the {}",
+                        "topic {index} ({}) does not name the {}",
+                        r.id,
                         b.name
                     );
                 }
+            }
+        }
+        Ok(())
+    }
+
+    /// A retort, a race and a spell realm each name a help topic that exists and has text; a
+    /// retort's topic is titled with its name.
+    #[test]
+    fn every_retort_race_and_realm_has_a_help_topic() -> TestResult {
+        let dir = crate::testutil::content_dir();
+        let help = load_help(&dir)?;
+        let content = load_content(&dir)?;
+        for r in content.rules.retorts.defs() {
+            let topic = help
+                .topic_of(r.help)
+                .ok_or_else(|| format!("retort {} has no help topic", r.id))?;
+            assert_eq!(topic.title, r.name, "retort {}", r.id);
+            assert!(!topic.text.trim().is_empty(), "retort {}", r.id);
+        }
+        for r in content.rules.races.defs() {
+            assert!(help.topic_of(r.help).is_some(), "race {}", r.id);
+        }
+        for r in content.rules.realms.defs() {
+            // The arcane realm has no spells of its own to explain.
+            if r.id != "arcane" {
+                assert!(help.topic_of(r.help).is_some(), "realm {}", r.id);
             }
         }
         Ok(())
@@ -1292,7 +1309,7 @@ mod tests {
             .collect();
         // A topic that another topic includes is shown with it.
         opened.extend(help.topics.iter().filter_map(|t| t.include.map(i32::from)));
-        // An ability, a spell or a ready-made wizard names its own topic.
+        // An ability, a spell, a building or a ready-made wizard, a retort, a race or a realm names its own topic.
         let content = load_content(&dir)?;
         opened.extend(
             content
@@ -1317,6 +1334,38 @@ mod tests {
                 .defs()
                 .iter()
                 .map(|w| i32::from(w.help)),
+        );
+        opened.extend(
+            content
+                .rules
+                .buildings
+                .defs()
+                .iter()
+                .filter_map(|b| b.help.map(i32::from)),
+        );
+        opened.extend(
+            content
+                .rules
+                .retorts
+                .defs()
+                .iter()
+                .filter_map(|r| r.help.map(i32::from)),
+        );
+        opened.extend(
+            content
+                .rules
+                .races
+                .defs()
+                .iter()
+                .filter_map(|r| r.help.map(i32::from)),
+        );
+        opened.extend(
+            content
+                .rules
+                .realms
+                .defs()
+                .iter()
+                .filter_map(|r| r.help.map(i32::from)),
         );
         // The three switches of the Settings screen the original has no topic for (the screen's
         // `help_topic` in the client names them).

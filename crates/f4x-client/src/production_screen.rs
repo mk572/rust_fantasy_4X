@@ -327,10 +327,10 @@ impl App {
             }
         }
         let description = match item {
-            ProductionItem::Building(b) => Some(f4x_core::city::description::building_description(
-                self.game.content(),
-                b,
-            )),
+            ProductionItem::Building(b) => self
+                .help
+                .topic_of(self.game.content().rules.buildings.get(b).help)
+                .map(|t| t.text.clone()),
             ProductionItem::TradeGoods => Some(self.text("city.converts_to_gold")),
             _ => Some(self.text("city.increases_growth")),
         };

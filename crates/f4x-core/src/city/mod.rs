@@ -2,7 +2,6 @@
 
 pub mod autobuild;
 pub mod conquest;
-pub mod description;
 pub mod economy;
 pub mod gate;
 pub(crate) mod growth;
