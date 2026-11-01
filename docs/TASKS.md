@@ -20,8 +20,6 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 
 | # | Area | Summary |
 |---|---|---|
-| 397 | Client | Quit confirmation and auto-save on Quit |
-| 399 | Client | Food warning on Next Turn |
 | 400 | Client | Extra-mana screen for an overland spell |
 | 401 | Client | Portrait picker for a spell that targets a wizard |
 | 402 | Client | Banner with the spell's name in combat |
@@ -56,10 +54,6 @@ The older open tasks are parked in [`TASKS-ONHOLD.md`](TASKS-ONHOLD.md).
 | 443 | Client | Help box drawn on the original's scroll picture |
 
 ## Descriptions
-
-**397. Quit confirmation and auto-save on Quit.** Quit leaves at once. Ask first (a modal question, as the resign question) and write the auto-save before the program ends, so a quit never loses the game. Listed in `screen_list.md` section 8.
-
-**399. Food warning on Next Turn.** When Next Turn is pressed and a city would starve, the original warns first, in its own words. Add the question as a modal that lets the player go back, with the original's wording from `content-local` as the text key. Listed in `screen_list.md` section 8.
 
 **400. Extra-mana screen for an overland spell.** An overland spell cannot be given extra mana; combat has the Up and Down keys for it. Add the screen the original shows for the spells that can take more mana, and the cast command that carries the amount. Check `design.md` for which spells allow it. Listed in `screen_list.md` section 8.
 

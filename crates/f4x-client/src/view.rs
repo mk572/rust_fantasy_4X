@@ -1439,7 +1439,7 @@ impl App {
         self.queue_proposal();
         self.queue_offer();
         if !self.modals.is_empty() && !matches!(self.screen, Screen::Console) {
-            return self.modal_frame(input);
+            return self.modal_frame(input) && !self.quit;
         }
         if self.item_pool_frame(input) {
             return true;

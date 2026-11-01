@@ -52,6 +52,32 @@ impl Modal for UpkeepPrompt {
     }
 }
 
+const FOOD_WARNING: &str = "food_warning";
+
+/// `Confirmation_Box` of the Next Turn button when the food does not last: "Some units do not
+/// have enough food and will die unless you allocate more farmers in a city. Do you wish to
+/// allow them to die?" Yes goes on to the turn (and the question of which to give up), No goes
+/// back to the map.
+pub(crate) struct FoodWarning;
+
+impl Modal for FoodWarning {
+    fn kind(&self) -> &'static str {
+        FOOD_WARNING
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        let lay = Layout::new();
+        let text = app.text("upkeep.food_warning");
+        match app.confirmation_box(&lay, &text, input) {
+            Some(true) => {
+                app.ask_for_upkeep();
+                None
+            }
+            Some(false) => None,
+            None => Some(self),
+        }
+    }
+}
+
 impl App {
     /// A stone box of `height` with the frame's bottom edge: the stone of `resource.lbx` 0 and the
     /// last rows of 1, whose button wells a box with red buttons does not use.
@@ -320,6 +346,19 @@ impl UpkeepPrompt {
 impl App {
     /// Ends the turn, first asking what to give up if a reserve cannot pay the upkeep.
     pub(crate) fn request_end_turn(&mut self) {
+        let starving = self
+            .game
+            .treasury_shortfall(HUMAN)
+            .is_some_and(|t| t.missing(&[]).0 > 0);
+        if starving && !self.modals.has(FOOD_WARNING) {
+            self.modals.open(FoodWarning);
+        } else {
+            self.ask_for_upkeep();
+        }
+    }
+
+    /// The question of what to give up, or the end of the turn if nothing is short.
+    fn ask_for_upkeep(&mut self) {
         let mana = self.game.upkeep_shortfall(HUMAN);
         let troops = self.game.treasury_shortfall(HUMAN);
         if (mana.is_some() || troops.is_some()) && !self.modals.has(kind::UPKEEP) {
@@ -657,6 +696,13 @@ mod tests {
                 line("armageddon", 30)?,
             ],
         })
+    }
+
+    #[test]
+    fn the_food_warning_has_the_originals_words() {
+        let text = shipped::texts().get("upkeep.food_warning", &Args::new());
+        assert!(text.starts_with("Some units do not have enough food"));
+        assert!(text.ends_with("Do you wish to allow them to die?"));
     }
 
     #[test]

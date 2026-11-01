@@ -11,6 +11,7 @@ use std::time::UNIX_EPOCH;
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::modal::Modal;
 use crate::page::Page;
 use crate::ui;
 use f4x_core::game::save::LoadError;
@@ -352,9 +353,31 @@ impl Page for MainMenuPage {
             Some(Entry::Load) => app.open_slots(true),
             Some(Entry::New) => app.open_options(),
             Some(Entry::Fame) => app.open_hall_of_fame(),
-            Some(Entry::Quit) => app.quit = true,
+            Some(Entry::Quit) => app.modals.open(QuitAsk),
             Some(Entry::Credits) => app.open_credits(),
             None => {}
+        }
+    }
+}
+
+/// "Quit to the desktop?" over the start menu. Yes ends the program. The game that was left
+/// for this menu is already in the auto-save (leaving it writes one), so a quit loses nothing.
+pub(crate) struct QuitAsk;
+
+impl Modal for QuitAsk {
+    fn kind(&self) -> &'static str {
+        "quit"
+    }
+    fn frame(self: Box<Self>, app: &mut App, input: &Input) -> Option<Box<dyn Modal>> {
+        let lay = Layout::new();
+        let text = app.text("menu.quit_question");
+        match app.confirmation_box(&lay, &text, input) {
+            Some(true) => {
+                app.quit = true;
+                None
+            }
+            Some(false) => None,
+            None => Some(self),
         }
     }
 }
@@ -566,6 +589,17 @@ mod tests {
             "2000-02-29 13:05"
         );
         assert_eq!(format_time(1_760_179_800), "2025-10-11 10:50");
+    }
+
+    #[test]
+    fn the_quit_question_has_its_text_and_is_one_modal_at_a_time() {
+        assert!(crate::test_app::shipped::texts().has("menu.quit_question"));
+        let mut stack = crate::modal::ModalStack::default();
+        stack.open(QuitAsk);
+        stack.open(QuitAsk);
+        assert!(stack.has("quit"));
+        assert_eq!(stack.take_top().map(|(at, _)| at), Some(0));
+        assert!(stack.take_top().is_none());
     }
 
     #[test]
