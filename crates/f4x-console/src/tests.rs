@@ -3550,9 +3550,9 @@ fn every_map_size_makes_a_game_with_the_counts_in_proportion() -> TestResult {
         assert!(
             neutral >= 2 && neutral <= wanted,
             "{}: {neutral} neutral cities of {wanted}",
-            size.name
+            size.id
         );
-        assert_eq!(cities.len() as u32, 5 + neutral, "{}", size.name);
+        assert_eq!(cities.len() as u32, 5 + neutral, "{}", size.id);
         // A save and a load keep the size.
         let back = game.snapshot().restore(content.clone())?;
         assert_eq!(back.map().expect("the game has a map").width(), w);

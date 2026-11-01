@@ -20,7 +20,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 291 | Combat | Variant river pictures for the battlefield (low priority) |
 | 304 | AI | Neutral city AI: goals and objectives, and units that move |
 | 351 | Text | Research the `MESSAGE.LBX` lines of task 348 that are not traced: 8, 10, 18, 19, 20, 45, 46, 61 |
-| 358 | Text | Names in the rules files (units, spells, buildings, races, realms, abilities, item powers) per language |
 | 359 | Client | Replace pictures with text baked in by text-free pictures plus font text, for localization |
 | 360 | Client | Conquest, banishment and defeat scenes |
 | 364 | Client | The scenes with music that the client lacks: the summon scene, the city-spell scroll and the Force of Nature scene |
@@ -82,8 +81,6 @@ researching and casting, with a way to skip or switch it off.
 **444. Casting leftovers of task 228.** Task 228 closed with three things left out on purpose, none with a task of their own. (1) **Plane Shift** is still `Kind::Other` in `wizardry.rs` (pinned by a test): cast it to carry a stack to the other plane when the planar war of task 435 needs one there, or to leave a lost fight; it waits for task 435. (2) **The original's weighted pick among kinds** (the eleven category weights): the objective's `cast_rank` order stands today; compare it with the original's pick in a soak and change it only if the games are won more often. (3) **A metric for casts per spell** in `f4x-tools soak` (done 1 November 2026: `soak --casts` prints the casts per game and over all games, and the map spells nobody cast; use it first, it tells whether (1) and (2) matter). Tests: a Plane Shift test beside the Transmute one if (1) is done.
 
 **351. Research the untraced `MESSAGE.LBX` lines.** Task 348, which is finished, could not say what rule stands behind these lines of the original: 8 ("All units retreat exhausted"), 10 (monsters rampage through the city), 18, 19, 20, 45, 46 (notices that other city, unit, Stasis or combat enchantments were dispelled) and 61 (Guise on a hero; no spell of that name in `spells.ron`). For each: find the original code that shows the message (ReMoM) and what triggers it, check whether our game has the rule, and write the answer in this task's "Done" paragraph as in the table of task 348: refused, no refusal, different on purpose, or no such rule. A missing rule goes to task 350 or a task of its own; the text is a key in `content/text/`.
-
-**358. Names in the rules files per language.** The names in `units.ron`, `spells.ron`, `buildings.ron`, `races.ron`, `realms.ron`, `abilities.ron` and `item_powers.ron` are shown as they are (`Item::display_name` and the screens read `def.name`). Decide and build how a language gets its own: a table of names by id in `content/text/<lang>/` that the display sites read first (falling back to the file's name), or a copy of each file per language. Then every place that prints a `def.name` goes through it, and the plural of a race (the original keeps it apart) needs its own form.
 
 **359. Pictures with text baked in become plain pictures plus font text.** Many of the original's pictures carry
 words in the bitmap itself: button faces ("Done", "Patrol", "Buy", "OK"), screen titles and headings, the labels on the

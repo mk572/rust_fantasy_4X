@@ -104,7 +104,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | basic | `opponents` | 1..=9 | 1 in the client | `NewGame` wizard count |
 | basic | `land_percent` | preset 15 / 20 / 30, free 10..=60 | 30 | `GenParams::land_percent` |
 | basic | `original_map_generator` | bool | off | `GenParams::original_generator`: the land from the original's random walks (`map/mapgen/original.rs`) and its fortress sites (`game/setup/original.rs`) instead of the noise-based land. `land_percent` is the land without the polar caps in both |
-| content | `half_upkeep` (`enabled`, `units`) | bool, unit names | off (30 October 2026: the AI learns on the original's rules), Spearmen and Swordsmen when on | `UnitView::pays_upkeep` (unit/mod.rs): the basic troops cost half the food and gold (about every second one, by serial number, is free); not saved with the game, it is read from the content |
+| content | `half_upkeep` (`enabled`, `units`) | bool, unit ids without the race (`spearmen`) | off (30 October 2026: the AI learns on the original's rules), Spearmen and Swordsmen when on | `UnitView::pays_upkeep` (unit/mod.rs): the basic troops cost half the food and gold (about every second one, by serial number, is free); not saved with the game, it is read from the content |
 | basic | `magic_strength` | 0..=2 (Weak, Normal, Powerful) | 1 | `Game::magic_strength` |
 | wizards | `picks` | `Split`, 5..=20 | 11 / 11 | `wizard::PICKS` |
 | wizards | `max_books_per_realm` | 3..=11 | 11 | `wizard::MAX_BOOKS` |

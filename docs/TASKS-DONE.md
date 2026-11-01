@@ -431,6 +431,8 @@ finds a site and slides the colours of a node's picture (`docs/lairs.md`, "Missi
 (`f4x-client/src/site_prompt.rs`) where the client has the music and image support for it; text stays in
 `content/text/en/site.ron`.
 
+**358. Names in the rules files per language (done).** The names in `units.ron`, `spells.ron`, `buildings.ron`, `races.ron`, `realms.ron`, `abilities.ron` and `item_powers.ron` are shown as they are (`Item::display_name` and the screens read `def.name`). Decide and build how a language gets its own: a table of names by id in `content/text/<lang>/` that the display sites read first (falling back to the file's name), or a copy of each file per language. Then every place that prints a `def.name` goes through it, and the plural of a race (the original keeps it apart) needs its own form. Done: the names are tables by number in `content/text/<lang>/name/` and the loader puts them on the definitions (commit `3ab6c61`); done 1 November 2026: the rules that matched a unit by its English name now match by id (`half_upkeep.units` in `settings.ron` are ids without the race, and the starting army in `setup.rs`), and the land and map sizes of `settings.ron` have an `id` with their words in `options.ron`.
+
 **363. (done) Render the original's music as the Roland MT-32 played it.** The songs are XMI (AIL Extended MIDI), written by
 task 362. Turn them into audio the client can play, using `https://github.com/CopperlineHQ/mt32-rs` (a safe-Rust port
 of Munt; LGPL-2.1-or-later; the notes are in `docs/sound.md`, "mt32-rs") with the control and PCM ROMs of a real

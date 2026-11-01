@@ -464,15 +464,16 @@ fn start_player(
         .first()
         .cloned()
         .unwrap_or_else(|| rules_texts.get("setup.capital", &crate::text::Args::new()));
+    // By the unit's id (`high_elf_spearmen`), not its name, which is in the player's language.
     let named = |what: &str| {
         race_def
             .units
             .iter()
-            .filter_map(|u| rules.units.id_of(u))
-            .find(|&id| rules.units.get(id).name == what)
+            .find(|u| u.ends_with(&format!("_{what}")))
+            .and_then(|u| rules.units.id_of(u))
     };
-    let swordsmen = named("Swordsmen");
-    let army: Vec<_> = [named("Spearmen").or(swordsmen), swordsmen]
+    let swordsmen = named("swordsmen");
+    let army: Vec<_> = [named("spearmen").or(swordsmen), swordsmen]
         .into_iter()
         .flatten()
         .collect();

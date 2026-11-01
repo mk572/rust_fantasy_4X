@@ -1071,9 +1071,9 @@ mod tests {
         let sizes: Vec<_> = s
             .land_sizes
             .iter()
-            .map(|l| (l.name.as_str(), l.land_percent))
+            .map(|l| (l.id.as_str(), l.land_percent))
             .collect();
-        assert_eq!(sizes, [("Small", 15), ("Medium", 20), ("Large", 30)]);
+        assert_eq!(sizes, [("small", 15), ("medium", 20), ("large", 30)]);
         let pressure: Vec<_> = s.levels.iter().map(|l| l.events.pressure_percent).collect();
         assert_eq!(pressure, [50, 66, 75, 80, 100]);
         assert!(s

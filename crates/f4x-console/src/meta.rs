@@ -390,7 +390,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             "land" => {
                 // The sizes of `settings.ron`, by lower-case name.
                 let sizes = &ctx.game.content().settings.land_sizes;
-                let names: Vec<String> = sizes.iter().map(|s| s.name.to_lowercase()).collect();
+                let names: Vec<String> = sizes.iter().map(|s| s.id.clone()).collect();
                 let table: Vec<(&str, u8)> = names
                     .iter()
                     .map(String::as_str)
@@ -402,7 +402,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 // A size of `settings.ron` by lower-case name, or `<width>x<height>`.
                 let lower = v.to_lowercase();
                 let sizes = &ctx.game.content().settings.map_sizes;
-                let by_name = sizes.iter().find(|s| s.name.to_lowercase() == lower);
+                let by_name = sizes.iter().find(|s| s.id == lower);
                 let (width, height) = match by_name {
                     Some(s) => (s.width, s.height),
                     None => lower

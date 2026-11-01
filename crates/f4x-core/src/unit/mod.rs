@@ -481,9 +481,10 @@ impl<'a> UnitView<'a> {
         if !half.enabled {
             return true;
         }
-        let basic = self
-            .unit_def(unit)
-            .is_some_and(|d| d.kind == UnitKind::Normal && half.units.contains(&d.name));
+        let basic = self.unit_def(unit).is_some_and(|d| {
+            d.kind == UnitKind::Normal
+                && half.units.iter().any(|u| d.id.ends_with(&format!("_{u}")))
+        });
         !basic || self.serial_of(unit).0.is_multiple_of(2)
     }
 

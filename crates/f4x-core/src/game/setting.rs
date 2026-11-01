@@ -328,7 +328,8 @@ pub const LEVELS: usize = 5;
 /// One land size on the new-game options step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LandSize {
-    pub name: String,
+    /// The size's id (`small`); its words are the text keys `options.land_<id>`.
+    pub id: String,
     /// Land as a share of each plane's tiles.
     pub land_percent: u8,
 }
@@ -336,7 +337,8 @@ pub struct LandSize {
 /// One map size on the new-game options step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MapSize {
-    pub name: String,
+    /// The size's id (`small`); its words are the text keys `options.map_<id>`.
+    pub id: String,
     /// Squares across and down, each plane (see [`MAP_WIDTHS`]).
     pub width: u16,
     pub height: u16,
@@ -357,7 +359,8 @@ pub const MIN_SQUARES_PER_PLAYER: u32 = 900;
 #[serde(default)]
 pub struct HalfUpkeep {
     pub enabled: bool,
-    /// The names of the units (`Spearmen`, `Swordsmen`), the same for every race.
+    /// The units, by their id without the race (`spearmen` for `high_elf_spearmen`), so the
+    /// setting does not depend on the language.
     pub units: Vec<String>,
 }
 
@@ -365,7 +368,7 @@ impl Default for HalfUpkeep {
     fn default() -> Self {
         Self {
             enabled: false,
-            units: vec!["Spearmen".into(), "Swordsmen".into()],
+            units: vec!["spearmen".into(), "swordsmen".into()],
         }
     }
 }
@@ -539,8 +542,8 @@ impl Default for SpellLibraryDef {
 impl Default for SettingsDef {
     /// Content without a `settings.ron`: the original's three land sizes and four opponents.
     fn default() -> Self {
-        let size = |name: &str, land_percent| LandSize {
-            name: name.into(),
+        let size = |id: &str, land_percent| LandSize {
+            id: id.into(),
             land_percent,
         };
         Self {
@@ -549,19 +552,19 @@ impl Default for SettingsDef {
             max_opponents: MAX_OPPONENTS,
             half_upkeep: HalfUpkeep::default(),
             land_sizes: vec![
-                size("Small", LAND_SMALL),
-                size("Medium", LAND_MEDIUM),
-                size("Large", LAND_LARGE),
+                size("small", LAND_SMALL),
+                size("medium", LAND_MEDIUM),
+                size("large", LAND_LARGE),
             ],
             map_sizes: [
-                ("Small", 45, 30),
-                ("Medium", 60, 40),
-                ("Large", 75, 50),
-                ("Huge", 90, 60),
+                ("small", 45, 30),
+                ("medium", 60, 40),
+                ("large", 75, 50),
+                ("huge", 90, 60),
             ]
             .into_iter()
-            .map(|(name, width, height)| MapSize {
-                name: name.into(),
+            .map(|(id, width, height)| MapSize {
+                id: id.into(),
                 width,
                 height,
             })
@@ -614,10 +617,10 @@ impl SettingsDef {
             problems.push("land_sizes is empty".into());
         }
         for size in &self.land_sizes {
-            if size.name.trim().is_empty() || !(1..=99).contains(&size.land_percent) {
+            if size.id.trim().is_empty() || !(1..=99).contains(&size.land_percent) {
                 problems.push(format!(
-                    "land size {:?}: {}% is not 1 to 99 or the name is empty",
-                    size.name, size.land_percent
+                    "land size {:?}: {}% is not 1 to 99 or the id is empty",
+                    size.id, size.land_percent
                 ));
             }
         }
@@ -625,13 +628,13 @@ impl SettingsDef {
             problems.push("map_sizes is empty".into());
         }
         for size in &self.map_sizes {
-            if size.name.trim().is_empty()
+            if size.id.trim().is_empty()
                 || !MAP_WIDTHS.contains(&size.width)
                 || !MAP_HEIGHTS.contains(&size.height)
             {
                 problems.push(format!(
-                    "map size {:?}: {} by {} is not {:?} by {:?} or the name is empty",
-                    size.name, size.width, size.height, MAP_WIDTHS, MAP_HEIGHTS
+                    "map size {:?}: {} by {} is not {:?} by {:?} or the id is empty",
+                    size.id, size.width, size.height, MAP_WIDTHS, MAP_HEIGHTS
                 ));
             }
         }

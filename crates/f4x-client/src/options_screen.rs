@@ -212,9 +212,9 @@ impl Page for OptionsPage {
         let o = app.options.clone();
         let settings = &app.game.content().settings;
         let (most, sizes) = (settings.max_opponents, settings.land_sizes.len() as u8);
-        let land = settings.land_sizes[usize::from(o.land).min(sizes as usize - 1)]
-            .name
-            .clone();
+        let land = app.text(land_key(
+            &settings.land_sizes[usize::from(o.land).min(sizes as usize - 1)].id,
+        ));
         let labels = [
             app.text(OPTION_DIFFICULTIES[usize::from(o.difficulty).min(4)]),
             app.text(OPPONENT_NAMES[usize::from(o.opponents.clamp(1, most)) - 1]),
@@ -359,11 +359,11 @@ impl Page for GameSettingsPage {
             let land = settings
                 .land_sizes
                 .get(usize::from(o.land))
-                .map_or(String::new(), |s| s.name.clone());
+                .map_or(String::new(), |s| app.text(land_key(&s.id)));
             let map = settings
                 .map_sizes
                 .get(usize::from(o.map))
-                .map_or(String::new(), |s| s.name.clone());
+                .map_or(String::new(), |s| app.text(map_key(&s.id)));
             items.push((
                 app.text("options.difficulty"),
                 app.text(DIFFICULTIES[usize::from(o.difficulty)]),
@@ -498,6 +498,28 @@ impl Page for GameSettingsPage {
 
 /// Row height of the game settings box, in the original's pixels.
 const SETTINGS_ROW: f32 = 10.0;
+
+/// The text key of a land size of `settings.ron`, by its id; an id a language has no words for
+/// shows as the id itself.
+fn land_key(id: &str) -> &str {
+    match id {
+        "small" => "options.land_small",
+        "medium" => "options.land_medium",
+        "large" => "options.land_large",
+        other => other,
+    }
+}
+
+/// The text key of a map size of `settings.ron`, by its id.
+fn map_key(id: &str) -> &str {
+    match id {
+        "small" => "options.map_small",
+        "medium" => "options.map_medium",
+        "large" => "options.map_large",
+        "huge" => "options.map_huge",
+        other => other,
+    }
+}
 
 #[cfg(test)]
 mod tests {
