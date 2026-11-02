@@ -1,0 +1,13 @@
+[workspace]
+
+[package]
+name = "stone-gen"
+version = "0.1.0"
+edition = "2021"
+license = "CC0-1.0"
+publish = false
+description = "Seeded VGA-style procedural stone texture generator"
+
+[dependencies]
+macroquad = "0.4"
+png = "0.17"
