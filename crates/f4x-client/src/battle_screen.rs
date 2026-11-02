@@ -343,7 +343,7 @@ pub(crate) fn missile_type(u: &BattleUnit) -> usize {
 /// The realm of the glow round an enchanted unit (`Combat_Unit_Enchantment_Outline_Set`): the
 /// first of its lasting spells in the original's order (0 chaos, 1 death, 2 life, 3 nature,
 /// 4 sorcery). Invisible units have none.
-fn enchantment_realm(u: &BattleUnit, ids: &[String]) -> Option<usize> {
+fn enchantment_realm(u: &BattleUnit, ids: &[SpellId]) -> Option<usize> {
     if u.is_invisible() {
         return None;
     }
@@ -352,64 +352,45 @@ fn enchantment_realm(u: &BattleUnit, ids: &[String]) -> Option<usize> {
 
 /// The realm of the first of these lasting spells in the original's order (0 chaos, 1 death,
 /// 2 life, 3 nature, 4 sorcery): the colour of the glow round the unit.
-pub(crate) fn realm_of_spells(ids: &[String]) -> Option<usize> {
-    const ORDER: [(&str, usize); 32] = [
-        ("regeneration", 3),
-        ("resist_magic", 4),
-        ("righteousness", 2),
-        ("planar_travel", 2),
-        ("haste", 4),
-        ("black_channels", 1),
-        ("lionheart", 2),
-        ("iron_skin", 3),
-        ("magic_immunity", 4),
-        ("wind_walking", 4),
-        ("elemental_armor", 3),
-        ("true_sight", 2),
-        ("invulnerability", 2),
-        ("path_finding", 3),
-        ("flight", 4),
-        ("eldritch_weapon", 0),
-        ("wraith_form", 1),
-        ("giant_strength", 3),
-        ("immolation", 0),
-        ("guardian_wind", 4),
-        ("spell_lock", 4),
-        ("heroism", 2),
-        ("berserk", 1),
-        ("holy_armor", 2),
-        ("water_walking", 3),
-        ("endurance", 2),
-        ("cloak_of_fear", 1),
-        ("stone_skin", 3),
-        ("flame_blade", 0),
-        ("bless", 2),
-        ("holy_weapon", 2),
-        ("resist_elements", 3),
+pub(crate) fn realm_of_spells(ids: &[SpellId]) -> Option<usize> {
+    const ORDER: [(u16, usize); 32] = [
+        (31 /* regeneration */, 3),
+        (41 /* resist_magic */, 4),
+        (144 /* righteousness */, 2),
+        (138 /* planar_travel */, 2),
+        (70 /* haste */, 4),
+        (175 /* black_channels */, 1),
+        (141 /* lionheart */, 2),
+        (24 /* iron_skin */, 3),
+        (69 /* magic_immunity */, 4),
+        (63 /* wind_walking */, 4),
+        (21 /* elemental_armor */, 3),
+        (131 /* true_sight */, 2),
+        (143 /* invulnerability */, 2),
+        (16 /* path_finding */, 3),
+        (56 /* flight */, 4),
+        (86 /* eldritch_weapon */, 0),
+        (181 /* wraith_form */, 1),
+        (4 /* giant_strength */, 3),
+        (99 /* immolation */, 0),
+        (44 /* guardian_wind */, 4),
+        (54 /* spell_lock */, 4),
+        (130 /* heroism */, 2),
+        (179 /* berserk */, 1),
+        (126 /* holy_armor */, 2),
+        (8 /* water_walking */, 3),
+        (123 /* endurance */, 2),
+        (164 /* cloak_of_fear */, 1),
+        (7 /* stone_skin */, 3),
+        (94 /* flame_blade */, 0),
+        (121 /* bless */, 2),
+        (124 /* holy_weapon */, 2),
+        (2 /* resist_elements */, 3),
     ];
     ORDER
         .iter()
-        .find(|(id, _)| ids.iter().any(|e| e == id))
+        .find(|(n, _)| ids.iter().any(|e| e.num() == *n))
         .map(|&(_, realm)| realm)
-}
-
-/// The curse picture on a unit (`chriver` 16 on, `Battle_Unit_Curse_Effects`): vertigo,
-/// confusion, whirlwind, mind storm, shatter, weakness, mind twist, web.
-fn curse_icon(ids: &[String]) -> Option<usize> {
-    const CURSES: [&str; 8] = [
-        "vertigo",
-        "confusion",
-        "whirlwind",
-        "mind_storm",
-        "shatter",
-        "weakness",
-        "mind_twist",
-        "web",
-    ];
-    CURSES
-        .iter()
-        .position(|c| ids.iter().any(|id| id == c))
-        .map(|i| 16 + i)
 }
 
 fn unfinished(u: &BattleUnit) -> bool {
@@ -1022,13 +1003,11 @@ impl App {
 
     /// How a unit of the battle being drawn looks right now.
     /// The ids of the lasting spells on a unit: those it came with and those cast in the battle.
-    fn unit_spell_ids(&self, u: &BattleUnit) -> Vec<String> {
-        let spells = &self.game.content().rules.spells;
+    fn unit_spell_ids(&self, u: &BattleUnit) -> Vec<SpellId> {
         u.enchantments
             .iter()
             .copied()
             .chain(u.combat_spells.iter().map(|(s, _)| *s))
-            .map(|s| spells.get(s).id.clone())
             .collect()
     }
 
@@ -2063,9 +2042,9 @@ impl App {
                 // Black Sleep greys a figure, Warp Creature turns it red and inside out.
                 let effect = if u.is_invisible() {
                     Some(FigureEffect::Revealed)
-                } else if ids.iter().any(|i| i == "warp_creature") {
+                } else if ids.iter().any(|i| i.num() == 89 /* warp_creature */) {
                     Some(FigureEffect::Warped)
-                } else if ids.iter().any(|i| i == "black_sleep") {
+                } else if ids.iter().any(|i| i.num() == 165 /* black_sleep */) {
                     Some(FigureEffect::Asleep)
                 } else {
                     None
@@ -2122,7 +2101,7 @@ impl App {
                 }
             }
         }
-        if let Some(entry) = curse_icon(&ids) {
+        if let Some(entry) = crate::unit_sheet::curse_picture(&ids) {
             // Over the square, as the original's curse entity: 13 across and 15 down from the
             // cell's point.
             let frame = (get_time() * 8.0) as usize % 8;

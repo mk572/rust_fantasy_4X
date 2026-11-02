@@ -8,6 +8,7 @@
 
 use f4x_core::battle::{Battle, BattleUnit, RangedKind};
 use f4x_core::rules::Ability;
+use f4x_core::rules::SpellId;
 use f4x_core::rules::{MovementType, Stat, UnitKind};
 use f4x_core::text::{Args, Texts};
 
@@ -243,56 +244,74 @@ const LISTED: &[(Ability, usize)] = &[
     (Ability::new(46), 134), // multi_gaze
 ];
 
-/// The picture of a lasting spell on a unit (`_unit_enchantment_data`, `USW_Combat_FX`).
-pub(crate) fn enchantment_icon(spell: &str) -> Option<usize> {
-    Some(match spell {
-        "immolation" => 117,
-        "guardian_wind" => 118,
-        "berserk" => 128,
-        "cloak_of_fear" => 97,
-        "black_channels" => 67,
-        "wraith_form" => 68,
-        "regeneration" => 69,
-        "path_finding" => 70,
-        "water_walking" => 71,
-        "resist_elements" => 72,
-        "elemental_armor" => 73,
-        "stone_skin" => 74,
-        "iron_skin" => 75,
-        "endurance" => 76,
-        "spell_lock" => 119,
-        "invisibility" => 78,
-        "wind_walking" => 79,
-        "flight" => 80,
-        "resist_magic" => 81,
-        "magic_immunity" => 82,
-        "flame_blade" => 83,
-        "eldritch_weapon" => 84,
-        "true_sight" => 85,
-        "holy_weapon" => 86,
-        "heroism" => 87,
-        "bless" => 88,
-        "lionheart" => 89,
-        "giant_strength" => 65,
-        "planar_travel" => 91,
-        "holy_armor" => 92,
-        "righteousness" => 93,
-        "invulnerability" => 94,
-        // Spells of the battle.
-        "vertigo" => 101,
-        "confusion" => 111,
-        "mind_storm" => 113,
-        "shatter" => 95,
-        "weakness" => 96,
-        "black_sleep" => 114,
-        "warp_creature" => 122,
-        "mana_leak" => 121,
-        "haste" => 77,
-        "web" => 99,
-        "creature_binding" => 100,
-        "possession" => 98,
-        _ => return None,
-    })
+/// The pictures of the lasting spells on a unit: spell number, the icon of the unit sheet
+/// (`_unit_enchantment_data`, `USW_Combat_FX`; a picture of `special.lbx`) and how the spell
+/// shows over the unit in a battle. Whirlwind and Mind Twist, which the original has
+/// pictures for, are no spells in the rules (task 465).
+const ENCHANTMENT_ART: [(u16, usize, Option<usize>); 44] = [
+    (99 /* immolation */, 117, None),
+    (44 /* guardian_wind */, 118, None),
+    (179 /* berserk */, 128, None),
+    (164 /* cloak_of_fear */, 97, None),
+    (175 /* black_channels */, 67, None),
+    (181 /* wraith_form */, 68, None),
+    (31 /* regeneration */, 69, None),
+    (16 /* path_finding */, 70, None),
+    (8 /* water_walking */, 71, None),
+    (2 /* resist_elements */, 72, None),
+    (21 /* elemental_armor */, 73, None),
+    (7 /* stone_skin */, 74, None),
+    (24 /* iron_skin */, 75, None),
+    (123 /* endurance */, 76, None),
+    (54 /* spell_lock */, 119, None),
+    (62 /* invisibility */, 78, None),
+    (63 /* wind_walking */, 79, None),
+    (56 /* flight */, 80, None),
+    (41 /* resist_magic */, 81, None),
+    (69 /* magic_immunity */, 82, None),
+    (94 /* flame_blade */, 83, None),
+    (86 /* eldritch_weapon */, 84, None),
+    (131 /* true_sight */, 85, None),
+    (124 /* holy_weapon */, 86, None),
+    (130 /* heroism */, 87, None),
+    (121 /* bless */, 88, None),
+    (141 /* lionheart */, 89, None),
+    (4 /* giant_strength */, 65, None),
+    (138 /* planar_travel */, 91, None),
+    (126 /* holy_armor */, 92, None),
+    (144 /* righteousness */, 93, None),
+    (143 /* invulnerability */, 94, None),
+    (53 /* vertigo */, 101, Some(16)),
+    (46 /* confusion */, 111, Some(17)),
+    (67 /* mind_storm */, 113, Some(19)),
+    (88 /* shatter */, 95, Some(20)),
+    (162 /* weakness */, 96, Some(21)),
+    (165 /* black_sleep */, 114, None),
+    (89 /* warp_creature */, 122, None),
+    (170 /* mana_leak */, 121, None),
+    (70 /* haste */, 77, None),
+    (5 /* web */, 99, Some(23)),
+    (73 /* creature_binding */, 100, None),
+    (172 /* possession */, 98, None),
+];
+
+/// The picture of a lasting spell on a unit in the unit sheet.
+pub(crate) fn enchantment_icon(spell: SpellId) -> Option<usize> {
+    ENCHANTMENT_ART
+        .iter()
+        .find(|(n, _, _)| *n == spell.num())
+        .map(|&(_, icon, _)| icon)
+}
+
+/// The animated curse picture over a unit with these lasting spells in a battle: the `chriver`
+/// entry (16 to 23, `Battle_Unit_Curse_Effects`) of the lowest one. Black Sleep has none, as in
+/// the original, which only greys the figure.
+pub(crate) fn curse_picture(spells: &[SpellId]) -> Option<usize> {
+    ENCHANTMENT_ART
+        .iter()
+        .filter(|&&(n, _, _)| spells.iter().any(|s| s.num() == n))
+        .filter_map(|&(_, _, entry)| entry)
+        .min()
 }
 
 /// What the abilities list is built from.
@@ -318,7 +337,7 @@ pub(crate) struct SpecialsInput<'a> {
     pub ability_help: &'a dyn Fn(Ability) -> Option<u16>,
     pub texts: &'a Texts,
     /// Lasting spells on the unit: spell, id, name, and whether the viewer may turn it off.
-    pub enchantments: Vec<(f4x_core::rules::SpellId, String, String, bool, Option<u16>)>,
+    pub enchantments: Vec<(f4x_core::rules::SpellId, String, bool, Option<u16>)>,
 }
 
 /// The abilities list in the original's order: level, quiver, to hit, construction, the listed
@@ -407,10 +426,10 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
             out.push(plain(input.texts.get(key, &Args::new()), None));
         }
     }
-    for (spell, id, name, removable, help) in &input.enchantments {
+    for (spell, name, removable, help) in &input.enchantments {
         out.push(Special {
             name: name.clone(),
-            icon: enchantment_icon(id),
+            icon: enchantment_icon(*spell),
             spell: Some(*spell),
             removable: *removable,
             help: *help,
@@ -558,7 +577,6 @@ impl App {
                 let def = content.rules.spells.get(spell);
                 (
                     spell,
-                    def.id.clone(),
                     def.name.clone(),
                     caster == crate::view::HUMAN,
                     def.help,
@@ -794,7 +812,7 @@ impl App {
             .chain(u.combat_spells.iter().map(|&(spell, _)| spell))
             .map(|spell| {
                 let s = content.rules.spells.get(spell);
-                (spell, s.id.clone(), s.name.clone(), false, s.help)
+                (spell, s.name.clone(), false, s.help)
             })
             .collect();
         let specials = specials(&SpecialsInput {
@@ -857,6 +875,33 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn curse_pictures_follow_the_lowest_entry_and_black_sleep_has_none() {
+        let s = |n: u16| SpellId::new(n);
+        // Web (23) and Vertigo (16): the lower entry wins.
+        assert_eq!(
+            curse_picture(&[s(5) /* web */, s(53) /* vertigo */]),
+            Some(16)
+        );
+        // Black Sleep only greys the figure, as in the original.
+        assert_eq!(curse_picture(&[s(165) /* black_sleep */]), None);
+        assert_eq!(
+            curse_picture(&[s(165) /* black_sleep */, s(162) /* weakness */]),
+            Some(21)
+        );
+        assert_eq!(curse_picture(&[s(70) /* haste */]), None);
+    }
+
+    #[test]
+    fn invisibility_spell_has_its_icon() {
+        // The spell's id was once misspelled ("invisiblity"), which hid its icon while the
+        // table was keyed by alias.
+        assert_eq!(
+            enchantment_icon(SpellId::new(62) /* invisibility */),
+            Some(78)
+        );
+    }
 
     /// The English messages of the shipped content.
     fn en() -> &'static Texts {

@@ -48,7 +48,7 @@ fn the_original_refusals_are_in_the_data() {
         ("true_sight", "illusion_immunity"),
         ("magic_immunity", "magic_immunity"),
         ("planar_travel", "planar_travel"),
-        ("invisiblity", "invisibility"),
+        ("invisibility", "invisibility"),
         ("wraith_form", "non_corporeal"),
         ("wind_walking", "wind_walking"),
         ("regeneration", "regeneration"),

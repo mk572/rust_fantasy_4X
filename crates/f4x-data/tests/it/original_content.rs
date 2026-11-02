@@ -495,7 +495,13 @@ fn every_spell_has_the_originals_name_realm_cost_research_rarity_and_summoned_un
     let mut seen = [0usize; 6];
     let mut wrong = Vec::new();
     for (def, row) in defs.iter().zip(&rows) {
-        if plain(&def.name) != plain(&row["name"]) {
+        // The original misspells Invisibility ("Invisiblity"); the game spells it right.
+        let original = if row["name"] == "Invisiblity" {
+            "Invisibility"
+        } else {
+            row["name"].as_str()
+        };
+        if plain(&def.name) != plain(original) {
             wrong.push(format!("{}: named {} in the original", def.id, row["name"]));
             continue;
         }

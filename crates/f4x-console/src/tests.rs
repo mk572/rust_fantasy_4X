@@ -2596,14 +2596,14 @@ fn creature_binding_and_possession_turn_a_unit_for_the_battle() {
 #[test]
 fn call_chaos_and_invisibility_cast_and_the_spell_list_offers_them() {
     use f4x_core::battle::Side;
-    let mut g = casting_siege(&["call_chaos", "invisiblity"]);
+    let mut g = casting_siege(&["call_chaos", "invisibility"]);
     let list = cast(&mut g, "bspells").text();
     assert!(
-        list.contains("call_chaos") && list.contains("invisiblity"),
+        list.contains("call_chaos") && list.contains("invisibility"),
         "{list}"
     );
     let mine = battle_units_of(&g, Side::Attacker)[0];
-    assert!(cast(&mut g, &format!("bcast invisiblity unit:{mine}")).ok);
+    assert!(cast(&mut g, &format!("bcast invisibility unit:{mine}")).ok);
     assert!(g
         .battle()
         .expect("a battle is on")

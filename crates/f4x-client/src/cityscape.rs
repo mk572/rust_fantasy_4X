@@ -401,11 +401,11 @@ pub const REALM_WARDS: [(&str, usize, f32); 5] = [
     ("life", 96, 71.0),
     ("sorcery", 97, 92.0),
 ];
-pub const CITY_BLESSINGS: [(&str, usize, f32); 4] = [
-    ("natures_eye", 99, 113.0),
-    ("inspirations", 100, 134.0),
-    ("prosperity", 101, 155.0),
-    ("consecration", 102, 176.0),
+pub const CITY_BLESSINGS: [(u16, usize, f32); 4] = [
+    (12 /* natures_eye */, 99, 113.0),
+    (152 /* inspirations */, 100, 134.0),
+    (145 /* prosperity */, 101, 155.0),
+    (155 /* consecration */, 102, 176.0),
 ];
 /// The height of the ward row below the top of the picture.
 pub const WARD_ROW: f32 = 83.0;

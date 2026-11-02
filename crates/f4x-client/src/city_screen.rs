@@ -703,21 +703,21 @@ impl App {
             .chain(self.game.economy().sold_building(city))
             .map(|id| (id.num() as i16, rules.buildings.get(id).shape))
             .collect();
-        let enchanted = |name: &str| {
+        let enchanted = |spell: u16| {
             self.game
                 .city_enchantments(city)
                 .iter()
-                .any(|&(s, _)| rules.spells.get(s).id == name)
+                .any(|&(s, _)| s.num() == spell)
         };
         let mut magic = Vec::new();
-        for (name, idx) in [
-            ("earth_gate", cs::EARTH_GATE),
-            ("stream_of_life", cs::STREAM_OF_LIFE),
-            ("astral_gate", cs::ASTRAL_GATE),
-            ("dark_rituals", cs::DARK_RITUALS),
-            ("altar_of_battle", cs::ALTAR_OF_BATTLE),
+        for (spell, idx) in [
+            (37 /* earth_gate */, cs::EARTH_GATE),
+            (148 /* stream_of_life */, cs::STREAM_OF_LIFE),
+            (153 /* astral_gate */, cs::ASTRAL_GATE),
+            (163 /* dark_rituals */, cs::DARK_RITUALS),
+            (146 /* altar_of_battle */, cs::ALTAR_OF_BATTLE),
         ] {
-            if enchanted(name) {
+            if enchanted(spell) {
                 magic.push(idx);
             }
         }
@@ -783,15 +783,13 @@ impl App {
         let view = Self::view(lay);
         let at = self.city_position(city);
         let myrror = at.plane == f4x_core::map::Plane::Myrror;
-        let spells: Vec<String> = {
-            let rules = &self.game.content().rules;
-            self.game
-                .city_enchantments(city)
-                .iter()
-                .map(|&(s, _)| rules.spells.get(s).id.clone())
-                .collect()
-        };
-        let enchanted = |name: &str| spells.iter().any(|s| s == name);
+        let spells: Vec<u16> = self
+            .game
+            .city_enchantments(city)
+            .iter()
+            .map(|&(s, _)| s.num())
+            .collect();
+        let enchanted = |spell: u16| spells.contains(&spell);
         // The original counts its animations in draws of the screen.
         let draws = (get_time() * cs::DRAWS_PER_SECOND) as u64;
         let building_counter = cs::anim_counter(draws, 60);
@@ -818,14 +816,14 @@ impl App {
                 .filter(|&(shown, _)| shown == idx)
                 .map(|(_, percent)| percent)
         };
-        let flying_fortress = enchanted("flying_fortress");
+        let flying_fortress = enchanted(77 /* flying_fortress */);
         let frame = if flying_fortress {
             1
-        } else if enchanted("cursed_lands") {
+        } else if enchanted(190 /* cursed_lands */) {
             0
-        } else if enchanted("famine") {
+        } else if enchanted(189 /* famine */) {
             2
-        } else if enchanted("gaias_blessing") {
+        } else if enchanted(29 /* gaias_blessing */) {
             3
         } else {
             4
@@ -883,11 +881,11 @@ impl App {
         }
         // The sky or the land behind the city, unless it flies.
         if !flying_fortress {
-            let sky = if enchanted("cloud_of_shadow") {
+            let sky = if enchanted(185 /* cloud_of_shadow */) {
                 Some(if myrror { 111 } else { 91 })
-            } else if enchanted("heavenly_light") {
+            } else if enchanted(139 /* heavenly_light */) {
                 Some(if myrror { 113 } else { 93 })
-            } else if enchanted("chaos_rift") {
+            } else if enchanted(110 /* chaos_rift */) {
                 Some(if myrror { 112 } else { 92 })
             } else if mountain {
                 Some(if myrror { 9 } else { 2 })
@@ -920,7 +918,7 @@ impl App {
                 self.game.content().rules.buildings.get(b).shape,
             )
         });
-        let evil_presence = enchanted("evil_presence");
+        let evil_presence = enchanted(183 /* evil_presence */);
         for (row, cells) in grid.iter().enumerate().skip(1) {
             for (col, &cell) in cells.iter().enumerate() {
                 let (cx, cy) = cs::cell_position(row, col);
@@ -1036,7 +1034,10 @@ impl App {
         }
         // Wall of Darkness is drawn with the air wall's picture, as in the original; Wall of
         // Stone is not drawn (it makes the city walls).
-        for (spell, entry) in [("wall_of_darkness", 79), ("wall_of_fire", 77)] {
+        for (spell, entry) in [
+            (178 /* wall_of_darkness */, 79),
+            (87 /* wall_of_fire */, 77),
+        ] {
             if enchanted(spell) {
                 let frames = self.art.frames("cityscap", entry);
                 let frame = cs::looped_frame(wall_counter, frames);

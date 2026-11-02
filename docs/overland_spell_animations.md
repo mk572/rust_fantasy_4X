@@ -67,7 +67,7 @@ the battle animations are done (`spell_fx.rs`, `battle_screen/spell_anim.rs`). S
 | 58 | Spell Blast | Target-wizard screen: `specfx` 40 "SPELBLST" on the target wizard's portrait (`Target_Wizard_Screen`) |
 | 59 | Aura of Majesty | Global spell animation (`WIZ_GlobalSpellAnim`, `OVL_DrawGlobalAnim`): the casting wizard's MOODWIZ face in the diplomacy mirror (BACKGRND 18, DIPLOMAC 1) with `specfx` 18 "MAJESTY" composed through the MASK1/MASK2 pictures (specfx 54, 55) over the map; ends on a click or by itself |
 | 61 | Disjunction True | None found overland: `specfx` 47 is loaded for the spell but its target screen plays no animation; settle in the task |
-| 62 | Invisiblity | Square animation: the Sorcery realm picture (`specfx` 1) on the unit, map scrolled to it first (`Spell_Animation_Screen`) |
+| 62 | Invisibility | Square animation: the Sorcery realm picture (`specfx` 1) on the unit, map scrolled to it first (`Spell_Animation_Screen`) |
 | 63 | Wind Walking | Square animation: the Sorcery realm picture (`specfx` 1) on the unit, map scrolled to it first (`Spell_Animation_Screen`) |
 | 65 | Storm Giant | Summon scene (`Summon_Animation`): the SPELLSCR summon background of the unit's race (46 + race), the caster's figure and the flame frame, `cmbtfx` 22 over it; music "Powerful Creature Summons" (MUSIC 013 to 016) |
 | 68 | Stasis | Square animation `specfx` 53 "STASIS" on the stack |

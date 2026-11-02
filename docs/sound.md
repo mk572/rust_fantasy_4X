@@ -195,7 +195,7 @@ The values (realm sounds 28 to 33 are shared by many spells):
 | SOUNDFX 23 (ATK_Ice) | 1 | ice_bolt |
 | SOUNDFX 27 (ATK_LightningBolt) | 2 | call_lightning, lightning_bolt |
 | SOUNDFX 28 (Gen_Nature) | 16 | resist_elements, wall_of_stone, giant_strength, stone_skin, water_walking, natures_eye, change_terrain, path_finding, transmute, natures_cures, elemental_armor, iron_skin, gaias_blessing, regeneration, entangle, earth_gate |
-| SOUNDFX 29 (Gen_Sorcery) | 16 | resist_magic, floating_island, guardian_wind, word_of_recall, blur, spell_lock, flight, spell_blast, invisiblity, wind_walking, stasis, magic_immunity, haste, spell_ward, spell_binding, flying_fortress |
+| SOUNDFX 29 (Gen_Sorcery) | 16 | resist_magic, floating_island, guardian_wind, word_of_recall, blur, spell_lock, flight, spell_blast, invisibility, wind_walking, stasis, magic_immunity, haste, spell_ward, spell_binding, flying_fortress |
 | SOUNDFX 30 (Gen_Chaos) | 7 | eldritch_weapon, wall_of_fire, chaos_channels, flame_blade, immolation, flame_strike, chaos_rift |
 | SOUNDFX 31 (Gen_Life) | 23 | bless, star_fires, endurance, holy_weapon, healing, holy_armor, heroism, true_sight, dispel_evil, planar_travel, heavenly_light, prayer, lionheart, invulnerability, righteousness, prosperity, altar_of_battle, stream_of_life, mass_healing, high_prayer, inspirations, astral_gate, consecration |
 | SOUNDFX 32 (Gen_Death) | 10 | weakness, cloak_of_fear, black_channels, wall_of_darkness, berserk, wraith_form, evil_presence, cloud_of_shadow, famine, pestilence |

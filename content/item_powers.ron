@@ -68,6 +68,6 @@
     (num: 61, id: "pathfinding", group: 9, cost: 200, kinds: [Misc], realm: Some("nature"), books: 3, spell: Some("path_finding")),
     (num: 62, id: "merging", group: 9, cost: 300, kinds: [Staff, Wand, Misc], realm: Some("nature"), books: 22),
     (num: 63, id: "flight", group: 9, cost: 200, kinds: [Misc], realm: Some("sorcery"), books: 3, spell: Some("flight")),
-    (num: 64, id: "invisibility", group: 9, cost: 1000, kinds: [Misc], realm: Some("sorcery"), books: 5, spell: Some("invisiblity")),
+    (num: 64, id: "invisibility", group: 9, cost: 1000, kinds: [Misc], realm: Some("sorcery"), books: 5, spell: Some("invisibility")),
     (num: 65, id: "spell_charges", group: 9, cost: 1000, kinds: [Staff, Wand]),
 ]
