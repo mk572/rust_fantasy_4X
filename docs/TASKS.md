@@ -30,7 +30,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 359 | Low | Client | Replace pictures with text baked in by text-free pictures plus font text, for localization |
 | 364 | Low | Client | The scenes with music that the client lacks: the summon scene, the city-spell scroll and the Force of Nature scene |
 | 365 | Low | Client | Crossfade the music between tracks (ours; the original cuts) |
-| 367 | Low | AI | Overland spells, heroes and items the AI never uses |
+| 367 | Low | AI | Overland spells the AI never casts: what is left is research by what the enemy casts |
 | 369 | Low | AI | The AI hardly fights and stops expanding (wars that end, marches, the city target) |
 | 370 | Low | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
 | 371 | Low | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak |
@@ -90,6 +90,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 471 | Medium | Client | Sprite sheets or image archives for the art and screens, to cut the disk use (about 25,000 small PNG files) |
 | 472 | Medium | Magic | Spell research against the wiki and ReMoM: found books add no researchable spells, 13-book limit, book test for conquest and exchange, Spell of Mastery cost, arcane rarity labels |
 | 473 | Low | Audio | Denoise the original speech sound files (the intro's spoken lines and any other voice clips) |
+| 474 | Low | AI | AI heroes and items: lairs, experience, Resurrection, hiring, item trade and crafting (split from 367) |
 
 ## Descriptions
 
@@ -162,7 +163,11 @@ background), so the changes are less abrupt; short pieces fade the background ou
 `set_sound_volume`, so the fade is volume steps per frame on the two sounds, and the old sound is kept loaded until it is
 silent. A switch under Settings ("Fade Music") turns it off for those who want the original's cuts.
 
-**367. Overland spells, heroes and items the AI never uses.** Curses and attacks on enemy cities and *Status 31 October 2026:* the spell side is done in tasks 228 and 434 (curses, attacks, Disenchant and Disjunction, world spells, Spell Blast, Stasis, Transmute); what stays open is the hero and item side (keeping heroes out of lair fights, spending experience, Resurrection, item trade and crafting) and research by what the enemy casts.
+**367. Overland spells the AI never casts.** The spell side of the AI's overland play, as a function of what the AI sees; each part gets a test and a soak line. Heroes and items were split off into task 474 on 2 November 2026.
+- **DONE** (tasks 228 and 434, status 31 October 2026): curses and attacks on enemy cities and stacks, Disenchant and Disjunction, world spells, Spell Blast, Stasis, Transmute.
+- **TODO:** research by what the enemy casts.
+- **To check** (named in the original task, not in the status line, so unknown whether they are done): protection and wards for the own cities against what an enemy casts, Spell of Return and the banished wizard's casts, Word of Recall and the other special spells.
+*Needs:* nothing.
 stacks, city protection and wards against what an enemy casts, Spell of Return and the banished wizard's
 casts, Enchant Item and Create Artifact, the special spells (Word of Recall, Spell Blast and the like),
 and research by what the enemy casts. Heroes: keep them out of lair fights they cannot win, spend
@@ -179,7 +184,7 @@ city, and `site.rs` attacks sites by a strength guess. Add a retreat when a figh
 attacker is weak at the gate, and a better guess of a lair's guards (what the wizard has seen of them).
 Check with `examples/situations.rs` and the mirror test. *Needs:* nothing.
 
-**371. The AI plays to win.** The umbrella over tasks 361, 366, 367, 369 and 370 and planned item 21: today *Status 31 October 2026:* soak of 10 seeds at 300 turns, two wizards: games won 2 of 10 at the start of the day, 4 of 10 after the changes of this day (3 and 4 wizards: 0 of 10 still); cities taken 24, 23, 55 (2, 3, 4 wizards) became 33, 24, 56. The parts done are listed under 229, 232, 368, 369 and 370; the parts open are the heroes and items (367), gold, the sally, and the seeds that never meet (planar war, task 435).
+**371. The AI plays to win.** The umbrella over tasks 361, 366, 367, 369, 370 and 474 and planned item 21: today *Status 31 October 2026:* soak of 10 seeds at 300 turns, two wizards: games won 2 of 10 at the start of the day, 4 of 10 after the changes of this day (3 and 4 wizards: 0 of 10 still); cities taken 24, 23, 55 (2, 3, 4 wizards) became 33, 24, 56. The parts done are listed under 229, 232, 368, 369 and 370; the parts open are the heroes and items (474), gold, the sally, and the seeds that never meet (planar war, task 435).
 a two-wizard game of 300 turns ends in a win once in eight (`ai-design.md` section 12.2), wizards stop at 5
 to 7 cities, the treasury and the mana sit unspent and wars are rare. The aim is games that end, by
 conquest or by the Spell of Mastery, because the AI goes for it. The parts, each a function of what the AI
@@ -192,9 +197,9 @@ sees (design.md section 8), each with a test and a soak line:
 - **Magic cast** (367, 366): spend the mana each turn (the reserve should not climb past a few turns of
   upkeep), cast curses and attacks on enemy cities and stacks, protect the own cities, keep a spell in
   the making at all times, use the nodes; research toward the Spell of Mastery once the army is safe.
-- **Item crafting** (367): Enchant Item and Create Artifact when the mana allows, items to the hero that
+- **Item crafting** (474): Enchant Item and Create Artifact when the mana allows, items to the hero that
   uses them best, scrap what no hero can use.
-- **Heroes** (367): hire every hero offered that the gold allows, cast Summon Hero and Summon Champion,
+- **Heroes** (474): hire every hero offered that the gold allows, cast Summon Hero and Summon Champion,
   raise the dead, give them the best items, send them to lairs and into battles they win, level them.
 - **Gold** (369): spend it (buy production, hire, buy items) instead of holding 50 to 100.
 
@@ -352,3 +357,8 @@ Every curse has an icon in the unit sheet and no two share a picture number. Rel
 Each item that is changed gets a test on the shipped rules and a line in `docs/magic.md`. Asked for by the user, 2 November 2026.
 
 **473. Denoise the original speech sound files.** The voice clips of the original are low-rate recordings (about 11 kHz, 8-bit) with hiss and a noise floor, and our extraction passes them through unchanged. Remove the noise when the files are made, so the shipped OGGs are cleaner. Candidates (the clips that look like speech by name and rate, not yet listened to): `SOUNDFX` entries 1, 3, 4 and 115 (`IntroT2`, `IntroT3`, `IntroM`, `IntroT1`, 4 to 7 s at 11,111 Hz) and the six `INTROSFX` clips; step one is to listen to all `SOUNDFX` and `INTROSFX` entries (`assets-local/audio/index.tsv`) and list which are really speech. Keep the original in `assets-local` untouched and write the cleaned version beside it, so the choice can be undone. Decide the tool (a noise gate or spectral subtraction in the extractor, or an external program such as `sox` or `ffmpeg`; if it is not installed, ask first, see the missing-dependency rule), and keep the step reproducible in a script that is logged in `docs/scripts.md`. The result is judged by ear, so the task ends with the author's listening check. Asked for by the user, 2 November 2026.
+
+**474. AI heroes and items.** Split from task 367 on 2 November 2026. As a function of what the AI sees; each part gets a test and a soak line. Status 31 October 2026 (task 367): the spell side is done, this side is open. Nothing here is known to be done.
+- **TODO heroes:** hire every hero offered that the gold allows; cast Summon Hero and Summon Champion; raise the dead with Resurrection; keep heroes out of lair fights they cannot win and send them to lairs and battles they win; spend their experience; level them.
+- **TODO items:** cast Enchant Item and Create Artifact when the mana allows; give each item to the hero that uses it best; trade items; scrap what no hero can use.
+*Needs:* nothing. Part of the umbrella task 371.
