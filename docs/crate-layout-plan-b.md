@@ -11,6 +11,9 @@ replay belong to the session. `f4x-ai` depends on `f4x-game` and implements a `S
 (section 5). **The battle is split:** a small set of static rules in `f4x-core` (terrain values, combat
 spell definitions and the like) and the battle engine in `f4x-game` (it creates the battle map, runs the
 combat turns, tracks unit health). Plan A versus B is not decided; the user has a few days.
+**Revision (2 November 2026):** every module is split into three layers, **definition, state, action**
+(section 2a). Definitions go to `f4x-core`; state and actions both go to `f4x-game`, in separate
+folders. So plan B cuts horizontally through the modules instead of moving whole modules.
 
 ## 1. The layout
 
@@ -19,11 +22,12 @@ f4x-core    the static rules: content types and loader (f4x-data merged in), reg
             the effect/modifier engine, the static battle rules (terrain values, combat spell
             definitions, ...), shared primitives (Position, Plane, ids)
    ^
-f4x-game    the state of one game and everything that changes it:
-            hecs components, Game, Map, Fog, Diplomacy, Events, Threat, the battle in progress,
-            Command / Event / apply, the rules that act on state (cities, units, spells, wizards,
-            heroes, items, ...), the battle engine (map, turns, health), undo, replay, new game (module), save and load,
-            and the session: seats, turn order
+f4x-game    the state of one game and everything that changes it, in three folders:
+            state/    components, Game, Map, Fog, Diplomacy, Events, Threat, the battle in progress;
+                      the wiring that makes an instance from a definition; read-only queries; save and load
+            action/   Command / Event / apply, moving, casting, producing, battle turns, the turn change,
+                      new game (module), undo, replay
+            session/  seats, turn order
    ^
 f4x-ai      decides commands for a seat; reads the game
    ^
@@ -52,15 +56,44 @@ So **today's `f4x-core` is mostly the game**. The static rules are a small part:
 70,000 lines that stay with the state. Plan B therefore means: carve a small `f4x-core` out of the
 bottom of the present crate, and call the rest `f4x-game`.
 
-Component types stay with the code that uses them. About 60 distinct component types are read or written
-through the world (counted from `get`, `query` and `insert` calls). They are defined in the domain
-modules next to their systems, so moving the domain moves them: `Population`, `Farmers`, `Standby`, and
-the rest all land in game. Nothing needs to be split per file for that.
+About 60 distinct component types are read or written through the world (counted from `get`, `query` and
+`insert` calls). They are state: `Population`, `Farmers`, `Standby` and the rest go to `f4x-game/state`.
+The splitting per file is now part of the plan (section 2a): each file of the 36,000 lines is sorted into
+definition, state or action, and files that hold two layers are cut. This is the `architecture-plan.md`
+program carried to the end, and the 1,300 methods of `impl Game` are what has to be sorted.
 
-What does not happen in this plan: splitting every domain into "state types" and "pure formulas" so that
-formulas live in core. That is the `architecture-plan.md` program carried to the end, and about 1,300
-methods of `impl Game` are in the way. It can go on gradually afterwards (stage 5), one function at a
-time, whenever a function turns out to take no state. It is not needed for the layout above.
+## 2a. Definition, state, action
+
+Every module of today's core is cut into three layers. The example is the unit:
+
+| Layer | What it is | Unit example | Lives in |
+|---|---|---|---|
+| **Definition** | static content, and formulas that need no state | a spearman has 8 figures, attack 1; the damage table | `f4x-core` |
+| **State** | what exists in this game, how an instance is made, and read-only questions about it | this spearman has 5 figures left and 20 xp; `spawn` makes one under a player's control; its attack with Bless is 3; can it enter this tile | `f4x-game/state` |
+| **Action** | what changes the state | move it one square, summon it, heal it at turn change, kill it in a battle | `f4x-game/action` |
+
+The same for the battle: terrain values and combat spell definitions are definitions; the `Battle`, a
+`BattleUnit` with its health and the battle map are state; running the combat turns, attacks and casting
+are actions.
+
+**Rules between the layers** (a test enforces them, like task 183's method count):
+1. Definitions know nothing of state or actions.
+2. State knows definitions. **State never calls an action.**
+3. Actions know both, and are the only code that changes state. `Game::apply` is the one way in from outside.
+4. The decision to create something is an action (production finishes, a spell summons); the wiring that
+   makes the instance is state (`spawn`).
+
+**Why state and action share a crate.** Both are in `f4x-game`, so state fields stay `pub(crate)`: actions
+see them, the front ends do not. Save and new game need those fields and sit in the same crate; nothing is
+exposed. Splitting state and action into two crates later is a `git mv` per folder (the fields would then
+have to become `pub`); not planned.
+
+**Folders: layer first.** `state/unit/`, `action/unit/` rather than `unit/state.rs`, `unit/action.rs`.
+Rule 2 is then a check on directory names, and a later crate split is a move of two folders.
+
+**Size.** In a signature count of the 36,000-line blob, about 360 of 1,500 functions take `&mut` of the
+game, the world, the map or the fog: roughly a quarter. The rest read. Lines were not counted; the
+mutators are probably the longer functions. The count misses multi-line signatures.
 
 ## 3. Where things go
 
@@ -73,9 +106,9 @@ time, whenever a function turns out to take no state. It is not needed for the l
 | static battle rules: terrain values for combat, combat spell definitions, ability and field tables, constants | core | not yet listed one by one; stage 2 sorts `battle/` into static values (core) and engine (game). Much of it may already be content in `rules` |
 | the battle engine: `Battle`, `BattleUnit` (health, position), battle map creation (`map/layout`), turn running, attacks, fields, specials, vortex, battle AI, spell casting in battle | game | state and the rules that run on it |
 | primitives: `Position`, `Plane`, `PlayerId`, `TerrainId`, `FeatureId`, `Gender`, `GameRng`, `Serial` | core `base` module | game and the content types both use them; no `f4x-base` crate is needed because core is the bottom |
-| components, `Game`, `Map`, `Fog`, `Diplomacy`, `Events`, `Threat`, `ActiveBattle` | game | state |
-| `Command`, `Event`, `apply`, `undo`, `replay`, `endgame`, `cheat`, `view`, `access` | game | as now |
-| `process_turn` and the turn steps | game | |
+| components, `Game`, `Map`, `Fog`, `Diplomacy`, `Events`, `Threat`, `ActiveBattle`, `spawn`, the read views (`UnitView`, `Economy`) | game/state | |
+| `Command`, `Event`, `apply`, `undo`, `replay`, `endgame`, `cheat` | game/action | `view` and `access` (queries) are state |
+| `process_turn` and the turn steps | game/action | the turn steps that only read (what a city yields) are state |
 | battle glue (`battle/game.rs`, `spoils`, `save`, `brain`, the `Game` half of `spell.rs`) | game | |
 | `mapgen`, `setup` (`new_game`) | game, as modules | see 4 |
 | `save.rs`, `serial.rs`, `battle/save.rs`, `f4x-data/src/save.rs` | game, as modules | see 4 |
@@ -135,7 +168,14 @@ Each step leaves `cargo test --workspace`, `cargo clippy --workspace --tests`,
 
 **Stage 1: rename** `f4x-core` to `f4x-game` (section 6, step 1).
 
-**Stage 2: cut the back-edges inside the crate, no new crate yet.** As plan A 3.1: hook-name constants
+**Stage 2: sort every module into definition, state, action, inside the crate, no new crate yet.**
+Domain by domain, smallest and least depended on first (`threat`, `hero`, `item`, `world_event`,
+`feature`, `diplomacy`, `player`, `city`, `wizard`, `unit`, `spell`, `battle`, `map`, `game`). For each:
+move its mutators into `action/<domain>`, its components, views and `spawn` into `state/<domain>`, its
+static values and formulas into a `definition` part that stage 3 moves to core. After each domain the
+suite is green and the test of rule 2 (state never calls an action) passes. The compiler lists every
+place where a read calls a mutator; those are the real work, and the first domain shows how many there are.
+Together with this, the back-edges: As plan A 3.1: hook-name constants
 into `rules`, `GenParams` and the counting functions out of `setting.rs`, the primitives into one `base`
 module, the definition half of `setting.rs` split from `GameSettings`, `Retort` decided. Plus the
 battle: list every table, constant and formula in `battle/` that is a static rule (terrain values,
@@ -157,8 +197,8 @@ in game code) appears here; start with one small type to see the shape of the er
 4. Test: one scripted game through `Session` equals the same game through raw `Game::apply` (same seed,
    same events).
 
-**Stage 5 (optional, ongoing): pure functions move down.** When a function in game takes no state,
-move it to core. No schedule, no task.
+**Stage 5 (ongoing):** a function in state or action that turns out to take no state is a definition;
+move it to core.
 
 ## 8. A against B
 
@@ -169,6 +209,7 @@ move it to core. No schedule, no task.
 | Battle engine | stage D, own crate, not planned | a module of `f4x-game`; only the static values go to core |
 | New game, save | two more crates, public interface to design | modules of `f4x-game`, nothing to expose |
 | Session and seats | not covered | in `f4x-game`, the AI implements `Seat` |
+| Inside the big crate | unchanged | split into `state/` and `action/` by rule, per module |
 | Renames | none | `f4x-core` to `f4x-game` (168 files), then the new core |
 | A change to a rule rebuilds less | yes | yes (core is small and at the bottom) |
 | A change to game code rebuilds less | no | no: game stays one large crate |
@@ -183,7 +224,8 @@ crates above the simulation (A) or modules in the same crate as `Game` (B), and 
 | # | Risk or question | Answer |
 |---|---|---|
 | 1 | The AI/game cycle | solved by `Seat` (section 5). **Confirmed by the user, 2 November 2026** |
-| 2 | `f4x-game` stays about 65,000 lines | accepted for now; a later split by domain needs the context work of `architecture-plan.md` |
+| 2 | `f4x-game` stays about 70,000 lines | accepted; the state/action split inside it keeps it readable, and it can become two crates later |
+| 8 | Reads that call mutators (rule 2) | unknown until the first domain is sorted; a `&self` query that needs an `&mut` helper is split into the query and a returned plan, as `Economy` does |
 | 3 | Orphan rule: `impl` blocks on rules types in game code | count in stage 2 with the compiler; move to core, or make an extension trait |
 | 4 | Is the effect executor free of the game through `EffectHost`? | check in stage 2; `exec.rs` mentions `battle::immunity`, `game::replay`, `player` |
 | 5 | The battle split between static rules and engine | **Decided by the user, 2 November 2026:** static values in core, engine in game. The exact list is made in stage 2. If the engine later wants its own crate, it can go between core and game because it is free of `Game`; not planned |
