@@ -83,6 +83,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 464 | Low | Tests | `id_of("...")` literals in tests: refer to content by number with the alias as a comment |
 | 465 | Low | Client | Curse enchantments and their icons: Warp Creature lasts in the original (three parts), Whirlwind and Mind Twist are dead slots, Black Sleep has no battle icon as in the original |
 | 466 | Medium | Housekeeping | New `f4x-save` crate: the save format and reading and writing save files (stage C of `docs/crate-layout-plan.md`) |
+| 467 | High | Housekeeping | Art, sound and animation code and data out of `f4x-core` and `f4x-data` into `f4x-client`; first step of the crate resort (stage 0 of `docs/crate-layout-plan.md`) |
 
 ## Descriptions
 
@@ -318,3 +319,5 @@ No action: the hit-points row shows one figure's hit points, and the original do
 Every curse has an icon in the unit sheet and no two share a picture number. Related: 422, 463. Asked for by the user, 2 November 2026.
 
 **466. New `f4x-save` crate.** Stage C of `docs/crate-layout-plan.md`: move the snapshot types and the format (`game/save.rs`, `battle/save.rs`, `game/serial.rs`) and the file code of `f4x-data/src/save.rs` into a crate above `f4x-core`; `SAVE_VERSION` and the saves in `tests/regression` do not change. Start by measuring which private fields and `pub(crate)` restore methods of `Game` the save code uses and decide the interface (the plan suggests `Game::to_parts` / `from_parts`). Needs 455, 456 and 458 first. Asked for by the user, 2 November 2026.
+
+**467. Art out of core.** Stage 0 of `docs/crate-layout-plan.md`, done before tasks 455, 456, 458 and 466. All code and data about art assets (pictures, icons, portraits, sounds, animations, fonts) belongs to `f4x-client`, not to `f4x-core` or `f4x-data`. Start by measuring what is there (the plan lists the known places: `UnitDef.art`, `HeroDef.portrait`, item icons, `Portrait`/`PORTRAITS`, `battle/info.rs` icons, `f4x-data` `sound.rs` and `spell_art.rs`) and sort it into "only the client reads it" and "core logic reads it" before moving anything. Saves and `SAVE_VERSION` do not change. Tasks 455, 456, 458 and 466 need this first. Asked for by the user, 2 November 2026.

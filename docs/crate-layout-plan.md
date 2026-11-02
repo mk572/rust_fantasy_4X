@@ -82,7 +82,7 @@ them: the only callers inside core are tests (`new_game(` appears 24 times in co
 | `core/game/setting.rs`, definition half (`SettingsDef`, `ClientSettingsDef`, difficulty levels, sizes, `SpellLibraryDef`) | `rules::setting` | the difficulty settings; the chosen `GameSettings` stays in core |
 | `core/text.rs`, `core/text/` (`Texts`, `Gender`) and `core/help.rs` | `rules::text`, `rules::help` | texts are content |
 | `core/content.rs` (`Content`) | `rules::content` | |
-| all of `f4x-data/src` (`lib.rs` loaders, `rules.rs`, `sound.rs`, `spell_art.rs`) | `rules::load`, `rules::sound`, `rules::spell_art` | `sound` and `spell_art` are client tables checked against `Rules`; leave them here for now, move to the client later if wanted |
+| all of `f4x-data/src` (`lib.rs` loaders, `rules.rs`, `sound.rs`, `spell_art.rs`) | `rules::load`, `rules::sound`, `rules::spell_art` | `sound` and `spell_art` move to the client in stage 0 (task 467) before this step |
 | basic vocabulary the above name: `Plane`, `TerrainId`, `FeatureId`, `Position`, `PlayerId`, `Gender` | `rules::base` | see 3.4 for the later `f4x-base` |
 | test support: `shipped()`, `content_dir()`, `num` constants, `TestDir` | `rules::testutil` (public, small) | one loader for tests |
 
@@ -155,6 +155,8 @@ Covered above. Two extra points:
 
 ### 3.4 `f4x-battle` (added at the user's request)
 
+**Status (2 November 2026): not planned for now. No task exists for it; stage D below is a record of the analysis only.**
+
 Feasible, but as a second stage and only for the engine, not for the whole `battle/` folder.
 `battle/` is 11.2k non-test lines (18.7k with tests), the biggest module of core, and it splits:
 
@@ -195,6 +197,22 @@ task, unless compile times of core become the pain first.
 
 Each step leaves `cargo test --workspace`, `cargo clippy --workspace --tests`, `scripts/check_id_aliases.py`
 and the soak/regression targets unchanged. One commit per step.
+
+**Stage 0: art out of core (task 467, first, before any crate is created)**
+
+Art, sound and animation data does not belong in `f4x-core` or `f4x-rules`: it is the client's. Done
+first, it makes every later move smaller (fewer fields on the rules types, no `sound` and `spell_art`
+tables to carry). Steps:
+
+1. Measure: list every art field and table in core, rules and `f4x-data` (known so far: `UnitDef.art`,
+   `HeroDef.portrait`, `ItemDef.icon` and `Item.icon`, `Portrait`/`PORTRAITS`, `battle/info.rs`
+   `InfoItem.icon`, `f4x-data/src/{sound,spell_art}.rs` with `content/{sound,spell_art}.ron`, the
+   font colour tables, `hotkeys.ron`). Sort each into: only the client reads it; core logic reads it.
+2. Move what only the client reads to `f4x-client` (loader, validation against `Rules`, the `.ron`
+   file keeps its place under `content/`). Validation that needs `Rules` stays a client-side test.
+3. Where core logic reads a number that is really art (a portrait number that picks a wizard), keep
+   the number but name it a content number, not a picture.
+4. Remove the dead fields from the rules types and the content files; the saves do not change.
 
 **Stage A: `f4x-rules` + merge `f4x-data` (tasks 455 and 456, done together)**
 
@@ -239,10 +257,19 @@ and the soak/regression targets unchanged. One commit per step.
    `f4x-save/tests/it` or use `Game::to_parts` directly. Undo (`game/undo.rs`) uses snapshots, so check
    whether it needs the format at all or only a clone.
 
-**Stage D: `f4x-battle` (new task, 3.4)**
+**Stage D: `f4x-battle` (not planned for now, no task; 3.4)**
 
 Pull the primitives into `f4x-base`, split `battle/spell.rs` and `casting.rs` into engine and glue, move
 the engine, re-export `f4x_core::battle`.
+
+**Possible future step E: entity definitions into `f4x-rules` as a chunk (not planned, no task)**
+
+After stage A, `f4x-rules` holds the definition types and the loader, but the entity definitions
+(spells, units, buildings, items, heroes, abilities, retorts and the like, `rules/defs.rs` with their
+`.ron` files) may still be tangled with core through the back-edges of 3.1. A later step moves them
+as one chunk: first make the whole definition set free of core, then `git mv` it in one commit
+instead of type by type. Measure first what stage A leaves behind in core; if stage A already moves
+`defs.rs` whole, this step is empty.
 
 ## 5. Where tests go (rule of thumb)
 
@@ -262,7 +289,7 @@ the engine, re-export `f4x_core::battle`.
 | 4 | Build time: a change in `f4x-rules` rebuilds the whole workspace | already true today (types in core); measure before/after with `cargo build --timings` and `cargo nextest` (3.6 s now) |
 | 5 | Orphan-rule problem: `impl SomeRulesType { ... }` blocks in core for types that moved to rules | Rust forbids inherent `impl` for a foreign type. Count them in step 2 (`grep -rn "^impl \(UnitDef\|SpellDef\|...\)" crates/f4x-core/src`); move the impl to rules, or turn it into an extension trait or a free function |
 | 6 | `serde` default and `Deserialize` impls that call core helpers | same check as 5 |
-| 7 | Where `sound.rs` and `spell_art.rs` belong | rules for now, client later |
+| 7 | Where `sound.rs` and `spell_art.rs` belong | the client, in stage 0 (decided by the user, 2 November 2026) |
 | 8 | The name `f4x-base` and whether to create it before stage D | keep `rules::base` until D |
 
 Risk 5 is the one most likely to cost real time: it can only be counted with the compiler, so the
@@ -273,8 +300,9 @@ the errors.
 
 | Task | Now | Becomes |
 |---|---|---|
+| 467 | art out of core into `f4x-client` | Stage 0, first |
 | 455 | new `f4x-rules` | Stage A steps 1 to 3, 5 to 7 |
 | 456 | merge `f4x-data` into core | Stage A step 4 and 6: merge into `f4x-rules` instead |
 | 458 | new `f4x-newgame` | Stage B |
 | new | `f4x-save` | Stage C |
-| new | `f4x-battle` and `f4x-base` | Stage D |
+| none | `f4x-battle` and `f4x-base` | Stage D: not planned for now, no task |
