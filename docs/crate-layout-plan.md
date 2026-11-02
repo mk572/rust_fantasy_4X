@@ -1,5 +1,8 @@
 # Crate layout: plan to resort the crates
 
+**This is plan A. Plan B (an `f4x-game` crate on top of core) is in `docs/crate-layout-plan-b.md`; one of
+the two is to be chosen.**
+
 Asked for by the user, 2 November 2026. Covers tasks 455 (`f4x-rules`), 456 (merge `f4x-data`) and
 458 (`f4x-newgame`), and adds `f4x-save` and `f4x-battle`. Numbers below were measured on the code
 that day (non-test lines unless stated).

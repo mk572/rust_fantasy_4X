@@ -6,8 +6,8 @@ indexes in RAMPS below, resolved to RGB through the base palette plus the colour
 own picture (`docs/palette_screens.tsv`). The atlases of `f4x-tools extract-art` append the ramps
 after the original's 16 sets, so a ramp is set 16 + its position, which `font_ramp.rs` names.
 Usage: scripts/font_ramps.py   (writes content/font_colour_ramps.ron and crates/f4x-client/src/font_ramp.rs)
-Then regenerate the atlases: f4x-tools extract-art <game dir> and copy assets-local/art/fonts/bmfont/* to
-crates/f4x-client/assets/fonts/ (docs/extract-art.md).
+NOTE: the finished fonts in crates/f4x-client/assets/fonts are hand-edited (accents and more) and are the
+source of truth. Do not copy extract-art output over them (docs/extract-art.md section 5).
 A set entry the screen leaves out repeats its last colour (the original leaves the earlier colours there).
 """
 import csv

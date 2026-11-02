@@ -204,7 +204,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   one, the lower bowl's bar left unjoined to the stem at the bottom. That covers French, Spanish, Portuguese,
   Italian, German, Dutch, Danish, Norwegian, Swedish, Finnish, Czech, Slovak, Polish, Hungarian, Romanian, Croatian
   and Turkish; not drawn: Icelandic þ ð, the capital ẞ, ĳ and the Greek and Cyrillic scripts (see the free fonts in
-  `docs/fonts.md` for those). The accented glyphs are made, not drawn by hand: check a new language by eye
+  `docs/fonts.md` for those). The extractor made the accented glyphs; they were then fixed by hand in the committed fonts, so the extractor's version is only the starting point. Check a new language by eye
   (draw its letters from the `.fnt` and `.png` with Pillow, enlarged 4 times). They are original art, so they stay local like
   the rest of `assets-local`.
 - `fonts/colour_sets.ron` is the colour set table itself (set, colour index 1 to 15, RGB). It is only numbers, so a
@@ -227,9 +227,12 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   the original builds most text colours at run time with `Set_Font_Colors_15(style, colours)`, not from the 16
   sets. The script lists each such ramp (`RAMPS`: a name, the screen whose palette applies, the palette
   indexes of colour 1 to n; entry 0 of the original's array is an alias and ignored) and the single palette
-  colours (`FLATS`, `font_ramp::flat(index)`). Run it, then `extract-art`, then copy the atlases
-  (`style*.fnt` and `.png` of `fonts/bmfont/`) to `crates/f4x-client/assets/fonts/`: the ramps become sets 16
-  and up. Use one with `Style::inked(font, Ink::Set(font_ramp::NAME))`, and `.effect(Effect::Shadow |
+  colours (`FLATS`, `font_ramp::flat(index)`). The ramps become sets 16
+  and up in the atlases. **The finished fonts are the committed `crates/f4x-client/assets/fonts/style*.fnt` and `.png`**:
+  they were edited by hand after the one-time extraction (accents and other fixes), are compiled into the client, and
+  are the only copy that ships. The extractor output (`fonts/bmfont/` in `assets-local`) is dev-side only and is not
+  copied into the package; never copy it over the committed fonts. A new ramp needs its colour set added to the
+  committed atlases by a tool or by hand (open: no tool does that yet). Use one with `Style::inked(font, Ink::Set(font_ramp::NAME))`, and `.effect(Effect::Shadow |
   Outline | OutlineHeavy)` with `.edge(colour)` for `Set_Font_Style_Shadow_Down / Outline / Outline_Heavy`
   and `Set_Outline_Color`. Outline colours from palette index 224 up belong to a screen's own palette: read
   them from that screen's palette in ReMoM, or approximate and say so in a comment. The atlas must stay under

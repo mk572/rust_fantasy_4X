@@ -55,6 +55,8 @@ cp -R content "$app/Contents/Resources/content"
 res="$app/Contents/Resources"
 rm -rf "$res/assets-local/audio/timbres"
 rm -f "$res/assets-local/audio/index.tsv" "$res/assets-local/art/manifest.tsv"
+# The fonts are compiled into the client (crates/f4x-client/assets/fonts); the extractor output is dev-side only.
+rm -rf "$res/assets-local/art/fonts"
 rm -f "$res/content-local/IMPORT_REPORT.txt" "$res/content-local/OGBUG_INDEX.md"
 find "$res" \( -name '*.xmi' -o -name '*.orig' -o -name '.DS_Store' \) -type f -delete
 
