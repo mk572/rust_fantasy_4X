@@ -1,4 +1,4 @@
-use macroquad::prelude::*;
+use macroquad::{prelude::*, ui::Ui};
 use std::{fs::File, io::BufWriter};
 
 const PREVIEW_X: f32 = 360.0;
@@ -190,11 +190,11 @@ fn save_png(path: &str, width: u32, height: u32, pixels: &[u8]) -> Result<(), St
     writer.write_image_data(pixels).map_err(|e| e.to_string())
 }
 
-fn color_controls(ui: &mut Ui, title: &str, color: &mut [u8; 3], id: u32) {
+fn color_controls(ui: &mut Ui, title: &str, color: &mut [u8; 3], id: u64) {
     ui.label(None, title);
     for (i, channel) in ["R", "G", "B"].iter().enumerate() {
         let mut value = color[i] as f32;
-        ui.slider(hash!(id + i as u32), channel, 0.0..255.0, &mut value);
+        ui.slider(id + i as u64, channel, 0.0..255.0, &mut value);
         color[i] = value.round().clamp(0.0, 255.0) as u8;
     }
 }
@@ -284,9 +284,9 @@ async fn main() {
             ui.slider(hash!(), "Colours", 2.0..16.0, &mut palette_count);
             settings.palette_size = palette_count.round() as usize;
 
-            color_controls(ui, "Main colour RGB", &mut settings.main, 100);
-            color_controls(ui, "Lightest colour RGB", &mut settings.light, 200);
-            color_controls(ui, "Darkest colour RGB", &mut settings.dark, 300);
+            color_controls(ui, "Main colour RGB", &mut settings.main, hash!(100));
+            color_controls(ui, "Lightest colour RGB", &mut settings.light, hash!(200));
+            color_controls(ui, "Darkest colour RGB", &mut settings.dark, hash!(300));
 
             ui.checkbox(hash!(), "Tile preview", &mut settings.tiled);
             ui.label(None, &format!("Preview zoom: {:.2}x", zoom));
@@ -297,7 +297,8 @@ async fn main() {
                 if pixels.is_empty() {
                     status = "Generate a texture first".to_string();
                 } else {
-                    match save_png("stone_texture.png", settings.width, settings.height, &pixels) {
+                    let export_pixels = generate(&settings);
+                    match save_png("stone_texture.png", settings.width, settings.height, &export_pixels) {
                         Ok(()) => status = "Saved stone_texture.png".to_string(),
                         Err(error) => status = format!("PNG save failed: {error}"),
                     }
