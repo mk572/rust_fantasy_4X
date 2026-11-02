@@ -293,7 +293,7 @@ No action: the hit-points row shows one figure's hit points, and the original do
 
 **455. New `f4x-rules` crate for the static rules content.** Stage A, steps 1 to 3 and 5 to 7, of `docs/crate-layout-plan.md`: what moves, what stays, the back-edges to cut first and the order are there. Done together with 456. Asked for by the user, 2 November 2026.
 
-**456. Merge `f4x-data` into `f4x-rules`.** Stage A, steps 4 and 6, of `docs/crate-layout-plan.md` (the plan decides `f4x-rules`, not core, and says where each test file of `f4x-data` goes). Done together with 455. Asked for by the user, 2 November 2026.
+**456. Merge `f4x-data` into `f4x-rules`.** Stage A, steps 4 and 6, of `docs/crate-layout-plan.md` (decided by the user on 2 November 2026: into `f4x-rules`, not into core; the plan says where each test file of `f4x-data` goes). Done together with 455. Asked for by the user, 2 November 2026.
 
 **457. Review the patch release notes against the game.** Read the release notes of Insecticide, the 1.50 patch and the community patch (find them in the ReMoM tree or the wiki; say in the task which files were used), and for each fix or change check whether our game has the bug the note describes, already does it right, or deliberately differs (`docs/divergences.md`). Make a list with one line per note (bug present, fixed, divergence, not applicable), open a task for each bug that is present, and add the deliberate differences to `docs/divergences.md`. Related to 414 and 452. Asked for by the user, 2 November 2026.
 

@@ -132,7 +132,7 @@ module at a time, only if wanted.
 
 ### 3.2 `f4x-data` is merged into `f4x-rules`, not into core (decision for task 456)
 
-Task 456 allows either. `f4x-rules` is better: the loader is only useful with the types, the types
+**Decided by the user, 2 November 2026: `f4x-rules`.** Task 456 allowed either. `f4x-rules` is better: the loader is only useful with the types, the types
 are the lower layer, and a rules change then rebuilds only rules and what is above it. The tests
 of `f4x-data` split as follows:
 
@@ -281,16 +281,17 @@ instead of type by type. Measure first what stage A leaves behind in core; if st
 
 ## 6. Risks and open decisions
 
-| # | Risk or decision | Suggested answer |
+| # | Risk or decision | Answer |
 |---|---|---|
-| 1 | Two-way direction wording of the request ("dependencies of core") | newgame and save sit above core (section 2); only rules is below |
-| 2 | `save.rs` needs private fields of `Game` | do stage C last, with an explicit parts interface; measure first |
+| 1 | Two-way direction wording of the request ("dependencies of core") | newgame and save sit above core (section 2); only rules is below. **Decided by the user, 2 November 2026: yes.** |
+| 2 | `save.rs` needs private fields of `Game` | do the save crate last (stage C), with an explicit parts interface; measure first. **Decided by the user, 2 November 2026:** the order stays as written, newgame is stage B, save is stage C |
 | 3 | `Retort` enum and `Bonus`, `Neutral` in the settings | move the plain ones to rules; or refer to retorts by number (needs task 449 to decide) |
 | 4 | Build time: a change in `f4x-rules` rebuilds the whole workspace | already true today (types in core); measure before/after with `cargo build --timings` and `cargo nextest` (3.6 s now) |
 | 5 | Orphan-rule problem: `impl SomeRulesType { ... }` blocks in core for types that moved to rules | Rust forbids inherent `impl` for a foreign type. Count them in step 2 (`grep -rn "^impl \(UnitDef\|SpellDef\|...\)" crates/f4x-core/src`); move the impl to rules, or turn it into an extension trait or a free function |
 | 6 | `serde` default and `Deserialize` impls that call core helpers | same check as 5 |
 | 7 | Where `sound.rs` and `spell_art.rs` belong | the client, in stage 0 (decided by the user, 2 November 2026) |
 | 8 | The name `f4x-base` and whether to create it before stage D | keep `rules::base` until D |
+| 9 | Task 456: merge `f4x-data` into core or into `f4x-rules` | into `f4x-rules`. **Decided by the user, 2 November 2026** (see 3.2) |
 
 Risk 5 is the one most likely to cost real time: it can only be counted with the compiler, so the
 first thing step 1 does is move one small type (for example `Gender`) end to end to see the shape of
