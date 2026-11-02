@@ -72,16 +72,17 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 452 | Medium | Core | Targeting restrictions of unit enchantments: which ones refuse fantastic units (found while checking Lycanthropy) |
 | 453 | Low | Text | Help conflicts checklist: compare each topic of `docs/help-conflicts-checklist.md` with the game and write the topic to match |
 | 454 | Low | Client | Plane Shift's transition on the map |
-| 455 | Medium | Housekeeping | New `f4x-rules` crate holding the static rules content, a dependency of `f4x-core` |
-| 456 | Medium | Housekeeping | Merge `f4x-data` into `f4x-core` |
+| 455 | Medium | Housekeeping | New `f4x-rules` crate holding the static rules content, a dependency of `f4x-core` (stage A of `docs/crate-layout-plan.md`) |
+| 456 | Medium | Housekeeping | Merge `f4x-data` into `f4x-rules` (stage A of `docs/crate-layout-plan.md`) |
 | 457 | Medium | Core | Review the Insecticide, 1.50 and community patch release notes against the current game to find bugs and fixes |
-| 458 | Medium | Housekeeping | New `f4x-newgame` crate: creating the map, the wizard, the enemies and the rest of a new game |
+| 458 | Medium | Housekeeping | New `f4x-newgame` crate: creating the map, the wizard, the enemies and the rest of a new game (stage B of `docs/crate-layout-plan.md`) |
 | 459 | Medium | Core | Remove the "flat" difficulty setting that exists only for testing; tests use real game rules settings |
 | 460 | Medium | Housekeeping | Review what needs to be shipped in the executable and what does not |
 | 461 | Medium | Tests | Tests must not build their own rule sets: replace the hand-edited rules in existing tests with the shipped content |
 | 462 | Low | Core | Converter for version 3 saves (spells, items and powers written as names) to version 4 (numbers) |
 | 464 | Low | Tests | `id_of("...")` literals in tests: refer to content by number with the alias as a comment |
 | 465 | Low | Client | Curse enchantments and their icons: Warp Creature lasts in the original (three parts), Whirlwind and Mind Twist are dead slots, Black Sleep has no battle icon as in the original |
+| 466 | Medium | Housekeeping | New `f4x-save` crate: the save format and reading and writing save files (stage C of `docs/crate-layout-plan.md`) |
 
 ## Descriptions
 
@@ -289,13 +290,13 @@ No action: the hit-points row shows one figure's hit points, and the original do
 
 **454. Plane Shift's transition on the map.** `Cast_Plane_Shift_Draw` shows the stack's square captured on the plane it leaves and the other plane's square swapped in, with the spell's sound. Our cast moves the stack at once (`spell/special.rs::plane_shift`) and shows nothing. Needs a render of the map square of each plane (a render target or two screenshots of the square) and a short wipe between them, played from `Event::SpellCastAt` like the other square animations (`square_anim.rs`), with Spell Animations off skipping it. *Needs:* nothing.
 
-**455. New `f4x-rules` crate for the static rules content.** Create a crate `f4x-rules` that holds the static rules content (the definitions and the `content/*.ron` data that do not change while the game runs) as a dependency of `f4x-core`. Decide first what moves (rule definition types such as `UnitDef`, `SpellDef`, `Registry`, `Id`, `Ref`, and the loader's inputs) and what stays in core (game state and behaviour), keep the dependency one-way, and update `docs/ecs-structure.md`. Related to 456. Asked for by the user, 2 November 2026.
+**455. New `f4x-rules` crate for the static rules content.** Stage A, steps 1 to 3 and 5 to 7, of `docs/crate-layout-plan.md`: what moves, what stays, the back-edges to cut first and the order are there. Done together with 456. Asked for by the user, 2 November 2026.
 
-**456. Merge `f4x-data` into `f4x-core`.** Move the loader and validation code of `f4x-data` into `f4x-core` (or into `f4x-rules` if 455 is done first; decide the order together with 455), remove the crate from the workspace, and fix the users and docs (`docs/ecs-structure.md`, `docs/scripts.md`). Asked for by the user, 2 November 2026.
+**456. Merge `f4x-data` into `f4x-rules`.** Stage A, steps 4 and 6, of `docs/crate-layout-plan.md` (the plan decides `f4x-rules`, not core, and says where each test file of `f4x-data` goes). Done together with 455. Asked for by the user, 2 November 2026.
 
 **457. Review the patch release notes against the game.** Read the release notes of Insecticide, the 1.50 patch and the community patch (find them in the ReMoM tree or the wiki; say in the task which files were used), and for each fix or change check whether our game has the bug the note describes, already does it right, or deliberately differs (`docs/divergences.md`). Make a list with one line per note (bug present, fixed, divergence, not applicable), open a task for each bug that is present, and add the deliberate differences to `docs/divergences.md`. Related to 414 and 452. Asked for by the user, 2 November 2026.
 
-**458. New `f4x-newgame` crate.** Create a crate `f4x-newgame` that handles starting a new game: creating the map, creating the wizard, setting up the enemies (the other wizards and the neutral cities and lairs) and the rest of the setup that now lives in `f4x-core` (`game/setup.rs` and its neighbours, `map` generation, `feature` placement). Decide first what moves and what stays (the generators need the core types, so core cannot depend on the new crate), keep the dependency one-way, and update `docs/ecs-structure.md`. Related to 455 and 456 (the crate layout). Asked for by the user, 2 November 2026.
+**458. New `f4x-newgame` crate.** Stage B of `docs/crate-layout-plan.md`: map generator, feature placement, wizard setup and the rest of starting a game. The crate sits above `f4x-core`. Needs 455 and 456 first. Asked for by the user, 2 November 2026.
 
 **459. Remove the "flat" difficulty.** The "flat" difficulty setting exists purely for testing. Remove `GameSettings::flat()` (`game/setting.rs`; the symmetric settings a game plays when `rules_settings.ron` has no levels) and the code that falls back to it, and give the tests that rely on it (find them with `grep -rn flat` in `crates` and `content/rules_settings.ron`) real game rules settings instead: either one of the five real difficulties or a settings value a test builds on purpose with the field it needs. The regression targets in `tests/regression` may change if a scenario used it; refresh them and say why. Asked for by the user, 2 November 2026.
 
@@ -315,3 +316,5 @@ No action: the hit-points row shows one figure's hit points, and the original do
 4. **Two icon tables (done 2 November 2026).** `enchantment_icon` and `curse_icon` are one table now, `ENCHANTMENT_ART` in `unit_sheet.rs`, keyed by spell number. That found a bug: the old table was keyed by the alias `invisibility`, but the spell's id is misspelled `invisiblity` in `spells.ron`, so Invisibility never had its unit-sheet icon; fixed by the number. The misspelling is fixed too (id, name, help title and sound entry; the original's own name stays in `tests/original/spells.tsv`, which the spell test maps).
 
 Every curse has an icon in the unit sheet and no two share a picture number. Related: 422, 463. Asked for by the user, 2 November 2026.
+
+**466. New `f4x-save` crate.** Stage C of `docs/crate-layout-plan.md`: move the snapshot types and the format (`game/save.rs`, `battle/save.rs`, `game/serial.rs`) and the file code of `f4x-data/src/save.rs` into a crate above `f4x-core`; `SAVE_VERSION` and the saves in `tests/regression` do not change. Start by measuring which private fields and `pub(crate)` restore methods of `Game` the save code uses and decide the interface (the plan suggests `Game::to_parts` / `from_parts`). Needs 455, 456 and 458 first. Asked for by the user, 2 November 2026.
