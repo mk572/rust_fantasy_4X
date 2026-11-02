@@ -142,7 +142,7 @@ mutators are probably the longer functions. The count misses multi-line signatur
 | `Command`, `Event`, `apply`, `undo`, `replay`, `endgame`, `cheat` | `f4x-core/action` | |
 | `process_turn` and the turn steps | `f4x-core/action` | the steps that only read (what a city yields) are state |
 | `mapgen` (1,076 lines in `mapgen/original.rs`), `setup` (`new_game`, 894 lines), the feature placement generators (about 1,000 lines of `feature/`) | `f4x-core/action/newgame` | a module, not a crate |
-| `save.rs` (1,765 lines, 734 of tests), `serial.rs`, `battle/save.rs`, `f4x-data/src/save.rs` (221) | `f4x-core/state/save` | the format (`SAVE_VERSION` 4) does not change |
+| `save.rs` (1,765 lines, 734 of tests), `serial.rs`, `battle/save.rs`, `f4x-data/src/save.rs` (221) | `f4x-core/state/save` | the format (`SAVE_VERSION` 4) does not change. The file IO (`save_game`, `load_game`, `summarize_save`, `SaveError`, `SaveSummary`) goes with it into core, although the rest of `f4x-data` goes to `f4x-static`: it takes and returns a `Game`, so it cannot live in a crate below core, and a separate save crate above core is plan A |
 | `sound.rs`, `spell_art.rs`, art fields | client | stage 0, task 467 |
 
 The tests of `f4x-data` split as follows:
@@ -239,8 +239,8 @@ and `base`.
 2. `git mv` the files of section 3 (keeping history); add the re-exports to core (section 1); add the
    crate to `[workspace.dependencies]`.
 3. Move the loader of `f4x-data` and its tests (table in section 3); replace `load_shipped` by
-   `f4x_static::testutil::shipped()` and delete the 308-line copy; `save.rs` of `f4x-data` goes to
-   `f4x-core/state/save`. Remove `f4x-data` from the workspace; callers use `f4x_static::load_content`.
+   `f4x_static::testutil::shipped()` and delete the 308-line copy; `save.rs` of `f4x-data` (the file IO) is not part of the merge: it goes to
+   `f4x-core/state/save`, not to `f4x-static`. Remove `f4x-data` from the workspace; callers use `f4x_static::load_content`.
 4. **The orphan rule.** Rust forbids an inherent `impl` on a type from another crate, so every
    `impl SomeDefinitionType { ... }` that lives in game code stops compiling. Find them first:
    `grep -rn "^impl \(UnitDef\|SpellDef\|...\)" crates/f4x-core/src` for each moved type. Fix each by
