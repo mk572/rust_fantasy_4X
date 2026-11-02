@@ -15,3 +15,6 @@ hecs.workspace = true
 rand.workspace = true
 rand_pcg.workspace = true
 ron.workspace = true
+
+[dev-dependencies]
+f4x-core = { workspace = true, features = ["testutil"] }

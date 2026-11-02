@@ -11,7 +11,13 @@ rand_pcg.workspace = true
 serde.workspace = true
 ron.workspace = true
 
+[features]
+# `testdir` (a folder of its own for a test) is for tests only: this crate's unit tests have it, other
+# crates and the integration tests turn it on through their dev-dependencies.
+testutil = []
+
 [dev-dependencies]
+f4x-core = { path = ".", features = ["testutil"] }
 # The integration tests in tests/it/ run on the shipped content. A dev-dependency cycle is fine for
 # them; unit tests in src/ would see two copies of this crate's types.
 f4x-data.workspace = true

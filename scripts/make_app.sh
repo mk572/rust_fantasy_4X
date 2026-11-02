@@ -1,6 +1,7 @@
 #!/bin/sh
 # Build a local macOS app: target/Fantasy4X.app (release build of f4x-client plus a copy of
-# content/, content-local/ and assets-local/art and screens). For play on this machine only: it carries the
+# content/, content-local/ and assets-local/art, screens and audio; without the sources the game
+# never reads, see the prune step below). For play on this machine only: it carries the
 # local-only original art and text, so do not share it. Saves go to
 # ~/Library/Application Support/Fantasy4X/saves.
 #
@@ -48,6 +49,14 @@ cp -R content "$app/Contents/Resources/content"
 [ -f assets-local/index.tsv ] && cp assets-local/index.tsv "$app/Contents/Resources/assets-local/index.tsv"
 [ -d assets-local/screens ] && cp -R assets-local/screens "$app/Contents/Resources/assets-local/screens"
 [ -d assets-local/audio ] && cp -R assets-local/audio "$app/Contents/Resources/assets-local/audio"
+
+# Leave out what the game never reads: the XMI songs and instrument banks the OGG music was
+# rendered from, the extraction manifests and reports, backups of edited files and Finder litter.
+res="$app/Contents/Resources"
+rm -rf "$res/assets-local/audio/timbres"
+rm -f "$res/assets-local/audio/index.tsv" "$res/assets-local/art/manifest.tsv"
+rm -f "$res/content-local/IMPORT_REPORT.txt" "$res/content-local/OGBUG_INDEX.md"
+find "$res" \( -name '*.xmi' -o -name '*.orig' -o -name '.DS_Store' \) -type f -delete
 
 # The game finds content/, content-local/, assets-local/ and saves/ relative to the working
 # directory, so the launcher runs it from a folder that links to the bundled copies.
