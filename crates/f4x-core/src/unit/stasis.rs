@@ -9,8 +9,6 @@ use crate::battle::immunity::{resistance_failure, Realm};
 use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
 
-/// Hook of the spell.
-pub const STASIS: &str = "stasis";
 /// The resistance penalty of the roll that frees a unit.
 const FREEING_MODIFIER: i32 = -5;
 

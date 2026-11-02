@@ -52,7 +52,8 @@ Abilities, spells, buildings and items all describe what they do with the same t
 | `Summon { unit, count }` | |
 | `ChangeTerrain(class)` / `SetFeature(id)` | |
 | `ApplyEnchantment(id)` / `Dispel { strength }` | |
-| `Custom(name)` | named hook implemented in Rust, for the rare effect no primitive covers |
+| `Custom(name)` | named hook implemented in Rust and shared by several spells (`CUSTOM_HOOKS` in `rules/effects.rs`) |
+| `Special` | the spell's own code in Rust, found by the spell's number (`SPECIAL_SPELLS` in `rules/effects.rs`); the code says `spell.num() == 133 /* resurrection */`, never a name |
 
 **Triggers** say when an effect fires: `Passive` (modifiers while present), `OnTurnStart`, `OnCast`, `OnAttack`, `OnDefend`, `OnDeath`, `OnBuilt`. No scripting language: effects are plain data, which keeps content validatable, serialisable in saves, and safe to mod. `Custom` is the deliberate escape hatch, and we count how often it is used as a signal that a primitive is missing.
 

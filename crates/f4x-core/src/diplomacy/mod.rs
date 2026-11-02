@@ -1269,9 +1269,8 @@ impl Diplomacy {
         }
         // Lasting enchantments on the wizard are noticed as they are cast (the Spell of Mastery
         // as it is begun, see `start_cast`).
-        if !ctx
-            .view
-            .spell_has_hook(spell, crate::game::endgame::SPELL_OF_MASTERY)
+        if spell != crate::rules::SpellId::new(213)
+        /* spell_of_mastery */
         {
             self.enchantment_relations(ctx, caster, spell, 1);
         }
@@ -1284,9 +1283,8 @@ impl Diplomacy {
         player: PlayerId,
         spell: SpellId,
     ) {
-        if ctx
-            .view
-            .spell_has_hook(spell, crate::game::endgame::SPELL_OF_MASTERY)
+        if spell == crate::rules::SpellId::new(213)
+        /* spell_of_mastery */
         {
             self.enchantment_relations(ctx, player, spell, 1);
         }
@@ -1568,8 +1566,7 @@ impl Diplomacy {
                 .wizard(wizard)
                 .and_then(|m| m.casting())
                 .filter(|c| {
-                    ctx.view
-                        .spell_has_hook(c.spell, crate::game::endgame::SPELL_OF_MASTERY)
+                    c.spell == crate::rules::SpellId::new(213) /* spell_of_mastery */
                 })
                 .map(|c| c.spell);
             if let Some(mastery) = casting_mastery {

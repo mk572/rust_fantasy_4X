@@ -9,7 +9,7 @@ use f4x_core::rules::Ref;
 use f4x_core::rules::{
     AbilityDef, BuildingDef, Def, Duration, HeroTemplate, ItemDef, ItemPowerDef, LevelPathDef,
     RaceDef, RealmDef, Registry, RetortDef, Rules, RulesConfig, SpellDef, Stat, UnitDef, UnitKind,
-    WizardDef, HERO_ABILITIES,
+    WizardDef,
 };
 
 use crate::{id_problem, ContentError};
@@ -430,7 +430,10 @@ fn check_hero_templates(r: &Rules, p: &mut Vec<String>) {
             p.push(format!("{who} appears twice"));
         }
         for a in &t.abilities {
-            if !HERO_ABILITIES.contains(&a.as_str()) {
+            if !a
+                .id()
+                .is_some_and(f4x_core::hero::HeroAbilities::is_hero_ability)
+            {
                 p.push(format!("{who} has unknown hero ability {a:?}"));
             }
         }
@@ -556,6 +559,18 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
             carriers.push((
                 format!("level path {:?} level {:?}", path.id, level.name),
                 &level.effects[..],
+            ));
+        }
+    }
+    for spell in r.spells.defs() {
+        let special = spell
+            .effects
+            .iter()
+            .any(|e| matches!(e.effect, Effect::Special));
+        if special && !f4x_core::rules::effects::SPECIAL_SPELLS.contains(&spell.num) {
+            p.push(format!(
+                "spell {:?} has Special code but no Rust code is written for its number",
+                spell.id
             ));
         }
     }
@@ -921,8 +936,8 @@ fn check_rule(r: &Rules, features: &Features, owner: &str, rule: &EffectRule, p:
             }
         }
         Effect::SetFeature(f) => {
-            if features.id_of(f).is_none() {
-                p.push(format!("{owner}: unknown feature {f:?}"));
+            if features.get(*f).is_none() {
+                p.push(format!("{owner}: unknown feature {}", f.0));
             }
         }
         Effect::ApplyEnchantment(s) => match s.id().map(|id| r.spells.get(id)) {
@@ -1242,6 +1257,7 @@ mod tests {
         // A hero without a template, once there are templates at all.
         rules.hero_templates = vec![template("barbarian_spearmen"), template("nobody")];
         rules.hero_templates[0].abilities.push("flying".into());
+        // "flying" is an ability, but not a hero one.
         rules.hero_templates[0].spells.push("nowhere".into());
         let p = validate_rules(&rules, &features());
         assert!(

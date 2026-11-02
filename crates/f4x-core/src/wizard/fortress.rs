@@ -51,11 +51,6 @@ impl FortressError {
 /// than casting the Spell of Return.
 const RESIGN_BELOW_SKILL: i32 = 40;
 
-/// Hook names used by spell data for the fortress spells.
-pub const MOVE_FORTRESS: &str = "move_fortress";
-pub const MOVE_CIRCLE: &str = "move_summoning_circle";
-pub const RETURN: &str = "return_to_fortress";
-
 /// On a wizard: where its fortress stands (a city). Absent before it is placed and while the
 /// wizard is banished.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

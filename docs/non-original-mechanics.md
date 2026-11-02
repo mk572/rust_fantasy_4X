@@ -12,7 +12,7 @@ Deliberate departures from a rule the original *has* (a different number, a diff
 
 - The first paragraph of every module of `f4x-core/src` was read (about 100 files), and the schema of
   the rules (`rules/defs.rs`: race, unit, building, spell, item, power, level, config fields) and the
-  `Custom(..)` hooks of `content/spells.ron` (99; all are spells of the original).
+  `Custom(..)` and `Special` effects of `content/spells.ron` (99; all are spells of the original).
 - A claim "the original has no such thing" was checked in ReMoM (`~/projects/ReMoM/MoM/src`) by a search
   for the original's own name of the thing; where the search found nothing but I did not read the whole
   code around it, the row says so.
@@ -49,7 +49,7 @@ These looked invented and are in the original, so they stay without a note: the 
 roaming monsters (`threat/`, `Make_Raiders` and `Make_Monsters` in `AIDATA.c`), the Surveyor
 (`map/survey.rs`, `Surveyor.c`), the offers (`player/offer.rs`, `Determine_Offer`), the Astrologer and the
 history screens (`wizard/astrology.rs`, `Record_History`), the wizards' personality and objective
-(`wizard/objective.rs`), and the 99 `Custom` spell hooks.
+(`wizard/objective.rs`), and the 99 `Custom` and `Special` spell effects.
 
 ## Left for the next pass
 

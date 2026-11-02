@@ -23,10 +23,6 @@ use crate::spell::target_error::TargetError;
 
 /// The hook of the city enchantments the engine reads by name: casting only enchants the city.
 pub const CITY_FLAG: &str = "city_flag";
-/// The hook of Wall of Stone.
-pub const WALL_OF_STONE: &str = "wall_of_stone";
-/// The hook of Spell Ward: the realm is picked when casting.
-pub const SPELL_WARD: &str = "spell_ward";
 
 /// Chaos Rift's bolts on each unit in the city every turn, and their strength.
 const CHAOS_RIFT_BOLTS: u32 = 5;
@@ -230,7 +226,9 @@ impl Game {
     /// How many times the city's enchantment `spell` is paid for each turn: a Spell Ward costs
     /// its upkeep for every realm it guards.
     pub(crate) fn upkeep_count(&self, city: hecs::Entity, spell: crate::rules::SpellId) -> i32 {
-        if self.content.rules.spells.get(spell).id == "spell_ward" {
+        if spell == crate::rules::SpellId::new(72)
+        /* spell_ward */
+        {
             (self.economy().city_wards(city).len() as i32).max(1)
         } else {
             1

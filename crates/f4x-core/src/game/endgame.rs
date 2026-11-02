@@ -10,11 +10,6 @@ use serde::{Deserialize, Serialize};
 use crate::game::{Event, Game};
 use crate::player::PlayerId;
 
-/// The custom spell hook of the Spell of Mastery.
-pub const SPELL_OF_MASTERY: &str = "spell_of_mastery";
-/// The Spell of Mastery itself, for the places that need the spell and not the hook.
-pub const SPELL_OF_MASTERY_SPELL: crate::rules::SpellId = crate::rules::SpellId::new(213) /* spell_of_mastery */;
-
 /// The neutral player and monsters are not wizards.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -181,7 +176,9 @@ impl Game {
         player: PlayerId,
         spell: crate::rules::SpellId,
     ) -> Vec<Event> {
-        if self.spell_has_hook(spell, SPELL_OF_MASTERY) {
+        if spell == crate::rules::SpellId::new(213)
+        /* spell_of_mastery */
+        {
             vec![Event::MasteryStarted { caster: player }]
         } else {
             Vec::new()
@@ -195,7 +192,7 @@ impl Game {
             .into_iter()
             .filter_map(|id| {
                 let c = self.wizard(id)?.casting()?;
-                self.spell_has_hook(c.spell, SPELL_OF_MASTERY)
+                (c.spell == crate::rules::SpellId::new(213)/* spell_of_mastery */)
                     .then_some((id, c.remaining))
             })
             .collect()

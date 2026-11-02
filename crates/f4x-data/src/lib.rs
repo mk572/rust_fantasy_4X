@@ -548,7 +548,10 @@ mod tests {
             [Ref::new("dispel_magic_true"), Ref::new("counter_magic")]
         );
         assert_eq!(t("sage").casting_skill, 2);
-        assert_eq!(t("bard").abilities, ["leadership", "female"]);
+        assert_eq!(
+            t("bard").abilities,
+            [Ref::new("leadership"), Ref::new("female")]
+        );
         assert_eq!(
             (t("elven_archer").picks, t("elven_archer").pick_type),
             (3, PickType::Any)
@@ -597,7 +600,12 @@ mod tests {
             assert_eq!(roster, roll(&mut GameRng::new(seed), rules));
             assert_eq!(roster.len(), 35);
             for (r, t) in roster.iter().zip(&rules.hero_templates) {
-                let fixed = HeroAbilities::from_names(&t.abilities);
+                let fixed = HeroAbilities::from_ids(
+                    &t.abilities
+                        .iter()
+                        .filter_map(|a| a.id())
+                        .collect::<Vec<_>>(),
+                );
                 let gained = steps(&r.abilities) - steps(&fixed)
                     + (i32::from(r.casting_skill) - t.casting_skill as i32);
                 // A pick that finds nothing to raise (a second Arcane Power on a hero

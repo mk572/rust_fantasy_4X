@@ -12,69 +12,75 @@ use super::{AbilityDef, RealmDef, SpellDef};
 use crate::map::terrain::TerrainClass;
 use crate::map::Plane;
 
-/// Names of `Effect::Custom` hooks implemented in Rust. A `Custom` effect naming
-/// anything else fails content validation.
+/// Names of the `Effect::Custom` hooks implemented in Rust, shared by several spells. A
+/// `Custom` effect naming anything else fails content validation.
 ///
 /// `unimplemented` marks an imported rule the engine has no primitive for yet; the
 /// number of uses is the to-do list for new effect primitives.
 pub const CUSTOM_HOOKS: &[&str] = &[
     "unimplemented",
-    crate::wizard::fortress::MOVE_FORTRESS,
-    crate::wizard::fortress::MOVE_CIRCLE,
-    crate::wizard::fortress::RETURN,
-    crate::spell::terraform::RAISE_VOLCANO,
-    crate::spell::terraform::CHANGE_TERRAIN,
     crate::spell::global_enchantment::GLOBAL_EFFECT,
-    crate::map::road::ENCHANT_ROAD,
-    crate::map::corruption::CORRUPT_LAND,
-    crate::map::corruption::WARP_NODE,
-    crate::spell::special::TRANSMUTE,
-    crate::spell::special::EARTH_LORE,
-    crate::spell::special::NATURES_CURES,
-    crate::spell::special::WORD_OF_RECALL,
-    crate::spell::special::PLANE_SHIFT,
-    crate::spell::special::FLOATING_ISLAND,
     crate::item::crafting::CRAFT_ITEM,
-    crate::spell::hero::SUMMON_HERO,
-    crate::spell::hero::SUMMON_CHAMPION,
-    crate::spell::hero::INCARNATION,
-    crate::spell::hero::RESURRECTION,
-    crate::spell::wizard::DRAIN_POWER,
-    crate::spell::wizard::CRUEL_UNMINDING,
-    crate::spell::wizard::SUBVERSION,
-    crate::spell::wizard::GREAT_UNSUMMONING,
-    crate::spell::wizard::DEATH_WISH,
-    crate::spell::wizard::EARTHQUAKE,
-    crate::spell::wizard::BLACK_WIND,
-    crate::spell::wizard::LYCANTHROPY,
-    crate::spell::world::CALL_THE_VOID,
-    crate::unit::mutation::CHAOS_CHANNELS,
-    crate::unit::stasis::STASIS,
-    crate::battle::vortex::MAGIC_VORTEX,
-    crate::game::endgame::SPELL_OF_MASTERY,
     crate::city::gate::CITY_GATE,
     crate::spell::city::CITY_FLAG,
-    crate::spell::city::WALL_OF_STONE,
-    crate::spell::city::SPELL_WARD,
-    crate::spell::dispel::DISJUNCTION,
-    crate::spell::dispel::DISJUNCTION_TRUE,
-    crate::spell::dispel::SPELL_BINDING,
-    crate::spell::dispel::SPELL_BLAST,
-    crate::spell::dispel::COUNTER_MAGIC,
     crate::battle::field::BATTLEFIELD,
-    crate::battle::field::CALL_CHAOS,
     crate::battle::field::DISINTEGRATE,
-    crate::battle::spell::ANIMATE_DEAD,
-    crate::battle::spell::CREATURE_BINDING,
-    crate::battle::spell::POSSESSION,
-    crate::battle::spell::RAISE_DEAD,
-    crate::battle::spell::RECALL_HERO,
-    crate::battle::spell::EARTH_TO_MUD,
-    crate::battle::spell::CRACKS_CALL,
-    crate::battle::spell::DISRUPT,
-    crate::battle::spell::LIFE_DRAIN,
-    crate::battle::spell::WARP_WOOD,
-    crate::battle::spell::WARP_CREATURE,
+];
+
+/// The spells that have code of their own in Rust (`Effect::Special`), by number: the
+/// number is the only link between the spell and its code. A `Special` effect on a spell
+/// not in this list fails content validation.
+pub const SPECIAL_SPELLS: [u16; 50] = [
+    1,   // earth_to_mud
+    3,   // wall_of_stone
+    10,  // earth_lore
+    11,  // cracks_call
+    15,  // change_terrain
+    18,  // transmute
+    19,  // natures_cures
+    26,  // earthquake
+    28,  // move_fortress
+    43,  // floating_island
+    47,  // word_of_recall
+    48,  // counter_magic
+    55,  // enchant_road
+    58,  // spell_blast
+    61,  // disjunction_true
+    68,  // stasis
+    72,  // spell_ward
+    73,  // creature_binding
+    75,  // great_unsummoning
+    76,  // spell_binding
+    81,  // warp_wood
+    82,  // disrupt
+    85,  // corruption
+    89,  // warp_creature
+    93,  // chaos_channels
+    98,  // raise_volcano
+    105, // magic_vortex
+    115, // call_chaos
+    119, // call_the_void
+    132, // plane_shift
+    133, // resurrection
+    137, // raise_dead
+    142, // incarnation
+    167, // life_drain
+    171, // drain_power
+    172, // possession
+    173, // lycanthropy
+    177, // subversion
+    186, // warp_node
+    187, // black_wind
+    191, // cruel_unminding
+    195, // animate_dead
+    199, // death_wish
+    203, // summoning_circle
+    205, // recall_hero
+    208, // summon_hero
+    210, // disjunction
+    212, // summon_champion
+    213, // spell_of_mastery
+    214, // spell_of_return
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -225,14 +231,18 @@ pub enum Effect {
         count: u8,
     },
     ChangeTerrain(TerrainClass),
-    SetFeature(String),
+    /// Put a map feature on the tile: its number in `features.ron`.
+    SetFeature(crate::map::FeatureId),
     /// Attach a lasting spell (by spell id) to the target.
     ApplyEnchantment(Ref<SpellDef>),
     Dispel {
         strength: u32,
     },
-    /// A named hook implemented in Rust; must appear in [`CUSTOM_HOOKS`].
+    /// A named hook implemented in Rust and shared by several spells; must appear in
+    /// [`CUSTOM_HOOKS`].
     Custom(String),
+    /// The spell's own code in Rust, found by the spell's number ([`SPECIAL_SPELLS`]).
+    Special,
 }
 
 fn always() -> Condition {

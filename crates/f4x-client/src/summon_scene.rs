@@ -14,7 +14,8 @@ use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 use f4x_core::item::crafting::CRAFT_ITEM;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::effects::{Effect, EffectRule};
+use f4x_core::rules::effects::Effect;
+use f4x_core::rules::SpellDef;
 use f4x_core::rules::{Rarity, SpellId, UnitId};
 use f4x_core::text::{Args, Gender};
 use macroquad::prelude::*;
@@ -75,11 +76,11 @@ impl Modal for SummonScene {
 }
 
 /// What a spell summons, if it does.
-pub(crate) fn summoned_by(effects: &[EffectRule]) -> Option<Summoned> {
-    effects.iter().find_map(|e| match &e.effect {
+pub(crate) fn summoned_by(def: &SpellDef) -> Option<Summoned> {
+    def.effects.iter().find_map(|e| match &e.effect {
         Effect::Summon { unit_id, .. } => unit_id.map(Summoned::Creature),
-        Effect::Custom(name) if name == "summon_hero" => Some(Summoned::Hero),
-        Effect::Custom(name) if name == "summon_champion" => Some(Summoned::Champion),
+        Effect::Special if def.num == 208 /* summon_hero */ => Some(Summoned::Hero),
+        Effect::Special if def.num == 212 /* summon_champion */ => Some(Summoned::Champion),
         Effect::Custom(name) if name == CRAFT_ITEM => Some(Summoned::Item),
         _ => None,
     })
@@ -108,7 +109,7 @@ impl App {
     /// human or Enemy Spells is on.
     pub(crate) fn announce_summon(&mut self, player: PlayerId, spell: SpellId) {
         let rules = &self.game.content().rules;
-        let what = summoned_by(&rules.spells.get(spell).effects);
+        let what = summoned_by(rules.spells.get(spell));
         // Enchant Item and Create Artifact play for the human alone, whatever the settings
         // (`OverSpel.c`, the crafting case).
         if what == Some(Summoned::Item) && player != HUMAN {
@@ -162,7 +163,7 @@ impl App {
     ) -> Option<SummonScene> {
         let rules = &self.game.content().rules;
         let def = rules.spells.get(spell);
-        let what = summoned_by(&def.effects)?;
+        let what = summoned_by(def)?;
         let (figure, label) = match &what {
             Summoned::Creature(unit) => {
                 let first = UnitId::new(154) /* magic_spirit */;
@@ -266,7 +267,7 @@ mod tests {
         let rules = &app.game.content().rules;
         let summons = |id: &str| {
             let spell = rules.spells.by_name(id).expect("spell");
-            summoned_by(&spell.effects)
+            summoned_by(spell)
         };
         assert_eq!(
             summons("war_bears"),

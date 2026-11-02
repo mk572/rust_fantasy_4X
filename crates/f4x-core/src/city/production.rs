@@ -392,7 +392,7 @@ impl Economy<'_> {
             return Err(ProductionError::MissingBuilding);
         }
         let def = self.content.rules.buildings.get(building);
-        let cost = sale_value(def.cost, def.id == "city_walls");
+        let cost = sale_value(def.cost, def.num == 35 /* city_walls */);
         let owner = self.city_owner(city).ok_or(ProductionError::NotACity)?;
         Ok((owner, cost))
     }

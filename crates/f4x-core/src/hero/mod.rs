@@ -124,29 +124,38 @@ const TIERED: [&str; 10] = [
 ];
 
 impl HeroAbilities {
-    /// The abilities named in `names` (the spellings of [`HERO_ABILITIES`](crate::rules::HERO_ABILITIES));
-    /// a name that is not one is ignored (the data checks reject them).
-    pub fn from_names<S: AsRef<str>>(names: &[S]) -> Self {
+    /// The abilities with these numbers (`abilities.ron`); a number that is not a hero
+    /// ability is ignored (the data checks reject it, see [`Self::is_hero_ability`]).
+    pub fn from_ids(ids: &[Ability]) -> Self {
         let mut out = Self::default();
-        for name in names {
-            let name = name.as_ref();
-            let (base, tier) = match name.strip_prefix("super_") {
-                Some(base) => (base, Tier::Super),
-                None => (name, Tier::Normal),
-            };
-            if let Some(slot) = out.tier_mut(base) {
-                *slot = tier;
-                continue;
+        for id in ids {
+            let n = id.num();
+            for name in TIERED {
+                let plain = tiered_number(name);
+                if n == plain || n == plain + 1 {
+                    if let Some(slot) = out.tier_mut(name) {
+                        *slot = if n == plain {
+                            Tier::Normal
+                        } else {
+                            Tier::Super
+                        };
+                    }
+                }
             }
-            match name {
-                "lucky" => out.lucky = true,
-                "charmed" => out.charmed = true,
-                "noble" => out.noble = true,
-                "female" => out.female = true,
+            match n {
+                39 => out.lucky = true,
+                95 => out.charmed = true,
+                96 => out.noble = true,
+                97 => out.female = true,
                 _ => {}
             }
         }
         out
+    }
+
+    /// Whether the number is one of the hero abilities [`Self::from_ids`] understands.
+    pub fn is_hero_ability(id: Ability) -> bool {
+        Self::from_ids(&[id]).ids() == [id]
     }
 
     /// The tier of one of the ten abilities that have one, by its plain name (`None` for a
@@ -344,13 +353,16 @@ mod tests {
 
     #[test]
     fn arcane_power_needs_a_magic_attack() {
-        let a = HeroAbilities::from_names(&["arcane_power", "super_might"]);
+        let a = HeroAbilities::from_ids(&[
+            Ability::new(87), /* arcane_power */
+            Ability::new(86), /* super_might */
+        ]);
         let find = |mods: &[Modifier], stat| mods.iter().find(|m| m.stat == stat).map(|m| m.value);
         assert_eq!(find(&a.modifiers(1, false), Stat::Ranged), None);
         assert_eq!(find(&a.modifiers(1, true), Stat::Ranged), Some(2));
         assert_eq!(find(&a.modifiers(1, true), Stat::Melee), Some(3));
         assert_eq!(find(&a.modifiers(1, true), Stat::Defense), None);
-        let charmed = HeroAbilities::from_names(&["charmed"]);
+        let charmed = HeroAbilities::from_ids(&[Ability::new(95) /* charmed */]);
         assert_eq!(
             find(&charmed.modifiers(1, false), Stat::Resistance),
             Some(30)
@@ -372,13 +384,19 @@ mod tests {
         g.world.insert_one(h, Experience(20))?;
         let (fame, research) = (g.fame(P0), g.income(P0).research);
         let bare = read(&g);
-        g.world.get::<&mut Hero>(h)?.abilities =
-            HeroAbilities::from_names(&["might", "super_agility", "blademaster", "constitution"]);
+        g.world.get::<&mut Hero>(h)?.abilities = HeroAbilities::from_ids(&[
+            Ability::new(85), // might
+            Ability::new(94), // super_agility
+            Ability::new(79), // blademaster
+            Ability::new(83), // constitution
+        ]);
         let with: Vec<i32> = read(&g).iter().zip(bare).map(|(n, b)| n - b).collect();
         assert_eq!(with, vec![2, 3, 1, 2]);
         // Super Legendary is 9 fame at x = 2, Sage 3 research at level 1.
-        g.world.get::<&mut Hero>(h)?.abilities =
-            HeroAbilities::from_names(&["super_legendary", "sage"]);
+        g.world.get::<&mut Hero>(h)?.abilities = HeroAbilities::from_ids(&[
+            Ability::new(78), /* super_legendary */
+            Ability::new(89), /* sage */
+        ]);
         assert_eq!(g.fame(P0), fame + 9);
         assert_eq!(g.income(P0).research, research + 3);
         let other = crate::player::PlayerId(1);
@@ -390,8 +408,13 @@ mod tests {
     }
 
     #[test]
-    fn names_make_tiers_and_flags() {
-        let a = HeroAbilities::from_names(&["leadership", "super_might", "noble", "female"]);
+    fn numbers_make_tiers_and_flags() {
+        let a = HeroAbilities::from_ids(&[
+            Ability::new(75), // leadership
+            Ability::new(86), // super_might
+            Ability::new(96), // noble
+            Ability::new(97), // female
+        ]);
         assert_eq!(a.leadership, Tier::Normal);
         assert_eq!(a.might, Tier::Super);
         assert_eq!(a.sage, Tier::None);
@@ -399,23 +422,25 @@ mod tests {
     }
 
     #[test]
-    fn ids_round_trip_through_the_names() {
-        let names = ["super_armsmaster", "legendary", "lucky", "charmed"];
-        let a = HeroAbilities::from_names(&names);
+    fn ids_round_trip() {
+        // super armsmaster, legendary, lucky, charmed
+        let numbers = [82, 77, 39, 95];
+        let given: Vec<Ability> = numbers.iter().map(|&n| Ability::new(n)).collect();
+        let a = HeroAbilities::from_ids(&given);
         let ids = a.ids();
         assert_eq!(ids.len(), 4);
-        // super armsmaster, legendary, lucky, charmed
-        for n in [82, 77, 39, 95] {
+        for n in numbers {
             assert!(ids.contains(&Ability::new(n)), "{n} missing from {ids:?}");
         }
-        assert_eq!(HeroAbilities::from_names(&names), a);
+        assert_eq!(HeroAbilities::from_ids(&ids), a);
     }
 
     #[test]
-    fn unknown_names_are_ignored() {
-        assert_eq!(
-            HeroAbilities::from_names(&["flying", "super_nothing"]),
-            HeroAbilities::default()
-        );
+    fn other_abilities_are_ignored() {
+        // Flying (a unit ability) and a number no ability has.
+        let other = [Ability::new(1), Ability::new(9999)];
+        assert_eq!(HeroAbilities::from_ids(&other), HeroAbilities::default());
+        assert!(!HeroAbilities::is_hero_ability(other[0]));
+        assert!(HeroAbilities::is_hero_ability(Ability::new(97)));
     }
 }

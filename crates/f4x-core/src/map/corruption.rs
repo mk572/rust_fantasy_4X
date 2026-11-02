@@ -12,8 +12,6 @@ use crate::player::PlayerId;
 use crate::rules::Ability;
 use crate::spell::target_error::TargetError;
 
-pub const CORRUPT_LAND: &str = "corrupt_land";
-
 /// The chance in a hundred, each turn, that a corrupted square heals by itself.
 const FADE_PERCENT: u32 = 2;
 
@@ -276,8 +274,6 @@ impl Game {
         vec![Event::NodeWarped { pos: at }]
     }
 }
-
-pub const WARP_NODE: &str = "warp_node";
 
 #[cfg(test)]
 mod tests;

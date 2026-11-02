@@ -13,9 +13,6 @@ use crate::rules::Stat;
 use crate::spell::target_error::TargetError;
 use crate::unit::movement::MoveError;
 
-/// Hook of the Enchant Road spell.
-pub const ENCHANT_ROAD: &str = "enchant_road";
-
 /// Turns a river adds to the road on its square: the bridge.
 pub const RIVER_BRIDGE_TURNS: u8 = 2;
 
@@ -90,11 +87,10 @@ impl Game {
                 if base == 0 {
                     return 0;
                 }
-                let endurance = self
-                    .units()
-                    .unit_enchantments(u)
-                    .iter()
-                    .any(|&(s, _)| self.content.rules.spells.get(s).id == "endurance");
+                let endurance =
+                    self.units().unit_enchantments(u).iter().any(|&(s, _)| {
+                        s == crate::rules::SpellId::new(123)
+                    } /* endurance */);
                 base + u32::from(endurance)
             })
             .sum()

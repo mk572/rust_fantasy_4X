@@ -13,22 +13,13 @@ use crate::hero::kind::{self, Class, Standing, HEROES};
 use crate::hero::{HeroError, HeroState};
 use crate::player::offer::Offer;
 use crate::player::PlayerId;
+use crate::rules::SpellId;
 use crate::unit::UnitView;
-
-pub const SUMMON_HERO: &str = "summon_hero";
-pub const SUMMON_CHAMPION: &str = "summon_champion";
-pub const INCARNATION: &str = "incarnation";
-pub const RESURRECTION: &str = "resurrection";
-/// The Resurrection spell itself, for the places that need the spell and not the hook.
-pub const RESURRECTION_SPELL: crate::rules::SpellId = crate::rules::SpellId::new(133) /* resurrection */;
 
 /// Torin the Chosen, the last hero type: only Incarnation brings him.
 pub fn torin(rules: &crate::rules::Rules) -> usize {
     rules.hero_templates.len().saturating_sub(1)
 }
-
-/// The hooks that bring a hero in.
-pub const HOOKS: [&str; 4] = [SUMMON_HERO, SUMMON_CHAMPION, INCARNATION, RESURRECTION];
 
 impl UnitView<'_> {
     /// Could a summoning of this class find a hero for the wizard? (`Pick_Random_Hero` with a
@@ -67,7 +58,7 @@ impl UnitView<'_> {
     /// Why the wizard cannot bring a hero in by this hook now, if so: no summoning
     /// circle, or nobody to bring (Incarnation: Torin is already serving or
     /// gone). `Resurrection` is checked against the hero chosen, not here.
-    pub fn hero_spell_blocked(&self, player: PlayerId, hook: &str) -> Option<HeroError> {
+    pub fn hero_spell_blocked(&self, player: PlayerId, spell: SpellId) -> Option<HeroError> {
         let states = self.hero_states();
         if crate::wizard::entity::find(self.world, player)
             .is_none_or(|w| w.summon_point().is_none())
@@ -75,10 +66,10 @@ impl UnitView<'_> {
             return Some(HeroError::NoCircle);
         }
         let record = |k: usize| states.get(k).copied();
-        let possible = match hook {
-            SUMMON_HERO => self.hero_summonable(player, Class::Hero),
-            SUMMON_CHAMPION => self.hero_summonable(player, Class::Champion),
-            INCARNATION => matches!(
+        let possible = match spell.num() {
+            208 /* summon_hero */ => self.hero_summonable(player, Class::Hero),
+            212 /* summon_champion */ => self.hero_summonable(player, Class::Champion),
+            142 /* incarnation */ => matches!(
                 record(torin(&self.content.rules)),
                 Some(HeroState::Free | HeroState::Dead)
             ),
@@ -126,21 +117,20 @@ impl Game {
     /// The cast has lent the game's generator to the effect host, so the pick draws from `rng`.
     pub(crate) fn hero_hook(
         &mut self,
-        hook: &str,
+        spell: SpellId,
         player: PlayerId,
         who: crate::rules::exec::Target,
         rng: &mut GameRng,
     ) -> Option<Vec<Event>> {
-        let spell = self.content.rules.spells.id_of(hook)?;
         let standing = self.units().hero_standing(player);
         let states = self.units().hero_states();
         let mut pick =
             |class| kind::pick(rng, &self.content.rules, &states, &standing, true, class);
-        let kind = match hook {
-            SUMMON_HERO => pick(Class::Hero),
-            SUMMON_CHAMPION => pick(Class::Champion),
-            INCARNATION => Some(torin(&self.content.rules)),
-            RESURRECTION => {
+        let kind = match spell.num() {
+            208 /* summon_hero */ => pick(Class::Hero),
+            212 /* summon_champion */ => pick(Class::Champion),
+            142 /* incarnation */ => Some(torin(&self.content.rules)),
+            133 /* resurrection */ => {
                 // Nobody to raise if the hero is not dead any more: the spell is lost, with a warning.
                 let dead = self.units().raisable_heroes();
                 match who {
@@ -151,9 +141,9 @@ impl Game {
             _ => return None,
         };
         // The human wizard is asked to accept a summoned hero (`Hire_Hero_Popup`, types 1 and 3).
-        if matches!(hook, SUMMON_HERO | SUMMON_CHAMPION) && self.human() == Some(player) {
+        if matches!(spell.num(), 208 | 212) && self.human() == Some(player) {
             if let Some(kind) = kind {
-                let champion = hook == SUMMON_CHAMPION;
+                let champion = spell.num() == 212; // summon_champion
                 if let Some(o) = self.player_component_mut::<crate::player::Offers>(player) {
                     o.0.push(Offer::Summoned { kind, champion });
                     return Some(vec![Event::HeroSummoned { player, kind }]);
@@ -184,8 +174,9 @@ mod tests {
         let mut g = world();
         g.init_wizard(P0, &[("life", 3)], &[], None)
             .expect("init_wizard succeeds");
-        for id in HOOKS {
-            let s = g.content.rules.spells.id_of(id).expect("id_of succeeds");
+        for number in [208, 212, 142, 133] {
+            // summon_hero, summon_champion, incarnation, resurrection
+            let s = SpellId::new(number);
             let mut m = g.wizard_mut(P0).expect("wizard_mut succeeds");
             m.get_mut::<crate::wizard::sheet::KnownSpells>()
                 .researchable
@@ -213,8 +204,8 @@ mod tests {
         g
     }
 
-    fn cast(g: &mut Game, hook: &str) -> Vec<Event> {
-        let spell = g.content.rules.spells.id_of(hook).expect("id_of succeeds");
+    fn cast(g: &mut Game, number: u16) -> Vec<Event> {
+        let spell = SpellId::new(number);
         g.apply(Command::CastSpell {
             extra: 0,
             player: P0,
@@ -277,7 +268,7 @@ mod tests {
     #[test]
     fn summon_hero_brings_a_hero_for_mana_only() -> TestResult {
         let mut g = caster();
-        let events = cast(&mut g, SUMMON_HERO);
+        let events = cast(&mut g, 208 /* summon_hero */);
         let (unit, kind) = joined(&events).ok_or_else(|| format!("{events:?}"))?;
         assert!(kind < HEROES);
         assert_eq!(g.units().unit_position(unit), Some(at(3, 3)));
@@ -290,7 +281,7 @@ mod tests {
         // The necromancer (a death book) is not among those a life wizard can summon.
         let necromancer = crate::hero::game::tests::kind_of(&g, "necromancer");
         for _ in 0..5 {
-            if let Some((_, k)) = joined(&cast(&mut g, SUMMON_HERO)) {
+            if let Some((_, k)) = joined(&cast(&mut g, 208 /* summon_hero */)) {
                 assert_ne!(k, necromancer);
             }
         }
@@ -310,7 +301,7 @@ mod tests {
     ) -> TestResult {
         let mut g = caster();
         g.set_human(Some(P0));
-        let events = cast(&mut g, SUMMON_CHAMPION);
+        let events = cast(&mut g, 212 /* summon_champion */);
         let (player, kind) = events
             .iter()
             .find_map(|e| match e {
@@ -348,7 +339,7 @@ mod tests {
     {
         let mut g = caster();
         g.set_human(Some(P0));
-        let events = cast(&mut g, SUMMON_HERO);
+        let events = cast(&mut g, 208 /* summon_hero */);
         let kind = events
             .iter()
             .find_map(|e| match e {
@@ -362,7 +353,7 @@ mod tests {
         assert!(g.units().hero_units(P0).is_empty());
         // No human: the hero joins without a question.
         g.set_human(None);
-        let events = cast(&mut g, SUMMON_HERO);
+        let events = cast(&mut g, 208 /* summon_hero */);
         assert!(joined(&events).is_some(), "{events:?}");
         assert_eq!(waiting(&g), None);
         Ok(())
@@ -378,11 +369,12 @@ mod tests {
             g.hire_hero(P0, k).map_err(|e| format!("{e:?}"))?;
         }
         let mana = g.player(P0).ok_or("player is missing")?.treasury().mana;
-        for hook in [SUMMON_HERO, SUMMON_CHAMPION, INCARNATION] {
-            let events = cast(&mut g, hook);
+        for number in [208, 212, 142] {
+            // summon_hero, summon_champion, incarnation
+            let events = cast(&mut g, number);
             assert!(
                 matches!(events.as_slice(), [Event::Rejected(_)]),
-                "{hook}: {events:?}"
+                "{number}: {events:?}"
             );
         }
         assert_eq!(
@@ -398,7 +390,7 @@ mod tests {
             .ok_or("wizard_mut is missing")?
             .put::<crate::wizard::fortress::Fortress>(None);
         assert!(matches!(
-            cast(&mut g, SUMMON_HERO).as_slice(),
+            cast(&mut g, 208 /* summon_hero */).as_slice(),
             [Event::Rejected(_)]
         ));
         assert_eq!(
@@ -415,7 +407,7 @@ mod tests {
         for k in 0..g.content.rules.hero_templates.len() {
             set_state(&mut g, k, HeroState::Gone);
         }
-        let events = cast(&mut g, SUMMON_CHAMPION);
+        let events = cast(&mut g, 212 /* summon_champion */);
         assert!(
             matches!(events.as_slice(), [Event::Rejected(_)]),
             "{events:?}"
@@ -427,22 +419,22 @@ mod tests {
         let mut g = caster();
         let last = torin(&g.content.rules);
         assert_eq!(last, 34, "Torin the Chosen");
-        let events = cast(&mut g, INCARNATION);
+        let events = cast(&mut g, 142 /* incarnation */);
         let (unit, kind) = joined(&events).ok_or_else(|| format!("{events:?}"))?;
         assert_eq!(kind, last);
         let _ = g.world.insert_one(unit, Experience(120));
         // There is only one Torin at a time.
         assert!(matches!(
-            cast(&mut g, INCARNATION).as_slice(),
+            cast(&mut g, 142 /* incarnation */).as_slice(),
             [Event::Rejected(_)]
         ));
         g.remove_unit(unit, Fate::Slain);
-        let (again, _) = joined(&cast(&mut g, INCARNATION)).ok_or("joined is missing")?;
+        let (again, _) = joined(&cast(&mut g, 142 /* incarnation */)).ok_or("joined is missing")?;
         assert_eq!(g.world.get::<&Experience>(again)?.0, 120);
         // Not once he is gone for good.
         g.remove_unit(again, Fate::Gone);
         assert!(matches!(
-            cast(&mut g, INCARNATION).as_slice(),
+            cast(&mut g, 142 /* incarnation */).as_slice(),
             [Event::Rejected(_)]
         ));
         Ok(())
@@ -470,7 +462,7 @@ mod tests {
     }
 
     fn raise(g: &mut Game, kind: usize) -> Vec<Event> {
-        let spell = RESURRECTION_SPELL;
+        let spell = crate::rules::SpellId::new(133) /* resurrection */;
         g.apply(Command::CastSpell {
             extra: 0,
             player: P0,
@@ -490,7 +482,7 @@ mod tests {
         g.remove_unit(b, Fate::Slain);
         // The spell is not cast at once without saying whom.
         assert!(matches!(
-            cast(&mut g, RESURRECTION).as_slice(),
+            cast(&mut g, 133 /* resurrection */).as_slice(),
             [Event::Rejected(_)]
         ));
         let mana = g.player(P0).ok_or("player is missing")?.treasury().mana;
@@ -521,8 +513,8 @@ mod tests {
         skill.get_mut::<crate::wizard::sheet::Skill>().left = 0;
         skill.get_mut::<crate::wizard::sheet::Skill>().points = 0;
         // Started with no hero named: the cost is paid over turns first.
-        let spell = RESURRECTION_SPELL;
-        let events = cast(&mut g, RESURRECTION);
+        let spell = crate::rules::SpellId::new(133) /* resurrection */;
+        let events = cast(&mut g, 133 /* resurrection */);
         assert!(
             !events.iter().any(|e| matches!(e, Event::Rejected(_))),
             "{events:?}"
@@ -577,12 +569,12 @@ mod tests {
     #[test]
     fn resurrection_warns_when_it_is_paid_and_no_hero_lies_dead() -> TestResult {
         let mut g = caster();
-        let spell = RESURRECTION_SPELL;
+        let spell = crate::rules::SpellId::new(133) /* resurrection */;
         assert!(!g.spell_has_target(P0, spell));
         let mut skill = g.wizard_mut(P0).ok_or("wizard_mut is missing")?;
         skill.get_mut::<crate::wizard::sheet::Skill>().left = 0;
         skill.get_mut::<crate::wizard::sheet::Skill>().points = 0;
-        let started = cast(&mut g, RESURRECTION);
+        let started = cast(&mut g, 133 /* resurrection */);
         assert!(
             !started.iter().any(|e| matches!(e, Event::Rejected(_))),
             "{started:?}"

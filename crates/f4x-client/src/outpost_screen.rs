@@ -132,11 +132,10 @@ impl App {
                 hills |= class == Some(f4x_core::map::terrain::TerrainClass::Hills);
             }
         }
-        let flying = self
-            .game
-            .city_enchantments(city)
-            .iter()
-            .any(|&(s, _)| self.game.content().rules.spells.get(s).id == "flying_fortress");
+        let flying =
+            self.game.city_enchantments(city).iter().any(|&(s, _)| {
+                s == f4x_core::rules::SpellId::new(77)
+            } /* flying_fortress */);
         let house_type = self.game.city_race(city).map_or(0, |r| {
             self.game.content().rules.races.get(r).house_type as usize
         });

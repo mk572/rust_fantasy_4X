@@ -1346,12 +1346,8 @@ impl App {
             return;
         }
         // Animate Dead and Raise Dead choose among the fallen, who are not on the field to click.
-        if [
-            f4x_core::battle::spell::ANIMATE_DEAD,
-            f4x_core::battle::spell::RAISE_DEAD,
-        ]
-        .into_iter()
-        .any(|h| self.game.spell_has_hook(spell.spell, h))
+        if [195, 137].contains(&spell.spell.num())
+        /* animate_dead, raise_dead */
         {
             // Only the wizard raises the fallen.
             if unit.is_none() {

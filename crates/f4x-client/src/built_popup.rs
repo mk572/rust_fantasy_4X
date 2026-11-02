@@ -82,7 +82,7 @@ impl App {
     ) -> Option<BuiltNotice> {
         let lay = Layout::new();
         let def = self.game.content().rules.buildings.get(building);
-        let walls = def.id == "city_walls";
+        let walls = def.num == 35 /* city_walls */;
         let mut name = def.name.clone();
         if walls {
             name.pop();

@@ -63,7 +63,7 @@ impl App {
                 | SpellTarget::EnemyUnit
                 | SpellTarget::AnyUnit
                 | SpellTarget::Tile
-        ) || crate::summon_scene::summoned_by(&def.effects).is_some()
+        ) || crate::summon_scene::summoned_by(def).is_some()
         {
             return None;
         }

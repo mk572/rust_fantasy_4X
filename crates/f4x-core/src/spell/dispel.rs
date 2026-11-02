@@ -35,14 +35,9 @@ pub const SPELL_LOCK_DIFFICULTY: u32 = 150;
 pub const SUPPRESS_MAGIC_STRENGTH: u32 = 500;
 /// What each enemy spell takes from a Counter Magic reserve.
 pub const COUNTER_MAGIC_DRAIN: u32 = 5;
-/// Hooks the spell data names.
-pub const DISJUNCTION: &str = "disjunction";
-pub const DISJUNCTION_TRUE: &str = "disjunction_true";
-pub const SPELL_BINDING: &str = "spell_binding";
-/// The spells that attack a rival's global enchantment, which extra mana makes stronger.
-pub const GLOBAL_ATTACKS: [&str; 3] = [DISJUNCTION, DISJUNCTION_TRUE, SPELL_BINDING];
-pub const SPELL_BLAST: &str = "spell_blast";
-pub const COUNTER_MAGIC: &str = "counter_magic";
+/// The spells that attack a rival's global enchantment, which extra mana makes stronger:
+/// Disjunction, Disjunction True and Spell Binding.
+pub const GLOBAL_ATTACKS: [u16; 3] = [210, 61, 76];
 
 /// Whether a dispel of `strength` beats something of `difficulty`: a roll of 1 to 250 at or
 /// under `250 * strength / (strength + difficulty)`.
@@ -66,7 +61,9 @@ impl Game {
         if !self.turn_off_enchantment(SpellTarget::City(city), player, spell) {
             return Err(MagicError::Target(TargetError::SpellNotThere));
         }
-        if self.content.rules.spells.get(spell).id == "spell_ward" {
+        if spell == crate::rules::SpellId::new(72)
+        /* spell_ward */
+        {
             let _ = self
                 .world
                 .remove_one::<crate::spell::city::SpellWards>(city);
@@ -278,8 +275,8 @@ impl Game {
             .content
             .rules
             .spells
-            .id_of(crate::map::corruption::WARP_NODE)
-            .map_or(300, |s| self.content.rules.spells.get(s).cost);
+            .try_get(crate::rules::SpellId::new(186) /* warp_node */)
+            .map_or(300, |s| s.cost);
         let Some(node) = self.economy().node_at(at) else {
             return 0;
         };

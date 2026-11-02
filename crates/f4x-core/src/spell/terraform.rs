@@ -14,9 +14,6 @@ use crate::map::Position;
 use crate::player::PlayerId;
 use crate::spell::target_error::TargetError;
 
-pub const RAISE_VOLCANO: &str = "raise_volcano";
-pub const CHANGE_TERRAIN: &str = "change_terrain";
-
 /// Each building in a city under a new volcano collapses with this chance (percent).
 const COLLAPSE_PERCENT: u32 = 15;
 /// A new volcano gets a mineral on its square with this chance (percent).

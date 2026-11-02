@@ -624,7 +624,9 @@ impl App {
             let i = (row - panel.spell_first) as f32;
             let def = self.game.content().rules.spells.get(spell).clone();
             let mut name = def.name.clone();
-            if def.id == "spell_ward" {
+            if def.num == 72
+            /* spell_ward */
+            {
                 name = self.text_with(
                     "city.spell_ward",
                     &Args::new().text("spell", &name).text(
@@ -1456,7 +1458,9 @@ impl App {
             ProductionItem::Building(id) => {
                 // The cityscape picture numbers the buildings from 3 in the order of the list;
                 // the walls have a big picture of their own.
-                let entry = if self.game.content().rules.buildings.get(id).id == "city_walls" {
+                let entry = if id.num() == 35
+                /* city_walls */
+                {
                     Some(114)
                 } else {
                     crate::cityscape::sprite_of(id.num() as i16).map(|(entry, _)| entry)

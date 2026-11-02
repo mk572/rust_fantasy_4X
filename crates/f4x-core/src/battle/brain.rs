@@ -17,9 +17,7 @@
 
 use super::ai::{self, worth};
 use super::casting::SpellAim;
-use super::field::CALL_CHAOS;
 use super::map::{self, Pos};
-use super::vortex::MAGIC_VORTEX;
 use super::{Battle, BattleCommand, BattleUnit, Side};
 use crate::game::Game;
 use crate::rules::effects::{Effect, EffectRule, TargetSel};
@@ -161,14 +159,14 @@ fn cast_value(
     let mut total = 0.0;
     for rule in &def.effects {
         total += match &rule.effect {
-            Effect::Custom(h) if h == CALL_CHAOS => enemies
+            Effect::Special if def.num == 115 /* call_chaos */ => enemies
                 .iter()
                 .map(|u| {
                     (CHAOS_DAMAGE.min(u.hit_points().max(1) as f32) / u.hit_points().max(1) as f32)
                         * worth(u)
                 })
                 .sum(),
-            Effect::Custom(h) if h == MAGIC_VORTEX => match aim {
+            Effect::Special if def.num == 105 /* magic_vortex */ => match aim {
                 SpellAim::Tile(cell) => vortex_reach_value(cell, friends, enemies),
                 _ => 0.0,
             },

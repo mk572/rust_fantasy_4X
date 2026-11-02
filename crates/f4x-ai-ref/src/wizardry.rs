@@ -80,7 +80,9 @@ pub fn kind(def: &SpellDef) -> Kind {
     if !def.contexts.contains(&CastContext::Overland) {
         return Kind::Other;
     }
-    if has_hook(def, f4x_core::game::endgame::SPELL_OF_MASTERY) {
+    if def.num == 213
+    /* spell_of_mastery */
+    {
         return Kind::Mastery;
     }
     if def
@@ -90,10 +92,14 @@ pub fn kind(def: &SpellDef) -> Kind {
     {
         return Kind::Summon;
     }
-    if has_hook(def, f4x_core::spell::special::EARTH_LORE) {
+    if def.num == 10
+    /* earth_lore */
+    {
         return Kind::Explore;
     }
-    if has_hook(def, f4x_core::spell::special::NATURES_CURES) {
+    if def.num == 19
+    /* natures_cures */
+    {
         return Kind::Cure;
     }
     if def.effects.is_empty()
@@ -109,7 +115,8 @@ pub fn kind(def: &SpellDef) -> Kind {
     let helps = |r: &f4x_core::rules::effects::EffectRule| match &r.effect {
         Effect::Modify { value, .. } => *value >= 0,
         Effect::GrantAbility(_) => true,
-        Effect::Custom(h) => h == "city_flag" || h == "wall_of_stone",
+        Effect::Custom(h) => h == "city_flag",
+        Effect::Special => def.num == 3, // wall_of_stone
         _ => false,
     };
     match def.target {
@@ -118,7 +125,7 @@ pub fn kind(def: &SpellDef) -> Kind {
                 && def
                     .effects
                     .iter()
-                    .all(|r| !matches!(r.effect, Effect::Custom(_)))
+                    .all(|r| !matches!(r.effect, Effect::Custom(_) | Effect::Special))
                 && def.effects.iter().all(helps) =>
         {
             Kind::UnitBuff
@@ -130,7 +137,7 @@ pub fn kind(def: &SpellDef) -> Kind {
         }
         SpellTarget::None if GOOD_GLOBALS.contains(&def.id.as_str()) => Kind::GlobalBuff,
         SpellTarget::EnemyCity => Kind::CityCurse,
-        SpellTarget::EnemyWizard if !has_hook(def, f4x_core::spell::dispel::SPELL_BLAST) => {
+        SpellTarget::EnemyWizard if def.num != 58 /* spell_blast */ => {
             Kind::WizardCurse
         }
         _ => Kind::Other,
@@ -406,7 +413,9 @@ fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     // Resurrection: the last of the dead heroes, chosen now that the cost is paid.
     let paid = PlayerView::new(game, ai.player).paid_spell();
-    if paid.is_some_and(|s| game.spell_has_hook(s, f4x_core::spell::hero::RESURRECTION)) {
+    if paid.is_some_and(
+        |s| s == f4x_core::rules::SpellId::new(133), /* resurrection */
+    ) {
         if let Some(kind) = game.units().ai_resurrection_pick() {
             let command = Command::ResolveCast {
                 player: ai.player,
@@ -568,14 +577,17 @@ fn upkeep_ok(view: &PlayerView, def: &SpellDef) -> bool {
 fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
     let kind = {
-        let spell = f4x_core::spell::hero::RESURRECTION_SPELL;
+        let spell = f4x_core::rules::SpellId::new(133) /* resurrection */;
         let knows = game
             .wizard(me)
             .is_some_and(|m| m.casting().is_none() && m.knows(spell));
         if !knows
             || game
                 .units()
-                .hero_spell_blocked(me, f4x_core::spell::hero::RESURRECTION)
+                .hero_spell_blocked(
+                    me,
+                    f4x_core::rules::SpellId::new(133), /* resurrection */
+                )
                 .is_some()
         {
             return false;
@@ -592,7 +604,7 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let Some(kind) = kind else {
         return false;
     };
-    let spell = f4x_core::spell::hero::RESURRECTION_SPELL;
+    let spell = f4x_core::rules::SpellId::new(133) /* resurrection */;
     let command = Command::CastSpell {
         extra: 0,
         player: me,
@@ -773,7 +785,7 @@ mod tests {
         )
         .expect("a new game");
         let ai = Ai::new(P1);
-        let spell = f4x_core::spell::hero::RESURRECTION_SPELL;
+        let spell = f4x_core::rules::SpellId::new(133) /* resurrection */;
         g.treasury_mut(P1).unwrap().gold = 50_000;
         g.treasury_mut(P1).unwrap().mana = 5_000;
         for k in [1, 4] {

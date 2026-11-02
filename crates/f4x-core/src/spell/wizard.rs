@@ -16,15 +16,6 @@ use crate::rules::UnitKind;
 use crate::spell::target_error::TargetError;
 use crate::wizard::magic::{base_casting_skill, skill_points_for, Retort};
 
-pub const DRAIN_POWER: &str = "drain_power";
-pub const CRUEL_UNMINDING: &str = "cruel_unminding";
-pub const SUBVERSION: &str = "subversion";
-pub const GREAT_UNSUMMONING: &str = "great_unsummoning";
-pub const DEATH_WISH: &str = "death_wish";
-pub const EARTHQUAKE: &str = "earthquake";
-pub const BLACK_WIND: &str = "black_wind";
-pub const LYCANTHROPY: &str = "lycanthropy";
-
 /// The unit Lycanthropy turns a normal unit into.
 const WEREWOLVES: crate::rules::UnitId = crate::rules::UnitId::new(168) /* werewolves */;
 /// Black Wind's resistance check is at this penalty.

@@ -213,8 +213,9 @@ pub struct HeroTemplate {
     /// Abilities drawn at random for each wizard at the start of the game.
     pub picks: u32,
     pub pick_type: PickType,
-    /// Abilities every wizard's copy has (names in [`HERO_ABILITIES`]).
-    pub abilities: Vec<String>,
+    /// Abilities every wizard's copy has: hero abilities of `abilities.ron` (the ones
+    /// [`HeroAbilities::ids`](crate::hero::HeroAbilities::ids) can give).
+    pub abilities: Vec<Ref<AbilityDef>>,
     pub casting_skill: u32,
     /// The innate spells (ids in `spells.ron`), at most four.
     pub spells: Vec<Ref<SpellDef>>,
@@ -226,35 +227,6 @@ pub struct HeroTemplate {
     #[serde(default)]
     pub gender: crate::text::Gender,
 }
-
-/// The hero abilities, by the name `heroes.ron` uses (`super_` is the doubled version of the
-/// one before it; they are the original's `HSA_*` flags).
-pub const HERO_ABILITIES: [&str; 24] = [
-    "leadership",
-    "super_leadership",
-    "legendary",
-    "super_legendary",
-    "blademaster",
-    "super_blademaster",
-    "armsmaster",
-    "super_armsmaster",
-    "constitution",
-    "super_constitution",
-    "might",
-    "super_might",
-    "arcane_power",
-    "super_arcane_power",
-    "sage",
-    "super_sage",
-    "prayermaster",
-    "super_prayermaster",
-    "agility",
-    "super_agility",
-    "lucky",
-    "charmed",
-    "noble",
-    "female",
-];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnitDef {
@@ -904,6 +876,7 @@ pub fn resolve_references(t: &mut Tables) {
     }
     for h in t.hero_templates.iter_mut() {
         names.resolve_all(&mut h.spells);
+        names.resolve_all(&mut h.abilities);
     }
     names.resolve_all(&mut t.config.autobuild_order);
 }

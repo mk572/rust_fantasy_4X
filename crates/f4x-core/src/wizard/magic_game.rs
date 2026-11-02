@@ -110,7 +110,9 @@ impl Game {
     pub fn casting_return(&self, player: PlayerId) -> bool {
         self.wizard(player)
             .and_then(|w| w.casting())
-            .is_some_and(|c| self.spell_has_hook(c.spell, crate::wizard::fortress::RETURN))
+            .is_some_and(
+                |c| c.spell == crate::rules::SpellId::new(214), /* spell_of_return */
+            )
     }
 
     /// Whether mana put into `spell` beyond its cost makes it stronger overland: the spells
@@ -124,9 +126,7 @@ impl Game {
                 .effects
                 .iter()
                 .any(|e| matches!(e.effect, crate::rules::effects::Effect::Dispel { .. }))
-                || crate::spell::dispel::GLOBAL_ATTACKS
-                    .iter()
-                    .any(|h| self.spell_has_hook(spell, h)))
+                || crate::spell::dispel::GLOBAL_ATTACKS.contains(&spell.num()))
     }
 
     /// The mana `spell` costs with `extra` mana put into it.
@@ -324,7 +324,9 @@ impl Game {
         if !self.spell_needs_target(player, spell) {
             return true;
         }
-        if self.spell_has_hook(spell, crate::spell::hero::RESURRECTION) {
+        if spell == crate::rules::SpellId::new(133)
+        /* resurrection */
+        {
             return !self.units().raisable_heroes().is_empty();
         }
         let ok = |t: Target| self.check_target(player, spell, Some(t)).is_ok();
@@ -398,15 +400,16 @@ impl Game {
             // The items are designed first: `Command::CraftItem`.
             return Err(MagicError::NotAvailable);
         }
-        for hook in crate::spell::hero::HOOKS {
-            if self.spell_has_hook(spell, hook)
-                && self.units().hero_spell_blocked(player, hook).is_some()
-            {
-                // No circle to appear in, or nobody left to bring.
-                return Err(MagicError::NotAvailable);
-            }
+        // Summon Hero, Summon Champion, Incarnation and Resurrection.
+        if [208, 212, 142, 133].contains(&spell.num())
+            && self.units().hero_spell_blocked(player, spell).is_some()
+        {
+            // No circle to appear in, or nobody left to bring.
+            return Err(MagicError::NotAvailable);
         }
-        if self.spell_has_hook(spell, crate::wizard::fortress::RETURN) {
+        if spell == crate::rules::SpellId::new(214)
+        /* spell_of_return */
+        {
             // Cast only through banishment, never chosen.
             return Err(MagicError::NotAvailable);
         }

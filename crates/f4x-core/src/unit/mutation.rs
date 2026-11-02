@@ -18,8 +18,6 @@ use crate::rules::{ModOp, Modifier, MovementType, Source, Stat, UnitKind};
 use crate::spell::target_error::TargetError;
 use crate::unit::UnitView;
 
-/// Hook of Chaos Channels.
-pub const CHAOS_CHANNELS: &str = "chaos_channels";
 /// The ability that marks a unit as mutated.
 pub const MUTATED: Ability = Ability::new(98);
 /// The ability that says which mutation a unit has, for the unit sheet to name it.
@@ -93,7 +91,7 @@ impl Game {
         }
         let options = self.mutations_for(unit);
         let pick = options[rng.roll(options.len() as u32) as usize - 1];
-        let source = Source::Spell(self.content.rules.spells.id_of(CHAOS_CHANNELS)?);
+        let source = Source::Spell(crate::rules::SpellId::new(93) /* chaos_channels */);
         let who = crate::rules::exec::Target::Unit(unit);
         match pick {
             Mutation::Armor => self.add_temp_modifier(

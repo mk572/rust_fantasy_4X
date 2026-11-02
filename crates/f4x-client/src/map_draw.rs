@@ -313,7 +313,7 @@ pub fn draw_city(game: &Game, art: &mut Art, city: hecs::Entity, sx: f32, sy: f3
     let walled = game
         .city_buildings(city)
         .iter()
-        .any(|&id| game.content().rules.buildings.get(id).id == "city_walls");
+        .any(|&id| id.num() == 35 /* city_walls */);
     let name = if walled { "city_walled" } else { "city_open" };
     if let Some(tex) = art.banner_picture(name, banner, city_frame(figures)) {
         draw_pic(tex, sx - 6.0 * k, sy - 6.0 * k, k);

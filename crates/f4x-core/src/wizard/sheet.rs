@@ -330,7 +330,9 @@ impl<'a> Wizard<'a> {
     pub fn research_cost(&self, content: &Content, spell: SpellId) -> i32 {
         let spells = &content.rules.spells;
         let listed = spells.get(spell).research_cost as i32;
-        if spells.get(spell).id != "spell_of_mastery" {
+        if spell != SpellId::new(213)
+        /* spell_of_mastery */
+        {
             return listed;
         }
         let known: i32 = self.component::<KnownSpells>().map_or(0, |k| {

@@ -28,7 +28,6 @@ use crate::rules::SpellId;
 
 /// Hooks the spell data names.
 pub const BATTLEFIELD: &str = "battlefield";
-pub const CALL_CHAOS: &str = "call_chaos";
 pub const DISINTEGRATE: &str = "disintegrate";
 
 /// Mana Leak drains this much from each enemy wizard each turn.

@@ -21,7 +21,7 @@ struct MockHost {
     city: Option<(hecs::Entity, Position)>,
     summoned: Vec<(UnitId, u8, Position)>,
     terrain: Vec<(Position, TerrainClass)>,
-    features: Vec<(Position, String)>,
+    features: Vec<(Position, crate::map::FeatureId)>,
     resources: Vec<(i32, i32, i32, i32)>,
     customs: Vec<String>,
     ids: hecs::World,
@@ -141,8 +141,8 @@ impl EffectHost for MockHost {
     fn change_terrain(&mut self, at: Position, class: TerrainClass) {
         self.terrain.push((at, class));
     }
-    fn set_feature(&mut self, at: Position, f: &str) {
-        self.features.push((at, f.to_string()));
+    fn set_feature(&mut self, at: Position, f: crate::map::FeatureId) {
+        self.features.push((at, f));
     }
     fn apply_enchantment(&mut self, who: Target, spell: SpellId, _c: PlayerId) {
         if let Some(u) = self.unit_mut(who) {
@@ -161,6 +161,9 @@ impl EffectHost for MockHost {
     }
     fn custom(&mut self, hook: &str, _w: Target, _c: &Context) {
         self.customs.push(hook.to_string());
+    }
+    fn special(&mut self, _w: Target, _c: &Context) {
+        self.customs.push("special".to_string());
     }
     fn rng(&mut self) -> &mut dyn RngCore {
         &mut self.rng.0
@@ -486,7 +489,7 @@ fn world_changing_effects_reach_the_host() {
             Trigger::OnCast,
             Condition::Always,
             TargetSel::Tile,
-            Effect::SetFeature("ruin".into()),
+            Effect::SetFeature(crate::map::FeatureId(18)), /* ruins */
         ),
         rule(
             Trigger::OnCast,
@@ -524,7 +527,7 @@ fn world_changing_effects_reach_the_host() {
     ];
     run_rules(&rules, Trigger::OnCast, &cx, &mut h);
     assert_eq!(h.terrain, vec![(pos(3, 4), TerrainClass::Forest)]);
-    assert_eq!(h.features, vec![(pos(3, 4), "ruin".to_string())]);
+    assert_eq!(h.features, vec![(pos(3, 4), crate::map::FeatureId(18))]);
     assert_eq!(h.summoned, vec![(UnitId::new(7), 2, pos(3, 4))]);
     assert_eq!(h.resources, vec![(5, 0, 3, 0)]);
     assert_eq!(h.unit(a).enchants, vec![SpellId::new(70) /* haste */]);

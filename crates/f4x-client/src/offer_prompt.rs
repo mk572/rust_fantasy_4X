@@ -324,7 +324,11 @@ impl App {
             // A noble hero pays no gold (`Unit_Gold_Upkeep`).
             let noble = hero_kind
                 .and_then(|k| rules.hero_templates.get(k))
-                .is_some_and(|t| t.abilities.iter().any(|a| a == "noble"));
+                .is_some_and(|t| {
+                    t.abilities.iter().any(
+                        |a| a.id() == Some(f4x_core::rules::Ability::new(96)), /* noble */
+                    )
+                });
             if let (true, Some(upkeep)) = (noble, sheet.upkeep.as_mut()) {
                 upkeep[0] = 0;
             }

@@ -16,9 +16,6 @@ use crate::game::{Event, Game};
 use crate::rules::effects::DamageTraits;
 use crate::unit::Hurt;
 
-/// Hook of Call the Void.
-pub const CALL_THE_VOID: &str = "call_the_void";
-
 /// Meteor Storm: a strength 4 fire attack on every unit outside a city, and the chance in a
 /// hundred that each building of another wizard's city falls.
 const METEOR_STRENGTH: i32 = 4;

@@ -228,7 +228,7 @@ impl Game {
         let guardian = melders.iter().copied().find(|&u| {
             self.units()
                 .unit_def(u)
-                .is_some_and(|d| d.id == "guardian_spirit")
+                .is_some_and(|d| d.num == 176 /* guardian_spirit */)
         });
         let melder = guardian
             .or(melders.last().copied())

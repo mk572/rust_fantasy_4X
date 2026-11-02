@@ -226,7 +226,9 @@ impl App {
         let rules = &self.game.content().rules;
         let entry = match item {
             ProductionItem::Building(id) => {
-                if rules.buildings.get(id).id == "city_walls" {
+                if id.num() == 35
+                /* city_walls */
+                {
                     Some(114)
                 } else {
                     crate::cityscape::sprite_of(id.num() as i16).map(|(entry, _)| entry)

@@ -19,8 +19,6 @@ use crate::rules::effects::DamageTraits;
 use crate::rules::Ability;
 use crate::rules::SpellId;
 
-/// Hook of the spell.
-pub const MAGIC_VORTEX: &str = "magic_vortex";
 /// The most vortices on one battlefield.
 pub const MAX_VORTICES: usize = 10;
 /// Moves a vortex makes by itself at the start of a turn.

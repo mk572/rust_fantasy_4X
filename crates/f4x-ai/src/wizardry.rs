@@ -113,7 +113,9 @@ const GLOBAL_RESERVE: i32 = 200;
 /// Whether a spell on the world has someone to strike: any enemy wizard, and for Nature's
 /// Wrath one with a book of a realm it punishes.
 fn world_spell_has_victim(view: &PlayerView, def: &SpellDef) -> bool {
-    if def.id == "natures_wrath" {
+    if def.num == 40
+    /* natures_wrath */
+    {
         view.rival_at_war_has_books(WRATH_REALMS)
     } else {
         !view.rivals_at_war().is_empty()
@@ -131,7 +133,9 @@ pub fn kind(def: &SpellDef) -> Kind {
     if !def.contexts.contains(&CastContext::Overland) {
         return Kind::Other;
     }
-    if has_hook(def, f4x_core::game::endgame::SPELL_OF_MASTERY) {
+    if def.num == 213
+    /* spell_of_mastery */
+    {
         return Kind::Mastery;
     }
     if def
@@ -141,19 +145,29 @@ pub fn kind(def: &SpellDef) -> Kind {
     {
         return Kind::Summon;
     }
-    if has_hook(def, f4x_core::spell::special::EARTH_LORE) {
+    if def.num == 10
+    /* earth_lore */
+    {
         return Kind::Explore;
     }
-    if has_hook(def, f4x_core::spell::special::NATURES_CURES) {
+    if def.num == 19
+    /* natures_cures */
+    {
         return Kind::Cure;
     }
-    if has_hook(def, f4x_core::unit::mutation::CHAOS_CHANNELS) {
+    if def.num == 93
+    /* chaos_channels */
+    {
         return Kind::Mutate;
     }
-    if has_hook(def, f4x_core::spell::special::WORD_OF_RECALL) {
+    if def.num == 47
+    /* word_of_recall */
+    {
         return Kind::Recall;
     }
-    if has_hook(def, f4x_core::unit::stasis::STASIS) {
+    if def.num == 68
+    /* stasis */
+    {
         return Kind::Stasis;
     }
     if def.effects.is_empty()
@@ -180,7 +194,8 @@ pub fn kind(def: &SpellDef) -> Kind {
     let helps = |r: &f4x_core::rules::effects::EffectRule| match &r.effect {
         Effect::Modify { value, .. } => *value >= 0,
         Effect::GrantAbility(_) => true,
-        Effect::Custom(h) => h == "city_flag" || h == "wall_of_stone",
+        Effect::Custom(h) => h == "city_flag",
+        Effect::Special => def.num == 3, // wall_of_stone
         _ => false,
     };
     match def.target {
@@ -189,7 +204,7 @@ pub fn kind(def: &SpellDef) -> Kind {
                 && def
                     .effects
                     .iter()
-                    .all(|r| !matches!(r.effect, Effect::Custom(_)))
+                    .all(|r| !matches!(r.effect, Effect::Custom(_) | Effect::Special))
                 && def.effects.iter().all(helps) =>
         {
             Kind::UnitBuff
@@ -202,7 +217,7 @@ pub fn kind(def: &SpellDef) -> Kind {
         SpellTarget::None if GOOD_GLOBALS.contains(&def.id.as_str()) => Kind::GlobalBuff,
         SpellTarget::None if WORLD_SPELLS.contains(&def.id.as_str()) => Kind::WorldSpell,
         SpellTarget::EnemyCity => Kind::CityCurse,
-        SpellTarget::EnemyWizard if has_hook(def, f4x_core::spell::dispel::SPELL_BLAST) => {
+        SpellTarget::EnemyWizard if def.num == 58 /* spell_blast */ => {
             Kind::Blast
         }
         SpellTarget::EnemyWizard => Kind::WizardCurse,
@@ -282,10 +297,9 @@ fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let Some(w) = view.wizard() else {
             return;
         };
-        let Some(casting) = w
-            .casting()
-            .filter(|c| view.spell(c.spell).id == "spell_of_return")
-        else {
+        let Some(casting) = w.casting().filter(
+            |c| c.spell == f4x_core::rules::SpellId::new(214), /* spell_of_return */
+        ) else {
             return;
         };
         let due = w.casting_skill().min(casting.remaining).max(0);
@@ -492,7 +506,9 @@ fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     // Resurrection: the last of the dead heroes, chosen now that the cost is paid.
     let paid = PlayerView::new(game, ai.player).paid_spell();
-    if paid.is_some_and(|s| game.spell_has_hook(s, f4x_core::spell::hero::RESURRECTION)) {
+    if paid.is_some_and(
+        |s| s == f4x_core::rules::SpellId::new(133), /* resurrection */
+    ) {
         if let Some(kind) = game.units().ai_resurrection_pick() {
             let command = Command::ResolveCast {
                 player: ai.player,
@@ -779,14 +795,17 @@ fn upkeep_ok(view: &PlayerView, def: &SpellDef) -> bool {
 fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
     let kind = {
-        let spell = f4x_core::spell::hero::RESURRECTION_SPELL;
+        let spell = f4x_core::rules::SpellId::new(133) /* resurrection */;
         let knows = game
             .wizard(me)
             .is_some_and(|m| m.casting().is_none() && m.knows(spell));
         if !knows
             || game
                 .units()
-                .hero_spell_blocked(me, f4x_core::spell::hero::RESURRECTION)
+                .hero_spell_blocked(
+                    me,
+                    f4x_core::rules::SpellId::new(133), /* resurrection */
+                )
                 .is_some()
         {
             return false;
@@ -803,7 +822,7 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let Some(kind) = kind else {
         return false;
     };
-    let spell = f4x_core::spell::hero::RESURRECTION_SPELL;
+    let spell = f4x_core::rules::SpellId::new(133) /* resurrection */;
     let command = Command::CastSpell {
         extra: 0,
         player: me,
@@ -1027,7 +1046,7 @@ mod tests {
     fn a_wizard_that_knows_resurrection_raises_the_last_dead_hero() -> TestResult {
         let mut g = fresh_game()?;
         let ai = Ai::new(P1);
-        let resurrection = f4x_core::spell::hero::RESURRECTION_SPELL;
+        let resurrection = f4x_core::rules::SpellId::new(133) /* resurrection */;
         treasury(&mut g, P1)?.gold = 50_000;
         treasury(&mut g, P1)?.mana = 5_000;
         for k in [1, 4] {

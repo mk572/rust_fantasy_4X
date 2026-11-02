@@ -2,7 +2,7 @@
 
 Reads the author's own copy of the original game and a local clone of the ReMoM
 reverse-engineering project, and writes only what is not game data: `content-local/` (help
-text, screen-to-topic map, city names and preset wizards: copyrighted prose, gitignored,
+text, screen-to-topic map and city names: copyrighted prose, gitignored,
 never to be committed or distributed). The game's own data in `content/` (races, units,
 buildings, spells, abilities, items, realms, level paths, rules) is kept by hand; the importer only reads
 buildings, races and spells to check them against the help text.

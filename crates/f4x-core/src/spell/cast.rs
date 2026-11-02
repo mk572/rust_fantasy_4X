@@ -53,18 +53,10 @@ struct GameHost<'a> {
 impl GameHost<'_> {
     /// Drain Power, Cruel Unminding, Great Unsummoning, Death Wish and Earthquake
     /// (`spell/wizard.rs`); `None` for any other hook. Subversion is carried out after the cast.
-    fn wizard_hook(&mut self, hook: &str, who: Target, ctx: &Context) -> Option<Vec<Event>> {
-        use crate::spell::wizard::{
-            BLACK_WIND, CRUEL_UNMINDING, DEATH_WISH, DRAIN_POWER, EARTHQUAKE, GREAT_UNSUMMONING,
-            LYCANTHROPY, SUBVERSION,
-        };
+    fn wizard_hook(&mut self, spell: SpellId, who: Target, ctx: &Context) -> Option<Vec<Event>> {
         let player = ctx.owner;
-        let spell = match ctx.source {
-            Source::Spell(s) => s,
-            _ => return None,
-        };
-        Some(match (hook, who) {
-            (DRAIN_POWER, Target::Player(victim)) => {
+        Some(match (spell.num(), who) {
+            (171 /* drain_power */, Target::Player(victim)) => {
                 let amount = self.game.drain_power(victim, &mut self.rng);
                 vec![Event::PowerDrained {
                     player,
@@ -72,7 +64,7 @@ impl GameHost<'_> {
                     amount,
                 }]
             }
-            (CRUEL_UNMINDING, Target::Player(victim)) => {
+            (191 /* cruel_unminding */, Target::Player(victim)) => {
                 let amount = self.game.cruel_unminding(victim, &mut self.rng);
                 vec![Event::SkillDestroyed {
                     player,
@@ -80,7 +72,7 @@ impl GameHost<'_> {
                     amount,
                 }]
             }
-            (GREAT_UNSUMMONING, _) => {
+            (75 /* great_unsummoning */, _) => {
                 let count = self.game.great_unsummoning(&mut self.rng);
                 vec![Event::UnitsSlain {
                     player,
@@ -88,7 +80,7 @@ impl GameHost<'_> {
                     count,
                 }]
             }
-            (DEATH_WISH, _) => {
+            (199 /* death_wish */, _) => {
                 let count = self.game.death_wish(player, &mut self.rng);
                 vec![Event::UnitsSlain {
                     player,
@@ -96,28 +88,28 @@ impl GameHost<'_> {
                     count,
                 }]
             }
-            (BLACK_WIND, Target::Unit(unit)) => {
+            (187 /* black_wind */, Target::Unit(unit)) => {
                 if self.game.black_wind_unit(unit, &mut self.rng) {
                     self.slain += 1;
                 }
                 Vec::new()
             }
-            (LYCANTHROPY, Target::Unit(unit)) => match self.game.lycanthropy(unit) {
+            (173 /* lycanthropy */, Target::Unit(unit)) => match self.game.lycanthropy(unit) {
                 Some((from, to)) => vec![Event::UnitTransformed { unit, from, to }],
                 None => Vec::new(),
             },
-            (crate::unit::mutation::CHAOS_CHANNELS, Target::Unit(unit)) => {
+            (93 /* chaos_channels */, Target::Unit(unit)) => {
                 match self.game.mutate(unit, &mut self.rng) {
                     Some(mutation) => vec![Event::UnitMutated { unit, mutation }],
                     None => Vec::new(),
                 }
             }
-            (crate::unit::stasis::STASIS, Target::Unit(unit)) => {
+            (68 /* stasis */, Target::Unit(unit)) => {
                 self.game.put_in_stasis(unit, player);
                 Vec::new()
             }
-            (EARTHQUAKE, Target::City(city)) => vec![self.game.earthquake(city, &mut self.rng)],
-            (crate::spell::world::CALL_THE_VOID, Target::City(city)) => {
+            (26 /* earthquake */, Target::City(city)) => vec![self.game.earthquake(city, &mut self.rng)],
+            (119 /* call_the_void */, Target::City(city)) => {
                 let (units_lost, buildings_lost, population_lost) =
                     self.game.call_the_void(city, &mut self.rng);
                 vec![Event::WorldSpellStruck {
@@ -129,15 +121,15 @@ impl GameHost<'_> {
                 }]
             }
             (
-                DRAIN_POWER
-                | CRUEL_UNMINDING
-                | EARTHQUAKE
-                | SUBVERSION
-                | BLACK_WIND
-                | LYCANTHROPY
-                | crate::spell::world::CALL_THE_VOID
-                | crate::unit::mutation::CHAOS_CHANNELS
-                | crate::unit::stasis::STASIS,
+                171 // drain_power
+                | 191 // cruel_unminding
+                | 26 // earthquake
+                | 177 // subversion
+                | 187 // black_wind
+                | 173 // lycanthropy
+                | 119 // call_the_void
+                | 93 // chaos_channels
+                | 68, // stasis
                 _,
             ) => Vec::new(),
             _ => return None,
@@ -145,20 +137,15 @@ impl GameHost<'_> {
     }
 
     /// Disjunction, Spell Binding and Spell Blast; `None` for any other hook.
-    fn dispel_hook(&mut self, hook: &str, who: Target, ctx: &Context) -> Option<Vec<Event>> {
-        use crate::spell::dispel::{
-            global_attack_events, DISJUNCTION, DISJUNCTION_TRUE, SPELL_BINDING, SPELL_BLAST,
-        };
+    fn dispel_hook(&mut self, spell: SpellId, who: Target, ctx: &Context) -> Option<Vec<Event>> {
+        use crate::spell::dispel::global_attack_events;
         let by = ctx.owner;
-        let cost = match ctx.source {
-            Source::Spell(s) => self.game.content.rules.spells.get(s).cost + self.extra,
-            _ => 0,
-        };
-        let (factor, steal) = match hook {
-            DISJUNCTION => (1, false),
-            DISJUNCTION_TRUE => (3, false),
-            SPELL_BINDING => (1, true),
-            SPELL_BLAST => {
+        let cost = self.game.content.rules.spells.get(spell).cost + self.extra;
+        let (factor, steal) = match spell.num() {
+            210 /* disjunction */ => (1, false),
+            61 /* disjunction_true */ => (3, false),
+            76 /* spell_binding */ => (1, true),
+            58 /* spell_blast */ => {
                 let Target::Player(victim) = who else {
                     return Some(Vec::new());
                 };
@@ -369,12 +356,13 @@ impl EffectHost for GameHost<'_> {
         }
     }
 
-    fn set_feature(&mut self, at: Position, feature: &str) {
-        let Some(id) = self.game.content.features.id_of(feature) else {
+    fn set_feature(&mut self, at: Position, feature: crate::map::FeatureId) {
+        if self.game.content.features.get(feature).is_none() {
             return;
-        };
+        }
         if let Some(map) = self.game.map.as_mut() {
-            map.plane_mut(at.plane).set_mineral(at.x, at.y, Some(id));
+            map.plane_mut(at.plane)
+                .set_mineral(at.x, at.y, Some(feature));
         }
     }
 
@@ -398,51 +386,51 @@ impl EffectHost for GameHost<'_> {
         &mut self.rng
     }
 
-    fn custom(&mut self, hook: &str, who: Target, ctx: &Context) {
-        if hook == crate::spell::global_enchantment::GLOBAL_EFFECT
-            || hook == crate::city::gate::CITY_GATE
-            || hook == crate::spell::city::CITY_FLAG
-        {
-            // Carried out by the engine wherever the wizard's global spells are consulted.
-            return;
-        }
-        if let Some(events) = self.dispel_hook(hook, who, ctx) {
-            self.events.extend(events);
-            return;
-        }
+    fn custom(&mut self, hook: &str, _who: Target, ctx: &Context) {
+        // The hooks several spells share. Most are carried out by the engine wherever the
+        // wizard's global spells are consulted.
         if hook == crate::item::crafting::CRAFT_ITEM {
             let events = self.game.complete_crafting(ctx.owner);
             self.events.extend(events);
-            return;
         }
-        if let Some(events) = self.game.hero_hook(hook, ctx.owner, who, &mut self.rng) {
+    }
+
+    fn special(&mut self, who: Target, ctx: &Context) {
+        let Source::Spell(spell) = ctx.source else {
+            return;
+        };
+        if let Some(events) = self.dispel_hook(spell, who, ctx) {
             self.events.extend(events);
             return;
         }
-        if hook == crate::game::endgame::SPELL_OF_MASTERY {
+        if let Some(events) = self.game.hero_hook(spell, ctx.owner, who, &mut self.rng) {
+            self.events.extend(events);
+            return;
+        }
+        if spell.num() == 213
+        /* spell_of_mastery */
+        {
             let events = self.game.win_by_mastery(ctx.owner);
             self.events.extend(events);
             return;
         }
-        if let Some(events) = self.wizard_hook(hook, who, ctx) {
+        if let Some(events) = self.wizard_hook(spell, who, ctx) {
             self.events.extend(events);
             return;
         }
         if let Target::Tile(at) = who {
-            let events = match hook {
-                crate::spell::terraform::RAISE_VOLCANO => {
-                    self.game.raise_volcano(ctx.owner, at, &mut self.rng)
-                }
-                crate::spell::terraform::CHANGE_TERRAIN => self.game.change_terrain_spell(at),
-                crate::map::road::ENCHANT_ROAD => self.game.enchant_roads(at),
-                crate::map::corruption::CORRUPT_LAND => self.game.corrupt(at),
-                crate::map::corruption::WARP_NODE => self.game.warp_node(at),
-                crate::spell::special::TRANSMUTE => self.game.transmute(at),
-                crate::spell::special::FLOATING_ISLAND => {
+            let events = match spell.num() {
+                98 /* raise_volcano */ => self.game.raise_volcano(ctx.owner, at, &mut self.rng),
+                15 /* change_terrain */ => self.game.change_terrain_spell(at),
+                55 /* enchant_road */ => self.game.enchant_roads(at),
+                85 /* corruption */ => self.game.corrupt(at),
+                186 /* warp_node */ => self.game.warp_node(at),
+                18 /* transmute */ => self.game.transmute(at),
+                43 /* floating_island */ => {
                     self.game.floating_island(ctx.owner, at);
                     return;
                 }
-                crate::spell::special::EARTH_LORE => {
+                10 /* earth_lore */ => {
                     self.game.earth_lore(ctx.owner, at);
                     return;
                 }
@@ -451,22 +439,23 @@ impl EffectHost for GameHost<'_> {
             self.events.extend(events);
             return;
         }
-        if self.game.run_unit_special(hook, ctx.owner, who) {
+        if self.game.run_unit_special(spell, ctx.owner, who) {
             return;
         }
         let Target::City(city) = who else {
             return;
         };
-        if hook == crate::spell::city::WALL_OF_STONE {
+        if spell.num() == 3
+        /* wall_of_stone */
+        {
             let events = self.game.wall_of_stone(city);
             self.events.extend(events);
             return;
         }
-        use crate::wizard::fortress::{MOVE_CIRCLE, MOVE_FORTRESS, RETURN};
-        let result = match hook {
-            MOVE_FORTRESS => self.game.move_fortress(ctx.owner, city),
-            MOVE_CIRCLE => self.game.move_summoning_circle(ctx.owner, city),
-            RETURN => self.game.return_to_fortress(ctx.owner, city),
+        let result = match spell.num() {
+            28 /* move_fortress */ => self.game.move_fortress(ctx.owner, city),
+            203 /* summoning_circle */ => self.game.move_summoning_circle(ctx.owner, city),
+            214 /* spell_of_return */ => self.game.return_to_fortress(ctx.owner, city),
             _ => return,
         };
         match result {
@@ -503,7 +492,9 @@ impl Game {
     /// Does casting `spell` ask the wizard for a target? Summoning spells do not when the
     /// wizard has a summoning circle: the creatures appear there.
     pub fn spell_needs_target(&self, player: PlayerId, spell: SpellId) -> bool {
-        if self.spell_has_hook(spell, crate::spell::hero::RESURRECTION) {
+        if spell == crate::rules::SpellId::new(133)
+        /* resurrection */
+        {
             // The dead hero to raise is chosen when the cast is finished.
             return true;
         }
@@ -523,7 +514,9 @@ impl Game {
         spell: SpellId,
         target: Option<Target>,
     ) -> Result<(), MagicError> {
-        if self.spell_has_hook(spell, crate::spell::hero::RESURRECTION) {
+        if spell == crate::rules::SpellId::new(133)
+        /* resurrection */
+        {
             return match target {
                 Some(Target::Hero(kind)) if self.units().raisable_heroes().contains(&kind) => {
                     Ok(())
@@ -554,14 +547,8 @@ impl Game {
         if !self.spell_needs_target(player, spell) {
             return Ok(());
         }
-        let fortress_hook = [
-            crate::wizard::fortress::MOVE_FORTRESS,
-            crate::wizard::fortress::MOVE_CIRCLE,
-            crate::wizard::fortress::RETURN,
-        ]
-        .into_iter()
-        .find(|h| self.spell_has_hook(spell, h));
-        if let Some(hook) = fortress_hook {
+        // Move Fortress, Summoning Circle and Return to Fortress.
+        if [28, 203, 214].contains(&spell.num()) {
             let w = self.wizard(player).ok_or(MagicError::UnknownPlayer)?;
             let Some(Target::City(c)) = target else {
                 return Err(MagicError::NeedsTarget);
@@ -570,11 +557,9 @@ impl Game {
                 return Err(MagicError::Target(TargetError::NotYourCity));
             }
             let here = self.world.get::<&Position>(c).ok().map(|x| *x);
-            let refused = match hook {
-                crate::wizard::fortress::RETURN => {
-                    (!w.is_banished()).then_some(TargetError::NotBanished)
-                }
-                crate::wizard::fortress::MOVE_FORTRESS => match w.fortress() {
+            let refused = match spell.num() {
+                214 /* spell_of_return */ => (!w.is_banished()).then_some(TargetError::NotBanished),
+                28 /* move_fortress */ => match w.fortress() {
                     None => Some(TargetError::NoFortress),
                     Some(f) if Some(f) == here => Some(TargetError::FortressHere),
                     Some(_) => None,
@@ -583,7 +568,9 @@ impl Game {
             };
             return refused.map_or(Ok(()), |e| Err(MagicError::Target(e)));
         }
-        if self.spell_has_hook(spell, crate::spell::city::SPELL_WARD) {
+        if spell == crate::rules::SpellId::new(72)
+        /* spell_ward */
+        {
             return match target {
                 Some(Target::CityRealm(c, r)) => {
                     own_city(c)?;
@@ -593,14 +580,18 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if self.content.rules.spells.get(spell).id == "evil_presence" {
+        if spell == crate::rules::SpellId::new(183)
+        /* evil_presence */
+        {
             if let Some(Target::City(c)) = target {
                 if self.economy().evil_presence_is_wasted_on(c) {
                     return Err(MagicError::Target(TargetError::EvilPresenceWasted));
                 }
             }
         }
-        if self.spell_has_hook(spell, crate::spell::city::WALL_OF_STONE) {
+        if spell == crate::rules::SpellId::new(3)
+        /* wall_of_stone */
+        {
             return match target {
                 Some(Target::City(c)) => {
                     own_city(c)?;
@@ -611,21 +602,27 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if self.spell_has_hook(spell, crate::spell::terraform::RAISE_VOLCANO) {
+        if spell == crate::rules::SpellId::new(98)
+        /* raise_volcano */
+        {
             return match target {
                 Some(Target::Tile(p)) => self.check_raise_volcano(p).map_err(MagicError::Target),
                 Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if self.spell_has_hook(spell, crate::map::corruption::CORRUPT_LAND) {
+        if spell == crate::rules::SpellId::new(85)
+        /* corruption */
+        {
             return match target {
                 Some(Target::Tile(p)) => self.check_corrupt(p).map_err(MagicError::Target),
                 Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if self.spell_has_hook(spell, crate::map::corruption::WARP_NODE) {
+        if spell == crate::rules::SpellId::new(186)
+        /* warp_node */
+        {
             return match target {
                 Some(Target::Tile(p)) => {
                     self.check_warp_node(p, player).map_err(MagicError::Target)
@@ -634,14 +631,18 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if self.spell_has_hook(spell, crate::map::road::ENCHANT_ROAD) {
+        if spell == crate::rules::SpellId::new(55)
+        /* enchant_road */
+        {
             return match target {
                 Some(Target::Tile(p)) => self.check_enchant_road(p).map_err(MagicError::Target),
                 Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if self.spell_has_hook(spell, crate::spell::terraform::CHANGE_TERRAIN) {
+        if spell == crate::rules::SpellId::new(15)
+        /* change_terrain */
+        {
             return match target {
                 Some(Target::Tile(p)) => self
                     .change_terrain_result(p)
@@ -651,7 +652,9 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if self.spell_has_hook(spell, crate::spell::special::TRANSMUTE) {
+        if spell == crate::rules::SpellId::new(18)
+        /* transmute */
+        {
             return match target {
                 Some(Target::Tile(p)) => self
                     .transmute_result(p)
@@ -661,7 +664,9 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if self.spell_has_hook(spell, crate::spell::special::FLOATING_ISLAND) {
+        if spell == crate::rules::SpellId::new(43)
+        /* floating_island */
+        {
             return match target {
                 Some(Target::Tile(p)) => self
                     .check_floating_island(player, p)
@@ -674,7 +679,9 @@ impl Game {
             Some(Target::Unit(t)) if t == u && mine(self.units().unit_owner(u)) => Ok(()),
             _ => Err(MagicError::Target(TargetError::NotYourUnit)),
         };
-        if self.spell_has_hook(spell, crate::spell::special::WORD_OF_RECALL) {
+        if spell == crate::rules::SpellId::new(47)
+        /* word_of_recall */
+        {
             return match target {
                 Some(Target::Unit(u)) => {
                     own_unit(u)?;
@@ -686,7 +693,9 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if self.spell_has_hook(spell, crate::spell::special::PLANE_SHIFT) {
+        if spell == crate::rules::SpellId::new(132)
+        /* plane_shift */
+        {
             return match target {
                 Some(Target::Unit(u)) => {
                     own_unit(u)?;
@@ -698,7 +707,9 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if self.spell_has_hook(spell, crate::unit::mutation::CHAOS_CHANNELS) {
+        if spell == crate::rules::SpellId::new(93)
+        /* chaos_channels */
+        {
             return match target {
                 Some(Target::Unit(u)) => {
                     own_unit(u)?;
@@ -708,7 +719,9 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if self.spell_has_hook(spell, crate::spell::wizard::LYCANTHROPY) {
+        if spell == crate::rules::SpellId::new(173)
+        /* lycanthropy */
+        {
             return match target {
                 Some(Target::Unit(u)) => {
                     own_unit(u)?;
@@ -737,7 +750,7 @@ impl Game {
                 Some(Target::Tile(at)) => {
                     let enemy_there = self.units().units_at(at).iter().any(|&u| {
                         !mine(self.units().unit_owner(u))
-                            && !(self.spell_has_hook(spell, crate::unit::stasis::STASIS)
+                            && !(spell == crate::rules::SpellId::new(68) /* stasis */
                                 && self.unit_in_stasis(u))
                     });
                     if enemy_there {
@@ -775,13 +788,13 @@ impl Game {
             (SpellTarget::EnemyWizard, Some(Target::Player(p))) => {
                 if p == player || self.player(p).is_some_and(|p| p.is_defeated()) {
                     Some(TargetError::NotEnemyWizard)
-                } else if self.spell_has_hook(spell, crate::spell::dispel::SPELL_BLAST)
+                } else if spell == crate::rules::SpellId::new(58) /* spell_blast */
                     && self.mana_spent_casting(p).is_none()
                 {
                     Some(TargetError::NotCasting)
                 } else if !self.have_met(player, p) {
                     Some(TargetError::NoContact)
-                } else if self.spell_has_hook(spell, crate::spell::dispel::SPELL_BLAST)
+                } else if spell == crate::rules::SpellId::new(58) /* spell_blast */
                     && self.player(player).is_some_and(|me| {
                         me.treasury().mana < self.mana_spent_casting(p).unwrap_or(0)
                     })
@@ -960,7 +973,9 @@ impl Game {
         };
         self.cast_relations(player, spell, victim);
         if let Some(Target::Player(wizard)) = target {
-            if self.spell_has_hook(spell, crate::spell::wizard::SUBVERSION) {
+            if spell == crate::rules::SpellId::new(177)
+            /* subversion */
+            {
                 self.subvert(wizard);
             }
         }
@@ -1010,7 +1025,8 @@ impl Game {
                 else {
                     continue;
                 };
-                if only_time_stop && !(target == Placed::Global && spells.get(s).id == "time_stop")
+                if only_time_stop
+                    && !(target == Placed::Global && s == crate::rules::SpellId::new(80)/* time_stop */)
                 {
                     continue;
                 }

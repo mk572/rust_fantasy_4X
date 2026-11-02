@@ -549,7 +549,7 @@ fn every_spell_has_the_originals_name_realm_cost_research_rarity_and_summoned_un
                 .filter_map(|e| match &e.effect {
                     Effect::Summon { unit, .. } => Some(unit),
                     // The Floating Island is a unit in the original; ours is a custom effect of the same name.
-                    Effect::Custom(name) if *name == def.id => Some(name),
+                    Effect::Special if def.num == 43 /* floating_island */ => Some(&def.id),
                     _ => None,
                 })
                 .collect();

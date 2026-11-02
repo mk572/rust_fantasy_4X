@@ -106,12 +106,14 @@ pub trait EffectHost {
     fn add_resources(&mut self, who: Target, gold: i32, food: i32, mana: i32, research: i32);
     fn summon(&mut self, owner: PlayerId, at: Position, unit: UnitId, count: u8);
     fn change_terrain(&mut self, at: Position, class: TerrainClass);
-    fn set_feature(&mut self, at: Position, feature: &str);
+    fn set_feature(&mut self, at: Position, feature: crate::map::FeatureId);
     fn apply_enchantment(&mut self, who: Target, spell: SpellId, caster: PlayerId);
     /// Remove other wizards' enchantments (cast by anyone but `by`) that the strength beats;
     /// returns how many were removed.
     fn dispel(&mut self, who: Target, strength: u32, by: PlayerId) -> u32;
     fn custom(&mut self, hook: &str, who: Target, ctx: &Context);
+    /// The code of the spell that is being run (`ctx.source`), found by the spell's number.
+    fn special(&mut self, who: Target, ctx: &Context);
     /// The random numbers of the rules being run. The host owns the stream (the game's own, in
     /// play), so the executor and the hooks it calls draw from one generator.
     fn rng(&mut self) -> &mut dyn RngCore;
@@ -162,7 +164,7 @@ pub enum Outcome {
     },
     FeatureSet {
         at: Position,
-        feature: String,
+        feature: crate::map::FeatureId,
     },
     Enchanted {
         who: Target,
@@ -175,6 +177,7 @@ pub enum Outcome {
     Custom {
         hook: String,
     },
+    Special,
 }
 
 /// Evaluate a condition against the facts about the subject.
@@ -353,11 +356,8 @@ fn run_effect(
         }
         Effect::SetFeature(f) => {
             if let Some(at) = tile_of(who, host) {
-                host.set_feature(at, f);
-                out.push(Outcome::FeatureSet {
-                    at,
-                    feature: f.clone(),
-                });
+                host.set_feature(at, *f);
+                out.push(Outcome::FeatureSet { at, feature: *f });
             }
         }
         Effect::ApplyEnchantment(spell) => {
@@ -373,6 +373,10 @@ fn run_effect(
         Effect::Custom(hook) => {
             host.custom(hook, who, ctx);
             out.push(Outcome::Custom { hook: hook.clone() });
+        }
+        Effect::Special => {
+            host.special(who, ctx);
+            out.push(Outcome::Special);
         }
     }
 }

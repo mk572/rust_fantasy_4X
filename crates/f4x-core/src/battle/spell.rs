@@ -23,7 +23,7 @@ use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
 use super::casting::{BattleCaster, SpellAim, SpellError, MAX_SIDE_UNITS};
-use super::field::{Field, BATTLEFIELD, CALL_CHAOS};
+use super::field::{Field, BATTLEFIELD};
 use super::immunity::{AttackNature, Immunities, Realm};
 use super::WarpKind;
 use super::{Battle, BattleError, BattleEvent, RangedKind, Side};
@@ -39,30 +39,6 @@ use crate::spell::target_error::TargetError;
 mod unit_cast;
 pub use unit_cast::{SpellSource, UnitSpell};
 
-/// The hook of the Animate Dead spell.
-pub const ANIMATE_DEAD: &str = "animate_dead";
-/// The hook of Creature Binding: a fantastic creature fights for the caster until the battle
-/// ends or the spell is dispelled.
-pub const CREATURE_BINDING: &str = "creature_binding";
-/// The hook of Possession: a normal unit fights for the caster until the battle ends.
-pub const POSSESSION: &str = "possession";
-/// The hook of Raise Dead: a fallen normal unit returns with half its figures.
-pub const RAISE_DEAD: &str = "raise_dead";
-pub const RECALL_HERO: &str = "recall_hero";
-/// The hook of Word of Recall in a battle: any of the wizard's units goes to the summoning circle.
-pub const WORD_OF_RECALL: &str = crate::spell::special::WORD_OF_RECALL;
-/// The hook of Earth to Mud: a 5 by 5 area of open ground turns to mud.
-pub const EARTH_TO_MUD: &str = "earth_to_mud";
-/// The hook of Cracks Call: a fissure on one square.
-pub const CRACKS_CALL: &str = "cracks_call";
-/// The hook of Disrupt: one section of city wall is destroyed.
-pub const DISRUPT: &str = "disrupt";
-/// The hook of Life Drain: the target's life goes to the caster.
-pub const LIFE_DRAIN: &str = "life_drain";
-/// The hook of Warp Wood: a missile unit's ammunition is destroyed.
-pub const WARP_WOOD: &str = "warp_wood";
-/// The hook of Warp Creature.
-pub const WARP_CREATURE: &str = "warp_creature";
 /// The changes of one of Warp Creature's three results.
 fn warp_mods(kind: WarpKind, spell: SpellId) -> Vec<Modifier> {
     let source = Source::Spell(spell);
@@ -236,8 +212,9 @@ impl Game {
             return None;
         }
         if let [r] = def.effects.as_slice() {
-            let bind = matches!(&r.effect, Effect::Custom(h) if h == CREATURE_BINDING);
-            if bind || matches!(&r.effect, Effect::Custom(h) if h == POSSESSION) {
+            // Creature Binding (73) or Possession (172).
+            let bind = matches!(r.effect, Effect::Special) && spell.num() == 73;
+            if bind || matches!(r.effect, Effect::Special) && spell.num() == 172 {
                 return Some(Kind::Turn {
                     bind,
                     save: def.save.clone(),
@@ -322,33 +299,32 @@ impl Game {
                 mana_per_step: *mana_per_step,
                 all: all_enemies,
             }),
-            Effect::Custom(h) if h == crate::spell::dispel::COUNTER_MAGIC => {
-                Some(Kind::CounterMagic)
-            }
             Effect::Custom(h) if h == BATTLEFIELD => Field::of(spell).map(Kind::Field),
-            Effect::Custom(h) if h == CALL_CHAOS => Some(Kind::CallChaos),
-            Effect::Custom(h) if h == ANIMATE_DEAD => Some(Kind::Animate),
-            Effect::Custom(h) if h == RAISE_DEAD => Some(Kind::Raise),
-            Effect::Custom(h) if h == WARP_WOOD => Some(Kind::WarpWood),
-            Effect::Custom(h) if h == RECALL_HERO => Some(Kind::Recall { anyone: false }),
-            Effect::Custom(h) if h == WORD_OF_RECALL => Some(Kind::Recall { anyone: true }),
-            Effect::Custom(h) if h == EARTH_TO_MUD => Some(Kind::EarthToMud),
-            Effect::Custom(h) if h == CRACKS_CALL => Some(Kind::CracksCall),
-            Effect::Custom(h) if h == super::vortex::MAGIC_VORTEX => Some(Kind::Vortex),
-            Effect::Custom(h) if h == DISRUPT => Some(Kind::Disrupt),
-            Effect::Custom(h) if h == crate::spell::city::WALL_OF_STONE => {
-                Some(Kind::CityWall(CityWall::Stone))
-            }
             Effect::Custom(h) if h == "city_flag" => match spell.num() {
                 87 /* wall_of_fire */ => Some(Kind::CityWall(CityWall::Fire)),
                 178 /* wall_of_darkness */ => Some(Kind::CityWall(CityWall::Darkness)),
                 _ => None,
             },
-            Effect::Custom(h) if h == LIFE_DRAIN => Some(Kind::LifeDrain),
-            Effect::Custom(h) if h == crate::unit::mutation::CHAOS_CHANNELS => Some(Kind::Channel),
-            Effect::Custom(h) if h == WARP_CREATURE => Some(Kind::Warp {
-                save: def.save.clone(),
-            }),
+            Effect::Special => match spell.num() {
+                48 /* counter_magic */ => Some(Kind::CounterMagic),
+                115 /* call_chaos */ => Some(Kind::CallChaos),
+                195 /* animate_dead */ => Some(Kind::Animate),
+                137 /* raise_dead */ => Some(Kind::Raise),
+                81 /* warp_wood */ => Some(Kind::WarpWood),
+                205 /* recall_hero */ => Some(Kind::Recall { anyone: false }),
+                47 /* word_of_recall */ => Some(Kind::Recall { anyone: true }),
+                1 /* earth_to_mud */ => Some(Kind::EarthToMud),
+                11 /* cracks_call */ => Some(Kind::CracksCall),
+                105 /* magic_vortex */ => Some(Kind::Vortex),
+                82 /* disrupt */ => Some(Kind::Disrupt),
+                3 /* wall_of_stone */ => Some(Kind::CityWall(CityWall::Stone)),
+                167 /* life_drain */ => Some(Kind::LifeDrain),
+                93 /* chaos_channels */ => Some(Kind::Channel),
+                89 /* warp_creature */ => Some(Kind::Warp {
+                    save: def.save.clone(),
+                }),
+                _ => None,
+            },
             _ => None,
         }
     }

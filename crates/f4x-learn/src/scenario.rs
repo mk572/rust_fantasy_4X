@@ -142,14 +142,14 @@ fn power(content: &Content, army: &[UnitPick]) -> f32 {
 /// they act on (Magic Vortex puts an object on the field the observation does not show), or
 /// they change a unit for good (Chaos Channels, added to battles later than the learned
 /// brains). They stay out of the generated wizards, so the learned brains keep their shape.
-const NOT_TRAINED: [&str; 7] = [
-    "chaos_channels",
-    "earth_to_mud",
-    "cracks_call",
-    "disrupt",
-    "life_drain",
-    "word_of_recall",
-    "magic_vortex",
+const NOT_TRAINED: [u16; 7] = [
+    93,  // chaos_channels
+    1,   // earth_to_mud
+    11,  // cracks_call
+    82,  // disrupt
+    167, // life_drain
+    47,  // word_of_recall
+    105, // magic_vortex
 ];
 
 /// A spell the game can cast in a battle at all: not a placeholder (`unimplemented`), and one
@@ -158,8 +158,10 @@ pub fn battle_spell(d: &f4x_core::rules::defs::SpellDef) -> bool {
     use f4x_core::rules::defs::CastContext;
     use f4x_core::rules::effects::Effect;
     d.contexts.contains(&CastContext::Battle)
-        && !d.effects.iter().any(|r| {
-            matches!(&r.effect, Effect::Custom(h) if h == "unimplemented" || NOT_TRAINED.contains(&h.as_str()))
+        && !d.effects.iter().any(|r| match &r.effect {
+            Effect::Custom(h) => h == "unimplemented",
+            Effect::Special => NOT_TRAINED.contains(&d.num),
+            _ => false,
         })
 }
 

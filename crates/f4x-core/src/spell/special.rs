@@ -9,13 +9,6 @@ use crate::rules::exec::Target;
 use crate::spell::target_error::TargetError;
 use crate::unit::Hurt;
 
-pub const TRANSMUTE: &str = "transmute";
-pub const EARTH_LORE: &str = "earth_lore";
-pub const NATURES_CURES: &str = "natures_cures";
-pub const WORD_OF_RECALL: &str = "word_of_recall";
-pub const PLANE_SHIFT: &str = "plane_shift";
-pub const FLOATING_ISLAND: &str = "floating_island";
-
 /// What Transmute turns each mineral into. Adamantium and the crystals are left alone.
 const TRANSMUTED: [(&str, &str); 6] = [
     ("iron_ore", "gold_ore"),
@@ -184,17 +177,17 @@ impl Game {
     /// Run a unit-target special hook. Returns whether the hook was one of these.
     pub(crate) fn run_unit_special(
         &mut self,
-        hook: &str,
+        spell: crate::rules::SpellId,
         caster: crate::player::PlayerId,
         who: Target,
     ) -> bool {
         let Target::Unit(unit) = who else {
             return false;
         };
-        match hook {
-            NATURES_CURES => self.natures_cures(unit),
-            WORD_OF_RECALL => self.word_of_recall(caster, unit),
-            PLANE_SHIFT => self.plane_shift(caster, unit),
+        match spell.num() {
+            19 /* natures_cures */ => self.natures_cures(unit),
+            47 /* word_of_recall */ => self.word_of_recall(caster, unit),
+            132 /* plane_shift */ => self.plane_shift(caster, unit),
             _ => return false,
         }
         true

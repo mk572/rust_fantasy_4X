@@ -91,7 +91,12 @@ pub fn roll(rng: &mut GameRng, rules: &Rules) -> Vec<Hero> {
 fn roll_one(rng: &mut GameRng, rules: &Rules, kind: usize, t: &HeroTemplate) -> Hero {
     let def = t.unit_id.map(|id| rules.units.get(id));
     let has = |ability: Ability| def.is_some_and(|d| d.ability_ids.contains(&ability));
-    let mut abilities = HeroAbilities::from_names(&t.abilities);
+    let mut abilities = HeroAbilities::from_ids(
+        &t.abilities
+            .iter()
+            .filter_map(|a| a.id())
+            .collect::<Vec<_>>(),
+    );
     let mut skill = t.casting_skill as i32;
     let picks = t.picks as i32;
     let (mut warrior, mut mage) = match t.pick_type {

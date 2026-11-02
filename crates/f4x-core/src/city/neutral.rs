@@ -220,7 +220,8 @@ impl Game {
         let rules = &self.content.rules;
         let mut out = Vec::new();
         for r in rules.races.defs() {
-            if r.city_names.is_empty() || r.myrror != (plane == Plane::Myrror) || r.id == "high_elf"
+            if r.city_names.is_empty() || r.myrror != (plane == Plane::Myrror) || r.num == 7
+            /* high_elf */
             {
                 continue;
             }
@@ -228,7 +229,9 @@ impl Game {
                 continue;
             };
             out.push(id);
-            if r.id == "high_men" {
+            if r.num == 8
+            /* high_men */
+            {
                 out.push(id);
             }
         }
