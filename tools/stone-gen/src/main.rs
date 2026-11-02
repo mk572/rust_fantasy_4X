@@ -50,7 +50,7 @@ impl Default for Settings {
             stone: StoneType::Marble,
             main: [49, 119, 112],
             light: [112, 166, 151],
-            dark: [22,  60,  sixty()],
+            dark: [22, 60, 60],
             granularity: 0.48,
             angle: 35.0,
             width: 256,
@@ -60,8 +60,6 @@ impl Default for Settings {
         }
     }
 }
-
-const fn sixty() -> u8 { 60 }
 
 fn hash2(x: i32, y: i32, seed: u64) -> f32 {
     let mut n = (x as u64).wrapping_mul(0x9E3779B185EBCA87)
