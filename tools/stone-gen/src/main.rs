@@ -152,7 +152,7 @@ fn generate(settings: &Settings) -> Vec<u8> {
                 + warp_b * 0.035;
             let coarse = fbm(x, y, settings.seed, 3, 4);
             let fine = fbm(x, y, settings.seed ^ 0xDEADBEEF, 24, 2);
-            let fleck = hash2((px as i32) / 2, (py as i32) / 2, settings.seed ^ 0xF1EC);
+            let fleck = periodic_noise(x, y, 48, 48, settings.seed ^ 0xF1EC);
 
             let value = match settings.stone {
                 StoneType::Marble => {
@@ -217,7 +217,9 @@ async fn main() {
                 width: settings.width as u16,
                 height: settings.height as u16,
             };
-            texture = Some(Texture2D::from_image(&image));
+            let generated_texture = Texture2D::from_image(&image);
+            generated_texture.set_filter(FilterMode::Nearest);
+            texture = Some(generated_texture);
             status = format!("Generated {} x {} · {} colours", settings.width, settings.height, settings.palette_size);
             regenerate = false;
         }
@@ -312,7 +314,6 @@ async fn main() {
         if let Ok(seed) = seed_text.trim().parse::<u64>() {
             if seed != settings.seed { settings.seed = seed; regenerate = true; }
         }
-        if settings.width != (settings.width.clamp(32, 512)) { regenerate = true; }
         // Rebuild when parameter values differ from the last generated snapshot.
         // A compact signature avoids retaining duplicate settings structs.
         let signature = format!("{:?}-{}-{}-{:?}-{:?}-{:?}-{}-{}-{}-{}",
