@@ -142,8 +142,9 @@ to it, and it does not dispatch `Trigger::OnTurnStart`.
    raise farmers to the minimum needed to feed its citizens. Then settle each player in player
    id order; the player under Time Stop is skipped. Food and gold upkeep are paid against the
    cities as they stand, before growth.
-2. **Random events.** Call `process_events`. This is the world-event system, not a rules
-   `Trigger`; it may produce event notifications for the caller.
+2. **Random events.** Call `process_events`. If the `random_events` game setting is on, it
+   may draw and play a new event; it also advances/twiddles ongoing event state. This is the
+   world-event system, not a rules `Trigger`, and it may produce event notifications for the caller.
 3. **Cities, in creation order.** Outposts run their growth/shrink step and may become cities
    or be destroyed. Inhabited cities check production validity, refresh autobuild, compute the
    city economy once, apply production (possibly completing a building or unit), then apply
