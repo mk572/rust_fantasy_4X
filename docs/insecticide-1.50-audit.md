@@ -42,7 +42,6 @@ The supplied release notes contain many related references. Rows below group ref
 | 078, 082, 086, 089, 090, 093, 096, 098, 102, 106 | AI-to-AI diplomacy, AI audience initiation, war declarations, warning text, defeated-wizard casting and relation overflow | Large diplomacy/state-machine cluster. Verify actor/target identity, defeated-player guards, relation bounds and transition-specific messages. | P2 | Investigate |
 | 108 | Wind Walking units cannot be attacked by ground units | Wind Walking should affect overland movement, not grant an unintended battle-targeting immunity. | P2 | Investigate |
 | 111 | Strategic-combat damage priority ignores value/Defense and has a flawed repeat-hit mechanism | Damage allocation must be deterministic and value-aware without biasing repeat hits; release note admits the 1.50 fix remains incomplete for some unit costs. | P2 | Partial |
-| 113, 216, 679, 680, 700 | Healing, natural recovery, Healer ordering, Lion Heart extra hits and Life Steal with irreversible damage | Centralize the distinction between current battle hits, permanent unit hits, extra hits and irreversible damage. | P2 | Investigate |
 | 125 | Spell Ward does not counter combat spells | Verify Spell Ward participates in battle spell-countering as described. | P2 | Investigate |
 | 127, 172, 503, 731 | Animate Dead/Raise Dead target filtering, dead-unit count limits, display corruption and recalled-unit targeting | Resurrection must select only eligible dead units, exclude transported/recalled units, and handle large lists safely. | P1 | Investigate |
 | 129 | Summon Demon exceeds the nine-unit battle limit and can crash above eighteen | Enforce side capacity before creating or inserting the summoned unit. | P1 | Investigate |
@@ -55,7 +54,6 @@ The supplied release notes contain many related references. Rows below group ref
 | 170 | Spellbooks from treasure grant the same number/rank of spells as starting books | Reuse one book-grant rule rather than maintaining separate reward logic. | P3 | Investigate |
 | 174, 275 | Repeated Warp Creature casts crash | Repeated effects must update a typed state rather than overflow or duplicate invalid modifiers. | P1 | Investigate |
 | 175 | Wrack squares damage and can corrupt memory | Damage amount and target iteration must be bounded and use shared damage machinery. | P1 | Investigate |
-| 176, 465 | Call Lightning bolt count and sound-disabled crash | Resolve the correct number of strikes independently of optional sound resources. | P1 | Investigate |
 | 177 | Call Chaos disintegrates units that resist | A successful resistance check must prevent the spell's destructive effect. | P2 | Investigate |
 | 210 | Rebuilding a building in the same turn leaves it nonfunctional | Destruction and reconstruction must refresh the city's derived effects immediately. | P2 | Investigate |
 | 220 | Negative growth cannot reduce a city already at maximum population | Population caps must constrain positive growth only; negative growth must still apply. | P2 | Resolved |
@@ -124,7 +122,6 @@ The supplied release notes contain many related references. Rows below group ref
 | 694 | Righteousness items fail against ranged attacks | Apply the protection to all specified attack modes. | P2 | Investigate |
 | 695 | Destroyed City Walls remain in battle until next turn | Battle wall state should refresh immediately after destruction. | P3 | Investigate |
 | 697 | Wrack limited to 40 figures and can corrupt memory | Iterate safely over the full eligible target set with no fixed-size overflow. | P1 | Investigate |
-| 698, 699 | Movement enhancement order differs in battle; Wind Mastery overland change reversed | Use an explicit order of movement modifiers and keep battle/overland semantics aligned where intended. | P2 | Investigate |
 | 701 | Newly summoned units miss battlefield-wide effects until next turn | Apply persistent battlefield effects when a unit enters battle, not only at initial battle setup. | P2 | Investigate |
 | 703 | Spellbook page titles disappear with ordering disabled | UI ordering should not affect title rendering. | P4 | UI |
 | 704 | Word of Recall targets Summoning Circle in battle | Restrict the target to valid recall targets and context. | P2 | Investigate |
@@ -251,8 +248,6 @@ The AI notes combine balance tuning, tactical policy and correctness fixes. Some
 
 | Patch reference | Change / issue | Assessment | Priority | Status |
 |---|---|---|:---:|---|
-| 002, 028, 029, 031 | Personality/objective weights from books and retorts; Pragmatist available to AI; secondary realm influence; guaranteed Uncommon summon and Sss'ra/Myrran defaults | Pragmatist is a valid AI objective. Secondary-realm weighting is not represented by the current primary-realm-only tables. Guaranteed summon and Sss'ra changes are explicitly reversed in the Community Patch. | P3 | Partial |
-| 027, 035 | Starting Relations formula and diplomacy personality modifier | Starting relation formula became optional in the Community Patch; treat as configurable balance. Current personality diplomacy modifier is a simple fixed temper contribution, not the full revised formula. | P3 | Design |
 | 036, 168, 169, 231, 232 | Personality changes curse casting; diplomacy reaction weights for curses/global enchantments; avoid recasting active globals | Overland AI classifies curse and global spell categories and checks some existing globals. It lacks a comprehensive personality-driven casting policy and full diplomatic-reaction valuation. | P3 | Partial |
 | 059 | Diplomatic refusal flavor text shown more often | Presentation/dialogue frequency. | P4 | UI |
 | 066, 088, 076, 079, 080, 082, 089, 090, 091, 099, 100, 101, 252, 278, 298, 299, 375, 402, 403, 453 | AI-to-AI Peace Treaties, per-turn war evaluation, warning escalation, treaty breaking, peace duration/counter, personality and military-strength effects | Rewrite has proposal answering, quarrel decisions, war-on-Mastery behavior and sequential AI turns, but narrower AI-to-AI treaty/war negotiation and warning progression. Peace duration and relation state need symmetric tests. | P2 | Partial |
@@ -268,7 +263,6 @@ The AI notes combine balance tuning, tactical policy and correctness fixes. Some
 | 179 | AI can cast multiple overland spells per turn when skill allows | Overland caster uses a prioritized selection loop; verify it continues until skill, mana or legal options are exhausted. | P2 | Investigate |
 | 181, 182, 183, 184, 185–207, 257, 258, 289, 355, 382 | Broad tactical spell preference tuning; situation-dependent spell groups; Call Lightning/Wrack dispel preference; Web and Mind Storm matchup changes; Guardian Wind only against missiles | Battle AI has a generic effect scorer but lacks many matchup-specific weights and field-spell dispel valuation. This is a broad tuning surface. | P2 | Partial |
 | 187, 189 | Guardian Wind and Mind Storm matchup-specific priorities | Generic scoring does not fully express “only if missile threat exists” or the desired equal-strength Mind Storm condition. | P2 | Investigate |
-| 217, 227, 248, 435 | Disband obsolete units only near cap; protect heroes/valuable units; never disband Stasis units or heroes due to gold shortage | A global-cap-aware, hero-safe disband policy was not found in the reviewed strategic AI flow. | P2 | Investigate |
 | 224, 672, 243, 245 | Smarter power-base distribution and checking town defense needs every turn | Power allocation is an explicit AI concern and threatened-city tracking exists. Exact adaptive allocation and continuous garrison reassessment need verification. | P2 | Partial |
 | 229, 230, 234, 238, 239 | Spell-category selection, less redundant dispelling, Spell Binding as dispel, high-priority globals and correct wizard-curse execution | Overland AI has explicit Disenchant, Disjunction, WorldSpell and WizardCurse categories. Duplicate-dispel coordination and effect-specific priorities remain open. | P2 | Partial |
 | 233 | AI does not Move Fortress | Verify Move Fortress remains excluded as a useful AI spell; the AI should not choose it without understanding racial unrest and fortress defense. | P3 | Investigate |
@@ -374,12 +368,10 @@ This batch mixes balance changes, map-generation rules, diplomacy, strategic com
 
 | Patch reference | Change / issue | Assessment | Priority | Status |
 |---|---|---|:---:|---|
-| 001, 013, 015 | Encounter creature budgets, primary divisor and maximum creature count | Separate encounter budget, creature selection and stack-size policy. Higher non-Node budgets are explicitly reversed in the Community Patch. | P3 | Design |
 | 003, 014, 547 | Tiny land setting, reduced land on other sizes, adjacent encounter zones and 200-tile continent cap | Add named size presets and explicit land, continent and encounter-spacing constraints. Current GenParams has dimensions, land percentage and feature counts, but not these original-style presets/caps. | P2 | Partial |
 | 004 | Modded wizards with more than two book types display correctly | Wizard presentation must support arbitrary legal book combinations rather than assume the standard layout. | P3 | Investigate |
 | 009 | Tower placement near water, minimum distance and node spacing | Keep water adjacency, tower spacing and node exclusion as separate placement predicates. Numeric spacing changes are balance choices. | P2 | Partial |
 | 010 | Lower maximum population requirement for starting cities | Use bounded suitability scoring and graceful fallback so generation does not fail when few ideal sites exist. | P2 | Investigate |
-| 016–025, 017, 018, 019, 020, 021, 022, 023, 024, 025, 537 | Treasure budgets, minimum points, tower rewards, gold/mana, item value, prisoner heroes, spell rolls, special treasure frequency and distribution | Build treasure as a pipeline: creature budget, treasure budget, eligible categories, reward selection. Keep difficulty adjustment explicit. Most numeric changes are reversed in the Community Patch; eligibility and non-cumulative rolls are more durable rules. | P2 | Design |
 | 046, 054 | Larger alchemy conversion; better replacement rewards when books/retorts cannot be awarded | Avoid arbitrary conversion caps where resource types permit larger values; reward fallback should preserve expected value when a category is exhausted. | P3 | Investigate |
 | 060–074, 094 | Threat formula, end-turn relation shifts, refused alliance-break request, treaty proposals/duration, reactions, hidden relation, tribute and trade patience | Diplomacy needs explicit pair-scoped visible/hidden relation state and transition-specific formulas. Test human-AI and AI-AI paths separately. | P2 | Partial |
 | 063, 092, 103, 281, 282, 449 | Alliance refusal, movement through allied territory, reactions to defeated wizards, ally war requests and peace blocking war | Separate proposal refusal, relation penalty, treaty retention, movement permission and war legality. A peace treaty must block Declare War On; refusal must not silently break an alliance. | P2 | Partial |
@@ -395,7 +387,6 @@ This batch mixes balance changes, map-generation rules, diplomacy, strategic com
 | 329, 507 | Rare/Very Rare treasure spell rewards exclude Arcane | Filter eligible spell rarity before selecting a realm to avoid wasting a reward. | P3 | Investigate |
 | 345 | Units crossing a transport tile do not accidentally enter patrol | Transport presence must not interrupt an existing movement order unless embarkation is explicitly commanded. | P2 | Investigate |
 | 364, 434 | Raider spawning/option; heroes protected from low-gold desertion | Document raider composition and setting behavior. Hero-safe desertion is a design choice; the note itself questions whether the change is needed. | P3 | Design |
-| 439 | City growth is always reported | UI/event regression reversal. | P4 | UI |
 | 473, 499, 518, 519, 555 | Unit cap raised to 2,000 | A cap affects allocation, serialization, selection, battle rosters, pathfinding and UI. The DOS conventional-memory cost is historical, not a Rust target constraint. | P2 | Design |
 | 474 | Wizard names up to 16 characters | Apply one documented name limit consistently across validation, UI and saves, or support longer UTF-8 names safely. | P3 | Investigate |
 | 480 | Remove inland lakes and bays with diagonal entries | Define map topology and navigable/open water consistently for generation and rendering. | P3 | Investigate |
@@ -404,7 +395,6 @@ This batch mixes balance changes, map-generation rules, diplomacy, strategic com
 | 677, 678 | Correct spell error messages when there are no valid living targets | Validation and error selection should share the same live-target query after casualties and filtering. | P3 | Investigate |
 | 691, 697, 720, 729, 730, 737, 741 | Combat terrain, Wrack animation/sound, additional-power slider, spell-target highlighting/responsiveness, Vortex placement, Call Chaos graphics/timing and Warp Node dispel message | Mostly presentation/input feedback, but target highlighting must use the actual aim validator. Animation must not freeze simulation or depend on sound being enabled. | P3 | Partial |
 | 739 | Replace five-run LFSR with full-cycle RNG | Document period and reproducibility. Keep gameplay randomness seeded and independent from cosmetic animation. | P2 | Investigate |
-| 748 | Escape key again exits advisors/list selectors instead of Space | Complete release-note entry; this reverses the Space-key behavior and restores Escape as the exit key. | P4 | UI |
 
 ## Gameplay and interface code review: first pass
 
@@ -459,7 +449,16 @@ Tests: save/load at maximum unit count; backup rotation and interrupted saves; l
 7. Keep backup saves in persistence/host code and RNG state deterministic and independent from presentation.
 8. Confirm the truncated final keyboard note before considering this batch complete.
 
-## Optional 1.50 fixes: separate recommendations
+
+
+## Optional
+
+| Patch reference | Change / issue | Assessment | Priority | Status |
+|---|---|---|:---:|---|
+| 176, 465 | Call Lightning bolt count and sound-disabled crash | Resolve the correct number of strikes independently of optional sound resources. | P1 | Investigate |
+| 027, 035 | Starting Relations formula and diplomacy personality modifier | Starting relation formula became optional in the Community Patch; treat as configurable balance. Current personality diplomacy modifier is a simple fixed temper contribution, not the full revised formula. | P3 | Design |
+
+## Optional
 
 These changes are supplied as optional patch files and are not pre-applied in 1.50. They are assessed separately from the main release-note audit: **Make default** means adopt as the rewrite's normal behavior; **Optional setting** means expose as a ruleset/game setting because it changes balance or player expectations; **Skip** means do not reproduce it as a general rule, or defer it because its dependency/benefit is too narrow.
 
@@ -493,3 +492,17 @@ These changes are supplied as optional patch files and are not pre-applied in 1.
 | 743 | Have the AI account for Confusion's temporary control change when assigning Summon Demons; partial fix for a crash above 18 units | Make default | AI command selection must use effective ownership/control and battle capacity. Treat the associated crash as a separate capacity-safety issue; this optional fix is explicitly only partial. |
 | 745 | Prevent Hasted units from wasting ammunition on a second ranged attack when the first attack destroys the target; requires 744 | Skip | The listed prerequisite 744 is not included in this optional batch, and this is a narrow combat optimization. Revisit only if 744 is adopted and the attack sequence is implemented with equivalent target revalidation. |
 
+## Reverted / Obsolete
+
+These entries describe changes later reversed, replaced or superseded. They are historical context, not independent implementation tasks; use the later patch's behavior or replacement rule.
+
+| Patch reference | Change / issue | Assessment | Priority | Status |
+|---|---|---|:---:|---|
+| 113, 216, 679, 680, 700 | Healing, natural recovery, Healer ordering, Lion Heart extra hits and Life Steal with irreversible damage | Centralize the distinction between current battle hits, permanent unit hits, extra hits and irreversible damage. | P2 | Investigate |
+| 698, 699 | Movement enhancement order differs in battle; Wind Mastery overland change reversed | Use an explicit order of movement modifiers and keep battle/overland semantics aligned where intended. | P2 | Investigate |
+| 002, 028, 029, 031 | Personality/objective weights from books and retorts; Pragmatist available to AI; secondary realm influence; guaranteed Uncommon summon and Sss'ra/Myrran defaults | Pragmatist is a valid AI objective. Secondary-realm weighting is not represented by the current primary-realm-only tables. Guaranteed summon and Sss'ra changes are explicitly reversed in the Community Patch. | P3 | Partial |
+| 217, 227, 248, 435 | Disband obsolete units only near cap; protect heroes/valuable units; never disband Stasis units or heroes due to gold shortage | A global-cap-aware, hero-safe disband policy was not found in the reviewed strategic AI flow. | P2 | Investigate |
+| 001, 013, 015 | Encounter creature budgets, primary divisor and maximum creature count | Separate encounter budget, creature selection and stack-size policy. Higher non-Node budgets are explicitly reversed in the Community Patch. | P3 | Design |
+| 016–025, 017, 018, 019, 020, 021, 022, 023, 024, 025, 537 | Treasure budgets, minimum points, tower rewards, gold/mana, item value, prisoner heroes, spell rolls, special treasure frequency and distribution | Build treasure as a pipeline: creature budget, treasure budget, eligible categories, reward selection. Keep difficulty adjustment explicit. Most numeric changes are reversed in the Community Patch; eligibility and non-cumulative rolls are more durable rules. | P2 | Design |
+| 439 | City growth is always reported | UI/event regression reversal. | P4 | UI |
+| 748 | Escape key again exits advisors/list selectors instead of Space | Complete release-note entry; this reverses the Space-key behavior and restores Escape as the exit key. | P4 | UI |
