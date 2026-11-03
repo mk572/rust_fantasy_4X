@@ -91,6 +91,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 472 | Medium | Magic | Spell research against the wiki and ReMoM: found books add no researchable spells, 13-book limit, book test for conquest and exchange, Spell of Mastery cost, arcane rarity labels |
 | 473 | Low | Audio | Denoise the original speech sound files (the intro's spoken lines and any other voice clips) |
 | 474 | Low | AI | AI heroes and items: lairs, experience, Resurrection, hiring, item trade and crafting (split from 367) |
+| 475 | Medium | Core | Split turn advancement into explicit `game::end_turn()` and `game::start_turn()` phases |
 
 ## Descriptions
 
@@ -362,3 +363,7 @@ Each item that is changed gets a test on the shipped rules and a line in `docs/m
 - **TODO heroes:** hire every hero offered that the gold allows; cast Summon Hero and Summon Champion; raise the dead with Resurrection; keep heroes out of lair fights they cannot win and send them to lairs and battles they win; spend their experience; level them.
 - **TODO items:** cast Enchant Item and Create Artifact when the mana allows; give each item to the hero that uses it best; trade items; scrap what no hero can use.
 *Needs:* nothing. Part of the umbrella task 371.
+
+**475. Split the turn transition into end-turn and start-turn phases.** Refactor the current `game::end_turn()` so that the work before advancing the turn counter stays in `game::end_turn()`, and the work after advancing the counter moves into a new `game::start_turn()`. Keep the existing execution order and behaviour unchanged: this is a lifecycle-clarity refactor, not a redesign of the turn pipeline. `end_turn()` should finish the outgoing turn; `start_turn()` should own the incoming-turn work, including the counter advancement and the processing that follows it. Update callers and tests as needed, and document the boundary between the two phases. Check that turn-start notifications and all existing turn processing still happen exactly once.
+
+Asked for by the user, 3 November 2026.
