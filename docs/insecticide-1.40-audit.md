@@ -137,3 +137,47 @@ The table below consolidates the 194 numbered assessments made in the conversati
 | 43 | IM197 | AI wizard with 11 [value omitted in pasted note] receives fewer spells | Investigate the allocation boundary; the pasted release note omitted the stat name. |
 | 44 | IM200 | Alorra and Torin with Arcane Power | The rewrite deliberately restricts Arcane Power to Heroes with suitable magical ranged attacks; verify definitions. |
 | 45 | ITEMDATA.LBX / ITEMMAKE.EXE | Item Spellbook requirements | The rewrite deliberately avoids the faulty per-power book-byte filtering; verify crafting requirements instead. |
+| 46 | IW006 | Objective-based Town production | Investigate whether production choices follow the AI's objective and current needs. |
+| 47 | IW040 | AI treasure item find | Investigate whether AI treasure rewards use the same generation and eligibility rules as human rewards. |
+| 48 | IW042 | Wizard's Pact war declaration | Investigate diplomacy rules around declaring war on a wizard with a Pact. |
+| 49 | IW048 | AI pathfinding across player units and hostile tiles | Investigate passability, diplomacy and target handling when routes cross occupied or hostile tiles. |
+| 50 | IW049 | AI cannot flee on the first combat turn | Investigate whether the AI can retreat as soon as the battle rules permit it. |
+| 51 | IW067 | AI no longer uses lines or group movement | Treat as a tactical-AI design choice; verify whether the rewrite's battle AI needs formations. |
+| 52 | IW069 | Melee target prioritizes damaged enemies | Investigate consistency between melee and ranged target scoring. |
+| 53 | IW075 | AI upkeep discount stacking | Investigate whether difficulty bonuses and other upkeep modifiers stack correctly. |
+| 54 | IW087 | Damaged reachable melee targets prioritized, sleeping targets not | Investigate whether target scoring accounts for damage and incapacitated targets sensibly. |
+| 55 | IW092 | Army strength threshold raised from 66% to 75% | Balance choice; do not copy the threshold without testing the rewrite's combat model. |
+| 56 | IW095 | AI less likely to raze a city captured from another AI | Investigate whether previous ownership should influence razing decisions. |
+| 57 | IW096 | AI razes more when enemy forces are nearby | Investigate whether razing depends on the city's actual defensibility. |
+| 58 | IW099 | AI refuses lower-ID Heroes to preserve Hero slots | Investigate recruitment policy; avoid using numeric ID as a proxy for Hero quality. |
+| 59 | IW101 | Spell trade priority uses realm index and desirability | Investigate explicit, data-driven spell trade valuation rather than realm ordering. |
+| 60 | IW115 | Combat spell choice depends on winning or losing | Investigate context-aware tactical spell scoring. |
+| 61 | IW116, IW124 | AI prioritizes dispelling Call Lightning and Wrack | Investigate whether the AI recognizes dangerous active battlefield effects. |
+| 62 | IW120 | Various combat spell preferences | Investigate spell-specific tactical desirability, target resistance and matchup. |
+| 63 | IW123 | Mana Leak turn and wall conditions | Investigate turn-dependent behavior and siege context for Mana Leak. |
+| 64 | IW125, IW130 | Less Immolation threat and protection-spell use | Investigate defensive spell valuation and threat estimation. |
+| 65 | IW129 | Mercenary hiring timing, budget and type | Investigate recruitment timing and whether the AI can afford the right mercenaries. |
+| 66 | IW137 | AI uses Alchemy before mana is exhausted and values Mana | Investigate resource conversion and reserve planning. |
+| 67 | IW139, IW151, IW153 | Settler priorities and reserve | Investigate expansion priorities, settler availability and whether reserves are maintained. |
+| 68 | IW139, IW151, IW153 | Engineer priorities and reserve | Investigate engineer recruitment and infrastructure needs separately from settlers. |
+| 69 | IW140 | Invalidate saved path when adjacent enemies appear | Investigate whether new threats should cause the AI to reconsider a stored route. |
+| 70 | IW141, IW143 | Research priorities | Investigate explicit AI research desirability rather than relying on incidental ordering. |
+| 71 | IW142 | Mana target for expensive overland spells | Investigate resource planning for spells that require a large reserve. |
+| 72 | IW144 | Summon selection uses creature preference rather than exponential casting cost | Strong candidate for data-driven per-creature AI weights. |
+| 73 | IW144 | AI will not Summon Hero with four or more Heroes | Investigate Hero roster caps and recruitment eligibility. |
+| 74 | IW145 | AI cancels only Suppress Magic and Time Stop when out of Mana | Investigate upkeep maintenance and which global spells should be cancelled first. |
+| 75 | IW146 | AI prioritizes unit enchantments on Heroes, with exceptions for travel spells on Settlers | Investigate spell-specific target suitability. |
+| 76 | IW146 | AI prefers Fantastic Units and appropriate ranged units for enchantments | Investigate target suitability and whether the AI understands what each enchantment improves. |
+| 77 | IW147 | AI moves the Summoning Circle more often | Investigate Summoning Circle placement and strategic relocation. |
+| 78 | IW148 | AI buys production only after progress has been made | Investigate purchase timing and whether immediate buying is ever preferable. |
+| 79 | IW150 | AI uses Trade Goods less unless it has at least 24 cities | Balance and economy design choice; test rather than copying the threshold. |
+| 80 | IW150, IW152 | Reduced enforcement of home-continent unit production | Investigate whether production should be tied to strategic geography. |
+| 81 | IW152, IW153 | Smithy before Builders' Hall; Granary before Shrine | Investigate contextual building priorities and their prerequisites. |
+| 82 | IW155 | AI buys production less often, especially in larger cities | Investigate purchase valuation by city size and production progress. |
+| 83 | IW158 | Minerals matter more when settling | Investigate mineral value in city-site evaluation. |
+| 84 | IW162 | AI abandons small-map continents if it cannot attack | Investigate expansion and attack feasibility on isolated landmasses. |
+| 85 | IW164 | AI does not disband units if it can afford 32 turns of upkeep | Investigate whether disbanding uses a sensible financial runway. |
+| 86 | IW167 | AI receives no building-upkeep discount | Prefer player/AI parity unless a difficulty setting explicitly says otherwise. |
+| 87 | IM177 | AI starting spell picks | Investigate data-driven defaults and whether AI spell picks use the same rules as human picks. |
+| 88 | IM185 | AI race choices on high difficulty; later reversed | Design choice; check race restrictions and avoid reproducing a change the Community Patch later reversed. |
+| 89 | IM198 | Retorts affect AI Personality and Objective | Investigate configurable wizard-trait effects on AI strategy. |
