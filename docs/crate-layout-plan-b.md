@@ -13,7 +13,7 @@ day (non-test lines). "Estimate" or "not measured" marks a guess.
   the new crate `f4x-static`; state and actions stay in `f4x-core`, in separate folders.
 - **No rename.** `f4x-core` keeps its name (a rename touches 168 files and 34 documents for nothing). The
   new crate is `f4x-static`. There is no crate called `f4x-game`.
-- New game is a module of `f4x-core`, not a crate. Undo and replay belong to the session.
+- New game is a module of `f4x-core`, not a crate. Undo and replay remain in the core action layer.
 - Turn/round orchestration belongs in `f4x-master`, above `f4x-core` and below the client; AI and human controllers implement its interface (section 5).
 - The battle is split: a small set of static rules goes to `f4x-static` (terrain values, combat spell
   definitions and the like); the battle engine stays in `f4x-core` (it creates the battle map, runs the
