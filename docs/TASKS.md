@@ -92,6 +92,8 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 473 | Low | Audio | Denoise the original speech sound files (the intro's spoken lines and any other voice clips) |
 | 474 | Low | AI | AI heroes and items: lairs, experience, Resurrection, hiring, item trade and crafting (split from 367) |
 | 475 | Medium | Core | Split turn advancement into explicit `game::end_turn()` and `game::start_turn()` phases |
+| 476 | Medium | Client | Cache queried game information and refresh it only after relevant state changes |
+| 477 | Medium | Core | Implement explicit player turn order and active-player turn handling |
 
 ## Descriptions
 
@@ -367,3 +369,23 @@ Each item that is changed gets a test on the shipped rules and a line in `docs/m
 **475. Split the turn transition into end-turn and start-turn phases.** Refactor the current `game::end_turn()` so that the work before advancing the turn counter stays in `game::end_turn()`, and the work after advancing the counter moves into a new `game::start_turn()`. Keep the existing execution order and behaviour unchanged: this is a lifecycle-clarity refactor, not a redesign of the turn pipeline. `end_turn()` should finish the outgoing turn; `start_turn()` should own the incoming-turn work, including the counter advancement and the processing that follows it. Update callers and tests as needed, and document the boundary between the two phases. Check that turn-start notifications and all existing turn processing still happen exactly once.
 
 Asked for by the user, 3 November 2026.
+**476. Cache queried game information in the client.** The client should keep the
+results of game queries it needs for drawing and enabling controls, and refresh them only
+when a relevant change to game state makes them stale. Define which state changes invalidate
+which cached information (for example, unit movement invalidates position-, path- and
+visibility-dependent data; city or economy changes invalidate the affected city and treasury
+data). Reuse cached values across frames; do not solve this by caching everything forever or
+by assuming every query has the same cost. Keep the core queries available for on-demand use,
+and make invalidation explicit and testable so the client never displays stale information.
+
+**477. Implement player turn order.** Move the responsibility for deciding whose turn it is
+from the client/AI layer into an explicit core-level turn-order model. Define the player
+sequence, the active player, how the sequence advances, and how eliminated or otherwise
+inactive players are handled. Commands that represent player actions must be associated with
+and validated against the active player; turn advancement must move to the next eligible
+player and run the appropriate per-player turn-start/end work exactly once. Preserve the
+deterministic ordering of all players and systems, and update the client, AI, console, saves
+and tests to use the same turn-order rules. Decide and document how simultaneous world
+processing currently performed by `EndTurn` is divided between player turns and round
+boundaries; do not simply run the existing whole-world pipeline once for every player.
+
