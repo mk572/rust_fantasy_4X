@@ -223,3 +223,22 @@ The table below consolidates the 194 numbered assessments made in the conversati
 | 129 | IM192 | Neutral towns receive one additional close-combat unit | Investigate neutral garrison composition. |
 | 130 | IM193 | Neutral cities start with Granary at size six and Stables at size seven | Investigate neutral-city starting buildings and population thresholds. |
 | 131 | IM195 | Spell of Mastery research discount for 11 same-realm books changed substantially, later reversed | Balance investigation; do not reproduce a reverted economic change by default. |
+| 132 | IW004 | Floating Island loses Death Immunity and gains standard unit flag/race; later fixed | Investigate unit flags and immunities; the patch's intermediate fix was itself defective. |
+| 133 | IW005 and related | Extreme difficulty added and Intro removed without adjusting many mechanics | Investigate whether difficulty rules form a coherent set rather than a label-only mode. |
+| 134 | IW008 | Endurance Item Power description fails to identify the actual spell | Investigate descriptions and whether item powers point to their actual effect definitions. |
+| 135 | IW015 | Nature Awareness auto-casts Detect Magic; later fixed | Investigate unintended coupling between unrelated spell effects. |
+| 136 | IW018 | Overland income display inaccurate before movement; recalculation causes late-game lag | Investigate caching and calculation consistency between displayed and actual income. |
+| 137 | IW029 | Wraithform item power only works if it is the last Hero in a stack and affects the whole stack; later fixed | Investigate per-unit equipment effects versus stack-wide effects. |
+| 138 | IW041 | Loot encounter reseeds RNG to a static AI turn seed, repeating outcomes; fixed in 1.51 | Critical RNG ownership issue; gameplay systems must not reset a shared stream to a fixed seed. |
+| 139 | IW043 | Diplomacy against an overwhelmingly strong invader is backwards; later replaced | Investigate relative military-strength comparison and diplomacy direction. |
+| 140 | IW043 | AI war declaration against a stronger home-continent rival is backwards; later replaced | Investigate war-declaration strength comparison and home-continent context. |
+| 141 | IW043 | Diplomacy crashes if AI has no home-continent units | Handle the zero-unit case explicitly. |
+| 142 | IW044 | Dispel Confusion does not always restore original owner | Preserve original ownership in the temporary control state. |
+| 143 | IW047 | Engineer road-building fix has no effect | Verify the actual road-building calculation rather than assuming the patch changed it. |
+| 144 | IW050 | Strategic-combat units with Defense at or below 50 all receive the same damage chance | The rewrite's auto-resolve uses ordinary battle resolution; verify no simplified Defense cap is introduced. |
+| 145 | IW055 | Runemaster dispel modifier additive instead of multiplicative, only in combat; removed in 1.50 | Investigate consistency of dispel modifiers across contexts; do not copy a reverted change. |
+| 146 | IW058, IW121 | AI ignores Haste when choosing what to dispel | Investigate whether the AI recognizes Haste as a high-value target enchantment. |
+| 147 | IW059 | Vortex cap reduced to four despite original limit of ten | Investigate summon caps and whether the reduced limit is intentional. |
+| 148 | IW063 | AI Doom Bolt animation misaligned | UI/animation issue; ensure spell effects and animation targets agree. |
+| 149 | IW065, IW067 | AI melee line advance disabled because another change removes lines | The changes interact; evaluate tactical behavior as a whole rather than individually. |
+| 150 | IW070 | Space exits crafting screen and right-arrow exit removed; later reversed | UI design choice; avoid adopting an intermediate hotkey regression. |
