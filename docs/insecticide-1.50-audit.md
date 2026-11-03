@@ -243,3 +243,126 @@ Relevant code: [spell/dispel.rs](../crates/f4x-core/src/spell/dispel.rs), [battl
 - Some 1.50 notes explicitly say a fix remains incomplete or introduces a new movement trade-off. Those are marked Partial rather than treated as a clean resolution.
 - “Resolved” is intentionally conservative. A sound architecture is evidence, but not a substitute for a regression test of the exact reported case.
 - The rewrite is not required to reproduce every original implementation detail. The objective is to preserve intended gameplay rules and avoid the reported failure modes, while documenting deliberate divergences.
+
+
+## AI changes: release-note assessment
+
+The AI notes combine balance tuning, tactical policy and correctness fixes. Some are explicitly reversed by the Community Patch, so they should not automatically become rewrite requirements.
+
+| Patch reference | Change / issue | Assessment | Priority | Status |
+|---|---|---|:---:|---|
+| 002, 028, 029, 031 | Personality/objective weights from books and retorts; Pragmatist available to AI; secondary realm influence; guaranteed Uncommon summon and Sss'ra/Myrran defaults | Pragmatist is a valid AI objective. Secondary-realm weighting is not represented by the current primary-realm-only tables. Guaranteed summon and Sss'ra changes are explicitly reversed in the Community Patch. | P3 | Partial |
+| 027, 035 | Starting Relations formula and diplomacy personality modifier | Starting relation formula became optional in the Community Patch; treat as configurable balance. Current personality diplomacy modifier is a simple fixed temper contribution, not the full revised formula. | P3 | Design |
+| 036, 168, 169, 231, 232 | Personality changes curse casting; diplomacy reaction weights for curses/global enchantments; avoid recasting active globals | Overland AI classifies curse and global spell categories and checks some existing globals. It lacks a comprehensive personality-driven casting policy and full diplomatic-reaction valuation. | P3 | Partial |
+| 059 | Diplomatic refusal flavor text shown more often | Presentation/dialogue frequency. | P4 | UI |
+| 066, 088, 076, 079, 080, 082, 089, 090, 091, 099, 100, 101, 252, 278, 298, 299, 375, 402, 403, 453 | AI-to-AI Peace Treaties, per-turn war evaluation, warning escalation, treaty breaking, peace duration/counter, personality and military-strength effects | Rewrite has proposal answering, quarrel decisions, war-on-Mastery behavior and sequential AI turns, but narrower AI-to-AI treaty/war negotiation and warning progression. Peace duration and relation state need symmetric tests. | P2 | Partial |
+| 104 | AI casts Spell of Return at lower casting skill threshold | Spell of Return is categorized as recall and considered by the overland caster; exact threshold and target-health policy need comparison. | P3 | Investigate |
+| 116, 117, 118, 119, 120, 121, 123, 122 | Battle spell target filters: Life Drain size, Fireball damage preference, duplicate Haste/Invisibility, Shatter restrictions, high-resistance curses, Death-Immune Possession and invalid spell exclusions | Battle AI values damage/healing and scores legal aims, but generic effect scoring does not establish all these spell-specific filters. | P2 | Partial |
+| 124, 328, 346, 259, 260 | Dispel target selection; do not Disjunction allies; respect Spell Lock for Banish/Dispel Evil | Shared legality and ownership-aware dispel rules are a good base. AI valuation still needs ally ownership, Spell Lock protection and actual dispel value. | P2 | Partial |
+| 126, 130, 132 | Prefer Counter Magic; idle with unreachable flying units when outmatched; don't skip caster turns at low mana | Battle AI scores legal casts against unit value and mana. It needs explicit defensive reserve preference, tactical hold behavior and low-mana caster handling. | P2 | Partial |
+| 134, 178, 294 | Do not create charges for unknown spells; allow predefined artifacts; store/reorganize AI hero equipment | Equipment handling exists, but predefined artifact selection, vault storage and all crafting constraints are not established by the reviewed path. | P3 | Partial |
+| 149 | Push least valuable unit off a tile when AI exceeds nine units | Core capacity validation should prevent invalid stacks; AI recovery should choose the least valuable unit and a legal adjacent destination. | P2 | Investigate |
+| 151, 158, 164, 165, 208, 316 | Better unit valuation, target selection, passed-unit accounting and outnumbered threshold | Battle AI has a value function and damage-based spell scoring; strategic AI has unit-strength estimates. Mixed stacks, passed units and defensive walls need tests. | P2 | Partial |
+| 166 | Spell value in diplomatic trades | AI can answer proposals and exchange spells, but relative spell valuation needs explicit tests and tuning. | P3 | Investigate |
+| 171 | AI Spell Binding | Spell Binding is classified with Disjunction, but full use as a targeted global-spell theft action needs validation. | P2 | Partial |
+| 179 | AI can cast multiple overland spells per turn when skill allows | Overland caster uses a prioritized selection loop; verify it continues until skill, mana or legal options are exhausted. | P2 | Investigate |
+| 181, 182, 183, 184, 185–207, 257, 258, 289, 355, 382 | Broad tactical spell preference tuning; situation-dependent spell groups; Call Lightning/Wrack dispel preference; Web and Mind Storm matchup changes; Guardian Wind only against missiles | Battle AI has a generic effect scorer but lacks many matchup-specific weights and field-spell dispel valuation. This is a broad tuning surface. | P2 | Partial |
+| 187, 189 | Guardian Wind and Mind Storm matchup-specific priorities | Generic scoring does not fully express “only if missile threat exists” or the desired equal-strength Mind Storm condition. | P2 | Investigate |
+| 217, 227, 248, 435 | Disband obsolete units only near cap; protect heroes/valuable units; never disband Stasis units or heroes due to gold shortage | A global-cap-aware, hero-safe disband policy was not found in the reviewed strategic AI flow. | P2 | Investigate |
+| 224, 672, 243, 245 | Smarter power-base distribution and checking town defense needs every turn | Power allocation is an explicit AI concern and threatened-city tracking exists. Exact adaptive allocation and continuous garrison reassessment need verification. | P2 | Partial |
+| 229, 230, 234, 238, 239 | Spell-category selection, less redundant dispelling, Spell Binding as dispel, high-priority globals and correct wizard-curse execution | Overland AI has explicit Disenchant, Disjunction, WorldSpell and WizardCurse categories. Duplicate-dispel coordination and effect-specific priorities remain open. | P2 | Partial |
+| 233 | AI does not Move Fortress | Verify Move Fortress remains excluded as a useful AI spell; the AI should not choose it without understanding racial unrest and fortress defense. | P3 | Investigate |
+| 235, 236, 237 | Flying Fortress city target, Spell Ward realm choice, Time Stop upkeep and Suppress Magic persistence | Requires target-aware city selection and upkeep-aware global-spell policy. Time Stop is considered; interaction with fantastic-unit upkeep and Suppress Magic needs tests. | P2 | Partial |
+| 244, 249, 333, 478, 494 | Gather offensive stacks without stripping city/node garrisons; correct unit value; send only enough units to stay under stack cap | Military AI has campaign gathering and garrison logic, but source-city/node defense and assembled-stack reachability/capacity need integration tests. | P2 | Partial |
+| 246 | Correct human-unit strength; war targets weighted far above non-war targets; peaceful/lawful wizards avoid cities without declared war | Shared strength and formal-war checks align with the intent. Verify no human-only strength discount and no non-war city targeting by peaceful/lawful personalities. | P2 | Partial |
+| 250 | Settlers build whenever able, even if another player's unit is nearby | Site choice and command legality are separate. Whether the planner waits on nearby units needs an explicit test. | P2 | Investigate |
+| 254, 263, 399, 408, 471 | Tactical fallback movement, searching for invisible enemies, avoiding invalid melee attacks and recognizing attack modes | Battle AI has target and movement scoring, but not all fallback behaviors or attack-mode preferences are established. | P2 | Partial |
+| 265, 266, 274, 290, 319, 320, 330, 332, 338, 358, 392, 393, 400 | AI ship transport fixes | Dedicated naval plan, ferry state and passenger group exist. Many embarkation, loading, landing and retry edge cases still need end-to-end tests. | P2 | Partial |
+| 267, 268 | Time Stop power allocation and alchemy of excess gold | Strategic resource-policy choices; matching thresholds and Time Stop-specific allocation were not established. | P3 | Investigate |
+| 279, 280, 286, 441, 510 | City/terrain target selection for curses, Earthquake, Corruption, Raise Volcano and Warp Node | AI has curse categories and target scoring, but spell-specific terrain/wall/ward constraints and finite priorities need tests. | P2 | Partial |
+| 288 | Do not disband Settlers or Engineers after turn 200 | No matching disband pass was found; if added, workers and expansion units must be protected. | P3 | Investigate |
+| 295, 296, 297, 300, 301, 322, 331, 339, 361, 414, 462 | More frequent and smarter continent invasion selection | Naval AI plans landings against known enemy cities and towers, but target choice and retry policy remain constrained. | P2 | Partial |
+| 303, 312, 313, 327, 429 | Better overland and combat buff targets; account for buff effects, existing enchantments, realm threat and heroes | Overland buff scoring is generic and battle buffs use unit worth. Duplicate effects and target-specific realm defenses need more explicit policy. | P2 | Partial |
+| 308, 357, 367, 373, 394, 396, 487 | Avoid enemy-occupied shortcuts; reconsider stale GoTo orders and recalculate paths | Existing path planning and stale-target recovery exist in parts of the AI, but general re-evaluation of old orders should be tested across roles. | P2 | Partial |
+| 321, 335 | Build more ships based on landmass size; prioritize Shipwright's Guild on small landmasses | Naval production has ship/building prerequisites, but no comprehensive landmass-size production policy was established. | P3 | Investigate |
+| 334, 359, 415, 413, 417, 418, 420, 478, 486 | AI ships, flying and swimming units attack over sea and nearby land | Naval plans and movement-aware reachability exist; actual attack execution across sea and mixed movement stacks needs integration tests. | P2 | Partial |
+| 340, 380, 341, 342, 343 | Use Planar Travel, Plane Shift and Astral Gate | AI has planar scouting and tower-crossing state; spell-driven Astral Gate transport and general Plane Shift use are not established by that alone. | P2 | Partial |
+| 344, 395, 446, 466, 509 | Use flying/swimming/Wind Walking units to carry a whole stack over sea | Verify transport-capable movement is recognized by stack pathfinding without creating unintended passenger capacity. | P2 | Partial |
+| 346 | Do not Banish or Dispel Evil units protected by Spell Lock | Shared Spell Lock rules exist; AI scoring should reject targets where the spell cannot affect them. | P2 | Investigate |
+| 360 | Do not recruit units already marching toward a target into a second stack | AI tracks marching units and a campaign target; confirm every gathering path excludes units assigned elsewhere. | P2 | Partial |
+| 376 | Confused units changing sides should not make AI panic | Battle units track control changes separately; strength and flee decisions must use current active-side membership without double-counting. | P2 | Investigate |
+| 383 | Do not cast Prayer when High Prayer is active | Avoid redundant buffs by checking existing effects at target and stack scope. | P3 | Investigate |
+| 426, 430 | Check Crack's Call availability when choosing Web | Spell valuation should account for the rest of the spell hand and follow-up tactics, not only Web's immediate value. | P3 | Investigate |
+| 448 | Better Settler target selection | Current site scorer values terrain, river access and distance, but not every strategic/resource factor; overlaps the earlier P2 site-choice review. | P2 | Partial |
+| 463 | AI recognizes Wall Crusher | Battle AI has explicit wall-targeting behavior; confirm Wall Crusher works when a defender is behind the wall. | P2 | Investigate |
+| 469, 485 | Better overland spell targeting against enemy stacks | Overland caster has target categories and legal targets, but stack-curse/buff scoring needs dedicated tests. | P2 | Partial |
+| 488 | Multiple stacks converge on one target for concentrated assault | Strategic AI tracks a campaign target and marching roster; coordinated independent stacks need verification. | P2 | Investigate |
+| 504 | Do not attack fortress of a banished wizard | Rival-city targeting must filter defeated/banished owners at planning and execution. | P2 | Investigate |
+| 643, 706, 714, 716 | Avoid ineffective Holy Word/Righteousness; Psionic Blast versus Illusion Immunity; Earth to Mud obstacle placement; avoid redundant Righteousness | These are effect-specific tactical rules; generic spell scoring does not demonstrate the matchup and terrain-state preferences. | P2 | Investigate |
+
+## AI code review: first pass
+
+### 1. Personality and objective generation
+
+**Finding: partial; the rewrite supports the full Pragmatist objective and retort weighting, but only the primary realm influences initial personality/objective weights.**
+
+The core defines all five objectives, including Pragmatist, and exposes weighted selection from realm books and retorts. The AI crate separately gives each objective a strategic profile: city targets, army size, city focus, power-split shift, research preferences and spell-casting boosts. This is a sound separation between wizard generation and how the AI acts on its chosen objective.
+
+However, both personality_weights and objective_weights select a single primary realm and use only that row of the weight table. They do not incorporate the secondary realm described by the 1.50 notes. This is a concrete compatibility gap, though a balance choice rather than a core rules defect. The guaranteed Uncommon summon and Sss'ra/Myrran changes are explicitly reversed in the Community Patch and should not be treated as requirements.
+
+Relevant code: [wizard/objective.rs](../crates/f4x-core/src/wizard/objective.rs), [ai/objective.rs](../crates/f4x-ai/src/objective.rs).
+
+### 2. Diplomacy and war planning
+
+**Finding: partial; the AI has meaningful diplomacy, but its scope is narrower than the 1.50 behavior.**
+
+The strategic AI answers proposals, rates treaty/peace/war requests, can initiate quarrels, and can react to a rival casting the Spell of Mastery. It also has a distinct approach-to-human step for warnings and requests. play_round executes each AI's complete play_turn in sequence before ending the round, so one AI does not decide and then wait while other AI wizards execute separate global phases.
+
+The current design does not yet reproduce the full patch's diplomacy behavior: repeated warning escalation, AI-to-AI peace treaty negotiation, time-based war-on-ally's-enemy behavior, the full set of relation/hostility counters and all personality/military-strength adjustments. The diplomacy documentation has a historical status paragraph that predates some of the current implementation; the source code is the authority.
+
+Relevant code: [ai/diplomacy.rs](../crates/f4x-ai/src/diplomacy.rs), [diplomacy.md](diplomacy.md), [ai/lib.rs](../crates/f4x-ai/src/lib.rs).
+
+**Recommended tests:** three-AI peace treaty lifecycle; AI allied to A declaring war on A's enemy B only after the intended delay; repeated warning escalation; no hostile target selection by Peaceful/Lawful personalities without formal war; banished wizards excluded from every diplomacy and military target path.
+
+### 3. Battle spell valuation and tactical behavior
+
+**Finding: partial; the battle AI has a real spell scorer, but it remains generic and lacks much of the patch's matchup-specific policy.**
+
+The battle brain iterates legal battle casts and aims, values effects against friendly and enemy unit worth, discounts expected resistible damage, values healing based on missing hit points, and compares value against mana cost. This is substantially more capable than a fixed priority list and avoids attempting casts that are not offered by the legal-cast query.
+
+Many 1.50 notes describe conditional value: do not cast Guardian Wind without missile threats; avoid Life Drain on large targets; avoid duplicate Haste/Invisibility; avoid Possession against Death Immunity; use Web against flyers or when the battle is favorable; use Mind Storm in an even matchup; avoid targets protected by Spell Lock; and dispel field effects such as Call Lightning/Wrack when useful. A generic scorer cannot infer all these conditions from coarse effect value. It needs spell-rule metadata or explicit named tactical evaluators.
+
+Relevant code: [battle/brain.rs](../crates/f4x-core/src/battle/brain.rs), [battle/ai.rs](../crates/f4x-core/src/battle/ai.rs).
+
+**Recommended tests:** matchup matrix for the named spells; no redundant buffs; legal target filtering after Spell Lock and immunity; field-dispel scoring for Call Lightning/Wrack; tactical behavior when outmatched and when no attack target is reachable.
+
+### 4. Strategic military, invasion and transport
+
+**Finding: partial; architecture has campaigns, naval plans and ferries, but many 1.50 refinements remain.**
+
+The strategic AI tracks a campaign target, marching units, unreachable cities and a dedicated naval plan/ferry with ship and passenger identities. The naval planner finds a port, landing square and sea square, checks ship capacity, gathers a minimum landing party, and can wait for a stronger force before sailing. The AI also tracks settlers, scouts, planar scouts and raiding groups separately.
+
+This is a good foundation for the patch's transport and invasion work. Remaining concerns include preserving city/node garrisons, not gathering units already assigned elsewhere, coordinating multiple stacks, re-evaluating stale destinations, choosing invasion continents more intelligently, and using flying/swimming/Wind Walking units to reach targets over water. Test the complete campaign rather than only the ferry planner.
+
+Relevant code: [ai/military.rs](../crates/f4x-ai/src/military.rs), [ai/naval.rs](../crates/f4x-ai/src/naval.rs), [ai/scout.rs](../crates/f4x-ai/src/scout.rs), [ai/colony.rs](../crates/f4x-ai/src/colony.rs).
+
+**Recommended tests:** blocked and reopened sea routes; partially loaded ships; ship lost before landing; city/node garrison preservation; multiple campaigns converging on one target; mixed movement-mode stacks; attacks across water without unreachable units.
+
+### 5. Resource policy, spell selection and disbanding
+
+**Finding: partial; objective-specific strategy and spell categories exist, but several high-level policy choices remain absent or coarse.**
+
+Objective traits influence city count, army size, city focus, power allocation and preferred spell kinds. The overland caster classifies spells into Summon, UnitBuff, CityBuff, GlobalBuff, Curse, Disenchant, Disjunction, WorldSpell and Stasis categories. It also checks some target conditions and avoids certain redundant global spells.
+
+The 1.50 notes go further: power allocation changes under Time Stop, alchemy converts excess gold, the AI avoids redundant Prayer/High Prayer, and disbanding protects heroes, settlers, engineers, node guards and strategically important fantastic units. Do not add a blanket disband mechanic without a clear global-cap need and a value model that protects strategic assets.
+
+Relevant code: [ai/objective.rs](../crates/f4x-ai/src/objective.rs), [ai/wizardry.rs](../crates/f4x-ai/src/wizardry.rs), [ai/shortfall.rs](../crates/f4x-ai/src/shortfall.rs).
+
+## Additional AI follow-ups
+
+1. Add secondary-realm contributions to personality/objective weighting behind a documented balance rule; keep Community Patch reversals configurable rather than silently adopting them.
+2. Expand diplomacy tests to cover AI-to-AI peace, warning escalation, ally-of-enemy war decisions, relation/hostility decay and banished-player filtering.
+3. Add tactical spell evaluators for matchup-sensitive effects, duplicate buffs, Spell Lock, immunity, field dispels and battle state.
+4. Test naval campaigns end to end, especially garrison preservation, mixed movement types, partial loads, stale targets and coordinated multi-stack assaults.
+5. Add strategic asset-protection tests before implementing disbanding or resource-shortfall behavior.
+6. Keep spell-category classification data-driven where possible, and use the planned stable string identifiers for reusable custom spell rules rather than coupling AI policy to numeric spell IDs.
