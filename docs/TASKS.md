@@ -378,14 +378,14 @@ data). Reuse cached values across frames; do not solve this by caching everythin
 by assuming every query has the same cost. Keep the core queries available for on-demand use,
 and make invalidation explicit and testable so the client never displays stale information.
 
-**477. Implement player turn order.** Move the responsibility for deciding whose turn it is
-from the client/AI layer into an explicit core-level turn-order model. Define the player
-sequence, the active player, how the sequence advances, and how eliminated or otherwise
-inactive players are handled. Commands that represent player actions must be associated with
-and validated against the active player; turn advancement must move to the next eligible
-player and run the appropriate per-player turn-start/end work exactly once. Preserve the
-deterministic ordering of all players and systems, and update the client, AI, console, saves
-and tests to use the same turn-order rules. Decide and document how simultaneous world
-processing currently performed by `EndTurn` is divided between player turns and round
-boundaries; do not simply run the existing whole-world pipeline once for every player.
+**477. Implement the player-turn and round lifecycle.** Implement the lifecycle described
+in [turn-structure.md](turn-structure.md): one active human or AI player takes a complete,
+sequential turn against the current game state, followed by a distinct round-resolution
+phase after every eligible player has acted. Define and persist the deterministic player
+order, active player and round phase; handle eliminated or inactive players; validate
+player commands against the active player; and make the client, AI, console, saves and tests
+use the same lifecycle. Split the existing `EndTurn` work deliberately between per-player
+start/end work and once-per-round processing. Do not run the existing whole-world pipeline
+once per player. The design document records the intended boundaries, cadence rules and
+the system-by-system decisions still needed during implementation.
 
