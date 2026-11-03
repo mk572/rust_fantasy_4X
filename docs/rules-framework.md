@@ -157,29 +157,55 @@ and `Holy`. `DamageTraits` supports `armor_piercing`, `ignores_defense`, `area`,
 `ChaosOrDeath` targets. `Custom("unimplemented")` marks imported rules for which the
 engine still lacks a native primitive.
 
-### Trigger vocabulary and dispatch status
+### How effect timing actually works
+
+`EffectRule.when` is a field in the content format, but it is **not** a subscription to a
+general game-event system. The game does not broadcast events to every rule and automatically
+run matching effects. Instead, each subsystem explicitly reads the rules it knows how to
+interpret, and the turn itself is an ordered sequence of direct method calls. The authoritative
+turn sequence is documented in [game-flow.md](game-flow.md) and implemented by
+`game/mod.rs::end_turn` and `turn.rs::process_turn`.
 
 The complete `Trigger` enum currently contains:
 
-| Trigger | Intended meaning | Current dispatch |
-|---|---|---|
-| `Passive` | Continuously applies while its source exists. | Supported for passive stat modifiers and passive ability grants; also read by spell/enchantment systems. |
-| `OnTurnStart` | Fires at the start of a turn. | Declared, but no game-system dispatch found in the current code. |
-| `OnCast` | Fires when the spell is cast. | Dispatched by spell casting (`spell/cast.rs`). |
-| `OnAttack` | Fires when the subject attacks. | Declared; currently covered by executor tests, but no game-system dispatch found. |
-| `OnDefend` | Fires when the subject defends. | Declared, but no game-system dispatch found. |
-| `OnDeath` | Fires when the subject dies. | Declared, but no game-system dispatch found. |
-| `OnBuilt` | Fires when the subject is built/produced. | Declared, but no game-system dispatch found. |
+| Trigger | What the code currently does |
+|---|---|
+| `Passive` | Used for effects that are continuously in force. `stats::passive_modifiers` extracts unconditional `Modify` rules for races, abilities, buildings, spells and level paths. Other readers explicitly interpret passive rules: unit and city systems evaluate conditional modifiers; unit ability lookup reads passive `GrantAbility` rules from lasting spells and items. This is not one universal execution path. |
+| `OnCast` | Used when a spell is cast. Overland spell resolution calls `run_rules(..., Trigger::OnCast, ...)` in `spell/cast.rs`. Battle spell handling also recognises OnCast rules and translates supported shapes into battle spell behaviour in `battle/spell.rs`; it is not simply the same overland executor. |
+| `OnTurnStart` | Declared in the enum, but no caller dispatches it. |
+| `OnAttack` | Declared in the enum, but no caller dispatches it. An executor unit test proves the generic executor can be asked to run it; it does not mean the game sends that trigger. |
+| `OnDefend` | Declared in the enum, but no caller dispatches it. |
+| `OnDeath` | Declared in the enum, but no caller dispatches it. |
+| `OnBuilt` | Declared in the enum, but no caller dispatches it. |
 
-This distinction matters: a trigger being representable in content does not mean the game
-currently emits that event. The executor can run any trigger when a caller supplies it, but
-only the dispatch points listed above are present in the current game code. Add a dispatch
-point before relying on an otherwise-unused trigger in content. Passive rules are not all
-handled by the generic executor: some systems collect or interpret them directly.
+`rules::exec::run_rules` is a small interpreter: a caller supplies one specific
+`Trigger`, a `Context` and an `EffectHost`; it filters rules by that trigger, resolves their
+targets, evaluates their conditions and applies the effect primitives. It does not schedule
+itself, listen for events, or decide when to run. In current production code, the generic
+executor's game call site is the overland spell-cast path. Other systems read the same rule
+data directly where they need specialised behaviour.
 
-No scripting language is used: rules are plain serialisable data. `Custom` and `Special`
-are deliberate Rust escape hatches, validated against the registries in `effects.rs`.
+#### What happens at the start of a turn?
 
+The start-of-turn event is currently a notification, not an effect trigger:
+
+1. `Game::end_turn` performs its pre-turn cleanup, increments `Game.turn`, processes stasis,
+   refills unit movement and emits `Event::TurnStarted { turn }`.
+2. It then calls `process_turn`, which directly calls the turn-step methods in a fixed order.
+   Among those are treasury settlement, random events, city production and growth, timed-effect
+   countdown, global and world enchantments, experience, wizard magic, healing, threats and
+   offers.
+3. After `process_turn`, `end_turn` records history, processes diplomacy, handles purifying,
+   stranded ships and road work, then follows unit standing orders.
+
+The precise order is maintained in [game-flow.md](game-flow.md). Nothing in this sequence
+looks for `Trigger::OnTurnStart`. Likewise, `Event::TurnStarted` is returned to the caller
+alongside other outcome/notification events; it is not sent back into the rules executor.
+More generally, `Game::apply` returns `Event` values for the client, log and other callers.
+They are not an internal event bus that automatically invokes `EffectRule`s.
+
+No scripting language is used: rules are serialisable data. `Custom` and `Special` are
+explicit calls into registered Rust hooks / spell-specific Rust code, not event listeners.
 ## 4. The definitions
 
 Sketches in RON; field lists are indicative, not final.
@@ -240,7 +266,7 @@ Tunable numbers that are not content live in one file, `content/rules.ron`: to-h
 - **City economy**: `city_outputs(city)` aggregates terrain around the city, buildings, enchantments and race into food, production, gold, mana and research, then the turn pipeline applies growth, production and unrest. All through stats and effects.
 - **Unit production and upkeep**: production queue entries reference `UnitId`/`BuildingId`; upkeep is a stat summed per player.
 - **Spellcasting and research**: wizard knows spells, researches from a pool, has mana and a casting skill; the cast command validates context, target and cost, then runs effects. Overland and battle share the same spell defs.
-- **Combat resolution**: attack and defence rolls are driven by stats and the config formulas; abilities and enchantments hook in through triggers. The tactical battle and auto-resolve call the same functions.
+- **Combat resolution**: attack and defence behaviour is handled by the battle subsystem's explicit combat code. The `Trigger` enum is not a general combat-event callback system; battle spell definitions are interpreted by the battle spell code, while passive abilities and modifiers are read by the unit/battle views.
 - **Experience and levelling**: level paths are data (thresholds plus modifiers per level).
 
 ## 6. Where it lives
