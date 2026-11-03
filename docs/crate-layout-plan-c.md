@@ -212,11 +212,44 @@ If a mod asks for an unsupported stat/effect/target/hook, loading fails with a p
 
 Do not add embedded Lua, Rhai, WASM or arbitrary executable plugins in this plan. The existing declarative effect system is the safe, deterministic extension point. If the primitive set proves insufficient, add a tested Rust primitive and increment the rules API version.
 
-### Special cases must stop depending on numeric IDs
+### Special behaviour is registered by name and selected by definitions
 
-Audit `CUSTOM_HOOKS`, `SPECIAL_SPELLS` and any other code that branches on a definition's numeric ID or position. Special behaviour must use a stable semantic hook key or an explicit typed field that the validator checks. No code may assume that spell 133 is Resurrection or that a particular definition occupies a fixed registry index.
+Special behaviour belongs to the engine; definitions select which supported behaviour to use. The direction of this relationship is important:
 
-A custom hook key is still implemented in Rust and therefore is not user-inventable. But a mod can select an existing supported hook by its stable name, without depending on registry order or a magic number.
+- Rust code registers a handler under a stable string key.
+- A definition refers to that key in its own data.
+- At load time, the loader verifies that every referenced key is registered.
+- At runtime, the engine dispatches through the handler registry using the key from the definition.
+
+The spell's ID, numeric value, typed registry ID and position must never select the handler. Multiple spells may use the same handler, and changing a spell's ID or registry order must not change its behaviour.
+
+For example, a spell definition can contain:
+
+```ron
+(
+    id: "resurrection",
+    name: "Resurrection",
+    special_spell: Some("restore_destroyed_unit"),
+    effects: [],
+)
+```
+
+A second spell can use the same `special_spell: Some("restore_destroyed_unit")` value while having its own ID, costs, target, text and other definition fields. The handler key is a separate identifier: it need not match any spell ID.
+
+The engine registers the implementation under that key, conceptually:
+
+```rust
+special_spell_handlers.register(
+    "restore_destroyed_unit",
+    restore_destroyed_unit_handler,
+);
+```
+
+Use the same pattern for custom effect handlers. An effect definition refers to a stable key such as `Custom("apply_bespoke_effect")`; the engine has a Rust implementation registered for that key. Keep separate namespaces/registries for `special_spell` handlers and `custom_effect` handlers, even if they share an internal registration utility. This prevents accidental key collisions and makes diagnostics unambiguous.
+
+A mod can reuse any handler already registered by the executable without recompiling. A mod cannot define a new executable handler in RON: adding a genuinely new special mechanic or custom effect still requires a Rust implementation and a new build. An unknown handler key is a validation error, never a silently ignored effect.
+
+Audit `CUSTOM_HOOKS`, `SPECIAL_SPELLS` and all numeric-ID/registry-position dispatch. Convert these into named handler registration tables. In particular, `SPECIAL_SPELLS` must no longer mean “spell IDs with hard-coded behaviour”; it should become a registry of named special-spell implementations, referenced by each spell definition.
 
 ## 7. Validation and diagnostics
 
@@ -321,11 +354,11 @@ Complete plan B's initial art separation and definition/state/action sorting. Ke
 1. Inventory every definition type and every place where content is still represented by a Rust constant, enum match or numeric ID.
 2. Define stable external string IDs and the mapping to typed runtime IDs.
 3. Move all supported definition structs and data-only validation into `f4x-static`.
-4. Remove special-case logic based on registry position/numeric spell IDs; replace it with semantic hook keys or explicit fields.
+4. Replace numeric-ID dispatch with named handler registries: spell definitions select a `special_spell` handler by string key, and custom effect definitions select a handler in the separate `custom_effect` namespace.
 5. Finalize RON schemas for units, buildings, spells, races, abilities, realms, heroes, items, enchantments, terrain and features.
 6. Add schema/version compatibility tests and fixtures.
 
-**Gate:** every definition that is promised as moddable can be represented entirely in the external schema, and no definition's meaning depends on its registry index.
+**Gate:** every definition that is promised as moddable can be represented entirely in the external schema; special-spell and custom-effect behaviour is selected by named keys declared in definitions, never by spell IDs or registry indices. Every referenced handler key is validated against the executable's registered handlers.
 
 ### Stage 2 — Build the composed RuleSet loader
 
@@ -397,7 +430,7 @@ Every stage keeps `cargo test --workspace`, `cargo clippy --workspace --tests`, 
 
 | Risk | Mitigation / decision |
 |---|---|
-| Numeric IDs or array positions are baked into special-case code | Audit and replace with stable semantic hook keys before external loading. |
+| Special behaviour is coupled to spell IDs or registry positions | Register Rust handlers under stable string keys; let spell/effect definitions refer to those keys; validate every reference during loading. |
 | A mod changes a definition referenced by existing saves | Save fingerprint prevents silent reinterpretation. |
 | Overlay order changes gameplay | Explicit order, deterministic composition, order included in save metadata/fingerprint. |
 | Content schema changes over time | Version manifests and rules API; reject unsupported versions with actionable errors. |
