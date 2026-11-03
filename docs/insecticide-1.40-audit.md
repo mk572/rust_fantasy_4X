@@ -202,3 +202,13 @@ The table below consolidates the 194 numbered assessments made in the conversati
 | 108 | IW070 | Right-arrow hotkey in item creation | UI convenience feature. |
 | 109 | IW072 | Treasure/gift item no longer themed to recipient | Investigate whether recipient-themed rewards are a desired generation policy. |
 | 110 | IW076 | Conjurer maintenance fraction rounds up from 0.5 | The half-step numeric newtype can represent the value; verify the rounding rule. |
+| 111 | IW082 | Units on central tile of a walled Town gain +3 Defense | Investigate tile-specific defensive bonuses. |
+| 112 | IW084 | Siege gains +2 with City Walls or Wall of Fire | Investigate the siege bonus and its stacking rules. |
+| 113 | IW090 | Chaos Channeled units gain experience | Investigate mutation and progression classification. |
+| 114 | IW100 | At most three Arcane spells in the research pool | Investigate research-pool composition and whether the cap is configurable. |
+| 115 | IW102 | Chaos Channels does not grant Chaos Breath to low-strength Thrown units | Investigate eligibility; do not grant a breath attack where the underlying unit cannot support it. |
+| 116 | IW106 | Merging units are immune to Cracks Call | Investigate target state and immunity during merging. |
+| 117 | IW114 | Suppress Magic no longer counters Spell of Return | Investigate spell-specific dispel immunity and context. |
+| 118 | IW133 | Hide population growth at 8,000 or more; later reversed in 1.50 | UI behavior; avoid copying a temporary display change without checking the later reversal. |
+| 119 | IW134 | Merchant offer threshold is twice item value; AI gets offers and always buys at half price | Investigate merchant economy and distinguish human and AI offer rules. |
+| 120 | IW154 | Neutral cities prefer Builders' Hall and Granary | Investigate neutral-city production priorities. |
