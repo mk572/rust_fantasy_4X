@@ -119,36 +119,67 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 
 ## 4. The turn
 
-`EndTurn` runs these steps in this order:
+There is no generic turn-start callback or event listener. `EndTurn` is an explicit orchestration
+method in `game/mod.rs`; it calls `process_turn` in `turn.rs`, and then performs the remaining
+post-turn steps. The order below follows those methods.
 
-1. **Turn counter** goes up; every unit's moves are refilled to its allowance.
-2. **`TurnStarted`** is emitted.
-3. **Treasury**, per player in the order players were added (section 5), on the cities as they
-   stand: first every city's farmers are raised to the minimum that feeds its citizens. As in
-   the original, upkeep is paid before the cities grow, so a city that grows this turn makes
-   its new mouths felt next turn, when the player can still put them on the farms.
-4. **Cities**, one by one in creation order:
-   - *Outposts* (no citizens) roll to grow: a chance each turn made of the race's base
-     chance, the land's food capacity, bonuses from worked features (mines, game), and
-     enchantments; if the roll succeeds the outpost gains up to 3 tens of people, and a small
-     chance makes it lose up to 2. A new outpost starts with 3 tens. At 10 tens it becomes a
-     one-citizen city and keeps them (farmers are set, `CityGrew`); with none left it is
-     destroyed (`CityDestroyed`). Both as in the original (`NEXTTURN.c`, `Outpost.c`). An
-     outpost does nothing else.
-   - *Cities*: the economy is computed **once**; the item in production gets this turn's production added and, if
-     covered, completes (a building is added and the city falls back to housing; a unit is
-     created in the city with the guilds' starting experience and the same unit is queued
-     again; surplus production is lost); then population changes by the growth rate computed
-     in the same economy (`CityGrew`/`CityShrank`). Because the economy was computed before
-     the changes, a building finished this turn first affects the next one.
-5. **Magic**, for all wizards (see [`magic.md`](magic.md) section 9): power applied, research
-   checked, mana upkeep paid, casting progress, finished spells resolve.
-6. **Healing** of wounded units (section 6).
-7. **Standing orders** continue for units that have them, in creation order (section 3.2).
+### 4.1 Before the main turn pipeline: `Game::end_turn`
 
-Planned additions and where they go: random events (`events.md`) where `Next_Turn_Calc` runs them;
-combat resolution wherever an `AttackRequested` is acted on; victory checks last.
+1. Close raze windows and reopen city sales.
+2. Process land corruption that is due before the turn counter advances.
+3. Increment `Game.turn`.
+4. Process stasis and refill each unit's movement allowance (units in stasis, and units not
+   owned by the Time Stop caster, receive zero moves). Clear completed standby state.
+5. Emit `Event::TurnStarted { turn }`.
+6. Call `process_turn` and append its events.
 
+`TurnStarted` is an output notification in the returned event list. No rules are subscribed
+to it, and it does not dispatch `Trigger::OnTurnStart`.
+
+### 4.2 Main pipeline: `turn.rs::process_turn`
+
+1. **Farmers and treasury.** Cities are sorted by creation serial. For each inhabited city,
+   raise farmers to the minimum needed to feed its citizens. Then settle each player in player
+   id order; the player under Time Stop is skipped. Food and gold upkeep are paid against the
+   cities as they stand, before growth.
+2. **Random events.** Call `process_events`. This is the world-event system, not a rules
+   `Trigger`; it may produce event notifications for the caller.
+3. **Cities, in creation order.** Outposts run their growth/shrink step and may become cities
+   or be destroyed. Inhabited cities check production validity, refresh autobuild, compute the
+   city economy once, apply production (possibly completing a building or unit), then apply
+   population growth. Pestilence is applied after the growth result. Events record production
+   completion/blocking/impossibility and population changes.
+4. **Timed effects.** `tick_temp_effects` counts down temporary effects and removes expired
+   ones.
+5. **Global enchantments and vision.** `process_globals` applies the once-per-turn global
+   enchantment work (for example Herb Mastery healing) and refreshes spell/city vision.
+6. **World enchantments.** `process_world_enchantments` runs the per-turn effects of Great
+   Wasting, Armageddon and Meteor Storm.
+7. **World and unit maintenance.** Cool volcanoes, fade corruption, and process unit experience.
+8. **Wizard magic.** `process_magic` handles power income, research completion/refill, mana
+   upkeep, casting progress and resolution of finished spells.
+9. **Other explicit turn systems.** Apply Gaia's Blessing, heal wounded units, process Chaos
+   Rifts, process threats, and determine hero/merchant offers.
+
+The ordering is significant: upkeep is settled before city growth; random events run before
+cities change; production and growth use the same pre-change city economy; and magic runs after
+the global/world enchantment and experience steps.
+
+### 4.3 After the main pipeline: remaining `Game::end_turn` work
+
+After `process_turn` returns, `end_turn`:
+
+1. Records history.
+2. Processes diplomacy timers and related turn changes.
+3. Processes purifying work.
+4. Lets marooned ships sail to shore and drowns units still stranded.
+5. Advances road-building work.
+6. Follows standing orders, in unit creation order.
+
+Combat is not automatically invoked by the turn pipeline when movement encounters a hostile
+tile: movement emits `AttackRequested`, and the caller/client must handle that request.
+Likewise, `Event` values are returned to the caller for presentation or further orchestration;
+they are not callbacks into the rules engine.
 ## 5. The treasury
 
 `Game::treasury(player)` previews what the next `EndTurn` will do; the turn applies the same
