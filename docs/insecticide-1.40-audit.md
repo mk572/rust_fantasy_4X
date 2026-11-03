@@ -263,3 +263,34 @@ The table below consolidates the 194 numbered assessments made in the conversati
 | 168 | IW120 | AI cannot cast listed damage, banish and possession spells when overwhelmingly disadvantaged | Investigate whether tactical spell eligibility is incorrectly tied to overall battle odds. |
 | 169 | IW121 | AI cannot cast Dispel Magic if the human has Holy Arms | Investigate target/eligibility logic for dispelling global enchantments. |
 | 170 | IW126 | AI randomly disbands two garrison units per city every 20 turns from turn 80 | Treat as a poor heuristic; evaluate actual upkeep need and strategic value before disbanding. |
+| 171 | IW127 | Population above maximum cannot grow but also cannot lose population; later fixed | Investigate population bounds and recovery from over-cap states. |
+| 172 | IW132 | Excess population growth fix fails; corrected in 1.50 | Investigate arithmetic and threshold boundaries for population growth. |
+| 173 | IW135 | AI Power allocation for Spell of Mastery remains wrong | Investigate Power allocation and victory-spell planning. |
+| 174 | IW135 | AI overallocates Power by 10% | Enforce resource-budget conservation and test allocation sums. |
+| 175 | IW138 | AI tax rate cannot fall below 30% | Investigate valid tax range and whether the minimum is intended. |
+| 176 | IW142 | AI ignores Mana reserves and income when planning Spell of Mastery | Investigate resource planning and reserve forecasting. |
+| 177 | IW144 | AI values summoning spirits to Meld with Nodes more, but still below late-game summons | Investigate the strategic value of node control in summon desirability. |
+| 178 | IW144 | AI uses different unit-enchantment priorities, not necessarily better | Investigate target suitability and whether enchantment value matches the unit's role. |
+| 179 | IW145 | AI cancels Evil Omens immediately | Investigate global-enchantment maintenance and whether the AI understands its effects. |
+| 180 | IW153 | AI cannot override Trade Goods or Housing with unit production | Investigate production override rules and queue priority. |
+| 181 | IW153 | AI cannot produce Settlers below population four | Investigate population restrictions and settler eligibility. |
+| 182 | IW153 | AI cannot produce more than three ships total | Investigate global ship caps and transport needs. |
+| 183 | IW157 | AI keeps 33% fewer garrison units but still cannot build stacks due to other bugs | Investigate garrison and army assembly together; fixing one heuristic may expose another bottleneck. |
+| 184 | IW158 | Settlers sometimes target a new colony despite nearby units, wasting 1–11 turns | Investigate target feasibility and route cost before assigning a settlement destination. |
+| 185 | IW158 | Settler on Tower tile blocks gateway consideration for other Settlers | Investigate gateway traversal and shared destination occupancy. |
+| 186 | IW159 | Single-tile lake inconsistently treated as river, invalid building/river mouth and valid Plane Shift for land AI | Investigate consistent terrain semantics across building, movement and spell eligibility. |
+| 187 | IW160 | AI hostility to Spell of Mastery caster fix fails | Investigate victory-threat diplomacy and hostility transitions. |
+| 188 | IW161 | AI loading transports only slightly better | Investigate the entire embarkation and disembarkation workflow. |
+| 189 | IW163 | AI evaluates human garrisons four times weaker | The rewrite shares one strength formula across strategic and battle AI; investigate matchup accuracy, not a side-specific multiplier. |
+| 190 | IW163 | AI attacks hostile cities without formal war | Investigate the distinction between hostility, war status and legal attack eligibility. |
+| 191 | IM183 | Starting fortress maximum population raised from eight to eleven causes map-generation freezes; reversed in 1.50 | Investigate map-generation termination and starting-site constraints; the current generator has bounded retries. |
+| 192 | IM184 | Narrower Y placement range combined with IM183 reduces spacing and increases map-generation failures | Investigate interacting placement constraints, not each parameter in isolation. |
+| 193 | IM194 | Myrror city roads fixed but all Arcanus towns also receive roads; later fixed | Investigate plane-specific map initialization and terrain/road ownership. |
+| 194 | IW060 | Real-Time Game Tweaker can alter Resistance penalty for spells whose original penalty is zero | Treat zero as a valid default, not “not configurable”; distinguish an omitted value from an explicit zero override. |
+
+## Notes on interpretation
+
+- The numbered table follows the order in which the release-note items were assessed in the conversation, not the original patch's issue-number order.
+- The text of the release notes was supplied in the conversation. A few pasted lines were incomplete; those are called out rather than silently filled in.
+- A “likely avoided” or “addressed” assessment is a hypothesis until the relevant code and tests are inspected. The targeted code audit above records what was actually checked in this second pass.
+- Some release-note fixes were later reversed or superseded. Those are marked as design/balance investigations rather than requirements.
