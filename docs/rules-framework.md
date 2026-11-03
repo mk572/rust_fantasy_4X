@@ -231,10 +231,7 @@ Determines which units and buildings a city can produce and its baseline economy
 Runtime: `Unit { def }`, `Owner`, `Position`, `Damage`, `Experience`, plus enchantments and equipment attached as modifiers.
 
 ### Ability
-Reusable, named bundles of effects: flying, first strike, poison touch, regeneration, immunities, and so on.
-```
-(id: "first_strike", name: "First Strike", effects: [ (when: OnAttack, ...) ])
-```
+Reusable, named bundles of abilities and passive effects: flying, poison touch, regeneration, immunities, and stat bonuses. An `OnAttack` example would be misleading: the game currently has no generic attack-trigger dispatch.
 
 ### Building
 ```
