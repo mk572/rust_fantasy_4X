@@ -14,7 +14,7 @@ day (non-test lines). "Estimate" or "not measured" marks a guess.
 - **No rename.** `f4x-core` keeps its name (a rename touches 168 files and 34 documents for nothing). The
   new crate is `f4x-static`. There is no crate called `f4x-game`.
 - New game is a module of `f4x-core`, not a crate. Undo and replay belong to the session.
-- `f4x-ai` depends on `f4x-core` and implements a `Seat` trait defined there (section 5).
+- Turn/round orchestration belongs in `f4x-master`, above `f4x-core` and below the client; AI and human controllers implement its interface (section 5).
 - The battle is split: a small set of static rules goes to `f4x-static` (terrain values, combat spell
   definitions and the like); the battle engine stays in `f4x-core` (it creates the battle map, runs the
   combat turns, tracks unit health).
@@ -30,11 +30,12 @@ f4x-static  the definitions: content types and loader (f4x-data merged in), regi
 f4x-core    the state of one game and everything that changes it, in three folders:
             state/    components, Game, Map, Fog, Diplomacy, Events, Threat, the battle in progress;
                       the wiring that makes an instance from a definition; read-only queries; save and load
-            action/   Command / Event / apply, moving, casting, producing, battle turns, the turn change,
+            action/   Command / Event / apply, moving, casting, producing, battle actions,
                       new game (module), undo, replay
-            session/  seats, turn order
    ^
-f4x-ai      decides commands for a seat; reads the game
+f4x-master  round counter, player order, active controller, round/player lifecycle
+   ^
+f4x-ai      implements a master controller; decides commands and reads the game
    ^
 f4x-console, f4x-client, f4x-learn, f4x-tools
 ```
@@ -256,14 +257,23 @@ and `base`.
 7. Measure compile time before and after (`cargo build --timings`, `cargo nextest run --workspace`, 3.6 s
    now): a change in `f4x-static` rebuilds the whole workspace, as a change in the types does today.
 
-**Stage 3: the session.**
-1. Measure: every loop that sends `Command::EndTurn` or runs `play_round`, and every `f4x_ai::` call in
-   the client and console. (`EndTurn` appears in the client, the console, `f4x-ai` and `f4x-ai-ref`.)
-2. `Session` and `Seat` in `f4x-core/session`; `Ai` and the learned agent implement `Seat`.
-3. Port the console first (text only, easiest to test), then `f4x-tools soak` and `f4x-learn`, then the
-   client.
-4. Test: one scripted game through `Session` equals the same game through raw `Game::apply` (same seed,
-   same events).
+**Stage 3: the master and player controllers.**
+1. Measure every loop that sends `Command::EndTurn` or runs `play_round`, and every `f4x_ai::` call in
+   the client and console. Record the current human and AI turn entry points.
+2. Create `f4x-master` depending on `f4x-core`. Move round/player orchestration out of core: round
+   counter, player order, active controller, phase transitions and once-per-round calls belong to the
+   master. Core keeps game rules and focused state-changing operations.
+3. Define a controller interface in `f4x-master`. Implement it for `Ai` and the learned agent; implement
+   the human controller in the client with a resumable, non-blocking input path. Do not add a dependency
+   from master to client or AI.
+4. Move world-event selection/application to round start, before the first player controller is invoked.
+   Classify other existing turn-pipeline steps as player-turn, round-start or round-end work before
+   migrating them; never run the entire old pipeline once per player.
+5. Port the console and soak tools first, then `f4x-learn`, then the client. Keep controller order and
+   lifecycle identical across hosts.
+6. Test the master-driven game against a scripted sequence of core actions (same seed and commands),
+   and test that round-start events happen exactly once before any player acts. Save/load must resume
+   the master phase without repeating or skipping a controller or boundary operation.
 
 **Stage 4 (ongoing):** a function in state or action that turns out to take no state is a definition;
 move it to `f4x-static`.
@@ -281,28 +291,28 @@ needed, it is a bug in `f4x-static`.
 | `f4x-data` | into `f4x-rules` | into `f4x-static` |
 | Battle engine | stage D, own crate, not planned | stays in `f4x-core` as `state/battle`, `action/battle`; only the static values move |
 | New game, save | two more crates, public interface to design | modules of `f4x-core`, nothing to expose |
-| Session and seats | not covered | in `f4x-core/session`, the AI implements `Seat` |
+| Turn/round orchestration | not covered | `f4x-master` between core and client; AI and human controllers implement its interface |
 | Inside the big crate | unchanged | split into `state/` and `action/` by rule, per module |
 | Renames | none | none |
 | A change to a rule rebuilds less | yes | yes (`f4x-static` is small and at the bottom) |
 | A change to game code rebuilds less | no | no: core stays one large crate |
-| Crates added | `f4x-rules`, `f4x-newgame`, `f4x-save` | `f4x-static` |
-| Tasks | 455, 456 (into rules), 458, a new save task | 455 becomes `f4x-static`, 456 (into `f4x-static`) stays, 458 drops out; new: sort the modules (stage 1), session |
+| Crates added | `f4x-rules`, `f4x-newgame`, `f4x-save` | `f4x-static`, `f4x-master` |
+| Tasks | 455, 456 (into rules), 458, a new save task | 455 becomes `f4x-static`, 456 (into `f4x-static`) stays, 458 drops out; new: sort the modules (stage 1), master/orchestration |
 
 The two agree on the cut of the definitions and on stage 0. They differ in whether new game and save are
-crates above the simulation (A) or modules in the same crate as `Game` (B), and in B's session and
-state/action split.
+crates above the simulation (A) or modules in the same crate as `Game` (B), and in B's state/action
+split and separate master crate.
 
 ## 9. Risks and open questions
 
 | # | Risk or question | Answer |
 |---|---|---|
-| 1 | The AI/game cycle | solved by `Seat` (section 5). **Confirmed by the user, 2 November 2026** |
+| 1 | The AI/game cycle | handled by the controller interface in `f4x-master` (section 5); separate master crate chosen by the user, 4 November 2026 |
 | 2 | `f4x-core` stays about 70,000 lines | accepted; the state/action split inside it keeps it readable, and it can become two crates later |
 | 3 | Reads that call mutators (rule 2) | unknown until the first domain is sorted (stage 1, step 3) |
 | 4 | Orphan rule: `impl` blocks on definition types in game code | stage 2, step 4; count with the compiler |
 | 5 | Is the effect executor free of the game through `EffectHost`? | check before stage 2; `exec.rs` mentions `battle::immunity`, `game::replay`, `player`; fallback in section 3 |
 | 6 | The battle split between static rules and engine | **Decided by the user, 2 November 2026:** static values in `f4x-static`, engine in core. The exact list is made in stage 1. If the engine later wants its own crate, it can go between `f4x-static` and `f4x-core` because it is free of `Game`; not planned |
 | 7 | How big are the definition parts inside the blob? | not measured; the first domain of stage 1 gives the ratio |
-| 8 | Does the client still need `f4x-console`? | it depends on it today; may become unneeded once both use the session. Not checked |
+| 8 | Does the client still need `f4x-console`? | it depends on it today; may become unneeded once both use `f4x-master`. Not checked |
 | 9 | `Retort`, `Bonus`, `Neutral` in the settings | stage 1: move the plain ones to `f4x-static`, or refer to retorts by number (task 449 decides) |
