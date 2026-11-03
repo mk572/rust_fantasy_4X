@@ -217,3 +217,9 @@ The table below consolidates the 194 numbered assessments made in the conversati
 | 123 | IM178, IM180, IM186 | Huge land size | Investigate map scalability and configurable world size. |
 | 124 | IM178 | Magic settings renamed for clarity | UI clarity and naming. |
 | 125 | IM178 | Add higher magic settings, later removed | Design choice; do not treat a reverted option as a requirement. |
+| 126 | IM187 | Encounter budgets increased, later reversed | Balance choice; investigate the desired difficulty curve rather than copying the temporary change. |
+| 127 | IM188 | Colored lair Chaos monsters at 50%; broken implementation replaced by actual fix | Investigate correct weighted realm composition; the note describes intended 40% Death, 40% Chaos and 20% Nature. |
+| 128 | IM189 | Secondary monster divisor maximum decreased | Investigate random ranges and encounter balance. |
+| 129 | IM192 | Neutral towns receive one additional close-combat unit | Investigate neutral garrison composition. |
+| 130 | IM193 | Neutral cities start with Granary at size six and Stables at size seven | Investigate neutral-city starting buildings and population thresholds. |
+| 131 | IM195 | Spell of Mastery research discount for 11 same-realm books changed substantially, later reversed | Balance investigation; do not reproduce a reverted economic change by default. |
