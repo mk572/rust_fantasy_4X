@@ -96,7 +96,7 @@ These entries are selectable alternatives or compatibility variants, not mandato
 | 757, IM185 | AI restricted to selected Arcanian races on highest difficulties again; unrestricted race selection becomes optional | AI race selection by difficulty is a balance/identity policy. Support both pools through data/configuration rather than hard-coded difficulty branches. | P3 | Design |
 | 759, IW049 | Enemies may flee during the first combat turn again; no-first-turn-flee is optional | First-turn fleeing is a combat balance rule. Make the restriction configurable, defaulting to the restored behavior. Ensure flee legality is still validated by battle state. | P3 | Design |
 
-## Optional
+### Optional changes bundled with v1.52
 
 The following are not default behavior in v1.52. They should be assessed independently and represented as ruleset options where appropriate.
 
