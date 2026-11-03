@@ -21,9 +21,13 @@ draw, log, animate from events and queries
   other way to mutate state from outside the core.
 - **`apply` returns events**: facts the caller can show or log. A refused command returns
   `Event::Rejected(reason)`; it does not panic and changes nothing.
-- **Queries are free**: methods taking `&self` (`city_economy`, `find_path`, `visibility`,
-  `treasury`, `can_build`, `can_found_city`, `buy_cost`, ...) change nothing, so the
-  client calls them every frame to explain and to enable or disable controls.
+- **Queries are read-only, not necessarily cheap**: methods taking `&self` do not
+  intentionally change game state, but that says nothing about their computational cost.
+  A query such as `find_path`, `visibility` or `city_economy` may do substantial work.
+  The client should retain the information it has queried and refresh it when a relevant
+  game-state change makes it stale, rather than rerunning every query every frame. Cheap
+  checks can still be made on demand; expensive derived information should be cached and
+  invalidated or refreshed when its dependencies change.
 - **Determinism:** the same starting `Game`, the same seed and the same commands in the same
   order give the same result. All randomness goes through `Game::roll`; anything that
   visits entities does so in creation order (each unit and city carries a creation number,
