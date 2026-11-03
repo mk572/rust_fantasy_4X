@@ -404,7 +404,7 @@ This batch mixes balance changes, map-generation rules, diplomacy, strategic com
 | 677, 678 | Correct spell error messages when there are no valid living targets | Validation and error selection should share the same live-target query after casualties and filtering. | P3 | Investigate |
 | 691, 697, 720, 729, 730, 737, 741 | Combat terrain, Wrack animation/sound, additional-power slider, spell-target highlighting/responsiveness, Vortex placement, Call Chaos graphics/timing and Warp Node dispel message | Mostly presentation/input feedback, but target highlighting must use the actual aim validator. Animation must not freeze simulation or depend on sound being enabled. | P3 | Partial |
 | 739 | Replace five-run LFSR with full-cycle RNG | Document period and reproducibility. Keep gameplay randomness seeded and independent from cosmetic animation. | P2 | Investigate |
-| 7 (incomplete source note) | Escape key again exits advisors/list selectors instead of Space | Supplied text ends immediately after “(7.”; confirm the full note. Visible portion is a keyboard/UI behavior reversal. | P4 | UI |
+| 748 | Escape key again exits advisors/list selectors instead of Space | Complete release-note entry; this reverses the Space-key behavior and restores Escape as the exit key. | P4 | UI |
 
 ## Gameplay and interface code review: first pass
 
