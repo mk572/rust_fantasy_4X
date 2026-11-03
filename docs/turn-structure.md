@@ -10,7 +10,7 @@ Use **sequential player turns**, not a shared phase in which all AI players plan
 - Each player's decisions and actions use the game state left by all earlier players in the round.
 - Actions resolve before the next player starts. Movement, attacks and battles must not rely on stale plans made before another player's turn.
 - Processes that advance the shared world by a round run once after all eligible players have acted, not once per player.
-- The core owns turn order and lifecycle rules; the client, AI and console participate in that lifecycle rather than deciding independently whose turn it is.
+- The new `f4x-master` crate owns round and player-turn orchestration. It sits above `f4x-core` and below the front ends; the client, AI and console provide player controllers to it rather than deciding independently whose turn it is.
 
 This is a gameplay design choice, not an attempt to reproduce the original game's AI scheduling. In particular, do not copy the original pattern of planning for all AI wizards first and then executing all their movement orders.
 
@@ -18,13 +18,16 @@ This is a gameplay design choice, not an attempt to reproduce the original game'
 
 There are two distinct levels:
 
-1. **Player turn:** one player is active and may make that player's decisions and actions.
-2. **Round resolution:** after every eligible player has completed a turn, the game runs the processes that advance the shared world by one round.
+1. **Round start:** `f4x-master` advances/sets the round counter and runs once-per-round opening work, including world-event processing.
+2. **Player turns:** each eligible player, human or AI, is called in deterministic sequence and takes a complete turn.
+3. **Round end:** after all eligible players have acted, any processes explicitly assigned to the end-of-round boundary run; the master then begins the next round.
 
 Conceptually:
 
 ```text
-Round N
+Round N begins (f4x-master)
+  advance/set round counter
+  process world events and other round-start work
   Player 1 turn
     player-turn start
     human input or AI decision-making
@@ -36,10 +39,10 @@ Round N
     execute actions, movement and combat
     player-turn end
   ...
-  Round resolution
-    world events and other once-per-round processes
-    advance round
-Round N+1
+  Round-end processing (only systems assigned to this boundary)
+Round N+1 begins
+  advance/set round counter
+  process world events and other round-start work
   ...
 ```
 
@@ -62,18 +65,15 @@ Human and AI turns use the same core lifecycle and command validation. The AI di
 
 ## 4. Round-resolution responsibilities
 
-Round resolution runs once after all eligible players have acted. It is for processes whose cadence is global or explicitly round-based, for example:
+Round-start processing runs once before the first player takes a turn in the round. World events belong here: select/advance the event and apply its opening effects before any player acts, so every player encounters the same already-resolved event state. Other once-per-round systems may belong at round start or round end, depending on their rules.
 
-- drawing or advancing random world events;
-- global environmental changes;
-- ticking durations of effects measured in rounds;
-- other shared periodic processes that should not happen once for every player.
+Round-end processing runs once after all eligible players have acted, but only for systems whose intended timing is specifically after the last player. Do not put world-event selection at round end.
 
 A process can affect every player and still belong here. For example, a world enchantment's duration must not be decremented once for each wizard merely because it affects the whole world. Conversely, a process is not automatically round-based just because it currently appears in a global method.
 
 These examples establish the distinction, not a final classification of every existing system. During implementation, examine each current turn-pipeline step and assign an intentional cadence. Do not assume without analysis that city growth, production completion, income, upkeep, healing, experience, magic generation, research, diplomacy timers, temporary effects or offers all belong to one side. Some may be player-specific, some world-wide, and some may need a more precise rule or placement.
 
-Random event selection is clearly once per round: it must not be rolled separately for each player. Ongoing event effects and durations must also advance at their intended cadence, which may differ from the decision to draw a new event.
+Random event selection and the start-of-round application of world events happen once per round, before player turns. Ongoing event effects and durations must also advance at their intended cadence; do not assume that every event-related timer shares the event-draw boundary.
 
 ## 5. Trigger vocabulary and timing
 
@@ -90,26 +90,29 @@ Not every subsystem needs generic effect rules. Existing specialised systems may
 
 ## 6. Core ownership and state
 
-The core should be authoritative for:
+`f4x-master` should be authoritative for:
 
-- the ordered set of players participating in the game;
-- the active player;
+- the round counter and current lifecycle phase;
+- the ordered set of player controllers/seats participating in the game;
+- which player is currently active;
 - whether a player is eligible to take a turn, including elimination or other inactive states;
-- whether the game is in a player turn or round-resolution phase;
-- advancing to the next eligible player;
-- entering and completing round resolution exactly once.
+- starting a round and running round-start processing exactly once;
+- invoking each eligible player's turn and advancing to the next;
+- entering and completing round-end processing exactly once.
 
-Commands representing player actions must identify or otherwise be associated with the acting player and be rejected when that player is not active. System-owned round-resolution work is not a player command and must not be blocked by active-player validation.
+The master mediates player commands: they must be associated with the active player and rejected when submitted for another player. It then delegates the actual game-state changes to `f4x-core`. System-owned round-boundary work is not a player command and must not be blocked by active-player validation.
 
-The lifecycle and phase must be represented in saved games so loading cannot repeat a player turn or run round resolution twice. The exact save-version migration is an implementation decision, but the state must be sufficient to resume deterministically.
+The dependency direction is one-way: `f4x-master` depends on `f4x-core`; the client depends on `f4x-master`; AI/controller crates may depend on both core and master to implement the controller interface. `f4x-master` must not depend on the client or a concrete AI crate. It defines the controller/seat interface and invokes it. A human controller is implemented by the client and must be able to pause while waiting for user input; the master should expose a resumable/waiting state rather than block the UI event loop. An AI controller can complete its turn through the same interface without client-specific code.
+
+The master's round counter, active player, phase and any progress needed to resume a partially completed round must be represented in saved games so loading cannot repeat a player turn or run round-start processing twice. The exact division of serialized data between the existing save code and a future save/session wrapper is an implementation decision, but the state must be sufficient to resume deterministically.
 
 Elimination during a round must be handled explicitly. An eliminated player who has not yet acted is skipped; one eliminated during or after its turn must not receive another turn. If no eligible players remain, the game reaches a defined terminal state rather than looping. Defeat, surrender and neutral factions must be handled consistently with their game rules.
 
 ## 7. Relationship to the existing turn pipeline
 
-The current `Game::end_turn` / `process_turn` pipeline mixes player-specific work with world-wide periodic work. It cannot simply be called in full once for each player: that would multiply global events, durations and other round-level effects by the number of players.
+The current `Game::end_turn` / `process_turn` pipeline mixes player-specific work with world-wide periodic work. It cannot simply be called in full once for each player: that would multiply global events, durations and other round-level effects by the number of players. `f4x-master` orchestrates the lifecycle, but it should call focused `f4x-core` operations for the work assigned to each boundary rather than move the simulation rules out of core.
 
-Task 475 separates the existing pre- and post-counter portions of current turn advancement. That is useful groundwork, but the final player-turn design must establish the lifecycle described here and place each operation at its proper cadence. Use `end_turn` and `start_turn` consistently for the resulting player and round boundaries; avoid ambiguous methods whose meaning depends on whether "turn" means a player turn or a round.
+Task 475 separates the existing pre- and post-counter portions of current turn advancement. That is useful groundwork, but the final design must move orchestration to `f4x-master` and establish the lifecycle described here. `f4x-core` retains the game rules and focused state-changing operations; `f4x-master` owns the round counter, phase transitions and calls to player controllers. Use names that make player-turn, round-start and round-end boundaries unambiguous.
 
 Before moving each existing operation, make a system-by-system inventory from [game-flow.md](game-flow.md). For each operation, record:
 
@@ -125,7 +128,8 @@ Update `game-flow.md` after implementation so it describes the new lifecycle rat
 
 The lifecycle must be deterministic and testable without the client. At minimum, tests should cover:
 
-- the expected player sequence across multiple rounds;
+- the expected player sequence across multiple rounds, including round-start world events before the first player acts;
+- the master invoking both human and AI controllers through the same interface, with the human path pausing and resuming for input;
 - a human and an AI using the same active-player validation;
 - an AI turn observing changes made by the immediately preceding player's turn;
 - a unit or city target moving or changing hands before a later player's turn, with actions validated against the current state;
@@ -137,4 +141,4 @@ The lifecycle must be deterministic and testable without the client. At minimum,
 
 ## 9. Implementation boundary
 
-This document defines the lifecycle and design constraints, not a demand to rewrite every subsystem at once. Implement the core turn-order state and transitions first, then migrate existing turn-pipeline operations according to the cadence inventory. Keep each migration small, tested and explicit. Record any deliberate exception to the player-turn/round distinction here or in the relevant system documentation.
+This document defines the lifecycle and design constraints, not a demand to rewrite every subsystem at once. Implement `f4x-master` and its controller interface first, then migrate existing turn-pipeline operations into focused core calls orchestrated at the appropriate master boundary according to the cadence inventory. Keep each migration small, tested and explicit. Record any deliberate exception to the player-turn/round distinction here or in the relevant system documentation.
