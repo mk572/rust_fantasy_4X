@@ -20,42 +20,165 @@ Definitions refer to each other by typed ids (`UnitId`, `SpellId`, ...) that ind
 
 ## 2. Stats and modifiers
 
-Everything numeric about a unit, city or wizard is a **stat**, computed rather than stored:
+A stat is a numeric attribute with a fixed meaning in the engine. The authoritative list is
+`f4x-core/src/rules/stats.rs` (`Stat`); this section is kept in sync with that enum.
+Content may use these stats but cannot define new ones.
 
-```
-final = clamp( (base + sum(adds)) * (100 + sum(percents)) / 100 , min, max )   // then any `Set` overrides
-```
+### Complete stat list
 
-- **Stats are a closed Rust enum** (`Stat::Melee`, `Ranged`, `Defense`, `Resistance`, `MaxHp`, `Figures`, `Moves`, `Sight`, `Upkeep`, `CityFood`, `CityProduction`, ...). The engine knows what each means. Content cannot invent new stats, which keeps rules checkable. Adding a stat is a small Rust change.
-- **Modifiers** are `{ stat, op: Add | Percent | Set | Min | Max, value: i32, source, condition? }`. All integer, applied in a fixed order, so results are deterministic and order of casting does not matter.
-- **Sources** are tracked (race, ability, enchantment, item, building, terrain, experience level), so the UI can show "+2 from Iron Armor" and so removing a source removes exactly its modifiers.
-- Derived values are computed on demand by `stats::compute(world, entity, stat)`. Nothing caches them until profiling says it matters.
+| Group | Stat | Meaning |
+|---|---|---|
+| Units and heroes | `Melee` | Melee attack strength. |
+| | `Ranged` | Ranged attack strength. |
+| | `Defense` | Defensive strength. |
+| | `Resistance` | Resistance used for spell/effect checks. |
+| | `MaxHp` | Maximum hit points. |
+| | `Figures` | Number of figures in a unit. |
+| | `Moves` | Movement allowance in whole moves. |
+| | `HalfMoves` | Additional half-moves; items express movement bonuses in half-moves. |
+| | `Sight` | Unit sight range. |
+| | `ToHit` | General to-hit bonus; each point is ten percentage points and may be negative. |
+| | `MeleeToHit` | To-hit bonus applied only to melee attacks. |
+| | `RangedToHit` | To-hit bonus applied only to ranged attacks. |
+| | `Ammo` | Ammunition allowance. |
+| | `SpecialLevel` | Strength/level attached to a special attack or ability (e.g. poison, gaze, life steal, Holy Bonus); zero means absent. |
+| | `Construction` | Road-building strength; stack strength determines turns needed to build a road square. |
+| | `Transport` | Number of land units a ship carries. |
+| Wizards | `ManaIncome` | Mana gained per turn. |
+| | `ResearchIncome` | Research gained per turn. |
+| | `CastingSkill` | Spell-casting skill. |
+| | `SpellCostPercent` | Percentage change to spell mana costs. |
+| Cities | `CityFood` | Food output before the farmland cap. |
+| | `CityFoodFlat` | Food added after the farmland cap (e.g. granaries and markets). |
+| | `FarmerFood` | Extra food produced by each farmer. |
+| | `CityUnrestPercent` | Percentage change to unrest from sources such as famine. |
+| | `StartingXp` | Experience points granted to newly produced units. |
+| | `CityProduction` | Production output. |
+| | `CityGold` | Gold output. |
+| | `CityMana` | Mana output. |
+| | `CityResearch` | Research output. |
+| | `CityGrowthPercent` | Percentage change to city growth. |
+| | `CityGrowth` | People gained per turn (growth is represented in people, not citizens). |
+| | `CityUnrest` | Unrest points; negative values reduce unrest. |
+| | `UnitCostPercent` | Percentage change to unit production cost in the city. |
+| | `CitySight` | City sight range (base 2; some effects raise its minimum). |
+
+The enum currently has 34 variants. Values that can legitimately be negative are
+`ToHit`, `MeleeToHit`, `RangedToHit`, `CityUnrest`, `CityGrowth`,
+`CityUnrestPercent`, `SpellCostPercent` and `UnitCostPercent`. Other stats have a
+floor of zero. These are engine-level rules in `Stat::floor()`.
+
+### Modifier calculation
+
+A modifier is `{ stat, op, value, source }`, where `op` is one of:
+
+- `Add`: sum with the base value.
+- `Percent`: percentages are summed, then applied to base plus additions (`+50` means ×1.5).
+- `Min`: the result cannot be below this value.
+- `Max`: the result cannot exceed this value.
+- `Set`: force this value; if several Set modifiers apply, the lowest wins.
+
+The calculation order is: base plus all additions; apply the summed percentage (integer
+division rounds down, including for negative results); apply Min/Max bounds; apply Set;
+then apply the stat's zero floor where it has one. `Moves` is a deliberate exception:
+its `Min` modifier raises the base movement allowance before additions, so a flying unit
+with an additional movement bonus keeps both.
+
+Modifier sources are tagged as `Race`, `Ability`, `Building`, `Spell`, `Item`
+(slot 0–2), `Level` (experience level, zero-based), `Hero` (hero attributes), or
+`Other`. This allows contributions to be explained and a source's modifiers to be
+removed together. Modifiers and calculations use integers.
+
+Stats are computed by the owning systems from a base value and applicable modifiers;
+there is no single general-purpose `stats::compute(world, entity, stat)` entry point.
+The shared calculation primitive is `rules::stats::compute(stat, base, modifiers)`.
 
 ## 3. Conditions, targets and effects
 
 Abilities, spells, buildings and items all describe what they do with the same three building blocks.
 
-**Condition** (a small enum, evaluated against a context):
-`Always`, `HasAbility(id)`, `TerrainIs(class)`, `OnPlane(plane)`, `RaceIs(id)`, `RealmIs(id)`, `InBattle`, `InCity`, `All([..])`, `Any([..])`, `Not(..)`.
+**Conditions** are evaluated against facts about the selected subject. The complete vocabulary in
+`rules/effects.rs` is:
 
-**Target selector**: `This`, `Owner`, `AllOwnUnits`, `AllEnemyUnits`, `UnitsInTile`, `UnitsInArea(radius)`, `City`, `Tile`, `Chosen` (the target picked when casting), `UnitsOnChosenSquare` (every unit on the square of the chosen target, whoever owns it and a city's garrison too: Ice Storm and Fire Storm; such a spell needs an enemy unit there, `Game::is_square_spell`). A `Damage` effect with `traits: (area: true)` strikes every figure of the unit with the dice of a battle (`EffectHost::strike`); without it the damage is flat.
-
-**Effect** (the primitives; each is a Rust function with tests):
-
-| Effect | Does |
+| Condition | Meaning |
 |---|---|
-| `Modify { stat, op, value }` | adds a modifier while the source exists |
-| `GrantAbility(id)` / `RemoveAbility(id)` | |
-| `Damage { amount, kind, resist }` | with a resistance/save check |
-| `Heal(amount)` | |
-| `AddResource { gold, food, mana, research }` | per turn or once |
-| `Summon { unit, count }` | |
-| `ChangeTerrain(class)` / `SetFeature(id)` | |
-| `ApplyEnchantment(id)` / `Dispel { strength }` | |
-| `Custom(name)` | named hook implemented in Rust and shared by several spells (`CUSTOM_HOOKS` in `rules/effects.rs`) |
-| `Special` | the spell's own code in Rust, found by the spell's number (`SPECIAL_SPELLS` in `rules/effects.rs`); the code says `spell.num() == 133 /* resurrection */`, never a name |
+| `Always` | Always passes. |
+| `HasAbility(id)` | Subject has the named ability. |
+| `TerrainIs(class)` | Subject is on the named terrain class. |
+| `OnPlane(plane)` | Subject is on the named plane. |
+| `RaceIs(id)` | Subject has the named race. |
+| `RealmIs(id)` | Subject has the named realm. |
+| `KindIs(kind)` | Subject is the named unit kind (normal, hero, creature, etc.). |
+| `InBattle` | Subject is in a battle. |
+| `InCity` | Subject is in a city. |
+| `All([..])` | Every nested condition passes. |
+| `Any([..])` | At least one nested condition passes. |
+| `Not(..)` | The nested condition does not pass. |
 
-**Triggers** say when an effect fires: `Passive` (modifiers while present), `OnTurnStart`, `OnCast`, `OnAttack`, `OnDefend`, `OnDeath`, `OnBuilt`. No scripting language: effects are plain data, which keeps content validatable, serialisable in saves, and safe to mod. `Custom` is the deliberate escape hatch, and we count how often it is used as a signal that a primitive is missing.
+**Target selectors** choose the subjects to which an effect is applied:
+
+| Selector | Meaning |
+|---|---|
+| `This` | The entity/source represented by the rule context. |
+| `Owner` | The player who owns the source. |
+| `AllOwnUnits` | Every unit owned by the source owner. |
+| `AllEnemyUnits` | Every unit not owned by the source owner. |
+| `UnitsInTile` | Every unit on the source's tile. |
+| `UnitsInArea(radius)` | Every unit within Chebyshev distance radius on the same plane. |
+| `City` | The city represented by the source, or the city on its tile. |
+| `Tile` | The source's map tile. |
+| `Chosen` | The target selected by the caster. |
+| `UnitsOnChosenSquare` | Every unit on the chosen target's tile, regardless of owner; includes a city's garrison. |
+
+Selectors resolve in a stable order. A selector that needs a position yields no targets if the
+source has no position; `Chosen` yields none if no target was selected.
+
+**Effects** are the complete primitive vocabulary in `rules/effects.rs`:
+
+| Effect | Meaning |
+|---|---|
+| `Modify { stat, op, value }` | Add a stat modifier tagged with the rule's source. |
+| `GrantAbility(id)` / `RemoveAbility(id)` | Add or remove an ability. |
+| `Damage { ... }` | Deal damage of a `DamageKind`, optionally resistible, with explicit immunity abilities, realm, resistance modifier and battle damage traits. |
+| `Heal(amount)` | Restore hit points. |
+| `Slay { ... }` | Battle-only destruction effect with realm, resistance modifier, immunity list and optional restrictions/thresholds. |
+| `AddResource { gold, food, mana, research }` | Add the specified resources to the target. |
+| `Summon { unit, count }` | Summon a number of units at the target's tile. |
+| `ChangeTerrain(class)` | Change the target tile's terrain class. |
+| `SetFeature(id)` | Put a map feature on the target tile. |
+| `ApplyEnchantment(id)` | Attach a lasting spell to the target. |
+| `Dispel { strength }` | Remove eligible enchantments up to the given strength. |
+| `Custom(name)` | Call a named Rust hook; the name must be in `CUSTOM_HOOKS`. |
+| `Special` | Call the Rust implementation for the spell number; the number must be in `SPECIAL_SPELLS`. |
+
+Damage kinds are `Physical`, `Fire`, `Cold`, `Lightning`, `Poison`, `Death`
+and `Holy`. `DamageTraits` supports `armor_piercing`, `ignores_defense`, `area`,
+`decaying` and `mana_per_point`. Slay effects can apply to `Any`, `Fantastic` or
+`ChaosOrDeath` targets. `Custom("unimplemented")` marks imported rules for which the
+engine still lacks a native primitive.
+
+### Trigger vocabulary and dispatch status
+
+The complete `Trigger` enum currently contains:
+
+| Trigger | Intended meaning | Current dispatch |
+|---|---|---|
+| `Passive` | Continuously applies while its source exists. | Supported for passive stat modifiers and passive ability grants; also read by spell/enchantment systems. |
+| `OnTurnStart` | Fires at the start of a turn. | Declared, but no game-system dispatch found in the current code. |
+| `OnCast` | Fires when the spell is cast. | Dispatched by spell casting (`spell/cast.rs`). |
+| `OnAttack` | Fires when the subject attacks. | Declared; currently covered by executor tests, but no game-system dispatch found. |
+| `OnDefend` | Fires when the subject defends. | Declared, but no game-system dispatch found. |
+| `OnDeath` | Fires when the subject dies. | Declared, but no game-system dispatch found. |
+| `OnBuilt` | Fires when the subject is built/produced. | Declared, but no game-system dispatch found. |
+
+This distinction matters: a trigger being representable in content does not mean the game
+currently emits that event. The executor can run any trigger when a caller supplies it, but
+only the dispatch points listed above are present in the current game code. Add a dispatch
+point before relying on an otherwise-unused trigger in content. Passive rules are not all
+handled by the generic executor: some systems collect or interpret them directly.
+
+No scripting language is used: rules are plain serialisable data. `Custom` and `Special`
+are deliberate Rust escape hatches, validated against the registries in `effects.rs`.
 
 ## 4. The definitions
 
