@@ -458,3 +458,38 @@ Tests: save/load at maximum unit count; backup rotation and interrupted saves; l
 6. Test the maximum unit count across saves, UI, AI and combat; treat DOS memory notes as historical context.
 7. Keep backup saves in persistence/host code and RNG state deterministic and independent from presentation.
 8. Confirm the truncated final keyboard note before considering this batch complete.
+
+## Optional 1.50 fixes: separate recommendations
+
+These changes are supplied as optional patch files and are not pre-applied in 1.50. They are assessed separately from the main release-note audit: **Make default** means adopt as the rewrite's normal behavior; **Optional setting** means expose as a ruleset/game setting because it changes balance or player expectations; **Skip** means do not reproduce it as a general rule, or defer it because its dependency/benefit is too narrow.
+
+| Patch reference | Optional change | Recommendation | Rationale |
+|---|---|---|---|
+| I001, 324 | Prevent slider-based spells from being enchanted into items, avoiding the maximum-slider-for-free exploit | Make default | Closes an item-creation exploit rather than changing the intended value of ordinary spells. Enforce the restriction in shared item-enchantment validation. |
+| 005, 055 | Allow Life and Death book picks at the same time | Optional setting | This expands wizard-building combinations and changes the balance/identity of realm restrictions. Keep it available to custom rulesets rather than silently making it universal. |
+| 006 | Reduce Myrran's cost to two picks | Optional setting | A direct wizard-creation balance change. Preserve the chosen baseline and let a ruleset select the cheaper cost. |
+| 026 | Generate fewer neutral towns | Optional setting | Changes map density, expansion pace and early-game competition; this is a world-generation balance preference. |
+| 030 | Allow Peaceful Death wizards and, at low chance, Maniacal Life wizards | Optional setting | Alters personality/realm compatibility and wizard-generation probabilities. Treat the combinations and their chance as ruleset data. |
+| 033 | Halve the maximum combat duration | Optional setting | Changes the battle time limit and can affect long defensive or stalemate battles. Make the cap configurable rather than imposing a different limit. |
+| 034 | Fortress-combat Lightning Bolts hit enemies in proportion to casting skill | Make default | This makes the fortress effect scale with the caster's skill instead of behaving as a flat or mis-scaled effect. Model it as a deterministic combat rule. |
+| 037 | Make the unit-table maintenance-cost field functional | Make default | The field should be authoritative when supplied by data. This is important for modding and should not require a special compatibility switch. |
+| 038 | Make unit buy cost always twice its production cost | Optional setting | A global economy/balance adjustment. Keep the multiplier in ruleset data so mods can choose the intended purchase economy. |
+| 039 | Allow towns to display up to 16 buildings in the production list | Make default | A capacity/UI limitation, especially relevant when mods extend the building tree. Size the list from supported content rather than the original fixed limit. |
+| 133 | Do not double jewelry mana cost for stat-increasing abilities | Make default | Removes a special-case crafting surcharge that penalizes these abilities; implement the intended cost formula consistently. |
+| 147 | Do not charge fantastic undead creatures increased maintenance | Optional setting | This changes the upkeep balance of a broad unit category. Keep the policy configurable by ruleset rather than assuming one economic model. |
+| 157 | Make ranged attacks consume all remaining movement instead of a fixed 10 movement points | Make default | A clear action-cost rule that prevents ranged attacks from leaving inconsistent movement allowances. Represent the cost as an explicit attack action rule. |
+| 211 | Carry unused production into the next project | Optional setting | Production carryover materially changes city-economy efficiency and can interact with project switching. Offer it as a ruleset option, with tests against repeated switching exploits. |
+| 215 | Allow Death units to heal naturally, except undead, zombies and skeletons | Make default | Gives living Death-realm units ordinary recovery while preserving the stated exceptions. Base the rule on unit traits, not realm ownership alone. |
+| 277 | Allow Raise Volcano to target Hills and Mountains | Make default | Broadens the spell to the terrain types named by its effect and avoids an unnecessarily narrow target filter. Keep target legality in spell data/rules. |
+| 427 | Allow production lists to display more than 10 unit types | Make default | Removes a hard UI/content ceiling that can hide valid unit choices, particularly in modded races. |
+| 436 | Remove food maintenance from Ships and Catapults | Optional setting | The note emphasizes AI benefits, but this is still an economy rule affecting every player. Make the upkeep policy configurable and verify AI food planning with either setting. |
+| 497 | Allow Elementals and Phantoms to be raised as undead | Make default | This is a spell-target eligibility correction. Express it through explicit resurrection/undead-creation traits and immunity checks, not a hard-coded list where possible. |
+| 582 | Interrupt Spell of Mastery research when a spellbook is found in treasure; requires 055 | Skip | This is a narrow interaction tied to the optional Life-and-Death book-pick change, and its gameplay rationale is unclear. Do not add a special interruption rule unless reproducing that exact optional wizard-book behavior becomes a compatibility goal. |
+| 650 | Slightly improve readability of the researched-spell text in the Apprentice screen (F3) | Make default | A presentation improvement with no rules or balance downside. |
+| 708 | Give Flying movement precedence over Non-Corporeal movement as the stack's default movement type, matching v1.31 | Optional setting | This changes movement-type precedence and can affect mixed stacks. Make precedence explicit in the movement ruleset so classic/v1.31 behavior can be selected and tested. |
+| 709 | Display combat ammunition at its v1.31 location | Make default | Pure presentation parity; no gameplay trade-off. |
+| 713 | Use more appropriate summoning animations for Demons, Fire Elementals and Earth Elementals | Make default | Presentation-only improvement. Keep animation selection data-driven so additional modded creatures can define their own. |
+| 718 | Split the Additional Power slider more proportionately in combat | Make default | Improves allocation feedback and avoids an extreme 99/1 split when the available infusion is small. The displayed split should match the actual allocation calculation. |
+| 743 | Have the AI account for Confusion's temporary control change when assigning Summon Demons; partial fix for a crash above 18 units | Make default | AI command selection must use effective ownership/control and battle capacity. Treat the associated crash as a separate capacity-safety issue; this optional fix is explicitly only partial. |
+| 745 | Prevent Hasted units from wasting ammunition on a second ranged attack when the first attack destroys the target; requires 744 | Skip | The listed prerequisite 744 is not included in this optional batch, and this is a narrow combat optimization. Revisit only if 744 is adopted and the attack sequence is implemented with equivalent target revalidation. |
+
