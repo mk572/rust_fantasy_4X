@@ -9,7 +9,7 @@ Use **sequential player turns**, not a shared phase in which all AI players plan
 - Every wizard, human or AI, takes a complete turn in a deterministic order.
 - Each player's decisions and actions use the game state left by all earlier players in the round.
 - Actions resolve before the next player starts. Movement, attacks and battles must not rely on stale plans made before another player's turn.
-- Processes that advance the shared world by a round run once after all eligible players have acted, not once per player.
+- Round-based processes run once at their explicitly assigned boundary, never once per player; world events are processed at round start.
 - The new `f4x-master` crate owns round and player-turn orchestration. It sits above `f4x-core` and below the front ends; the client, AI and console provide player controllers to it rather than deciding independently whose turn it is.
 
 This is a gameplay design choice, not an attempt to reproduce the original game's AI scheduling. In particular, do not copy the original pattern of planning for all AI wizards first and then executing all their movement orders.
@@ -63,7 +63,7 @@ The AI must not plan every wizard's turn from a common pre-movement snapshot. Wh
 
 Human and AI turns use the same core lifecycle and command validation. The AI differs in how it chooses commands, not in when its turn takes place or which lifecycle rules apply.
 
-## 4. Round-resolution responsibilities
+## 4. Round-start and round-end responsibilities
 
 Round-start processing runs once before the first player takes a turn in the round. World events belong here: select/advance the event and apply its opening effects before any player acts, so every player encounters the same already-resolved event state. Other once-per-round systems may belong at round start or round end, depending on their rules.
 
@@ -71,7 +71,7 @@ Round-end processing runs once after all eligible players have acted, but only f
 
 A process can affect every player and still belong here. For example, a world enchantment's duration must not be decremented once for each wizard merely because it affects the whole world. Conversely, a process is not automatically round-based just because it currently appears in a global method.
 
-These examples establish the distinction, not a final classification of every existing system. During implementation, examine each current turn-pipeline step and assign an intentional cadence. Do not assume without analysis that city growth, production completion, income, upkeep, healing, experience, magic generation, research, diplomacy timers, temporary effects or offers all belong to one side. Some may be player-specific, some world-wide, and some may need a more precise rule or placement.
+These examples establish the distinction, not a final classification of every existing system. During implementation, examine each current turn-pipeline step and assign an intentional cadence: player turn, round start or round end. Do not assume without analysis that city growth, production completion, income, upkeep, healing, experience, magic generation, research, diplomacy timers, temporary effects or offers all belong to one category. Some may be player-specific, some world-wide, and some may need a more precise rule or placement.
 
 Random event selection and the start-of-round application of world events happen once per round, before player turns. Ongoing event effects and durations must also advance at their intended cadence; do not assume that every event-related timer shares the event-draw boundary.
 
@@ -134,7 +134,8 @@ The lifecycle must be deterministic and testable without the client. At minimum,
 - an AI turn observing changes made by the immediately preceding player's turn;
 - a unit or city target moving or changing hands before a later player's turn, with actions validated against the current state;
 - eliminated players being skipped and never receiving a later turn;
-- round resolution running once after all eligible players, never once per player;
+- round-start processing, including world events, running once before any player acts;
+- round-end processing running once after all eligible players, never once per player;
 - round-based event rolls and duration ticks not being multiplied by player count;
 - saving and loading at player-turn and round boundaries without repeating or skipping work;
 - deterministic results for the same initial state and command sequence.
