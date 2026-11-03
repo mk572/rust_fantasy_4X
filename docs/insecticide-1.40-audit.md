@@ -181,3 +181,24 @@ The table below consolidates the 194 numbered assessments made in the conversati
 | 87 | IM177 | AI starting spell picks | Investigate data-driven defaults and whether AI spell picks use the same rules as human picks. |
 | 88 | IM185 | AI race choices on high difficulty; later reversed | Design choice; check race restrictions and avoid reproducing a change the Community Patch later reversed. |
 | 89 | IM198 | Retorts affect AI Personality and Objective | Investigate configurable wizard-trait effects on AI strategy. |
+| 90 | IW001, IW007 | To Hit and To Defend UI | Investigate whether the UI distinguishes stats from abilities and modifiers. |
+| 91 | IW002 | Rampaging monster budget change, later reversed | Balance investigation; do not assume the temporary patch change is desirable. |
+| 92 | IW003 | Trireme and Galley transport capacity set to eight | Investigate whether ship capacity is configurable in content. |
+| 93 | IW009 | Rename Strategic Combat Only to Automatic Combat | UI terminology choice; ensure the label describes what the option actually does. |
+| 94 | IW010 | Remove End of Turn Wait | UI/interaction design choice; not necessarily a rules issue. |
+| 95 | IW010 | Remove Auto Unit Information | Investigate whether the option is useful and how it maps to the rewrite's UI. |
+| 96 | IW010, IW011 | Add Revolting Raiders option | Investigate whether the optional game mode is worth supporting. |
+| 97 | IW010, IW011 | Add Monsters Gone Wild option | Investigate whether the optional game mode is worth supporting. |
+| 98 | IW010 | Rampaging Monsters begins on turn 40 | Balance and timing choice; test against the rewrite's game pace. |
+| 99 | IW013 | Encounter dialog supports four or more guardians | UI edge case; verify long guardian lists do not overflow. |
+| 100 | IW014 | Patrol hotkey L | UI convenience feature. |
+| 101 | IW016 | Tower of Wizardry tile auto-selection is plane-aware | Investigate map selection and plane context. |
+| 102 | IW019, IW020 | City cycling with X | UI navigation feature. |
+| 103 | IW024 | Cities overview with T | UI navigation feature. |
+| 104 | IW052 | Strategic-combat direct damage scaled by one half and enhancement by one third | Investigate explicit scaling; auto-resolve should use the same rules as tactical combat where possible. |
+| 105 | IW053 | Effective HP in strategic combat and AI | Investigate whether health and durability estimates agree with actual battle resolution. |
+| 106 | IW057 | Spell Save modifiers apply to Life Drain, Death Spell and Holy Word | Investigate shared resistance/save resolution for these spells. |
+| 107 | IW064 | Hero items transfer to the victor after strategic combat | Investigate post-battle ownership and item transfer. |
+| 108 | IW070 | Right-arrow hotkey in item creation | UI convenience feature. |
+| 109 | IW072 | Treasure/gift item no longer themed to recipient | Investigate whether recipient-themed rewards are a desired generation policy. |
+| 110 | IW076 | Conjurer maintenance fraction rounds up from 0.5 | The half-step numeric newtype can represent the value; verify the rounding rule. |
