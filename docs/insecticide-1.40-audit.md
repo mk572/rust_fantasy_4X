@@ -212,3 +212,8 @@ The table below consolidates the 194 numbered assessments made in the conversati
 | 118 | IW133 | Hide population growth at 8,000 or more; later reversed in 1.50 | UI behavior; avoid copying a temporary display change without checking the later reversal. |
 | 119 | IW134 | Merchant offer threshold is twice item value; AI gets offers and always buys at half price | Investigate merchant economy and distinguish human and AI offer rules. |
 | 120 | IW154 | Neutral cities prefer Builders' Hall and Granary | Investigate neutral-city production priorities. |
+| 121 | IW165 | Arrow keys flip Apprentice spellbook pages | UI navigation feature. |
+| 122 | IW173 | Space quits Save/Load screen | UI hotkey choice. |
+| 123 | IM178, IM180, IM186 | Huge land size | Investigate map scalability and configurable world size. |
+| 124 | IM178 | Magic settings renamed for clarity | UI clarity and naming. |
+| 125 | IM178 | Add higher magic settings, later removed | Design choice; do not treat a reverted option as a requirement. |
