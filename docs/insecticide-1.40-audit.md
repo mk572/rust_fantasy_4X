@@ -243,3 +243,12 @@ The table below consolidates the 194 numbered assessments made in the conversati
 | 149 | IW065, IW067 | AI melee line advance disabled because another change removes lines | The changes interact; evaluate tactical behavior as a whole rather than individually. |
 | 150 | IW070 | Space exits crafting screen and right-arrow exit removed; later reversed | UI design choice; avoid adopting an intermediate hotkey regression. |
 | 151 | IW077 | Wind Mastery ship movement differs by player and combat context | Investigate context and ownership consistency for global movement effects. |
+
+| 152 | IW083 | Weapon Immunity no longer overrides Missile Immunity but Defense set to 50 instead of 10 for non-melee; fixed in 1.51 | Investigate immunity precedence; avoid numeric fallback values as substitutes for correct immunity logic. |
+| 153 | IW086 | AI melee targets exactly reachable are deemed unreachable; later fixed | Investigate movement-range boundary conditions. |
+| 154 | IW094 | Lawful AI avoids razing positive relations but still razes at zero; later fixed | Investigate threshold comparisons and neutral-relation behavior. |
+| 155 | IW097, IM179 | Overland Spell Events disabled by default but setting has no effect | Verify the setting is wired through to the event system. |
+| 156 | IW099 | Fame contribution cap changes | Investigate recruitment affordability and Retort cap interactions. |
+| 157 | IW104 | Spell Lock combat-cast dispel protection fix failed | Investigate Spell Lock protection in battle casting and dispel paths. |
+| 158 | IW105 | Invulnerability remains protected from dispelling in combat | The rewrite documents a deliberate divergence allowing combat dispel; keep the divergence explicit and tested. |
+| 159 | IW105 | Possession can be dispelled by its caster to retain control | Investigate ownership semantics and whether dispelling should restore or retain control. |
