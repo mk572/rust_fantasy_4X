@@ -398,7 +398,7 @@ This batch mixes balance changes, map-generation rules, diplomacy, strategic com
 | 677, 678 | Correct spell error messages when there are no valid living targets | Validation and error selection should share the same live-target query after casualties and filtering. | P3 | Investigate |
 | 691, 697, 720, 729, 730, 737, 741 | Combat terrain, Wrack animation/sound, additional-power slider, spell-target highlighting/responsiveness, Vortex placement, Call Chaos graphics/timing and Warp Node dispel message | Mostly presentation/input feedback, but target highlighting must use the actual aim validator. Animation must not freeze simulation or depend on sound being enabled. | P3 | Partial |
 | 739 | Replace five-run LFSR with full-cycle RNG | Document period and reproducibility. Keep gameplay randomness seeded and independent from cosmetic animation. | P2 | Investigate |
-| 748 | Escape key again exits advisors/list selectors instead of Space | Complete release-note entry; this reverses the Space-key behavior and restores Escape as the exit key. | P4 | UI |
+
 
 ## Gameplay and interface code review: first pass
 
@@ -461,7 +461,7 @@ Tests: save/load at maximum unit count; backup rotation and interrupted saves; l
 |---|---|---|:---:|---|
 | 027, 035 | Starting Relations formula and diplomacy personality modifier | Starting relation formula became optional in the Community Patch; treat as configurable balance. Current personality diplomacy modifier is a simple fixed temper contribution, not the full revised formula. | P3 | Design |
 
-## Optional
+### Optional 1.50 fixes: separate recommendations
 
 These changes are supplied as optional patch files and are not pre-applied in 1.50. They are assessed separately from the main release-note audit: **Make default** means adopt as the rewrite's normal behavior; **Optional setting** means expose as a ruleset/game setting because it changes balance or player expectations; **Skip** means do not reproduce it as a general rule, or defer it because its dependency/benefit is too narrow.
 
@@ -506,3 +506,4 @@ These entries describe changes later reversed, replaced or superseded. They are 
 | 001, 013, 015 | Encounter creature budgets, primary divisor and maximum creature count | Separate encounter budget, creature selection and stack-size policy. Higher non-Node budgets are explicitly reversed in the Community Patch. | P3 | Design |
 | 016–025, 017, 018, 019, 020, 021, 022, 023, 024, 025, 537 | Treasure budgets, minimum points, tower rewards, gold/mana, item value, prisoner heroes, spell rolls, special treasure frequency and distribution | Build treasure as a pipeline: creature budget, treasure budget, eligible categories, reward selection. Keep difficulty adjustment explicit. Most numeric changes are reversed in the Community Patch; eligibility and non-cumulative rolls are more durable rules. | P2 | Design |
 | 439 | City growth is always reported | UI/event regression reversal. | P4 | UI |
+| 748 | Escape key again exits advisors/list selectors instead of Space | Complete release-note entry; this reverses the Space-key behavior and restores Escape as the exit key. | P4 | UI |
