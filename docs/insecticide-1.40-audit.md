@@ -130,28 +130,28 @@ The table below consolidates the 194 release-note assessments, now sorted by the
 | IW043 | AI war declaration against a stronger home-continent rival is backwards; later replaced | Investigate war-declaration strength comparison and home-continent context. | P3 | Investigate |
 | IW043 | Diplomacy crashes if AI has no home-continent units | Handle the zero-unit case explicitly. | P1 | Investigate |
 | IW044 | Dispel Confusion does not always restore original owner | Preserve original ownership in the temporary control state. | P2 | Investigate |
-| IW045 | Invisibility target eligibility and detection | Verify melee, ranged and spell targeting all use the same visibility rule, including Illusions Immunity. | P2 | Resolved |
+| IW045 | Invisibility target eligibility and detection | Visibility gates individual targeting; adjacency, reveal and Illusions Immunity are handled explicitly, while area spells remain distinct. | P2 | Resolved |
 | IW047 | Engineer road-building fix has no effect | Verify the actual road-building calculation rather than assuming the patch changed it. | P4 | Investigate |
 | IW048 | Human armies entering battle while moving | Investigate whether movement is interrupted cleanly when a battle begins. | P3 | Investigate |
 | IW048 | AI pathfinding across player units and hostile tiles | Investigate passability, diplomacy and target handling when routes cross occupied or hostile tiles. | P2 | Investigate |
 | IW049 | AI cannot flee on the first combat turn | Investigate whether the AI can retreat as soon as the battle rules permit it. | P3 | Investigate |
-| IW050 | Strategic-combat units with Defense at or below 50 all receive the same damage chance | The rewrite's auto-resolve uses ordinary battle resolution; verify no simplified Defense cap is introduced. | P2 | Resolved |
+| IW050 | Strategic-combat units with Defense at or below 50 all receive the same damage chance | Auto-resolve uses ordinary battle resolution; no Defense-50 cap was found in the resolver or AI estimate. | P2 | Resolved |
 | IW051 | Fortress defender casting with values above 16,383 | Investigate integer widths in defender casting statistics and budgets. | P2 | Investigate |
-| IW051 | Strategic-combat healing, enhancement and direct damage in all phases | Investigate whether every spell effect is applied in every auto-resolve phase. | P2 | Resolved |
-| IW051 | Strategic-combat mana over-spend | Investigate that the mana budget cannot be exceeded by spell selection or simultaneous effects. | P2 | Resolved |
+| IW051 | Strategic-combat healing, enhancement and direct damage in all phases | Auto-resolve runs the ordinary battle rules, so spell effects use the same tactical resolution path. | P2 | Resolved |
+| IW051 | Strategic-combat mana over-spend | Auto-resolve uses legal battle casts and the supplied mana budget; no separate strategic spell budget is used. | P2 | Resolved |
 | IW052 | Multiple realm bonuses in strategic combat | Investigate whether multiple applicable realm bonuses aggregate rather than overwrite one another. | P3 | Investigate |
 | IW052 | Strategic-combat direct damage scaled by one half and enhancement by one third | Investigate explicit scaling; auto-resolve should use the same rules as tactical combat where possible. | P2 | Resolved |
 | IW053 | Effective HP in strategic combat and AI | Investigate whether health and durability estimates agree with actual battle resolution. | P2 | Partial |
 | IW054 | AI Possession targeting Heroes | Investigate target filtering for Heroes and other special unit classes. | P3 | Investigate |
 | IW055 | Runemaster dispel modifier additive instead of multiplicative, only in combat; removed in 1.50 | Investigate consistency of dispel modifiers across contexts; do not copy a reverted change. | P3 | Investigate |
-| IW056 | Counter Magic strength loss | Verify the reserve is tested at its pre-drain strength and loses the intended amount per attempt. | P2 | Resolved |
-| IW056 | Counter Magic removes unrelated enchantments | Verify the dispel only removes the spell or enchantments actually targeted and eligible. | P2 | Resolved |
-| IW057 | Spell Save modifiers apply to Life Drain, Death Spell and Holy Word | Investigate shared resistance/save resolution for these spells. | P2 | Resolved |
+| IW056 | Counter Magic strength loss | Counter Magic checks the pre-drain reserve and loses five strength per enemy spell attempt. | P2 | Resolved |
+| IW056 | Counter Magic removes unrelated enchantments | Dispel tracks spell caster ownership and only removes eligible enemy enchantments; Spell Lock is handled first. | P2 | Resolved |
+| IW057 | Spell Save modifiers apply to Life Drain, Death Spell and Holy Word | Battle spells use shared save and resistance machinery; keep explicit regression tests for the listed spells. | P2 | Resolved |
 | IW058, IW121 | AI ignores Haste when choosing what to dispel | Investigate whether the AI recognizes Haste as a high-value target enchantment. | P3 | Investigate |
 | IW059 | Vortex cap reduced to four despite original limit of ten | Investigate summon caps and whether the reduced limit is intentional. | P3 | Investigate |
 | IW060 | Real-Time Game Tweaker can alter Resistance penalty for spells whose original penalty is zero | Treat zero as a valid default, not “not configurable”; distinguish an omitted value from an explicit zero override. | P4 | UI |
-| IW061 | Dispel Evil target restriction | Investigate that target validation restricts Dispel Evil to the intended creature realms. | P2 | Resolved |
-| IW062 | Life Drain versus Death Immunity | Investigate that Death Immunity blocks Life Drain in every applicable attack path. | P2 | Resolved |
+| IW061 | Dispel Evil target restriction | The special attack is limited to Chaos and Death creatures, with the stronger undead resistance penalty. | P2 | Resolved |
+| IW062 | Life Drain versus Death Immunity | Life Drain's declared immunity traits include Magic and Death Immunity in the shared spell-damage resolver. | P2 | Resolved |
 | IW063 | AI Healing Spell ability use | Investigate whether the AI recognizes and uses healing abilities when they are useful. | P3 | Investigate |
 | IW063 | AI Doom Bolt animation misaligned | UI/animation issue; ensure spell effects and animation targets agree. | P4 | Investigate |
 | IW064 | Hero items transfer to the victor after strategic combat | Fallen heroes are removed with the winning player as heir, which routes their items to the victor. | P2 | Resolved |
@@ -159,21 +159,21 @@ The table below consolidates the 194 release-note assessments, now sorted by the
 | IW066, IW091 | AI ranged strength estimates | Investigate whether ranged attacks are included consistently in friendly and enemy strength estimates. | P3 | Investigate |
 | IW067 | AI no longer uses lines or group movement | Treat as a tactical-AI design choice; verify whether the rewrite's battle AI needs formations. | P3 | Design |
 | IW068 | AI ranged attacks against Invisible units with Illusions Immunity | Investigate visibility and target selection for ranged attacks against invisible targets. | P3 | Investigate |
-| IW069 | Melee target prioritizes damaged enemies | Investigate consistency between melee and ranged target scoring. | P2 | Resolved |
+| IW069 | Melee target prioritizes damaged enemies | Battle AI scores expected damage against remaining hit points and target worth, favoring kills over nearest-target selection. | P2 | Resolved |
 | IW070 | Right-arrow hotkey in item creation | UI convenience feature. | P4 | Design |
 | IW070 | Space exits crafting screen and right-arrow exit removed; later reversed | UI design choice; avoid adopting an intermediate hotkey regression. | P4 | UI |
 | IW072 | Treasure/gift item no longer themed to recipient | Investigate whether recipient-themed rewards are a desired generation policy. | P3 | Investigate |
-| IW073 | Demon Skin Defense bonus applied twice | Investigate whether modifiers are applied once across all stat aggregation paths. | P2 | Resolved |
+| IW073 | Demon Skin Defense bonus applied twice | Demon-skin mutation adds one +3 Defense temporary modifier through the shared stat path. | P2 | Resolved |
 | IW074 | Hero spell indices above 127 | Likely avoided by typed IDs; verify no byte-sized spell index remains in Hero spell handling. | P3 | Investigate |
 | IW075 | AI upkeep discount stacking | Investigate whether difficulty bonuses and other upkeep modifiers stack correctly. | P3 | Investigate |
 | IW076 | Conjurer maintenance fraction rounds up from 0.5 | The half-step numeric newtype can represent the value; verify the rounding rule. | P3 | Investigate |
 | IW077 | Wind Mastery ship movement differs by player and combat context | Investigate context and ownership consistency for global movement effects. | P3 | Investigate |
-| IW078 | Chaos Channels unit classification for overland spells and Call Chaos | Investigate eligibility and classification for units already changed or unsuitable for mutation. | P2 | Resolved |
+| IW078 | Chaos Channels unit classification for overland spells and Call Chaos | Mutation requires a normal, non-undead unit that has not already been mutated. | P2 | Resolved |
 | IW079 | Cause Fear target | Investigate target selection and the actual effect on the intended target. | P3 | Investigate |
-| IW080, IW085 | Thrown and Breath attacks respect ranged To Hit modifiers | Investigate whether thrown and breath attacks share the appropriate accuracy modifiers. | P2 | Resolved |
+| IW080, IW085 | Thrown and Breath attacks respect ranged To Hit modifiers | Battle units carry separate melee and ranged To Hit bonuses; thrown attacks retain the applicable ranged bonuses. | P2 | Resolved |
 | IW081 | Block bonus erroneously reduces enemy To Hit | Investigate that defensive block bonuses do not leak into the attacker's To Hit calculation. | P2 | Investigate |
 | IW082 | Units on central tile of a walled Town gain +3 Defense | Investigate tile-specific defensive bonuses. | P3 | Investigate |
-| IW083 | Weapon Immunity no longer overrides Missile Immunity but Defense set to 50 instead of 10 for non-melee; fixed in 1.51 | Investigate immunity precedence; avoid numeric fallback values as substitutes for correct immunity logic. | P2 | Resolved |
+| IW083 | Weapon Immunity no longer overrides Missile Immunity but Defense set to 50 instead of 10 for non-melee; fixed in 1.51 | Immunity precedence is explicit: Weapon Immunity against normal weapons yields at least 10 Defense, with Magic Immunity applied afterward. | P2 | Resolved |
 | IW084 | Siege automatic +3 Defense in strategic combat | Investigate whether the extra Defense is intentional and consistently represented. | P3 | Investigate |
 | IW084 | Siege gains +2 with City Walls or Wall of Fire | Investigate the siege bonus and its stacking rules. | P2 | Investigate |
 | IW086 | AI melee targets exactly reachable are deemed unreachable; later fixed | Investigate movement-range boundary conditions. | P3 | Investigate |
@@ -192,7 +192,7 @@ The table below consolidates the 194 release-note assessments, now sorted by the
 | IW099 | Fame contribution cap changes | Investigate recruitment affordability and Retort cap interactions. | P4 | UI |
 | IW100 | At most three Arcane spells in the research pool | Investigate research-pool composition and whether the cap is configurable. | P3 | Investigate |
 | IW101 | Spell trade priority uses realm index and desirability | Investigate explicit, data-driven spell trade valuation rather than realm ordering. | P3 | Investigate |
-| IW102 | Chaos Channels does not grant Chaos Breath to low-strength Thrown units | Investigate eligibility; do not grant a breath attack where the underlying unit cannot support it. | P2 | Resolved |
+| IW102 | Chaos Channels does not grant Chaos Breath to low-strength Thrown units | Breath is only an available mutation when the unit has no ranged attack or only a weak thrown attack. | P2 | Resolved |
 | IW103 | Combat dispels the target's intended spell rather than the caster's own | The shared dispel list only removes enchantments cast by another wizard; battle dispel uses that same routine. | P2 | Resolved |
 | IW104 | Spell Lock combat-cast dispel protection fix failed | The battle dispel path calls the shared routine, which allows only Spell Lock itself to be targeted while it guards a unit. | P2 | Resolved |
 | IW105 | Holy Arms prevents dispelling Holy Weapon | Investigate the distinction between a global protection and an individual unit enchantment. | P2 | Investigate |
@@ -223,11 +223,11 @@ The table below consolidates the 194 release-note assessments, now sorted by the
 | IW123 | Mana Leak turn and wall conditions | Investigate turn-dependent behavior and siege context for Mana Leak. | P3 | Investigate |
 | IW125, IW130 | Less Immolation threat and protection-spell use | Investigate defensive spell valuation and threat estimation. | P3 | Investigate |
 | IW126 | AI randomly disbands two garrison units per city every 20 turns from turn 80 | Treat as a poor heuristic; evaluate actual upkeep need and strategic value before disbanding. | P2 | Investigate |
-| IW127 | Population above maximum cannot grow but also cannot lose population; later fixed | Investigate population bounds and recovery from over-cap states. | P2 | Resolved |
-| IW128 | Armageddon and Great Wasting cancel town-building pacification | Investigate whether world events incorrectly remove a building's pacification effect. | P2 | Resolved |
+| IW127 | Population above maximum cannot grow but also cannot lose population; later fixed | Growth stops at the configured cap, but negative growth still removes population and normalizes the fractional remainder. | P2 | Resolved |
+| IW128 | Armageddon and Great Wasting cancel town-building pacification | City buildings continue to pacify; the world event adds unrest rather than disabling their effects. | P2 | Resolved |
 | IW129 | Mercenary hiring timing, budget and type | Investigate recruitment timing and whether the AI can afford the right mercenaries. | P4 | UI |
 | IW131 | AI fortress defender spell values above 16,383 | Investigate integer widths in the AI's fortress-defender spell valuation. | P2 | Investigate |
-| IW132 | Excess population growth fix fails; corrected in 1.50 | Investigate arithmetic and threshold boundaries for population growth. | P2 | Resolved |
+| IW132 | Excess population growth fix fails; corrected in 1.50 | The shared population-growth function caps gains while still applying population losses. | P2 | Resolved |
 | IW133 | Hide population growth at 8,000 or more; later reversed in 1.50 | UI behavior; avoid copying a temporary display change without checking the later reversal. | P4 | Design |
 | IW134 | Merchant offer threshold is twice item value; AI gets offers and always buys at half price | Investigate merchant economy and distinguish human and AI offer rules. | P4 | Investigate |
 | IW135 | AI research progress | Investigate research allocation and whether progress is retained and advanced correctly. | P3 | Investigate |
