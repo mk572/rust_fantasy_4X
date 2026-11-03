@@ -165,24 +165,36 @@ In plan B, `Game`, its save and its new-game code are in one crate. They keep us
 as they do today. Nothing is exposed, no interface is designed. The format does not change. The price is
 that the crate stays large and a save change rebuilds all of it, which is true today anyway.
 
-## 5. The session
+## 5. The master and player controllers
 
-The session lives in `f4x-core/session`: `Session` owns the `Game`, the seats and the turn state;
-`submit(seat, Command) -> Vec<Event>` for a human; `end_turn()` lets every AI seat play, then runs the turn
-change; the AI's proposals to the human (`Ai::approach_human`, `answer_proposals`, `answer_resales`)
-come out as events or a queue, so no screen calls `f4x_ai` for them. Undo and replay (`game/undo.rs`,
-`game/replay.rs`) move into it.
+Turn and round orchestration lives in a new `f4x-master` crate, between `f4x-core` and
+`f4x-client`. It owns the `Game` session boundary, round counter, player order, active player
+and lifecycle phase. It starts each round, invokes the eligible player controllers in
+sequence, and runs the explicitly assigned round-boundary work. World events are processed
+at **round start**, before the first player acts.
 
-`f4x-core` cannot depend on `f4x-ai`: the AI reads the game (about 200 `f4x_core::` references in
-`f4x-ai`, mostly `rules`, `player`, `game`, `map`, `wizard`, `diplomacy`), so `f4x-ai` depends on
-`f4x-core`. Hence a trait (**decided by the user**):
+`f4x-master` depends on `f4x-core`; it must not depend on the client or a concrete AI crate.
+It defines a player-controller/seat trait that the other crates implement:
 
-- `f4x-core` defines `trait Seat { fn play_turn(&mut self, game: &mut Game) -> Vec<Event>; ... }`.
-- `f4x-ai` implements it for `Ai`; `f4x-learn` implements it for its agent.
-- The front ends build the session: `Session::new(game, vec![Seat::Human, Box::new(Ai::new(id)), ...])`.
+- `f4x-ai` implements the interface for `Ai`; `f4x-learn` implements it for its agent.
+- `f4x-client` implements the human controller. The master must support a controller that
+  pauses while awaiting user input and resumes when the client submits commands; it must
+  not block the client's event loop.
+- The client and console construct the master/session with the game and ordered controllers.
+  The master invokes each controller through the same lifecycle, regardless of whether it
+  is human- or AI-controlled.
 
-The battle brain is the same pattern and already exists (`BattleBrain`, `battle/brain.rs`). An AI seat
-still sends commands straight through `Game::apply`.
+The dependency direction is `f4x-core <- f4x-master <- f4x-client`; AI/controller crates
+depend on `f4x-core` and `f4x-master`, while `f4x-master` knows only the controller
+interface. The exact public API (push-based commands versus a resumable `take_turn`
+callback) is an implementation decision, but the human path must be non-blocking.
+
+The core retains simulation rules and state-changing operations. The master decides when
+those operations are called; it does not reimplement city, economy, movement, combat or
+magic rules. Undo/replay remain with the game-state/action layer unless an operation
+specifically needs to capture master lifecycle state. The save format must persist the
+master's round counter, active player and phase/progress as well as the game state; decide
+the clean serialization boundary when implementing the master.
 
 ## 6. No rename
 
