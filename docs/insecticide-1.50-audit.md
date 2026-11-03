@@ -366,3 +366,95 @@ Relevant code: [ai/objective.rs](../crates/f4x-ai/src/objective.rs), [ai/wizardr
 4. Test naval campaigns end to end, especially garrison preservation, mixed movement types, partial loads, stale targets and coordinated multi-stack assaults.
 5. Add strategic asset-protection tests before implementing disbanding or resource-shortfall behavior.
 6. Keep spell-category classification data-driven where possible, and use the planned stable string identifiers for reusable custom spell rules rather than coupling AI policy to numeric spell IDs.
+
+
+## Gameplay and interface changes: release-note assessment
+
+This batch mixes balance changes, map-generation rules, diplomacy, strategic combat and UI work. Community Patch reversals are recorded as historical alternatives, not automatic requirements for the rewrite.
+
+| Patch reference | Change / issue | Assessment | Priority | Status |
+|---|---|---|:---:|---|
+| 001, 013, 015 | Encounter creature budgets, primary divisor and maximum creature count | Separate encounter budget, creature selection and stack-size policy. Higher non-Node budgets are explicitly reversed in the Community Patch. | P3 | Design |
+| 003, 014, 547 | Tiny land setting, reduced land on other sizes, adjacent encounter zones and 200-tile continent cap | Add named size presets and explicit land, continent and encounter-spacing constraints. Current GenParams has dimensions, land percentage and feature counts, but not these original-style presets/caps. | P2 | Partial |
+| 004 | Modded wizards with more than two book types display correctly | Wizard presentation must support arbitrary legal book combinations rather than assume the standard layout. | P3 | Investigate |
+| 009 | Tower placement near water, minimum distance and node spacing | Keep water adjacency, tower spacing and node exclusion as separate placement predicates. Numeric spacing changes are balance choices. | P2 | Partial |
+| 010 | Lower maximum population requirement for starting cities | Use bounded suitability scoring and graceful fallback so generation does not fail when few ideal sites exist. | P2 | Investigate |
+| 016–025, 017, 018, 019, 020, 021, 022, 023, 024, 025, 537 | Treasure budgets, minimum points, tower rewards, gold/mana, item value, prisoner heroes, spell rolls, special treasure frequency and distribution | Build treasure as a pipeline: creature budget, treasure budget, eligible categories, reward selection. Keep difficulty adjustment explicit. Most numeric changes are reversed in the Community Patch; eligibility and non-cumulative rolls are more durable rules. | P2 | Design |
+| 046, 054 | Larger alchemy conversion; better replacement rewards when books/retorts cannot be awarded | Avoid arbitrary conversion caps where resource types permit larger values; reward fallback should preserve expected value when a category is exhausted. | P3 | Investigate |
+| 060–074, 094 | Threat formula, end-turn relation shifts, refused alliance-break request, treaty proposals/duration, reactions, hidden relation, tribute and trade patience | Diplomacy needs explicit pair-scoped visible/hidden relation state and transition-specific formulas. Test human-AI and AI-AI paths separately. | P2 | Partial |
+| 063, 092, 103, 281, 282, 449 | Alliance refusal, movement through allied territory, reactions to defeated wizards, ally war requests and peace blocking war | Separate proposal refusal, relation penalty, treaty retention, movement permission and war legality. A peace treaty must block Declare War On; refusal must not silently break an alliance. | P2 | Partial |
+| 105, 107 | Banishment no longer transfers mana; razing an Outpost has city-conquest diplomacy effects | Defeat should not transfer treasury without an explicit rule. Outpost destruction should use the appropriate shared hostile-action consequences. | P2 | Investigate |
+| 109, 110, 142, 284, 292, 304–307, 305, 306, 352, 412, 460, 680, 688, 692, 693, 696 | Combat turn/stat display, hero spells, vault slots, attack-specific hit bonuses, movement/upkeep, weapon abilities, bonus hits, curse animations, tower ownership and combat modifiers/attack types | Mostly UI. Derive display from authoritative effective stats and active effects, not separate UI calculations. | P4 | UI |
+| 112, 114, 115, 309, 381 | Strategic-combat damage weighted by unit cost; improved unit valuation; protect heroes; raise undead for winner | Auto-resolve is a separate algorithm from tactical AI valuation. Define damage allocation, per-unit caps, deterministic tie-breaking and post-battle undead eligibility. | P2 | Partial |
+| 149 | Human-produced unit pushed to adjacent tile when stack is full | Preserve the new unit and find a legal adjacent tile; do not evict an existing unit based on maintenance. | P2 | Investigate |
+| 162 | Looted city gold based on production; avoids zero-population crash | Calculate loot from a valid city-economy snapshot and test zero-population/razed-city cases. | P2 | Investigate |
+| 167, 173 | Spell of Mastery excluded from captured fortresses/trade; Animate Dead cannot retain enemy units | Unique victory spells need acquisition restrictions. Temporary battle resurrection must not create permanent ownership of enemy casualties. | P2 | Investigate |
+| 212, 213 | Grand Vizier no longer changes unit production; excess population carries over | Advisor automation should respect player production orders. Growth should subtract the threshold and preserve its remainder. | P3 | Design |
+| 221, 222, 428 | Astrologer/Historian ratings and graphs; revised Power Production and Spell Power definitions | Give metrics documented semantics and aggregate the correct quantities; skill/research is not power production. | P4 | UI |
+| 283 | Rampaging monsters can destroy capital and eliminate owner | Capital destruction needs an explicit defeat transition covering remaining cities, units, diplomacy, save/load and victory checks. | P1 | Investigate |
+| 329, 507 | Rare/Very Rare treasure spell rewards exclude Arcane | Filter eligible spell rarity before selecting a realm to avoid wasting a reward. | P3 | Investigate |
+| 345 | Units crossing a transport tile do not accidentally enter patrol | Transport presence must not interrupt an existing movement order unless embarkation is explicitly commanded. | P2 | Investigate |
+| 364, 434 | Raider spawning/option; heroes protected from low-gold desertion | Document raider composition and setting behavior. Hero-safe desertion is a design choice; the note itself questions whether the change is needed. | P3 | Design |
+| 439 | City growth is always reported | UI/event regression reversal. | P4 | UI |
+| 473, 499, 518, 519, 555 | Unit cap raised to 2,000 | A cap affects allocation, serialization, selection, battle rosters, pathfinding and UI. The DOS conventional-memory cost is historical, not a Rust target constraint. | P2 | Design |
+| 474 | Wizard names up to 16 characters | Apply one documented name limit consistently across validation, UI and saves, or support longer UTF-8 names safely. | P3 | Investigate |
+| 480 | Remove inland lakes and bays with diagonal entries | Define map topology and navigable/open water consistently for generation and rendering. | P3 | Investigate |
+| 508 | Backup Saves setting; Node Owners always displayed | Backup rotation belongs in persistence/host code at a stable turn boundary; node ownership visibility is presentation policy. | P4 | UI |
+| 512 | Max-population city switches from Housing to Trade Goods | End-turn production automation should not waste production on a completed housing target. | P3 | Investigate |
+| 677, 678 | Correct spell error messages when there are no valid living targets | Validation and error selection should share the same live-target query after casualties and filtering. | P3 | Investigate |
+| 691, 697, 720, 729, 730, 737, 741 | Combat terrain, Wrack animation/sound, additional-power slider, spell-target highlighting/responsiveness, Vortex placement, Call Chaos graphics/timing and Warp Node dispel message | Mostly presentation/input feedback, but target highlighting must use the actual aim validator. Animation must not freeze simulation or depend on sound being enabled. | P3 | Partial |
+| 739 | Replace five-run LFSR with full-cycle RNG | Document period and reproducibility. Keep gameplay randomness seeded and independent from cosmetic animation. | P2 | Investigate |
+| 7 (incomplete source note) | Escape key again exits advisors/list selectors instead of Space | Supplied text ends immediately after “(7.”; confirm the full note. Visible portion is a keyboard/UI behavior reversal. | P4 | UI |
+
+## Gameplay and interface code review: first pass
+
+### 1. Map generation and encounter rewards
+
+**Finding: partial.** The current generator is deterministic and feature placement is data-driven. GenParams exposes dimensions, land percentage, tower count, strong/weak encounter counts, difficulty, lair percentages and per-plane node/mineral settings; counts can scale with map area. It does not yet express all the original's named land-size presets, continent cap, encounter adjacency, tower spacing/water rules or starting-city suitability policy as first-class settings.
+
+Keep encounter creature budgets separate from treasure budgets and reward selection. That allows Community Patch balance reversals to be represented without rewriting generation. Model map constraints as explicit parameters or named algorithms, not scattered constants.
+
+Relevant code/design: [mapgen.rs](../crates/f4x-core/src/map/mapgen.rs), [map-layers.md](map-layers.md), [game-settings.md](game-settings.md).
+
+Tests: fixed-seed generation for each size preset; land/continent caps; tower/node/shore spacing; enough starting-city sites on low-land maps; encounter adjacency; treasure category exhaustion and difficulty scaling.
+
+### 2. Diplomacy and treaty movement
+
+**Finding: partial.** The AI has a threat modifier based on relative army strength and proposal rating based on relation, patience, personality, proposal type and alliance state. That is a useful foundation, but it does not establish all end-turn relation shifts, visible/hidden relation changes, tribute/trade effects, ally war requests, outpost razing, banishment reactions or allied-territory movement.
+
+The core diplomacy layer should own treaty legality and relation transitions; the AI should decide which proposals to make or accept. This prevents UI or AI code from bypassing rules such as peace blocking war declarations.
+
+Relevant code: [ai/diplomacy.rs](../crates/f4x-ai/src/diplomacy.rs), [diplomacy.md](diplomacy.md).
+
+Tests: pair-scoped bounded relation changes; refused alliance-break request retains treaty and applies penalty; peace blocks Declare War On; tribute/trade update relations as specified; outpost razing has intended hostile consequences; ally movement permission is enforced by every movement path; defeated wizard reactions differ for friends and enemies.
+
+### 3. Strategic combat and unit valuation
+
+**Finding: partial.** The battle brain uses unit worth to evaluate tactical spells and actions. That is not the same as a strategic-combat resolver that distributes damage by unit cost. Keep auto-resolve independent from tactical AI valuation: calculate offensive/defensive/ranged potential, resolve damage deterministically, allocate it under explicit weighting and hit-point constraints, then apply survivor effects such as undead creation.
+
+The stated outcome—more survivors but more wounded—is a balance consequence, not a hardcoded objective. Test mixed-cost stacks, heroes, one-figure units, overkill, ties and exceptional/zero-cost units.
+
+Relevant code: [battle/brain.rs](../crates/f4x-core/src/battle/brain.rs), [battle/ai.rs](../crates/f4x-core/src/battle/ai.rs). A separate strategic-combat resolver was not established by this narrow review.
+
+### 4. UI, unit information and combat feedback
+
+**Finding: mostly UI.** Unit and combat views should expose effective movement, upkeep, hero spells, weapon abilities, melee/ranged To Hit modifiers, To Block, thrown/breath attacks, resistance/holy bonus levels, bonus hits and active curses. Also account for vault capacity, graph definitions, tower ownership and combat turn count.
+
+Prefer a shared effective-stat/active-effect query over UI-specific calculations. Graph metrics should have one documented definition so the Astrologer and Historian do not reinterpret state independently. The existing unit-sheet work is a foundation, but the exact 1.50 field list needs a direct UI audit before marking it complete.
+
+### 5. Persistence, capacity and randomness
+
+**Finding: design implications.** A 2,000-unit cap affects saves, iteration, selection, combat and AI, not just one constant. Backup saves belong in persistence/host code at a stable completed-turn boundary. The RNG needs a documented reproducibility/period contract and should be isolated from cosmetic animation. The original's conventional-memory cost is not a reason to constrain the Rust rewrite.
+
+Tests: save/load at maximum unit count; backup rotation and interrupted saves; long names through UI and serialization; reproducible RNG unaffected by sound/animation settings.
+
+## Additional gameplay and interface follow-ups
+
+1. Add explicit map-size presets and constraints for Tiny, continent size, encounter spacing, tower placement and starting-city suitability.
+2. Separate encounter budgets, treasure budgets and reward-category selection; make Community Patch reversals independently configurable.
+3. Add diplomacy transition tests for treaty duration, visible/hidden relation, tribute/trade, war requests, outpost destruction, banishment reactions and ally-territory movement.
+4. Design and test strategic-combat damage allocation as its own deterministic resolver, separate from tactical AI valuation.
+5. Audit unit-sheet and combat-display fields against effective stats, including negative and attack-mode-specific modifiers.
+6. Test the maximum unit count across saves, UI, AI and combat; treat DOS memory notes as historical context.
+7. Keep backup saves in persistence/host code and RNG state deterministic and independent from presentation.
+8. Confirm the truncated final keyboard note before considering this batch complete.
