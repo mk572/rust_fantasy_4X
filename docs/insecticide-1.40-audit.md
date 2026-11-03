@@ -86,221 +86,261 @@ Relevant code: [battle/ai.rs](../crates/f4x-core/src/battle/ai.rs), [f4x-ai/view
 
 The audit is deliberately conservative: “addressed” means the inspected code has a matching invariant or architecture, not that every edge case in the original game has been exhaustively tested.
 
-## Full Insecticide 1.40 release-note assessment table
-
-The table below consolidates the 194 numbered assessments made in the conversation. “Investigate” means the release note identifies a behavior worth checking; it does not assert that the rewrite currently has the bug. “Divergence” means the rewrite has an explicit alternative rule or the patch change is a balance/design choice.
-
 
 ## Full Insecticide 1.40 release-note assessment table
 
-The table below consolidates the 194 numbered assessments made in the conversation. “Investigate” means the release note identifies a behavior worth checking; it does not assert that the rewrite currently has the bug. “Divergence” means the rewrite has an explicit alternative rule. “Resolved” is reserved for issues checked directly against the current code in the targeted audit above. “Superseded” marks patch changes later fixed, reversed or replaced.
+The table below consolidates the 194 release-note assessments, now sorted by their actual patch issue identifiers. The former conversation-order numbers have been removed. Rows with multiple references remain grouped and are sorted by the lowest IW number in that group; IM and other non-IW references follow the IW entries.
+
+“Investigate” means the release note identifies a behavior worth checking; it does not assert that the rewrite currently has the bug. “Resolved” means the inspected implementation has a matching rule or architecture. “Partial” means some of the reported behavior is present but a material part remains unverified or incomplete. “Divergence” marks an intentional alternative rule. “Superseded” marks a patch change later fixed, reversed or replaced.
 
 **Priority scale:** P1 = critical correctness, crash, memory-safety or deterministic-state risk; P2 = high-impact rules, combat, AI or movement behavior; P3 = normal gameplay, economy, balance or design follow-up; P4 = UI, presentation or convenience work. Priorities are suggested investigation order, not claims that the rewrite currently contains the original bug.
 
-### Items 1–100
+### First 100 issue entries
 
-| # | Patch reference | Change / issue | Assessment | Priority | Status |
-|---:|---|---|---|:---:|---|
-| 1 | IW017 | Wind Walking stack movement accounting | Investigate mixed movement allowances and which unit determines the stack's moves. | P3 | Investigate |
-| 2 | IW030 | Archmage Spell Casting Skill display | Likely avoided structurally; verify the displayed value uses the same calculation as casting. | P4 | Investigate |
-| 3 | IW041 | Treasure item value limits | Investigate treasure generation separately from item filtering; the rewrite may intentionally use different bounds. | P3 | Investigate |
-| 4 | IW045 | Invisibility target eligibility and detection | Verify melee, ranged and spell targeting all use the same visibility rule, including Illusions Immunity. | P2 | Resolved |
-| 5 | IW048 | Human armies entering battle while moving | Investigate whether movement is interrupted cleanly when a battle begins. | P3 | Investigate |
-| 6 | IW051 | Fortress defender casting with values above 16,383 | Investigate integer widths in defender casting statistics and budgets. | P2 | Investigate |
-| 7 | IW051 | Strategic-combat healing, enhancement and direct damage in all phases | Investigate whether every spell effect is applied in every auto-resolve phase. | P2 | Investigate |
-| 8 | IW051 | Strategic-combat mana over-spend | Investigate that the mana budget cannot be exceeded by spell selection or simultaneous effects. | P2 | Investigate |
-| 9 | IW052 | Multiple realm bonuses in strategic combat | Investigate whether multiple applicable realm bonuses aggregate rather than overwrite one another. | P3 | Investigate |
-| 10 | IW054 | AI Possession targeting Heroes | Investigate target filtering for Heroes and other special unit classes. | P3 | Investigate |
-| 11 | IW056 | Counter Magic strength loss | Verify the reserve is tested at its pre-drain strength and loses the intended amount per attempt. | P2 | Resolved |
-| 12 | IW056 | Counter Magic removes unrelated enchantments | Verify the dispel only removes the spell or enchantments actually targeted and eligible. | P2 | Resolved |
-| 13 | IW061 | Dispel Evil target restriction | Investigate that target validation restricts Dispel Evil to the intended creature realms. | P2 | Investigate |
-| 14 | IW062 | Life Drain versus Death Immunity | Investigate that Death Immunity blocks Life Drain in every applicable attack path. | P2 | Investigate |
-| 15 | IW063 | AI Healing Spell ability use | Investigate whether the AI recognizes and uses healing abilities when they are useful. | P3 | Investigate |
-| 16 | IW066, IW091 | AI ranged strength estimates | Investigate whether ranged attacks are included consistently in friendly and enemy strength estimates. | P3 | Investigate |
-| 17 | IW068 | AI ranged attacks against Invisible units with Illusions Immunity | Investigate visibility and target selection for ranged attacks against invisible targets. | P3 | Investigate |
-| 18 | IW073 | Demon Skin Defense bonus applied twice | Investigate whether modifiers are applied once across all stat aggregation paths. | P2 | Investigate |
-| 19 | IW074 | Hero spell indices above 127 | Likely avoided by typed IDs; verify no byte-sized spell index remains in Hero spell handling. | P3 | Investigate |
-| 20 | IW078 | Chaos Channels unit classification for overland spells and Call Chaos | Investigate eligibility and classification for units already changed or unsuitable for mutation. | P2 | Investigate |
-| 21 | IW079 | Cause Fear target | Investigate target selection and the actual effect on the intended target. | P3 | Investigate |
-| 22 | IW080, IW085 | Thrown and Breath attacks respect ranged To Hit modifiers | Investigate whether thrown and breath attacks share the appropriate accuracy modifiers. | P2 | Investigate |
-| 23 | IW081 | Block bonus erroneously reduces enemy To Hit | Investigate that defensive block bonuses do not leak into the attacker's To Hit calculation. | P2 | Investigate |
-| 24 | IW084 | Siege automatic +3 Defense in strategic combat | Investigate whether the extra Defense is intentional and consistently represented. | P3 | Investigate |
-| 25 | IW088 | Regenerating moves recalled units back | Investigate recall position and whether regeneration incorrectly changes unit placement. | P3 | Investigate |
-| 26 | IW093 | Units without Endurance gain extra combat movement | Investigate movement restoration and whether units receive only their proper allowance. | P3 | Investigate |
-| 27 | IW089 | Defenders lose strategic movement after combat | Investigate movement reset after battle for units that defended. | P3 | Investigate |
-| 28 | IW098 | Charismatic Retort applied before affordability | Investigate whether discounts are applied before or after the affordability check. | P3 | Investigate |
-| 29 | IW103 | Combat dispels the target's intended spell rather than the caster's own | Investigate ownership resolution when selecting a spell to dispel. | P2 | Investigate |
-| 30 | IW105 | Holy Arms prevents dispelling Holy Weapon | Investigate the distinction between a global protection and an individual unit enchantment. | P2 | Investigate |
-| 31 | IW108 | Animate Dead ownership | Investigate that raised units receive the correct owner. | P2 | Investigate |
-| 32 | IW112 | Call Lightning ignores Magic Immunity rather than Wraith Form | The rewrite documents a Wraith Form divergence; verify the implementation matches that deliberate rule. | P2 | Divergence |
-| 33 | IW128 | Armageddon and Great Wasting cancel town-building pacification | Investigate whether world events incorrectly remove a building's pacification effect. | P2 | UI |
-| 34 | IW131 | AI fortress defender spell values above 16,383 | Investigate integer widths in the AI's fortress-defender spell valuation. | P2 | Investigate |
-| 35 | IW135 | AI research progress | Investigate research allocation and whether progress is retained and advanced correctly. | P3 | Investigate |
-| 36 | IW144 | Barbarian Spearmen prevent AI Incarnation | Investigate spell eligibility and whether the AI rejects an otherwise valid summon. | P3 | Investigate |
-| 37 | IW146 | AI Heroism, Holy Armor and Black Channels on Fantastic Units | Investigate target filtering for Fantastic Units and other special unit classes. | P3 | Investigate |
-| 38 | IW149 | AI Trade Goods restriction above three Towns | Investigate production policy and whether the town-count threshold is desirable. | P3 | Investigate |
-| 39 | IW156 | AI movement cancellation when passing a rival city | Investigate pathfinding and diplomacy when a route passes through a rival's territory. | P2 | Investigate |
-| 40 | IM176 | Lo Pan receives an extra spellbook | Likely covered by explicit spellbook picks; verify the setup definition. | P3 | Investigate |
-| 41 | IM183 | Starting town on an Encounter Zone | Likely covered by map-generation exclusion rules; verify the starting-site validator. | P3 | Investigate |
-| 42 | IM197 | AI starting spell grants with Basilisk and Pathfinding for Life | Investigate starting-spell allocation and race/realm-specific grants. | P3 | Investigate |
-| 43 | IM197 | AI wizard with 11 [value omitted in pasted note] receives fewer spells | Investigate the allocation boundary; the pasted release note omitted the stat name. | P3 | Investigate |
-| 44 | IM200 | Alorra and Torin with Arcane Power | The rewrite deliberately restricts Arcane Power to Heroes with suitable magical ranged attacks; verify definitions. | P4 | Divergence |
-| 45 | ITEMDATA.LBX / ITEMMAKE.EXE | Item Spellbook requirements | The rewrite deliberately avoids the faulty per-power book-byte filtering; verify crafting requirements instead. | P4 | Divergence |
-| 46 | IW006 | Objective-based Town production | Investigate whether production choices follow the AI's objective and current needs. | P3 | Investigate |
-| 47 | IW040 | AI treasure item find | Investigate whether AI treasure rewards use the same generation and eligibility rules as human rewards. | P3 | Investigate |
-| 48 | IW042 | Wizard's Pact war declaration | Investigate diplomacy rules around declaring war on a wizard with a Pact. | P3 | Investigate |
-| 49 | IW048 | AI pathfinding across player units and hostile tiles | Investigate passability, diplomacy and target handling when routes cross occupied or hostile tiles. | P2 | Investigate |
-| 50 | IW049 | AI cannot flee on the first combat turn | Investigate whether the AI can retreat as soon as the battle rules permit it. | P3 | Investigate |
-| 51 | IW067 | AI no longer uses lines or group movement | Treat as a tactical-AI design choice; verify whether the rewrite's battle AI needs formations. | P3 | Design |
-| 52 | IW069 | Melee target prioritizes damaged enemies | Investigate consistency between melee and ranged target scoring. | P2 | Investigate |
-| 53 | IW075 | AI upkeep discount stacking | Investigate whether difficulty bonuses and other upkeep modifiers stack correctly. | P3 | Investigate |
-| 54 | IW087 | Damaged reachable melee targets prioritized, sleeping targets not | Investigate whether target scoring accounts for damage and incapacitated targets sensibly. | P3 | Investigate |
-| 55 | IW092 | Army strength threshold raised from 66% to 75% | Balance choice; do not copy the threshold without testing the rewrite's combat model. | P3 | Design |
-| 56 | IW095 | AI less likely to raze a city captured from another AI | Investigate whether previous ownership should influence razing decisions. | P3 | Investigate |
-| 57 | IW096 | AI razes more when enemy forces are nearby | Investigate whether razing depends on the city's actual defensibility. | P3 | Investigate |
-| 58 | IW099 | AI refuses lower-ID Heroes to preserve Hero slots | Investigate recruitment policy; avoid using numeric ID as a proxy for Hero quality. | P4 | UI |
-| 59 | IW101 | Spell trade priority uses realm index and desirability | Investigate explicit, data-driven spell trade valuation rather than realm ordering. | P3 | Investigate |
-| 60 | IW115 | Combat spell choice depends on winning or losing | Investigate context-aware tactical spell scoring. | P2 | Investigate |
-| 61 | IW116, IW124 | AI prioritizes dispelling Call Lightning and Wrack | Investigate whether the AI recognizes dangerous active battlefield effects. | P2 | Investigate |
-| 62 | IW120 | Various combat spell preferences | Investigate spell-specific tactical desirability, target resistance and matchup. | P2 | Investigate |
-| 63 | IW123 | Mana Leak turn and wall conditions | Investigate turn-dependent behavior and siege context for Mana Leak. | P3 | Investigate |
-| 64 | IW125, IW130 | Less Immolation threat and protection-spell use | Investigate defensive spell valuation and threat estimation. | P3 | Investigate |
-| 65 | IW129 | Mercenary hiring timing, budget and type | Investigate recruitment timing and whether the AI can afford the right mercenaries. | P4 | UI |
-| 66 | IW137 | AI uses Alchemy before mana is exhausted and values Mana | Investigate resource conversion and reserve planning. | P3 | Investigate |
-| 67 | IW139, IW151, IW153 | Settler priorities and reserve | Investigate expansion priorities, settler availability and whether reserves are maintained. | P3 | Investigate |
-| 68 | IW139, IW151, IW153 | Engineer priorities and reserve | Investigate engineer recruitment and infrastructure needs separately from settlers. | P4 | UI |
-| 69 | IW140 | Invalidate saved path when adjacent enemies appear | Investigate whether new threats should cause the AI to reconsider a stored route. | P2 | Investigate |
-| 70 | IW141, IW143 | Research priorities | Investigate explicit AI research desirability rather than relying on incidental ordering. | P3 | Investigate |
-| 71 | IW142 | Mana target for expensive overland spells | Investigate resource planning for spells that require a large reserve. | P4 | UI |
-| 72 | IW144 | Summon selection uses creature preference rather than exponential casting cost | Strong candidate for data-driven per-creature AI weights. | P2 | Investigate |
-| 73 | IW144 | AI will not Summon Hero with four or more Heroes | Investigate Hero roster caps and recruitment eligibility. | P4 | Investigate |
-| 74 | IW145 | AI cancels only Suppress Magic and Time Stop when out of Mana | Investigate upkeep maintenance and which global spells should be cancelled first. | P3 | Investigate |
-| 75 | IW146 | AI prioritizes unit enchantments on Heroes, with exceptions for travel spells on Settlers | Investigate spell-specific target suitability. | P2 | Investigate |
-| 76 | IW146 | AI prefers Fantastic Units and appropriate ranged units for enchantments | Investigate target suitability and whether the AI understands what each enchantment improves. | P2 | Investigate |
-| 77 | IW147 | AI moves the Summoning Circle more often | Investigate Summoning Circle placement and strategic relocation. | P3 | Investigate |
-| 78 | IW148 | AI buys production only after progress has been made | Investigate purchase timing and whether immediate buying is ever preferable. | P3 | Investigate |
-| 79 | IW150 | AI uses Trade Goods less unless it has at least 24 cities | Balance and economy design choice; test rather than copying the threshold. | P3 | Design |
-| 80 | IW150, IW152 | Reduced enforcement of home-continent unit production | Investigate whether production should be tied to strategic geography. | P3 | Investigate |
-| 81 | IW152, IW153 | Smithy before Builders' Hall; Granary before Shrine | Investigate contextual building priorities and their prerequisites. | P4 | UI |
-| 82 | IW155 | AI buys production less often, especially in larger cities | Investigate purchase valuation by city size and production progress. | P3 | Investigate |
-| 83 | IW158 | Minerals matter more when settling | Investigate mineral value in city-site evaluation. | P2 | Investigate |
-| 84 | IW162 | AI abandons small-map continents if it cannot attack | Investigate expansion and attack feasibility on isolated landmasses. | P2 | Investigate |
-| 85 | IW164 | AI does not disband units if it can afford 32 turns of upkeep | Investigate whether disbanding uses a sensible financial runway. | P3 | Investigate |
-| 86 | IW167 | AI receives no building-upkeep discount | Prefer player/AI parity unless a difficulty setting explicitly says otherwise. | P4 | UI |
-| 87 | IM177 | AI starting spell picks | Investigate data-driven defaults and whether AI spell picks use the same rules as human picks. | P3 | Investigate |
-| 88 | IM185 | AI race choices on high difficulty; later reversed | Design choice; check race restrictions and avoid reproducing a change the Community Patch later reversed. | P3 | Design |
-| 89 | IM198 | Retorts affect AI Personality and Objective | Investigate configurable wizard-trait effects on AI strategy. | P2 | Investigate |
-| 90 | IW001, IW007 | To Hit and To Defend UI | Investigate whether the UI distinguishes stats from abilities and modifiers. | P4 | UI |
-| 91 | IW002 | Rampaging monster budget change, later reversed | Balance investigation; do not assume the temporary patch change is desirable. | P3 | Design |
-| 92 | IW003 | Trireme and Galley transport capacity set to eight | Investigate whether ship capacity is configurable in content. | P3 | Investigate |
-| 93 | IW009 | Rename Strategic Combat Only to Automatic Combat | UI terminology choice; ensure the label describes what the option actually does. | P4 | Design |
-| 94 | IW010 | Remove End of Turn Wait | UI/interaction design choice; not necessarily a rules issue. | P4 | Design |
-| 95 | IW010 | Remove Auto Unit Information | Investigate whether the option is useful and how it maps to the rewrite's UI. | P4 | UI |
-| 96 | IW010, IW011 | Add Revolting Raiders option | Investigate whether the optional game mode is worth supporting. | P3 | Design |
-| 97 | IW010, IW011 | Add Monsters Gone Wild option | Investigate whether the optional game mode is worth supporting. | P3 | Design |
-| 98 | IW010 | Rampaging Monsters begins on turn 40 | Balance and timing choice; test against the rewrite's game pace. | P3 | Design |
-| 99 | IW013 | Encounter dialog supports four or more guardians | UI edge case; verify long guardian lists do not overflow. | P4 | UI |
-| 100 | IW014 | Patrol hotkey L | UI convenience feature. | P4 | Design |
+| Patch reference | Change / issue | Assessment | Priority | Status |
+|---|---|---|:---:|---|
+| IW001, IW007 | To Hit and To Defend UI | Investigate whether the UI distinguishes stats from abilities and modifiers. | P4 | UI |
+| IW002 | Rampaging monster budget change, later reversed | Balance investigation; do not assume the temporary patch change is desirable. | P3 | Design |
+| IW003 | Trireme and Galley transport capacity set to eight | Investigate whether ship capacity is configurable in content. | P3 | Investigate |
+| IW004 | Floating Island loses Death Immunity and gains standard unit flag/race; later fixed | Investigate unit flags and immunities; the patch's intermediate fix was itself defective. | P2 | Superseded |
+| IW005 and related | Extreme difficulty added and Intro removed without adjusting many mechanics | Investigate whether difficulty rules form a coherent set rather than a label-only mode. | P4 | Investigate |
+| IW006 | Objective-based Town production | Investigate whether production choices follow the AI's objective and current needs. | P3 | Investigate |
+| IW008 | Endurance Item Power description fails to identify the actual spell | Investigate descriptions and whether item powers point to their actual effect definitions. | P3 | Investigate |
+| IW009 | Rename Strategic Combat Only to Automatic Combat | UI terminology choice; ensure the label describes what the option actually does. | P4 | Design |
+| IW010 | Remove End of Turn Wait | UI/interaction design choice; not necessarily a rules issue. | P4 | Design |
+| IW010 | Remove Auto Unit Information | Investigate whether the option is useful and how it maps to the rewrite's UI. | P4 | UI |
+| IW010 | Rampaging Monsters begins on turn 40 | Balance and timing choice; test against the rewrite's game pace. | P3 | Design |
+| IW010, IW011 | Add Revolting Raiders option | Investigate whether the optional game mode is worth supporting. | P3 | Design |
+| IW010, IW011 | Add Monsters Gone Wild option | Investigate whether the optional game mode is worth supporting. | P3 | Design |
+| IW013 | Encounter dialog supports four or more guardians | UI edge case; verify long guardian lists do not overflow. | P4 | UI |
+| IW014 | Patrol hotkey L | UI convenience feature. | P4 | Design |
+| IW015 | Nature Awareness auto-casts Detect Magic; later fixed | Investigate unintended coupling between unrelated spell effects. | P3 | Investigate |
+| IW016 | Tower of Wizardry tile auto-selection is plane-aware | Investigate map selection and plane context. | P3 | Investigate |
+| IW017 | Wind Walking stack movement accounting | Investigate mixed movement allowances and which unit determines the stack's moves. | P3 | Investigate |
+| IW018 | Overland income display inaccurate before movement; recalculation causes late-game lag | Investigate caching and calculation consistency between displayed and actual income. | P2 | Investigate |
+| IW019, IW020 | City cycling with X | UI navigation feature. | P4 | UI |
+| IW024 | Cities overview with T | UI navigation feature. | P4 | UI |
+| IW029 | Wraithform item power only works if it is the last Hero in a stack and affects the whole stack; later fixed | Investigate per-unit equipment effects versus stack-wide effects. | P2 | Investigate |
+| IW030 | Archmage Spell Casting Skill display | Likely avoided structurally; verify the displayed value uses the same calculation as casting. | P4 | Investigate |
+| IW040 | AI treasure item find | Investigate whether AI treasure rewards use the same generation and eligibility rules as human rewards. | P3 | Investigate |
+| IW041 | Treasure item value limits | Investigate treasure generation separately from item filtering; the rewrite may intentionally use different bounds. | P3 | Investigate |
+| IW041 | Loot encounter reseeds RNG to a static AI turn seed, repeating outcomes; fixed in 1.51 | Critical RNG ownership issue; gameplay systems must not reset a shared stream to a fixed seed. | P1 | Investigate |
+| IW042 | Wizard's Pact war declaration | Investigate diplomacy rules around declaring war on a wizard with a Pact. | P3 | Investigate |
+| IW043 | Diplomacy against an overwhelmingly strong invader is backwards; later replaced | Investigate relative military-strength comparison and diplomacy direction. | P3 | Investigate |
+| IW043 | AI war declaration against a stronger home-continent rival is backwards; later replaced | Investigate war-declaration strength comparison and home-continent context. | P3 | Investigate |
+| IW043 | Diplomacy crashes if AI has no home-continent units | Handle the zero-unit case explicitly. | P1 | Investigate |
+| IW044 | Dispel Confusion does not always restore original owner | Preserve original ownership in the temporary control state. | P2 | Investigate |
+| IW045 | Invisibility target eligibility and detection | Verify melee, ranged and spell targeting all use the same visibility rule, including Illusions Immunity. | P2 | Resolved |
+| IW047 | Engineer road-building fix has no effect | Verify the actual road-building calculation rather than assuming the patch changed it. | P4 | Investigate |
+| IW048 | Human armies entering battle while moving | Investigate whether movement is interrupted cleanly when a battle begins. | P3 | Investigate |
+| IW048 | AI pathfinding across player units and hostile tiles | Investigate passability, diplomacy and target handling when routes cross occupied or hostile tiles. | P2 | Investigate |
+| IW049 | AI cannot flee on the first combat turn | Investigate whether the AI can retreat as soon as the battle rules permit it. | P3 | Investigate |
+| IW050 | Strategic-combat units with Defense at or below 50 all receive the same damage chance | The rewrite's auto-resolve uses ordinary battle resolution; verify no simplified Defense cap is introduced. | P2 | Resolved |
+| IW051 | Fortress defender casting with values above 16,383 | Investigate integer widths in defender casting statistics and budgets. | P2 | Investigate |
+| IW051 | Strategic-combat healing, enhancement and direct damage in all phases | Investigate whether every spell effect is applied in every auto-resolve phase. | P2 | Resolved |
+| IW051 | Strategic-combat mana over-spend | Investigate that the mana budget cannot be exceeded by spell selection or simultaneous effects. | P2 | Resolved |
+| IW052 | Multiple realm bonuses in strategic combat | Investigate whether multiple applicable realm bonuses aggregate rather than overwrite one another. | P3 | Investigate |
+| IW052 | Strategic-combat direct damage scaled by one half and enhancement by one third | Investigate explicit scaling; auto-resolve should use the same rules as tactical combat where possible. | P2 | Resolved |
+| IW053 | Effective HP in strategic combat and AI | Investigate whether health and durability estimates agree with actual battle resolution. | P2 | Partial |
+| IW054 | AI Possession targeting Heroes | Investigate target filtering for Heroes and other special unit classes. | P3 | Investigate |
+| IW055 | Runemaster dispel modifier additive instead of multiplicative, only in combat; removed in 1.50 | Investigate consistency of dispel modifiers across contexts; do not copy a reverted change. | P3 | Investigate |
+| IW056 | Counter Magic strength loss | Verify the reserve is tested at its pre-drain strength and loses the intended amount per attempt. | P2 | Resolved |
+| IW056 | Counter Magic removes unrelated enchantments | Verify the dispel only removes the spell or enchantments actually targeted and eligible. | P2 | Resolved |
+| IW057 | Spell Save modifiers apply to Life Drain, Death Spell and Holy Word | Investigate shared resistance/save resolution for these spells. | P2 | Resolved |
+| IW058, IW121 | AI ignores Haste when choosing what to dispel | Investigate whether the AI recognizes Haste as a high-value target enchantment. | P3 | Investigate |
+| IW059 | Vortex cap reduced to four despite original limit of ten | Investigate summon caps and whether the reduced limit is intentional. | P3 | Investigate |
+| IW060 | Real-Time Game Tweaker can alter Resistance penalty for spells whose original penalty is zero | Treat zero as a valid default, not “not configurable”; distinguish an omitted value from an explicit zero override. | P4 | UI |
+| IW061 | Dispel Evil target restriction | Investigate that target validation restricts Dispel Evil to the intended creature realms. | P2 | Resolved |
+| IW062 | Life Drain versus Death Immunity | Investigate that Death Immunity blocks Life Drain in every applicable attack path. | P2 | Resolved |
+| IW063 | AI Healing Spell ability use | Investigate whether the AI recognizes and uses healing abilities when they are useful. | P3 | Investigate |
+| IW063 | AI Doom Bolt animation misaligned | UI/animation issue; ensure spell effects and animation targets agree. | P4 | Investigate |
+| IW064 | Hero items transfer to the victor after strategic combat | Investigate post-battle ownership and item transfer. | P2 | Investigate |
+| IW065, IW067 | AI melee line advance disabled because another change removes lines | The changes interact; evaluate tactical behavior as a whole rather than individually. | P3 | Investigate |
+| IW066, IW091 | AI ranged strength estimates | Investigate whether ranged attacks are included consistently in friendly and enemy strength estimates. | P3 | Investigate |
+| IW067 | AI no longer uses lines or group movement | Treat as a tactical-AI design choice; verify whether the rewrite's battle AI needs formations. | P3 | Design |
+| IW068 | AI ranged attacks against Invisible units with Illusions Immunity | Investigate visibility and target selection for ranged attacks against invisible targets. | P3 | Investigate |
+| IW069 | Melee target prioritizes damaged enemies | Investigate consistency between melee and ranged target scoring. | P2 | Resolved |
+| IW070 | Right-arrow hotkey in item creation | UI convenience feature. | P4 | Design |
+| IW070 | Space exits crafting screen and right-arrow exit removed; later reversed | UI design choice; avoid adopting an intermediate hotkey regression. | P4 | UI |
+| IW072 | Treasure/gift item no longer themed to recipient | Investigate whether recipient-themed rewards are a desired generation policy. | P3 | Investigate |
+| IW073 | Demon Skin Defense bonus applied twice | Investigate whether modifiers are applied once across all stat aggregation paths. | P2 | Resolved |
+| IW074 | Hero spell indices above 127 | Likely avoided by typed IDs; verify no byte-sized spell index remains in Hero spell handling. | P3 | Investigate |
+| IW075 | AI upkeep discount stacking | Investigate whether difficulty bonuses and other upkeep modifiers stack correctly. | P3 | Investigate |
+| IW076 | Conjurer maintenance fraction rounds up from 0.5 | The half-step numeric newtype can represent the value; verify the rounding rule. | P3 | Investigate |
+| IW077 | Wind Mastery ship movement differs by player and combat context | Investigate context and ownership consistency for global movement effects. | P3 | Investigate |
+| IW078 | Chaos Channels unit classification for overland spells and Call Chaos | Investigate eligibility and classification for units already changed or unsuitable for mutation. | P2 | Resolved |
+| IW079 | Cause Fear target | Investigate target selection and the actual effect on the intended target. | P3 | Investigate |
+| IW080, IW085 | Thrown and Breath attacks respect ranged To Hit modifiers | Investigate whether thrown and breath attacks share the appropriate accuracy modifiers. | P2 | Resolved |
+| IW081 | Block bonus erroneously reduces enemy To Hit | Investigate that defensive block bonuses do not leak into the attacker's To Hit calculation. | P2 | Investigate |
+| IW082 | Units on central tile of a walled Town gain +3 Defense | Investigate tile-specific defensive bonuses. | P3 | Investigate |
+| IW083 | Weapon Immunity no longer overrides Missile Immunity but Defense set to 50 instead of 10 for non-melee; fixed in 1.51 | Investigate immunity precedence; avoid numeric fallback values as substitutes for correct immunity logic. | P2 | Resolved |
+| IW084 | Siege automatic +3 Defense in strategic combat | Investigate whether the extra Defense is intentional and consistently represented. | P3 | Investigate |
+| IW084 | Siege gains +2 with City Walls or Wall of Fire | Investigate the siege bonus and its stacking rules. | P2 | Investigate |
+| IW086 | AI melee targets exactly reachable are deemed unreachable; later fixed | Investigate movement-range boundary conditions. | P3 | Investigate |
+| IW087 | Damaged reachable melee targets prioritized, sleeping targets not | Investigate whether target scoring accounts for damage and incapacitated targets sensibly. | P3 | Investigate |
+| IW088 | Regenerating moves recalled units back | Investigate recall position and whether regeneration incorrectly changes unit placement. | P3 | Investigate |
+| IW089 | Defenders lose strategic movement after combat | Investigate movement reset after battle for units that defended. | P3 | Investigate |
+| IW090 | Chaos Channeled units gain experience | Investigate mutation and progression classification. | P3 | Investigate |
+| IW092 | Army strength threshold raised from 66% to 75% | Balance choice; do not copy the threshold without testing the rewrite's combat model. | P3 | Design |
+| IW093 | Units without Endurance gain extra combat movement | Investigate movement restoration and whether units receive only their proper allowance. | P3 | Investigate |
+| IW094 | Lawful AI avoids razing positive relations but still razes at zero; later fixed | Investigate threshold comparisons and neutral-relation behavior. | P3 | Investigate |
+| IW095 | AI less likely to raze a city captured from another AI | Investigate whether previous ownership should influence razing decisions. | P3 | Investigate |
+| IW096 | AI razes more when enemy forces are nearby | Investigate whether razing depends on the city's actual defensibility. | P3 | Investigate |
+| IW097, IM179 | Overland Spell Events disabled by default but setting has no effect | Verify the setting is wired through to the event system. | P3 | Investigate |
+| IW098 | Charismatic Retort applied before affordability | Investigate whether discounts are applied before or after the affordability check. | P3 | Investigate |
+| IW099 | AI refuses lower-ID Heroes to preserve Hero slots | Investigate recruitment policy; avoid using numeric ID as a proxy for Hero quality. | P4 | UI |
+| IW099 | Fame contribution cap changes | Investigate recruitment affordability and Retort cap interactions. | P4 | UI |
+| IW100 | At most three Arcane spells in the research pool | Investigate research-pool composition and whether the cap is configurable. | P3 | Investigate |
+| IW101 | Spell trade priority uses realm index and desirability | Investigate explicit, data-driven spell trade valuation rather than realm ordering. | P3 | Investigate |
+| IW102 | Chaos Channels does not grant Chaos Breath to low-strength Thrown units | Investigate eligibility; do not grant a breath attack where the underlying unit cannot support it. | P2 | Resolved |
+| IW103 | Combat dispels the target's intended spell rather than the caster's own | Investigate ownership resolution when selecting a spell to dispel. | P2 | Investigate |
+| IW104 | Spell Lock combat-cast dispel protection fix failed | Investigate Spell Lock protection in battle casting and dispel paths. | P2 | Partial |
+| IW105 | Holy Arms prevents dispelling Holy Weapon | Investigate the distinction between a global protection and an individual unit enchantment. | P2 | Investigate |
+| IW105 | Invulnerability remains protected from dispelling in combat | The rewrite documents a deliberate divergence allowing combat dispel; keep the divergence explicit and tested. | P2 | Divergence |
+| IW105 | Possession can be dispelled by its caster to retain control | Investigate ownership semantics and whether dispelling should restore or retain control. | P2 | Investigate |
+| IW106 | Merging units are immune to Cracks Call | Investigate target state and immunity during merging. | P2 | Investigate |
 
-### Items 101–194
+### Remaining 94 issue entries
 
-| # | Patch reference | Change / issue | Assessment | Priority | Status |
-|---:|---|---|---|:---:|---|
-| 101 | IW016 | Tower of Wizardry tile auto-selection is plane-aware | Investigate map selection and plane context. | P3 | Investigate |
-| 102 | IW019, IW020 | City cycling with X | UI navigation feature. | P4 | UI |
-| 103 | IW024 | Cities overview with T | UI navigation feature. | P4 | UI |
-| 104 | IW052 | Strategic-combat direct damage scaled by one half and enhancement by one third | Investigate explicit scaling; auto-resolve should use the same rules as tactical combat where possible. | P2 | Investigate |
-| 105 | IW053 | Effective HP in strategic combat and AI | Investigate whether health and durability estimates agree with actual battle resolution. | P2 | Investigate |
-| 106 | IW057 | Spell Save modifiers apply to Life Drain, Death Spell and Holy Word | Investigate shared resistance/save resolution for these spells. | P2 | Investigate |
-| 107 | IW064 | Hero items transfer to the victor after strategic combat | Investigate post-battle ownership and item transfer. | P2 | Investigate |
-| 108 | IW070 | Right-arrow hotkey in item creation | UI convenience feature. | P4 | Design |
-| 109 | IW072 | Treasure/gift item no longer themed to recipient | Investigate whether recipient-themed rewards are a desired generation policy. | P3 | Investigate |
-| 110 | IW076 | Conjurer maintenance fraction rounds up from 0.5 | The half-step numeric newtype can represent the value; verify the rounding rule. | P3 | Investigate |
-| 111 | IW082 | Units on central tile of a walled Town gain +3 Defense | Investigate tile-specific defensive bonuses. | P3 | Investigate |
-| 112 | IW084 | Siege gains +2 with City Walls or Wall of Fire | Investigate the siege bonus and its stacking rules. | P2 | Investigate |
-| 113 | IW090 | Chaos Channeled units gain experience | Investigate mutation and progression classification. | P3 | Investigate |
-| 114 | IW100 | At most three Arcane spells in the research pool | Investigate research-pool composition and whether the cap is configurable. | P3 | Investigate |
-| 115 | IW102 | Chaos Channels does not grant Chaos Breath to low-strength Thrown units | Investigate eligibility; do not grant a breath attack where the underlying unit cannot support it. | P2 | Investigate |
-| 116 | IW106 | Merging units are immune to Cracks Call | Investigate target state and immunity during merging. | P2 | Investigate |
-| 117 | IW114 | Suppress Magic no longer counters Spell of Return | Investigate spell-specific dispel immunity and context. | P2 | Investigate |
-| 118 | IW133 | Hide population growth at 8,000 or more; later reversed in 1.50 | UI behavior; avoid copying a temporary display change without checking the later reversal. | P4 | Design |
-| 119 | IW134 | Merchant offer threshold is twice item value; AI gets offers and always buys at half price | Investigate merchant economy and distinguish human and AI offer rules. | P4 | Investigate |
-| 120 | IW154 | Neutral cities prefer Builders' Hall and Granary | Investigate neutral-city production priorities. | P4 | UI |
-| 121 | IW165 | Arrow keys flip Apprentice spellbook pages | UI navigation feature. | P4 | UI |
-| 122 | IW173 | Space quits Save/Load screen | UI hotkey choice. | P4 | Design |
-| 123 | IM178, IM180, IM186 | Huge land size | Investigate map scalability and configurable world size. | P3 | Investigate |
-| 124 | IM178 | Magic settings renamed for clarity | UI clarity and naming. | P4 | Design |
-| 125 | IM178 | Add higher magic settings, later removed | Design choice; do not treat a reverted option as a requirement. | P4 | Design |
-| 126 | IM187 | Encounter budgets increased, later reversed | Balance choice; investigate the desired difficulty curve rather than copying the temporary change. | P3 | Design |
-| 127 | IM188 | Colored lair Chaos monsters at 50%; broken implementation replaced by actual fix | Investigate correct weighted realm composition; the note describes intended 40% Death, 40% Chaos and 20% Nature. | P2 | Investigate |
-| 128 | IM189 | Secondary monster divisor maximum decreased | Investigate random ranges and encounter balance. | P3 | Investigate |
-| 129 | IM192 | Neutral towns receive one additional close-combat unit | Investigate neutral garrison composition. | P3 | Investigate |
-| 130 | IM193 | Neutral cities start with Granary at size six and Stables at size seven | Investigate neutral-city starting buildings and population thresholds. | P4 | UI |
-| 131 | IM195 | Spell of Mastery research discount for 11 same-realm books changed substantially, later reversed | Balance investigation; do not reproduce a reverted economic change by default. | P3 | Design |
-| 132 | IW004 | Floating Island loses Death Immunity and gains standard unit flag/race; later fixed | Investigate unit flags and immunities; the patch's intermediate fix was itself defective. | P2 | Investigate |
-| 133 | IW005 and related | Extreme difficulty added and Intro removed without adjusting many mechanics | Investigate whether difficulty rules form a coherent set rather than a label-only mode. | P4 | Investigate |
-| 134 | IW008 | Endurance Item Power description fails to identify the actual spell | Investigate descriptions and whether item powers point to their actual effect definitions. | P3 | Investigate |
-| 135 | IW015 | Nature Awareness auto-casts Detect Magic; later fixed | Investigate unintended coupling between unrelated spell effects. | P3 | Investigate |
-| 136 | IW018 | Overland income display inaccurate before movement; recalculation causes late-game lag | Investigate caching and calculation consistency between displayed and actual income. | P2 | Investigate |
-| 137 | IW029 | Wraithform item power only works if it is the last Hero in a stack and affects the whole stack; later fixed | Investigate per-unit equipment effects versus stack-wide effects. | P2 | UI |
-| 138 | IW041 | Loot encounter reseeds RNG to a static AI turn seed, repeating outcomes; fixed in 1.51 | Critical RNG ownership issue; gameplay systems must not reset a shared stream to a fixed seed. | P1 | Investigate |
-| 139 | IW043 | Diplomacy against an overwhelmingly strong invader is backwards; later replaced | Investigate relative military-strength comparison and diplomacy direction. | P3 | Investigate |
-| 140 | IW043 | AI war declaration against a stronger home-continent rival is backwards; later replaced | Investigate war-declaration strength comparison and home-continent context. | P3 | Investigate |
-| 141 | IW043 | Diplomacy crashes if AI has no home-continent units | Handle the zero-unit case explicitly. | P1 | Investigate |
-| 142 | IW044 | Dispel Confusion does not always restore original owner | Preserve original ownership in the temporary control state. | P2 | Investigate |
-| 143 | IW047 | Engineer road-building fix has no effect | Verify the actual road-building calculation rather than assuming the patch changed it. | P4 | Investigate |
-| 144 | IW050 | Strategic-combat units with Defense at or below 50 all receive the same damage chance | The rewrite's auto-resolve uses ordinary battle resolution; verify no simplified Defense cap is introduced. | P2 | Resolved |
-| 145 | IW055 | Runemaster dispel modifier additive instead of multiplicative, only in combat; removed in 1.50 | Investigate consistency of dispel modifiers across contexts; do not copy a reverted change. | P3 | Investigate |
-| 146 | IW058, IW121 | AI ignores Haste when choosing what to dispel | Investigate whether the AI recognizes Haste as a high-value target enchantment. | P3 | Investigate |
-| 147 | IW059 | Vortex cap reduced to four despite original limit of ten | Investigate summon caps and whether the reduced limit is intentional. | P3 | Investigate |
-| 148 | IW063 | AI Doom Bolt animation misaligned | UI/animation issue; ensure spell effects and animation targets agree. | P4 | Investigate |
-| 149 | IW065, IW067 | AI melee line advance disabled because another change removes lines | The changes interact; evaluate tactical behavior as a whole rather than individually. | P3 | Investigate |
-| 150 | IW070 | Space exits crafting screen and right-arrow exit removed; later reversed | UI design choice; avoid adopting an intermediate hotkey regression. | P4 | UI |
-| 151 | IW077 | Wind Mastery ship movement differs by player and combat context | Investigate context and ownership consistency for global movement effects. | P3 | Investigate |
-| 152 | IW083 | Weapon Immunity no longer overrides Missile Immunity but Defense set to 50 instead of 10 for non-melee; fixed in 1.51 | Investigate immunity precedence; avoid numeric fallback values as substitutes for correct immunity logic. | P2 | Investigate |
-| 153 | IW086 | AI melee targets exactly reachable are deemed unreachable; later fixed | Investigate movement-range boundary conditions. | P3 | Investigate |
-| 154 | IW094 | Lawful AI avoids razing positive relations but still razes at zero; later fixed | Investigate threshold comparisons and neutral-relation behavior. | P3 | Investigate |
-| 155 | IW097, IM179 | Overland Spell Events disabled by default but setting has no effect | Verify the setting is wired through to the event system. | P3 | Investigate |
-| 156 | IW099 | Fame contribution cap changes | Investigate recruitment affordability and Retort cap interactions. | P4 | UI |
-| 157 | IW104 | Spell Lock combat-cast dispel protection fix failed | Investigate Spell Lock protection in battle casting and dispel paths. | P2 | Investigate |
-| 158 | IW105 | Invulnerability remains protected from dispelling in combat | The rewrite documents a deliberate divergence allowing combat dispel; keep the divergence explicit and tested. | P2 | Divergence |
-| 159 | IW105 | Possession can be dispelled by its caster to retain control | Investigate ownership semantics and whether dispelling should restore or retain control. | P2 | Investigate |
-| 160 | IW107 | Raise Dead and Animate Dead have unsafe state handling and interfere with sound-error reporting | Critical safety concern; use typed state changes and test resurrection paths. | P1 | Investigate |
-| 161 | IW109, IW110 | Summon Hero reseeds RNG to a static value | Critical RNG issue; use the game's owned random stream or a derived deterministic stream. | P1 | Investigate |
-| 162 | IW111 | Wrack damage fix introduces memory corruption | Critical safety concern; route spell damage through safe, shared damage machinery. | P1 | Investigate |
-| 163 | IW113, IW144 | AI Enchant Item and Create Artifact enabled technically but only after turn 180 and selected almost never | Investigate eligibility separately from desirability and scoring. | P2 | Investigate |
-| 164 | IW117 | AI spell-realm lookup fixed but resulting modifier remains zero | Verify end-to-end scoring, not just lookup success. | P3 | Investigate |
-| 165 | IW118 | Wall of Stone chance reduced in battle despite being a non-combat spell | Filter spell evaluation by valid casting context. | P3 | Investigate |
-| 166 | IW118 | Wall of Fire preference reduced in combat though AI cannot cast it | Keep spell eligibility separate from desirability. | P3 | Investigate |
-| 167 | IW119, IW120, IW121 | Spell category reclassification suppresses damage spells when AI is losing | Investigate category scoring and ensure losing-state logic does not suppress useful attacks. | P2 | Investigate |
-| 168 | IW120 | AI cannot cast listed damage, banish and possession spells when overwhelmingly disadvantaged | Investigate whether tactical spell eligibility is incorrectly tied to overall battle odds. | P2 | Investigate |
-| 169 | IW121 | AI cannot cast Dispel Magic if the human has Holy Arms | Investigate target/eligibility logic for dispelling global enchantments. | P2 | Investigate |
-| 170 | IW126 | AI randomly disbands two garrison units per city every 20 turns from turn 80 | Treat as a poor heuristic; evaluate actual upkeep need and strategic value before disbanding. | P2 | Investigate |
-| 171 | IW127 | Population above maximum cannot grow but also cannot lose population; later fixed | Investigate population bounds and recovery from over-cap states. | P2 | Investigate |
-| 172 | IW132 | Excess population growth fix fails; corrected in 1.50 | Investigate arithmetic and threshold boundaries for population growth. | P2 | Investigate |
-| 173 | IW135 | AI Power allocation for Spell of Mastery remains wrong | Investigate Power allocation and victory-spell planning. | P2 | Investigate |
-| 174 | IW135 | AI overallocates Power by 10% | Enforce resource-budget conservation and test allocation sums. | P1 | Investigate |
-| 175 | IW138 | AI tax rate cannot fall below 30% | Investigate valid tax range and whether the minimum is intended. | P3 | Investigate |
-| 176 | IW142 | AI ignores Mana reserves and income when planning Spell of Mastery | Investigate resource planning and reserve forecasting. | P2 | Investigate |
-| 177 | IW144 | AI values summoning spirits to Meld with Nodes more, but still below late-game summons | Investigate the strategic value of node control in summon desirability. | P3 | Investigate |
-| 178 | IW144 | AI uses different unit-enchantment priorities, not necessarily better | Investigate target suitability and whether enchantment value matches the unit's role. | P4 | Investigate |
-| 179 | IW145 | AI cancels Evil Omens immediately | Investigate global-enchantment maintenance and whether the AI understands its effects. | P3 | Investigate |
-| 180 | IW153 | AI cannot override Trade Goods or Housing with unit production | Investigate production override rules and queue priority. | P2 | Investigate |
-| 181 | IW153 | AI cannot produce Settlers below population four | Investigate population restrictions and settler eligibility. | P2 | Investigate |
-| 182 | IW153 | AI cannot produce more than three ships total | Investigate global ship caps and transport needs. | P2 | Investigate |
-| 183 | IW157 | AI keeps 33% fewer garrison units but still cannot build stacks due to other bugs | Investigate garrison and army assembly together; fixing one heuristic may expose another bottleneck. | P4 | UI |
-| 184 | IW158 | Settlers sometimes target a new colony despite nearby units, wasting 1–11 turns | Investigate target feasibility and route cost before assigning a settlement destination. | P2 | Investigate |
-| 185 | IW158 | Settler on Tower tile blocks gateway consideration for other Settlers | Investigate gateway traversal and shared destination occupancy. | P2 | Investigate |
-| 186 | IW159 | Single-tile lake inconsistently treated as river, invalid building/river mouth and valid Plane Shift for land AI | Investigate consistent terrain semantics across building, movement and spell eligibility. | P2 | Investigate |
-| 187 | IW160 | AI hostility to Spell of Mastery caster fix fails | Investigate victory-threat diplomacy and hostility transitions. | P2 | Investigate |
-| 188 | IW161 | AI loading transports only slightly better | Investigate the entire embarkation and disembarkation workflow. | P2 | Investigate |
-| 189 | IW163 | AI evaluates human garrisons four times weaker | The rewrite shares one strength formula across strategic and battle AI; investigate matchup accuracy, not a side-specific multiplier. | P2 | Resolved |
-| 190 | IW163 | AI attacks hostile cities without formal war | Investigate the distinction between hostility, war status and legal attack eligibility. | P2 | Investigate |
-| 191 | IM183 | Starting fortress maximum population raised from eight to eleven causes map-generation freezes; reversed in 1.50 | Investigate map-generation termination and starting-site constraints; the current generator has bounded retries. | P2 | Investigate |
-| 192 | IM184 | Narrower Y placement range combined with IM183 reduces spacing and increases map-generation failures | Investigate interacting placement constraints, not each parameter in isolation. | P2 | Investigate |
-| 193 | IM194 | Myrror city roads fixed but all Arcanus towns also receive roads; later fixed | Investigate plane-specific map initialization and terrain/road ownership. | P3 | Investigate |
-| 194 | IW060 | Real-Time Game Tweaker can alter Resistance penalty for spells whose original penalty is zero | Treat zero as a valid default, not “not configurable”; distinguish an omitted value from an explicit zero override. | P4 | UI |
+| Patch reference | Change / issue | Assessment | Priority | Status |
+|---|---|---|:---:|---|
+| IW107 | Raise Dead and Animate Dead have unsafe state handling and interfere with sound-error reporting | Critical safety concern; use typed state changes and test resurrection paths. | P1 | Investigate |
+| IW108 | Animate Dead ownership | Investigate that raised units receive the correct owner. | P2 | Investigate |
+| IW109, IW110 | Summon Hero reseeds RNG to a static value | Critical RNG issue; use the game's owned random stream or a derived deterministic stream. | P1 | Investigate |
+| IW111 | Wrack damage fix introduces memory corruption | Critical safety concern; route spell damage through safe, shared damage machinery. | P1 | Investigate |
+| IW112 | Call Lightning ignores Magic Immunity rather than Wraith Form | The rewrite documents a Wraith Form divergence; verify the implementation matches that deliberate rule. | P2 | Divergence |
+| IW113, IW144 | AI Enchant Item and Create Artifact enabled technically but only after turn 180 and selected almost never | Investigate eligibility separately from desirability and scoring. | P2 | Investigate |
+| IW114 | Suppress Magic no longer counters Spell of Return | Investigate spell-specific dispel immunity and context. | P2 | Investigate |
+| IW115 | Combat spell choice depends on winning or losing | Investigate context-aware tactical spell scoring. | P2 | Partial |
+| IW116, IW124 | AI prioritizes dispelling Call Lightning and Wrack | Investigate whether the AI recognizes dangerous active battlefield effects. | P2 | Investigate |
+| IW117 | AI spell-realm lookup fixed but resulting modifier remains zero | Verify end-to-end scoring, not just lookup success. | P3 | Investigate |
+| IW118 | Wall of Stone chance reduced in battle despite being a non-combat spell | Filter spell evaluation by valid casting context. | P3 | Investigate |
+| IW118 | Wall of Fire preference reduced in combat though AI cannot cast it | Keep spell eligibility separate from desirability. | P3 | Investigate |
+| IW119, IW120, IW121 | Spell category reclassification suppresses damage spells when AI is losing | Investigate category scoring and ensure losing-state logic does not suppress useful attacks. | P2 | Partial |
+| IW120 | Various combat spell preferences | Investigate spell-specific tactical desirability, target resistance and matchup. | P2 | Partial |
+| IW120 | AI cannot cast listed damage, banish and possession spells when overwhelmingly disadvantaged | Investigate whether tactical spell eligibility is incorrectly tied to overall battle odds. | P2 | Partial |
+| IW121 | AI cannot cast Dispel Magic if the human has Holy Arms | Investigate target/eligibility logic for dispelling global enchantments. | P2 | Investigate |
+| IW123 | Mana Leak turn and wall conditions | Investigate turn-dependent behavior and siege context for Mana Leak. | P3 | Investigate |
+| IW125, IW130 | Less Immolation threat and protection-spell use | Investigate defensive spell valuation and threat estimation. | P3 | Investigate |
+| IW126 | AI randomly disbands two garrison units per city every 20 turns from turn 80 | Treat as a poor heuristic; evaluate actual upkeep need and strategic value before disbanding. | P2 | Investigate |
+| IW127 | Population above maximum cannot grow but also cannot lose population; later fixed | Investigate population bounds and recovery from over-cap states. | P2 | Resolved |
+| IW128 | Armageddon and Great Wasting cancel town-building pacification | Investigate whether world events incorrectly remove a building's pacification effect. | P2 | Resolved |
+| IW129 | Mercenary hiring timing, budget and type | Investigate recruitment timing and whether the AI can afford the right mercenaries. | P4 | UI |
+| IW131 | AI fortress defender spell values above 16,383 | Investigate integer widths in the AI's fortress-defender spell valuation. | P2 | Investigate |
+| IW132 | Excess population growth fix fails; corrected in 1.50 | Investigate arithmetic and threshold boundaries for population growth. | P2 | Resolved |
+| IW133 | Hide population growth at 8,000 or more; later reversed in 1.50 | UI behavior; avoid copying a temporary display change without checking the later reversal. | P4 | Design |
+| IW134 | Merchant offer threshold is twice item value; AI gets offers and always buys at half price | Investigate merchant economy and distinguish human and AI offer rules. | P4 | Investigate |
+| IW135 | AI research progress | Investigate research allocation and whether progress is retained and advanced correctly. | P3 | Investigate |
+| IW135 | AI Power allocation for Spell of Mastery remains wrong | Investigate Power allocation and victory-spell planning. | P2 | Partial |
+| IW135 | AI overallocates Power by 10% | Enforce resource-budget conservation and test allocation sums. | P1 | Investigate |
+| IW137 | AI uses Alchemy before mana is exhausted and values Mana | Investigate resource conversion and reserve planning. | P3 | Investigate |
+| IW138 | AI tax rate cannot fall below 30% | Investigate valid tax range and whether the minimum is intended. | P3 | Investigate |
+| IW139, IW151, IW153 | Settler priorities and reserve | Investigate expansion priorities, settler availability and whether reserves are maintained. | P3 | Investigate |
+| IW139, IW151, IW153 | Engineer priorities and reserve | Investigate engineer recruitment and infrastructure needs separately from settlers. | P4 | UI |
+| IW140 | Invalidate saved path when adjacent enemies appear | Investigate whether new threats should cause the AI to reconsider a stored route. | P2 | Partial |
+| IW141, IW143 | Research priorities | Investigate explicit AI research desirability rather than relying on incidental ordering. | P3 | Investigate |
+| IW142 | Mana target for expensive overland spells | Investigate resource planning for spells that require a large reserve. | P4 | UI |
+| IW142 | AI ignores Mana reserves and income when planning Spell of Mastery | Investigate resource planning and reserve forecasting. | P2 | Partial |
+| IW144 | Barbarian Spearmen prevent AI Incarnation | Investigate spell eligibility and whether the AI rejects an otherwise valid summon. | P3 | Investigate |
+| IW144 | Summon selection uses creature preference rather than exponential casting cost | Strong candidate for data-driven per-creature AI weights. | P2 | Partial |
+| IW144 | AI will not Summon Hero with four or more Heroes | Investigate Hero roster caps and recruitment eligibility. | P4 | Investigate |
+| IW144 | AI values summoning spirits to Meld with Nodes more, but still below late-game summons | Investigate the strategic value of node control in summon desirability. | P3 | Investigate |
+| IW144 | AI uses different unit-enchantment priorities, not necessarily better | Investigate target suitability and whether enchantment value matches the unit's role. | P4 | Investigate |
+| IW145 | AI cancels only Suppress Magic and Time Stop when out of Mana | Investigate upkeep maintenance and which global spells should be cancelled first. | P3 | Investigate |
+| IW145 | AI cancels Evil Omens immediately | Investigate global-enchantment maintenance and whether the AI understands its effects. | P3 | Investigate |
+| IW146 | AI Heroism, Holy Armor and Black Channels on Fantastic Units | Investigate target filtering for Fantastic Units and other special unit classes. | P3 | Investigate |
+| IW146 | AI prioritizes unit enchantments on Heroes, with exceptions for travel spells on Settlers | Investigate spell-specific target suitability. | P2 | Partial |
+| IW146 | AI prefers Fantastic Units and appropriate ranged units for enchantments | Investigate target suitability and whether the AI understands what each enchantment improves. | P2 | Partial |
+| IW147 | AI moves the Summoning Circle more often | Investigate Summoning Circle placement and strategic relocation. | P3 | Investigate |
+| IW148 | AI buys production only after progress has been made | Investigate purchase timing and whether immediate buying is ever preferable. | P3 | Investigate |
+| IW149 | AI Trade Goods restriction above three Towns | Investigate production policy and whether the town-count threshold is desirable. | P3 | Investigate |
+| IW150 | AI uses Trade Goods less unless it has at least 24 cities | Balance and economy design choice; test rather than copying the threshold. | P3 | Design |
+| IW150, IW152 | Reduced enforcement of home-continent unit production | Investigate whether production should be tied to strategic geography. | P3 | Investigate |
+| IW152, IW153 | Smithy before Builders' Hall; Granary before Shrine | Investigate contextual building priorities and their prerequisites. | P4 | UI |
+| IW153 | AI cannot override Trade Goods or Housing with unit production | Investigate production override rules and queue priority. | P2 | Partial |
+| IW153 | AI cannot produce Settlers below population four | Investigate population restrictions and settler eligibility. | P2 | Resolved |
+| IW153 | AI cannot produce more than three ships total | Investigate global ship caps and transport needs. | P2 | Investigate |
+| IW154 | Neutral cities prefer Builders' Hall and Granary | Investigate neutral-city production priorities. | P4 | UI |
+| IW155 | AI buys production less often, especially in larger cities | Investigate purchase valuation by city size and production progress. | P3 | Investigate |
+| IW156 | AI movement cancellation when passing a rival city | Investigate pathfinding and diplomacy when a route passes through a rival's territory. | P2 | Investigate |
+| IW157 | AI keeps 33% fewer garrison units but still cannot build stacks due to other bugs | Investigate garrison and army assembly together; fixing one heuristic may expose another bottleneck. | P4 | UI |
+| IW158 | Minerals matter more when settling | Investigate mineral value in city-site evaluation. | P2 | Investigate |
+| IW158 | Settlers sometimes target a new colony despite nearby units, wasting 1–11 turns | Investigate target feasibility and route cost before assigning a settlement destination. | P2 | Partial |
+| IW158 | Settler on Tower tile blocks gateway consideration for other Settlers | Investigate gateway traversal and shared destination occupancy. | P2 | Investigate |
+| IW159 | Single-tile lake inconsistently treated as river, invalid building/river mouth and valid Plane Shift for land AI | Investigate consistent terrain semantics across building, movement and spell eligibility. | P2 | Divergence |
+| IW160 | AI hostility to Spell of Mastery caster fix fails | Investigate victory-threat diplomacy and hostility transitions. | P2 | Resolved |
+| IW161 | AI loading transports only slightly better | Investigate the entire embarkation and disembarkation workflow. | P2 | Partial |
+| IW162 | AI abandons small-map continents if it cannot attack | Investigate expansion and attack feasibility on isolated landmasses. | P2 | Partial |
+| IW163 | AI evaluates human garrisons four times weaker | The rewrite shares one strength formula across strategic and battle AI; investigate matchup accuracy, not a side-specific multiplier. | P2 | Resolved |
+| IW163 | AI attacks hostile cities without formal war | Investigate the distinction between hostility, war status and legal attack eligibility. | P2 | Investigate |
+| IW164 | AI does not disband units if it can afford 32 turns of upkeep | Investigate whether disbanding uses a sensible financial runway. | P3 | Investigate |
+| IW165 | Arrow keys flip Apprentice spellbook pages | UI navigation feature. | P4 | UI |
+| IW167 | AI receives no building-upkeep discount | Prefer player/AI parity unless a difficulty setting explicitly says otherwise. | P4 | UI |
+| IW173 | Space quits Save/Load screen | UI hotkey choice. | P4 | Design |
+| IM176 | Lo Pan receives an extra spellbook | Likely covered by explicit spellbook picks; verify the setup definition. | P3 | Investigate |
+| IM177 | AI starting spell picks | Investigate data-driven defaults and whether AI spell picks use the same rules as human picks. | P3 | Investigate |
+| IM178 | Magic settings renamed for clarity | UI clarity and naming. | P4 | Design |
+| IM178 | Add higher magic settings, later removed | Design choice; do not treat a reverted option as a requirement. | P4 | Design |
+| IM178, IM180, IM186 | Huge land size | Investigate map scalability and configurable world size. | P3 | Investigate |
+| IM183 | Starting town on an Encounter Zone | Likely covered by map-generation exclusion rules; verify the starting-site validator. | P3 | Investigate |
+| IM183 | Starting fortress maximum population raised from eight to eleven causes map-generation freezes; reversed in 1.50 | Investigate map-generation termination and starting-site constraints; the current generator has bounded retries. | P2 | Partial |
+| IM184 | Narrower Y placement range combined with IM183 reduces spacing and increases map-generation failures | Investigate interacting placement constraints, not each parameter in isolation. | P2 | Investigate |
+| IM185 | AI race choices on high difficulty; later reversed | Design choice; check race restrictions and avoid reproducing a change the Community Patch later reversed. | P3 | Design |
+| IM187 | Encounter budgets increased, later reversed | Balance choice; investigate the desired difficulty curve rather than copying the temporary change. | P3 | Design |
+| IM188 | Colored lair Chaos monsters at 50%; broken implementation replaced by actual fix | Investigate correct weighted realm composition; the note describes intended 40% Death, 40% Chaos and 20% Nature. | P2 | Investigate |
+| IM189 | Secondary monster divisor maximum decreased | Investigate random ranges and encounter balance. | P3 | Investigate |
+| IM192 | Neutral towns receive one additional close-combat unit | Investigate neutral garrison composition. | P3 | Investigate |
+| IM193 | Neutral cities start with Granary at size six and Stables at size seven | Investigate neutral-city starting buildings and population thresholds. | P4 | UI |
+| IM194 | Myrror city roads fixed but all Arcanus towns also receive roads; later fixed | Investigate plane-specific map initialization and terrain/road ownership. | P3 | Investigate |
+| IM195 | Spell of Mastery research discount for 11 same-realm books changed substantially, later reversed | Balance investigation; do not reproduce a reverted economic change by default. | P3 | Design |
+| IM197 | AI starting spell grants with Basilisk and Pathfinding for Life | Investigate starting-spell allocation and race/realm-specific grants. | P3 | Investigate |
+| IM197 | AI wizard with 11 [value omitted in pasted note] receives fewer spells | Investigate the allocation boundary; the pasted release note omitted the stat name. | P3 | Investigate |
+| IM198 | Retorts affect AI Personality and Objective | Investigate configurable wizard-trait effects on AI strategy. | P2 | Investigate |
+| IM200 | Alorra and Torin with Arcane Power | The rewrite deliberately restricts Arcane Power to Heroes with suitable magical ranged attacks; verify definitions. | P4 | Divergence |
+| ITEMDATA.LBX / ITEMMAKE.EXE | Item Spellbook requirements | The rewrite deliberately avoids the faulty per-power book-byte filtering; verify crafting requirements instead. | P4 | Divergence |
 
+## P2 code review: first pass
+
+This is an initial source inspection of the P2 entries, not a claim that every P2 row has been exhaustively tested. “Resolved” in the table is reserved for concrete implementation evidence; incomplete areas remain marked Partial or Investigate.
+
+### Combat rules and spell effects
+
+- **IW045 — Invisibility and Illusions Immunity: Resolved.** The earlier targeted audit confirmed that visibility gates legal commands and command validation, with separate handling for area spells.
+- **IW050, IW051, IW052 — strategic combat and damage: Resolved structurally.** Auto-resolve runs an ordinary battle driven by the battle AI rather than a second simplified damage engine. The attack resolver therefore uses the same Defense dice as tactical combat; the AI's expected-damage estimate has no Defense-50 cap. The chosen strategic mana budget is enforced through the normal legal-cast and battle-casting path. Relevant code: [battle/game.rs](../crates/f4x-core/src/battle/game.rs), [battle/attack.rs](../crates/f4x-core/src/battle/attack.rs), [battle/brain.rs](../crates/f4x-core/src/battle/brain.rs).
+- **IW056 — Counter Magic and dispel ownership: Resolved.** The earlier targeted audit checked the five-point reserve drain, owner exception, caster ownership, and Spell Lock ordering; focused tests cover the core invariants. See [spell/dispel.rs](../crates/f4x-core/src/spell/dispel.rs) and [battle/spell.rs](../crates/f4x-core/src/battle/spell.rs).
+- **IW061 — Dispel Evil: Resolved.** The special attack is explicitly limited to Chaos and Death creatures, with a stronger penalty against undead; this is encoded in [battle/special.rs](../crates/f4x-core/src/battle/special.rs) and described in [combat.md](combat.md).
+- **IW062 — Life Drain and Death Immunity: Resolved at the spell-damage layer.** The combat rules document Life Drain's Magic and Death immunity flags, and damage spells use their declared immunity traits in the shared resolver. See [combat.md](combat.md) and [battle/casting.rs](../crates/f4x-core/src/battle/casting.rs).
+- **IW073 — Demon Skin double Defense: Resolved.** Chaos Channels adds one +3 Defense temporary modifier for the armor mutation; the mutation is represented as a single effect and read through the normal stat path. See [unit/mutation.rs](../crates/f4x-core/src/unit/mutation.rs).
+- **IW078 and IW102 — Chaos Channels eligibility and breath: Resolved.** Mutation requires a normal, non-undead, not-yet-mutated unit. Wings are excluded for fliers/ships, and breath is only an option when there is no ranged attack or a weak thrown attack. See [unit/mutation.rs](../crates/f4x-core/src/unit/mutation.rs).
+- **IW080/IW085 — thrown and breath To Hit modifiers: Resolved in the current combat model.** Battle units carry separate melee and ranged To Hit values; the combat documentation records that thrown attacks retain weapon-quality and ranged bonuses, while breath/gaze do not gain weapon-quality bonuses. See [battle/game.rs](../crates/f4x-core/src/battle/game.rs) and [combat.md](combat.md).
+- **IW083 — Weapon Immunity versus Missile Immunity: Resolved.** The precedence is explicit in effective_defense: matching non-melee immunity is applied first, then Weapon Immunity against a normal weapon replaces that stop with a minimum Defense of 10; Magic Immunity is applied afterward. There are focused tests in [immunity/tests.rs](../crates/f4x-core/src/battle/immunity/tests.rs).
+- **IW057 — spell-save modifiers: Resolved at the shared-rule level.** Battle spell definitions carry their save data, and resistance is calculated through the shared combat resistance machinery. The specific Life Drain, Death Spell and Holy Word cases should still retain regression coverage if their definitions change. See [battle/spell.rs](../crates/f4x-core/src/battle/spell.rs) and [battle/immunity.rs](../crates/f4x-core/src/battle/immunity.rs).
+- **IW128 — Armageddon/Great Wasting and city pacification: Resolved.** City economy continues to apply building pacification, then adds the event's unrest; the code comment explicitly says the buildings still calm the city. See [city/economy.rs](../crates/f4x-core/src/city/economy.rs).
+- **IW127/IW132 — population above the cap: Resolved for the reported stuck-population behavior.** Positive growth stops at the configured cap, while negative growth still removes people and carries tens correctly. See [city/growth.rs](../crates/f4x-core/src/city/growth.rs).
+- **IW112 — Call Lightning/Wraith Form: Divergence remains explicit.** Call Lightning's damage is Nature magic and is stopped by Magic Immunity in the shared spell-damage path; Wraith Form is not treated as shelter. The exact original-versus-patch rule should remain documented as a deliberate compatibility decision. See [battle/field.rs](../crates/f4x-core/src/battle/field.rs).
+
+### AI behavior and strategic planning
+
+- **IW069 — target damaged enemies: Resolved in broad intent.** The battle AI documents and implements target scoring by damage dealt relative to remaining hit points and unit worth, favoring kills rather than simply nearest targets. See [battle/ai.rs](../crates/f4x-core/src/battle/ai.rs).
+- **IW115/IW120 — battle spell selection: Partial.** The wizard AI scores legal spells from their data, estimating damage, healing, summons, unit buffs and other supported effects against unit value and mana cost. It does not explicitly switch strategy based on whether the side is winning or losing, and unsupported categories are skipped. See [battle/brain.rs](../crates/f4x-core/src/battle/brain.rs).
+- **IW116/IW124 — dispelling Call Lightning and Wrack: Investigate.** The battle wizard AI explicitly leaves field spells and dispels alone. The game resolves both field effects, but the AI currently has no valuation that would prioritize removing them. This is a concrete AI gap, not a combat-resolution bug. See [battle/brain.rs](../crates/f4x-core/src/battle/brain.rs) and [battle/field.rs](../crates/f4x-core/src/battle/field.rs).
+- **IW140 — stale GoTo paths: Partial.** Pathfinding avoids hostile squares and the settler AI abandons a target after making no progress, but I still found no general invalidation of an existing route merely because an enemy becomes adjacent or the tactical situation changes. This remains a follow-up. See [unit/pathing.rs](../crates/f4x-core/src/unit/pathing.rs), [unit/movement.rs](../crates/f4x-core/src/unit/movement.rs) and [ai/expand.rs](../crates/f4x-ai/src/expand.rs).
+- **IW144 — summon selection: Partial.** Overland AI classifies summons from their effect definitions and ranks the general Summon category with objective-specific boosts. I did not find per-creature desirability weights, so the specific preference-versus-casting-cost issue remains open. See [ai/wizardry.rs](../crates/f4x-ai/src/wizardry.rs).
+- **IW146 — unit enchantment target selection: Partial.** The AI has generic unit-buff scoring and chooses among eligible friendly units, but the inspected path does not establish the full Hero/Fantastic-unit and Settler-travel exceptions from the patch notes. See [ai/wizardry.rs](../crates/f4x-ai/src/wizardry.rs).
+- **IW158 — Settler site choice: Partial.** Site scoring currently values worked terrain and river access, then subtracts distance; it does not include mineral value. The AI does avoid destinations already assigned to other settlers and abandons a target when it detects no movement, but candidate reachability is checked only after the ten highest-scoring sites are selected. That ordering is worth testing because it can discard a reachable lower-ranked site. See [ai/expand.rs](../crates/f4x-ai/src/expand.rs).
+- **IW161 — transport loading: Partial.** The AI has a dedicated naval plan, checks ship capacity, preserves the port's desired garrison, requires a minimum load, waits for sufficient landing strength (or a timeout), and records passengers for the voyage. This is substantially more than a simple “load units” heuristic, but it still deserves end-to-end tests for blocked routes, partial loads and failed embarkation. See [ai/naval.rs](../crates/f4x-ai/src/naval.rs).
+- **IW162 — isolated continents: Partial.** The military planner gives unreachable enemy cities a cooldown before trying again, but I did not find a continent-level policy that abandons a landmass solely because no attack is currently feasible. See [ai/military.rs](../crates/f4x-ai/src/military.rs).
+- **IW163 — human garrisons valued four times weaker: Resolved.** Strategic and battle AI share the same strength function and the same PlayerView stat accessors; no human-only reduction was found. The scalar estimate is still coarse. See [ai/view.rs](../crates/f4x-ai/src/view.rs) and [ai/military.rs](../crates/f4x-ai/src/military.rs).
+- **IW198 — Retorts affecting AI personality/objective: Investigate.** The AI has explicit personality and objective traits, but the inspected objective module derives strategy from those fields and does not itself show a Retort-to-personality/objective adjustment. The setup/selection path needs a separate check before calling this absent. See [ai/objective.rs](../crates/f4x-ai/src/objective.rs).
+- **IW153 — Settler production threshold: Resolved for the core rule.** The core permits a citizen-costing unit when population is at least two, not four. Whether the AI chooses to build one at that population is a separate policy question. See [city/production.rs](../crates/f4x-core/src/city/production.rs).
+
+### Highest-value follow-ups from this pass
+
+1. Add battle-AI scoring for field dispels, especially Call Lightning and Wrack; this is a direct, visible omission.
+2. Make route invalidation and GoTo failure feedback explicit, including newly adjacent threats and changed destinations.
+3. Improve Settler site evaluation with mineral value and test the top-ten-before-reachability ordering.
+4. Add matchup-aware and state-aware tactical spell scoring, including explicit winning/losing situations.
+5. Give overland summons and unit enchantments data-driven target/desirability weights, including reusable spell-rule identifiers as planned for Plan C.
 
 ## Notes on interpretation
 
