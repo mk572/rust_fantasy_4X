@@ -252,3 +252,14 @@ The table below consolidates the 194 numbered assessments made in the conversati
 | 157 | IW104 | Spell Lock combat-cast dispel protection fix failed | Investigate Spell Lock protection in battle casting and dispel paths. |
 | 158 | IW105 | Invulnerability remains protected from dispelling in combat | The rewrite documents a deliberate divergence allowing combat dispel; keep the divergence explicit and tested. |
 | 159 | IW105 | Possession can be dispelled by its caster to retain control | Investigate ownership semantics and whether dispelling should restore or retain control. |
+| 160 | IW107 | Raise Dead and Animate Dead have unsafe state handling and interfere with sound-error reporting | Critical safety concern; use typed state changes and test resurrection paths. |
+| 161 | IW109, IW110 | Summon Hero reseeds RNG to a static value | Critical RNG issue; use the game's owned random stream or a derived deterministic stream. |
+| 162 | IW111 | Wrack damage fix introduces memory corruption | Critical safety concern; route spell damage through safe, shared damage machinery. |
+| 163 | IW113, IW144 | AI Enchant Item and Create Artifact enabled technically but only after turn 180 and selected almost never | Investigate eligibility separately from desirability and scoring. |
+| 164 | IW117 | AI spell-realm lookup fixed but resulting modifier remains zero | Verify end-to-end scoring, not just lookup success. |
+| 165 | IW118 | Wall of Stone chance reduced in battle despite being a non-combat spell | Filter spell evaluation by valid casting context. |
+| 166 | IW118 | Wall of Fire preference reduced in combat though AI cannot cast it | Keep spell eligibility separate from desirability. |
+| 167 | IW119, IW120, IW121 | Spell category reclassification suppresses damage spells when AI is losing | Investigate category scoring and ensure losing-state logic does not suppress useful attacks. |
+| 168 | IW120 | AI cannot cast listed damage, banish and possession spells when overwhelmingly disadvantaged | Investigate whether tactical spell eligibility is incorrectly tied to overall battle odds. |
+| 169 | IW121 | AI cannot cast Dispel Magic if the human has Holy Arms | Investigate target/eligibility logic for dispelling global enchantments. |
+| 170 | IW126 | AI randomly disbands two garrison units per city every 20 turns from turn 80 | Treat as a poor heuristic; evaluate actual upkeep need and strategic value before disbanding. |
