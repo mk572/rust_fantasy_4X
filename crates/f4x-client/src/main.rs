@@ -42,6 +42,7 @@ mod frame;
 mod game_over_screen;
 mod global_spell;
 mod hall_of_fame;
+mod help_check;
 mod help_popup;
 mod hotkeys;
 mod icon_art;
@@ -606,7 +607,7 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    let help = f4x_data::load_help(Path::new("content")).unwrap_or_default();
+    let help = f4x_data::load_help(&layers, &settings.language).unwrap_or_default();
     let tables = match asset_check::load_tables(&layers, &content.rules) {
         Ok(tables) => tables,
         Err(e) => {

@@ -58,9 +58,10 @@ Written in our own words; nothing here is copied from either source.
 ### Decided: go with the game files (rows the rule did not cover)
 ReMoM states these were verified one-to-one against the original assembly, so the code and
 data are the original game and the help text is the odd one out. Decision: the game wins.
-The imported help (`content-local/help.ron`) is rewritten to match, and each changed topic
-is corrected in the local copy (the reason is in the importer's report only). 17 topic edits, applied by
-`HELP_CORRECTIONS` in `scripts/import_mom.py` (it fails loudly if a text no longer matches).
+The game's own help (`crates/f4x-client/content/text/en/help/help.ron`) says what the game does.
+(Until task 467 the importer rewrote a local copy of the original's help with 17 topic edits, the
+`HELP_CORRECTIONS` table of `scripts/import_mom.py`; the importer no longer reads the original's
+help, and the table is in git history.)
 
 | # | Game behaviour now in help and content |
 |---|---|

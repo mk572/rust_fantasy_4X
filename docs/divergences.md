@@ -358,7 +358,7 @@ the original's ways. Kept there; listed so this file is a complete index.
   building drops the city back to housing, replaced buildings cost no upkeep, a unit with any
   movement left may always step): check each against the original before relying on it.
 - Saves are snapshots, not command logs.
-- Help text rewritten where it disagrees with the game's code (the importer's `HELP_CORRECTIONS`; the game's own help is `content/help.ron`).
+- Help text rewritten where it disagrees with the game's code (the game's own help is `crates/f4x-client/content/text/en/help/help.ron`, edited by hand; the importer no longer reads the original's help).
 
 ## 13. Casting in battle (tasks 51, 159 and 265)
 
@@ -548,7 +548,7 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
 ## 23. Fame (task 72)
 
 - The help (topic 765) says building a new city earns fame and any lost major battle costs a point.
-  The original's code does neither, so the help now follows it (`HELP_CORRECTIONS`): founding gives
+  The original's code does neither, so the help now follows it (in our `help.ron`): founding gives
   no fame; the loser loses the fame of fallen heroes (half their level, rounded up) and of a lost
   city (its size), and a human wizard above 20 fame loses one more point for a major defeat.
 - What counts as fame: earned fame, Legendary heroes (task 47), and 10 while Just Cause lasts

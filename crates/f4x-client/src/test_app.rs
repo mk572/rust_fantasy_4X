@@ -62,6 +62,13 @@ pub(crate) mod shipped {
         })
     }
 
+    pub(crate) fn help() -> &'static f4x_core::help::Help {
+        static CELL: OnceLock<f4x_core::help::Help> = OnceLock::new();
+        CELL.get_or_init(|| {
+            f4x_data::load_help(&[Path::new(CLIENT_CONTENT)], "en").expect("the shipped help loads")
+        })
+    }
+
     pub(crate) fn icon_art() -> &'static crate::icon_art::IconArt {
         static ART: OnceLock<crate::icon_art::IconArt> = OnceLock::new();
         ART.get_or_init(|| {

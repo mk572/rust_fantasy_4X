@@ -277,8 +277,11 @@ mod tests {
 
     #[test]
     fn every_switch_has_a_help_topic_with_text_and_a_right_click_finds_its_row() {
-        let help = f4x_data::load_help(std::path::Path::new(crate::test_app::CONTENT))
-            .expect("the shipped help loads");
+        let help = f4x_data::load_help(
+            &[std::path::Path::new(crate::test_app::CLIENT_CONTENT)],
+            "en",
+        )
+        .expect("the shipped help loads");
         for &(pref, x, y) in &ROWS {
             assert!(help.topic(help_topic(pref)).is_some(), "{pref:?}");
             assert_eq!(row_at(x + 5.0, y + 4.0).map(|r| r.0), Some(pref));

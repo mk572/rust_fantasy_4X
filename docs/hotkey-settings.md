@@ -17,7 +17,7 @@ reads it.
   nothing selected (or Shift held) they scroll the map. Two other actions on one key both fire.
 - **What is not in the file:** the keys of a screen's own boxes (Enter and Escape in a question, the
   arrows in a list, the letters of a screen's buttons) and the battle's keys stay where they are.
-- **Help:** the Keys topic (`content/help.ron`, topic 900, shown with the Game button's help) writes
+- **Help:** the Keys topic (`crates/f4x-client/content/text/en/help/help.ron`, topic 900, shown with the Game button's help) writes
   `{key:action}` where a key goes, and the pop-up fills in the keys in force, so it follows a change.
   Other help topics can do the same.
 - F1 is the Surveyor like F2 to F9 are the other advisors; there is no key list on the map any more.

@@ -21,7 +21,7 @@ An `.lbx` is a list of entries (`docs/extract-art.md` section 2). A data entry s
 | `TERRTYPE.LBX` | 1 | 2564 bytes: the generator's lookup from a square's neighbours to its terrain tile (the autotile table) | no (task 150, generator parity) |
 | `NAMES.LBX` | 1 | five hero names per hero unit | imported once into `content/text/en/name/hero.ron` |
 | `CITYNAME.LBX` | 1 | the city names by race | `import_mom.py` |
-| `HELP.LBX`, `HLPENTRY.LBX` | 3, 41 | the help text and the table of help topics and the area of each | `import_mom.py` (`help.ron`, local) |
+| `HELP.LBX`, `HLPENTRY.LBX` | 3, 41 | the help text and the table of help topics and the area of each | not imported: the game's help is ours (`crates/f4x-client/content/text/en/help/help.ron`, `help_screens.ron`, by hand) |
 | `EVENTMSG.LBX` | 1 | 126 records of 200 bytes: the random events' messages | `import_mom.py` (`event_texts.ron`, local) |
 | `DESC.LBX` | 1 | 241 records of 110 bytes: the one-line description of each spell, in the spell book order | no: no screen of ours uses it (section 3) |
 | `BUILDESC.LBX` | 1 | 36 records of 200 bytes: the description of each building | no: no screen of ours uses it (section 3) |

@@ -33,8 +33,8 @@ that does it.
 
 **Rule: `scripts/import_mom.py`, Python and ReMoM are for development only.** The player's machine
 needs none of them, and neither does the game: the client and `f4x-setup` read the original's files
-directly and nothing else. The script stays as the developer's tool that regenerates the committed
-files (`content/help_screens.ron`, the checks against the help text) and is never shipped, run or
+directly and nothing else. The script stays as the developer's tool for the local files (city names,
+event texts, diplomacy lines, building descriptions) and is never shipped, run or
 required by an installer.
 
 This differs from the wording of the request in one place: the request says the installer builds an
@@ -115,10 +115,9 @@ design does to keep it as clean as it can be:
     ReMoM's `RACETYPE.c`; the Rust import takes it from the committed `content/races.ron`, whose `num`
     is the same race number.
   - `DIPLOMSG.LBX` and `EVENTMSG.LBX` are read by the script without ReMoM.
-  - The one other ReMoM input, the names of the help screens (`HLPENTRY_LBX.md`), only feeds
-    `content/help_screens.ron`, which is **already committed** (rectangles and topic numbers, no
-    prose). The player does not regenerate it.
-  The rest of the script (help text cross-checks, building texts) is a development check and is not
+  - The help screens (`crates/f4x-client/content/help_screens.ron`) are committed and edited by hand;
+    the script no longer reads `HLPENTRY.LBX` or `HLPENTRY_LBX.md`.
+  The rest of the script (the building texts check) is a development check and is not
   ported. The Rust import is checked against the script: both write the three files from the author's
   copy and the results must be identical.
 - **`oggenc` / `ffmpeg`**: steps 3 and 7. Options: (a) write WAV and skip encoding: the client

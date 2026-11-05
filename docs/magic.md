@@ -246,7 +246,7 @@ mana of a defeat without banishment. See also tasks 70 and 82.
 
 `wizard/mod.rs` holds the pick rules and `Game::create_wizard`; `content/wizards.ron` lists the
 ready-made wizards' books and retorts (game rules, committed); their names are in `content/text/en/name/wizard.ron` and their help text is the topic named by `help` in
-`content/help.ron` (ours). Eleven picks buy books (one each) and
+`crates/f4x-client/content/text/en/help/help.ron` (ours). Eleven picks buy books (one each) and
 retorts (one; two for Warlord, Channeler, Divine Power, Famous, Infernal Power; three for
 Myrran), at most six retorts, with the prerequisites in `retorts.ron` (`retort_available`). A realm with `n`
 books lets the wizard choose `n - 1` common spells at the start (more are filled from

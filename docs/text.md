@@ -75,7 +75,7 @@ Debug output of the console and test messages are not player-facing and stay in 
 
 ## Help topics
 
-The help text is `content/help.ron`, one topic per index. A screen area names the topic it opens
+The help text is `crates/f4x-client/content/text/en/help/help.ron`, one topic per index. A screen area names the topic it opens
 (`help_screens.ron`). An entity names its own topic with `help: Some(index)` on its row: abilities,
 spells, buildings, retorts, races, spell realms and ready-made wizards. The code never looks a topic up
 by the entity's name; it follows the entity's `help`. A test (`f4x-data`) keeps every such link
