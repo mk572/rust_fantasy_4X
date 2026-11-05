@@ -20,6 +20,7 @@ mod city_list_screen;
 mod city_screen;
 mod city_scroll;
 mod cityscape;
+mod client_settings;
 mod combat_result;
 mod console_screen;
 mod craft_screen;
@@ -584,7 +585,18 @@ async fn main() {
             std::process::exit(2);
         }
     };
-    let content = match f4x_data::load_content_layers(&[&options.content, Path::new("content")]) {
+    let layers = [options.content.as_path(), Path::new(CLIENT_CONTENT)];
+    let settings = match client_settings::ClientSettings::load(&layers) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("could not load the client settings: {e}");
+            std::process::exit(1);
+        }
+    };
+    let content = match f4x_data::load_content_in(
+        &[&options.content, Path::new("content")],
+        &settings.language,
+    ) {
         Ok(c) => c,
         Err(e) => {
             eprintln!(
@@ -595,7 +607,6 @@ async fn main() {
         }
     };
     let help = f4x_data::load_help(Path::new("content")).unwrap_or_default();
-    let layers = [options.content.as_path(), Path::new(CLIENT_CONTENT)];
     let tables = match asset_check::load_tables(&layers, &content.rules) {
         Ok(tables) => tables,
         Err(e) => {
@@ -643,6 +654,13 @@ async fn main() {
     }
     app.event_texts = f4x_data::load_event_texts(&options.content).unwrap_or_default();
     app.diplomsg = f4x_data::load_diplomacy_lines(&options.content).unwrap_or_default();
+    match preferences::Preferences::from_defaults(&settings.preferences) {
+        Ok(base) => app.prefs = base,
+        Err(e) => {
+            eprintln!("could not load the client settings: {e}");
+            std::process::exit(1);
+        }
+    }
     app.prefs = preferences::Preferences::load(Path::new(preferences::FILE), app.prefs.clone());
     resolution::set_art_scale(options.art_scale.unwrap_or(app.prefs.art_scale));
     if let Some(path) = &options.load {

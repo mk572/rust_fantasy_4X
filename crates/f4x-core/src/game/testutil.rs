@@ -240,7 +240,6 @@ fn load_shipped() -> Content {
             wizard_names: parse(&dir, "text/en/name/rival.ron"),
         },
         settings,
-        client_settings: parse(&dir, "client_settings.ron"),
         texts: Default::default(),
     };
     content.settings.spell_library.resolve(

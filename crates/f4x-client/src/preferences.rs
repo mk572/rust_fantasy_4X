@@ -258,7 +258,9 @@ mod tests {
 
     #[test]
     fn the_shipped_settings_name_every_preference() -> TestResult {
-        let def = crate::test_app::shipped::client_settings();
+        let def = crate::client_settings::ClientSettings::load(&[std::path::Path::new(
+            crate::test_app::CLIENT_CONTENT,
+        )])?;
         for p in PREFS {
             assert!(def.preferences.contains_key(p.key()), "{}", p.key());
         }

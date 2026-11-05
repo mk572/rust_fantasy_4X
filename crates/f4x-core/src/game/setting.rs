@@ -413,28 +413,6 @@ impl Default for HalfUpkeep {
     }
 }
 
-/// `content/client_settings.ron`: what only the client uses, which no rule of a game reads: the
-/// language of the messages and the starting state of the Settings screen's switches.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct ClientSettingsDef {
-    /// The language of the messages: a folder of `content/text/` (two letters, `en`).
-    pub language: String,
-    /// The Settings screen's switches by name (the client knows the names), on or off.
-    pub preferences: std::collections::BTreeMap<String, bool>,
-}
-
-impl Default for ClientSettingsDef {
-    /// Content without a `client_settings.ron`: the fallback language, every switch at the
-    /// client's own default.
-    fn default() -> Self {
-        Self {
-            language: crate::text::FALLBACK_LANGUAGE.into(),
-            preferences: Default::default(),
-        }
-    }
-}
-
 /// `content/rules_settings.ron`: the difficulty levels, the defaults of the new-game choices, the
 /// map and land sizes and the spell library. A file without it (the test content) leaves `levels`
 /// empty, and a game then plays the symmetric [`GameSettings::flat`].

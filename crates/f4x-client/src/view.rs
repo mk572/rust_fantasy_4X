@@ -316,8 +316,7 @@ impl App {
             .position(|r| !r.city_names.is_empty())
             .unwrap_or(0);
         let options = OptionsState::from_settings(&content.settings);
-        let prefs =
-            crate::preferences::Preferences::from_defaults(&content.client_settings.preferences)?;
+        let prefs = crate::preferences::Preferences::default();
         let game = Self::new_game(seed, &options, &content, None, race, true)?;
         let mut app = Self {
             game,

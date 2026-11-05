@@ -302,6 +302,12 @@ pub fn load_content(dir: &Path) -> Result<Content, ContentError> {
 /// Like [`load_content`], with several directories: each file is read from the first one that
 /// has it (the game puts its local directory before the committed `content/`).
 pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
+    load_content_in(dirs, f4x_core::text::FALLBACK_LANGUAGE)
+}
+
+/// Like [`load_content_layers`], with the names and messages in `language` (a folder of
+/// `content/text/`; the client picks it in its own settings).
+pub fn load_content_in(dirs: &[&Path], language: &str) -> Result<Content, ContentError> {
     let read = |name: &str| {
         let path = dirs
             .iter()
@@ -314,9 +320,8 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
     let mut terrains = parse_terrains(&read("terrain.ron")?)?;
     let mut features = parse_features(&read("features.ron")?)?;
     let mut settings = load_settings(dirs)?;
-    let client_settings = load_client_settings(dirs)?;
     let mut problems = Vec::new();
-    let at = (dirs, client_settings.language.as_str());
+    let at = (dirs, language);
     rules::fill_names(
         at,
         ("terrain", "terrain"),
@@ -336,20 +341,19 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
     if !problems.is_empty() {
         return Err(ContentError::Invalid(problems));
     }
-    let rules = rules::load_rules(dirs, &client_settings.language, &features)?;
+    let rules = rules::load_rules(dirs, language, &features)?;
     settings
         .spell_library
         .resolve(rules.spells.defs(), &rules.retorts, &rules.realms);
     if dirs.iter().any(|d| d.join("rules_settings.ron").exists()) {
         check_spell_library(&settings.spell_library, &rules)?;
     }
-    let texts = load_texts(dirs, &client_settings.language)?;
+    let texts = load_texts(dirs, language)?;
     Ok(Content {
         terrains,
         features,
         rules,
         settings,
-        client_settings,
         texts,
     })
 }
@@ -413,23 +417,6 @@ pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
     } else {
         Err(ContentError::Invalid(problems))
     }
-}
-
-/// Read `client_settings.ron` from the first of `dirs` that has it: the language and the
-/// switches of the client. The file is optional; one that is there must parse.
-pub fn load_client_settings(
-    dirs: &[&Path],
-) -> Result<f4x_core::game::setting::ClientSettingsDef, ContentError> {
-    let Some(path) = dirs
-        .iter()
-        .map(|d| d.join("client_settings.ron"))
-        .find(|p| p.exists())
-    else {
-        return Ok(Default::default());
-    };
-    let text = std::fs::read_to_string(&path)
-        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
-    ron::from_str(&text).map_err(|e| ContentError::Parse(format!("client_settings.ron: {e}")))
 }
 
 #[cfg(test)]
@@ -1107,30 +1094,6 @@ mod tests {
             .iter()
             .all(|l| l.world.start_reveal_radius.0 == 2.5));
         assert!(s.levels.iter().all(|l| l.wizards.starting_mana.human == 0));
-    }
-
-    #[test]
-    fn the_shipped_client_settings_name_the_language_and_every_switch() -> TestResult {
-        let dir = crate::testutil::content_dir();
-        let c = load_client_settings(&[&dir])?;
-        assert_eq!(c.language, "en");
-        assert_eq!(c.preferences.len(), 19);
-        assert!(!c.preferences["strategic_combat_only"] && c.preferences["sound_effects"]);
-        Ok(())
-    }
-
-    #[test]
-    fn a_client_settings_file_can_change_the_language_and_must_parse() -> TestResult {
-        let over = f4x_core::testdir::TestDir::new("client-settings");
-        assert_eq!(load_client_settings(&[&over])?, Default::default());
-        std::fs::write(over.join("client_settings.ron"), r#"(language: "de")"#)?;
-        assert_eq!(load_client_settings(&[&over])?.language, "de");
-        std::fs::write(over.join("client_settings.ron"), "(language: ")?;
-        assert!(matches!(
-            load_client_settings(&[&over]),
-            Err(ContentError::Parse(_))
-        ));
-        Ok(())
     }
 
     #[test]

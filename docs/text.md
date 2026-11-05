@@ -5,7 +5,7 @@ gives the values; it holds no sentence. This is what makes a second language pos
 
 ## Files and keys
 
-- `client_settings.ron` names the language (`language: "en"`); `en` is the fallback for a key another
+- `crates/f4x-client/content/client_settings.ron` names the language (`language: "en"`); `en` is the fallback for a key another
   language lacks. `content-local/text/<lang>/` layers over `content/text/<lang>/`.
 - One file per screen or domain (`battle`, `spell`, `hero`, `create`, ...), at most about 100
   entries each. A key is `area.name` and lives in the file `area.ron`, once over all files.
@@ -50,7 +50,7 @@ Debug output of the console and test messages are not player-facing and stay in 
 - Names of the numbered rules tables are one file each in `content/text/<lang>/name/`: `unit.ron`,
   `spell.ron`, `building.ron`, `race.ron` (name and plural), `realm.ron`, `ability.ron`,
   `item.ron`, `item_power.ron`, `terrain.ron`, `feature.ron` (the map features). A file is a RON map from the definition's `num` to its name
-  (`{ 95: "Spearmen" }`). The loader puts the name of the language in `client_settings.ron` on each
+  (`{ 95: "Spearmen" }`). The loader puts the name of the language in `crates/f4x-client/content/client_settings.ron` on each
   definition (`def.name`, so the screens need no change), a number the language leaves out is
   English, and a definition with no English name or a name for a number nobody has is a load error.
   A language is the same files in its own folder. Not yet in tables: ability descriptions, the
