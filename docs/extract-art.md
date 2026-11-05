@@ -92,9 +92,10 @@ of one spell goes to `art/spells/<spell id>/<lbx>_NNN_FF.png`, one that several 
 belongs to none (the realm pictures, the summon scene, the boxes, the masks) to `art/spells/_shared/`,
 and the spell book's twelve pictures (`spells.lbx`) to `art/spells/_book/`. The 16x16 ability icons of the unit sheet (`SPECIAL.LBX` and the first 34 entries of `SPECIAL2.LBX`, the rest of that file is the small book and its marks) go to `art/unit_ability/NNN_FF.png`, numbered by the picture index of the original's `special_seg` (`SPECIAL2.LBX` continues at 111). The summon scene's creature pictures (`MONSTER.LBX`: the entry is the summoned unit's number minus the Magic Spirit's, 44 and 45 the heroes, 46 the sword) go to `art/summoning/NNN_FF.png`; entries 36, 37, 38, 40 and 47 are 1x1 stubs in the original's own file, which `f4x-extract art` skips, so Floating Island, Phantom Beast, Phantom Warriors and Air Elemental show no figure (no translucency or palette swap is involved). A picture no spell names
 stays in `art/<lbx>/`. `f4x-extract art` writes this layout from the start. For art already extracted,
-`f4x-extract refile [art-dir]` moves the files to where the current rules put them (screens, units
+`f4x-extract refile [art-dir]` moves the files to where the current rules put them (screens, units, wizards
 and spells alike; it touches only pictures whose place changed, takes their `_cycle` and `_banner`
-masks along and rewrites `index.tsv`) without reading the game files again. `manifest.tsv` stays
+masks along and rewrites `index.tsv`; it also files pictures a script left in `art/<lbx>/` that are not in
+`manifest.tsv`, such as the new-colour gems) without reading the game files again. `manifest.tsv` stays
 `lbx entry frames width height`; `index.tsv` is where the paths are. The client reads the table
 through `Art::spell_picture(spell, role)` and `Art::shared_picture(role)`.
 The client finds every place through `Art::picture(lbx, entry, frame)` and `Art::figure`, which read
@@ -320,7 +321,7 @@ it, and place the picture where the draw call puts it on the 320 by 200 screen.
 | Spell effects | `cmbmagic` (ranged attacks, 8 directions each), `cmbtfx`, `specfx` | combat and overland spell animations |
 | Start menu | `mainscrn` 0 title (320x41), 5 background (320x159) at y = 41; `vortex` 1 Continue, 2 Hall of Fame, 3 Quit, 4 New Game, 5 Load Game (frame 0 hover, 1 idle) | `menu_screen.rs`; entries at x = 123, y = 141 plus 12 a row |
 | Load / Save screen | `load` 0 background; 1 Load, 2 Quit, 3 Save, 4 OK, 6 and 7 the inactive Load and Save, 9 text field, 10 selection marker, 12 Settings | `menu_screen.rs` |
-| Wizard portraits | `wizards` entry = wizard id (109x104); `lilwiz` entry = wizard id x 5 + banner (41x43 gems); `moodwiz` entry = wizard id (diplomacy mood pictures) | not used yet (task 83) |
+| Wizard portraits | `wizards` entry = wizard id (109x104); `lilwiz` entry = wizard id x 5 + banner (41x43 gems); `moodwiz` entry = wizard id (diplomacy mood pictures) | by `content/wizard_art.ron`; `moodwiz` is now `art/wizards/<id>/mirror`, the gems `art/wizards/<id>/gem_<banner>` (banners 5 to 9 are the colours of `make_banner_colours.py`, `lilwiz` entries 100 and up) |
 | Diplomacy | `diplomac` (backgrounds, gargoyle eyes, treaty icons), `backgrnd` 18 the mirror | task 91 |
 | New game | `newgame` | wizard creation (task 83) |
 | Hero portraits | `portrait` (32x32, used by the Army list and the Item screen); `reload` holds screen backgrounds (advisors, city list, lair) and 41x43 pictures | tasks 48 to 50 |

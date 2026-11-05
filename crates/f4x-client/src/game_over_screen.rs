@@ -136,11 +136,9 @@ impl Page for GameOverPage {
             78.0,
         );
         for (i, id) in banished.iter().take(4).enumerate() {
-            let portrait = app
-                .game
-                .wizard(*id)
-                .map_or(0, |w| usize::from(w.portrait()));
-            app.draw_pic(&lay, "halofam", 1 + portrait, 0, X + 35.0 * i as f32, 87.0);
+            let slot = app.game.wizard(*id).map_or(0, |w| w.portrait());
+            let hall = app.art.wizard(slot).hall;
+            app.draw_pic(&lay, "halofam", hall, 0, X + 35.0 * i as f32, 87.0);
         }
         // Fame, time and the Spell of Mastery.
         app.draw_pic(&lay, "halofam", 31, 0, X, 123.0);

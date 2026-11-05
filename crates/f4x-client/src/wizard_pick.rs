@@ -117,7 +117,7 @@ impl Modal for WizardPick {
             let (portrait, banner, who) = app.game.player(id).map_or((0, 0, String::new()), |p| {
                 (p.portrait(), p.banner(), p.name().to_string())
             });
-            let rect = crate::art::gem_entry(portrait, banner)
+            let rect = crate::art::gem_entry(app.art.wizard(portrait).gem, banner)
                 .and_then(|entry| app.draw_pic(&lay, "lilwiz", entry, 0, x, by + 24.0))
                 .unwrap_or_else(|| lay.rect((x, by + 24.0, 40.0, 40.0)));
             app.draw_styled(

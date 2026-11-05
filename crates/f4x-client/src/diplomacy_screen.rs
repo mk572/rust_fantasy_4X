@@ -868,10 +868,8 @@ impl Page for DiploUi {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let level = relation_level(app.game.relation(HUMAN, with));
-        let portrait = app
-            .game
-            .wizard(with)
-            .map_or(0, |w| usize::from(w.portrait()));
+        let slot = app.game.wizard(with).map_or(0, |w| w.portrait());
+        let pictures = app.art.wizard(slot);
 
         // The room, the wizard, the mirror's frame over him, and the gargoyles' eyes.
         app.draw_pic(&lay, "diplomac", 0, 0, 0.0, 0.0);
@@ -881,7 +879,7 @@ impl Page for DiploUi {
             app.draw_pic(
                 &lay,
                 "diplomac",
-                24 + portrait,
+                pictures.talk,
                 frame,
                 PORTRAIT_AT.0,
                 PORTRAIT_AT.1,
@@ -891,7 +889,7 @@ impl Page for DiploUi {
             app.draw_pic(
                 &lay,
                 "moodwiz",
-                portrait,
+                pictures.mirror,
                 mood,
                 PORTRAIT_AT.0,
                 PORTRAIT_AT.1,

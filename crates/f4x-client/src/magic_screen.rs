@@ -280,7 +280,7 @@ impl App {
             if !self.game.have_met(HUMAN, id) {
                 continue;
             }
-            let gem = crate::art::gem_entry(portrait, banner)
+            let gem = crate::art::gem_entry(self.art.wizard(portrait).gem, banner)
                 .and_then(|entry| self.draw_pic(lay, "lilwiz", entry, 0, x, 4.0));
             let rel = self.game.relation(HUMAN, id);
             let word = self.text(f4x_core::diplomacy::relation_key(rel));

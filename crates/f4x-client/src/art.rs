@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use f4x_extract::spell_art::{Role, SpellArt};
 use f4x_extract::unit_art::UnitArt;
+use f4x_extract::wizard_art::{WizardArt, WizardPictures};
 use macroquad::prelude::*;
 use macroquad_bitmap_font_engine::{self as bm, BmFont, FontData};
 
@@ -193,6 +194,8 @@ pub struct Art {
     spells: SpellArt,
     /// Which picture each unit and hero uses, by the unit's id (`content/unit_art.ron`).
     units: HashMap<String, UnitArt>,
+    /// Which pictures each ready-made wizard uses, by slot (`content/wizard_art.ron`).
+    wizards: Vec<WizardArt>,
 }
 
 /// Banner names in the order the game numbers them.
@@ -220,20 +223,24 @@ pub fn background_entry(banner: u8) -> usize {
     }
 }
 
-/// The `lilwiz` entry of a wizard's gem: portrait times five plus the colour for the original's
-/// five, 100 + portrait times five + the new colour's number from 0 for the new ones. None for
-/// the neutral banner, which has no gem.
-pub fn gem_entry(portrait: u8, banner: u8) -> Option<usize> {
-    let portrait = usize::from(portrait);
+/// The `lilwiz` entry of a wizard's gem, from the wizard's first gem (`WizardPictures::gem`): that
+/// plus the colour for the original's five, 100 + that + the new colour's number from 0 for the new
+/// ones. None for the neutral banner, which has no gem.
+pub fn gem_entry(gem: usize, banner: u8) -> Option<usize> {
     match banner {
-        0..=4 => Some(portrait * 5 + usize::from(banner)),
-        5..=9 => Some(100 + portrait * 5 + usize::from(banner) - 5),
+        0..=4 => Some(gem + usize::from(banner)),
+        5..=9 => Some(100 + gem + usize::from(banner) - 5),
         _ => None,
     }
 }
 
 impl Art {
-    pub fn load(dir: PathBuf, spells: SpellArt, units: Vec<UnitArt>) -> Self {
+    pub fn load(
+        dir: PathBuf,
+        spells: SpellArt,
+        units: Vec<UnitArt>,
+        wizards: Vec<WizardArt>,
+    ) -> Self {
         let types = std::fs::read_to_string(dir.join("map/tiles/types.tsv")).unwrap_or_default();
         let type_tiles = types
             .lines()
@@ -307,7 +314,21 @@ impl Art {
             pixels: HashMap::new(),
             spells,
             units: units.into_iter().map(|u| (u.id.clone(), u)).collect(),
+            wizards,
         }
+    }
+
+    /// Whether the table has a wizard for `slot`.
+    pub fn has_wizard(&self, slot: u8) -> bool {
+        usize::from(slot) < self.wizards.len()
+    }
+
+    /// The pictures of the wizard in `slot` (the portrait number the game keeps); a slot the table
+    /// does not have gets entry 0 everywhere.
+    pub fn wizard(&self, slot: u8) -> WizardPictures {
+        self.wizards
+            .get(usize::from(slot))
+            .map_or_else(WizardPictures::default, |w| w.pictures)
     }
 
     /// The `(file, entry)` of a unit's picture in the original's unit files, by the unit's id.
@@ -974,9 +995,9 @@ mod banner_tests {
             backgrounds,
             [14, 15, 16, 17, 18, 100, 101, 102, 103, 104, 19]
         );
-        assert_eq!(gem_entry(2, 3), Some(13));
+        assert_eq!(gem_entry(10, 3), Some(13));
         assert_eq!(gem_entry(0, 5), Some(100));
-        assert_eq!(gem_entry(13, 9), Some(169));
+        assert_eq!(gem_entry(65, 9), Some(169));
         assert_eq!(gem_entry(0, f4x_core::player::NEUTRAL_BANNER), None);
     }
 }
@@ -1031,7 +1052,7 @@ mod figure_tests {
     /// glyphs.
     #[test]
     fn the_embedded_fonts_parse_and_cover_ascii() {
-        let art = Art::load(PathBuf::new(), SpellArt::default(), Vec::new());
+        let art = Art::load(PathBuf::new(), SpellArt::default(), Vec::new(), Vec::new());
         for (n, font) in art.font_data.iter().enumerate() {
             assert_eq!(font.page, format!("style{n}.png"));
             for ascii in 32u8..=126 {

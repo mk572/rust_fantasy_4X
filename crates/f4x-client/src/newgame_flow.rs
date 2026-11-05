@@ -98,7 +98,8 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         self.draw_styled(view, &Style::shadowed(5).center(), title, 242.0, 1.0);
         if let Some(p) = portrait {
-            self.draw_pic(lay, "wizards", p, 0, 24.0, 10.0);
+            let entry = self.art.wizard(u8::try_from(p).unwrap_or(u8::MAX)).portrait;
+            self.draw_pic(lay, "wizards", entry, 0, 24.0, 10.0);
         }
     }
 
@@ -461,7 +462,11 @@ impl CreateState {
         // The wizard under the mouse.
         let shown = self.hover;
         if shown < defs.len() {
-            app.draw_pic(lay, "wizards", shown, 0, 24.0, 10.0);
+            let entry = app
+                .art
+                .wizard(u8::try_from(shown).unwrap_or(u8::MAX))
+                .portrait;
+            app.draw_pic(lay, "wizards", entry, 0, 24.0, 10.0);
             app.ng_name(lay, &defs[shown].1);
             if !picture {
                 if let Some(build) = app.game.preset_build(&defs[shown].0) {
@@ -513,9 +518,9 @@ impl CreateState {
         app.draw_pic(lay, "newgame", 40, 0, 181.0, 17.0);
         let title = app.text("create.wizard_name");
         app.draw_styled(view, &Style::shadowed(5).center(), &title, 242.0, 1.0);
-        let portrait = self.build.portrait.map(usize::from);
-        if let Some(p) = portrait {
-            app.draw_pic(lay, "wizards", p, 0, 24.0, 10.0);
+        if let Some(p) = self.build.portrait {
+            let entry = app.art.wizard(p).portrait;
+            app.draw_pic(lay, "wizards", entry, 0, 24.0, 10.0);
         }
         let name = self.build.name.clone();
         app.ng_name(lay, &name);

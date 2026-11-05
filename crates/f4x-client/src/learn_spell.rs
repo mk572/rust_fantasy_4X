@@ -151,10 +151,8 @@ impl App {
     /// and the blue column.
     fn draw_lab(&mut self, lay: &Layout, t: f64) {
         clear_background(BLACK);
-        let wizard = self
-            .game
-            .wizard(HUMAN)
-            .map_or(0, |w| usize::from(w.portrait()));
+        let slot = self.game.wizard(HUMAN).map_or(0, |w| w.portrait());
+        let wizard = self.art.wizard(slot).lab;
         let familiar = 14 + self.primary_realm();
         let frames = self.art.frames("wizlab", familiar).max(1);
         self.draw_pic(lay, "wizlab", 19, 0, 0.0, 0.0);

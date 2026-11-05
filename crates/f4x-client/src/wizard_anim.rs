@@ -63,10 +63,8 @@ impl App {
     ) -> Option<WizardAnim> {
         let def = self.game.content().rules.spells.get(spell);
         let picture = self.art.spell_picture(&def.id, &Role::Cast)?;
-        let portrait = self
-            .game
-            .wizard(victim)
-            .map_or(0, |w| usize::from(w.portrait()));
+        let slot = self.game.wizard(victim).map_or(0, |w| w.portrait());
+        let portrait = self.art.wizard(slot).mirror;
         Some(WizardAnim {
             portrait,
             picture,

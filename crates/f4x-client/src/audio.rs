@@ -379,9 +379,6 @@ pub(crate) fn diplomacy_entry(wizard: u16, bad: bool) -> u16 {
     }) + 2 * wizard
 }
 
-/// The wizards in the order of the original's music: a wizard's portrait picks its tracks.
-const WIZARDS: u16 = 14;
-
 impl App {
     /// Once a frame: switch the music to what the game's state asks for, and play the button
     /// click for a press that lands on a button.
@@ -478,10 +475,13 @@ impl App {
         })
     }
 
-    /// The wizard's number in the original's music order: its portrait, when it is one of the 14.
+    /// The wizard's number in the original's music order (`content/wizard_art.ron`), when it is
+    /// one of the ready-made wizards.
     pub(crate) fn wizard_tracks_of(&self, player: PlayerId) -> Option<u16> {
-        let p = u16::from(self.game.wizard(player)?.portrait());
-        (p < WIZARDS).then_some(p)
+        let slot = self.game.wizard(player)?.portrait();
+        self.art
+            .has_wizard(slot)
+            .then(|| self.art.wizard(slot).music)
     }
 
     /// The pair of the opposing wizard, or the general pair against monsters, picked once.

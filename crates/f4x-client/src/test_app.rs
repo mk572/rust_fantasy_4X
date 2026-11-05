@@ -11,6 +11,7 @@ use f4x_core::text::Texts;
 
 use f4x_extract::spell_art::SpellArt;
 use f4x_extract::unit_art::UnitArt;
+use f4x_extract::wizard_art::WizardArt;
 
 use crate::art::Art;
 use crate::view::App;
@@ -58,6 +59,14 @@ pub(crate) mod shipped {
         })
     }
 
+    pub(crate) fn wizard_art() -> &'static Vec<WizardArt> {
+        static CELL: OnceLock<Vec<WizardArt>> = OnceLock::new();
+        CELL.get_or_init(|| {
+            f4x_extract::wizard_art::load_wizard_art(&[Path::new(CONTENT)])
+                .expect("the shipped wizard art loads")
+        })
+    }
+
     pub(crate) fn unit_art() -> &'static Vec<UnitArt> {
         static CELL: OnceLock<Vec<UnitArt>> = OnceLock::new();
         CELL.get_or_init(|| {
@@ -74,6 +83,7 @@ impl App {
             PathBuf::from("no-art-in-tests"),
             shipped::spell_art().clone(),
             shipped::unit_art().clone(),
+            shipped::wizard_art().clone(),
         );
         App::new(shipped::content().clone(), art, 1)
             .expect("a new game starts on the shipped content")

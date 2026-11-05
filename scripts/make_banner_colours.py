@@ -11,7 +11,8 @@ Writes, into assets-local/art:
 - the pictures that come already coloured, one more for each new colour: cities, towers and node
   auras (`map/locations/*_<colour>_*.png`), the unit backgrounds (`map/overlays/unit_backgrounds/`
   and `mapback/100..104_00.png`, entries the client asks for) and the wizards' gems
-  (`lilwiz/100..169_00.png`, 100 + portrait * 5 + the new colour's number from 0).
+  (`wizards/<id>/gem_5` to `gem_9`, entries 100 + the wizard's first gem + the new colour's number
+  from 0 of `lilwiz`; in `lilwiz/100..169_00.png` for art that is not filed under the wizards yet).
 Only the pixels that differ between the original's five colours are turned, so the shading stays.
 Running it again gives the same files. Run it after `f4x-extract art` (and `grey_neutral.py`, in either
 order). The output is derived from the original's art, so it stays local. Needs Pillow (.venv).
@@ -89,25 +90,59 @@ def pictures(art):
     return count
 
 
+def read_index(art):
+    """`index.tsv` beside the art folder: (lbx, entry) -> where `f4x-extract` filed the picture."""
+    path = art.parent / "index.tsv"
+    index = {}
+    if path.exists():
+        for line in path.read_text().splitlines():
+            f = line.split("\t")
+            if len(f) >= 3 and f[1].isdigit():
+                index[(f[0], int(f[1]))] = f[2]
+    return index
+
+
+def write_index(art, index):
+    rows = sorted(index.items())
+    text = "".join(f"{lbx}\t{entry}\t{place}\n" for (lbx, entry), place in rows)
+    (art.parent / "index.tsv").write_text(text)
+
+
 def gems(art):
-    """The wizards' gems (`lilwiz`, portrait * 5 + the colour) in the new colours."""
+    """The wizards' gems (`lilwiz`, the wizard's first gem + the colour) in the new colours.
+
+    The originals are filed under their wizard (`wizards/<id>/gem_<colour>`, `f4x-extract art` and
+    `refile`); the new ones go beside them as `gem_5` to `gem_9` and into `index.tsv`. Art that
+    is not filed yet keeps them in `lilwiz/`, which `f4x-extract refile` files later."""
+    index = read_index(art)
     folder = art / "lilwiz"
     count = 0
     for portrait in range(PORTRAITS):
-        paths = [folder / f"{portrait * 5 + b:03d}_00.png" for b in range(5)]
+        entries = [portrait * 5 + b for b in range(5)]
+        places = [index.get(("lilwiz", e)) for e in entries]
+        if all(places):
+            paths = [art.parent / f"{p}_00.png" for p in places]
+            new_paths = [paths[0].with_name(f"gem_{FIRST_NEW + i}_00.png") for i in range(len(NEW))]
+            new_places = [places[0].rsplit("/", 1)[0] + f"/gem_{FIRST_NEW + i}" for i in range(len(NEW))]
+        else:
+            paths = [folder / f"{e:03d}_00.png" for e in entries]
+            new_paths = [folder / f"{100 + portrait * 5 + i:03d}_00.png" for i in range(len(NEW))]
+            new_places = [None] * len(NEW)
         if not all(p.exists() for p in paths):
             continue
         images = [Image.open(p) for p in paths]
         if not same_size(images):
             continue
         for i, (name, source, degrees, value) in enumerate(NEW):
-            entry = 100 + portrait * 5 + i
             base = OLD.index(source)
-            recolour(images, base, degrees, value).save(folder / f"{entry:03d}_00.png")
+            recolour(images, base, degrees, value).save(new_paths[i])
             cycle = paths[base].with_name(paths[base].stem + "_cycle.png")
             if cycle.exists():
-                shutil.copyfile(cycle, folder / f"{entry:03d}_00_cycle.png")
+                shutil.copyfile(cycle, new_paths[i].with_name(new_paths[i].stem + "_cycle.png"))
+            if new_places[i]:
+                index[("lilwiz", 100 + portrait * 5 + i)] = new_places[i]
             count += 1
+    write_index(art, index)
     return count
 
 

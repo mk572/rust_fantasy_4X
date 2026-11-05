@@ -114,10 +114,8 @@ impl App {
     fn draw_mirror(&mut self, lay: &Layout, cast: &GlobalCast, stage: usize, animated: bool) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (x, y) = MIRROR;
-        let face = self
-            .game
-            .wizard(cast.player)
-            .map_or(0, |w| usize::from(w.portrait()));
+        let slot = self.game.wizard(cast.player).map_or(0, |w| w.portrait());
+        let face = self.art.wizard(slot).mirror;
         let words = if cast.player == crate::view::HUMAN {
             self.text("spell.you_completed")
         } else {

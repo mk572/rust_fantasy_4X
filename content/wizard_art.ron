@@ -1,0 +1,27 @@
+// Which pictures each ready-made wizard uses, in the order of `wizards.ron` (a wizard's place is the
+// slot the game saves as its portrait). Each number is an entry of the original's file named in the
+// comment; the client picks the file by the role. Read by the client; the rules do not know it.
+//   portrait  wizards (the new-game picker)      mirror  moodwiz (diplomacy room, spell animations)
+//   talk      diplomac (the wizard talking)      lab     wizlab (the wizard in the lab)
+//   gem       lilwiz (first of its five colours) hall    halofam (the hall of fame)
+//   summon    spellscr (the summon scene)        music   the wizard's place in the original's music order
+//   win       win (arms rising)  hands  win (the hands held up)   lose  lose (the fall into limbo)
+//   sphere, sphere_figure  spellose (Spell of Mastery lost)
+//   stand, pieces, seize   conquest (a wizard destroyed)
+//   parade, parade_rival   splmastr (the Spell of Mastery parade: the wizard, and a rival passing by)
+[
+    (id: "merlin", pictures: (portrait: 0, mirror: 0, talk: 24, lab: 0, gem: 0, hall: 1, summon: 46, music: 0, win: 3, hands: 17, lose: 1, sphere: 0, sphere_figure: 14, stand: 0, pieces: 18, seize: 33, parade: 14, parade_rival: 0)),
+    (id: "raven", pictures: (portrait: 1, mirror: 1, talk: 25, lab: 1, gem: 5, hall: 2, summon: 47, music: 1, win: 4, hands: 20, lose: 2, sphere: 1, sphere_figure: 15, stand: 1, pieces: 19, seize: 34, parade: 15, parade_rival: 1)),
+    (id: "sharee", pictures: (portrait: 2, mirror: 2, talk: 26, lab: 2, gem: 10, hall: 3, summon: 48, music: 2, win: 5, hands: 19, lose: 3, sphere: 2, sphere_figure: 16, stand: 2, pieces: 20, seize: 35, parade: 16, parade_rival: 2)),
+    (id: "lo_pan", pictures: (portrait: 3, mirror: 3, talk: 27, lab: 3, gem: 15, hall: 4, summon: 49, music: 3, win: 6, hands: 17, lose: 4, sphere: 3, sphere_figure: 17, stand: 3, pieces: 21, seize: 36, parade: 17, parade_rival: 3)),
+    (id: "jafar", pictures: (portrait: 4, mirror: 4, talk: 28, lab: 4, gem: 20, hall: 5, summon: 50, music: 4, win: 7, hands: 17, lose: 5, sphere: 4, sphere_figure: 18, stand: 4, pieces: 22, seize: 37, parade: 18, parade_rival: 4)),
+    (id: "oberic", pictures: (portrait: 5, mirror: 5, talk: 29, lab: 5, gem: 25, hall: 6, summon: 51, music: 5, win: 8, hands: 21, lose: 6, sphere: 5, sphere_figure: 19, stand: 5, pieces: 23, seize: 38, parade: 19, parade_rival: 5)),
+    (id: "rjak", pictures: (portrait: 6, mirror: 6, talk: 30, lab: 6, gem: 30, hall: 7, summon: 52, music: 6, win: 9, hands: 17, lose: 7, sphere: 6, sphere_figure: 20, stand: 6, pieces: 24, seize: 39, parade: 20, parade_rival: 6)),
+    (id: "sssra", pictures: (portrait: 7, mirror: 7, talk: 31, lab: 7, gem: 35, hall: 8, summon: 53, music: 7, win: 10, hands: 22, lose: 8, sphere: 7, sphere_figure: 21, stand: 7, pieces: 25, seize: 40, parade: 21, parade_rival: 7)),
+    (id: "tauron", pictures: (portrait: 8, mirror: 8, talk: 32, lab: 8, gem: 40, hall: 9, summon: 54, music: 8, win: 11, hands: 17, lose: 9, sphere: 8, sphere_figure: 22, stand: 8, pieces: 26, seize: 41, parade: 22, parade_rival: 8)),
+    (id: "freya", pictures: (portrait: 9, mirror: 9, talk: 33, lab: 9, gem: 45, hall: 10, summon: 55, music: 9, win: 12, hands: 18, lose: 10, sphere: 9, sphere_figure: 23, stand: 9, pieces: 27, seize: 42, parade: 23, parade_rival: 9)),
+    (id: "horus", pictures: (portrait: 10, mirror: 10, talk: 34, lab: 10, gem: 50, hall: 11, summon: 56, music: 10, win: 13, hands: 17, lose: 11, sphere: 10, sphere_figure: 24, stand: 10, pieces: 28, seize: 43, parade: 24, parade_rival: 10)),
+    (id: "ariel", pictures: (portrait: 11, mirror: 11, talk: 35, lab: 11, gem: 55, hall: 12, summon: 57, music: 11, win: 14, hands: 18, lose: 12, sphere: 11, sphere_figure: 25, stand: 11, pieces: 29, seize: 44, parade: 25, parade_rival: 11)),
+    (id: "tlaloc", pictures: (portrait: 12, mirror: 12, talk: 36, lab: 12, gem: 60, hall: 13, summon: 58, music: 12, win: 15, hands: 17, lose: 13, sphere: 12, sphere_figure: 26, stand: 12, pieces: 30, seize: 45, parade: 26, parade_rival: 12)),
+    (id: "kali", pictures: (portrait: 13, mirror: 13, talk: 37, lab: 13, gem: 65, hall: 14, summon: 59, music: 13, win: 16, hands: 18, lose: 14, sphere: 13, sphere_figure: 27, stand: 13, pieces: 31, seize: 46, parade: 27, parade_rival: 13)),
+]

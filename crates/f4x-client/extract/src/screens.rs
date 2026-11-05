@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use crate::spell_art::{self, SpellArt};
 use crate::unit_art::UnitArt;
+use crate::wizard_art::WizardArt;
 
 /// The table, compiled in so the extractor needs no extra file.
 const TABLE: &str = include_str!("../screens.tsv");
@@ -50,10 +51,19 @@ pub struct Placer {
     map_sprites: HashMap<usize, String>,
     /// `(lbx, entry)` -> the folder under `art/spells/` (`SpellArt::folders`).
     spells: BTreeMap<(String, usize), String>,
+    /// `MOODWIZ.LBX` entry -> wizard id.
+    mirrors: HashMap<usize, String>,
+    /// `LILWIZ.LBX` entry -> wizard id and the gem's colour (the banner number).
+    gems: HashMap<usize, (String, usize)>,
 }
 
 impl Placer {
-    pub fn new(rules: Vec<Rule>, units: &[UnitArt], spell_art: &SpellArt) -> Self {
+    pub fn new(
+        rules: Vec<Rule>,
+        units: &[UnitArt],
+        spell_art: &SpellArt,
+        wizards: &[WizardArt],
+    ) -> Self {
         let mut types = HashMap::new();
         let mut portraits = HashMap::new();
         for u in units {
@@ -68,6 +78,21 @@ impl Placer {
                 portraits.insert(p, u.id.clone());
             }
         }
+        let mut mirrors = HashMap::new();
+        let mut gems = HashMap::new();
+        for w in wizards {
+            mirrors.insert(w.pictures.mirror, w.id.clone());
+            // The original's five colours, then the five more (`make_banner_colours.py`).
+            for colour in 0..crate::wizard_art::GEM_COLOURS {
+                let entry = if colour < crate::wizard_art::ORIGINAL_GEMS {
+                    w.pictures.gem + colour
+                } else {
+                    crate::wizard_art::NEW_GEMS_AT + w.pictures.gem + colour
+                        - crate::wizard_art::ORIGINAL_GEMS
+                };
+                gems.insert(entry, (w.id.clone(), colour));
+            }
+        }
         let map_sprites = crate::map_art::catalog_names()
             .into_iter()
             .map(|(name, entry)| (entry, name))
@@ -78,6 +103,8 @@ impl Placer {
             portraits,
             map_sprites,
             spells: spell_art.folders(),
+            mirrors,
+            gems,
         }
     }
 
@@ -135,6 +162,14 @@ impl Placer {
                 .map_sprites
                 .get(&entry)
                 .map(|name| format!("art/map/{}/{name}", crate::map_art::folder(name))),
+            "moodwiz" => self
+                .mirrors
+                .get(&entry)
+                .map(|id| format!("art/wizards/{id}/mirror")),
+            "lilwiz" => self
+                .gems
+                .get(&entry)
+                .map(|(id, colour)| format!("art/wizards/{id}/gem_{colour}")),
             "portrait" => self
                 .portraits
                 .get(&entry)
@@ -205,7 +240,7 @@ mod tests {
                 portrait: None,
             },
         ];
-        let p = Placer::new(rules()?, &units, &SpellArt::default());
+        let p = Placer::new(rules()?, &units, &SpellArt::default(), &[]);
         assert_eq!(
             p.place("units1", 0).as_deref(),
             Some("art/units/dwarf/picture")
@@ -277,7 +312,7 @@ mod tests {
                 },
             )"#,
         )?;
-        let p = Placer::new(rules()?, &[], &art);
+        let p = Placer::new(rules()?, &[], &art, &[]);
         assert_eq!(
             p.place("cmbtfx", 0).as_deref(),
             Some("art/spells/fire_bolt/cmbtfx_000")
@@ -305,6 +340,7 @@ mod tests {
             rules()?,
             &[],
             &crate::spell_art::parse_spell_art("(shared: [], spells: {})")?,
+            &[],
         );
         assert_eq!(p.place("monster", 10).as_deref(), Some("art/summoning/010"));
         Ok(())
@@ -316,6 +352,7 @@ mod tests {
             rules()?,
             &[],
             &crate::spell_art::parse_spell_art("(shared: [], spells: {})")?,
+            &[],
         );
         assert_eq!(
             p.place("special", 5).as_deref(),
@@ -402,6 +439,33 @@ mod tests {
         assert!(parse("main\t1\n").is_err());
         assert!(parse("main\t9\t1\tx\n").is_err());
         assert!(parse("main\ta\t1\tx\n").is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizards_mirror_and_gems_go_to_its_folder_the_new_colours_included() -> TestResult {
+        let wizards = crate::wizard_art::parse_wizard_art(
+            r#"[(id: "merlin", pictures: (mirror: 0, gem: 0)), (id: "raven", pictures: (mirror: 1, gem: 5))]"#,
+        )?;
+        let p = Placer::new(rules()?, &[], &SpellArt::default(), &wizards);
+        assert_eq!(
+            p.place("moodwiz", 1).as_deref(),
+            Some("art/wizards/raven/mirror")
+        );
+        assert_eq!(
+            p.place("lilwiz", 3).as_deref(),
+            Some("art/wizards/merlin/gem_3")
+        );
+        assert_eq!(
+            p.place("lilwiz", 5).as_deref(),
+            Some("art/wizards/raven/gem_0")
+        );
+        // The five more colours of `make_banner_colours.py`: 100 + the first gem + 0 to 4.
+        assert_eq!(
+            p.place("lilwiz", 107).as_deref(),
+            Some("art/wizards/raven/gem_7")
+        );
+        assert_eq!(p.place("lilwiz", 50), None);
         Ok(())
     }
 }

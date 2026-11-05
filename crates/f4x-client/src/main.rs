@@ -591,7 +591,7 @@ async fn main() {
     };
     let help = f4x_data::load_help(Path::new("content")).unwrap_or_default();
     let layers = [options.content.as_path(), Path::new("content")];
-    let (spell_art, unit_art, sounds) = match asset_check::load_tables(&layers, &content.rules) {
+    let tables = match asset_check::load_tables(&layers, &content.rules) {
         Ok(tables) => tables,
         Err(e) => {
             eprintln!("could not load the asset tables: {e}");
@@ -600,7 +600,7 @@ async fn main() {
     };
     let mut app = match App::new(
         content,
-        art::Art::load(options.assets, spell_art, unit_art),
+        art::Art::load(options.assets, tables.spells, tables.units, tables.wizards),
         if options.seed_given {
             options.seed
         } else {
@@ -622,7 +622,7 @@ async fn main() {
         Err(e) => eprintln!("{e}; the shipped keys are used"),
     }
     if !options.mute && options.shot.is_none() {
-        app.audio = audio::Audio::scan(&options.audio, sounds);
+        app.audio = audio::Audio::scan(&options.audio, tables.sounds);
         if !app.audio.has_files() {
             eprintln!(
                 "no sound files in {}: the game is silent (f4x-extract audio)",

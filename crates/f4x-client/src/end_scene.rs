@@ -115,20 +115,6 @@ pub(crate) fn parade_figure(stage: u32) -> usize {
     }
 }
 
-/// The hands the victorious wizard holds up (`win.lbx` 17 to 22): the shaman's, the priestess's,
-/// Oberic's, the draconian's, a woman's, or a man's. The original picks them by the wizard's
-/// number through a table whose five targets come in this order.
-pub(crate) fn hands_picture(wizard: usize) -> usize {
-    match wizard {
-        1 => 20,
-        2 => 19,
-        5 => 21,
-        7 => 22,
-        9 | 11 | 13 => 18,
-        _ => 17,
-    }
-}
-
 /// One step of the defeated wizard's fall into the limbo (`TBL_DefeatAnimSteps`): where the
 /// picture's top-left corner is, the angle it is turned by (degrees) and its size in percent.
 pub(crate) const LIMBO_FALL: [(f32, f32, f32, f32); 27] = [
@@ -417,11 +403,17 @@ impl App {
         );
     }
 
+    /// The pictures of the wizard in `slot` (the portrait number the scenes carry).
+    fn wizard_pictures(&self, slot: usize) -> f4x_extract::wizard_art::WizardPictures {
+        self.art.wizard(u8::try_from(slot).unwrap_or(u8::MAX))
+    }
+
     fn draw_win(&mut self, lay: &Layout, wizard: usize, stage: u32) {
         self.scene_pic(lay, "win", 0, 0, (0.0, 0.0));
-        self.scene_pic(lay, "win", hands_picture(wizard), 0, (22.0, 143.0));
+        let pics = self.wizard_pictures(wizard);
+        self.scene_pic(lay, "win", pics.hands, 0, (22.0, 143.0));
         // The wizard's arms rise: each draw adds the next frame over the earlier ones.
-        let entry = 3 + wizard;
+        let entry = pics.win;
         let frame = self.scene_frame("win", entry, stage);
         for f in 0..=frame {
             self.scene_pic(lay, "win", entry, f, (93.0, 2.0));
@@ -456,7 +448,8 @@ impl App {
         self.draw_styled(view, &style, &line, 160.0, 5.0);
         let name = self.text("bigbook.mastery_name");
         self.draw_styled(view, &style, &name, 160.0, 25.0);
-        let wizard_pic = self.art_picture("spellose", 14 + wizard, 0);
+        let pics = self.wizard_pictures(wizard);
+        let wizard_pic = self.art_picture("spellose", pics.sphere_figure, 0);
         // Where the wizard's picture has something drawn: the sphere is centred on it.
         let bounds = wizard_pic
             .as_ref()
@@ -464,7 +457,7 @@ impl App {
         let (left, top, width, _) = bounds;
         let start_x = 35.0 + left + (width / 2.0).floor();
         if stage < 12 {
-            self.scene_pic(lay, "spellose", 14 + wizard, 0, (61.0, 68.0));
+            self.scene_pic(lay, "spellose", pics.sphere_figure, 0, (61.0, 68.0));
             let sphere = (stage / 2) as usize;
             self.scene_pic(lay, "spellose", 29, sphere, (start_x, 34.0));
         } else if stage < 24 {
@@ -484,7 +477,7 @@ impl App {
             }
             // The sphere that holds the wizard comes up as the wizard goes in.
             let appear = (step * 8).min(100) as f32 / 100.0;
-            if let Some(tex) = self.art_picture("spellose", wizard, 0) {
+            if let Some(tex) = self.art_picture("spellose", pics.sphere, 0) {
                 let at = lay.point(start_x, 34.0);
                 let size = crate::resolution::logical_size(&tex) * lay.scale;
                 draw_texture_ex(
@@ -500,7 +493,7 @@ impl App {
             }
         } else if stage < 36 {
             let frame = ((stage - 24) / 2) as usize;
-            self.scene_pic(lay, "spellose", wizard, frame, (start_x, 34.0));
+            self.scene_pic(lay, "spellose", pics.sphere, frame, (start_x, 34.0));
         }
         // The familiar in the corner, of the colour of the wizard's strongest realm.
         self.scene_pic(lay, "spellose", 30 + realm, 0, (190.0, 160.0));
@@ -512,7 +505,11 @@ impl App {
         let Some(&(x, y, angle, size)) = LIMBO_FALL.get(stage as usize) else {
             return;
         };
-        let Some(tex) = self.art.picture("lose", 1 + wizard, 0).cloned() else {
+        let Some(tex) = self
+            .art
+            .picture("lose", self.wizard_pictures(wizard).lose, 0)
+            .cloned()
+        else {
             return;
         };
         // Shrunk and turned about its top-left corner.
@@ -542,21 +539,23 @@ impl App {
     ) {
         self.scene_pic(lay, "wizlab", 19, 0, (0.0, 0.0));
         let at = (69.0, 75.0);
+        let loser_lab = self.wizard_pictures(loser).lab;
         if stage < 7 {
-            self.scene_pic(lay, "wizlab", loser, 0, at);
+            self.scene_pic(lay, "wizlab", loser_lab, 0, at);
         }
         if (1..7).contains(&stage) {
             let [axe, wizard, cone] = approach(stage);
             self.scene_pic(lay, "conquest", 15, 0, axe);
             if let Some(w) = winner {
-                self.scene_pic(lay, "conquest", w, 0, wizard);
+                let stand = self.wizard_pictures(w).stand;
+                self.scene_pic(lay, "conquest", stand, 0, wizard);
             }
             self.scene_pic(lay, "conquest", 14, 0, cone);
         }
         match winner {
             None if stage > 6 => {
                 // The raiders stand in front of the ruin.
-                self.scene_pic(lay, "wizlab", loser, 0, at);
+                self.scene_pic(lay, "wizlab", loser_lab, 0, at);
                 self.scene_pic(lay, "conquest", 15, 0, (252.0, 88.0));
                 self.scene_pic(lay, "conquest", 14, 0, (100.0, 120.0));
             }
@@ -574,8 +573,9 @@ impl App {
             self.audio
                 .effect(Some(crate::audio::scream_sound(feminine)));
         }
+        let (loser_pics, winner_pics) = (self.wizard_pictures(loser), self.wizard_pictures(winner));
         if stage < 19 {
-            self.scene_pic(lay, "wizlab", loser, 0, loser_at);
+            self.scene_pic(lay, "wizlab", loser_pics.lab, 0, loser_at);
         }
         if let Some(f) = zap_growth(stage) {
             self.scene_pic(lay, "conquest", 16, f, (177.0, 62.0));
@@ -587,10 +587,10 @@ impl App {
         if stage >= 19 {
             // The loser's own pieces come back over each other, one more each stage.
             for f in 0..=(stage - 19) as usize {
-                self.scene_pic(lay, "conquest", 18 + loser, f, (66.0, 16.0));
+                self.scene_pic(lay, "conquest", loser_pics.pieces, f, (66.0, 16.0));
             }
         }
-        self.scene_pic(lay, "conquest", 33 + winner, 0, (208.0, 60.0));
+        self.scene_pic(lay, "conquest", winner_pics.seize, 0, (208.0, 60.0));
         self.scene_pic(lay, "conquest", 32, 0, (100.0, 120.0));
     }
 
@@ -601,11 +601,13 @@ impl App {
         let frame = self.scene_frame("splmastr", column, stage - since);
         self.scene_pic(lay, "splmastr", column, frame, (90.0, 0.0));
         let figure = parade_figure(stage);
-        self.scene_pic(lay, "splmastr", 14 + wizard, figure, (69.0, 75.0));
+        let parade = self.wizard_pictures(wizard).parade;
+        self.scene_pic(lay, "splmastr", parade, figure, (69.0, 75.0));
         if stage > 6 && 6 + 60 * (rivals.len() as u32) > stage {
             // One rival's portrait a minute, and a twinkle as it arrives.
             let at = (stage - 6) % 60;
             if let Some(&rival) = rivals.get(((stage - 6) / 60) as usize) {
+                let rival = self.wizard_pictures(rival).parade_rival;
                 let frame = (at as usize).min(self.art.frames("splmastr", rival).max(1) - 1);
                 self.scene_pic(lay, "splmastr", rival, frame, (0.0, 0.0));
             }
@@ -773,12 +775,8 @@ mod tests {
     }
 
     #[test]
-    fn the_limbo_fall_ends_small_and_the_hands_follow_the_wizard() {
+    fn the_limbo_fall_ends_small() {
         assert_eq!(LIMBO_FALL[0].3, 100.0);
         assert_eq!(LIMBO_FALL[26].3, 5.0);
-        assert_eq!(hands_picture(0), 17);
-        assert_eq!(hands_picture(1), 20);
-        assert_eq!(hands_picture(2), 19);
-        assert_eq!(hands_picture(13), 18);
     }
 }

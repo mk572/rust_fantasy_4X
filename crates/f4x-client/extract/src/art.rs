@@ -14,6 +14,7 @@ use crate::lbx::Lbx;
 use crate::screens::{self, Placer};
 use crate::spell_art::SpellArt;
 use crate::unit_art::UnitArt;
+use crate::wizard_art::WizardArt;
 
 /// FONTS.LBX entry 2 starts with the 256-colour base palette (6-bit RGB).
 const PALETTE_ENTRY: usize = 2;
@@ -551,6 +552,7 @@ pub fn extract(
     out_dir: &Path,
     units: &[UnitArt],
     spell_art: &SpellArt,
+    wizards: &[WizardArt],
 ) -> Result<(), String> {
     let base = base_palette(game_dir)?;
     let mut lbx_files: Vec<_> = fs::read_dir(game_dir)
@@ -565,7 +567,7 @@ pub fn extract(
         .collect();
     lbx_files.sort();
     fs::create_dir_all(out_dir).map_err(|e| e.to_string())?;
-    let placer = Placer::new(screens::rules()?, units, spell_art);
+    let placer = Placer::new(screens::rules()?, units, spell_art, wizards);
     let root = out_dir.with_file_name("");
     // An earlier version kept the index in `screens/`.
     let _ = fs::remove_file(root.join("screens/index.tsv"));

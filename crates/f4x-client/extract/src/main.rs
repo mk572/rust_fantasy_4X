@@ -6,7 +6,14 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use f4x_extract::{art, audio, font_tool, refile, screens, spell_art, unit_art};
+use f4x_extract::{art, audio, font_tool, refile, screens, spell_art, unit_art, wizard_art};
+
+/// The units', spells' and wizards' pictures.
+type TableSet = (
+    Vec<unit_art::UnitArt>,
+    spell_art::SpellArt,
+    Vec<wizard_art::WizardArt>,
+);
 
 const USAGE: &str = "usage:
   f4x-extract art <game-dir> [out-dir]    decode the original game's pictures to PNG
@@ -28,12 +35,13 @@ fn main() -> ExitCode {
     };
     let result = match args.first().map(String::as_str) {
         Some("art") => match args.get(1) {
-            Some(game) => tables().and_then(|(units, spells)| {
+            Some(game) => tables().and_then(|(units, spells, wizards)| {
                 art::extract(
                     &PathBuf::from(game),
                     &dir(2, "assets-local/art"),
                     &units,
                     &spells,
+                    &wizards,
                 )
             }),
             None => Err(USAGE.to_string()),
@@ -42,8 +50,8 @@ fn main() -> ExitCode {
             Some(game) => audio::extract(&PathBuf::from(game), &dir(2, "assets-local/audio")),
             None => Err(USAGE.to_string()),
         },
-        Some("refile") => tables().and_then(|(units, spells)| {
-            let placer = screens::Placer::new(screens::rules()?, &units, &spells);
+        Some("refile") => tables().and_then(|(units, spells, wizards)| {
+            let placer = screens::Placer::new(screens::rules()?, &units, &spells, &wizards);
             let moved = refile::refile(&dir(1, "assets-local/art"), &placer)?;
             println!("moved {moved} pictures");
             Ok(())
@@ -62,11 +70,12 @@ fn main() -> ExitCode {
     }
 }
 
-/// The units' pictures and the spells' pictures, from `content/`.
-fn tables() -> Result<(Vec<unit_art::UnitArt>, spell_art::SpellArt), String> {
+/// The tables of which game element uses which picture, from `content/`.
+fn tables() -> Result<TableSet, String> {
     let content = [Path::new("content")];
     Ok((
         unit_art::load_unit_art(&content)?,
         spell_art::load_spell_art(&content)?,
+        wizard_art::load_wizard_art(&content)?,
     ))
 }

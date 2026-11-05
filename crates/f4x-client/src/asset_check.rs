@@ -11,20 +11,33 @@ use f4x_core::rules::Rules;
 use f4x_extract::sound::{self, SoundTable};
 use f4x_extract::spell_art::{self, Role, SpellArt};
 use f4x_extract::unit_art::{self, UnitArt};
+use f4x_extract::wizard_art::{self, WizardArt};
 
-/// The three tables from the first of `dirs` that has each, checked against `rules`.
-pub fn load_tables(
-    dirs: &[&Path],
-    rules: &Rules,
-) -> Result<(SpellArt, Vec<UnitArt>, SoundTable), String> {
+/// The asset tables of the client.
+pub struct Tables {
+    pub spells: SpellArt,
+    pub units: Vec<UnitArt>,
+    pub wizards: Vec<WizardArt>,
+    pub sounds: SoundTable,
+}
+
+/// The tables from the first of `dirs` that has each, checked against `rules`.
+pub fn load_tables(dirs: &[&Path], rules: &Rules) -> Result<Tables, String> {
     let spells = spell_art::load_spell_art(dirs)?;
     let units = unit_art::load_unit_art(dirs)?;
+    let wizards = wizard_art::load_wizard_art(dirs)?;
     let sounds = sound::load_sound(dirs)?;
     let mut problems = check_spell_art(&spells, rules);
     problems.extend(check_unit_art(&units, rules));
+    problems.extend(check_wizard_art(&wizards, rules));
     problems.extend(check_sound(&sounds, rules));
     if problems.is_empty() {
-        Ok((spells, units, sounds))
+        Ok(Tables {
+            spells,
+            units,
+            wizards,
+            sounds,
+        })
     } else {
         Err(format!("\n  - {}", problems.join("\n  - ")))
     }
@@ -69,6 +82,27 @@ pub fn check_unit_art(units: &[UnitArt], rules: &Rules) -> Vec<String> {
     problems
 }
 
+/// The table lists the ready-made wizards of the rules, in their order and with a slot for each
+/// portrait the game keeps.
+pub fn check_wizard_art(wizards: &[WizardArt], rules: &Rules) -> Vec<String> {
+    let mut problems = Vec::new();
+    let ids: Vec<&str> = rules.wizards.defs().iter().map(|w| w.id.as_str()).collect();
+    let table: Vec<&str> = wizards.iter().map(|w| w.id.as_str()).collect();
+    if ids != table {
+        problems.push(format!(
+            "wizard_art: the wizards are {table:?}, the rules have {ids:?}"
+        ));
+    }
+    if wizards.len() != usize::from(f4x_core::player::PORTRAITS) {
+        problems.push(format!(
+            "wizard_art: {} wizards, the game keeps {} portraits",
+            wizards.len(),
+            f4x_core::player::PORTRAITS
+        ));
+    }
+    problems
+}
+
 /// A spell or unit of the table that the rules do not have.
 pub fn check_sound(table: &SoundTable, rules: &Rules) -> Vec<String> {
     let mut problems = Vec::new();
@@ -94,9 +128,10 @@ mod tests {
     #[test]
     fn the_shipped_tables_agree_with_the_shipped_rules() -> TestResult {
         let rules = &shipped::content().rules;
-        let (_, units, sounds) = load_tables(&[Path::new(crate::test_app::CONTENT)], rules)?;
-        assert_eq!(sounds.units.len(), rules.units.len());
-        assert_eq!(units.len(), rules.units.len());
+        let tables = load_tables(&[Path::new(crate::test_app::CONTENT)], rules)?;
+        assert_eq!(tables.sounds.units.len(), rules.units.len());
+        assert_eq!(tables.units.len(), rules.units.len());
+        assert_eq!(tables.wizards.len(), rules.wizards.len());
         Ok(())
     }
 
@@ -116,6 +151,8 @@ mod tests {
         assert!(check_unit_art(&units, rules)
             .iter()
             .any(|p| p.contains("unknown unit")));
+        let wizards = wizard_art::parse_wizard_art(r#"[(id: "nobody", pictures: ())]"#)?;
+        assert_eq!(check_wizard_art(&wizards, rules).len(), 2);
         Ok(())
     }
 }

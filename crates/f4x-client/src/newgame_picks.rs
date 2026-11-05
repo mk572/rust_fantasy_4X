@@ -213,9 +213,9 @@ impl CreateState {
     /// Screen 4: the books and the retorts.
     pub(crate) fn step_picks(&mut self, app: &mut App, lay: &Layout, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let portrait = self.build.portrait.map(usize::from);
-        if let Some(p) = portrait {
-            app.draw_pic(lay, "wizards", p, 0, 24.0, 10.0);
+        if let Some(p) = self.build.portrait {
+            let entry = app.art.wizard(p).portrait;
+            app.draw_pic(lay, "wizards", entry, 0, 24.0, 10.0);
         }
         let mouse: Vec2 = input.mouse_position().into();
         let live = self.ng_input();
@@ -365,9 +365,9 @@ impl CreateState {
         let sections = self.spell_sections(app, realm);
         app.draw_pic(lay, "newgame", 47, 0, 181.0, 18.0);
         app.draw_pic(lay, "newgame", 51, 0, 196.0, 180.0);
-        let portrait = self.build.portrait.map(usize::from);
-        if let Some(p) = portrait {
-            app.draw_pic(lay, "wizards", p, 0, 24.0, 10.0);
+        if let Some(p) = self.build.portrait {
+            let entry = app.art.wizard(p).portrait;
+            app.draw_pic(lay, "wizards", entry, 0, 24.0, 10.0);
         }
         let realm_name = app
             .game

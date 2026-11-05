@@ -175,14 +175,11 @@ impl App {
             Summoned::Champion => (hero_figure(hero), self.text("spell.champion_summoned")),
             Summoned::Item => (ITEM_FIGURE, self.text("spell.item_enchanted")),
         };
-        let portrait = self
-            .game
-            .wizard(player)
-            .map_or(0, |w| usize::from(w.portrait()));
+        let slot = self.game.wizard(player).map_or(0, |w| w.portrait());
         Some(SummonScene {
             player,
             figure,
-            caster: 46 + portrait.min(13),
+            caster: self.art.wizard(slot).summon,
             music: Track::piece(tune(def.rarity)),
             label,
             started,

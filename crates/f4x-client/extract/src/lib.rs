@@ -35,3 +35,4 @@ pub mod spell_art;
 #[cfg(test)]
 mod testutil;
 pub mod unit_art;
+pub mod wizard_art;

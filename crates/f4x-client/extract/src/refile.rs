@@ -32,6 +32,38 @@ fn location(
     }
 }
 
+/// The pictures that have files in `art/<lbx>/`: `(lbx, entry)` and the number of frames.
+fn loose_pictures(art_dir: &Path) -> BTreeMap<(String, usize), usize> {
+    let mut found = BTreeMap::new();
+    let Ok(dirs) = fs::read_dir(art_dir) else {
+        return found;
+    };
+    for dir in dirs.flatten().filter(|d| d.path().is_dir()) {
+        let lbx = dir.file_name().to_string_lossy().into_owned();
+        let Ok(files) = fs::read_dir(dir.path()) else {
+            continue;
+        };
+        for file in files.flatten() {
+            let name = file.file_name().to_string_lossy().into_owned();
+            // `<entry>_<frame>.png`, three and two digits; the masks have a suffix and are skipped.
+            let Some((entry, frame)) = name.strip_suffix(".png").and_then(|n| n.split_once('_'))
+            else {
+                continue;
+            };
+            if let (3, 2, Ok(entry), Ok(frame)) = (
+                entry.len(),
+                frame.len(),
+                entry.parse::<usize>(),
+                frame.parse::<usize>(),
+            ) {
+                let frames = found.entry((lbx.clone(), entry)).or_insert(0);
+                *frames = (*frames).max(frame + 1);
+            }
+        }
+    }
+    found
+}
+
 /// Move what has to move. Returns how many pictures moved.
 pub fn refile(art_dir: &Path, placer: &Placer) -> Result<usize, String> {
     let root = art_dir.with_file_name("");
@@ -47,17 +79,26 @@ pub fn refile(art_dir: &Path, placer: &Placer) -> Result<usize, String> {
     }
     let manifest = fs::read_to_string(art_dir.join("manifest.tsv"))
         .map_err(|e| format!("{}: {e} (run f4x-extract art first)", art_dir.display()))?;
-    let mut moved = 0;
-    let mut missing = 0;
+    let mut pictures: BTreeMap<(String, usize), usize> = BTreeMap::new();
     for line in manifest.lines() {
         let f: Vec<&str> = line.split('\t').collect();
-        let (Some(&lbx), Some(Ok(entry)), Some(Ok(frames))) = (
+        if let (Some(&lbx), Some(Ok(entry)), Some(Ok(frames))) = (
             f.first(),
             f.get(1).map(|v| v.parse::<usize>()),
             f.get(2).map(|v| v.parse::<usize>()),
-        ) else {
-            continue;
-        };
+        ) {
+            pictures.insert((lbx.to_string(), entry), frames);
+        }
+    }
+    // Pictures a script made beside the extracted ones (`make_banner_colours.py` writes more gems
+    // into `lilwiz/`) are not in the manifest; the files in `art/<lbx>/` say what they are.
+    for (key, frames) in loose_pictures(art_dir) {
+        pictures.entry(key).or_insert(frames);
+    }
+    let mut moved = 0;
+    let mut missing = 0;
+    for ((lbx, entry), frames) in pictures {
+        let lbx = lbx.as_str();
         let key = (lbx.to_string(), entry);
         let new = placer.place(lbx, entry);
         if index.get(&key) == new.as_ref() {
@@ -134,7 +175,7 @@ mod tests {
         fs::write(root.join("index.tsv"), "")?;
         let art =
             parse_spell_art(r#"(spells: {"fire_bolt": [(lbx: "cmbtfx", entry: 0, role: Cast)]})"#)?;
-        let placer = Placer::new(crate::screens::rules()?, &[], &art);
+        let placer = Placer::new(crate::screens::rules()?, &[], &art, &[]);
         assert_eq!(refile(&art_dir, &placer)?, 1);
         let to = art_dir.join("spells/fire_bolt");
         assert!(to.join("cmbtfx_000_00.png").exists());
@@ -146,6 +187,41 @@ mod tests {
         assert_eq!(index, "cmbtfx\t0\tart/spells/fire_bolt/cmbtfx_000\n");
         // Run again: nothing is left to move.
         assert_eq!(refile(&art_dir, &placer)?, 0);
+        fs::remove_dir_all(&root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn a_picture_a_script_made_beside_the_extracted_ones_is_filed_too() -> TestResult {
+        let root = std::env::temp_dir().join(format!("f4x-extract-loose-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let art_dir = root.join("art");
+        fs::create_dir_all(art_dir.join("lilwiz"))?;
+        // Entry 5 is in the manifest; entry 105 (a new colour) is only a file.
+        fs::write(art_dir.join("lilwiz/005_00.png"), b"x")?;
+        fs::write(art_dir.join("lilwiz/105_00.png"), b"x")?;
+        fs::write(art_dir.join("lilwiz/105_00_cycle.png"), b"x")?;
+        fs::write(art_dir.join("manifest.tsv"), "lilwiz\t5\t1\t40\t40\n")?;
+        fs::write(root.join("index.tsv"), "")?;
+        let wizards = crate::wizard_art::parse_wizard_art(
+            r#"[(id: "merlin", pictures: (gem: 0)), (id: "raven", pictures: (gem: 5))]"#,
+        )?;
+        let placer = Placer::new(
+            crate::screens::rules()?,
+            &[],
+            &crate::spell_art::SpellArt::default(),
+            &wizards,
+        );
+        assert_eq!(refile(&art_dir, &placer)?, 2);
+        let folder = root.join("art/wizards/raven");
+        assert!(folder.join("gem_0_00.png").exists());
+        assert!(folder.join("gem_5_00.png").exists());
+        assert!(folder.join("gem_5_00_cycle.png").exists());
+        let index = fs::read_to_string(root.join("index.tsv"))?;
+        assert_eq!(
+            index,
+            "lilwiz\t5\tart/wizards/raven/gem_0\nlilwiz\t105\tart/wizards/raven/gem_5\n"
+        );
         fs::remove_dir_all(&root)?;
         Ok(())
     }

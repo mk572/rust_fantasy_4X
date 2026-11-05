@@ -134,7 +134,7 @@ impl Page for WizardUi {
         };
         let me = app.game.player(ui.who);
         let wizard_picture = crate::art::gem_entry(
-            me.map_or(0, |p| p.portrait()),
+            app.art.wizard(me.map_or(0, |p| p.portrait())).gem,
             me.map_or(NEUTRAL_BANNER, |p| p.banner()),
         );
         let name = me.map_or_else(String::new, |p| p.name());
