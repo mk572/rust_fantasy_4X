@@ -95,6 +95,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 476 | Medium | Client | Cache queried game information and refresh it only after relevant state changes |
 | 477 | Medium | Housekeeping | Add `f4x-master` for player turns and round orchestration |
 | 478 | Low | Housekeeping | Make `f4x-ai-ref` a local-only snapshot: ignored by git, behind a `reference` feature of `f4x-tools` |
+| 479 | Medium | Meta | The crates below the client know no display text: names and messages leave core, data and the AI for the client |
 
 ## Descriptions
 
@@ -795,3 +796,19 @@ it out of the workspace's required members, untrack it (`git rm -r --cached`) an
 `versus`, keep the winner (keep the new AI, or restore `f4x-ai` from git), then remove the copy.
 A fixed long-term baseline is lost; a snapshot at a git tag can stand in for it. Update
 `docs/rust-dependencies.md`, `docs/crate-layout-plan*.md` and the other docs that name the crate.
+
+**479. The crates below the client know no display text.** Tests of interface text sit in the client,
+and nothing below it needs to know what the client calls a building, unit or spell. Today the loader
+(`f4x-data`) fills 12 `name` fields of the rules from `text/<lang>/name/*.ron` (a folder of the
+client), core holds `Texts` and the message keys (about 220 uses outside the client, `Content.texts`,
+`Item::display_name`, `MadeName::compose`), and core's test content (`game/testutil.rs`), the data
+tests and every crate that loads the shipped content read the client's text folder (the data loader
+finds it as `../crates/f4x-client/content` beside `content/`, task 467). Aim: the rules carry ids and
+numbers only; core and the game events carry message keys and values (no wording); the client owns
+`Texts`, the name tables and the composition of names and messages (`MadeName`, plurals, gender); the
+console, the tools and the AI print ids (or load the client's text explicitly). Steps: (1) audit the
+~127 uses of a rule's `.name` outside the client and the message keys core emits; (2) move the name
+tables' use to the client (`Art`-like `Names`), drop the `name` fields and the loader's `lang`; (3)
+move `Texts` and the composition code to the client; (4) drop `CLIENT_FOLDER` and the client folder
+from core's test content. Saves are unchanged (ids and numbers). Do not break the text/code agreement
+tests (`crates/f4x-client/tests/it/text.rs`): they scan every crate's sources for keys.

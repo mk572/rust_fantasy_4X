@@ -1,4 +1,4 @@
-//! The messages in `content/text/` and the code agree: every key the code names exists, every key
+//! The messages in `crates/f4x-client/content/text/` and the code agree: every key the code names exists, every key
 //! is used, and a file holds only the keys of its area (`battle.ron` holds `battle.*`).
 
 use std::collections::BTreeSet;

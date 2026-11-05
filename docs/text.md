@@ -37,7 +37,7 @@ gives the values; it holds no sentence. This is what makes a second language pos
 `App::text(key)` and `App::text_with(key, &Args::new().text("spell", name).count("n", 3))` in the
 client; `Content::texts.get(key, &args)` anywhere else. A key nobody wrote prints as the key.
 
-`crates/f4x-data/tests/text.rs` checks that every key named in code exists, every key is used, a
+`crates/f4x-client/tests/it/text.rs` checks that every key named in code exists, every key is used, a
 file holds only the keys of its area, and that the client's code holds no message of its own (the
 test lists what it finds; numbers, the space between wrapped words and screenshot fixtures are
 exempt there). Write a key as one string literal (`"spell.dispelled"`), also
