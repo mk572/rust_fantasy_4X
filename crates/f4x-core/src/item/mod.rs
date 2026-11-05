@@ -432,7 +432,7 @@ mod tests {
         let mut sword = item(ItemKind::Sword);
         sword.bonus.attack = 2;
         sword.bonus.to_hit = 1;
-        let mods = modifiers(&sword, 0, &abilities(&["bow"]), true);
+        let mods = modifiers(&sword, 0, &abilities(&[3 /* bow */]), true);
         assert_eq!(total(&mods, Stat::Melee), 2);
         assert_eq!(total(&mods, Stat::MeleeToHit), 1);
         assert_eq!(total(&mods, Stat::Ranged), 0);
@@ -445,8 +445,8 @@ mod tests {
         bow.bonus.attack = 3;
         let mut staff = item(ItemKind::Staff);
         staff.bonus.attack = 2;
-        let archer = abilities(&["bow"]);
-        let mage = abilities(&["fireball_attack"]);
+        let archer = abilities(&[3 /* bow */]);
+        let mage = abilities(&[22 /* fireball_attack */]);
         assert_eq!(total(&modifiers(&bow, 0, &archer, true), Stat::Ranged), 3);
         assert_eq!(total(&modifiers(&bow, 0, &mage, true), Stat::Ranged), 0);
         assert_eq!(total(&modifiers(&staff, 0, &mage, true), Stat::Ranged), 2);
@@ -459,7 +459,7 @@ mod tests {
     fn a_misc_item_counts_for_both_attacks() {
         let mut ring = item(ItemKind::Misc);
         ring.bonus.attack = 1;
-        let mods = modifiers(&ring, 2, &abilities(&["bow"]), true);
+        let mods = modifiers(&ring, 2, &abilities(&[3 /* bow */]), true);
         assert_eq!(total(&mods, Stat::Melee), 1);
         assert_eq!(total(&mods, Stat::Ranged), 1);
         // A hero with no ranged attack gets no phantom one.
@@ -472,7 +472,7 @@ mod tests {
         let mut axe = item(ItemKind::Axe);
         axe.bonus.attack = 1;
         axe.powers = vec![ItemPowerId::new(44) /* giant_strength */];
-        let thrower = abilities(&["thrown"]);
+        let thrower = abilities(&[69 /* thrown */]);
         let mods = modifiers(&axe, 0, &thrower, true);
         assert_eq!(total(&mods, Stat::Melee), 2);
         assert_eq!(total(&mods, Stat::Ranged), 2);
@@ -495,7 +495,7 @@ mod tests {
             ItemPowerId::new(33), /* flaming */
             ItemPowerId::new(44), /* giant_strength */
         ];
-        let mods = modifiers(&bow, 0, &abilities(&["bow"]), true);
+        let mods = modifiers(&bow, 0, &abilities(&[3 /* bow */]), true);
         assert_eq!(total(&mods, Stat::Ranged), 3);
         assert_eq!(total(&mods, Stat::Melee), 0);
     }

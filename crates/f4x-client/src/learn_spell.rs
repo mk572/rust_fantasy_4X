@@ -189,8 +189,8 @@ impl App {
 }
 impl App {
     /// For screenshots: announce a spell as learned, the animation `seconds` in.
-    pub fn open_test_learn(&mut self, id: &str, seconds: f64) {
-        let Some(spell) = self.game.content().rules.spells.id_of(id) else {
+    pub fn open_test_learn(&mut self, id: u16, seconds: f64) {
+        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
             eprintln!("unknown spell {id}");
             return;
         };

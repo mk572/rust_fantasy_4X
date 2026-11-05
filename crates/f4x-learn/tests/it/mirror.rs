@@ -49,8 +49,8 @@ fn the_smarter_ai_beats_the_plain_one_on_both_sides() {
 /// A battle between two single units where the attacker's wizard knows Fire Bolt.
 fn bolt_scenario(content: &Content, mana: i32) -> f4x_learn::scenario::BattleScenario {
     use f4x_learn::scenario::{Ground, Odds, UnitPick, WizardSpec};
-    let unit = |name: &str| UnitPick {
-        unit: name.into(),
+    let unit = |num: u16| UnitPick {
+        unit: num,
         xp: 0,
         hurt: 0,
     };
@@ -59,10 +59,13 @@ fn bolt_scenario(content: &Content, mana: i32) -> f4x_learn::scenario::BattleSce
         seed: 7,
         odds: Odds::Even,
         ground: Ground::Field,
-        attackers: vec![unit("orc_warrior")],
-        defenders: vec![unit("swordsmen"), unit("orc_warrior")],
+        attackers: vec![unit(6 /* orc_warrior */)],
+        defenders: vec![
+            unit(105 /* high_men_swordsmen */),
+            unit(6 /* orc_warrior */),
+        ],
         attacker_wizard: Some(WizardSpec {
-            spells: vec!["fire_bolt".into()],
+            spells: vec![83 /* fire_bolt */],
             mana,
             skill_points: 100,
         }),

@@ -305,6 +305,7 @@ mod tests {
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::exec::Target;
+    use crate::rules::RealmId;
     use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
@@ -328,13 +329,18 @@ mod tests {
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
         g.add_player(P0, "W");
         g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 1000;
-        g.init_wizard(P0, &[("life", 2)], &[], None)
+        g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
             .expect("init_wizard succeeds");
         g
     }
 
-    fn cast(g: &mut Game, id: &str, pos: Position) -> Vec<Event> {
-        let s = g.content.rules.spells.id_of(id).expect("id_of succeeds");
+    fn cast(g: &mut Game, id: u16, pos: Position) -> Vec<Event> {
+        let s = g
+            .content
+            .rules
+            .spells
+            .id_numbered(id)
+            .expect("id_of succeeds");
         g.wizard_mut(P0)
             .expect("value succeeds")
             .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -367,7 +373,7 @@ mod tests {
             .plane_mut(Plane::Arcanus)
             .set_mineral(4, 4, Some(gold));
         let before = g.income(P0).power_base;
-        let events = cast(&mut g, "raise_volcano", at(4, 4));
+        let events = cast(&mut g, 98 /* raise_volcano */, at(4, 4));
         assert!(events
             .iter()
             .any(|e| matches!(e, Event::VolcanoRaised { .. })));
@@ -549,15 +555,15 @@ mod tests {
     #[test]
     fn change_terrain_turns_a_volcano_into_plain_mountains() {
         let mut g = world();
-        cast(&mut g, "raise_volcano", at(4, 4));
+        cast(&mut g, 98 /* raise_volcano */, at(4, 4));
         assert_eq!(g.volcano_count(P0), 1);
-        cast(&mut g, "change_terrain", at(4, 4));
+        cast(&mut g, 15 /* change_terrain */, at(4, 4));
         assert_eq!(g.volcano_count(P0), 0);
         assert_eq!(
             g.economy().terrain_class_at(at(4, 4)),
             Some(TerrainClass::Mountains)
         );
-        cast(&mut g, "change_terrain", at(4, 4));
+        cast(&mut g, 15 /* change_terrain */, at(4, 4));
         assert_eq!(
             g.economy().terrain_class_at(at(4, 4)),
             Some(TerrainClass::Hills)

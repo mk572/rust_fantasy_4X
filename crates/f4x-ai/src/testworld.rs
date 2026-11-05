@@ -63,7 +63,7 @@ pub const ENEMY_CITY: (u32, u32) = (28, 6);
 
 /// Two islands, a city for each player at the given squares of the player-0 island and
 /// the east island, and nothing else.
-pub fn game(city0: (u32, u32), race: &str) -> Game {
+pub fn game(city0: (u32, u32), race: u16) -> Game {
     let content = content();
     let ocean = content.terrains.id_numbered(8).expect("ocean");
     let grass = content.terrains.id_numbered(4).expect("grassland");
@@ -76,7 +76,11 @@ pub fn game(city0: (u32, u32), race: &str) -> Game {
         }
         grid
     };
-    let race_id = content.rules.races.id_of(race).expect("the race exists");
+    let race_id = content
+        .rules
+        .races
+        .id_numbered(race)
+        .expect("the race exists");
     let mut game = Game::new(7);
     game.set_content(content);
     game.set_map(Map::new(build(), build()));
@@ -105,14 +109,14 @@ pub fn spawn(
     game: &mut Game,
     owner: PlayerId,
     pos: Position,
-    unit: &str,
+    unit: u16,
     count: usize,
 ) -> Vec<hecs::Entity> {
     let id = game
         .content()
         .rules
         .units
-        .id_of(unit)
+        .id_numbered(unit)
         .unwrap_or_else(|| panic!("no unit {unit}"));
     (0..count)
         .map(|_| game.spawn_unit(owner, pos, id))

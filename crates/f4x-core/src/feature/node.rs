@@ -298,7 +298,7 @@ pub(crate) mod tests {
             if u.id == "magic_spirit" {
                 u.abilities.push(crate::rules::Ability::new(42));
                 u.kind = UnitKind::Summoned;
-                u.realm = Some(crate::game::testutil::realm_ref("arcane"));
+                u.realm = Some(crate::game::testutil::realm_ref(5 /* arcane */));
             }
         }
         c.rules.units = Registry::new_sorted(units);
@@ -314,7 +314,7 @@ pub(crate) mod tests {
         for id in [P0, P1] {
             g.add_player(id, "W");
             g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
-            g.init_wizard(id, &[("life", 2)], &[], None)
+            g.init_wizard(id, &[(RealmId::new(3 /* life */), 2)], &[], None)
                 .expect("init_wizard succeeds");
         }
         g
@@ -329,8 +329,13 @@ pub(crate) mod tests {
             .warped = true;
     }
 
-    pub(crate) fn spirit(g: &mut Game, player: PlayerId, pos: Position, id: &str) -> hecs::Entity {
-        let u = g.content.rules.units.id_of(id).expect("id_of succeeds");
+    pub(crate) fn spirit(g: &mut Game, player: PlayerId, pos: Position, id: u16) -> hecs::Entity {
+        let u = g
+            .content
+            .rules
+            .units
+            .id_numbered(id)
+            .expect("id_of succeeds");
         g.spawn_unit(player, pos, u)
     }
 
@@ -397,7 +402,7 @@ pub(crate) mod tests {
     #[test]
     fn melding_a_spirit_takes_the_node_and_uses_the_spirit_up() {
         let mut g = world();
-        let s = spirit(&mut g, P0, at(6, 6), "magic_spirit");
+        let s = spirit(&mut g, P0, at(6, 6), 154 /* magic_spirit */);
         let events = g.apply(Command::Meld { units: vec![s] });
         assert!(
             events.iter().any(|e| matches!(e, Event::NodeMelded { .. })),
@@ -414,12 +419,12 @@ pub(crate) mod tests {
     #[test]
     fn only_spirits_on_a_node_can_meld() {
         let mut g = world();
-        let off = spirit(&mut g, P0, at(10, 6), "magic_spirit");
+        let off = spirit(&mut g, P0, at(10, 6), 154 /* magic_spirit */);
         assert_eq!(g.meld(&[off]), Err(MeldError::NoNode));
-        let walker = spirit(&mut g, P0, at(6, 6), "high_men_cavalry");
+        let walker = spirit(&mut g, P0, at(6, 6), 107 /* high_men_cavalry */);
         assert_eq!(g.meld(&[walker]), Err(MeldError::NoMelder));
         assert_eq!(g.meld(&[]), Err(MeldError::BadSelection));
-        let theirs = spirit(&mut g, P1, at(6, 6), "magic_spirit");
+        let theirs = spirit(&mut g, P1, at(6, 6), 154 /* magic_spirit */);
         assert_eq!(g.meld(&[walker, theirs]), Err(MeldError::BadSelection));
         warp(&mut g);
         assert_eq!(g.meld(&[theirs]), Err(MeldError::Warped));
@@ -428,7 +433,7 @@ pub(crate) mod tests {
     #[test]
     fn nodes_pay_power_by_strength_and_mastery() -> TestResult {
         let mut g = world();
-        let s = spirit(&mut g, P0, at(6, 6), "magic_spirit");
+        let s = spirit(&mut g, P0, at(6, 6), 154 /* magic_spirit */);
         g.meld(&[s]).map_err(|e| format!("{e:?}"))?;
         let power = i32::from(g.economy().nodes()[0].power);
         let base = g.income(P0).power_base;
@@ -458,7 +463,7 @@ pub(crate) mod tests {
     #[test]
     fn a_guarded_node_resists_rivals_three_times_in_four() -> TestResult {
         let mut g = world();
-        let guard = spirit(&mut g, P0, at(6, 6), "guardian_spirit");
+        let guard = spirit(&mut g, P0, at(6, 6), 176 /* guardian_spirit */);
         g.meld(&[guard]).map_err(|e| format!("{e:?}"))?;
         assert!(g.economy().nodes()[0].guardian);
         // Many rivals try; the roll is seeded, so count successes over several nodes of fresh
@@ -466,9 +471,9 @@ pub(crate) mod tests {
         let mut wins = 0;
         for seed in 0..200 {
             let mut g2 = world_seeded(seed);
-            let guard = spirit(&mut g2, P0, at(6, 6), "guardian_spirit");
+            let guard = spirit(&mut g2, P0, at(6, 6), 176 /* guardian_spirit */);
             g2.meld(&[guard]).map_err(|e| format!("{e:?}"))?;
-            let rival = spirit(&mut g2, P1, at(6, 6), "magic_spirit");
+            let rival = spirit(&mut g2, P1, at(6, 6), 154 /* magic_spirit */);
             let events = g2.meld(&[rival]).map_err(|e| format!("{e:?}"))?;
             if events.iter().any(|e| matches!(e, Event::NodeMelded { .. })) {
                 wins += 1;
@@ -481,9 +486,9 @@ pub(crate) mod tests {
         assert!((25..=75).contains(&wins), "about a quarter of 200: {wins}");
         // An unguarded node falls to any rival.
         let mut g3 = world();
-        let mine = spirit(&mut g3, P0, at(6, 6), "magic_spirit");
+        let mine = spirit(&mut g3, P0, at(6, 6), 154 /* magic_spirit */);
         g3.meld(&[mine]).map_err(|e| format!("{e:?}"))?;
-        let rival = spirit(&mut g3, P1, at(6, 6), "magic_spirit");
+        let rival = spirit(&mut g3, P1, at(6, 6), 154 /* magic_spirit */);
         g3.meld(&[rival]).map_err(|e| format!("{e:?}"))?;
         assert_eq!(g3.economy().nodes()[0].owner, Some(PlayerId(1)));
         Ok(())
@@ -492,9 +497,9 @@ pub(crate) mod tests {
     #[test]
     fn a_node_you_own_and_guard_takes_no_more_spirits() -> TestResult {
         let mut g = world();
-        let guard = spirit(&mut g, P0, at(6, 6), "guardian_spirit");
+        let guard = spirit(&mut g, P0, at(6, 6), 176 /* guardian_spirit */);
         g.meld(&[guard]).map_err(|e| format!("{e:?}"))?;
-        let another = spirit(&mut g, P0, at(6, 6), "magic_spirit");
+        let another = spirit(&mut g, P0, at(6, 6), 154 /* magic_spirit */);
         assert_eq!(g.meld(&[another]), Err(MeldError::AlreadyGuarded));
         assert!(
             g.world.get::<&crate::unit::Unit>(another).is_ok(),
@@ -503,9 +508,9 @@ pub(crate) mod tests {
         assert!(g.economy().nodes()[0].guardian);
         // Without a guardian it can still be melded again.
         let mut g2 = world();
-        let plain = spirit(&mut g2, P0, at(6, 6), "magic_spirit");
+        let plain = spirit(&mut g2, P0, at(6, 6), 154 /* magic_spirit */);
         g2.meld(&[plain]).map_err(|e| format!("{e:?}"))?;
-        let again = spirit(&mut g2, P0, at(6, 6), "magic_spirit");
+        let again = spirit(&mut g2, P0, at(6, 6), 154 /* magic_spirit */);
         assert!(g2.meld(&[again]).is_ok());
         Ok(())
     }

@@ -2,6 +2,7 @@ use super::*;
 use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::rules::Ability;
+use crate::rules::RealmId;
 use crate::testdir::TestResult;
 
 use crate::feature::node::Node;
@@ -49,7 +50,7 @@ fn world() -> Game {
     for (id, name) in [(P0, "Merlin"), (P1, "Rjak")] {
         g.add_player(id, name);
         g.treasury_mut(id).expect("treasury_mut succeeds").mana = 20_000;
-        g.init_wizard(id, &[("life", 2)], &[], None)
+        g.init_wizard(id, &[(RealmId::new(3 /* life */), 2)], &[], None)
             .expect("init_wizard succeeds");
         g.wizard_mut(id)
             .expect("value succeeds")
@@ -59,8 +60,12 @@ fn world() -> Game {
     g
 }
 
-fn sp(g: &Game, id: &str) -> SpellId {
-    g.content.rules.spells.id_of(id).expect("id_of succeeds")
+fn sp(g: &Game, id: u16) -> SpellId {
+    g.content
+        .rules
+        .spells
+        .id_numbered(id)
+        .expect("id_of succeeds")
 }
 
 /// The target that names the global enchantment `player` keeps going.
@@ -71,7 +76,7 @@ fn global(g: &Game, player: PlayerId, spell: SpellId) -> Target {
     )
 }
 
-fn cast(g: &mut Game, spell: &str, target: Target) -> Vec<Event> {
+fn cast(g: &mut Game, spell: u16, target: Target) -> Vec<Event> {
     let s = sp(g, spell);
     g.wizard_mut(P0)
         .expect("value succeeds")
@@ -104,7 +109,7 @@ fn the_chance_is_strength_over_strength_plus_difficulty() {
 #[test]
 fn masteries_and_archmage_multiply_a_spells_difficulty() -> TestResult {
     let mut g = world();
-    let aura = sp(&g, "aura_of_majesty"); // sorcery, 400
+    let aura = sp(&g, 59 /* aura_of_majesty */); // sorcery, 400
     assert_eq!(g.dispel_difficulty(aura, Some(P0)), 400);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
@@ -147,7 +152,7 @@ fn only_other_wizards_enchantments_are_dispelled() -> TestResult {
         .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
-    let strength = sp(&g, "giant_strength");
+    let strength = sp(&g, 4 /* giant_strength */);
     g.attach_enchantment(Target::Unit(unit), strength, P0);
     let mut r = rng();
     assert_eq!(
@@ -171,7 +176,7 @@ fn a_dispel_names_each_spell_it_removes() -> TestResult {
         .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
-    let strength = sp(&g, "giant_strength");
+    let strength = sp(&g, 4 /* giant_strength */);
     g.attach_enchantment(Target::Unit(unit), strength, P0);
     let mut gone = Vec::new();
     g.dispel_target(Target::Unit(unit), 1_000_000, P1, &mut rng(), &mut gone);
@@ -196,7 +201,7 @@ fn spell_lock_must_be_dispelled_before_anything_else_on_the_unit() -> TestResult
         .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
-    let (lock, strength) = (sp(&g, "spell_lock"), sp(&g, "giant_strength"));
+    let (lock, strength) = (sp(&g, 54 /* spell_lock */), sp(&g, 4 /* giant_strength */));
     g.attach_enchantment(Target::Unit(unit), strength, P0);
     g.attach_enchantment(Target::Unit(unit), lock, P0);
     let mut r = rng();
@@ -243,7 +248,10 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(6, 6), spear);
     let elsewhere = g.spawn_unit(P0, at(9, 9), spear);
-    let (strength, aura) = (sp(&g, "giant_strength"), sp(&g, "aura_of_majesty"));
+    let (strength, aura) = (
+        sp(&g, 4 /* giant_strength */),
+        sp(&g, 59 /* aura_of_majesty */),
+    );
     g.attach_enchantment(Target::City(city), aura, P0);
     g.attach_enchantment(Target::Unit(unit), strength, P0);
     g.attach_enchantment(Target::Unit(elsewhere), strength, P0);
@@ -251,7 +259,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
         at(6, 6),
         num::feature::SORCERY_NODE,
         Node {
-            realm: crate::game::testutil::realm("chaos"),
+            realm: crate::game::testutil::realm(2 /* chaos */),
             power: 8,
             aura: vec![(6, 6)],
             guardian: false,
@@ -259,7 +267,11 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
         },
         Some(PlayerId(0)),
     );
-    let events = cast(&mut g, "disenchant_area", Target::Tile(at(6, 6)));
+    let events = cast(
+        &mut g,
+        204, /* disenchant_area */
+        Target::Tile(at(6, 6)),
+    );
     assert!(
         events.contains(&Event::Dispelled {
             player: P0,
@@ -270,7 +282,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
     let node = g.economy().nodes()[0].entity;
     g.world.get::<&mut Node>(node)?.warped = true;
     // The same cast by the other wizard takes it all.
-    let da = sp(&g, "disenchant_area");
+    let da = sp(&g, 204 /* disenchant_area */);
     g.wizard_mut(P1)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -279,7 +291,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
     let events = g.apply(Command::CastSpell {
         extra: 0,
         player: P1,
-        spell: sp(&g, "disenchant_area"),
+        spell: sp(&g, 204 /* disenchant_area */),
         target: Some(Target::Tile(at(6, 6))),
     });
     assert!(
@@ -298,10 +310,10 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
 #[test]
 fn disjunction_ends_and_spell_binding_steals_an_enemy_global() -> TestResult {
     let mut g = world();
-    let aura = sp(&g, "aura_of_majesty");
+    let aura = sp(&g, 59 /* aura_of_majesty */);
     g.attach_enchantment(Target::Player(P1), aura, P1);
     let held = global(&g, P1, aura);
-    let events = cast(&mut g, "spell_binding", held);
+    let events = cast(&mut g, 76 /* spell_binding */, held);
     assert!(
         events.contains(&Event::GlobalSpellTaken {
             player: P0,
@@ -314,7 +326,7 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() -> TestResult {
     assert!(!g.wizard(P1).ok_or("wizard is missing")?.has_global(aura));
     // Now P1 ends it with Disjunction.
     let stolen = global(&g, P0, aura);
-    let dj = sp(&g, "disjunction");
+    let dj = sp(&g, 210 /* disjunction */);
     g.wizard_mut(P1)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -323,7 +335,7 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() -> TestResult {
     let events = g.apply(Command::CastSpell {
         extra: 0,
         player: P1,
-        spell: sp(&g, "disjunction"),
+        spell: sp(&g, 210 /* disjunction */),
         target: Some(stolen),
     });
     assert!(
@@ -336,7 +348,7 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() -> TestResult {
     );
     assert!(g.wizard(P0).ok_or("wizard is missing")?.global().is_empty());
     // Nothing to take: refused.
-    let events = cast(&mut g, "disjunction", held);
+    let events = cast(&mut g, 210 /* disjunction */, held);
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
@@ -344,7 +356,7 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() -> TestResult {
     // You cannot disjoin your own.
     g.attach_enchantment(Target::Player(P0), aura, P0);
     let own = global(&g, P0, aura);
-    let events = cast(&mut g, "disjunction", own);
+    let events = cast(&mut g, 210 /* disjunction */, own);
     assert!(matches!(events.as_slice(), [Event::Rejected(_)]));
     Ok(())
 }
@@ -352,8 +364,8 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() -> TestResult {
 #[test]
 fn the_rivals_globals_are_listed_wizard_by_wizard() -> TestResult {
     let mut g = world();
-    let aura = sp(&g, "aura_of_majesty");
-    let omens = sp(&g, "evil_omens");
+    let aura = sp(&g, 59 /* aura_of_majesty */);
+    let omens = sp(&g, 198 /* evil_omens */);
     g.attach_enchantment(Target::Player(P1), aura, P1);
     g.attach_enchantment(Target::Player(P1), omens, P1);
     g.attach_enchantment(Target::Player(P0), aura, P0);
@@ -370,7 +382,7 @@ fn the_rivals_globals_are_listed_wizard_by_wizard() -> TestResult {
 #[test]
 fn a_weak_disjunction_often_fails() -> TestResult {
     let mut g = world();
-    let aura = sp(&g, "aura_of_majesty"); // difficulty 400
+    let aura = sp(&g, 59 /* aura_of_majesty */); // difficulty 400
     g.attach_enchantment(Target::Player(P1), aura, P1);
     let mut r = rng();
     let wins = (0..2000)
@@ -391,14 +403,14 @@ fn a_weak_disjunction_often_fails() -> TestResult {
 fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() -> TestResult {
     let mut g = world();
     g.make_contact(P0, P1);
-    let aura = sp(&g, "aura_of_majesty");
+    let aura = sp(&g, 59 /* aura_of_majesty */);
     let cost = g.casting_cost(P1, aura, false);
     g.scenario_casting(P1, aura, cost - 60);
     assert_eq!(g.mana_spent_casting(P1), Some(60));
     let mana = g.player(P0).ok_or("player is missing")?.treasury().mana;
-    let blast = sp(&g, "spell_blast");
+    let blast = sp(&g, 58 /* spell_blast */);
     let paid = g.casting_cost(P0, blast, false);
-    let events = cast(&mut g, "spell_blast", Target::Player(P1));
+    let events = cast(&mut g, 58 /* spell_blast */, Target::Player(P1));
     assert!(
         events.contains(&Event::SpellBlasted {
             player: P0,
@@ -414,7 +426,7 @@ fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() -> TestRes
     );
     assert_eq!(g.wizard(P1).ok_or("wizard is missing")?.casting(), None);
     // Nothing being cast: not a target.
-    let events = cast(&mut g, "spell_blast", Target::Player(P1));
+    let events = cast(&mut g, 58 /* spell_blast */, Target::Player(P1));
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
@@ -425,12 +437,12 @@ fn spell_blast_costs_what_the_victim_has_spent_and_ends_their_spell() -> TestRes
 #[test]
 fn spell_blast_fails_when_the_caster_cannot_match_the_mana() -> TestResult {
     let mut g = world();
-    let aura = sp(&g, "aura_of_majesty");
+    let aura = sp(&g, 59 /* aura_of_majesty */);
     let cost = g.casting_cost(P1, aura, false);
     g.scenario_casting(P1, aura, cost - 90);
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
-        g.casting_cost(P0, sp(&g, "spell_blast"), false) + 50;
-    let events = cast(&mut g, "spell_blast", Target::Player(P1));
+        g.casting_cost(P0, sp(&g, 58 /* spell_blast */), false) + 50;
+    let events = cast(&mut g, 58 /* spell_blast */, Target::Player(P1));
     assert!(
         !events
             .iter()
@@ -444,11 +456,11 @@ fn spell_blast_fails_when_the_caster_cannot_match_the_mana() -> TestResult {
 #[test]
 fn suppress_magic_stops_enemy_spells_with_its_strength_over_the_spells_cost() {
     let mut g = world();
-    let suppress = sp(&g, "suppress_magic");
+    let suppress = sp(&g, 79 /* suppress_magic */);
     g.attach_enchantment(Target::Player(P1), suppress, P1);
     // Strength 500 against difficulty 500: half.
-    let big = sp(&g, "spell_of_mastery"); // cost 5000 ...
-    let mid = sp(&g, "storm_giant"); // cost 500
+    let big = sp(&g, 213 /* spell_of_mastery */); // cost 5000 ...
+    let mid = sp(&g, 65 /* storm_giant */); // cost 500
     let stopped = (0..2000)
         .filter(|_| g.suppressed_by(P0, mid).is_some())
         .count();
@@ -470,9 +482,9 @@ fn suppress_magic_stops_enemy_spells_with_its_strength_over_the_spells_cost() {
 fn life_force_and_tranquility_guard_against_their_realms_only() {
     let mut g = world();
     let (death, chaos, life) = (
-        sp(&g, "life_drain"),
-        sp(&g, "fire_bolt"),
-        sp(&g, "life_force"),
+        sp(&g, 167 /* life_drain */),
+        sp(&g, 83 /* fire_bolt */),
+        sp(&g, 156 /* life_force */),
     );
     g.attach_enchantment(Target::Player(P1), life, P1);
     let n = |g: &mut Game, s| {
@@ -483,7 +495,7 @@ fn life_force_and_tranquility_guard_against_their_realms_only() {
     assert!(n(&mut g, death) > 200, "death spells are checked");
     assert_eq!(n(&mut g, chaos), 0, "chaos spells are not");
     assert!(g.suppressed_by(P1, death).is_none(), "never its own wizard");
-    let tranq = sp(&g, "tranquility");
+    let tranq = sp(&g, 157 /* tranquility */);
     g.attach_enchantment(Target::Player(P1), tranq, P1);
     assert!(n(&mut g, chaos) > 200, "Tranquility guards against chaos");
 }
@@ -491,11 +503,11 @@ fn life_force_and_tranquility_guard_against_their_realms_only() {
 #[test]
 fn a_stopped_spell_is_lost_and_reported() -> TestResult {
     let mut g = world();
-    let suppress = sp(&g, "suppress_magic");
+    let suppress = sp(&g, 79 /* suppress_magic */);
     g.attach_enchantment(Target::Player(P1), suppress, P1);
     let mut stopped = 0;
     for _ in 0..30 {
-        let events = cast(&mut g, "aura_of_majesty", Target::Player(P0));
+        let events = cast(&mut g, 59 /* aura_of_majesty */, Target::Player(P0));
         if events
             .iter()
             .any(|e| matches!(e, Event::SpellSuppressed { by, .. } if *by == P1))
@@ -505,7 +517,7 @@ fn a_stopped_spell_is_lost_and_reported() -> TestResult {
                 .wizard(P0)
                 .ok_or("wizard is missing")?
                 .global()
-                .contains(&sp(&g, "aura_of_majesty")));
+                .contains(&sp(&g, 59 /* aura_of_majesty */)));
             break;
         }
         g.clear_globals(P0);
@@ -519,7 +531,10 @@ fn a_stopped_spell_is_lost_and_reported() -> TestResult {
 
 #[test]
 fn a_stopped_spell_names_the_enchantment_that_stopped_it() {
-    for (guard, spell) in [("tranquility", "fire_bolt"), ("life_force", "life_drain")] {
+    for (guard, spell) in [
+        (157 /* tranquility */, 83 /* fire_bolt */),
+        (156 /* life_force */, 167 /* life_drain */),
+    ] {
         let mut g = world();
         let (guard_id, spell_id) = (sp(&g, guard), sp(&g, spell));
         g.attach_enchantment(Target::Player(P1), guard_id, P1);
@@ -587,7 +602,7 @@ fn a_wizard_turns_off_only_their_own_spell_on_a_unit() -> TestResult {
         .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
-    let strength = sp(&g, "giant_strength");
+    let strength = sp(&g, 4 /* giant_strength */);
     g.attach_enchantment(Target::Unit(unit), strength, P0);
     g.attach_enchantment(Target::Unit(unit), strength, P1);
     let off = |g: &mut Game, player| {
@@ -650,7 +665,7 @@ fn turning_off_water_walking_at_sea_drowns_the_unit() -> TestResult {
         .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
-    let walking = sp(&g, "water_walking");
+    let walking = sp(&g, 8 /* water_walking */);
     g.attach_enchantment(Target::Unit(unit), walking, P0);
     assert!(
         g.drown_stranded().is_empty(),
@@ -692,7 +707,7 @@ fn flight_keeps_a_unit_afloat_and_turning_it_off_drowns_it() -> TestResult {
         .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
-    let flight = sp(&g, "flight");
+    let flight = sp(&g, 56 /* flight */);
     g.attach_enchantment(Target::Unit(unit), flight, P0);
     assert!(g.units().unit_has_ability(unit, Ability::new(24)));
     assert!(g.drown_stranded().is_empty());
@@ -712,7 +727,7 @@ fn flight_keeps_a_unit_afloat_and_turning_it_off_drowns_it() -> TestResult {
 #[test]
 fn disenchant_area_is_refused_where_there_is_nothing_of_another_wizards() {
     let g = world();
-    let da = sp(&g, "disenchant_area");
+    let da = sp(&g, 204 /* disenchant_area */);
     assert_eq!(
         g.check_target(P0, da, Some(Target::Tile(at(9, 9)))),
         Err(crate::wizard::magic::MagicError::Target(
@@ -724,10 +739,10 @@ fn disenchant_area_is_refused_where_there_is_nothing_of_another_wizards() {
 #[test]
 fn a_spell_blast_is_refused_without_contact_or_the_mana_to_match() -> TestResult {
     let mut g = world();
-    let aura = sp(&g, "aura_of_majesty");
+    let aura = sp(&g, 59 /* aura_of_majesty */);
     let cost = g.casting_cost(P1, aura, false);
     g.scenario_casting(P1, aura, cost - 60);
-    let blast = sp(&g, "spell_blast");
+    let blast = sp(&g, 58 /* spell_blast */);
     let refused = |g: &Game| g.check_target(P0, blast, Some(Target::Player(P1)));
     assert_eq!(
         refused(&g),

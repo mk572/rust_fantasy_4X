@@ -947,11 +947,11 @@ mod tests {
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    fn spell(id: &str) -> Result<SpellId, String> {
+    fn spell(id: u16) -> Result<SpellId, String> {
         shipped()
             .rules
             .spells
-            .id_of(id)
+            .id_numbered(id)
             .ok_or(format!("{id} is shipped"))
     }
 
@@ -988,7 +988,7 @@ mod tests {
         }
     }
 
-    fn kind_of(id: &str) -> Result<Kind, String> {
+    fn kind_of(id: u16) -> Result<Kind, String> {
         let rules = &shipped().rules;
         Ok(kind(rules.spells.get(spell(id)?)))
     }
@@ -996,33 +996,33 @@ mod tests {
     #[test]
     fn spells_are_sorted_into_the_kinds_the_ai_casts() -> TestResult {
         let cases = [
-            ("spell_of_mastery", Kind::Mastery),
-            ("war_bears", Kind::Summon),
-            ("giant_strength", Kind::UnitBuff),
-            ("heroism", Kind::UnitBuff),
-            ("elemental_armor", Kind::UnitBuff),
-            ("natures_eye", Kind::CityBuff),
-            ("herb_mastery", Kind::GlobalBuff),
-            ("earth_lore", Kind::Explore),
-            ("natures_cures", Kind::Cure),
-            ("disenchant_area", Kind::Disenchant),
-            ("disenchant_true", Kind::Disenchant),
-            ("chaos_channels", Kind::Mutate),
-            ("word_of_recall", Kind::Recall),
-            ("disjunction", Kind::Disjunction),
-            ("spell_binding", Kind::Disjunction),
-            ("famine", Kind::CityCurse),
-            ("earthquake", Kind::CityCurse),
-            ("cruel_unminding", Kind::WizardCurse),
-            ("meteor_storm", Kind::WorldSpell),
-            ("armageddon", Kind::WorldSpell),
-            ("time_stop", Kind::WorldSpell),
-            ("great_wasting", Kind::WorldSpell),
-            ("natures_wrath", Kind::WorldSpell),
-            ("spell_blast", Kind::Blast),
-            ("stasis", Kind::Stasis),
-            ("transmute", Kind::Other),
-            ("plane_shift", Kind::Other),
+            (213 /* spell_of_mastery */, Kind::Mastery),
+            (6 /* war_bears */, Kind::Summon),
+            (4 /* giant_strength */, Kind::UnitBuff),
+            (130 /* heroism */, Kind::UnitBuff),
+            (21 /* elemental_armor */, Kind::UnitBuff),
+            (12 /* natures_eye */, Kind::CityBuff),
+            (38 /* herb_mastery */, Kind::GlobalBuff),
+            (10 /* earth_lore */, Kind::Explore),
+            (19 /* natures_cures */, Kind::Cure),
+            (204 /* disenchant_area */, Kind::Disenchant),
+            (52 /* disenchant_true */, Kind::Disenchant),
+            (93 /* chaos_channels */, Kind::Mutate),
+            (47 /* word_of_recall */, Kind::Recall),
+            (210 /* disjunction */, Kind::Disjunction),
+            (76 /* spell_binding */, Kind::Disjunction),
+            (189 /* famine */, Kind::CityCurse),
+            (26 /* earthquake */, Kind::CityCurse),
+            (191 /* cruel_unminding */, Kind::WizardCurse),
+            (113 /* meteor_storm */, Kind::WorldSpell),
+            (120 /* armageddon */, Kind::WorldSpell),
+            (80 /* time_stop */, Kind::WorldSpell),
+            (114 /* great_wasting */, Kind::WorldSpell),
+            (40 /* natures_wrath */, Kind::WorldSpell),
+            (58 /* spell_blast */, Kind::Blast),
+            (68 /* stasis */, Kind::Stasis),
+            (18 /* transmute */, Kind::Other),
+            (132 /* plane_shift */, Kind::Other),
         ];
         for (id, expected) in cases {
             assert_eq!(kind_of(id)?, expected, "{id}");
@@ -1033,7 +1033,11 @@ mod tests {
     #[test]
     fn what_the_ai_cannot_use_is_left_alone() -> TestResult {
         // A curse on the whole world, a bolt for battle, a spell that is not done yet.
-        for id in ["fire_bolt", "suppress_magic", "earth_to_mud"] {
+        for id in [
+            83, /* fire_bolt */
+            79, /* suppress_magic */
+            1,  /* earth_to_mud */
+        ] {
             assert_eq!(kind_of(id)?, Kind::Other, "{id}");
         }
         Ok(())
@@ -1070,7 +1074,7 @@ mod tests {
     #[test]
     fn a_militarist_gives_more_power_to_mana_than_a_pragmatist() -> TestResult {
         let research_share = |objective: Objective| -> Result<_, Box<dyn std::error::Error>> {
-            let mut g = game(COAST_CITY, "high_men");
+            let mut g = game(COAST_CITY, 8 /* high_men */);
             g.wizard_mut(P0)
                 .ok_or("player 0 is a wizard")?
                 .put(Some(objective));
@@ -1090,7 +1094,7 @@ mod tests {
     fn an_objective_researches_the_sort_of_spell_it_likes_first() -> TestResult {
         use crate::objective::{traits_of, Like};
         let spells = &shipped().rules.spells;
-        let bears = spells.get(spell("war_bears")?);
+        let bears = spells.get(spell(6 /* war_bears */)?);
         let militarist = traits_of(Some(Objective::Militarist));
         assert!(liked(bears, kind(bears), &militarist));
         assert!(!liked(
@@ -1105,8 +1109,8 @@ mod tests {
 
     #[test]
     fn a_banished_wizard_turns_just_enough_gold_into_mana_for_the_return() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
-        let spell = spell("spell_of_return")?;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let spell = spell(214 /* spell_of_return */)?;
         let mut wizard = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
         wizard.put(Some(f4x_core::wizard::fortress::Banishment {
             by: Some(P1),
@@ -1138,8 +1142,8 @@ mod tests {
 
     #[test]
     fn a_wizard_that_is_not_banished_keeps_its_gold() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
-        g.scenario_casting(P0, spell("spell_of_return")?, 500);
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.scenario_casting(P0, spell(214 /* spell_of_return */)?, 500);
         treasury(&mut g, P0)?.mana = 0;
         let gold = g.player(P0).ok_or("player 0 exists")?.treasury().gold;
         fund_return(&Ai::new(P0), &mut g, &mut Vec::new());
@@ -1150,9 +1154,9 @@ mod tests {
     #[test]
     fn a_wizard_curses_the_city_of_an_enemy_at_war_and_leaves_a_neighbour_at_peace_alone(
     ) -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.make_contact(P0, P1);
-        let famine = spell("famine")?;
+        let famine = spell(189 /* famine */)?;
         g.cheat_learn_spell(P0, famine);
         treasury(&mut g, P0)?.mana = 5_000;
         g.wizard_mut(P0)
@@ -1198,9 +1202,9 @@ mod tests {
 
     #[test]
     fn a_wizard_begins_a_spell_on_the_world_only_while_at_war() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.make_contact(P0, P1);
-        let storm = spell("meteor_storm")?;
+        let storm = spell(113 /* meteor_storm */)?;
         g.cheat_learn_spell(P0, storm);
         treasury(&mut g, P0)?.mana = 20_000;
         let mut wizard = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
@@ -1236,10 +1240,10 @@ mod tests {
 
     #[test]
     fn natures_wrath_has_a_victim_only_in_an_enemy_with_death_or_chaos_books() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.make_contact(P0, P1);
-        let wrath = spell("natures_wrath")?;
-        let storm = spell("meteor_storm")?;
+        let wrath = spell(40 /* natures_wrath */)?;
+        let storm = spell(113 /* meteor_storm */)?;
         g.wizard_mut(P1)
             .ok_or("player 1 is a wizard")?
             .found(&[(RealmId::new(3) /* life */, 5)], &[]);
@@ -1263,11 +1267,11 @@ mod tests {
 
     #[test]
     fn a_wizard_disenchants_the_city_an_enemy_has_cursed_and_otherwise_leaves_it() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let (area, famine, own) = (
-            spell("disenchant_area")?,
-            spell("famine")?,
-            spell("natures_eye")?,
+            spell(204 /* disenchant_area */)?,
+            spell(189 /* famine */)?,
+            spell(12 /* natures_eye */)?,
         );
         g.cheat_learn_spell(P0, area);
         treasury(&mut g, P0)?.mana = 5_000;
@@ -1290,9 +1294,9 @@ mod tests {
     #[test]
     fn a_wizard_breaks_the_global_spell_of_an_enemy_at_war_and_not_of_a_neighbour_at_peace(
     ) -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.make_contact(P0, P1);
-        let (disjunction, awareness) = (spell("disjunction")?, spell("awareness")?);
+        let (disjunction, awareness) = (spell(210 /* disjunction */)?, spell(209 /* awareness */)?);
         g.cheat_learn_spell(P0, disjunction);
         g.scenario_add_global(P1, awareness);
         let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), disjunction);
@@ -1310,9 +1314,9 @@ mod tests {
 
     #[test]
     fn a_wizard_blasts_a_rival_at_war_who_is_casting_and_leaves_one_who_is_not() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.make_contact(P0, P1);
-        let blast = spell("spell_blast")?;
+        let blast = spell(58 /* spell_blast */)?;
         g.cheat_learn_spell(P0, blast);
         treasury(&mut g, P0)?.mana = 5_000;
         let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), blast);
@@ -1321,7 +1325,7 @@ mod tests {
             on: P1,
         }));
         assert!(aim(&g).is_none(), "the rival casts nothing");
-        g.scenario_casting(P1, spell("meteor_storm")?, 100);
+        g.scenario_casting(P1, spell(113 /* meteor_storm */)?, 100);
         assert_eq!(aim(&g), Some(Target::Player(P1)));
         Ok(())
     }
@@ -1329,12 +1333,12 @@ mod tests {
     #[test]
     fn a_wizard_holds_an_enemy_stack_near_its_city_only_while_at_war_and_stronger_than_the_garrison(
     ) -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.make_contact(P0, P1);
-        let stasis = spell("stasis")?;
+        let stasis = spell(68 /* stasis */)?;
         g.cheat_learn_spell(P0, stasis);
         let near = at(COAST_CITY.0 - 1, COAST_CITY.1);
-        spawn(&mut g, P1, near, "high_men_spearmen", 8);
+        spawn(&mut g, P1, near, 104 /* high_men_spearmen */, 8);
         let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), stasis);
         assert!(aim(&g).is_none(), "at peace: left alone");
         g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
@@ -1346,7 +1350,7 @@ mod tests {
             &mut g,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
-            "high_men_spearmen",
+            104, /* high_men_spearmen */
             9,
         );
         assert!(aim(&g).is_none(), "the garrison is the stronger");
@@ -1367,7 +1371,7 @@ mod tests {
     #[test]
     fn a_hurt_stack_far_from_home_is_recalled_and_one_in_a_city_is_not() -> TestResult {
         let mut g = fresh_game()?;
-        let recall = spell("word_of_recall")?;
+        let recall = spell(47 /* word_of_recall */)?;
         g.cheat_learn_spell(P1, recall);
         let circle = g
             .wizard(P1)
@@ -1384,7 +1388,7 @@ mod tests {
             x: (circle.x + 20) % width,
             ..circle
         };
-        let fighters = spawn(&mut g, P1, far, "high_men_spearmen", 2);
+        let fighters = spawn(&mut g, P1, far, 104 /* high_men_spearmen */, 2);
         assert!(aim(&g).is_none(), "whole stack is not hurt");
         for &u in &fighters {
             let (_, max) = PlayerView::new(&g, P1).unit_hits(u);
@@ -1397,7 +1401,7 @@ mod tests {
     #[test]
     fn heroism_is_aimed_at_a_fighter_and_not_at_one_that_has_it() -> TestResult {
         let mut g = fresh_game()?;
-        let heroism = spell("heroism")?;
+        let heroism = spell(130 /* heroism */)?;
         g.cheat_learn_spell(P1, heroism);
         let aim = |g: &Game| pick_target(&PlayerView::new(g, P1), heroism);
         let Some(Target::Unit(first)) = aim(&g) else {

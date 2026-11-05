@@ -1,5 +1,6 @@
 use super::*;
 use crate::game::testutil::{realm, shipped};
+use crate::rules::RealmId;
 use crate::rules::Rules;
 use crate::rules::{Registry, WizardDef};
 use std::collections::BTreeSet;
@@ -7,11 +8,11 @@ use std::collections::BTreeSet;
 const SEEDS: std::ops::Range<u64> = 1..60;
 const PICKS: u8 = 11;
 
-fn build(books: &[(&str, u8)], retorts: &[Retort]) -> WizardBuild {
+fn build(books: &[(RealmId, u8)], retorts: &[Retort]) -> WizardBuild {
     WizardBuild {
         name: "W".into(),
         gender: Default::default(),
-        books: books.iter().map(|&(r, n)| (realm(r), n)).collect(),
+        books: books.iter().copied().collect(),
         retorts: retorts.iter().copied().collect(),
         spells: Vec::new(),
         banner: None,
@@ -55,13 +56,13 @@ fn assert_sound(b: &WizardBuild, picks: u8) {
     }
 }
 
-fn wizard_def(num: u16, id: &str, books: &[(&str, u8)], retorts: &[Retort]) -> WizardDef {
+fn wizard_def(num: u16, id: &str, books: &[(RealmId, u8)], retorts: &[Retort]) -> WizardDef {
     WizardDef {
         num,
         id: id.into(),
         help: 0,
         gender: Default::default(),
-        books: books.iter().map(|&(r, n)| (realm(r), n)).collect(),
+        books: books.to_vec(),
         retorts: retorts.to_vec(),
     }
 }
@@ -81,7 +82,13 @@ fn settings(opponents: u8, picks: u8) -> GameSettings {
 }
 
 fn plain(_: usize) -> WizardBuild {
-    build(&[("life", 3), ("nature", 2)], &[])
+    build(
+        &[
+            (RealmId::new(3 /* life */), 3),
+            (RealmId::new(0 /* nature */), 2),
+        ],
+        &[],
+    )
 }
 
 #[test]
@@ -97,7 +104,14 @@ fn the_myrran_share_follows_the_planes_limits() {
 fn too_few_myrran_wizards_are_made_by_giving_up_three_books() {
     for seed in SEEDS {
         let mut g = new_game(seed);
-        let before = build(&[("life", 2), ("nature", 2), ("sorcery", 2)], &[]);
+        let before = build(
+            &[
+                (RealmId::new(3 /* life */), 2),
+                (RealmId::new(0 /* nature */), 2),
+                (RealmId::new(1 /* sorcery */), 2),
+            ],
+            &[],
+        );
         let mut builds = vec![before.clone(); 6];
         balance_planes(&mut g, &mut builds, false, 6, PICKS);
         let made: Vec<&WizardBuild> = builds.iter().filter(|b| myrran(b)).collect();
@@ -117,7 +131,7 @@ fn too_few_myrran_wizards_are_made_by_giving_up_three_books() {
 fn a_wizard_with_one_book_left_gives_up_no_more() {
     for seed in SEEDS {
         let mut g = new_game(seed);
-        let mut builds = vec![build(&[("life", 2)], &[]); 2];
+        let mut builds = vec![build(&[(RealmId::new(3 /* life */), 2)], &[]); 2];
         balance_planes(&mut g, &mut builds, false, 4, PICKS);
         assert!(
             builds.iter().filter(|b| myrran(b)).count() >= 1,
@@ -131,7 +145,7 @@ fn a_wizard_with_one_book_left_gives_up_no_more() {
 fn the_human_myrran_wizard_counts_toward_the_share() {
     for seed in SEEDS {
         let mut g = new_game(seed);
-        let mut builds = vec![build(&[("life", 5)], &[]); 3];
+        let mut builds = vec![build(&[(RealmId::new(3 /* life */), 5)], &[]); 3];
         balance_planes(&mut g, &mut builds, true, 4, PICKS);
         // One of four is already the human: nothing is lacking.
         assert!(builds.iter().all(|b| !myrran(b)), "seed {seed}");
@@ -143,7 +157,13 @@ fn the_human_myrran_wizard_counts_toward_the_share() {
 fn too_many_myrran_wizards_are_made_ordinary_and_refilled() {
     for seed in SEEDS {
         let mut g = new_game(seed);
-        let mut builds = vec![build(&[("nature", 1)], &[Retort::new(9) /* myrran */]); 4];
+        let mut builds = vec![
+            build(
+                &[(RealmId::new(0 /* nature */), 1)],
+                &[Retort::new(9) /* myrran */]
+            );
+            4
+        ];
         balance_planes(&mut g, &mut builds, false, 4, PICKS);
         let (_, most) = myrran_range(4);
         assert_eq!(
@@ -171,7 +191,7 @@ fn the_refill_spends_the_picks_without_breaking_a_rule() {
         assert_sound(&b, PICKS);
         assert!(!myrran(&b), "seed {seed}: the refill picked Myrran");
         assert!(
-            books(&b, realm("life")) == 0 || books(&b, realm("death")) == 0,
+            books(&b, realm(3 /* life */)) == 0 || books(&b, realm(4 /* death */)) == 0,
             "seed {seed}: opposed realms in {b:?}"
         );
         spent.insert(b.picks_spent(&rules()));
@@ -186,7 +206,13 @@ fn the_refill_spends_the_picks_without_breaking_a_rule() {
 #[test]
 fn the_refill_leaves_a_full_build_alone() {
     let mut g = new_game(3);
-    let mut b = build(&[("life", 5), ("nature", 6)], &[]);
+    let mut b = build(
+        &[
+            (RealmId::new(3 /* life */), 5),
+            (RealmId::new(0 /* nature */), 6),
+        ],
+        &[],
+    );
     let before = b.clone();
     refill(&mut g, &mut b, PICKS);
     assert_eq!(b, before);
@@ -210,17 +236,17 @@ fn the_same_seed_makes_the_same_wizard() {
 
 #[test]
 fn books_stop_at_the_limit_and_at_an_opposed_realm() {
-    let mut b = build(&[("life", 9)], &[]);
-    add_books(&mut b, realm("life"), 4, Some(realm("death")));
-    assert_eq!(books(&b, realm("life")), MAX_BOOKS);
-    add_books(&mut b, realm("life"), 1, Some(realm("death")));
-    assert_eq!(books(&b, realm("life")), MAX_BOOKS);
+    let mut b = build(&[(RealmId::new(3 /* life */), 9)], &[]);
+    add_books(&mut b, realm(3 /* life */), 4, Some(realm(4 /* death */)));
+    assert_eq!(books(&b, realm(3 /* life */)), MAX_BOOKS);
+    add_books(&mut b, realm(3 /* life */), 1, Some(realm(4 /* death */)));
+    assert_eq!(books(&b, realm(3 /* life */)), MAX_BOOKS);
 
-    let mut b = build(&[("life", 2)], &[]);
-    add_books(&mut b, realm("death"), 3, Some(realm("life")));
-    assert_eq!(books(&b, realm("death")), 0);
-    add_books(&mut b, realm("nature"), 3, None);
-    assert_eq!(books(&b, realm("nature")), 3);
+    let mut b = build(&[(RealmId::new(3 /* life */), 2)], &[]);
+    add_books(&mut b, realm(4 /* death */), 3, Some(realm(3 /* life */)));
+    assert_eq!(books(&b, realm(4 /* death */)), 0);
+    add_books(&mut b, realm(0 /* nature */), 3, None);
+    assert_eq!(books(&b, realm(0 /* nature */)), 3);
 }
 
 #[test]
@@ -228,7 +254,7 @@ fn a_retort_needs_its_books_and_its_picks() {
     for seed in SEEDS {
         let mut g = new_game(seed);
         // No books: no mastery can come, and only picks for a one-pick retort remain.
-        let mut b = build(&[("life", 1)], &[]);
+        let mut b = build(&[(RealmId::new(3 /* life */), 1)], &[]);
         for _ in 0..200 {
             add_retort(&mut g, &mut b, 3);
         }
@@ -248,7 +274,13 @@ fn a_mastery_comes_from_a_realm_of_four_books() {
     let mut got: BTreeSet<Retort> = BTreeSet::new();
     for seed in SEEDS {
         let mut g = new_game(seed);
-        let mut b = build(&[("nature", 4), ("chaos", 1)], &[]);
+        let mut b = build(
+            &[
+                (RealmId::new(0 /* nature */), 4),
+                (RealmId::new(2 /* chaos */), 1),
+            ],
+            &[],
+        );
         for _ in 0..300 {
             add_retort(&mut g, &mut b, PICKS);
         }
@@ -270,9 +302,9 @@ fn a_mastery_comes_from_a_realm_of_four_books() {
 #[test]
 fn the_ready_made_wizards_are_drawn_once_each() {
     let defs = vec![
-        wizard_def(1, "a", &[("life", 5)], &[]),
-        wizard_def(2, "b", &[("nature", 5)], &[]),
-        wizard_def(3, "c", &[("chaos", 5)], &[]),
+        wizard_def(1, "a", &[(RealmId::new(3 /* life */), 5)], &[]),
+        wizard_def(2, "b", &[(RealmId::new(0 /* nature */), 5)], &[]),
+        wizard_def(3, "c", &[(RealmId::new(2 /* chaos */), 5)], &[]),
     ];
     for seed in SEEDS {
         let mut g = game_with(seed, defs.clone());
@@ -297,8 +329,8 @@ fn without_ready_made_wizards_the_fallback_builds_them() {
     assert_eq!(builds.len(), 2);
     assert!(taken.is_empty());
     for b in &builds {
-        assert_eq!(books(b, realm("life")), 3);
-        assert_eq!(books(b, realm("nature")), 2);
+        assert_eq!(books(b, realm(3 /* life */)), 3);
+        assert_eq!(books(b, realm(0 /* nature */)), 2);
         assert!(b.preset, "they are marked as made by the same path");
     }
 }
@@ -310,7 +342,7 @@ fn the_same_seed_draws_the_same_wizards() {
             wizard_def(
                 n,
                 &format!("w{n}"),
-                &[("life", 2)],
+                &[(RealmId::new(3 /* life */), 2)],
                 &[Retort::new(0) /* alchemy */],
             )
         })
@@ -331,7 +363,15 @@ fn opposed_realms_are_merged_into_one() {
     for seed in SEEDS {
         let mut g = game_with(
             seed,
-            vec![wizard_def(1, "a", &[("life", 3), ("chaos", 2)], &[])],
+            vec![wizard_def(
+                1,
+                "a",
+                &[
+                    (RealmId::new(3 /* life */), 3),
+                    (RealmId::new(2 /* chaos */), 2),
+                ],
+                &[],
+            )],
         );
         let mut s = settings(1, 5);
         s.ai.wizards.consolidate_percent = 100;
@@ -348,7 +388,15 @@ fn no_merge_happens_at_zero_percent() {
     for seed in SEEDS {
         let mut g = game_with(
             seed,
-            vec![wizard_def(1, "a", &[("life", 3), ("chaos", 2)], &[])],
+            vec![wizard_def(
+                1,
+                "a",
+                &[
+                    (RealmId::new(3 /* life */), 3),
+                    (RealmId::new(2 /* chaos */), 2),
+                ],
+                &[],
+            )],
         );
         let builds = make(&mut g, &settings(1, 5), &mut Vec::new(), 1, false, &plain);
         assert_eq!(builds[0].books.len(), 2, "seed {seed}");
@@ -360,7 +408,10 @@ fn the_erasure_dice_take_books_but_never_the_last_of_a_realm() {
     let def = wizard_def(
         1,
         "a",
-        &[("life", 4), ("nature", 4)],
+        &[
+            (RealmId::new(3 /* life */), 4),
+            (RealmId::new(0 /* nature */), 4),
+        ],
         &[
             Retort::new(0), /* alchemy */
             Retort::new(1), /* warlord */
@@ -376,11 +427,11 @@ fn the_erasure_dice_take_books_but_never_the_last_of_a_realm() {
         let builds = make(&mut g, &s, &mut Vec::new(), 1, false, &plain);
         let b = &builds[0];
         assert!(
-            books(b, realm("life")) >= 1 && books(b, realm("life")) <= 4,
+            books(b, realm(3 /* life */)) >= 1 && books(b, realm(3 /* life */)) <= 4,
             "seed {seed}: {b:?}"
         );
         assert!(
-            books(b, realm("nature")) >= 1 && books(b, realm("nature")) <= 4,
+            books(b, realm(0 /* nature */)) >= 1 && books(b, realm(0 /* nature */)) <= 4,
             "seed {seed}: {b:?}"
         );
         assert!(
@@ -401,12 +452,17 @@ fn the_myrran_rule_keeps_the_share_within_the_planes() {
         defs.push(wizard_def(
             n,
             &format!("m{n}"),
-            &[("life", 3)],
+            &[(RealmId::new(3 /* life */), 3)],
             &[Retort::new(9) /* myrran */],
         ));
     }
     for n in 4..=6 {
-        defs.push(wizard_def(n, &format!("o{n}"), &[("life", 3)], &[]));
+        defs.push(wizard_def(
+            n,
+            &format!("o{n}"),
+            &[(RealmId::new(3 /* life */), 3)],
+            &[],
+        ));
     }
     for seed in SEEDS {
         let mut g = game_with(seed, defs.clone());

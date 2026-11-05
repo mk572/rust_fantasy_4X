@@ -2,6 +2,7 @@ use super::*;
 use crate::game::save::Snapshot;
 use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
+use crate::rules::RealmId;
 use crate::testdir::TestResult;
 
 use crate::game::Command;
@@ -21,8 +22,12 @@ fn at(x: u32, y: u32) -> Position {
     }
 }
 
-fn spell(g: &Game, id: &str) -> SpellId {
-    g.content.rules.spells.id_of(id).expect("id_of succeeds")
+fn spell(g: &Game, id: u16) -> SpellId {
+    g.content
+        .rules
+        .spells
+        .id_numbered(id)
+        .expect("id_of succeeds")
 }
 
 /// The real spells `ids`, which are cast in battle, made castable on the map too (and, as for
@@ -52,7 +57,7 @@ fn world() -> Game {
         .expect("value succeeds")
         .0 = 2;
     game.treasury_mut(P0).expect("treasury_mut succeeds").mana = 100;
-    game.init_wizard(P0, &[("life", 2)], &[], None)
+    game.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .expect("init_wizard succeeds");
     game
 }
@@ -81,8 +86,13 @@ fn found(g: &mut Game, pos: Position, pop: u32) -> hecs::Entity {
     g.economy().city_at(pos).expect("city_at succeeds")
 }
 
-fn add_building(g: &mut Game, city: hecs::Entity, id: &str) {
-    let b = g.content.rules.buildings.id_of(id).expect("id_of succeeds");
+fn add_building(g: &mut Game, city: hecs::Entity, id: u16) {
+    let b = g
+        .content
+        .rules
+        .buildings
+        .id_numbered(id)
+        .expect("id_of succeeds");
     g.world
         .get::<&mut crate::city::economy::Buildings>(city)
         .expect("value succeeds")
@@ -109,7 +119,10 @@ fn a_new_wizard_starts_with_books_spells_and_skill() -> TestResult {
     let mut g = world();
     g.init_wizard(
         P0,
-        &[("life", 3), ("chaos", 2)],
+        &[
+            (RealmId::new(3 /* life */), 3),
+            (RealmId::new(2 /* chaos */), 2),
+        ],
         &[Retort::new(10) /* archmage */],
         None,
     )
@@ -118,22 +131,26 @@ fn a_new_wizard_starts_with_books_spells_and_skill() -> TestResult {
     // Three books and two books: 2 + 1 common spells known, and the two every wizard starts with.
     assert_eq!(m.known().len(), 3 + 2);
     assert!(m.known().is_disjoint(&m.researchable()));
-    let in_realm = |set: &BTreeSet<SpellId>, realm: &str| {
+    let in_realm = |set: &BTreeSet<SpellId>, realm: u16| {
         let realm = crate::game::testutil::realm(realm);
         set.iter()
             .filter(|&&s| g.content.rules.spells.get(s).realm == realm)
             .count()
     };
     // Life, 3 books: 6 common + 3 uncommon + 2 rare + 1 very rare, of which 2 known.
-    assert_eq!(in_realm(&m.known(), "life"), 2);
-    assert_eq!(in_realm(&m.researchable(), "life"), 12 - 2);
+    assert_eq!(in_realm(&m.known(), 3 /* life */), 2);
+    assert_eq!(in_realm(&m.researchable(), 3 /* life */), 12 - 2);
     // Chaos, 2 books: 5 + 2 + 1 + 0, of which 1 known.
-    assert_eq!(in_realm(&m.researchable(), "chaos"), 8 - 1);
+    assert_eq!(in_realm(&m.researchable(), 2 /* chaos */), 8 - 1);
     // Arcane is open to everyone, except the Spell of Mastery; Magic Spirit is known.
-    assert!(m.researchable().contains(&spell(&g, "dispel_magic")));
-    assert!(m.known().contains(&spell(&g, "magic_spirit")));
-    assert!(m.known().contains(&spell(&g, "spell_of_return")));
-    assert!(!m.researchable().contains(&spell(&g, "spell_of_mastery")));
+    assert!(m
+        .researchable()
+        .contains(&spell(&g, 202 /* dispel_magic */)));
+    assert!(m.known().contains(&spell(&g, 201 /* magic_spirit */)));
+    assert!(m.known().contains(&spell(&g, 214 /* spell_of_return */)));
+    assert!(!m
+        .researchable()
+        .contains(&spell(&g, 213 /* spell_of_mastery */)));
     // 5 books + 5 for the archmage, doubled.
     assert_eq!(g.wizard(P0).ok_or("wizard is missing")?.casting_skill(), 20);
     Ok(())
@@ -150,8 +167,8 @@ fn power_comes_from_cities_and_is_split_by_percentages() -> TestResult {
     let mut g = world();
     assert_eq!(g.income(P0).split, PowerShares::default());
     let city = found(&mut g, at(10, 6), 4);
-    add_building(&mut g, city, "temple");
-    add_building(&mut g, city, "library");
+    add_building(&mut g, city, 23 /* temple */);
+    add_building(&mut g, city, 16 /* library */);
     // Four elves make two mana, the temple two; the library makes two research.
     // Plus two books' worth from the fortress city.
     assert_eq!(g.income(P0).power_base, 4 + 2);
@@ -196,12 +213,12 @@ fn retorts_and_extra_books_change_research_and_cost() -> TestResult {
     let mut g = world();
     g.init_wizard(
         P0,
-        &[("life", 9)],
+        &[(RealmId::new(3 /* life */), 9)],
         &[Retort::new(7) /* sage_master */],
         None,
     )
     .map_err(|e| format!("{e:?}"))?;
-    let mend = spell(&g, "healing");
+    let mend = spell(&g, 125 /* healing */);
     // Sage master 25 plus two books over seven, 10 each.
     assert_eq!(
         g.wizard(P0)
@@ -211,7 +228,7 @@ fn retorts_and_extra_books_change_research_and_cost() -> TestResult {
     );
     // Two books over seven take a fifth off the cost (15 mana in battle).
     assert_eq!(g.casting_cost(P0, mend, true), 12);
-    let runes = spell(&g, "magic_spirit");
+    let runes = spell(&g, 201 /* magic_spirit */);
     assert_eq!(
         g.wizard(P0)
             .ok_or("wizard is missing")?
@@ -221,7 +238,7 @@ fn retorts_and_extra_books_change_research_and_cost() -> TestResult {
     );
     assert_eq!(g.casting_cost(P0, runes, false), 30);
     // A spell that can also be cast in battle costs five times as much overland.
-    let strength = spell(&g, "giant_strength");
+    let strength = spell(&g, 4 /* giant_strength */);
     assert_eq!(g.casting_cost(P0, strength, true), 8);
     assert_eq!(g.casting_cost(P0, strength, false), 40);
     Ok(())
@@ -230,15 +247,15 @@ fn retorts_and_extra_books_change_research_and_cost() -> TestResult {
 #[test]
 fn research_takes_turns_and_ends_with_a_new_spell() -> TestResult {
     let mut g = world();
-    let target = spell(&g, "dispel_magic");
-    let other = spell(&g, "summoning_circle");
+    let target = spell(&g, 202 /* dispel_magic */);
+    let other = spell(&g, 203 /* summoning_circle */);
     found(&mut g, at(10, 6), 4);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .set_split(0, 100, 0)
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
-        g.set_research(P0, spell(&g, "spell_of_mastery")),
+        g.set_research(P0, spell(&g, 213 /* spell_of_mastery */)),
         Err(MagicError::NotAvailable)
     );
     g.set_research(P0, target).map_err(|e| format!("{e:?}"))?;
@@ -281,7 +298,7 @@ fn research_takes_turns_and_ends_with_a_new_spell() -> TestResult {
 fn mana_income_fills_the_reserve() -> TestResult {
     let mut g = world();
     let city = found(&mut g, at(10, 6), 4);
-    add_building(&mut g, city, "temple");
+    add_building(&mut g, city, 23 /* temple */);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .set_split(100, 0, 0)
@@ -307,7 +324,7 @@ fn an_affordable_spell_takes_effect_at_once() -> TestResult {
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     g.world.insert_one(unit, crate::unit::Hurt(3))?;
-    let mend = spell(&g, "healing");
+    let mend = spell(&g, 125 /* healing */);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -362,7 +379,7 @@ fn spells_need_a_known_spell_and_a_valid_target() -> TestResult {
     let mine = g.spawn_unit(P0, at(3, 3), spear);
     g.add_player(PlayerId(1), "");
     let theirs = g.spawn_unit(PlayerId(1), at(4, 3), spear);
-    let (mend, zap) = (spell(&g, "healing"), spell(&g, "fire_bolt"));
+    let (mend, zap) = (spell(&g, 125 /* healing */), spell(&g, 83 /* fire_bolt */));
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
@@ -507,10 +524,15 @@ fn only_real_upkeep_can_be_released() -> TestResult {
 #[test]
 fn a_famous_wizard_starts_with_ten_fame() -> TestResult {
     let mut g = world();
-    g.init_wizard(P0, &[("life", 3)], &[Retort::new(13) /* famous */], None)
-        .map_err(|e| format!("{e:?}"))?;
+    g.init_wizard(
+        P0,
+        &[(RealmId::new(3 /* life */), 3)],
+        &[Retort::new(13) /* famous */],
+        None,
+    )
+    .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.wizard(P0).ok_or("wizard is missing")?.fame(), 10);
-    g.init_wizard(P0, &[("life", 3)], &[], None)
+    g.init_wizard(P0, &[(RealmId::new(3 /* life */), 3)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.wizard(P0).ok_or("wizard is missing")?.fame(), 0);
     Ok(())
@@ -534,7 +556,7 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() -> TestResult {
         .map_err(|e| format!("{e:?}"))?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     g.balance_farmers(P0);
-    let strength = spell(&g, "giant_strength");
+    let strength = spell(&g, 4 /* giant_strength */);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -607,7 +629,7 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() -> TestResult {
 #[test]
 fn cancelling_loses_what_was_paid() -> TestResult {
     let mut g = world();
-    let strength = spell(&g, "giant_strength");
+    let strength = spell(&g, 4 /* giant_strength */);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -639,7 +661,7 @@ fn cancelling_loses_what_was_paid() -> TestResult {
 #[test]
 fn summoning_creates_units_at_the_chosen_tile() -> TestResult {
     let mut g = world();
-    let call = spell(&g, "war_bears");
+    let call = spell(&g, 6 /* war_bears */);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -663,7 +685,7 @@ fn summoning_creates_units_at_the_chosen_tile() -> TestResult {
 fn a_city_enchantment_is_cast_and_paid_for() -> TestResult {
     let mut g = world();
     let city = found(&mut g, at(10, 6), 4);
-    let prosperity = spell(&g, "prosperity");
+    let prosperity = spell(&g, 145 /* prosperity */);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -706,7 +728,7 @@ fn dispelling_removes_enchantments_by_strength() -> TestResult {
         .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
-    let strength = spell(&g, "giant_strength");
+    let strength = spell(&g, 4 /* giant_strength */);
     let melee = g.units().unit_stat(unit, Stat::Melee);
     g.attach_enchantment(Target::Unit(unit), strength, P0);
     assert_eq!(g.units().unit_stat(unit, Stat::Melee), melee + 1);
@@ -732,9 +754,9 @@ fn saves_keep_the_wizard_the_casting_and_unit_spells() -> TestResult {
     found(&mut g, at(10, 6), 8);
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     g.balance_farmers(P0);
-    let strength = spell(&g, "giant_strength");
+    let strength = spell(&g, 4 /* giant_strength */);
     g.attach_enchantment(Target::Unit(unit), strength, P0);
-    g.set_research(P0, spell(&g, "dispel_magic"))
+    g.set_research(P0, spell(&g, 202 /* dispel_magic */))
         .map_err(|e| format!("{e:?}"))?;
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
@@ -765,14 +787,14 @@ fn a_spell_with_nothing_to_aim_at_is_not_paid_for_until_there_is_a_target() -> T
     const P1: PlayerId = PlayerId(1);
     let mut g = world();
     g.add_player(P1, "Rival");
-    g.init_wizard(P1, &[("sorcery", 2)], &[], None)
+    g.init_wizard(P1, &[(RealmId::new(1 /* sorcery */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     g.treasury_mut(P1).ok_or("treasury_mut is missing")?.mana = 10_000;
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .set_split(0, 100, 0)
         .map_err(|e| format!("{e:?}"))?;
-    let disjunction = spell(&g, "disjunction");
+    let disjunction = spell(&g, 210 /* disjunction */);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -808,7 +830,7 @@ fn a_spell_with_nothing_to_aim_at_is_not_paid_for_until_there_is_a_target() -> T
         500
     );
     // Once a rival has one, the payment goes on.
-    let aura = spell(&g, "aura_of_majesty");
+    let aura = spell(&g, 59 /* aura_of_majesty */);
     g.attach_enchantment(Target::Player(P1), aura, P1);
     let events = g.apply(Command::EndTurn);
     assert!(!events
@@ -829,15 +851,19 @@ fn a_spell_with_nothing_to_aim_at_is_not_paid_for_until_there_is_a_target() -> T
 fn the_dispel_and_disjunction_spells_take_extra_mana_and_no_other_does() {
     let g = world();
     for id in [
-        "disenchant_area",
-        "disenchant_true",
-        "disjunction",
-        "disjunction_true",
-        "spell_binding",
+        204, /* disenchant_area */
+        52,  /* disenchant_true */
+        210, /* disjunction */
+        61,  /* disjunction_true */
+        76,  /* spell_binding */
     ] {
         assert!(g.spell_takes_extra_mana(spell(&g, id)), "{id}");
     }
-    for id in ["healing", "war_bears", "prosperity"] {
+    for id in [
+        125, /* healing */
+        6,   /* war_bears */
+        145, /* prosperity */
+    ] {
         assert!(!g.spell_takes_extra_mana(spell(&g, id)), "{id}");
     }
 }
@@ -845,8 +871,8 @@ fn the_dispel_and_disjunction_spells_take_extra_mana_and_no_other_does() {
 #[test]
 fn extra_mana_is_part_of_the_price_and_only_for_a_spell_that_takes_it() -> TestResult {
     let mut g = world();
-    let area = spell(&g, "disenchant_area");
-    let bears = spell(&g, "war_bears");
+    let area = spell(&g, 204 /* disenchant_area */);
+    let bears = spell(&g, 6 /* war_bears */);
     for s in [area, bears] {
         g.wizard_mut(P0)
             .ok_or("wizard_mut is missing")?
@@ -875,7 +901,7 @@ fn extra_mana_is_part_of_the_price_and_only_for_a_spell_that_takes_it() -> TestR
 #[test]
 fn the_extra_mana_of_a_cast_in_progress_survives_a_save() -> TestResult {
     let mut g = world();
-    let area = spell(&g, "disenchant_area");
+    let area = spell(&g, 204 /* disenchant_area */);
     g.learn_spell(P0, area);
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
     assert!(g.start_cast_with(P0, area, None, 20).is_ok());

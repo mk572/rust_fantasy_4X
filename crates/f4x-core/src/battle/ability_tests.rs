@@ -103,7 +103,7 @@ fn losses(b: &Battle, shoot: bool, tweak: impl Fn(&mut Battle)) -> (u32, i32) {
     (figures, hits)
 }
 
-fn without(ability: &'static str) -> impl Fn(&mut Battle) {
+fn without(ability: u16) -> impl Fn(&mut Battle) {
     move |b: &mut Battle| {
         for u in &mut b.units {
             if u.side == Side::Attacker {
@@ -114,7 +114,7 @@ fn without(ability: &'static str) -> impl Fn(&mut Battle) {
     }
 }
 
-fn immune(ability: &'static str) -> impl Fn(&mut Battle) {
+fn immune(ability: u16) -> impl Fn(&mut Battle) {
     move |b: &mut Battle| {
         for u in &mut b.units {
             if u.side == Side::Defender {
@@ -130,12 +130,12 @@ fn nothing(_: &mut Battle) {}
 fn a_death_gaze_kills_figures_that_fail_to_resist_unless_the_target_is_immune() {
     let b = duel("night_stalker", "high_men_spearmen", 1);
     let (with, _) = losses(&b, false, nothing);
-    let (plain, _) = losses(&b, false, without("death_gaze"));
+    let (plain, _) = losses(&b, false, without(15 /* death_gaze */));
     assert!(
         with > plain,
         "the gaze kills figures: {with} against {plain}"
     );
-    let (resists, _) = losses(&b, false, immune("death_immunity"));
+    let (resists, _) = losses(&b, false, immune(16 /* death_immunity */));
     assert!(
         resists < with,
         "death immunity stops the gaze: {resists} against {with}"
@@ -146,18 +146,18 @@ fn a_death_gaze_kills_figures_that_fail_to_resist_unless_the_target_is_immune() 
 fn a_multiple_gaze_stones_and_kills_unless_the_target_is_immune_to_both() {
     let b = duel("chaos_spawn", "high_men_spearmen", 1);
     let (with, _) = losses(&b, false, nothing);
-    let (plain, _) = losses(&b, false, without("multi_gaze"));
+    let (plain, _) = losses(&b, false, without(46 /* multi_gaze */));
     assert!(
         with > plain,
         "the gaze kills figures: {with} against {plain}"
     );
     // Either gaze alone still kills; the first to roll may leave the other nothing to do, so each
     // is compared with the unit without the ability, not with the two together.
-    let (stoning_only, _) = losses(&b, false, immune("death_immunity"));
-    let (death_only, _) = losses(&b, false, immune("stoning_immunity"));
+    let (stoning_only, _) = losses(&b, false, immune(16 /* death_immunity */));
+    let (death_only, _) = losses(&b, false, immune(65 /* stoning_immunity */));
     let (both, _) = losses(&b, false, |b: &mut Battle| {
-        immune("death_immunity")(b);
-        immune("stoning_immunity")(b);
+        immune(16 /* death_immunity */)(b);
+        immune(65 /* stoning_immunity */)(b);
     });
     assert!(
         stoning_only > plain,
@@ -177,12 +177,12 @@ fn a_multiple_gaze_stones_and_kills_unless_the_target_is_immune_to_both() {
 fn a_stoning_touch_turns_figures_to_stone_unless_the_target_is_immune() {
     let b = duel("cockatrices", "high_men_spearmen", 1);
     let (with, _) = losses(&b, false, nothing);
-    let (plain, _) = losses(&b, false, without("stoning_touch"));
+    let (plain, _) = losses(&b, false, without(66 /* stoning_touch */));
     assert!(
         with > plain,
         "the touch kills figures: {with} against {plain}"
     );
-    let (resists, _) = losses(&b, false, immune("stoning_immunity"));
+    let (resists, _) = losses(&b, false, immune(65 /* stoning_immunity */));
     assert!(
         resists <= plain,
         "stoning immunity stops it: {resists} against {plain}"
@@ -193,9 +193,9 @@ fn a_stoning_touch_turns_figures_to_stone_unless_the_target_is_immune() {
 fn a_poison_touch_costs_the_target_hit_points_unless_it_is_immune() {
     let b = duel("orc_wyvern_riders", "high_men_spearmen", 1);
     let (_, with) = losses(&b, false, nothing);
-    let (_, plain) = losses(&b, false, without("poison_touch"));
+    let (_, plain) = losses(&b, false, without(53 /* poison_touch */));
     assert!(with > plain, "the poison hurts: {with} against {plain}");
-    let (_, resists) = losses(&b, false, immune("poison_immunity"));
+    let (_, resists) = losses(&b, false, immune(52 /* poison_immunity */));
     assert!(
         resists <= plain,
         "poison immunity stops it: {resists} against {plain}"
@@ -204,7 +204,7 @@ fn a_poison_touch_costs_the_target_hit_points_unless_it_is_immune() {
 
 /// A ranged magic attack: the ability makes the shot a bolt, which hurts a target at range and
 /// is stopped by magic immunity.
-fn assert_a_bolt(shooter: &str, ability: &str) {
+fn assert_a_bolt(shooter: &str, ability: u16) {
     let b = duel(shooter, "high_men_spearmen", 6);
     let a = index(&b, Side::Attacker);
     assert!(
@@ -224,7 +224,7 @@ fn assert_a_bolt(shooter: &str, ability: &str) {
     );
     let (_, open) = losses(&b, true, nothing);
     assert!(open > 0, "{ability} hurts a target in range");
-    let (_, stopped) = losses(&b, true, immune("magic_immunity"));
+    let (_, stopped) = losses(&b, true, immune(40 /* magic_immunity */));
     assert!(
         stopped < open,
         "magic immunity softens {ability}: {stopped} against {open}"
@@ -233,28 +233,28 @@ fn assert_a_bolt(shooter: &str, ability: &str) {
 
 #[test]
 fn a_drow_bolt_is_a_ranged_magic_attack() {
-    assert_a_bolt("dark_elf_spearmen", "drow_bolt");
+    assert_a_bolt("dark_elf_spearmen", 18 /* drow_bolt */);
 }
 
 #[test]
 fn a_nature_bolt_is_a_ranged_magic_attack() {
-    assert_a_bolt("druid", "nature_bolt");
+    assert_a_bolt("druid", 47 /* nature_bolt */);
 }
 
 #[test]
 fn a_shaman_bolt_is_a_ranged_magic_attack() {
-    assert_a_bolt("barbarian_shaman", "shaman_bolt");
+    assert_a_bolt("barbarian_shaman", 58 /* shaman_bolt */);
 }
 
 #[test]
 fn a_sprite_bolt_is_a_ranged_magic_attack() {
-    assert_a_bolt("sprites", "sprite_bolt");
+    assert_a_bolt("sprites", 63 /* sprite_bolt */);
 }
 
 #[test]
 fn a_magical_weapon_hurts_what_normal_weapons_barely_scratch() {
     let b = duel("high_men_swordsmen", "high_men_spearmen", 1);
-    let weapon_proof = immune("weapon_immunity");
+    let weapon_proof = immune(72 /* weapon_immunity */);
     let (_, normal) = losses(&b, false, &weapon_proof);
     let (_, magical) = losses(&b, false, |b: &mut Battle| {
         weapon_proof(b);

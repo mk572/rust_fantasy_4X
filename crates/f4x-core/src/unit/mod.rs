@@ -167,16 +167,20 @@ impl<'a> UnitView<'a> {
     }
 
     /// Does any wizard keep the global spell with this id going?
-    pub(crate) fn any_global(&self, id: &str) -> bool {
-        self.content.rules.spells.id_of(id).is_some_and(|def| {
-            crate::spell::instance::Spells::new(self.world)
-                .has(crate::spell::instance::SpellTarget::Global, def)
-        })
+    pub(crate) fn any_global(&self, id: u16) -> bool {
+        self.content
+            .rules
+            .spells
+            .id_numbered(id)
+            .is_some_and(|def| {
+                crate::spell::instance::Spells::new(self.world)
+                    .has(crate::spell::instance::SpellTarget::Global, def)
+            })
     }
 
     /// Planar Seal closes every junction between the planes while anyone keeps it up.
     pub fn planar_seal_active(&self) -> bool {
-        self.any_global("planar_seal")
+        self.any_global(135 /* planar_seal */)
     }
 
     /// An entity's creation number (entities without one sort first, by id).
@@ -406,7 +410,7 @@ impl<'a> UnitView<'a> {
                 if self.has_global(owner, SpellId::new(57) /* wind_mastery */) {
                     return moves * 3 / 2;
                 }
-                if self.any_global("wind_mastery") {
+                if self.any_global(57 /* wind_mastery */) {
                     return moves / 2;
                 }
             }

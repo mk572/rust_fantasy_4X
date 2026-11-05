@@ -202,6 +202,7 @@ mod tests {
     use crate::game::Command;
     use crate::map::{Grid, Map};
     use crate::player::PlayerId;
+    use crate::rules::RealmId;
     use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
@@ -221,13 +222,18 @@ mod tests {
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
         g.add_player(P0, "W");
         g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 1000;
-        g.init_wizard(P0, &[("life", 2)], &[], None)
+        g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
             .expect("init_wizard succeeds");
         g
     }
 
-    fn cast(g: &mut Game, id: &str, target: Target) -> Vec<Event> {
-        let s = g.content.rules.spells.id_of(id).expect("id_of succeeds");
+    fn cast(g: &mut Game, id: u16, target: Target) -> Vec<Event> {
+        let s = g
+            .content
+            .rules
+            .spells
+            .id_numbered(id)
+            .expect("id_of succeeds");
         g.wizard_mut(P0)
             .expect("value succeeds")
             .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -283,7 +289,7 @@ mod tests {
                 .ok_or("as_mut is missing")?
                 .plane_mut(Plane::Arcanus)
                 .set_mineral(pos.x, pos.y, Some(id));
-            let events = cast(&mut g, "transmute", Target::Tile(pos));
+            let events = cast(&mut g, 18 /* transmute */, Target::Tile(pos));
             assert!(!rejected(&events), "{from}: {events:?}");
             let now = g
                 .map
@@ -304,10 +310,14 @@ mod tests {
             .ok_or("as_mut is missing")?
             .plane_mut(Plane::Arcanus)
             .set_mineral(pos.x, pos.y, Some(adamantium));
-        assert!(rejected(&cast(&mut g, "transmute", Target::Tile(pos))));
         assert!(rejected(&cast(
             &mut g,
-            "transmute",
+            18, /* transmute */
+            Target::Tile(pos)
+        )));
+        assert!(rejected(&cast(
+            &mut g,
+            18, /* transmute */
             Target::Tile(at(Plane::Arcanus, 20, 9))
         )));
         Ok(())
@@ -318,7 +328,7 @@ mod tests {
         let mut g = world();
         g.fog = crate::map::fog::Fog::new(24, 14);
         let target = at(Plane::Arcanus, 10, 7);
-        cast(&mut g, "earth_lore", Target::Tile(target));
+        cast(&mut g, 10 /* earth_lore */, Target::Tile(target));
         assert!(g.is_explored(P0, at(Plane::Arcanus, 4, 2)));
         assert!(g.is_explored(P0, at(Plane::Arcanus, 15, 11)));
         assert!(!g.is_explored(P0, at(Plane::Arcanus, 16, 7)));
@@ -338,7 +348,7 @@ mod tests {
         for u in [a, b, elsewhere] {
             g.world.insert_one(u, Hurt(1))?;
         }
-        let events = cast(&mut g, "natures_cures", Target::Unit(a));
+        let events = cast(&mut g, 19 /* natures_cures */, Target::Unit(a));
         assert!(!rejected(&events), "{events:?}");
         assert_eq!(g.world.get::<&Hurt>(a)?.0, 0);
         assert_eq!(g.world.get::<&Hurt>(b)?.0, 1, "undead stay hurt");
@@ -351,20 +361,24 @@ mod tests {
         let mut g = world();
         let u = walker(&mut g, at(Plane::Arcanus, 4, 4));
         assert!(
-            rejected(&cast(&mut g, "word_of_recall", Target::Unit(u))),
+            rejected(&cast(&mut g, 47 /* word_of_recall */, Target::Unit(u))),
             "no circle yet"
         );
         let home = at(Plane::Myrror, 9, 9);
         g.wizard_mut(P0)
             .ok_or("wizard_mut is missing")?
             .put(Some(crate::wizard::fortress::SummonAt(home)));
-        cast(&mut g, "word_of_recall", Target::Unit(u));
+        cast(&mut g, 47 /* word_of_recall */, Target::Unit(u));
         assert_eq!(g.units().unit_position(u), Some(home));
         for _ in 0..crate::unit::MAX_TILE_LIMIT - 1 {
             walker(&mut g, home);
         }
         let far = walker(&mut g, at(Plane::Arcanus, 1, 1));
-        assert!(rejected(&cast(&mut g, "word_of_recall", Target::Unit(far))));
+        assert!(rejected(&cast(
+            &mut g,
+            47, /* word_of_recall */
+            Target::Unit(far)
+        )));
         Ok(())
     }
 
@@ -375,14 +389,14 @@ mod tests {
         let a = walker(&mut g, here);
         let b = walker(&mut g, here);
         let over = at(Plane::Myrror, 4, 4);
-        let events = cast(&mut g, "plane_shift", Target::Unit(a));
+        let events = cast(&mut g, 132 /* plane_shift */, Target::Unit(a));
         assert!(!rejected(&events), "{events:?}");
         assert_eq!(g.units().unit_position(a), Some(over));
         assert_eq!(g.units().unit_position(b), Some(over));
         // Back again is refused while the Planar Seal is up.
         let other = PlayerId(1);
         g.add_player(other, "X");
-        g.init_wizard(other, &[("life", 2)], &[], None)
+        g.init_wizard(other, &[(RealmId::new(3 /* life */), 2)], &[], None)
             .map_err(|e| format!("{e:?}"))?;
         let seal = g
             .content
@@ -391,7 +405,11 @@ mod tests {
             .id_numbered(135)
             .ok_or("planar_seal is not in the content")?;
         g.attach_enchantment(Target::Player(other), seal, other);
-        assert!(rejected(&cast(&mut g, "plane_shift", Target::Unit(a))));
+        assert!(rejected(&cast(
+            &mut g,
+            132, /* plane_shift */
+            Target::Unit(a)
+        )));
         Ok(())
     }
 
@@ -410,7 +428,7 @@ mod tests {
             .plane_mut(Plane::Arcanus)
             .set(sea.x, sea.y, ocean);
         let land = at(Plane::Arcanus, 6, 5);
-        let events = cast(&mut g, "floating_island", Target::Tile(land));
+        let events = cast(&mut g, 43 /* floating_island */, Target::Tile(land));
         assert!(rejected(&events), "{events:?}");
         assert_eq!(
             g.check_floating_island(P0, land),
@@ -442,7 +460,7 @@ mod tests {
         for u in g.units().units_at(sea) {
             g.world.despawn(u)?;
         }
-        let events = cast(&mut g, "floating_island", Target::Tile(sea));
+        let events = cast(&mut g, 43 /* floating_island */, Target::Tile(sea));
         assert!(!rejected(&events), "{events:?}");
         let here = g.units().units_at(sea);
         assert_eq!(here.len(), 1, "the island rises where it was aimed");

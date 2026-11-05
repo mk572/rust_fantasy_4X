@@ -732,39 +732,39 @@ mod tests {
         }
     }
 
-    fn kind_of(id: &str) -> Kind {
+    fn kind_of(id: u16) -> Kind {
         let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
         let spell = content
             .rules
             .spells
-            .id_of(id)
+            .id_numbered(id)
             .unwrap_or_else(|| panic!("no spell {id}"));
         kind(content.rules.spells.get(spell))
     }
 
     #[test]
     fn spells_are_sorted_into_the_kinds_the_ai_casts() {
-        assert_eq!(kind_of("spell_of_mastery"), Kind::Mastery);
-        assert_eq!(kind_of("war_bears"), Kind::Summon);
-        assert_eq!(kind_of("giant_strength"), Kind::UnitBuff);
-        assert_eq!(kind_of("heroism"), Kind::UnitBuff);
-        assert_eq!(kind_of("elemental_armor"), Kind::UnitBuff);
-        assert_eq!(kind_of("natures_eye"), Kind::CityBuff);
-        assert_eq!(kind_of("herb_mastery"), Kind::GlobalBuff);
-        assert_eq!(kind_of("earth_lore"), Kind::Explore);
-        assert_eq!(kind_of("natures_cures"), Kind::Cure);
-        assert_eq!(kind_of("famine"), Kind::CityCurse);
-        assert_eq!(kind_of("earthquake"), Kind::CityCurse);
-        assert_eq!(kind_of("cruel_unminding"), Kind::WizardCurse);
-        assert_eq!(kind_of("spell_blast"), Kind::Other);
+        assert_eq!(kind_of(213 /* spell_of_mastery */), Kind::Mastery);
+        assert_eq!(kind_of(6 /* war_bears */), Kind::Summon);
+        assert_eq!(kind_of(4 /* giant_strength */), Kind::UnitBuff);
+        assert_eq!(kind_of(130 /* heroism */), Kind::UnitBuff);
+        assert_eq!(kind_of(21 /* elemental_armor */), Kind::UnitBuff);
+        assert_eq!(kind_of(12 /* natures_eye */), Kind::CityBuff);
+        assert_eq!(kind_of(38 /* herb_mastery */), Kind::GlobalBuff);
+        assert_eq!(kind_of(10 /* earth_lore */), Kind::Explore);
+        assert_eq!(kind_of(19 /* natures_cures */), Kind::Cure);
+        assert_eq!(kind_of(189 /* famine */), Kind::CityCurse);
+        assert_eq!(kind_of(26 /* earthquake */), Kind::CityCurse);
+        assert_eq!(kind_of(191 /* cruel_unminding */), Kind::WizardCurse);
+        assert_eq!(kind_of(58 /* spell_blast */), Kind::Other);
     }
 
     #[test]
     fn what_the_ai_cannot_use_is_left_alone() {
         // A curse on the whole world, a bolt for battle, a spell that is not done yet.
-        assert_eq!(kind_of("fire_bolt"), Kind::Other);
-        assert_eq!(kind_of("suppress_magic"), Kind::Other);
-        assert_eq!(kind_of("earth_to_mud"), Kind::Other);
+        assert_eq!(kind_of(83 /* fire_bolt */), Kind::Other);
+        assert_eq!(kind_of(79 /* suppress_magic */), Kind::Other);
+        assert_eq!(kind_of(1 /* earth_to_mud */), Kind::Other);
     }
 
     #[test]
@@ -804,7 +804,7 @@ mod tests {
         use crate::testworld::{game, COAST_CITY, P0};
         use f4x_core::wizard::objective::Objective;
         let research_share = |objective: Objective| {
-            let mut g = game(COAST_CITY, "high_men");
+            let mut g = game(COAST_CITY, 8 /* high_men */);
             g.wizard_mut(P0).unwrap().put(Some(objective));
             // A big reserve needs no spare mana income: the first candidate that pays is taken.
             g.treasury_mut(P0).unwrap().mana = 1_000;
@@ -838,7 +838,7 @@ mod tests {
     #[test]
     fn a_banished_wizard_turns_just_enough_gold_into_mana_for_the_return() {
         use crate::testworld::{game, COAST_CITY, P0, P1};
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let spell = g.content().rules.spells.id_numbered(214).unwrap();
         g.wizard_mut(P0)
             .unwrap()
@@ -871,7 +871,7 @@ mod tests {
     #[test]
     fn a_wizard_that_is_not_banished_keeps_its_gold() {
         use crate::testworld::{game, COAST_CITY, P0};
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let spell = g.content().rules.spells.id_numbered(214).unwrap();
         g.scenario_casting(P0, spell, 500);
         g.treasury_mut(P0).unwrap().mana = 0;
@@ -884,7 +884,7 @@ mod tests {
     fn a_wizard_curses_the_city_of_an_enemy_at_war_and_leaves_a_neighbour_at_peace_alone() {
         use crate::testworld::{game, COAST_CITY, ENEMY_CITY, P0, P1};
         use f4x_core::diplomacy::DiplomacyCommand;
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.make_contact(P0, P1);
         let famine = g.content().rules.spells.id_numbered(189).unwrap();
         g.cheat_learn_spell(P0, famine);

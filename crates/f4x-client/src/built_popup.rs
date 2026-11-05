@@ -56,8 +56,8 @@ impl Modal for BuiltNotice {
 impl App {
     /// For screenshots and checks: announce this building (an id) as if the first city had just
     /// finished it.
-    pub fn open_test_built(&mut self, id: &str) {
-        let Some(building) = self.game.content().rules.buildings.id_of(id) else {
+    pub fn open_test_built(&mut self, id: u16) {
+        let Some(building) = self.game.content().rules.buildings.id_numbered(id) else {
             eprintln!("unknown building {id}");
             return;
         };

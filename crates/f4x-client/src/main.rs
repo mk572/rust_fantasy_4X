@@ -823,25 +823,33 @@ async fn main() {
     if let Some(kind) = &options.results {
         app.open_test_results(kind);
     }
-    if let Some(id) = &options.global {
+    if let Some(id) = options.global.as_deref().and_then(|a| spell_num(&app, a)) {
         app.open_test_global(id, options.global_by, options.global_at);
     }
-    if let Some(id) = &options.wizard_spell {
+    if let Some(id) = options
+        .wizard_spell
+        .as_deref()
+        .and_then(|a| spell_num(&app, a))
+    {
         app.open_test_wizard_anim(id, options.global_by, options.global_at);
     }
-    if let Some(id) = &options.square {
+    if let Some(id) = options.square.as_deref().and_then(|a| spell_num(&app, a)) {
         app.open_test_square(id, options.global_at);
     }
-    if let Some(id) = &options.city_scroll {
+    if let Some(id) = options
+        .city_scroll
+        .as_deref()
+        .and_then(|a| spell_num(&app, a))
+    {
         app.open_test_city_scroll(id, options.global_by, options.global_at);
     }
-    if let Some(id) = &options.summon {
+    if let Some(id) = options.summon.as_deref().and_then(|a| spell_num(&app, a)) {
         app.open_test_summon(id, options.global_by, options.global_at);
     }
-    if let Some(id) = &options.learn {
+    if let Some(id) = options.learn.as_deref().and_then(|a| spell_num(&app, a)) {
         app.open_test_learn(id, options.learn_at);
     }
-    if let Some(id) = &options.built {
+    if let Some(id) = options.built.as_deref().and_then(|a| building_num(&app, a)) {
         app.open_test_built(id);
     }
     if let Some(n) = options.sheet {
@@ -931,6 +939,25 @@ async fn main() {
         app.draw_pointer(&input);
         next_frame().await;
     }
+}
+
+/// The number of the spell with this alias, for the command-line flags that open a screen on one
+/// (a developer aid: the alias is typed by hand, the game itself refers to spells by number).
+fn spell_num(app: &App, alias: &str) -> Option<u16> {
+    let spells = &app.game.content().rules.spells;
+    spells
+        .iter()
+        .find(|(_, d)| d.id == alias)
+        .map(|(_, d)| d.num)
+}
+
+/// [`spell_num`] for a building.
+fn building_num(app: &App, alias: &str) -> Option<u16> {
+    let buildings = &app.game.content().rules.buildings;
+    buildings
+        .iter()
+        .find(|(_, d)| d.id == alias)
+        .map(|(_, d)| d.num)
 }
 
 #[cfg(test)]

@@ -366,7 +366,7 @@ mod tests {
     use f4x_core::testdir::TestResult;
 
     /// The human's first unit stands on a square; `unit` is put there and selected alone.
-    fn select_new(app: &mut App, unit: &str) -> Result<(), Box<dyn std::error::Error>> {
+    fn select_new(app: &mut App, unit: u16) -> Result<(), Box<dyn std::error::Error>> {
         let at = app
             .game
             .units()
@@ -379,7 +379,7 @@ mod tests {
             .content()
             .rules
             .units
-            .id_of(unit)
+            .id_numbered(unit)
             .ok_or(format!("no unit {unit}"))?;
         let spawned = app.game.spawn_unit(HUMAN, at, id);
         app.selection = vec![spawned];
@@ -392,10 +392,10 @@ mod tests {
         app.selection.clear();
         assert_eq!(app.special_action(), Special::None);
         for (unit, action) in [
-            ("barbarian_settlers", Special::Build),
-            ("beastmen_engineers", Special::Build),
-            ("magic_spirit", Special::Meld),
-            ("beastmen_priests", Special::Purify),
+            (44 /* barbarian_settlers */, Special::Build),
+            (52 /* beastmen_engineers */, Special::Build),
+            (154 /* magic_spirit */, Special::Meld),
+            (50 /* beastmen_priests */, Special::Purify),
         ] {
             select_new(&mut app, unit)?;
             assert_eq!(app.special_action(), action, "{unit}");
@@ -406,9 +406,9 @@ mod tests {
     #[test]
     fn a_stack_with_a_builder_builds_whatever_else_stands_in_it() -> TestResult {
         let mut app = App::for_test();
-        select_new(&mut app, "magic_spirit")?;
+        select_new(&mut app, 154 /* magic_spirit */)?;
         let spirit = app.selection[0];
-        select_new(&mut app, "barbarian_settlers")?;
+        select_new(&mut app, 44 /* barbarian_settlers */)?;
         app.selection.push(spirit);
         assert_eq!(app.special_action(), Special::Build);
         Ok(())

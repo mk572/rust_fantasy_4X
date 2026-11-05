@@ -146,7 +146,7 @@ mod tests {
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     fn world() -> Result<(Game, SpellId), Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.make_contact(P0, P1);
         let mastery = g
             .content()

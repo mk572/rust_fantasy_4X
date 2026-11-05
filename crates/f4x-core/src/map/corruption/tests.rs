@@ -3,6 +3,7 @@ use crate::game::testutil::{num, shipped};
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::rules::exec::Target;
+use crate::rules::RealmId;
 use crate::rules::Registry;
 use crate::testdir::TestResult;
 use crate::unit::MovesLeft;
@@ -41,13 +42,18 @@ fn world() -> Game {
         g.add_player(id, "W");
         g.treasury_mut(id).expect("treasury_mut succeeds").mana = 1000;
     }
-    g.init_wizard(P0, &[("life", 2)], &[], None)
+    g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .expect("init_wizard succeeds");
     g
 }
 
-fn cast(g: &mut Game, id: &str, pos: Position) -> Vec<Event> {
-    let s = g.content.rules.spells.id_of(id).expect("id_of succeeds");
+fn cast(g: &mut Game, id: u16, pos: Position) -> Vec<Event> {
+    let s = g
+        .content
+        .rules
+        .spells
+        .id_numbered(id)
+        .expect("id_of succeeds");
     g.wizard_mut(P0)
         .expect("value succeeds")
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -69,7 +75,7 @@ fn cast(g: &mut Game, id: &str, pos: Position) -> Vec<Event> {
 fn the_corruption_spell_spoils_land_but_not_water() -> TestResult {
     let mut g = world();
     assert_eq!(g.check_corrupt(at(5, 5)), Ok(()));
-    let events = cast(&mut g, "corruption", at(5, 5));
+    let events = cast(&mut g, 85 /* corruption */, at(5, 5));
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::LandCorrupted { .. })));
@@ -89,7 +95,7 @@ fn the_corruption_spell_spoils_land_but_not_water() -> TestResult {
         .plane_mut(Plane::Arcanus)
         .set(8, 8, ocean);
     assert_eq!(g.check_corrupt(at(8, 8)), Err(TargetError::CorruptWater));
-    let events = cast(&mut g, "corruption", at(8, 8));
+    let events = cast(&mut g, 85 /* corruption */, at(8, 8));
     assert!(events.iter().any(|e| matches!(e, Event::Rejected(_))));
     Ok(())
 }
@@ -113,7 +119,7 @@ fn magic_nodes_cannot_be_corrupted() -> TestResult {
             .plane_mut(Plane::Arcanus)
             .set(x, 5, node);
         assert_eq!(g.check_corrupt(at(x, 5)), Err(TargetError::CorruptNode));
-        let events = cast(&mut g, "corruption", at(x, 5));
+        let events = cast(&mut g, 85 /* corruption */, at(x, 5));
         assert!(events.iter().any(|e| matches!(e, Event::Rejected(_))));
         assert!(!g.is_corrupted(at(x, 5)));
     }
@@ -334,7 +340,7 @@ fn warp_node_turns_a_rivals_node_against_them() {
         at(6, 6),
         num::feature::SORCERY_NODE,
         Node {
-            realm: crate::game::testutil::realm("chaos"),
+            realm: crate::game::testutil::realm(2 /* chaos */),
             power: 8,
             aura: vec![(6, 6)],
             guardian: false,
@@ -345,7 +351,7 @@ fn warp_node_turns_a_rivals_node_against_them() {
     assert_eq!(g.check_warp_node(at(6, 6), P0), Ok(()));
     assert_eq!(g.check_warp_node(at(6, 6), P1), Err(TargetError::NodeOwn));
     assert_eq!(g.check_warp_node(at(7, 7), P0), Err(TargetError::NoNode));
-    let events = cast(&mut g, "warp_node", at(6, 6));
+    let events = cast(&mut g, 186 /* warp_node */, at(6, 6));
     assert!(
         events.iter().any(|e| matches!(e, Event::NodeWarped { .. })),
         "{events:?}"

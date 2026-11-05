@@ -133,8 +133,8 @@ impl App {
     }
 
     /// For screenshots: the scroll of `id` cast by player `by` on the first city.
-    pub fn open_test_city_scroll(&mut self, id: &str, by: u8, seconds: f64) {
-        let Some(spell) = self.game.content().rules.spells.id_of(id) else {
+    pub fn open_test_city_scroll(&mut self, id: u16, by: u8, seconds: f64) {
+        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
             eprintln!("unknown spell {id}");
             return;
         };

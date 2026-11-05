@@ -377,7 +377,7 @@ mod tests {
     #[test]
     fn a_budget_buys_creatures_of_the_realm_within_its_means_and_the_stack_size() {
         let mut g = game();
-        let chaos = crate::game::testutil::realm("chaos");
+        let chaos = crate::game::testutil::realm(2 /* chaos */);
         let pool = candidates(&g.content, chaos);
         assert!(!pool.is_empty());
         let cost = |id: &UnitId| {

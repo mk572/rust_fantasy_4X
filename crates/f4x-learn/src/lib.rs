@@ -127,9 +127,9 @@ mod tests {
     #[test]
     fn wizards_of_one_or_two_realms_fit_the_spell_slots() {
         let content = content();
-        let realm_of = |id: &str| {
+        let realm_of = |num: u16| {
             let spells = &content.rules.spells;
-            spells.get(spells.id_of(id).unwrap()).realm
+            spells.get(spells.id_numbered(num).unwrap()).realm
         };
         // Every pair of realms with the arcane spells fits whole, so a generated wizard of one or
         // two realms is never cut short.
@@ -164,7 +164,7 @@ mod tests {
                 let mut realms: Vec<f4x_core::rules::RealmId> = w
                     .spells
                     .iter()
-                    .map(|id| realm_of(id))
+                    .map(|&num| realm_of(num))
                     .filter(|r| r.num() != 5 /* arcane */)
                     .collect();
                 realms.sort();

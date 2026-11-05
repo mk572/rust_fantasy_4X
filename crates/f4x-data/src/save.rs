@@ -87,6 +87,7 @@ mod tests {
     use f4x_core::map::Plane;
     use f4x_core::map::Position;
     use f4x_core::player::PlayerId;
+    use f4x_core::rules::RealmId;
     use f4x_core::testdir::TestDir;
     use f4x_core::testdir::TestResult;
 
@@ -105,7 +106,10 @@ mod tests {
         g.add_player(PlayerId(0), "Merlin");
         g.init_wizard(
             PlayerId(0),
-            &[("life", 2), ("chaos", 1)],
+            &[
+                (RealmId::new(3 /* life */), 2),
+                (RealmId::new(2 /* chaos */), 1),
+            ],
             &[f4x_core::wizard::magic::Retort::new(0) /* alchemy */],
             None,
         )

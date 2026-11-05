@@ -204,13 +204,13 @@ mod tests {
 
     #[test]
     fn monsters_next_to_an_empty_city_walk_in_and_wreck_it() {
-        let mut g = game(INLAND_CITY, "high_men");
+        let mut g = game(INLAND_CITY, 8 /* high_men */);
         let city = at(INLAND_CITY.0, INLAND_CITY.1);
         spawn(
             &mut g,
             MONSTERS,
             at(INLAND_CITY.0, INLAND_CITY.1 - 1),
-            "zombies",
+            174, /* zombies */
             2,
         );
         know(&mut g, city);
@@ -233,14 +233,14 @@ mod tests {
 
     #[test]
     fn monsters_that_see_a_defended_city_they_can_beat_attack_it() {
-        let mut g = game(INLAND_CITY, "high_men");
+        let mut g = game(INLAND_CITY, 8 /* high_men */);
         let city = at(INLAND_CITY.0, INLAND_CITY.1);
-        spawn(&mut g, P0, city, "high_men_spearmen", 1);
+        spawn(&mut g, P0, city, 104 /* high_men_spearmen */, 1);
         spawn(
             &mut g,
             MONSTERS,
             at(INLAND_CITY.0, INLAND_CITY.1 - 1),
-            "great_drake",
+            164, /* great_drake */
             3,
         );
         know(&mut g, city);
@@ -259,14 +259,14 @@ mod tests {
 
     #[test]
     fn an_attack_on_the_human_is_kept_for_the_host() {
-        let mut g = game(INLAND_CITY, "high_men");
+        let mut g = game(INLAND_CITY, 8 /* high_men */);
         let city = at(INLAND_CITY.0, INLAND_CITY.1);
-        spawn(&mut g, P0, city, "high_men_spearmen", 1);
+        spawn(&mut g, P0, city, 104 /* high_men_spearmen */, 1);
         spawn(
             &mut g,
             MONSTERS,
             at(INLAND_CITY.0, INLAND_CITY.1 - 1),
-            "great_drake",
+            164, /* great_drake */
             3,
         );
         know(&mut g, city);
@@ -278,7 +278,7 @@ mod tests {
 
     #[test]
     fn monsters_settle_in_a_cleared_node_they_have_seen() {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let node_at = at(5, 9);
         let feature = g.content().features.id_numbered(4).unwrap();
         let site = g.spawn_feature(Placement {
@@ -296,7 +296,7 @@ mod tests {
                 fought_by: Vec::new(),
             }),
         });
-        spawn(&mut g, MONSTERS, at(5, 8), "zombies", 2);
+        spawn(&mut g, MONSTERS, at(5, 8), 174 /* zombies */, 2);
         know(&mut g, node_at);
         end_turn(&mut g);
         let (events, _) = roam(&mut g, &[]);
@@ -312,8 +312,8 @@ mod tests {
 
     #[test]
     fn monsters_that_know_nothing_go_scouting() {
-        let mut g = game(COAST_CITY, "high_men");
-        let units = spawn(&mut g, MONSTERS, at(5, 5), "zombies", 2);
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let units = spawn(&mut g, MONSTERS, at(5, 5), 174 /* zombies */, 2);
         g.explore(MONSTERS, at(5, 5), 3);
         end_turn(&mut g);
         let (events, _) = roam(&mut g, &[]);
@@ -327,10 +327,10 @@ mod tests {
 
     #[test]
     fn a_stack_too_weak_for_the_city_it_sees_does_not_march_on_it() {
-        let mut g = game(INLAND_CITY, "high_men");
+        let mut g = game(INLAND_CITY, 8 /* high_men */);
         let city = at(INLAND_CITY.0, INLAND_CITY.1);
-        spawn(&mut g, P0, city, "high_men_paladins", 6);
-        let units = spawn(&mut g, MONSTERS, at(9, 9), "zombies", 1);
+        spawn(&mut g, P0, city, 113 /* high_men_paladins */, 6);
+        let units = spawn(&mut g, MONSTERS, at(9, 9), 174 /* zombies */, 1);
         know(&mut g, city);
         end_turn(&mut g);
         let (events, _) = roam(&mut g, &[]);

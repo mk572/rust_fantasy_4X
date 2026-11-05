@@ -125,8 +125,8 @@ mod tests {
 
     #[test]
     fn the_ai_lets_go_of_the_units_it_cannot_feed_or_pay_for() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
-        let army = spawn(&mut g, P0, at(9, 6), "high_men_spearmen", 8);
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let army = spawn(&mut g, P0, at(9, 6), 104 /* high_men_spearmen */, 8);
         g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold = 3;
         g.apply(Command::SetTaxRate {
             player: P0,
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn a_building_another_one_needs_is_not_put_up_for_sale() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let pos = at(COAST_CITY.0, COAST_CITY.1);
         crate::testworld::build(&mut g, pos, &["barracks", "smithy", "library"]);
         let city = g.economy().city_at(pos).ok_or("player 0 has a city")?;

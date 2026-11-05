@@ -660,10 +660,12 @@ impl App {
 
     /// For screenshots: the animation of a spell (`--battle-field fx-fireball`) cast on the first
     /// defender, a moment in.
-    fn test_spell_fx(&mut self, ui: &mut BattleUi, id: &str) {
+    fn test_spell_fx(&mut self, ui: &mut BattleUi, id: u16) {
         // A Wall of Stone shows the field without walls first and the battle as it stands
         // (walled) after.
-        let unwalled = if id == "wall_of_stone" {
+        let unwalled = if id == 3
+        /* wall_of_stone */
+        {
             let Some(active) = self.game.battle.as_mut() else {
                 return;
             };
@@ -677,8 +679,10 @@ impl App {
         };
         // The magic walls too: the flag is set in the battle, not in the one shown first.
         let unwalled = unwalled.or_else(|| {
-            let fire = id == "wall_of_fire";
-            if !fire && id != "wall_of_darkness" {
+            let fire = id == 87 /* wall_of_fire */;
+            if !fire && id != 178
+            /* wall_of_darkness */
+            {
                 return None;
             }
             let active = self.game.battle.as_mut()?;
@@ -693,7 +697,7 @@ impl App {
         let Some(battle) = unwalled.or_else(|| self.game.battle().cloned()) else {
             return;
         };
-        let Some(spell) = self.game.content().rules.spells.id_of(id) else {
+        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
             return;
         };
         ui.cast_target = battle
@@ -2344,8 +2348,17 @@ impl Page for BattleUi {
     }
 
     fn test_effect(&mut self, app: &mut App, kind: &str) {
-        if let Some(id) = kind.strip_prefix("fx-") {
-            app.test_spell_fx(self, id);
+        if let Some(alias) = kind.strip_prefix("fx-") {
+            let num = {
+                let spells = &app.game.content().rules.spells;
+                spells
+                    .iter()
+                    .find(|(_, d)| d.id == alias)
+                    .map(|(_, d)| d.num)
+            };
+            if let Some(num) = num {
+                app.test_spell_fx(self, num);
+            }
             return;
         }
         match kind {

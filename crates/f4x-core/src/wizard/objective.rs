@@ -263,28 +263,41 @@ impl Game {
 mod tests {
     use super::*;
 
-    fn weights(books: &[(&str, i32)], retorts: &[Retort]) -> [i32; 5] {
+    fn weights(books: &[(RealmId, i32)], retorts: &[Retort]) -> [i32; 5] {
         objective_weights(
-            |r| {
-                books
-                    .iter()
-                    .find(|b| crate::game::testutil::realm(b.0) == r)
-                    .map_or(0, |b| b.1)
-            },
+            |r| books.iter().find(|b| b.0 == r).map_or(0, |b| b.1),
             |r| retorts.contains(&r),
         )
     }
 
     #[test]
     fn the_primary_realm_picks_the_table_row() {
-        assert_eq!(weights(&[("life", 4)], &[]), [0, 2, 3, 4, 1]);
-        assert_eq!(weights(&[("death", 3), ("chaos", 2)], &[]), [0, 4, 1, 1, 4]);
+        assert_eq!(
+            weights(&[(RealmId::new(3 /* life */), 4)], &[]),
+            [0, 2, 3, 4, 1]
+        );
+        assert_eq!(
+            weights(
+                &[
+                    (RealmId::new(4 /* death */), 3),
+                    (RealmId::new(2 /* chaos */), 2)
+                ],
+                &[]
+            ),
+            [0, 4, 1, 1, 4]
+        );
     }
 
     #[test]
     fn a_tie_goes_to_the_earlier_realm() {
         assert_eq!(
-            weights(&[("sorcery", 2), ("chaos", 2)], &[]),
+            weights(
+                &[
+                    (RealmId::new(1 /* sorcery */), 2),
+                    (RealmId::new(2 /* chaos */), 2)
+                ],
+                &[]
+            ),
             [0, 1, 4, 2, 3]
         );
     }
@@ -292,7 +305,7 @@ mod tests {
     #[test]
     fn retorts_add_their_bonuses() {
         let w = weights(
-            &[("nature", 3)],
+            &[(RealmId::new(0 /* nature */), 3)],
             &[
                 Retort::new(1),  /* warlord */
                 Retort::new(10), /* archmage */
@@ -300,7 +313,7 @@ mod tests {
         );
         assert_eq!(w, [0, 2 + 2, 2 + 4, 4, 2 + 3]);
         let w = weights(
-            &[("nature", 3)],
+            &[(RealmId::new(0 /* nature */), 3)],
             &[
                 Retort::new(0),  /* alchemy */
                 Retort::new(9),  /* myrran */
@@ -334,27 +347,29 @@ mod tests {
 
     #[test]
     fn personalities_follow_the_realm_and_retorts() {
-        let w = |b: &[(&str, i32)], r: &[Retort]| {
+        let w = |b: &[(RealmId, i32)], r: &[Retort]| {
             personality_weights(
-                |x| {
-                    b.iter()
-                        .find(|p| crate::game::testutil::realm(p.0) == x)
-                        .map_or(0, |p| p.1)
-                },
+                |x| b.iter().find(|p| p.0 == x).map_or(0, |p| p.1),
                 |x| r.contains(&x),
             )
         };
         assert_eq!(
-            w(&[("life", 3)], &[Retort::new(5) /* infernal_power */]),
+            w(
+                &[(RealmId::new(3 /* life */), 3)],
+                &[Retort::new(5) /* infernal_power */]
+            ),
             [0, 1, 2, 0, 2, 5]
         );
         assert_eq!(
-            w(&[("death", 3)], &[Retort::new(6) /* divine_power */]),
+            w(
+                &[(RealmId::new(4 /* death */), 3)],
+                &[Retort::new(6) /* divine_power */]
+            ),
             [3, 3, 2, 1, 1, 0]
         );
         assert_eq!(
             w(
-                &[("chaos", 3)],
+                &[(RealmId::new(2 /* chaos */), 3)],
                 &[
                     Retort::new(1), /* warlord */
                     Retort::new(8)  /* channeler */

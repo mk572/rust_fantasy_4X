@@ -36,8 +36,8 @@ pub enum Ground {
 /// One unit of an army.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnitPick {
-    /// The unit's id in the rules.
-    pub unit: String,
+    /// The unit's number in the rules.
+    pub unit: u16,
     /// Experience points.
     pub xp: u32,
     /// Hit points already lost.
@@ -47,8 +47,8 @@ pub struct UnitPick {
 /// A wizard behind one side. A side with none casts nothing.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WizardSpec {
-    /// Spell ids the wizard knows (those the game cannot cast in a battle are never offered).
-    pub spells: Vec<String>,
+    /// Spell numbers the wizard knows (those the game cannot cast in a battle are never offered).
+    pub spells: Vec<u16>,
     /// Mana in the reserve.
     pub mana: i32,
     /// Skill points, which set the casting skill for the battle.
@@ -79,9 +79,9 @@ impl BattleScenario {
 
 /// A rough strength of a unit, used only to sample armies of a wanted odds. It is not a unit
 /// value and not part of any reward.
-fn rough_strength(content: &Content, unit: &str) -> f32 {
+fn rough_strength(content: &Content, unit: u16) -> f32 {
     let rules = &content.rules;
-    let Some(id) = rules.units.id_of(unit) else {
+    let Some(id) = rules.units.id_numbered(unit) else {
         return 0.0;
     };
     let d = rules.units.get(id);
@@ -92,7 +92,7 @@ fn rough_strength(content: &Content, unit: &str) -> f32 {
 }
 
 /// The units that can fight in a generated army: a creature with an attack that walks or flies.
-fn fighters(content: &Content) -> Vec<String> {
+fn fighters(content: &Content) -> Vec<u16> {
     use f4x_core::rules::MovementType;
     content
         .rules
@@ -104,19 +104,14 @@ fn fighters(content: &Content) -> Vec<String> {
             d.stats.get(&Stat::Melee).copied().unwrap_or(0) > 0
                 || d.stats.get(&Stat::Ranged).copied().unwrap_or(0) > 0
         })
-        .map(|(_, d)| d.id.clone())
+        .map(|(_, d)| d.num)
         .collect()
 }
 
-fn pick_army(
-    content: &Content,
-    pool: &[String],
-    count: usize,
-    rng: &mut Pcg64Mcg,
-) -> Vec<UnitPick> {
+fn pick_army(content: &Content, pool: &[u16], count: usize, rng: &mut Pcg64Mcg) -> Vec<UnitPick> {
     (0..count)
         .map(|_| {
-            let unit = pool[rng.gen_range(0..pool.len())].clone();
+            let unit = pool[rng.gen_range(0..pool.len())];
             let xp = if rng.gen_bool(0.3) {
                 rng.gen_range(0..120)
             } else {
@@ -134,7 +129,7 @@ fn pick_army(
 }
 
 fn power(content: &Content, army: &[UnitPick]) -> f32 {
-    army.iter().map(|u| rough_strength(content, &u.unit)).sum()
+    army.iter().map(|u| rough_strength(content, u.unit)).sum()
 }
 
 /// Spells the game can cast in a battle that the agent has not been trained with: they aim at
@@ -188,7 +183,7 @@ fn wizard(content: &Content, rng: &mut Pcg64Mcg) -> Option<WizardSpec> {
     realms.truncate(realm_count(rng));
     let share = rng.gen_range(0.1..0.9);
     // The spells of the wizard's realms and the arcane ones, a share of them known.
-    let mut spells: Vec<String> = content
+    let mut spells: Vec<u16> = content
         .rules
         .spells
         .iter()
@@ -197,7 +192,7 @@ fn wizard(content: &Content, rng: &mut Pcg64Mcg) -> Option<WizardSpec> {
             d.realm.num() == 5 /* arcane */ || realms.contains(&d.realm)
         })
         .filter(|_| rng.gen_bool(share))
-        .map(|(_, d)| d.id.clone())
+        .map(|(_, d)| d.num)
         .collect();
     // A wizard of many realms can know more than the agent has slots for; a random few are
     // left out (one or two realms never reach the limit, which a test checks).

@@ -191,7 +191,7 @@ impl Game {
         }
         let books: Vec<(RealmId, u8)> = build.books.iter().map(|(&r, &n)| (r, n)).collect();
         let retorts: Vec<Retort> = build.retorts.iter().copied().collect();
-        self.init_wizard_by_id(player, &books, &retorts, Some(&build.spells))
+        self.init_wizard(player, &books, &retorts, Some(&build.spells))
             .map_err(BuildError::Magic)?;
         if !build.name.is_empty() {
             self.wizard_set(player, entity::Name(build.name.clone()));

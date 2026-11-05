@@ -73,8 +73,8 @@ impl App {
     }
 
     /// For screenshots: the animation of `id` on wizard `victim`.
-    pub fn open_test_wizard_anim(&mut self, id: &str, victim: u8, seconds: f64) {
-        let Some(spell) = self.game.content().rules.spells.id_of(id) else {
+    pub fn open_test_wizard_anim(&mut self, id: u16, victim: u8, seconds: f64) {
+        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
             eprintln!("unknown spell {id}");
             return;
         };

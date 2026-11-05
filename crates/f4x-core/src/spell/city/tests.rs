@@ -1,6 +1,7 @@
 use super::*;
 use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
+use crate::rules::RealmId;
 use crate::testdir::TestResult;
 
 use crate::game::Command;
@@ -38,9 +39,9 @@ fn world() -> Game {
             .expect("value succeeds")
             .0 = 4;
     }
-    g.init_wizard(P0, &[("life", 2)], &[], None)
+    g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .expect("init_wizard succeeds");
-    g.init_wizard(P1, &[("chaos", 2)], &[], None)
+    g.init_wizard(P1, &[(RealmId::new(2 /* chaos */), 2)], &[], None)
         .expect("init_wizard succeeds");
     g
 }
@@ -57,8 +58,13 @@ fn found(g: &mut Game, owner: PlayerId, pos: Position, pop: u32) -> hecs::Entity
     g.economy().city_at(pos).expect("city_at succeeds")
 }
 
-fn add_building(g: &mut Game, city: hecs::Entity, id: &str) {
-    let b = g.content.rules.buildings.id_of(id).expect("id_of succeeds");
+fn add_building(g: &mut Game, city: hecs::Entity, id: u16) {
+    let b = g
+        .content
+        .rules
+        .buildings
+        .id_numbered(id)
+        .expect("id_of succeeds");
     g.world
         .get::<&mut Buildings>(city)
         .expect("value succeeds")
@@ -66,8 +72,13 @@ fn add_building(g: &mut Game, city: hecs::Entity, id: &str) {
         .push(b);
 }
 
-fn enchant(g: &mut Game, city: hecs::Entity, spell: &str, caster: PlayerId) {
-    let s = g.content.rules.spells.id_of(spell).expect("id_of succeeds");
+fn enchant(g: &mut Game, city: hecs::Entity, spell: u16, caster: PlayerId) {
+    let s = g
+        .content
+        .rules
+        .spells
+        .id_numbered(spell)
+        .expect("id_of succeeds");
     g.add_city_enchantment(city, s, caster);
 }
 
@@ -145,19 +156,19 @@ fn evil_presence_destroys_the_power_of_shrines_unless_the_owner_has_death_magic(
             .rebels
     };
     let bare = mana(&g);
-    add_building(&mut g, city, "shrine");
-    add_building(&mut g, city, "temple");
+    add_building(&mut g, city, 22 /* shrine */);
+    add_building(&mut g, city, 23 /* temple */);
     let blessed = mana(&g);
     assert!(blessed > bare, "the buildings make power");
     let calm = rebels(&g);
-    enchant(&mut g, city, "evil_presence", P1);
+    enchant(&mut g, city, 183 /* evil_presence */, P1);
     assert_eq!(mana(&g), bare, "Evil Presence destroys it");
     assert_eq!(rebels(&g), calm, "but they still pacify");
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Books>()
         .0
-        .insert(crate::game::testutil::realm("death"), 1);
+        .insert(crate::game::testutil::realm(4 /* death */), 1);
     assert_eq!(mana(&g), blessed, "a wizard with death magic is unharmed");
     Ok(())
 }
@@ -173,7 +184,11 @@ fn divine_and_infernal_power_add_half_again_to_the_religious_buildings() -> Test
     ] {
         let mut g = world();
         let city = found(&mut g, P0, at(10, 6), 10);
-        for b in ["shrine", "temple", "parthenon"] {
+        for b in [
+            22, /* shrine */
+            23, /* temple */
+            24, /* parthenon */
+        ] {
             add_building(&mut g, city, b);
         }
         let totals = |g: &Game| {
@@ -205,7 +220,7 @@ fn the_caster_pays_upkeep_for_enchantments_on_enemy_cities() -> TestResult {
         .ok_or("find is missing")?
         .upkeep = 10;
     g.content.rules.spells = Registry::new(defs);
-    enchant(&mut g, city, "chaos_rift", P1);
+    enchant(&mut g, city, 110 /* chaos_rift */, P1);
     let cost = |g: &Game, p| g.upkeep_items(p).iter().map(|i| i.mana).sum::<i32>();
     assert_eq!(cost(&g, P1), 10, "the wizard who cast it pays");
     assert_eq!(cost(&g, P0), 0, "the city's owner does not");
@@ -216,8 +231,8 @@ fn the_caster_pays_upkeep_for_enchantments_on_enemy_cities() -> TestResult {
 fn a_chaos_rift_bolts_the_units_inside_and_may_bring_a_building_down() -> TestResult {
     let mut g = world();
     let city = found(&mut g, P0, at(10, 6), 4);
-    add_building(&mut g, city, "shrine");
-    enchant(&mut g, city, "chaos_rift", P1);
+    add_building(&mut g, city, 22 /* shrine */);
+    enchant(&mut g, city, 110 /* chaos_rift */, P1);
     let spear = g
         .content
         .rules
@@ -294,10 +309,10 @@ fn a_battle_at_an_enchanted_city_starts_with_its_walls_and_shadow() -> TestResul
     assert!(plain.fields[Side::Defender.index()].is_empty());
     g.battle = None;
     for s in [
-        "wall_of_fire",
-        "wall_of_darkness",
-        "flying_fortress",
-        "cloud_of_shadow",
+        87,  /* wall_of_fire */
+        178, /* wall_of_darkness */
+        77,  /* flying_fortress */
+        185, /* cloud_of_shadow */
     ] {
         enchant(&mut g, city, s, P0);
     }
@@ -343,7 +358,7 @@ fn eternal_night_darkens_every_battle_but_not_at_heavenly_light() -> TestResult 
         .map_err(|e| format!("{e:?}"))?;
     assert!(dark(&g), "anyone's Eternal Night darkens the fight");
     g.battle = None;
-    enchant(&mut g, city, "heavenly_light", P0);
+    enchant(&mut g, city, 139 /* heavenly_light */, P0);
     g.start_battle(&[attacker], &[defender])
         .map_err(|e| format!("{e:?}"))?;
     assert!(!dark(&g), "Heavenly Light keeps the city out of it");
@@ -356,11 +371,15 @@ fn eternal_night_darkens_every_battle_but_not_at_heavenly_light() -> TestResult 
     Ok(())
 }
 
-fn realm(g: &Game, id: &str) -> crate::rules::RealmId {
-    g.content.rules.realms.id_of(id).expect("id_of succeeds")
+fn realm(g: &Game, id: u16) -> crate::rules::RealmId {
+    g.content
+        .rules
+        .realms
+        .id_numbered(id)
+        .expect("id_of succeeds")
 }
 
-fn cast_ward(g: &mut Game, city: hecs::Entity, id: &str) -> Vec<Event> {
+fn cast_ward(g: &mut Game, city: hecs::Entity, id: u16) -> Vec<Event> {
     let spell = g
         .content
         .rules
@@ -399,8 +418,8 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() -> TestRe
         .ok_or("spell_ward is not in the content")?;
     // Only your own city, and one of the five realms.
     for (c, r, why) in [
-        (other, "death", TargetError::NotYourCity),
-        (city, "arcane", TargetError::NotWardRealm),
+        (other, 4 /* death */, TargetError::NotYourCity),
+        (city, 5 /* arcane */, TargetError::NotWardRealm),
     ] {
         let realm = realm(&g, r);
         assert_eq!(
@@ -415,10 +434,10 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() -> TestRe
         )),
         "a city alone is not enough"
     );
-    cast_ward(&mut g, city, "death");
+    cast_ward(&mut g, city, 4 /* death */);
     assert_eq!(
         g.economy().city_wards(city),
-        vec![crate::game::testutil::realm("death")]
+        vec![crate::game::testutil::realm(4 /* death */)]
     );
     let upkeep = |g: &Game| {
         g.upkeep_items(P0)
@@ -428,7 +447,7 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() -> TestRe
             .sum::<i32>()
     };
     assert_eq!(upkeep(&g), 5);
-    let death = realm(&g, "death");
+    let death = realm(&g, 4 /* death */);
     assert_eq!(
         g.check_target(P0, ward, Some(Target::CityRealm(city, death))),
         Err(crate::wizard::magic::MagicError::Target(
@@ -436,22 +455,22 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() -> TestRe
         )),
         "already warded against death"
     );
-    cast_ward(&mut g, city, "chaos");
+    cast_ward(&mut g, city, 2 /* chaos */);
     assert_eq!(
         g.economy().city_wards(city),
         vec![
-            crate::game::testutil::realm("death"),
-            crate::game::testutil::realm("chaos")
+            crate::game::testutil::realm(4 /* death */),
+            crate::game::testutil::realm(2 /* chaos */)
         ]
     );
     assert_eq!(upkeep(&g), 10, "five for each ward");
     // Lose the spell and the wards go with it; a new one starts afresh.
     g.clear_city_enchantments(city);
     assert!(g.economy().city_wards(city).is_empty());
-    cast_ward(&mut g, city, "life");
+    cast_ward(&mut g, city, 3 /* life */);
     assert_eq!(
         g.economy().city_wards(city),
-        vec![crate::game::testutil::realm("life")]
+        vec![crate::game::testutil::realm(3 /* life */)]
     );
     Ok(())
 }
@@ -460,7 +479,7 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() -> TestRe
 fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() -> TestResult {
     let mut g = world();
     let city = found(&mut g, P0, at(10, 6), 4);
-    cast_ward(&mut g, city, "death");
+    cast_ward(&mut g, city, 4 /* death */);
     // P1's Evil Presence is a death spell; Chaos Rift is chaos and gets through.
     for (name, fizzles) in [("evil_presence", true), ("chaos_rift", false)] {
         let spell = g
@@ -522,18 +541,21 @@ fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() -> TestResu
     g.start_battle(&[ghoul], &[defender])
         .map_err(|e| format!("{e:?}"))?;
     let b = g.battle().ok_or("battle is missing")?;
-    assert_eq!(b.warded_realms, vec![crate::game::testutil::realm("death")]);
+    assert_eq!(
+        b.warded_realms,
+        vec![crate::game::testutil::realm(4 /* death */)]
+    );
     assert!(b.ward_stops(
         crate::battle::Side::Attacker,
-        Some(crate::game::testutil::realm("death"))
+        Some(crate::game::testutil::realm(4 /* death */))
     ));
     assert!(!b.ward_stops(
         crate::battle::Side::Defender,
-        Some(crate::game::testutil::realm("death"))
+        Some(crate::game::testutil::realm(4 /* death */))
     ));
     assert!(!b.ward_stops(
         crate::battle::Side::Attacker,
-        Some(crate::game::testutil::realm("chaos"))
+        Some(crate::game::testutil::realm(2 /* chaos */))
     ));
     Ok(())
 }
@@ -542,8 +564,8 @@ fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() -> TestResu
 fn wards_survive_a_save() -> TestResult {
     let mut g = world();
     let city = found(&mut g, P0, at(10, 6), 4);
-    cast_ward(&mut g, city, "death");
-    cast_ward(&mut g, city, "life");
+    cast_ward(&mut g, city, 4 /* death */);
+    cast_ward(&mut g, city, 3 /* life */);
     let content = g.content.clone();
     let back = g.snapshot().restore(content)?;
     let again = back
@@ -553,8 +575,8 @@ fn wards_survive_a_save() -> TestResult {
     assert_eq!(
         back.economy().city_wards(again),
         vec![
-            crate::game::testutil::realm("death"),
-            crate::game::testutil::realm("life")
+            crate::game::testutil::realm(4 /* death */),
+            crate::game::testutil::realm(3 /* life */)
         ]
     );
     Ok(())
@@ -575,7 +597,7 @@ fn evil_presence_is_refused_where_its_owner_can_use_death_magic() -> TestResult 
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Books>()
         .0
-        .insert(crate::game::testutil::realm("death"), 1);
+        .insert(crate::game::testutil::realm(4 /* death */), 1);
     assert_eq!(
         g.check_target(P1, spell, Some(Target::City(city))),
         Err(crate::wizard::magic::MagicError::Target(
@@ -591,7 +613,11 @@ fn another_wizards_armageddon_adds_two_unrest_and_leaves_the_buildings_working()
     use crate::rules::Stat;
     let mut g = world();
     let city = found(&mut g, P0, at(10, 6), 10);
-    for b in ["shrine", "temple", "parthenon"] {
+    for b in [
+        22, /* shrine */
+        23, /* temple */
+        24, /* parthenon */
+    ] {
         add_building(&mut g, city, b);
     }
     let pacify = |g: &Game| -compute(Stat::CityUnrest, 0, &g.economy().city_modifiers(city));
@@ -702,7 +728,7 @@ fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() -> T
         at(7, 6),
         num::feature::SORCERY_NODE,
         crate::feature::node::Node {
-            realm: crate::game::testutil::realm("chaos"),
+            realm: crate::game::testutil::realm(2 /* chaos */),
             power: 2,
             aura: vec![(7, 6), (8, 6)],
             guardian: false,
@@ -750,8 +776,8 @@ fn consecration_turns_away_death_and_chaos_spells_but_not_the_others() -> TestRe
     assert_eq!(
         g.economy().city_shielded_realms(city),
         vec![
-            crate::game::testutil::realm("death"),
-            crate::game::testutil::realm("chaos")
+            crate::game::testutil::realm(4 /* death */),
+            crate::game::testutil::realm(2 /* chaos */)
         ]
     );
     assert!(

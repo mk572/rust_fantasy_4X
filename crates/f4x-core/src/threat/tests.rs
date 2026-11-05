@@ -313,7 +313,7 @@ fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() -> TestResult {
 fn a_node_a_wizard_holds_is_not_taken() -> TestResult {
     let mut g = world(0);
     let node = crate::feature::node::Node {
-        realm: crate::game::testutil::realm("chaos"),
+        realm: crate::game::testutil::realm(2 /* chaos */),
         power: 5,
         aura: vec![(14, 8)],
         guardian: false,

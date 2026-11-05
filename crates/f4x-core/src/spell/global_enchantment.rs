@@ -110,7 +110,7 @@ impl Game {
     /// Is anyone's Evil Omens, the caster's own included, making life and nature spells
     /// dearer?
     pub(crate) fn evil_omens_active(&self) -> bool {
-        self.units().any_global("evil_omens")
+        self.units().any_global(198 /* evil_omens */)
     }
 
     /// The spell each other wizard is casting, as far as `viewer`'s Detect Magic shows it.
@@ -251,6 +251,7 @@ mod tests {
     use crate::game::testutil::{num, shipped};
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
+    use crate::rules::RealmId;
     use crate::rules::{Registry, UnitKind};
     use crate::testdir::TestResult;
 
@@ -271,7 +272,9 @@ mod tests {
         for u in units.iter_mut() {
             match u.id.as_str() {
                 "high_men_cavalry" => u.kind = UnitKind::Normal,
-                "high_men_spearmen" => u.realm = Some(crate::game::testutil::realm_ref("chaos")),
+                "high_men_spearmen" => {
+                    u.realm = Some(crate::game::testutil::realm_ref(2 /* chaos */))
+                }
                 _ => {}
             }
         }
@@ -287,18 +290,22 @@ mod tests {
         for id in [P0, P1] {
             g.add_player(id, "W");
             g.treasury_mut(id).expect("treasury_mut succeeds").mana = 5000;
-            g.init_wizard(id, &[("life", 4)], &[], None)
+            g.init_wizard(id, &[(RealmId::new(3 /* life */), 4)], &[], None)
                 .expect("init_wizard succeeds");
         }
         g
     }
 
-    fn spell(g: &Game, id: &str) -> SpellId {
-        g.content.rules.spells.id_of(id).expect("id_of succeeds")
+    fn spell(g: &Game, id: u16) -> SpellId {
+        g.content
+            .rules
+            .spells
+            .id_numbered(id)
+            .expect("id_of succeeds")
     }
 
     /// Cast a global spell for free (the cost rules are tested elsewhere).
-    fn grant(g: &mut Game, player: PlayerId, id: &str) {
+    fn grant(g: &mut Game, player: PlayerId, id: u16) {
         let s = spell(g, id);
         g.attach_enchantment(crate::rules::exec::Target::Player(player), s, player);
     }
@@ -306,13 +313,13 @@ mod tests {
     #[test]
     fn evil_omens_makes_life_and_nature_dearer_for_everyone() {
         let mut g = world();
-        let life = spell(&g, "healing");
-        let chaos = spell(&g, "fire_bolt");
+        let life = spell(&g, 125 /* healing */);
+        let chaos = spell(&g, 83 /* fire_bolt */);
         let (before, before_chaos) = (
             g.casting_cost(P0, life, false),
             g.casting_cost(P0, chaos, false),
         );
-        grant(&mut g, P1, "evil_omens");
+        grant(&mut g, P1, 198 /* evil_omens */);
         assert_eq!(g.casting_cost(P0, life, false), before + before / 2);
         assert_eq!(
             g.casting_cost(P0, chaos, false),
@@ -337,7 +344,7 @@ mod tests {
             .ok_or("shadow_demons is not in the content")?;
         let u = g.spawn_unit(P0, at(5, 5), traveller);
         assert!(g.economy().can_shift_plane(&[u]).is_ok());
-        grant(&mut g, P1, "planar_seal");
+        grant(&mut g, P1, 135 /* planar_seal */);
         assert!(g.units().planar_seal_active());
         assert_eq!(
             g.economy().can_shift_plane(&[u]),
@@ -360,7 +367,7 @@ mod tests {
         let b = g.spawn_unit(P1, at(8, 5), walker);
         g.world.insert_one(a, Hurt(3))?;
         g.world.insert_one(b, Hurt(3))?;
-        grant(&mut g, P0, "herb_mastery");
+        grant(&mut g, P0, 38 /* herb_mastery */);
         g.process_globals();
         assert_eq!(
             g.units().unit_hits(a).0,
@@ -400,12 +407,12 @@ mod tests {
         );
         // Holy Arms passes a unit made undead by.
         let melee = g.units().unit_stat(normal, Stat::Melee);
-        grant(&mut g, P0, "holy_arms");
+        grant(&mut g, P0, 154 /* holy_arms */);
         assert_eq!(g.units().unit_stat(normal, Stat::Melee), melee);
         assert!(!g.units().unit_has_magical_weapon(normal), "undead: no");
         // Herb Mastery does not heal it either.
         g.world.insert_one(normal, Hurt(3))?;
-        grant(&mut g, P0, "herb_mastery");
+        grant(&mut g, P0, 38 /* herb_mastery */);
         g.process_globals();
         assert_eq!(g.world.get::<&Hurt>(normal)?.0, 3);
         Ok(())
@@ -434,14 +441,14 @@ mod tests {
         let (m0, m1) = (melee(&g, normal), melee(&g, chaos));
         let h0 = to_hit(&g, normal);
         assert!(!g.units().unit_has_magical_weapon(normal));
-        grant(&mut g, P0, "holy_arms");
+        grant(&mut g, P0, 154 /* holy_arms */);
         assert_eq!(to_hit(&g, normal), h0 + 1);
         assert_eq!(melee(&g, normal), m0, "to hit, not strength");
         assert!(g.units().unit_has_magical_weapon(normal), "blessed blades");
         assert!(!g.units().unit_has_magical_weapon(rival), "not mine");
         assert_eq!(melee(&g, chaos), m1, "not a normal unit");
         assert_eq!(melee(&g, rival), m0, "not mine");
-        grant(&mut g, P0, "chaos_surge");
+        grant(&mut g, P0, 116 /* chaos_surge */);
         assert_eq!(melee(&g, chaos), m1 + 2);
         assert_eq!(melee(&g, normal), m0, "chaos surge skips non-chaos units");
         Ok(())
@@ -458,7 +465,7 @@ mod tests {
             .ok_or("high_men_cavalry is not in the content")?;
         let u = g.spawn_unit(P0, at(5, 5), walker);
         let before = g.units().unit_stat(u, Stat::MaxHp);
-        grant(&mut g, P0, "charm_of_life");
+        grant(&mut g, P0, 160 /* charm_of_life */);
         assert_eq!(
             g.units().unit_stat(u, Stat::MaxHp),
             before + (before / 4).max(1)
@@ -500,7 +507,7 @@ mod tests {
             .city_at(at(17, 10))
             .ok_or("city_at is missing")?;
         assert_eq!(known(&g), None, "three squares away is outside plain sight");
-        let eye = spell(&g, "natures_eye");
+        let eye = spell(&g, 12 /* natures_eye */);
         g.attach_enchantment(crate::rules::exec::Target::City(city), eye, P0);
         assert_eq!(known(&g), Some(guards.clone()));
         // Another wizard's eye does not show it to P0.
@@ -521,7 +528,7 @@ mod tests {
             },
         );
         assert_eq!(g.economy().lair_guards_known_to(at(2, 2), P0), None);
-        grant(&mut g, P0, "nature_awareness");
+        grant(&mut g, P0, 34 /* nature_awareness */);
         assert_eq!(g.economy().lair_guards_known_to(at(2, 2), P0), Some(guards));
         Ok(())
     }
@@ -538,7 +545,7 @@ mod tests {
             population: 3,
         });
         assert!(!g.fog.is_explored(P0, Plane::Arcanus, 20, 10));
-        grant(&mut g, P0, "awareness");
+        grant(&mut g, P0, 209 /* awareness */);
         assert!(
             g.fog.is_explored(P0, Plane::Arcanus, 20, 10),
             "the city is revealed"
@@ -556,7 +563,7 @@ mod tests {
             !g.fog.is_explored(P0, Plane::Arcanus, 18, 10),
             "nothing further out"
         );
-        grant(&mut g, P0, "nature_awareness");
+        grant(&mut g, P0, 34 /* nature_awareness */);
         assert!(g.fog.is_explored(P0, Plane::Myrror, 3, 3));
         assert!(g
             .economy()
@@ -575,7 +582,7 @@ mod tests {
         let mut g = world();
         g.set_fame(P0, 3);
         assert_eq!(g.fame(P0), 3);
-        grant(&mut g, P0, "just_cause");
+        grant(&mut g, P0, 127 /* just_cause */);
         assert_eq!(g.fame(P0), 13);
         assert_eq!(
             g.fame(P1),
@@ -589,10 +596,10 @@ mod tests {
     #[test]
     fn detect_magic_shows_what_others_are_casting() {
         let mut g = world();
-        let s = spell(&g, "healing");
+        let s = spell(&g, 125 /* healing */);
         g.scenario_casting(P1, s, 10);
         assert!(g.detect_magic_view(P0).is_empty());
-        grant(&mut g, P0, "detect_magic");
+        grant(&mut g, P0, 206 /* detect_magic */);
         assert_eq!(g.detect_magic_view(P0), vec![(P1, s)]);
         assert!(
             g.detect_magic_view(P1).is_empty(),

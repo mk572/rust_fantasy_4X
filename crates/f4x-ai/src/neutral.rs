@@ -610,7 +610,7 @@ mod tests {
         guards: Option<Vec<(f4x_core::rules::UnitId, u32)>>,
         known: bool,
     ) -> Result<Game, Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.add_neutral_player(TOWN);
         let race = g.content().rules.races.id_numbered(8);
         let events = g.apply(Command::FoundCity {
@@ -622,7 +622,7 @@ mod tests {
         });
         assert!(!events.iter().any(|e| matches!(e, Event::Rejected(_))));
         g.treasury_mut(TOWN).ok_or("the town has a treasury")?.gold = 1_000_000;
-        spawn(&mut g, TOWN, at(4, 4), "high_men_paladins", 9);
+        spawn(&mut g, TOWN, at(4, 4), 113 /* high_men_paladins */, 9);
         if let Some(guards) = guards {
             spawn_site(
                 &mut g,
@@ -786,7 +786,7 @@ mod tests {
             &mut g,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
-            "high_men_spearmen",
+            104, /* high_men_spearmen */
             1,
         );
         g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), 8);

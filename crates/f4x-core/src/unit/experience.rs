@@ -147,6 +147,7 @@ impl Game {
 mod tests {
     use super::*;
     use crate::map::Plane;
+    use crate::rules::RealmId;
     use crate::rules::Stat;
     use crate::testdir::TestResult;
     use crate::wizard::magic::Retort;
@@ -165,7 +166,7 @@ mod tests {
     fn world() -> Game {
         let mut g = crate::hero::game::tests::world();
         g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 5000;
-        g.init_wizard(P0, &[("life", 4)], &[], None)
+        g.init_wizard(P0, &[(RealmId::new(3 /* life */), 4)], &[], None)
             .expect("init_wizard succeeds");
         g
     }
@@ -176,8 +177,13 @@ mod tests {
         g.spawn_hero(P0, pos, kind).expect("spawn_hero succeeds")
     }
 
-    fn spawn(g: &mut Game, id: &str, pos: Position) -> hecs::Entity {
-        let def = g.content.rules.units.id_of(id).expect("id_of succeeds");
+    fn spawn(g: &mut Game, id: u16, pos: Position) -> hecs::Entity {
+        let def = g
+            .content
+            .rules
+            .units
+            .id_numbered(id)
+            .expect("id_of succeeds");
         g.spawn_unit(P0, pos, def)
     }
 
@@ -187,8 +193,13 @@ mod tests {
             .expect("insert_one succeeds");
     }
 
-    fn enchant(g: &mut Game, spell: &str, who: crate::rules::exec::Target) {
-        let s = g.content.rules.spells.id_of(spell).expect("id_of succeeds");
+    fn enchant(g: &mut Game, spell: u16, who: crate::rules::exec::Target) {
+        let s = g
+            .content
+            .rules
+            .spells
+            .id_numbered(spell)
+            .expect("id_of succeeds");
         g.attach_enchantment(who, s, P0);
     }
 
@@ -200,7 +211,7 @@ mod tests {
     fn a_levels_attack_plus_only_counts_for_a_unit_that_has_the_attack() {
         let mut g = world();
         // The Steam Cannon has no melee attack.
-        let unit = spawn(&mut g, "dwarven_steam_cannon", at(3, 3));
+        let unit = spawn(&mut g, 80 /* dwarven_steam_cannon */, at(3, 3));
         set_xp(&mut g, unit, 120);
         assert_eq!(g.units().unit_level(unit), 3);
         assert_eq!(g.units().unit_stat(unit, Stat::Melee), 0);
@@ -209,7 +220,7 @@ mod tests {
     #[test]
     fn warlord_and_crusade_each_add_a_level_and_only_they_reach_the_top() -> TestResult {
         let mut g = world();
-        let unit = spawn(&mut g, "high_men_cavalry", at(3, 3));
+        let unit = spawn(&mut g, 107 /* high_men_cavalry */, at(3, 3));
         // The real path adds a point of melee at Regular and at Elite, and at Champion.
         let base = g.units().unit_stat(unit, Stat::Melee);
         set_xp(&mut g, unit, 120);
@@ -222,11 +233,15 @@ mod tests {
             .insert(Retort::new(1) /* warlord */);
         assert_eq!(g.units().unit_level(unit), 4, "warlord: ultra-elite");
         assert_eq!(g.units().unit_stat(unit, Stat::Melee), base + 2);
-        enchant(&mut g, "crusade", crate::rules::exec::Target::Player(P0));
+        enchant(
+            &mut g,
+            158, /* crusade */
+            crate::rules::exec::Target::Player(P0),
+        );
         assert_eq!(g.units().unit_level(unit), 5, "both: champion");
         assert_eq!(g.units().unit_stat(unit, Stat::Melee), base + 3);
         // A recruit gets the two levels too, and nothing lifts anyone past champion.
-        let recruit = spawn(&mut g, "high_men_cavalry", at(4, 3));
+        let recruit = spawn(&mut g, 107 /* high_men_cavalry */, at(4, 3));
         assert_eq!(g.units().unit_level(recruit), 2);
         set_xp(&mut g, recruit, 1000);
         assert_eq!(g.units().unit_level(recruit), 5);
@@ -236,11 +251,15 @@ mod tests {
     #[test]
     fn crusade_leaves_the_undead_and_creatures_alone_but_warlord_does_not() -> TestResult {
         let mut g = world();
-        let normal = spawn(&mut g, "high_men_cavalry", at(3, 3));
-        let creature = spawn(&mut g, "magic_spirit", at(4, 3));
-        let undead = spawn(&mut g, "high_men_cavalry", at(5, 3));
+        let normal = spawn(&mut g, 107 /* high_men_cavalry */, at(3, 3));
+        let creature = spawn(&mut g, 154 /* magic_spirit */, at(4, 3));
+        let undead = spawn(&mut g, 107 /* high_men_cavalry */, at(5, 3));
         g.make_undead(undead);
-        enchant(&mut g, "crusade", crate::rules::exec::Target::Player(P0));
+        enchant(
+            &mut g,
+            158, /* crusade */
+            crate::rules::exec::Target::Player(P0),
+        );
         assert_eq!(g.units().unit_level(normal), 1);
         assert_eq!(g.units().unit_level(undead), 0, "not for the undead");
         assert_eq!(g.units().unit_level(creature), 0, "nor for creatures");
@@ -256,9 +275,13 @@ mod tests {
     #[test]
     fn heroism_makes_a_unit_elite_and_ends_when_it_gets_there_by_itself() -> TestResult {
         let mut g = world();
-        let unit = spawn(&mut g, "high_men_cavalry", at(3, 3));
+        let unit = spawn(&mut g, 107 /* high_men_cavalry */, at(3, 3));
         let base = g.units().unit_stat(unit, Stat::Melee);
-        enchant(&mut g, "heroism", crate::rules::exec::Target::Unit(unit));
+        enchant(
+            &mut g,
+            130, /* heroism */
+            crate::rules::exec::Target::Unit(unit),
+        );
         assert!(g.units().unit_has_heroism(unit));
         assert_eq!(g.units().unit_level(unit), 3);
         assert_eq!(g.units().unit_stat(unit, Stat::Melee), base + 2);
@@ -290,8 +313,8 @@ mod tests {
     fn an_armsmaster_trains_the_units_on_its_square() {
         let mut g = world();
         let hero = hire(&mut g, 26 /* swordsman */, at(3, 3));
-        let near = spawn(&mut g, "high_men_cavalry", at(3, 3));
-        let far = spawn(&mut g, "high_men_cavalry", at(4, 3));
+        let near = spawn(&mut g, 107 /* high_men_cavalry */, at(3, 3));
+        let far = spawn(&mut g, 107 /* high_men_cavalry */, at(4, 3));
         // The real swordsman is an armsmaster; a hero's tier decides the xp per level.
         let per = if g.units().unit_has_ability(hero, SUPER_ARMSMASTER) {
             3
@@ -327,9 +350,9 @@ mod tests {
     #[test]
     fn living_normal_units_and_heroes_gain_one_xp_a_turn_up_to_their_cap() {
         let mut g = world();
-        let normal = spawn(&mut g, "high_men_cavalry", at(3, 3));
-        let creature = spawn(&mut g, "magic_spirit", at(4, 3));
-        let undead = spawn(&mut g, "high_men_cavalry", at(5, 3));
+        let normal = spawn(&mut g, 107 /* high_men_cavalry */, at(3, 3));
+        let creature = spawn(&mut g, 154 /* magic_spirit */, at(4, 3));
+        let undead = spawn(&mut g, 107 /* high_men_cavalry */, at(5, 3));
         g.make_undead(undead);
         let hero = hire(&mut g, 26 /* swordsman */, at(6, 3));
         g.process_experience();

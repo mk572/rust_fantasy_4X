@@ -611,7 +611,7 @@ mod tests {
     /// A world with an independent city at (4, 4), nine paladins in it and an encounter site
     /// of one guard at (6, 4).
     fn raiding_world(guards: Option<Vec<(f4x_core::rules::UnitId, u32)>>, known: bool) -> Game {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.add_neutral_player(TOWN);
         let race = g.content().rules.races.id_numbered(8);
         let events = g.apply(Command::FoundCity {
@@ -623,7 +623,7 @@ mod tests {
         });
         assert!(!events.iter().any(|e| matches!(e, Event::Rejected(_))));
         g.treasury_mut(TOWN).unwrap().gold = 1_000_000;
-        spawn(&mut g, TOWN, at(4, 4), "high_men_paladins", 9);
+        spawn(&mut g, TOWN, at(4, 4), 113 /* high_men_paladins */, 9);
         let feature = g.content().features.id_numbered(13).unwrap();
         let Some(guards) = guards else {
             return g;
@@ -786,7 +786,7 @@ mod tests {
             &mut g,
             crate::testworld::P0,
             at(COAST_CITY.0, COAST_CITY.1),
-            "high_men_spearmen",
+            104, /* high_men_spearmen */
             1,
         );
         g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), 8);

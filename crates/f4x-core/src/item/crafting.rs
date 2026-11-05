@@ -584,6 +584,7 @@ mod tests {
     use crate::item::armory::Placed;
     use crate::map::{Grid, Map};
     use crate::player::PlayerId;
+    use crate::rules::RealmId;
     use crate::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
@@ -599,7 +600,7 @@ mod tests {
         g.map = Some(Map::new(Grid::new(8, 8, grass), Grid::new(8, 8, grass)));
         g.add_player(P0, "Merlin");
         g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 2000;
-        g.init_wizard(P0, &[("chaos", 2)], &[], None)
+        g.init_wizard(P0, &[(RealmId::new(2 /* chaos */), 2)], &[], None)
             .expect("init_wizard succeeds");
         let known: Vec<_> = ["enchant_item", "create_artifact", "giant_strength"]
             .iter()
@@ -708,7 +709,7 @@ mod tests {
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Books>()
             .0
-            .insert(crate::game::testutil::realm("chaos"), 1);
+            .insert(crate::game::testutil::realm(2 /* chaos */), 1);
         assert_eq!(
             check_in(
                 &poor,

@@ -701,11 +701,11 @@ mod tests {
             Economy::new(&self.world, Some(&self.map), &self.content)
         }
 
-        fn building(&self, id: &str) -> BuildingId {
+        fn building(&self, id: u16) -> BuildingId {
             self.content
                 .rules
                 .buildings
-                .id_of(id)
+                .id_numbered(id)
                 .expect("id_of succeeds")
         }
     }
@@ -724,7 +724,7 @@ mod tests {
                 .id_of("high_elf_spearmen")
                 .ok_or("high_elf_spearmen is not in the content")?,
         );
-        let (barracks, smithy) = (rig.building("barracks"), rig.building("smithy"));
+        let (barracks, smithy) = (rig.building(3 /* barracks */), rig.building(8 /* smithy */));
         assert_eq!(rig.eco().can_build(rig.city, spears), Ok(()));
         assert_eq!(
             rig.eco().can_build(rig.city, swords),
@@ -746,7 +746,7 @@ mod tests {
     #[test]
     fn costs_and_purchases_are_worked_out_from_the_city_alone() -> TestResult {
         let rig = Rig::new();
-        let barracks = ProductionItem::Building(rig.building("barracks"));
+        let barracks = ProductionItem::Building(rig.building(3 /* barracks */));
         rig.world.get::<&mut Production>(rig.city)?.item = Some(barracks);
         let eco = rig.eco();
         assert_eq!(eco.item_cost(rig.city, barracks), 30);
@@ -765,7 +765,7 @@ mod tests {
     #[test]
     fn production_is_added_until_the_item_is_covered() -> TestResult {
         let rig = Rig::new();
-        let barracks = rig.building("barracks");
+        let barracks = rig.building(3 /* barracks */);
         rig.world.get::<&mut Production>(rig.city)?.item = Some(ProductionItem::Building(barracks));
         match rig
             .eco()
@@ -793,8 +793,8 @@ mod tests {
     #[test]
     fn a_building_that_another_needs_cannot_be_sold() -> TestResult {
         let rig = Rig::new();
-        let (barracks, smithy) = (rig.building("barracks"), rig.building("smithy"));
-        let armory = rig.building("armory");
+        let (barracks, smithy) = (rig.building(3 /* barracks */), rig.building(8 /* smithy */));
+        let armory = rig.building(4 /* armory */);
         rig.world
             .get::<&mut Buildings>(rig.city)?
             .0

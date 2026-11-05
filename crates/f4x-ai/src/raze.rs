@@ -105,7 +105,7 @@ mod tests {
     #[test]
     fn a_maniacal_wizard_does_not_raze_a_city_whose_former_owner_has_nothing_nearby() -> TestResult
     {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let city = g
             .economy()
             .city_at(at(ENEMY_CITY.0, ENEMY_CITY.1))
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn the_temper_sets_the_start_of_the_score() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let enemy = at(ENEMY_CITY.0, ENEMY_CITY.1);
         let other = g.economy().city_at(enemy).ok_or("the enemy has a city")?;
         let race = g.content().rules.races.id_numbered(8);

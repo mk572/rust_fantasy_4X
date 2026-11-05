@@ -80,7 +80,7 @@ fn set_wizard(game: &mut Game, player: PlayerId, spec: &Option<WizardSpec>) {
     let ids: Vec<_> = spec
         .iter()
         .flat_map(|w| w.spells.iter())
-        .filter_map(|s| game.content().rules.spells.id_of(s))
+        .filter_map(|&s| game.content().rules.spells.id_numbered(s))
         .collect();
     let (mana, points) = spec
         .as_ref()
@@ -110,7 +110,7 @@ fn spawn_army(
 ) -> Vec<hecs::Entity> {
     let mut out = Vec::new();
     for pick in army {
-        let Some(id) = game.content().rules.units.id_of(&pick.unit) else {
+        let Some(id) = game.content().rules.units.id_numbered(pick.unit) else {
             continue;
         };
         let u = game.spawn_unit(owner, at, id);

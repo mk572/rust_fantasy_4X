@@ -173,9 +173,15 @@ mod tests {
         guards: Vec<(f4x_core::rules::UnitId, u32)>,
         known: bool,
     ) -> Result<Game, Box<dyn std::error::Error>> {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold = 1_000_000;
-        spawn(&mut g, P0, at(10, 6), "high_men_paladins", paladins);
+        spawn(
+            &mut g,
+            P0,
+            at(10, 6),
+            113, /* high_men_paladins */
+            paladins,
+        );
         spawn_site(
             &mut g,
             at(8, 6),
@@ -206,7 +212,7 @@ mod tests {
 
     #[test]
     fn a_tower_is_looked_for_further_away_than_other_sites() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         spawn_tower(&mut g, at(33, 9), true)?;
         spawn_site(
             &mut g,

@@ -4,6 +4,7 @@ use crate::city::production::{Production, ProductionError, ProductionItem};
 use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
+use crate::rules::RealmId;
 use crate::testdir::TestResult;
 
 use crate::game::Command;
@@ -56,11 +57,11 @@ fn world() -> Game {
     game
 }
 
-fn race(g: &Game, id: &str) -> Option<crate::rules::RaceId> {
-    g.content.rules.races.id_of(id)
+fn race(g: &Game, id: u16) -> Option<crate::rules::RaceId> {
+    g.content.rules.races.id_numbered(id)
 }
 
-fn found(g: &mut Game, pos: Position, race_id: &str, pop: u32) -> hecs::Entity {
+fn found(g: &mut Game, pos: Position, race_id: u16, pop: u32) -> hecs::Entity {
     let race = race(g, race_id);
     g.apply(Command::FoundCity {
         owner: P0,
@@ -72,8 +73,12 @@ fn found(g: &mut Game, pos: Position, race_id: &str, pop: u32) -> hecs::Entity {
     g.economy().city_at(pos).expect("city_at succeeds")
 }
 
-fn building(g: &Game, id: &str) -> crate::rules::BuildingId {
-    g.content.rules.buildings.id_of(id).expect("id_of succeeds")
+fn building(g: &Game, id: u16) -> crate::rules::BuildingId {
+    g.content
+        .rules
+        .buildings
+        .id_numbered(id)
+        .expect("id_of succeeds")
 }
 
 /// Stop the city building housing (which speeds growth) so growth tests see the base rate.
@@ -88,7 +93,7 @@ fn farm_all(g: &mut Game, city: hecs::Entity) {
     g.apply(Command::SetFarmers { city, farmers: 99 });
 }
 
-fn add_building(g: &mut Game, city: hecs::Entity, id: &str) {
+fn add_building(g: &mut Game, city: hecs::Entity, id: u16) {
     let b = building(g, id);
     g.world
         .get::<&mut Buildings>(city)
@@ -115,7 +120,7 @@ fn the_worked_area_is_five_by_five_without_corners() {
 #[test]
 fn a_grassland_city_can_grow_to_the_size_cap() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 3);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 3);
     let eco = g
         .economy()
         .city_economy(city)
@@ -129,7 +134,7 @@ fn a_grassland_city_can_grow_to_the_size_cap() -> TestResult {
 #[test]
 fn farmers_and_workers_share_the_citizens() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     // High elves farm 2 food each: two farmers feed four citizens exactly.
     assert_eq!(g.economy().city_min_farmers(city), 2);
     let eco = g
@@ -145,7 +150,7 @@ fn farmers_and_workers_share_the_citizens() -> TestResult {
     g.player_component_mut::<crate::player::Tax>(P0)
         .ok_or("value is missing")?
         .0 = 0;
-    let dwarf = found(&mut g, at(18, 6), "dwarven", 4);
+    let dwarf = found(&mut g, at(18, 6), 4 /* dwarven */, 4);
     assert_eq!(g.economy().city_min_farmers(dwarf), 2);
     assert_eq!(
         g.economy()
@@ -161,7 +166,7 @@ fn farmers_and_workers_share_the_citizens() -> TestResult {
 fn gold_comes_from_taxes_and_the_sea_and_markets() -> TestResult {
     let mut g = world();
     calm_taxes(&mut g);
-    let inland = found(&mut g, at(10, 6), "high_elf", 4);
+    let inland = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     // 4 citizens x tax rate 2 / 2 = 4 gold.
     assert_eq!(
         g.economy()
@@ -170,7 +175,7 @@ fn gold_comes_from_taxes_and_the_sea_and_markets() -> TestResult {
             .gold,
         4
     );
-    add_building(&mut g, inland, "marketplace");
+    add_building(&mut g, inland, 26 /* marketplace */);
     assert_eq!(
         g.economy()
             .city_economy(inland)
@@ -180,7 +185,7 @@ fn gold_comes_from_taxes_and_the_sea_and_markets() -> TestResult {
         "+50%"
     );
     // A coastal city (sea at x=0) gets +10% trade; 10 gold base needs more citizens.
-    let coastal = found(&mut g, at(1, 6), "high_elf", 10);
+    let coastal = found(&mut g, at(1, 6), 7 /* high_elf */, 10);
     assert_eq!(
         g.economy()
             .city_economy(coastal)
@@ -191,7 +196,7 @@ fn gold_comes_from_taxes_and_the_sea_and_markets() -> TestResult {
     );
     // Dwarves double the tax, but under a High Elf capital the racial unrest (3, so 30%) makes
     // one of the four a rebel.
-    let dwarf = found(&mut g, at(18, 6), "dwarven", 4);
+    let dwarf = found(&mut g, at(18, 6), 4 /* dwarven */, 4);
     assert_eq!(
         g.economy()
             .city_economy(dwarf)
@@ -206,7 +211,7 @@ fn gold_comes_from_taxes_and_the_sea_and_markets() -> TestResult {
 fn a_lake_counts_as_a_shore_for_trade() -> TestResult {
     let mut g = world();
     calm_taxes(&mut g);
-    let city = found(&mut g, at(10, 6), "high_elf", 10);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 10);
     assert_eq!(
         g.economy()
             .city_economy(city)
@@ -241,7 +246,7 @@ fn a_lake_counts_as_a_shore_for_trade() -> TestResult {
 fn rivers_pay_twenty_percent_and_river_mouths_thirty() -> TestResult {
     let mut g = world();
     calm_taxes(&mut g);
-    let city = found(&mut g, at(10, 6), "high_elf", 10);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 10);
     assert_eq!(
         g.economy()
             .city_economy(city)
@@ -262,7 +267,7 @@ fn rivers_pay_twenty_percent_and_river_mouths_thirty() -> TestResult {
         12,
         "river"
     );
-    let mouth = found(&mut g, at(1, 6), "high_elf", 10);
+    let mouth = found(&mut g, at(1, 6), 7 /* high_elf */, 10);
     g.map
         .as_mut()
         .ok_or("as_mut is missing")?
@@ -280,8 +285,13 @@ fn rivers_pay_twenty_percent_and_river_mouths_thirty() -> TestResult {
 }
 
 /// Put one of the game's real buildings in a city.
-fn add_real_building(g: &mut Game, city: hecs::Entity, id: &str) {
-    let new = g.content.rules.buildings.id_of(id).expect("id_of succeeds");
+fn add_real_building(g: &mut Game, city: hecs::Entity, id: u16) {
+    let new = g
+        .content
+        .rules
+        .buildings
+        .id_numbered(id)
+        .expect("id_of succeeds");
     g.world
         .get::<&mut Buildings>(city)
         .expect("value succeeds")
@@ -292,7 +302,7 @@ fn add_real_building(g: &mut Game, city: hecs::Entity, id: &str) {
 #[test]
 fn the_animists_guild_adds_food_for_every_farmer() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 6);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 6);
     let food = |g: &Game, farmers| {
         g.economy()
             .city_economy_with(city, farmers)
@@ -300,7 +310,7 @@ fn the_animists_guild_adds_food_for_every_farmer() -> TestResult {
             .food
     };
     let (two, four) = (food(&g, 2), food(&g, 4));
-    add_real_building(&mut g, city, "animists_guild");
+    add_real_building(&mut g, city, 10 /* animists_guild */);
     assert_eq!(food(&g, 2), two + 2, "one more for each of two farmers");
     assert_eq!(
         food(&g, 4),
@@ -328,7 +338,7 @@ fn the_foresters_guilds_food_raises_the_size_limit_too() -> TestResult {
                 .set(x, y, desert);
         }
     }
-    let city = found(&mut g, at(10, 6), "high_elf", 1);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 1);
     let size = |g: &Game| {
         g.economy()
             .city_economy(city)
@@ -336,7 +346,7 @@ fn the_foresters_guilds_food_raises_the_size_limit_too() -> TestResult {
             .max_size
     };
     assert_eq!(size(&g), 0);
-    add_real_building(&mut g, city, "foresters_guild");
+    add_real_building(&mut g, city, 31 /* foresters_guild */);
     assert_eq!(size(&g), 2, "+2 food feeds two more people (B14)");
     Ok(())
 }
@@ -344,7 +354,7 @@ fn the_foresters_guilds_food_raises_the_size_limit_too() -> TestResult {
 #[test]
 fn mines_add_gold_mana_and_cheaper_units() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     let gold_ore = g
         .content
         .features
@@ -380,7 +390,7 @@ fn mines_add_gold_mana_and_cheaper_units() -> TestResult {
     );
     assert_eq!(eco.unit_cost_percent, 95, "iron saves 5%");
     // A miners' guild improves the yields; a second city sharing a tile halves it.
-    add_building(&mut g, city, "miners_guild");
+    add_building(&mut g, city, 34 /* miners_guild */);
     assert_eq!(
         g.economy()
             .city_economy(city)
@@ -402,7 +412,7 @@ fn mines_add_gold_mana_and_cheaper_units() -> TestResult {
         .city_economy(city)
         .ok_or("city_economy is missing")?
         .gold;
-    found(&mut g, at(10, 10), "high_elf", 1);
+    found(&mut g, at(10, 10), 7 /* high_elf */, 1);
     assert!(g
         .economy()
         .city_area(at(10, 6))
@@ -422,13 +432,13 @@ fn mines_add_gold_mana_and_cheaper_units() -> TestResult {
 #[test]
 fn a_shared_tile_feeds_each_city_half() -> TestResult {
     let mut g = world();
-    let a = found(&mut g, at(8, 6), "high_elf", 3);
+    let a = found(&mut g, at(8, 6), 7 /* high_elf */, 3);
     let before = g
         .economy()
         .city_economy_with(a, 0)
         .ok_or("city_economy_with is missing")?
         .max_size;
-    found(&mut g, at(12, 6), "high_elf", 3);
+    found(&mut g, at(12, 6), 7 /* high_elf */, 3);
     let shared = g
         .economy()
         .city_area(at(8, 6))
@@ -454,7 +464,7 @@ fn taxes_and_race_cause_unrest_and_temples_calm_it() -> TestResult {
     g.player_component_mut::<crate::player::Tax>(P0)
         .ok_or("value is missing")?
         .0 = 4; // 45% unrest
-    let city = found(&mut g, at(10, 6), "high_elf", 10);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 10);
     // Capital race is elf, so no racial unrest: 10 * 45% = 4 rebels.
     assert_eq!(
         g.economy()
@@ -463,7 +473,7 @@ fn taxes_and_race_cause_unrest_and_temples_calm_it() -> TestResult {
             .rebels,
         4
     );
-    add_building(&mut g, city, "temple");
+    add_building(&mut g, city, 23 /* temple */);
     assert_eq!(
         g.economy()
             .city_economy(city)
@@ -472,7 +482,7 @@ fn taxes_and_race_cause_unrest_and_temples_calm_it() -> TestResult {
         3
     );
     // A dwarven city under a High Elf capital: the racial table says 3 -> +30%.
-    let dwarf = found(&mut g, at(18, 6), "dwarven", 10);
+    let dwarf = found(&mut g, at(18, 6), 4 /* dwarven */, 10);
     assert_eq!(
         g.economy()
             .city_economy(dwarf)
@@ -492,7 +502,7 @@ fn stream_of_life_ends_unrest_and_heals_the_units_in_the_city() -> TestResult {
         .0 = 4;
     // The spell costs eight mana a turn to keep.
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
-    let city = found(&mut g, at(10, 6), "high_elf", 10);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 10);
     farm_all(&mut g, city);
     let spear = g
         .content
@@ -591,15 +601,15 @@ fn undead_units_are_not_healed_eat_nothing_and_are_death_creatures() -> TestResu
     assert_eq!(g.units().unit_gold_upkeep(raised), 0);
     assert_eq!(
         g.units().unit_realm(raised),
-        Some(crate::game::testutil::realm("death"))
+        Some(crate::game::testutil::realm(4 /* death */))
     );
     assert_eq!(g.units().unit_realm(living), None);
     assert!(g.units().unit_is_death(raised) && !g.units().unit_is_death(living));
     for a in [
-        "death_immunity",
-        "cold_immunity",
-        "poison_immunity",
-        "illusion_immunity",
+        16, /* death_immunity */
+        10, /* cold_immunity */
+        52, /* poison_immunity */
+        31, /* illusion_immunity */
     ] {
         assert!(
             g.units()
@@ -621,7 +631,7 @@ fn troops_in_a_city_keep_order() -> TestResult {
     g.player_component_mut::<crate::player::Tax>(P0)
         .ok_or("value is missing")?
         .0 = 4;
-    let city = found(&mut g, at(10, 6), "high_elf", 10);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 10);
     let spear = g
         .content
         .rules
@@ -645,7 +655,7 @@ fn troops_in_a_city_keep_order() -> TestResult {
 #[test]
 fn growth_follows_the_room_to_grow_and_starvation_shrinks() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 3);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 3);
     idle(&mut g, city);
     let eco = g
         .economy()
@@ -654,7 +664,7 @@ fn growth_follows_the_room_to_grow_and_starvation_shrinks() -> TestResult {
     // (25 - 3 + 1) / 2 = 11 tens, less the high elves' 20 percent: 9; the granary adds 20
     // people = 2 tens.
     assert_eq!(eco.growth_tens, 9);
-    add_building(&mut g, city, "granary");
+    add_building(&mut g, city, 29 /* granary */);
     assert_eq!(
         g.economy()
             .city_economy(city)
@@ -674,7 +684,7 @@ fn growth_follows_the_room_to_grow_and_starvation_shrinks() -> TestResult {
 #[test]
 fn turns_grow_the_population_and_carry_the_surplus() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 3);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 3);
     idle(&mut g, city);
     g.world.insert_one(
         city,
@@ -696,8 +706,8 @@ fn turns_grow_the_population_and_carry_the_surplus() -> TestResult {
 #[test]
 fn production_builds_units_and_buildings() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    let barracks = building(&g, "barracks");
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    let barracks = building(&g, 3 /* barracks */);
     assert_eq!(
         g.apply(Command::SetProduction {
             city,
@@ -725,8 +735,8 @@ fn production_builds_units_and_buildings() -> TestResult {
     );
     // Now swordsmen can be built (they need the barracks and a smithy); the fighters guild
     // trains them as Regulars.
-    add_building(&mut g, city, "smithy");
-    add_building(&mut g, city, "fighters_guild");
+    add_building(&mut g, city, 8 /* smithy */);
+    add_building(&mut g, city, 5 /* fighters_guild */);
     // Three farmers feed the new soldier too, and one worker makes 5 production a turn.
     g.apply(Command::SetFarmers { city, farmers: 3 });
     let swords = g
@@ -758,16 +768,16 @@ fn production_builds_units_and_buildings() -> TestResult {
 #[test]
 fn requirements_and_races_limit_what_can_be_built() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     let spear = g
         .content
         .rules
         .units
         .id_numbered(96)
         .ok_or("high_elf_swordsmen is not in the content")?;
-    let guild = building(&g, "fighters_guild");
-    let parthenon = building(&g, "parthenon");
-    let barracks = building(&g, "barracks");
+    let guild = building(&g, 5 /* fighters_guild */);
+    let parthenon = building(&g, 24 /* parthenon */);
+    let barracks = building(&g, 3 /* barracks */);
     assert_eq!(
         g.economy().can_build(city, ProductionItem::Unit(spear)),
         Err(ProductionError::MissingBuilding)
@@ -781,8 +791,8 @@ fn requirements_and_races_limit_what_can_be_built() -> TestResult {
             .can_build(city, ProductionItem::Building(parthenon)),
         Err(ProductionError::WrongRace)
     );
-    add_building(&mut g, city, "barracks");
-    add_building(&mut g, city, "smithy");
+    add_building(&mut g, city, 3 /* barracks */);
+    add_building(&mut g, city, 8 /* smithy */);
     assert_eq!(
         g.economy().can_build(city, ProductionItem::Unit(spear)),
         Ok(())
@@ -798,13 +808,13 @@ fn requirements_and_races_limit_what_can_be_built() -> TestResult {
         .units
         .id_numbered(36)
         .ok_or("galley is not in the content")?;
-    add_building(&mut g, city, "ship_yard");
+    add_building(&mut g, city, 13 /* ship_yard */);
     assert_eq!(
         g.economy().can_build(city, ProductionItem::Unit(galley)),
         Err(ProductionError::NotCoastal)
     );
-    let port = found(&mut g, at(1, 6), "high_elf", 3);
-    add_building(&mut g, port, "ship_yard");
+    let port = found(&mut g, at(1, 6), 7 /* high_elf */, 3);
+    add_building(&mut g, port, 13 /* ship_yard */);
     assert_eq!(
         g.economy().can_build(port, ProductionItem::Unit(galley)),
         Ok(())
@@ -815,9 +825,9 @@ fn requirements_and_races_limit_what_can_be_built() -> TestResult {
 /// A city that has just finished the barracks, with the Vizier's list set.
 fn vizier_city(on: bool) -> (Game, hecs::Entity) {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     g.apply(Command::SetGrandVizier { player: P0, on });
-    let barracks = building(&g, "barracks");
+    let barracks = building(&g, 3 /* barracks */);
     g.set_production(city, ProductionItem::Building(barracks))
         .expect("value succeeds");
     (g, city)
@@ -849,7 +859,7 @@ fn the_vizier_keeps_choosing_new_buildings_until_none_is_worth_building() {
         }
     }
     assert!(seen.len() >= 2, "it built {} buildings", seen.len());
-    let smithy = building(&g, "smithy");
+    let smithy = building(&g, 8 /* smithy */);
     assert!(
         seen.contains(&smithy),
         "the Smithy, which the barracks' list names next, is worth building"
@@ -863,12 +873,12 @@ fn a_poor_treasury_builds_gold_and_skips_buildings_it_cannot_keep() -> TestResul
         .ok_or("value is missing")?
         .0 = 0;
     let net = g.budget(P0).net_gold();
-    add_building(&mut g, city, "barracks");
+    add_building(&mut g, city, 3 /* barracks */);
     assert!(
         net < 3,
         "the test needs a poor treasury, net is {net} gold a turn"
     );
-    let market = building(&g, "marketplace");
+    let market = building(&g, 26 /* marketplace */);
     let choice = g.autobuild_choice(city, P0);
     assert!(
         choice == Some(ProductionItem::Building(market))
@@ -887,15 +897,15 @@ fn turning_the_vizier_on_gives_idle_cities_a_building() -> TestResult {
         player: P0,
         on: true,
     });
-    let barracks = building(&g, "barracks");
+    let barracks = building(&g, 3 /* barracks */);
     assert_eq!(
         g.economy().city_production(city).item,
         Some(ProductionItem::Building(barracks))
     );
     // A city already building something is left alone.
-    let other = found(&mut g, at(16, 6), "high_elf", 4);
-    add_building(&mut g, other, "builders_hall");
-    let granary = building(&g, "granary");
+    let other = found(&mut g, at(16, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, other, 32 /* builders_hall */);
+    let granary = building(&g, 29 /* granary */);
     g.set_production(other, ProductionItem::Building(granary))
         .map_err(|e| format!("{e:?}"))?;
     g.apply(Command::SetGrandVizier {
@@ -912,15 +922,15 @@ fn turning_the_vizier_on_gives_idle_cities_a_building() -> TestResult {
 #[test]
 fn the_vizier_leaves_outposts_alone() {
     let (mut g, _) = vizier_city(true);
-    let outpost = found(&mut g, at(4, 6), "high_elf", 0);
+    let outpost = found(&mut g, at(4, 6), 7 /* high_elf */, 0);
     assert_eq!(g.autobuild_choice(outpost, P0), None);
 }
 
 #[test]
 fn buying_costs_more_the_less_is_done() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    let hall = building(&g, "builders_hall"); // 60
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    let hall = building(&g, 32 /* builders_hall */); // 60
     g.set_production(city, ProductionItem::Building(hall))
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
@@ -972,8 +982,8 @@ fn buying_costs_more_the_less_is_done() -> TestResult {
 fn buying_needs_the_gold() -> TestResult {
     let mut g = world();
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 10;
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    let hall = building(&g, "builders_hall");
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    let hall = building(&g, 32 /* builders_hall */);
     g.set_production(city, ProductionItem::Building(hall))
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
@@ -988,15 +998,15 @@ fn buying_needs_the_gold() -> TestResult {
 #[test]
 fn selling_a_building_refunds_it_unless_others_need_it() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    add_building(&mut g, city, "barracks");
-    add_building(&mut g, city, "fighters_guild");
-    let barracks = building(&g, "barracks");
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 3 /* barracks */);
+    add_building(&mut g, city, 5 /* fighters_guild */);
+    let barracks = building(&g, 3 /* barracks */);
     assert_eq!(
         g.sell_building(city, barracks),
         Err(ProductionError::MissingBuilding)
     );
-    let guild = building(&g, "fighters_guild");
+    let guild = building(&g, 5 /* fighters_guild */);
     let gold = g.player(P0).ok_or("player is missing")?.treasury().gold;
     assert_eq!(g.sell_building(city, guild), Ok(66));
     assert_eq!(
@@ -1011,11 +1021,11 @@ fn selling_a_building_refunds_it_unless_others_need_it() -> TestResult {
 #[test]
 fn selling_what_the_production_needs_puts_the_city_back_to_housing() {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    add_building(&mut g, city, "barracks");
-    add_building(&mut g, city, "smithy");
-    let guild = building(&g, "armory");
-    let barracks = building(&g, "barracks");
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 3 /* barracks */);
+    add_building(&mut g, city, 8 /* smithy */);
+    let guild = building(&g, 4 /* armory */);
+    let barracks = building(&g, 3 /* barracks */);
     assert_eq!(g.economy().first_dependant(city, barracks), None);
     g.apply(Command::SetProduction {
         city,
@@ -1032,17 +1042,17 @@ fn selling_what_the_production_needs_puts_the_city_back_to_housing() {
 #[test]
 fn selling_is_blocked_through_a_chain_with_a_missing_link() {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     // The war college needs the fighters guild, which needs the barracks; the guild is
     // not built, but the barracks still cannot go while the college stands.
-    add_building(&mut g, city, "barracks");
-    add_building(&mut g, city, "war_college");
-    let barracks = building(&g, "barracks");
+    add_building(&mut g, city, 3 /* barracks */);
+    add_building(&mut g, city, 7 /* war_college */);
+    let barracks = building(&g, 3 /* barracks */);
     assert_eq!(
         g.sell_building(city, barracks),
         Err(ProductionError::MissingBuilding)
     );
-    let college = building(&g, "war_college");
+    let college = building(&g, 7 /* war_college */);
     assert_eq!(g.sell_building(city, college), Ok(166));
     // Only one sale a turn in a city: the barracks goes the turn after.
     assert_eq!(
@@ -1058,9 +1068,9 @@ fn selling_is_blocked_through_a_chain_with_a_missing_link() {
 #[test]
 fn a_sale_is_remembered_in_a_save() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    add_building(&mut g, city, "barracks");
-    let barracks = building(&g, "barracks");
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 3 /* barracks */);
+    let barracks = building(&g, 3 /* barracks */);
     g.sell_building(city, barracks)
         .map_err(|e| format!("{e:?}"))?;
     let text = g.snapshot().to_text()?;
@@ -1076,7 +1086,7 @@ fn a_sale_is_remembered_in_a_save() -> TestResult {
 fn done_lasts_the_turn_and_patrol_until_the_unit_moves() -> TestResult {
     use crate::unit::Standby;
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     farm_all(&mut g, city);
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 100;
     let spear = g
@@ -1118,7 +1128,7 @@ fn done_lasts_the_turn_and_patrol_until_the_unit_moves() -> TestResult {
 #[test]
 fn a_wizard_turns_off_their_own_spell_on_a_city_and_no_one_elses() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     let spell = g
         .content
         .rules
@@ -1166,14 +1176,14 @@ fn put_ore(g: &mut Game, ore: u16, x: u32, y: u32) {
 #[test]
 fn weapon_quality_follows_the_alchemists_guild_and_the_ore() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     put_ore(&mut g, num::feature::MITHRIL_ORE, 11, 6);
     assert_eq!(
         g.economy().city_weapon_quality(city),
         0,
         "ore alone does nothing"
     );
-    add_building(&mut g, city, "alchemists_guild");
+    add_building(&mut g, city, 19 /* alchemists_guild */);
     assert_eq!(g.economy().city_weapon_quality(city), 2, "mithril");
     put_ore(&mut g, num::feature::ADAMANTIUM_ORE, 9, 6);
     assert_eq!(
@@ -1199,8 +1209,8 @@ fn weapon_quality_follows_the_alchemists_guild_and_the_ore() -> TestResult {
 #[test]
 fn units_are_trained_with_the_cities_weapons_and_alchemy_gives_magic() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    add_building(&mut g, city, "barracks");
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 3 /* barracks */);
     let spear = g
         .content
         .rules
@@ -1231,7 +1241,7 @@ fn units_are_trained_with_the_cities_weapons_and_alchemy_gives_magic() -> TestRe
         "Alchemy: magic weapons"
     );
     put_ore(&mut g, num::feature::MITHRIL_ORE, 11, 6);
-    add_building(&mut g, city, "alchemists_guild");
+    add_building(&mut g, city, 19 /* alchemists_guild */);
     let mithril = train(&mut g);
     assert_eq!(g.units().unit_weapon_quality(mithril), 2);
     Ok(())
@@ -1240,19 +1250,19 @@ fn units_are_trained_with_the_cities_weapons_and_alchemy_gives_magic() -> TestRe
 #[test]
 fn replaced_buildings_cost_nothing_to_keep() {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    add_building(&mut g, city, "barracks"); // upkeep 0 anyway
-    add_building(&mut g, city, "smithy"); // 1
-    add_building(&mut g, city, "armory"); // 2, replaces barracks
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 3 /* barracks */); // upkeep 0 anyway
+    add_building(&mut g, city, 8 /* smithy */); // 1
+    add_building(&mut g, city, 4 /* armory */); // 2, replaces barracks
     assert_eq!(g.economy().city_building_upkeep(city), 3);
-    add_building(&mut g, city, "library"); // 1
+    add_building(&mut g, city, 16 /* library */); // 1
     assert_eq!(g.economy().city_building_upkeep(city), 4);
 }
 
 #[test]
 fn the_treasury_collects_taxes_and_pays_for_troops() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     g.apply(Command::SetFarmers { city, farmers: 3 });
     let spear = g
         .content
@@ -1281,7 +1291,7 @@ fn the_treasury_collects_taxes_and_pays_for_troops() -> TestResult {
 #[test]
 fn spare_food_is_sold_for_gold() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     g.apply(Command::SetFarmers { city, farmers: 3 });
     let eco = g
         .economy()
@@ -1326,7 +1336,7 @@ fn dismissing_a_unit_removes_it_and_says_so() -> TestResult {
 #[test]
 fn an_army_that_cannot_be_fed_or_paid_is_disbanded() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     g.apply(Command::SetFarmers { city, farmers: 3 });
     let spear = g
         .content
@@ -1366,7 +1376,7 @@ fn an_army_that_cannot_be_fed_or_paid_is_disbanded() -> TestResult {
 #[test]
 fn wounded_units_heal_faster_in_cities() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     farm_all(&mut g, city);
     let spear = g
         .content
@@ -1394,7 +1404,7 @@ fn wounded_units_heal_faster_in_cities() -> TestResult {
 #[test]
 fn regenerating_units_mend_completely_each_turn() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     farm_all(&mut g, city);
     let mut units = g.content.rules.units.defs().to_vec();
     for u in units.iter_mut() {
@@ -1421,7 +1431,7 @@ fn wild_game_raises_an_outposts_growth_chance_by_its_food_and_its_bonus() -> Tes
     let mut g = world();
     // The test land feeds more than the usual largest city, which would hide the food.
     g.content.rules.config.max_city_size = 100;
-    let outpost = found(&mut g, at(10, 6), "high_elf", 0);
+    let outpost = found(&mut g, at(10, 6), 7 /* high_elf */, 0);
     let plain = g.economy().outpost_growth_chance(outpost);
     let game = g
         .content
@@ -1441,7 +1451,7 @@ fn wild_game_raises_an_outposts_growth_chance_by_its_food_and_its_bonus() -> Tes
 #[test]
 fn difficulty_does_not_change_outpost_growth_for_anyone() {
     let mut g = world();
-    let outpost = found(&mut g, at(10, 6), "high_elf", 0);
+    let outpost = found(&mut g, at(10, 6), 7 /* high_elf */, 0);
     let normal = g.economy().outpost_growth_chance(outpost);
     for difficulty in [0, 4] {
         g.settings.basic.difficulty = difficulty;
@@ -1452,7 +1462,7 @@ fn difficulty_does_not_change_outpost_growth_for_anyone() {
 #[test]
 fn outposts_grow_into_cities_in_time() -> TestResult {
     let mut g = world();
-    let outpost = found(&mut g, at(10, 6), "high_elf", 0);
+    let outpost = found(&mut g, at(10, 6), 7 /* high_elf */, 0);
     for _ in 0..300 {
         g.apply(Command::EndTurn);
         if g.world.get::<&Population>(outpost)?.figures > 0 {
@@ -1471,7 +1481,7 @@ fn outposts_grow_into_cities_in_time() -> TestResult {
 #[test]
 fn farmers_can_be_set_but_not_below_what_feeds_the_city() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     g.apply(Command::SetFarmers { city, farmers: 0 });
     assert_eq!(g.world.get::<&Farmers>(city)?.0, 2, "raised to the minimum");
     g.apply(Command::SetFarmers { city, farmers: 4 });
@@ -1488,7 +1498,7 @@ fn farmers_can_be_set_but_not_below_what_feeds_the_city() -> TestResult {
 #[test]
 fn balancing_farmers_feeds_the_army() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 6);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 6);
     let spear = g
         .content
         .rules
@@ -1597,7 +1607,7 @@ fn tax_rate_is_clamped_to_the_table() -> TestResult {
 #[test]
 fn famine_and_gaias_blessing_change_the_land() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     let base = g
         .economy()
         .city_economy_with(city, 2)
@@ -1637,7 +1647,7 @@ fn gaias_blessing_pacifies_two_rebels() -> TestResult {
     g.player_component_mut::<crate::player::Tax>(P0)
         .ok_or("value is missing")?
         .0 = 4; // 45% unrest: 4 rebels of 10
-    let city = found(&mut g, at(10, 6), "high_elf", 10);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 10);
     assert_eq!(
         g.economy()
             .city_economy(city)
@@ -1668,7 +1678,7 @@ fn pestilence_adds_unrest_and_each_citizen_may_die_but_the_last_is_spared() -> T
     g.treasury_mut(PlayerId(1))
         .ok_or("treasury_mut is missing")?
         .mana = 100_000;
-    let city = found(&mut g, at(10, 6), "high_elf", 10);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 10);
     let unrest = |g: &Game| {
         g.economy()
             .city_economy(city)
@@ -1700,7 +1710,7 @@ fn pestilence_adds_unrest_and_each_citizen_may_die_but_the_last_is_spared() -> T
 #[test]
 fn a_city_of_one_is_safe_from_pestilence() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 1);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 1);
     let pestilence = g
         .content
         .rules
@@ -1719,10 +1729,10 @@ fn a_city_of_one_is_safe_from_pestilence() -> TestResult {
 fn the_moons_change_the_mana_of_the_temples_by_the_wizards_books() -> TestResult {
     use crate::world_event::EventKind;
     let mut g = world();
-    g.init_wizard(P0, &[("life", 2)], &[], None)
+    g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    add_building(&mut g, city, "temple");
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 23 /* temple */);
     let mana = |g: &Game| {
         g.economy()
             .city_economy(city)
@@ -1737,10 +1747,10 @@ fn the_moons_change_the_mana_of_the_temples_by_the_wizards_books() -> TestResult
         "the evil moon halves a life wizard's temple (2)"
     );
     let mut g = world();
-    g.init_wizard(P0, &[("life", 2)], &[], None)
+    g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    add_building(&mut g, city, "temple");
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 23 /* temple */);
     g.scenario_start_event(EventKind::GoodMoon);
     assert_eq!(mana(&g), plain + 2, "the good moon doubles it");
     Ok(())
@@ -1751,10 +1761,10 @@ fn dark_rituals_double_the_mana_of_the_religious_buildings_and_divine_power_make
 ) -> TestResult {
     use crate::wizard::magic::Retort;
     let mut g = world();
-    g.init_wizard(P0, &[("death", 2)], &[], None)
+    g.init_wizard(P0, &[(RealmId::new(4 /* death */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    add_building(&mut g, city, "temple");
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 23 /* temple */);
     let mana = |g: &Game| {
         g.economy()
             .city_economy(city)
@@ -1789,7 +1799,7 @@ fn just_cause_pacifies_one_rebel_in_every_city() -> TestResult {
     g.player_component_mut::<crate::player::Tax>(P0)
         .ok_or("value is missing")?
         .0 = 4; // 4 rebels of 10
-    let city = found(&mut g, at(10, 6), "high_elf", 10);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 10);
     let rebels = |g: &Game| {
         g.economy()
             .city_economy(city)
@@ -1811,9 +1821,9 @@ fn just_cause_pacifies_one_rebel_in_every_city() -> TestResult {
 #[test]
 fn a_finished_unit_waits_while_nine_units_stand_in_the_city() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    add_building(&mut g, city, "barracks");
-    add_building(&mut g, city, "fighters_guild");
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 3 /* barracks */);
+    add_building(&mut g, city, 5 /* fighters_guild */);
     let spear = g
         .content
         .rules
@@ -1842,9 +1852,9 @@ fn a_finished_unit_waits_while_nine_units_stand_in_the_city() -> TestResult {
 #[test]
 fn a_city_that_lost_the_building_its_item_needs_turns_to_trade_goods() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 4);
-    add_building(&mut g, city, "barracks");
-    add_building(&mut g, city, "smithy");
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    add_building(&mut g, city, 3 /* barracks */);
+    add_building(&mut g, city, 8 /* smithy */);
     let spear = g
         .content
         .rules
@@ -1878,7 +1888,7 @@ fn a_city_that_lost_the_building_its_item_needs_turns_to_trade_goods() -> TestRe
 #[test]
 fn settlers_cost_a_citizen_unless_the_setting_makes_them_free() -> TestResult {
     let mut g = world();
-    let city = found(&mut g, at(10, 6), "high_elf", 3);
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 3);
     let settlers = g
         .content
         .rules

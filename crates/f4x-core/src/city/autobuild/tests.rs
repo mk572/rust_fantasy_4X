@@ -2,18 +2,21 @@ use super::*;
 use crate::game::testutil::{num, shipped};
 use crate::testdir::TestResult;
 
-fn building(c: &Content, id: &str) -> BuildingId {
-    c.rules.buildings.id_of(id).expect("id_of succeeds")
+fn building(c: &Content, id: u16) -> BuildingId {
+    c.rules.buildings.id_numbered(id).expect("id_of succeeds")
 }
 
-fn unit_id(c: &Content, id: &str) -> UnitId {
-    c.rules.units.id_of(id).expect("id_of succeeds")
+fn unit_id(c: &Content, id: u16) -> UnitId {
+    c.rules.units.id_numbered(id).expect("id_of succeeds")
 }
 
 /// A size-4 city with room to grow, rich enough, that has a Builders Hall and a Smithy and may
 /// build everything else in the content whose requirements it meets.
 fn facts(c: &Content) -> CityFacts {
-    let built = vec![building(c, "builders_hall"), building(c, "smithy")];
+    let built = vec![
+        building(c, 32 /* builders_hall */),
+        building(c, 8 /* smithy */),
+    ];
     let possible: Vec<BuildingId> = c
         .rules
         .buildings
@@ -35,14 +38,14 @@ fn facts(c: &Content) -> CityFacts {
         built,
         possible,
         units: [
-            "high_men_pikemen",
-            "high_men_swordsmen",
-            "high_men_bowmen",
-            "high_elf_pegasai",
-            "high_men_engineers",
+            112, /* high_men_pikemen */
+            105, /* high_men_swordsmen */
+            106, /* high_men_bowmen */
+            103, /* high_elf_pegasai */
+            110, /* high_men_engineers */
         ]
         .iter()
-        .map(|n| unit_id(c, n))
+        .map(|n| unit_id(c, *n))
         .collect(),
         cities: 3,
         ..CityFacts::default()
@@ -105,7 +108,7 @@ fn a_city_below_its_garrison_minimum_builds_the_sturdiest_defender() {
     let item = choose(&c, &plan(Mix::Both, Focus::Gold), &f, &mut first);
     assert_eq!(
         item,
-        ProductionItem::Unit(unit_id(&c, "high_men_swordsmen"))
+        ProductionItem::Unit(unit_id(&c, 105 /* high_men_swordsmen */))
     );
     // Buildings only never builds units.
     let item = choose(&c, &plan(Mix::Buildings, Focus::Gold), &f, &mut first);
@@ -172,7 +175,10 @@ fn rebels_call_for_a_building_that_lowers_unrest() {
     let mut f = facts(&c);
     f.rebels = 2;
     let item = choose(&c, &plan(Mix::Buildings, Focus::Production), &f, &mut first);
-    assert_eq!(item, ProductionItem::Building(building(&c, "shrine")));
+    assert_eq!(
+        item,
+        ProductionItem::Building(building(&c, 22 /* shrine */))
+    );
 }
 
 #[test]
@@ -183,9 +189,9 @@ fn low_gold_builds_a_gold_building_then_trade_goods() {
     let p = plan(Mix::Buildings, Focus::Offense);
     assert_eq!(
         choose(&c, &p, &f, &mut first),
-        ProductionItem::Building(building(&c, "marketplace"))
+        ProductionItem::Building(building(&c, 26 /* marketplace */))
     );
-    let market = building(&c, "marketplace");
+    let market = building(&c, 26 /* marketplace */);
     f.buildable.retain(|&b| b != market);
     f.possible.retain(|&b| b != market);
     assert_eq!(choose(&c, &p, &f, &mut first), ProductionItem::TradeGoods);
@@ -196,17 +202,20 @@ fn a_building_whose_upkeep_the_treasury_cannot_bear_is_skipped() {
     let c = shipped();
     let mut f = facts(&c);
     f.net_gold = 3;
-    f.buildable = vec![building(&c, "temple"), building(&c, "library")];
+    f.buildable = vec![
+        building(&c, 23 /* temple */),
+        building(&c, 16 /* library */),
+    ];
     f.rebels = 0;
     let item = choose(&c, &plan(Mix::Buildings, Focus::Magic), &f, &mut first);
     // The temple costs 2 and the library 1; both are borne at 3.
     assert!(matches!(item, ProductionItem::Building(_)));
     f.net_gold = 3;
-    f.buildable = vec![building(&c, "war_college")];
+    f.buildable = vec![building(&c, 7 /* war_college */)];
     let item = choose(&c, &plan(Mix::Buildings, Focus::Offense), &f, &mut first);
     assert_ne!(
         item,
-        ProductionItem::Building(building(&c, "war_college")),
+        ProductionItem::Building(building(&c, 7 /* war_college */)),
         "its upkeep is 5"
     );
 }
@@ -230,10 +239,10 @@ fn a_building_that_opens_a_better_one_gets_credit() {
     let c = shipped();
     let mut f = facts(&c);
     // Only the armory (no value to an offense plan by itself) and the guild above it are in play.
-    f.built.push(building(&c, "barracks"));
-    let armory = building(&c, "armory");
+    f.built.push(building(&c, 3 /* barracks */));
+    let armory = building(&c, 4 /* armory */);
     f.buildable = vec![armory];
-    f.possible = vec![armory, building(&c, "fighters_guild")];
+    f.possible = vec![armory, building(&c, 5 /* fighters_guild */)];
     let offense = AutoBuild::new(BuildPlan {
         mix: Mix::Buildings,
         primary: Focus::Offense,
@@ -253,7 +262,7 @@ fn hunger_and_a_full_city_favour_food_buildings() {
         mix: Mix::Buildings,
         ..BuildPlan::default()
     };
-    let granary = building(&c, "granary");
+    let granary = building(&c, 29 /* granary */);
     let calm = building_score(&c, &p, &f, granary);
     f.food = 0;
     assert!((building_score(&c, &p, &f, granary) - 2.0 * calm).abs() < 1e-6);
@@ -349,7 +358,7 @@ fn defense_and_exploration_pick_their_own_units() {
 fn settlers_need_room_space_and_a_wish() {
     let c = shipped();
     let mut f = facts(&c);
-    f.units.push(unit_id(&c, "high_elf_settlers"));
+    f.units.push(unit_id(&c, 100 /* high_elf_settlers */));
     f.figures = 10;
     f.max_size = 11;
     f.open_sites = 3;
@@ -385,13 +394,13 @@ fn settlers_need_room_space_and_a_wish() {
     });
     assert_eq!(
         choose(&c, &auto, &f, &mut first),
-        ProductionItem::Unit(unit_id(&c, "high_elf_settlers"))
+        ProductionItem::Unit(unit_id(&c, 100 /* high_elf_settlers */))
     );
     // But not before the garrison.
     f.defenders = 0;
     assert_eq!(
         choose(&c, &auto, &f, &mut first),
-        ProductionItem::Unit(unit_id(&c, "high_men_swordsmen"))
+        ProductionItem::Unit(unit_id(&c, 105 /* high_men_swordsmen */))
     );
     // And buildings-only cities never build them.
     f.defenders = 4;

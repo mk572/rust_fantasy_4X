@@ -35,7 +35,7 @@ fn world(seed: u64) -> Game {
         g.treasury_mut(id).expect("treasury_mut succeeds").gold = 100;
         g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
     }
-    g.init_wizard(P0, &[("life", 2)], &[], None)
+    g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .expect("init_wizard succeeds");
     g
 }
@@ -81,7 +81,7 @@ fn lair(guards: Vec<(u16, u32)>) -> Lair {
 #[test]
 fn only_summoned_non_transport_units_of_the_realm_can_guard() {
     let c = shipped();
-    let death: Vec<&str> = candidates(&c, realm("death"))
+    let death: Vec<&str> = candidates(&c, realm(4 /* death */))
         .into_iter()
         .map(|(id, _)| c.rules.units.get(id).id.as_str())
         .collect();
@@ -137,7 +137,7 @@ fn the_dearest_affordable_unit_is_chosen_and_the_first_of_equals() -> TestResult
 
 #[test]
 fn guards_fit_the_budget_and_the_stack() {
-    let list = candidates(&shipped(), realm("death"));
+    let list = candidates(&shipped(), realm(4 /* death */));
     let rules = LairRules::default();
     let mut rng = Pcg64Mcg::seed_from_u64(1);
     for budget in [0, 20, 60, 200, 700, 1500, 4000] {
@@ -163,21 +163,26 @@ fn a_site_type_decides_the_guards_realm() {
     let mut rng = Pcg64Mcg::seed_from_u64(2);
     for _ in 0..100 {
         assert_eq!(
-            guard_realm(&mut rng, SiteType::Node(realm("sorcery")), &rules),
-            Some(realm("sorcery"))
+            guard_realm(&mut rng, SiteType::Node(realm(1 /* sorcery */)), &rules),
+            Some(realm(1 /* sorcery */))
         );
         assert_eq!(
-            guard_realm(&mut rng, SiteType::Node(realm("nature")), &rules),
-            Some(realm("nature"))
+            guard_realm(&mut rng, SiteType::Node(realm(0 /* nature */)), &rules),
+            Some(realm(0 /* nature */))
         );
         assert_eq!(
-            guard_realm(&mut rng, SiteType::Node(realm("chaos")), &rules),
-            Some(realm("chaos"))
+            guard_realm(&mut rng, SiteType::Node(realm(2 /* chaos */)), &rules),
+            Some(realm(2 /* chaos */))
         );
         let holy = guard_realm(&mut rng, SiteType::Holy, &rules).unwrap();
-        assert!([realm("death"), realm("life")].contains(&holy));
+        assert!([realm(4 /* death */), realm(3 /* life */)].contains(&holy));
         let wild = guard_realm(&mut rng, SiteType::Wild, &rules).unwrap();
-        assert!([realm("death"), realm("chaos"), realm("nature")].contains(&wild));
+        assert!([
+            realm(4 /* death */),
+            realm(2 /* chaos */),
+            realm(0 /* nature */)
+        ]
+        .contains(&wild));
     }
     let seen: std::collections::BTreeSet<_> = (0..300)
         .map(|_| guard_realm(&mut rng, SiteType::Tower, &rules))
@@ -201,7 +206,7 @@ fn a_site_type_decides_the_guards_realm() {
     );
     assert_eq!(
         site_type("chaos_node", FeatureKind::Node, &rules.rules.realms),
-        SiteType::Node(realm("chaos"))
+        SiteType::Node(realm(2 /* chaos */))
     );
 }
 
@@ -417,7 +422,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
     let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
     award_special(&g.content.rules, &mut w, &mut g.rng, &l, 1, &mut loot);
     assert!(
-        !loot.books.contains(&realm("death")),
+        !loot.books.contains(&realm(4 /* death */)),
         "life and death exclude each other"
     );
     // A temple gives a life book, up to the twelve-book limit.
@@ -433,7 +438,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
         let mut w = crate::wizard::sheet::WizardMut::new(&mut g.world, e);
         award_special(&g.content.rules, &mut w, &mut g.rng, &l, 1, &mut loot);
         books += loot.books.len();
-        assert!(loot.books.iter().all(|&b| b == realm("life")));
+        assert!(loot.books.iter().all(|&b| b == realm(3 /* life */)));
     }
     assert!(books > 0);
     assert!(g.wizard(P0).ok_or("wizard is missing")?.total_books() <= 12);
@@ -911,25 +916,19 @@ fn clearing_a_tower_leaves_another_tower_alone() -> TestResult {
 
 /// A wizard's sheet with no game: a world holding one wizard.
 fn sheet(
-    books: &[(&str, u8)],
+    books: &[(RealmId, u8)],
     retorts: &[crate::wizard::magic::Retort],
 ) -> (hecs::World, hecs::Entity) {
     let mut world = hecs::World::new();
     let e = world.spawn(crate::wizard::sheet::bundle());
-    crate::wizard::sheet::WizardMut::new(&mut world, e).found(
-        &books
-            .iter()
-            .map(|&(r, n)| (realm(r), n))
-            .collect::<Vec<_>>(),
-        retorts,
-    );
+    crate::wizard::sheet::WizardMut::new(&mut world, e).found(books, retorts);
     (world, e)
 }
 
 #[test]
 fn a_hoard_of_books_obeys_the_realm_and_the_limit_without_a_game() {
     let rules = shipped().rules;
-    let (mut world, e) = sheet(&[("life", 11)], &[]);
+    let (mut world, e) = sheet(&[(RealmId::new(3 /* life */), 11)], &[]);
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     let mut rng = crate::game::rng::GameRng::new(5);
     let mut l = info("ruins");
@@ -952,7 +951,7 @@ fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort
     let l = info("nature_node");
     // Six retorts: only books can come.
     let (mut world, e) = sheet(
-        &[("nature", 3)],
+        &[(RealmId::new(0 /* nature */), 3)],
         &[
             Retort::new(0),  /* alchemy */
             Retort::new(1),  /* warlord */
@@ -971,7 +970,13 @@ fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort
     }
     assert_eq!(magic.view().retorts().len(), 6);
     // Twelve books: only retorts can come.
-    let (mut world, e) = sheet(&[("nature", 6), ("sorcery", 6)], &[]);
+    let (mut world, e) = sheet(
+        &[
+            (RealmId::new(0 /* nature */), 6),
+            (RealmId::new(1 /* sorcery */), 6),
+        ],
+        &[],
+    );
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     for _ in 0..40 {
         let mut loot = Loot::default();
@@ -984,7 +989,7 @@ fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort
 #[test]
 fn a_spell_award_teaches_a_spell_the_wizard_can_use() {
     let c = shipped();
-    let (mut world, e) = sheet(&[("life", 2)], &[]);
+    let (mut world, e) = sheet(&[(RealmId::new(3 /* life */), 2)], &[]);
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     let mut rng = crate::game::rng::GameRng::new(9);
     let spell = award_spell(&mut magic, &c, &mut rng, 1).expect("a spell");
@@ -997,7 +1002,7 @@ fn a_spell_award_teaches_a_spell_the_wizard_can_use() {
     );
     // One book gives up to uncommon spells, arcane up to rare, even from the dearest hoard.
     for seed in 0..30 {
-        let (mut world, e) = sheet(&[("life", 1)], &[]);
+        let (mut world, e) = sheet(&[(RealmId::new(3 /* life */), 1)], &[]);
         let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
         let mut rng = crate::game::rng::GameRng::new(seed);
         let spell = award_spell(&mut magic, &c, &mut rng, 4).expect("a spell");
@@ -1197,26 +1202,30 @@ fn lair_checksum() -> u64 {
     placed.set(Plane::Myrror, 3, 9, id(num::feature::TOWER));
     placed.set(Plane::Arcanus, 20, 9, id(num::feature::TOWER));
     placed.set(Plane::Myrror, 20, 9, id(num::feature::TOWER));
-    let nodes: Vec<(Position, Node)> = ["sorcery", "nature", "chaos"]
-        .iter()
-        .enumerate()
-        .map(|(i, realm)| {
-            (
-                Position {
-                    plane: Plane::ALL[i % 2],
-                    x: 10 + i as u32,
-                    y: 12,
-                },
-                Node {
-                    realm: self::realm(realm),
-                    power: 5 + i as u8,
-                    aura: Vec::new(),
-                    guardian: false,
-                    warped: false,
-                },
-            )
-        })
-        .collect();
+    let nodes: Vec<(Position, Node)> = [
+        1, /* sorcery */
+        0, /* nature */
+        2, /* chaos */
+    ]
+    .iter()
+    .enumerate()
+    .map(|(i, realm)| {
+        (
+            Position {
+                plane: Plane::ALL[i % 2],
+                x: 10 + i as u32,
+                y: 12,
+            },
+            Node {
+                realm: self::realm(*realm),
+                power: 5 + i as u8,
+                aura: Vec::new(),
+                guardian: false,
+                warped: false,
+            },
+        )
+    })
+    .collect();
     let map = g.map.as_ref().expect("as_ref succeeds");
     let mut hash = 0xcbf2_9ce4_8422_2325u64;
     for seed in 1..6 {

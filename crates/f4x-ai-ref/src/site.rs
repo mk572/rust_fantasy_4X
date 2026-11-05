@@ -164,9 +164,15 @@ mod tests {
     /// The west wizard with `paladins` in its city at (10, 6) and an encounter site of the
     /// given guards two squares west. `known`: the wizard has fought for the site before.
     fn world(paladins: usize, guards: Vec<(f4x_core::rules::UnitId, u32)>, known: bool) -> Game {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.treasury_mut(P0).unwrap().gold = 1_000_000;
-        spawn(&mut g, P0, at(10, 6), "high_men_paladins", paladins);
+        spawn(
+            &mut g,
+            P0,
+            at(10, 6),
+            113, /* high_men_paladins */
+            paladins,
+        );
         let feature = g.content().features.id_numbered(13).unwrap();
         g.spawn_feature(Placement {
             at: at(8, 6),

@@ -352,8 +352,13 @@ mod tests {
         g
     }
 
-    fn unit(g: &mut Game, id: &str) -> hecs::Entity {
-        let id = g.content.rules.units.id_of(id).expect("id_of succeeds");
+    fn unit(g: &mut Game, id: u16) -> hecs::Entity {
+        let id = g
+            .content
+            .rules
+            .units
+            .id_numbered(id)
+            .expect("id_of succeeds");
         g.spawn_unit(P0, AT, id)
     }
 
@@ -364,7 +369,7 @@ mod tests {
     #[test]
     fn a_modifier_changes_the_stat_until_it_runs_out() {
         let mut g = world();
-        let u = unit(&mut g, "high_elf_spearmen");
+        let u = unit(&mut g, 95 /* high_elf_spearmen */);
         let base = g.units().unit_stat(u, Stat::Melee);
         g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 3), Some(2));
         assert_eq!(g.units().unit_stat(u, Stat::Melee), base + 3);
@@ -378,7 +383,7 @@ mod tests {
     #[test]
     fn an_untimed_effect_stays() {
         let mut g = world();
-        let u = unit(&mut g, "high_elf_spearmen");
+        let u = unit(&mut g, 95 /* high_elf_spearmen */);
         let base = g.units().unit_stat(u, Stat::Melee);
         g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 1), None);
         for _ in 0..50 {
@@ -390,7 +395,7 @@ mod tests {
     #[test]
     fn a_granted_ability_counts_until_it_runs_out() {
         let mut g = world();
-        let u = unit(&mut g, "high_elf_spearmen");
+        let u = unit(&mut g, 95 /* high_elf_spearmen */);
         assert!(!g.units().unit_has_ability(u, Ability::new(24)));
         g.grant_temp_ability(Target::Unit(u), Ability::new(24), Some(1));
         assert!(g.units().unit_has_ability(u, Ability::new(24)));
@@ -402,7 +407,7 @@ mod tests {
     fn a_removed_ability_is_gone_until_it_is_granted_again() {
         let mut g = world();
         // The Pegasai fly by nature.
-        let u = unit(&mut g, "high_elf_pegasai");
+        let u = unit(&mut g, 103 /* high_elf_pegasai */);
         assert!(g.units().unit_has_ability(u, Ability::new(24)));
         g.remove_temp_ability(Target::Unit(u), Ability::new(24), None);
         assert!(!g.units().unit_has_ability(u, Ability::new(24)));
@@ -430,7 +435,7 @@ mod tests {
     #[test]
     fn effects_survive_a_save() -> TestResult {
         let mut g = world();
-        let u = unit(&mut g, "high_elf_spearmen");
+        let u = unit(&mut g, 95 /* high_elf_spearmen */);
         g.add_temp_modifier(Target::Unit(u), plus(Stat::Melee, 3), Some(5));
         g.grant_temp_ability(Target::Unit(u), Ability::new(24), None);
         let snap = g.snapshot();
@@ -446,7 +451,7 @@ mod tests {
     fn a_rules_effect_reaches_the_store_through_the_host() {
         use crate::rules::exec::EffectHost;
         let mut g = world();
-        let u = unit(&mut g, "high_elf_spearmen");
+        let u = unit(&mut g, 95 /* high_elf_spearmen */);
         let melee = g.units().unit_stat(u, Stat::Melee);
         let mut host = crate::spell::cast::tests_support::host(&mut g);
         host.add_modifier(Target::Unit(u), plus(Stat::Melee, 2));
@@ -460,21 +465,26 @@ mod tests {
         assert!(!g.units().unit_has_ability(u, Ability::new(24)));
     }
 
-    fn enchant(g: &mut Game, u: hecs::Entity, spell: &str) {
-        let id = g.content.rules.spells.id_of(spell).expect("id_of succeeds");
+    fn enchant(g: &mut Game, u: hecs::Entity, spell: u16) {
+        let id = g
+            .content
+            .rules
+            .spells
+            .id_numbered(spell)
+            .expect("id_of succeeds");
         g.attach_enchantment(Target::Unit(u), id, P0);
     }
 
     #[test]
     fn a_lasting_spell_can_grant_an_ability() {
         let mut g = world();
-        let u = unit(&mut g, "high_elf_spearmen");
+        let u = unit(&mut g, 95 /* high_elf_spearmen */);
         assert!(!g
             .units()
             .unit_abilities(u)
             .iter()
             .any(|a| *a == Ability::new(40)));
-        enchant(&mut g, u, "magic_immunity");
+        enchant(&mut g, u, 69 /* magic_immunity */);
         assert!(g
             .units()
             .unit_abilities(u)
@@ -492,13 +502,13 @@ mod tests {
     #[test]
     fn resistance_against_a_realm_counts_immunity_and_enchantments() {
         let mut g = world();
-        let u = unit(&mut g, "high_elf_spearmen");
+        let u = unit(&mut g, 95 /* high_elf_spearmen */);
         let base = g.units().unit_stat(u, Stat::Resistance);
         assert_eq!(
             g.units().unit_resistance_against(u, Some(Realm::Chaos)),
             base
         );
-        enchant(&mut g, u, "resist_elements");
+        enchant(&mut g, u, 2 /* resist_elements */);
         assert_eq!(
             g.units().unit_resistance_against(u, Some(Realm::Chaos)),
             base + 3
@@ -511,7 +521,7 @@ mod tests {
             g.units().unit_resistance_against(u, Some(Realm::Life)),
             base
         );
-        enchant(&mut g, u, "magic_immunity");
+        enchant(&mut g, u, 69 /* magic_immunity */);
         assert_eq!(
             g.units().unit_resistance_against(u, Some(Realm::Life)),
             base + 30
@@ -526,11 +536,11 @@ mod tests {
     #[test]
     fn righteousness_protects_against_chaos_and_death_only() {
         let mut g = world();
-        let u = unit(&mut g, "high_elf_spearmen");
+        let u = unit(&mut g, 95 /* high_elf_spearmen */);
         for realm in [Realm::Chaos, Realm::Death, Realm::Nature] {
             assert!(!g.units().unit_protected_from(u, Some(realm)));
         }
-        enchant(&mut g, u, "righteousness");
+        enchant(&mut g, u, 144 /* righteousness */);
         assert!(g.units().unit_protected_from(u, Some(Realm::Chaos)));
         assert!(g.units().unit_protected_from(u, Some(Realm::Death)));
         assert!(!g.units().unit_protected_from(u, Some(Realm::Nature)));
@@ -541,7 +551,7 @@ mod tests {
     fn ships_and_catapults_are_fantastic_but_their_weapons_are_not_magical() {
         let mut g = world();
         // The game's ship and its catapult.
-        for id in ["trireme", "catapult"] {
+        for id in [35 /* trireme */, 37 /* catapult */] {
             let m = unit(&mut g, id);
             assert!(!g.units().unit_has_magical_weapon(m), "{id}");
         }
@@ -550,11 +560,11 @@ mod tests {
     #[test]
     fn heroes_fantastic_creatures_and_flaming_blades_have_magical_weapons() {
         let mut g = world();
-        let u = unit(&mut g, "high_elf_spearmen");
+        let u = unit(&mut g, 95 /* high_elf_spearmen */);
         assert!(!g.units().unit_has_magical_weapon(u));
-        enchant(&mut g, u, "flame_blade");
+        enchant(&mut g, u, 94 /* flame_blade */);
         assert!(g.units().unit_has_magical_weapon(u));
-        let trained = unit(&mut g, "high_elf_spearmen");
+        let trained = unit(&mut g, 95 /* high_elf_spearmen */);
         assert!(!g.units().unit_has_magical_weapon(trained));
         let _ = g.world.insert_one(
             trained,
@@ -566,7 +576,7 @@ mod tests {
         );
         // A hero and a summoned (fantastic) creature, as the game has them. The data's `Fantastic`
         // kind is only the ships and the catapult, whose weapons are not magical (tested above).
-        for id in ["dwarf", "demon"] {
+        for id in [0 /* dwarf */, 169 /* demon */] {
             let w = unit(&mut g, id);
             assert!(g.units().unit_has_magical_weapon(w), "{id}");
         }

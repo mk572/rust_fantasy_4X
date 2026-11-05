@@ -73,7 +73,7 @@ fn game() -> Game {
         },
         feature: node,
         node: Some(crate::feature::node::Node {
-            realm: crate::game::testutil::realm("chaos"),
+            realm: crate::game::testutil::realm(2 /* chaos */),
             power: 12,
             aura: vec![(3, 3), (4, 3), (3, 4)],
             guardian: true,

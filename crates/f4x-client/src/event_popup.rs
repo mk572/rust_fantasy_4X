@@ -495,12 +495,12 @@ mod tests {
     use super::*;
     use f4x_core::testdir::TestResult;
 
-    fn spell(app: &App, id: &str) -> Result<f4x_core::rules::SpellId, String> {
+    fn spell(app: &App, id: u16) -> Result<f4x_core::rules::SpellId, String> {
         app.game
             .content()
             .rules
             .spells
-            .id_of(id)
+            .id_numbered(id)
             .ok_or(format!("{id} is not in the content"))
     }
 
@@ -530,7 +530,7 @@ mod tests {
     #[test]
     fn a_dispel_announces_four_spells_then_that_the_rest_went_too_then_nothing() -> TestResult {
         let app = App::for_test();
-        let fire = spell(&app, "fire_bolt")?;
+        let fire = spell(&app, 83 /* fire_bolt */)?;
         let mut count = 0;
         for n in 0..4 {
             let notice = app
@@ -554,7 +554,7 @@ mod tests {
     #[test]
     fn a_dispel_in_a_battle_sits_higher_and_a_unit_picture_sits_right_of_the_citys() -> TestResult {
         let app = App::for_test();
-        let fire = spell(&app, "fire_bolt")?;
+        let fire = spell(&app, 83 /* fire_bolt */)?;
         let top = |site| -> Result<SpellNotice, &'static str> {
             app.dispelled_notice(fire, site, &mut 0).ok_or("no notice")
         };
@@ -570,9 +570,9 @@ mod tests {
     fn the_conquest_box_names_none_one_or_two_of_the_spells_taken() -> TestResult {
         let app = App::for_test();
         let (a, b, c) = (
-            spell(&app, "fire_bolt")?,
-            spell(&app, "fireball")?,
-            spell(&app, "web")?,
+            spell(&app, 83 /* fire_bolt */)?,
+            spell(&app, 96 /* fireball */)?,
+            spell(&app, 5 /* web */)?,
         );
         assert_eq!(
             app.conquest_notice(&[]).text,
@@ -595,7 +595,7 @@ mod tests {
     #[test]
     fn a_fizzle_is_told_only_when_the_human_is_one_of_the_two() -> TestResult {
         let app = App::for_test();
-        let fire = spell(&app, "fire_bolt")?;
+        let fire = spell(&app, 83 /* fire_bolt */)?;
         let first = app
             .game
             .player_ids()

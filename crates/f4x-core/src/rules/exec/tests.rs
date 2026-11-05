@@ -212,27 +212,27 @@ fn conditions_combine() {
     };
     assert!(eval(&Condition::Always, &f));
     assert!(eval(
-        &Condition::HasAbility(crate::game::testutil::ability_ref("flying")),
+        &Condition::HasAbility(crate::game::testutil::ability_ref(24 /* flying */)),
         &f
     ));
     assert!(!eval(
-        &Condition::HasAbility(crate::game::testutil::ability_ref("water_walking")),
+        &Condition::HasAbility(crate::game::testutil::ability_ref(71 /* water_walking */)),
         &f
     ));
     assert!(eval(&Condition::TerrainIs(TerrainClass::Hills), &f));
     assert!(eval(&Condition::OnPlane(Plane::Myrror), &f));
     assert!(eval(
-        &Condition::RaceIs(crate::game::testutil::race_ref("orc")),
+        &Condition::RaceIs(crate::game::testutil::race_ref(12 /* orc */)),
         &f
     ));
     assert!(!eval(
-        &Condition::RealmIs(crate::game::testutil::realm_ref("life")),
+        &Condition::RealmIs(crate::game::testutil::realm_ref(3 /* life */)),
         &f
     ));
     assert!(eval(&Condition::InBattle, &f) && !eval(&Condition::InCity, &f));
     let all = Condition::All(vec![
         Condition::InBattle,
-        Condition::HasAbility(crate::game::testutil::ability_ref("flying")),
+        Condition::HasAbility(crate::game::testutil::ability_ref(24 /* flying */)),
     ]);
     assert!(eval(&all, &f));
     let any = Condition::Any(vec![Condition::InCity, Condition::OnPlane(Plane::Arcanus)]);
@@ -329,7 +329,7 @@ fn only_matching_trigger_and_condition_run() {
         ),
         rule(
             Trigger::Passive,
-            Condition::HasAbility(crate::game::testutil::ability_ref("holy_bonus")),
+            Condition::HasAbility(crate::game::testutil::ability_ref(28 /* holy_bonus */)),
             TargetSel::This,
             add(Stat::Defense, 1),
         ),
@@ -337,7 +337,7 @@ fn only_matching_trigger_and_condition_run() {
     assert!(run_rules(&rules, Trigger::Passive, &cx, &mut h).is_empty());
     h.grant_ability(
         Target::Unit(a),
-        crate::game::testutil::ability("holy_bonus"),
+        crate::game::testutil::ability(28 /* holy_bonus */),
     );
     let out = run_rules(&rules, Trigger::Passive, &cx, &mut h);
     assert_eq!(
@@ -404,10 +404,10 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
     let salamander = h.spawn(1, pos(1, 0), 9, 0);
     h.grant_ability(
         Target::Unit(salamander),
-        crate::game::testutil::ability("fire_immunity"),
+        crate::game::testutil::ability(21 /* fire_immunity */),
     );
     let plain = h.spawn(1, pos(2, 0), 9, 0);
-    let bolt = |immune: &[&str], resist_modifier| {
+    let bolt = |immune: &[u16], resist_modifier| {
         [rule(
             Trigger::OnCast,
             Condition::Always,
@@ -418,16 +418,21 @@ fn immune_targets_take_no_damage_and_a_spell_can_be_hard_to_resist() {
                 resistible: true,
                 immune: immune
                     .iter()
-                    .map(|s| crate::game::testutil::ability_ref(s))
+                    .map(|&s| crate::game::testutil::ability_ref(s))
                     .collect(),
-                realm: Some(crate::game::testutil::realm_ref("chaos")),
+                realm: Some(crate::game::testutil::realm_ref(2 /* chaos */)),
                 resist_modifier,
                 traits: Default::default(),
             },
         )]
     };
     let cx = ctx(Target::Unit(caster), 0);
-    let out = run_rules(&bolt(&["fire_immunity"], 0), Trigger::OnCast, &cx, &mut h);
+    let out = run_rules(
+        &bolt(&[21 /* fire_immunity */], 0),
+        Trigger::OnCast,
+        &cx,
+        &mut h,
+    );
     assert_eq!(
         out,
         vec![
@@ -515,7 +520,7 @@ fn world_changing_effects_reach_the_host() {
             Trigger::OnCast,
             Condition::Always,
             TargetSel::This,
-            Effect::ApplyEnchantment(crate::game::testutil::spell_ref("haste")),
+            Effect::ApplyEnchantment(crate::game::testutil::spell_ref(70 /* haste */)),
         ),
         rule(
             Trigger::OnCast,
@@ -541,7 +546,7 @@ fn grant_remove_heal_and_dispel() {
     let on_cast = |e| [rule(Trigger::OnCast, Condition::Always, TargetSel::This, e)];
     run_rules(
         &on_cast(Effect::GrantAbility(crate::game::testutil::ability_ref(
-            "flying",
+            24, /* flying */
         ))),
         Trigger::OnCast,
         &cx,
@@ -550,7 +555,7 @@ fn grant_remove_heal_and_dispel() {
     assert_eq!(h.unit(a).facts.abilities, vec![Ability::new(24)]);
     run_rules(
         &on_cast(Effect::RemoveAbility(crate::game::testutil::ability_ref(
-            "flying",
+            24, /* flying */
         ))),
         Trigger::OnCast,
         &cx,
@@ -561,7 +566,7 @@ fn grant_remove_heal_and_dispel() {
     assert_eq!(h.unit(a).hp, 5);
     run_rules(
         &on_cast(Effect::ApplyEnchantment(crate::game::testutil::spell_ref(
-            "haste",
+            70, /* haste */
         ))),
         Trigger::OnCast,
         &cx,

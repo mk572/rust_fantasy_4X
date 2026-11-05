@@ -169,8 +169,13 @@ mod tests {
         (game, city, spell)
     }
 
-    fn build(g: &mut Game, city: hecs::Entity, id: &str) {
-        let b = g.content.rules.buildings.id_of(id).expect("id_of succeeds");
+    fn build(g: &mut Game, city: hecs::Entity, id: u16) {
+        let b = g
+            .content
+            .rules
+            .buildings
+            .id_numbered(id)
+            .expect("id_of succeeds");
         g.world
             .get::<&mut crate::city::economy::Buildings>(city)
             .expect("value succeeds")
@@ -182,7 +187,7 @@ mod tests {
     fn plants_count_only_for_a_city_with_a_building_that_allows_them() {
         let (mut g, city, _) = world(&[(10, 8), (11, 6), (20, 12)], 10);
         assert_eq!(g.nightshade_count(city), 0, "no temple or shrine yet");
-        build(&mut g, city, "temple");
+        build(&mut g, city, 23 /* temple */);
         assert_eq!(
             g.nightshade_count(city),
             2,
@@ -193,7 +198,7 @@ mod tests {
     #[test]
     fn an_outpost_counts_no_plants() -> TestResult {
         let (mut g, city, _) = world(&[(10, 8)], 10);
-        build(&mut g, city, "temple");
+        build(&mut g, city, 23 /* temple */);
         g.world.insert_one(
             city,
             crate::city::economy::Population {
@@ -208,7 +213,7 @@ mod tests {
     #[test]
     fn with_no_difficulty_one_plant_always_turns_an_enemy_spell_away() {
         let (mut g, city, spell) = world(&[(10, 8)], 0);
-        build(&mut g, city, "temple");
+        build(&mut g, city, 23 /* temple */);
         for _ in 0..20 {
             assert!(g.nightshade_fizzles(P1, spell, city));
         }
@@ -224,7 +229,7 @@ mod tests {
         // 40% for two.
         let rate = |plants: &[(u32, u32)]| {
             let (mut g, city, spell) = world(plants, 300);
-            build(&mut g, city, "temple");
+            build(&mut g, city, 23 /* temple */);
             (0..2000)
                 .filter(|_| g.nightshade_fizzles(P1, spell, city))
                 .count()
@@ -238,7 +243,7 @@ mod tests {
     #[test]
     fn a_fizzled_spell_puts_nothing_on_the_city() {
         let (mut g, city, spell) = world(&[(10, 8)], 0);
-        build(&mut g, city, "temple");
+        build(&mut g, city, 23 /* temple */);
         let events = g.resolve_cast(P1, spell, Some(crate::rules::exec::Target::City(city)));
         assert!(matches!(
             events.as_slice(),

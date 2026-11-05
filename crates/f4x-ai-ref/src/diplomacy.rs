@@ -765,7 +765,7 @@ mod tests {
     /// (player 1), met it, and has the given objective and temper.
     fn rivals(objective: Objective, temper: Personality) -> Game {
         use crate::testworld::{at, game, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0, P1};
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let race = g.content().rules.races.id_numbered(8);
         g.apply(Command::FoundCity {
             owner: P0,
@@ -869,7 +869,7 @@ mod tests {
     #[test]
     fn a_bigger_army_makes_a_wizard_more_pliant() {
         use crate::testworld::{at, game, spawn, COAST_CITY, ENEMY_CITY, P0, P1};
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let cost = g
             .content()
             .rules
@@ -881,7 +881,7 @@ mod tests {
             &mut g,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
-            "high_men_spearmen",
+            104, /* high_men_spearmen */
             4,
         );
         let stronger = threat_modifier(&g, P0, P1);
@@ -890,7 +890,7 @@ mod tests {
             &mut g,
             P1,
             at(ENEMY_CITY.0, ENEMY_CITY.1),
-            "high_men_spearmen",
+            104, /* high_men_spearmen */
             1,
         );
         assert_eq!(threat_modifier(&g, P0, P1), -50 + 4 * cost * 100 / cost);
@@ -899,7 +899,7 @@ mod tests {
     #[test]
     fn a_wizard_that_has_met_a_mastery_caster_declares_war_on_it_in_time() {
         use crate::testworld::{game, COAST_CITY, P0, P1};
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.make_contact(P0, P1);
         let mastery = g.content().rules.spells.id_numbered(213).unwrap();
         let ai = Ai::new(P0);
@@ -1079,7 +1079,7 @@ mod tests {
     fn ai_wizards_that_like_each_other_make_a_treaty_in_time() {
         use crate::testworld::{game, COAST_CITY, P0, P1};
         use f4x_core::diplomacy::Action;
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.make_contact(P0, P1);
         for _ in 0..40 {
             g.change_relations(30, P0, P1, Action::Friendship, None);

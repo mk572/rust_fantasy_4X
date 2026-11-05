@@ -4,11 +4,11 @@ use rand::SeedableRng;
 
 use crate::game::testutil::abilities;
 
-fn unit(names: &[&str]) -> Immunities {
+fn unit(names: &[u16]) -> Immunities {
     Immunities::of(&abilities(names))
 }
 
-fn defense(base: i32, unit: &Immunities, names: &[&str], mode: Mode, magical: bool) -> i32 {
+fn defense(base: i32, unit: &Immunities, names: &[u16], mode: Mode, magical: bool) -> i32 {
     let attack = AttackNature::of_unit_attack(mode, &abilities(names), magical);
     effective_defense(base, unit, &attack, mode)
 }
@@ -18,9 +18,9 @@ fn a_unit_without_immunities_keeps_its_defense() {
     let none = unit(&[]);
     for (mode, names) in [
         (Mode::Melee, &[][..]),
-        (Mode::Ranged, &["bow"][..]),
-        (Mode::ThrownOrBreath, &["fire_breath"][..]),
-        (Mode::Ranged, &["ice_bolt"][..]),
+        (Mode::Ranged, &[3 /* bow */][..]),
+        (Mode::ThrownOrBreath, &[20 /* fire_breath */][..]),
+        (Mode::Ranged, &[29 /* ice_bolt */][..]),
     ] {
         assert_eq!(defense(3, &none, names, mode, false), 3);
     }
@@ -28,15 +28,20 @@ fn a_unit_without_immunities_keeps_its_defense() {
 
 #[test]
 fn weapon_immunity_raises_defense_to_ten_against_normal_blows() {
-    let golem = unit(&["weapon_immunity"]);
+    let golem = unit(&[72 /* weapon_immunity */]);
     assert_eq!(defense(3, &golem, &[], Mode::Melee, false), 10);
     // A defence already above ten stays.
     assert_eq!(defense(12, &golem, &[], Mode::Melee, false), 12);
     // Magical weapons (heroes, fantastic creatures, flaming blades) ignore it.
     assert_eq!(defense(3, &golem, &[], Mode::Melee, true), 3);
     // Normal arrows, boulders and thrown weapons are cut to the same ten.
-    for names in [&["bow"][..], &["sling"], &["rock_throwing"], &["thrown"]] {
-        let mode = if names == ["thrown"] {
+    for names in [
+        &[3 /* bow */][..],
+        &[59 /* sling */],
+        &[57 /* rock_throwing */],
+        &[69 /* thrown */],
+    ] {
+        let mode = if names == [69 /* thrown */] {
             Mode::ThrownOrBreath
         } else {
             Mode::Ranged
@@ -48,15 +53,27 @@ fn weapon_immunity_raises_defense_to_ten_against_normal_blows() {
 
 #[test]
 fn missile_immunity_stops_arrows_but_not_boulders_or_melee() {
-    let shielded = unit(&["missile_immunity"]);
-    assert_eq!(defense(3, &shielded, &["bow"], Mode::Ranged, false), 50);
-    assert_eq!(defense(3, &shielded, &["sling"], Mode::Ranged, true), 50);
+    let shielded = unit(&[44 /* missile_immunity */]);
     assert_eq!(
-        defense(3, &shielded, &["rock_throwing"], Mode::Ranged, false),
+        defense(3, &shielded, &[3 /* bow */], Mode::Ranged, false),
+        50
+    );
+    assert_eq!(
+        defense(3, &shielded, &[59 /* sling */], Mode::Ranged, true),
+        50
+    );
+    assert_eq!(
+        defense(3, &shielded, &[57 /* rock_throwing */], Mode::Ranged, false),
         3
     );
     assert_eq!(
-        defense(3, &shielded, &["thrown"], Mode::ThrownOrBreath, false),
+        defense(
+            3,
+            &shielded,
+            &[69 /* thrown */],
+            Mode::ThrownOrBreath,
+            false
+        ),
         3
     );
     assert_eq!(defense(3, &shielded, &[], Mode::Melee, false), 3);
@@ -65,20 +82,23 @@ fn missile_immunity_stops_arrows_but_not_boulders_or_melee() {
 #[test]
 fn a_unit_with_both_weapon_and_missile_immunity_gets_only_ten_against_arrows() {
     // The original's order: weapon immunity is checked last and replaces the stop.
-    let both = unit(&["weapon_immunity", "missile_immunity"]);
-    assert_eq!(defense(3, &both, &["bow"], Mode::Ranged, false), 10);
+    let both = unit(&[
+        72, /* weapon_immunity */
+        44, /* missile_immunity */
+    ]);
+    assert_eq!(defense(3, &both, &[3 /* bow */], Mode::Ranged, false), 10);
     // A magical bow is stopped by missile immunity alone.
-    assert_eq!(defense(3, &both, &["bow"], Mode::Ranged, true), 50);
+    assert_eq!(defense(3, &both, &[3 /* bow */], Mode::Ranged, true), 50);
 }
 
 #[test]
 fn fire_immunity_stops_fire_breath_only() {
-    let salamander = unit(&["fire_immunity"]);
+    let salamander = unit(&[21 /* fire_immunity */]);
     assert_eq!(
         defense(
             2,
             &salamander,
-            &["fire_breath"],
+            &[20 /* fire_breath */],
             Mode::ThrownOrBreath,
             false
         ),
@@ -88,7 +108,7 @@ fn fire_immunity_stops_fire_breath_only() {
         defense(
             2,
             &salamander,
-            &["lightning_breath"],
+            &[37 /* lightning_breath */],
             Mode::ThrownOrBreath,
             false
         ),
@@ -96,7 +116,13 @@ fn fire_immunity_stops_fire_breath_only() {
         1
     );
     assert_eq!(
-        defense(2, &salamander, &["fireball_attack"], Mode::Ranged, false),
+        defense(
+            2,
+            &salamander,
+            &[22 /* fireball_attack */],
+            Mode::Ranged,
+            false
+        ),
         2
     );
     assert_eq!(defense(2, &salamander, &[], Mode::Melee, false), 2);
@@ -104,26 +130,29 @@ fn fire_immunity_stops_fire_breath_only() {
 
 #[test]
 fn magic_immunity_stops_every_ranged_magic_but_not_melee_or_arrows() {
-    let wise = unit(&["magic_immunity"]);
+    let wise = unit(&[40 /* magic_immunity */]);
     for names in [
-        &["fireball_attack"][..],
-        &["lightning_bolt"],
-        &["ice_bolt"],
-        &["sorcery_bolt"],
-        &["death_bolt"],
-        &["fire_breath"],
-        &["lightning_breath"],
+        &[22 /* fireball_attack */][..],
+        &[36 /* lightning_bolt */],
+        &[29 /* ice_bolt */],
+        &[60 /* sorcery_bolt */],
+        &[14 /* death_bolt */],
+        &[20 /* fire_breath */],
+        &[37 /* lightning_breath */],
     ] {
-        let mode = if names[0].ends_with("breath") {
+        let mode = if matches!(
+            names[0],
+            20 /* fire_breath */ | 37 /* lightning_breath */
+        ) {
             Mode::ThrownOrBreath
         } else {
             Mode::Ranged
         };
         assert_eq!(defense(3, &wise, names, mode, false), 50, "{names:?}");
     }
-    assert_eq!(defense(3, &wise, &["bow"], Mode::Ranged, false), 3);
+    assert_eq!(defense(3, &wise, &[3 /* bow */], Mode::Ranged, false), 3);
     assert_eq!(
-        defense(3, &wise, &["thrown"], Mode::ThrownOrBreath, false),
+        defense(3, &wise, &[69 /* thrown */], Mode::ThrownOrBreath, false),
         3
     );
     assert_eq!(defense(3, &wise, &[], Mode::Melee, false), 3);
@@ -132,27 +161,36 @@ fn magic_immunity_stops_every_ranged_magic_but_not_melee_or_arrows() {
 #[test]
 fn illusions_ignore_defense_unless_the_defender_sees_through_them() {
     let plain = unit(&[]);
-    let seer = unit(&["illusion_immunity"]);
+    let seer = unit(&[31 /* illusion_immunity */]);
     assert_eq!(
-        defense(5, &plain, &["illusion_attack"], Mode::Melee, false),
+        defense(5, &plain, &[30 /* illusion_attack */], Mode::Melee, false),
         0
     );
     assert_eq!(
-        defense(5, &plain, &["illusion_attack", "bow"], Mode::Ranged, false),
+        defense(
+            5,
+            &plain,
+            &[30 /* illusion_attack */, 3 /* bow */],
+            Mode::Ranged,
+            false
+        ),
         0
     );
     assert_eq!(
-        defense(5, &seer, &["illusion_attack"], Mode::Melee, false),
+        defense(5, &seer, &[30 /* illusion_attack */], Mode::Melee, false),
         5
     );
     // Seeing through the illusion leaves the rest of the attack as it was.
     assert_eq!(
-        defense(5, &seer, &["illusion_attack"], Mode::Melee, false),
+        defense(5, &seer, &[30 /* illusion_attack */], Mode::Melee, false),
         5
     );
-    let golem = unit(&["weapon_immunity", "illusion_immunity"]);
+    let golem = unit(&[
+        72, /* weapon_immunity */
+        31, /* illusion_immunity */
+    ]);
     assert_eq!(
-        defense(5, &golem, &["illusion_attack"], Mode::Melee, false),
+        defense(5, &golem, &[30 /* illusion_attack */], Mode::Melee, false),
         10
     );
 }
@@ -160,26 +198,26 @@ fn illusions_ignore_defense_unless_the_defender_sees_through_them() {
 #[test]
 fn immunities_come_from_abilities() {
     let all = unit(&[
-        "weapon_immunity",
-        "magic_immunity",
-        "missile_immunity",
-        "fire_immunity",
-        "cold_immunity",
-        "poison_immunity",
-        "stoning_immunity",
-        "death_immunity",
-        "illusion_immunity",
+        72, /* weapon_immunity */
+        40, /* magic_immunity */
+        44, /* missile_immunity */
+        21, /* fire_immunity */
+        10, /* cold_immunity */
+        52, /* poison_immunity */
+        65, /* stoning_immunity */
+        16, /* death_immunity */
+        31, /* illusion_immunity */
     ]);
     assert!(all.weapon && all.magic && all.missiles && all.fire && all.cold);
     assert!(all.poison && all.stoning && all.death && all.illusion);
-    assert!(unit(&["flying", "first_strike"]).is_empty());
+    assert!(unit(&[24 /* flying */, 23 /* first_strike */]).is_empty());
     assert!(Immunities::of(&[Ability::new(21), Ability::new(3)]).fire);
 }
 
 #[test]
 fn resistance_adds_up_by_realm() {
     let none = unit(&[]);
-    let wise = unit(&["magic_immunity"]);
+    let wise = unit(&[40 /* magic_immunity */]);
     let r = |imm: &Immunities, realm, enchants: &[SpellId]| {
         effective_resistance(5, imm, Some(realm), enchants)
     };
@@ -285,34 +323,40 @@ fn a_resistance_check_fails_by_how_far_the_die_beats_the_resistance() {
 fn armor_piercing_halves_the_defense_before_immunities_set_their_floor() {
     let plain = unit(&[]);
     assert_eq!(
-        defense(6, &plain, &["armor_piercing"], Mode::Melee, false),
+        defense(6, &plain, &[1 /* armor_piercing */], Mode::Melee, false),
         3
     );
     // Rounded down.
     assert_eq!(
-        defense(5, &plain, &["armor_piercing"], Mode::Melee, false),
+        defense(5, &plain, &[1 /* armor_piercing */], Mode::Melee, false),
         2
     );
     assert_eq!(
-        defense(6, &plain, &["armor_piercing", "bow"], Mode::Ranged, false),
+        defense(
+            6,
+            &plain,
+            &[1 /* armor_piercing */, 3 /* bow */],
+            Mode::Ranged,
+            false
+        ),
         3
     );
-    let golem = unit(&["weapon_immunity"]);
+    let golem = unit(&[72 /* weapon_immunity */]);
     assert_eq!(
-        defense(30, &golem, &["armor_piercing"], Mode::Melee, false),
+        defense(30, &golem, &[1 /* armor_piercing */], Mode::Melee, false),
         15
     );
     assert_eq!(
-        defense(8, &golem, &["armor_piercing"], Mode::Melee, false),
+        defense(8, &golem, &[1 /* armor_piercing */], Mode::Melee, false),
         10
     );
     // Immunity still wins outright.
-    let shielded = unit(&["missile_immunity"]);
+    let shielded = unit(&[44 /* missile_immunity */]);
     assert_eq!(
         defense(
             6,
             &shielded,
-            &["armor_piercing", "bow"],
+            &[1 /* armor_piercing */, 3 /* bow */],
             Mode::Ranged,
             false
         ),

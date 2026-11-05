@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn a_peaceful_wizard_never_razes_and_a_maniacal_one_with_nothing_left_nearby_does_not_either() {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let city = g.economy().city_at(at(ENEMY_CITY.0, ENEMY_CITY.1)).unwrap();
         // Take the enemy's only city: the former owner has nothing else near, so even the
         // fiercest temper does not raze it (-200 for no rival land on the continent).
@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn the_temper_sets_the_start_of_the_score() {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let enemy = at(ENEMY_CITY.0, ENEMY_CITY.1);
         let other = g.economy().city_at(enemy).unwrap();
         // Give the former owner a second city near the first, so there is land to fight over.

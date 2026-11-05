@@ -1,6 +1,7 @@
 use super::*;
 use crate::game::testutil::shipped;
 use crate::player::Treasury;
+use crate::rules::RealmId;
 use crate::testdir::TestResult;
 use crate::wizard::magic::Retort;
 
@@ -56,13 +57,18 @@ fn a_famous_wizard_starts_with_fame_and_every_wizard_with_a_library() -> TestRes
     g.content = shipped();
     let id = crate::player::PlayerId(0);
     g.add_player(id, "W");
-    g.init_wizard(id, &[("life", 2)], &[Retort::new(13) /* famous */], None)
-        .map_err(|e| format!("{e:?}"))?;
+    g.init_wizard(
+        id,
+        &[(RealmId::new(3 /* life */), 2)],
+        &[Retort::new(13) /* famous */],
+        None,
+    )
+    .map_err(|e| format!("{e:?}"))?;
     let w = g.wizard(id).ok_or("wizard is missing")?;
     assert_eq!(w.fame(), 10);
-    assert_eq!(w.books_in(crate::game::testutil::realm("life")), 2);
+    assert_eq!(w.books_in(crate::game::testutil::realm(3 /* life */)), 2);
     assert!(!w.known().is_empty());
-    g.init_wizard(id, &[("life", 2)], &[], None)
+    g.init_wizard(id, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.wizard(id).ok_or("wizard is missing")?.fame(), 0);
     Ok(())

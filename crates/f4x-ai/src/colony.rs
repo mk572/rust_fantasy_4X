@@ -417,7 +417,7 @@ mod tests {
 
     #[test]
     fn a_site_on_the_wizards_own_island_means_no_voyage() {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.explore(P0, port(), 24);
         for x in [16, 22, 26, 30] {
             g.explore(P0, at(x, 6), 6);
@@ -430,7 +430,7 @@ mod tests {
 
     #[test]
     fn the_nearest_free_island_is_found_from_a_full_one() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.explore(P0, port(), 24);
         for x in [16, 22, 26, 30] {
             g.explore(P0, at(x, 6), 6);
@@ -448,7 +448,7 @@ mod tests {
 
     #[test]
     fn a_settler_in_a_full_islands_port_sails_and_founds_a_city_across() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         build(
             &mut g,
             port(),
@@ -464,8 +464,8 @@ mod tests {
         g.wizard_mut(P0)
             .ok_or("the west wizard exists")?
             .put(Some(f4x_core::wizard::objective::Objective::Expansionist));
-        spawn(&mut g, P0, port(), "galley", 1);
-        spawn(&mut g, P0, port(), "high_men_settlers", 1);
+        spawn(&mut g, P0, port(), 36 /* galley */, 1);
+        spawn(&mut g, P0, port(), 111 /* high_men_settlers */, 1);
         let mut ai = Ai::new(P0);
         let before = PlayerView::new(&g, P0).my_cities().len();
         for _ in 0..40 {

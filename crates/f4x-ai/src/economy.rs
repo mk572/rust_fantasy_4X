@@ -351,7 +351,7 @@ mod tests {
 
     #[test]
     fn a_young_wizard_plans_for_growth_and_the_city_builds_by_the_plan() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         cities(&mut ai, &mut g, &mut events);
@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     fn a_city_that_cannot_feed_settlers_or_has_no_room_plans_without_them() -> TestResult {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         // Six settlers on their way count as cities to come: no more are wanted.
@@ -379,7 +379,7 @@ mod tests {
             &mut g,
             P0,
             crate::testworld::at(10, 6),
-            "high_men_settlers",
+            111, /* high_men_settlers */
             6,
         );
         cities(&mut ai, &mut g, &mut events);
@@ -395,7 +395,7 @@ mod tests {
     #[test]
     fn a_militarist_that_has_settled_builds_for_offence() -> TestResult {
         use f4x_core::wizard::objective::Objective;
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.wizard_mut(P0)
             .ok_or("player 0 is a wizard")?
             .put(Some(Objective::Militarist));
@@ -404,7 +404,7 @@ mod tests {
             &mut g,
             P0,
             crate::testworld::at(10, 6),
-            "high_men_settlers",
+            111, /* high_men_settlers */
             6,
         );
         cities(&mut Ai::new(P0), &mut g, &mut Vec::new());

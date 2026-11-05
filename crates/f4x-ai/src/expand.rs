@@ -209,13 +209,13 @@ mod tests {
 
     /// The west island, explored by its wizard, with `count` settlers standing in the capital.
     fn island_with_settlers(count: usize) -> (Game, Vec<hecs::Entity>) {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.explore(P0, at(7, 6), 8);
         let units = spawn(
             &mut g,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
-            "high_men_settlers",
+            111, /* high_men_settlers */
             count,
         );
         (g, units)
@@ -310,12 +310,12 @@ mod tests {
     #[test]
     fn a_settler_that_finds_no_site_scouts_instead() -> TestResult {
         // Nothing but the squares round the capital is explored, and they are too near it.
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let units = spawn(
             &mut g,
             P0,
             at(COAST_CITY.0, COAST_CITY.1),
-            "high_men_settlers",
+            111, /* high_men_settlers */
             1,
         );
         let mut ai = Ai::new(P0);

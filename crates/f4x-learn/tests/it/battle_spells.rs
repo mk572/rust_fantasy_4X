@@ -10,18 +10,23 @@ use f4x_learn::scenario::{generate_raw, Ground, WizardSpec};
 
 /// Spells that no scenario of this test can offer, with the reason: they need a fallen unit of the
 /// caster's, a hero, or a node.
-const NEEDS_SETUP: [&str; 4] = ["raise_dead", "animate_dead", "recall_hero", "magic_vortex"];
+const NEEDS_SETUP: [u16; 4] = [
+    137, // raise_dead
+    195, // animate_dead
+    205, // recall_hero
+    105, // magic_vortex
+];
 
 #[test]
 #[ignore = "slow: casts every battle spell of the content once"]
 fn every_battle_spell_that_is_offered_is_accepted_and_the_fight_goes_on() {
     let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
-    let spells: Vec<String> = content
+    let spells: Vec<u16> = content
         .rules
         .spells
         .iter()
         .filter(|(_, d)| d.contexts.contains(&CastContext::Battle))
-        .map(|(_, d)| d.id.clone())
+        .map(|(_, d)| d.num)
         .collect();
     assert!(spells.len() > 50, "{}", spells.len());
     let mut never_offered = Vec::new();
@@ -30,7 +35,7 @@ fn every_battle_spell_that_is_offered_is_accepted_and_the_fight_goes_on() {
         'seeds: for seed in 0..8u64 {
             let mut scenario = generate_raw(&content, seed);
             let wizard = Some(WizardSpec {
-                spells: vec![id.clone()],
+                spells: vec![*id],
                 mana: 50_000,
                 skill_points: 100_000,
             });
@@ -46,7 +51,7 @@ fn every_battle_spell_that_is_offered_is_accepted_and_the_fight_goes_on() {
             // The attacker's turn first, then the defender's (a wall can only be raised by it).
             for turn in 0..2 {
                 let offered = game.legal_battle_casts().into_iter().find(|c| {
-                    game.content().rules.spells.get(c.spell).id == *id && !c.aims.is_empty()
+                    game.content().rules.spells.get(c.spell).num == *id && !c.aims.is_empty()
                 });
                 if let Some(c) = offered {
                     let command = BattleCommand::Cast {
@@ -73,7 +78,7 @@ fn every_battle_spell_that_is_offered_is_accepted_and_the_fight_goes_on() {
             }
         }
         if !cast {
-            never_offered.push(id.as_str());
+            never_offered.push(*id);
         }
     }
     let unexpected: Vec<_> = never_offered

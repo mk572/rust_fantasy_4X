@@ -4,6 +4,7 @@ use crate::game::testutil::{num, shipped};
 use crate::game::{Command, Rejection};
 use crate::map::{Grid, Map, Plane};
 use crate::rules::exec::Target;
+use crate::rules::RealmId;
 use crate::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
@@ -30,7 +31,7 @@ fn world() -> Game {
         g.add_player(id, "W");
         g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
     }
-    g.init_wizard(P0, &[("life", 2)], &[], None)
+    g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .expect("init_wizard succeeds");
     g
 }
@@ -65,11 +66,15 @@ fn city(g: &mut Game, player: PlayerId, pos: Position) -> hecs::Entity {
     g.economy().city_at(pos).expect("city_at succeeds")
 }
 
-fn spell(g: &Game, id: &str) -> crate::rules::SpellId {
-    g.content.rules.spells.id_of(id).expect("id_of succeeds")
+fn spell(g: &Game, id: u16) -> crate::rules::SpellId {
+    g.content
+        .rules
+        .spells
+        .id_numbered(id)
+        .expect("id_of succeeds")
 }
 
-fn cast(g: &mut Game, id: &str, city: hecs::Entity) -> Vec<Event> {
+fn cast(g: &mut Game, id: u16, city: hecs::Entity) -> Vec<Event> {
     let s = spell(g, id);
     g.wizard_mut(P0)
         .expect("value succeeds")
@@ -126,7 +131,7 @@ fn summoned_creatures_appear_at_the_circle() -> TestResult {
     let mut g = world();
     place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P0, at(15, 5));
-    let call = spell(&g, "war_bears");
+    let call = spell(&g, 6 /* war_bears */);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -147,7 +152,7 @@ fn summoned_creatures_appear_at_the_circle() -> TestResult {
     });
     assert_eq!(g.units().units_at(at(5, 5)).len(), 1);
     // Move the circle with the spell, and they come there instead.
-    let events = cast(&mut g, "summoning_circle", town);
+    let events = cast(&mut g, 203 /* summoning_circle */, town);
     assert!(events.contains(&Event::SummoningCircleMoved {
         player: P0,
         pos: at(15, 5)
@@ -179,10 +184,10 @@ fn the_fortress_spells_check_their_target_before_charging() -> TestResult {
     let foreign = place(&mut g, P1, at(15, 5));
     let town = city(&mut g, P0, at(10, 9));
     for (id, bad) in [
-        ("move_fortress", foreign),
-        ("move_fortress", capital),
-        ("summoning_circle", foreign),
-        ("spell_of_return", town),
+        (28 /* move_fortress */, foreign),
+        (28 /* move_fortress */, capital),
+        (203 /* summoning_circle */, foreign),
+        (214 /* spell_of_return */, town),
     ] {
         let events = cast(&mut g, id, bad);
         assert!(
@@ -196,7 +201,7 @@ fn the_fortress_spells_check_their_target_before_charging() -> TestResult {
         "nothing was paid"
     );
     // A legal move works, and Myrror adds five to the fortress's power.
-    let events = cast(&mut g, "move_fortress", town);
+    let events = cast(&mut g, 28 /* move_fortress */, town);
     assert!(events.contains(&Event::FortressMoved {
         player: P0,
         pos: at(10, 9)
@@ -213,7 +218,7 @@ fn the_fortress_spells_check_their_target_before_charging() -> TestResult {
     };
     let far = city(&mut g, P0, myrror);
     let before = g.income(P0).power_base;
-    cast(&mut g, "move_fortress", far);
+    cast(&mut g, 28 /* move_fortress */, far);
     assert_eq!(g.income(P0).power_base, before + 5, "plus five on Myrror");
     Ok(())
 }
@@ -265,7 +270,7 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
     );
     assert_eq!(g.wizard(P1).ok_or("wizard is missing")?.fame(), w_fame + 5);
     // Casting the Spell of Return has begun, with no income of any kind meanwhile.
-    let ret = spell(&g, "spell_of_return");
+    let ret = spell(&g, 214 /* spell_of_return */);
     assert_eq!(
         g.wizard(P0)
             .ok_or("wizard is missing")?
@@ -433,7 +438,7 @@ fn finishing_the_spell_of_mastery_wins_and_scores() -> TestResult {
     let mut g = world();
     let capital = place(&mut g, P0, at(5, 5));
     g.set_fame(P0, 10);
-    let s = spell(&g, "spell_of_mastery");
+    let s = spell(&g, 213 /* spell_of_mastery */);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -480,7 +485,7 @@ fn finishing_the_spell_of_mastery_wins_and_scores() -> TestResult {
 fn starting_the_spell_of_mastery_is_announced_and_visible_to_all() -> TestResult {
     let mut g = world();
     place(&mut g, P0, at(5, 5));
-    let s = spell(&g, "spell_of_mastery");
+    let s = spell(&g, 213 /* spell_of_mastery */);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -529,7 +534,7 @@ fn a_defeat_clears_the_losers_enchantments_and_nodes() -> TestResult {
     let mut g = world();
     let capital = place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P1, at(15, 5));
-    let ward = spell(&g, "move_fortress");
+    let ward = spell(&g, 28 /* move_fortress */);
     g.add_city_enchantment(town, ward, P0);
     g.add_global(P0, ward);
     g.capture_city(capital, P1);
@@ -797,7 +802,7 @@ fn the_banisher_is_remembered_across_a_save() -> TestResult {
 /// does not (P1 is taught the rest). Returns those spells.
 fn spell_world(leave: usize) -> (Game, hecs::Entity, Vec<crate::rules::SpellId>) {
     let mut g = world();
-    g.init_wizard(P1, &[("life", 2)], &[], None)
+    g.init_wizard(P1, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .expect("init_wizard succeeds");
     set_skill(&mut g, P0, 40);
     let capital = place(&mut g, P0, at(5, 5));
@@ -855,7 +860,7 @@ fn a_human_who_cannot_pay_for_the_return_is_defeated_at_once() {
 #[test]
 fn the_last_city_taken_without_the_fortress_still_pays_the_prize() -> TestResult {
     let (mut g, capital, town) = banish_world(40);
-    g.init_wizard(P1, &[("life", 2)], &[], None)
+    g.init_wizard(P1, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     g.capture_city(capital, P1);
     assert!(g.wizard(P0).ok_or("wizard is missing")?.is_banished());
@@ -938,7 +943,7 @@ fn a_banished_computer_wizard_loses_spells_but_a_banished_human_keeps_them() {
 #[test]
 fn an_independent_city_taken_gives_no_spells() -> TestResult {
     let mut g = world();
-    g.init_wizard(P1, &[("life", 2)], &[], None)
+    g.init_wizard(P1, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     let town = city(&mut g, P0, at(15, 5));
     let neutral = g.new_city_player();
@@ -951,11 +956,11 @@ fn an_independent_city_taken_gives_no_spells() -> TestResult {
 #[test]
 fn a_city_that_changes_hands_loses_the_old_owners_enchantments() -> TestResult {
     let mut g = world();
-    g.init_wizard(P1, &[("life", 2)], &[], None)
+    g.init_wizard(P1, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     place(&mut g, P0, at(5, 5));
     let town = city(&mut g, P0, at(15, 5));
-    let ward = spell(&g, "move_fortress");
+    let ward = spell(&g, 28 /* move_fortress */);
     g.add_city_enchantment(town, ward, P0);
     g.add_city_enchantment(town, ward, P1);
     g.capture_city(town, P1);
@@ -972,7 +977,7 @@ fn a_city_that_changes_hands_loses_the_old_owners_enchantments() -> TestResult {
 #[test]
 fn a_banished_wizard_may_throw_no_spell_and_start_no_talk() -> TestResult {
     let mut g = world();
-    g.init_wizard(P1, &[("life", 2)], &[], None)
+    g.init_wizard(P1, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     set_skill(&mut g, P0, 40);
     let capital = place(&mut g, P0, at(5, 5));

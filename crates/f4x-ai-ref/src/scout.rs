@@ -248,7 +248,7 @@ mod tests {
 
     #[test]
     fn unexplored_ground_is_counted_within_the_look_and_vanishes_when_seen() {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         let far = at(4, 4);
         let view = PlayerView::new(&g, P0);
         assert_eq!(
@@ -265,8 +265,8 @@ mod tests {
 
     #[test]
     fn the_best_target_is_new_ground_the_unit_can_walk_to() {
-        let mut g = game(COAST_CITY, "high_men");
-        let walker = spawn(&mut g, P0, city(), "high_men_spearmen", 1)[0];
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let walker = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
         let view = PlayerView::new(&g, P0);
         let target = best_target(&view, walker, city(), &[]).expect("something to explore");
         assert_ne!(target, city());
@@ -278,8 +278,8 @@ mod tests {
 
     #[test]
     fn a_target_near_another_scouts_is_left_to_it() {
-        let mut g = game(COAST_CITY, "high_men");
-        let walker = spawn(&mut g, P0, city(), "high_men_spearmen", 1)[0];
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let walker = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
         let view = PlayerView::new(&g, P0);
         let first = best_target(&view, walker, city(), &[]).unwrap();
         let second = best_target(&view, walker, city(), &[first]).expect("a second target");
@@ -288,8 +288,8 @@ mod tests {
 
     #[test]
     fn nothing_is_a_target_once_the_whole_map_is_explored() {
-        let mut g = game(COAST_CITY, "high_men");
-        let walker = spawn(&mut g, P0, city(), "high_men_spearmen", 1)[0];
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let walker = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
         g.reveal_map(P0);
         let view = PlayerView::new(&g, P0);
         assert_eq!(best_target(&view, walker, city(), &[]), None);
@@ -297,27 +297,27 @@ mod tests {
 
     #[test]
     fn the_fastest_spare_fighter_becomes_the_scout() {
-        let mut g = game(COAST_CITY, "high_men");
-        spawn(&mut g, P0, city(), "high_men_spearmen", 2);
-        let rider = spawn(&mut g, P0, city(), "high_men_cavalry", 1)[0];
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
+        let rider = spawn(&mut g, P0, city(), 107 /* high_men_cavalry */, 1)[0];
         let ai = Ai::new(P0);
         assert_eq!(recruit(&ai, &g), Some(rider));
     }
 
     #[test]
     fn a_city_keeps_its_last_fighter() {
-        let mut g = game(COAST_CITY, "high_men");
-        spawn(&mut g, P0, city(), "high_men_spearmen", 1);
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1);
         assert_eq!(recruit(&Ai::new(P0), &g), None);
         // A lone fighter outside any city is free to go.
-        let outside = spawn(&mut g, P0, at(5, 5), "high_men_spearmen", 1)[0];
+        let outside = spawn(&mut g, P0, at(5, 5), 104 /* high_men_spearmen */, 1)[0];
         assert_eq!(recruit(&Ai::new(P0), &g), Some(outside));
     }
 
     #[test]
     fn a_scout_is_recruited_and_sent_to_new_ground() {
-        let mut g = game(COAST_CITY, "high_men");
-        spawn(&mut g, P0, city(), "high_men_spearmen", 2);
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
         scout(&mut ai, &mut g, &mut Vec::new());
         assert_eq!(ai.scouts.len(), 1);
@@ -327,8 +327,8 @@ mod tests {
 
     #[test]
     fn with_no_spare_fighter_nobody_scouts_and_the_search_stays_open() {
-        let mut g = game(COAST_CITY, "high_men");
-        spawn(&mut g, P0, city(), "high_men_spearmen", 1);
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1);
         let mut ai = Ai::new(P0);
         scout(&mut ai, &mut g, &mut Vec::new());
         assert!(ai.scouts.is_empty());
@@ -337,8 +337,8 @@ mod tests {
 
     #[test]
     fn when_nothing_new_can_be_reached_scouting_by_land_is_over() {
-        let mut g = game(COAST_CITY, "high_men");
-        spawn(&mut g, P0, city(), "high_men_spearmen", 2);
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
         g.reveal_map(P0);
         let mut ai = Ai::new(P0);
         scout(&mut ai, &mut g, &mut Vec::new());
@@ -349,8 +349,8 @@ mod tests {
 
     #[test]
     fn a_closed_frontier_is_left_alone() {
-        let mut g = game(COAST_CITY, "high_men");
-        spawn(&mut g, P0, city(), "high_men_spearmen", 2);
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
         scout(&mut ai, &mut g, &mut Vec::new());

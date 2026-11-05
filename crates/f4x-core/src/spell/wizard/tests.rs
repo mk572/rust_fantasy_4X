@@ -1,6 +1,7 @@
 use super::*;
 use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
+use crate::rules::RealmId;
 use crate::spell::target_error::TargetError;
 use crate::testdir::TestResult;
 
@@ -32,7 +33,7 @@ fn world() -> Game {
             "high_elf_pegasai" | "magic_spirit" => u.kind = UnitKind::Normal,
             "high_men_spearmen" => {
                 u.kind = UnitKind::Summoned;
-                u.realm = Some(crate::game::testutil::realm_ref("chaos"));
+                u.realm = Some(crate::game::testutil::realm_ref(2 /* chaos */));
             }
             _ => {}
         }
@@ -49,7 +50,7 @@ fn world() -> Game {
     for (id, name) in [(P0, "Merlin"), (P1, "Rjak"), (P2, "Sss-ra")] {
         g.add_player(id, name);
         g.treasury_mut(id).expect("treasury_mut succeeds").mana = 5000;
-        g.init_wizard(id, &[("death", 3)], &[], None)
+        g.init_wizard(id, &[(RealmId::new(4 /* death */), 3)], &[], None)
             .expect("init_wizard succeeds");
         g.wizard_mut(id)
             .expect("value succeeds")
@@ -59,16 +60,25 @@ fn world() -> Game {
     g
 }
 
-fn sp(g: &Game, id: &str) -> crate::rules::SpellId {
-    g.content.rules.spells.id_of(id).expect("id_of succeeds")
+fn sp(g: &Game, id: u16) -> crate::rules::SpellId {
+    g.content
+        .rules
+        .spells
+        .id_numbered(id)
+        .expect("id_of succeeds")
 }
 
-fn unit(g: &mut Game, owner: PlayerId, id: &str, pos: Position) -> hecs::Entity {
-    let def = g.content.rules.units.id_of(id).expect("id_of succeeds");
+fn unit(g: &mut Game, owner: PlayerId, id: u16, pos: Position) -> hecs::Entity {
+    let def = g
+        .content
+        .rules
+        .units
+        .id_numbered(id)
+        .expect("id_of succeeds");
     g.spawn_unit(owner, pos, def)
 }
 
-fn cast(g: &mut Game, spell: &str, target: Option<Target>) -> Vec<Event> {
+fn cast(g: &mut Game, spell: u16, target: Option<Target>) -> Vec<Event> {
     let s = sp(g, spell);
     g.wizard_mut(P0)
         .expect("value succeeds")
@@ -88,7 +98,7 @@ fn drain_power_takes_what_the_victim_has_up_to_the_roll() -> TestResult {
     let mut g = world();
     g.make_contact(P0, P1);
     g.treasury_mut(P1).ok_or("treasury_mut is missing")?.mana = 1000;
-    let events = cast(&mut g, "drain_power", Some(Target::Player(P1)));
+    let events = cast(&mut g, 171 /* drain_power */, Some(Target::Player(P1)));
     let taken = events
         .iter()
         .find_map(|e| match e {
@@ -108,7 +118,7 @@ fn drain_power_takes_what_the_victim_has_up_to_the_roll() -> TestResult {
     );
     // A poor victim loses only what is there.
     g.treasury_mut(P1).ok_or("treasury_mut is missing")?.mana = 4;
-    let events = cast(&mut g, "drain_power", Some(Target::Player(P1)));
+    let events = cast(&mut g, 171 /* drain_power */, Some(Target::Player(P1)));
     assert!(events.contains(&Event::PowerDrained {
         player: P0,
         victim: P1,
@@ -121,7 +131,7 @@ fn drain_power_takes_what_the_victim_has_up_to_the_roll() -> TestResult {
 #[test]
 fn a_wizard_cannot_drain_themselves() {
     let mut g = world();
-    let events = cast(&mut g, "drain_power", Some(Target::Player(P0)));
+    let events = cast(&mut g, 171 /* drain_power */, Some(Target::Player(P0)));
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
@@ -138,7 +148,11 @@ fn cruel_unminding_takes_a_tenth_at_most_and_at_least_one_point() -> TestResult 
         .points = skill_points_for(60, false);
     let before = g.wizard(P1).ok_or("wizard is missing")?.casting_skill();
     assert_eq!(before, 60);
-    cast(&mut g, "cruel_unminding", Some(Target::Player(P1)));
+    cast(
+        &mut g,
+        191, /* cruel_unminding */
+        Some(Target::Player(P1)),
+    );
     let after = g.wizard(P1).ok_or("wizard is missing")?.casting_skill();
     assert!((54..=59).contains(&after), "{after}");
     // A tiny skill still loses a point.
@@ -186,7 +200,7 @@ fn subversion_sours_the_others_on_the_target_and_ends_their_peace() {
     g.make_contact(P2, P1);
     g.make_contact(P0, P1);
     let before = g.relation(P2, P1);
-    let events = cast(&mut g, "subversion", Some(Target::Player(P1)));
+    let events = cast(&mut g, 177 /* subversion */, Some(Target::Player(P1)));
     assert!(
         !events.iter().any(|e| matches!(e, Event::Rejected(_))),
         "{events:?}"
@@ -195,7 +209,7 @@ fn subversion_sours_the_others_on_the_target_and_ends_their_peace() {
     // Someone who never met the target feels nothing.
     let mut g = world();
     let before = g.relation(P2, P1);
-    cast(&mut g, "subversion", Some(Target::Player(P1)));
+    cast(&mut g, 177 /* subversion */, Some(Target::Player(P1)));
     assert_eq!(g.relation(P2, P1), before);
 }
 
@@ -203,13 +217,13 @@ fn subversion_sours_the_others_on_the_target_and_ends_their_peace() {
 fn great_unsummoning_banishes_fantastic_creatures_of_every_wizard() {
     let mut g = world();
     let mine: Vec<_> = (0..40)
-        .map(|i| unit(&mut g, P0, "high_men_spearmen", at(i % 20, 1)))
+        .map(|i| unit(&mut g, P0, 104 /* high_men_spearmen */, at(i % 20, 1)))
         .collect();
     let theirs: Vec<_> = (0..40)
-        .map(|i| unit(&mut g, P1, "high_men_spearmen", at(i % 20, 2)))
+        .map(|i| unit(&mut g, P1, 104 /* high_men_spearmen */, at(i % 20, 2)))
         .collect();
-    let men = unit(&mut g, P1, "high_men_cavalry", at(3, 3));
-    let events = cast(&mut g, "great_unsummoning", None);
+    let men = unit(&mut g, P1, 107 /* high_men_cavalry */, at(3, 3));
+    let events = cast(&mut g, 75 /* great_unsummoning */, None);
     let slain = events
         .iter()
         .find_map(|e| match e {
@@ -231,13 +245,13 @@ fn great_unsummoning_banishes_fantastic_creatures_of_every_wizard() {
 fn death_wish_spares_the_casters_units_and_the_fantastic() {
     let mut g = world();
     let own: Vec<_> = (0..30)
-        .map(|i| unit(&mut g, P0, "high_men_cavalry", at(i % 20, 1)))
+        .map(|i| unit(&mut g, P0, 107 /* high_men_cavalry */, at(i % 20, 1)))
         .collect();
     let enemy: Vec<_> = (0..30)
-        .map(|i| unit(&mut g, P1, "high_men_cavalry", at(i % 20, 2)))
+        .map(|i| unit(&mut g, P1, 107 /* high_men_cavalry */, at(i % 20, 2)))
         .collect();
-    let summoned = unit(&mut g, P1, "high_men_spearmen", at(1, 5));
-    cast(&mut g, "death_wish", None);
+    let summoned = unit(&mut g, P1, 104 /* high_men_spearmen */, at(1, 5));
+    cast(&mut g, 199 /* death_wish */, None);
     assert!(own.iter().all(|&u| g.world.contains(u)));
     assert!(g.world.contains(summoned));
     let left = enemy.iter().filter(|&&u| g.world.contains(u)).count();
@@ -259,10 +273,10 @@ fn an_earthquake_spares_flyers_and_the_bodiless() -> TestResult {
         g.economy().city_at(at(5, 5)).ok_or("city_at is missing")?
     };
     let walkers: Vec<_> = (0..1)
-        .map(|_| unit(&mut g, P1, "high_men_cavalry", at(5, 5)))
+        .map(|_| unit(&mut g, P1, 107 /* high_men_cavalry */, at(5, 5)))
         .collect();
-    let flyer = unit(&mut g, P1, "high_elf_pegasai", at(5, 5));
-    let ghost = unit(&mut g, P1, "magic_spirit", at(5, 5));
+    let flyer = unit(&mut g, P1, 103 /* high_elf_pegasai */, at(5, 5));
+    let ghost = unit(&mut g, P1, 154 /* magic_spirit */, at(5, 5));
     let mut rng = crate::game::rng::GameRng::new(4);
     for _ in 0..50 {
         g.earthquake(city, &mut rng);
@@ -288,7 +302,7 @@ fn an_earthquake_is_cast_at_an_enemy_city_and_reports_the_toll() -> TestResult {
         population: 4,
     });
     let city = g.economy().city_at(at(5, 5)).ok_or("city_at is missing")?;
-    let events = cast(&mut g, "earthquake", Some(Target::City(city)));
+    let events = cast(&mut g, 26 /* earthquake */, Some(Target::City(city)));
     assert!(
         events
             .iter()
@@ -304,7 +318,7 @@ fn an_earthquake_is_cast_at_an_enemy_city_and_reports_the_toll() -> TestResult {
         population: 4,
     });
     let own = g.economy().city_at(at(9, 9)).ok_or("city_at is missing")?;
-    let events = cast(&mut g, "earthquake", Some(Target::City(own)));
+    let events = cast(&mut g, 26 /* earthquake */, Some(Target::City(own)));
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
@@ -329,7 +343,7 @@ fn black_wind_strikes_every_unit_on_the_square_figure_by_figure() {
     let mut dead = 0;
     let mut hurt = 0;
     let units: Vec<_> = (0..9)
-        .map(|i| unit(&mut g, P1, "barbarian_spearmen", at(i, 1)))
+        .map(|i| unit(&mut g, P1, 39 /* barbarian_spearmen */, at(i, 1)))
         .collect();
     let mut rng = crate::game::rng::GameRng::new(3);
     for i in 0..9 {
@@ -345,14 +359,14 @@ fn black_wind_strikes_every_unit_on_the_square_figure_by_figure() {
 #[test]
 fn black_wind_wounds_a_unit_that_resists_some_figures() -> TestResult {
     let mut g = world();
-    let u = unit(&mut g, P1, "barbarian_spearmen", at(4, 4));
+    let u = unit(&mut g, P1, 39 /* barbarian_spearmen */, at(4, 4));
     g.world.insert_one(u, crate::unit::Hurt(0))?;
     // The spearmen's resistance of 5 against -1: each figure fails on a roll of 5 to 10 (60 percent).
     let mut rng = crate::game::rng::GameRng::new(11);
     let mut wounded = 0;
     let mut killed = 0;
     for _ in 0..200 {
-        let u = unit(&mut g, P1, "barbarian_spearmen", at(6, 6));
+        let u = unit(&mut g, P1, 39 /* barbarian_spearmen */, at(6, 6));
         killed += black_wind_square(&mut g, at(6, 6), &mut rng);
         if g.world.contains(u) && g.units().unit_hits(u).0 < g.units().unit_hits(u).1 {
             wounded += 1;
@@ -371,14 +385,22 @@ fn black_wind_wounds_a_unit_that_resists_some_figures() -> TestResult {
 #[test]
 fn black_wind_needs_a_square_with_an_enemy_on_it() {
     let mut g = world();
-    unit(&mut g, P0, "high_men_cavalry", at(2, 2));
-    let events = cast(&mut g, "black_wind", Some(Target::Tile(at(2, 2))));
+    unit(&mut g, P0, 107 /* high_men_cavalry */, at(2, 2));
+    let events = cast(
+        &mut g,
+        187, /* black_wind */
+        Some(Target::Tile(at(2, 2))),
+    );
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
     );
-    unit(&mut g, P1, "high_men_cavalry", at(2, 2));
-    let events = cast(&mut g, "black_wind", Some(Target::Tile(at(2, 2))));
+    unit(&mut g, P1, 107 /* high_men_cavalry */, at(2, 2));
+    let events = cast(
+        &mut g,
+        187, /* black_wind */
+        Some(Target::Tile(at(2, 2))),
+    );
     assert!(
         events.iter().any(|e| matches!(e, Event::UnitsSlain { .. })),
         "{events:?}"
@@ -388,9 +410,9 @@ fn black_wind_needs_a_square_with_an_enemy_on_it() {
 #[test]
 fn lycanthropy_makes_a_normal_unit_a_werewolf_and_forgets_its_experience() -> TestResult {
     let mut g = world();
-    let u = unit(&mut g, P0, "high_men_cavalry", at(3, 3));
+    let u = unit(&mut g, P0, 107 /* high_men_cavalry */, at(3, 3));
     g.world.insert_one(u, crate::unit::Experience(120))?;
-    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(u)));
+    let events = cast(&mut g, 173 /* lycanthropy */, Some(Target::Unit(u)));
     assert!(
         events
             .iter()
@@ -404,7 +426,7 @@ fn lycanthropy_makes_a_normal_unit_a_werewolf_and_forgets_its_experience() -> Te
     assert!(g.units().unit_stat(u, crate::rules::Stat::Figures) > 0);
     assert!(g.world.get::<&crate::unit::Experience>(u).is_err());
     // Not twice: Werewolves are fantastic.
-    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(u)));
+    let events = cast(&mut g, 173 /* lycanthropy */, Some(Target::Unit(u)));
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
@@ -415,8 +437,12 @@ fn lycanthropy_makes_a_normal_unit_a_werewolf_and_forgets_its_experience() -> Te
 #[test]
 fn lycanthropy_refuses_fantastic_creatures_undead_and_other_wizards_units() {
     let mut g = world();
-    let summoned = unit(&mut g, P0, "high_men_spearmen", at(1, 1));
-    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(summoned)));
+    let summoned = unit(&mut g, P0, 104 /* high_men_spearmen */, at(1, 1));
+    let events = cast(
+        &mut g,
+        173, /* lycanthropy */
+        Some(Target::Unit(summoned)),
+    );
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
@@ -425,16 +451,24 @@ fn lycanthropy_refuses_fantastic_creatures_undead_and_other_wizards_units() {
         g.check_become_werewolf(summoned),
         Err(TargetError::Summoned)
     );
-    let risen = unit(&mut g, P0, "high_men_cavalry", at(1, 2));
+    let risen = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 2));
     g.make_undead(risen);
-    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(risen)));
+    let events = cast(
+        &mut g,
+        173, /* lycanthropy */
+        Some(Target::Unit(risen)),
+    );
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
     );
     assert_eq!(g.check_become_werewolf(risen), Err(TargetError::Undead));
-    let theirs = unit(&mut g, P1, "high_men_cavalry", at(1, 3));
-    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(theirs)));
+    let theirs = unit(&mut g, P1, 107 /* high_men_cavalry */, at(1, 3));
+    let events = cast(
+        &mut g,
+        173, /* lycanthropy */
+        Some(Target::Unit(theirs)),
+    );
     assert!(
         events.iter().any(|e| matches!(e, Event::Rejected(_))),
         "{events:?}"
@@ -466,12 +500,12 @@ fn hits_left(g: &Game, at: Position) -> u32 {
 
 #[test]
 fn a_storm_hits_every_unit_on_the_square_and_only_that_square() {
-    for storm in ["ice_storm", "fire_storm"] {
+    for storm in [25 /* ice_storm */, 107 /* fire_storm */] {
         let mut g = world();
         let (mine, theirs, far) = (at(5, 5), at(5, 5), at(9, 9));
-        unit(&mut g, P0, "barbarian_spearmen", mine);
-        unit(&mut g, P1, "barbarian_spearmen", theirs);
-        unit(&mut g, P1, "barbarian_spearmen", far);
+        unit(&mut g, P0, 39 /* barbarian_spearmen */, mine);
+        unit(&mut g, P1, 39 /* barbarian_spearmen */, theirs);
+        unit(&mut g, P1, 39 /* barbarian_spearmen */, far);
         let (before_here, before_far) = (hits_left(&g, mine), hits_left(&g, far));
         let events = cast(&mut g, storm, Some(Target::Tile(at(5, 5))));
         assert!(
@@ -495,29 +529,35 @@ fn magic_immunity_stops_a_storm_and_each_storm_has_its_own_element() {
     let mut g = world();
     let mut defs = g.content.rules.units.defs().to_vec();
     for (id, ability) in [
-        ("high_men_cavalry", "magic_immunity"),
-        ("high_elf_pegasai", "cold_immunity"),
-        ("magic_spirit", "fire_immunity"),
+        (
+            107, /* high_men_cavalry */
+            40,  /* magic_immunity */
+        ),
+        (103 /* high_elf_pegasai */, 10 /* cold_immunity */),
+        (154 /* magic_spirit */, 21 /* fire_immunity */),
     ] {
         defs.iter_mut()
-            .filter(|d| d.id == id)
+            .filter(|d| d.num == id)
             .for_each(|d| d.abilities.push(crate::game::testutil::ability(ability)));
     }
     g.content.rules.units = Registry::new_sorted(defs);
     for (storm, safe, hurt) in [
         (
-            "ice_storm",
-            ["high_men_cavalry", "high_elf_pegasai"],
-            "magic_spirit",
+            25, /* ice_storm */
+            [
+                107, /* high_men_cavalry */
+                103, /* high_elf_pegasai */
+            ],
+            154, /* magic_spirit */
         ),
         (
-            "fire_storm",
-            ["high_men_cavalry", "magic_spirit"],
-            "high_elf_pegasai",
+            107, /* fire_storm */
+            [107 /* high_men_cavalry */, 154 /* magic_spirit */],
+            103, /* high_elf_pegasai */
         ),
     ] {
         let square = at(6, 6);
-        let safe_units: Vec<_> = safe.iter().map(|s| unit(&mut g, P1, s, square)).collect();
+        let safe_units: Vec<_> = safe.iter().map(|&s| unit(&mut g, P1, s, square)).collect();
         let weak = unit(&mut g, P1, hurt, square);
         for _ in 0..5 {
             cast(&mut g, storm, Some(Target::Tile(square)));
@@ -546,11 +586,15 @@ fn a_storm_reaches_the_units_in_a_city() -> TestResult {
         at(7, 7),
     ));
     let _ = city;
-    let u = unit(&mut g, P1, "barbarian_spearmen", at(7, 7));
+    let u = unit(&mut g, P1, 39 /* barbarian_spearmen */, at(7, 7));
     let before = g.units().unit_hits(u).0;
     let mut hurt = false;
     for _ in 0..5 {
-        cast(&mut g, "fire_storm", Some(Target::Tile(at(7, 7))));
+        cast(
+            &mut g,
+            107, /* fire_storm */
+            Some(Target::Tile(at(7, 7))),
+        );
         hurt |= !g.world.contains(u) || g.units().unit_hits(u).0 < before;
     }
     assert!(hurt, "the garrison was untouched");
@@ -560,8 +604,12 @@ fn a_storm_reaches_the_units_in_a_city() -> TestResult {
 #[test]
 fn a_storm_needs_a_square_with_an_enemy_on_it() {
     let mut g = world();
-    unit(&mut g, P0, "high_men_cavalry", at(2, 2));
-    let events = cast(&mut g, "ice_storm", Some(Target::Tile(at(2, 2))));
+    unit(&mut g, P0, 107 /* high_men_cavalry */, at(2, 2));
+    let events = cast(
+        &mut g,
+        25, /* ice_storm */
+        Some(Target::Tile(at(2, 2))),
+    );
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
@@ -573,8 +621,12 @@ fn a_storm_that_destroys_a_unit_says_so() {
     let mut g = world();
     let mut told = false;
     for i in 0..20 {
-        unit(&mut g, P1, "barbarian_spearmen", at(3, 3));
-        let events = cast(&mut g, "fire_storm", Some(Target::Tile(at(3, 3))));
+        unit(&mut g, P1, 39 /* barbarian_spearmen */, at(3, 3));
+        let events = cast(
+            &mut g,
+            107, /* fire_storm */
+            Some(Target::Tile(at(3, 3))),
+        );
         told |= events
             .iter()
             .any(|e| matches!(e, Event::UnitsSlain { count, .. } if *count > 0));
@@ -595,7 +647,7 @@ fn city_for(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
     g.economy().city_at(pos).expect("city_at succeeds")
 }
 
-fn keep(g: &mut Game, player: PlayerId, spell: &str) {
+fn keep(g: &mut Game, player: PlayerId, spell: u16) {
     let s = sp(g, spell);
     g.add_global(player, s);
 }
@@ -605,7 +657,11 @@ fn call_the_void_kills_citizens_by_chance_but_never_the_last() {
     let mut g = world();
     let city = city_for(&mut g, P1, at(10, 6));
     g.scenario_set_citizens(city, 20);
-    let events = cast(&mut g, "call_the_void", Some(Target::City(city)));
+    let events = cast(
+        &mut g,
+        119, /* call_the_void */
+        Some(Target::City(city)),
+    );
     let lost = events
         .iter()
         .find_map(|e| match e {
@@ -620,7 +676,11 @@ fn call_the_void_kills_citizens_by_chance_but_never_the_last() {
     let small = city_for(&mut g, P1, at(16, 8));
     g.scenario_set_citizens(small, 1);
     for _ in 0..5 {
-        cast(&mut g, "call_the_void", Some(Target::City(small)));
+        cast(
+            &mut g,
+            119, /* call_the_void */
+            Some(Target::City(small)),
+        );
     }
     assert_eq!(
         g.city_population(small).figures,
@@ -633,9 +693,13 @@ fn call_the_void_kills_citizens_by_chance_but_never_the_last() {
 fn call_the_void_hurts_everyone_inside_and_corrupts_the_land_around() {
     let mut g = world();
     let city = city_for(&mut g, P1, at(10, 6));
-    let squad = unit(&mut g, P1, "barbarian_spearmen", at(10, 6)); // 10 hit points
-    let walker = unit(&mut g, P1, "high_men_cavalry", at(10, 6));
-    let events = cast(&mut g, "call_the_void", Some(Target::City(city)));
+    let squad = unit(&mut g, P1, 39 /* barbarian_spearmen */, at(10, 6)); // 10 hit points
+    let walker = unit(&mut g, P1, 107 /* high_men_cavalry */, at(10, 6));
+    let events = cast(
+        &mut g,
+        119, /* call_the_void */
+        Some(Target::City(city)),
+    );
     assert!(
         events
             .iter()
@@ -660,17 +724,17 @@ fn call_the_void_hurts_everyone_inside_and_corrupts_the_land_around() {
 #[test]
 fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_lasts() -> TestResult {
     let mut g = world();
-    keep(&mut g, P1, "natures_wrath");
+    keep(&mut g, P1, 40 /* natures_wrath */);
     let city = city_for(&mut g, P0, at(5, 5));
     let walkers: Vec<_> = (0..60)
-        .map(|_| unit(&mut g, P0, "high_men_cavalry", at(5, 5)))
+        .map(|_| unit(&mut g, P0, 107 /* high_men_cavalry */, at(5, 5)))
         .collect();
     let spared = city_for(&mut g, P2, at(15, 5));
     let others: Vec<_> = (0..20)
-        .map(|_| unit(&mut g, P2, "high_men_cavalry", at(15, 5)))
+        .map(|_| unit(&mut g, P2, 107 /* high_men_cavalry */, at(15, 5)))
         .collect();
     g.make_contact(P0, P2);
-    let events = cast(&mut g, "drain_power", Some(Target::Player(P2)));
+    let events = cast(&mut g, 171 /* drain_power */, Some(Target::Player(P2)));
     let lost = events.iter().find_map(|e| match e {
         Event::WorldSpellStruck {
             victim: Some(v),
@@ -692,7 +756,7 @@ fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_last
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 99_999;
-    let s = sp(&g, "drain_power");
+    let s = sp(&g, 171 /* drain_power */);
     g.wizard_mut(P1)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
@@ -707,7 +771,7 @@ fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_last
     assert!(!events
         .iter()
         .any(|e| matches!(e, Event::WorldSpellStruck { .. })));
-    let events = cast(&mut g, "great_unsummoning", None);
+    let events = cast(&mut g, 75 /* great_unsummoning */, None);
     assert!(
         !events
             .iter()
@@ -720,16 +784,16 @@ fn natures_wrath_shakes_the_cities_of_whoever_casts_death_or_chaos_while_it_last
 #[test]
 fn meteor_storm_strikes_units_outside_cities_but_not_inside_and_spares_the_casters_buildings() {
     let mut g = world();
-    keep(&mut g, P0, "meteor_storm");
+    keep(&mut g, P0, 113 /* meteor_storm */);
     city_for(&mut g, P1, at(5, 5));
     let inside: Vec<_> = (0..10)
-        .map(|_| unit(&mut g, P1, "high_men_cavalry", at(5, 5)))
+        .map(|_| unit(&mut g, P1, 107 /* high_men_cavalry */, at(5, 5)))
         .collect();
     let outside: Vec<_> = (0..10)
-        .map(|_| unit(&mut g, P1, "high_men_cavalry", at(15, 8)))
+        .map(|_| unit(&mut g, P1, 107 /* high_men_cavalry */, at(15, 8)))
         .collect();
     let mine: Vec<_> = (0..10)
-        .map(|_| unit(&mut g, P0, "high_men_cavalry", at(18, 8)))
+        .map(|_| unit(&mut g, P0, 107 /* high_men_cavalry */, at(18, 8)))
         .collect();
     for _ in 0..60 {
         g.process_world_enchantments();
@@ -751,7 +815,7 @@ fn meteor_storm_strikes_units_outside_cities_but_not_inside_and_spares_the_caste
 #[test]
 fn great_wasting_corrupts_three_to_six_land_squares_a_turn_anywhere() {
     let mut g = world();
-    keep(&mut g, P0, "great_wasting");
+    keep(&mut g, P0, 114 /* great_wasting */);
     city_for(&mut g, P0, at(5, 5));
     let mut near = false;
     for _ in 0..40 {
@@ -773,7 +837,7 @@ fn great_wasting_corrupts_three_to_six_land_squares_a_turn_anywhere() {
     assert!(near, "the caster's own city is not spared");
     // One turn: three to six.
     let mut g = world();
-    keep(&mut g, P0, "great_wasting");
+    keep(&mut g, P0, 114 /* great_wasting */);
     g.process_world_enchantments();
     let bad = [Plane::Arcanus, Plane::Myrror]
         .into_iter()
@@ -787,8 +851,8 @@ fn great_wasting_corrupts_three_to_six_land_squares_a_turn_anywhere() {
 fn a_battle_on_corrupted_ground_costs_no_range_penalty_while_great_wasting_lasts() -> TestResult {
     use crate::battle::Side;
     let range = |g: &mut Game| {
-        let a = unit(g, P0, "high_men_cavalry", at(8, 8));
-        let d = unit(g, P1, "high_men_cavalry", at(9, 8));
+        let a = unit(g, P0, 107 /* high_men_cavalry */, at(8, 8));
+        let d = unit(g, P1, 107 /* high_men_cavalry */, at(9, 8));
         g.start_battle(&[a], &[d]).expect("start_battle succeeds");
         let r = g
             .battle()
@@ -808,7 +872,7 @@ fn a_battle_on_corrupted_ground_costs_no_range_penalty_while_great_wasting_lasts
         .plane_mut(Plane::Arcanus)
         .set_corrupted(9, 8, true);
     assert_eq!(range(&mut g), far, "corrupted ground alone does nothing");
-    keep(&mut g, P0, "great_wasting");
+    keep(&mut g, P0, 114 /* great_wasting */);
     assert_eq!(range(&mut g), 10, "while the spell lasts");
     g.clear_globals(P0);
     assert_eq!(range(&mut g), far, "and not after");
@@ -818,7 +882,7 @@ fn a_battle_on_corrupted_ground_costs_no_range_penalty_while_great_wasting_lasts
 #[test]
 fn armageddon_raises_volcanoes_that_pay_the_caster_power() {
     let mut g = world();
-    keep(&mut g, P0, "armageddon");
+    keep(&mut g, P0, 120 /* armageddon */);
     g.process_world_enchantments();
     let n = g.volcano_count(P0);
     assert!((3..=6).contains(&n), "{n}");
@@ -838,7 +902,7 @@ fn a_volcano_pays_a_point_of_power_to_its_owner_only() -> TestResult {
     }
     assert_eq!((g.volcano_count(P0), g.volcano_count(P1)), (1, 2));
     // Keeping Armageddon going changes nothing about whose volcanoes pay.
-    keep(&mut g, P0, "armageddon");
+    keep(&mut g, P0, 120 /* armageddon */);
     assert_eq!((g.volcano_count(P0), g.volcano_count(P1)), (1, 2));
     Ok(())
 }
@@ -856,7 +920,7 @@ fn an_armageddon_volcano_can_rise_in_the_sea_and_sinks_the_ships_there() -> Test
         .ok_or("as_mut is missing")?
         .plane_mut(Plane::Arcanus)
         .set(6, 6, ocean);
-    let boat = unit(&mut g, P1, "warship", at(6, 6));
+    let boat = unit(&mut g, P1, 38 /* warship */, at(6, 6));
     let mut rng = rand_pcg::Pcg64Mcg::seed_from_u64(3);
     assert!(g.can_armageddon_volcano(at(6, 6)));
     assert_eq!(
@@ -895,7 +959,7 @@ fn armageddon_raises_far_fewer_volcanoes_at_sea_than_on_land() -> TestResult {
             }
         }
     }
-    keep(&mut g, P0, "armageddon");
+    keep(&mut g, P0, 120 /* armageddon */);
     for _ in 0..40 {
         g.process_world_enchantments();
     }
@@ -914,10 +978,10 @@ fn an_armageddon_volcano_under_a_city_costs_a_quarter_of_everything_but_spares_t
     let city = city_for(&mut g, P1, at(10, 6));
     let near = city_for(&mut g, P1, at(16, 6));
     let walkers: Vec<_> = (0..80)
-        .map(|_| unit(&mut g, P1, "high_men_cavalry", at(10, 6)))
+        .map(|_| unit(&mut g, P1, 107 /* high_men_cavalry */, at(10, 6)))
         .collect();
     let next_door: Vec<_> = (0..20)
-        .map(|_| unit(&mut g, P1, "high_men_cavalry", at(16, 6)))
+        .map(|_| unit(&mut g, P1, 107 /* high_men_cavalry */, at(16, 6)))
         .collect();
     g.world
         .get::<&mut crate::city::economy::Population>(city)?
@@ -991,12 +1055,12 @@ fn chaos_channels_gives_one_mutation_once_and_makes_a_creature_of_chaos() {
         for _ in 0..i {
             g.roll(7);
         }
-        let u = unit(&mut g, P0, "high_men_cavalry", at(3, 3));
+        let u = unit(&mut g, P0, 107 /* high_men_cavalry */, at(3, 3));
         let (def0, mv0) = (
             g.units().unit_stat(u, crate::rules::Stat::Defense),
             g.units().unit_stat(u, crate::rules::Stat::Moves),
         );
-        let events = cast(&mut g, "chaos_channels", Some(Target::Unit(u)));
+        let events = cast(&mut g, 93 /* chaos_channels */, Some(Target::Unit(u)));
         let m = events
             .iter()
             .find_map(|e| match e {
@@ -1008,7 +1072,7 @@ fn chaos_channels_gives_one_mutation_once_and_makes_a_creature_of_chaos() {
         let units = g.units();
         assert_eq!(
             units.unit_realm(u),
-            Some(crate::game::testutil::realm("chaos"))
+            Some(crate::game::testutil::realm(2 /* chaos */))
         );
         // The unit sheet names the mutation by this marker.
         let marker = crate::unit::mutation::MUTATION_MARKERS
@@ -1030,7 +1094,7 @@ fn chaos_channels_gives_one_mutation_once_and_makes_a_creature_of_chaos() {
                 assert_eq!(units.unit_stat(u, crate::rules::Stat::Ranged), 2);
             }
         }
-        let again = cast(&mut g, "chaos_channels", Some(Target::Unit(u)));
+        let again = cast(&mut g, 93 /* chaos_channels */, Some(Target::Unit(u)));
         assert!(
             matches!(again.as_slice(), [Event::Rejected(_)]),
             "{again:?}"
@@ -1042,14 +1106,18 @@ fn chaos_channels_gives_one_mutation_once_and_makes_a_creature_of_chaos() {
 #[test]
 fn chaos_channels_refuses_fantastic_units_and_never_gives_a_flier_wings() {
     let mut g = world();
-    let beast = unit(&mut g, P0, "high_men_spearmen", at(3, 3));
-    let events = cast(&mut g, "chaos_channels", Some(Target::Unit(beast)));
+    let beast = unit(&mut g, P0, 104 /* high_men_spearmen */, at(3, 3));
+    let events = cast(
+        &mut g,
+        93, /* chaos_channels */
+        Some(Target::Unit(beast)),
+    );
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
     );
     for _ in 0..30 {
-        let flyer = unit(&mut g, P0, "high_elf_pegasai", at(4, 4));
+        let flyer = unit(&mut g, P0, 103 /* high_elf_pegasai */, at(4, 4));
         let before = g.units().unit_stat(flyer, crate::rules::Stat::Moves);
         let mut rng = crate::game::rng::GameRng::new(g.next_u64());
         g.mutate(flyer, &mut rng);
@@ -1061,9 +1129,9 @@ fn chaos_channels_refuses_fantastic_units_and_never_gives_a_flier_wings() {
 #[test]
 fn doom_mastery_mutates_new_units_of_its_wizard_only() {
     let mut g = world();
-    keep(&mut g, P0, "doom_mastery");
-    let mine = unit(&mut g, P0, "high_men_cavalry", at(3, 3));
-    let theirs = unit(&mut g, P1, "high_men_cavalry", at(4, 3));
+    keep(&mut g, P0, 117 /* doom_mastery */);
+    let mine = unit(&mut g, P0, 107 /* high_men_cavalry */, at(3, 3));
+    let theirs = unit(&mut g, P1, 107 /* high_men_cavalry */, at(4, 3));
     g.doom_mastery_mutates(mine, P0);
     g.doom_mastery_mutates(theirs, P1);
     assert!(g.units().unit_is_mutated(mine));
@@ -1083,11 +1151,11 @@ fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_
     }
     g.content.rules.units = Registry::new_sorted(defs);
     let enemies: Vec<_> = (0..6)
-        .map(|_| unit(&mut g, P1, "high_men_cavalry", at(8, 8)))
+        .map(|_| unit(&mut g, P1, 107 /* high_men_cavalry */, at(8, 8)))
         .collect();
-    let mine = unit(&mut g, P0, "high_men_cavalry", at(8, 8));
-    let other = unit(&mut g, P1, "high_men_cavalry", at(9, 8));
-    let events = cast(&mut g, "stasis", Some(Target::Tile(at(8, 8))));
+    let mine = unit(&mut g, P0, 107 /* high_men_cavalry */, at(8, 8));
+    let other = unit(&mut g, P1, 107 /* high_men_cavalry */, at(9, 8));
+    let events = cast(&mut g, 68 /* stasis */, Some(Target::Tile(at(8, 8))));
     assert!(
         !events.iter().any(|e| matches!(e, Event::Rejected(_))),
         "{events:?}"
@@ -1115,10 +1183,10 @@ fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 99_999;
-    let held = unit(&mut g, P1, "high_men_cavalry", at(12, 8));
-    cast(&mut g, "stasis", Some(Target::Tile(at(12, 8))));
+    let held = unit(&mut g, P1, 107 /* high_men_cavalry */, at(12, 8));
+    cast(&mut g, 68 /* stasis */, Some(Target::Tile(at(12, 8))));
     assert!(g.unit_in_stasis(held));
-    let again = cast(&mut g, "stasis", Some(Target::Tile(at(12, 8))));
+    let again = cast(&mut g, 68 /* stasis */, Some(Target::Tile(at(12, 8))));
     assert!(
         matches!(again.as_slice(), [Event::Rejected(_)]),
         "{again:?}"
@@ -1135,10 +1203,10 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() -> Te
         d.kind = UnitKind::Fantastic;
     }
     g.content.rules.units = Registry::new_sorted(defs);
-    let mine = unit(&mut g, P0, "high_men_cavalry", at(3, 3));
-    let theirs = unit(&mut g, P1, "high_men_cavalry", at(4, 3));
-    keep(&mut g, P0, "time_stop");
-    g.attach_enchantment(Target::Player(P0), sp(&g, "time_stop"), P0);
+    let mine = unit(&mut g, P0, 107 /* high_men_cavalry */, at(3, 3));
+    let theirs = unit(&mut g, P1, 107 /* high_men_cavalry */, at(4, 3));
+    keep(&mut g, P0, 80 /* time_stop */);
+    g.attach_enchantment(Target::Player(P0), sp(&g, 80 /* time_stop */), P0);
     // Another global enchantment of the wizard's costs nothing now.
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 500;
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 100;
@@ -1180,10 +1248,10 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() -> Te
 #[test]
 fn under_time_stop_only_its_wizard_can_found_a_city() {
     let mut g = world();
-    let theirs = unit(&mut g, P1, "high_elf_settlers", at(10, 10));
-    let mine = unit(&mut g, P0, "high_elf_settlers", at(18, 3));
-    keep(&mut g, P0, "time_stop");
-    g.attach_enchantment(Target::Player(P0), sp(&g, "time_stop"), P0);
+    let theirs = unit(&mut g, P1, 100 /* high_elf_settlers */, at(10, 10));
+    let mine = unit(&mut g, P0, 100 /* high_elf_settlers */, at(18, 3));
+    keep(&mut g, P0, 80 /* time_stop */);
+    g.attach_enchantment(Target::Player(P0), sp(&g, 80 /* time_stop */), P0);
     let refused = g.apply(Command::SettleOutpost {
         unit: theirs,
         name: "Late".into(),
@@ -1239,9 +1307,13 @@ fn corrupted_squares_sometimes_heal_by_themselves() {
 #[test]
 fn lycanthropy_takes_settlers_and_the_stack_keeps_its_place() -> TestResult {
     let mut g = world();
-    let settlers = unit(&mut g, P0, "high_men_settlers", at(3, 3));
-    let other = unit(&mut g, P0, "high_men_cavalry", at(3, 3));
-    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(settlers)));
+    let settlers = unit(&mut g, P0, 111 /* high_men_settlers */, at(3, 3));
+    let other = unit(&mut g, P0, 107 /* high_men_cavalry */, at(3, 3));
+    let events = cast(
+        &mut g,
+        173, /* lycanthropy */
+        Some(Target::Unit(settlers)),
+    );
     assert!(
         events
             .iter()
@@ -1261,8 +1333,12 @@ fn lycanthropy_takes_settlers_and_the_stack_keeps_its_place() -> TestResult {
 #[test]
 fn lycanthropy_refuses_a_catapult() {
     let mut g = world();
-    let catapult = unit(&mut g, P0, "catapult", at(4, 4));
-    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(catapult)));
+    let catapult = unit(&mut g, P0, 37 /* catapult */, at(4, 4));
+    let events = cast(
+        &mut g,
+        173, /* lycanthropy */
+        Some(Target::Unit(catapult)),
+    );
     assert!(
         matches!(events.as_slice(), [Event::Rejected(_)]),
         "{events:?}"
@@ -1279,13 +1355,13 @@ fn lycanthropy_refuses_a_catapult() {
 #[test]
 fn lycanthropy_keeps_damage_enchantments_weapons_and_moves() -> TestResult {
     let mut g = world();
-    let u = unit(&mut g, P0, "high_men_cavalry", at(3, 3));
-    cast(&mut g, "eldritch_weapon", Some(Target::Unit(u)));
+    let u = unit(&mut g, P0, 107 /* high_men_cavalry */, at(3, 3));
+    cast(&mut g, 86 /* eldritch_weapon */, Some(Target::Unit(u)));
     g.world.insert_one(u, crate::unit::Hurt(6))?;
     g.world
         .insert_one(u, crate::unit::WeaponQuality(crate::unit::WEAPON_MITHRIL))?;
     g.world.insert_one(u, crate::unit::MovesLeft(3))?;
-    let events = cast(&mut g, "lycanthropy", Some(Target::Unit(u)));
+    let events = cast(&mut g, 173 /* lycanthropy */, Some(Target::Unit(u)));
     assert!(
         events
             .iter()

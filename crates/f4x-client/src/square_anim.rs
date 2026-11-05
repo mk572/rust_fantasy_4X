@@ -89,8 +89,8 @@ impl App {
     }
 
     /// For screenshots: the animation of `id` on the first city's square.
-    pub fn open_test_square(&mut self, id: &str, seconds: f64) {
-        let Some(spell) = self.game.content().rules.spells.id_of(id) else {
+    pub fn open_test_square(&mut self, id: u16, seconds: f64) {
+        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
             eprintln!("unknown spell {id}");
             return;
         };

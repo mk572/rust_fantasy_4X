@@ -30,8 +30,13 @@ fn world() -> Game {
     g
 }
 
-fn engineer(g: &mut Game, id: &str, pos: Position) -> hecs::Entity {
-    let u = g.content.rules.units.id_of(id).expect("id_of succeeds");
+fn engineer(g: &mut Game, id: u16, pos: Position) -> hecs::Entity {
+    let u = g
+        .content
+        .rules
+        .units
+        .id_numbered(id)
+        .expect("id_of succeeds");
     g.spawn_unit(P0, pos, u)
 }
 
@@ -123,7 +128,7 @@ fn a_road_on_a_node_takes_the_time_of_its_own_ground() {
 #[test]
 fn one_engineer_needs_three_turns_on_grassland() {
     let mut g = world();
-    let e = engineer(&mut g, "high_men_engineers", at(5, 5));
+    let e = engineer(&mut g, 110 /* high_men_engineers */, at(5, 5));
     let events = g.apply(Command::BuildRoad {
         units: vec![e],
         path: vec![],
@@ -142,8 +147,8 @@ fn one_engineer_needs_three_turns_on_grassland() {
 #[test]
 fn a_strong_stack_divides_the_time_but_never_below_one_turn() {
     let mut g = world();
-    let a = engineer(&mut g, "high_men_engineers", at(5, 5));
-    let b = engineer(&mut g, "dwarven_engineers", at(5, 5));
+    let a = engineer(&mut g, 110 /* high_men_engineers */, at(5, 5));
+    let b = engineer(&mut g, 78 /* dwarven_engineers */, at(5, 5));
     // 3 turns / (1 + 2) points = 1 turn.
     g.apply(Command::BuildRoad {
         units: vec![a, b],
@@ -153,8 +158,8 @@ fn a_strong_stack_divides_the_time_but_never_below_one_turn() {
     assert!(has_road(&g, at(5, 5)), "{events:?}");
     // A mountain takes 8 / 3 = 2 turns.
     set_terrain(&mut g, at(8, 8), TerrainClass::Mountains);
-    let c = engineer(&mut g, "high_men_engineers", at(8, 8));
-    let d = engineer(&mut g, "dwarven_engineers", at(8, 8));
+    let c = engineer(&mut g, 110 /* high_men_engineers */, at(8, 8));
+    let d = engineer(&mut g, 78 /* dwarven_engineers */, at(8, 8));
     g.apply(Command::BuildRoad {
         units: vec![c, d],
         path: vec![],
@@ -168,7 +173,7 @@ fn a_strong_stack_divides_the_time_but_never_below_one_turn() {
 #[test]
 fn engineers_work_along_a_path() {
     let mut g = world();
-    let e = engineer(&mut g, "dwarven_engineers", at(5, 5)); // 2 points: grassland takes 1 turn
+    let e = engineer(&mut g, 78 /* dwarven_engineers */, at(5, 5)); // 2 points: grassland takes 1 turn
     g.apply(Command::BuildRoad {
         units: vec![e],
         path: vec![at(5, 5), at(6, 5), at(7, 5)],
@@ -186,10 +191,10 @@ fn engineers_work_along_a_path() {
 #[test]
 fn bad_orders_are_refused_and_moving_away_cancels() -> TestResult {
     let mut g = world();
-    let spirit = engineer(&mut g, "warship", at(5, 5));
+    let spirit = engineer(&mut g, 38 /* warship */, at(5, 5));
     assert_eq!(g.build_road(&[spirit], vec![]), Err(RoadError::NoBuilders));
     assert_eq!(g.build_road(&[], vec![]), Err(RoadError::BadSelection));
-    let e = engineer(&mut g, "high_men_engineers", at(5, 5));
+    let e = engineer(&mut g, 110 /* high_men_engineers */, at(5, 5));
     assert_eq!(
         g.build_road(&[e], vec![at(5, 5), at(9, 9)]),
         Err(RoadError::BadPath)
@@ -231,7 +236,7 @@ fn enchanted_roads_and_myrror_roads_are_free() -> TestResult {
     );
     let events = g.enchant_roads(at(6, 6));
     assert!(!events.is_empty());
-    let boot = engineer(&mut g, "high_men_cavalry", at(5, 5));
+    let boot = engineer(&mut g, 107 /* high_men_cavalry */, at(5, 5));
     let _ = g.world.insert_one(boot, MovesLeft(2));
     g.move_stack(&[boot], at(6, 5))
         .map_err(|e| format!("{e:?}"))?;
@@ -244,7 +249,7 @@ fn enchanted_roads_and_myrror_roads_are_free() -> TestResult {
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.units().unit_moves_left(boot), 2);
     // Plain roads cost half a move; Myrror's are enchanted already.
-    let plain = engineer(&mut g, "high_men_cavalry", at(10, 8));
+    let plain = engineer(&mut g, 107 /* high_men_cavalry */, at(10, 8));
     {
         let grid = g
             .map
@@ -263,7 +268,7 @@ fn enchanted_roads_and_myrror_roads_are_free() -> TestResult {
         x: 10,
         y: 8,
     };
-    let m = engineer(&mut g, "high_men_cavalry", on_myrror);
+    let m = engineer(&mut g, 107 /* high_men_cavalry */, on_myrror);
     {
         let grid = g
             .map
@@ -283,7 +288,7 @@ fn enchanted_roads_and_myrror_roads_are_free() -> TestResult {
 #[test]
 fn road_work_and_enchanted_roads_survive_a_save() -> TestResult {
     let mut g = world();
-    let e = engineer(&mut g, "high_men_engineers", at(5, 5));
+    let e = engineer(&mut g, 110 /* high_men_engineers */, at(5, 5));
     g.build_road(&[e], vec![at(5, 5), at(6, 5)])
         .map_err(|e| format!("{e:?}"))?;
     g.process_road_work();
@@ -324,8 +329,8 @@ fn road_work_and_enchanted_roads_survive_a_save() -> TestResult {
 #[test]
 fn road_turns_count_the_stack_and_say_none_on_water() {
     let mut g = world();
-    let a = engineer(&mut g, "high_men_engineers", at(5, 5));
-    let b = engineer(&mut g, "dwarven_engineers", at(5, 5));
+    let a = engineer(&mut g, 110 /* high_men_engineers */, at(5, 5));
+    let b = engineer(&mut g, 78 /* dwarven_engineers */, at(5, 5));
     set_terrain(&mut g, at(6, 5), TerrainClass::Ocean);
     set_terrain(&mut g, at(7, 5), TerrainClass::Mountains);
     assert_eq!(g.road_turns(&[a], at(5, 5)), Some(3));

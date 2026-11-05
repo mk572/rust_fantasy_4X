@@ -165,6 +165,7 @@ mod tests {
     use crate::hero::game::tests::{at, set_state, state, world, P0, P1};
     use crate::hero::Fate;
     use crate::map::Plane;
+    use crate::rules::RealmId;
     use crate::testdir::TestResult;
     use crate::unit::Experience;
 
@@ -172,7 +173,7 @@ mod tests {
     /// and plenty of mana and skill. The last of the seven hero types is "Torin".
     fn caster() -> Game {
         let mut g = world();
-        g.init_wizard(P0, &[("life", 3)], &[], None)
+        g.init_wizard(P0, &[(RealmId::new(3 /* life */), 3)], &[], None)
             .expect("init_wizard succeeds");
         for number in [208, 212, 142, 133] {
             // summon_hero, summon_champion, incarnation, resurrection

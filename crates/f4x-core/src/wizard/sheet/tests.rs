@@ -2,12 +2,13 @@ use super::*;
 use crate::game::testutil::shipped;
 use crate::game::Game;
 use crate::player::PlayerId;
+use crate::rules::RealmId;
 use crate::testdir::TestResult;
 use crate::wizard::magic::{base_casting_skill, MagicError, PowerShares};
 
 const P0: PlayerId = PlayerId(0);
 
-fn game_with(books: &[(&str, u8)], retorts: &[Retort]) -> Game {
+fn game_with(books: &[(RealmId, u8)], retorts: &[Retort]) -> Game {
     let mut g = Game::new(5);
     g.content = shipped();
     g.add_player(P0, "W");
@@ -16,28 +17,41 @@ fn game_with(books: &[(&str, u8)], retorts: &[Retort]) -> Game {
     g
 }
 
-fn spell(g: &Game, id: &str) -> SpellId {
-    g.content.rules.spells.id_of(id).expect("id_of succeeds")
+fn spell(g: &Game, id: u16) -> SpellId {
+    g.content
+        .rules
+        .spells
+        .id_numbered(id)
+        .expect("id_of succeeds")
 }
 
 #[test]
 fn a_new_wizard_has_skill_from_books_and_an_archmage_more() -> TestResult {
-    let g = game_with(&[("life", 3), ("chaos", 2)], &[]);
+    let g = game_with(
+        &[
+            (RealmId::new(3 /* life */), 3),
+            (RealmId::new(2 /* chaos */), 2),
+        ],
+        &[],
+    );
     let w = g.wizard(P0).ok_or("wizard is missing")?;
     assert_eq!(w.total_books(), 5);
     // Twice the books: ten points of target, reached by the triangular steps.
     assert_eq!(w.casting_skill(), 10);
     assert_eq!(w.skill_left(), 10);
-    let g = game_with(&[("life", 3)], &[Retort::new(10) /* archmage */]);
+    let g = game_with(
+        &[(RealmId::new(3 /* life */), 3)],
+        &[Retort::new(10) /* archmage */],
+    );
     assert_eq!(
         g.wizard(P0).ok_or("wizard is missing")?.casting_skill(),
         2 * (3 + 5)
     );
-    let g = game_with(&[("life", 15)], &[]);
+    let g = game_with(&[(RealmId::new(3 /* life */), 15)], &[]);
     assert_eq!(
         g.wizard(P0)
             .ok_or("wizard is missing")?
-            .books_in(crate::game::testutil::realm("life")),
+            .books_in(crate::game::testutil::realm(3 /* life */)),
         11,
         "no more than eleven"
     );
@@ -47,7 +61,13 @@ fn a_new_wizard_has_skill_from_books_and_an_archmage_more() -> TestResult {
 #[test]
 fn the_library_depends_on_the_seed_and_the_books_alone() -> TestResult {
     let library = |seed| {
-        let mut g = game_with(&[("life", 4), ("chaos", 2)], &[]);
+        let mut g = game_with(
+            &[
+                (RealmId::new(3 /* life */), 4),
+                (RealmId::new(2 /* chaos */), 2),
+            ],
+            &[],
+        );
         let mut rng = GameRng::new(seed);
         let content = g.content.clone();
         let mut w = g.wizard_mut(P0).expect("wizard_mut succeeds");
@@ -66,8 +86,12 @@ fn the_library_depends_on_the_seed_and_the_books_alone() -> TestResult {
 
 #[test]
 fn the_cost_of_a_spell_follows_the_books_the_retorts_and_where_it_is_cast() -> TestResult {
-    let g = game_with(&[("nature", 1)], &[]);
-    let strength = g.content.rules.spells.get(spell(&g, "giant_strength"));
+    let g = game_with(&[(RealmId::new(0 /* nature */), 1)], &[]);
+    let strength = g
+        .content
+        .rules
+        .spells
+        .get(spell(&g, 4 /* giant_strength */));
     let base = strength.cost as i32;
     let bare = g.wizard(P0).ok_or("wizard is missing")?;
     assert_eq!(bare.casting_cost(strength, true, false), base);
@@ -77,7 +101,10 @@ fn the_cost_of_a_spell_follows_the_books_the_retorts_and_where_it_is_cast() -> T
         "five times as much away from a battle"
     );
     // Nine books of its realm: two steps of ten percent; the mastery adds fifteen.
-    let g = game_with(&[("nature", 9)], &[Retort::new(3) /* nature_mastery */]);
+    let g = game_with(
+        &[(RealmId::new(0 /* nature */), 9)],
+        &[Retort::new(3) /* nature_mastery */],
+    );
     let deep = g.wizard(P0).ok_or("wizard is missing")?;
     assert_eq!(deep.cost_reduction(strength), 20 + 15);
     let cost = deep.casting_cost(strength, true, false);
@@ -89,7 +116,7 @@ fn the_cost_of_a_spell_follows_the_books_the_retorts_and_where_it_is_cast() -> T
 
 #[test]
 fn the_power_is_split_by_the_percentages() -> TestResult {
-    let mut g = game_with(&[("life", 3)], &[]);
+    let mut g = game_with(&[(RealmId::new(3 /* life */), 3)], &[]);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .set_split(40, 30, 30)
@@ -115,9 +142,9 @@ fn the_power_is_split_by_the_percentages() -> TestResult {
 
 #[test]
 fn the_spell_of_mastery_is_offered_last_and_costs_less_for_each_spell_known() -> TestResult {
-    let mut g = game_with(&[("life", 1)], &[]);
+    let mut g = game_with(&[(RealmId::new(3 /* life */), 1)], &[]);
     let content = g.content.clone();
-    let mastery = spell(&g, "spell_of_mastery");
+    let mastery = spell(&g, 213 /* spell_of_mastery */);
     let mut rng = GameRng::new(3);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
@@ -153,13 +180,19 @@ fn the_spell_of_mastery_is_offered_last_and_costs_less_for_each_spell_known() ->
         .sum();
     assert!(cost < listed);
     assert_eq!(cost, (listed - half).max(0));
-    assert_ne!(w.research_cost(&content, spell(&g, "healing")), cost);
+    assert_ne!(
+        w.research_cost(&content, spell(&g, 125 /* healing */)),
+        cost
+    );
     Ok(())
 }
 
 #[test]
 fn research_runs_from_choice_to_a_known_spell() -> TestResult {
-    let mut g = game_with(&[("life", 3)], &[Retort::new(7) /* sage_master */]);
+    let mut g = game_with(
+        &[(RealmId::new(3 /* life */), 3)],
+        &[Retort::new(7) /* sage_master */],
+    );
     let content = g.content.clone();
     let mut rng = GameRng::new(3);
     g.wizard_mut(P0)
@@ -222,8 +255,8 @@ fn research_runs_from_choice_to_a_known_spell() -> TestResult {
 
 #[test]
 fn casting_is_paid_over_turns_and_cancelled_without_a_refund() -> TestResult {
-    let mut g = game_with(&[("life", 3)], &[]);
-    let strength = spell(&g, "giant_strength");
+    let mut g = game_with(&[(RealmId::new(3 /* life */), 3)], &[]);
+    let strength = spell(&g, 4 /* giant_strength */);
     assert_eq!(
         g.wizard(P0)
             .ok_or("wizard is missing")?
@@ -273,7 +306,7 @@ fn casting_is_paid_over_turns_and_cancelled_without_a_refund() -> TestResult {
 #[test]
 fn global_spells_can_be_turned_off_only_if_they_are_on() -> TestResult {
     let mut g = game_with(&[], &[]);
-    let s = spell(&g, "giant_strength");
+    let s = spell(&g, 4 /* giant_strength */);
     assert_eq!(g.turn_off(P0, s), Err(MagicError::NotAvailable));
     g.add_global(P0, s);
     assert_eq!(g.turn_off(P0, s), Ok(()));
@@ -283,10 +316,13 @@ fn global_spells_can_be_turned_off_only_if_they_are_on() -> TestResult {
 
 #[test]
 fn power_reaches_the_reserve_the_research_and_the_skill() -> TestResult {
-    let mut g = game_with(&[("life", 2)], &[Retort::new(10) /* archmage */]);
+    let mut g = game_with(
+        &[(RealmId::new(3 /* life */), 2)],
+        &[Retort::new(10) /* archmage */],
+    );
     let content = g.content.clone();
     let mut rng = GameRng::new(3);
-    let target = spell(&g, "healing");
+    let target = spell(&g, 125 /* healing */);
     let mut w = g.wizard_mut(P0).ok_or("wizard_mut is missing")?;
     w.refill_research(&content, &mut rng, 1);
     *w.get_mut::<Research>() = Research {

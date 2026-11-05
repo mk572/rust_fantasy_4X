@@ -57,12 +57,12 @@ impl Rig {
         found.unwrap_or_else(|| self.world.spawn(crate::player::bundle(id)))
     }
 
-    fn unit(&mut self, kind: &str, owner: PlayerId, pos: Position, hurt: u32) -> hecs::Entity {
+    fn unit(&mut self, kind: u16, owner: PlayerId, pos: Position, hurt: u32) -> hecs::Entity {
         let id = self
             .content
             .rules
             .units
-            .id_of(kind)
+            .id_numbered(kind)
             .expect("id_of succeeds");
         let serial = Serial(self.next);
         self.next += 1;
@@ -89,12 +89,12 @@ impl Rig {
         ))
     }
 
-    fn build(&mut self, city: hecs::Entity, id: &str) {
+    fn build(&mut self, city: hecs::Entity, id: u16) {
         let b: BuildingId = self
             .content
             .rules
             .buildings
-            .id_of(id)
+            .id_numbered(id)
             .expect("id_of succeeds");
         self.world
             .get::<&mut Buildings>(city)
@@ -103,8 +103,13 @@ impl Rig {
             .push(b);
     }
 
-    fn enchant(&mut self, city: hecs::Entity, id: &str, caster: PlayerId) {
-        let s = self.content.rules.spells.id_of(id).expect("id_of succeeds");
+    fn enchant(&mut self, city: hecs::Entity, id: u16, caster: PlayerId) {
+        let s = self
+            .content
+            .rules
+            .spells
+            .id_numbered(id)
+            .expect("id_of succeeds");
         let player = self.player(caster);
         let wizard = self
             .world
@@ -137,7 +142,7 @@ impl Rig {
 #[test]
 fn a_unit_in_the_field_mends_a_twentieth_of_its_hit_points() {
     let mut r = Rig::new();
-    let u = r.unit("gnoll_wolf_riders", P0, at(3, 3), 15);
+    let u = r.unit(88 /* gnoll_wolf_riders */, P0, at(3, 3), 15);
     let (plan, draws) = r.plan(1);
     assert_eq!(r.after(&plan, u), Some(15 - 1));
     assert_eq!(draws, 1, "one draw for the points left over");
@@ -147,9 +152,9 @@ fn a_unit_in_the_field_mends_a_twentieth_of_its_hit_points() {
 fn a_city_mends_a_tenth_and_an_animists_guild_a_sixth() {
     let mut r = Rig::new();
     let city = r.city(P0, at(5, 5));
-    let u = r.unit("gnoll_wolf_riders", P0, at(5, 5), 15);
+    let u = r.unit(88 /* gnoll_wolf_riders */, P0, at(5, 5), 15);
     assert_eq!(r.after(&r.plan(1).0, u), Some(15 - 2));
-    r.build(city, "animists_guild");
+    r.build(city, 10 /* animists_guild */);
     assert_eq!(
         r.after(&r.plan(1).0, u),
         Some(15 - 4),
@@ -161,18 +166,18 @@ fn a_city_mends_a_tenth_and_an_animists_guild_a_sixth() {
 fn a_city_of_another_owner_counts_as_the_field() {
     let mut r = Rig::new();
     let city = r.city(P1, at(5, 5));
-    r.build(city, "animists_guild");
-    let u = r.unit("gnoll_wolf_riders", P0, at(5, 5), 15);
+    r.build(city, 10 /* animists_guild */);
+    let u = r.unit(88 /* gnoll_wolf_riders */, P0, at(5, 5), 15);
     assert_eq!(r.after(&r.plan(1).0, u), Some(15 - 1));
 }
 
 #[test]
 fn a_healer_in_the_stack_gives_a_fifth_more_to_its_own_side_only() {
     let mut r = Rig::new();
-    let _healer = r.unit("healer", P0, at(3, 3), 0);
-    let mine = r.unit("gnoll_wolf_riders", P0, at(3, 3), 15);
-    let theirs = r.unit("gnoll_wolf_riders", P1, at(3, 3), 15);
-    let elsewhere = r.unit("gnoll_wolf_riders", P0, at(7, 7), 15);
+    let _healer = r.unit(7 /* healer */, P0, at(3, 3), 0);
+    let mine = r.unit(88 /* gnoll_wolf_riders */, P0, at(3, 3), 15);
+    let theirs = r.unit(88 /* gnoll_wolf_riders */, P1, at(3, 3), 15);
+    let elsewhere = r.unit(88 /* gnoll_wolf_riders */, P0, at(7, 7), 15);
     let (plan, _) = r.plan(1);
     assert_eq!(r.after(&plan, mine), Some(15 - 1 - 4));
     assert_eq!(r.after(&plan, theirs), Some(15 - 1));
@@ -183,10 +188,10 @@ fn a_healer_in_the_stack_gives_a_fifth_more_to_its_own_side_only() {
 fn regeneration_and_the_stream_of_life_heal_completely_without_a_draw() {
     let mut r = Rig::new();
     let city = r.city(P0, at(5, 5));
-    let field = r.unit("troll_war_trolls", P0, at(3, 3), 15);
-    let home = r.unit("gnoll_wolf_riders", P0, at(5, 5), 15);
-    let outside = r.unit("gnoll_wolf_riders", P0, at(3, 4), 15);
-    r.enchant(city, "stream_of_life", P0);
+    let field = r.unit(152 /* troll_war_trolls */, P0, at(3, 3), 15);
+    let home = r.unit(88 /* gnoll_wolf_riders */, P0, at(5, 5), 15);
+    let outside = r.unit(88 /* gnoll_wolf_riders */, P0, at(3, 4), 15);
+    r.enchant(city, 148 /* stream_of_life */, P0);
     let (plan, draws) = r.plan(1);
     assert_eq!(r.after(&plan, field), Some(0));
     assert_eq!(r.after(&plan, home), Some(0));
@@ -197,8 +202,8 @@ fn regeneration_and_the_stream_of_life_heal_completely_without_a_draw() {
 #[test]
 fn the_unhurt_and_the_dead_do_not_mend() {
     let mut r = Rig::new();
-    let well = r.unit("gnoll_wolf_riders", P0, at(3, 3), 0);
-    let raised = r.unit("gnoll_wolf_riders", P0, at(3, 4), 15);
+    let well = r.unit(88 /* gnoll_wolf_riders */, P0, at(3, 3), 0);
+    let raised = r.unit(88 /* gnoll_wolf_riders */, P0, at(3, 4), 15);
     crate::unit::undead::make_undead(&mut r.world, raised);
     let (plan, draws) = r.plan(1);
     assert_eq!(r.after(&plan, well), None);

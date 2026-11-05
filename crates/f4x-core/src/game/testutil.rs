@@ -120,55 +120,55 @@ fn load_shipped() -> Content {
 
 /// The number of the ability the content file calls `alias`, for tests that name abilities in
 /// lists and loops (the game code itself refers to abilities by number).
-pub fn ability(alias: &str) -> crate::rules::Ability {
+pub fn ability(alias: u16) -> crate::rules::Ability {
     shipped()
         .rules
         .abilities
-        .id_of(alias)
+        .id_numbered(alias)
         .unwrap_or_else(|| panic!("no ability {alias:?} in the shipped content"))
 }
 
 /// The number of the realm the content file calls `alias`, for tests that name realms (the game
 /// code itself refers to realms by number).
-pub fn realm(alias: &str) -> crate::rules::RealmId {
+pub fn realm(alias: u16) -> crate::rules::RealmId {
     shipped()
         .rules
         .realms
-        .id_of(alias)
+        .id_numbered(alias)
         .unwrap_or_else(|| panic!("no realm {alias:?} in the shipped content"))
 }
 
 /// The number of the realm the content file calls `alias`, for tests that set a definition's
 /// realm by hand.
-pub fn realm_ref(alias: &str) -> crate::rules::RealmId {
+pub fn realm_ref(alias: u16) -> crate::rules::RealmId {
     realm(alias)
 }
 
 /// The number of the ability the content file calls `alias`, for tests that name abilities in a
 /// condition or an effect.
-pub fn ability_ref(alias: &str) -> crate::rules::Ability {
+pub fn ability_ref(alias: u16) -> crate::rules::Ability {
     ability(alias)
 }
 
 /// The number of the spell the content file calls `alias`.
-pub fn spell_ref(alias: &str) -> crate::rules::SpellId {
+pub fn spell_ref(alias: u16) -> crate::rules::SpellId {
     shipped()
         .rules
         .spells
-        .id_of(alias)
+        .id_numbered(alias)
         .unwrap_or_else(|| panic!("no spell {alias:?} in the shipped content"))
 }
 
 /// The number of the race the content file calls `alias`.
-pub fn race_ref(alias: &str) -> crate::rules::RaceId {
+pub fn race_ref(alias: u16) -> crate::rules::RaceId {
     shipped()
         .rules
         .races
-        .id_of(alias)
+        .id_numbered(alias)
         .unwrap_or_else(|| panic!("no race {alias:?} in the shipped content"))
 }
 
 /// [`ability`] for a list of aliases.
-pub fn abilities(aliases: &[&str]) -> Vec<crate::rules::Ability> {
-    aliases.iter().map(|a| ability(a)).collect()
+pub fn abilities(aliases: &[u16]) -> Vec<crate::rules::Ability> {
+    aliases.iter().map(|&a| ability(a)).collect()
 }

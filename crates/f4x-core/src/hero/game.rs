@@ -560,7 +560,7 @@ pub(crate) mod tests {
         );
         assert_eq!(g.units().sage_research(P1), 0);
         // A spell paid over turns gets the heroes' skill on top of the wizard's own.
-        g.init_wizard(P0, &[("life", 2)], &[], None)
+        g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
             .map_err(|e| format!("{e:?}"))?;
         let spell = g
             .content
@@ -797,7 +797,7 @@ pub(crate) mod tests {
             .ok_or("wizard_mut is missing")?
             .get_mut::<crate::wizard::sheet::Books>()
             .0
-            .insert(crate::game::testutil::realm("death"), 1);
+            .insert(crate::game::testutil::realm(4 /* death */), 1);
         let mut seen = std::collections::BTreeSet::new();
         for _ in 0..2000 {
             if let Some(k) = g.pick_hero(P0, true, Class::Any) {

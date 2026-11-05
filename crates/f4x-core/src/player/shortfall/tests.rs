@@ -133,17 +133,22 @@ fn sea_world() -> Game {
     g
 }
 
-fn spawn(g: &mut Game, id: &str, pos: crate::map::Position) -> hecs::Entity {
-    let u = g.content.rules.units.id_of(id).expect("id_of succeeds");
+fn spawn(g: &mut Game, id: u16, pos: crate::map::Position) -> hecs::Entity {
+    let u = g
+        .content
+        .rules
+        .units
+        .id_numbered(id)
+        .expect("id_of succeeds");
     g.spawn_unit(P0, pos, u)
 }
 
 #[test]
 fn a_ship_let_go_at_sea_sails_to_the_shore_and_unloads() -> TestResult {
     let mut g = sea_world();
-    let boat = spawn(&mut g, "galley", at(15, 8));
+    let boat = spawn(&mut g, 36 /* galley */, at(15, 8));
     let riders: Vec<_> = (0..2)
-        .map(|_| spawn(&mut g, "high_men_cavalry", at(15, 8)))
+        .map(|_| spawn(&mut g, 107 /* high_men_cavalry */, at(15, 8)))
         .collect();
     for &r in &riders {
         let serial = g.units().serial_of(boat);
@@ -206,12 +211,12 @@ fn a_ship_let_go_at_sea_sails_to_the_shore_and_unloads() -> TestResult {
 #[test]
 fn a_ship_in_port_or_without_passengers_is_simply_released() -> TestResult {
     let mut g = sea_world();
-    let empty = spawn(&mut g, "galley", at(15, 4));
+    let empty = spawn(&mut g, 36 /* galley */, at(15, 4));
     g.release_troops(P0, &[empty], &[])
         .map_err(|e| format!("{e:?}"))?;
     assert!(!g.world.contains(empty));
-    let docked = spawn(&mut g, "galley", at(2, 4));
-    let rider = spawn(&mut g, "high_men_cavalry", at(2, 4));
+    let docked = spawn(&mut g, 36 /* galley */, at(2, 4));
+    let rider = spawn(&mut g, 107 /* high_men_cavalry */, at(2, 4));
     let serial = g.units().serial_of(docked);
     let _ = g
         .world
@@ -227,8 +232,8 @@ fn a_ship_in_port_or_without_passengers_is_simply_released() -> TestResult {
 #[test]
 fn a_ship_with_no_free_shore_loses_its_passengers() -> TestResult {
     let mut g = sea_world();
-    let boat = spawn(&mut g, "galley", at(15, 8));
-    let rider = spawn(&mut g, "high_men_cavalry", at(15, 8));
+    let boat = spawn(&mut g, 36 /* galley */, at(15, 8));
+    let rider = spawn(&mut g, 107 /* high_men_cavalry */, at(15, 8));
     let serial = g.units().serial_of(boat);
     let _ = g
         .world
@@ -306,8 +311,8 @@ fn a_unit_let_go_for_food_is_not_counted_for_gold() {
 #[test]
 fn a_marooned_ship_survives_saving() -> TestResult {
     let mut g = sea_world();
-    let boat = spawn(&mut g, "galley", at(15, 8));
-    let rider = spawn(&mut g, "high_men_cavalry", at(15, 8));
+    let boat = spawn(&mut g, 36 /* galley */, at(15, 8));
+    let rider = spawn(&mut g, 107 /* high_men_cavalry */, at(15, 8));
     let serial = g.units().serial_of(boat);
     let _ = g
         .world

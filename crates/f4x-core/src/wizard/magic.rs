@@ -282,7 +282,7 @@ mod tests {
     #[test]
     fn spells_of_a_realm_and_rarity_come_in_file_order() {
         let c = shipped();
-        for realm in ["nature", "chaos"] {
+        for realm in [0 /* nature */, 2 /* chaos */] {
             for rarity in [Rarity::Common, Rarity::VeryRare] {
                 let realm_id = crate::game::testutil::realm(realm);
                 let spells = spells_of(&c, realm_id, rarity);
@@ -305,7 +305,11 @@ mod tests {
     #[test]
     fn the_default_spells_are_the_realms_list_of_that_rarity() {
         let c = shipped();
-        let chaos = default_spells(&c, crate::game::testutil::realm("chaos"), Rarity::Common);
+        let chaos = default_spells(
+            &c,
+            crate::game::testutil::realm(2 /* chaos */),
+            Rarity::Common,
+        );
         let bolt = c.rules.spells.id_numbered(83).expect("fire_bolt");
         assert!(chaos.contains(&bolt));
         for s in &chaos {
@@ -319,7 +323,7 @@ mod tests {
             Rarity::VeryRare,
         ]
         .iter()
-        .map(|&r| default_spells(&c, crate::game::testutil::realm("chaos"), r).len())
+        .map(|&r| default_spells(&c, crate::game::testutil::realm(2 /* chaos */), r).len())
         .sum();
         let listed = c
             .rules

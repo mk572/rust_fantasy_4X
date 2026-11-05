@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     fn a_race_with_a_ship_yard_works_up_to_a_galley() {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         assert_eq!(port_builds(&g).as_deref(), Some("ship_wrights_guild"));
         build(&mut g, port(), &["ship_wrights_guild"]);
         assert_eq!(port_builds(&g).as_deref(), Some("sawmill"));
@@ -523,7 +523,7 @@ mod tests {
     #[test]
     fn a_race_without_a_ship_yard_stops_at_the_trireme() {
         // Beastmen may build a Ship Wrights Guild but no Ship Yard.
-        let mut g = game(COAST_CITY, "beastmen");
+        let mut g = game(COAST_CITY, 1 /* beastmen */);
         assert_eq!(port_builds(&g).as_deref(), Some("ship_wrights_guild"));
         build(&mut g, port(), &["ship_wrights_guild"]);
         assert_eq!(port_builds(&g).as_deref(), Some("trireme"));
@@ -532,7 +532,7 @@ mod tests {
     #[test]
     fn a_city_away_from_the_sea_is_never_offered_a_ship() {
         // With every ship building in place, an inland city still cannot build a ship.
-        let mut g = game(INLAND_CITY, "high_men");
+        let mut g = game(INLAND_CITY, 8 /* high_men */);
         let inland = at(INLAND_CITY.0, INLAND_CITY.1);
         build(
             &mut g,
@@ -546,7 +546,7 @@ mod tests {
 
     #[test]
     fn a_landing_is_a_shore_square_beside_the_city_and_the_sea_beside_that() {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.reveal_map(P0);
         let view = PlayerView::new(&g, P0);
         let (land, sea) = landing(&view, enemy()).expect("a landing");
@@ -559,14 +559,14 @@ mod tests {
 
     #[test]
     fn no_landing_is_known_for_ground_the_wizard_has_not_seen() {
-        let g = game(COAST_CITY, "high_men");
+        let g = game(COAST_CITY, 8 /* high_men */);
         let view = PlayerView::new(&g, P0);
         assert_eq!(landing(&view, enemy()), None);
     }
 
     #[test]
     fn the_plan_sails_from_the_coastal_city_to_a_landing_by_the_enemy() {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.reveal_map(P0);
         let mut ai = Ai::new(P0);
         ai.unreachable.push(enemy());
@@ -580,7 +580,7 @@ mod tests {
 
     #[test]
     fn there_is_no_plan_without_a_target_a_coast_or_after_a_failure() {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.reveal_map(P0);
         let mut ai = Ai::new(P0);
         // Nothing is unreachable by land.
@@ -593,7 +593,7 @@ mod tests {
         ai.naval_bad = vec![port()];
         assert_eq!(choose_plan(&ai, &PlayerView::new(&g, P0)), None);
         // No coastal city at all.
-        let mut inland = game(INLAND_CITY, "high_men");
+        let mut inland = game(INLAND_CITY, 8 /* high_men */);
         inland.reveal_map(P0);
         let mut ai = Ai::new(P0);
         ai.unreachable.push(enemy());
@@ -602,10 +602,10 @@ mod tests {
 
     #[test]
     fn a_ship_that_is_away_when_the_port_is_ready_is_called_home() {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.reveal_map(P0);
         let far = at(15, 6);
-        let ship = spawn(&mut g, P0, far, "galley", 1)[0];
+        let ship = spawn(&mut g, P0, far, 36 /* galley */, 1)[0];
         let mut ai = Ai::new(P0);
         ai.unreachable.push(enemy());
         run(&mut ai, &mut g, &mut Vec::new());
@@ -614,7 +614,7 @@ mod tests {
 
     #[test]
     fn a_galley_ferries_fighters_to_the_enemy_island() {
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         build(
             &mut g,
             port(),
@@ -623,9 +623,9 @@ mod tests {
         g.reveal_map(P0);
         // No upkeep trouble: the test world has no economy to pay for the army.
         g.treasury_mut(P0).unwrap().gold = 1_000_000;
-        spawn(&mut g, P0, port(), "galley", 1);
+        spawn(&mut g, P0, port(), 36 /* galley */, 1);
         // One stays as the garrison; four go.
-        let army = spawn(&mut g, P0, port(), "high_men_spearmen", 5);
+        let army = spawn(&mut g, P0, port(), 104 /* high_men_spearmen */, 5);
         let mut ai = Ai::new(P0);
         ai.unreachable.push(enemy());
         let mut ashore = 0;
@@ -659,8 +659,8 @@ mod tests {
 
     #[test]
     fn an_idle_ship_scouts_once_no_rival_is_known_and_the_land_is_explored() {
-        let mut g = game(COAST_CITY, "high_men");
-        let ship = spawn(&mut g, P0, port(), "galley", 1)[0];
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let ship = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];
         let serial = PlayerView::new(&g, P0).serial_of(ship);
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
@@ -672,15 +672,15 @@ mod tests {
 
     #[test]
     fn no_ship_scouts_while_a_rival_is_known_or_land_is_still_open() {
-        let mut g = game(COAST_CITY, "high_men");
-        spawn(&mut g, P0, port(), "galley", 1);
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut g, P0, port(), 36 /* galley */, 1);
         g.reveal_map(P0);
         let mut ai = Ai::new(P0);
         ai.frontier_closed = true;
         sea_scout(&mut ai, &mut g);
         assert!(!ai.sea_scouting, "the enemy city is known");
-        let mut fresh = game(COAST_CITY, "high_men");
-        spawn(&mut fresh, P0, port(), "galley", 1);
+        let mut fresh = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut fresh, P0, port(), 36 /* galley */, 1);
         let mut ai = Ai::new(P0);
         sea_scout(&mut ai, &mut fresh);
         assert!(!ai.sea_scouting, "land scouting is not over");

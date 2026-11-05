@@ -2,6 +2,7 @@ use super::*;
 use crate::game::save::Snapshot;
 use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
+use crate::rules::RealmId;
 use crate::testdir::TestResult;
 
 use crate::game::{Command, Rejection};
@@ -33,7 +34,7 @@ fn world() -> Game {
     }
     g.set_human(Some(P0));
     for id in [P0, P1, P2] {
-        g.init_wizard(id, &[("sorcery", 2)], &[], None)
+        g.init_wizard(id, &[(RealmId::new(1 /* sorcery */), 2)], &[], None)
             .expect("init_wizard succeeds");
     }
     g
@@ -99,26 +100,42 @@ fn the_scale_runs_from_hate_to_harmony() {
 fn start_relations_come_from_the_books() -> TestResult {
     let mut g = world();
     // Life against death: -(life + death) * 5, no shared realm.
-    g.init_wizard(P0, &[("life", 3)], &[], None)
+    g.init_wizard(P0, &[(RealmId::new(3 /* life */), 3)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
-    g.init_wizard(P1, &[("death", 2)], &[], None)
+    g.init_wizard(P1, &[(RealmId::new(4 /* death */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.relation(P0, P1), -25);
     // Shared realms add two for each book of the smaller; chaos costs two for the larger.
-    g.init_wizard(P0, &[("nature", 3), ("chaos", 1)], &[], None)
-        .map_err(|e| format!("{e:?}"))?;
-    g.init_wizard(P1, &[("nature", 2), ("chaos", 2)], &[], None)
-        .map_err(|e| format!("{e:?}"))?;
+    g.init_wizard(
+        P0,
+        &[
+            (RealmId::new(0 /* nature */), 3),
+            (RealmId::new(2 /* chaos */), 1),
+        ],
+        &[],
+        None,
+    )
+    .map_err(|e| format!("{e:?}"))?;
+    g.init_wizard(
+        P1,
+        &[
+            (RealmId::new(0 /* nature */), 2),
+            (RealmId::new(2 /* chaos */), 2),
+        ],
+        &[],
+        None,
+    )
+    .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.relation(P0, P1), 2);
     // Never below -90.
-    g.init_wizard(P0, &[("life", 5)], &[], None)
+    g.init_wizard(P0, &[(RealmId::new(3 /* life */), 5)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
-    g.init_wizard(P1, &[("death", 5)], &[], None)
+    g.init_wizard(P1, &[(RealmId::new(4 /* death */), 5)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.relation(P0, P1), -50);
-    g.init_wizard(P0, &[("life", 11)], &[], None)
+    g.init_wizard(P0, &[(RealmId::new(3 /* life */), 11)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
-    g.init_wizard(P1, &[("death", 11)], &[], None)
+    g.init_wizard(P1, &[(RealmId::new(4 /* death */), 11)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.relation(P0, P1), -90);
     Ok(())
@@ -1161,9 +1178,9 @@ fn enchantments_offend_the_wizards_they_offend() -> TestResult {
     for (a, b) in [(P0, P1), (P0, P2), (P1, P2)] {
         met(&mut g, a, b);
     }
-    g.init_wizard(P1, &[("life", 2)], &[], None)
+    g.init_wizard(P1, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
-    g.init_wizard(P2, &[("chaos", 2)], &[], None)
+    g.init_wizard(P2, &[(RealmId::new(2 /* chaos */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     for (a, b) in [(P1, P0), (P2, P0)] {
         set_rel(&mut g, a, b, 0);

@@ -641,16 +641,16 @@ mod tests {
 
     /// West's six swordsmen stand next to one of East's spearmen, away from every city.
     fn field() -> (Game, Vec<hecs::Entity>) {
-        let mut g = game(COAST_CITY, "high_men");
-        spawn(&mut g, P0, at(6, 3), "high_men_swordsmen", 6);
-        let defenders = spawn(&mut g, P1, at(7, 3), "high_men_spearmen", 1);
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut g, P0, at(6, 3), 105 /* high_men_swordsmen */, 6);
+        let defenders = spawn(&mut g, P1, at(7, 3), 104 /* high_men_spearmen */, 1);
         (g, defenders)
     }
 
     #[test]
     fn a_wizard_with_a_pact_is_not_marched_on_but_one_at_war_is() {
         use f4x_core::diplomacy::Treaty;
-        let mut g = game(COAST_CITY, "high_men");
+        let mut g = game(COAST_CITY, 8 /* high_men */);
         g.make_contact(P0, P1);
         let east = at(
             crate::testworld::ENEMY_CITY.0,

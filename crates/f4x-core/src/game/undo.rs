@@ -317,7 +317,7 @@ mod tests {
         g.fog.explore(P0, at(6, 6), 61, false);
         g.set_undo(true);
         // Our guardian takes the node: no dice, so it can be taken back.
-        let guard = spirit(&mut g, P0, at(6, 6), "guardian_spirit");
+        let guard = spirit(&mut g, P0, at(6, 6), 176 /* guardian_spirit */);
         g.apply(Command::Meld { units: vec![guard] });
         assert!(g.can_undo());
         g.undo().map_err(|e| format!("{e:?}"))?;
@@ -329,13 +329,13 @@ mod tests {
                 .find(|&u| {
                     g.units()
                         .unit_def(u)
-                        .is_some_and(|d| d.id == "guardian_spirit")
+                        .is_some_and(|d| d.num == 176 /* guardian_spirit */)
                 })
                 .ok_or("find is missing")?
         };
         g.apply(Command::Meld { units: vec![guard] });
         assert!(g.can_undo());
-        let rival = spirit(&mut g, PlayerId(1), at(6, 6), "magic_spirit");
+        let rival = spirit(&mut g, PlayerId(1), at(6, 6), 154 /* magic_spirit */);
         g.apply(Command::Meld { units: vec![rival] });
         assert!(!g.can_undo(), "the dice were thrown");
         Ok(())

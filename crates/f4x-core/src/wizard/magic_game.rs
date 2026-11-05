@@ -20,23 +20,6 @@ impl Game {
     pub fn init_wizard(
         &mut self,
         player: PlayerId,
-        books: &[(&str, u8)],
-        retorts: &[Retort],
-        start_spells: Option<&[SpellId]>,
-    ) -> Result<(), MagicError> {
-        let realms = &self.content.rules.realms;
-        let books = books
-            .iter()
-            .map(|&(name, n)| Some((realms.id_of(name)?, n)))
-            .collect::<Option<Vec<_>>>()
-            .ok_or(MagicError::UnknownRealm)?;
-        self.init_wizard_by_id(player, &books, retorts, start_spells)
-    }
-
-    /// [`Game::init_wizard`] with the realms as numbers.
-    pub fn init_wizard_by_id(
-        &mut self,
-        player: PlayerId,
         books: &[(RealmId, u8)],
         retorts: &[Retort],
         start_spells: Option<&[SpellId]>,

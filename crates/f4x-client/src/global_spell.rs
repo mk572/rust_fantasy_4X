@@ -86,8 +86,8 @@ impl App {
     }
 
     /// For screenshots: show `id` cast by player `by`, `seconds` into the animation.
-    pub fn open_test_global(&mut self, id: &str, by: u8, seconds: f64) {
-        let Some(spell) = self.game.content().rules.spells.id_of(id) else {
+    pub fn open_test_global(&mut self, id: u16, by: u8, seconds: f64) {
+        let Some(spell) = self.game.content().rules.spells.id_numbered(id) else {
             eprintln!("unknown spell {id}");
             return;
         };

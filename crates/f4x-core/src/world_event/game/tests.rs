@@ -2,6 +2,7 @@ use super::*;
 use crate::game::testutil::{num, shipped};
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
+use crate::rules::RealmId;
 use crate::testdir::TestResult;
 use crate::world_event::EventKind as K;
 
@@ -30,7 +31,7 @@ fn world() -> Game {
         g.add_player(id, if id == P0 { "Merlin" } else { "Rjak" });
         g.treasury_mut(id).expect("treasury_mut succeeds").gold = 1000;
         g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
-        g.init_wizard(id, &[("life", 2)], &[], None)
+        g.init_wizard(id, &[(RealmId::new(3 /* life */), 2)], &[], None)
             .expect("init_wizard succeeds");
     }
     g.set_human(Some(P0));
