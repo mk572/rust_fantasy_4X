@@ -26,8 +26,6 @@ pub enum Role {
     Realm(String),
     /// The flame frame over the summon scene.
     Summon,
-    /// The summon scene's background of a race, by the race's number.
-    SummonBackground(u8),
     /// The scroll of a city spell.
     CityScroll,
     /// The sparkle the learn-spell animation decodes the new spell's entry under.

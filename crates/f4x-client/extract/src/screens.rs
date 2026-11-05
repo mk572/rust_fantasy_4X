@@ -51,10 +51,8 @@ pub struct Placer {
     map_sprites: HashMap<usize, String>,
     /// `(lbx, entry)` -> the folder under `art/spells/` (`SpellArt::folders`).
     spells: BTreeMap<(String, usize), String>,
-    /// `MOODWIZ.LBX` entry -> wizard id.
-    mirrors: HashMap<usize, String>,
-    /// `LILWIZ.LBX` entry -> wizard id and the gem's colour (the banner number).
-    gems: HashMap<usize, (String, usize)>,
+    /// `(file, entry)` of a wizard's pictures -> the place in its folder (`art/wizards/<id>/<name>`).
+    wizards: HashMap<(String, usize), String>,
 }
 
 impl Placer {
@@ -78,19 +76,13 @@ impl Placer {
                 portraits.insert(p, u.id.clone());
             }
         }
-        let mut mirrors = HashMap::new();
-        let mut gems = HashMap::new();
+        let mut wizard_files = HashMap::new();
         for w in wizards {
-            mirrors.insert(w.pictures.mirror, w.id.clone());
-            // The original's five colours, then the five more (`make_banner_colours.py`).
-            for colour in 0..crate::wizard_art::GEM_COLOURS {
-                let entry = if colour < crate::wizard_art::ORIGINAL_GEMS {
-                    w.pictures.gem + colour
-                } else {
-                    crate::wizard_art::NEW_GEMS_AT + w.pictures.gem + colour
-                        - crate::wizard_art::ORIGINAL_GEMS
-                };
-                gems.insert(entry, (w.id.clone(), colour));
+            for (lbx, entry, name) in w.pictures.files() {
+                wizard_files.insert(
+                    (lbx.to_string(), entry),
+                    format!("art/wizards/{}/{name}", w.id),
+                );
             }
         }
         let map_sprites = crate::map_art::catalog_names()
@@ -103,8 +95,7 @@ impl Placer {
             portraits,
             map_sprites,
             spells: spell_art.folders(),
-            mirrors,
-            gems,
+            wizards: wizard_files,
         }
     }
 
@@ -135,6 +126,9 @@ impl Placer {
         if let Some(folder) = self.spells.get(&(lbx.to_string(), entry)) {
             return Some(format!("art/spells/{folder}/{lbx}_{entry:03}"));
         }
+        if let Some(place) = self.wizards.get(&(lbx.to_string(), entry)) {
+            return Some(place.clone());
+        }
         if let Some(place) = placement(&self.rules, lbx, entry) {
             return Some(format!("screens/{place}"));
         }
@@ -162,14 +156,6 @@ impl Placer {
                 .map_sprites
                 .get(&entry)
                 .map(|name| format!("art/map/{}/{name}", crate::map_art::folder(name))),
-            "moodwiz" => self
-                .mirrors
-                .get(&entry)
-                .map(|id| format!("art/wizards/{id}/mirror")),
-            "lilwiz" => self
-                .gems
-                .get(&entry)
-                .map(|(id, colour)| format!("art/wizards/{id}/gem_{colour}")),
             "portrait" => self
                 .portraits
                 .get(&entry)
@@ -466,6 +452,56 @@ mod tests {
             Some("art/wizards/raven/gem_7")
         );
         assert_eq!(p.place("lilwiz", 50), None);
+        Ok(())
+    }
+
+    #[test]
+    fn every_picture_of_a_wizard_goes_to_its_folder() -> TestResult {
+        let wizards = crate::wizard_art::parse_wizard_art(
+            r#"[(id: "merlin", pictures: (portrait: 0, lab: 0, talk: 24, sphere: 0, sphere_figure: 14, stand: 0, pieces: 18, seize: 33, hands: 17))]"#,
+        )?;
+        let p = Placer::new(rules()?, &[], &SpellArt::default(), &wizards);
+        let place = |lbx, entry| p.place(lbx, entry);
+        assert_eq!(
+            place("wizards", 0).as_deref(),
+            Some("art/wizards/merlin/portrait")
+        );
+        assert_eq!(
+            place("wizlab", 0).as_deref(),
+            Some("art/wizards/merlin/lab")
+        );
+        assert_eq!(
+            place("diplomac", 24).as_deref(),
+            Some("art/wizards/merlin/talk")
+        );
+        assert_eq!(
+            place("spellose", 0).as_deref(),
+            Some("art/wizards/merlin/sphere")
+        );
+        assert_eq!(
+            place("conquest", 0).as_deref(),
+            Some("art/wizards/merlin/stand")
+        );
+        // The hands are shared by several wizards: they stay with the win screen.
+        assert_eq!(place("win", 17).as_deref(), Some("screens/win/win_017"));
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizards_pictures_win_over_a_screens_catch_all_rule() -> TestResult {
+        // `screens.tsv` gives all of `diplomac` from 1 on to the diplomacy screen, and the wizard
+        // talking (24 + the wizard) is in that range: the wizard's folder is checked first.
+        let wizards = crate::wizard_art::load_wizard_art(&[&crate::testutil::content_dir()])?;
+        let p = Placer::new(rules()?, &[], &SpellArt::default(), &wizards);
+        for w in &wizards {
+            for (lbx, entry, name) in w.pictures.files() {
+                assert_eq!(
+                    p.place(lbx, entry),
+                    Some(format!("art/wizards/{}/{name}", w.id)),
+                    "{lbx} {entry}"
+                );
+            }
+        }
         Ok(())
     }
 }

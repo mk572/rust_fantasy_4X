@@ -53,6 +53,41 @@ pub struct WizardPictures {
     pub parade_rival: usize,
 }
 
+impl WizardPictures {
+    /// Every picture that is this wizard's alone, as `(file, entry, name)`: the name is the picture's
+    /// place in the wizard's folder (`art/wizards/<id>/<name>`). `hands` is left out: the same
+    /// hands go with several wizards.
+    pub fn files(&self) -> Vec<(&'static str, usize, String)> {
+        let mut files = vec![
+            ("wizards", self.portrait, "portrait".to_string()),
+            ("moodwiz", self.mirror, "mirror".to_string()),
+            ("diplomac", self.talk, "talk".to_string()),
+            ("wizlab", self.lab, "lab".to_string()),
+            ("halofam", self.hall, "hall".to_string()),
+            ("spellscr", self.summon, "summon".to_string()),
+            ("win", self.win, "win".to_string()),
+            ("lose", self.lose, "lose".to_string()),
+            ("spellose", self.sphere, "sphere".to_string()),
+            ("spellose", self.sphere_figure, "sphere_figure".to_string()),
+            ("conquest", self.stand, "stand".to_string()),
+            ("conquest", self.pieces, "pieces".to_string()),
+            ("conquest", self.seize, "seize".to_string()),
+            ("splmastr", self.parade, "parade".to_string()),
+            ("splmastr", self.parade_rival, "parade_rival".to_string()),
+        ];
+        // The gems, one for each banner colour: the original's five, then the five more.
+        for colour in 0..GEM_COLOURS {
+            let entry = if colour < ORIGINAL_GEMS {
+                self.gem + colour
+            } else {
+                NEW_GEMS_AT + self.gem + colour - ORIGINAL_GEMS
+            };
+            files.push(("lilwiz", entry, format!("gem_{colour}")));
+        }
+        files
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct WizardArt {
     pub id: String,
@@ -105,6 +140,18 @@ mod tests {
         assert_eq!(wizards[0].id, "merlin");
         assert_eq!(wizards[13].pictures.parade, 27);
         assert_eq!(wizards[1].pictures.hands, 20);
+        // No two pictures of the wizards share a file and an entry, and each has its own name.
+        let mut seen = BTreeSet::new();
+        for w in &wizards {
+            for (lbx, entry, name) in w.pictures.files() {
+                assert!(
+                    seen.insert((lbx, entry)),
+                    "{} {lbx} {entry} ({name}) is used twice",
+                    w.id
+                );
+            }
+        }
+        assert_eq!(seen.len(), 14 * 25);
         let twice = parse_wizard_art(r#"[(id: "a", pictures: ()), (id: "a", pictures: ())]"#)?;
         assert_eq!(validate_wizard_art(&twice).len(), 1);
         Ok(())
