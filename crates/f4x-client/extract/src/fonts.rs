@@ -165,7 +165,7 @@ pub fn extract_fonts(
 pub fn colour_sets_ron(palette_entry: &[u8], pal: &[u8]) -> String {
     let mut out = String::from(
         "// The original's 16 font colour sets (FONTS.LBX entry 2 at 0x300, through its base palette;\n\
-         // `f4x-tools extract-art` writes this file, `docs/extract-art.md` section 5). A glyph pixel\n\
+         // `f4x-extract art` writes this file, `docs/extract-art.md` section 5). A glyph pixel\n\
          // has a colour index 1 to 15 (0 is clear); set n gives index i the colour sets[n][i - 1] (r, g, b).\n\
          (\n    sets: [\n",
     );

@@ -72,7 +72,7 @@ def main():
     args = ap.parse_args()
     art = args.art
     if not (art / "map/banners.tsv").exists():
-        print(f"{art}/map/banners.tsv is missing (run extract-art first)", file=sys.stderr)
+        print(f"{art}/map/banners.tsv is missing (run f4x-extract art first)", file=sys.stderr)
         return 1
     total = 0
     for path in sorted((art / "map/locations").glob("*_neutral_*.png")):

@@ -1425,10 +1425,10 @@ impl App {
         match item {
             ProductionItem::Unit(id) => {
                 let def = self.game.content().rules.units.get(id).clone();
-                let Some(ty) = def
+                let Some(ty) = self
                     .art
-                    .as_ref()
-                    .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry as usize))
+                    .unit_entry(&def.id)
+                    .and_then(|(lbx, entry)| crate::art::unit_type_number(&lbx, entry))
                 else {
                     return;
                 };

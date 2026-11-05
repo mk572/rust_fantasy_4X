@@ -2,7 +2,7 @@
 """Rank the installed free fonts by how closely their pixels match the original's font styles.
 
 For each style of the original (assets-local/art/fonts/bmfont/style{N}.fnt, written by
-`f4x-tools extract-art`) and each TrueType or OpenType font in reference/fonts (installed by
+`f4x-extract art`) and each TrueType or OpenType font in reference/fonts (installed by
 scripts/install_fonts.py), the font is drawn without anti-aliasing at a range of sizes. A glyph
 is scored by the overlap of its pixels with the original glyph (intersection over union), after
 the best shared shift of the whole font. The score of a font is the mean over the printable
@@ -137,7 +137,7 @@ def main() -> int:
     originals = {}
     for style in styles:
         if not (args.art / f"style{style}.fnt").exists():
-            raise SystemExit(f"no {args.art}/style{style}.fnt: run f4x-tools extract-art first")
+            raise SystemExit(f"no {args.art}/style{style}.fnt: run f4x-extract art first")
         originals[style] = original_style(args.art, style)
     files = [f for f in font_files(args.fonts) if not args.only or args.only in str(f)]
     if not files:

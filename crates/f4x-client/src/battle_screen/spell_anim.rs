@@ -9,7 +9,7 @@ use crate::frame::Layout;
 use crate::spell_fx::{self, SpellFx};
 use battle_anim::{BOLT_FRAME, SPELL_FRAME};
 use f4x_core::rules::effects::Effect;
-use f4x_data::spell_art::Role;
+use f4x_extract::spell_art::Role;
 
 impl App {
     /// Turn a cast into the animation the original plays for it: `caster` is the wizard's side

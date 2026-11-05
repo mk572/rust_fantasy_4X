@@ -5,6 +5,7 @@ mod advisor;
 mod advisor_screen;
 mod army_screen;
 mod art;
+mod asset_check;
 mod attack_prompt;
 mod audio;
 mod autobuild_dialog;
@@ -238,7 +239,7 @@ struct Options {
     sheet_ask: bool,
     /// With `--shot`, end this many turns first.
     turns: u32,
-    /// Where the original's sounds are (`f4x-tools extract-audio`); none are played with `--shot`.
+    /// Where the original's sounds are (`f4x-extract audio`); none are played with `--shot`.
     audio: PathBuf,
     /// Play no sound.
     mute: bool,
@@ -589,25 +590,17 @@ async fn main() {
         }
     };
     let help = f4x_data::load_help(Path::new("content")).unwrap_or_default();
-    let spell_art = match f4x_data::spell_art::load_spell_art(
-        &[&options.content, Path::new("content")],
-        &content.rules,
-    ) {
-        Ok(a) => a,
+    let layers = [options.content.as_path(), Path::new("content")];
+    let (spell_art, unit_art, sounds) = match asset_check::load_tables(&layers, &content.rules) {
+        Ok(tables) => tables,
         Err(e) => {
-            eprintln!("could not load the spell art table: {e}");
+            eprintln!("could not load the asset tables: {e}");
             std::process::exit(1);
         }
     };
-    let sounds =
-        f4x_data::sound::load_sound(&[&options.content, Path::new("content")], &content.rules)
-            .unwrap_or_else(|e| {
-                eprintln!("could not load the sound table: {e}");
-                std::process::exit(1);
-            });
     let mut app = match App::new(
         content,
-        art::Art::load(options.assets, spell_art),
+        art::Art::load(options.assets, spell_art, unit_art),
         if options.seed_given {
             options.seed
         } else {
@@ -632,7 +625,7 @@ async fn main() {
         app.audio = audio::Audio::scan(&options.audio, sounds);
         if !app.audio.has_files() {
             eprintln!(
-                "no sound files in {}: the game is silent (f4x-tools extract-audio)",
+                "no sound files in {}: the game is silent (f4x-extract audio)",
                 options.audio.display()
             );
         }

@@ -1,6 +1,6 @@
 //! Sound effects and music. What plays when is `docs/sound.md`.
 //!
-//! The sounds are the original's, extracted by `f4x-tools extract-audio` to `assets-local/audio`
+//! The sounds are the original's, extracted by `f4x-extract audio` to `assets-local/audio`
 //! (`<archive>/NNN_name.ogg`); the repository ships none, and a game without them is silent. A
 //! sound is named by its archive and entry, as the original names it; `content/sound.ron` says
 //! which entry a spell or unit plays. Effects are played where things happen (a click, a
@@ -16,7 +16,7 @@ use std::task::{Context, Poll, Waker};
 
 use crate::input::Input;
 use f4x_core::player::PlayerId;
-use f4x_data::sound::SoundTable;
+use f4x_extract::sound::SoundTable;
 use macroquad::audio::{
     load_sound_from_bytes, play_sound, set_sound_volume, stop_sound, PlaySoundParams, Sound,
 };

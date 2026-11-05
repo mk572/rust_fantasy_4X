@@ -1,6 +1,6 @@
 # Map sprites
 
-`extract-art` writes the overland pictures to `assets-local/art/` (local only, never committed).
+`f4x-extract art` writes the overland pictures to `assets-local/art/` (local only, never committed).
 
 | Source | Used for |
 |---|---|

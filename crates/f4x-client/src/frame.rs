@@ -10,7 +10,7 @@ use crate::font::Style;
 use crate::input::Input;
 use f4x_core::map::Position;
 use f4x_core::text::Args;
-use f4x_data::spell_art::Role;
+use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 
 use crate::ui::{self, GOLD};

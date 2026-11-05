@@ -1,17 +1,14 @@
 //! Which pictures of the original's art belong to which spell (`content/spell_art.ron`).
 //!
 //! The table names each picture by its source `(lbx, entry)` and what it is used for. The client
-//! reads the pictures to draw from it and `extract-art` files them by it: a picture of one spell
+//! reads the pictures to draw from it and `f4x-extract art` files them by it: a picture of one spell
 //! goes to `assets-local/art/spells/<spell id>/`, one used by several spells (or by none, like the
 //! realm pictures and the summon backgrounds) to `spells/_shared/`.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use f4x_core::rules::Rules;
 use serde::Deserialize;
-
-use crate::ContentError;
 
 /// What a picture is used for.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
@@ -127,36 +124,36 @@ impl SpellArt {
     }
 }
 
-pub fn parse_spell_art(src: &str) -> Result<SpellArt, ContentError> {
-    ron::from_str(src).map_err(|e| ContentError::Parse(format!("spell_art.ron: {e}")))
+pub fn parse_spell_art(src: &str) -> Result<SpellArt, String> {
+    ron::from_str(src).map_err(|e| format!("spell_art.ron: {e}"))
 }
 
-/// Read `spell_art.ron` from the first of `dirs` that has it, and check it against the rules.
-pub fn load_spell_art(dirs: &[&Path], rules: &Rules) -> Result<SpellArt, ContentError> {
+/// Read `spell_art.ron` from the first of `dirs` that has it and check the table by itself; the client
+/// checks its ids against the rules (`asset_check`).
+pub fn load_spell_art(dirs: &[&Path]) -> Result<SpellArt, String> {
     let path = dirs
         .iter()
         .map(|d| d.join("spell_art.ron"))
         .find(|p| p.exists())
-        .ok_or_else(|| ContentError::Io("spell_art.ron: not found".into()))?;
-    let text = std::fs::read_to_string(&path)
-        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
+        .ok_or_else(|| "spell_art.ron: not found".to_string())?;
+    let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     let art = parse_spell_art(&text)?;
-    let problems = validate_spell_art(&art, rules);
+    let problems = validate_spell_art(&art);
     if problems.is_empty() {
         Ok(art)
     } else {
-        Err(ContentError::Invalid(problems))
+        Err(format!(
+            "invalid spell_art.ron:\n  - {}",
+            problems.join("\n  - ")
+        ))
     }
 }
 
-/// Problems with the table: a spell that does not exist, a spell with the same role twice, a
-/// shared role twice, a Call Chaos outcome out of range.
-pub fn validate_spell_art(art: &SpellArt, rules: &Rules) -> Vec<String> {
+/// Problems with the table: a spell with the same role twice, a shared role twice, a Call Chaos
+/// outcome out of range, a spell with no picture.
+pub fn validate_spell_art(art: &SpellArt) -> Vec<String> {
     let mut problems = Vec::new();
     for (id, pictures) in &art.spells {
-        if rules.spells.id_of(id).is_none() {
-            problems.push(format!("spell_art: unknown spell \"{id}\""));
-        }
         let mut seen = BTreeSet::new();
         for p in pictures {
             if !seen.insert(format!("{:?}", p.role)) {
@@ -175,11 +172,6 @@ pub fn validate_spell_art(art: &SpellArt, rules: &Rules) -> Vec<String> {
         if !seen.insert(format!("{:?}", p.role)) {
             problems.push(format!("spell_art: shared {:?} twice", p.role));
         }
-        if let Role::Realm(realm) = &p.role {
-            if rules.realms.id_of(realm).is_none() {
-                problems.push(format!("spell_art: unknown realm \"{realm}\""));
-            }
-        }
     }
     problems
 }
@@ -187,7 +179,7 @@ pub fn validate_spell_art(art: &SpellArt, rules: &Rules) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use crate::testutil::TestResult;
 
     fn picture(lbx: &str, entry: usize, role: Role) -> Picture {
         Picture {
@@ -253,10 +245,8 @@ mod tests {
     }
 
     #[test]
-    fn the_committed_table_names_real_spells_and_real_realms() -> TestResult {
-        let dir = crate::testutil::content_dir();
-        let content = crate::load_content(&dir)?;
-        let art = load_spell_art(&[&dir], &content.rules)?;
+    fn the_committed_table_reads_and_has_a_picture_for_each_realm() -> TestResult {
+        let art = load_spell_art(&[&crate::testutil::content_dir()])?;
         for realm in ["nature", "sorcery", "chaos", "life", "death", "arcane"] {
             assert!(art.realm(realm).is_some(), "no picture for {realm}");
         }
@@ -277,26 +267,19 @@ mod tests {
     }
 
     #[test]
-    fn a_table_with_an_unknown_spell_or_a_repeated_role_is_refused() -> TestResult {
-        let content = crate::load_content(&crate::testutil::content_dir())?;
+    fn a_table_with_a_repeated_role_is_refused() -> TestResult {
         let art = SpellArt {
             shared: vec![],
-            spells: BTreeMap::from([
-                (
-                    "no_such_spell".to_string(),
-                    vec![picture("specfx", 0, Role::Cast)],
-                ),
-                (
-                    "fire_bolt".to_string(),
-                    vec![
-                        picture("cmbtfx", 0, Role::Cast),
-                        picture("cmbtfx", 1, Role::Cast),
-                    ],
-                ),
-            ]),
+            spells: BTreeMap::from([(
+                "fire_bolt".to_string(),
+                vec![
+                    picture("cmbtfx", 0, Role::Cast),
+                    picture("cmbtfx", 1, Role::Cast),
+                ],
+            )]),
         };
-        let problems = validate_spell_art(&art, &content.rules);
-        assert_eq!(problems.len(), 2, "{problems:?}");
+        let problems = validate_spell_art(&art);
+        assert_eq!(problems.len(), 1, "{problems:?}");
         Ok(())
     }
 }

@@ -11,7 +11,7 @@ use crate::view::{App, HUMAN};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::{SpellId, SpellTarget};
-use f4x_data::spell_art::Role;
+use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 
 /// Two ticks of the original's 55 ms timer a stage.

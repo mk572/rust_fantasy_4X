@@ -94,7 +94,7 @@ def main():
         print("--turn takes one angle or five", file=sys.stderr)
         return 2
     if not args.source.exists():
-        print(f"{args.source} is missing (run extract-art first)", file=sys.stderr)
+        print(f"{args.source} is missing (run f4x-extract art first)", file=sys.stderr)
         return 1
     picture = cut_flags(Image.open(args.source), Image.open(GROUND))
     args.target.mkdir(parents=True, exist_ok=True)

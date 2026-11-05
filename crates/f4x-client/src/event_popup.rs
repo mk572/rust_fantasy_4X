@@ -14,7 +14,7 @@ use f4x_core::game::DispelSite;
 use f4x_core::rules::RealmId;
 use f4x_core::text::Args;
 use f4x_core::world_event::{compose, EventKind};
-use f4x_data::spell_art::Role;
+use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 
 use crate::audio::{music, Track};

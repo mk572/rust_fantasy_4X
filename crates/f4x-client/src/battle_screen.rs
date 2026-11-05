@@ -960,7 +960,7 @@ impl App {
     }
 
     /// What the original's table says the unit sounds like.
-    fn unit_sound(&self, ui: &mut BattleUi, id: usize) -> Option<f4x_data::sound::UnitSound> {
+    fn unit_sound(&self, ui: &mut BattleUi, id: usize) -> Option<f4x_extract::sound::UnitSound> {
         let unit = self.shown_unit(ui, id)?;
         let def = self.game.content().rules.units.get(unit.unit_id?);
         self.audio.table.units.get(&def.id).copied()
@@ -1885,7 +1885,7 @@ impl App {
         // steered one marked.
         let vortex_art = self
             .art
-            .spell_picture("magic_vortex", &f4x_data::spell_art::Role::Vortex);
+            .spell_picture("magic_vortex", &f4x_extract::spell_art::Role::Vortex);
         for (i, v) in battle.vortices.iter().enumerate() {
             let (sx, sy) = at(v.cell);
             let (cx, cy) = (sx + CELL_W * scale / 2.0, sy + CELL_H * scale / 2.0);
@@ -2000,10 +2000,12 @@ impl App {
         );
         diamond(sx, sy, scale, Color { a: fade, ..banner }, false);
         let units = &self.game.content().rules.units;
-        let art = u.unit_id.and_then(|id| units.get(id).art.clone());
+        let art = u
+            .unit_id
+            .and_then(|id| self.art.unit_entry(&units.get(id).id));
         let unit_type = art
             .as_ref()
-            .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry as usize));
+            .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry));
         let frame = if idle && vis.frame == 1 {
             (get_time() * 3.0) as u8 % 3
         } else {
@@ -2120,7 +2122,7 @@ impl App {
         }
         if !drew {
             // No figures extracted: the overland picture stands in.
-            let icon = art.and_then(|(lbx, entry)| self.art.picture(&lbx, entry as usize, 0));
+            let icon = art.and_then(|(lbx, entry)| self.art.picture(&lbx, entry, 0));
             let base = sy + CELL_H * scale;
             match icon {
                 Some(tex) => {

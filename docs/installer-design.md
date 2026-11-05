@@ -48,8 +48,8 @@ Measured or read in this repository:
 | # | Step | Tool today | Needs on the player's machine | Writes |
 |---|---|---|---|---|
 | 1 | Find the original game folder, check it is the right one | none (paths are defaults in scripts) | | |
-| 2 | Extract art (about 25,000 PNG) | `f4x-tools extract-art` (Rust) | nothing | `assets-local/art`, `assets-local/screens` (86 MB and 53 MB) |
-| 3 | Extract sound effects to OGG | `f4x-tools extract-audio` (Rust) | `oggenc` or `ffmpeg` for the encoding | `assets-local/audio` |
+| 2 | Extract art (about 25,000 PNG) | `f4x-extract art` (Rust) | nothing | `assets-local/art`, `assets-local/screens` (86 MB and 53 MB) |
+| 3 | Extract sound effects to OGG | `f4x-extract audio` (Rust) | `oggenc` or `ffmpeg` for the encoding | `assets-local/audio` |
 | 4 | Extract the 118 songs as XMI | same | nothing | `music/*.xmi` |
 | 5 | Local texts: city names, the wizards' diplomacy lines, event texts | `scripts/import_mom.py` (Python, developer only) | system Python and a clone of ReMoM: **not acceptable for players**, replaced by `f4x-import` (3.4) | `content-local/` (320 KB) |
 | 6 | Get the MT-32 ROMs | by hand | | `reference/Roland MT-32/rom-new/` |

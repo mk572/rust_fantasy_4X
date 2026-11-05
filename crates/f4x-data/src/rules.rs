@@ -402,9 +402,6 @@ fn check_lairs(r: &Rules, p: &mut Vec<String>) {
     }
 }
 
-/// Pictures in the original's `PORTRAIT.LBX`.
-const HERO_PORTRAITS: u32 = 40;
-
 /// The hero templates: one for each hero unit, no more, with real abilities and spells.
 fn check_hero_templates(r: &Rules, p: &mut Vec<String>) {
     if r.hero_templates.is_empty() {
@@ -702,16 +699,8 @@ fn check_units(r: &Rules, p: &mut Vec<String>) {
                 if u.race.is_some() {
                     p.push(format!("{who} is a Hero and must not have a race"));
                 }
-                match &u.hero {
-                    None => p.push(format!("{who} is a Hero and needs hero data")),
-                    Some(h) => {
-                        if h.portrait >= HERO_PORTRAITS {
-                            p.push(format!(
-                                "{who}: portrait {} is not one of the {HERO_PORTRAITS} hero portraits",
-                                h.portrait
-                            ));
-                        }
-                    }
+                if u.hero.is_none() {
+                    p.push(format!("{who} is a Hero and needs hero data"));
                 }
             }
             UnitKind::Summoned => {

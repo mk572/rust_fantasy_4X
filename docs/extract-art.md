@@ -15,7 +15,7 @@ Never commit a picture, an atlas, or a table that reproduces one; the game must 
 ## 1. Running it
 
 ```
-cargo run --release -p f4x-tools -- extract-art "reference/mom-classic/Master of Magic Official Release"
+cargo run --release -p f4x-extract -- art "reference/mom-classic/Master of Magic Official Release"
 ```
 
 Reads the original game's `.lbx` files (case-insensitive names) and writes `assets-local/art/`
@@ -84,15 +84,15 @@ assets-local/
 and names only). A labelled single entry is `<label>_FF.png` (`main_screen/button_done_00.png`),
 anything else `<lbx>_NNN_FF.png`. Shared pictures (the grey gems, the OK button of Load and
 Settings, `items`, `wizards`, `cityscap`) stay in `art/`. A picture two screens use lives with its main screen. To move more, add rows and run
-`extract-art` again: it writes the picture in its new place and deletes the old copy in `art/`.
+`f4x-extract art` again: it writes the picture in its new place and deletes the old copy in `art/`.
 Unit art is filed by the unit's id from `content/units.ron` (its `art` and hero `portrait`;
 unit type numbers: `unit_type_number`), so the extractor must run from the project directory.
 Spell art is filed by the table `content/spell_art.ron` (spell id to `(lbx, entry, role)`): a picture
 of one spell goes to `art/spells/<spell id>/<lbx>_NNN_FF.png`, one that several spells use or that
 belongs to none (the realm pictures, the summon scene, the boxes, the masks) to `art/spells/_shared/`,
-and the spell book's twelve pictures (`spells.lbx`) to `art/spells/_book/`. The 16x16 ability icons of the unit sheet (`SPECIAL.LBX` and the first 34 entries of `SPECIAL2.LBX`, the rest of that file is the small book and its marks) go to `art/unit_ability/NNN_FF.png`, numbered by the picture index of the original's `special_seg` (`SPECIAL2.LBX` continues at 111). The summon scene's creature pictures (`MONSTER.LBX`: the entry is the summoned unit's number minus the Magic Spirit's, 44 and 45 the heroes, 46 the sword) go to `art/summoning/NNN_FF.png`; entries 36, 37, 38, 40 and 47 are 1x1 stubs in the original's own file, which `extract-art` skips, so Floating Island, Phantom Beast, Phantom Warriors and Air Elemental show no figure (no translucency or palette swap is involved). A picture no spell names
-stays in `art/<lbx>/`. `extract-art` writes this layout from the start. For art already extracted,
-`f4x-tools refile-art [art-dir]` moves the files to where the current rules put them (screens, units
+and the spell book's twelve pictures (`spells.lbx`) to `art/spells/_book/`. The 16x16 ability icons of the unit sheet (`SPECIAL.LBX` and the first 34 entries of `SPECIAL2.LBX`, the rest of that file is the small book and its marks) go to `art/unit_ability/NNN_FF.png`, numbered by the picture index of the original's `special_seg` (`SPECIAL2.LBX` continues at 111). The summon scene's creature pictures (`MONSTER.LBX`: the entry is the summoned unit's number minus the Magic Spirit's, 44 and 45 the heroes, 46 the sword) go to `art/summoning/NNN_FF.png`; entries 36, 37, 38, 40 and 47 are 1x1 stubs in the original's own file, which `f4x-extract art` skips, so Floating Island, Phantom Beast, Phantom Warriors and Air Elemental show no figure (no translucency or palette swap is involved). A picture no spell names
+stays in `art/<lbx>/`. `f4x-extract art` writes this layout from the start. For art already extracted,
+`f4x-extract refile [art-dir]` moves the files to where the current rules put them (screens, units
 and spells alike; it touches only pictures whose place changed, takes their `_cycle` and `_banner`
 masks along and rewrites `index.tsv`) without reading the game files again. `manifest.tsv` stays
 `lbx entry frames width height`; `index.tsv` is where the paths are. The client reads the table
@@ -156,7 +156,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   `Cycle_Palette_Color(index, min r,g,b, max r,g,b, step)` (`Fonts.c`) moves the entry back and
   forth between two colours (6-bit values), one step per call. ReMoM only ever cycles index 198:
   from dark to bright red (40..63) on the main screen and menu (`LoadScr.c` starts it only when it returns to the main screen), from black to red
-  (0..55) in combat, and between pale greys or blues in the spell book. `extract-art` writes the
+  (0..55) in combat, and between pale greys or blues in the spell book. `f4x-extract art` writes the
   pixels that use index 198 as a white `<picture>_<frame>_cycle.png` mask beside the picture (only
   where there are any: the intro, the wizard portraits, the menu and load screens, the end
   animations). The client (`cycle.rs`, `draw_pic_tinted`) draws the mask over the picture in the
@@ -165,11 +165,11 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   The combat range is not wired up: no combat picture uses the index. The spell book ranges are
   (`cycle::SMALL_BOOK`, `BIG_BOOK`): the book's pictures hold no index 198 pixels; it is the text of the
   spell being cast or researched that is drawn in it, so the client tints that text.
-- **The node box's colour slide (task 357):** `Lair_Confirm` slides palette entries 247 to 254 (`VGA_SlideColors`) while a node's question is up. For `reload.lbx` entries 9 to 19 `extract-art` writes eight overlays, `<name>_<frame>_slide_<step>.png`, holding only those pixels in the colours of that step; the client (`site_prompt.rs`) draws one over the picture, step by time.
+- **The node box's colour slide (task 357):** `Lair_Confirm` slides palette entries 247 to 254 (`VGA_SlideColors`) while a node's question is up. For `reload.lbx` entries 9 to 19 `f4x-extract art` writes eight overlays, `<name>_<frame>_slide_<step>.png`, holding only those pixels in the colours of that step; the client (`site_prompt.rs`) draws one over the picture, step by time.
 - **Glass (translucent) pixels:** in a picture that brings no palette of its own, the indexes
   from 232 on are not colours but tints: each blends a colour into what is under it
   (`Create_Remap_Palette`; the 24 blocks, six-bit red, green, blue and a percent, are in the base
-  palette's entry, 5376 bytes in; block 0 is the shadow, black at 50 percent). `extract-art` writes
+  palette's entry, 5376 bytes in; block 0 is the shadow, black at 50 percent). `f4x-extract art` writes
   them as translucent pixels (tree and figure shadows, the glow of spell pictures). A picture with
   an embedded palette (the battle panel, the Info window) uses those indexes for colours.
 - **Also not reproduced:** fades, and the colour remapping for disabled or "ghost" drawing.
@@ -181,7 +181,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
 
 ## 5. Fonts
 
-`extract-art` decodes `FONTS.LBX` entry 0 into **eight font styles** of 96 glyphs (ASCII 32 to
+`f4x-extract art` decodes `FONTS.LBX` entry 0 into **eight font styles** of 96 glyphs (ASCII 32 to
 127), `fonts/style0.png` to `style7.png`, and `fonts/metrics.tsv`.
 
 - Glyph data is stored by columns and uses **colour indexes 1 to 15**, not palette indexes. A
@@ -208,7 +208,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   (draw its letters from the `.fnt` and `.png` with Pillow, enlarged 4 times). They are original art, so they stay local like
   the rest of `assets-local`.
 - `fonts/colour_sets.ron` is the colour set table itself (set, colour index 1 to 15, RGB). It is only numbers, so a
-  copy is committed as `content/font_colour_sets.ron`; after `extract-art` copy it over (`cp
+  copy is committed as `content/font_colour_sets.ron`; after `f4x-extract art` copy it over (`cp
   assets-local/art/fonts/colour_sets.ron content/font_colour_sets.ron`). A test in `f4x-data` checks its shape.
 - In the client (`art.rs`, `frame.rs`): `Art::text_width`, `Art::nearest_font_set(style, colour)`
   (the set whose average colour is closest to the colour wanted) and `Art::draw_bitmap_text`;
@@ -337,7 +337,7 @@ The table is a guide. For anything with an index not listed here read the loader
 
 ## 10. What is not extracted
 
-- **Sound and music** are not pictures: `f4x-tools extract-audio` writes them to `assets-local/audio` (task 362,
+- **Sound and music** are not pictures: `f4x-extract audio` writes them to `assets-local/audio` (task 362,
   `local-assets.md`, `sound.md`).
 - **Data tables, read by `scripts/import_mom.py` into `content/` (names and numbers):**
   `SPELLDAT`, `BUILDDAT`, `ITEMDATA`, `TERRSTAT`, and `HELP`/`HLPENTRY` and `CITYNAME` into

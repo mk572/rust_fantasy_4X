@@ -20,7 +20,7 @@ use terminal::Key;
 
 const USAGE: &str = "usage: xmi-play [options] SONG.xmi|FOLDER
 
-Render an XMI song (the original's music, from `f4x-tools extract-audio`) on an emulated Roland MT-32
+Render an XMI song (the original's music, from `f4x-extract audio`) on an emulated Roland MT-32
 and play it with afplay. Given a folder, it shows a menu of its .xmi files instead:
 Up/Down/PageUp/PageDown choose, Enter plays, Esc stops the song and returns to the menu,
 Esc or q in the menu leaves.

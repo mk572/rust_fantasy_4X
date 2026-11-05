@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A pixel editor for the BMFont files that `f4x-tools extract-art` writes.
+"""A pixel editor for the BMFont files that `f4x-extract art` writes.
 
 Starts a local web server (127.0.0.1 only) that serves scripts/font_editor.html and reads and
 writes the `.fnt` and `.png` pairs in assets-local/art/fonts/bmfont. A glyph is edited in the
@@ -10,7 +10,7 @@ keeps the original beside it as `style2.png.orig` and `style2.fnt.orig`. Needs P
     .venv/bin/python scripts/font_editor.py              then open http://127.0.0.1:8765
     .venv/bin/python scripts/font_editor.py --dir DIR --port 9000
 
-Re-running `extract-art` overwrites the files: keep the edits you want by copying the `.fnt` and
+Re-running `f4x-extract art` overwrites the files: keep the edits you want by copying the `.fnt` and
 `.png` out, or port them into `crates/f4x-tools/src/accent.rs`.
 """
 
@@ -179,7 +179,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     if not any(args.dir.glob("style*.fnt")):
-        raise SystemExit(f"no style*.fnt in {args.dir}: run f4x-tools extract-art first")
+        raise SystemExit(f"no style*.fnt in {args.dir}: run f4x-extract art first")
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(args.dir))
     print(f"font editor for {args.dir}: http://127.0.0.1:{args.port}  (Ctrl+C to stop)")
     try:

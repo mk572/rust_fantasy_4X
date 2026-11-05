@@ -1,0 +1,27 @@
+[package]
+name = "f4x-extract"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+# Everything that reads the original game's files (pictures, sounds, fonts) and writes the client's
+# local assets, plus the definitions of which game element uses which asset. No game logic: it
+# depends on no other crate of the workspace.
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "f4x-extract"
+path = "src/main.rs"
+required-features = ["extract"]
+
+[features]
+default = ["extract"]
+extract = ["dep:png", "dep:fontdue"]
+
+[dependencies]
+png = { workspace = true, optional = true }
+fontdue = { version = "0.9", optional = true }
+serde.workspace = true
+ron.workspace = true

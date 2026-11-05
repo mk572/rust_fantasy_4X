@@ -10,7 +10,7 @@ use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::SpellId;
-use f4x_data::spell_art::Role;
+use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 
 /// Where the portrait goes (as in the diplomacy room).

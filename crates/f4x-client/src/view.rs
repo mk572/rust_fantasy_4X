@@ -2439,7 +2439,11 @@ impl App {
             .find(|u| self.selection.contains(u))
             .unwrap_or(units[0]);
         let owner = self.game.units().unit_owner(top).map_or(u8::MAX, |o| o.0);
-        let art = self.game.units().unit_def(top).and_then(|d| d.art.clone());
+        let art = self
+            .game
+            .units()
+            .unit_def(top)
+            .and_then(|d| self.art.unit_entry(&d.id));
         // The stack's top unit on the background of its owner's banner
         // (`art::background_entry`), the figure one pixel in.
         let banner = self
@@ -2474,14 +2478,11 @@ impl App {
             WHITE
         };
         let icon = art.and_then(|(lbx, entry)| match glow {
-            Some(realm) => self.art.unit_glow(
-                &lbx,
-                entry as usize,
-                banner,
-                realm,
-                crate::map_slide::glow_step(),
-            ),
-            None => self.art.unit_picture(&lbx, entry as usize, banner),
+            Some(realm) => {
+                self.art
+                    .unit_glow(&lbx, entry, banner, realm, crate::map_slide::glow_step())
+            }
+            None => self.art.unit_picture(&lbx, entry, banner),
         });
         match icon {
             Some(tex) => draw_texture_ex(

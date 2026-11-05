@@ -1,4 +1,4 @@
-//! `extract-art`: decode every picture in the original game's `.lbx` files to PNG.
+//! `f4x-extract art`: decode every picture in the original game's `.lbx` files to PNG.
 //!
 //! The output is for local development only (it goes in the gitignored
 //! `assets-local/`). A `manifest.tsv` lists `lbx  entry  frames  width  height`
@@ -11,8 +11,9 @@ use std::path::Path;
 
 use crate::image::{decode, to_rgba, to_rgba_glass, vga_to_rgb8};
 use crate::lbx::Lbx;
-use crate::screens::{self, Placer, UnitArt};
-use f4x_data::spell_art::SpellArt;
+use crate::screens::{self, Placer};
+use crate::spell_art::SpellArt;
+use crate::unit_art::UnitArt;
 
 /// FONTS.LBX entry 2 starts with the 256-colour base palette (6-bit RGB).
 const PALETTE_ENTRY: usize = 2;
@@ -274,7 +275,7 @@ fn extract_terrain(
     };
     let data = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     let lbx = Lbx::parse(&data).map_err(|e| format!("TERRAIN.LBX: {e}"))?;
-    if lbx.len() == 0 {
+    if lbx.is_empty() {
         return Ok(0);
     }
     let dir = out_dir.join("map/tiles");
@@ -424,7 +425,7 @@ fn extract_autotile(game_dir: &Path, dir: &Path) -> Result<(), String> {
     };
     let data = fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     let lbx = Lbx::parse(&data).map_err(|e| format!("TERRTYPE.LBX: {e}"))?;
-    if lbx.len() == 0 {
+    if lbx.is_empty() {
         return Ok(());
     }
     // A 4-byte header (record count, record size) precedes the tables.
@@ -703,7 +704,7 @@ pub fn extract(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use crate::testutil::TestResult;
 
     #[test]
     fn the_buttons_of_a_screen_take_its_backgrounds_palette() {

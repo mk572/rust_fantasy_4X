@@ -141,7 +141,7 @@ Not started. Intended design:
 
 ### Placeholder art and original data (local only)
 - The original game's art, music, help text and code are copyrighted and have never been released under a free licence, so they are never committed or distributed with this project. Its rules data (races, units, buildings, spells, items, abilities, realms, level paths and rule values) is committed in `content/`.
-- For development, art is extracted locally from the author's own purchased copy (Steam "Master of Magic Classic") by `f4x-tools extract-art` into `assets-local/art`. Rules data is imported by `scripts/import_mom.py` into `content/` (committed), and the help text into `content-local/`. The original game files and the ReMoM reverse-engineering clone live in `reference/` inside the project directory, which is gitignored (and so is `*.lbx`, as a second safeguard).
+- For development, art is extracted locally from the author's own purchased copy (Steam "Master of Magic Classic") by `f4x-extract art` into `assets-local/art`. Rules data is imported by `scripts/import_mom.py` into `content/` (committed), and the help text into `content-local/`. The original game files and the ReMoM reverse-engineering clone live in `reference/` inside the project directory, which is gitignored (and so is `*.lbx`, as a second safeguard).
 - The client loads local art if present and falls back to flat colours otherwise, so the game runs and CI passes without it.
 - Before any public release, all placeholders must be replaced with original art or art under a free licence. Treat anything in `assets-local/` and `content-local/` as temporary. The rules data in `content/` stays: it is ours to change.
 

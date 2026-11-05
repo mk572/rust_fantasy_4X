@@ -90,7 +90,11 @@ impl App {
         selected: bool,
         tint: Color,
     ) {
-        let Some((lbx, entry)) = self.game.units().unit_def(unit).and_then(|d| d.art.clone())
+        let Some((lbx, entry)) = self
+            .game
+            .units()
+            .unit_def(unit)
+            .and_then(|d| self.art.unit_entry(&d.id))
         else {
             return;
         };
@@ -108,14 +112,11 @@ impl App {
             );
         }
         let tex = match self.unit_glow_realm(unit) {
-            Some(realm) => self.art.unit_glow(
-                &lbx,
-                entry as usize,
-                banner,
-                realm,
-                crate::map_slide::glow_step(),
-            ),
-            None => self.art.unit_picture(&lbx, entry as usize, banner),
+            Some(realm) => {
+                self.art
+                    .unit_glow(&lbx, entry, banner, realm, crate::map_slide::glow_step())
+            }
+            None => self.art.unit_picture(&lbx, entry, banner),
         };
         if let Some(tex) = tex {
             let to = lay.point(at.0 + 1.0, at.1 + 1.0);

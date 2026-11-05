@@ -81,14 +81,18 @@ impl App {
     /// A unit that is no hero has no portrait: its map sprite, a half larger, centred in the
     /// portrait's frame.
     fn draw_sprite_in_frame(&mut self, lay: &Layout, unit: hecs::Entity, at: (f32, f32)) {
-        let Some((lbx, entry)) = self.game.units().unit_def(unit).and_then(|d| d.art.clone())
+        let Some((lbx, entry)) = self
+            .game
+            .units()
+            .unit_def(unit)
+            .and_then(|d| self.art.unit_entry(&d.id))
         else {
             return;
         };
         let banner = self
             .banner_index(HUMAN.0)
             .min(f4x_core::player::NEUTRAL_BANNER);
-        let Some(tex) = self.art.unit_picture(&lbx, entry as usize, banner) else {
+        let Some(tex) = self.art.unit_picture(&lbx, entry, banner) else {
             return;
         };
         let size = crate::resolution::logical_size(tex) * 1.5;
@@ -134,7 +138,7 @@ impl App {
             .game
             .units()
             .unit_def(unit)
-            .and_then(|d| d.hero.as_ref().map(|h| h.portrait as usize));
+            .and_then(|d| self.art.hero_portrait(&d.id));
         if let Some(p) = portrait {
             self.draw_pic(&lay, "portrait", p, 0, bx + 10.0, by + 10.0);
         } else {

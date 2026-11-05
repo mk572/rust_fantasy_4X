@@ -2,8 +2,6 @@
 
 pub mod rules;
 pub mod save;
-pub mod sound;
-pub mod spell_art;
 #[cfg(test)]
 mod testutil;
 
@@ -445,7 +443,7 @@ mod tests {
         std::fs::read_to_string(path).expect("content/terrain.ron exists")
     }
 
-    /// `content/font_colour_sets.ron`, written by `f4x-tools extract-art`: sixteen colour sets of
+    /// `content/font_colour_sets.ron`, written by `f4x-extract art`: sixteen colour sets of
     /// fifteen colours each (a glyph colour index 1 to 15 picks one), the first one white.
     #[test]
     fn the_font_colour_sets_are_sixteen_sets_of_fifteen_colours() {
@@ -535,7 +533,7 @@ mod tests {
         // The bow hero is the Elven Archer and the melee hero the Knight (docs/divergences.md).
         assert_eq!(hero("elven_archer").kind, HeroKind::Bow);
         assert_eq!(hero("knight").kind, HeroKind::Warrior);
-        assert_eq!(hero("chosen").portrait, 0);
+
         let t = |id: &str| {
             c.rules
                 .hero_templates

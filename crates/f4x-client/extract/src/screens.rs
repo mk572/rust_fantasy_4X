@@ -1,4 +1,4 @@
-//! Where `extract-art` puts a picture: the ones that belong to one screen alone (`screens.tsv`) in
+//! Where `f4x-extract art` puts a picture: the ones that belong to one screen alone (`screens.tsv`) in
 //! `assets-local/screens/<screen>/`, unit art (overland picture, combat figures, hero portrait) in
 //! `assets-local/art/units/<unit id>/`, a spell's pictures (`content/spell_art.ron`) in
 //! `assets-local/art/spells/<spell id>/` (`_shared` for those of several spells, `_book` for the
@@ -6,7 +6,8 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use f4x_data::spell_art::{self, SpellArt};
+use crate::spell_art::{self, SpellArt};
+use crate::unit_art::UnitArt;
 
 /// The table, compiled in so the extractor needs no extra file.
 const TABLE: &str = include_str!("../screens.tsv");
@@ -49,13 +50,6 @@ pub struct Placer {
     map_sprites: HashMap<usize, String>,
     /// `(lbx, entry)` -> the folder under `art/spells/` (`SpellArt::folders`).
     spells: BTreeMap<(String, usize), String>,
-}
-
-/// What the placer needs to know of a unit: its id, its art `(file, entry)` and its portrait.
-pub struct UnitArt {
-    pub id: String,
-    pub art: Option<(String, usize)>,
-    pub portrait: Option<usize>,
 }
 
 impl Placer {
@@ -194,8 +188,8 @@ pub fn rules() -> Result<Vec<Rule>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutil::{content_dir, shipped};
-    use f4x_core::testdir::TestResult;
+    use crate::testutil::content_dir;
+    use crate::testutil::TestResult;
 
     #[test]
     fn unit_art_goes_to_the_units_folder() -> TestResult {
@@ -273,7 +267,7 @@ mod tests {
 
     #[test]
     fn spell_art_goes_to_the_spell_folder_or_the_shared_one() -> TestResult {
-        let art = f4x_data::spell_art::parse_spell_art(
+        let art = crate::spell_art::parse_spell_art(
             r#"(
                 shared: [(lbx: "specfx", entry: 49, role: Sparkle)],
                 spells: {
@@ -310,7 +304,7 @@ mod tests {
         let p = Placer::new(
             rules()?,
             &[],
-            &f4x_data::spell_art::parse_spell_art("(shared: [], spells: {})")?,
+            &crate::spell_art::parse_spell_art("(shared: [], spells: {})")?,
         );
         assert_eq!(p.place("monster", 10).as_deref(), Some("art/summoning/010"));
         Ok(())
@@ -321,7 +315,7 @@ mod tests {
         let p = Placer::new(
             rules()?,
             &[],
-            &f4x_data::spell_art::parse_spell_art("(shared: [], spells: {})")?,
+            &crate::spell_art::parse_spell_art("(shared: [], spells: {})")?,
         );
         assert_eq!(
             p.place("special", 5).as_deref(),
@@ -341,7 +335,7 @@ mod tests {
 
     #[test]
     fn no_spell_picture_is_also_claimed_by_a_screen() -> TestResult {
-        let art = f4x_data::spell_art::load_spell_art(&[&content_dir()], &shipped().rules)?;
+        let art = crate::spell_art::load_spell_art(&[&content_dir()])?;
         let rules = rules()?;
         for (lbx, entry) in art.folders().keys() {
             assert_eq!(

@@ -620,14 +620,14 @@ impl App {
                 }),
         );
         let hero = self.hero_view(unit, &mut specials);
-        let art = def.art.clone();
+        let art = self.art.unit_entry(&def.id);
         Some(Sheet {
             source: Source::Overland(unit),
             race: self.sheet_race(def),
             name: def.name.clone(),
             unit_type: art
                 .as_ref()
-                .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry as usize)),
+                .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry)),
             banner: self.banner_index(owner.0),
             figures: figures as u32,
             water: matches!(def.movement, MovementType::Sailing | MovementType::Swimming)
@@ -664,7 +664,8 @@ impl App {
     /// original lists the items first, then the abilities); `None` for any other unit.
     fn hero_view(&self, unit: hecs::Entity, specials: &mut Vec<Special>) -> Option<HeroView> {
         let units = self.game.units();
-        let hero = units.unit_def(unit)?.hero.as_ref()?;
+        let def = units.unit_def(unit)?;
+        let hero = def.hero.as_ref()?;
         let held = self.game.items().hero_items(unit);
         let lines = hero
             .slots()
@@ -683,7 +684,7 @@ impl App {
             });
         specials.splice(0..0, lines);
         Some(HeroView {
-            portrait: hero.portrait as usize,
+            portrait: self.art.hero_portrait(&def.id).unwrap_or(0),
             name: units.hero_name(unit).unwrap_or_default(),
         })
     }
@@ -758,10 +759,10 @@ impl App {
             source: Source::Offer,
             race: self.sheet_race(def),
             name: def.name.clone(),
-            unit_type: def
+            unit_type: self
                 .art
-                .as_ref()
-                .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry as usize)),
+                .unit_entry(&def.id)
+                .and_then(|(lbx, entry)| crate::art::unit_type_number(&lbx, entry)),
             banner: self.banner_index(owner),
             figures: stat(Stat::Figures).max(1) as u32,
             water: matches!(def.movement, MovementType::Sailing | MovementType::Swimming)
@@ -836,14 +837,14 @@ impl App {
             enchantments,
         });
         let owner = battle.player_of(u.side).0;
-        let art = def.art.clone();
+        let art = self.art.unit_entry(&def.id);
         Some(Sheet {
             source: Source::Battle(id),
             race: self.sheet_race(def),
             name: def.name.clone(),
             unit_type: art
                 .as_ref()
-                .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry as usize)),
+                .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry)),
             banner: self.banner_index(owner),
             figures: u.figures,
             water: matches!(def.movement, MovementType::Sailing | MovementType::Swimming),

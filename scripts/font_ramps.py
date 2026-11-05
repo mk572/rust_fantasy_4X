@@ -3,11 +3,11 @@
 
 A ramp is a colour set of its own (the original fills its custom set 15 per call): the palette
 indexes in RAMPS below, resolved to RGB through the base palette plus the colours of the screen's
-own picture (`docs/palette_screens.tsv`). The atlases of `f4x-tools extract-art` append the ramps
+own picture (`docs/palette_screens.tsv`). The atlases of `f4x-extract art` append the ramps
 after the original's 16 sets, so a ramp is set 16 + its position, which `font_ramp.rs` names.
 Usage: scripts/font_ramps.py   (writes content/font_colour_ramps.ron and crates/f4x-client/src/font_ramp.rs)
 NOTE: the finished fonts in crates/f4x-client/assets/fonts are hand-edited (accents and more) and are the
-source of truth. Do not copy extract-art output over them (docs/extract-art.md section 5).
+source of truth. Do not copy f4x-extract art output over them (docs/extract-art.md section 5).
 A set entry the screen leaves out repeats its last colour (the original leaves the earlier colours there).
 """
 import csv

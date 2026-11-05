@@ -362,7 +362,7 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let art = self
             .art
-            .spell_picture("magic_vortex", &f4x_data::spell_art::Role::Vortex);
+            .spell_picture("magic_vortex", &f4x_extract::spell_art::Role::Vortex);
         let figure = art.and_then(|(lbx, entry)| {
             let frames = self.art.frames(&lbx, entry).max(1);
             self.art
@@ -402,9 +402,10 @@ impl App {
         let owner = battle.player_of(u.side).0;
         let banner = self.banner_index(owner);
         let units = &self.game.content().rules.units;
-        let art = u.unit_id.and_then(|id| units.get(id).art.clone());
-        let unit_type =
-            art.and_then(|(lbx, entry)| crate::art::unit_type_number(&lbx, entry as usize));
+        let art = u
+            .unit_id
+            .and_then(|id| self.art.unit_entry(&units.get(id).id));
+        let unit_type = art.and_then(|(lbx, entry)| crate::art::unit_type_number(&lbx, entry));
         if let Some(tex) = unit_type.and_then(|t| self.art.figure(t, 2, 0, banner).cloned()) {
             // Centred in the 32 by 25 box at (84, 173).
             let at = lay.point(

@@ -9,7 +9,8 @@ use f4x_core::content::Content;
 use f4x_core::game::setting::SettingsDef;
 use f4x_core::text::Texts;
 
-use f4x_data::spell_art::SpellArt;
+use f4x_extract::spell_art::SpellArt;
+use f4x_extract::unit_art::UnitArt;
 
 use crate::art::Art;
 use crate::view::App;
@@ -52,8 +53,16 @@ pub(crate) mod shipped {
     pub(crate) fn spell_art() -> &'static SpellArt {
         static CELL: OnceLock<SpellArt> = OnceLock::new();
         CELL.get_or_init(|| {
-            f4x_data::spell_art::load_spell_art(&[Path::new(CONTENT)], &content().rules)
+            f4x_extract::spell_art::load_spell_art(&[Path::new(CONTENT)])
                 .expect("the shipped spell art loads")
+        })
+    }
+
+    pub(crate) fn unit_art() -> &'static Vec<UnitArt> {
+        static CELL: OnceLock<Vec<UnitArt>> = OnceLock::new();
+        CELL.get_or_init(|| {
+            f4x_extract::unit_art::load_unit_art(&[Path::new(CONTENT)])
+                .expect("the shipped unit art loads")
         })
     }
 }
@@ -64,6 +73,7 @@ impl App {
         let art = Art::load(
             PathBuf::from("no-art-in-tests"),
             shipped::spell_art().clone(),
+            shipped::unit_art().clone(),
         );
         App::new(shipped::content().clone(), art, 1)
             .expect("a new game starts on the shipped content")

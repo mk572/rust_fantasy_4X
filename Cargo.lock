@@ -2617,12 +2617,14 @@ dependencies = [
  "f4x-console",
  "f4x-core",
  "f4x-data",
+ "f4x-extract",
  "hecs",
  "macroquad",
  "macroquad_bitmap_font_engine",
  "rand 0.8.8",
  "rand_pcg",
  "ron",
+ "serde",
 ]
 
 [[package]]
@@ -2658,6 +2660,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "f4x-extract"
+version = "0.0.3"
+dependencies = [
+ "fontdue",
+ "png 0.17.16",
+ "ron",
+ "serde",
+]
+
+[[package]]
 name = "f4x-learn"
 version = "0.0.3"
 dependencies = [
@@ -2681,8 +2693,6 @@ dependencies = [
  "f4x-core",
  "f4x-data",
  "f4x-learn",
- "fontdue",
- "png 0.17.16",
  "ron",
  "serde",
 ]

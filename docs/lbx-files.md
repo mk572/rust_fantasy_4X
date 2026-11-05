@@ -46,7 +46,7 @@ in the program, which ReMoM transcribes (`UNITTYPE.c`, `NewGame.c`, `_wizard_pre
 | Screens and ends | `RESOURCE` (pictures of boxes and lairs), `SCROLL`, `LOAD`, `RELOAD`, `EVENTS`, `HALOFAM`, `CONQUEST`, `WIN`, `LOSE` | |
 | Intro | `INTRO`, `INTROSFX`, `INTROSND` | `INTRO` is played by `intro_screen.rs` (task 85); the intro song waits for task 363 |
 | Fonts | `FONTS` | `extract-art.md` section 5 |
-| Sound and music | `SOUNDFX`, `NEWSOUND`, `CMBTSND`, `MUSIC`, `SNDDRV` | `f4x-tools extract-audio`; `SNDDRV` is the sound driver, not read |
+| Sound and music | `SOUNDFX`, `NEWSOUND`, `CMBTSND`, `MUSIC`, `SNDDRV` | `f4x-extract audio`; `SNDDRV` is the sound driver, not read |
 
 `SPLMASTR.LBX` (32 entries, 1.5 MB) is the art of the Spell of Mastery's cast and loss animations
 (`SPLMASTR.c`), not data; `SPECIAL` and `SPECIAL2` are interface art (`LOADER.c` loads them by entry);

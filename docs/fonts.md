@@ -31,7 +31,7 @@ Example: check a font against the game's text, then make the BMFont:
   writes `spleen_8x16_16.fnt` and `.png`.
 - Use a pixel font at its design size (or a whole multiple): at any other size the glyphs blur or break.
 - The BMFont has one colour set (white). Tint it with the engine's `Ink::Tint`; a font with the original's 16 sets
-  only comes from `extract-art`.
+  only comes from `f4x-extract art`.
 - The tool rasterises with `fontdue` (already in the tree through macroquad); a variable font is drawn at its
   default instance.
 - A font's licence goes with the generated files: copy its `OFL.txt` (or equivalent) next to them when they are

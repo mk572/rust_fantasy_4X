@@ -344,7 +344,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   `figure16`: fifteen unit types to a file, eight directions per type, four frames; the type number
   is the unit's `units1` entry, or 120 plus its `units2` entry) at the original's positions for
   the number of figures, on a diamond in the owner's banner colour, with a health bar and the
-  number of figures. `extract-art` writes a `_banner.png` mask beside every figure frame (palette
+  number of figures. `f4x-extract art` writes a `_banner.png` mask beside every figure frame (palette
   indexes 214-218) so the client can paint the owner's banner shades.
 - **Animation** (`battle_anim.rs`): the core finishes an order at once; the screen keeps the battle
   from before it and plays the events one after another (walk 0.2 s a square with the walk

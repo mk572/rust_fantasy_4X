@@ -123,9 +123,13 @@ impl App {
             frame.h,
             Color::new(c.r * 0.5, c.g * 0.3, c.b * 0.3, 1.0),
         );
-        let art = self.game.units().unit_def(unit).and_then(|d| d.art.clone());
+        let art = self
+            .game
+            .units()
+            .unit_def(unit)
+            .and_then(|d| self.art.unit_entry(&d.id));
         if let Some((lbx, entry)) = art {
-            self.draw_pic(lay, &lbx, entry as usize, 0, x + 2.0, y + 2.0);
+            self.draw_pic(lay, &lbx, entry, 0, x + 2.0, y + 2.0);
         }
         let (hp, max) = self.game.units().unit_hits(unit);
         if hp < max && max > 0 {

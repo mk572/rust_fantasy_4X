@@ -12,7 +12,7 @@ use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::rules::SpellId;
 use f4x_core::text::Args;
-use f4x_data::spell_art::Role;
+use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;

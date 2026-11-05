@@ -13,12 +13,12 @@ const COLUMNS: usize = 16;
 /// Up to this coverage (0 to 255) a pixel counts as covered when the font is not smoothed.
 const THRESHOLD: u8 = 128;
 
-pub const USAGE: &str = "  f4x-tools font-chars [text-dir]             the characters the game's text uses, on one line
+pub const USAGE: &str = "  f4x-extract font-chars [text-dir]             the characters the game's text uses, on one line
                                               (default: content/text)
-  f4x-tools font-coverage <font> [--chars FILE]
+  f4x-extract font-coverage <font> [--chars FILE]
                                               which of the wanted characters the font lacks (default:
                                               Basic Latin, Latin-1 and Latin Extended-A; FILE adds its characters)
-  f4x-tools font-bmfont <font> [<px>] [--out DIR] [--name NAME] [--chars FILE] [--smooth]
+  f4x-extract font-bmfont <font> [<px>] [--out DIR] [--name NAME] [--chars FILE] [--smooth]
                                               rasterise the font at <px> (a .bdf bitmap font has its own size)
                                               into DIR/NAME.fnt and .png
                                               (default out: assets-local/fonts; --smooth keeps the

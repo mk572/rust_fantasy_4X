@@ -5,7 +5,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use f4x_data::spell_art::{Role, SpellArt};
+use f4x_extract::spell_art::{Role, SpellArt};
+use f4x_extract::unit_art::UnitArt;
 use macroquad::prelude::*;
 use macroquad_bitmap_font_engine::{self as bm, BmFont, FontData};
 
@@ -18,7 +19,7 @@ pub mod terrain_type {
     pub const MYRROR_OFFSET: usize = 762;
 }
 
-/// What the original's minimap is painted with (`extract-art` writes `minimap.tsv`): a colour
+/// What the original's minimap is painted with (`f4x-extract art` writes `minimap.tsv`): a colour
 /// for each terrain type, and for the cities of each banner and of the neutral ones, the box
 /// round the map window and the mark on the selected stack.
 #[derive(Default)]
@@ -164,7 +165,7 @@ pub struct Art {
     textures: HashMap<PathBuf, Option<Texture2D>>,
     /// Pictures filed away from `art/<lbx>/`: lbx -> entry -> path from `assets-local/` without
     /// the frame (`screens/<screen>/<name>`, `art/units/<id>/<name>`; `index.tsv`, written by
-    /// `extract-art`).
+    /// `f4x-extract art`).
     placed: HashMap<String, HashMap<usize, String>>,
     /// Terrain type by neighbour mask, five tables of 256 (`map/tiles/autotile.tsv`): 0 for
     /// ocean shores, deserts and tundra, 1 for mountains and hills.
@@ -190,6 +191,8 @@ pub struct Art {
     unit_glows: HashMap<(String, usize, u8, usize, usize), Option<Texture2D>>,
     /// Which pictures belong to which spell (`content/spell_art.ron`).
     spells: SpellArt,
+    /// Which picture each unit and hero uses, by the unit's id (`content/unit_art.ron`).
+    units: HashMap<String, UnitArt>,
 }
 
 /// Banner names in the order the game numbers them.
@@ -230,7 +233,7 @@ pub fn gem_entry(portrait: u8, banner: u8) -> Option<usize> {
 }
 
 impl Art {
-    pub fn load(dir: PathBuf, spells: SpellArt) -> Self {
+    pub fn load(dir: PathBuf, spells: SpellArt, units: Vec<UnitArt>) -> Self {
         let types = std::fs::read_to_string(dir.join("map/tiles/types.tsv")).unwrap_or_default();
         let type_tiles = types
             .lines()
@@ -303,7 +306,18 @@ impl Art {
             masked: HashMap::new(),
             pixels: HashMap::new(),
             spells,
+            units: units.into_iter().map(|u| (u.id.clone(), u)).collect(),
         }
+    }
+
+    /// The `(file, entry)` of a unit's picture in the original's unit files, by the unit's id.
+    pub fn unit_entry(&self, unit: &str) -> Option<(String, usize)> {
+        self.units.get(unit)?.art.clone()
+    }
+
+    /// A hero's entry in the original's `PORTRAIT.LBX`, by the unit's id.
+    pub fn hero_portrait(&self, unit: &str) -> Option<usize> {
+        self.units.get(unit)?.portrait
     }
 
     /// Which pictures belong to which spell.
@@ -416,7 +430,7 @@ impl Art {
             .map_or_else(|| default_banner_color(banner), |s| s[2])
     }
 
-    /// A picture recoloured for a banner by `extract-art` (`map/locations/<name>_<banner>_<frame>.png`).
+    /// A picture recoloured for a banner by `f4x-extract art` (`map/locations/<name>_<banner>_<frame>.png`).
     pub fn banner_picture(&mut self, name: &str, banner: u8, frame: usize) -> Option<&Texture2D> {
         let colour = BANNER_NAMES
             .get(usize::from(banner))
@@ -617,7 +631,7 @@ impl Art {
         self.load_painted(&lbx, entry, usize::from(frame), banner)
     }
 
-    /// A picture painted in a banner's shades, where `extract-art` wrote a banner mask for it.
+    /// A picture painted in a banner's shades, where `f4x-extract art` wrote a banner mask for it.
     fn load_painted(&self, lbx: &str, entry: usize, frame: usize, banner: u8) -> Option<Texture2D> {
         let base = picture_base(&self.placed, lbx, entry, frame);
         let mut img = read_image(&self.dir, Path::new(&format!("{base}.png")))?;
@@ -643,7 +657,7 @@ impl Art {
     }
 
     /// A ground tile's file under the art directory (`map/tiles/<plane>/<kind>/tile_NNNN.png`,
-    /// where `extract-art` put it).
+    /// where `f4x-extract art` put it).
     fn tile_path(&self, terrain_type: usize, tile: usize) -> PathBuf {
         let folder = self
             .type_dirs
@@ -818,7 +832,7 @@ fn parse_placed(text: &str) -> HashMap<String, HashMap<usize, String>> {
 }
 
 /// Where a picture's file is, relative to the art directory and without `.png`: in
-/// `art/<lbx>/`, or in the folder `extract-art` filed it under (a screen's, a unit's).
+/// `art/<lbx>/`, or in the folder `f4x-extract art` filed it under (a screen's, a unit's).
 fn picture_base(
     placed: &HashMap<String, HashMap<usize, String>>,
     lbx: &str,
@@ -1017,7 +1031,7 @@ mod figure_tests {
     /// glyphs.
     #[test]
     fn the_embedded_fonts_parse_and_cover_ascii() {
-        let art = Art::load(PathBuf::new(), SpellArt::default());
+        let art = Art::load(PathBuf::new(), SpellArt::default(), Vec::new());
         for (n, font) in art.font_data.iter().enumerate() {
             assert_eq!(font.page, format!("style{n}.png"));
             for ascii in 32u8..=126 {

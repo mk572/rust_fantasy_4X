@@ -349,7 +349,7 @@ items are destroyed" and, for Disintegrate and the like, "gone for good" in the 
 ## 6. Where the assets are and what to import
 
 Paths are in `reference/mom-classic/Master of Magic Official Release/` (the LBX files); art goes
-through `extract-art` (already extracted to `assets-local/art/<lbx>/<entry>_<frame>.png`).
+through `f4x-extract art` (already extracted to `assets-local/art/<lbx>/<entry>_<frame>.png`).
 
 | What | File and entry | Status |
 |---|---|---|

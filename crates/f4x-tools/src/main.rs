@@ -4,21 +4,10 @@
 //! `image`, `lbx`, `map_art`, `metrics`, `refile`, `screens`, `versus`); this file only dispatches
 //! to them and prints, and `soak`, `console_cmd` and `cache` are run by hand (`f4x-tools soak`).
 
-mod accent;
-mod art;
-mod audio;
-mod bdf;
 mod cache;
 mod console_cmd;
 mod contestant;
-mod font_tool;
-mod fonts;
-mod image;
-mod lbx;
-mod map_art;
 mod metrics;
-mod refile;
-mod screens;
 mod soak;
 #[cfg(test)]
 mod testutil;
@@ -44,16 +33,6 @@ const USAGE: &str = "usage:
   f4x-tools start-stats [runs] [content-dir]  neutral cities and fortress distances of whole new games
                                               (seeds 1..=runs, default 100, 3 wizards, standard size)
                                               with our rules and with the original's, as a table
-  f4x-tools extract-art <game-dir> [out-dir]  decode the original game's pictures to PNG
-                                              (default out: assets-local/art)
-  f4x-tools extract-audio <game-dir> [out-dir]
-                                              the original's effects as OGG (needs oggenc or ffmpeg), its music as XMI
-                                              (default out: assets-local/audio)
-  f4x-tools refile-art [out-dir]              move already extracted pictures to where extract-art
-                                              would put them now (default: assets-local/art)
-  f4x-tools font-chars | font-coverage | font-bmfont
-                                              the characters the text uses, what a font lacks, a TrueType font as
-                                              a BMFont (run one without arguments for its usage; docs/fonts.md)
   f4x-tools console [--seed N] [--load FILE] [--content DIR] [--access readonly|play|full] [--script FILE]
                                               run the game from text commands (stdin, or the script)
   f4x-tools soak [--seeds A..B] [--turns N] [--players 2..5] [--every N] [--refused-log FILE]
@@ -78,40 +57,6 @@ fn main() -> ExitCode {
         Some("soak") => soak::run(&args[1..]),
         Some("soak-versus") => versus::run(&args[1..]),
         Some("soak-diff") => versus::diff(&args[1..]),
-        Some("extract-art") => match args.get(1) {
-            Some(game) => unit_art().and_then(|units| {
-                art::extract(
-                    &PathBuf::from(game),
-                    &args
-                        .get(2)
-                        .map_or_else(|| PathBuf::from("assets-local/art"), PathBuf::from),
-                    &units,
-                    &spell_art()?,
-                )
-            }),
-            None => Err(USAGE.to_string()),
-        },
-        Some("extract-audio") => match args.get(1) {
-            Some(game) => audio::extract(
-                &PathBuf::from(game),
-                &args
-                    .get(2)
-                    .map_or_else(|| PathBuf::from("assets-local/audio"), PathBuf::from),
-            ),
-            None => Err(USAGE.to_string()),
-        },
-        Some("refile-art") => spell_art().and_then(|spell_art| {
-            let art_dir = args
-                .get(1)
-                .map_or_else(|| PathBuf::from("assets-local/art"), PathBuf::from);
-            let placer = screens::Placer::new(screens::rules()?, &unit_art()?, &spell_art);
-            let moved = refile::refile(&art_dir, &placer)?;
-            println!("moved {moved} pictures");
-            Ok(())
-        }),
-        Some(command @ ("font-chars" | "font-coverage" | "font-bmfont")) => {
-            font_tool::run(command, &args[1..])
-        }
         _ => Err(USAGE.to_string()),
     };
     match result {
@@ -127,31 +72,6 @@ fn main() -> ExitCode {
 fn content(dir: Option<&String>) -> Result<Content, String> {
     let dir = dir.map_or_else(|| PathBuf::from("content"), PathBuf::from);
     f4x_data::load_content_layers(&[&dir, Path::new("content")]).map_err(|e| e.to_string())
-}
-
-/// The units' ids and original picture numbers, for filing their art under their names.
-fn unit_art() -> Result<Vec<screens::UnitArt>, String> {
-    let c = content(None)?;
-    Ok(c.rules
-        .units
-        .defs()
-        .iter()
-        .map(|u| screens::UnitArt {
-            id: u.id.clone(),
-            art: u
-                .art
-                .as_ref()
-                .map(|(lbx, e)| (lbx.clone(), usize::from(*e))),
-            portrait: u.hero.as_ref().map(|h| h.portrait as usize),
-        })
-        .collect())
-}
-
-/// The table of which pictures belong to which spell, checked against the rules.
-fn spell_art() -> Result<f4x_data::spell_art::SpellArt, String> {
-    let c = content(None)?;
-    f4x_data::spell_art::load_spell_art(&[Path::new("content")], &c.rules)
-        .map_err(|e| e.to_string())
 }
 
 fn validate(dir: Option<&String>) -> Result<(), String> {

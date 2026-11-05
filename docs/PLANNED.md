@@ -184,7 +184,7 @@ buildings, portraits, the interface frame, battle scenery and fonts, in the same
 file layout as the extracted set so the client loads them unchanged (`assets/` next to the
 code, `assets-local/` still taking precedence for a player who has the originals). Decide the
 style (faithful pixel art, or a new look suited to the higher resolutions of item 11), list
-every picture the client uses (the manifest of `extract-art` is the checklist), and give each
+every picture the client uses (the manifest of `f4x-extract art` is the checklist), and give each
 a source and licence in a credits file. Moved here from the task list (formerly task 79)
 because it goes beyond the original game.
 
@@ -534,7 +534,7 @@ each change.
 with the other client preferences) with three values: **x1** the original's 320 by 200 art as now, **x2** and **x4**
 art at twice and four times the width and height. The layout stays the original's (item 11 is the separate work of
 new layouts); what changes is the sharpness of everything the client draws from the art folder. Parts:
-- **Upscale at import.** `extract-art` (and the other `f4x-tools` passes that write pictures: the map sprites, the
+- **Upscale at import.** `f4x-extract art` (and the other `f4x-tools` passes that write pictures: the map sprites, the
   banner recolours, the palette swaps, the fonts) takes `--scale 2|4` and writes the result next to the x1 set, in
   `assets-local/art-x2/` and `assets-local/art-x4/` with the same file names and the same folder layout, so the loader
   only swaps the root. The scaling is done once on the decoded, palette-resolved picture, never on the indexed bytes,
@@ -672,7 +672,7 @@ replayed without the command line:
 - the console's `new` command takes `seed=N` as well, if it does not yet.
 Related: task 148 (the seed display), the new-game flow (`newgame_flow.rs`), `docs/game-settings.md`.
 
-**46. Find the use of the unreferenced art files.** (Moved here from the task list, formerly task 147: not needed for functional parity.) ReMoM's loader has no reference to four LBX files that `extract-art` extracts fine: `combat`, `desert`, `tundra` and `cmbtwall`. `docs/extract-art.md` lists them as unknown rather than guessing. Find out what they are for: look at the pictures (frame counts, sizes, which terrain or battle element they resemble), search the original's disassembly and the other reverse-engineering sources in `reference/` for their names or for the loader slots they would occupy, and compare with the battlefield terrain and wall code (`cmbtwall` may be wall pieces beside `citywall`; `desert` and `tundra` may be terrain variants or battlefield backgrounds). Record the result in section 9 of `docs/extract-art.md` (replace the "unknown" row) and, if one is a real gap in the client, add a task for it. If nothing can be found, say so in the doc and leave the files unused.
+**46. Find the use of the unreferenced art files.** (Moved here from the task list, formerly task 147: not needed for functional parity.) ReMoM's loader has no reference to four LBX files that `f4x-extract art` extracts fine: `combat`, `desert`, `tundra` and `cmbtwall`. `docs/extract-art.md` lists them as unknown rather than guessing. Find out what they are for: look at the pictures (frame counts, sizes, which terrain or battle element they resemble), search the original's disassembly and the other reverse-engineering sources in `reference/` for their names or for the loader slots they would occupy, and compare with the battlefield terrain and wall code (`cmbtwall` may be wall pieces beside `citywall`; `desert` and `tundra` may be terrain variants or battlefield backgrounds). Record the result in section 9 of `docs/extract-art.md` (replace the "unknown" row) and, if one is a real gap in the client, add a task for it. If nothing can be found, say so in the doc and leave the files unused.
 
 **47. Game settings, stage 3: the advanced screen and the easy custom settings.** Stage 3 of `game-settings.md`. The advanced screen with the difficulty dropdown (five levels and Custom), the Advanced settings button on the base screen, human and AI values for starting gold, mana and picks, `ai.apply_to_human`, the AI wizard block, starting units (race units, settlers, scouts, ships, the first summoning spell's creature, and a free Magic Spirit as the scout: the starting-spell order is to be checked, see 4.2), switches (Spell of Mastery, Spell of Return off, human only, all, heroes, lairs, neutral cities, raiders, random events and frequency, fleeing), a lowered stack limit and city size cap, city distance, map size and counts, score scale and Needs task 247 (done). (Hardcore is stage 4, item 48.)
 

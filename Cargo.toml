@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/*"]
+members = ["crates/*", "crates/f4x-client/extract"]
 
 [workspace.package]
 version = "0.0.3"
@@ -23,6 +23,7 @@ f4x-ai = { path = "crates/f4x-ai" }
 f4x-ai-ref = { path = "crates/f4x-ai-ref" }
 f4x-console = { path = "crates/f4x-console" }
 f4x-learn = { path = "crates/f4x-learn" }
+f4x-extract = { path = "crates/f4x-client/extract", default-features = false }
 
 # Build profiles (task 382). Release: link-time optimisation across the crates and one code
 # generation unit, slower to build and faster to run (the soak, the client). Debug and tests:

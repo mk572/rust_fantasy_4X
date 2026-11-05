@@ -1,4 +1,4 @@
-//! `refile-art`: move the pictures `extract-art` already wrote to where its current rules put
+//! `f4x-extract refile`: move the pictures `f4x-extract art` already wrote to where its current rules put
 //! them, so a change of the rules (a new spell folder, a screen) does not need the original game
 //! files read again. Only a picture whose place changed is touched; `index.tsv` is rewritten.
 
@@ -46,7 +46,7 @@ pub fn refile(art_dir: &Path, placer: &Placer) -> Result<usize, String> {
         }
     }
     let manifest = fs::read_to_string(art_dir.join("manifest.tsv"))
-        .map_err(|e| format!("{}: {e} (run extract-art first)", art_dir.display()))?;
+        .map_err(|e| format!("{}: {e} (run f4x-extract art first)", art_dir.display()))?;
     let mut moved = 0;
     let mut missing = 0;
     for line in manifest.lines() {
@@ -113,12 +113,15 @@ pub fn refile(art_dir: &Path, placer: &Placer) -> Result<usize, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
-    use f4x_data::spell_art::parse_spell_art;
+    use crate::spell_art::parse_spell_art;
+    use crate::testutil::TestResult;
 
     #[test]
     fn a_picture_moves_to_its_spell_folder_with_its_masks_and_the_index_follows() -> TestResult {
-        let root = f4x_core::testdir::TestDir::new("refile");
+        // A folder of this test's own: the process id keeps parallel test runs apart.
+        let root = std::env::temp_dir().join(format!("f4x-extract-refile-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root)?;
         let art_dir = root.join("art");
         fs::create_dir_all(art_dir.join("cmbtfx"))?;
         for name in ["000_00.png", "000_01.png", "000_01_cycle.png", "001_00.png"] {
@@ -143,6 +146,7 @@ mod tests {
         assert_eq!(index, "cmbtfx\t0\tart/spells/fire_bolt/cmbtfx_000\n");
         // Run again: nothing is left to move.
         assert_eq!(refile(&art_dir, &placer)?, 0);
+        fs::remove_dir_all(&root)?;
         Ok(())
     }
 }

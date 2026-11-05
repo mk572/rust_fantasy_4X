@@ -180,8 +180,6 @@ impl SlotKind {
 pub struct HeroDef {
     /// Decides the hero's three item slots.
     pub kind: HeroKind,
-    /// The hero's portrait: an entry of the original's `PORTRAIT.LBX`.
-    pub portrait: u32,
     /// Gold to hire.
     pub hire_cost: u32,
 }
@@ -266,9 +264,6 @@ pub struct UnitDef {
     pub level_path: Option<Ref<LevelPathDef>>,
     #[serde(default)]
     pub hero: Option<HeroDef>,
-    /// Picture for the client: `(file, entry)` in the local art set.
-    #[serde(default)]
-    pub art: Option<(String, u16)>,
     /// A ship's deck in a sea battle: `(width, length)` in squares, pointed at both ends. The
     /// battle field is a diamond of about 200 squares, so two facing decks need
     /// `width + width + 1 + length <= 20`.

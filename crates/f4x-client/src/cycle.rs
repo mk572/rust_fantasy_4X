@@ -1,6 +1,6 @@
 //! The original's palette cycling (`Cycle_Palette_Color` in `Fonts.c`): one palette entry, index
 //! 198, slides back and forth between two colours, so everything drawn in it pulses at once.
-//! `extract-art` writes the pixels that use the index as a `_cycle` mask beside each picture;
+//! `f4x-extract art` writes the pixels that use the index as a `_cycle` mask beside each picture;
 //! the client tints the mask with [`Cycle::colour`].
 
 use macroquad::prelude::*;

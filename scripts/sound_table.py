@@ -34,7 +34,7 @@ BORROWED = {"death_wish": 23, "great_unsummoning": 24}
 HEADER = """\
 // Which of the original's sounds each spell and unit plays (`docs/sound.md`, section 4). Written by
 // `scripts/sound_table.py`; the numbers are entries of the original's sound files, which the
-// client finds under `assets-local/audio` (`f4x-tools extract-audio`). Without the files the game
+// client finds under `assets-local/audio` (`f4x-extract audio`). Without the files the game
 // is silent.
 //   spells:       the cast sound of a spell: positive is a SOUNDFX entry, negative a NEWSOUND entry.
 //   units:        the move sound (a SOUNDFX entry; 0 silent, 13 is NEWSOUND 0) and the melee sound

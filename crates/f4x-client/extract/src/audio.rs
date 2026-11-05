@@ -1,4 +1,4 @@
-//! `extract-audio`: the original's sound effects as OGG and its music as the XMI files it stores.
+//! `f4x-extract audio`: the original's sound effects as OGG and its music as the XMI files it stores.
 //!
 //! `SOUNDFX`, `CMBTSND`, `NEWSOUND` and `INTROSFX` hold Creative Voice (VOC) clips; each is decoded to
 //! 8-bit PCM here and encoded to OGG Vorbis by `oggenc` (vorbis-tools) or, failing that, `ffmpeg`. `MUSIC` and
@@ -587,7 +587,7 @@ pub fn extract(game_dir: &Path, out_dir: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use crate::testutil::TestResult;
 
     fn voc(blocks: &[u8]) -> Vec<u8> {
         let mut v = b"Creative Voice File\x1a".to_vec();

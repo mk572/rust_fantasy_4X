@@ -13,7 +13,7 @@ Writes, into assets-local/art:
   and `mapback/100..104_00.png`, entries the client asks for) and the wizards' gems
   (`lilwiz/100..169_00.png`, 100 + portrait * 5 + the new colour's number from 0).
 Only the pixels that differ between the original's five colours are turned, so the shading stays.
-Running it again gives the same files. Run it after `extract-art` (and `grey_neutral.py`, in either
+Running it again gives the same files. Run it after `f4x-extract art` (and `grey_neutral.py`, in either
 order). The output is derived from the original's art, so it stays local. Needs Pillow (.venv).
 """
 import argparse
@@ -169,7 +169,7 @@ def main():
     args = ap.parse_args()
     art = args.art
     if not (art / "map/banners.tsv").exists():
-        print(f"{art}/map/banners.tsv is missing (run extract-art first)", file=sys.stderr)
+        print(f"{art}/map/banners.tsv is missing (run f4x-extract art first)", file=sys.stderr)
         return 1
     n = tsv_rows(art) + minimap_rows(art) + pictures(art) + gems(art)
     print(f"{n} files or rows written")

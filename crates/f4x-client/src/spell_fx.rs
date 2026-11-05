@@ -1,8 +1,8 @@
 //! How a spell cast in a battle is played (`Combat_Spell_Animation`, `Spell_Animation_Load_Graphics`
 //! in ReMoM): how its animation moves. Which file and entry hold its pictures is in
-//! `content/spell_art.ron` (`f4x_data::spell_art`), under the files `cmbtfx` and `specfx`.
+//! `content/spell_art.ron` (`crate::spell_art`), under the files `cmbtfx` and `specfx`.
 
-use f4x_data::spell_art::{Role, SpellArt};
+use f4x_extract::spell_art::{Role, SpellArt};
 
 /// The four spells whose picture flies in from the top right (Ice Bolt's from the top left) (`Combat_Spell_Animation_Bolt`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

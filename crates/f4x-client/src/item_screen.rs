@@ -331,7 +331,7 @@ impl Page for ItemUi {
                 .game
                 .units()
                 .unit_def(hero)
-                .and_then(|d| d.hero.as_ref().map(|h| h.portrait as usize));
+                .and_then(|d| app.art.hero_portrait(&d.id));
             if let Some(p) = portrait {
                 app.draw_pic(&lay, "portrait", p, 0, x1 + 1.0, y1 + 1.0);
             }

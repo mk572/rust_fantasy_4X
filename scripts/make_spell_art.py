@@ -67,7 +67,7 @@ def main():
         recipe = RECIPES[name]
         frames = sorted(recipe["source"].glob(recipe["glob"]))
         if not frames:
-            print(f"{name}: no frames in {recipe['source']} (run extract-art first)", file=sys.stderr)
+            print(f"{name}: no frames in {recipe['source']} (run f4x-extract art first)", file=sys.stderr)
             status = 1
             continue
         out = args.target / name

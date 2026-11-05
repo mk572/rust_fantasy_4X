@@ -23,7 +23,7 @@ The scripts default to these paths. Nothing in `reference/`, `assets-local/` or
 ## Art: `assets-local/art/`
 
 ```
-cargo run --release -p f4x-tools -- extract-art "reference/mom-classic/Master of Magic Official Release"
+cargo run --release -p f4x-extract -- art "reference/mom-classic/Master of Magic Official Release"
 ```
 
 Decodes every picture in the original `.lbx` files to PNG (`<lbx>/<entry>_<frame>.png`,
@@ -35,7 +35,7 @@ Format code: `crates/f4x-tools/src/{lbx,image,art}.rs`. Palettes, fonts, banner 
 ## Sound and music: `assets-local/audio/`
 
 ```
-cargo run --release -p f4x-tools -- extract-audio "reference/mom-classic/Master of Magic Official Release"
+cargo run --release -p f4x-extract -- audio "reference/mom-classic/Master of Magic Official Release"
 ```
 
 Needs `oggenc` (`brew install vorbis-tools`; `ffmpeg` is the fallback). Writes the 154 effects of `SOUNDFX`, `CMBTSND`, `NEWSOUND` and `INTROSFX` as OGG

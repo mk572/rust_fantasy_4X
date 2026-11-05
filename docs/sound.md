@@ -327,7 +327,7 @@ and a mod can change them:
 - `units.ron`: `move_sound` and `melee_sound` cue names per unit (about 12 classes, section 4.5).
 - A new `sound.ron`: cue name to the list of files (`assets-local/audio/<cue>.ogg` or `.wav`), the track pairs per
   wizard (so new wizards name theirs), and the three background tracks.
-- The importer writes the cue names from the numbers above; the extractor (`f4x-tools extract-audio`) writes the
+- The importer writes the cue names from the numbers above; the extractor (`f4x-extract audio`) writes the
   files with the same names.
 
 ### 5.3 Ours (not in the original)

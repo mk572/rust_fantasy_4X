@@ -74,6 +74,10 @@ impl<'a> Lbx<'a> {
         self.offsets.len() - 1
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn entry(&self, i: usize) -> &'a [u8] {
         &self.data[self.offsets[i]..self.offsets[i + 1]]
     }
@@ -82,7 +86,7 @@ impl<'a> Lbx<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use crate::testutil::TestResult;
 
     fn build(entries: &[&[u8]]) -> Vec<u8> {
         let mut out = Vec::new();
