@@ -305,9 +305,20 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
     load_content_in(dirs, f4x_core::text::FALLBACK_LANGUAGE)
 }
 
+/// Where the client's own folder lies, from the repository's `content/` folder.
+const CLIENT_FOLDER: &str = "../crates/f4x-client/content";
+
 /// Like [`load_content_layers`], with the names and messages in `language` (a folder of
 /// `content/text/`; the client picks it in its own settings).
 pub fn load_content_in(dirs: &[&Path], language: &str) -> Result<Content, ContentError> {
+    // The names and messages are the client's files (`crates/f4x-client/content/text/`); the
+    // rules folder is searched first, then the client's folder next to it in the repository.
+    let client = dirs.last().map(|d| d.join(CLIENT_FOLDER));
+    let mut layered: Vec<&Path> = dirs.to_vec();
+    if let Some(client) = client.as_deref().filter(|c| c.exists()) {
+        layered.push(client);
+    }
+    let dirs = layered.as_slice();
     let read = |name: &str| {
         let path = dirs
             .iter()
@@ -428,22 +439,6 @@ mod tests {
     fn shipped() -> String {
         let path = crate::testutil::content_dir().join("terrain.ron");
         std::fs::read_to_string(path).expect("content/terrain.ron exists")
-    }
-
-    /// `content/font_colour_sets.ron`, written by `f4x-extract art`: sixteen colour sets of
-    /// fifteen colours each (a glyph colour index 1 to 15 picks one), the first one white.
-    #[test]
-    fn the_font_colour_sets_are_sixteen_sets_of_fifteen_colours() {
-        #[derive(serde::Deserialize)]
-        struct Sets {
-            sets: Vec<Vec<(u8, u8, u8)>>,
-        }
-        let path = crate::testutil::content_dir().join("font_colour_sets.ron");
-        let text = std::fs::read_to_string(path).expect("content/font_colour_sets.ron exists");
-        let parsed: Sets = ron::from_str(&text).expect("the colour sets parse");
-        assert_eq!(parsed.sets.len(), 16);
-        assert!(parsed.sets.iter().all(|set| set.len() == 15));
-        assert_eq!(parsed.sets[0][0], (255, 255, 255));
     }
 
     /// The game's own `content/` folder (the files tests of the rules data read).

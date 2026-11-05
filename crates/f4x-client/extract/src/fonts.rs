@@ -161,7 +161,7 @@ pub fn extract_fonts(
 
 /// The 16 colour sets as RON: for each set the RGB (0 to 255) of the glyph colour indexes 1 to
 /// 15, by way of the colour set table and the base palette. This is the one part of the font
-/// data that is only numbers, so `content/font_colour_sets.ron` is a committed copy of it.
+/// data that is only numbers, so `crates/f4x-client/content/font_colour_sets.ron` is a committed copy of it.
 pub fn colour_sets_ron(palette_entry: &[u8], pal: &[u8]) -> String {
     let mut out = String::from(
         "// The original's 16 font colour sets (FONTS.LBX entry 2 at 0x300, through its base palette;\n\
@@ -196,7 +196,7 @@ const LETTER_STYLES: usize = 6;
 const RAMP_STYLES: usize = 6;
 
 /// A colour set of its own that follows the 16 of the original in the BMFont atlases: what a screen
-/// makes with `Set_Font_Colors_15` (`content/font_colour_ramps.ron`, written by
+/// makes with `Set_Font_Colors_15` (`crates/f4x-client/content/font_colour_ramps.ron`, written by
 /// `scripts/font_ramps.py`), the colours of glyph colour indexes 1 to 15.
 #[derive(Debug, serde::Deserialize)]
 pub struct Ramp {
@@ -214,7 +214,7 @@ impl Ramp {
     }
 }
 
-/// The ramps in `content/font_colour_ramps.ron`: `(ramps: [(name: "...", colours: [(r, g, b) x 15])])`.
+/// The ramps in `crates/f4x-client/content/font_colour_ramps.ron`: `(ramps: [(name: "...", colours: [(r, g, b) x 15])])`.
 pub fn read_ramps(text: &str) -> Result<Vec<Ramp>, String> {
     #[derive(serde::Deserialize)]
     struct File {
@@ -290,6 +290,26 @@ fn bmfont(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The committed `font_colour_sets.ron`, written by `f4x-extract art`: sixteen colour sets of
+    /// fifteen colours each (a glyph colour index 1 to 15 picks one), the first one white.
+    #[test]
+    fn the_shipped_colour_sets_are_sixteen_sets_of_fifteen_colours() -> crate::testutil::TestResult
+    {
+        #[derive(serde::Deserialize)]
+        struct Sets {
+            sets: Vec<Vec<(u8, u8, u8)>>,
+        }
+        let path = crate::testutil::content_dir().join("font_colour_sets.ron");
+        let parsed: Sets = ron::from_str(&std::fs::read_to_string(path)?)?;
+        assert_eq!(parsed.sets.len(), 16);
+        assert!(parsed.sets.iter().all(|set| set.len() == 15));
+        assert_eq!(parsed.sets[0][0], (255, 255, 255));
+        read_ramps(&std::fs::read_to_string(
+            crate::testutil::content_dir().join("font_colour_ramps.ron"),
+        )?)?;
+        Ok(())
+    }
 
     #[test]
     fn glyph_columns_decode_skips_runs_and_ends() {

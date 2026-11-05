@@ -60,6 +60,8 @@ fn load_shipped() -> Content {
     use std::collections::BTreeMap;
 
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+    // The names are the client's files.
+    let client = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../f4x-client/content");
     fn parse<T: DeserializeOwned>(dir: &std::path::Path, name: &str) -> T {
         let text = std::fs::read_to_string(dir.join(name))
             .unwrap_or_else(|e| panic!("content/{name}: {e}"));
@@ -84,7 +86,7 @@ fn load_shipped() -> Content {
 
     let mut terrains: Vec<TerrainDef> = parse(&dir, "terrain.ron");
     named(
-        &dir,
+        &client,
         "terrain",
         &mut terrains,
         |d| d.num,
@@ -92,7 +94,7 @@ fn load_shipped() -> Content {
     );
     let mut features: Vec<FeatureDef> = parse(&dir, "features.ron");
     named(
-        &dir,
+        &client,
         "feature",
         &mut features,
         |d| d.num,
@@ -100,7 +102,7 @@ fn load_shipped() -> Content {
     );
     let mut races: Vec<crate::rules::RaceDef> = parse(&dir, "races.ron");
     named(
-        &dir,
+        &client,
         "race",
         &mut races,
         |d| d.num,
@@ -121,7 +123,7 @@ fn load_shipped() -> Content {
     }
     let mut units: Vec<UnitDef> = parse(&dir, "units.ron");
     named(
-        &dir,
+        &client,
         "unit",
         &mut units,
         |d| d.num,
@@ -129,7 +131,7 @@ fn load_shipped() -> Content {
     );
     let mut abilities: Vec<crate::rules::AbilityDef> = parse(&dir, "abilities.ron");
     named(
-        &dir,
+        &client,
         "ability",
         &mut abilities,
         |d| d.num,
@@ -137,7 +139,7 @@ fn load_shipped() -> Content {
     );
     let mut buildings: Vec<crate::rules::BuildingDef> = parse(&dir, "buildings.ron");
     named(
-        &dir,
+        &client,
         "building",
         &mut buildings,
         |d| d.num,
@@ -145,7 +147,7 @@ fn load_shipped() -> Content {
     );
     let mut realms: Vec<crate::rules::RealmDef> = parse(&dir, "realms.ron");
     named(
-        &dir,
+        &client,
         "realm",
         &mut realms,
         |d| d.num,
@@ -153,7 +155,7 @@ fn load_shipped() -> Content {
     );
     let mut spells: Vec<crate::rules::SpellDef> = parse(&dir, "spells.ron");
     named(
-        &dir,
+        &client,
         "spell",
         &mut spells,
         |d| d.num,
@@ -161,7 +163,7 @@ fn load_shipped() -> Content {
     );
     let mut items: Vec<crate::rules::ItemDef> = parse(&dir, "items.ron");
     named(
-        &dir,
+        &client,
         "item",
         &mut items,
         |d| d.num,
@@ -169,7 +171,7 @@ fn load_shipped() -> Content {
     );
     let mut powers: Vec<crate::rules::ItemPowerDef> = parse(&dir, "item_powers.ron");
     named(
-        &dir,
+        &client,
         "item_power",
         &mut powers,
         |d| d.num,
@@ -177,7 +179,7 @@ fn load_shipped() -> Content {
     );
     let mut retorts: Vec<crate::rules::RetortDef> = parse(&dir, "retorts.ron");
     named(
-        &dir,
+        &client,
         "retort",
         &mut retorts,
         |d| d.num,
@@ -237,7 +239,7 @@ fn load_shipped() -> Content {
             retorts: Registry::new(retorts),
             hero_templates,
             lairs: parse(&dir, "lairs.ron"),
-            wizard_names: parse(&dir, "text/en/name/rival.ron"),
+            wizard_names: parse(&client, "text/en/name/rival.ron"),
         },
         settings,
         texts: Default::default(),

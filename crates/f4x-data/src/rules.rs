@@ -999,7 +999,7 @@ mod tests {
     fn the_committed_wizards_have_their_names_and_books() -> TestResult {
         let dir = crate::testutil::content_dir();
         let features = crate::parse_features(&std::fs::read_to_string(dir.join("features.ron"))?)?;
-        let rules = load_rules(&[dir.as_path()], "en", &features)?;
+        let rules = load_rules(&[dir.as_path(), &client_dir()], "en", &features)?;
         let wizards = rules.wizards.defs();
         assert_eq!(wizards.len(), 14);
         let lo_pan = wizards
@@ -1013,6 +1013,10 @@ mod tests {
 
     fn content_dir() -> std::path::PathBuf {
         crate::testutil::content_dir()
+    }
+
+    fn client_dir() -> std::path::PathBuf {
+        crate::testutil::client_dir()
     }
 
     fn features() -> Features {
@@ -1163,7 +1167,7 @@ mod tests {
     #[test]
     fn shipped_rules_are_valid() -> TestResult {
         assert_eq!(problems(&[]), Vec::<String>::new());
-        let rules = load_rules(&[&content_dir()], "en", &features())?;
+        let rules = load_rules(&[&content_dir(), &client_dir()], "en", &features())?;
         for realm in ["life", "death", "chaos", "nature", "sorcery"] {
             assert!(rules.realms.by_name(realm).is_some(), "{realm}");
         }
@@ -1178,7 +1182,7 @@ mod tests {
 
     #[test]
     fn typed_ids_round_trip() -> TestResult {
-        let rules = load_rules(&[&content_dir()], "en", &features())?;
+        let rules = load_rules(&[&content_dir(), &client_dir()], "en", &features())?;
         let id = rules
             .units
             .id_of("barbarian_spearmen")
@@ -1364,7 +1368,7 @@ mod tests {
                 })
                 .sum()
         };
-        let rules = load_rules(&[&content_dir()], "en", &features())?;
+        let rules = load_rules(&[&content_dir(), &client_dir()], "en", &features())?;
         let unit = rules
             .units
             .by_name("barbarian_spearmen")
@@ -1422,7 +1426,7 @@ mod tests {
             r#"{ 0: ("Barbar", "Barbaren") }"#,
         )?;
         let features = features();
-        let rules = load_rules(&[&over, &content_dir()], "xx", &features)?;
+        let rules = load_rules(&[&over, &content_dir(), &client_dir()], "xx", &features)?;
         let spearmen = rules.units.id_numbered(95).ok_or("the value is missing")?;
         assert_eq!(rules.units.get(spearmen).name, "Lanzenträger");
         // What the language leaves out is English.
@@ -1455,7 +1459,8 @@ mod tests {
         let over = f4x_core::testdir::TestDir::new("lang_bad");
         std::fs::create_dir_all(over.join("text/en/name"))?;
         std::fs::write(over.join("text/en/name/unit.ron"), r#"{ 9999: "Nobody" }"#)?;
-        let err = load_rules(&[&over, &content_dir()], "en", &features()).unwrap_err();
+        let err =
+            load_rules(&[&over, &content_dir(), &client_dir()], "en", &features()).unwrap_err();
         assert!(format!("{err:?}").contains("names the unknown unit 9999"));
         Ok(())
     }
@@ -1468,8 +1473,8 @@ mod tests {
             r#"[(race: "barbarian", names: ["Alpha", "Beta"])]"#,
         )?;
         let features = features();
-        let shipped = load_rules(&[&content_dir()], "en", &features)?;
-        let rules = load_rules(&[&over, &content_dir()], "en", &features)?;
+        let shipped = load_rules(&[&content_dir(), &client_dir()], "en", &features)?;
+        let rules = load_rules(&[&over, &content_dir(), &client_dir()], "en", &features)?;
         let barbarian = rules
             .races
             .by_name("barbarian")
@@ -1493,7 +1498,7 @@ mod tests {
             over.join("city_names.ron"),
             r#"[(race: "nobody", names: ["X"])]"#,
         )?;
-        assert!(load_rules(&[&over, &content_dir()], "en", &features).is_err());
+        assert!(load_rules(&[&over, &content_dir(), &client_dir()], "en", &features).is_err());
         Ok(())
     }
 }

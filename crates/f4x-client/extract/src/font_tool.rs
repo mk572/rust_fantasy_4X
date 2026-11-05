@@ -27,7 +27,9 @@ pub const USAGE: &str = "  f4x-extract font-chars [text-dir]             the cha
 pub fn run(command: &str, args: &[String]) -> Result<(), String> {
     match command {
         "font-chars" => {
-            let dir = args.first().map_or("content/text", String::as_str);
+            let dir = args
+                .first()
+                .map_or("crates/f4x-client/content/text", String::as_str);
             let chars = used_characters(Path::new(dir))?;
             println!("{}", chars.iter().collect::<String>());
             Ok(())

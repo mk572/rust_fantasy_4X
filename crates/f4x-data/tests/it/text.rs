@@ -19,7 +19,7 @@ type Area = (String, Vec<String>);
 
 /// The area of each file of the English messages, and its keys.
 fn written() -> Result<Vec<Area>, Box<dyn Error>> {
-    let folder = root().join("content/text/en");
+    let folder = root().join("crates/f4x-client/content/text/en");
     let mut files = Vec::new();
     for entry in std::fs::read_dir(&folder)? {
         let path = entry?.path();
@@ -131,13 +131,14 @@ fn every_key_that_is_written_is_used() -> TestResult {
 /// Files of the client whose literals are not messages: the command line, the picture files, the
 /// developer console, the key-name table, the check of the asset tables (start-up errors about
 /// content files, for the developer).
-const EXEMPT_FILES: [&str; 6] = [
+const EXEMPT_FILES: [&str; 7] = [
     "main.rs",
     "art.rs",
     "console_screen.rs",
     "hotkeys.rs",
     "asset_check.rs",
     "icon_art.rs",
+    "client_settings.rs",
 ];
 
 /// Lines that look like text but are not: number formats, the space between wrapped words, a
@@ -220,7 +221,7 @@ fn the_client_holds_no_message_in_its_code() -> TestResult {
     }
     assert!(
         found.is_empty(),
-        "text in the client's code; move it to content/text/en/ (docs/text.md):\n{}",
+        "text in the client's code; move it to crates/f4x-client/content/text/en/ (docs/text.md):\n{}",
         found.join("\n")
     );
     Ok(())

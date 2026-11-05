@@ -463,7 +463,7 @@ fn extract_font_atlases(game_dir: &Path, out_dir: &Path, pal: &[u8]) -> Result<(
     if lbx.len() <= PALETTE_ENTRY {
         return Ok(());
     }
-    let ramps = match fs::read_to_string("content/font_colour_ramps.ron") {
+    let ramps = match fs::read_to_string("crates/f4x-client/content/font_colour_ramps.ron") {
         Ok(text) => crate::fonts::read_ramps(&text)?,
         Err(_) => Vec::new(),
     };

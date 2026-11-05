@@ -34,7 +34,8 @@ pub(crate) mod shipped {
     pub(crate) fn texts() -> &'static Texts {
         static CELL: OnceLock<Texts> = OnceLock::new();
         CELL.get_or_init(|| {
-            f4x_data::load_texts(&[Path::new(CONTENT)], "en").expect("the shipped texts load")
+            f4x_data::load_texts(&[Path::new(CLIENT_CONTENT)], "en")
+                .expect("the shipped texts load")
         })
     }
 

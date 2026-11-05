@@ -209,8 +209,8 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   (draw its letters from the `.fnt` and `.png` with Pillow, enlarged 4 times). They are original art, so they stay local like
   the rest of `assets-local`.
 - `fonts/colour_sets.ron` is the colour set table itself (set, colour index 1 to 15, RGB). It is only numbers, so a
-  copy is committed as `content/font_colour_sets.ron`; after `f4x-extract art` copy it over (`cp
-  assets-local/art/fonts/colour_sets.ron content/font_colour_sets.ron`). A test in `f4x-data` checks its shape.
+  copy is committed as `crates/f4x-client/content/font_colour_sets.ron`; after `f4x-extract art` copy it over (`cp
+  assets-local/art/fonts/colour_sets.ron crates/f4x-client/content/font_colour_sets.ron`). A test in `f4x-data` checks its shape.
 - In the client (`art.rs`, `frame.rs`): `Art::text_width`, `Art::nearest_font_set(style, colour)`
   (the set whose average colour is closest to the colour wanted) and `Art::draw_bitmap_text`;
   the one function to use on a screen is `App::draw_styled(view, &Style, text, x, y)` (`font.rs`),
@@ -224,7 +224,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   the style number in ReMoM is the style number here. Which style a label uses is read from the
   screen's draw function in ReMoM. The client mostly uses styles 1 and 3, and 5 for titles; task
   118 moves the rest over.
-- **Colour ramps** (`scripts/font_ramps.py`, `content/font_colour_ramps.ron`, `crates/f4x-client/src/font_ramp.rs`):
+- **Colour ramps** (`scripts/font_ramps.py`, `crates/f4x-client/content/font_colour_ramps.ron`, `crates/f4x-client/src/font_ramp.rs`):
   the original builds most text colours at run time with `Set_Font_Colors_15(style, colours)`, not from the 16
   sets. The script lists each such ramp (`RAMPS`: a name, the screen whose palette applies, the palette
   indexes of colour 1 to n; entry 0 of the original's array is an alias and ignored) and the single palette

@@ -44,6 +44,9 @@ rm -rf target/Fantasy4X.app
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/assets-local"
 cp target/release/f4x-client "$app/Contents/MacOS/f4x-client"
 cp -R content "$app/Contents/Resources/content"
+# The client's own tables and texts (hotkeys, art tables, text/); the game finds them at crates/f4x-client/content.
+mkdir -p "$app/Contents/Resources/crates/f4x-client"
+cp -R crates/f4x-client/content "$app/Contents/Resources/crates/f4x-client/content"
 [ -d content-local ] && cp -R content-local "$app/Contents/Resources/content-local"
 [ -d assets-local/art ] && cp -R assets-local/art "$app/Contents/Resources/assets-local/art"
 [ -f assets-local/index.tsv ] && cp assets-local/index.tsv "$app/Contents/Resources/assets-local/index.tsv"
@@ -60,7 +63,7 @@ rm -rf "$res/assets-local/art/fonts"
 rm -f "$res/content-local/IMPORT_REPORT.txt" "$res/content-local/OGBUG_INDEX.md"
 find "$res" \( -name '*.xmi' -o -name '*.orig' -o -name '.DS_Store' \) -type f -delete
 
-# The game finds content/, content-local/, assets-local/ and saves/ relative to the working
+# The game finds content/, content-local/, assets-local/, crates/f4x-client/content and saves/ relative to the working
 # directory, so the launcher runs it from a folder that links to the bundled copies.
 cat > "$app/Contents/MacOS/Fantasy4X" <<'LAUNCH'
 #!/bin/sh
@@ -68,7 +71,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 res="$here/../Resources"
 data="$HOME/Library/Application Support/Fantasy4X"
 mkdir -p "$data/saves"
-for d in content content-local assets-local; do
+for d in content content-local assets-local crates; do
     rm -f "$data/$d"
     [ -e "$res/$d" ] && ln -s "$res/$d" "$data/$d"
 done

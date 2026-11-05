@@ -2,16 +2,18 @@
 """A pixel editor for the BMFont files that `f4x-extract art` writes.
 
 Starts a local web server (127.0.0.1 only) that serves scripts/font_editor.html and reads and
-writes the `.fnt` and `.png` pairs in assets-local/art/fonts/bmfont. A glyph is edited in the
+writes the `.fnt` and `.png` pairs in crates/f4x-client/assets/fonts, the fonts the game ships and
+embeds. A glyph is edited in the
 first colour set; on save the pixels are copied into every stacked colour set, recoloured by the
 mapping the file already has between the first set and each other set. The first save of a font
-keeps the original beside it as `style2.png.orig` and `style2.fnt.orig`. Needs Pillow (.venv).
+keeps the original in assets-local/art/fonts/orig as `style2.png` and `style2.fnt` (not in the
+client folder, which holds only what ships). Needs Pillow (.venv).
 
     .venv/bin/python scripts/font_editor.py              then open http://127.0.0.1:8765
     .venv/bin/python scripts/font_editor.py --dir DIR --port 9000
 
-Re-running `f4x-extract art` overwrites the files: keep the edits you want by copying the `.fnt` and
-`.png` out, or port them into `crates/f4x-tools/src/accent.rs`.
+`f4x-extract art` writes its own copy under assets-local/art/fonts/bmfont and never touches the
+client folder, so the edits here stay. The client embeds the files: rebuild it to see a change.
 """
 
 import argparse
@@ -28,6 +30,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGE = Path(__file__).with_name("font_editor.html")
+ORIGINALS = ROOT / "assets-local" / "art" / "fonts" / "orig"
 NAME = re.compile(r"style\d+")
 CHAR_FIELDS = ("id", "x", "y", "width", "height", "xoffset", "yoffset", "xadvance", "page", "chnl")
 
@@ -112,8 +115,9 @@ class Font:
         self._write()
 
     def _write(self) -> None:
+        ORIGINALS.mkdir(parents=True, exist_ok=True)
         for path in (self.fnt, self.png):
-            backup = path.with_name(path.name + ".orig")
+            backup = ORIGINALS / path.name
             if not backup.exists():
                 shutil.copy2(path, backup)
         chars = iter(self.glyphs)
@@ -175,11 +179,11 @@ def make_handler(folder: Path):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--dir", type=Path, default=ROOT / "assets-local" / "art" / "fonts" / "bmfont")
+    parser.add_argument("--dir", type=Path, default=ROOT / "crates" / "f4x-client" / "assets" / "fonts")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
     if not any(args.dir.glob("style*.fnt")):
-        raise SystemExit(f"no style*.fnt in {args.dir}: run f4x-extract art first")
+        raise SystemExit(f"no style*.fnt in {args.dir}: is this the font folder? (default crates/f4x-client/assets/fonts)")
     server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(args.dir))
     print(f"font editor for {args.dir}: http://127.0.0.1:{args.port}  (Ctrl+C to stop)")
     try:
