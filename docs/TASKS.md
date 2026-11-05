@@ -96,6 +96,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 477 | Medium | Housekeeping | Add `f4x-master` for player turns and round orchestration |
 | 478 | Low | Housekeeping | Make `f4x-ai-ref` a local-only snapshot: ignored by git, behind a `reference` feature of `f4x-tools` |
 | 479 | Medium | Meta | The crates below the client know no display text: names and messages leave core, data and the AI for the client |
+| 480 | Medium | Core | Features by number: a lair's site, the ore and transmute lists and the site rewards stop using aliases |
 
 ## Descriptions
 
@@ -798,17 +799,33 @@ A fixed long-term baseline is lost; a snapshot at a git tag can stand in for it.
 `docs/rust-dependencies.md`, `docs/crate-layout-plan*.md` and the other docs that name the crate.
 
 **479. The crates below the client know no display text.** Tests of interface text sit in the client,
-and nothing below it needs to know what the client calls a building, unit or spell. Today the loader
-(`f4x-data`) fills 12 `name` fields of the rules from `text/<lang>/name/*.ron` (a folder of the
-client), core holds `Texts` and the message keys (about 220 uses outside the client, `Content.texts`,
-`Item::display_name`, `MadeName::compose`), and core's test content (`game/testutil.rs`), the data
-tests and every crate that loads the shipped content read the client's text folder (the data loader
-finds it as `../crates/f4x-client/content` beside `content/`, task 467). Aim: the rules carry ids and
-numbers only; core and the game events carry message keys and values (no wording); the client owns
-`Texts`, the name tables and the composition of names and messages (`MadeName`, plurals, gender); the
-console, the tools and the AI print ids (or load the client's text explicitly). Steps: (1) audit the
-~127 uses of a rule's `.name` outside the client and the message keys core emits; (2) move the name
-tables' use to the client (`Art`-like `Names`), drop the `name` fields and the loader's `lang`; (3)
-move `Texts` and the composition code to the client; (4) drop `CLIENT_FOLDER` and the client folder
-from core's test content. Saves are unchanged (ids and numbers). Do not break the text/code agreement
-tests (`crates/f4x-client/tests/it/text.rs`): they scan every crate's sources for keys.
+and nothing below it needs to know what the client calls a building, unit or spell. Done (task 467):
+the rules carry numbers and the readable alias `id` only, the display names are the client's
+(`crates/f4x-client/content/text/<lang>/name/*.ron`, by number), and nothing outside the client looks
+a definition up by its alias (`Registry` has no name lookup; the console and the client's own tables
+match an alias themselves). Still open: core holds `Texts` and the message keys (about 220 uses
+outside the client, `Content.texts`, `Item::display_name`, `MadeName::compose`), and the loader still
+reads the client's text folder (`CLIENT_FOLDER`, `Content.texts`; core's test content and the data
+tests find it as `../crates/f4x-client/content` beside `content/`). Aim: core and the game events
+carry message keys and values (no wording); the client owns `Texts`, the name tables and the
+composition of names and messages (`MadeName`, plurals, gender); the console, the tools and the AI
+print ids (or load the client's text explicitly). Steps: (1) per-game names: the names of cities,
+heroes and rival wizards are plain strings in the game state and the saves (the human renames cities
+anyway; a save need not read in another language). The client reads its name lists and hands them to
+`new_game` as a plain bundle (cities per race number, heroes per hero unit number, rivals per slot);
+core draws with the seed and stores the strings. Fallbacks when no list is given: a hero takes the
+unit's `id`, a city `<race id>_city_00`, `_01`, and so on, a rival `rival_1`, `rival_2`; move
+`content/city_names.ron` and the hero and rival name lists to the client; (2) move `Texts` and the
+composition code to the client; (3) drop `CLIENT_FOLDER`, `Content.texts` and the client folder from
+core's test content and the data tests. Saves keep their numbers. Do not break the text/code
+agreement tests (`crates/f4x-client/tests/it/text.rs`): they scan every crate's sources for keys.
+
+**480. Features by number.** A feature (mineral, lair, tower, node) is still found by its alias in a
+few places: `Features::id_of`, a lair's `site` (a `String`, saved), `ORES` in `world_event` and
+`TRANSMUTED` in `spell/special.rs` (feature ids as strings), the reward realm of a site by name in
+`feature/lair.rs` (`"nature_node"`, `s.contains("temple")`, `"dungeon" | "abandoned_keep" | "ruins"`),
+the client's `site_type(&str)` and `view.rs`. Give the lair a `FeatureId`, make the lists numbers
+with the alias beside them, and put the reward realm of a site in `features.ron` (a node and a
+temple already carry `realm` and `holy` there). Then drop `Features::id_of` (and `Terrains::id_of`
+if no one needs it). Saves change (the lair's site becomes a number), so raise `SAVE_VERSION` and
+write the converter, or decide that an old save is refused.

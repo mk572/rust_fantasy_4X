@@ -217,6 +217,11 @@ tables to carry). Steps:
    the number but name it a content number, not a picture.
 4. Remove the dead fields from the rules types and the content files; the saves do not change.
 
+*Status (6 November 2026).* Art left core. The rules also carry no display names: every reference in
+`content/*.ron` is a number, the `id` of an entry is a readable alias, and nothing outside the client
+looks a definition up by it (`Registry::id_of` is gone). What stays for stage A: `Texts` and the
+message keys (task 479) and the features' aliases (task 480).
+
 **Stage A: `f4x-rules` + merge `f4x-data` (tasks 455 and 456, done together)**
 
 1. *Inside core, no crate yet.* Cut the back-edges of 3.1: hook-name constants into `rules`, `exec.rs`
