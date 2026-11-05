@@ -33,8 +33,6 @@ pub const FIRST_MERCENARY_TURN: u32 = 30;
 pub const AI_FIRST_MERCENARY_TURN: u32 = 50;
 /// The most any offer's chance can be, in percent, before the computer wizards' bonus.
 const MAX_CHANCE: i32 = 10;
-/// The one engineer unit no company is drawn from: Draconians fly and need no roads.
-const DRACONIAN_ENGINEERS: &str = "draconian_engineers";
 /// The computer wizards' extra chance of a mercenary or hero offer, in percent.
 const AI_BONUS: i32 = 10;
 
@@ -205,7 +203,7 @@ pub fn mercenary_pool(rules: &Rules, arcanus: bool, myrror: bool) -> Vec<&UnitDe
             u.kind == UnitKind::Normal
                 && u.movement != MovementType::Sailing
                 && !u.ability_ids.contains(&Ability::new(12))
-                && u.id != DRACONIAN_ENGINEERS
+                && u.hireable
                 && u.race
                     .as_ref()
                     .and_then(|r| r.id())

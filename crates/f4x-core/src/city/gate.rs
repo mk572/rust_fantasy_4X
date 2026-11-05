@@ -21,9 +21,8 @@ use crate::player::PlayerId;
 use crate::unit::movement::MoveError;
 use crate::unit::MovesLeft;
 
-/// The hook of the gate spells: the effect is read from the city's enchantments, so casting
-/// does nothing beyond enchanting the city.
-pub const CITY_GATE: &str = "city_gate";
+/// The hooks of the gate spells: the effect is read from the city's enchantments, so casting
+/// does nothing beyond enchanting the city. A spell carries the hook in `spells.ron`.
 pub const EARTH_GATE: &str = "earth_gate";
 pub const ASTRAL_GATE: &str = "astral_gate";
 
@@ -89,12 +88,10 @@ impl Economy<'_> {
         let Some(city) = self.city_at(pos) else {
             return false;
         };
-        let Some(spell) = self.content.rules.spells.id_of(gate) else {
-            return false;
-        };
         crate::spell::instance::Spells::new(self.world)
             .city_enchantments(city)
-            .contains(&(spell, owner))
+            .iter()
+            .any(|&(spell, o)| o == owner && self.content.rules.spells.get(spell).has_hook(gate))
             && self.city_owner(city) == Some(owner)
     }
 }

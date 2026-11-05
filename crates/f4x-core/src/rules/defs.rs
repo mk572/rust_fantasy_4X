@@ -61,6 +61,9 @@ pub struct RaceDef {
     pub myrror: bool,
 }
 
+fn yes() -> bool {
+    true
+}
 fn two() -> u8 {
     2
 }
@@ -227,6 +230,10 @@ pub struct UnitDef {
     /// The alias for human editing.
     pub id: String,
     pub kind: UnitKind,
+    /// Whether a mercenary company can be drawn from this unit. The original's
+    /// `Generate_Mercenaries` leaves out the Draconian engineers, which fly and need no roads.
+    #[serde(default = "yes")]
+    pub hireable: bool,
     /// Required for `Normal` units; heroes and creatures have none.
     #[serde(default)]
     pub race: Option<Ref<RaceDef>>,
@@ -905,6 +912,15 @@ impl Def for BuildingDef {
 
     fn num(&self) -> u16 {
         self.num
+    }
+}
+
+impl SpellDef {
+    /// Whether the spell runs the named `Custom` hook.
+    pub fn has_hook(&self, hook: &str) -> bool {
+        self.effects
+            .iter()
+            .any(|r| matches!(&r.effect, super::effects::Effect::Custom(h) if h == hook))
     }
 }
 

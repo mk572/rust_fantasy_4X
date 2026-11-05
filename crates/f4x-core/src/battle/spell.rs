@@ -238,6 +238,8 @@ impl Game {
                     Effect::GrantAbility(a) => {
                         grants.extend(a.id());
                     }
+                    // Heroism's tag: the level it gives is read where the unit's level is.
+                    Effect::Custom(h) if h == crate::unit::HEROISM => {}
                     _ => return None,
                 }
             }
@@ -898,8 +900,12 @@ impl Game {
     /// What a lasting spell with no rules of its own gives a unit of the battle: Heroism raises it
     /// to the level the spell gives (the unit was made without it).
     fn battle_bonuses_by_name(&self, spell: SpellId, target: usize) -> Vec<Modifier> {
-        if spell != SpellId::new(130)
-        /* heroism */
+        if !self
+            .content
+            .rules
+            .spells
+            .get(spell)
+            .has_hook(crate::unit::HEROISM)
         {
             return Vec::new();
         }

@@ -81,15 +81,15 @@ const WRATH_REALMS: &[RealmId] = &[
     RealmId::new(2), /* chaos */
 ];
 
-/// Lasting spells on a unit whose effect the rules read by the spell's id, so their `effects` are
-/// empty: Heroism, and the wards against a realm. All of them help the unit they sit on.
-const READ_BY_ID_BUFFS: &[&str] = &[
-    "heroism",
-    "bless",
-    "righteousness",
-    "resist_magic",
-    "resist_elements",
-    "elemental_armor",
+/// Lasting spells on a unit whose effect the rules read by the spell's number, so their
+/// `effects` are empty: the wards against a realm, and Bless. All of them help the unit they sit
+/// on. (Heroism carries its own `heroism` tag and counts too.)
+const READ_BY_NUM_BUFFS: &[u16] = &[
+    121, // bless
+    144, // righteousness
+    41,  // resist_magic
+    2,   // resist_elements
+    21,  // elemental_armor
 ];
 
 /// Unexplored squares a block must hold to be worth Earth Lore.
@@ -170,10 +170,10 @@ pub fn kind(def: &SpellDef) -> Kind {
     {
         return Kind::Stasis;
     }
-    if def.effects.is_empty()
-        && def.target == SpellTarget::OwnUnit
+    if def.target == SpellTarget::OwnUnit
         && def.duration == Duration::Permanent
-        && READ_BY_ID_BUFFS.contains(&def.id.as_str())
+        && (has_hook(def, "heroism")
+            || (def.effects.is_empty() && READ_BY_NUM_BUFFS.contains(&def.num)))
     {
         return Kind::UnitBuff;
     }

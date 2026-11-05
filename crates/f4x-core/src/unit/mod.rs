@@ -56,7 +56,7 @@ pub struct WeaponQuality(pub u8);
 
 /// The level Heroism lifts a unit to (the original's level 3: Elite, or a hero's Commander).
 pub(crate) const HEROISM_LEVEL: usize = 3;
-/// The spell that does it.
+/// The hook of the spell that does it (`spells.ron`).
 pub(crate) const HEROISM: &str = "heroism";
 
 pub const WEAPON_MAGIC: u8 = 1;
@@ -245,10 +245,9 @@ impl<'a> UnitView<'a> {
 
     /// Whether the Heroism spell is on the unit.
     pub fn unit_has_heroism(&self, unit: hecs::Entity) -> bool {
-        let Some(spell) = self.content.rules.spells.id_of(HEROISM) else {
-            return false;
-        };
-        crate::spell::instance::Spells::new(self.world).unit_has(unit, spell)
+        self.unit_enchantments(unit)
+            .iter()
+            .any(|&(spell, _)| self.content.rules.spells.get(spell).has_hook(HEROISM))
     }
 
     /// Experience level, 0-based, from the unit's level path (0 without one): the level its

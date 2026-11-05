@@ -470,13 +470,7 @@ impl EffectHost for GameHost<'_> {
 impl Game {
     /// Does the spell run the named hook?
     pub fn spell_has_hook(&self, spell: SpellId, hook: &str) -> bool {
-        self.content
-            .rules
-            .spells
-            .get(spell)
-            .effects
-            .iter()
-            .any(|r| matches!(&r.effect, crate::rules::effects::Effect::Custom(h) if h == hook))
+        self.content.rules.spells.get(spell).has_hook(hook)
     }
 
     fn summons(&self, spell: SpellId) -> bool {

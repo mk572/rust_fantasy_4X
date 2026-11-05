@@ -81,19 +81,17 @@ pub(crate) fn process(world: &mut World, content: &Content, only: Option<PlayerI
     for &unit in &units {
         gain_xp(world, content, unit, 1);
     }
-    if let Some(heroism) = content.rules.spells.id_of(HEROISM) {
-        for &unit in &units {
-            let done = {
-                let view = UnitView::new(world, content);
-                view.unit_has_heroism(unit) && view.unit_xp_level(unit) >= HEROISM_LEVEL
-            };
-            if done {
-                crate::spell::instance::remove_on(
-                    world,
-                    crate::spell::instance::SpellTarget::Unit(unit),
-                    |s, _| s == heroism,
-                );
-            }
+    for &unit in &units {
+        let done = {
+            let view = UnitView::new(world, content);
+            view.unit_has_heroism(unit) && view.unit_xp_level(unit) >= HEROISM_LEVEL
+        };
+        if done {
+            crate::spell::instance::remove_on(
+                world,
+                crate::spell::instance::SpellTarget::Unit(unit),
+                |s, _| content.rules.spells.get(s).has_hook(HEROISM),
+            );
         }
     }
     let view = UnitView::new(world, content);
