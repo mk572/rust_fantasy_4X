@@ -716,12 +716,12 @@ mod tests {
         let units = &rig.content.rules.units;
         let swords = ProductionItem::Unit(
             units
-                .id_of("high_elf_swordsmen")
+                .id_numbered(96)
                 .ok_or("high_elf_swordsmen is not in the content")?,
         );
         let spears = ProductionItem::Unit(
             units
-                .id_of("high_elf_spearmen")
+                .id_numbered(95)
                 .ok_or("high_elf_spearmen is not in the content")?,
         );
         let (barracks, smithy) = (rig.building(3 /* barracks */), rig.building(8 /* smithy */));

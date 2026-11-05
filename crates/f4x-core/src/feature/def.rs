@@ -53,6 +53,12 @@ pub struct FeatureDef {
     /// alphabetical order of the ids).
     pub num: u16,
     pub kind: FeatureKind,
+    /// The realm of a magic node.
+    #[serde(default)]
+    pub realm: Option<crate::rules::RealmId>,
+    /// A temple or ruin: the guards of the site draw on life and death.
+    #[serde(default)]
+    pub holy: bool,
     #[serde(default)]
     pub city: CityBonus,
     /// Empty for towers, which are placed by dedicated rules.

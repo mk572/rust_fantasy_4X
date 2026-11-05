@@ -308,11 +308,11 @@ fn the_ready_made_wizards_are_drawn_once_each() {
     ];
     for seed in SEEDS {
         let mut g = game_with(seed, defs.clone());
-        let mut taken = vec!["a".to_string()];
+        let mut taken = vec![1 /* a */];
         let builds = make(&mut g, &settings(2, 5), &mut taken, 2, false, &plain);
         assert_eq!(builds.len(), 2);
         assert!(builds.iter().all(|b| b.preset));
-        let set: BTreeSet<&String> = taken.iter().collect();
+        let set: BTreeSet<&u16> = taken.iter().collect();
         assert_eq!(taken.len(), 3, "seed {seed}: {taken:?}");
         assert_eq!(set.len(), 3, "seed {seed}: a wizard was drawn twice");
         let places: BTreeSet<Option<u8>> = builds.iter().map(|b| b.portrait).collect();

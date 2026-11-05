@@ -91,7 +91,7 @@ impl App {
                     .iter()
                     .filter(|s| s.target == f4x_core::rules::SpellTarget::OwnCity)
                     .take(8)
-                    .filter_map(|s| self.game.content().rules.spells.id_of(&s.id))
+                    .filter_map(|s| self.game.content().rules.spells.id_numbered(s.num))
                     .collect();
                 for spell in spells {
                     self.game.attach_enchantment(

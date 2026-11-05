@@ -755,7 +755,13 @@ fn every_retort_costs_and_unlocks_as_in_the_originals_creation_screen() {
             "{name} cost"
         );
     }
-    let realms = ["life", "death", "chaos", "nature", "sorcery"];
+    let realms = [
+        3, /* life */
+        4, /* death */
+        2, /* chaos */
+        0, /* nature */
+        1, /* sorcery */
+    ];
     let mut checked = 0;
     // Every way to spend up to eleven picks on books.
     for life in 0..=11u8 {
@@ -767,7 +773,7 @@ fn every_retort_costs_and_unlocks_as_in_the_originals_creation_screen() {
                         let books = realms
                             .iter()
                             .zip(n)
-                            .map(|(r, b)| (rules.realms.id_of(r).unwrap(), b))
+                            .map(|(r, b)| (rules.realms.id_numbered(*r).unwrap(), b))
                             .collect();
                         for (&retort, name) in retorts.iter().zip(ORIGINAL_RETORTS) {
                             assert_eq!(

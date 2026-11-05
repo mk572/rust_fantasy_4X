@@ -420,17 +420,21 @@ impl App {
             return;
         };
         let rules = &self.game.content().rules;
-        let troops: Vec<_> = ["high_men_spearmen", "high_men_swordsmen", "high_men_bowmen"]
-            .iter()
-            .filter_map(|id| rules.units.id_of(id))
-            .collect();
+        let troops: Vec<_> = [
+            104, /* high_men_spearmen */
+            105, /* high_men_swordsmen */
+            106, /* high_men_bowmen */
+        ]
+        .iter()
+        .filter_map(|&id| rules.units.id_numbered(id))
+        .collect();
         let spells: Vec<_> = rules
             .spells
             .defs()
             .iter()
             .filter(|s| s.upkeep > 0 && s.target == f4x_core::rules::SpellTarget::None)
             .take(2)
-            .filter_map(|s| rules.spells.id_of(&s.id))
+            .filter_map(|s| rules.spells.id_numbered(s.num))
             .collect();
         for u in troops.iter().cycle().take(6) {
             self.game.spawn_unit(HUMAN, at, *u);
@@ -724,8 +728,8 @@ mod tests {
     /// `reserve` against the 60 owed.
     fn short_of_mana(reserve: i32) -> Result<Shortfall, Box<dyn std::error::Error>> {
         let spells = &shipped::content().rules.spells;
-        let line = |id: &str, mana| -> Result<UpkeepLine, String> {
-            let spell = spells.id_of(id).ok_or(format!("no spell {id}"))?;
+        let line = |id: u16, mana| -> Result<UpkeepLine, String> {
+            let spell = spells.id_numbered(id).ok_or(format!("no spell {id}"))?;
             Ok(UpkeepLine {
                 kind: UpkeepKind::Global(spell),
                 mana,
@@ -735,9 +739,9 @@ mod tests {
             reserve,
             owed: 60,
             lines: vec![
-                line("crusade", 10)?,
-                line("chaos_surge", 20)?,
-                line("armageddon", 30)?,
+                line(158 /* crusade */, 10)?,
+                line(116 /* chaos_surge */, 20)?,
+                line(120 /* armageddon */, 30)?,
             ],
         })
     }

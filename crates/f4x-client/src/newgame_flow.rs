@@ -405,14 +405,14 @@ impl CreateState {
     /// takes a ready-made wizard, "Custom", or (as a picture) one of the fourteen portraits.
     fn step_wizard(&mut self, app: &mut App, lay: &Layout, picture: bool, input: &Input) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let defs: Vec<(String, String)> = app
+        let defs: Vec<(u16, String)> = app
             .game
             .content()
             .rules
             .wizards
             .defs()
             .iter()
-            .map(|w| (w.id.clone(), app.names.wizard(w.num).to_string()))
+            .map(|w| (w.num, app.names.wizard(w.num).to_string()))
             .collect();
         let intro = app.options.difficulty == 0;
         let right_count = if picture || intro { 7 } else { 8 };
@@ -469,7 +469,7 @@ impl CreateState {
             app.draw_pic(lay, "wizards", entry, 0, 24.0, 10.0);
             app.ng_name(lay, &defs[shown].1);
             if !picture {
-                if let Some(build) = app.game.preset_build(&defs[shown].0) {
+                if let Some(build) = app.game.preset_build(defs[shown].0) {
                     let books = build.books.clone();
                     // The first two realms with books, in the original's order.
                     let shelf: Vec<RealmId> = SHELF_ORDER

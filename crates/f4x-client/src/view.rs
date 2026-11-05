@@ -406,12 +406,12 @@ impl App {
             .filter(|b| b.preset)
             .and(preset)
             .and_then(|i| content.rules.wizards.defs().get(i))
-            .map(|w| w.id.clone());
+            .map(|w| w.num);
         let spec = NewGame {
             seed,
             preset,
             build: human.cloned(),
-            race: content.rules.races.defs().get(race).map(|r| r.id.clone()),
+            race: content.rules.races.defs().get(race).map(|r| r.num),
             settings: {
                 let mut s = f4x_core::game::setting::GameSettings::for_difficulty(
                     &content.settings,

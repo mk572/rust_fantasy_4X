@@ -46,10 +46,10 @@ pub struct Ferry {
 /// not.
 pub fn port_item(view: &PlayerView, city: hecs::Entity, big: bool) -> Option<ProductionItem> {
     let rules = &view.content().rules;
-    let unit = |id: &str| {
+    let unit = |id: u16| {
         rules
             .units
-            .id_of(id)
+            .id_numbered(id)
             .map(ProductionItem::Unit)
             .filter(|&i| view.can_build(city, i).is_ok())
     };
@@ -58,12 +58,12 @@ pub fn port_item(view: &PlayerView, city: hecs::Entity, big: bool) -> Option<Pro
             num,
         )))
     };
-    if let Some(galley) = unit("galley") {
+    if let Some(galley) = unit(36 /* galley */) {
         return Some(galley);
     }
     // A ship that only scouts or carries a settler or two is not worth the yard's chain.
     if !big {
-        if let Some(trireme) = unit("trireme") {
+        if let Some(trireme) = unit(35 /* trireme */) {
             return Some(trireme);
         }
         if let Some(guild) =
@@ -88,7 +88,7 @@ pub fn port_item(view: &PlayerView, city: hecs::Entity, big: bool) -> Option<Pro
             }
         }
     }
-    if let Some(trireme) = unit("trireme") {
+    if let Some(trireme) = unit(35 /* trireme */) {
         return Some(trireme);
     }
     building(12 /* ship_wrights_guild */).filter(|&i| view.can_build(city, i).is_ok())
@@ -766,11 +766,11 @@ mod tests {
     fn a_race_with_a_ship_yard_works_up_to_a_galley() {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         assert_eq!(port_builds(&g).as_deref(), Some("ship_wrights_guild"));
-        build(&mut g, port(), &["ship_wrights_guild"]);
+        build(&mut g, port(), &[12 /* ship_wrights_guild */]);
         assert_eq!(port_builds(&g).as_deref(), Some("sawmill"));
-        build(&mut g, port(), &["sawmill"]);
+        build(&mut g, port(), &[15 /* sawmill */]);
         assert_eq!(port_builds(&g).as_deref(), Some("ship_yard"));
-        build(&mut g, port(), &["ship_yard"]);
+        build(&mut g, port(), &[13 /* ship_yard */]);
         assert_eq!(port_builds(&g).as_deref(), Some("galley"));
     }
 
@@ -779,7 +779,7 @@ mod tests {
         // Beastmen may build a Ship Wrights Guild but no Ship Yard.
         let mut g = game(COAST_CITY, 1 /* beastmen */);
         assert_eq!(port_builds(&g).as_deref(), Some("ship_wrights_guild"));
-        build(&mut g, port(), &["ship_wrights_guild"]);
+        build(&mut g, port(), &[12 /* ship_wrights_guild */]);
         assert_eq!(port_builds(&g).as_deref(), Some("trireme"));
     }
 
@@ -791,7 +791,11 @@ mod tests {
         build(
             &mut g,
             inland,
-            &["ship_wrights_guild", "sawmill", "ship_yard"],
+            &[
+                12, /* ship_wrights_guild */
+                15, /* sawmill */
+                13, /* ship_yard */
+            ],
         );
         let view = PlayerView::new(&g, P0);
         let city = view.city_at(inland).ok_or("the city is there")?;
@@ -875,7 +879,11 @@ mod tests {
         build(
             &mut g,
             port(),
-            &["ship_wrights_guild", "sawmill", "ship_yard"],
+            &[
+                12, /* ship_wrights_guild */
+                15, /* sawmill */
+                13, /* ship_yard */
+            ],
         );
         g.reveal_map(P0);
         g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold = 1_000_000;
@@ -919,7 +927,11 @@ mod tests {
         build(
             &mut g,
             port(),
-            &["ship_wrights_guild", "sawmill", "ship_yard"],
+            &[
+                12, /* ship_wrights_guild */
+                15, /* sawmill */
+                13, /* ship_yard */
+            ],
         );
         g.reveal_map(P0);
         // Upkeep must not interfere.

@@ -452,7 +452,11 @@ mod tests {
         build(
             &mut g,
             port(),
-            &["ship_wrights_guild", "sawmill", "ship_yard"],
+            &[
+                12, /* ship_wrights_guild */
+                15, /* sawmill */
+                13, /* ship_yard */
+            ],
         );
         g.explore(P0, port(), 24);
         for x in [16, 22, 26, 30] {

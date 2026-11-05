@@ -48,15 +48,15 @@ pub struct NewGame {
     pub seed: u64,
     /// Every wizard is a ready-made one for an AI to play (no human): `human` stays unset.
     pub all_ai: bool,
-    /// A ready-made wizard's id for player 0; the default is a fixed sorcery and nature wizard.
-    pub preset: Option<String>,
+    /// A ready-made wizard's number for player 0; the default is a fixed sorcery and nature wizard.
+    pub preset: Option<u16>,
     /// A custom wizard for player 0 (used when no preset is given).
     pub name: Option<String>,
     pub gender: crate::text::Gender,
     pub books: BTreeMap<RealmId, u8>,
     pub retorts: BTreeSet<Retort>,
-    /// Player 0's race id; the default is the first race with city names.
-    pub race: Option<String>,
+    /// Player 0's race number; the default is the first race with city names.
+    pub race: Option<u16>,
     /// A finished wizard for player 0 (name, books, retorts, spells, banner); it wins over
     /// `preset`, `name`, `books` and `retorts`.
     pub build: Option<WizardBuild>,
@@ -147,15 +147,15 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         portrait: None,
         preset: true,
     };
-    let preset_ids: Vec<String> = game
+    let preset_ids: Vec<u16> = game
         .content
         .rules
         .wizards
         .defs()
         .iter()
-        .map(|w| w.id.clone())
+        .map(|w| w.num)
         .collect();
-    let mut taken: Vec<String> = Vec::new();
+    let mut taken: Vec<u16> = Vec::new();
     let mut builds = Vec::new();
     // The computer wizards, made together when the settings ask for it (see `ai_wizards`).
     let mut made: Option<std::collections::VecDeque<WizardBuild>> = None;
@@ -163,14 +163,14 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     for k in 0..wizards as usize {
         let build = if k == 0 && !spec.all_ai {
             if let Some(build) = &spec.build {
-                if let Some(id) = build.preset.then(|| spec.preset.clone()).flatten() {
+                if let Some(id) = build.preset.then_some(spec.preset).flatten() {
                     taken.push(id);
                 }
                 build.clone()
-            } else if let Some(id) = &spec.preset {
-                taken.push(id.clone());
-                game.preset_build(id)
-                    .ok_or_else(|| format!("no ready-made wizard {id:?}"))?
+            } else if let Some(&num) = spec.preset.as_ref() {
+                taken.push(num);
+                game.preset_build(num)
+                    .ok_or_else(|| format!("no ready-made wizard {num}"))?
             } else if !spec.books.is_empty() {
                 WizardBuild {
                     name: spec.name.clone().unwrap_or_else(|| "Wizard".into()),
@@ -220,10 +220,10 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
             build
         } else {
             // The next ready-made wizard nobody has yet, starting from a seed-chosen one.
-            let free: Vec<&String> = preset_ids.iter().filter(|id| !taken.contains(id)).collect();
+            let free: Vec<&u16> = preset_ids.iter().filter(|id| !taken.contains(id)).collect();
             let pick = free
                 .get((spec.seed as usize + k) % free.len().max(1))
-                .and_then(|id| game.preset_build(id).map(|b| ((*id).clone(), b)));
+                .and_then(|&&id| game.preset_build(id).map(|b| (id, b)));
             match pick {
                 Some((id, b)) => {
                     taken.push(id);
@@ -294,28 +294,27 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     // Races: player 0's choice, then the others in turn, skipping races already taken. A
     // Myrran wizard has a Myrror race and starts there; everyone else an Arcanus one.
     let race_defs = game.content.rules.races.defs().to_vec();
-    let mut races: Vec<String> = Vec::new();
+    let mut races: Vec<u16> = Vec::new();
     for k in 0..wizards as usize {
         let myrran = is_myrran(&game, PlayerId(k as u8));
         let on_plane = |r: &&crate::rules::RaceDef| !r.city_names.is_empty() && r.myrror == myrran;
         let id = match spec.race.as_ref().filter(|_| k == 0) {
             Some(want) => {
-                let ok = race_defs.iter().filter(on_plane).any(|r| &r.id == want);
+                let ok = race_defs.iter().filter(on_plane).any(|r| r.num == *want);
                 if !ok {
                     return Err(format!(
-                        "race {want:?} is not one of the {} races",
+                        "race {want} is not one of the {} races",
                         if myrran { "Myrror" } else { "Arcanus" }
                     ));
                 }
-                want.clone()
+                *want
             }
             None => {
-                let all: Vec<&String> = race_defs.iter().filter(on_plane).map(|r| &r.id).collect();
-                let free: Vec<&String> =
-                    all.iter().copied().filter(|r| !races.contains(r)).collect();
+                let all: Vec<u16> = race_defs.iter().filter(on_plane).map(|r| r.num).collect();
+                let free: Vec<u16> = all.iter().copied().filter(|r| !races.contains(r)).collect();
                 let pool = if free.is_empty() { all } else { free };
                 pool.get((spec.seed as usize + k * 3) % pool.len().max(1))
-                    .map(|r| (*r).clone())
+                    .copied()
                     .ok_or("no races")?
             }
         };
@@ -337,7 +336,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     });
     for k in 0..wizards {
         let site = rolled.clone().flatten().map(|v| v[k as usize]);
-        start_player(&mut game, PlayerId(k), wizards, &races[k as usize], site)?;
+        start_player(&mut game, PlayerId(k), wizards, races[k as usize], site)?;
         reveal_start(&mut game, PlayerId(k), settings.world.start_reveal_radius.0);
     }
     // Independent cities on both planes, once the wizards' fortresses are down.
@@ -459,16 +458,16 @@ fn start_player(
     game: &mut Game,
     player: PlayerId,
     count: u8,
-    race: &str,
+    race: u16,
     site: Option<Position>,
 ) -> Result<(), String> {
     let rules = &game.content.rules;
     let rules_texts = &game.content.texts;
     let race_def = rules
         .races
-        .by_name(race)
-        .ok_or_else(|| format!("no race {race:?}"))?;
-    let race_id = rules.races.id_of(&race_def.id);
+        .by_num(race)
+        .ok_or_else(|| format!("no race {race}"))?;
+    let race_id = rules.races.id_numbered(race_def.num);
     let name = race_def
         .city_names
         .first()

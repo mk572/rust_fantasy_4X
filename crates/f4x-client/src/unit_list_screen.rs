@@ -73,11 +73,11 @@ impl App {
             let owner = self.game.units().units_at(at).first().and_then(|&u| {
                 Some((
                     self.game.units().unit_owner(u)?,
-                    self.game.units().unit_def(u)?.id.clone(),
+                    self.game.units().unit_def(u)?.num,
                 ))
             });
             if let Some((owner, id)) = owner {
-                if let Some(kind) = self.game.content().rules.units.id_of(&id) {
+                if let Some(kind) = self.game.content().rules.units.id_numbered(id) {
                     for _ in 0..12 {
                         self.game.spawn_unit(owner, at, kind);
                     }

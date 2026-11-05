@@ -1,8 +1,6 @@
-//! Loaded definition tables. Definitions refer to each other by string id in the
-//! content files; `f4x-data` validates that every reference resolves, and the
-//! registry turns an id string into a typed [`Id`] once, at the edges.
-
-use std::collections::HashMap;
+//! Loaded definition tables. Definitions refer to each other by number in the content files;
+//! `f4x-data` validates that every reference resolves, and the registry finds a definition by its
+//! number. The alias (`id`) of an entry is a human's aid in the files and is not looked up here.
 
 use super::ids::Id;
 
@@ -19,8 +17,6 @@ pub trait Def {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Registry<T> {
     defs: Vec<T>,
-    /// The alias of each definition to its number.
-    index: HashMap<String, u16>,
     /// The row of each number (`NO_ROW` where there is none).
     rows: Vec<u16>,
 }
@@ -31,19 +27,18 @@ impl<T> Default for Registry<T> {
     fn default() -> Self {
         Self {
             defs: Vec::new(),
-            index: HashMap::new(),
             rows: Vec::new(),
         }
     }
 }
 
 impl<T: Def> Registry<T> {
-    /// Build a registry. The definitions must be in ascending order of their numbers. If an
-    /// alias repeats, the first definition wins the lookup (content validation reports
-    /// duplicates).
+    /// Build a registry. The definitions must be in ascending order of their numbers
+    /// (content validation reports a repeated alias).
     pub fn new(defs: Vec<T>) -> Self {
         assert!(defs.len() < NO_ROW as usize, "too many definitions");
-        let mut index = HashMap::new();
+        #[cfg(test)]
+        let mut aliases = std::collections::HashSet::new();
         let mut rows: Vec<u16> = Vec::new();
         let mut last: Option<u16> = None;
         for (i, d) in defs.iter().enumerate() {
@@ -57,17 +52,16 @@ impl<T: Def> Registry<T> {
             // Content validation reports a repeated alias; a test must not build one by accident.
             #[cfg(test)]
             assert!(
-                !index.contains_key(d.id()),
+                aliases.insert(d.id().to_string()),
                 "id repeated in a registry: {}",
                 d.id()
             );
-            index.entry(d.id().to_string()).or_insert(num);
             if rows.len() <= num as usize {
                 rows.resize(num as usize + 1, NO_ROW);
             }
             rows[num as usize] = i as u16;
         }
-        Self { defs, index, rows }
+        Self { defs, rows }
     }
 
     /// A registry of definitions in any order: they are put in the order of their numbers
@@ -84,10 +78,6 @@ impl<T: Def> Registry<T> {
 
     pub fn is_empty(&self) -> bool {
         self.defs.is_empty()
-    }
-
-    pub fn id_of(&self, name: &str) -> Option<Id<T>> {
-        self.index.get(name).map(|&n| Id::new(n))
     }
 
     /// The definition numbered `id`. Panics for a number the table does not hold; an id made
@@ -120,11 +110,6 @@ impl<T: Def> Registry<T> {
         }
     }
 
-    /// Look up a definition by its string id.
-    pub fn by_name(&self, name: &str) -> Option<&T> {
-        self.id_of(name).map(|id| self.get(id))
-    }
-
     /// Definitions in the order of their numbers (stable, so iteration is deterministic).
     pub fn iter(&self) -> impl Iterator<Item = (Id<T>, &T)> {
         let mut nums = self.rows.iter().enumerate().filter(|(_, &r)| r != NO_ROW);
@@ -136,17 +121,6 @@ impl<T: Def> Registry<T> {
 
     pub fn defs(&self) -> &[T] {
         &self.defs
-    }
-}
-
-impl Registry<super::AbilityDef> {
-    /// The numbers of the abilities a rule lists by name; a name that is not an ability is left
-    /// out (content validation reports it).
-    pub fn ids<S: AsRef<str>>(&self, names: &[S]) -> Vec<super::Ability> {
-        names
-            .iter()
-            .filter_map(|n| self.id_of(n.as_ref()))
-            .collect()
     }
 }
 
@@ -172,20 +146,19 @@ mod tests {
     }
 
     #[test]
-    fn a_definition_is_found_by_alias_and_by_number() -> TestResult {
+    fn a_definition_is_found_by_number() -> TestResult {
         let t = table();
-        let b = t.id_of("b").ok_or("b is in the table")?;
+        let b = t.id_numbered(4).ok_or("4 is in the table")?;
         assert_eq!(b.num(), 4);
         assert_eq!(t.get(b).id(), "b");
         assert_eq!(t.id_numbered(9).map(|id| t.get(id).id()), Some("c"));
-        assert_eq!(t.by_name("a").map(Def::num), Some(1));
+        assert_eq!(t.by_num(1).map(Def::num), Some(1));
         Ok(())
     }
 
     #[test]
-    fn a_name_or_number_the_table_lacks_is_none() {
+    fn a_number_the_table_lacks_is_none() {
         let t = table();
-        assert!(t.id_of("z").is_none());
         assert!(t.id_numbered(2).is_none(), "a gap between numbers");
         assert!(t.id_numbered(500).is_none(), "past the last number");
         assert!(t.try_get(Id::new(2)).is_none() && t.try_get(Id::new(500)).is_none());

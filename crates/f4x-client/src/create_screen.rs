@@ -56,8 +56,8 @@ impl CreateState {
     pub(crate) fn pick_preset(&mut self, app: &mut App, index: Option<usize>) {
         match index {
             Some(i) => {
-                let id = app.game.content().rules.wizards.defs()[i].id.clone();
-                if let Some(build) = app.game.preset_build(&id) {
+                let num = app.game.content().rules.wizards.defs()[i].num;
+                if let Some(build) = app.game.preset_build(num) {
                     self.build = build;
                     self.preset = Some(i);
                 }

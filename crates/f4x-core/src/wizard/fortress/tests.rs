@@ -814,9 +814,8 @@ fn spell_world(leave: usize) -> (Game, hecs::Entity, Vec<crate::rules::SpellId>)
         .content
         .rules
         .spells
-        .defs()
         .iter()
-        .filter_map(|d| g.content.rules.spells.id_of(&d.id))
+        .map(|(id, _)| id)
         .filter(|s| !known(&g, P0).contains(s) && !known(&g, P1).contains(s))
         .collect();
     while pool.len() < leave {

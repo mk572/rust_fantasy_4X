@@ -100,14 +100,14 @@ pub fn spawn(
 }
 
 /// Give the city at `pos` the buildings (by id), in the order given.
-pub fn build(game: &mut Game, pos: Position, buildings: &[&str]) {
+pub fn build(game: &mut Game, pos: Position, buildings: &[u16]) {
     let city = game.economy().city_at(pos).expect("a city there");
     for id in buildings {
         let b = game
             .content()
             .rules
             .buildings
-            .id_of(id)
+            .id_numbered(*id)
             .unwrap_or_else(|| panic!("no building {id}"));
         game.scenario_set_building(city, b, true);
     }

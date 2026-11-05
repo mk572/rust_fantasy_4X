@@ -129,22 +129,22 @@ pub(crate) fn balance_planes(
 pub(crate) fn make(
     game: &mut Game,
     settings: &GameSettings,
-    taken: &mut Vec<String>,
+    taken: &mut Vec<u16>,
     count: usize,
     human_myrran: bool,
     fallback: &dyn Fn(usize) -> WizardBuild,
 ) -> Vec<WizardBuild> {
     let rules = settings.ai.wizards;
     let picks = settings.wizards.picks.ai;
-    let ids: Vec<String> = game
+    let ids: Vec<u16> = game
         .content
         .rules
         .wizards
         .defs()
         .iter()
-        .map(|w| w.id.clone())
+        .map(|w| w.num)
         .collect();
-    let myran = |game: &Game, id: &str| {
+    let myran = |game: &Game, id: u16| {
         game.preset_build(id)
             .is_some_and(|b| b.retorts.contains(&Retort::new(9) /* myrran */))
     };
@@ -155,17 +155,17 @@ pub(crate) fn make(
     let wizards = usize::from(settings.basic.opponents) + 1;
     let (_, most) = myrran_range(wizards);
     for i in 0..count {
-        let free: Vec<&String> = ids
+        let free: Vec<&u16> = ids
             .iter()
             .filter(|id| !taken.contains(id))
-            .filter(|id| !(rules.myrran_rule && myrrans >= most && myran(game, id)))
+            .filter(|id| !(rules.myrran_rule && myrrans >= most && myran(game, **id)))
             .collect();
         if free.is_empty() {
             builds.push(fallback(i));
             continue;
         }
-        let id = free[game.roll(free.len() as u32) as usize - 1].clone();
-        let Some(build) = game.preset_build(&id) else {
+        let id = *free[game.roll(free.len() as u32) as usize - 1];
+        let Some(build) = game.preset_build(id) else {
             builds.push(fallback(i));
             continue;
         };

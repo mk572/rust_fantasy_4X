@@ -174,12 +174,13 @@ fn a_command_naming_nothing_is_reported() -> TestResult {
 }
 
 #[test]
-fn a_spell_in_a_command_is_written_by_its_id_and_read_back() -> TestResult {
+fn a_spell_in_a_command_is_written_by_its_number_and_read_back() -> TestResult {
     let (g, _) = world();
     let spells = &g.content.rules.spells;
     let first = spells.defs().first().expect("the test content has spells");
-    let spell = spells.id_of(&first.id).ok_or("id_of is missing")?;
-    let id = spells.get(spell).id.clone();
+    let spell = spells
+        .id_numbered(first.num)
+        .ok_or("the spell is missing")?;
     let cast = Command::Battle(crate::battle::BattleCommand::Cast {
         spell,
         aim: crate::battle::SpellAim::None,
@@ -187,7 +188,7 @@ fn a_spell_in_a_command_is_written_by_its_id_and_read_back() -> TestResult {
     });
     g.load_context();
     let text = ron::ser::to_string(&cast)?;
-    assert!(text.contains(&format!("\"{id}\"")), "{text}");
+    assert!(text.contains(&format!("spell:{}", first.num)), "{text}");
     assert_eq!(ron::from_str::<Command>(&text)?, cast);
     Ok(())
 }

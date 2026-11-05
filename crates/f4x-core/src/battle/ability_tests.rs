@@ -40,14 +40,14 @@ fn world() -> Game {
 
 /// A battle between one real unit of each side, the attacker at (5, 10) and the defender
 /// `gap` squares away.
-fn duel(attacker: &str, defender: &str, gap: i32) -> Battle {
+fn duel(attacker: u16, defender: u16, gap: i32) -> Battle {
     let mut g = world();
-    let spawn = |g: &mut Game, owner, id: &str, x| {
+    let spawn = |g: &mut Game, owner, id: u16, x| {
         let def = g
             .content
             .rules
             .units
-            .id_of(id)
+            .id_numbered(id)
             .unwrap_or_else(|| panic!("{id} is not in the content"));
         g.spawn_unit(owner, at(x, 8), def)
     };
@@ -128,7 +128,11 @@ fn nothing(_: &mut Battle) {}
 
 #[test]
 fn a_death_gaze_kills_figures_that_fail_to_resist_unless_the_target_is_immune() {
-    let b = duel("night_stalker", "high_men_spearmen", 1);
+    let b = duel(
+        167, /* night_stalker */
+        104, /* high_men_spearmen */
+        1,
+    );
     let (with, _) = losses(&b, false, nothing);
     let (plain, _) = losses(&b, false, without(15 /* death_gaze */));
     assert!(
@@ -144,7 +148,11 @@ fn a_death_gaze_kills_figures_that_fail_to_resist_unless_the_target_is_immune() 
 
 #[test]
 fn a_multiple_gaze_stones_and_kills_unless_the_target_is_immune_to_both() {
-    let b = duel("chaos_spawn", "high_men_spearmen", 1);
+    let b = duel(
+        159, /* chaos_spawn */
+        104, /* high_men_spearmen */
+        1,
+    );
     let (with, _) = losses(&b, false, nothing);
     let (plain, _) = losses(&b, false, without(46 /* multi_gaze */));
     assert!(
@@ -175,7 +183,11 @@ fn a_multiple_gaze_stones_and_kills_unless_the_target_is_immune_to_both() {
 
 #[test]
 fn a_stoning_touch_turns_figures_to_stone_unless_the_target_is_immune() {
-    let b = duel("cockatrices", "high_men_spearmen", 1);
+    let b = duel(
+        181, /* cockatrices */
+        104, /* high_men_spearmen */
+        1,
+    );
     let (with, _) = losses(&b, false, nothing);
     let (plain, _) = losses(&b, false, without(66 /* stoning_touch */));
     assert!(
@@ -191,7 +203,11 @@ fn a_stoning_touch_turns_figures_to_stone_unless_the_target_is_immune() {
 
 #[test]
 fn a_poison_touch_costs_the_target_hit_points_unless_it_is_immune() {
-    let b = duel("orc_wyvern_riders", "high_men_spearmen", 1);
+    let b = duel(
+        146, /* orc_wyvern_riders */
+        104, /* high_men_spearmen */
+        1,
+    );
     let (_, with) = losses(&b, false, nothing);
     let (_, plain) = losses(&b, false, without(53 /* poison_touch */));
     assert!(with > plain, "the poison hurts: {with} against {plain}");
@@ -204,8 +220,8 @@ fn a_poison_touch_costs_the_target_hit_points_unless_it_is_immune() {
 
 /// A ranged magic attack: the ability makes the shot a bolt, which hurts a target at range and
 /// is stopped by magic immunity.
-fn assert_a_bolt(shooter: &str, ability: u16) {
-    let b = duel(shooter, "high_men_spearmen", 6);
+fn assert_a_bolt(shooter: u16, ability: u16) {
+    let b = duel(shooter, 104 /* high_men_spearmen */, 6);
     let a = index(&b, Side::Attacker);
     assert!(
         b.units[a]
@@ -233,27 +249,31 @@ fn assert_a_bolt(shooter: &str, ability: u16) {
 
 #[test]
 fn a_drow_bolt_is_a_ranged_magic_attack() {
-    assert_a_bolt("dark_elf_spearmen", 18 /* drow_bolt */);
+    assert_a_bolt(57 /* dark_elf_spearmen */, 18 /* drow_bolt */);
 }
 
 #[test]
 fn a_nature_bolt_is_a_ranged_magic_attack() {
-    assert_a_bolt("druid", 47 /* nature_bolt */);
+    assert_a_bolt(10 /* druid */, 47 /* nature_bolt */);
 }
 
 #[test]
 fn a_shaman_bolt_is_a_ranged_magic_attack() {
-    assert_a_bolt("barbarian_shaman", 58 /* shaman_bolt */);
+    assert_a_bolt(43 /* barbarian_shaman */, 58 /* shaman_bolt */);
 }
 
 #[test]
 fn a_sprite_bolt_is_a_ranged_magic_attack() {
-    assert_a_bolt("sprites", 63 /* sprite_bolt */);
+    assert_a_bolt(180 /* sprites */, 63 /* sprite_bolt */);
 }
 
 #[test]
 fn a_magical_weapon_hurts_what_normal_weapons_barely_scratch() {
-    let b = duel("high_men_swordsmen", "high_men_spearmen", 1);
+    let b = duel(
+        105, /* high_men_swordsmen */
+        104, /* high_men_spearmen */
+        1,
+    );
     let weapon_proof = immune(72 /* weapon_immunity */);
     let (_, normal) = losses(&b, false, &weapon_proof);
     let (_, magical) = losses(&b, false, |b: &mut Battle| {
@@ -273,7 +293,11 @@ fn a_magical_weapon_hurts_what_normal_weapons_barely_scratch() {
 
 #[test]
 fn an_eldritch_weapon_takes_a_plus_off_the_defenders_blocks() {
-    let b = duel("high_men_swordsmen", "high_men_spearmen", 1);
+    let b = duel(
+        105, /* high_men_swordsmen */
+        104, /* high_men_spearmen */
+        1,
+    );
     let (_, plain) = losses(&b, false, nothing);
     let (_, eldritch) = losses(&b, false, |b: &mut Battle| {
         for u in &mut b.units {
@@ -290,7 +314,11 @@ fn an_eldritch_weapon_takes_a_plus_off_the_defenders_blocks() {
 
 #[test]
 fn a_major_spellcaster_has_forty_mana_and_casts_the_spells_of_its_realm() {
-    let major = duel("arch_angel", "high_men_spearmen", 6);
+    let major = duel(
+        178, /* arch_angel */
+        104, /* high_men_spearmen */
+        6,
+    );
     let a = index(&major, Side::Attacker);
     assert_eq!(major.units[a].mana, 40);
     assert!(major.units[a].has(Ability::new(62)));

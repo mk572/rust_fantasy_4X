@@ -128,7 +128,7 @@ impl App {
         else {
             return;
         };
-        let Some(building) = rules.buildings.id_of(&def.id) else {
+        let Some(building) = rules.buildings.id_numbered(def.num) else {
             return;
         };
         let name = self.names.building(def.num).to_string();
@@ -520,7 +520,7 @@ mod tests {
         let at = buildings
             .defs()
             .iter()
-            .position(|d| buildings.id_of(&d.id) == Some(building))
+            .position(|d| buildings.id_numbered(d.num) == Some(building))
             .ok_or("the building is not in the table")?;
         Ok(at as i16 + 3)
     }

@@ -63,9 +63,9 @@
     // ---- Encounter sites -------------------------------------------------------
     (id: "monster_lair", num: 13,    kind: Encounter, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
     (id: "mysterious_cave", num: 14, kind: Encounter, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
-    (id: "ancient_temple", num: 3,  kind: Encounter, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
-    (id: "fallen_temple", num: 8,   kind: Encounter, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
-    (id: "ruins", num: 18,           kind: Encounter, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
+    (id: "ancient_temple", num: 3,  kind: Encounter, holy: true, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
+    (id: "fallen_temple", num: 8,   kind: Encounter, holy: true, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
+    (id: "ruins", num: 18,           kind: Encounter, holy: true, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
     (id: "abandoned_keep", num: 1,  kind: Encounter, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
     (id: "dungeon", num: 7,         kind: Encounter, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
 
@@ -73,15 +73,15 @@
     (id: "tower", num: 21, kind: Tower),
 
     // ---- Magic nodes: type follows the surrounding terrain ---------------------
-    (id: "nature_node", num: 15, kind: Node, spawn: [
+    (id: "nature_node", num: 15, kind: Node, realm: Some(0), spawn: [
         (terrain: [Forest, Swamp],  planes: [Arcanus, Myrror], weight: 4),
         (terrain: [Grassland],      planes: [Arcanus, Myrror], weight: 1),
     ]),
-    (id: "sorcery_node", num: 20, kind: Node, spawn: [
+    (id: "sorcery_node", num: 20, kind: Node, realm: Some(1), spawn: [
         (terrain: [Grassland, Tundra, Desert], planes: [Arcanus, Myrror], weight: 4),
         (terrain: [Forest, Swamp, Hills],      planes: [Arcanus, Myrror], weight: 1),
     ]),
-    (id: "chaos_node", num: 4, kind: Node, spawn: [
+    (id: "chaos_node", num: 4, kind: Node, realm: Some(2), spawn: [
         (terrain: [Mountains, Hills], planes: [Arcanus, Myrror], weight: 4),
         (terrain: [Desert, Swamp],    planes: [Arcanus, Myrror], weight: 2),
     ]),

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use f4x_core::game::setting::EventFrequency;
 
-use crate::args::Args;
+use crate::args::{resolve, Args};
 use crate::setup::{new_game, parse_retort, NewGame};
 use crate::{commands, find, CommandDef, ConsoleError, Ctx, Kind, Mode};
 
@@ -372,9 +372,15 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                     }
                 })
             }
-            "wizard" => spec.preset = Some(v.to_string()),
+            "wizard" => {
+                let wizards = &ctx.game.content().rules.wizards;
+                spec.preset = Some(resolve(wizards, v, |d| &d.id, "wizard")?.num());
+            }
             "name" => spec.name = Some(v.to_string()),
-            "race" => spec.race = Some(v.to_string()),
+            "race" => {
+                let races = &ctx.game.content().rules.races;
+                spec.race = Some(resolve(races, v, |d| &d.id, "race")?.num());
+            }
             "players" => {
                 let n: u8 = v.parse().map_err(|_| {
                     ConsoleError::Parse(format!("{v:?} is not a number of wizards"))
@@ -458,12 +464,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                     let n = n
                         .parse()
                         .map_err(|_| ConsoleError::Parse(format!("{n:?} is not a count")))?;
-                    let realm = ctx
-                        .game
-                        .content()
-                        .rules
-                        .realms
-                        .id_of(realm)
+                    let realm = crate::args::alias_id(&ctx.game.content().rules.realms, realm)
                         .ok_or_else(|| ConsoleError::NoSuch(format!("realm {realm:?}")))?;
                     spec.books.insert(realm, n);
                 }

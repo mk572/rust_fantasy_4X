@@ -364,11 +364,17 @@ mod tests {
     #[test]
     fn summoning_and_crafting_spells_are_told_by_their_data() {
         let c = shipped();
-        let def = |id: &str| c.rules.spells.get(c.rules.spells.id_of(id).expect(id));
-        assert!(is_summoning(def("war_bears")));
-        assert!(!is_summoning(def("fire_bolt")));
-        assert!(is_crafting(def("enchant_item")) && is_crafting(def("create_artifact")));
-        assert!(!is_crafting(def("war_bears")));
+        let def = |id: u16| {
+            c.rules
+                .spells
+                .get(c.rules.spells.id_numbered(id).expect("a shipped spell"))
+        };
+        assert!(is_summoning(def(6 /* war_bears */)));
+        assert!(!is_summoning(def(83 /* fire_bolt */)));
+        assert!(
+            is_crafting(def(207 /* enchant_item */)) && is_crafting(def(211 /* create_artifact */))
+        );
+        assert!(!is_crafting(def(6 /* war_bears */)));
     }
 
     #[test]

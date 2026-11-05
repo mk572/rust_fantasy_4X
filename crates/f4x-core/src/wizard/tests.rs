@@ -377,7 +377,9 @@ fn a_wizard_chooses_a_banner_and_it_is_saved() -> TestResult {
 #[test]
 fn presets_come_from_the_rules() -> TestResult {
     let mut g = game();
-    let b = g.preset_build("lo_pan").ok_or("preset_build is missing")?;
+    let b = g
+        .preset_build(3 /* lo_pan */)
+        .ok_or("preset_build is missing")?;
     assert!(b.preset);
     assert_eq!(
         b.picks_spent(&game().content.rules),
@@ -407,7 +409,7 @@ fn presets_come_from_the_rules() -> TestResult {
         .wizard(P0)
         .ok_or("wizard is missing")?
         .has(Retort::new(8) /* channeler */));
-    assert!(g.preset_build("nobody").is_none());
+    assert!(g.preset_build(9999).is_none());
     Ok(())
 }
 
@@ -846,6 +848,7 @@ fn each_retort_constant_is_the_number_of_its_row_in_the_content() {
     assert_eq!(named.len(), rules.retorts.len(), "a constant for each row");
     for (id, alias) in named {
         assert_eq!(rules.retorts.get(id).id, alias, "number {}", id.num());
-        assert_eq!(rules.retorts.id_of(alias), Some(id), "{alias}");
+        let by_alias = rules.retorts.iter().find(|(_, d)| d.id == alias);
+        assert_eq!(by_alias.map(|(found, _)| found), Some(id), "{alias}");
     }
 }

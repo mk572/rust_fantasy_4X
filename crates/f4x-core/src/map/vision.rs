@@ -239,8 +239,14 @@ mod tests {
             x,
             y: 5,
         };
-        let id = |g: &Game, n: &str| g.content.rules.units.id_of(n).expect("id_of succeeds");
-        let (spirit, mage) = (id(&g, "magic_spirit"), id(&g, "wind_mage"));
+        let id = |g: &Game, n: u16| {
+            g.content
+                .rules
+                .units
+                .id_numbered(n)
+                .expect("id_of succeeds")
+        };
+        let (spirit, mage) = (id(&g, 154 /* magic_spirit */), id(&g, 15 /* wind_mage */));
         let ghost = g.spawn_unit(PlayerId(0), at(5), spirit);
         assert!(
             g.economy().unit_visible_to(ghost, PlayerId(0)),

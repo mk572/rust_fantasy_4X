@@ -419,7 +419,7 @@ impl App {
             .spells
             .defs()
             .iter()
-            .filter_map(|s| self.game.content().rules.spells.id_of(&s.id))
+            .filter_map(|s| self.game.content().rules.spells.id_numbered(s.num))
             .take(6)
             .collect();
         let mut count = 0;

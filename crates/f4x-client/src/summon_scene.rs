@@ -265,19 +265,19 @@ mod tests {
     fn the_shipped_spells_that_summon_are_the_ones_the_scene_knows() {
         let app = App::for_test();
         let rules = &app.game.content().rules;
-        let summons = |id: &str| {
-            let spell = rules.spells.by_name(id).expect("spell");
+        let summons = |id: u16| {
+            let spell = rules.spells.by_num(id).expect("spell");
             summoned_by(spell)
         };
         assert_eq!(
-            summons("war_bears"),
+            summons(6 /* war_bears */),
             Some(Summoned::Creature(UnitId::new(179))) // war_bears
         );
-        assert_eq!(summons("summon_hero"), Some(Summoned::Hero));
-        assert_eq!(summons("summon_champion"), Some(Summoned::Champion));
-        assert_eq!(summons("enchant_item"), Some(Summoned::Item));
-        assert_eq!(summons("create_artifact"), Some(Summoned::Item));
-        assert_eq!(summons("stone_skin"), None);
+        assert_eq!(summons(208 /* summon_hero */), Some(Summoned::Hero));
+        assert_eq!(summons(212 /* summon_champion */), Some(Summoned::Champion));
+        assert_eq!(summons(207 /* enchant_item */), Some(Summoned::Item));
+        assert_eq!(summons(211 /* create_artifact */), Some(Summoned::Item));
+        assert_eq!(summons(7 /* stone_skin */), None);
     }
 
     #[test]

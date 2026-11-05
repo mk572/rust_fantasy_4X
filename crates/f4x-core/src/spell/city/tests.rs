@@ -481,12 +481,15 @@ fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() -> TestResu
     let city = found(&mut g, P0, at(10, 6), 4);
     cast_ward(&mut g, city, 4 /* death */);
     // P1's Evil Presence is a death spell; Chaos Rift is chaos and gets through.
-    for (name, fizzles) in [("evil_presence", true), ("chaos_rift", false)] {
+    for (name, fizzles) in [
+        (183 /* evil_presence */, true),
+        (110 /* chaos_rift */, false),
+    ] {
         let spell = g
             .content
             .rules
             .spells
-            .id_of(name)
+            .id_numbered(name)
             .ok_or("id_of is missing")?;
         g.wizard_mut(P1)
             .ok_or("wizard_mut is missing")?
@@ -785,12 +788,12 @@ fn consecration_turns_away_death_and_chaos_spells_but_not_the_others() -> TestRe
         "it is no spell ward"
     );
     // P1's Evil Presence (death) and Chaos Rift (chaos) are turned away.
-    for name in ["evil_presence", "chaos_rift"] {
+    for name in [183 /* evil_presence */, 110 /* chaos_rift */] {
         let spell = g
             .content
             .rules
             .spells
-            .id_of(name)
+            .id_numbered(name)
             .ok_or("id_of is missing")?;
         g.wizard_mut(P1)
             .ok_or("wizard_mut is missing")?

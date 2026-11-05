@@ -602,10 +602,20 @@ mod tests {
         g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 2000;
         g.init_wizard(P0, &[(RealmId::new(2 /* chaos */), 2)], &[], None)
             .expect("init_wizard succeeds");
-        let known: Vec<_> = ["enchant_item", "create_artifact", "giant_strength"]
-            .iter()
-            .map(|s| g.content.rules.spells.id_of(s).expect("id_of succeeds"))
-            .collect();
+        let known: Vec<_> = [
+            207, /* enchant_item */
+            211, /* create_artifact */
+            4,   /* giant_strength */
+        ]
+        .iter()
+        .map(|&s| {
+            g.content
+                .rules
+                .spells
+                .id_numbered(s)
+                .expect("id_of succeeds")
+        })
+        .collect();
         let mut m = g.wizard_mut(P0).expect("wizard_mut succeeds");
         m.get_mut::<crate::wizard::sheet::KnownSpells>()
             .researchable
@@ -626,7 +636,7 @@ mod tests {
         g
     }
 
-    fn design(kind: ItemKind, powers: &[&str]) -> ItemDesign {
+    fn design(kind: ItemKind, powers: &[u16]) -> ItemDesign {
         ItemDesign {
             name: String::new(),
             kind,
@@ -637,7 +647,7 @@ mod tests {
                     shipped()
                         .rules
                         .item_powers
-                        .id_of(p)
+                        .id_numbered(*p)
                         .unwrap_or(ItemPowerId::new(9999)) /* unknown */
                 })
                 .collect(),
@@ -658,10 +668,19 @@ mod tests {
     fn the_cost_is_the_base_plus_each_power_and_a_plain_power_on_a_misc_item_costs_double() {
         let g = world(0);
         let rules = &g.content.rules;
-        assert_eq!(cost(&design(ItemKind::Sword, &["attack_2"]), rules), 200);
-        assert_eq!(cost(&design(ItemKind::Misc, &["attack_2"]), rules), 250);
+        assert_eq!(
+            cost(&design(ItemKind::Sword, &[1 /* attack_2 */]), rules),
+            200
+        );
+        assert_eq!(
+            cost(&design(ItemKind::Misc, &[1 /* attack_2 */]), rules),
+            250
+        );
         // A special power is never doubled.
-        assert_eq!(cost(&design(ItemKind::Misc, &["flight"]), rules), 250);
+        assert_eq!(
+            cost(&design(ItemKind::Misc, &[63 /* flight */]), rules),
+            250
+        );
         let mut staff = design(ItemKind::Staff, &[]);
         staff.charges = Some((SpellId::new(4) /* giant_strength */, 3));
         // 300 base, and the spell's 8 mana times 3 charges times 20.
@@ -671,39 +690,48 @@ mod tests {
     #[test]
     fn a_design_is_checked_power_by_power() -> TestResult {
         let g = world(0);
-        let ok = |kind, powers: &[&str]| check_in(&g, Craft::CreateArtifact, &design(kind, powers));
-        assert_eq!(ok(ItemKind::Sword, &["attack_1", "defense_2"]), Ok(()));
+        let ok = |kind, powers: &[u16]| check_in(&g, Craft::CreateArtifact, &design(kind, powers));
+        assert_eq!(
+            ok(ItemKind::Sword, &[0 /* attack_1 */, 7 /* defense_2 */]),
+            Ok(())
+        );
         assert_eq!(ok(ItemKind::Sword, &[]), Err(CraftError::NoPowers));
         assert_eq!(
-            ok(ItemKind::Sword, &["nope"]),
+            ok(ItemKind::Sword, &[9999 /* no such power */]),
             Err(CraftError::UnknownPower)
         );
         assert_eq!(
-            ok(ItemKind::Sword, &["spell_charges"]),
+            ok(ItemKind::Sword, &[65 /* spell_charges */]),
             Err(CraftError::UnknownPower),
             "charges are asked for with a spell, not as a power"
         );
         assert_eq!(
-            ok(ItemKind::Sword, &["attack_1", "attack_1"]),
+            ok(ItemKind::Sword, &[0 /* attack_1 */, 0 /* attack_1 */]),
             Err(CraftError::Repeated)
         );
         assert_eq!(
-            ok(ItemKind::Sword, &["attack_1", "attack_2"]),
+            ok(ItemKind::Sword, &[0 /* attack_1 */, 1 /* attack_2 */]),
             Err(CraftError::SameGroup)
         );
         assert_eq!(
-            ok(ItemKind::Shield, &["attack_1"]),
+            ok(ItemKind::Shield, &[0 /* attack_1 */]),
             Err(CraftError::WrongKind)
         );
         assert_eq!(
             ok(
                 ItemKind::Misc,
-                &["attack_1", "defense_2", "movement_2", "flight", "x"]
+                &[
+                    0,    /* attack_1 */
+                    7,    /* defense_2 */
+                    16,   /* movement_2 */
+                    63,   /* flight */
+                    9999  /* no such power */
+                ]
             ),
             Err(CraftError::TooManyPowers)
         );
         // Two books in chaos are enough for Flaming, and one is not.
-        assert_eq!(ok(ItemKind::Sword, &["flaming"]), Ok(()));
+        assert_eq!(ok(ItemKind::Sword, &[33 /* flaming */]), Ok(()));
         let mut poor = world(0);
         poor.wizard_mut(P0)
             .ok_or("wizard_mut is missing")?
@@ -714,7 +742,7 @@ mod tests {
             check_in(
                 &poor,
                 Craft::CreateArtifact,
-                &design(ItemKind::Sword, &["flaming"])
+                &design(ItemKind::Sword, &[33 /* flaming */])
             ),
             Err(CraftError::NeedsBooks)
         );
@@ -724,13 +752,13 @@ mod tests {
     #[test]
     fn enchant_item_takes_only_powers_costing_200_or_less() {
         let g = world(0);
-        let flaming = design(ItemKind::Sword, &["flaming"]);
+        let flaming = design(ItemKind::Sword, &[33 /* flaming */]);
         assert_eq!(
             check_in(&g, Craft::EnchantItem, &flaming),
             Err(CraftError::TooCostly)
         );
         assert_eq!(check_in(&g, Craft::CreateArtifact, &flaming), Ok(()));
-        let cheap = design(ItemKind::Sword, &["attack_2", "defense_2"]);
+        let cheap = design(ItemKind::Sword, &[1 /* attack_2 */, 7 /* defense_2 */]);
         assert_eq!(check_in(&g, Craft::EnchantItem, &cheap), Ok(()));
         let mut staff = design(ItemKind::Staff, &[]);
         staff.charges = Some((SpellId::new(4) /* giant_strength */, 1));
@@ -746,29 +774,29 @@ mod tests {
     fn charges_need_a_known_battle_spell_and_one_to_four_of_them() {
         let g = world(0);
         let mut staff = design(ItemKind::Staff, &[]);
-        let mut with = |spell: &str, n: u32| {
+        let mut with = |spell: u16, n: u32| {
             staff.charges = Some((
                 shipped()
                     .rules
                     .spells
-                    .id_of(spell)
+                    .id_numbered(spell)
                     .unwrap_or(SpellId::new(9999)), /* unknown */
                 n,
             ));
             check_in(&g, Craft::CreateArtifact, &staff)
         };
-        assert_eq!(with("giant_strength", 4), Ok(()));
-        assert_eq!(with("giant_strength", 0), Err(CraftError::BadCharges));
-        assert_eq!(with("giant_strength", 5), Err(CraftError::BadCharges));
-        assert_eq!(with("nowhere", 1), Err(CraftError::BadSpell));
+        assert_eq!(with(4 /* giant_strength */, 4), Ok(()));
+        assert_eq!(with(4 /* giant_strength */, 0), Err(CraftError::BadCharges));
+        assert_eq!(with(4 /* giant_strength */, 5), Err(CraftError::BadCharges));
+        assert_eq!(with(9999 /* no such spell */, 1), Err(CraftError::BadSpell));
         assert_eq!(
-            with("magic_spirit", 1),
+            with(201 /* magic_spirit */, 1),
             Err(CraftError::BadSpell),
             "not known, and not for battle"
         );
         let sword = ItemDesign {
             charges: Some((SpellId::new(4) /* giant_strength */, 1)),
-            ..design(ItemKind::Sword, &["attack_1"])
+            ..design(ItemKind::Sword, &[0 /* attack_1 */])
         };
         assert_eq!(
             check_in(&g, Craft::CreateArtifact, &sword),
@@ -815,7 +843,10 @@ mod tests {
     fn building_an_item_gives_bonuses_armour_extras_and_a_default_name() {
         let g = world(0);
         let rules = &g.content.rules;
-        let sword = build(&design(ItemKind::Sword, &["attack_2", "flaming"]), rules);
+        let sword = build(
+            &design(ItemKind::Sword, &[1 /* attack_2 */, 33 /* flaming */]),
+            rules,
+        );
         assert_eq!(sword.bonus.attack, 2);
         assert_eq!(sword.powers, [ItemPowerId::new(33) /* flaming */]);
         assert_eq!(sword.cost, 100 + 100 + 300);
@@ -830,7 +861,10 @@ mod tests {
         );
         // Chain mail gains a defence of its own, and a movement power is whole moves in half-moves.
         let mail = build(
-            &design(ItemKind::Chainmail, &["defense_2", "movement_2"]),
+            &design(
+                ItemKind::Chainmail,
+                &[7 /* defense_2 */, 16 /* movement_2 */],
+            ),
             rules,
         );
         assert_eq!(mail.bonus.defense, 3);
@@ -848,7 +882,7 @@ mod tests {
             build(
                 &ItemDesign {
                     icon,
-                    ..design(ItemKind::Mace, &["attack_1"])
+                    ..design(ItemKind::Mace, &[0 /* attack_1 */])
                 },
                 rules,
             )
@@ -869,7 +903,7 @@ mod tests {
         assert_eq!(made_name(&misc(101), rules).kind, TypeName::Orb);
         let named = ItemDesign {
             name: "Sting".into(),
-            ..design(ItemKind::Sword, &["attack_1"])
+            ..design(ItemKind::Sword, &[0 /* attack_1 */])
         };
         assert_eq!(build(&named, rules).name, "Sting");
         let mut staff = design(ItemKind::Staff, &[]);
@@ -892,7 +926,7 @@ mod tests {
     fn an_item_that_can_be_paid_at_once_is_made_at_once_and_costs_the_reduced_price() -> TestResult
     {
         let mut g = world(1000);
-        let d = design(ItemKind::Sword, &["attack_2"]);
+        let d = design(ItemKind::Sword, &[1 /* attack_2 */]);
         let events = g.apply(Command::CraftItem {
             player: P0,
             craft: Craft::EnchantItem,
@@ -937,7 +971,7 @@ mod tests {
         g.apply(Command::CraftItem {
             player: P0,
             craft: Craft::EnchantItem,
-            design: design(ItemKind::Sword, &["attack_2"]),
+            design: design(ItemKind::Sword, &[1 /* attack_2 */]),
         });
         assert_eq!(g.tr(0).mana, 2000 - 100);
         assert_eq!(
@@ -953,7 +987,7 @@ mod tests {
     #[test]
     fn an_item_too_dear_for_this_turn_waits_while_it_is_paid_for() -> TestResult {
         let mut g = world(4);
-        let d = design(ItemKind::Sword, &["attack_2"]);
+        let d = design(ItemKind::Sword, &[1 /* attack_2 */]);
         let events = g.apply(Command::CraftItem {
             player: P0,
             craft: Craft::EnchantItem,
@@ -967,7 +1001,7 @@ mod tests {
         let again = g.apply(Command::CraftItem {
             player: P0,
             craft: Craft::EnchantItem,
-            design: design(ItemKind::Sword, &["attack_1"]),
+            design: design(ItemKind::Sword, &[0 /* attack_1 */]),
         });
         assert!(matches!(
             again[0],
@@ -1005,7 +1039,7 @@ mod tests {
         g.apply(Command::CraftItem {
             player: P0,
             craft: Craft::EnchantItem,
-            design: design(ItemKind::Sword, &["attack_2"]),
+            design: design(ItemKind::Sword, &[1 /* attack_2 */]),
         });
         assert_eq!(g.items().count_held(|_| true), 1, "the item being made");
         g.wizard_mut(P0)
@@ -1026,7 +1060,7 @@ mod tests {
         let events = g.apply(Command::CraftItem {
             player: P0,
             craft: Craft::EnchantItem,
-            design: design(ItemKind::Sword, &["flaming"]),
+            design: design(ItemKind::Sword, &[33 /* flaming */]),
         });
         assert!(matches!(
             events[0],
@@ -1043,7 +1077,7 @@ mod tests {
         let events = g.apply(Command::CraftItem {
             player: P0,
             craft: Craft::CreateArtifact,
-            design: design(ItemKind::Sword, &["attack_1"]),
+            design: design(ItemKind::Sword, &[0 /* attack_1 */]),
         });
         assert!(matches!(
             events[0],
@@ -1071,7 +1105,7 @@ mod tests {
         g.apply(Command::CraftItem {
             player: P0,
             craft: Craft::EnchantItem,
-            design: design(ItemKind::Sword, &["attack_2"]),
+            design: design(ItemKind::Sword, &[1 /* attack_2 */]),
         });
         let text = g.snapshot().to_text()?;
         let back = crate::game::save::Snapshot::from_text(&text)?.restore(g.content.clone())?;

@@ -3,6 +3,7 @@
 
 mod advisor;
 mod advisor_screen;
+mod alias;
 mod army_screen;
 mod art;
 mod asset_check;

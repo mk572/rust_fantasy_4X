@@ -225,7 +225,7 @@ impl Game {
             {
                 continue;
             }
-            let Some(id) = rules.races.id_of(&r.id) else {
+            let Some(id) = rules.races.id_numbered(r.num) else {
                 continue;
             };
             out.push(id);

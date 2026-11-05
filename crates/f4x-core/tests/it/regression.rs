@@ -72,12 +72,16 @@ fn enchanted() -> Result<Game, String> {
     let mut g = fresh(31)?;
     let me = g.player_ids()[0];
     g.treasury_mut(me).ok_or("no treasury")?.mana = 30_000;
-    for id in ["wind_mastery", "crusade", "tranquility"] {
+    for id in [
+        57,  /* wind_mastery */
+        158, /* crusade */
+        157, /* tranquility */
+    ] {
         let spell = g
             .content()
             .rules
             .spells
-            .id_of(id)
+            .id_numbered(id)
             .ok_or_else(|| format!("no spell {id}"))?;
         g.cheat_learn_spell(me, spell);
         let events = g.apply(Command::CastSpell {
@@ -101,8 +105,12 @@ fn enchanted() -> Result<Game, String> {
             end_turns(&mut g, 1);
         }
     }
-    for id in ["wind_mastery", "crusade", "tranquility"] {
-        let spell = g.content().rules.spells.id_of(id).ok_or("no spell")?;
+    for id in [
+        57,  /* wind_mastery */
+        158, /* crusade */
+        157, /* tranquility */
+    ] {
+        let spell = g.content().rules.spells.id_numbered(id).ok_or("no spell")?;
         if g.global_instance(me, spell).is_none() {
             return Err(format!("{id} is not in force after the casts"));
         }

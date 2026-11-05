@@ -30,40 +30,32 @@ fn the_names_in_not_with_and_already_able_exist() {
 #[test]
 fn the_original_refusals_are_in_the_data() {
     let c = content();
-    let spell = |id: &str| {
+    let spell = |id: u16| {
         c.rules
             .spells
-            .get(c.rules.spells.id_of(id).expect("the spell exists"))
+            .get(c.rules.spells.id_numbered(id).expect("the spell exists"))
     };
     for (id, rival) in [
-        ("stone_skin", "iron_skin"),
-        ("resist_elements", "elemental_armor"),
-        ("resist_magic", "magic_immunity"),
-        ("holy_weapon", "holy_arms"),
+        (7 /* stone_skin */, 24 /* iron_skin */),
+        (2 /* resist_elements */, 21 /* elemental_armor */),
+        (41 /* resist_magic */, 69 /* magic_immunity */),
+        (124 /* holy_weapon */, 154 /* holy_arms */),
     ] {
-        let refused: Vec<&str> = spell(id)
-            .not_with
-            .iter()
-            .map(|s| c.rules.spells.get(*s).id.as_str())
-            .collect();
+        let refused: Vec<u16> = spell(id).not_with.iter().map(|s| s.num()).collect();
         assert_eq!(refused, [rival], "{id}");
     }
     for (id, ability) in [
-        ("immolation", "immolation"),
-        ("cloak_of_fear", "cause_fear"),
-        ("true_sight", "illusion_immunity"),
-        ("magic_immunity", "magic_immunity"),
-        ("planar_travel", "planar_travel"),
-        ("invisibility", "invisibility"),
-        ("wraith_form", "non_corporeal"),
-        ("wind_walking", "wind_walking"),
-        ("regeneration", "regeneration"),
+        (99 /* immolation */, 32 /* immolation */),
+        (164 /* cloak_of_fear */, 8 /* cause_fear */),
+        (131 /* true_sight */, 31 /* illusion_immunity */),
+        (69 /* magic_immunity */, 40 /* magic_immunity */),
+        (138 /* planar_travel */, 51 /* planar_travel */),
+        (62 /* invisibility */, 33 /* invisibility */),
+        (181 /* wraith_form */, 49 /* non_corporeal */),
+        (63 /* wind_walking */, 74 /* wind_walking */),
+        (31 /* regeneration */, 55 /* regeneration */),
     ] {
-        let refused: Vec<&str> = spell(id)
-            .already_able
-            .iter()
-            .map(|a| c.rules.abilities.get(*a).id.as_str())
-            .collect();
+        let refused: Vec<u16> = spell(id).already_able.iter().map(|a| a.num()).collect();
         assert_eq!(refused, [ability], "{id}");
     }
 }

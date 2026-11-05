@@ -922,7 +922,7 @@ mod tests {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let units = &g.content().rules.units;
         let spearmen = units
-            .id_of("high_men_spearmen")
+            .id_numbered(104)
             .ok_or("high_men_spearmen is shipped")?;
         let cost = units.get(spearmen).cost as i32;
         let base = threat_modifier(&g, P0, P1);

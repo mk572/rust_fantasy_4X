@@ -608,11 +608,11 @@ mod tests {
     use crate::test_app::shipped;
     use f4x_core::testdir::TestResult;
 
-    fn power(id: &str) -> Result<&'static ItemPowerDef, String> {
+    fn power(id: u16) -> Result<&'static ItemPowerDef, String> {
         shipped::content()
             .rules
             .item_powers
-            .by_name(id)
+            .by_num(id)
             .ok_or(format!("no item power {id}"))
     }
 
@@ -627,9 +627,9 @@ mod tests {
     #[test]
     fn a_plain_power_replaces_the_one_of_its_group() -> TestResult {
         let mut ui = CraftUi::new(Craft::EnchantItem);
-        toggle_power(&mut ui.design, power("attack_1")?, &group_of)?;
-        toggle_power(&mut ui.design, power("defense_1")?, &group_of)?;
-        toggle_power(&mut ui.design, power("attack_2")?, &group_of)?;
+        toggle_power(&mut ui.design, power(0 /* attack_1 */)?, &group_of)?;
+        toggle_power(&mut ui.design, power(6 /* defense_1 */)?, &group_of)?;
+        toggle_power(&mut ui.design, power(1 /* attack_2 */)?, &group_of)?;
         assert_eq!(
             ui.design.powers,
             [
@@ -637,7 +637,7 @@ mod tests {
                 ItemPowerId::new(1)  /* attack_2 */
             ]
         );
-        toggle_power(&mut ui.design, power("attack_2")?, &group_of)?;
+        toggle_power(&mut ui.design, power(1 /* attack_2 */)?, &group_of)?;
         assert_eq!(ui.design.powers, [ItemPowerId::new(6) /* defense_1 */]);
         Ok(())
     }
@@ -646,12 +646,16 @@ mod tests {
     fn four_places_are_all_there_are_and_the_charges_take_one() -> TestResult {
         let mut ui = CraftUi::new(Craft::CreateArtifact);
         ui.design.charges = Some((SpellId::new(83) /* fire_bolt */, 2));
-        for id in ["flaming", "lightning", "chaos"] {
+        for id in [
+            33, /* flaming */
+            34, /* lightning */
+            35, /* chaos */
+        ] {
             toggle_power(&mut ui.design, power(id)?, &group_of)?;
         }
         assert_eq!(ui.used(), 4);
         assert_eq!(
-            toggle_power(&mut ui.design, power("destruction")?, &group_of),
+            toggle_power(&mut ui.design, power(36 /* destruction */)?, &group_of),
             Err("craft.too_many")
         );
         Ok(())

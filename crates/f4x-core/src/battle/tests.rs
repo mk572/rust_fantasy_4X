@@ -2590,7 +2590,7 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
     let plain = g
         .battle_unit_from(unit, Side::Attacker, 0)
         .ok_or("battle_unit_from is missing")?;
-    let item = |kind, bonus: ItemBonus, powers: &[&str]| Item {
+    let item = |kind, bonus: ItemBonus, powers: &[u16]| Item {
         name: "Test".into(),
         kind,
         cost: 100,
@@ -2602,7 +2602,7 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
                 shipped()
                     .rules
                     .item_powers
-                    .id_of(p)
+                    .id_numbered(*p)
                     .expect("a shipped power")
             })
             .collect(),
@@ -2617,7 +2617,7 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
             to_hit: 1,
             ..ItemBonus::default()
         },
-        &["vampiric", "flaming"],
+        &[37 /* vampiric */, 33 /* flaming */],
     );
     let shield = item(
         ItemKind::Shield,
@@ -5170,12 +5170,16 @@ fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() ->
         None,
     )
     .map_err(|e| format!("{e:?}"))?;
-    for name in ["wall_of_stone", "wall_of_fire", "wall_of_darkness"] {
+    for name in [
+        3,   /* wall_of_stone */
+        87,  /* wall_of_fire */
+        178, /* wall_of_darkness */
+    ] {
         let id = g
             .content
             .rules
             .spells
-            .id_of(name)
+            .id_numbered(name)
             .ok_or("id_of is missing")?;
         g.wizard_mut(D)
             .ok_or("wizard_mut is missing")?
@@ -5183,8 +5187,13 @@ fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() ->
             .known
             .insert(id);
     }
-    let cast = |g: &mut Game, name: &str, side: Side| {
-        let spell = g.content.rules.spells.id_of(name).expect("id_of succeeds");
+    let cast = |g: &mut Game, name: u16, side: Side| {
+        let spell = g
+            .content
+            .rules
+            .spells
+            .id_numbered(name)
+            .expect("id_of succeeds");
         let b = &mut g.battle.as_mut().expect("as_mut succeeds").battle;
         b.active = side;
         b.set_caster(side, crate::battle::BattleCaster::new(2000, 2000, 10));
@@ -5195,7 +5204,7 @@ fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() ->
         })
     };
     // In open country there is no city to wall.
-    assert!(cast(&mut g, "wall_of_stone", Side::Defender).is_err());
+    assert!(cast(&mut g, 3 /* wall_of_stone */, Side::Defender).is_err());
     g.battle.as_mut().ok_or("as_mut is missing")?.battle.map = BattleMap::open().with_city(false);
     assert!(g
         .battle()
@@ -5204,19 +5213,20 @@ fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() ->
         .standing_walls()
         .is_empty());
     // The attacker cannot raise one, the defender can, once.
-    assert!(cast(&mut g, "wall_of_stone", Side::Attacker).is_err());
-    let events = cast(&mut g, "wall_of_stone", Side::Defender).map_err(|e| format!("{e:?}"))?;
+    assert!(cast(&mut g, 3 /* wall_of_stone */, Side::Attacker).is_err());
+    let events =
+        cast(&mut g, 3 /* wall_of_stone */, Side::Defender).map_err(|e| format!("{e:?}"))?;
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::Battle(BattleEvent::WallRaised { .. }))));
     assert!(g.battle().ok_or("battle is missing")?.map.is_fully_walled());
     assert_eq!(
-        cast(&mut g, "wall_of_stone", Side::Defender),
+        cast(&mut g, 3 /* wall_of_stone */, Side::Defender),
         Err(BattleError::Spell(SpellError::AlreadyUp))
     );
     // Fire and Darkness are flags of the battle.
-    cast(&mut g, "wall_of_fire", Side::Defender).map_err(|e| format!("{e:?}"))?;
-    cast(&mut g, "wall_of_darkness", Side::Defender).map_err(|e| format!("{e:?}"))?;
+    cast(&mut g, 87 /* wall_of_fire */, Side::Defender).map_err(|e| format!("{e:?}"))?;
+    cast(&mut g, 178 /* wall_of_darkness */, Side::Defender).map_err(|e| format!("{e:?}"))?;
     let b = g.battle().ok_or("battle is missing")?;
     assert!(b.wall_of_fire && b.wall_of_darkness);
     Ok(())

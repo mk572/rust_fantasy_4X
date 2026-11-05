@@ -121,6 +121,8 @@ mod tests {
             num: defs.len() as u16 + 1,
             id: "nightshade".into(),
             kind: FeatureKind::Mineral,
+            realm: None,
+            holy: false,
             city: CityBonus::default(),
             spawn: vec![],
         });

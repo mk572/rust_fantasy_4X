@@ -558,7 +558,7 @@ impl App {
             let rules = &self.game.content().rules;
             let ships: Vec<_> = ["galley", "warship", "floating_island"]
                 .iter()
-                .filter_map(|id| rules.units.id_of(id))
+                .filter_map(|id| crate::alias::id_of(&rules.units, id))
                 .collect();
             for id in ships {
                 self.game.spawn_unit(HUMAN, to, id);
@@ -594,7 +594,7 @@ impl App {
             "vertigo",
         ]
         .into_iter()
-        .filter_map(|id| spells.id_of(id))
+        .filter_map(|id| crate::alias::id_of(spells, id))
         .collect();
         let Some(active) = self.game.battle.as_mut() else {
             return;
@@ -743,7 +743,7 @@ impl App {
             ids.extend(
                 ["warship", "trireme"]
                     .iter()
-                    .filter_map(|id| rules.units.id_of(id)),
+                    .filter_map(|id| crate::alias::id_of(&rules.units, id)),
             );
         }
         let defenders: Vec<_> = ids

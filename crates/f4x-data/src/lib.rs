@@ -412,18 +412,13 @@ mod tests {
     }
 
     /// The bonus a level path gives in all up to `level`, for a stat.
-    fn level_total(
-        content: &Content,
-        path: &str,
-        level: usize,
-        stat: f4x_core::rules::Stat,
-    ) -> i32 {
+    fn level_total(content: &Content, path: u16, level: usize, stat: f4x_core::rules::Stat) -> i32 {
         use f4x_core::rules::effects::Effect;
         use f4x_core::rules::ModOp;
         let path = content
             .rules
             .level_paths
-            .by_name(path)
+            .by_num(path)
             .expect("the level path exists");
         (0..=level)
             .filter_map(|i| path.level(i))
@@ -683,7 +678,7 @@ mod tests {
         use f4x_core::rules::Stat::*;
         let c = load_content_layers(&[&crate::testutil::content_dir()])?;
         // A normal unit at Champion (level 5): resistance +5, attacks +3, defence +2, to hit +3.
-        let at = |stat| level_total(&c, "standard_xp", 5, stat);
+        let at = |stat| level_total(&c, 2 /* standard_xp */, 5, stat);
         assert_eq!(
             [
                 at(Resistance),
@@ -695,10 +690,10 @@ mod tests {
             [5, 3, 3, 2, 3]
         );
         // Veteran gains defence, not attacks.
-        assert_eq!(level_total(&c, "standard_xp", 2, Defense), 1);
-        assert_eq!(level_total(&c, "standard_xp", 2, Melee), 1);
+        assert_eq!(level_total(&c, 2 /* standard_xp */, 2, Defense), 1);
+        assert_eq!(level_total(&c, 2 /* standard_xp */, 2, Melee), 1);
         // A hero at level 8: resistance +8, attacks +8, defence +4, to hit +3, hit points +8.
-        let hero = |stat| level_total(&c, "hero_xp", 8, stat);
+        let hero = |stat| level_total(&c, 1 /* hero_xp */, 8, stat);
         assert_eq!(
             [
                 hero(Resistance),

@@ -34,7 +34,7 @@ fn far_shore() -> Position {
     at(ENEMY_CITY.0, ENEMY_CITY.1 - 1)
 }
 
-fn ship_building(game: &mut Game, buildings: &[&str]) {
+fn ship_building(game: &mut Game, buildings: &[u16]) {
     build(game, port(), buildings);
 }
 
@@ -90,8 +90,8 @@ fn at_sea(g: &Game, p: Position) -> bool {
 fn the_shipped_ships_sail_and_carry_as_the_help_says() -> TestResult {
     let g = game(COAST_CITY, 8 /* high_men */);
     let units = &g.content().rules.units;
-    for (id, carries) in [("trireme", 2), ("galley", 5), ("warship", 3)] {
-        let def = units.get(units.id_of(id).ok_or(id)?);
+    for (id, carries) in [(35 /* trireme */, 2), (36 /* galley */, 5), (38 /* warship */, 3)] {
+        let def = units.get(units.id_numbered(id).ok_or("no such unit")?);
         assert_eq!(def.movement, MovementType::Sailing, "{id} sails");
         assert_eq!(
             def.stats.get(&Stat::Transport),
@@ -108,24 +108,24 @@ fn each_ship_needs_its_building() -> TestResult {
     assert!(can_build(&g, 35 /* trireme */)?.is_err());
     assert!(can_build(&g, 36 /* galley */)?.is_err());
     assert!(can_build(&g, 38 /* warship */)?.is_err());
-    ship_building(&mut g, &["ship_wrights_guild"]);
+    ship_building(&mut g, &[12 /* ship_wrights_guild */]);
     assert_eq!(can_build(&g, 35 /* trireme */)?, Ok(()));
     assert!(
         can_build(&g, 36 /* galley */)?.is_err(),
         "a guild is not a yard"
     );
-    ship_building(&mut g, &["sawmill", "ship_yard"]);
+    ship_building(&mut g, &[15 /* sawmill */, 13 /* ship_yard */]);
     assert_eq!(can_build(&g, 36 /* galley */)?, Ok(()));
     assert!(
         can_build(&g, 38 /* warship */)?.is_err(),
         "a yard is not a maritime guild"
     );
-    ship_building(&mut g, &["armory", "maritime_guild"]);
+    ship_building(&mut g, &[4 /* armory */, 14 /* maritime_guild */]);
     assert!(
         can_build(&g, 38 /* warship */)?.is_err(),
         "a warship also needs barracks"
     );
-    ship_building(&mut g, &["barracks"]);
+    ship_building(&mut g, &[3 /* barracks */]);
     assert_eq!(can_build(&g, 38 /* warship */)?, Ok(()));
     Ok(())
 }
@@ -134,7 +134,7 @@ fn each_ship_needs_its_building() -> TestResult {
 fn a_race_that_may_not_build_a_ship_yard_cannot_have_a_galley() -> TestResult {
     // Beastmen: a Ship Wrights Guild but no Ship Yard (help 280 and the building's race list).
     let mut g = game(COAST_CITY, 1 /* beastmen */);
-    ship_building(&mut g, &["ship_wrights_guild", "sawmill"]);
+    ship_building(&mut g, &[12 /* ship_wrights_guild */, 15 /* sawmill */]);
     assert_eq!(can_build(&g, 35 /* trireme */)?, Ok(()));
     assert!(can_build(&g, 36 /* galley */)?.is_err());
     Ok(())
@@ -284,18 +284,18 @@ fn the_ship_buildings_can_only_be_built_in_a_coastal_city() -> TestResult {
     // As in the original. The inland city has every other requirement met.
     let mut g = game(INLAND_CITY, 8 /* high_men */);
     let inland = at(INLAND_CITY.0, INLAND_CITY.1);
-    build(&mut g, inland, &["sawmill", "armory"]);
+    build(&mut g, inland, &[15 /* sawmill */, 4 /* armory */]);
     assert_eq!(
         can_build_building(&g, inland, 12 /* ship_wrights_guild */)?,
         Err(ProductionError::NotCoastal)
     );
     // Give it the guild and the yard anyway (as a captured city might have) to reach the next.
-    build(&mut g, inland, &["ship_wrights_guild"]);
+    build(&mut g, inland, &[12 /* ship_wrights_guild */]);
     assert_eq!(
         can_build_building(&g, inland, 13 /* ship_yard */)?,
         Err(ProductionError::NotCoastal)
     );
-    build(&mut g, inland, &["ship_yard"]);
+    build(&mut g, inland, &[13 /* ship_yard */]);
     assert_eq!(
         can_build_building(&g, inland, 14 /* maritime_guild */)?,
         Err(ProductionError::NotCoastal)
@@ -309,13 +309,17 @@ fn the_ship_buildings_can_only_be_built_in_a_coastal_city() -> TestResult {
     build(
         &mut coast,
         port(),
-        &["ship_wrights_guild", "sawmill", "armory"],
+        &[
+            12, /* ship_wrights_guild */
+            15, /* sawmill */
+            4,  /* armory */
+        ],
     );
     assert_eq!(
         can_build_building(&coast, port(), 13 /* ship_yard */)?,
         Ok(())
     );
-    build(&mut coast, port(), &["ship_yard"]);
+    build(&mut coast, port(), &[13 /* ship_yard */]);
     assert_eq!(
         can_build_building(&coast, port(), 14 /* maritime_guild */)?,
         Ok(())

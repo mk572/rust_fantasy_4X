@@ -233,15 +233,19 @@ mod tests {
             .map(|c| c.0)
             .expect("the new game has a city");
         let spells = &app.game.content().rules.spells;
-        let scroll =
-            |id: &str| app.city_scroll_for(HUMAN, spells.id_of(id).expect("spell"), city, None);
-        let good = scroll("natures_eye").expect("a city spell");
+        let scroll = |id: u16| {
+            app.city_scroll_for(HUMAN, spells.id_numbered(id).expect("spell"), city, None)
+        };
+        let good = scroll(12 /* natures_eye */).expect("a city spell");
         assert_eq!(good.music, Track::piece(4));
-        assert!(scroll("stone_skin").is_none(), "a unit spell has no scroll");
-        let curse = scroll("earthquake").expect("a city spell");
+        assert!(
+            scroll(7 /* stone_skin */).is_none(),
+            "a unit spell has no scroll"
+        );
+        let curse = scroll(26 /* earthquake */).expect("a city spell");
         assert!(curse.shakes);
         assert_eq!(good.appears, None);
-        let gate = scroll("earth_gate").expect("a city spell");
+        let gate = scroll(37 /* earth_gate */).expect("a city spell");
         assert_eq!(gate.appears, Some(crate::cityscape::EARTH_GATE));
         assert!(curse.music.entry >= BAD_OFFSET);
     }

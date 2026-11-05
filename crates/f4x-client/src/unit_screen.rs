@@ -158,7 +158,7 @@ impl App {
             self.game
                 .grant_temp_ability(who, f4x_core::rules::Ability::new(23), None);
         }
-        let spell = spell.and_then(|id| self.game.content().rules.spells.id_of(id));
+        let spell = spell.and_then(|id| crate::alias::id_of(&self.game.content().rules.spells, id));
         if let Some(spell) = spell {
             let who = f4x_core::rules::exec::Target::Unit(unit);
             self.game.attach_enchantment(who, spell, crate::view::HUMAN);

@@ -600,7 +600,6 @@ pub enum BattleCommand {
     /// The wizard casts a spell (once a turn). `mana` is the total put into a spell that takes
     /// extra mana (a bolt, a dispel, Counter Magic); other spells take their cost whatever it is.
     Cast {
-        #[serde(with = "crate::game::replay::stable_ref::spell")]
         spell: SpellId,
         aim: SpellAim,
         mana: u32,
@@ -610,7 +609,6 @@ pub enum BattleCommand {
     /// unit's mana. The unit ends its turn.
     UnitCast {
         unit: usize,
-        #[serde(with = "crate::game::replay::stable_ref::spell")]
         spell: SpellId,
         aim: SpellAim,
         mana: u32,

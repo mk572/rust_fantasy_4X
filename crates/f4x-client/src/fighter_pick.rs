@@ -432,14 +432,14 @@ mod tests {
             .ok_or("the human has no unit")?;
         let rules = &app.game.content().rules;
         let kinds = [
-            "barbarian_spearmen",
-            "barbarian_bowmen",
-            "barbarian_cavalry",
+            39, /* barbarian_spearmen */
+            41, /* barbarian_bowmen */
+            42, /* barbarian_cavalry */
         ]
         .map(|name| {
             rules
                 .units
-                .id_of(name)
+                .id_numbered(name)
                 .ok_or("a unit is not in the content")
         });
         for i in 0..12 {

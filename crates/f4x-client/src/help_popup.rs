@@ -177,7 +177,9 @@ impl App {
         if matches!(self.screen, Screen::City(_)) {
             if let Some(name) = self.help_ui.probe_building.take() {
                 let content = self.game.content();
-                if let Some(topic) = content.rules.buildings.by_name(&name).and_then(|b| b.help) {
+                if let Some(topic) = crate::alias::id_of(&content.rules.buildings, &name)
+                    .and_then(|b| content.rules.buildings.get(b).help)
+                {
                     self.help_ui.request = Some(HelpRequest {
                         topic,
                         extra: None,

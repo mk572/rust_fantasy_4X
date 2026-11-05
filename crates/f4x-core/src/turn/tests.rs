@@ -547,13 +547,13 @@ fn stream_of_life_ends_unrest_and_heals_the_units_in_the_city() -> TestResult {
 #[test]
 fn every_unit_eats_what_its_row_in_the_unit_table_says() {
     let mut g = world();
-    let ids: Vec<(String, u32)> = g
+    let ids: Vec<(u16, u32)> = g
         .content
         .rules
         .units
         .defs()
         .iter()
-        .map(|d| (d.id.clone(), d.upkeep.food))
+        .map(|d| (d.num, d.upkeep.food))
         .collect();
     let mut eating = 0;
     for (id, food) in ids {
@@ -561,7 +561,7 @@ fn every_unit_eats_what_its_row_in_the_unit_table_says() {
             .content
             .rules
             .units
-            .id_of(&id)
+            .id_numbered(id)
             .expect("a listed unit has an id");
         let unit = g.spawn_unit(P0, at(10, 6), def);
         assert_eq!(g.units().unit_food_halves(unit), food as i32, "{id}");

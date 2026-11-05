@@ -186,13 +186,13 @@ mod tests {
     fn summons_and_global_enchantments_have_scenes_of_their_own() -> TestResult {
         let mut app = App::for_test();
         let at = tile(&app)?;
-        for id in ["magic_spirit", "armageddon"] {
+        for id in [201 /* magic_spirit */, 120 /* armageddon */] {
             let spell = app
                 .game
                 .content()
                 .rules
                 .spells
-                .id_of(id)
+                .id_numbered(id)
                 .ok_or(format!("no spell {id}"))?;
             app.announce_square_spell(HUMAN, spell, at);
         }

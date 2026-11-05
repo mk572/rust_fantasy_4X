@@ -123,8 +123,7 @@ pub fn generate_nodes(
                     continue;
                 };
                 if def.kind == FeatureKind::Node {
-                    let name = def.id.strip_suffix("_node").unwrap_or(&def.id);
-                    if let Some(realm) = content.rules.realms.id_of(name) {
+                    if let Some(realm) = def.realm {
                         found.push((x, y, realm));
                     }
                 }

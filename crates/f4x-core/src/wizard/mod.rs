@@ -213,14 +213,14 @@ impl Game {
     }
 
     /// A ready-made wizard from the rules as a build.
-    pub fn preset_build(&self, id: &str) -> Option<WizardBuild> {
+    pub fn preset_build(&self, num: u16) -> Option<WizardBuild> {
         let place = self
             .content
             .rules
             .wizards
             .defs()
             .iter()
-            .position(|w| w.id == id)?;
+            .position(|w| w.num == num)?;
         let def = &self.content.rules.wizards.defs()[place];
         let retorts = def.retorts.iter().copied().collect();
         Some(WizardBuild {

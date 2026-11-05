@@ -26,7 +26,7 @@ use crate::map::{Map, Plane, Position};
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::lair::{HoardKind, LairRules};
 
-use crate::rules::{Rarity, RealmDef, RealmId, SpellId, Stat, UnitId, UnitKind};
+use crate::rules::{Rarity, RealmId, SpellId, Stat, UnitId, UnitKind};
 use crate::unit::movement::MoveError;
 
 use crate::game::{Event, Game};
@@ -43,17 +43,11 @@ enum SiteType {
     Wild,
 }
 
-fn site_type(
-    def_id: &str,
-    kind: FeatureKind,
-    realms: &crate::rules::Registry<RealmDef>,
-) -> SiteType {
-    match kind {
+fn site_type(def: &crate::feature::def::FeatureDef) -> SiteType {
+    match def.kind {
         FeatureKind::Tower => SiteType::Tower,
-        FeatureKind::Node => realms
-            .id_of(def_id.strip_suffix("_node").unwrap_or(def_id))
-            .map_or(SiteType::Wild, SiteType::Node),
-        _ if def_id.contains("temple") || def_id.contains("ruin") => SiteType::Holy,
+        FeatureKind::Node => def.realm.map_or(SiteType::Wild, SiteType::Node),
+        _ if def.holy => SiteType::Holy,
         _ => SiteType::Wild,
     }
 }
@@ -481,7 +475,7 @@ pub fn generate_lairs(
             &mut rng,
             content,
             plane,
-            site_type(&def.id, def.kind, &content.rules.realms),
+            site_type(def),
             budget,
             guards,
             treasure,

@@ -165,13 +165,21 @@ mod tests {
     fn a_building_another_one_needs_is_not_put_up_for_sale() {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let pos = at(COAST_CITY.0, COAST_CITY.1);
-        crate::testworld::build(&mut g, pos, &["barracks", "smithy", "library"]);
+        crate::testworld::build(
+            &mut g,
+            pos,
+            &[
+                3,  /* barracks */
+                8,  /* smithy */
+                16, /* library */
+            ],
+        );
         let city = g.economy().city_at(pos).unwrap();
         let name = |g: &Game, b| g.content().rules.buildings.get(b).id.clone();
         let sale = |g: &Game| next_sale(g, P0).map(|(_, b)| name(g, b));
         assert_eq!(sale(&g).as_deref(), Some("library"));
         // The stables need the smithy: the smithy is no longer on offer, the library still is.
-        crate::testworld::build(&mut g, pos, &["stables"]);
+        crate::testworld::build(&mut g, pos, &[9 /* stables */]);
         assert!(g
             .economy()
             .sale_price(city, f4x_core::rules::BuildingId::new(8) /* smithy */)

@@ -645,13 +645,13 @@ mod tests {
         let content = shipped();
         let mut world = World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
-        let mut max = |id: &str, n: u64| {
-            let def = content.rules.units.id_of(id).expect("id_of succeeds");
+        let mut max = |id: u16, n: u64| {
+            let def = content.rules.units.id_numbered(id).expect("id_of succeeds");
             let e = spawn(&mut world, &content, Serial(n), owner, AT, def);
             UnitView::new(&world, &content).unit_max_moves(e)
         };
-        assert_eq!(max("high_men_spearmen", 1), 2);
-        assert_eq!(max("high_men_cavalry", 2), 4);
+        assert_eq!(max(104 /* high_men_spearmen */, 1), 2);
+        assert_eq!(max(107 /* high_men_cavalry */, 2), 4);
         Ok(())
     }
 
@@ -663,13 +663,13 @@ mod tests {
             world.spawn(crate::player::bundle(PlayerId(0))),
             world.spawn(crate::player::bundle(PlayerId(1))),
         );
-        let id = |n: &str, c: &Content| c.rules.units.id_of(n).expect("id_of succeeds");
+        let id = |n: u16, c: &Content| c.rules.units.id_numbered(n).expect("id_of succeeds");
         let made: Vec<_> = [
-            (a, "high_men_spearmen"),
-            (a, "high_men_swordsmen"),
-            (a, "high_men_spearmen"),
-            (a, "high_men_paladins"),
-            (b, "high_men_spearmen"),
+            (a, 104 /* high_men_spearmen */),
+            (a, 105 /* high_men_swordsmen */),
+            (a, 104 /* high_men_spearmen */),
+            (a, 113 /* high_men_paladins */),
+            (b, 104 /* high_men_spearmen */),
         ]
         .into_iter()
         .enumerate()

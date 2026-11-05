@@ -216,6 +216,12 @@ fn squash(s: &str) -> String {
         .collect()
 }
 
+/// The definition whose alias (the `id` of its entry in the rules files) is exactly `text`. The
+/// console takes aliases as a typing aid; the game itself refers to a definition by its number.
+pub fn alias_id<T: Def>(reg: &Registry<T>, text: &str) -> Option<Id<T>> {
+    reg.iter().find(|(_, d)| d.id() == text).map(|(id, _)| id)
+}
+
 /// Find a definition by its id, its display name (spaces, case and punctuation ignored) or a
 /// unique prefix of its id.
 pub fn resolve<T: Def>(
@@ -224,7 +230,7 @@ pub fn resolve<T: Def>(
     name_of: impl Fn(&T) -> &str,
     what: &str,
 ) -> Result<Id<T>, ConsoleError> {
-    if let Some(id) = reg.id_of(text) {
+    if let Some(id) = alias_id(reg, text) {
         return Ok(id);
     }
     let key = squash(text);

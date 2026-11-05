@@ -1031,8 +1031,8 @@ mod tests {
     fn shipped_rules_are_valid() -> TestResult {
         assert_eq!(problems(&[]), Vec::<String>::new());
         let rules = load_rules(&[&content_dir(), &client_dir()], "en", &features())?;
-        for realm in ["life", "death", "chaos", "nature", "sorcery"] {
-            assert!(rules.realms.by_name(realm).is_some(), "{realm}");
+        for realm in 0..=4 {
+            assert!(rules.realms.by_num(realm).is_some(), "{realm}");
         }
         assert!(rules
             .units

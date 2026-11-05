@@ -317,14 +317,14 @@ impl App {
             if token == "sold" {
                 sell = true;
             } else if let Some(id) = token.strip_prefix("built:") {
-                built = rules.buildings.id_of(id);
+                built = crate::alias::id_of(&rules.buildings, id);
             } else if let Some(realm) = token.strip_prefix("ward:") {
-                match rules.realms.id_of(realm) {
+                match crate::alias::id_of(&rules.realms, realm) {
                     Some(r) => wards.push(r),
                     None => eprintln!("unknown realm {realm}"),
                 }
             } else {
-                match rules.spells.id_of(token) {
+                match crate::alias::id_of(&rules.spells, token) {
                     Some(s) => spells.push(s),
                     None => eprintln!("unknown spell {token}"),
                 }

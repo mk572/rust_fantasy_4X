@@ -819,12 +819,12 @@ mod tests {
         use crate::objective::{traits_of, Like};
         use f4x_core::wizard::objective::Objective;
         let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
-        let def = |id: &str| {
-            let spell = content.rules.spells.id_of(id).unwrap();
+        let def = |id: u16| {
+            let spell = content.rules.spells.id_numbered(id).unwrap();
             content.rules.spells.get(spell)
         };
         let militarist = traits_of(Some(Objective::Militarist));
-        let bears = def("war_bears");
+        let bears = def(6 /* war_bears */);
         assert!(liked(bears, kind(bears), &militarist));
         assert!(!liked(
             bears,

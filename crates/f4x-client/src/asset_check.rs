@@ -60,13 +60,13 @@ pub fn check_spell_art(art: &SpellArt, rules: &Rules) -> Vec<String> {
     for id in art
         .spells
         .keys()
-        .filter(|id| rules.spells.id_of(id).is_none())
+        .filter(|id| crate::alias::id_of(&rules.spells, id).is_none())
     {
         problems.push(format!("spell_art: unknown spell \"{id}\""));
     }
     for p in &art.shared {
         if let Role::Realm(realm) = &p.role {
-            if rules.realms.id_of(realm).is_none() {
+            if crate::alias::id_of(&rules.realms, realm).is_none() {
                 problems.push(format!("spell_art: unknown realm \"{realm}\""));
             }
         }
@@ -78,7 +78,10 @@ pub fn check_spell_art(art: &SpellArt, rules: &Rules) -> Vec<String> {
 pub fn check_unit_art(units: &[UnitArt], rules: &Rules) -> Vec<String> {
     let mut problems = Vec::new();
     let named: BTreeSet<&str> = units.iter().map(|u| u.id.as_str()).collect();
-    for u in units.iter().filter(|u| rules.units.id_of(&u.id).is_none()) {
+    for u in units
+        .iter()
+        .filter(|u| crate::alias::id_of(&rules.units, &u.id).is_none())
+    {
         problems.push(format!("unit_art: unknown unit \"{}\"", u.id));
     }
     for def in rules.units.defs() {
@@ -155,12 +158,12 @@ pub fn check_icon_art(art: &IconArt, rules: &Rules) -> Vec<String> {
 pub fn check_sound(table: &SoundTable, rules: &Rules) -> Vec<String> {
     let mut problems = Vec::new();
     for id in table.spells.keys().chain(table.global_music.keys()) {
-        if rules.spells.id_of(id).is_none() {
+        if crate::alias::id_of(&rules.spells, id).is_none() {
             problems.push(format!("sound: unknown spell \"{id}\""));
         }
     }
     for id in table.units.keys() {
-        if rules.units.id_of(id).is_none() {
+        if crate::alias::id_of(&rules.units, id).is_none() {
             problems.push(format!("sound: unknown unit \"{id}\""));
         }
     }

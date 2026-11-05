@@ -188,24 +188,19 @@ fn a_site_type_decides_the_guards_realm() {
         .map(|_| guard_realm(&mut rng, SiteType::Tower, &rules))
         .collect();
     assert_eq!(seen.len(), 5, "towers draw on every realm");
-    assert_eq!(
+    let site = |num: u16| {
+        let features = &rules.features;
         site_type(
-            "ancient_temple",
-            FeatureKind::Encounter,
-            &rules.rules.realms
-        ),
-        SiteType::Holy
-    );
+            features
+                .get(features.id_numbered(num).expect("a shipped feature"))
+                .expect("a shipped feature"),
+        )
+    };
+    assert_eq!(site(3 /* ancient_temple */), SiteType::Holy);
+    assert_eq!(site(18 /* ruins */), SiteType::Holy);
+    assert_eq!(site(7 /* dungeon */), SiteType::Wild);
     assert_eq!(
-        site_type("ruins", FeatureKind::Encounter, &rules.rules.realms),
-        SiteType::Holy
-    );
-    assert_eq!(
-        site_type("dungeon", FeatureKind::Encounter, &rules.rules.realms),
-        SiteType::Wild
-    );
-    assert_eq!(
-        site_type("chaos_node", FeatureKind::Node, &rules.rules.realms),
+        site(4 /* chaos_node */),
         SiteType::Node(realm(2 /* chaos */))
     );
 }

@@ -329,10 +329,10 @@ mod tests {
     fn buildings_are_put_in_a_city_and_taken_out_in_build_order() -> TestResult {
         let mut g = world()?;
         let city = town(&mut g, 4)?;
-        let id = |g: &Game, name: &str| g.content().rules.buildings.id_of(name);
+        let id = |g: &Game, name: u16| g.content().rules.buildings.id_numbered(name);
         let (smithy, market) = (
-            id(&g, "smithy").ok_or("no smithy")?,
-            id(&g, "marketplace").ok_or("no marketplace")?,
+            id(&g, 8 /* smithy */).ok_or("no smithy")?,
+            id(&g, 26 /* marketplace */).ok_or("no marketplace")?,
         );
         let before = g.city_buildings(city);
         g.scenario_set_building(city, smithy, true);
@@ -417,8 +417,8 @@ mod tests {
         let mut g = world()?;
         let spells = &g.content().rules.spells;
         let (a, b) = (
-            spells.id_of("fire_bolt").ok_or("no fire_bolt")?,
-            spells.id_of("healing").ok_or("no healing")?,
+            spells.id_numbered(83).ok_or("no fire_bolt")?, /* fire_bolt */
+            spells.id_numbered(125).ok_or("no healing")?,  /* healing */
         );
         g.scenario_casting(P0, a, 30);
         g.scenario_casting(P0, b, 12);
