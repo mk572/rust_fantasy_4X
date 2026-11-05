@@ -231,7 +231,7 @@ fn check_power(
     if power.cost > craft.max_power_cost() {
         return Err(CraftError::TooCostly);
     }
-    if let Some(realm) = power.realm.as_ref().and_then(|r| r.id()) {
+    if let Some(realm) = power.realm {
         if magic.books_in(realm) < power.books as i32 {
             return Err(CraftError::NeedsBooks);
         }
@@ -1058,7 +1058,7 @@ mod tests {
             .content
             .rules
             .spells
-            .id_of("enchant_item")
+            .id_numbered(207)
             .ok_or("enchant_item is not in the content")?;
         assert!(g.start_cast(P0, spell, None).is_err());
         Ok(())

@@ -139,7 +139,7 @@ mod tests {
             .content()
             .rules
             .spells
-            .id_of("spell_of_mastery")
+            .id_numbered(213)
             .expect("the spell exists");
         (g, mastery)
     }

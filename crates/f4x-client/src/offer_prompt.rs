@@ -310,12 +310,12 @@ impl App {
                 let unit = rules
                     .hero_templates
                     .get(*kind)
-                    .and_then(|t| rules.units.by_name(&t.unit));
+                    .and_then(|t| rules.units.try_get(t.unit));
                 let level = self.game.units().hero_kept_level(*kind);
                 (unit, Some(level))
             }
             Offer::Mercenaries { unit, level, .. } => {
-                (rules.units.by_name(unit), Some(usize::from(*level)))
+                (rules.units.try_get(*unit), Some(usize::from(*level)))
             }
             Offer::Item { .. } | Offer::Resale { .. } => (None, None),
         };
@@ -325,9 +325,8 @@ impl App {
             let noble = hero_kind
                 .and_then(|k| rules.hero_templates.get(k))
                 .is_some_and(|t| {
-                    t.abilities.iter().any(
-                        |a| a.id() == Some(f4x_core::rules::Ability::new(96)), /* noble */
-                    )
+                    t.abilities
+                        .contains(&f4x_core::rules::Ability::new(96) /* noble */)
                 });
             if let (true, Some(upkeep)) = (noble, sheet.upkeep.as_mut()) {
                 upkeep[0] = 0;

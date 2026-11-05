@@ -284,9 +284,7 @@ fn rule_value(
             })
             .sum(),
         Effect::Summon {
-            unit_id: Some(id),
-            count,
-            ..
+            unit: id, count, ..
         } => {
             let d = game.content().rules.units.get(*id);
             let stat = |s: Stat| d.stats.get(&s).copied().unwrap_or(0) as f32;

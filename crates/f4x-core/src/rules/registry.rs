@@ -108,6 +108,11 @@ impl<T: Def> Registry<T> {
         self.row(id).map(|_| id)
     }
 
+    /// The definition numbered `num`, if the table holds one.
+    pub fn by_num(&self, num: u16) -> Option<&T> {
+        self.try_get(Id::new(num))
+    }
+
     fn row(&self, id: Id<T>) -> Option<usize> {
         match self.rows.get(id.num() as usize) {
             Some(&r) if r != NO_ROW => Some(r as usize),

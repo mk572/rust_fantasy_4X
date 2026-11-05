@@ -43,7 +43,7 @@ fn world(troops: usize) -> Game {
         .content
         .rules
         .units
-        .id_of("high_men_spearmen")
+        .id_numbered(104)
         .expect("id_of succeeds");
     for _ in 0..troops {
         g.spawn_unit(TOWN, at(4, 4), spear);
@@ -181,7 +181,7 @@ fn a_new_stack_takes_a_lair_and_the_guards_that_lived_there_are_driven_out() -> 
     assert!(lair.guards.iter().all(|(id, _)| {
         let def = g.content.rules.units.get(*id);
         def.kind == crate::rules::UnitKind::Summoned
-            && def.realm.as_ref().map(|r| r.name()) == Some("death")
+            && def.realm.map(|r| r.num()) == Some(4 /* death */)
     }));
     assert!(lair.fought_by.is_empty(), "nobody knows the new guards");
     let roaming = g.units().player_units(MONSTERS);
@@ -278,7 +278,7 @@ fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() -> TestResult {
         .content
         .rules
         .units
-        .id_of("ghouls")
+        .id_numbered(166)
         .ok_or("ghouls is not in the content")?;
     let stack = vec![
         g.spawn_unit(MONSTERS, at(14, 7), ghoul),
@@ -348,7 +348,7 @@ fn monsters_that_win_a_city_wreck_it_and_vanish_and_sometimes_leave_ruins() -> T
             .content
             .rules
             .units
-            .id_of("ghouls")
+            .id_numbered(166)
             .ok_or("ghouls is not in the content")?;
         let stack = vec![
             g.spawn_unit(MONSTERS, at(10, 5), ghoul),
@@ -416,13 +416,13 @@ fn monsters_that_beat_the_defenders_in_a_battle_rampage_through_the_city() -> Te
             .content
             .rules
             .units
-            .id_of("high_men_spearmen")
+            .id_numbered(104)
             .ok_or("high_men_spearmen is not in the content")?;
         let skeleton = g
             .content
             .rules
             .units
-            .id_of("skeletons")
+            .id_numbered(165)
             .ok_or("skeletons is not in the content")?;
         g.spawn_city(P0, at(16, 9), "Colony".into(), None, 6);
         let defenders = vec![g.spawn_unit(P0, at(16, 9), spear)];
@@ -516,7 +516,7 @@ fn a_party_on_myrror_is_halved_until_turn_two_hundred() {
             .content
             .rules
             .units
-            .id_of("high_men_spearmen")
+            .id_numbered(104)
             .expect("id_of succeeds");
         for _ in 0..8 {
             g.spawn_unit(TOWN, myr(4, 4), spear);
@@ -560,7 +560,7 @@ fn settlers_do_not_make_a_party() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_settlers")
+        .id_numbered(111)
         .ok_or("no settlers")?;
     for _ in 0..4 {
         g.spawn_unit(TOWN, at(4, 4), settlers);

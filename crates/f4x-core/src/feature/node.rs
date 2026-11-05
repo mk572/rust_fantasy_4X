@@ -296,7 +296,7 @@ pub(crate) mod tests {
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
             if u.id == "magic_spirit" {
-                u.ability_ids.push(crate::rules::Ability::new(42));
+                u.abilities.push(crate::rules::Ability::new(42));
                 u.kind = UnitKind::Summoned;
                 u.realm = Some(crate::game::testutil::realm_ref("arcane"));
             }

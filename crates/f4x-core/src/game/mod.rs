@@ -667,7 +667,7 @@ impl Game {
             .units()
             .unit_def(unit)
             .and_then(|d| d.race.as_ref())
-            .and_then(|r| r.id());
+            .copied();
         self.despawn_with_spells(unit);
         let city = self.spawn_city(owner, pos, name, race, 0);
         vec![Event::CityFounded { city, pos }]

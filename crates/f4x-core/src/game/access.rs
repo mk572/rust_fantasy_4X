@@ -288,7 +288,7 @@ mod tests {
 
     /// A town with `figures` citizens on a square no one else stands on.
     fn town(g: &mut Game, figures: u32) -> Result<hecs::Entity, String> {
-        let race = g.content().rules.races.id_of("high_elf");
+        let race = g.content().rules.races.id_numbered(7);
         let free = (3..g.map().ok_or("no map")?.width() - 3)
             .map(|x| at(x, 20))
             .find(|&p| g.economy().city_at(p).is_none())
@@ -300,7 +300,7 @@ mod tests {
     fn a_city_is_read_back_as_it_was_set_up() -> TestResult {
         let mut g = world()?;
         let city = town(&mut g, 4)?;
-        let elf = g.content().rules.races.id_of("high_elf");
+        let elf = g.content().rules.races.id_numbered(7);
         assert_eq!(g.city_name(city).as_deref(), Some("Testville"));
         assert_eq!(g.city_race(city), elf);
         assert_eq!(g.city_population(city).figures, 4);
@@ -314,7 +314,7 @@ mod tests {
             .content()
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("no cavalry")?;
         let unit = g.spawn_unit(P0, at(3, 3), soldier);
         assert_eq!(g.city_name(unit), None);
@@ -354,7 +354,7 @@ mod tests {
             .content()
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("no cavalry")?;
         let unit = g.spawn_unit(P0, at(3, 3), soldier);
         g.scenario_set_experience(unit, 130);
@@ -378,7 +378,7 @@ mod tests {
             .content()
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("no cavalry")?;
         let unit = g.spawn_unit(P0, at(3, 3), soldier);
         g.scenario_set_moves_left(unit, 2);
@@ -400,8 +400,8 @@ mod tests {
             .content()
             .rules
             .spells
-            .id_of("great_unsummoning")
-            .or_else(|| g.content().rules.spells.id_of("armageddon"))
+            .id_numbered(75)
+            .or_else(|| g.content().rules.spells.id_numbered(120))
             .ok_or("no global spell")?;
         let mana = g.player(P0).map(|p| p.treasury().mana);
         g.scenario_add_global(P0, spell);

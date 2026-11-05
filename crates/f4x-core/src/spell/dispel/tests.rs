@@ -144,7 +144,7 @@ fn only_other_wizards_enchantments_are_dispelled() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let strength = sp(&g, "giant_strength");
@@ -168,7 +168,7 @@ fn a_dispel_names_each_spell_it_removes() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let strength = sp(&g, "giant_strength");
@@ -193,7 +193,7 @@ fn spell_lock_must_be_dispelled_before_anything_else_on_the_unit() -> TestResult
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let (lock, strength) = (sp(&g, "spell_lock"), sp(&g, "giant_strength"));
@@ -226,7 +226,7 @@ fn spell_lock_must_be_dispelled_before_anything_else_on_the_unit() -> TestResult
 #[test]
 fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
     let mut g = world();
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     g.apply(Command::FoundCity {
         owner: P0,
         pos: at(6, 6),
@@ -239,7 +239,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(6, 6), spear);
     let elsewhere = g.spawn_unit(P0, at(9, 9), spear);
@@ -584,7 +584,7 @@ fn a_wizard_turns_off_only_their_own_spell_on_a_unit() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let strength = sp(&g, "giant_strength");
@@ -647,7 +647,7 @@ fn turning_off_water_walking_at_sea_drowns_the_unit() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let walking = sp(&g, "water_walking");
@@ -689,7 +689,7 @@ fn flight_keeps_a_unit_afloat_and_turning_it_off_drowns_it() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let flight = sp(&g, "flight");

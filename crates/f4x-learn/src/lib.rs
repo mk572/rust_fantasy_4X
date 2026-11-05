@@ -129,7 +129,7 @@ mod tests {
         let content = content();
         let realm_of = |id: &str| {
             let spells = &content.rules.spells;
-            spells.get(spells.id_of(id).unwrap()).realm.id().unwrap()
+            spells.get(spells.id_of(id).unwrap()).realm
         };
         // Every pair of realms with the arcane spells fits whole, so a generated wizard of one or
         // two realms is never cut short.
@@ -139,7 +139,7 @@ mod tests {
                 .spells
                 .iter()
                 .filter(|(_, d)| scenario::battle_spell(d))
-                .filter_map(|(_, d)| d.realm.id())
+                .map(|(_, d)| d.realm)
                 .collect()
         };
         let in_realm = |r: f4x_core::rules::RealmId| battle.iter().filter(|x| **x == r).count();
@@ -241,7 +241,7 @@ mod tests {
         use f4x_core::battle::Status;
         let content = content();
         let spec = ObsSpec::new(&content);
-        let spell = content.rules.spells.id_of("animate_dead").unwrap();
+        let spell = content.rules.spells.id_numbered(195).unwrap();
         // A scenario with a wizard on the side to play.
         let mut env = (0..40)
             .map(|seed| BattleEnv::new(&content, generate(&content, seed)).unwrap())

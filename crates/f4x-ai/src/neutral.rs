@@ -612,7 +612,7 @@ mod tests {
     ) -> Result<Game, Box<dyn std::error::Error>> {
         let mut g = game(COAST_CITY, "high_men");
         g.add_neutral_player(TOWN);
-        let race = g.content().rules.races.id_of("high_men");
+        let race = g.content().rules.races.id_numbered(8);
         let events = g.apply(Command::FoundCity {
             owner: TOWN,
             pos: at(4, 4),

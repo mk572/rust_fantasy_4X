@@ -146,7 +146,7 @@ impl<'a> Economy<'a> {
                 .rules
                 .units
                 .get(unit)
-                .ability_ids
+                .abilities
                 .contains(&Ability::new(12))
     }
 
@@ -864,7 +864,7 @@ impl<'a> Economy<'a> {
         let replaced: HashSet<_> = buildings
             .0
             .iter()
-            .filter_map(|&b| rules.buildings.get(b).replace_id)
+            .filter_map(|&b| rules.buildings.get(b).replaces)
             .collect();
         buildings
             .0

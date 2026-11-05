@@ -535,7 +535,7 @@ mod tests {
             .content()
             .rules
             .units
-            .id_of("magic_spirit")
+            .id_numbered(154)
             .ok_or("no magic_spirit")?;
         app.game.spawn_unit(MONSTERS, at, kind);
         let line = app.attack_line(&attack(&app, MONSTERS, false)?);

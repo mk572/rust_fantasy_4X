@@ -8,11 +8,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use std::collections::BTreeMap;
-
 use crate::player::PlayerId;
-use crate::rules::refs::{Names, Ref};
-use crate::rules::SpellDef;
+use crate::rules::{RealmId, SpellId};
+use crate::wizard::magic::Retort;
 
 /// Land as a share of each plane's tiles for the original's three sizes.
 pub const LAND_SMALL: u8 = 15;
@@ -460,71 +458,26 @@ pub struct SpellLibraryDef {
     /// Spells of the realm the wizard chooses at creation (the rest of `known` are defaults).
     pub chosen: Vec<Rarities>,
     /// Spells every wizard knows at the start.
-    pub always_known: Vec<Ref<SpellDef>>,
-    /// Spells a retort gives at the start, by the retort's alias (`retorts.ron`).
-    pub retort_known: std::collections::BTreeMap<String, Vec<Ref<SpellDef>>>,
+    pub always_known: Vec<crate::rules::SpellId>,
+    /// Spells a retort gives at the start, by the retort's number (`retorts.ron`).
+    pub retort_known:
+        std::collections::BTreeMap<crate::wizard::magic::Retort, Vec<crate::rules::SpellId>>,
     /// Spells of the arcane realm nobody may research at the start (they come by other ways).
-    pub arcane_closed: Vec<Ref<SpellDef>>,
+    pub arcane_closed: Vec<crate::rules::SpellId>,
     /// A computer wizard also knows this spell of its main realm (the realm with most books;
-    /// the first of the realms in file order on a tie), by realm id. The original's table is
+    /// the first of the realms in file order on a tie), by realm number. The original's table is
     /// off by one spell from what its code names (`INITGAME.c`, `OGBUG`); these are the spells
     /// it really gives, and the ones the wiki lists.
-    pub ai_main_realm_known: std::collections::BTreeMap<String, Ref<SpellDef>>,
+    pub ai_main_realm_known:
+        std::collections::BTreeMap<crate::rules::RealmId, crate::rules::SpellId>,
     /// From this difficulty on (3 is Hard) a computer wizard may also research this spell of its
-    /// main realm, by realm id.
-    pub ai_main_realm_researchable: std::collections::BTreeMap<String, Ref<SpellDef>>,
+    /// main realm, by realm number.
+    pub ai_main_realm_researchable:
+        std::collections::BTreeMap<crate::rules::RealmId, crate::rules::SpellId>,
     pub ai_main_realm_researchable_from: u8,
-    /// `retort_known` as numbers, filled once when the content loads ([`Self::resolve`]).
-    #[serde(skip)]
-    pub retort_spells: Vec<(crate::wizard::magic::Retort, Vec<crate::rules::SpellId>)>,
-    /// `ai_main_realm_known` as numbers.
-    #[serde(skip)]
-    pub ai_known: BTreeMap<crate::rules::RealmId, crate::rules::SpellId>,
-    /// `ai_main_realm_researchable` as numbers.
-    #[serde(skip)]
-    pub ai_researchable: BTreeMap<crate::rules::RealmId, crate::rules::SpellId>,
 }
 
 impl SpellLibraryDef {
-    /// Turn the spell names into numbers, once, when the content loads (the rules' spells are
-    /// needed, so this runs after them). A name that is no spell stays unresolved and
-    /// content validation reports it.
-    pub fn resolve(
-        &mut self,
-        spells: &[SpellDef],
-        retorts: &crate::rules::Registry<crate::rules::RetortDef>,
-        realms: &crate::rules::Registry<crate::rules::RealmDef>,
-    ) {
-        let mut names = Names::new();
-        names.add(spells);
-        names.resolve_all(&mut self.always_known);
-        names.resolve_all(&mut self.arcane_closed);
-        for list in self.retort_known.values_mut() {
-            names.resolve_all(list);
-        }
-        for r in self.ai_main_realm_known.values_mut() {
-            names.resolve(r);
-        }
-        for r in self.ai_main_realm_researchable.values_mut() {
-            names.resolve(r);
-        }
-        self.retort_spells = self
-            .retort_known
-            .iter()
-            .filter_map(|(r, list)| {
-                let spells = list.iter().filter_map(|s| s.id()).collect();
-                Some((retorts.id_of(r)?, spells))
-            })
-            .collect();
-        let by_realm = |map: &BTreeMap<String, Ref<SpellDef>>| {
-            map.iter()
-                .filter_map(|(r, s)| Some((realms.id_of(r)?, s.id()?)))
-                .collect()
-        };
-        self.ai_known = by_realm(&self.ai_main_realm_known);
-        self.ai_researchable = by_realm(&self.ai_main_realm_researchable);
-    }
-
     /// Most books in a realm; the tables have one row more.
     pub const MAX_BOOKS: usize = 11;
 
@@ -591,37 +544,39 @@ impl Default for SpellLibraryDef {
                 11 => r(0, 2, 1, 0),
                 n => r(n - 1, 0, 0, 0),
             }),
-            always_known: vec!["magic_spirit".into(), "spell_of_return".into()],
+            always_known: vec![
+                SpellId::new(201), /* magic_spirit */
+                SpellId::new(214), /* spell_of_return */
+            ],
             retort_known: [(
-                "artificer".to_string(),
-                vec!["enchant_item".into(), "create_artifact".into()],
+                Retort::new(17), /* artificer */
+                vec![
+                    SpellId::new(207), /* enchant_item */
+                    SpellId::new(211), /* create_artifact */
+                ],
             )]
             .into(),
-            arcane_closed: vec!["spell_of_mastery".into(), "spell_of_return".into()],
+            arcane_closed: vec![
+                SpellId::new(213), /* spell_of_mastery */
+                SpellId::new(214), /* spell_of_return */
+            ],
             ai_main_realm_known: [
-                ("nature", "sprites"),
-                ("sorcery", "nagas"),
-                ("chaos", "hell_hounds"),
-                ("life", "guardian_spirit"),
-                ("death", "ghouls"),
+                (RealmId::new(0), SpellId::new(9)),   // nature: sprites
+                (RealmId::new(1), SpellId::new(49)),  // sorcery: nagas
+                (RealmId::new(2), SpellId::new(84)),  // chaos: hell_hounds
+                (RealmId::new(3), SpellId::new(129)), // life: guardian_spirit
+                (RealmId::new(4), SpellId::new(166)), // death: ghouls
             ]
-            .into_iter()
-            .map(|(a, b)| (a.into(), b.into()))
-            .collect(),
+            .into(),
             ai_main_realm_researchable: [
-                ("nature", "basilisk"),
-                ("sorcery", "phantom_beast"),
-                ("chaos", "chimeras"),
-                ("life", "unicorns"),
-                ("death", "shadow_demons"),
+                (RealmId::new(0), SpellId::new(20)),  // nature: basilisk
+                (RealmId::new(1), SpellId::new(60)),  // sorcery: phantom_beast
+                (RealmId::new(2), SpellId::new(100)), // chaos: chimeras
+                (RealmId::new(3), SpellId::new(136)), // life: unicorns
+                (RealmId::new(4), SpellId::new(180)), // death: shadow_demons
             ]
-            .into_iter()
-            .map(|(a, b)| (a.into(), b.into()))
-            .collect(),
+            .into(),
             ai_main_realm_researchable_from: 3,
-            retort_spells: Vec::new(),
-            ai_known: BTreeMap::new(),
-            ai_researchable: BTreeMap::new(),
         }
     }
 }

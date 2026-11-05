@@ -280,7 +280,7 @@ mod tests {
     fn monsters_settle_in_a_cleared_node_they_have_seen() {
         let mut g = game(COAST_CITY, "high_men");
         let node_at = at(5, 9);
-        let feature = g.content().features.id_of("chaos_node").unwrap();
+        let feature = g.content().features.id_numbered(4).unwrap();
         let site = g.spawn_feature(Placement {
             at: node_at,
             feature,

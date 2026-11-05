@@ -154,12 +154,12 @@ impl Economy<'_> {
                 if def.coastal && !self.city_is_coastal(city) {
                     return Err(ProductionError::NotCoastal);
                 }
-                self.requirements_met(&built, &def.require_ids)
+                self.requirements_met(&built, &def.requires)
             }
             ProductionItem::Unit(u) => {
                 let def = rules.units.get(u);
                 let allowed = match def.kind {
-                    UnitKind::Normal => race.units.iter().any(|r| r.id() == Some(u)),
+                    UnitKind::Normal => race.units.contains(&u),
                     UnitKind::Fantastic => true,
                     UnitKind::Hero | UnitKind::Summoned => false,
                 };
@@ -180,7 +180,7 @@ impl Economy<'_> {
                 {
                     return Err(ProductionError::TooSmall);
                 }
-                self.requirements_met(&built, &def.require_ids)
+                self.requirements_met(&built, &def.requires)
             }
         }
     }
@@ -277,7 +277,7 @@ impl Economy<'_> {
         while let Some(need) = needed.get(i).copied() {
             i += 1;
             for (id, b) in rules.buildings.iter() {
-                if !b.require_ids.contains(&need) || needed.contains(&id) {
+                if !b.requires.contains(&need) || needed.contains(&id) {
                     continue;
                 }
                 if self.has_building(city, id) {
@@ -295,9 +295,9 @@ impl Economy<'_> {
         let rules = &self.content.rules;
         match self.city_production(city).item {
             Some(ProductionItem::Building(b)) => {
-                rules.buildings.get(b).require_ids.contains(&building)
+                rules.buildings.get(b).requires.contains(&building)
             }
-            Some(ProductionItem::Unit(u)) => rules.units.get(u).require_ids.contains(&building),
+            Some(ProductionItem::Unit(u)) => rules.units.get(u).requires.contains(&building),
             _ => false,
         }
     }
@@ -687,13 +687,7 @@ mod tests {
                 Farmers(0),
                 Buildings::default(),
                 Production::default(),
-                CityRace(
-                    content
-                        .rules
-                        .races
-                        .id_of("high_elf")
-                        .expect("id_of succeeds"),
-                ),
+                CityRace(content.rules.races.id_numbered(7).expect("id_of succeeds")),
             ));
             Rig {
                 world,

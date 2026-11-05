@@ -179,7 +179,7 @@ mod tests {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .expect("id_of succeeds");
         let u = g.spawn_unit(P0, at(5, 5), walker);
         // Everything is known already, so moving shows nothing new.

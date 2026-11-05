@@ -13,7 +13,7 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::rules::effects::Effect;
 use f4x_core::rules::exec::Target;
-use f4x_core::rules::{CastContext, Duration, RealmId, SpellDef, SpellId, SpellTarget};
+use f4x_core::rules::{CastContext, Duration, SpellDef, SpellId, SpellTarget};
 
 use crate::view::{is_fighter, unit_strength};
 use crate::Ai;
@@ -369,10 +369,7 @@ fn liked(def: &SpellDef, kind: Kind, traits: &crate::objective::Traits) -> bool 
         Like::CityBuff => kind == Kind::CityBuff,
         Like::GlobalBuff => kind == Kind::GlobalBuff,
         Like::Explore => kind == Kind::Explore,
-        Like::Holy => matches!(
-            def.realm.id().map(RealmId::num),
-            Some(3 /* life */ | 5 /* arcane */)
-        ),
+        Like::Holy => matches!(Some(def.realm.num()), Some(3 /* life */ | 5 /* arcane */)),
         Like::Curse => matches!(kind, Kind::CityCurse | Kind::WizardCurse),
     })
 }
@@ -842,7 +839,7 @@ mod tests {
     fn a_banished_wizard_turns_just_enough_gold_into_mana_for_the_return() {
         use crate::testworld::{game, COAST_CITY, P0, P1};
         let mut g = game(COAST_CITY, "high_men");
-        let spell = g.content().rules.spells.id_of("spell_of_return").unwrap();
+        let spell = g.content().rules.spells.id_numbered(214).unwrap();
         g.wizard_mut(P0)
             .unwrap()
             .put(Some(f4x_core::wizard::fortress::Banishment {
@@ -875,7 +872,7 @@ mod tests {
     fn a_wizard_that_is_not_banished_keeps_its_gold() {
         use crate::testworld::{game, COAST_CITY, P0};
         let mut g = game(COAST_CITY, "high_men");
-        let spell = g.content().rules.spells.id_of("spell_of_return").unwrap();
+        let spell = g.content().rules.spells.id_numbered(214).unwrap();
         g.scenario_casting(P0, spell, 500);
         g.treasury_mut(P0).unwrap().mana = 0;
         let gold = g.player(P0).unwrap().treasury().gold;
@@ -889,7 +886,7 @@ mod tests {
         use f4x_core::diplomacy::DiplomacyCommand;
         let mut g = game(COAST_CITY, "high_men");
         g.make_contact(P0, P1);
-        let famine = g.content().rules.spells.id_of("famine").unwrap();
+        let famine = g.content().rules.spells.id_numbered(189).unwrap();
         g.cheat_learn_spell(P0, famine);
         g.treasury_mut(P0).unwrap().mana = 5_000;
         g.wizard_mut(P0).unwrap().set_split(20, 40, 40).unwrap();
@@ -935,7 +932,7 @@ mod tests {
             },
         )
         .expect("a new game");
-        let heroism = g.content().rules.spells.id_of("heroism").unwrap();
+        let heroism = g.content().rules.spells.id_numbered(130).unwrap();
         g.cheat_learn_spell(P1, heroism);
         let aim = |g: &Game| pick_target(&PlayerView::new(g, P1), heroism);
         let Some(Target::Unit(first)) = aim(&g) else {

@@ -784,7 +784,7 @@ mod tests {
     ) -> Result<Game, Box<dyn std::error::Error>> {
         use crate::testworld::{at, game, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0, P1};
         let mut g = game(COAST_CITY, "high_men");
-        let race = g.content().rules.races.id_of("high_men");
+        let race = g.content().rules.races.id_numbered(8);
         g.apply(Command::FoundCity {
             owner: P0,
             pos: at(INLAND_CITY.0, INLAND_CITY.1),
@@ -830,7 +830,7 @@ mod tests {
     fn a_wizard_of_any_temper_goes_for_a_neighbour_with_half_its_cities() -> TestResult {
         use crate::testworld::{at, P0};
         let mut g = rivals(Objective::Theurgist, Personality::Lawful)?;
-        let race = g.content().rules.races.id_of("high_men");
+        let race = g.content().rules.races.id_numbered(8);
         for (i, (x, y)) in [(6, 10), (10, 10)].into_iter().enumerate() {
             let events = g.apply(Command::FoundCity {
                 owner: P0,
@@ -859,7 +859,7 @@ mod tests {
     fn nobody_attacks_a_neighbour_that_holds_as_many_cities() -> TestResult {
         use crate::testworld::{at, ENEMY_CITY, P1};
         let mut g = rivals(Objective::Expansionist, Personality::Ruthless)?;
-        let race = g.content().rules.races.id_of("high_men");
+        let race = g.content().rules.races.id_numbered(8);
         let events = g.apply(Command::FoundCity {
             owner: P1,
             pos: at(ENEMY_CITY.0 + 4, ENEMY_CITY.1 + 3),
@@ -955,7 +955,7 @@ mod tests {
             .content()
             .rules
             .spells
-            .id_of("spell_of_mastery")
+            .id_numbered(213)
             .ok_or("spell_of_mastery is shipped")?;
         let ai = Ai::new(P0);
         // Nobody casts it: nothing happens, however often it is rolled.

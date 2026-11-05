@@ -115,7 +115,7 @@ mod tests {
             .content()
             .rules
             .units
-            .id_of("barbarian_spearmen")
+            .id_numbered(39)
             .ok_or("barbarian_spearmen is not in the content")?;
         let defenders = vec![
             app.game.spawn_unit(f4x_core::player::MONSTERS, pos, kind),

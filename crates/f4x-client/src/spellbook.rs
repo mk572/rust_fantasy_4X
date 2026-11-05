@@ -179,7 +179,7 @@ impl App {
             let mut of: Vec<SpellId> = spells
                 .iter()
                 .copied()
-                .filter(|&s| rules.spells.get(s).realm.id() == Some(realm))
+                .filter(|&s| rules.spells.get(s).realm == realm)
                 .collect();
             match sort {
                 None => of.sort(),
@@ -230,7 +230,7 @@ impl App {
         let Some(m) = self.game.wizard(HUMAN) else {
             return BookAsk::Say("spell.cannot_learn_yet");
         };
-        let realm = self.game.content().rules.spells.get(spell).realm.id();
+        let realm = Some(self.game.content().rules.spells.get(spell).realm);
         // Arcane spells need no book; every other realm does.
         if realm.is_some_and(|r| r.num() != 5 /* arcane */)
             && realm.is_some_and(|r| m.books().get(&r).copied().unwrap_or(0) == 0)
@@ -795,7 +795,7 @@ impl BookUi {
         let def = app.game.content().rules.spells.get(spell).clone();
         let shown = app.names.spell(def.num).to_string();
         if let Some(entry) = self.combat.as_ref().and_then(|m| m.get(&spell)).copied() {
-            app.draw_combat_entry(lay, view, &shown, def.realm.id(), entry, x, y);
+            app.draw_combat_entry(lay, view, &shown, Some(def.realm), entry, x, y);
             return;
         }
         let casting = app
@@ -850,7 +850,7 @@ impl BookUi {
         } else {
             (cost / limit).min(40)
         };
-        let realm_symbol = def.realm.id().map_or(9, |r| 4 + usize::from(r.num()));
+        let realm_symbol = Some(def.realm).map_or(9, |r| 4 + usize::from(r.num()));
         if turns < 1 {
             let instant = app
                 .game

@@ -407,7 +407,7 @@ impl Game {
                     rules
                         .buildings
                         .get(b)
-                        .require_ids
+                        .requires
                         .iter()
                         .all(|r| built.contains(r))
                 })
@@ -469,15 +469,12 @@ impl Game {
             return (None, None);
         };
         let (mut melee, mut ranged) = (None, None);
-        for unit in &rules.races.get(race).units {
-            let Some(id) = unit.id() else {
-                continue;
-            };
+        for &id in &rules.races.get(race).units {
             let def = rules.units.get(id);
             let plain = def.kind == UnitKind::Normal
                 && def.cost > 0
                 && def.movement != crate::rules::MovementType::Sailing
-                && !def.ability_ids.contains(&Ability::new(12));
+                && !def.abilities.contains(&Ability::new(12));
             if !plain
                 || self
                     .economy()
@@ -492,7 +489,7 @@ impl Game {
                 .copied()
                 .unwrap_or(0)
                 > 0
-                && !def.ability_ids.contains(&Ability::new(69));
+                && !def.abilities.contains(&Ability::new(69));
             if shoots {
                 ranged = Some(id);
             } else {

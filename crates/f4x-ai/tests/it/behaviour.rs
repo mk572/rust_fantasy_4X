@@ -74,7 +74,7 @@ fn a_wizard_that_knows_the_spell_of_mastery_casts_it_and_wins() -> TestResult {
         .content()
         .rules
         .spells
-        .id_of("spell_of_mastery")
+        .id_numbered(213)
         .ok_or("spell_of_mastery is shipped")?;
     let mut w = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
     w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
@@ -99,7 +99,7 @@ fn a_wizard_that_knows_earth_lore_casts_it_and_sees_far_more() -> TestResult {
                 .content()
                 .rules
                 .spells
-                .id_of("earth_lore")
+                .id_numbered(10)
                 .ok_or("earth_lore is shipped")?;
             let mut w = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
             w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()

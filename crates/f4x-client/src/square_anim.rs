@@ -71,12 +71,15 @@ impl App {
             .art
             .spell_picture(&def.id, &Role::Cast)
             .or_else(|| {
-                self.art
-                    .spell_picture(&def.id, &Role::Realm(def.realm.name().to_string()))
+                self.art.spell_picture(
+                    &def.id,
+                    &Role::Realm(self.game.content().rules.realms.get(def.realm).id.clone()),
+                )
             })
             .or_else(|| {
-                self.art
-                    .shared_picture(&Role::Realm(def.realm.name().to_string()))
+                self.art.shared_picture(&Role::Realm(
+                    self.game.content().rules.realms.get(def.realm).id.clone(),
+                ))
             })?;
         Some(SquareAnim {
             at,
@@ -168,7 +171,7 @@ mod tests {
             .content()
             .rules
             .spells
-            .id_of("earth_to_mud")
+            .id_numbered(1)
             .ok_or("no earth_to_mud")?;
         app.prefs.set(Pref::SpellAnimations, false);
         app.announce_square_spell(HUMAN, spell, at);

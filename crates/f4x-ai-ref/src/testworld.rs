@@ -41,8 +41,8 @@ pub const ENEMY_CITY: (u32, u32) = (28, 6);
 /// the east island, and nothing else.
 pub fn game(city0: (u32, u32), race: &str) -> Game {
     let content = content();
-    let ocean = content.terrains.id_of("ocean").expect("ocean");
-    let grass = content.terrains.id_of("grassland").expect("grassland");
+    let ocean = content.terrains.id_numbered(8).expect("ocean");
+    let grass = content.terrains.id_numbered(4).expect("grassland");
     let build = || {
         let mut grid = Grid::new(WIDTH, HEIGHT, ocean);
         for y in ROWS {

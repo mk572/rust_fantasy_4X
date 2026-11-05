@@ -366,7 +366,7 @@ impl App {
             .buildings
             .iter()
             .filter(|(id, def)| {
-                def.require_ids.contains(&building)
+                def.requires.contains(&building)
                     && !built.contains(id)
                     && (def.races.is_empty() || race.is_some_and(|r| def.buildable_by(r)))
             })

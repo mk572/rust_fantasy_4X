@@ -236,7 +236,7 @@ impl Game {
                         mods.push(Modifier::new(*stat, *op, *value, Source::Spell(spell)));
                     }
                     Effect::GrantAbility(a) => {
-                        grants.extend(a.id());
+                        grants.push(*a);
                     }
                     // Heroism's tag: the level it gives is read where the unit's level is.
                     Effect::Custom(h) if h == crate::unit::HEROISM => {}
@@ -267,8 +267,8 @@ impl Game {
                 ..
             } => Some(Kind::Damage {
                 strength: *amount,
-                immune: crate::rules::refs::ids(immune),
-                realm: realm.as_ref().and_then(|r| r.id()).and_then(Realm::of),
+                immune: immune.clone(),
+                realm: realm.and_then(Realm::of),
                 traits: *traits,
                 all: all_enemies,
             }),
@@ -277,13 +277,13 @@ impl Game {
                 all: rule.target == TargetSel::AllOwnUnits,
                 except: match &rule.condition {
                     Condition::Not(c) => match &**c {
-                        Condition::RealmIs(r) => r.id().and_then(Realm::of),
+                        Condition::RealmIs(r) => Realm::of(*r),
                         _ => None,
                     },
                     _ => None,
                 },
             }),
-            Effect::Summon { unit_id, .. } => unit_id.map(Kind::Summon),
+            Effect::Summon { unit, .. } => Some(Kind::Summon(*unit)),
             Effect::Dispel { strength } => Some(Kind::Dispel(*strength / def.cost.max(1))),
             Effect::Slay {
                 realm,
@@ -293,9 +293,9 @@ impl Game {
                 below,
                 mana_per_step,
             } => Some(Kind::Slay {
-                realm: Realm::of(realm.id()?)?,
+                realm: Realm::of(*realm)?,
                 modifier: *modifier,
-                immune: crate::rules::refs::ids(immune),
+                immune: immune.clone(),
                 only: *only,
                 below: *below,
                 mana_per_step: *mana_per_step,
@@ -359,7 +359,7 @@ impl Game {
                     castable: caster.is_some_and(|c| !c.cast_this_turn && cost <= c.affordable())
                         && !self.battle().is_some_and(|b| {
                             b.side_of(player)
-                                .is_some_and(|side| b.ward_stops(side, def.realm.id()))
+                                .is_some_and(|side| b.ward_stops(side, Some(def.realm)))
                         }),
                 })
             })
@@ -518,7 +518,7 @@ impl Game {
         if skill > caster.affordable() {
             return Err(err(SpellError::TooExpensive));
         }
-        if battle.ward_stops(side, def.realm.id()) {
+        if battle.ward_stops(side, Some(def.realm)) {
             return Err(err(SpellError::Warded));
         }
         Ok((def, kind, skill, pool))
@@ -630,8 +630,8 @@ impl Game {
         }];
 
         // The node under the battle, then the enemy's Counter Magic reserve, try to stop it.
-        let difficulty = pool as u32 * self.dispel_multiplier(def.realm.id(), Some(player));
-        let stopped = self.battle_spell_stopped(side, player, def.realm.id(), difficulty);
+        let difficulty = pool as u32 * self.dispel_multiplier(Some(def.realm), Some(player));
+        let stopped = self.battle_spell_stopped(side, player, Some(def.realm), difficulty);
         if stopped {
             events.push(BattleEvent::SpellCountered { side, spell });
         } else {
@@ -883,15 +883,12 @@ impl Game {
         if def
             .not_with
             .iter()
-            .filter_map(|n| n.id())
+            .copied()
             .any(|id| unit.enchantments.contains(&id) || self.has_global(player, id))
         {
             return Err(SpellError::NotCumulative);
         }
-        if crate::rules::refs::ids(&def.already_able)
-            .iter()
-            .any(|&a| unit.has(a))
-        {
+        if def.already_able.clone().iter().any(|&a| unit.has(a)) {
             return Err(SpellError::AlreadyAble);
         }
         Ok(())
@@ -927,7 +924,7 @@ impl Game {
         let mut out = Vec::new();
         for &other in present {
             let def = rules.spells.get(other);
-            if !def.not_with.iter().any(|n| n.id() == Some(spell)) {
+            if !def.not_with.contains(&spell) {
                 continue;
             }
             for r in &def.effects {
@@ -1294,10 +1291,7 @@ impl Game {
                 }]
             }
             (Kind::Turn { bind, save }, SpellAim::Unit(target)) => {
-                let immune_ids = save
-                    .as_ref()
-                    .map(|s| crate::rules::refs::ids(&s.immune))
-                    .unwrap_or_default();
+                let immune_ids = save.as_ref().map(|s| s.immune.clone()).unwrap_or_default();
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1307,11 +1301,7 @@ impl Game {
                     if immune_ids.iter().any(|&i| unit.has(i)) {
                         return vec![BattleEvent::SpellImmune { unit: target }];
                     }
-                    if !battle.resist_fails(
-                        target,
-                        def.realm.id().and_then(Realm::of),
-                        save.modifier,
-                    ) {
+                    if !battle.resist_fails(target, Realm::of(def.realm), save.modifier) {
                         return vec![BattleEvent::SpellResisted { unit: target }];
                     }
                 }
@@ -1348,10 +1338,7 @@ impl Game {
                 let mut mods = mods;
                 mods.extend(self.superseded_bonuses(spell, &present));
                 mods.extend(self.battle_bonuses_by_name(spell, target));
-                let immune_ids = save
-                    .as_ref()
-                    .map(|s| crate::rules::refs::ids(&s.immune))
-                    .unwrap_or_default();
+                let immune_ids = save.as_ref().map(|s| s.immune.clone()).unwrap_or_default();
                 let Some(active) = self.battle.as_mut() else {
                     return Vec::new();
                 };
@@ -1361,7 +1348,7 @@ impl Game {
                     if immune_ids.iter().any(|&i| unit.has(i)) {
                         return vec![BattleEvent::SpellImmune { unit: target }];
                     }
-                    let realm = def.realm.id().and_then(Realm::of);
+                    let realm = Realm::of(def.realm);
                     if !battle.resist_fails(target, realm, save.modifier) {
                         return vec![BattleEvent::SpellResisted { unit: target }];
                     }
@@ -1469,9 +1456,7 @@ impl Game {
         player: PlayerId,
         save: Option<&SpellSave>,
     ) -> Vec<BattleEvent> {
-        let immune_ids = save
-            .map(|s| crate::rules::refs::ids(&s.immune))
-            .unwrap_or_default();
+        let immune_ids = save.map(|s| s.immune.clone()).unwrap_or_default();
         let Some(active) = self.battle.as_mut() else {
             return Vec::new();
         };
@@ -1481,7 +1466,7 @@ impl Game {
             if immune_ids.iter().any(|&i| unit.has(i)) {
                 return vec![BattleEvent::SpellImmune { unit: target }];
             }
-            if !battle.resist_fails(target, def.realm.id().and_then(Realm::of), save.modifier) {
+            if !battle.resist_fails(target, Realm::of(def.realm), save.modifier) {
                 return vec![BattleEvent::SpellResisted { unit: target }];
             }
         }

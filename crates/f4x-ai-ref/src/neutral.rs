@@ -613,7 +613,7 @@ mod tests {
     fn raiding_world(guards: Option<Vec<(f4x_core::rules::UnitId, u32)>>, known: bool) -> Game {
         let mut g = game(COAST_CITY, "high_men");
         g.add_neutral_player(TOWN);
-        let race = g.content().rules.races.id_of("high_men");
+        let race = g.content().rules.races.id_numbered(8);
         let events = g.apply(Command::FoundCity {
             owner: TOWN,
             pos: at(4, 4),
@@ -624,7 +624,7 @@ mod tests {
         assert!(!events.iter().any(|e| matches!(e, Event::Rejected(_))));
         g.treasury_mut(TOWN).unwrap().gold = 1_000_000;
         spawn(&mut g, TOWN, at(4, 4), "high_men_paladins", 9);
-        let feature = g.content().features.id_of("monster_lair").unwrap();
+        let feature = g.content().features.id_numbered(13).unwrap();
         let Some(guards) = guards else {
             return g;
         };

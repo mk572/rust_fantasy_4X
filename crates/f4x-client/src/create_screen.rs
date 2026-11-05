@@ -91,7 +91,7 @@ impl CreateState {
                     .copied()
                     .filter(|&s| {
                         let d = app.game.content().rules.spells.get(s);
-                        d.realm.id() == Some(*realm) && d.rarity == rarity
+                        d.realm == (*realm) && d.rarity == rarity
                     })
                     .collect();
                 chosen.truncate(want);
@@ -165,7 +165,7 @@ mod tests {
         let realms = app.book_realms();
         assert!(!state.build.spells.is_empty());
         for &s in &state.build.spells {
-            let realm = app.game.content().rules.spells.get(s).realm.id().unwrap();
+            let realm = app.game.content().rules.spells.get(s).realm;
             assert!(realms.contains(&realm), "{realm:?} holds no books");
         }
         let spells = state.build.spells.clone();

@@ -615,7 +615,7 @@ mod tests {
             .content
             .rules
             .units
-            .id_of("dwarf")
+            .id_numbered(0)
             .ok_or("dwarf is not in the content")?;
         let theirs = g.spawn_unit(P1, at(1, 1), u);
         g.give_item(P0, item("Sword", ItemKind::Sword));

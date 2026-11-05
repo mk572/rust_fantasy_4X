@@ -123,7 +123,7 @@ mod tests {
             .content()
             .rules
             .abilities
-            .by_name("first_strike")
+            .by_num(23)
             .map(|a| app.names.ability(a.num).to_string())
             .expect("first_strike is an ability");
         assert_eq!(

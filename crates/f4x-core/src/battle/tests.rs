@@ -546,7 +546,7 @@ fn a_game_battle_copies_the_units_and_writes_the_results_back() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a1 = g.spawn_unit(A, at(4, 4), walker);
     let a2 = g.spawn_unit(A, at(4, 4), walker);
@@ -638,7 +638,7 @@ fn battles_need_two_sides_of_opposing_players_standing_together() -> TestResult 
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let a_far = g.spawn_unit(A, at(8, 8), walker);
@@ -677,7 +677,7 @@ fn wounded_units_enter_a_battle_wounded() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
@@ -713,7 +713,7 @@ fn flee_with(difficulty: u8, n: usize, held: &[SpellId]) -> (Game, Vec<hecs::Ent
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .expect("id_of succeeds");
     let att: Vec<_> = (0..n).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let d = g.spawn_unit(D, at(5, 4), walker);
@@ -789,7 +789,7 @@ fn ranged_abilities_map_to_battle_kinds() {
 }
 
 fn found(g: &mut Game, owner: PlayerId, pos: crate::map::Position) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     g.apply(Command::FoundCity {
         owner,
         pos,
@@ -807,7 +807,7 @@ fn auto_resolve_fights_to_the_end_and_the_winner_takes_the_square() -> TestResul
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let attackers: Vec<_> = (0..4).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let defender = g.spawn_unit(D, at(5, 4), walker);
@@ -842,7 +842,7 @@ fn a_battle_won_at_a_city_captures_it() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let city = found(&mut g, D, at(5, 4));
     let defender = g.spawn_unit(D, at(5, 4), walker);
@@ -869,7 +869,7 @@ fn an_empty_enemy_city_is_taken_by_walking_in() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let city = found(&mut g, D, at(5, 4));
     let unit = g.spawn_unit(A, at(4, 4), walker);
@@ -895,7 +895,7 @@ fn a_losing_attacker_stays_where_it_was() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let attacker = g.spawn_unit(A, at(4, 4), walker);
     let defenders: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
@@ -919,7 +919,7 @@ fn auto_resolve_needs_an_adjacent_target() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(2, 4), walker);
     let d = g.spawn_unit(D, at(6, 4), walker);
@@ -2544,7 +2544,7 @@ fn mithril_and_adamantium_weapons_add_to_the_attack_defence_and_to_hit() -> Test
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let plain = g
@@ -2578,7 +2578,7 @@ fn a_heros_items_add_to_its_attacks_defence_and_abilities_in_battle() -> TestRes
         .content
         .rules
         .units
-        .id_of("dwarf")
+        .id_numbered(0)
         .ok_or("dwarf is not in the content")?;
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let plain = g
@@ -2652,7 +2652,7 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestRes
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let plain = g
@@ -2738,7 +2738,7 @@ fn begin(g: &mut Game, attacker: hecs::Entity) {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .expect("id_of succeeds");
     let d1 = g.spawn_unit(D, at(5, 4), walker);
     g.apply(Command::BeginBattle {
@@ -2758,7 +2758,7 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
         .content
         .rules
         .spells
-        .id_of("call_chaos")
+        .id_numbered(115)
         .ok_or("call_chaos is not in the content")?;
     {
         let mut m = g.wizard_mut(A).ok_or("wizard_mut is missing")?;
@@ -2777,7 +2777,7 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let ours = g.spawn_unit(A, at(4, 4), walker);
     let theirs: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
@@ -2860,7 +2860,7 @@ fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("chaos_channels")
+        .id_numbered(93)
         .ok_or("chaos_channels is not in the content")?;
     {
         let mut m = g.wizard_mut(A).ok_or("wizard_mut is missing")?;
@@ -2880,7 +2880,7 @@ fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() -> TestResult {
         .content
         .rules
         .units
-        .id_of("barbarian_spearmen")
+        .id_numbered(39)
         .ok_or("barbarian_spearmen is not in the content")?;
     let ours = g.spawn_unit(A, at(4, 4), soldier);
     let theirs = g.spawn_unit(D, at(5, 4), soldier);
@@ -2950,13 +2950,13 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() -> TestRes
         .content
         .rules
         .spells
-        .id_of("fire_bolt")
+        .id_numbered(83)
         .ok_or("fire_bolt is not in the content")?;
     let mend = g
         .content
         .rules
         .spells
-        .id_of("healing")
+        .id_numbered(125)
         .ok_or("healing is not in the content")?;
     let before = g
         .battle()
@@ -3056,7 +3056,7 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() -> TestResul
         .content
         .rules
         .spells
-        .id_of("fire_bolt")
+        .id_numbered(83)
         .ok_or("fire_bolt is not in the content")?;
     let b = g.battle().ok_or("battle is missing")?;
     assert_eq!(
@@ -3114,12 +3114,12 @@ fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it()
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(A, at(4, 4), walker);
     let mut defs = g.content.rules.units.defs().to_vec();
     for d in defs.iter_mut().filter(|d| d.id == "high_men_cavalry") {
-        d.ability_ids.push(Ability::new(6));
+        d.abilities.push(Ability::new(6));
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     begin(&mut g, unit);
@@ -3127,7 +3127,7 @@ fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it()
         .content
         .rules
         .spells
-        .id_of("healing")
+        .id_numbered(125)
         .ok_or("healing is not in the content")?;
     // It is cast on a friend only: the enemy is a bad target.
     let bad = g.battle_command(BattleCommand::UnitCast {
@@ -3178,7 +3178,11 @@ fn the_twelve_units_with_a_casting_ability_cast_its_spell_once_for_no_mana() -> 
             .units
             .defs()
             .iter()
-            .filter(move |d| d.abilities.iter().any(|a| a == ability))
+            .filter(move |d| {
+                d.abilities
+                    .iter()
+                    .any(|a| a == &crate::game::testutil::ability(ability))
+            })
             .map(move |d| (d.id.as_str(), spell))
     })
     .collect();
@@ -3504,14 +3508,14 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() -> Te
     let mut g = game();
     let mut defs = g.content.rules.units.defs().to_vec();
     for d in defs.iter_mut().filter(|d| d.id == "high_men_cavalry") {
-        d.ability_ids.push(Ability::new(67));
+        d.abilities.push(Ability::new(67));
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     let walker = g
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let lord = g.spawn_unit(A, at(4, 4), walker);
     begin(&mut g, lord);
@@ -3816,7 +3820,7 @@ fn an_undead_unit_fights_as_a_fantastic_death_creature_with_its_immunities() -> 
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a1 = g.spawn_unit(A, at(4, 4), walker);
     let a2 = g.spawn_unit(A, at(4, 4), walker);
@@ -3868,7 +3872,7 @@ fn a_battle_brain_plays_for_its_wizard_and_the_plain_ai_for_the_rest() -> TestRe
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a1 = g.spawn_unit(A, at(4, 4), walker);
     let d1 = g.spawn_unit(D, at(5, 4), walker);
@@ -3998,7 +4002,7 @@ fn game_with_abilities(unit_id: &str, abilities: &[&str]) -> Game {
     let mut units = g.content.rules.units.defs().to_vec();
     for u in units.iter_mut().filter(|u| u.id == unit_id) {
         u.kind = crate::rules::UnitKind::Normal;
-        u.ability_ids
+        u.abilities
             .extend(crate::game::testutil::abilities(abilities));
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
@@ -4012,7 +4016,7 @@ fn luck_adds_one_to_hit_to_block_and_resistance_in_battle() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
@@ -4022,7 +4026,7 @@ fn luck_adds_one_to_hit_to_block_and_resistance_in_battle() -> TestResult {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         let u = other.spawn_unit(A, at(4, 4), w);
         let d = other.spawn_unit(D, at(5, 4), w);
@@ -4080,13 +4084,13 @@ fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won(
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let troll = g
         .content
         .rules
         .units
-        .id_of("troll_war_trolls")
+        .id_numbered(152)
         .ok_or("troll_war_trolls is not in the content")?;
     let alive = g.spawn_unit(A, at(4, 4), walker);
     let slain_troll = g.spawn_unit(A, at(4, 4), troll);
@@ -4123,13 +4127,13 @@ fn a_regenerating_unit_that_loses_stays_dead() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let troll = g
         .content
         .rules
         .units
-        .id_of("troll_war_trolls")
+        .id_numbered(152)
         .ok_or("troll_war_trolls is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), troll);
     let d = g.spawn_unit(D, at(5, 4), walker);
@@ -4145,7 +4149,7 @@ fn the_winners_survivors_gain_experience_and_fame_for_four_kills() -> TestResult
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let fallen = g.spawn_unit(A, at(4, 4), walker);
@@ -4171,7 +4175,7 @@ fn fewer_than_four_kills_give_experience_but_no_fame() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let foes: Vec<_> = (0..2).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
@@ -4193,7 +4197,7 @@ fn a_very_rare_foe_is_worth_a_point_of_fame() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let d = g.spawn_unit(D, at(5, 4), walker);
@@ -4220,7 +4224,7 @@ fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back(
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
     let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
@@ -4237,7 +4241,7 @@ fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back(
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g2.spawn_unit(A, at(4, 4), walker);
     let d = g2.spawn_unit(D, at(5, 4), walker);
@@ -4382,7 +4386,7 @@ fn a_battle_fought_after_recording_began_plays_again_the_same() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a1 = g.spawn_unit(A, at(4, 4), walker);
     let a2 = g.spawn_unit(A, at(4, 4), walker);
@@ -4541,19 +4545,19 @@ fn dispel_the_field(burn: usize) -> (bool, bool) {
         .content
         .rules
         .spells
-        .id_of("dispel_magic")
+        .id_numbered(202)
         .expect("id_of succeeds");
     let darkness = g
         .content
         .rules
         .spells
-        .id_of("darkness")
+        .id_numbered(169)
         .expect("id_of succeeds");
     let prayer = g
         .content
         .rules
         .spells
-        .id_of("prayer")
+        .id_numbered(140)
         .expect("id_of succeeds");
     {
         let mut m = g.wizard_mut(A).expect("wizard_mut succeeds");
@@ -4566,7 +4570,7 @@ fn dispel_the_field(burn: usize) -> (bool, bool) {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .expect("id_of succeeds");
     let ours = g.spawn_unit(A, at(4, 4), walker);
     let theirs = g.spawn_unit(D, at(5, 4), walker);
@@ -4779,7 +4783,7 @@ fn holy_weapon_is_refused_in_a_battle_while_the_wizard_keeps_holy_arms() -> Test
         .content
         .rules
         .spells
-        .id_of("holy_arms")
+        .id_numbered(154)
         .ok_or("holy_arms is not in the content")?;
     g.add_global(A, arms);
     assert_eq!(
@@ -4895,7 +4899,7 @@ fn a_battle_is_saved_and_read_back_with_its_spells_and_items() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("fire_bolt")
+        .id_numbered(83)
         .ok_or("fire_bolt is not in the content")?;
     g.battle_command(BattleCommand::UnitCast {
         unit: 0,
@@ -4957,7 +4961,7 @@ fn battle_in_the_middle() -> (Game, hecs::Entity) {
         .content
         .rules
         .spells
-        .id_of("fire_bolt")
+        .id_numbered(83)
         .expect("id_of succeeds");
     g.battle_command(BattleCommand::UnitCast {
         unit: 0,
@@ -5137,7 +5141,7 @@ fn strategic_fight(spells: &[&str], mana: i32, budget: Option<u32>) -> i32 {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .expect("id_of succeeds");
     let ours: Vec<_> = (0..3).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let theirs: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
@@ -5177,7 +5181,7 @@ fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() ->
         .content
         .rules
         .spells
-        .id_of("giant_strength")
+        .id_numbered(4)
         .ok_or("giant_strength is not in the content")?;
     {
         let mut m = g.wizard_mut(A).ok_or("wizard_mut is missing")?;
@@ -5239,7 +5243,7 @@ fn a_battle_starts_with_the_games_melee_against_fliers_setting() -> TestResult {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         let a = g.spawn_unit(A, at(4, 4), walker);
         let d = g.spawn_unit(D, at(5, 4), walker);
@@ -5261,7 +5265,7 @@ fn the_nine_most_experienced_defenders_fight_from_a_crowded_square() -> TestResu
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let attacker = g.spawn_unit(A, at(4, 4), walker);
     let defenders: Vec<_> = (0..12).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
@@ -5292,7 +5296,7 @@ fn defenders_who_sat_a_lost_battle_out_are_half_lost_and_driven_off_the_square()
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let attackers: Vec<_> = (0..9).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let defenders: Vec<_> = (0..crate::unit::MAX_TILE_LIMIT)
@@ -5326,7 +5330,7 @@ fn defenders_who_sat_a_won_battle_out_stay() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let attacker = g.spawn_unit(A, at(4, 4), walker);
     let defenders: Vec<_> = (0..12).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
@@ -5349,7 +5353,7 @@ fn the_player_names_who_fights_and_the_others_stay_out_with_their_moves() -> Tes
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let attackers: Vec<_> = (0..12).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
     let defenders: Vec<_> = (0..12).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
@@ -5381,7 +5385,7 @@ fn monsters_that_win_get_no_experience_and_the_loser_loses_no_fame() -> TestResu
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let beast = g.spawn_unit(crate::player::MONSTERS, at(4, 4), walker);
     let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(A, at(5, 4), walker)).collect();
@@ -5432,7 +5436,7 @@ fn spell_duel(
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let ours = g.spawn_unit(A, at(4, 4), walker);
     let theirs: Vec<_> = (0..foes)
@@ -5457,7 +5461,7 @@ fn the_scripted_wizard_casts_a_damage_spell_at_an_enemy_when_it_can_pay() -> Tes
         .content
         .rules
         .spells
-        .id_of("fire_bolt")
+        .id_numbered(83)
         .ok_or("fire_bolt is not in the content")?;
     let Some(BattleCommand::Cast { spell, aim, .. }) = super::brain::next_command(&g) else {
         return Err("the wizard did not cast".into());
@@ -5585,7 +5589,7 @@ fn the_legal_unit_casts_are_the_castable_spells_with_the_units_they_can_hit() ->
         .content
         .rules
         .spells
-        .id_of("fire_bolt")
+        .id_numbered(83)
         .ok_or("fire_bolt is not in the content")?;
     // 7 mana pay the Fire Bolt (5), not Healing (15).
     let legal = g.legal_unit_casts();

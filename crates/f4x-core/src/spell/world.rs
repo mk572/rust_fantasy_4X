@@ -275,15 +275,10 @@ impl Game {
         caster: PlayerId,
         spell: crate::rules::SpellId,
     ) -> Vec<Event> {
-        let realm = self
-            .content
-            .rules
-            .spells
-            .get(spell)
-            .realm
-            .id()
-            .map(|r| r.num());
-        if realm != Some(4 /* death */) && realm != Some(2 /* chaos */) {
+        let realm = self.content.rules.spells.get(spell).realm.num();
+        if realm != 4 /* death */ && realm != 2
+        /* chaos */
+        {
             return Vec::new();
         }
         if !self

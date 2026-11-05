@@ -184,11 +184,11 @@ pub enum Outcome {
 pub fn eval(cond: &Condition, facts: &Facts) -> bool {
     match cond {
         Condition::Always => true,
-        Condition::HasAbility(a) => a.id().is_some_and(|id| facts.abilities.contains(&id)),
+        Condition::HasAbility(a) => facts.abilities.contains(a),
         Condition::TerrainIs(c) => facts.terrain == Some(*c),
         Condition::OnPlane(p) => facts.plane == Some(*p),
-        Condition::RaceIs(r) => facts.race.is_some() && facts.race == r.id(),
-        Condition::RealmIs(r) => r.id().is_some() && facts.realm == r.id(),
+        Condition::RaceIs(r) => facts.race == Some(*r),
+        Condition::RealmIs(r) => facts.realm == Some(*r),
         Condition::KindIs(k) => facts.kind == Some(*k),
         Condition::InBattle => facts.in_battle,
         Condition::InCity => facts.in_city,
@@ -275,17 +275,15 @@ fn run_effect(
             host.add_modifier(who, Modifier::new(*stat, *op, *value, ctx.source));
             out.push(Outcome::Modified { who, stat: *stat });
         }
-        Effect::GrantAbility(a) => {
-            if let Some(ability) = a.id() {
-                host.grant_ability(who, ability);
-                out.push(Outcome::AbilityGranted { who, ability });
-            }
+        Effect::GrantAbility(ability) => {
+            let ability = *ability;
+            host.grant_ability(who, ability);
+            out.push(Outcome::AbilityGranted { who, ability });
         }
-        Effect::RemoveAbility(a) => {
-            if let Some(ability) = a.id() {
-                host.remove_ability(who, ability);
-                out.push(Outcome::AbilityRemoved { who, ability });
-            }
+        Effect::RemoveAbility(ability) => {
+            let ability = *ability;
+            host.remove_ability(who, ability);
+            out.push(Outcome::AbilityRemoved { who, ability });
         }
         Effect::Damage {
             amount,
@@ -296,9 +294,9 @@ fn run_effect(
             resist_modifier,
             traits,
         } => {
-            let realm = realm.as_ref().and_then(|r| r.id()).and_then(Realm::of);
+            let realm = realm.and_then(Realm::of);
             let abilities = host.facts(who).abilities;
-            let immune_ids = crate::rules::refs::ids(immune);
+            let immune_ids = immune.clone();
             if immune_ids.iter().any(|i| abilities.contains(i)) || host.protected_from(who, realm) {
                 out.push(Outcome::Immune { who });
             } else if *resistible && {
@@ -333,11 +331,7 @@ fn run_effect(
             host.add_resources(who, *gold, *food, *mana, *research);
             out.push(Outcome::ResourcesAdded { who });
         }
-        Effect::Summon {
-            unit_id: Some(unit),
-            count,
-            ..
-        } => {
+        Effect::Summon { unit, count } => {
             if let Some(at) = tile_of(who, host) {
                 host.summon(ctx.owner, at, *unit, *count);
                 out.push(Outcome::Summoned {
@@ -346,8 +340,6 @@ fn run_effect(
                 });
             }
         }
-        // A summon of a name that is no unit does nothing (validation reports it).
-        Effect::Summon { unit_id: None, .. } => {}
         Effect::ChangeTerrain(class) => {
             if let Some(at) = tile_of(who, host) {
                 host.change_terrain(at, *class);
@@ -361,10 +353,9 @@ fn run_effect(
             }
         }
         Effect::ApplyEnchantment(spell) => {
-            if let Some(spell) = spell.id() {
-                host.apply_enchantment(who, spell, ctx.owner);
-                out.push(Outcome::Enchanted { who, spell });
-            }
+            let spell = *spell;
+            host.apply_enchantment(who, spell, ctx.owner);
+            out.push(Outcome::Enchanted { who, spell });
         }
         Effect::Dispel { strength } => {
             let removed = host.dispel(who, *strength, ctx.owner);

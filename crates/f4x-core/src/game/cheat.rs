@@ -169,7 +169,7 @@ mod tests {
             .content()
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("no cavalry")?;
         let plain = g.spawn_unit(P0, at(3, 3), soldier);
         assert!(g.cheat_remove_unit(plain));
@@ -199,7 +199,7 @@ mod tests {
             .content()
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("no cavalry")?;
         let unit = g.spawn_unit(P0, at(3, 3), soldier);
         g.cheat_move_unit(unit, at(20, 12));
@@ -287,7 +287,7 @@ mod tests {
             .content()
             .rules
             .spells
-            .id_of("fire_bolt")
+            .id_numbered(83)
             .ok_or("no fire_bolt")?;
         assert!(g.cheat_learn_spell(P0, spell));
         assert!(g.wizard(P0).ok_or("no wizard")?.knows(spell));

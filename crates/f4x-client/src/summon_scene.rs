@@ -78,7 +78,7 @@ impl Modal for SummonScene {
 /// What a spell summons, if it does.
 pub(crate) fn summoned_by(def: &SpellDef) -> Option<Summoned> {
     def.effects.iter().find_map(|e| match &e.effect {
-        Effect::Summon { unit_id, .. } => unit_id.map(Summoned::Creature),
+        Effect::Summon { unit, .. } => Some(Summoned::Creature(*unit)),
         Effect::Special if def.num == 208 /* summon_hero */ => Some(Summoned::Hero),
         Effect::Special if def.num == 212 /* summon_champion */ => Some(Summoned::Champion),
         Effect::Custom(name) if name == CRAFT_ITEM => Some(Summoned::Item),

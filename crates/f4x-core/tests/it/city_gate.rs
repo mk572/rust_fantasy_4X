@@ -37,7 +37,7 @@ fn walker(g: &mut Game, owner: PlayerId, pos: Position) -> Result<hecs::Entity, 
     let id = shipped()
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     Ok(g.spawn_unit(owner, pos, id))
 }
@@ -158,7 +158,7 @@ fn an_astral_gate_is_closed_by_the_planar_seal_and_by_stationed_enemies() -> Tes
     let seal = shipped()
         .rules
         .spells
-        .id_of("planar_seal")
+        .id_numbered(135)
         .ok_or("planar_seal is not in the content")?;
     g.attach_enchantment(Target::Player(P1), seal, P1);
     assert_eq!(

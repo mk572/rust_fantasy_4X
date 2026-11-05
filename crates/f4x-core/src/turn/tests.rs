@@ -498,7 +498,7 @@ fn stream_of_life_ends_unrest_and_heals_the_units_in_the_city() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let home = g.spawn_unit(P0, at(10, 6), spear);
     let field = g.spawn_unit(P0, at(14, 3), spear);
@@ -516,7 +516,7 @@ fn stream_of_life_ends_unrest_and_heals_the_units_in_the_city() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("stream_of_life")
+        .id_numbered(148)
         .ok_or("stream_of_life is not in the content")?;
     g.add_city_enchantment(city, stream, P0);
     assert_eq!(
@@ -574,7 +574,7 @@ fn undead_units_are_not_healed_eat_nothing_and_are_death_creatures() -> TestResu
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let living = g.spawn_unit(P0, at(10, 6), spear);
     let raised = g.spawn_unit(P0, at(10, 7), spear);
@@ -626,7 +626,7 @@ fn troops_in_a_city_keep_order() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     for _ in 0..4 {
         g.spawn_unit(P0, at(10, 6), spear);
@@ -733,7 +733,7 @@ fn production_builds_units_and_buildings() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_swordsmen")
+        .id_numbered(96)
         .ok_or("high_elf_swordsmen is not in the content")?;
     g.apply(Command::SetProduction {
         city,
@@ -763,7 +763,7 @@ fn requirements_and_races_limit_what_can_be_built() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_swordsmen")
+        .id_numbered(96)
         .ok_or("high_elf_swordsmen is not in the content")?;
     let guild = building(&g, "fighters_guild");
     let parthenon = building(&g, "parthenon");
@@ -796,7 +796,7 @@ fn requirements_and_races_limit_what_can_be_built() -> TestResult {
         .content
         .rules
         .units
-        .id_of("galley")
+        .id_numbered(36)
         .ok_or("galley is not in the content")?;
     add_building(&mut g, city, "ship_yard");
     assert_eq!(
@@ -1083,7 +1083,7 @@ fn done_lasts_the_turn_and_patrol_until_the_unit_moves() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let done = g.spawn_unit(P0, at(10, 6), spear);
     let patrol = g.spawn_unit(P0, at(11, 6), spear);
@@ -1123,7 +1123,7 @@ fn a_wizard_turns_off_their_own_spell_on_a_city_and_no_one_elses() -> TestResult
         .content
         .rules
         .spells
-        .id_of("earth_to_mud")
+        .id_numbered(1)
         .ok_or("earth_to_mud is not in the content")?;
     g.add_city_enchantment(city, spell, P0);
     g.add_city_enchantment(city, spell, PlayerId(1));
@@ -1205,7 +1205,7 @@ fn units_are_trained_with_the_cities_weapons_and_alchemy_gives_magic() -> TestRe
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let train = |g: &mut Game| {
         g.set_production(city, ProductionItem::Unit(spear))
@@ -1258,7 +1258,7 @@ fn the_treasury_collects_taxes_and_pays_for_troops() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     g.spawn_unit(P0, at(10, 6), spear);
     g.spawn_unit(P0, at(10, 6), spear);
@@ -1305,7 +1305,7 @@ fn dismissing_a_unit_removes_it_and_says_so() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let keep = g.spawn_unit(P0, at(11, 6), spear);
     let go = g.spawn_unit(P0, at(11, 6), spear);
@@ -1332,7 +1332,7 @@ fn an_army_that_cannot_be_fed_or_paid_is_disbanded() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     // Spare food is 2: three soldiers eat 3, so one goes.
     for _ in 0..3 {
@@ -1372,7 +1372,7 @@ fn wounded_units_heal_faster_in_cities() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let field = g.spawn_unit(P0, at(14, 3), spear);
     let home = g.spawn_unit(P0, at(10, 6), spear);
@@ -1399,7 +1399,7 @@ fn regenerating_units_mend_completely_each_turn() -> TestResult {
     let mut units = g.content.rules.units.defs().to_vec();
     for u in units.iter_mut() {
         if u.id == "high_elf_spearmen" {
-            u.ability_ids.push(crate::rules::Ability::new(55));
+            u.abilities.push(crate::rules::Ability::new(55));
         }
     }
     g.content.rules.units = crate::rules::Registry::new_sorted(units);
@@ -1407,7 +1407,7 @@ fn regenerating_units_mend_completely_each_turn() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let troll = g.spawn_unit(P0, at(14, 3), spear);
     g.world.insert_one(troll, Hurt(5))?;
@@ -1493,7 +1493,7 @@ fn balancing_farmers_feeds_the_army() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     for _ in 0..3 {
         g.spawn_unit(P0, at(10, 6), spear);
@@ -1524,7 +1524,7 @@ fn settlers_found_outposts_and_are_used_up() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_settlers")
+        .id_numbered(100)
         .ok_or("high_elf_settlers is not in the content")?;
     let unit = g.spawn_unit(P0, at(10, 6), settler);
     let events = g.apply(Command::SettleOutpost {
@@ -1565,7 +1565,7 @@ fn settlers_found_outposts_and_are_used_up() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let soldier = g.spawn_unit(P0, at(18, 6), spear);
     assert!(matches!(
@@ -1606,7 +1606,7 @@ fn famine_and_gaias_blessing_change_the_land() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("famine")
+        .id_numbered(189)
         .ok_or("famine is not in the content")?;
     g.add_city_enchantment(city, famine, PlayerId(1));
     let hungry = g
@@ -1618,7 +1618,7 @@ fn famine_and_gaias_blessing_change_the_land() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("gaias_blessing")
+        .id_numbered(29)
         .ok_or("gaias_blessing is not in the content")?;
     g.clear_city_enchantments(city);
     g.add_city_enchantment(city, gaia, P0);
@@ -1649,7 +1649,7 @@ fn gaias_blessing_pacifies_two_rebels() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("gaias_blessing")
+        .id_numbered(29)
         .ok_or("gaias_blessing is not in the content")?;
     g.add_city_enchantment(city, gaia, P0);
     assert_eq!(
@@ -1680,7 +1680,7 @@ fn pestilence_adds_unrest_and_each_citizen_may_die_but_the_last_is_spared() -> T
         .content
         .rules
         .spells
-        .id_of("pestilence")
+        .id_numbered(196)
         .ok_or("pestilence is not in the content")?;
     g.add_city_enchantment(city, pestilence, PlayerId(1));
     assert_eq!(unrest(&g), calm + 2, "two more rebels");
@@ -1705,7 +1705,7 @@ fn a_city_of_one_is_safe_from_pestilence() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("pestilence")
+        .id_numbered(196)
         .ok_or("pestilence is not in the content")?;
     g.add_city_enchantment(city, pestilence, PlayerId(1));
     for _ in 0..20 {
@@ -1766,7 +1766,7 @@ fn dark_rituals_double_the_mana_of_the_religious_buildings_and_divine_power_make
         .content
         .rules
         .spells
-        .id_of("dark_rituals")
+        .id_numbered(163)
         .ok_or("dark_rituals is not in the content")?;
     g.add_city_enchantment(city, rituals, P0);
     assert_eq!(mana(&g), plain + 2, "a temple's 2 mana doubled");
@@ -1801,7 +1801,7 @@ fn just_cause_pacifies_one_rebel_in_every_city() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("just_cause")
+        .id_numbered(127)
         .ok_or("just_cause is not in the content")?;
     g.add_global(P0, just_cause);
     assert_eq!(rebels(&g), 3);
@@ -1818,7 +1818,7 @@ fn a_finished_unit_waits_while_nine_units_stand_in_the_city() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     for _ in 0..crate::unit::MAX_TILE_LIMIT {
         g.spawn_unit(P0, at(10, 6), spear);
@@ -1849,7 +1849,7 @@ fn a_city_that_lost_the_building_its_item_needs_turns_to_trade_goods() -> TestRe
         .content
         .rules
         .units
-        .id_of("high_elf_swordsmen")
+        .id_numbered(96)
         .ok_or("high_elf_swordsmen is not in the content")?;
     g.set_production(city, ProductionItem::Unit(spear))
         .map_err(|e| format!("{e:?}"))?;
@@ -1858,7 +1858,7 @@ fn a_city_that_lost_the_building_its_item_needs_turns_to_trade_goods() -> TestRe
         .content
         .rules
         .buildings
-        .id_of("barracks")
+        .id_numbered(3)
         .ok_or("barracks is not in the content")?;
     g.world
         .get::<&mut Buildings>(city)?
@@ -1883,7 +1883,7 @@ fn settlers_cost_a_citizen_unless_the_setting_makes_them_free() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_settlers")
+        .id_numbered(100)
         .ok_or("high_elf_settlers is not in the content")?;
     let item = ProductionItem::Unit(settlers);
     assert!(g.economy().costs_a_citizen(settlers));

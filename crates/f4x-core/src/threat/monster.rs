@@ -33,7 +33,7 @@ impl Game {
     /// The realm of the creatures that guard a site, `None` for a site without guards.
     fn guard_realm_of(&self, guards: &[(UnitId, u32)]) -> Option<RealmId> {
         let rules = &self.content.rules;
-        rules.units.get(guards.first()?.0).realm.as_ref()?.id()
+        rules.units.get(guards.first()?.0).realm
     }
 
     /// Run the monsters' clock and, when it runs out, let a stack take over a random lair.
@@ -412,7 +412,7 @@ mod tests {
         let units = &g.content.rules.units;
         let (id, realm) = units
             .iter()
-            .find_map(|(id, d)| d.realm.as_ref().and_then(|r| r.id()).map(|r| (id, r)))
+            .find_map(|(id, d)| d.realm.map(|r| (id, r)))
             .expect("a unit with a realm");
         assert_eq!(g.guard_realm_of(&[(id, 2)]), Some(realm));
         assert_eq!(g.guard_realm_of(&[]), None, "no guards");

@@ -328,7 +328,7 @@ fn stat(d: &crate::rules::UnitDef, s: Stat) -> f32 {
 }
 
 fn is_settler(d: &crate::rules::UnitDef) -> bool {
-    d.ability_ids.contains(&Ability::new(12))
+    d.abilities.contains(&Ability::new(12))
 }
 
 fn is_combat(d: &crate::rules::UnitDef) -> bool {
@@ -401,7 +401,7 @@ fn worth(content: &Content, plan: &BuildPlan, f: &CityFacts, b: BuildingId, dept
     let opened = f
         .possible
         .iter()
-        .filter(|&&d| d != b && content.rules.buildings.get(d).require_ids.contains(&b))
+        .filter(|&&d| d != b && content.rules.buildings.get(d).requires.contains(&b))
         .map(|&d| worth(content, plan, f, d, depth + 1))
         .fold(0.0, f32::max);
     own + 0.5 * opened
@@ -425,12 +425,7 @@ fn building_score(content: &Content, plan: &BuildPlan, f: &CityFacts, b: Buildin
 /// rules' `autobuild_order`, then by the content's order).
 fn ranked_buildings(content: &Content, plan: &BuildPlan, f: &CityFacts) -> Vec<(BuildingId, f32)> {
     let order = &content.rules.config.autobuild_order;
-    let place = |b: BuildingId| {
-        order
-            .iter()
-            .position(|o| o.id() == Some(b))
-            .unwrap_or(usize::MAX)
-    };
+    let place = |b: BuildingId| order.iter().position(|&o| o == b).unwrap_or(usize::MAX);
     let mut v: Vec<(BuildingId, f32)> = f
         .buildable
         .iter()
@@ -458,7 +453,7 @@ fn raw_profiles(d: &crate::rules::UnitDef) -> [f32; 3] {
             + stat(d, Stat::Resistance) * 0.1
             + stat(d, Stat::Melee) * 0.5);
     let flying =
-        matches!(d.movement, MovementType::Flying) || d.ability_ids.contains(&Ability::new(24));
+        matches!(d.movement, MovementType::Flying) || d.abilities.contains(&Ability::new(24));
     let sailing = matches!(d.movement, MovementType::Sailing);
     let exploration = moves
         + (stat(d, Stat::Sight) - 1.0) * 0.25

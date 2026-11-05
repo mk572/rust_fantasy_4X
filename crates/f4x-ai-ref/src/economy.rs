@@ -263,7 +263,7 @@ fn is_settler_def(view: &PlayerView, unit: f4x_core::rules::UnitId) -> bool {
         .get(unit)
         .abilities
         .iter()
-        .any(|a| a == "create_outpost")
+        .any(|a| a.num() == 12 /* create_outpost */)
 }
 
 fn settler_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem> {
@@ -271,7 +271,11 @@ fn settler_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem>
     rules
         .units
         .iter()
-        .filter(|(_, d)| d.abilities.iter().any(|a| a == "create_outpost"))
+        .filter(|(_, d)| {
+            d.abilities
+                .iter()
+                .any(|a| a.num() == 12 /* create_outpost */)
+        })
         .map(|(id, _)| ProductionItem::Unit(id))
         .find(|&i| view.can_build(city, i).is_ok())
 }

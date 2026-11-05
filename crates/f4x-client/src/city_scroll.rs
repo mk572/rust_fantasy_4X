@@ -125,7 +125,7 @@ impl App {
             player,
             spell,
             city,
-            music: Track::piece(GOOD_MUSIC[realm_slot(def.realm.id())] + bad),
+            music: Track::piece(GOOD_MUSIC[realm_slot(Some(def.realm))] + bad),
             shakes: def.num == 26, /* earthquake */
             appears: appearing_building(&def.id),
             started,

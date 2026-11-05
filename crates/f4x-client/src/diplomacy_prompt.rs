@@ -109,7 +109,7 @@ mod tests {
         let spell = shipped::content()
             .rules
             .spells
-            .id_of("fire_bolt")
+            .id_numbered(83)
             .ok_or("fire_bolt is not in the content")?;
         let kinds = [
             ProposalKind::Pact,

@@ -474,19 +474,7 @@ fn start_player(
         .first()
         .cloned()
         .unwrap_or_else(|| rules_texts.get("setup.capital", &crate::text::Args::new()));
-    // By the unit's id (`high_elf_spearmen`), not its name, which is in the player's language.
-    let named = |what: &str| {
-        race_def
-            .units
-            .iter()
-            .find(|u| u.name().ends_with(&format!("_{what}")))
-            .and_then(|u| u.id())
-    };
-    let swordsmen = named("swordsmen");
-    let army: Vec<_> = [named("spearmen").or(swordsmen), swordsmen]
-        .into_iter()
-        .flatten()
-        .collect();
+    let army = race_def.start_army.clone();
     let buildings: Vec<_> = CAPITAL_BUILDINGS.to_vec();
     let plane = if is_myrran(game, player) {
         Plane::Myrror

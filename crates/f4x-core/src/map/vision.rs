@@ -120,7 +120,7 @@ mod tests {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         let p = PlayerId(0);
         g.spawn_unit(
@@ -198,7 +198,7 @@ mod tests {
             .content
             .rules
             .buildings
-            .id_of("oracle")
+            .id_numbered(18)
             .ok_or("oracle is not in the content")?;
         g.world
             .get::<&mut crate::city::economy::Buildings>(city)?
@@ -218,8 +218,8 @@ mod tests {
         let mut units = c.rules.units.defs().to_vec();
         for u in units.iter_mut() {
             match u.id.as_str() {
-                "magic_spirit" => u.ability_ids.push(Ability::new(33)),
-                "wind_mage" => u.ability_ids.push(Ability::new(31)),
+                "magic_spirit" => u.abilities.push(Ability::new(33)),
+                "wind_mage" => u.abilities.push(Ability::new(31)),
                 _ => {}
             }
         }
@@ -271,7 +271,7 @@ mod tests {
         let walker = c
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         let mut world = hecs::World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));

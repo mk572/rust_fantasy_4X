@@ -239,7 +239,7 @@ mod tests {
             .content()
             .rules
             .spells
-            .id_of("resurrection")
+            .id_numbered(133)
             .ok_or("resurrection is not in the content")?;
         assert!(matches!(
             raise_command(spell, true, 7),

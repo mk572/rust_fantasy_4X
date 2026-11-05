@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 use crate::game::Game;
 use crate::player::PlayerId;
+use crate::rules::RealmId;
 
 /// Turns the history keeps; the oldest drop off after that.
 pub const HISTORY_TURNS: usize = 288;
@@ -36,10 +37,10 @@ impl Game {
             })
             .sum();
         let rules = &self.content.rules;
-        let mut seen: BTreeMap<&str, i32> = BTreeMap::new();
+        let mut seen: BTreeMap<RealmId, i32> = BTreeMap::new();
         let mut rank = BTreeMap::new();
         for (id, def) in rules.spells.iter() {
-            let n = seen.entry(def.realm.name()).or_insert(0);
+            let n = seen.entry(def.realm).or_insert(0);
             *n += 1;
             rank.insert(id, *n);
         }

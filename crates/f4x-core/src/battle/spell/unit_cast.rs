@@ -71,7 +71,7 @@ impl Game {
             if let Some(realm) = unit.realm {
                 let spells = &self.content.rules.spells;
                 for def in spells.defs() {
-                    if def.realm.id().and_then(Realm::of) == Some(realm) {
+                    if Realm::of(def.realm) == Some(realm) {
                         add(SpellId::new(def.num), SpellSource::Mana);
                     }
                 }
@@ -107,7 +107,9 @@ impl Game {
                     cost,
                     takes_extra_mana: kind.takes_extra_mana(),
                     target: def.target,
-                    castable: ready && cost <= u.mana && !battle.ward_stops(u.side, def.realm.id()),
+                    castable: ready
+                        && cost <= u.mana
+                        && !battle.ward_stops(u.side, Some(def.realm)),
                 })
             })
             .collect()
@@ -159,7 +161,7 @@ impl Game {
         if paid > u.mana {
             return Err(err(SpellError::TooExpensive));
         }
-        if battle.ward_stops(u.side, def.realm.id()) {
+        if battle.ward_stops(u.side, Some(def.realm)) {
             return Err(err(SpellError::Warded));
         }
         self.check_aim(battle, u.side, spell, &def, &kind, aim)
@@ -340,9 +342,9 @@ impl Game {
 
         // The enemy's Counter Magic tries to stop it (not the Web an ability casts).
         let exempt = source == SpellSource::Ability && def.num == 5 /* web */;
-        let difficulty = pool as u32 * self.dispel_multiplier(def.realm.id(), Some(player));
+        let difficulty = pool as u32 * self.dispel_multiplier(Some(def.realm), Some(player));
         let stopped =
-            !exempt && self.battle_spell_stopped(side, player, def.realm.id(), difficulty);
+            !exempt && self.battle_spell_stopped(side, player, Some(def.realm), difficulty);
         if stopped {
             events.push(BattleEvent::SpellCountered { side, spell });
         } else {

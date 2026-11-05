@@ -224,8 +224,6 @@ impl<'a> UnitView<'a> {
     pub(crate) fn unit_level_path(&self, unit: hecs::Entity) -> Option<&'a LevelPathDef> {
         self.unit_def(unit)?
             .level_path
-            .as_ref()
-            .and_then(|p| p.id())
             .map(|p| self.content.rules.level_paths.get(p))
     }
 
@@ -324,8 +322,6 @@ impl<'a> UnitView<'a> {
         };
         let Some(path) = def
             .level_path
-            .as_ref()
-            .and_then(|p| p.id())
             .map(|p| self.content.rules.level_paths.get(p))
         else {
             return Vec::new();
@@ -706,7 +702,7 @@ mod tests {
         let spear = content
             .rules
             .units
-            .id_of("high_elf_spearmen")
+            .id_numbered(95)
             .ok_or("high_elf_spearmen is not in the content")?;
         let mut world = World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
@@ -730,7 +726,7 @@ mod tests {
         let spear = content
             .rules
             .units
-            .id_of("high_elf_spearmen")
+            .id_numbered(95)
             .ok_or("high_elf_spearmen is not in the content")?;
         let mut world = World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));

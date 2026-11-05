@@ -320,11 +320,8 @@ pub fn load_content_in(dirs: &[&Path], language: &str) -> Result<Content, Conten
     };
     let terrains = parse_terrains(&read("terrain.ron")?)?;
     let features = parse_features(&read("features.ron")?)?;
-    let mut settings = load_settings(dirs)?;
+    let settings = load_settings(dirs)?;
     let rules = rules::load_rules(dirs, language, &features)?;
-    settings
-        .spell_library
-        .resolve(rules.spells.defs(), &rules.retorts, &rules.realms);
     if dirs.iter().any(|d| d.join("rules_settings.ron").exists()) {
         check_spell_library(&settings.spell_library, &rules)?;
     }
@@ -352,13 +349,13 @@ fn check_spell_library(
         .chain(library.ai_main_realm_known.values())
         .chain(library.ai_main_realm_researchable.values());
     for spell in spells {
-        if spell.id().is_none() {
-            problems.push(format!("spell_library: unknown spell \"{}\"", spell.name()));
+        if rules.spells.try_get(*spell).is_none() {
+            problems.push(format!("spell_library: unknown spell {}", spell.num()));
         }
     }
     for retort in library.retort_known.keys() {
-        if rules.retorts.id_of(retort).is_none() {
-            problems.push(format!("spell_library: unknown retort \"{retort}\""));
+        if rules.retorts.try_get(*retort).is_none() {
+            problems.push(format!("spell_library: unknown retort {}", retort.num()));
         }
     }
     for realm in library
@@ -366,8 +363,8 @@ fn check_spell_library(
         .keys()
         .chain(library.ai_main_realm_researchable.keys())
     {
-        if rules.realms.id_of(realm).is_none() {
-            problems.push(format!("spell_library: unknown realm \"{realm}\""));
+        if rules.realms.try_get(*realm).is_none() {
+            problems.push(format!("spell_library: unknown realm {}", realm.num()));
         }
     }
     if problems.is_empty() {
@@ -402,7 +399,6 @@ pub fn load_settings(dirs: &[&Path]) -> Result<SettingsDef, ContentError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::rules::Ref;
     use f4x_core::testdir::TestResult;
 
     fn shipped() -> String {
@@ -457,7 +453,7 @@ mod tests {
         assert_eq!(c.rules.hero_templates.len(), 35);
         // The records follow the units' order.
         for (h, t) in heroes.iter().zip(&c.rules.hero_templates) {
-            assert_eq!(h.id, t.unit);
+            assert_eq!(h.num, t.unit.num());
         }
         let count = |k| {
             heroes
@@ -474,38 +470,44 @@ mod tests {
             ],
             [19, 4, 3, 9]
         );
-        let hero = |id: &str| {
+        let hero = |num: u16| {
             units
-                .by_name(id)
+                .by_num(num)
                 .and_then(|u| u.hero.clone())
                 .expect("the hero unit exists")
         };
-        assert_eq!(hero("ranger").kind, HeroKind::Bow);
+        assert_eq!(hero(16 /* ranger */).kind, HeroKind::Bow);
         // The bow hero is the Elven Archer and the melee hero the Knight (docs/divergences.md).
-        assert_eq!(hero("elven_archer").kind, HeroKind::Bow);
-        assert_eq!(hero("knight").kind, HeroKind::Warrior);
+        assert_eq!(hero(30 /* elven_archer */).kind, HeroKind::Bow);
+        assert_eq!(hero(31 /* knight */).kind, HeroKind::Warrior);
 
-        let t = |id: &str| {
+        let t = |num: u16| {
             c.rules
                 .hero_templates
                 .iter()
-                .find(|t| t.unit == id)
+                .find(|t| t.unit.num() == num)
                 .expect("the hero has a template")
         };
         assert_eq!(
-            t("sage").spells,
-            [Ref::new("dispel_magic_true"), Ref::new("counter_magic")]
+            t(2 /* sage */).spells,
+            [
+                f4x_core::rules::SpellId::new(42), // dispel_magic_true
+                f4x_core::rules::SpellId::new(48), // counter_magic
+            ]
         );
-        assert_eq!(t("sage").casting_skill, 2);
+        assert_eq!(t(2 /* sage */).casting_skill, 2);
         assert_eq!(
-            t("bard").abilities,
-            [Ref::new("leadership"), Ref::new("female")]
+            t(5 /* bard */).abilities,
+            [
+                f4x_core::rules::Ability::new(75), // leadership
+                f4x_core::rules::Ability::new(97), // female
+            ]
         );
         assert_eq!(
-            (t("elven_archer").picks, t("elven_archer").pick_type),
+            (t(30 /* elven_archer */).picks, t(30).pick_type),
             (3, PickType::Any)
         );
-        assert_eq!(t("chosen").spells.len(), 4);
+        assert_eq!(t(34 /* chosen */).spells.len(), 4);
         Ok(())
     }
 
@@ -549,12 +551,7 @@ mod tests {
             assert_eq!(roster, roll(&mut GameRng::new(seed), rules));
             assert_eq!(roster.len(), 35);
             for (r, t) in roster.iter().zip(&rules.hero_templates) {
-                let fixed = HeroAbilities::from_ids(
-                    &t.abilities
-                        .iter()
-                        .filter_map(|a| a.id())
-                        .collect::<Vec<_>>(),
-                );
+                let fixed = HeroAbilities::from_ids(&t.abilities);
                 let gained = steps(&r.abilities) - steps(&fixed)
                     + (i32::from(r.casting_skill) - t.casting_skill as i32);
                 // A pick that finds nothing to raise (a second Arcane Power on a hero
@@ -562,10 +559,10 @@ mod tests {
                 assert!(
                     (0..=t.picks as i32).contains(&gained),
                     "{} gained {gained} of {} picks",
-                    t.unit,
+                    t.unit.num(),
                     t.picks
                 );
-                assert_eq!(r.spells, f4x_core::rules::refs::ids(&t.spells));
+                assert_eq!(r.spells, t.spells);
                 // Fixed abilities stay (a pick may double one).
                 let a = &r.abilities;
                 for name in [
@@ -580,7 +577,11 @@ mod tests {
                     "agility",
                     "sage",
                 ] {
-                    assert!(a.tier(name) >= fixed.tier(name), "{} lost {name}", t.unit);
+                    assert!(
+                        a.tier(name) >= fixed.tier(name),
+                        "{} lost {name}",
+                        t.unit.num()
+                    );
                 }
                 assert!(a.lucky >= fixed.lucky && a.charmed >= fixed.charmed);
                 assert!(a.noble >= fixed.noble && a.female == fixed.female);
@@ -608,30 +609,36 @@ mod tests {
                 );
                 match t.pick_type {
                     PickType::Mage => {
-                        assert_eq!(martial, f_martial, "{} drew a warrior ability", t.unit)
+                        assert_eq!(
+                            martial,
+                            f_martial,
+                            "{} drew a warrior ability",
+                            t.unit.num()
+                        )
                     }
                     PickType::Warrior => {
-                        assert_eq!(magic, f_magic, "{} drew a mage ability", t.unit);
+                        assert_eq!(magic, f_magic, "{} drew a mage ability", t.unit.num());
                         assert_eq!(i32::from(r.casting_skill), t.casting_skill as i32);
                     }
                     PickType::Any => {}
                 }
                 // The original's exclusions.
                 // Arcane Power only goes to a hero with a magic ranged attack.
-                let unit = rules.units.by_name(&t.unit).ok_or("the value is missing")?;
-                if !unit.abilities.iter().any(|x| {
-                    rules
-                        .abilities
-                        .id_of(x)
-                        .is_some_and(|id| f4x_core::hero::kind::MAGIC_RANGED.contains(&id))
-                }) {
-                    assert_eq!(a.arcane_power, fixed.arcane_power, "{}", t.unit);
-                }
-                if unit
-                    .ability_ids
-                    .contains(&f4x_core::rules::Ability::new(40))
+                let unit = rules.units.get(t.unit);
+                if !unit
+                    .abilities
+                    .iter()
+                    .any(|x| f4x_core::hero::kind::MAGIC_RANGED.contains(x))
                 {
-                    assert_eq!(a.charmed, fixed.charmed, "{} is immune already", t.unit);
+                    assert_eq!(a.arcane_power, fixed.arcane_power, "{}", t.unit.num());
+                }
+                if unit.abilities.contains(&f4x_core::rules::Ability::new(40)) {
+                    assert_eq!(
+                        a.charmed,
+                        fixed.charmed,
+                        "{} is immune already",
+                        t.unit.num()
+                    );
                 }
             }
             distinct.insert(format!(
@@ -652,9 +659,13 @@ mod tests {
         let committed = crate::testutil::content_dir();
         let c = load_content_layers(&[&committed])?;
         for t in &c.rules.hero_templates {
-            assert_eq!(t.names.len(), 5, "hero {}", t.unit);
+            assert_eq!(t.names.len(), 5, "hero {}", t.unit.num());
         }
-        let dwarf = c.rules.hero_templates.iter().find(|t| t.unit == "dwarf");
+        let dwarf = c
+            .rules
+            .hero_templates
+            .iter()
+            .find(|t| t.unit.num() == 0 /* dwarf */);
         assert_eq!(dwarf.map(|t| t.names[0].as_str()), Some("Brax"));
         // A layer can replace the file; a number that is no hero is a load error.
         let over = f4x_core::testdir::TestDir::new("hero-names");
@@ -805,8 +816,8 @@ mod tests {
         let c = load_content(&crate::testutil::content_dir())?;
         assert_eq!(c.rules.items.len(), 250);
         assert_eq!(c.rules.item_powers.len(), 66);
-        assert!(c.rules.items.id_of("white_lightning_ii").is_some());
-        assert!(c.rules.items.id_of("deathbringer").is_some());
+        assert!(c.rules.items.id_numbered(56).is_some());
+        assert!(c.rules.items.id_numbered(13).is_some());
         Ok(())
     }
 
@@ -848,11 +859,12 @@ mod tests {
                     power.id
                 );
             }
-            if let Some(spell) = &power.spell {
+            if let Some(spell) = power.spell {
                 assert!(
-                    spell.id().is_some(),
-                    "item power {} names the missing spell {spell:?}",
-                    power.id
+                    c.rules.spells.try_get(spell).is_some(),
+                    "item power {} names the missing spell {}",
+                    power.id,
+                    spell.num()
                 );
             }
         }
@@ -1103,8 +1115,7 @@ mod tests {
         // The built-in default (used when there is no rules_settings.ron) is the original's numbers,
         // and so is the shipped file.
         let c = real_content();
-        let mut default = f4x_core::game::setting::SpellLibraryDef::default();
-        default.resolve(c.rules.spells.defs(), &c.rules.retorts, &c.rules.realms);
+        let default = f4x_core::game::setting::SpellLibraryDef::default();
         assert_eq!(c.settings.spell_library, default);
     }
 
@@ -1114,16 +1125,16 @@ mod tests {
         let committed = crate::testutil::content_dir();
         std::fs::write(
             over.join("rules_settings.ron"),
-            r#"(spell_library: (always_known: ["no_such_spell"]))"#,
+            r#"(spell_library: (always_known: [9999]))"#,
         )?;
         let err = load_content_layers(&[&over, &committed]).unwrap_err();
-        assert!(err.to_string().contains("no_such_spell"), "{err}");
+        assert!(err.to_string().contains("9999"), "{err}");
         std::fs::write(
             over.join("rules_settings.ron"),
-            r#"(spell_library: (ai_main_realm_known: {"no_realm": "sprites"}))"#,
+            r#"(spell_library: (ai_main_realm_known: {9998: 9}))"#,
         )?;
         let err = load_content_layers(&[&over, &committed]).unwrap_err();
-        assert!(err.to_string().contains("no_realm"), "{err}");
+        assert!(err.to_string().contains("9998"), "{err}");
         std::fs::write(
             over.join("rules_settings.ron"),
             "(spell_library: (known: []))",

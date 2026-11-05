@@ -23,7 +23,7 @@ use crate::item::armory::Placed;
 use crate::item::make::{make_item, Grade};
 use crate::item::Item;
 use crate::player::{Offers, PlayerId};
-use crate::rules::{MovementType, Rules, UnitDef, UnitKind};
+use crate::rules::{MovementType, Rules, UnitDef, UnitId, UnitKind};
 use crate::unit::Experience;
 use crate::wizard::magic::Retort;
 
@@ -41,10 +41,10 @@ const AI_BONUS: i32 = 10;
 pub enum Offer {
     /// The wizard's hero of type `kind` asks to be hired.
     Hero { kind: usize, price: i32 },
-    /// A company of `count` units of `unit` (an id of `units.ron`), each of `level` (0-based
-    /// experience level), for `price` in all.
+    /// A company of `count` units of `unit`, each of `level` (0-based experience level), for
+    /// `price` in all.
     Mercenaries {
-        unit: String,
+        unit: UnitId,
         count: u32,
         level: u8,
         price: i32,
@@ -202,13 +202,15 @@ pub fn mercenary_pool(rules: &Rules, arcanus: bool, myrror: bool) -> Vec<&UnitDe
         .filter(|u| {
             u.kind == UnitKind::Normal
                 && u.movement != MovementType::Sailing
-                && !u.ability_ids.contains(&Ability::new(12))
+                && !u.abilities.contains(&Ability::new(12))
                 && u.hireable
-                && u.race
-                    .as_ref()
-                    .and_then(|r| r.id())
-                    .map(|r| rules.races.get(r))
-                    .is_some_and(|race| if race.myrror { myrror } else { arcanus })
+                && u.race.map(|r| rules.races.get(r)).is_some_and(|race| {
+                    if race.myrror {
+                        myrror
+                    } else {
+                        arcanus
+                    }
+                })
         })
         .collect()
 }
@@ -393,7 +395,7 @@ impl Game {
             return None;
         }
         let def = pool[self.rng.roll(pool.len() as u32) as usize - 1];
-        let (id, cost) = (def.id.clone(), def.cost);
+        let (id, cost) = (UnitId::new(def.num), def.cost);
         let level = mercenary_level(self.rng.roll(100) as i32, fame);
         let count = mercenary_count(self.rng.roll(100) as i32, fame);
         let price = mercenary_price(cost, level, count, charismatic);
@@ -482,7 +484,8 @@ impl Game {
                     .content
                     .rules
                     .units
-                    .id_of(&unit)
+                    .try_get(unit)
+                    .map(|d| UnitId::new(d.num))
                     .ok_or(OfferError::NoOffer)?;
                 let xp = self
                     .content
@@ -490,8 +493,6 @@ impl Game {
                     .units
                     .get(id)
                     .level_path
-                    .as_ref()
-                    .and_then(|p| p.id())
                     .map(|p| self.content.rules.level_paths.get(p))
                     .and_then(|path| {
                         // A path with fewer levels gives its highest.

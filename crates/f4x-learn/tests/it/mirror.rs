@@ -74,7 +74,7 @@ fn bolt_scenario(content: &Content, mana: i32) -> f4x_learn::scenario::BattleSce
 fn a_wizard_with_a_bolt_casts_it_on_the_first_turn() {
     let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
     let env = BattleEnv::new(&content, bolt_scenario(&content, 100)).unwrap();
-    let bolt = content.rules.spells.id_of("fire_bolt").unwrap();
+    let bolt = content.rules.spells.id_numbered(83).unwrap();
     let mut game = env.game;
     match game.next_battle_command() {
         Some(BattleCommand::Cast { spell, .. }) => assert_eq!(spell, bolt),

@@ -533,7 +533,7 @@ fn a_pathfinder_gives_the_whole_stack_road_speed() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let player = PlayerId(0);
     let alone = g.spawn_unit(player, at(1, 2), walker);
@@ -587,7 +587,7 @@ fn a_step_is_planned_from_a_hand_made_world_without_a_game() -> TestResult {
     let walker = c
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let mut world = hecs::World::new();
     let owner = world.spawn(crate::player::bundle(P0));

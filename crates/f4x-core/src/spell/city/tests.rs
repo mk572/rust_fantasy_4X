@@ -46,7 +46,7 @@ fn world() -> Game {
 }
 
 fn found(g: &mut Game, owner: PlayerId, pos: Position, pop: u32) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     g.apply(Command::FoundCity {
         owner,
         pos,
@@ -79,7 +79,7 @@ fn wall_of_stone_builds_walls_once() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("wall_of_stone")
+        .id_numbered(3)
         .ok_or("wall_of_stone is not in the content")?;
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
@@ -222,7 +222,7 @@ fn a_chaos_rift_bolts_the_units_inside_and_may_bring_a_building_down() -> TestRe
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let victim = g.spawn_unit(P0, at(10, 6), spear);
     let elsewhere = g.spawn_unit(P0, at(14, 3), spear);
@@ -282,7 +282,7 @@ fn a_battle_at_an_enchanted_city_starts_with_its_walls_and_shadow() -> TestResul
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let defender = g.spawn_unit(P0, at(10, 6), walker);
     let attacker = g.spawn_unit(P1, at(11, 6), walker);
@@ -323,7 +323,7 @@ fn eternal_night_darkens_every_battle_but_not_at_heavenly_light() -> TestResult 
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let defender = g.spawn_unit(P0, at(10, 6), walker);
     let attacker = g.spawn_unit(P1, at(11, 6), walker);
@@ -331,7 +331,7 @@ fn eternal_night_darkens_every_battle_but_not_at_heavenly_light() -> TestResult 
         .content
         .rules
         .spells
-        .id_of("eternal_night")
+        .id_numbered(197)
         .ok_or("eternal_night is not in the content")?;
     g.add_global(P1, night);
     let dark = |g: &Game| {
@@ -365,7 +365,7 @@ fn cast_ward(g: &mut Game, city: hecs::Entity, id: &str) -> Vec<Event> {
         .content
         .rules
         .spells
-        .id_of("spell_ward")
+        .id_numbered(72)
         .expect("id_of succeeds");
     g.wizard_mut(P0)
         .expect("value succeeds")
@@ -395,7 +395,7 @@ fn a_spell_ward_guards_one_realm_each_time_and_costs_upkeep_for_each() -> TestRe
         .content
         .rules
         .spells
-        .id_of("spell_ward")
+        .id_numbered(72)
         .ok_or("spell_ward is not in the content")?;
     // Only your own city, and one of the five realms.
     for (c, r, why) in [
@@ -502,13 +502,13 @@ fn a_spell_ward_turns_away_spells_of_its_realm_and_creatures_of_it() -> TestResu
         .content
         .rules
         .units
-        .id_of("skeletons")
+        .id_numbered(165)
         .ok_or("skeletons is not in the content")?;
     let slow = g
         .content
         .rules
         .units
-        .id_of("hell_hounds")
+        .id_numbered(155)
         .ok_or("hell_hounds is not in the content")?;
     let ghoul = g.spawn_unit(P1, at(11, 6), walker);
     let imp = g.spawn_unit(P1, at(11, 7), slow);
@@ -568,7 +568,7 @@ fn evil_presence_is_refused_where_its_owner_can_use_death_magic() -> TestResult 
         .content
         .rules
         .spells
-        .id_of("evil_presence")
+        .id_numbered(183)
         .ok_or("evil_presence is not in the content")?;
     assert_eq!(g.check_target(P1, spell, Some(Target::City(city))), Ok(()));
     g.wizard_mut(P0)
@@ -601,7 +601,7 @@ fn another_wizards_armageddon_adds_two_unrest_and_leaves_the_buildings_working()
         .content
         .rules
         .spells
-        .id_of("armageddon")
+        .id_numbered(120)
         .ok_or("armageddon is not in the content")?;
     g.add_global(P1, a);
     assert_eq!(
@@ -618,7 +618,7 @@ fn another_wizards_armageddon_adds_two_unrest_and_leaves_the_buildings_working()
         .content
         .rules
         .spells
-        .id_of("great_wasting")
+        .id_numbered(114)
         .ok_or("great_wasting is not in the content")?;
     g.add_global(P1, wasting);
     assert_eq!(pacify(&g), calm - 1, "an enemy's Great Wasting: one more");
@@ -659,7 +659,7 @@ fn corrupted_squares_starve_and_unsettle_a_city_unless_its_wizard_keeps_great_wa
         .content
         .rules
         .spells
-        .id_of("great_wasting")
+        .id_numbered(114)
         .ok_or("great_wasting is not in the content")?;
     g.add_global(P0, gw);
     let proof = eco(&g);
@@ -714,7 +714,7 @@ fn a_battle_under_a_node_knows_its_aura_and_whether_it_stands_on_the_node() -> T
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     for (x, aura, site) in [
         (7, Some(Realm::Chaos), Some(Realm::Chaos)),
@@ -744,7 +744,7 @@ fn consecration_turns_away_death_and_chaos_spells_but_not_the_others() -> TestRe
         .content
         .rules
         .spells
-        .id_of("consecration")
+        .id_numbered(155)
         .ok_or("consecration is not in the content")?;
     g.add_city_enchantment(city, consecration, P0);
     assert_eq!(

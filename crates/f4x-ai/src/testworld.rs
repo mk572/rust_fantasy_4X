@@ -65,8 +65,8 @@ pub const ENEMY_CITY: (u32, u32) = (28, 6);
 /// the east island, and nothing else.
 pub fn game(city0: (u32, u32), race: &str) -> Game {
     let content = content();
-    let ocean = content.terrains.id_of("ocean").expect("ocean");
-    let grass = content.terrains.id_of("grassland").expect("grassland");
+    let ocean = content.terrains.id_numbered(8).expect("ocean");
+    let grass = content.terrains.id_numbered(4).expect("grassland");
     let build = || {
         let mut grid = Grid::new(WIDTH, HEIGHT, ocean);
         for y in ROWS {
@@ -130,7 +130,7 @@ pub fn spawn_site(
     let feature = game
         .content()
         .features
-        .id_of("monster_lair")
+        .id_numbered(13)
         .ok_or("monster_lair is shipped")?;
     Ok(game.spawn_feature(Placement {
         at: pos,
@@ -158,7 +158,7 @@ pub fn spawn_tower(
     let feature = game
         .content()
         .features
-        .id_of("tower")
+        .id_numbered(21)
         .ok_or("tower is shipped")?;
     Ok(game.spawn_feature(Placement {
         at: pos,

@@ -85,10 +85,10 @@ impl Game {
         };
         let library = &self.content.settings.spell_library;
         let known = guaranteed
-            .then(|| library.ai_known.get(&realm).copied())
+            .then(|| library.ai_main_realm_known.get(&realm).copied())
             .flatten();
         let open = (self.settings.basic.difficulty >= library.ai_main_realm_researchable_from)
-            .then(|| library.ai_researchable.get(&realm).copied())
+            .then(|| library.ai_main_realm_researchable.get(&realm).copied())
             .flatten();
         if let Some(open) = open {
             let known = self.wizard(player).is_some_and(|w| w.knows(open));

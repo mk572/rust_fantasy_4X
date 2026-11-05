@@ -308,7 +308,7 @@ fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     let events = g.apply(Command::MoveStack {
@@ -337,7 +337,7 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() -> TestResu
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     let events = g.apply(Command::MoveStack {
@@ -398,8 +398,8 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
     );
     assert!(
         matches!(
-            g.content.rules.spells.get(spell).realm.name(),
-            "life" | "arcane"
+            g.content.rules.spells.get(spell).realm.num(),
+            3 /* life */ | 5 /* arcane */
         ),
         "a realm with books, or arcane"
     );
@@ -513,7 +513,7 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     let events = g.apply(Command::EnterSite {
@@ -565,7 +565,7 @@ fn the_building_of_a_site_stands_in_the_middle_of_the_battlefield() -> TestResul
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
@@ -594,7 +594,7 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
@@ -673,14 +673,14 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("zombie_mastery")
+        .id_numbered(188)
         .ok_or("zombie_mastery is not in the content")?;
     g.add_global(P0, zm);
     let walker = g
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
@@ -728,7 +728,7 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() -
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let (w, bystander) = (
         g.spawn_unit(P0, at(4, 5), walker),
@@ -786,7 +786,7 @@ fn losing_or_fleeing_leaves_the_site_intact_and_resets_the_guards() -> TestResul
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {
@@ -825,7 +825,7 @@ fn only_a_guarded_site_next_to_the_stack_can_be_entered() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(2, 2), walker);
     let reject = |g: &mut Game, to| g.apply(Command::EnterSite { units: vec![w], to });
@@ -991,7 +991,7 @@ fn a_spell_award_teaches_a_spell_the_wizard_can_use() {
     assert!(magic.view().knows(spell));
     let def = c.rules.spells.get(spell);
     assert!(
-        matches!(def.realm.name(), "life" | "arcane"),
+        matches!(def.realm.num(), 3 /* life */ | 5 /* arcane */),
         "{:?}",
         def.realm
     );
@@ -1002,7 +1002,9 @@ fn a_spell_award_teaches_a_spell_the_wizard_can_use() {
         let mut rng = crate::game::rng::GameRng::new(seed);
         let spell = award_spell(&mut magic, &c, &mut rng, 4).expect("a spell");
         let def = c.rules.spells.get(spell);
-        let cap = if def.realm.name() == "arcane" {
+        let cap = if def.realm.num() == 5
+        /* arcane */
+        {
             Rarity::Rare
         } else {
             Rarity::Uncommon
@@ -1146,7 +1148,7 @@ fn whoever_fought_for_a_site_once_knows_its_guards_even_after_fleeing() -> TestR
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     assert_eq!(g.economy().lair_guards_known_to(at(5, 5), P0), None);
@@ -1250,7 +1252,7 @@ fn a_game_saved_in_a_lair_fight_goes_on_to_clear_the_site() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let w = g.spawn_unit(P0, at(4, 5), walker);
     g.apply(Command::EnterSite {

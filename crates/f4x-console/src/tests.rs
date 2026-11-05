@@ -129,7 +129,7 @@ fn legal_commands_check_ownership() {
             .content()
             .rules
             .units
-            .id_of("barbarian_spearmen")
+            .id_numbered(39)
             .expect("the shipped content has it"),
     });
     // The rival's unit is the newest one.
@@ -218,7 +218,7 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() -> TestResult {
             .content()
             .rules
             .units
-            .id_of("barbarian_spearmen")
+            .id_numbered(39)
             .expect("the shipped content has it"),
     });
     let r = c.execute(&mut g, &format!("attack @{x},{y} {},{y}", x + 1));
@@ -656,7 +656,7 @@ fn a_global_enchantment_is_a_target_by_wizard_and_spell() -> TestResult {
         .content()
         .rules
         .spells
-        .id_of("awareness")
+        .id_numbered(209)
         .expect("the shipped content has it");
     g.attach_enchantment(Target::Player(PlayerId(1)), awareness, PlayerId(1));
     let held = g
@@ -687,7 +687,7 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() -> TestResult
         .content()
         .rules
         .spells
-        .id_of("natures_eye")
+        .id_numbered(12)
         .expect("the shipped content has it");
     assert!(g.cheat_learn_spell(HUMAN, eye));
     assert_eq!(g.economy().city_sight(city), 5);
@@ -1180,8 +1180,8 @@ fn a_myrran_wizard_starts_on_myrror_with_a_myrror_race() -> TestResult {
     let wizard = |race: Option<&str>| NewGame {
         seed: 2,
         books: [
-            (content.rules.realms.id_of("sorcery").unwrap(), 5),
-            (content.rules.realms.id_of("nature").unwrap(), 3),
+            (content.rules.realms.id_numbered(1).unwrap(), 5),
+            (content.rules.realms.id_numbered(0).unwrap(), 3),
         ]
         .into_iter()
         .collect(),
@@ -1228,7 +1228,7 @@ fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() -
         .content()
         .rules
         .units
-        .id_of("werewolves")
+        .id_numbered(168)
         .expect("the shipped content has it");
     g.apply(f4x_core::game::Command::CreateUnit {
         owner: HUMAN,
@@ -1717,7 +1717,7 @@ fn an_auto_resolved_siege_of_a_walled_city_ends_and_may_take_it() {
             .content()
             .rules
             .units
-            .id_of("storm_giant")
+            .id_numbered(193)
             .expect("the shipped content has it");
         for _ in 0..3 {
             g.apply(f4x_core::game::Command::CreateUnit {
@@ -2055,7 +2055,7 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
         .content()
         .rules
         .spells
-        .id_of("giant_strength")
+        .id_numbered(4)
         .expect("the shipped content has it");
     let rival = PlayerId(1);
     {
@@ -2122,13 +2122,13 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
         .content()
         .rules
         .spells
-        .id_of("giant_strength")
+        .id_numbered(4)
         .expect("the shipped content has it");
     let dispel = g
         .content()
         .rules
         .spells
-        .id_of("dispel_magic")
+        .id_numbered(202)
         .expect("the shipped content has it");
     g.scenario_enchant_unit(defender, spell, rival);
     let plain = g.units().unit_stat(defender, f4x_core::rules::Stat::Melee) - 1;
@@ -2843,7 +2843,7 @@ fn the_legal_casts_are_the_casts_the_game_accepts() -> TestResult {
         .content()
         .rules
         .spells
-        .id_of("fire_bolt")
+        .id_numbered(83)
         .expect("the shipped content has it");
     let listed = legal.iter().find(|l| l.spell == bolt).expect("fire bolt");
     assert!(listed.aims.iter().all(|a| match a {
@@ -3107,7 +3107,7 @@ fn eligibility_two_and_three_spells_are_battle_spells_and_dear_on_the_map() {
         .content()
         .rules
         .spells
-        .id_of("flight")
+        .id_numbered(56)
         .expect("the shipped content has it");
     assert!(g.battle_spells(HUMAN).iter().any(|s| s.spell == flight));
 }
@@ -3462,7 +3462,7 @@ fn an_item_is_designed_and_cast_from_the_console() {
         .content()
         .rules
         .spells
-        .id_of("enchant_item")
+        .id_numbered(207)
         .expect("the shipped content has it");
     g.cheat_learn_spell(HUMAN, spell);
     g.treasury_mut(HUMAN)
@@ -3506,7 +3506,7 @@ fn a_dead_hero_is_listed_and_raised_from_the_console() -> TestResult {
         .content()
         .rules
         .spells
-        .id_of("resurrection")
+        .id_numbered(133)
         .expect("the shipped content has it");
     g.cheat_learn_spell(HUMAN, spell);
     g.treasury_mut(HUMAN)

@@ -8,13 +8,11 @@ pub mod effects;
 pub mod exec;
 pub mod ids;
 pub mod lair;
-pub mod refs;
 pub mod registry;
 pub mod stats;
 
 pub use defs::*;
 pub use ids::Id;
-pub use refs::{Names, Ref};
 
 /// A unit ability: the number of its row in `abilities.ron` (the numbers are frozen; the
 /// alias in the file is for people, and `Registry::id_of` turns it into the number).

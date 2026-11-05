@@ -455,7 +455,7 @@ mod tests {
             .content
             .rules
             .spells
-            .id_of("wind_mastery")
+            .id_numbered(57)
             .ok_or("wind_mastery is not in the content")?;
         for id in [P0, P1] {
             g.init_wizard(id, &[("life", 1)], &[], None).ok();
@@ -621,7 +621,7 @@ mod tests {
                 .content
                 .rules
                 .units
-                .id_of("warship")
+                .id_numbered(38)
                 .ok_or("warship is not in the content")?;
             g.spawn_unit(P1, at(6, 4), u)
         };
@@ -662,7 +662,7 @@ mod tests {
                 .content
                 .rules
                 .units
-                .id_of("floating_island")
+                .id_numbered(190)
                 .ok_or("floating_island is not in the content")?;
             g.spawn_unit(P0, at(5, 4), u)
         };
@@ -676,7 +676,7 @@ mod tests {
                 .content
                 .rules
                 .units
-                .id_of("warship")
+                .id_numbered(38)
                 .ok_or("warship is not in the content")?;
             g.spawn_unit(P1, at(6, 4), u)
         };

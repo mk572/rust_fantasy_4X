@@ -1,7 +1,6 @@
 //! The spells that cannot be combined, as the shipped spell data names them (`spell/stacking.rs`).
 
 use crate::shipped::content;
-use f4x_core::rules::Ref;
 
 #[test]
 fn the_names_in_not_with_and_already_able_exist() {
@@ -9,16 +8,18 @@ fn the_names_in_not_with_and_already_able_exist() {
     for (_, def) in c.rules.spells.iter() {
         for other in &def.not_with {
             assert!(
-                other.id().is_some(),
-                "{} is not cumulative with {other:?}, which is no spell",
-                def.id
+                c.rules.spells.try_get(*other).is_some(),
+                "{} is not cumulative with {}, which is no spell",
+                def.id,
+                other.num()
             );
         }
         for ability in &def.already_able {
             assert!(
-                ability.id().is_some(),
-                "{} refuses units with {ability:?}, which is no ability",
-                def.id
+                c.rules.abilities.try_get(*ability).is_some(),
+                "{} refuses units with {}, which is no ability",
+                def.id,
+                ability.num()
             );
         }
     }
@@ -40,7 +41,12 @@ fn the_original_refusals_are_in_the_data() {
         ("resist_magic", "magic_immunity"),
         ("holy_weapon", "holy_arms"),
     ] {
-        assert_eq!(spell(id).not_with, [Ref::new(rival)], "{id}");
+        let refused: Vec<&str> = spell(id)
+            .not_with
+            .iter()
+            .map(|s| c.rules.spells.get(*s).id.as_str())
+            .collect();
+        assert_eq!(refused, [rival], "{id}");
     }
     for (id, ability) in [
         ("immolation", "immolation"),
@@ -53,6 +59,11 @@ fn the_original_refusals_are_in_the_data() {
         ("wind_walking", "wind_walking"),
         ("regeneration", "regeneration"),
     ] {
-        assert_eq!(spell(id).already_able, [Ref::new(ability)], "{id}");
+        let refused: Vec<&str> = spell(id)
+            .already_able
+            .iter()
+            .map(|a| c.rules.abilities.get(*a).id.as_str())
+            .collect();
+        assert_eq!(refused, [ability], "{id}");
     }
 }

@@ -249,7 +249,7 @@ mod tests {
             .content()
             .rules
             .spells
-            .id_of("armageddon")
+            .id_numbered(120)
             .ok_or("armageddon is not in the content")
     }
 

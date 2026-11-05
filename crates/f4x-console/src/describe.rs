@@ -76,7 +76,7 @@ pub fn offer(game: &Game, o: &f4x_core::player::offer::Offer) -> String {
             let name = rules
                 .hero_templates
                 .get(*kind)
-                .and_then(|t| rules.units.by_name(&t.unit))
+                .and_then(|t| rules.units.try_get(t.unit))
                 .map_or("a hero", |u| u.id.as_str());
             format!("{name} asks {price} gold to join you")
         }
@@ -84,7 +84,7 @@ pub fn offer(game: &Game, o: &f4x_core::player::offer::Offer) -> String {
             let name = rules
                 .hero_templates
                 .get(*kind)
-                .and_then(|t| rules.units.by_name(&t.unit))
+                .and_then(|t| rules.units.try_get(t.unit))
                 .map_or("a hero", |u| u.id.as_str());
             format!("{name} is summoned and waits to be accepted")
         }
@@ -96,8 +96,8 @@ pub fn offer(game: &Game, o: &f4x_core::player::offer::Offer) -> String {
         } => {
             let name = rules
                 .units
-                .by_name(unit)
-                .map_or(unit.as_str(), |u| u.id.as_str());
+                .try_get(*unit)
+                .map_or("a unit", |u| u.id.as_str());
             format!("{count} {name} of level {} for {price} gold", level + 1)
         }
         Offer::Item { item, price } => {

@@ -30,18 +30,14 @@ impl Game {
                 if spells.unit_has(u, spell) {
                     return Err(MagicError::AlreadyEnchanted);
                 }
-                for other in crate::rules::refs::ids(&def.not_with) {
+                for other in def.not_with.clone() {
                     if spells.unit_has(u, other) || self.has_global(player, other) {
                         return Err(MagicError::NotCumulative);
                     }
                 }
-                let own = self.units().unit_def(u).map(|d| d.ability_ids.as_slice());
-                if own.is_some_and(|own| {
-                    def.already_able
-                        .iter()
-                        .filter_map(|a| a.id())
-                        .any(|a| own.contains(&a))
-                }) {
+                let own = self.units().unit_def(u).map(|d| d.abilities.as_slice());
+                if own.is_some_and(|own| def.already_able.iter().copied().any(|a| own.contains(&a)))
+                {
                     return Err(MagicError::AlreadyAble);
                 }
                 Ok(())
@@ -61,12 +57,10 @@ impl crate::unit::UnitView<'_> {
     /// the unit's own enchantments or one its items carry (Stone Skin under Iron Skin).
     pub(crate) fn unit_spell_superseded(&self, unit: hecs::Entity, spell: SpellId) -> bool {
         let def = self.content.rules.spells.get(spell);
-        crate::rules::refs::ids(&def.not_with)
-            .into_iter()
-            .any(|other| {
-                crate::spell::instance::Spells::new(self.world).unit_has(unit, other)
-                    || self.items().spells(unit).contains(&other)
-            })
+        def.not_with.clone().into_iter().any(|other| {
+            crate::spell::instance::Spells::new(self.world).unit_has(unit, other)
+                || self.items().spells(unit).contains(&other)
+        })
     }
 }
 

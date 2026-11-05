@@ -23,7 +23,7 @@ fn facts(c: &Content) -> CityFacts {
         .collect();
     let free = |id: BuildingId| {
         let def = c.rules.buildings.get(id);
-        def.requires.iter().all(|r| built.contains(&building(c, r)))
+        def.requires.iter().all(|r| built.contains(r))
     };
     CityFacts {
         figures: 4,
@@ -440,7 +440,7 @@ fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() -> TestResult {
     g.player_component_mut::<crate::player::Tax>(PlayerId(0))
         .ok_or("value is missing")?
         .0 = 2;
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     g.apply(Command::FoundCity {
         owner: PlayerId(0),
         pos: crate::map::Position {

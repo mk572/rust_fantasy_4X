@@ -135,7 +135,7 @@ impl Game {
         } else {
             def.cost
         };
-        base * self.dispel_multiplier(def.realm.id(), caster)
+        base * self.dispel_multiplier(Some(def.realm), caster)
     }
 
     /// Try each enchantment in `list` cast by someone other than `by`; returns what is left
@@ -386,14 +386,7 @@ impl Game {
         caster: PlayerId,
         spell: SpellId,
     ) -> Option<(PlayerId, SpellId)> {
-        let realm = self
-            .content
-            .rules
-            .spells
-            .get(spell)
-            .realm
-            .id()
-            .map(|r| r.num());
+        let realm = self.content.rules.spells.get(spell).realm.num();
         let guards: Vec<SpellId> = [
             SpellId::new(79),  /* suppress_magic */
             SpellId::new(156), /* life_force */
@@ -401,8 +394,8 @@ impl Game {
         ]
         .into_iter()
         .filter(|&g| match g.num() {
-                156 /* life_force */ => realm == Some(4 /* death */),
-                157 /* tranquility */ => realm == Some(2 /* chaos */),
+                156 /* life_force */ => realm == 4 /* death */,
+                157 /* tranquility */ => realm == 2 /* chaos */,
                 _ => true,
             })
         .collect();

@@ -51,8 +51,6 @@ impl UnitView<'_> {
         }
         let cap = def
             .level_path
-            .as_ref()
-            .and_then(|p| p.id())
             .map(|p| self.content.rules.level_paths.get(p))
             .and_then(|p| p.levels.last())
             .map(|l| l.xp)?;
@@ -173,7 +171,7 @@ mod tests {
     }
 
     /// Hire the hero of this unit.
-    fn hire(g: &mut Game, unit: &str, pos: Position) -> hecs::Entity {
+    fn hire(g: &mut Game, unit: u16, pos: Position) -> hecs::Entity {
         let kind = crate::hero::game::tests::kind_of(g, unit);
         g.spawn_hero(P0, pos, kind).expect("spawn_hero succeeds")
     }
@@ -291,7 +289,7 @@ mod tests {
     #[test]
     fn an_armsmaster_trains_the_units_on_its_square() {
         let mut g = world();
-        let hero = hire(&mut g, "swordsman", at(3, 3));
+        let hero = hire(&mut g, 26 /* swordsman */, at(3, 3));
         let near = spawn(&mut g, "high_men_cavalry", at(3, 3));
         let far = spawn(&mut g, "high_men_cavalry", at(4, 3));
         // The real swordsman is an armsmaster; a hero's tier decides the xp per level.
@@ -317,7 +315,7 @@ mod tests {
             "the hero trains no one but itself, by the turn"
         );
         // Another hero on the same square: the best trainer counts, not the sum.
-        let _other = hire(&mut g, "dwarf", at(3, 3));
+        let _other = hire(&mut g, 0 /* dwarf */, at(3, 3));
         let before = xp(&g, near);
         g.process_experience();
         assert_eq!(
@@ -333,7 +331,7 @@ mod tests {
         let creature = spawn(&mut g, "magic_spirit", at(4, 3));
         let undead = spawn(&mut g, "high_men_cavalry", at(5, 3));
         g.make_undead(undead);
-        let hero = hire(&mut g, "swordsman", at(6, 3));
+        let hero = hire(&mut g, 26 /* swordsman */, at(6, 3));
         g.process_experience();
         assert_eq!(xp(&g, normal), 1);
         assert_eq!(xp(&g, hero), 1);

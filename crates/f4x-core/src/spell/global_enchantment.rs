@@ -208,7 +208,7 @@ impl UnitView<'_> {
         }
         let facts = Facts {
             abilities: self.unit_abilities(unit),
-            race: def.race.as_ref().and_then(|r| r.id()),
+            race: def.race,
             realm: self.unit_realm(unit),
             // The undead are not normal units: Holy Arms and Crusade pass them by.
             kind: Some(if self.unit_is_undead(unit) {
@@ -333,7 +333,7 @@ mod tests {
             .content
             .rules
             .units
-            .id_of("shadow_demons")
+            .id_numbered(171)
             .ok_or("shadow_demons is not in the content")?;
         let u = g.spawn_unit(P0, at(5, 5), traveller);
         assert!(g.economy().can_shift_plane(&[u]).is_ok());
@@ -354,7 +354,7 @@ mod tests {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         let a = g.spawn_unit(P0, at(5, 5), walker);
         let b = g.spawn_unit(P1, at(8, 5), walker);
@@ -379,13 +379,13 @@ mod tests {
             .content
             .rules
             .units
-            .id_of("high_men_spearmen")
+            .id_numbered(104)
             .ok_or("high_men_spearmen is not in the content")?;
         let slow = g
             .content
             .rules
             .units
-            .id_of("fire_elemental")
+            .id_numbered(158)
             .ok_or("fire_elemental is not in the content")?;
         let normal = g.spawn_unit(P0, at(5, 5), walker);
         let fantastic = g.spawn_unit(P0, at(6, 5), slow);
@@ -418,13 +418,13 @@ mod tests {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         let slow = g
             .content
             .rules
             .units
-            .id_of("high_men_spearmen")
+            .id_numbered(104)
             .ok_or("high_men_spearmen is not in the content")?;
         let normal = g.spawn_unit(P0, at(5, 5), walker);
         let chaos = g.spawn_unit(P0, at(6, 5), slow);
@@ -454,7 +454,7 @@ mod tests {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         let u = g.spawn_unit(P0, at(5, 5), walker);
         let before = g.units().unit_stat(u, Stat::MaxHp);
@@ -487,7 +487,7 @@ mod tests {
         let known = |g: &Game| g.economy().lair_guards_known_to(at(20, 10), P0);
         assert_eq!(known(&g), None, "never fought, nothing shown");
         // Nature's Eye on a city nearby: sight 9 reaches four squares and a half.
-        let elf = g.content.rules.races.id_of("high_elf");
+        let elf = g.content.rules.races.id_numbered(7);
         g.apply(crate::game::Command::FoundCity {
             owner: P0,
             pos: at(17, 10),
@@ -529,7 +529,7 @@ mod tests {
     #[test]
     fn awareness_shows_cities_and_nature_awareness_the_whole_map() {
         let mut g = world();
-        let elf = g.content.rules.races.id_of("high_elf");
+        let elf = g.content.rules.races.id_numbered(7);
         g.apply(crate::game::Command::FoundCity {
             owner: P1,
             pos: at(20, 10),

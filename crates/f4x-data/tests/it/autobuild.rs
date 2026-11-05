@@ -51,7 +51,7 @@ fn facts(c: &f4x_core::content::Content, race: &str) -> CityFacts {
         .rules
         .units
         .iter()
-        .filter(|(id, d)| race.units.iter().any(|u| u.id() == Some(*id)) && d.requires.is_empty())
+        .filter(|(id, d)| race.units.contains(id) && d.requires.is_empty())
         .map(|(id, _)| id)
         .collect();
     CityFacts {

@@ -126,7 +126,7 @@ impl<'a> UnitView<'a> {
     pub fn unit_granted_abilities(&self, unit: hecs::Entity) -> Vec<Ability> {
         let own = self
             .unit_def(unit)
-            .map(|d| d.ability_ids.clone())
+            .map(|d| d.abilities.clone())
             .unwrap_or_default();
         let hero = self.world.get::<&crate::hero::Hero>(unit).ok();
         let mut out: Vec<Ability> = Vec::new();
@@ -149,9 +149,7 @@ impl<'a> UnitView<'a> {
                 if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
                     (rule.when, &rule.condition, &rule.effect)
                 {
-                    if let Some(a) = a.id() {
-                        take(a);
-                    }
+                    take(*a);
                 }
             }
         }
@@ -167,7 +165,7 @@ impl<'a> UnitView<'a> {
     pub fn unit_abilities(&self, unit: hecs::Entity) -> Vec<Ability> {
         let mut out = self
             .unit_def(unit)
-            .map(|d| d.ability_ids.clone())
+            .map(|d| d.abilities.clone())
             .unwrap_or_default();
         if let Ok(hero) = self.world.get::<&crate::hero::Hero>(unit) {
             for a in hero.abilities.ids() {
@@ -181,10 +179,8 @@ impl<'a> UnitView<'a> {
                 if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
                     (rule.when, &rule.condition, &rule.effect)
                 {
-                    if let Some(a) = a.id() {
-                        if !out.contains(&a) {
-                            out.push(a);
-                        }
+                    if !out.contains(a) {
+                        out.push(*a);
                     }
                 }
             }
@@ -199,10 +195,8 @@ impl<'a> UnitView<'a> {
                 if let (Trigger::Passive, Condition::Always, Effect::GrantAbility(a)) =
                     (rule.when, &rule.condition, &rule.effect)
                 {
-                    if let Some(a) = a.id() {
-                        if !out.contains(&a) {
-                            out.push(a);
-                        }
+                    if !out.contains(a) {
+                        out.push(*a);
                     }
                 }
             }
@@ -238,7 +232,7 @@ impl<'a> UnitView<'a> {
             d.kind != crate::rules::UnitKind::Normal
                 && !(d.kind == crate::rules::UnitKind::Fantastic
                     && (d.movement == crate::rules::MovementType::Sailing
-                        || d.ability_ids.contains(&Ability::new(70))))
+                        || d.abilities.contains(&Ability::new(70))))
         }) || self.unit_weapon_quality(unit) > 0
             || (self
                 .unit_owner(unit)

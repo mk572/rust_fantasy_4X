@@ -36,7 +36,7 @@ fn world() -> Game {
 }
 
 fn place(g: &mut Game, player: PlayerId, pos: Position) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     let events = g.apply(Command::PlaceFortress {
         player,
         pos,
@@ -54,7 +54,7 @@ fn place(g: &mut Game, player: PlayerId, pos: Position) -> hecs::Entity {
 }
 
 fn city(g: &mut Game, player: PlayerId, pos: Position) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     g.apply(Command::FoundCity {
         owner: player,
         pos,
@@ -98,7 +98,7 @@ fn placing_the_fortress_founds_the_capital_once() -> TestResult {
     assert_eq!(p.summon_at(), Some(at(5, 5)));
     assert_eq!(
         g.wizard(P0).ok_or("wizard is missing")?.capital_race(),
-        g.content.rules.races.id_of("high_elf")
+        g.content.rules.races.id_numbered(7)
     );
     assert_eq!(g.economy().fortress_city(P0), Some(capital));
     assert!(g.economy().is_fortress_city(capital));
@@ -675,7 +675,7 @@ fn banish_world(skill: i32) -> (Game, hecs::Entity, hecs::Entity) {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .expect("id_of succeeds");
     g.spawn_unit(P0, at(15, 5), spear);
     g.spawn_unit(P0, at(9, 9), spear);
@@ -690,7 +690,7 @@ fn a_computer_wizard_who_cannot_pay_for_the_return_resigns_and_the_cities_go_neu
         .content
         .rules
         .units
-        .id_of("galley")
+        .id_numbered(36)
         .ok_or("galley is not in the content")?;
     let mut defs = g.content.rules.units.defs().to_vec();
     defs.iter_mut()

@@ -194,9 +194,7 @@ fn wizard(content: &Content, rng: &mut Pcg64Mcg) -> Option<WizardSpec> {
         .iter()
         .filter(|(_, d)| battle_spell(d))
         .filter(|(_, d)| {
-            d.realm
-                .id()
-                .is_some_and(|r| r.num() == 5 /* arcane */ || realms.contains(&r))
+            d.realm.num() == 5 /* arcane */ || realms.contains(&d.realm)
         })
         .filter(|_| rng.gen_bool(share))
         .map(|(_, d)| d.id.clone())

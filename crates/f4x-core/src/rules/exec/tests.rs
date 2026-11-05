@@ -216,7 +216,7 @@ fn conditions_combine() {
         &f
     ));
     assert!(!eval(
-        &Condition::HasAbility(crate::rules::Ref::new("swimming")),
+        &Condition::HasAbility(crate::game::testutil::ability_ref("water_walking")),
         &f
     ));
     assert!(eval(&Condition::TerrainIs(TerrainClass::Hills), &f));
@@ -496,8 +496,7 @@ fn world_changing_effects_reach_the_host() {
             Condition::Always,
             TargetSel::Tile,
             Effect::Summon {
-                unit: "wolf".into(),
-                unit_id: Some(UnitId::new(7)),
+                unit: UnitId::new(7), // wolf
                 count: 2,
             },
         ),

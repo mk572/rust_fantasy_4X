@@ -308,24 +308,24 @@
             (common: 0, uncommon: 2, rare: 1, very_rare: 0),   // 11
         ],
         // Spells every wizard knows at the start (spell ids).
-        always_known: ["magic_spirit", "spell_of_return"],
+        always_known: [201, 214],
         // Spells a retort gives at the start.
         retort_known: {
-            "artificer": ["enchant_item", "create_artifact"],
+            17: [207, 211],
         },
         // Arcane spells nobody may research at the start. (Spell of Mastery is offered last, when
         // nothing else is left to research; Spell of Return is known.)
-        arcane_closed: ["spell_of_mastery", "spell_of_return"],
+        arcane_closed: [213, 214],
         // A computer wizard also knows this spell of its main realm (the realm with most books;
         // the first of the realms on a tie). The original's code names Water Walking, Counter
         // Magic, Fire Bolt, True Light and Black Sleep here, but its table is off by one spell
         // and really gives these. Leave it empty for no such spell.
         ai_main_realm_known: {
-            "nature": "sprites",
-            "sorcery": "nagas",
-            "chaos": "hell_hounds",
-            "life": "guardian_spirit",
-            "death": "ghouls",
+            0: 9,
+            1: 49,
+            2: 84,
+            3: 129,
+            4: 166,
         },
         // From the difficulty `ai_main_realm_researchable_from` on (3 is Hard), a computer
         // wizard may also research this spell of its main realm. The original's code checks the
@@ -333,11 +333,11 @@
         // wiki lists these as the spells it means.
         ai_main_realm_researchable_from: 3,
         ai_main_realm_researchable: {
-            "nature": "basilisk",
-            "sorcery": "phantom_beast",
-            "chaos": "chimeras",
-            "life": "unicorns",
-            "death": "shadow_demons",
+            0: 20,
+            1: 60,
+            2: 100,
+            3: 136,
+            4: 180,
         },
     ),
 )

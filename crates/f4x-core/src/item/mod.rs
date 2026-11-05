@@ -106,11 +106,8 @@ impl Item {
             cost: def.cost,
             icon: 0,
             bonus,
-            powers: crate::rules::refs::ids(&def.powers),
-            charges: def
-                .charges
-                .as_ref()
-                .and_then(|(spell, n)| Some((spell.id()?, *n))),
+            powers: def.powers.clone(),
+            charges: def.charges.as_ref().map(|&(spell, n)| (spell, n)),
             prefab: Some(ItemId::new(def.num)),
             made: None,
         }
@@ -136,7 +133,7 @@ impl Item {
     pub fn granted_spells(&self, rules: &Rules) -> Vec<SpellId> {
         self.powers
             .iter()
-            .filter_map(|&p| rules.item_powers.get(p).spell.as_ref()?.id())
+            .filter_map(|&p| rules.item_powers.get(p).spell)
             .collect()
     }
 
@@ -150,13 +147,7 @@ impl Item {
             out.push(Ability::new(34) /* large_shield */);
         }
         for &p in &self.powers {
-            if let Some(ability) = rules
-                .item_powers
-                .get(p)
-                .attack
-                .as_ref()
-                .and_then(|a| a.id())
-            {
+            if let Some(ability) = rules.item_powers.get(p).attack {
                 if !out.contains(&ability) {
                     out.push(ability);
                 }

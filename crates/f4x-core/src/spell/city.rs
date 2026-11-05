@@ -219,7 +219,7 @@ impl Game {
         self.economy()
             .city_shielded_realms(city)
             .iter()
-            .any(|&r| Some(r) == def.realm.id())
+            .any(|&r| Some(r) == Some(def.realm))
             .then_some(city)
     }
 
@@ -301,11 +301,7 @@ impl Economy<'_> {
             return false;
         };
         matches!(def.kind, UnitKind::Fantastic | UnitKind::Summoned)
-            && def
-                .realm
-                .as_ref()
-                .and_then(|r| r.id())
-                .is_some_and(|r| self.city_warded_against(city, r))
+            && def.realm.is_some_and(|r| self.city_warded_against(city, r))
     }
 }
 

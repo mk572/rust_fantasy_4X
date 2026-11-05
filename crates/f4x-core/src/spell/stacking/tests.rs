@@ -149,7 +149,7 @@ fn holy_weapon_is_refused_while_the_wizard_keeps_holy_arms() -> TestResult {
         g.content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?,
     );
     assert_eq!(
@@ -162,7 +162,7 @@ fn holy_weapon_is_refused_while_the_wizard_keeps_holy_arms() -> TestResult {
 #[test]
 fn a_city_takes_a_lasting_spell_once() -> TestResult {
     let mut g = world();
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     g.apply(Command::FoundCity {
         owner: P0,
         pos: AT,

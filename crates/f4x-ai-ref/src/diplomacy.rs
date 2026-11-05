@@ -766,7 +766,7 @@ mod tests {
     fn rivals(objective: Objective, temper: Personality) -> Game {
         use crate::testworld::{at, game, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0, P1};
         let mut g = game(COAST_CITY, "high_men");
-        let race = g.content().rules.races.id_of("high_men");
+        let race = g.content().rules.races.id_numbered(8);
         g.apply(Command::FoundCity {
             owner: P0,
             pos: at(INLAND_CITY.0, INLAND_CITY.1),
@@ -816,7 +816,7 @@ mod tests {
     fn nobody_attacks_a_neighbour_that_holds_as_many_cities() {
         use crate::testworld::{at, ENEMY_CITY, P1};
         let mut g = rivals(Objective::Expansionist, Personality::Ruthless);
-        let race = g.content().rules.races.id_of("high_men");
+        let race = g.content().rules.races.id_numbered(8);
         let events = g.apply(Command::FoundCity {
             owner: P1,
             pos: at(ENEMY_CITY.0 + 4, ENEMY_CITY.1 + 3),
@@ -874,7 +874,7 @@ mod tests {
             .content()
             .rules
             .units
-            .get(g.content().rules.units.id_of("high_men_spearmen").unwrap())
+            .get(g.content().rules.units.id_numbered(104).unwrap())
             .cost as i32;
         let base = threat_modifier(&g, P0, P1);
         spawn(
@@ -901,7 +901,7 @@ mod tests {
         use crate::testworld::{game, COAST_CITY, P0, P1};
         let mut g = game(COAST_CITY, "high_men");
         g.make_contact(P0, P1);
-        let mastery = g.content().rules.spells.id_of("spell_of_mastery").unwrap();
+        let mastery = g.content().rules.spells.id_numbered(213).unwrap();
         let ai = Ai::new(P0);
         // Nobody casts it: nothing happens, however often it is rolled.
         for _ in 0..300 {

@@ -57,7 +57,7 @@ fn nth(g: &Game, realm: &str, rarity: Rarity, n: usize) -> crate::rules::SpellId
         .rules
         .spells
         .iter()
-        .filter(|(_, d)| d.realm.id() == Some(realm) && d.rarity == rarity)
+        .filter(|(_, d)| d.realm == (realm) && d.rarity == rarity)
         .nth(n)
         .map(|(id, _)| id)
         .expect("the game has ten spells of each realm and rarity")
@@ -251,7 +251,9 @@ fn starting_spells_are_chosen_then_defaulted() -> TestResult {
     let known = m.known();
     let life: Vec<_> = known
         .iter()
-        .filter(|&&s| g.content.rules.spells.get(s).realm.name() == "life")
+        .filter(
+            |&&s| g.content.rules.spells.get(s).realm.num() == 3, /* life */
+        )
         .collect();
     assert_eq!(life.len(), 3);
     assert!(m.knows(c7) && m.knows(c3));
@@ -259,7 +261,9 @@ fn starting_spells_are_chosen_then_defaulted() -> TestResult {
     let chaos = m
         .known()
         .iter()
-        .filter(|&&s| g.content.rules.spells.get(s).realm.name() == "chaos")
+        .filter(
+            |&&s| g.content.rules.spells.get(s).realm.num() == 2, /* chaos */
+        )
         .count();
     assert_eq!(chaos, 5);
     assert_eq!(g.player(P0).ok_or("player is missing")?.name(), "Test");
@@ -432,7 +436,7 @@ fn eleven_books_know_every_common_spell_and_pick_two_uncommon_and_one_rare() -> 
             .iter()
             .filter(|&&s| {
                 let d = g.content.rules.spells.get(s);
-                d.realm.name() == "life" && d.rarity == r
+                d.realm.num() == 3 /* life */ && d.rarity == r
             })
             .count()
     };
@@ -465,8 +469,9 @@ fn eight_spells_are_on_offer_for_research_lowest_rarity_first() -> TestResult {
     // Lowest rarity first: a realm's uncommon spell is offered only once all its researchable
     // commons are on the offer.
     for realm in ["life", "chaos"] {
-        let of_realm =
-            |s: &&crate::rules::SpellId| g.content.rules.spells.get(**s).realm.name() == realm;
+        let of_realm = |s: &&crate::rules::SpellId| {
+            g.content.rules.spells.get(**s).realm == crate::game::testutil::realm(realm)
+        };
         let commons_left_out = magic
             .researchable()
             .iter()
@@ -529,7 +534,7 @@ fn of_kind(
     set.iter()
         .filter(|&&s| {
             let d = g.content.rules.spells.get(s);
-            d.realm.name() == realm && d.rarity == rarity
+            d.realm == crate::game::testutil::realm(realm) && d.rarity == rarity
         })
         .count()
 }

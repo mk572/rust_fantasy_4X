@@ -100,7 +100,7 @@ impl App {
         let Some(def) = self.game.units().unit_def(unit) else {
             return String::new();
         };
-        let race = def.race.as_ref().and_then(|r| r.id()).map(|r| {
+        let race = def.race.map(|r| {
             self.names
                 .race(self.game.content().rules.races.get(r).num)
                 .to_string()

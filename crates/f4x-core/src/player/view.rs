@@ -606,7 +606,7 @@ mod tests {
         for id in [ME, THEM] {
             g.add_player(id, "W");
         }
-        let race = g.content().rules.races.id_of("high_elf");
+        let race = g.content().rules.races.id_numbered(7);
         for (owner, pos) in [(ME, at(5, 5)), (THEM, at(20, 10)), (THEM, at(8, 5))] {
             g.apply(Command::FoundCity {
                 owner,
@@ -626,7 +626,7 @@ mod tests {
             .content()
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         let mine = g.spawn_unit(ME, at(5, 5), walker);
         g.spawn_unit(THEM, at(20, 11), walker);
@@ -670,7 +670,7 @@ mod tests {
             .content()
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         g.spawn_unit(ME, at(5, 5), walker);
         let foe = g.spawn_unit(THEM, at(6, 5), walker);

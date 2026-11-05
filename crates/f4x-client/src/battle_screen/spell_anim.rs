@@ -29,7 +29,8 @@ impl App {
                 .any(|e| matches!(e.effect, Effect::Summon { .. }));
             (
                 def.id.clone(),
-                def.realm.name().to_string(),
+                // The realm's art folder is named by its alias.
+                self.game.content().rules.realms.get(def.realm).id.clone(),
                 summons,
                 self.names.spell(def.num).to_string(),
             )
@@ -70,12 +71,12 @@ impl App {
         };
         // A wall rises where the wall will stand.
         if matches!(
-            id.as_str(),
-            "wall_of_stone" | "wall_of_fire" | "wall_of_darkness"
+            spell.num(),
+            3 /* wall_of_stone */ | 87 /* wall_of_fire */ | 178 /* wall_of_darkness */
         ) {
-            let wall = match id.as_str() {
-                "wall_of_fire" => Some(false),
-                "wall_of_darkness" => Some(true),
+            let wall = match spell.num() {
+                87 /* wall_of_fire */ => Some(false),
+                178 /* wall_of_darkness */ => Some(true),
                 _ => None,
             };
             let frames = match wall {

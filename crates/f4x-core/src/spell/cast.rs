@@ -189,7 +189,7 @@ impl EffectHost for GameHost<'_> {
         if let Target::Unit(u) = who {
             if let Some(def) = g.units().unit_def(u) {
                 facts.abilities = g.units().unit_abilities(u);
-                facts.race = def.race.as_ref().and_then(|r| r.id());
+                facts.race = def.race;
                 facts.realm = g.units().unit_realm(u);
                 facts.kind = Some(if g.units().unit_is_undead(u) {
                     crate::rules::UnitKind::Summoned

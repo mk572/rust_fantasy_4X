@@ -279,7 +279,7 @@ mod tests {
         assert!(g.player(P0).ok_or("player is missing")?.treasury().mana < 1000);
         assert_eq!(state(&g, kind), HeroState::Serving);
         // The necromancer (a death book) is not among those a life wizard can summon.
-        let necromancer = crate::hero::game::tests::kind_of(&g, "necromancer");
+        let necromancer = crate::hero::game::tests::kind_of(&g, 32 /* necromancer */);
         for _ in 0..5 {
             if let Some((_, k)) = joined(&cast(&mut g, 208 /* summon_hero */)) {
                 assert_ne!(k, necromancer);
@@ -445,18 +445,22 @@ mod tests {
         let rules = &caster().content.rules;
         let last = torin(rules);
         for t in &rules.hero_templates {
-            let def = rules.units.get(t.unit_id.ok_or("no unit")?);
-            let torin = rules.hero_templates[last].unit_id == t.unit_id;
+            let def = rules.units.get(t.unit);
+            let torin = rules.hero_templates[last].unit == t.unit;
             assert_eq!(
-                def.realm.as_ref().map(|r| r.name()),
-                torin.then_some("life"),
+                def.realm.map(|r| r.num()),
+                torin.then_some(3 /* life */),
                 "{}",
-                t.unit
+                t.unit.num()
             );
         }
         let spells = &rules.hero_templates[last].spells;
-        for s in ["healing", "holy_armor", "lionheart"] {
-            assert!(spells.iter().any(|x| x.name() == s), "{s}");
+        for s in [
+            crate::rules::SpellId::new(125), // healing
+            crate::rules::SpellId::new(126), // holy_armor
+            crate::rules::SpellId::new(141), // lionheart
+        ] {
+            assert!(spells.contains(&s), "{}", s.num());
         }
         Ok(())
     }

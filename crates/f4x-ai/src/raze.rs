@@ -127,7 +127,7 @@ mod tests {
         let mut g = game(COAST_CITY, "high_men");
         let enemy = at(ENEMY_CITY.0, ENEMY_CITY.1);
         let other = g.economy().city_at(enemy).ok_or("the enemy has a city")?;
-        let race = g.content().rules.races.id_of("high_men");
+        let race = g.content().rules.races.id_numbered(8);
         // Give the former owner a second city near the first, so there is land to fight over.
         g.apply(Command::FoundCity {
             owner: P1,

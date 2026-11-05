@@ -61,23 +61,8 @@ fn wizard_def(num: u16, id: &str, books: &[(&str, u8)], retorts: &[Retort]) -> W
         id: id.into(),
         help: 0,
         gender: Default::default(),
-        books: books
-            .iter()
-            .map(|&(r, n)| {
-                let mut r: crate::rules::Ref<crate::rules::RealmDef> = r.into();
-                r.set(Some(realm(r.name())));
-                (r, n)
-            })
-            .collect(),
-        retorts: retorts
-            .iter()
-            .map(|&r| {
-                let rules = rules();
-                let mut out = crate::rules::Ref::new(rules.retorts.get(r).id.clone());
-                out.set(Some(r));
-                out
-            })
-            .collect(),
+        books: books.iter().map(|&(r, n)| (realm(r), n)).collect(),
+        retorts: retorts.to_vec(),
     }
 }
 

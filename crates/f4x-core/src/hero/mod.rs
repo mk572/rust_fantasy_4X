@@ -373,7 +373,7 @@ mod tests {
     fn a_hero_gets_its_abilities_as_stats_fame_and_research() -> TestResult {
         let mut g = world();
         // The Dervish has no stat abilities of its own.
-        let kind = crate::hero::game::tests::kind_of(&g, "dervish");
+        let kind = crate::hero::game::tests::kind_of(&g, 3 /* dervish */);
         let h = g
             .spawn_hero(P0, at(1, 1), kind)
             .map_err(|e| format!("{e:?}"))?;

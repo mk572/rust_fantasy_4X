@@ -401,7 +401,7 @@ mod tests {
 
     /// The west island filled with cities of the wizard, as close as the rules let them stand.
     fn fill_west(g: &mut Game) {
-        let race = g.content().rules.races.id_of("high_men");
+        let race = g.content().rules.races.id_numbered(8);
         for x in 3..=10 {
             for y in 3..=10 {
                 g.apply(f4x_core::game::Command::FoundCity {

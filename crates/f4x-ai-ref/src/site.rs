@@ -167,7 +167,7 @@ mod tests {
         let mut g = game(COAST_CITY, "high_men");
         g.treasury_mut(P0).unwrap().gold = 1_000_000;
         spawn(&mut g, P0, at(10, 6), "high_men_paladins", paladins);
-        let feature = g.content().features.id_of("monster_lair").unwrap();
+        let feature = g.content().features.id_numbered(13).unwrap();
         g.spawn_feature(Placement {
             at: at(8, 6),
             feature,

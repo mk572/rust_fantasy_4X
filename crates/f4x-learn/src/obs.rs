@@ -61,21 +61,23 @@ pub struct Observation {
 /// How to read a battle: the ability vocabulary of the content.
 #[derive(Debug, Clone)]
 pub struct ObsSpec {
-    /// The abilities in the order of the rules table, by name (for the signature) and number.
-    abilities: Vec<String>,
-    ability_ids: Vec<f4x_core::rules::Ability>,
+    /// The abilities in the order of the rules table, by number.
+    abilities: Vec<f4x_core::rules::Ability>,
+    /// The same abilities' aliases, kept in a checkpoint's signature so a difference can be told
+    /// in words (a checkpoint saved with the aliases stays readable).
+    names: Vec<String>,
 }
 
 impl ObsSpec {
     pub fn new(content: &Content) -> Self {
         Self {
-            abilities: content
+            abilities: content.rules.abilities.iter().map(|(id, _)| id).collect(),
+            names: content
                 .rules
                 .abilities
                 .iter()
                 .map(|(_, a)| a.id.clone())
                 .collect(),
-            ability_ids: content.rules.abilities.iter().map(|(id, _)| id).collect(),
         }
     }
 
@@ -189,7 +191,7 @@ impl ObsSpec {
                 f32::from(u.long_range),
             ];
             row[..f.len()].copy_from_slice(&f);
-            for (i, &a) in self.ability_ids.iter().enumerate() {
+            for (i, &a) in self.abilities.iter().enumerate() {
                 if u.has(a) {
                     row[UNIT_BASE + i] = 1.0;
                 }
@@ -217,7 +219,7 @@ impl ObsSpec {
                 SpellTarget::EnemyUnit => 4,
                 _ => 5,
             };
-            let realm = d.realm.id().map(|r| usize::from(r.num()));
+            let realm = Some(d.realm).map(|r| usize::from(r.num()));
             let row = &mut spells[i * SPELL_FEATURES..(i + 1) * SPELL_FEATURES];
             row[0] = 1.0;
             row[1] = s.cost as f32 / 100.0;
@@ -351,7 +353,7 @@ impl ObsSpec {
             ("SPELL_FEATURES", SPELL_FEATURES),
         ];
         Signature {
-            abilities: self.abilities.clone(),
+            abilities: self.names.clone(),
             sizes: sizes.iter().map(|&(n, v)| (n.to_string(), v)).collect(),
         }
     }

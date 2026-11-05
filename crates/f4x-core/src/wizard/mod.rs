@@ -178,7 +178,7 @@ impl Game {
         let mut per_realm: BTreeMap<(Option<RealmId>, Rarity), Vec<SpellId>> = BTreeMap::new();
         for &s in &build.spells {
             let def = self.content.rules.spells.get(s);
-            let realm = def.realm.id();
+            let realm = Some(def.realm);
             let key = (realm, def.rarity);
             let room = realm.map_or(0, |realm| {
                 build.spell_choices_of(&self.content.settings.spell_library, realm, def.rarity)
@@ -222,15 +222,11 @@ impl Game {
             .iter()
             .position(|w| w.id == id)?;
         let def = &self.content.rules.wizards.defs()[place];
-        let retorts = def.retorts.iter().map(|r| r.id()).collect::<Option<_>>()?;
+        let retorts = def.retorts.iter().copied().collect();
         Some(WizardBuild {
             name: String::new(),
             gender: def.gender,
-            books: def
-                .books
-                .iter()
-                .filter_map(|(r, n)| Some((r.id()?, *n)))
-                .collect(),
+            books: def.books.iter().copied().collect(),
             retorts,
             spells: Vec::new(),
             banner: None,

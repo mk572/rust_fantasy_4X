@@ -124,7 +124,7 @@ fn city_name(view: &PlayerView, unit: hecs::Entity) -> String {
     let used = view.my_cities().len();
     view.unit_def(unit)
         .and_then(|d| d.race.as_ref())
-        .and_then(|r| r.id())
+        .copied()
         .map(|r| view.content().rules.races.get(r))
         .and_then(|r| r.city_names.get(used % r.city_names.len().max(1)).cloned())
         .unwrap_or_else(|| format!("Outpost {}", used + 1))
@@ -334,7 +334,7 @@ mod tests {
             .content()
             .rules
             .races
-            .by_name("high_men")
+            .by_num(8)
             .ok_or("high_men is shipped")?;
         let used = view.my_cities().len();
         assert_eq!(

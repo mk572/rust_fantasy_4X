@@ -301,7 +301,7 @@ mod tests {
         let feature = g
             .content()
             .features
-            .id_of("chaos_node")
+            .id_numbered(4)
             .ok_or("chaos_node is shipped")?;
         let site = g.spawn_feature(Placement {
             at: node_at,

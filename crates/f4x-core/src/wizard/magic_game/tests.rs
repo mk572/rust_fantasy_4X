@@ -59,7 +59,7 @@ fn world() -> Game {
 
 /// The first city is the wizard's fortress, later ones are ordinary cities.
 fn found(g: &mut Game, pos: Position, pop: u32) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     let name = "Town".into();
     if g.wizard(P0).expect("wizard succeeds").fortress().is_none() {
         g.apply(Command::PlaceFortress {
@@ -121,7 +121,7 @@ fn a_new_wizard_starts_with_books_spells_and_skill() -> TestResult {
     let in_realm = |set: &BTreeSet<SpellId>, realm: &str| {
         let realm = crate::game::testutil::realm(realm);
         set.iter()
-            .filter(|&&s| g.content.rules.spells.get(s).realm.id() == Some(realm))
+            .filter(|&&s| g.content.rules.spells.get(s).realm == realm)
             .count()
     };
     // Life, 3 books: 6 common + 3 uncommon + 2 rare + 1 very rare, of which 2 known.
@@ -303,7 +303,7 @@ fn an_affordable_spell_takes_effect_at_once() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     g.world.insert_one(unit, crate::unit::Hurt(3))?;
@@ -357,7 +357,7 @@ fn spells_need_a_known_spell_and_a_valid_target() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let mine = g.spawn_unit(P0, at(3, 3), spear);
     g.add_player(PlayerId(1), "");
@@ -524,7 +524,7 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() -> TestResult {
         .content
         .rules
         .units
-        .id_of("galley")
+        .id_numbered(36)
         .ok_or("galley is not in the content")?;
     found(&mut g, at(10, 6), 8);
     // All power to research, so the mana reserve only moves by what is spent.
@@ -618,7 +618,7 @@ fn cancelling_loses_what_was_paid() -> TestResult {
         .content
         .rules
         .units
-        .id_of("galley")
+        .id_numbered(36)
         .ok_or("galley is not in the content")?;
     g.spawn_unit(P0, at(3, 3), galley);
     g.start_cast(P0, strength, None)
@@ -703,7 +703,7 @@ fn dispelling_removes_enchantments_by_strength() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
     let strength = spell(&g, "giant_strength");
@@ -727,7 +727,7 @@ fn saves_keep_the_wizard_the_casting_and_unit_spells() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     found(&mut g, at(10, 6), 8);
     let unit = g.spawn_unit(P0, at(3, 3), spear);

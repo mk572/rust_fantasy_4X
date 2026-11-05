@@ -251,7 +251,7 @@ mod tests {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .expect("id_of succeeds");
         g.spawn_unit(P0, pos, id)
     }
@@ -388,7 +388,7 @@ mod tests {
             .content
             .rules
             .spells
-            .id_of("planar_seal")
+            .id_numbered(135)
             .ok_or("planar_seal is not in the content")?;
         g.attach_enchantment(Target::Player(other), seal, other);
         assert!(rejected(&cast(&mut g, "plane_shift", Target::Unit(a))));
@@ -423,7 +423,7 @@ mod tests {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         g.add_player(PlayerId(1), "X");
         let enemy = g.spawn_unit(PlayerId(1), sea, boat);

@@ -299,14 +299,14 @@ fn a_major_spellcaster_has_forty_mana_and_casts_the_spells_of_its_realm() {
         .content
         .rules
         .units
-        .id_of("arch_angel")
+        .id_numbered(178)
         .expect("arch_angel exists");
     let angel = g.spawn_unit(P0, at(8, 8), def);
     let foe_def = g
         .content
         .rules
         .units
-        .id_of("high_men_spearmen")
+        .id_numbered(104)
         .expect("spearmen exist");
     let foe = g.spawn_unit(P1, at(9, 8), foe_def);
     g.start_battle(&[angel], &[foe]).expect("the battle starts");

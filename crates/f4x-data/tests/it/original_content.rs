@@ -152,7 +152,11 @@ fn every_building_has_the_originals_cost_upkeep_requirements_and_replacement() {
                 num(3)
             ));
         }
-        let mut ours: Vec<&str> = def.requires.iter().map(String::as_str).collect();
+        let mut ours: Vec<&str> = def
+            .requires
+            .iter()
+            .map(|b| c.rules.buildings.get(*b).id.as_str())
+            .collect();
         ours.sort_unstable();
         let mut theirs: Vec<&str> = [num(4), num(5)]
             .into_iter()
@@ -164,7 +168,7 @@ fn every_building_has_the_originals_cost_upkeep_requirements_and_replacement() {
             wrong.push(format!("{} requires {ours:?}, original {theirs:?}", def.id));
         }
         let replaces = (num(6) > 0).then(|| id_of(num(6)));
-        if def.replaces.as_deref() != replaces {
+        if def.replaces.map(|b| c.rules.buildings.get(b).id.as_str()) != replaces {
             wrong.push(format!(
                 "{} replaces {:?}, original {replaces:?}",
                 def.id, def.replaces
@@ -237,11 +241,8 @@ fn every_item_power_has_the_originals_types_cost_group_realm_and_books() {
         }
         // Only a special power needs books and a realm: the content leaves them off a plain
         // bonus, whose book byte the original scrambled (docs/heroes-items-design.md 2.1).
-        if let Some(realm) = &def.realm {
-            let realm = REALMS
-                .iter()
-                .position(|n| *n == realm.name())
-                .map(|r| r as i64);
+        if let Some(realm) = def.realm {
+            let realm = Some(i64::from(realm.num()));
             if realm != Some(number(row, "realm")) {
                 wrong.push(format!(
                     "{} realm {realm:?}, original {}",
@@ -335,10 +336,10 @@ fn every_prefab_item_has_the_originals_type_cost_bonuses_and_powers() {
             }
         }
         // The powers: the bits of the powers it names are the bits the file sets.
-        let mask = def.powers.iter().fold(0i64, |m, id| {
-            let at = id.id().map(|i| i.num() as usize);
-            m | at.map_or(0, |at| number(&powers[at], "mask"))
-        });
+        let mask = def
+            .powers
+            .iter()
+            .fold(0i64, |m, id| m | number(&powers[id.num() as usize], "mask"));
         if mask != number(row, "powers") {
             wrong.push(format!(
                 "{} powers: {:?} make {mask:#x}, original {:#x}",
@@ -435,7 +436,11 @@ fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
                 def.id
             ));
         }
-        let mut ours: Vec<&str> = def.units.iter().map(|u| u.name()).collect();
+        let mut ours: Vec<&str> = def
+            .units
+            .iter()
+            .map(|u| c.rules.units.get(*u).id.as_str())
+            .collect();
         ours.sort_unstable();
         let mut theirs: Vec<&str> = units
             .iter()
@@ -511,11 +516,11 @@ fn every_spell_has_the_originals_name_realm_cost_research_rarity_and_summoned_un
             ));
         }
         let realm = number(row, "realm") as usize;
-        if def.realm.name() != REALMS[realm] {
+        if c.rules.realms.get(def.realm).id != REALMS[realm] {
             wrong.push(format!(
                 "{} realm {}, original {}",
                 def.id,
-                def.realm.name(),
+                c.rules.realms.get(def.realm).id,
                 REALMS[realm]
             ));
         }
@@ -549,7 +554,7 @@ fn every_spell_has_the_originals_name_realm_cost_research_rarity_and_summoned_un
                 .effects
                 .iter()
                 .filter_map(|e| match &e.effect {
-                    Effect::Summon { unit, .. } => Some(unit),
+                    Effect::Summon { unit, .. } => Some(&c.rules.units.get(*unit).id),
                     // The Floating Island is a unit in the original; ours is a custom effect of the same name.
                     Effect::Special if def.num == 43 /* floating_island */ => Some(&def.id),
                     _ => None,
@@ -630,7 +635,7 @@ fn every_unit_has_the_abilities_the_originals_flags_give_it() {
         let mut ours: Vec<&str> = def
             .abilities
             .iter()
-            .map(String::as_str)
+            .map(|a| c.rules.abilities.get(*a).id.as_str())
             .filter(|a| FLAG_ABILITIES.iter().any(|(_, _, id)| id == a))
             .collect();
         ours.sort_unstable();
@@ -812,7 +817,11 @@ fn every_ready_made_wizard_has_the_originals_books_and_retort() {
             plain(name),
             "wizards come in the original's order"
         );
-        let mut ours: Vec<(&str, u8)> = def.books.iter().map(|(r, b)| (r.name(), *b)).collect();
+        let mut ours: Vec<(&str, u8)> = def
+            .books
+            .iter()
+            .map(|(r, b)| (rules.realms.get(*r).id.as_str(), *b))
+            .collect();
         ours.sort_unstable();
         let mut theirs: Vec<(&str, u8)> = realms
             .iter()
@@ -831,7 +840,7 @@ fn every_ready_made_wizard_has_the_originals_books_and_retort() {
         theirs.sort_unstable();
         assert_eq!(ours, theirs, "{} books", def.id);
         let retorts: Vec<_> = retort
-            .map(|i| f4x_core::rules::Ref::new(rules.retorts.defs()[i].id.clone()))
+            .map(|i| f4x_core::wizard::magic::Retort::new(rules.retorts.defs()[i].num))
             .into_iter()
             .collect();
         assert_eq!(def.retorts, retorts, "{} retorts", def.id);

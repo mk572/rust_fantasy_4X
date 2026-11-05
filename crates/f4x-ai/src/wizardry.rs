@@ -459,10 +459,7 @@ fn liked(def: &SpellDef, kind: Kind, traits: &crate::objective::Traits) -> bool 
         Like::CityBuff => kind == Kind::CityBuff,
         Like::GlobalBuff => kind == Kind::GlobalBuff,
         Like::Explore => kind == Kind::Explore,
-        Like::Holy => matches!(
-            def.realm.id().map(RealmId::num),
-            Some(3 /* life */ | 5 /* arcane */)
-        ),
+        Like::Holy => matches!(Some(def.realm.num()), Some(3 /* life */ | 5 /* arcane */)),
         Like::Curse => matches!(
             kind,
             Kind::CityCurse | Kind::WizardCurse | Kind::Disjunction

@@ -14,7 +14,7 @@ fn world() -> Game {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .expect("id_of succeeds");
     g.spawn_unit(P0, at(2, 3), scout);
     g.spawn_unit(P1, at(8, 3), scout);
@@ -175,8 +175,9 @@ fn mercenaries_come_from_the_first_mercenary_turn_to_a_wizard_who_can_pay_and_ar
     assert!(
         mercenary_pool(&g.content.rules, true, false)
             .iter()
-            .any(|u| u.id == unit),
-        "{unit}"
+            .any(|u| u.num == unit.num()),
+        "{}",
+        unit.num()
     );
     assert!((1..=3).contains(&count) && (1..=3).contains(&level));
     let (arcanus, myrror) = g.planes_of(P0);
@@ -192,15 +193,7 @@ fn mercenaries_come_from_the_first_mercenary_turn_to_a_wizard_who_can_pay_and_ar
     assert_eq!(g.units().units_at(at(1, 1)).len(), before + count as usize);
     let xp = g.world.get::<&Experience>(units[0])?.0;
     assert_eq!(
-        crate::hero::kind::level_of(
-            &g.content.rules,
-            g.content
-                .rules
-                .units
-                .id_of(&unit)
-                .ok_or("id_of is missing")?,
-            xp
-        ),
+        crate::hero::kind::level_of(&g.content.rules, unit, xp),
         usize::from(level)
     );
     // The offer is used up.

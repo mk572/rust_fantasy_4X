@@ -126,7 +126,7 @@ mod tests {
             })
             .find(|&p| g.can_found_city(p).is_ok())
             .ok_or("the map has no square for a city")?;
-        let race = g.content().rules.races.id_of("barbarian");
+        let race = g.content().rules.races.id_numbered(0);
         g.apply(Command::FoundCity {
             owner: PlayerId(0),
             pos,
@@ -138,7 +138,7 @@ mod tests {
             .content()
             .rules
             .units
-            .id_of("barbarian_spearmen")
+            .id_numbered(39)
             .ok_or("barbarian_spearmen is not in the content")?;
         g.apply(Command::CreateUnit {
             owner: PlayerId(0),

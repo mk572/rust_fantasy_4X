@@ -151,7 +151,7 @@ mod tests {
         game.map = Some(map);
         game.add_player(P0, "Owner");
         game.add_player(P1, "Caster");
-        let race = game.content.rules.races.id_of("high_elf");
+        let race = game.content.rules.races.id_numbered(7);
         game.apply(Command::FoundCity {
             owner: P0,
             pos: at(10, 6),
@@ -164,7 +164,7 @@ mod tests {
             .content
             .rules
             .spells
-            .id_of("famine")
+            .id_numbered(189)
             .expect("id_of succeeds");
         (game, city, spell)
     }

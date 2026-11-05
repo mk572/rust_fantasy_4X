@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::refs::{Names, Ref};
+use super::ids::Id;
 use super::stats::{ModOp, Stat};
 use super::{AbilityDef, RealmDef, SpellDef};
 use crate::map::terrain::TerrainClass;
@@ -88,11 +88,11 @@ pub const SPECIAL_SPELLS: [u16; 50] = [
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Condition {
     Always,
-    HasAbility(Ref<AbilityDef>),
+    HasAbility(Id<AbilityDef>),
     TerrainIs(TerrainClass),
     OnPlane(Plane),
-    RaceIs(Ref<super::RaceDef>),
-    RealmIs(Ref<RealmDef>),
+    RaceIs(Id<super::RaceDef>),
+    RealmIs(Id<RealmDef>),
     /// The subject is a unit of this kind (normal units, heroes, creatures).
     KindIs(crate::rules::UnitKind),
     InBattle,
@@ -177,8 +177,8 @@ pub enum Effect {
         op: ModOp,
         value: i32,
     },
-    GrantAbility(Ref<AbilityDef>),
-    RemoveAbility(Ref<AbilityDef>),
+    GrantAbility(Id<AbilityDef>),
+    RemoveAbility(Id<AbilityDef>),
     /// `resistible`: the target gets a resistance check, against `realm` with `resist_modifier`
     /// added to its resistance (negative for a spell that is hard to resist). A target with
     /// one of the `immune` abilities (`fire_immunity`, `magic_immunity`, ...) takes nothing.
@@ -187,9 +187,9 @@ pub enum Effect {
         kind: DamageKind,
         resistible: bool,
         #[serde(default)]
-        immune: Vec<Ref<AbilityDef>>,
+        immune: Vec<Id<AbilityDef>>,
         #[serde(default)]
-        realm: Option<Ref<RealmDef>>,
+        realm: Option<Id<RealmDef>>,
         #[serde(default)]
         resist_modifier: i32,
         #[serde(default)]
@@ -202,10 +202,10 @@ pub enum Effect {
     /// plus `modifier` is under this (Disintegrate) instead. `mana_per_step`: each this much
     /// mana beyond the cost lowers the resistance by one more (Banish).
     Slay {
-        realm: Ref<RealmDef>,
+        realm: Id<RealmDef>,
         modifier: i32,
         #[serde(default)]
-        immune: Vec<Ref<AbilityDef>>,
+        immune: Vec<Id<AbilityDef>>,
         #[serde(default)]
         only: SlayOnly,
         #[serde(default)]
@@ -224,19 +224,14 @@ pub enum Effect {
         research: i32,
     },
     Summon {
-        /// The unit's alias, as the author writes it.
-        unit: String,
-        /// The same unit as a number, filled once when the rules load
-        /// ([`super::resolve_summons`]); `None` for a name that is not a unit.
-        #[serde(skip)]
-        unit_id: Option<super::UnitId>,
+        unit: super::UnitId,
         count: u8,
     },
     ChangeTerrain(TerrainClass),
     /// Put a map feature on the tile: its number in `features.ron`.
     SetFeature(crate::map::FeatureId),
     /// Attach a lasting spell (by spell id) to the target.
-    ApplyEnchantment(Ref<SpellDef>),
+    ApplyEnchantment(Id<SpellDef>),
     Dispel {
         strength: u32,
     },
@@ -255,49 +250,6 @@ fn passive() -> Trigger {
 }
 fn this() -> TargetSel {
     TargetSel::This
-}
-
-impl Condition {
-    /// Resolve the names inside, once, when the rules load.
-    pub fn resolve(&mut self, names: &Names) {
-        match self {
-            Condition::RealmIs(r) => names.resolve(r),
-            Condition::HasAbility(a) => names.resolve(a),
-            Condition::RaceIs(r) => names.resolve(r),
-            Condition::All(list) | Condition::Any(list) => {
-                list.iter_mut().for_each(|c| c.resolve(names));
-            }
-            Condition::Not(c) => c.resolve(names),
-            _ => {}
-        }
-    }
-}
-
-impl Effect {
-    /// Resolve the names inside, once, when the rules load.
-    pub fn resolve(&mut self, names: &Names) {
-        match self {
-            Effect::Damage { realm, immune, .. } => {
-                names.resolve_opt(realm);
-                names.resolve_all(immune);
-            }
-            Effect::Slay { realm, immune, .. } => {
-                names.resolve(realm);
-                names.resolve_all(immune);
-            }
-            Effect::GrantAbility(a) | Effect::RemoveAbility(a) => names.resolve(a),
-            Effect::ApplyEnchantment(s) => names.resolve(s),
-            _ => {}
-        }
-    }
-}
-
-/// Resolve the names in a list of rules, once, when the rules load.
-pub fn resolve_rules(rules: &mut [EffectRule], names: &Names) {
-    for rule in rules {
-        rule.condition.resolve(names);
-        rule.effect.resolve(names);
-    }
 }
 
 /// One thing a definition does: when, under what condition, to whom, and what.

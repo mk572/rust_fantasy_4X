@@ -135,7 +135,7 @@ pub fn spells_of(content: &Content, realm: RealmId, rarity: Rarity) -> Vec<Spell
         .rules
         .spells
         .iter()
-        .filter(|(_, d)| d.realm.id() == Some(realm) && d.rarity == rarity)
+        .filter(|(_, d)| d.realm == (realm) && d.rarity == rarity)
         .map(|(id, _)| id)
         .collect()
 }
@@ -150,7 +150,7 @@ pub fn default_spells(content: &Content, realm: RealmId, rarity: Rarity) -> Vec<
     let pool = spells_of(content, realm, rarity);
     def.default_spells
         .iter()
-        .filter_map(|s| s.id())
+        .copied()
         .filter(|s| pool.contains(s))
         .collect()
 }
@@ -292,7 +292,10 @@ mod tests {
                 assert!(spells.windows(2).all(|w| at(&w[0]) < at(&w[1])));
                 for s in spells {
                     let def = c.rules.spells.get(s);
-                    assert_eq!((def.realm.name(), def.rarity), (realm, rarity));
+                    assert_eq!(
+                        (def.realm, def.rarity),
+                        (crate::game::testutil::realm(realm), rarity)
+                    );
                 }
             }
         }
@@ -303,7 +306,7 @@ mod tests {
     fn the_default_spells_are_the_realms_list_of_that_rarity() {
         let c = shipped();
         let chaos = default_spells(&c, crate::game::testutil::realm("chaos"), Rarity::Common);
-        let bolt = c.rules.spells.id_of("fire_bolt").expect("fire_bolt");
+        let bolt = c.rules.spells.id_numbered(83).expect("fire_bolt");
         assert!(chaos.contains(&bolt));
         for s in &chaos {
             assert_eq!(c.rules.spells.get(*s).rarity, Rarity::Common);

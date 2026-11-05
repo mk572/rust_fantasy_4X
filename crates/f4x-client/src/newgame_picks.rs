@@ -57,10 +57,7 @@ pub(crate) fn prerequisite_text(
         .iter()
         .map(|need| match need {
             RetortNeed::Books(realm, n) => {
-                let name = realm.id().map_or_else(
-                    || realm.name().to_string(),
-                    |r| names.realm(r.num()).to_string(),
-                );
+                let name = names.realm(realm.num()).to_string();
                 texts.get(
                     "picks.in_realm",
                     &Args::new().count("n", *n).text("realm", name),
@@ -345,7 +342,7 @@ impl CreateState {
                 let sections = self.spell_sections(app, realm);
                 self.build
                     .spells
-                    .retain(|&s| app.game.content().rules.spells.get(s).realm.id() != Some(realm));
+                    .retain(|&s| app.game.content().rules.spells.get(s).realm != realm);
                 for (rarity, n) in sections {
                     let defaults =
                         f4x_core::wizard::magic::default_spells(app.game.content(), realm, rarity);

@@ -240,7 +240,7 @@ fn a_ship_with_no_free_shore_loses_its_passengers() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     for x in 0..30 {
         for y in 0..16 {
@@ -266,7 +266,7 @@ fn only_the_wizards_own_units_can_be_released() -> TestResult {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         g.spawn_unit(crate::player::PlayerId(1), at(1, 1), u)
     };

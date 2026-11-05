@@ -232,7 +232,7 @@ impl<'a> Wizard<'a> {
     /// Percent off the cost of `def`.
     pub fn cost_reduction(&self, def: &SpellDef) -> i32 {
         let mut cut = 0;
-        let realm = def.realm.id();
+        let realm = Some(def.realm);
         if realm == Some(RealmId::new(5) /* arcane */) {
             if self.has(Retort::new(14) /* runemaster */) {
                 cut += 25;
@@ -272,7 +272,7 @@ impl<'a> Wizard<'a> {
         if self.has(Retort::new(15) /* conjurer */) && is_summoning(def) {
             bonus += 25;
         }
-        let realm = def.realm.id();
+        let realm = Some(def.realm);
         if self.has_mastery(realm) {
             bonus += 15;
         }
@@ -358,7 +358,7 @@ impl<'a> Wizard<'a> {
             let mut of: Vec<(Rarity, SpellId)> = rules
                 .spells
                 .iter()
-                .filter(|(id, d)| d.realm.id() == Some(realm) && open(id))
+                .filter(|(id, d)| d.realm == (realm) && open(id))
                 .map(|(id, d)| (d.rarity, id))
                 .collect();
             if let Some(lowest) = of.iter().map(|&(r, _)| r).min() {
@@ -369,7 +369,7 @@ impl<'a> Wizard<'a> {
         let arcane: Vec<SpellId> = rules
             .spells
             .iter()
-            .filter(|(_, d)| d.realm.id() == Some(RealmId::new(5) /* arcane */))
+            .filter(|(_, d)| d.realm == (RealmId::new(5)/* arcane */))
             .map(|(id, _)| id)
             .collect();
         let step = |at: usize| match at {
@@ -451,11 +451,7 @@ pub fn casting_cost(
     if let Some(w) = wizard {
         cost -= cost * w.cost_reduction(def) / 100;
     }
-    if matches!(
-        def.realm.id().map(RealmId::num),
-        Some(3 /* life */ | 0 /* nature */)
-    ) && evil_omens
-    {
+    if matches!(Some(def.realm.num()), Some(3 /* life */ | 0 /* nature */)) && evil_omens {
         cost += cost / 2;
     }
     cost
@@ -595,16 +591,15 @@ impl<'a> WizardMut<'a> {
             .spells
             .iter()
             .filter(|&(id, d)| {
-                d.realm.id() == Some(RealmId::new(5) /* arcane */)
-                    && !library.arcane_closed.iter().any(|c| c.id() == Some(id))
+                d.realm == (RealmId::new(5)/* arcane */) && !library.arcane_closed.contains(&id)
             })
             .map(|(id, _)| id)
             .collect();
         available.extend(arcane);
         // What everyone, or a retort, starts with.
-        let given = library.always_known.iter().filter_map(|s| s.id()).chain(
+        let given = library.always_known.iter().copied().chain(
             library
-                .retort_spells
+                .retort_known
                 .iter()
                 .filter(|(r, _)| retorts.contains(r))
                 .flat_map(|(_, spells)| spells.iter().copied()),

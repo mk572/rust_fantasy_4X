@@ -83,8 +83,8 @@ fn game() -> Game {
     });
     g.set_feature_owner(magic_node, P0);
     g.spawn_volcano(P0, at(15, 6));
-    let elf = g.content.rules.races.id_of("high_elf");
-    let dwarf = g.content.rules.races.id_of("dwarven");
+    let elf = g.content.rules.races.id_numbered(7);
+    let dwarf = g.content.rules.races.id_numbered(4);
     g.apply(Command::FoundCity {
         owner: P0,
         pos: at(10, 6),
@@ -110,13 +110,13 @@ fn game() -> Game {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .expect("id_of succeeds");
     let walker = g
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .expect("id_of succeeds");
     for _ in 0..2 {
         g.spawn_unit(P0, at(10, 6), spear);
@@ -130,7 +130,7 @@ fn game() -> Game {
         .content
         .rules
         .buildings
-        .id_of("builders_hall")
+        .id_numbered(32)
         .expect("id_of succeeds");
     let home = g.economy().city_at(at(10, 6)).expect("city_at succeeds");
     // Every citizen of Home farms, so the real units' food upkeep is paid.
@@ -246,7 +246,7 @@ fn a_loaded_game_continues_exactly_like_the_original() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let victim = original.units().units_at(at(10, 6))[0];
     original.world.despawn(victim)?;
@@ -266,7 +266,7 @@ fn a_loaded_game_continues_exactly_like_the_original() -> TestResult {
                     .content
                     .rules
                     .buildings
-                    .id_of("builders_hall")
+                    .id_numbered(32)
                     .ok_or("builders_hall is not in the content")?;
                 g.apply(Command::SetProduction {
                     city: delve,
@@ -292,7 +292,7 @@ fn missing_content_is_reported_by_number_or_name() -> TestResult {
         .content
         .rules
         .units
-        .by_name("high_elf_spearmen")
+        .by_num(95)
         .ok_or("by_name is missing")?
         .num;
     let mut without = g.content.clone();
@@ -442,7 +442,7 @@ fn weapon_quality_survives_a_save() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(P0, at(11, 6), walker);
     let _ = g.world.insert_one(
@@ -471,7 +471,7 @@ fn an_undead_unit_stays_undead_through_a_save() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(P0, at(11, 6), walker);
     g.make_undead(unit);
@@ -497,7 +497,7 @@ fn creation_numbers_keep_counting_after_a_load() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let fresh = back.spawn_unit(P0, at(11, 6), walker);
     assert_eq!(back.serial_of(fresh), Serial(next));
@@ -520,7 +520,7 @@ fn a_unit_in_stasis_stays_there_through_a_save() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(P0, at(11, 6), walker);
     let _ = g

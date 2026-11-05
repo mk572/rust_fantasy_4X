@@ -248,7 +248,7 @@ fn death_wish_spares_the_casters_units_and_the_fantastic() {
 fn an_earthquake_spares_flyers_and_the_bodiless() -> TestResult {
     let mut g = world();
     let city = {
-        let race = g.content.rules.races.id_of("high_elf");
+        let race = g.content.rules.races.id_numbered(7);
         g.apply(Command::FoundCity {
             owner: P1,
             pos: at(5, 5),
@@ -279,7 +279,7 @@ fn an_earthquake_spares_flyers_and_the_bodiless() -> TestResult {
 #[test]
 fn an_earthquake_is_cast_at_an_enemy_city_and_reports_the_toll() -> TestResult {
     let mut g = world();
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     g.apply(Command::FoundCity {
         owner: P1,
         pos: at(5, 5),
@@ -451,7 +451,7 @@ fn lycanthropy_id(g: &Game) -> crate::rules::SpellId {
     g.content
         .rules
         .spells
-        .id_of("lycanthropy")
+        .id_numbered(173)
         .expect("id_of succeeds")
 }
 
@@ -501,7 +501,7 @@ fn magic_immunity_stops_a_storm_and_each_storm_has_its_own_element() {
     ] {
         defs.iter_mut()
             .filter(|d| d.id == id)
-            .for_each(|d| d.ability_ids.push(crate::game::testutil::ability(ability)));
+            .for_each(|d| d.abilities.push(crate::game::testutil::ability(ability)));
     }
     g.content.rules.units = Registry::new_sorted(defs);
     for (storm, safe, hurt) in [
@@ -584,7 +584,7 @@ fn a_storm_that_destroys_a_unit_says_so() {
 }
 
 fn city_for(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     g.apply(Command::FoundCity {
         owner,
         pos,
@@ -1303,7 +1303,7 @@ fn lycanthropy_keeps_damage_enchantments_weapons_and_moves() -> TestResult {
         .content
         .rules
         .abilities
-        .id_of("eldritch_weapon")
+        .id_numbered(19)
         .ok_or("eldritch_weapon is an ability")?;
     assert!(
         g.units().unit_has_ability(u, eldritch),

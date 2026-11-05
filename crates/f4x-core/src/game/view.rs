@@ -211,7 +211,7 @@ mod tests {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         g.spawn_unit(P1, at(11, 10), walker);
         g.spawn_unit(P2, at(25, 15), walker);

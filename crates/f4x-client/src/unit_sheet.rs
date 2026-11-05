@@ -556,11 +556,7 @@ impl App {
         };
         let owner = units.unit_owner(unit)?;
         let ranged = stat(Stat::Ranged);
-        let level_path = def
-            .level_path
-            .as_ref()
-            .and_then(|p| p.id())
-            .map(|p| content.rules.level_paths.get(p));
+        let level_path = def.level_path.map(|p| content.rules.level_paths.get(p));
         let level = level_path
             .filter(|_| def.kind == UnitKind::Normal && !game.units().unit_is_undead(unit))
             .and_then(|p| {
@@ -706,11 +702,7 @@ impl App {
         let content = self.game.content();
         let mut stats = def.stats.clone();
         let mut level_line = None;
-        let path = def
-            .level_path
-            .as_ref()
-            .and_then(|p| p.id())
-            .map(|p| content.rules.level_paths.get(p));
+        let path = def.level_path.map(|p| content.rules.level_paths.get(p));
         if let (Some(path), Some(level)) = (path, level) {
             // Every level up to this one adds its bonuses.
             for l in path.levels.iter().take(level + 1) {
@@ -731,7 +723,7 @@ impl App {
         }
         let stat = |s: Stat| stats.get(&s).copied().unwrap_or(0);
         let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
-        let abilities = &def.ability_ids;
+        let abilities = &def.abilities;
         let ability_name = |id: Ability| {
             self.names
                 .ability(content.rules.abilities.get(id).num)
@@ -802,7 +794,7 @@ impl App {
     /// The race prefix of a race-specific unit's name ("High Elf" in "High Elf Magicians"):
     /// units of a race show it, creatures and heroes do not.
     fn sheet_race(&self, def: &f4x_core::rules::UnitDef) -> Option<String> {
-        let race = def.race.as_ref()?.id()?;
+        let race = def.race?;
         Some(
             self.names
                 .race(self.game.content().rules.races.get(race).num)

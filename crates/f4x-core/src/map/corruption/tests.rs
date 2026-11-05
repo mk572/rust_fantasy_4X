@@ -23,8 +23,8 @@ fn world() -> Game {
     let mut units = c.rules.units.defs().to_vec();
     for u in units.iter_mut() {
         match u.id.as_str() {
-            "high_men_cavalry" => u.ability_ids.push(Ability::new(54)),
-            "high_men_spearmen" => u.ability_ids.push(Ability::new(102)),
+            "high_men_cavalry" => u.abilities.push(Ability::new(54)),
+            "high_men_spearmen" => u.abilities.push(Ability::new(102)),
             _ => {}
         }
     }
@@ -128,7 +128,7 @@ fn corrupted_squares_give_a_city_nothing() -> TestResult {
         owner: P0,
         pos: at(10, 6),
         name: "T".into(),
-        race: g.content.rules.races.id_of("high_elf"),
+        race: g.content.rules.races.id_numbered(7),
         population: 4,
     });
     let city = g.economy().city_at(at(10, 6)).ok_or("city_at is missing")?;
@@ -171,13 +171,13 @@ fn purifiers_clean_a_square_in_three_turns_and_moving_cancels() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let slow = g
         .content
         .rules
         .units
-        .id_of("high_men_spearmen")
+        .id_numbered(104)
         .ok_or("high_men_spearmen is not in the content")?;
     let cleric = g.spawn_unit(P0, at(5, 5), walker);
     let other = g.spawn_unit(P0, at(5, 5), slow);
@@ -214,7 +214,7 @@ fn a_unit_that_stays_put_corrupts_its_square_when_it_has_land_corruption() -> Te
         .content
         .rules
         .units
-        .id_of("high_men_spearmen")
+        .id_numbered(104)
         .ok_or("high_men_spearmen is not in the content")?;
     let still = g.spawn_unit(P0, at(5, 5), slow);
     let moved = g.spawn_unit(P0, at(9, 9), slow);
@@ -233,7 +233,7 @@ fn gaias_blessing_cleans_land_and_greens_deserts() -> TestResult {
         owner: P0,
         pos: at(10, 6),
         name: "T".into(),
-        race: g.content.rules.races.id_of("high_elf"),
+        race: g.content.rules.races.id_numbered(7),
         population: 3,
     });
     let city = g.economy().city_at(at(10, 6)).ok_or("city_at is missing")?;
@@ -241,7 +241,7 @@ fn gaias_blessing_cleans_land_and_greens_deserts() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("gaias_blessing")
+        .id_numbered(29)
         .ok_or("gaias_blessing is not in the content")?;
     g.add_city_enchantment(city, gaia, P0);
     let desert = g
@@ -298,7 +298,7 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let u = g.spawn_unit(P0, at(7, 8), walker);
     assert_eq!(g.economy().tower_owner(at(8, 8)), None);
@@ -315,7 +315,7 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() -> TestResult {
     g.move_stack(&[rival], at(8, 8))
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.economy().tower_owner(at(8, 8)), Some(PlayerId(1)));
-    let seal = g.content.rules.spells.id_of("planar_seal");
+    let seal = g.content.rules.spells.id_numbered(135);
     if let Some(s) = seal {
         g.attach_enchantment(Target::Player(P0), s, P0);
         let third = g.spawn_unit(P0, at(7, 8), walker);
@@ -364,7 +364,7 @@ fn consecration_cleans_every_corrupted_square_of_its_city_at_once() -> TestResul
         owner: P0,
         pos: at(10, 6),
         name: "T".into(),
-        race: g.content.rules.races.id_of("high_elf"),
+        race: g.content.rules.races.id_numbered(7),
         population: 3,
     });
     let city = g.economy().city_at(at(10, 6)).ok_or("city_at is missing")?;
@@ -383,7 +383,7 @@ fn consecration_cleans_every_corrupted_square_of_its_city_at_once() -> TestResul
         .content
         .rules
         .spells
-        .id_of("consecration")
+        .id_numbered(155)
         .ok_or("consecration is not in the content")?;
     g.add_city_enchantment(city, consecration, P0);
     g.process_gaias_blessing();

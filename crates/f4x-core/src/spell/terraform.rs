@@ -449,7 +449,7 @@ mod tests {
             .content
             .rules
             .spells
-            .id_of("raise_volcano")
+            .id_numbered(98)
             .ok_or("raise_volcano is not in the content")?;
         g.wizard_mut(P0)
             .ok_or("wizard_mut is missing")?
@@ -485,7 +485,7 @@ mod tests {
             owner: P0,
             pos: at(8, 8),
             name: "T".into(),
-            race: g.content.rules.races.id_of("high_elf"),
+            race: g.content.rules.races.id_numbered(7),
             population: 3,
         });
         let city = g.economy().city_at(at(8, 8)).ok_or("city_at is missing")?;

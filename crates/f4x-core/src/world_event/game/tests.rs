@@ -34,7 +34,7 @@ fn world() -> Game {
             .expect("init_wizard succeeds");
     }
     g.set_human(Some(P0));
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     for (p, pos) in [(P0, at(5, 5)), (P1, at(18, 9))] {
         g.place_fortress(p, pos, "Capital".into(), race, 4)
             .expect("place_fortress succeeds");
@@ -82,7 +82,7 @@ fn spear(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
         .content
         .rules
         .units
-        .id_of("high_elf_spearmen")
+        .id_numbered(95)
         .expect("id_of succeeds");
     g.spawn_unit(owner, pos, id)
 }
@@ -170,7 +170,7 @@ fn a_rebellion_spares_the_fortress_city_and_cities_with_a_hero() {
 fn a_marriage_gives_a_neutral_city_and_its_units_to_the_wizard() -> TestResult {
     let mut g = world();
     let owner = g.new_city_player();
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     g.apply(Command::FoundCity {
         owner,
         pos: at(14, 2),
@@ -213,7 +213,7 @@ fn disjunction_clears_every_wizards_overland_enchantments_and_needs_one_to_exist
         .content
         .rules
         .spells
-        .id_of("time_stop")
+        .id_numbered(80)
         .ok_or("time_stop is not in the content")?;
     g.add_global(P1, spell);
     assert!(g.try_event(K::Disjunction, P0, &mut rng).is_some());

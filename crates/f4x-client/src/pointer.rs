@@ -129,7 +129,7 @@ mod tests {
             .content()
             .rules
             .spells
-            .id_of("fireball")
+            .id_numbered(96)
             .ok_or("fireball is not in the content")?;
         app.targeting = Some(crate::spellbook::Targeting {
             spell,

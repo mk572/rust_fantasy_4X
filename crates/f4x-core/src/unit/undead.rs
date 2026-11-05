@@ -70,7 +70,7 @@ impl UnitView<'_> {
         if self.unit_is_mutated(unit) {
             return Some(crate::rules::RealmId::new(2) /* chaos */);
         }
-        self.unit_def(unit).and_then(|d| d.realm.as_ref()?.id())
+        self.unit_def(unit).and_then(|d| d.realm)
     }
 
     /// A creature of the Death realm: born so, made undead or black channeled.

@@ -120,7 +120,7 @@ mod tests {
             .content()
             .rules
             .spells
-            .id_of("banish")
+            .id_numbered(64)
             .ok_or("no banish")?;
         app.prefs.set(Pref::SpellAnimations, false);
         app.announce_wizard_spell(PlayerId(1), spell, HUMAN);

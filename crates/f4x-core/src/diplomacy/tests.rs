@@ -65,7 +65,7 @@ fn command(g: &mut Game, c: DiplomacyCommand) -> Vec<Event> {
 }
 
 fn city(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
-    let race = g.content.rules.races.id_of("high_elf");
+    let race = g.content.rules.races.id_numbered(7);
     g.apply(Command::FoundCity {
         owner,
         pos,
@@ -153,7 +153,7 @@ fn the_event_of_a_meeting_comes_back_with_the_command() -> TestResult {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?,
     });
     // The unit looks round where it appears.
@@ -178,7 +178,7 @@ fn the_turn_meets_those_whose_units_one_can_see() -> TestResult {
         .content
         .rules
         .units
-        .id_of("dwarf")
+        .id_numbered(0)
         .ok_or("dwarf is not in the content")?;
     g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold = 1000;
     g.spawn_unit(P1, at(12, 10), walker);
@@ -206,7 +206,7 @@ fn nature_awareness_meets_everyone() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("nature_awareness")
+        .id_numbered(34)
         .ok_or("nature_awareness is not in the content")?;
     // The spell's upkeep is paid from the reserve.
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
@@ -684,13 +684,13 @@ fn peace_takes_off_the_spells_each_cast_on_the_other_s_cities_but_not_the_owners
         .content
         .rules
         .spells
-        .id_of("famine")
+        .id_numbered(189)
         .ok_or("famine is not in the content")?;
     let ward = g
         .content
         .rules
         .spells
-        .id_of("wall_of_fire")
+        .id_numbered(87)
         .ok_or("wall_of_fire is not in the content")?;
     g.add_city_enchantment(mine, curse, P1);
     g.add_city_enchantment(mine, ward, P0);
@@ -907,7 +907,7 @@ fn a_spell_given_is_known_and_wins_trust() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("famine")
+        .id_numbered(189)
         .ok_or("famine is not in the content")?;
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
@@ -958,13 +958,13 @@ fn spells_are_exchanged_one_for_one() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("famine")
+        .id_numbered(189)
         .ok_or("famine is not in the content")?;
     let gaia = g
         .content
         .rules
         .spells
-        .id_of("gaias_blessing")
+        .id_numbered(29)
         .ok_or("gaias_blessing is not in the content")?;
     for s in [famine, gaia] {
         for p in [P0, P1] {
@@ -1057,7 +1057,7 @@ fn a_spell_swap_is_not_a_test_of_patience_and_wears_none_when_answered_no() -> T
         .content
         .rules
         .spells
-        .id_of("spell_of_mastery")
+        .id_numbered(213)
         .ok_or("spell_of_mastery is not in the content")?;
     g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
         from: P0,
@@ -1197,7 +1197,7 @@ fn a_curse_on_a_city_is_noticed_by_its_owner() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("famine")
+        .id_numbered(189)
         .ok_or("famine is not in the content")?;
     g.cast_relations(P0, famine, Some(P1));
     assert_eq!(g.relation(P0, P1), -5);
@@ -1221,7 +1221,7 @@ fn casting_the_spell_of_mastery_turns_the_others_against_the_caster() -> TestRes
         .content
         .rules
         .spells
-        .id_of("spell_of_mastery")
+        .id_numbered(213)
         .ok_or("spell_of_mastery is not in the content")?;
     g.begin_cast_relations(P0, mastery);
     // The rules only sour the relation; a war on the caster is the AI's decision
@@ -1240,7 +1240,7 @@ fn a_spell_of_mastery_being_cast_sours_relations_a_little_each_turn() -> TestRes
         .content
         .rules
         .spells
-        .id_of("spell_of_mastery")
+        .id_numbered(213)
         .ok_or("spell_of_mastery is not in the content")?;
     g.begin_casting(P1, mastery, 100);
     set_rel(&mut g, P1, P2, 0);
@@ -1280,7 +1280,7 @@ fn a_battle_against_a_partner_breaks_the_pact() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(P1, at(5, 5), walker);
     let d = g.spawn_unit(P2, at(6, 5), walker);
@@ -1314,7 +1314,7 @@ fn the_losses_of_a_defending_wizard_cost_the_attacker_its_goodwill() -> TestResu
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(P2, at(5, 5), walker);
     let d: Vec<_> = (0..3).map(|_| g.spawn_unit(P1, at(6, 5), walker)).collect();
@@ -1350,7 +1350,7 @@ fn a_battle_against_a_stranger_makes_them_known_to_each_other() -> TestResult {
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let a = g.spawn_unit(P1, at(5, 5), walker);
     let d = g.spawn_unit(P2, at(6, 5), walker);
@@ -1460,13 +1460,13 @@ fn diplomacy_survives_a_save() -> TestResult {
         .content
         .rules
         .spells
-        .id_of("famine")
+        .id_numbered(189)
         .ok_or("famine is not in the content")?;
     let gaia = g
         .content
         .rules
         .spells
-        .id_of("gaias_blessing")
+        .id_numbered(29)
         .ok_or("gaias_blessing is not in the content")?;
     g.diplomacy.proposals.push(Proposal {
         from: P1,
@@ -1654,7 +1654,7 @@ fn units_next_to_a_partners_city_are_warned_off_and_then_the_treaty_ends() -> Te
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     g.spawn_unit(P2, at(11, 11), walker);
     let first = diplomacy_turn(&mut g);
@@ -1685,7 +1685,7 @@ fn leaving_the_city_resets_the_warnings_and_wars_and_distance_are_ignored() -> T
         .content
         .rules
         .units
-        .id_of("high_men_cavalry")
+        .id_numbered(107)
         .ok_or("high_men_cavalry is not in the content")?;
     let unit = g.spawn_unit(P2, at(11, 11), walker);
     diplomacy_turn(&mut g);

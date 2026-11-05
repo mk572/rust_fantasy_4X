@@ -344,7 +344,7 @@ impl App {
             .filter(|(_, r)| {
                 spells
                     .iter()
-                    .any(|&s| rules.spells.get(s).realm.id() == Some(RealmId::new(r.num)))
+                    .any(|&s| rules.spells.get(s).realm == RealmId::new(r.num))
             })
             .map(|(i, _)| i)
             .collect()
@@ -678,7 +678,7 @@ impl DiploUi {
                 let mut rows: Vec<Row> = app
                     .spells_to_give(with, HUMAN)
                     .into_iter()
-                    .filter(|&s| rules.spells.get(s).realm.id() == Some(id))
+                    .filter(|&s| rules.spells.get(s).realm == id)
                     .take(5)
                     .map(|s| {
                         row(
@@ -1079,7 +1079,7 @@ mod tests {
         for (i, realm) in rules.realms.defs().iter().enumerate() {
             let has = spells
                 .iter()
-                .any(|&s| rules.spells.get(s).realm.name() == realm.id);
+                .any(|&s| rules.spells.get(s).realm.num() == realm.num);
             assert_eq!(realms.contains(&i), has, "{}", realm.id);
         }
     }

@@ -391,13 +391,13 @@ pub(crate) mod tests {
         g
     }
 
-    /// The hero type of this unit, by its alias.
-    pub(crate) fn kind_of(g: &Game, unit: &str) -> usize {
+    /// The hero type of the hero unit with this number.
+    pub(crate) fn kind_of(g: &Game, unit: u16) -> usize {
         g.content
             .rules
             .hero_templates
             .iter()
-            .position(|t| t.unit == unit)
+            .position(|t| t.unit.num() == unit)
             .unwrap_or_else(|| panic!("no hero {unit}"))
     }
 
@@ -449,7 +449,7 @@ pub(crate) mod tests {
     fn a_hired_hero_carries_its_record() -> TestResult {
         let mut g = world();
         // The Dervish is noble; the Beastmaster knows Resist Elements.
-        let dervish = kind_of(&g, "dervish");
+        let dervish = kind_of(&g, 3 /* dervish */);
         let h = g
             .spawn_hero(P0, at(1, 1), dervish)
             .map_err(|e| format!("{e:?}"))?;
@@ -463,7 +463,7 @@ pub(crate) mod tests {
         assert!(g.units().unit_has_ability(h, Ability::new(96)));
         assert_eq!(g.units().unit_gold_upkeep(h), 0);
         assert_eq!(g.budget(P0).noble_gold, 10);
-        let beast = kind_of(&g, "beastmaster");
+        let beast = kind_of(&g, 4 /* beastmaster */);
         let plain = g
             .spawn_hero(P0, at(1, 1), beast)
             .map_err(|e| format!("{e:?}"))?;
@@ -496,7 +496,7 @@ pub(crate) mod tests {
         g.wiz_mut(0)
             .put(Some(crate::wizard::fortress::Fortress(at(3, 3))));
         // The Sage has casting skill 2: at level 0, (2 + 1) * 1 * 5 / 2.
-        let sage = kind_of(&g, "sage");
+        let sage = kind_of(&g, 2 /* sage */);
         let h = g
             .spawn_hero(P0, at(3, 3), sage)
             .map_err(|e| format!("{e:?}"))?;
@@ -527,7 +527,7 @@ pub(crate) mod tests {
         // Away from the fortress the hero adds nothing; another wizard's hero never does.
         assert_eq!(g.hero_casting_skill(P0), (before + 7) / 2);
         // The Beastmaster has casting skill 1: (1 + 1) * 1 * 5 / 2.
-        let beast = kind_of(&g, "beastmaster");
+        let beast = kind_of(&g, 4 /* beastmaster */);
         let away = g
             .spawn_hero(P0, at(5, 5), beast)
             .map_err(|e| format!("{e:?}"))?;
@@ -546,7 +546,7 @@ pub(crate) mod tests {
         let mut g = world();
         g.wiz_mut(0)
             .put(Some(crate::wizard::fortress::Fortress(at(3, 3))));
-        let kind = kind_of(&g, "sage");
+        let kind = kind_of(&g, 2 /* sage */);
         let sage = g
             .spawn_hero(P0, at(3, 3), kind)
             .map_err(|e| format!("{e:?}"))?;
@@ -566,7 +566,7 @@ pub(crate) mod tests {
             .content
             .rules
             .spells
-            .id_of("healing")
+            .id_numbered(125)
             .ok_or("healing is not in the content")?;
         let hero_skill = g.hero_casting_skill(P0);
         assert!(hero_skill > 0);
@@ -576,7 +576,7 @@ pub(crate) mod tests {
             .content
             .rules
             .units
-            .id_of("high_men_spearmen")
+            .id_numbered(104)
             .ok_or("high_men_spearmen is not in the content")?;
         g.spawn_unit(P0, at(3, 3), soldier);
         g.scenario_casting(P0, spell, 1000);
@@ -777,7 +777,7 @@ pub(crate) mod tests {
     #[test]
     fn fame_and_books_decide_who_is_offered() -> TestResult {
         let mut g = world();
-        let necromancer = kind_of(&g, "necromancer");
+        let necromancer = kind_of(&g, 32 /* necromancer */);
         // The fame needed grows with the hire cost: at fame 0 no hero costing 100 or more
         // qualifies.
         for _ in 0..50 {
@@ -819,12 +819,12 @@ pub(crate) mod tests {
     #[test]
     fn the_heroes_survive_a_save() -> TestResult {
         let mut g = world();
-        let dervish = kind_of(&g, "dervish");
+        let dervish = kind_of(&g, 3 /* dervish */);
         let h = g
             .spawn_hero(P0, at(1, 1), dervish)
             .map_err(|e| format!("{e:?}"))?;
         let _ = g.world.insert_one(h, Experience(33));
-        let barbarian = kind_of(&g, "barbarian");
+        let barbarian = kind_of(&g, 1 /* barbarian */);
         let dead = g
             .spawn_hero(P0, at(1, 1), barbarian)
             .map_err(|e| format!("{e:?}"))?;
@@ -969,7 +969,7 @@ pub(crate) mod tests {
             .content
             .rules
             .units
-            .id_of("high_men_cavalry")
+            .id_numbered(107)
             .ok_or("high_men_cavalry is not in the content")?;
         let attackers: Vec<_> = (0..8).map(|_| g.spawn_unit(P1, at(2, 1), walker)).collect();
         g.auto_resolve(&attackers, &[hero]);
