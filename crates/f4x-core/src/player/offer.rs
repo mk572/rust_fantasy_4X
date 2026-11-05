@@ -518,14 +518,14 @@ impl Game {
                 if let Some(t) = self.treasury_mut(player) {
                     t.gold -= price;
                 }
-                let name = item.display_name(&self.content);
+                let shown = item.clone();
                 let placed: Placed = match self.offered_item(player, &item) {
                     Some(entity) => self.place_item(player, entity),
                     None => self.give_item(player, item),
                 };
                 vec![Event::ItemMade {
                     player,
-                    name,
+                    item: shown,
                     placed,
                 }]
             }
@@ -576,7 +576,7 @@ impl Game {
         let item = self.remove_item_at(player, spot)?;
         let price = item.anvil_mana();
         self.treasury_mut(player)?.gold += price;
-        let name = item.display_name(&self.content);
+        let shown = item.clone();
         let plane_of = |g: &Game, p: PlayerId| g.wizard(p)?.summon_point().map(|at| at.plane);
         let mine = plane_of(self, player);
         let ids: Vec<PlayerId> = crate::player::ids(&self.world);
@@ -591,7 +591,7 @@ impl Game {
         let queue: Vec<PlayerId> = same.into_iter().chain(other).collect();
         let mut events = vec![Event::ItemSold {
             player,
-            name,
+            item: shown,
             gold: price,
         }];
         events.extend(self.offer_resale(item, price, player, queue));

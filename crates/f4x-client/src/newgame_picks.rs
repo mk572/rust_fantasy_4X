@@ -41,7 +41,11 @@ fn realm_colour(realm: RealmId) -> u8 {
 
 /// What a retort needs, in the words of the original's refusal ("To select X you need: ..."):
 /// each need of its row in `retorts.ron`, joined by commas.
-pub(crate) fn prerequisite_text(content: &Content, retort: Retort) -> String {
+pub(crate) fn prerequisite_text(
+    names: &crate::names::Names,
+    content: &Content,
+    retort: Retort,
+) -> String {
     use f4x_core::rules::RetortNeed;
     let texts = &content.texts;
     let picks = |n: u8| texts.get("picks.n_picks", &Args::new().count("n", n));
@@ -53,13 +57,10 @@ pub(crate) fn prerequisite_text(content: &Content, retort: Retort) -> String {
         .iter()
         .map(|need| match need {
             RetortNeed::Books(realm, n) => {
-                let name = realm
-                    .id()
-                    .and_then(|r| content.rules.realms.id_numbered(r.num()))
-                    .map_or_else(
-                        || realm.name().to_string(),
-                        |r| content.rules.realms.get(r).name.clone(),
-                    );
+                let name = realm.id().map_or_else(
+                    || realm.name().to_string(),
+                    |r| names.realm(r.num()).to_string(),
+                );
                 texts.get(
                     "picks.in_realm",
                     &Args::new().count("n", *n).text("realm", name),
@@ -111,7 +112,7 @@ impl App {
             return;
         };
         let def = self.game.content().rules.spells.get(id);
-        let name = def.name.clone();
+        let name = self.names.spell(def.num).to_string();
         let text = self
             .help
             .topic_of(def.help)
@@ -174,9 +175,10 @@ impl CreateState {
             .collect();
         for r in lost {
             self.build.retorts.remove(&r);
-            let args = Args::new()
-                .text("retort", app.retort_name(r))
-                .text("needs", prerequisite_text(app.game.content(), r));
+            let args = Args::new().text("retort", app.retort_name(r)).text(
+                "needs",
+                prerequisite_text(&app.names, app.game.content(), r),
+            );
             self.warn = Some(app.text_with("picks.to_select", &args));
         }
     }
@@ -193,9 +195,10 @@ impl CreateState {
         } else if self.build.retorts.len() >= MAX_RETORTS {
             Some(app.text("picks.too_many_retorts"))
         } else if !retort_available(&app.game.content().rules, retort, &self.build.books) {
-            let args = Args::new()
-                .text("retort", app.retort_name(retort))
-                .text("needs", prerequisite_text(app.game.content(), retort));
+            let args = Args::new().text("retort", app.retort_name(retort)).text(
+                "needs",
+                prerequisite_text(&app.names, app.game.content(), retort),
+            );
             Some(app.text_with("picks.to_select", &args))
         } else if cost > left {
             Some(app.text_with("picks.not_enough", &Args::new().count("cost", cost)))
@@ -376,7 +379,9 @@ impl CreateState {
             .realms
             .id_numbered(realm.num())
             .map_or_else(String::new, |r| {
-                app.game.content().rules.realms.get(r).name.clone()
+                app.names
+                    .realm(app.game.content().rules.realms.get(r).num)
+                    .to_string()
             });
         let ink = realm_colour(realm);
         let title = app.text_with(
@@ -438,7 +443,10 @@ impl CreateState {
                 let (col, row) = (k / 5, k % 5);
                 let x = 175.0 + 74.0 * col as f32;
                 let y = top + 7.0 * row as f32 + 1.0;
-                let name = app.game.content().rules.spells.get(*id).name.clone();
+                let name = app
+                    .names
+                    .spell(app.game.content().rules.spells.get(*id).num)
+                    .to_string();
                 let selected = self.build.spells.contains(id);
                 // `m_select_spells_*_colors`: 178 chosen, 50 not, the shadow 16 one pixel to the right.
                 app.draw_styled(view, &ng_ink(0, 16), &name, x + 1.0, y);
@@ -508,17 +516,32 @@ mod tests {
     fn a_retort_that_is_refused_names_what_it_needs() {
         let content = crate::test_app::shipped::content();
         assert_eq!(
-            prerequisite_text(content, Retort::new(2) /* chaos_mastery */),
+            prerequisite_text(
+                crate::test_app::shipped::names(),
+                content,
+                Retort::new(2) /* chaos_mastery */
+            ),
             "4 picks in Chaos Magic"
         );
         assert_eq!(
-            prerequisite_text(content, Retort::new(7) /* sage_master */),
+            prerequisite_text(
+                crate::test_app::shipped::names(),
+                content,
+                Retort::new(7) /* sage_master */
+            ),
             "1 pick in any 2 Realms of Magic"
         );
-        assert!(
-            prerequisite_text(content, Retort::new(12) /* node_mastery */)
-                .contains("1 pick in Sorcery Magic")
-        );
-        assert!(prerequisite_text(content, Retort::new(0) /* alchemy */).is_empty());
+        assert!(prerequisite_text(
+            crate::test_app::shipped::names(),
+            content,
+            Retort::new(12) /* node_mastery */
+        )
+        .contains("1 pick in Sorcery Magic"));
+        assert!(prerequisite_text(
+            crate::test_app::shipped::names(),
+            content,
+            Retort::new(0) /* alchemy */
+        )
+        .is_empty());
     }
 }

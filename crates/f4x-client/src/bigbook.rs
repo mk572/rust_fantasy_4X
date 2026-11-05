@@ -179,7 +179,8 @@ impl App {
         } else {
             faint
         });
-        self.draw_styled(view, &Style::nearest(4, color), &def.name, x, y);
+        let shown = self.names.spell(def.num).to_string();
+        self.draw_styled(view, &Style::nearest(4, color), &shown, x, y);
         let line = if research_page {
             let bonus = self.game.wizard(HUMAN).map_or(0, |m| {
                 m.research_bonus(self.game.content().rules.spells.get(spell))

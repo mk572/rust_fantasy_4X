@@ -333,7 +333,7 @@ impl<'a> UnitView<'a> {
         };
         let mut mods = Vec::new();
         for i in levels {
-            if let Some((_, effects)) = path.level(i) {
+            if let Some(effects) = path.level(i) {
                 // A level's attack plus only counts for a unit that has the attack
                 // (`Battle_Unit_Level_Stats`).
                 mods.extend(

@@ -131,7 +131,7 @@ fn every_key_that_is_written_is_used() -> TestResult {
 /// Files of the client whose literals are not messages: the command line, the picture files, the
 /// developer console, the key-name table, the check of the asset tables (start-up errors about
 /// content files, for the developer).
-const EXEMPT_FILES: [&str; 7] = [
+const EXEMPT_FILES: [&str; 9] = [
     "main.rs",
     "art.rs",
     "console_screen.rs",
@@ -139,6 +139,8 @@ const EXEMPT_FILES: [&str; 7] = [
     "asset_check.rs",
     "icon_art.rs",
     "client_settings.rs",
+    "names.rs",
+    "event_message.rs",
 ];
 
 /// Lines that look like text but are not: number formats, the space between wrapped words, a

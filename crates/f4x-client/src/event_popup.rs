@@ -8,12 +8,13 @@
 //! spells ask for are made by `dispelled_notice`, `conquest_notice` and `fizzle_notice`; a click
 //! or key closing a box is `Input::dismisses`, and the drawing is left to the screenshots.
 
+use crate::event_message::compose;
 use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::DispelSite;
 use f4x_core::rules::RealmId;
 use f4x_core::text::Args;
-use f4x_core::world_event::{compose, EventKind};
+use f4x_core::world_event::EventKind;
 use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 
@@ -156,7 +157,13 @@ impl App {
         EventBox(notice): EventBox,
         input: &Input,
     ) -> Option<EventBox> {
-        let text = compose(&self.event_texts, &self.game.content().texts, &notice)?;
+        let gift = self.gift_name(&notice);
+        let text = compose(
+            &self.event_texts,
+            &self.game.content().texts,
+            &notice,
+            &gift,
+        )?;
         let lay = Layout::new();
         let number = notice.kind.number() as usize - 1;
         let closed = self.notify2_box(
@@ -290,7 +297,11 @@ impl App {
         let text = match *count {
             0..=3 => self.text_with(
                 "spell.dispelled",
-                &Args::new().text("spell", &self.game.content().rules.spells.get(spell).name),
+                &Args::new().text(
+                    "spell",
+                    self.names
+                        .spell(self.game.content().rules.spells.get(spell).num),
+                ),
             ),
             4 => self.text(match site {
                 DispelSite::Unit | DispelSite::BattleUnit => "spell.dispelled_on_unit_more",
@@ -330,7 +341,11 @@ impl App {
     }
 
     fn conquest_notice(&self, spells: &[f4x_core::rules::SpellId]) -> SpellNotice {
-        let name = |app: &Self, spell| app.game.content().rules.spells.get(spell).name.clone();
+        let name = |app: &Self, spell| {
+            self.names
+                .spell(app.game.content().rules.spells.get(spell).num)
+                .to_string()
+        };
         let text = match spells {
             [] => self.text("spell.conquest_none"),
             [one] => {
@@ -380,7 +395,10 @@ impl App {
         if caster != HUMAN && counter != HUMAN {
             return None;
         }
-        let name = self.game.content().rules.spells.get(spell).name.clone();
+        let name = self
+            .names
+            .spell(self.game.content().rules.spells.get(spell).num)
+            .to_string();
         let text = self.fizzle_text(caster, counter, &name, counter_spell);
         Some(SpellNotice {
             text,

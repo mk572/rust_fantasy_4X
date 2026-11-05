@@ -224,7 +224,7 @@ impl Game {
         let def = &self.content.rules.wizards.defs()[place];
         let retorts = def.retorts.iter().map(|r| r.id()).collect::<Option<_>>()?;
         Some(WizardBuild {
-            name: def.name.clone(),
+            name: String::new(),
             gender: def.gender,
             books: def
                 .books

@@ -198,7 +198,7 @@ impl App {
             results.killed = killed;
             results.buildings = lost
                 .iter()
-                .map(|&b| rules.buildings.get(b).name.clone())
+                .map(|&b| self.names.building(rules.buildings.get(b).num).to_string())
                 .collect();
             results.city_name = self.city_name(city);
             let taker = self.game.economy().city_owner(city);

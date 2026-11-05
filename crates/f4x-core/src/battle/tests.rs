@@ -16,7 +16,7 @@ const A: PlayerId = PlayerId(0);
 const D: PlayerId = PlayerId(1);
 
 fn spearman(side: Side, cell: Pos) -> BattleUnit {
-    BattleUnit::simple(side, "spearman", 3, 2, 3, 2).at(cell)
+    BattleUnit::simple(side, 3, 2, 3, 2).at(cell)
 }
 
 fn duel(att: BattleUnit, def: BattleUnit, seed: u64) -> Battle {
@@ -149,9 +149,9 @@ fn a_melee_attack_hurts_both_sides_and_uses_up_the_turn() -> TestResult {
 
 #[test]
 fn killing_the_last_enemy_wins_and_ends_the_battle() -> TestResult {
-    let mut weak = BattleUnit::simple(Side::Defender, "peasant", 1, 1, 0, 0).at((10, 10));
+    let mut weak = BattleUnit::simple(Side::Defender, 1, 1, 0, 0).at((10, 10));
     weak.melee = 0;
-    let strong = BattleUnit::simple(Side::Attacker, "giant", 2, 20, 10, 5).at((9, 10));
+    let strong = BattleUnit::simple(Side::Attacker, 2, 20, 10, 5).at((9, 10));
     let mut b = duel(strong, weak, 5);
     let mut ended = None;
     for _ in 0..30 {
@@ -252,13 +252,13 @@ fn fleeing_hands_the_battle_to_the_other_side() -> TestResult {
 #[test]
 fn archers_shoot_with_ammunition_and_range_costs_accuracy() -> TestResult {
     let archer = |cell| {
-        let mut u = BattleUnit::simple(Side::Attacker, "archer", 4, 1, 1, 0).at(cell);
+        let mut u = BattleUnit::simple(Side::Attacker, 4, 1, 1, 0).at(cell);
         u.ranged = 4;
         u.ranged_kind = RangedKind::Missile;
         u.ammo = 2;
         u
     };
-    let target = |cell| BattleUnit::simple(Side::Defender, "target", 40, 1, 0, 0).at(cell);
+    let target = |cell| BattleUnit::simple(Side::Defender, 40, 1, 0, 0).at(cell);
     // Average damage at point blank against far away over many seeds.
     let mut near_total = 0;
     let mut far_total = 0;
@@ -320,8 +320,8 @@ fn archers_shoot_with_ammunition_and_range_costs_accuracy() -> TestResult {
 #[test]
 fn a_walkers_melee_against_a_flier_follows_the_setting_and_the_flier_hits_back() -> TestResult {
     use crate::game::setting::MeleeVsFliers;
-    let walker = BattleUnit::simple(Side::Attacker, "high_men_cavalry", 4, 2, 6, 1).at((9, 10));
-    let mut flier = BattleUnit::simple(Side::Defender, "bat", 4, 2, 6, 1).at((10, 10));
+    let walker = BattleUnit::simple(Side::Attacker, 4, 2, 6, 1).at((9, 10));
+    let mut flier = BattleUnit::simple(Side::Defender, 4, 2, 6, 1).at((10, 10));
     flier.flies = true;
     let mut b = duel(walker, flier, 8);
     let full = b.fighter(0, false).melee.strength;
@@ -463,8 +463,8 @@ fn scripted_battles_always_finish() {
             spearman(Side::Attacker, (3, 10)),
         ];
         let d = vec![
-            BattleUnit::simple(Side::Defender, "swordsman", 3, 2, 4, 3).at((17, 10)),
-            BattleUnit::simple(Side::Defender, "swordsman", 3, 2, 4, 3).at((17, 11)),
+            BattleUnit::simple(Side::Defender, 3, 2, 4, 3).at((17, 10)),
+            BattleUnit::simple(Side::Defender, 3, 2, 4, 3).at((17, 11)),
         ];
         let b = play_out(seed, a, d);
         assert!(b.winner.is_some(), "seed {seed}");
@@ -476,8 +476,8 @@ fn scripted_battles_always_finish() {
 fn the_stronger_side_usually_wins() {
     let mut strong_wins = 0;
     for seed in 0..60 {
-        let a = vec![BattleUnit::simple(Side::Attacker, "strong", 6, 3, 5, 3).at((3, 10))];
-        let d = vec![BattleUnit::simple(Side::Defender, "weak", 3, 2, 2, 1).at((17, 10))];
+        let a = vec![BattleUnit::simple(Side::Attacker, 6, 3, 5, 3).at((3, 10))];
+        let d = vec![BattleUnit::simple(Side::Defender, 3, 2, 2, 1).at((17, 10))];
         if play_out(seed, a, d).winner == Some(Side::Attacker) {
             strong_wins += 1;
         }
@@ -1038,7 +1038,7 @@ fn a_teleporter_cannot_go_into_rock_and_a_walker_cannot_teleport() {
 fn units_deploy_melee_first_and_shooters_behind_them() {
     use super::game::deployment_order;
     let mut units: Vec<BattleUnit> = (0..8)
-        .map(|_| BattleUnit::simple(Side::Attacker, "u", 1, 10, 2, 0))
+        .map(|_| BattleUnit::simple(Side::Attacker, 1, 10, 2, 0))
         .collect();
     for (i, u) in units.iter_mut().enumerate() {
         if i % 2 == 0 {
@@ -1049,7 +1049,7 @@ fn units_deploy_melee_first_and_shooters_behind_them() {
     assert_eq!(deployment_order(&units), vec![1, 3, 5, 7, 0, 2, 4, 6]);
     // Six shooters and one melee unit: the two strongest in melee move up front.
     let mut units: Vec<BattleUnit> = (0..7)
-        .map(|_| BattleUnit::simple(Side::Attacker, "u", 1, 10, 2, 0))
+        .map(|_| BattleUnit::simple(Side::Attacker, 1, 10, 2, 0))
         .collect();
     for (i, u) in units.iter_mut().enumerate().skip(1) {
         u.ranged = 3;
@@ -1171,14 +1171,14 @@ fn with_abilities(mut u: BattleUnit, names: &[&str]) -> BattleUnit {
 
 fn dummy(abilities: &[&str]) -> BattleUnit {
     with_abilities(
-        BattleUnit::simple(Side::Defender, "dummy", 60, 20, 0, 2).at((4, 10)),
+        BattleUnit::simple(Side::Defender, 60, 20, 0, 2).at((4, 10)),
         abilities,
     )
 }
 
 #[test]
 fn weapon_immunity_blunts_normal_blows_but_not_magical_ones() {
-    let swordsman = || BattleUnit::simple(Side::Attacker, "swordsman", 6, 2, 4, 2).at((3, 10));
+    let swordsman = || BattleUnit::simple(Side::Attacker, 6, 2, 4, 2).at((3, 10));
     let magical = || BattleUnit {
         magical_weapon: true,
         ..swordsman()
@@ -1194,7 +1194,7 @@ fn weapon_immunity_blunts_normal_blows_but_not_magical_ones() {
 #[test]
 fn missile_immunity_stops_arrows_completely() {
     let archer = || {
-        let mut u = BattleUnit::simple(Side::Attacker, "archer", 6, 1, 1, 1).at((3, 10));
+        let mut u = BattleUnit::simple(Side::Attacker, 6, 1, 1, 1).at((3, 10));
         u.ranged = 5;
         u.ammo = 4;
         u.ranged_kind = RangedKind::Missile;
@@ -1209,7 +1209,7 @@ fn missile_immunity_stops_arrows_completely() {
 #[test]
 fn magic_immunity_stops_a_bolt_that_a_fire_immunity_does_not() {
     let mage = || {
-        let mut u = BattleUnit::simple(Side::Attacker, "wind_mage", 3, 1, 1, 1).at((3, 10));
+        let mut u = BattleUnit::simple(Side::Attacker, 3, 1, 1, 1).at((3, 10));
         u.ranged = 6;
         u.ammo = 4;
         u.ranged_kind = RangedKind::Magic;
@@ -1227,7 +1227,7 @@ fn magic_immunity_stops_a_bolt_that_a_fire_immunity_does_not() {
 #[test]
 fn fire_breath_is_stopped_by_fire_immunity_and_magic_immunity() {
     let dragon = || {
-        let mut u = BattleUnit::simple(Side::Attacker, "dragon", 1, 20, 1, 1).at((3, 10));
+        let mut u = BattleUnit::simple(Side::Attacker, 1, 20, 1, 1).at((3, 10));
         u.ranged = 9;
         u.ranged_kind = RangedKind::Short;
         with_abilities(u, &["fire_breath"])
@@ -1246,7 +1246,7 @@ fn fire_breath_is_stopped_by_fire_immunity_and_magic_immunity() {
 fn an_illusion_ignores_armor_unless_the_defender_sees_through_it() {
     let thief = || {
         with_abilities(
-            BattleUnit::simple(Side::Attacker, "nightblade", 4, 2, 4, 1).at((3, 10)),
+            BattleUnit::simple(Side::Attacker, 4, 2, 4, 1).at((3, 10)),
             &["illusion_attack"],
         )
     };
@@ -1263,7 +1263,7 @@ fn an_illusion_ignores_armor_unless_the_defender_sees_through_it() {
 #[test]
 fn a_defender_with_a_gaze_stones_the_attackers_before_they_strike() -> TestResult {
     let basilisk = || {
-        let mut u = BattleUnit::simple(Side::Defender, "basilisk", 1, 30, 0, 3).at((4, 10));
+        let mut u = BattleUnit::simple(Side::Defender, 1, 30, 0, 3).at((4, 10));
         u.ranged = 1;
         u.ranged_kind = RangedKind::Short;
         u.special_level = 3;
@@ -1273,7 +1273,7 @@ fn a_defender_with_a_gaze_stones_the_attackers_before_they_strike() -> TestResul
     let mut gazeless_lost = 0;
     for seed in 0..100 {
         let squad = || {
-            let mut u = BattleUnit::simple(Side::Attacker, "squad", 10, 1, 1, 0).at((3, 10));
+            let mut u = BattleUnit::simple(Side::Attacker, 10, 1, 1, 0).at((3, 10));
             u.resistance = 3;
             u
         };
@@ -1297,7 +1297,7 @@ fn a_defender_with_a_gaze_stones_the_attackers_before_they_strike() -> TestResul
 #[test]
 fn a_life_stealing_shot_heals_the_shooter() -> TestResult {
     let lord = || {
-        let mut u = BattleUnit::simple(Side::Attacker, "lord", 2, 10, 1, 1).at((3, 10));
+        let mut u = BattleUnit::simple(Side::Attacker, 2, 10, 1, 1).at((3, 10));
         u.ranged = 4;
         u.ammo = 4;
         u.ranged_kind = RangedKind::Missile;
@@ -1319,7 +1319,7 @@ fn a_life_stealing_shot_heals_the_shooter() -> TestResult {
 #[test]
 fn a_power_drain_shot_takes_two_to_twenty_mana_from_a_caster_that_fails_its_check() -> TestResult {
     let drainer = || {
-        let mut u = BattleUnit::simple(Side::Attacker, "hero", 2, 10, 1, 1).at((3, 10));
+        let mut u = BattleUnit::simple(Side::Attacker, 2, 10, 1, 1).at((3, 10));
         u.ranged = 6;
         u.ammo = 6;
         u.ranged_kind = RangedKind::Missile;
@@ -1347,7 +1347,7 @@ fn a_power_drain_shot_takes_two_to_twenty_mana_from_a_caster_that_fails_its_chec
 
 fn crusher(side: Side, cell: Pos, ranged: bool) -> BattleUnit {
     let mut u = with_abilities(
-        BattleUnit::simple(side, "giant", 1, 20, 8, 3).at(cell),
+        BattleUnit::simple(side, 1, 20, 8, 3).at(cell),
         &["wall_crusher"],
     );
     if ranged {
@@ -1364,7 +1364,7 @@ fn siege(units: Vec<BattleUnit>, walled: bool, seed: u64) -> Battle {
 }
 
 fn guard(cell: Pos) -> BattleUnit {
-    BattleUnit::simple(Side::Defender, "guard", 4, 3, 3, 3).at(cell)
+    BattleUnit::simple(Side::Defender, 4, 3, 3, 3).at(cell)
 }
 
 #[test]
@@ -1420,7 +1420,7 @@ fn shooting_a_wall_works_a_quarter_of_the_time_and_costs_a_shot() -> TestResult 
 fn only_attacking_wall_crushers_may_strike_a_standing_wall() -> TestResult {
     let mut b = siege(
         vec![
-            BattleUnit::simple(Side::Attacker, "spearman", 3, 2, 3, 2).at((11, 11)),
+            BattleUnit::simple(Side::Attacker, 3, 2, 3, 2).at((11, 11)),
             crusher(Side::Attacker, (11, 13), false),
             guard((14, 11)),
         ],
@@ -1459,7 +1459,7 @@ fn only_attacking_wall_crushers_may_strike_a_standing_wall() -> TestResult {
         .map_err(|e| format!("{e:?}"))?;
     let mut b2 = siege(
         vec![
-            BattleUnit::simple(Side::Attacker, "x", 1, 1, 1, 1).at((3, 3)),
+            BattleUnit::simple(Side::Attacker, 1, 1, 1, 1).at((3, 3)),
             crusher(Side::Defender, (13, 11), false),
         ],
         true,
@@ -1519,8 +1519,8 @@ fn walls_add_three_to_the_defense_on_the_wall_and_one_behind_it_against_attacker
             } else {
                 (11, target.1)
             };
-            let attacker = BattleUnit::simple(Side::Attacker, "a", 6, 2, 4, 0).at(from);
-            let mut target_unit = BattleUnit::simple(Side::Defender, "d", 60, 30, 0, 0).at(target);
+            let attacker = BattleUnit::simple(Side::Attacker, 6, 2, 4, 0).at(from);
+            let mut target_unit = BattleUnit::simple(Side::Defender, 60, 30, 0, 0).at(target);
             target_unit.defense = 2;
             let mut b = siege(vec![attacker, target_unit], walled, seed);
             if from_inside {
@@ -1558,8 +1558,8 @@ fn walls_add_three_to_the_defense_on_the_wall_and_one_behind_it_against_attacker
 fn attackers_inside_the_city_hurt_it_each_turn() -> TestResult {
     let mut b = siege(
         vec![
-            BattleUnit::simple(Side::Attacker, "in", 2, 2, 2, 2).at((13, 11)),
-            BattleUnit::simple(Side::Attacker, "out", 2, 2, 2, 2).at((9, 11)),
+            BattleUnit::simple(Side::Attacker, 2, 2, 2, 2).at((13, 11)),
+            BattleUnit::simple(Side::Attacker, 2, 2, 2, 2).at((9, 11)),
             guard((15, 11)),
         ],
         true,
@@ -1591,9 +1591,9 @@ fn the_battle_ai_takes_a_walled_city() -> TestResult {
     for seed in 0..12 {
         let attackers = [
             crusher(Side::Attacker, (6, 12), false),
-            BattleUnit::simple(Side::Attacker, "a1", 4, 4, 4, 3).at((6, 11)),
-            BattleUnit::simple(Side::Attacker, "a2", 4, 4, 4, 3).at((6, 13)),
-            BattleUnit::simple(Side::Attacker, "a3", 4, 4, 4, 3).at((5, 12)),
+            BattleUnit::simple(Side::Attacker, 4, 4, 4, 3).at((6, 11)),
+            BattleUnit::simple(Side::Attacker, 4, 4, 4, 3).at((6, 13)),
+            BattleUnit::simple(Side::Attacker, 4, 4, 4, 3).at((5, 12)),
         ];
         let defenders = [guard(GATE_SPOT), guard((13, 11)), guard((13, 12))];
         let mut b = siege(attackers.into_iter().chain(defenders).collect(), true, seed);
@@ -1793,7 +1793,7 @@ mod casting {
     }
 
     fn unit_with(abilities: &[&str]) -> BattleUnit {
-        let mut u = BattleUnit::simple(Side::Defender, "t", 1, 20, 3, 0);
+        let mut u = BattleUnit::simple(Side::Defender, 1, 20, 3, 0);
         u.abilities = crate::game::testutil::abilities(abilities);
         u
     }
@@ -1874,7 +1874,7 @@ mod casting {
         assert_eq!(b.spell_heal(0, 5), 5);
         assert_eq!(b.units[0].figures, 3);
         b.units[0].moves_left = 0;
-        let fresh = BattleUnit::simple(Side::Attacker, "p", 1, 5, 2, 0);
+        let fresh = BattleUnit::simple(Side::Attacker, 1, 5, 2, 0);
         let id = b.add_summoned(Side::Attacker, fresh, (4, 5));
         assert_eq!(id, 2);
         assert_eq!(b.units[2].moves_left, b.units[2].moves);
@@ -1916,7 +1916,7 @@ mod fields {
     }
 
     fn of(side: Side, realm: Option<Realm>, cell: Pos) -> BattleUnit {
-        let mut u = BattleUnit::simple(side, "u", 2, 4, 3, 2).at(cell);
+        let mut u = BattleUnit::simple(side, 2, 4, 3, 2).at(cell);
         u.ranged = 2;
         u.resistance = 5;
         u.realm = realm;
@@ -3245,14 +3245,14 @@ fn the_twelve_units_with_a_casting_ability_cast_its_spell_once_for_no_mana() -> 
 
 #[test]
 fn a_spell_save_makes_the_resistance_checks_of_the_cast_harder() {
-    let mut unit = BattleUnit::simple(Side::Defender, "t", 1, 1, 1, 0);
+    let mut unit = BattleUnit::simple(Side::Defender, 1, 1, 1, 0);
     unit.resistance = 6;
     let mut b = Battle::new(
         A,
         D,
         BattleMap::open(),
         vec![
-            BattleUnit::simple(Side::Attacker, "a", 1, 1, 1, 0).at((1, 1)),
+            BattleUnit::simple(Side::Attacker, 1, 1, 1, 0).at((1, 1)),
             unit.at((5, 5)),
         ],
         3,
@@ -3565,7 +3565,7 @@ fn city_map() -> BattleMap {
 
 /// Ten figures of one hit point and no defence: a Wall of Fire's attack leaves a mark on them.
 fn crowd(side: Side, cell: Pos) -> BattleUnit {
-    BattleUnit::simple(side, "crowd", 10, 1, 1, 0).at(cell)
+    BattleUnit::simple(side, 10, 1, 1, 0).at(cell)
 }
 
 #[test]
@@ -3651,7 +3651,7 @@ fn striking_into_a_city_behind_a_wall_of_fire_burns_the_attacker() -> TestResult
 #[test]
 fn a_wall_of_darkness_stops_shots_into_the_city_unless_the_shooter_sees_through() {
     let archer = |cell, illusion_immune: bool| {
-        let mut u = BattleUnit::simple(Side::Attacker, "archer", 4, 1, 1, 0).at(cell);
+        let mut u = BattleUnit::simple(Side::Attacker, 4, 1, 1, 0).at(cell);
         u.ranged = 4;
         u.ranged_kind = RangedKind::Missile;
         u.ammo = 3;
@@ -3756,7 +3756,7 @@ fn check_legal_list(b: &Battle) {
 #[test]
 fn the_legal_commands_are_exactly_what_apply_accepts() -> TestResult {
     let archer = |side, cell| {
-        let mut u = BattleUnit::simple(side, "archer", 4, 1, 1, 0).at(cell);
+        let mut u = BattleUnit::simple(side, 4, 1, 1, 0).at(cell);
         u.ranged = 4;
         u.ranged_kind = RangedKind::Missile;
         u.ammo = 2;
@@ -3908,13 +3908,13 @@ fn a_battle_brain_plays_for_its_wizard_and_the_plain_ai_for_the_rest() -> TestRe
 #[test]
 fn a_large_shield_turns_missiles_but_not_blows() {
     let archer = || {
-        let mut u = BattleUnit::simple(Side::Attacker, "archer", 6, 1, 1, 1).at((3, 10));
+        let mut u = BattleUnit::simple(Side::Attacker, 6, 1, 1, 1).at((3, 10));
         u.ranged = 5;
         u.ammo = 4;
         u.ranged_kind = RangedKind::Missile;
         with_abilities(u, &["bow"])
     };
-    let swordsman = || BattleUnit::simple(Side::Attacker, "swordsman", 6, 2, 4, 2).at((3, 10));
+    let swordsman = || BattleUnit::simple(Side::Attacker, 6, 2, 4, 2).at((3, 10));
     let target = |shield: bool| move || dummy(if shield { &["large_shield"] } else { &[] });
     let open = damage_over_seeds(archer, target(false), true);
     let shielded = damage_over_seeds(archer, target(true), true);
@@ -3926,7 +3926,7 @@ fn a_large_shield_turns_missiles_but_not_blows() {
 }
 
 fn caster(abilities: &[&str], mana: i32, ammo: i32) -> BattleUnit {
-    let mut u = BattleUnit::simple(Side::Attacker, "caster", 3, 2, 3, 2).at((3, 10));
+    let mut u = BattleUnit::simple(Side::Attacker, 3, 2, 3, 2).at((3, 10));
     u.ranged = 6;
     u.ranged_kind = RangedKind::Magic;
     u.mana = mana;
@@ -4249,7 +4249,7 @@ fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back(
 
 #[test]
 fn healing_cannot_bring_back_what_was_destroyed() {
-    let mut u = BattleUnit::simple(Side::Attacker, "spearman", 4, 5, 3, 2);
+    let mut u = BattleUnit::simple(Side::Attacker, 4, 5, 3, 2);
     // One figure lost to destruction, one to ordinary blows.
     u.figures = 2;
     u.record(attack::Damage {
@@ -4277,7 +4277,7 @@ fn healing_cannot_bring_back_what_was_destroyed() {
 
 #[test]
 fn extra_hits_do_not_count_as_the_units_real_strength() {
-    let mut u = BattleUnit::simple(Side::Attacker, "spearman", 2, 5, 3, 2);
+    let mut u = BattleUnit::simple(Side::Attacker, 2, 5, 3, 2);
     assert_eq!(u.max_hit_points(), 10);
     u.heal_points(4, true);
     assert_eq!(u.extra_hits, 2);

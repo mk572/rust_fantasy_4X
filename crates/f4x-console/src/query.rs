@@ -451,7 +451,7 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         .game
         .city_buildings(c)
         .into_iter()
-        .map(|id| ctx.game.content().rules.buildings.get(id).name.clone())
+        .map(|id| ctx.game.content().rules.buildings.get(id).id.clone())
         .collect();
     ctx.say(format!(
         "buildings: {}",
@@ -505,11 +505,11 @@ fn options(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         let (name, id) = match i {
             ProductionItem::Building(b) => {
                 let d = ctx.game.content().rules.buildings.get(b);
-                (d.name.clone(), d.id.clone())
+                (d.id.clone(), d.id.clone())
             }
             ProductionItem::Unit(u) => {
                 let d = ctx.game.content().rules.units.get(u);
-                (d.name.clone(), d.id.clone())
+                (d.id.clone(), d.id.clone())
             }
             ProductionItem::TradeGoods => ("Trade Goods".into(), "trade".into()),
             ProductionItem::Housing => ("Housing".into(), "housing".into()),
@@ -531,10 +531,10 @@ fn tile(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let t = grid
         .get(p.x as i32, p.y as i32)
         .and_then(|t| ctx.game.content().terrains.get(t))
-        .map_or("outside the map".to_string(), |d| d.name.clone());
+        .map_or("outside the map".to_string(), |d| d.id.clone());
     let mut line = format!("{}: {t}", describe::pos(p));
     if let Some(f) = ctx.game.economy().feature_at(p) {
-        line.push_str(&format!(", {}", f.name));
+        line.push_str(&format!(", {}", f.id));
     }
     for (flag, name) in [
         (grid.has_river(p.x as i32, p.y as i32), "river"),
@@ -667,7 +667,7 @@ fn spells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
                 } else {
                     d.cost
                 };
-                format!("{} ({}, {c})", d.id, d.name)
+                format!("{} ({}, {c})", d.id, d.id)
             })
             .collect::<Vec<_>>()
         };
@@ -717,7 +717,7 @@ fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             .map(|u| {
                 format!(
             "{} {:?} {} at {},{} figures {}/{} melee {} ranged {} defense {} moves {}/{} ammo {}",
-            u.id, u.side, u.name, u.cell.0, u.cell.1, u.figures, u.figures_start, u.melee,
+            u.id, u.side, u.unit_id.map_or(-1, |i| i32::from(i.num())), u.cell.0, u.cell.1, u.figures, u.figures_start, u.melee,
             u.ranged, u.defense, u.moves_left, u.moves, u.ammo
         )
             }),
@@ -775,7 +775,7 @@ fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         lines.push(format!(
             "unit {} ({}): {} moves{}{}{}{}",
             u.id,
-            u.name,
+            u.unit_id.map_or(-1, |i| i32::from(i.num())),
             moves.len(),
             list("move to", &moves),
             list("attack", &attacks),
@@ -845,7 +845,11 @@ fn uspells(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let u = b
         .unit(unit)
         .ok_or_else(|| ConsoleError::NoSuch(format!("battle unit {unit}")))?;
-    let mut lines = vec![format!("unit {unit} ({}) has {} mana", u.name, u.mana)];
+    let mut lines = vec![format!(
+        "unit {unit} ({}) has {} mana",
+        u.unit_id.map_or(-1, |i| i32::from(i.num())),
+        u.mana
+    )];
     let rules = &ctx.game.content().rules;
     for s in ctx.game.battle_unit_spells(unit) {
         let d = rules.spells.get(s.spell);
@@ -873,7 +877,7 @@ fn uspells(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         lines.push(format!(
             "{} ({}): {from}, aimed at {aim}{}",
             d.id,
-            d.name,
+            d.id,
             if s.castable { "" } else { " [cannot cast now]" }
         ));
     }
@@ -903,7 +907,7 @@ fn bspells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             format!(
                 "{} ({}) costs {}{}, aimed at {}{}",
                 d.id,
-                d.name,
+                d.id,
                 s.cost,
                 if s.takes_extra_mana { "+" } else { "" },
                 aim,

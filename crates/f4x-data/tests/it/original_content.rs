@@ -132,7 +132,7 @@ fn every_building_has_the_originals_cost_upkeep_requirements_and_replacement() {
             continue;
         }
         let num = |n: usize| -> i32 { row[n].parse().expect("a number") };
-        if plain(&def.name) != plain(row[1]) {
+        if plain(&def.id) != plain(row[1]) {
             wrong.push(format!("{}: named {} in the original", def.id, row[1]));
             continue;
         }
@@ -215,10 +215,6 @@ fn every_item_power_has_the_originals_types_cost_group_realm_and_books() {
             ));
             continue;
         }
-        if plain(&def.name) != plain(&row["name"]) {
-            wrong.push(format!("{}: named {} in the original", def.id, row["name"]));
-            continue;
-        }
         let kinds = def.kinds.iter().fold(0, |m, k| m | 1 << *k as i64);
         if kinds != number(row, "kinds") {
             wrong.push(format!(
@@ -289,7 +285,7 @@ fn every_prefab_item_has_the_originals_type_cost_bonuses_and_powers() {
             continue;
         }
         // The two names the original uses twice carry I and II in the content.
-        let (ours, theirs) = (plain(&def.name), plain(&row["name"]));
+        let (ours, theirs) = (plain(&def.id), plain(&row["name"]));
         if ours != theirs && ours != theirs.clone() + "i" && ours != theirs + "ii" {
             wrong.push(format!("{}: named {} in the original", def.id, row["name"]));
             continue;
@@ -379,7 +375,7 @@ fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
             ));
             continue;
         }
-        if plain(&def.name) != plain(&row["name"]) {
+        if plain(&def.id) != plain(&row["name"]) {
             wrong.push(format!("{}: named {} in the original", def.id, row["name"]));
             continue;
         }
@@ -501,7 +497,7 @@ fn every_spell_has_the_originals_name_realm_cost_research_rarity_and_summoned_un
         } else {
             row["name"].as_str()
         };
-        if plain(&def.name) != plain(original) {
+        if plain(&def.id) != plain(original) {
             wrong.push(format!("{}: named {} in the original", def.id, row["name"]));
             continue;
         }

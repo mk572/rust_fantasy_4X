@@ -168,7 +168,10 @@ impl App {
             Summoned::Creature(unit) => {
                 let first = UnitId::new(154) /* magic_spirit */;
                 let figure = (unit.num() as usize).checked_sub(first.num() as usize)?;
-                let args = Args::new().text("unit", rules.units.get(*unit).name.clone());
+                let args = Args::new().text(
+                    "unit",
+                    self.names.unit(rules.units.get(*unit).num).to_string(),
+                );
                 (figure, self.text_with("spell.summoned", &args))
             }
             Summoned::Hero => (hero_figure(hero), self.text("spell.hero_summoned")),

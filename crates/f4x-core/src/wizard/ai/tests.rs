@@ -59,7 +59,6 @@ fn wizard_def(num: u16, id: &str, books: &[(&str, u8)], retorts: &[Retort]) -> W
     WizardDef {
         num,
         id: id.into(),
-        name: id.into(),
         help: 0,
         gender: Default::default(),
         books: books
@@ -299,8 +298,8 @@ fn the_ready_made_wizards_are_drawn_once_each() {
         let set: BTreeSet<&String> = taken.iter().collect();
         assert_eq!(taken.len(), 3, "seed {seed}: {taken:?}");
         assert_eq!(set.len(), 3, "seed {seed}: a wizard was drawn twice");
-        let names: BTreeSet<&str> = builds.iter().map(|b| b.name.as_str()).collect();
-        assert_eq!(names, BTreeSet::from(["b", "c"]), "seed {seed}");
+        let places: BTreeSet<Option<u8>> = builds.iter().map(|b| b.portrait).collect();
+        assert_eq!(places, BTreeSet::from([Some(1), Some(2)]), "seed {seed}");
     }
 }
 

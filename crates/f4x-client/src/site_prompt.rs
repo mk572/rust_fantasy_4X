@@ -207,7 +207,10 @@ impl App {
         let first = lair.guards.first().map(|&(id, _)| {
             let unit = self.game.content().rules.units.get(id);
             let figures = unit.stats.get(&f4x_core::rules::Stat::Figures).copied();
-            (unit.name.clone(), figures.unwrap_or(1) as u32)
+            (
+                self.names.unit(unit.num).to_string(),
+                figures.unwrap_or(1) as u32,
+            )
         });
         let text = found_text(
             &self.game.content().texts,
@@ -231,9 +234,11 @@ impl App {
                 site: kind,
             });
         }
-        let spell = loot
-            .spell
-            .map(|s| self.game.content().rules.spells.get(s).name.clone());
+        let spell = loot.spell.map(|s| {
+            self.names
+                .spell(self.game.content().rules.spells.get(s).num)
+                .to_string()
+        });
         let retorts: Vec<String> = loot.retorts.iter().map(|&r| self.retort_name(r)).collect();
         let books: Vec<String> = loot.books.iter().map(|&r| self.realm_alias(r)).collect();
         let kinds: Vec<_> = loot.items.iter().map(|i| i.kind).collect();
@@ -268,10 +273,14 @@ impl App {
         let site = site_type(&lair.site);
         match kind {
             "ask" => {
-                let first = lair
-                    .guards
-                    .first()
-                    .map(|&(id, _)| (self.game.content().rules.units.get(id).name.clone(), 1));
+                let first = lair.guards.first().map(|&(id, _)| {
+                    (
+                        self.names
+                            .unit(self.game.content().rules.units.get(id).num)
+                            .to_string(),
+                        1,
+                    )
+                });
                 let text = found_text(
                     &self.game.content().texts,
                     site,

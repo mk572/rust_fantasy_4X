@@ -355,7 +355,7 @@ impl Game {
                     0,
                     &mut self.prefab_taken,
                 );
-                notice.item = item.display_name(&self.content);
+                notice.item = Some(item.clone());
                 self.give_item(victim, item);
             }
             EventKind::Disjunction => {

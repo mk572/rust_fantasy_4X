@@ -122,14 +122,7 @@ impl App {
             let args = self.wizard_arg(Args::new(), "wizard", cast.player);
             self.text_with("spell.rival_cast", &args)
         };
-        let name = self
-            .game
-            .content()
-            .rules
-            .spells
-            .get(cast.spell)
-            .name
-            .clone();
+        let name = self.names.spell(cast.spell.num()).to_string();
         let line = (x + 62.0, y + 133.0);
         if !animated {
             self.draw_styled(

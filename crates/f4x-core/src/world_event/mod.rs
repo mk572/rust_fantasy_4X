@@ -454,8 +454,8 @@ pub struct EventNotice {
     pub city_size: String,
     /// Gold (piracy, donation).
     pub number: i32,
-    /// The item of a gift.
-    pub item: String,
+    /// The item of a gift; the client names it.
+    pub item: Option<crate::item::Item>,
     /// The mineral of a depletion or a find, as the message words it ("n iron", " coal").
     pub ore: String,
     pub lost_units: u32,
@@ -474,7 +474,7 @@ impl EventNotice {
             city_name: String::new(),
             city_size: String::new(),
             number: 0,
-            item: String::new(),
+            item: None,
             ore: String::new(),
             lost_units: 0,
             lost_population: 0,
@@ -509,53 +509,6 @@ pub const ORES: [(&str, &str); 9] = [
     ("quork_crystal", "event.ore_quork_crystal"),
     ("crysx_crystal", "event.ore_crysx_crystal"),
 ];
-
-/// One line of `EVENTMSG.LBX`, as the importer writes it to `event_texts.ron`: the event, its
-/// voice (the line within the event's seven) and the text with `{city}`, `{size}`, `{player}`,
-/// `{number}`, `{ore}`, `{item}`, `{units}`, `{people}`, `{buildings}` and the plural endings
-/// `{units_s}` and `{buildings_s}` where the original has its data bytes.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
-pub struct EventText {
-    pub event: u32,
-    pub voice: u32,
-    pub text: String,
-}
-
-/// The message of a notice, if the texts have one for it (`Get_Event_Message`). A count of
-/// nothing reads "no", the people lost are given in thousands, and the plural ending is
-/// dropped for exactly one.
-pub fn compose(
-    lines: &[EventText],
-    words: &crate::text::Texts,
-    notice: &EventNotice,
-) -> Option<String> {
-    use crate::text::Args;
-    let line = lines
-        .iter()
-        .find(|t| t.event == notice.kind.number() && t.voice == notice.voice as u32)?;
-    let count = |n: u32, key: &str| {
-        if n == 0 {
-            words.get("event.none", &Args::new())
-        } else {
-            words.get(key, &Args::new().count("n", n as i32))
-        }
-    };
-    let plural = |n: u32| words.get("event.plural_ending", &Args::new().count("n", n as i32));
-    Some(
-        line.text
-            .replace("{city}", &notice.city_name)
-            .replace("{size}", &notice.city_size)
-            .replace("{player}", &notice.player_name)
-            .replace("{number}", &notice.number.to_string())
-            .replace("{ore}", &notice.ore)
-            .replace("{item}", &notice.item)
-            .replace("{units}", &count(notice.lost_units, "event.number"))
-            .replace("{people}", &count(notice.lost_population, "event.thousand"))
-            .replace("{buildings}", &count(notice.lost_buildings, "event.number"))
-            .replace("{units_s}", &plural(notice.lost_units))
-            .replace("{buildings_s}", &plural(notice.lost_buildings)),
-    )
-}
 
 #[cfg(test)]
 mod tests;

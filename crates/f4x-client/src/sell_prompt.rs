@@ -131,7 +131,7 @@ impl App {
         let Some(building) = rules.buildings.id_of(&def.id) else {
             return;
         };
-        let name = def.name.clone();
+        let name = self.names.building(def.num).to_string();
         let eco = self.game.economy();
         let prompt = match eco.first_dependant(city, building) {
             _ if eco.sold_this_turn(city) => SellPrompt::Refused(self.text("sell.one_a_turn")),
@@ -140,7 +140,7 @@ impl App {
                     "sell.required",
                     &Args::new()
                         .text("building", &name)
-                        .text("other", &rules.buildings.get(other).name),
+                        .text("other", self.names.building(rules.buildings.get(other).num)),
                 ),
             ),
             None => {
@@ -440,14 +440,7 @@ mod tests {
     }
 
     fn ask(app: &App, city: hecs::Entity, building: BuildingId) -> SellPrompt {
-        let name = app
-            .game
-            .content()
-            .rules
-            .buildings
-            .get(building)
-            .name
-            .clone();
+        let name = app.names.building(building.num()).to_string();
         SellPrompt::Ask {
             city,
             building,
@@ -570,11 +563,10 @@ mod tests {
         let Some(SellPrompt::Refused(text)) = panel.sell else {
             return Err("the smithy is not refused".into());
         };
-        let name = &app.game.content().rules.buildings.get(market).name;
-        assert!(
-            text.contains(name.as_str()),
-            "{text:?} does not name {name}"
-        );
+        let name = app
+            .names
+            .building(app.game.content().rules.buildings.get(market).num);
+        assert!(text.contains(name), "{text:?} does not name {name}");
         Ok(())
     }
 

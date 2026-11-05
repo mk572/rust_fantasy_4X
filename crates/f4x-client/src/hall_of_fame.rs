@@ -86,19 +86,18 @@ pub(crate) fn insert(table: &mut Vec<Entry>, entry: Entry) -> Option<usize> {
 /// "Barbarian" as "Barbarians": the table says "of the Barbarians". A race the rules do not know
 /// (a table kept from another set of rules) stays as it is written.
 pub(crate) fn plural(
+    names: &crate::names::Names,
     races: &f4x_core::rules::Registry<f4x_core::rules::RaceDef>,
     race: &str,
 ) -> String {
-    races.defs().iter().find(|r| r.name == race).map_or_else(
-        || race.to_string(),
-        |r| {
-            if r.plural.is_empty() {
-                r.name.clone()
-            } else {
-                r.plural.clone()
-            }
-        },
-    )
+    races
+        .defs()
+        .iter()
+        .find(|r| names.race(r.num) == race)
+        .map_or_else(
+            || race.to_string(),
+            |r| names.race_plural(r.num).to_string(),
+        )
 }
 
 /// The share of the best possible score, in percent.
@@ -120,8 +119,11 @@ impl App {
         let wizards = self.game.content().rules.wizards.defs();
         let table = (0..SCORES)
             .map(|i| Entry {
-                name: wizards[i % wizards.len()].name.clone(),
-                race: races[i % races.len()].name.clone(),
+                name: self
+                    .names
+                    .wizard(wizards[i % wizards.len()].num)
+                    .to_string(),
+                race: self.names.race(races[i % races.len()].num).to_string(),
                 score: 7400 - 640 * i as i32,
             })
             .collect();
@@ -155,9 +157,10 @@ impl Page for HallPage {
             app.draw_styled(view, &hof_style(2).right(), &rank, x, y);
             let who = app.text_with(
                 "hall.of_the",
-                &Args::new()
-                    .text("name", &e.name)
-                    .text("race", plural(&app.game.content().rules.races, &e.race)),
+                &Args::new().text("name", &e.name).text(
+                    "race",
+                    plural(&app.names, &app.game.content().rules.races, &e.race),
+                ),
             );
             app.draw_styled(view, &hof_style(2), &who, x + 9.0, y);
             app.draw_styled(
@@ -227,11 +230,26 @@ mod tests {
     #[test]
     fn races_are_made_plural_for_the_table() {
         let races = &crate::test_app::shipped::content().rules.races;
-        assert_eq!(plural(races, "Barbarian"), "Barbarians");
-        assert_eq!(plural(races, "High Elf"), "High Elves");
-        assert_eq!(plural(races, "Lizardman"), "Lizardmen");
-        assert_eq!(plural(races, "High Men"), "High Men");
-        assert_eq!(plural(races, "Unknown"), "Unknown");
+        assert_eq!(
+            plural(crate::test_app::shipped::names(), races, "Barbarian"),
+            "Barbarians"
+        );
+        assert_eq!(
+            plural(crate::test_app::shipped::names(), races, "High Elf"),
+            "High Elves"
+        );
+        assert_eq!(
+            plural(crate::test_app::shipped::names(), races, "Lizardman"),
+            "Lizardmen"
+        );
+        assert_eq!(
+            plural(crate::test_app::shipped::names(), races, "High Men"),
+            "High Men"
+        );
+        assert_eq!(
+            plural(crate::test_app::shipped::names(), races, "Unknown"),
+            "Unknown"
+        );
     }
 
     #[test]

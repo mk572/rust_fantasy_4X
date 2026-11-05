@@ -151,7 +151,7 @@ pub struct App {
     /// The help topics (local only), which describe the spells.
     pub(crate) help: f4x_core::help::Help,
     /// The messages of the random events (`event_texts.ron`).
-    pub(crate) event_texts: Vec<f4x_core::world_event::EventText>,
+    pub(crate) event_texts: Vec<crate::event_message::EventText>,
     /// The original's lines of the wizards' talk by situation (`diplomsg.ron`, local only).
     pub(crate) diplomsg: std::collections::HashMap<u16, Vec<String>>,
     /// Heroes died and their items were awarded: the warning box comes before the item screen.
@@ -182,6 +182,8 @@ pub struct App {
     pub(crate) survey_probe: Option<Position>,
     /// The human wizard chosen on the creation screen; new maps reuse it.
     pub(crate) human_build: Option<f4x_core::wizard::WizardBuild>,
+    /// The ready-made wizard the human picked, an index into the rules' wizards.
+    pub(crate) human_preset: Option<usize>,
     /// The battle screen's state.
     /// Steps the units on the map are still sliding through.
     pub(crate) slides: Vec<crate::map_slide::Slide>,
@@ -204,6 +206,8 @@ pub struct App {
     pub(crate) help_ui: crate::help_popup::HelpUi,
     /// The keys of the overland map (`crates/f4x-client/content/hotkeys.ron`).
     pub(crate) hotkeys: crate::hotkeys::Hotkeys,
+    /// What the interface calls the things of the rules, by number (`text/<language>/name/`).
+    pub(crate) names: crate::names::Names,
     /// The text console's state (backquote key).
     pub(crate) console: crate::console_screen::ConsoleUi,
     /// The scroll that tells how a battle went, once it is over.
@@ -287,7 +291,9 @@ impl Modal for Global {
 impl App {
     /// The name of a retort.
     pub(crate) fn retort_name(&self, retort: f4x_core::wizard::magic::Retort) -> String {
-        self.game.content().rules.retorts.get(retort).name.clone()
+        self.names
+            .retort(self.game.content().rules.retorts.get(retort).num)
+            .to_string()
     }
 
     /// All the messages, for the code that picks among several.
@@ -365,6 +371,7 @@ impl App {
             surveyor: false,
             survey_probe: None,
             human_build: None,
+            human_preset: None,
             slides: Vec::new(),
             test_sea: false,
             item_pool_pending: false,
@@ -374,6 +381,7 @@ impl App {
             menu: Default::default(),
             help_ui: Default::default(),
             hotkeys: Default::default(),
+            names: Default::default(),
             console: Default::default(),
             combat_results: None,
             battle_site: None,
@@ -389,20 +397,15 @@ impl App {
         seed: u64,
         options: &OptionsState,
         content: &Content,
-        human: Option<&WizardBuild>,
+        human: Option<(&WizardBuild, Option<usize>)>,
         race: usize,
         random_events: bool,
     ) -> Result<Game, String> {
+        let (human, preset) = human.map_or((None, None), |(b, p)| (Some(b), p));
         let preset = human
             .filter(|b| b.preset)
-            .and_then(|b| {
-                content
-                    .rules
-                    .wizards
-                    .defs()
-                    .iter()
-                    .find(|w| w.name == b.name)
-            })
+            .and(preset)
+            .and_then(|i| content.rules.wizards.defs().get(i))
             .map(|w| w.id.clone());
         let spec = NewGame {
             seed,
@@ -579,10 +582,12 @@ impl App {
                     {
                         self.item_pool_pending = true;
                     }
-                    let line = f4x_core::world_event::compose(
+                    let gift = self.gift_name(&notice);
+                    let line = crate::event_message::compose(
                         &self.event_texts,
                         &self.game.content().texts,
                         &notice,
+                        &gift,
                     );
                     self.modals.enqueue(crate::event_popup::EventBox(notice));
                     line
@@ -613,8 +618,11 @@ impl App {
                     units_lost,
                     building,
                 } => {
-                    let building =
-                        building.map(|b| self.game.content().rules.buildings.get(b).name.clone());
+                    let building = building.map(|b| {
+                        self.names
+                            .building(self.game.content().rules.buildings.get(b).num)
+                            .to_string()
+                    });
                     let args = Args::new()
                         .text("city", self.city_name(city))
                         .count("units", units_lost)
@@ -748,7 +756,7 @@ impl App {
                         .features
                         .id_of(&site)
                         .and_then(|f| self.game.content().features.get(f))
-                        .map_or(site, |def| def.name.clone());
+                        .map_or(site, |def| self.names.feature(def.num).to_string());
                     let args = Args::new().text("site", name).count("n", count);
                     let key = if evicted > 0 {
                         "log.monsters_took_over"
@@ -865,8 +873,8 @@ impl App {
                 Event::UnitTransformed { from, to, .. } => {
                     let units = &self.game.content().rules.units;
                     let args = Args::new()
-                        .text("from", &units.get(from).name)
-                        .text("to", &units.get(to).name);
+                        .text("from", self.names.unit(units.get(from).num))
+                        .text("to", self.names.unit(units.get(to).num));
                     Some(self.text_with("log.unit_transformed", &args))
                 }
                 Event::EarthquakeStruck {
@@ -1012,7 +1020,11 @@ impl App {
 
     /// `args` with the name of a spell.
     pub(crate) fn spell_arg(&self, args: Args, spell: f4x_core::rules::SpellId) -> Args {
-        args.text("spell", &self.game.content().rules.spells.get(spell).name)
+        args.text(
+            "spell",
+            self.names
+                .spell(self.game.content().rules.spells.get(spell).num),
+        )
     }
 
     /// One log line for the treasure a cleared site gave.
@@ -1060,12 +1072,19 @@ impl App {
         self.game.city_name(city).unwrap_or_else(|| "?".to_string())
     }
 
+    /// The name of the gift of an event notice, if it has one.
+    pub(crate) fn gift_name(&self, notice: &f4x_core::world_event::EventNotice) -> String {
+        notice.item.as_ref().map_or_else(String::new, |i| {
+            self.names.item_name(i, self.game.content())
+        })
+    }
+
     pub(crate) fn item_name(&self, item: f4x_core::city::production::ProductionItem) -> String {
         use f4x_core::city::production::ProductionItem::*;
         let rules = &self.game.content().rules;
         match item {
-            Building(b) => rules.buildings.get(b).name.clone(),
-            Unit(u) => rules.units.get(u).name.clone(),
+            Building(b) => self.names.building(rules.buildings.get(b).num).to_string(),
+            Unit(u) => self.names.unit(rules.units.get(u).num).to_string(),
             TradeGoods => self.text("city.trade_goods"),
             Housing => self.text("city.housing"),
         }
@@ -1351,7 +1370,7 @@ impl App {
             seed,
             &self.options,
             &content,
-            self.human_build.as_ref(),
+            self.human_build.as_ref().map(|b| (b, self.human_preset)),
             self.race,
             self.prefs.get(crate::preferences::Pref::RandomEvents),
         ) {
@@ -1680,7 +1699,10 @@ impl App {
             return None;
         }
         let lay = crate::frame::Layout::new();
-        let name = self.game.content().rules.spells.get(spell).name.clone();
+        let name = self
+            .names
+            .spell(self.game.content().rules.spells.get(spell).num)
+            .to_string();
         let text = self.text_with("spell.no_target", &Args::new().text("spell", &name));
         match self.confirmation_box(&lay, &text, input) {
             Some(true) => None,
@@ -1712,7 +1734,7 @@ impl App {
                 let who = self.game.player(spells.caster_player(i)?)?.name();
                 let args = Args::new()
                     .text("wizard", who)
-                    .text("spell", &def.name)
+                    .text("spell", self.names.spell(def.num))
                     .count("cost", def.cost);
                 Some(self.text_with("spell.global_row", &args))
             })
@@ -1771,7 +1793,10 @@ impl App {
             Color::new(0.08, 0.06, 0.04, 0.95),
         );
         draw_rectangle_lines(w / 2.0 - 280.0, h / 2.0 - 80.0, 560.0, height, 3.0, GOLD);
-        let name = self.game.content().rules.spells.get(spell).name.clone();
+        let name = self
+            .names
+            .spell(self.game.content().rules.spells.get(spell).num)
+            .to_string();
         crate::frame::text_centered(
             &self.text_with("spell.choose_global", &Args::new().text("spell", &name)),
             w / 2.0,
@@ -2613,18 +2638,23 @@ impl App {
             .and_then(|id| content.terrains.get(id))
         {
             let args = Args::new()
-                .text("terrain", &def.name)
+                .text("terrain", self.names.terrain(def.num))
                 .count("cost", def.move_cost);
             lines.push((self.text_with("ui.terrain_move", &args), WHITE));
         }
         if let Some(f) = self.game.economy().feature_at(pos) {
-            lines.push((f.name.clone(), Color::new(0.6, 0.9, 1.0, 1.0)));
+            lines.push((
+                self.names.feature(f.num).to_string(),
+                Color::new(0.6, 0.9, 1.0, 1.0),
+            ));
         }
         // What guards a site you have fought for once.
         if let Some(guards) = self.game.economy().lair_guards_known_to(at, HUMAN) {
             for (id, n) in guards {
                 let u = content.rules.units.get(id);
-                let args = Args::new().text("unit", &u.name).count("n", n);
+                let args = Args::new()
+                    .text("unit", self.names.unit(u.num))
+                    .count("n", n);
                 lines.push((self.text_with("ui.lair_guard", &args), RED));
             }
         }
@@ -2642,7 +2672,7 @@ impl App {
             .filter(|&u| self.game.units().unit_owner(u) != Some(HUMAN));
         for u in foreign.take(4) {
             if let Some(def) = self.game.units().unit_def(u) {
-                let args = Args::new().text("unit", &def.name);
+                let args = Args::new().text("unit", self.names.unit(def.num));
                 lines.push((self.text_with("ui.foreign_unit", &args), RED));
             }
         }

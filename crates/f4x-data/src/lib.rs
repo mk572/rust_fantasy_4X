@@ -211,18 +211,6 @@ fn read_list<T: serde::de::DeserializeOwned>(path: Option<&Path>) -> Result<Vec<
     ron::from_str(&text).map_err(|e| ContentError::Parse(format!("{}: {e}", path.display())))
 }
 
-/// Load the optional event messages (`event_texts.ron`, from `EVENTMSG.LBX`) from a content
-/// directory. A directory without them yields none, and the events are told without words.
-pub fn load_event_texts(dir: &Path) -> Result<Vec<f4x_core::world_event::EventText>, ContentError> {
-    let path = dir.join("event_texts.ron");
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    let text = std::fs::read_to_string(&path)
-        .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
-    ron::from_str(&text).map_err(|e| ContentError::Parse(format!("event_texts.ron: {e}")))
-}
-
 /// Load the optional original lines of the wizards' talk (`diplomsg.ron`, from `DIPLOMSG.LBX`)
 /// from a content directory: the variants of each situation, with `{placeholders}`. A directory
 /// without them yields none, and the wizards speak the game's own lines.
@@ -330,30 +318,9 @@ pub fn load_content_in(dirs: &[&Path], language: &str) -> Result<Content, Conten
         std::fs::read_to_string(&path)
             .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))
     };
-    let mut terrains = parse_terrains(&read("terrain.ron")?)?;
-    let mut features = parse_features(&read("features.ron")?)?;
+    let terrains = parse_terrains(&read("terrain.ron")?)?;
+    let features = parse_features(&read("features.ron")?)?;
     let mut settings = load_settings(dirs)?;
-    let mut problems = Vec::new();
-    let at = (dirs, language);
-    rules::fill_names(
-        at,
-        ("terrain", "terrain"),
-        terrains.defs_mut(),
-        (|d| d.num, |d| &d.id),
-        |d, n: String| d.name = n,
-        &mut problems,
-    )?;
-    rules::fill_names(
-        at,
-        ("feature", "feature"),
-        features.defs_mut(),
-        (|d| d.num, |d| &d.id),
-        |d, n: String| d.name = n,
-        &mut problems,
-    )?;
-    if !problems.is_empty() {
-        return Err(ContentError::Invalid(problems));
-    }
     let rules = rules::load_rules(dirs, language, &features)?;
     settings
         .spell_library
@@ -464,7 +431,7 @@ mod tests {
             .expect("the level path exists");
         (0..=level)
             .filter_map(|i| path.level(i))
-            .flat_map(|(_, effects)| effects.iter())
+            .flat_map(|effects| effects.iter())
             .map(|r| match r.effect {
                 Effect::Modify {
                     stat: s,
@@ -903,7 +870,7 @@ mod tests {
         let mut ids = Vec::new();
         for _ in 0..2000 {
             let item = make_item(&mut rng, rules, Grade::Any, 0, &mut taken);
-            assert!(item.cost > 0 && (!item.name.is_empty() || item.made.is_some()));
+            assert!(item.cost > 0 && (item.prefab.is_some() || item.made.is_some()));
             if let Some(id) = item.prefab {
                 assert!(!ids.contains(&id), "{id:?} given twice");
                 ids.push(id);

@@ -196,14 +196,7 @@ impl App {
             160.0,
             44.0,
         );
-        let spell_name = self
-            .game
-            .content()
-            .rules
-            .spells
-            .get(scroll.spell)
-            .name
-            .clone();
+        let spell_name = self.names.spell(scroll.spell.num()).to_string();
         let line = if scroll.player == HUMAN {
             self.text_with("spell.you_cast", &Args::new().text("spell", spell_name))
         } else {

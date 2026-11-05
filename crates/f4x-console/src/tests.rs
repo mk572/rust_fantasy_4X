@@ -1077,7 +1077,7 @@ fn start_army(g: &Game, p: PlayerId) -> Vec<String> {
     g.units()
         .player_units(p)
         .iter()
-        .filter_map(|&u| g.units().unit_def(u).map(|d| d.name.clone()))
+        .filter_map(|&u| g.units().unit_def(u).map(|d| d.id.clone()))
         .collect()
 }
 
@@ -1107,7 +1107,10 @@ fn a_wizard_starts_as_in_the_original() -> TestResult {
             let (city, _) = capital(&g, p);
             let mut army = start_army(&g, p);
             army.sort();
-            assert_eq!(army, ["Spearmen", "Swordsmen"], "seed {seed} wizard {k}");
+            assert!(
+                army[0].ends_with("_spearmen") && army[1].ends_with("_swordsmen"),
+                "{army:?}: seed {seed} wizard {k}"
+            );
             let eco = g
                 .economy()
                 .city_economy(city)
@@ -1190,7 +1193,10 @@ fn a_myrran_wizard_starts_on_myrror_with_a_myrror_race() -> TestResult {
     let (city, at) = capital(&g, HUMAN);
     assert_eq!(at.plane, Plane::Myrror);
     // Dwarves have no spearmen: two swordsmen.
-    assert_eq!(start_army(&g, HUMAN), ["Swordsmen", "Swordsmen"]);
+    assert_eq!(
+        start_army(&g, HUMAN),
+        ["dwarven_swordsmen", "dwarven_swordsmen"]
+    );
     assert!(
         g.economy()
             .city_economy(city)
@@ -1240,16 +1246,20 @@ fn battle_units_carry_their_immunities_and_whether_their_weapons_are_magical() -
         "{events:?}"
     );
     let battle = g.battle().expect("a battle is on");
-    let find = |name: &str| {
+    let find = |num: u16| {
         battle
             .units
             .iter()
-            .find(|u| u.name == name)
+            .find(|u| u.unit_id.is_some_and(|id| id.num() == num))
             .expect("it is there")
     };
-    let spearmen = find("Spearmen");
+    let spearmen = battle
+        .units
+        .iter()
+        .find(|u| u.unit_id.is_some_and(|id| id.num() != 168 /* werewolves */))
+        .expect("the wizard starts with a unit");
     assert!(!spearmen.magical_weapon);
-    let wolves = find("Werewolves");
+    let wolves = find(168 /* werewolves */);
     assert!(
         wolves.magical_weapon,
         "summoned creatures fight with magical weapons"
@@ -1289,11 +1299,11 @@ fn battle_units_carry_the_numbers_of_their_special_attacks() -> TestResult {
         defenders: g.units().player_units(PlayerId(1)),
     });
     let battle = g.battle().expect("a battle is on");
-    let special = |name: &str| {
+    let special = |num: u16| {
         let u = battle
             .units
             .iter()
-            .find(|u| u.name == name)
+            .find(|u| u.unit_id.is_some_and(|id| id.num() == num))
             .expect("it is there");
         (
             u.special_level,
@@ -1301,16 +1311,16 @@ fn battle_units_carry_the_numbers_of_their_special_attacks() -> TestResult {
             u.ranged_kind,
         )
     };
-    let (level, s, _) = special("Cockatrices");
+    let (level, s, _) = special(181 /* cockatrices */);
     assert_eq!((level, s.stoning_touch, s.penalty), (3, true, 3));
-    let (_, s, _) = special("Giant Spiders");
+    let (_, s, _) = special(183 /* giant_spiders */);
     assert_eq!(s.poison, 4);
-    let (_, s, kind) = special("Basilisk");
+    let (_, s, kind) = special(182 /* basilisk */);
     assert_eq!(
         (s.gaze, s.penalty, kind),
         (Gaze::Stoning, 1, RangedKind::Short)
     );
-    let (_, s, _) = special("Wraiths");
+    let (_, s, _) = special(170 /* wraiths */);
     assert!(s.life_steal);
     assert_eq!(s.penalty, 3);
     Ok(())
@@ -1861,7 +1871,7 @@ fn a_spell_costs_skill_and_range_priced_mana_and_only_one_a_turn() {
         after.mana,
         "the reserve pays"
     );
-    assert!(r.text().contains("casts Fire Bolt"), "{}", r.text());
+    assert!(r.text().contains("casts fire_bolt"), "{}", r.text());
     // A second spell in the same turn is refused; the next turn allows one.
     let again = cast(&mut g, &format!("bcast fire bolt unit:{enemy}"));
     assert!(!again.ok, "{}", again.text());
@@ -2288,7 +2298,7 @@ fn a_battlefield_enchantment_goes_up_once_and_changes_the_units() {
         .to_block;
     let r = cast(&mut g, "bcast high prayer");
     assert!(r.ok, "{}", r.text());
-    assert!(r.text().contains("raises High Prayer"), "{}", r.text());
+    assert!(r.text().contains("raises high_prayer"), "{}", r.text());
     let b = g.battle().expect("a battle is on");
     assert!(b.has_field(Side::Attacker, Field::HighPrayer));
     assert_eq!(

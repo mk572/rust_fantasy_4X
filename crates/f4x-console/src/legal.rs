@@ -228,10 +228,10 @@ fn production_item(ctx: &Ctx, text: &str) -> Result<ProductionItem, ConsoleError
         "housing" => return Ok(ProductionItem::Housing),
         _ => {}
     }
-    if let Ok(b) = resolve(&rules.buildings, text, |d| &d.name, "building") {
+    if let Ok(b) = resolve(&rules.buildings, text, |d| &d.id, "building") {
         return Ok(ProductionItem::Building(b));
     }
-    resolve(&rules.units, text, |d| &d.name, "building or unit").map(ProductionItem::Unit)
+    resolve(&rules.units, text, |d| &d.id, "building or unit").map(ProductionItem::Unit)
 }
 
 fn produce(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
@@ -262,7 +262,7 @@ fn sell(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let building = resolve(
         &ctx.game.content().rules.buildings,
         &a.rest(1),
-        |d| &d.name,
+        |d| &d.id,
         "building",
     )?;
     ctx.apply(Command::SellBuilding { city, building })
@@ -351,7 +351,7 @@ fn power(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn spell_arg(ctx: &Ctx, text: &str) -> Result<f4x_core::rules::SpellId, ConsoleError> {
-    resolve(&ctx.game.content().rules.spells, text, |d| &d.name, "spell")
+    resolve(&ctx.game.content().rules.spells, text, |d| &d.id, "spell")
 }
 
 fn research(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
@@ -396,7 +396,7 @@ fn turnoff(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let spell = crate::args::resolve(
         &ctx.game.content().rules.spells,
         a.need(0, "spell")?,
-        |d| &d.name,
+        |d| &d.id,
         "spell",
     )?;
     let player = ctx.session.player;
@@ -704,14 +704,7 @@ fn craft(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         "-" => Vec::new(),
         list => list
             .split(',')
-            .map(|p| {
-                resolve(
-                    &ctx.game.content().rules.item_powers,
-                    p,
-                    |d| &d.name,
-                    "power",
-                )
-            })
+            .map(|p| resolve(&ctx.game.content().rules.item_powers, p, |d| &d.id, "power"))
             .collect::<Result<Vec<_>, _>>()?,
     };
     let mut charges = None;

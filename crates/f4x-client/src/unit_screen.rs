@@ -169,7 +169,10 @@ impl App {
         let turn_off = match (spell, ask) {
             (Some(spell), true) => Some(TurnOff {
                 spell,
-                name: self.game.content().rules.spells.get(spell).name.clone(),
+                name: self
+                    .names
+                    .spell(self.game.content().rules.spells.get(spell).num)
+                    .to_string(),
                 drowned: self.game.drowned_if_off(unit, spell),
             }),
             _ => None,

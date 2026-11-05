@@ -120,7 +120,6 @@ mod tests {
         defs.push(FeatureDef {
             num: defs.len() as u16 + 1,
             id: "nightshade".into(),
-            name: "Nightshade".into(),
             kind: FeatureKind::Mineral,
             city: CityBonus::default(),
             spawn: vec![],

@@ -31,7 +31,7 @@ impl App {
                 def.id.clone(),
                 def.realm.name().to_string(),
                 summons,
-                def.name.clone(),
+                self.names.spell(def.num).to_string(),
             )
         };
         let fx = spell_fx::fx_for(
@@ -62,7 +62,7 @@ impl App {
             Err(unit) => {
                 let u = before.unit(unit)?;
                 let args = Args::new()
-                    .text("unit", &u.name)
+                    .text("unit", self.battle_unit_name(u))
                     .count("figures", u.figures_start)
                     .text("spell", &name);
                 self.text_with("battle.unit_cast", &args)

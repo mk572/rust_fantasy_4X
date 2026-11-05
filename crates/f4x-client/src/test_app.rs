@@ -62,6 +62,14 @@ pub(crate) mod shipped {
         })
     }
 
+    pub(crate) fn names() -> &'static crate::names::Names {
+        static CELL: OnceLock<crate::names::Names> = OnceLock::new();
+        CELL.get_or_init(|| {
+            crate::names::Names::load(&[Path::new(CLIENT_CONTENT)], "en")
+                .expect("the shipped names load")
+        })
+    }
+
     pub(crate) fn help() -> &'static f4x_core::help::Help {
         static CELL: OnceLock<f4x_core::help::Help> = OnceLock::new();
         CELL.get_or_init(|| {
@@ -96,8 +104,10 @@ impl App {
             shipped::wizard_art().clone(),
             shipped::icon_art().clone(),
         );
-        App::new(shipped::content().clone(), art, 1)
-            .expect("a new game starts on the shipped content")
+        let mut app = App::new(shipped::content().clone(), art, 1)
+            .expect("a new game starts on the shipped content");
+        app.names = shipped::names().clone();
+        app
     }
 }
 

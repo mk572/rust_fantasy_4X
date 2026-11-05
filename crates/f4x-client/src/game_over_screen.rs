@@ -204,7 +204,9 @@ impl Page for GameOverPage {
             // The score goes in the table once, then the table is shown.
             let mut table = hall_of_fame::load(std::path::Path::new(hall_of_fame::FILE));
             let race = race.map_or_else(String::new, |r| {
-                app.game.content().rules.races.get(r).name.clone()
+                app.names
+                    .race(app.game.content().rules.races.get(r).num)
+                    .to_string()
             });
             if hall_of_fame::insert(
                 &mut table,

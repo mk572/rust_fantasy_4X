@@ -99,7 +99,10 @@ impl Modal for WizardPick {
         let (bx, bw, bh) = (68.0, 185.0, 92.0);
         let by = ((crate::resolution::DESIGN_H - bh) / 2.0).floor();
         app.draw_stone_box(&lay, bx, by, bh);
-        let name = app.game.content().rules.spells.get(spell).name.clone();
+        let name = app
+            .names
+            .spell(app.game.content().rules.spells.get(spell).num)
+            .to_string();
         let title = app.text_with(
             "spell.pick_wizard",
             &f4x_core::text::Args::new().text("spell", &name),

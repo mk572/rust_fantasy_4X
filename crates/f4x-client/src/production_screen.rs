@@ -370,7 +370,7 @@ impl App {
                     && !built.contains(id)
                     && (def.races.is_empty() || race.is_some_and(|r| def.buildable_by(r)))
             })
-            .map(|(_, def)| def.name.clone())
+            .map(|(_, def)| self.names.building(def.num).to_string())
             .collect()
     }
 }
@@ -393,7 +393,10 @@ mod tests {
         let rules = &app.game.content().rules;
         let barracks = f4x_core::rules::BuildingId::new(3) /* barracks */;
         let armory = f4x_core::rules::BuildingId::new(4) /* armory */;
-        let armory_name = rules.buildings.get(armory).name.clone();
+        let armory_name = app
+            .names
+            .building(rules.buildings.get(armory).num)
+            .to_string();
         assert!(app.production_allows(city, None).is_empty());
         assert!(app
             .production_allows(city, Some(barracks))

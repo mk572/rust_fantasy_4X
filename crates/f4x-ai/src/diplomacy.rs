@@ -717,7 +717,7 @@ fn spell_swap(game: &Game, me: PlayerId, other: PlayerId) -> Option<ProposalKind
             .spells
             .iter()
             .filter(|&(id, _)| from(id) && !to(id))
-            .min_by_key(|&(_, def)| (def.research_cost, def.name.clone()))
+            .min_by_key(|&(_, def)| (def.research_cost, def.num))
             .map(|(id, _)| id)
     };
     let give = cheapest(&|id| mine.knows(id), &|id| theirs.knows(id))?;

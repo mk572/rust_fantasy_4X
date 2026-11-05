@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::game::Game;
 use crate::player::PlayerId;
-use crate::rules::RealmId;
+use crate::rules::{RealmId, UnitId};
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::Retort;
 
@@ -219,15 +219,16 @@ impl Wizard<'_> {
 }
 
 impl Game {
-    /// The names of a wizard's heroes (a hero's own name is not kept yet: its class stands for it).
-    pub fn wizard_heroes(&self, wizard: PlayerId) -> Vec<String> {
+    /// The unit definitions of a wizard's heroes (a hero's own name is not kept yet: its class
+    /// stands for it).
+    pub fn wizard_heroes(&self, wizard: PlayerId) -> Vec<UnitId> {
         let units = self.units();
         units
             .player_units(wizard)
             .into_iter()
             .filter_map(|u| units.unit_def(u))
             .filter(|d| d.kind == crate::rules::UnitKind::Hero)
-            .map(|d| d.name.clone())
+            .map(|d| UnitId::new(d.num))
             .collect()
     }
 

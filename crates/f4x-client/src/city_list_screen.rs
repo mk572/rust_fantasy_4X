@@ -104,7 +104,7 @@ impl App {
                     race: self
                         .game
                         .city_race(city)
-                        .map(|r| rules.races.get(r).name.clone())
+                        .map(|r| self.names.race(rules.races.get(r).num).to_string())
                         .unwrap_or_default(),
                     pop: self.game.city_population(city).figures,
                     gold: e.gold - e.gold_upkeep,
@@ -285,7 +285,9 @@ impl Page for CityListUi {
                 .take(8)
                 .map(|&(s, caster)| {
                     (
-                        app.game.content().rules.spells.get(s).name.clone(),
+                        app.names
+                            .spell(app.game.content().rules.spells.get(s).num)
+                            .to_string(),
                         caster.0,
                     )
                 })

@@ -183,18 +183,20 @@ impl App {
                 .collect();
             match sort {
                 None => of.sort(),
-                Some(BookSort::Name) => of.sort_by_key(|&s| rules.spells.get(s).name.clone()),
+                Some(BookSort::Name) => {
+                    of.sort_by_key(|&s| self.names.spell(rules.spells.get(s).num).to_string())
+                }
                 Some(BookSort::ManaCost) => of.sort_by_key(|&s| {
                     (
                         self.game.casting_cost(HUMAN, s, false),
-                        rules.spells.get(s).name.clone(),
+                        self.names.spell(rules.spells.get(s).num).to_string(),
                     )
                 }),
             }
             let title = rules
                 .realms
                 .id_numbered(realm.num())
-                .map_or("", |r| rules.realms.get(r).name.as_str());
+                .map_or("", |r| self.names.realm(rules.realms.get(r).num));
             for chunk in of.chunks(per_page) {
                 pages.push(BookPage {
                     title: title.to_string(),
@@ -581,7 +583,10 @@ impl BookUi {
                 }
             }
             BookAsk::Learn(spell) => {
-                let name = app.game.content().rules.spells.get(spell).name.clone();
+                let name = app
+                    .names
+                    .spell(app.game.content().rules.spells.get(spell).num)
+                    .to_string();
                 let researching = app
                     .game
                     .wizard(HUMAN)
@@ -788,8 +793,9 @@ impl BookUi {
         y: f32,
     ) {
         let def = app.game.content().rules.spells.get(spell).clone();
+        let shown = app.names.spell(def.num).to_string();
         if let Some(entry) = self.combat.as_ref().and_then(|m| m.get(&spell)).copied() {
-            app.draw_combat_entry(lay, view, &def.name, def.realm.id(), entry, x, y);
+            app.draw_combat_entry(lay, view, &shown, def.realm.id(), entry, x, y);
             return;
         }
         let casting = app
@@ -825,7 +831,8 @@ impl BookUi {
         } else {
             Style::nearest(1, ink)
         };
-        app.draw_styled(view, &style, &def.name, x, y);
+        let shown = app.names.spell(def.num).to_string();
+        app.draw_styled(view, &style, &shown, x, y);
         app.draw_styled(
             view,
             &style.right(),
@@ -979,7 +986,11 @@ impl BookUi {
                 .game
                 .wizard(HUMAN)
                 .and_then(|m| m.casting())
-                .map(|c| app.game.content().rules.spells.get(c.spell).name.clone())
+                .map(|c| {
+                    app.names
+                        .spell(app.game.content().rules.spells.get(c.spell).num)
+                        .to_string()
+                })
                 .unwrap_or_default();
             let question = app.text_with("spell.abort", &Args::new().text("spell", &casting));
             match app.confirm_box(&question, input) {

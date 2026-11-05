@@ -74,9 +74,6 @@ pub struct TerrainDef {
     /// The terrain's number, the id the game passes around (ours: counted from 1 in the
     /// alphabetical order of the ids; the original has no table of terrain types by name).
     pub num: u16,
-    /// From `text/<language>/name/` by `num`, not from the terrain file.
-    #[serde(default)]
-    pub name: String,
     pub class: TerrainClass,
     pub walkable: bool,
     pub can_found_city: bool,

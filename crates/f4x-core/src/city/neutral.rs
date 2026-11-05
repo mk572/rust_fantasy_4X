@@ -250,7 +250,7 @@ impl Game {
             .iter()
             .find(|n| !used.contains(n))
             .cloned()
-            .unwrap_or_else(|| format!("{} {}", def.name, used.len() + 1))
+            .unwrap_or_else(|| format!("{} {}", def.id, used.len() + 1))
     }
 
     /// Place a plane's neutral cities. Returns how many were made.

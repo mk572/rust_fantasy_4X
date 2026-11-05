@@ -101,7 +101,7 @@ impl Item {
             }
         }
         Item {
-            name: def.name.clone(),
+            name: String::new(),
             kind: def.kind,
             cost: def.cost,
             icon: 0,
@@ -113,15 +113,6 @@ impl Item {
                 .and_then(|(spell, n)| Some((spell.id()?, *n))),
             prefab: Some(ItemId::new(def.num)),
             made: None,
-        }
-    }
-
-    /// What the item is called to the player: the name it was given, or the default name made
-    /// from its parts in the language of the texts.
-    pub fn display_name(&self, content: &Content) -> String {
-        match &self.made {
-            Some(made) if self.name.is_empty() => made.compose(content),
-            _ => self.name.clone(),
         }
     }
 

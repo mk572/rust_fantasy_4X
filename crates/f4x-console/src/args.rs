@@ -185,7 +185,7 @@ pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
                 city.parse::<u64>()
                     .map_err(|_| ConsoleError::Parse(format!("{city:?} is not a number")))?,
             )?;
-            let realm = resolve(&game.content().rules.realms, name, |d| &d.name, "realm")?;
+            let realm = resolve(&game.content().rules.realms, name, |d| &d.id, "realm")?;
             Target::CityRealm(city, realm)
         }
         "tile" => Target::Tile(parse_pos(rest, Plane::Arcanus)?),
@@ -195,7 +195,7 @@ pub fn parse_target(game: &Game, text: &str) -> Result<Target, ConsoleError> {
             let (who, name) = rest.split_once(':').ok_or_else(|| {
                 ConsoleError::Parse("a global target is global:<player>:<spell>".into())
             })?;
-            let spell = resolve(&game.content().rules.spells, name, |d| &d.name, "spell")?;
+            let spell = resolve(&game.content().rules.spells, name, |d| &d.id, "spell")?;
             let owner = parse_player(who)?;
             Target::Spell(game.global_instance(owner, spell).ok_or_else(|| {
                 ConsoleError::Parse(format!("player {} keeps no {name:?} going", owner.0))

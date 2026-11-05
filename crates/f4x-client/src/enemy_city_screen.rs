@@ -78,7 +78,9 @@ impl Page for EnemyCityPage {
             .city_race(city)
             .map(|r| {
                 (
-                    app.game.content().rules.races.get(r).name.clone(),
+                    app.names
+                        .race(app.game.content().rules.races.get(r).num)
+                        .to_string(),
                     r.num() as usize,
                 )
             })
@@ -117,7 +119,11 @@ impl Page for EnemyCityPage {
                 );
                 app.draw_army_unit(&layout, unit, ux - 1.0, uy - 1.0);
                 if ui::hit(lay.rect(ux, uy, 20.0, 18.0), true, input).hovered() {
-                    let name = app.game.units().unit_def(unit).map(|d| d.name.clone());
+                    let name = app
+                        .game
+                        .units()
+                        .unit_def(unit)
+                        .map(|d| app.names.unit(d.num).to_string());
                     if let Some(name) = name {
                         app.draw_styled(view, &Style::city_figures(), &name, X + 36.0, 43.0);
                     }
@@ -134,7 +140,10 @@ impl Page for EnemyCityPage {
 
         // The enchantments, in the colour of whoever cast them.
         for (k, &(spell, caster)) in app.game.city_enchantments(city).iter().take(6).enumerate() {
-            let name = app.game.content().rules.spells.get(spell).name.clone();
+            let name = app
+                .names
+                .spell(app.game.content().rules.spells.get(spell).num)
+                .to_string();
             let ink = app.city_ench_ink(caster.0);
             app.draw_styled(
                 view,

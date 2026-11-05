@@ -1,5 +1,4 @@
 use super::*;
-use crate::testdir::TestResult;
 
 fn moon(kind: EventKind) -> Events {
     let mut events = Events::default();
@@ -179,63 +178,6 @@ fn the_table_has_eighteen_events_and_the_good_ones_are_as_the_original_marks_the
     assert!(EventKind::Plague.lasts() && !EventKind::Piracy.lasts());
 }
 
-fn text(event: u32, voice: u32, text: &str) -> EventText {
-    EventText {
-        event,
-        voice,
-        text: text.into(),
-    }
-}
-
-#[test]
-fn a_message_fills_in_the_names_and_counts() -> TestResult {
-    let texts = [text(
-        1,
-        0,
-        "Hit {city} killing {people} townsfolk and {units} unit{units_s}, destroying {buildings} building{buildings_s}.",
-    )];
-    let mut n = EventNotice::new(EventKind::GreatMeteor, Voice::Started);
-    n.city_name = "Rome".into();
-    n.lost_population = 3;
-    n.lost_units = 1;
-    n.lost_buildings = 0;
-    assert_eq!(
-        compose(&texts, &words(), &n).ok_or("compose is missing")?,
-        "Hit Rome killing 3 thousand townsfolk and 1 unit, destroying no buildings."
-    );
-    n.lost_units = 4;
-    n.lost_buildings = 1;
-    assert_eq!(
-        compose(&texts, &words(), &n).ok_or("compose is missing")?,
-        "Hit Rome killing 3 thousand townsfolk and 4 units, destroying 1 building."
-    );
-    Ok(())
-}
-
-#[test]
-fn the_message_is_the_one_of_the_events_voice() -> TestResult {
-    let texts = [
-        text(7, 0, "yours {size} of {city}"),
-        text(7, 1, "over in {city}"),
-        text(7, 4, "{player}'s"),
-    ];
-    let mut n = EventNotice::new(EventKind::Plague, Voice::Ended);
-    n.city_name = "Oslo".into();
-    assert_eq!(
-        compose(&texts, &words(), &n).ok_or("compose is missing")?,
-        "over in Oslo"
-    );
-    n.voice = Voice::Elsewhere;
-    n.player_name = "Rjak".into();
-    assert_eq!(
-        compose(&texts, &words(), &n).ok_or("compose is missing")?,
-        "Rjak's"
-    );
-    n.voice = Voice::Happened;
-    assert_eq!(compose(&texts, &words(), &n), None);
-    Ok(())
-}
-
 #[test]
 fn the_frequency_halves_or_doubles_the_pressure() {
     assert_eq!(scaled_pressure(40, 75, EventFrequency::Normal), 30);
@@ -243,18 +185,4 @@ fn the_frequency_halves_or_doubles_the_pressure() {
     assert_eq!(scaled_pressure(40, 75, EventFrequency::Double), 60);
     // About 1.5 percent a turn after ten quiet turns on Average, as the design says.
     assert_eq!(scaled_pressure(10, 75, EventFrequency::Normal), 7);
-}
-
-/// The words the messages are filled with, as `content/text/en/event.ron` has them.
-fn words() -> crate::text::Texts {
-    let entries: std::collections::HashMap<String, crate::text::Entry> = ron::from_str(
-        r#"{
-            "event.none": "no",
-            "event.number": "{n}",
-            "event.thousand": "{n} thousand",
-            "event.plural_ending": (count: "n", one: "", other: "s"),
-        }"#,
-    )
-    .expect("value succeeds");
-    crate::text::Texts::new("en", entries, "en", Default::default())
 }

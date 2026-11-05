@@ -58,7 +58,8 @@ impl App {
 
     fn temp_effect_line(&self, t: &TempEffect) -> String {
         let abilities = &self.game.content().rules.abilities;
-        let ability = |id: f4x_core::rules::Ability| abilities.get(id).name.clone();
+        let ability =
+            |id: f4x_core::rules::Ability| self.names.ability(abilities.get(id).num).to_string();
         let effect = match &t.kind {
             TempKind::Modifier { stat, op, value } => {
                 let name = STAT_NAMES
@@ -123,7 +124,7 @@ mod tests {
             .rules
             .abilities
             .by_name("first_strike")
-            .map(|a| a.name.clone())
+            .map(|a| app.names.ability(a.num).to_string())
             .expect("first_strike is an ability");
         assert_eq!(
             app.temp_effect_lines(unit),

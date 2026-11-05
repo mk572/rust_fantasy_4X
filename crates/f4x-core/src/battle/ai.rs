@@ -345,14 +345,14 @@ mod tests {
 
     fn duel(a: Pos, d: Pos) -> Battle {
         let units = vec![
-            BattleUnit::simple(Side::Attacker, "a", 1, 5, 5, 2).at(a),
-            BattleUnit::simple(Side::Defender, "d", 1, 5, 5, 2).at(d),
+            BattleUnit::simple(Side::Attacker, 1, 5, 5, 2).at(a),
+            BattleUnit::simple(Side::Defender, 1, 5, 5, 2).at(d),
         ];
         Battle::new(PlayerId(0), PlayerId(1), BattleMap::open(), units, 1)
     }
 
     fn shooter(side: Side, cell: Pos) -> BattleUnit {
-        let mut u = BattleUnit::simple(side, "archer", 3, 1, 1, 1).at(cell);
+        let mut u = BattleUnit::simple(side, 3, 1, 1, 1).at(cell);
         u.ranged = 3;
         u.ammo = 5;
         u.ranged_kind = RangedKind::Missile;
@@ -361,8 +361,8 @@ mod tests {
 
     #[test]
     fn a_side_that_the_enemy_outweighs_four_to_one_flees_and_an_even_one_fights() {
-        let strong = |side, cell| BattleUnit::simple(side, "s", 4, 3, 4, 3).at(cell);
-        let weak = |side, cell| BattleUnit::simple(side, "w", 1, 1, 1, 1).at(cell);
+        let strong = |side, cell| BattleUnit::simple(side, 4, 3, 4, 3).at(cell);
+        let weak = |side, cell| BattleUnit::simple(side, 1, 1, 1, 1).at(cell);
         let fight = |units| Battle::new(PlayerId(0), PlayerId(1), BattleMap::open(), units, 1);
         let lopsided = fight(vec![
             weak(Side::Attacker, (3, 5)),
@@ -395,13 +395,13 @@ mod tests {
     fn a_unit_hits_the_enemy_it_can_finish_rather_than_the_first_one() {
         // Two enemies stand next to the attacker: a full-strength unit and a nearly dead one of
         // the same kind. The wounded one gives the bigger share of a kill.
-        let mut strong = BattleUnit::simple(Side::Defender, "strong", 3, 3, 3, 2).at((6, 5));
-        let mut weak = BattleUnit::simple(Side::Defender, "weak", 3, 3, 3, 2).at((6, 6));
+        let mut strong = BattleUnit::simple(Side::Defender, 3, 3, 3, 2).at((6, 5));
+        let mut weak = BattleUnit::simple(Side::Defender, 3, 3, 3, 2).at((6, 6));
         weak.figures = 1;
         weak.front_damage = 2;
         strong.id = 0;
         let units = vec![
-            BattleUnit::simple(Side::Attacker, "a", 3, 3, 3, 2).at((5, 5)),
+            BattleUnit::simple(Side::Attacker, 3, 3, 3, 2).at((5, 5)),
             strong,
             weak,
         ];
@@ -421,7 +421,7 @@ mod tests {
     fn a_shooter_with_shots_left_stays_put_instead_of_walking_into_melee() -> TestResult {
         let units = vec![
             shooter(Side::Attacker, (3, 5)),
-            BattleUnit::simple(Side::Defender, "d", 3, 3, 3, 2).at((12, 5)),
+            BattleUnit::simple(Side::Defender, 3, 3, 3, 2).at((12, 5)),
         ];
         let mut b = Battle::new(PlayerId(0), PlayerId(1), BattleMap::open(), units, 1);
         assert_eq!(
@@ -445,7 +445,7 @@ mod tests {
         archer.ammo = 0;
         let units = vec![
             archer,
-            BattleUnit::simple(Side::Defender, "d", 3, 3, 3, 2).at((12, 5)),
+            BattleUnit::simple(Side::Defender, 3, 3, 3, 2).at((12, 5)),
         ];
         let b = Battle::new(PlayerId(0), PlayerId(1), BattleMap::open(), units, 1);
         assert!(matches!(
@@ -457,8 +457,8 @@ mod tests {
     #[test]
     fn a_defender_behind_walls_holds_its_ground() -> TestResult {
         let units = vec![
-            BattleUnit::simple(Side::Attacker, "a", 3, 3, 3, 2).at((3, 12)),
-            BattleUnit::simple(Side::Defender, "d", 3, 3, 3, 2).at((13, 11)),
+            BattleUnit::simple(Side::Attacker, 3, 3, 3, 2).at((3, 12)),
+            BattleUnit::simple(Side::Defender, 3, 3, 3, 2).at((13, 11)),
         ];
         let mut b = Battle::new(
             PlayerId(0),
@@ -476,8 +476,8 @@ mod tests {
 
     #[test]
     fn a_walker_expects_nothing_from_a_flier_in_melee_unless_the_setting_allows_it() {
-        let walker = BattleUnit::simple(Side::Attacker, "high_men_cavalry", 4, 2, 6, 1);
-        let mut bat = BattleUnit::simple(Side::Defender, "bat", 4, 2, 6, 1);
+        let walker = BattleUnit::simple(Side::Attacker, 4, 2, 6, 1);
+        let mut bat = BattleUnit::simple(Side::Defender, 4, 2, 6, 1);
         bat.flies = true;
         let expect = |rule| expected_damage(&walker, &bat, false, rule);
         assert_eq!(expect(MeleeVsFliers::Zero), 0.0);
@@ -487,14 +487,14 @@ mod tests {
 
     #[test]
     fn expected_damage_falls_with_defence_and_is_nothing_against_an_immunity() {
-        let a = BattleUnit::simple(Side::Attacker, "a", 4, 1, 4, 1);
-        let soft = BattleUnit::simple(Side::Defender, "soft", 4, 1, 1, 0);
-        let hard = BattleUnit::simple(Side::Defender, "hard", 4, 1, 1, 4);
+        let a = BattleUnit::simple(Side::Attacker, 4, 1, 4, 1);
+        let soft = BattleUnit::simple(Side::Defender, 4, 1, 1, 0);
+        let hard = BattleUnit::simple(Side::Defender, 4, 1, 1, 4);
         assert!(
             expected_damage(&a, &soft, false, MeleeVsFliers::default())
                 > expected_damage(&a, &hard, false, MeleeVsFliers::default())
         );
-        let mut stone = BattleUnit::simple(Side::Defender, "stone", 4, 1, 1, 0);
+        let mut stone = BattleUnit::simple(Side::Defender, 4, 1, 1, 0);
         stone.abilities.push(crate::rules::Ability::new(72));
         assert_eq!(
             expected_damage(&a, &stone, false, MeleeVsFliers::default()),

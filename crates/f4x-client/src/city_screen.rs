@@ -388,7 +388,9 @@ impl App {
             .city_race(city)
             .map(|r| {
                 (
-                    self.game.content().rules.races.get(r).name.clone(),
+                    self.names
+                        .race(self.game.content().rules.races.get(r).num)
+                        .to_string(),
                     r.num() as usize,
                 )
             })
@@ -623,7 +625,7 @@ impl App {
         for (row, &(spell, caster)) in list.iter().enumerate().skip(panel.spell_first).take(PAGE) {
             let i = (row - panel.spell_first) as f32;
             let def = self.game.content().rules.spells.get(spell).clone();
-            let mut name = def.name.clone();
+            let mut name = self.names.spell(def.num).to_string();
             if def.num == 72
             /* spell_ward */
             {
@@ -658,7 +660,7 @@ impl App {
                 panel.sell = Some(SellPrompt::TurnOff {
                     city,
                     spell,
-                    name: def.name.clone(),
+                    name: self.names.spell(def.num).to_string(),
                 });
             }
         }
@@ -1063,7 +1065,7 @@ impl App {
                 .map(|(_, b)| {
                     // A right-click on it opens its help topic.
                     self.help_ui.building = b.help;
-                    b.name.clone()
+                    self.names.building(b.num).to_string()
                 }),
             _ => None,
         };

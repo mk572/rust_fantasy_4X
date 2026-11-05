@@ -407,6 +407,12 @@ mod specials;
 mod spell_anim;
 
 impl App {
+    /// What the interface calls a unit of the battle: the name of its definition.
+    pub(crate) fn battle_unit_name(&self, u: &f4x_core::battle::BattleUnit) -> String {
+        u.unit_id
+            .map_or_else(String::new, |id| self.names.unit(id.num()).to_string())
+    }
+
     /// Which side the human commands in the current battle, if any.
     fn human_side(battle: &Battle) -> Option<Side> {
         [Side::Attacker, Side::Defender]
@@ -460,7 +466,11 @@ impl App {
     fn new_battle_page(&self) -> BattleUi {
         let mut ui = BattleUi::default();
         if let Some(battle) = self.game.battle() {
-            ui.names = battle.units.iter().map(|u| u.name.clone()).collect();
+            ui.names = battle
+                .units
+                .iter()
+                .map(|u| self.battle_unit_name(u))
+                .collect();
             ui.selected = battle
                 .active_units(battle.active)
                 .find(|u| unfinished(u))
@@ -763,7 +773,7 @@ impl App {
         // A summoned creature has a name too.
         if let Some(b) = self.game.battle() {
             if b.units.len() != ui.names.len() {
-                ui.names = b.units.iter().map(|u| u.name.clone()).collect();
+                ui.names = b.units.iter().map(|u| self.battle_unit_name(u)).collect();
             }
         }
         ui.chaos = events
@@ -780,8 +790,11 @@ impl App {
         for event in &events {
             match event {
                 Event::Battle(e) => {
-                    let spell_name =
-                        |id: SpellId| self.game.content().rules.spells.get(id).name.clone();
+                    let spell_name = |id: SpellId| {
+                        self.names
+                            .spell(self.game.content().rules.spells.get(id).num)
+                            .to_string()
+                    };
                     if let Some(line) = describe(&self.game.content().texts, &names, &spell_name, e)
                     {
                         ui.log.push(line);
@@ -1125,7 +1138,11 @@ impl App {
             ui.last_drawn = Some(battle.clone());
         }
         if ui.names.len() != battle.units.len() {
-            ui.names = battle.units.iter().map(|u| u.name.clone()).collect();
+            ui.names = battle
+                .units
+                .iter()
+                .map(|u| self.battle_unit_name(u))
+                .collect();
         }
         // A box over the fight (a dispel's notices) stops it until it is clicked away.
         if self.under_modal {
@@ -1616,7 +1633,10 @@ impl App {
                     .collect()
             })
             .unwrap_or_default();
-        let name = self.game.content().rules.spells.get(spell).name.clone();
+        let name = self
+            .names
+            .spell(self.game.content().rules.spells.get(spell).num)
+            .to_string();
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let bw = self
@@ -1652,7 +1672,7 @@ impl App {
                 _ => "battle.fate_slain",
             });
             let args = Args::new()
-                .text("unit", &u.name)
+                .text("unit", self.battle_unit_name(u))
                 .count("figures", u.figures_start)
                 .text("how", how);
             let mut label = self.text_with("battle.fallen_row", &args);
@@ -1734,7 +1754,10 @@ impl App {
                 }
             }
         }
-        let name = self.game.content().rules.spells.get(aim.spell).name.clone();
+        let name = self
+            .names
+            .spell(self.game.content().rules.spells.get(aim.spell).num)
+            .to_string();
         let aimless = matches!(aim.target, SpellTarget::None | SpellTarget::Battlefield);
         let mut text = self.text_with(
             if aimless {

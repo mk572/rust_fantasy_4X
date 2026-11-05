@@ -281,7 +281,6 @@ impl Game {
             side,
             source: Some(index),
             unit_id: Some(UnitId::new(def.num)),
-            name: def.name.clone(),
             cell: (0, 0),
             melee: if melee > 0 { melee + extra } else { melee },
             ranged: if ranged > 0 && physical_shot {

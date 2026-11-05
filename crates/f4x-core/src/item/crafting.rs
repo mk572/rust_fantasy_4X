@@ -385,7 +385,7 @@ pub enum Suffix {
 }
 
 impl Suffix {
-    fn key(&self) -> Option<&'static str> {
+    pub fn key(&self) -> Option<&'static str> {
         Some(match self {
             Self::Strength => "item.suffix_strength",
             Self::Accuracy => "item.suffix_accuracy",
@@ -408,44 +408,6 @@ pub struct MadeName {
     /// The attack bonus of a weapon, "+3".
     pub bonus: Option<i32>,
     pub suffix: Option<Suffix>,
-}
-
-impl MadeName {
-    /// The name in the language of the texts, at most thirty letters (the original's buffer).
-    pub fn compose(&self, content: &crate::content::Content) -> String {
-        use crate::text::Args;
-        let texts = &content.texts;
-        let kind = texts.get(self.kind.key(), &Args::new());
-        let mut name = match self.bonus {
-            Some(n) => texts.get(
-                "item.name_bonus",
-                &Args::new().count("n", n).text("type", &kind),
-            ),
-            None => kind,
-        };
-        let suffix = match &self.suffix {
-            None => None,
-            Some(Suffix::Special(id)) => content
-                .rules
-                .item_powers
-                .try_get(*id)
-                .map(|p| p.name.clone()),
-            Some(Suffix::Spell(id, n)) => content.rules.spells.try_get(*id).map(|s| {
-                texts.get(
-                    "item.name_charges",
-                    &Args::new().text("spell", &s.name).count("n", *n as i32),
-                )
-            }),
-            Some(other) => other.key().map(|k| texts.get(k, &Args::new())),
-        };
-        if let Some(suffix) = suffix {
-            name = texts.get(
-                "item.name_of",
-                &Args::new().text("item", &name).text("suffix", &suffix),
-            );
-        }
-        name.chars().take(30).collect()
-    }
 }
 
 /// The parts of the default name of a design.
@@ -583,13 +545,13 @@ impl crate::game::Game {
         spell: crate::rules::SpellId,
         item: Item,
     ) -> Vec<crate::game::Event> {
-        let name = item.display_name(&self.content);
+        let shown = item.clone();
         let placed = self.give_item(player, item);
         vec![
             crate::game::Event::SpellCast { player, spell },
             crate::game::Event::ItemMade {
                 player,
-                name,
+                item: shown,
                 placed,
             },
         ]
@@ -604,11 +566,11 @@ impl crate::game::Game {
         let Some((entity, item)) = crate::item::entity::crafting_of(&self.world, player) else {
             return Vec::new();
         };
-        let name = item.display_name(&self.content);
+        let shown = item.clone();
         let placed = self.place_item(player, entity);
         vec![crate::game::Event::ItemMade {
             player,
-            name,
+            item: shown,
             placed,
         }]
     }

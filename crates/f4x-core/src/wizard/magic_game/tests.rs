@@ -455,10 +455,7 @@ fn the_wizard_sees_the_shortfall_and_chooses_what_to_give_up() -> TestResult {
     let short = g.upkeep_shortfall(P0).expect("20 owed against 14");
     assert_eq!((short.owed, short.reserve), (20, 14));
     assert_eq!(short.lines.len(), 2);
-    assert!(short
-        .lines
-        .iter()
-        .all(|l| l.mana == 10 && !l.label.is_empty()));
+    assert!(short.lines.iter().all(|l| l.mana == 10));
     // The turn change would drop the newest (the second); the wizard keeps it and loses the first.
     let events = g
         .release_upkeep(P0, &[UpkeepKind::Global(first)])

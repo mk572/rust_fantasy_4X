@@ -119,40 +119,6 @@ fn rival_names(
     parse(dirs, &name)
 }
 
-/// How `fill_names` reads a definition's number and alias.
-pub(crate) type Keys<T> = (fn(&T) -> u16, fn(&T) -> &str);
-
-/// Put the names of `lang` on the definitions of one table. A definition without a name and a
-/// name for a number nobody has are problems. A value is a name, or for races the pair of name
-/// and plural.
-pub(crate) fn fill_names<T, V: serde::de::DeserializeOwned + Clone>(
-    (dirs, lang): (&[&Path], &str),
-    (kind, file): (&str, &str),
-    defs: &mut [T],
-    (num, id): Keys<T>,
-    set: fn(&mut T, V),
-    problems: &mut Vec<String>,
-) -> Result<(), ContentError> {
-    let names = name_table::<V>(dirs, lang, file)?;
-    for d in defs.iter_mut() {
-        match names.get(&num(d)) {
-            Some(n) => set(d, n.clone()),
-            None => problems.push(format!(
-                "{kind} {} ({}) has no name in text/{lang}/name/{file}.ron",
-                num(d),
-                id(d)
-            )),
-        }
-    }
-    let known: std::collections::BTreeSet<u16> = defs.iter().map(&num).collect();
-    for n in names.keys().filter(|n| !known.contains(n)) {
-        problems.push(format!(
-            "text/{lang}/name/{file}.ron names the unknown {kind} {n}"
-        ));
-    }
-    Ok(())
-}
-
 /// Load and validate every rules file. Each file comes from the first of `dirs` that has it,
 /// so a local directory can replace single files of the committed one.
 pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rules, ContentError> {
@@ -180,98 +146,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
     let mut problems = Vec::new();
     let at = (dir, lang);
     apply_hero_names(at, &mut hero_templates, &units, &mut problems)?;
-    fill_names(
-        at,
-        ("wizard", "wizard"),
-        &mut wizards,
-        (|d| d.num, |d| &d.id),
-        |d, n: String| d.name = n,
-        &mut problems,
-    )?;
-    fill_names(
-        at,
-        ("retort", "retort"),
-        &mut retorts,
-        (|d| d.num, |d| &d.id),
-        |d, n: String| d.name = n,
-        &mut problems,
-    )?;
     let mut level_paths = parse::<Vec<LevelPathDef>>(dir, "level_paths.ron")?;
-    fill_names(
-        at,
-        ("level path", "level_path"),
-        &mut level_paths,
-        (|d| d.num, |d| &d.id),
-        |d, n: Vec<String>| d.set_level_names(n),
-        &mut problems,
-    )?;
-    fill_names(
-        at,
-        ("race", "race"),
-        &mut races,
-        (|d| d.num, |d| &d.id),
-        |d, (name, plural): (String, String)| {
-            d.name = name;
-            d.plural = plural;
-        },
-        &mut problems,
-    )?;
-    fill_names(
-        at,
-        ("unit", "unit"),
-        &mut units,
-        (|d| d.num, |d| &d.id),
-        |d, n: String| d.name = n,
-        &mut problems,
-    )?;
-    fill_names(
-        at,
-        ("ability", "ability"),
-        &mut abilities,
-        (|d| d.num, |d| &d.id),
-        |d, n: String| d.name = n,
-        &mut problems,
-    )?;
-    fill_names(
-        at,
-        ("building", "building"),
-        &mut buildings,
-        (|d| d.num, |d| &d.id),
-        |d, n: String| d.name = n,
-        &mut problems,
-    )?;
-    fill_names(
-        at,
-        ("realm", "realm"),
-        &mut realms,
-        (|d| d.num, |d| &d.id),
-        |d, n: String| d.name = n,
-        &mut problems,
-    )?;
-    fill_names(
-        at,
-        ("spell", "spell"),
-        &mut spells,
-        (|d| d.num, |d| &d.id),
-        |d, n: String| d.name = n,
-        &mut problems,
-    )?;
-    fill_names(
-        at,
-        ("item", "item"),
-        &mut items,
-        (|d| d.num, |d| &d.id),
-        |d, n: String| d.name = n,
-        &mut problems,
-    )?;
-    fill_names(
-        at,
-        ("item power", "item_power"),
-        &mut item_powers,
-        (|d| d.num, |d| &d.id),
-        |d, n: String| d.name = n,
-        &mut problems,
-    )?;
     if !problems.is_empty() {
         return Err(ContentError::Invalid(problems));
     }
@@ -552,9 +427,9 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
             .map(|d| (format!("item {:?}", d.id), &d.effects[..])),
     );
     for path in r.level_paths.defs() {
-        for level in &path.levels {
+        for (i, level) in path.levels.iter().enumerate() {
             carriers.push((
-                format!("level path {:?} level {:?}", path.id, level.name),
+                format!("level path {:?} level {i}", path.id),
                 &level.effects[..],
             ));
         }
@@ -1006,7 +881,6 @@ mod tests {
             .iter()
             .find(|w| w.id == "lo_pan")
             .ok_or("the value is missing")?;
-        assert_eq!(lo_pan.name, "Lo Pan");
         assert_eq!(lo_pan.books.iter().map(|b| u32::from(b.1)).sum::<u32>(), 9);
         Ok(())
     }
@@ -1187,7 +1061,7 @@ mod tests {
             .units
             .id_of("barbarian_spearmen")
             .ok_or("the value is missing")?;
-        assert_eq!(rules.units.get(id).name, "Spearmen");
+        assert_eq!(rules.units.get(id).id, "barbarian_spearmen");
         assert!(rules.units.id_of("nope").is_none());
         Ok(())
     }
@@ -1410,58 +1284,6 @@ mod tests {
                 + added(&level.effects, Stat::Defense)
                 + added(&spell.effects, Stat::Defense)
         );
-        Ok(())
-    }
-
-    #[test]
-    fn a_language_names_the_definitions_by_number_and_falls_back_to_english() -> TestResult {
-        let over = f4x_core::testdir::TestDir::new("lang");
-        std::fs::create_dir_all(over.join("text/xx/name"))?;
-        std::fs::write(
-            over.join("text/xx/name/unit.ron"),
-            r#"{ 95: "Lanzenträger" }"#,
-        )?;
-        std::fs::write(
-            over.join("text/xx/name/race.ron"),
-            r#"{ 0: ("Barbar", "Barbaren") }"#,
-        )?;
-        let features = features();
-        let rules = load_rules(&[&over, &content_dir(), &client_dir()], "xx", &features)?;
-        let spearmen = rules.units.id_numbered(95).ok_or("the value is missing")?;
-        assert_eq!(rules.units.get(spearmen).name, "Lanzenträger");
-        // What the language leaves out is English.
-        assert!(!rules
-            .units
-            .get(rules.units.id_numbered(96).ok_or("the value is missing")?)
-            .name
-            .is_empty());
-        assert_eq!(
-            rules
-                .races
-                .by_name("barbarian")
-                .ok_or("the value is missing")?
-                .plural,
-            "Barbaren"
-        );
-        assert_eq!(
-            rules
-                .races
-                .by_name("barbarian")
-                .ok_or("the value is missing")?
-                .name,
-            "Barbar"
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn a_name_for_a_number_nobody_has_is_refused() -> TestResult {
-        let over = f4x_core::testdir::TestDir::new("lang_bad");
-        std::fs::create_dir_all(over.join("text/en/name"))?;
-        std::fs::write(over.join("text/en/name/unit.ron"), r#"{ 9999: "Nobody" }"#)?;
-        let err =
-            load_rules(&[&over, &content_dir(), &client_dir()], "en", &features()).unwrap_err();
-        assert!(format!("{err:?}").contains("names the unknown unit 9999"));
         Ok(())
     }
 

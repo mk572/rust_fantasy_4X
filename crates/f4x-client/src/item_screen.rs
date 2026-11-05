@@ -129,7 +129,7 @@ impl App {
             (my - lay.origin.y) / lay.scale - 5.0,
         );
         self.draw_pic(lay, "items", self.art.item_icon(item), 0, x, y);
-        let name = item.display_name(self.game.content());
+        let name = self.names.item_name(item, self.game.content());
         self.draw_styled(view, &Style::shadowed(1), &name, x + 20.0, y + 4.0);
     }
 

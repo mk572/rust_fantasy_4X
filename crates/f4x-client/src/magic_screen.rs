@@ -506,8 +506,11 @@ impl MagicUi {
         let skill = app.game.wizard(HUMAN).map_or(0, |m| m.casting_skill());
         let reserve = app.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         let base = income.power_base;
-        let name =
-            |g: &f4x_core::game::Game, s: SpellId| g.content().rules.spells.get(s).name.clone();
+        let name = |g: &f4x_core::game::Game, s: SpellId| {
+            app.names
+                .spell(g.content().rules.spells.get(s).num)
+                .to_string()
+        };
         let casting =
             casting_spell.map_or_else(|| app.text("magic.none"), |c| name(&app.game, c.spell));
         let researching =
@@ -572,7 +575,10 @@ impl MagicUi {
         }
         let first = self.first;
         for (i, &(spell, owner)) in list.iter().skip(first).take(per_page).enumerate() {
-            let name = app.game.content().rules.spells.get(spell).name.clone();
+            let name = app
+                .names
+                .spell(app.game.content().rules.spells.get(spell).num)
+                .to_string();
             let ink = app.banner_ink(owner.0, &[172, 216, 123, 201, 211]);
             let (x, y, style) = if two_columns {
                 (
@@ -777,7 +783,10 @@ impl Page for MagicUi {
             self.alchemy_popup(app, &lay, view, input);
         }
         if let Some(spell) = self.turn_off {
-            let name = app.game.content().rules.spells.get(spell).name.clone();
+            let name = app
+                .names
+                .spell(app.game.content().rules.spells.get(spell).num)
+                .to_string();
             let question = app.text_with("magic.cancel_spell", &Args::new().text("spell", &name));
             match app.confirm_box(&question, input) {
                 Some(true) => {

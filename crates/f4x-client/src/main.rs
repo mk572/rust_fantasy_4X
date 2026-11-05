@@ -32,6 +32,7 @@ mod diplomacy_screen;
 mod diplomacy_text;
 mod end_scene;
 mod enemy_city_screen;
+mod event_message;
 mod event_popup;
 mod extra_mana;
 mod fighter_pick;
@@ -56,6 +57,7 @@ mod map_draw;
 mod map_slide;
 mod menu_screen;
 mod modal;
+mod names;
 mod newgame_flow;
 mod newgame_picks;
 mod offer_prompt;
@@ -608,7 +610,7 @@ async fn main() {
         }
     };
     let help = f4x_data::load_help(&layers, &settings.language).unwrap_or_default();
-    let tables = match asset_check::load_tables(&layers, &content.rules) {
+    let tables = match asset_check::load_tables(&layers, &content.rules, &settings.language) {
         Ok(tables) => tables,
         Err(e) => {
             eprintln!("could not load the asset tables: {e}");
@@ -640,6 +642,7 @@ async fn main() {
         }
     };
     app.help = help;
+    app.names = tables.names;
     match hotkeys::Hotkeys::load(&[&options.content, Path::new("saves")]) {
         Ok(keys) => app.hotkeys = keys,
         Err(e) => eprintln!("{e}; the shipped keys are used"),
@@ -653,7 +656,7 @@ async fn main() {
             );
         }
     }
-    app.event_texts = f4x_data::load_event_texts(&options.content).unwrap_or_default();
+    app.event_texts = event_message::load(&options.content).unwrap_or_default();
     app.diplomsg = f4x_data::load_diplomacy_lines(&options.content).unwrap_or_default();
     match preferences::Preferences::from_defaults(&settings.preferences) {
         Ok(base) => app.prefs = base,

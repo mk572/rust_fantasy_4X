@@ -471,7 +471,10 @@ impl App {
                 ),
             ),
             D::SpellGiven { from, to, spell } if to == HUMAN && from != HUMAN => {
-                let name = self.game.content().rules.spells.get(spell).name.clone();
+                let name = self
+                    .names
+                    .spell(self.game.content().rules.spells.get(spell).num)
+                    .to_string();
                 Some(
                     self.text_with(
                         "diplomacy.gives_spell",
@@ -641,7 +644,10 @@ impl DiploUi {
                     .into_iter()
                     .take(5)
                     .map(|s| {
-                        let name = app.game.content().rules.spells.get(s).name.clone();
+                        let name = app
+                            .names
+                            .spell(app.game.content().rules.spells.get(s).num)
+                            .to_string();
                         row(name, true, Act::GiveSpell(s))
                     })
                     .collect();
@@ -656,7 +662,10 @@ impl DiploUi {
                 let mut rows: Vec<Row> = realms
                     .into_iter()
                     .map(|i| {
-                        let name = app.game.content().rules.realms.defs()[i].name.clone();
+                        let name = app
+                            .names
+                            .realm(app.game.content().rules.realms.defs()[i].num)
+                            .to_string();
                         row(name, true, Act::Go(Menu::ExchangeGet(i)))
                     })
                     .collect();
@@ -673,7 +682,7 @@ impl DiploUi {
                     .take(5)
                     .map(|s| {
                         row(
-                            rules.spells.get(s).name.clone(),
+                            app.names.spell(rules.spells.get(s).num).to_string(),
                             true,
                             Act::Go(Menu::ExchangeGive(s)),
                         )
@@ -690,7 +699,7 @@ impl DiploUi {
                     .take(5)
                     .map(|s| {
                         row(
-                            rules.spells.get(s).name.clone(),
+                            app.names.spell(rules.spells.get(s).num).to_string(),
                             true,
                             Act::Swap { give: s, get },
                         )
@@ -837,7 +846,10 @@ impl DiploUi {
                 let failed = events.iter().any(|e| matches!(e, Event::Rejected(_)));
                 app.note(events);
                 if !failed {
-                    let gift = app.game.content().rules.spells.get(spell).name.clone();
+                    let gift = app
+                        .names
+                        .spell(app.game.content().rules.spells.get(spell).num)
+                        .to_string();
                     let said = app
                         .original_say(54, with, salt, &[("gift", gift)])
                         .unwrap_or_else(|| say::spell_thanks(app.texts(), salt));

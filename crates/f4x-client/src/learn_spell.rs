@@ -168,7 +168,10 @@ impl App {
     /// With animations off: "You have mastered the spell of X" in a box over the map.
     /// True while the box stays.
     fn learned_box(&mut self, spell: SpellId, input: &Input) -> bool {
-        let name = self.game.content().rules.spells.get(spell).name.clone();
+        let name = self
+            .names
+            .spell(self.game.content().rules.spells.get(spell).num)
+            .to_string();
         let lay = Layout::new();
         let text = self.text_with("spell.mastered", &Args::new().text("spell", &name));
         let closed = self.notify2_box(

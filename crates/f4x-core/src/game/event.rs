@@ -318,7 +318,7 @@ pub enum Event {
     /// An item a wizard made is ready: where it went.
     ItemMade {
         player: player::PlayerId,
-        name: String,
+        item: item::Item,
         placed: item::armory::Placed,
     },
     /// Items fell to a wizard from heroes that were slain; `lost` did not fit the armory.
@@ -350,7 +350,7 @@ pub enum Event {
     /// A wizard sold an item for `gold`; it is offered to the others next.
     ItemSold {
         player: player::PlayerId,
-        name: String,
+        item: item::Item,
         gold: i32,
     },
     /// A company of mercenaries joined the army at the summoning circle.

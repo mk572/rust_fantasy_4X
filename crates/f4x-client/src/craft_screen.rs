@@ -240,7 +240,7 @@ impl App {
             .into_iter()
             .map(|s| (s, rules.spells.get(s)))
             .filter(|(_, d)| d.contexts.contains(&CastContext::Battle))
-            .map(|(s, d)| (s, d.name.clone()))
+            .map(|(s, d)| (s, self.names.spell(d.num).to_string()))
             .collect()
     }
 
@@ -261,7 +261,10 @@ impl App {
         if ui.typing || !ui.design.name.is_empty() {
             return ui.design.name.clone();
         }
-        made_name(&ui.design, &self.game.content().rules).compose(self.game.content())
+        self.names.made_name(
+            &made_name(&ui.design, &self.game.content().rules),
+            self.game.content(),
+        )
     }
 
     /// The name box lets go: a name left as the default one goes back to being made from the
@@ -271,7 +274,10 @@ impl App {
         let default = {
             let mut bare = ui.design.clone();
             bare.name.clear();
-            made_name(&bare, &self.game.content().rules).compose(self.game.content())
+            self.names.made_name(
+                &made_name(&bare, &self.game.content().rules),
+                self.game.content(),
+            )
         };
         if ui.design.name == default || ui.design.name.trim().is_empty() {
             ui.design.name.clear();
@@ -515,17 +521,19 @@ impl Page for CraftUi {
                     let spell = rules
                         .spells
                         .try_get(spell)
-                        .map_or_else(String::new, |s| s.name.clone());
+                        .map_or_else(String::new, |s| app.names.spell(s.num).to_string());
                     let line = app.text_with(
                         "item.name_charges",
                         &Args::new().text("spell", &spell).count("n", n as i32),
                     );
                     app.draw_styled(view, &power_style(chosen), &line, x, y);
                 } else if col == 2 {
-                    app.draw_styled(view, &power_style(chosen), &power.name, x, y);
+                    let shown = app.names.item_power(power.num).to_string();
+                    app.draw_styled(view, &power_style(chosen), &shown, x, y);
                 } else {
                     // "+2 Attack": the number right-aligned, the rest after it.
-                    let (num, rest) = power.name.split_once(' ').unwrap_or(("", &power.name));
+                    let shown = app.names.item_power(power.num).to_string();
+                    let (num, rest) = shown.split_once(' ').unwrap_or(("", &shown));
                     app.draw_styled(view, &power_style(chosen).right(), num, x + 10.0, y);
                     app.draw_styled(view, &power_style(chosen), rest, x + 14.0, y);
                 }

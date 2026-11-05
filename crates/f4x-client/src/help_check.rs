@@ -19,7 +19,14 @@ mod tests {
             let topic = help
                 .topic_of(def.help)
                 .ok_or_else(|| format!("{} has no help topic", def.id))?;
-            assert_eq!(topic.title, def.name, "{}", def.id);
+            assert_eq!(
+                topic.title,
+                crate::test_app::shipped::names()
+                    .building(def.num)
+                    .to_string(),
+                "{}",
+                def.id
+            );
             for rule in &def.effects {
                 if let (Trigger::Passive, Effect::Modify { value, .. }) = (&rule.when, &rule.effect)
                 {
@@ -51,10 +58,12 @@ mod tests {
             for (_, b) in content.rules.buildings.iter() {
                 if !b.buildable_by(f4x_core::rules::RaceId::new(r.num)) {
                     assert!(
-                        topic.text.contains(&b.name),
+                        topic
+                            .text
+                            .contains(crate::test_app::shipped::names().building(b.num)),
                         "topic {index} ({}) does not name the {}",
                         r.id,
-                        b.name
+                        crate::test_app::shipped::names().building(b.num)
                     );
                 }
             }
@@ -72,7 +81,12 @@ mod tests {
             let topic = help
                 .topic_of(r.help)
                 .ok_or_else(|| format!("retort {} has no help topic", r.id))?;
-            assert_eq!(topic.title, r.name, "retort {}", r.id);
+            assert_eq!(
+                topic.title,
+                crate::test_app::shipped::names().retort(r.num).to_string(),
+                "retort {}",
+                r.id
+            );
             assert!(!topic.text.trim().is_empty(), "retort {}", r.id);
         }
         for r in content.rules.races.defs() {
@@ -191,7 +205,12 @@ mod tests {
                 .iter()
                 .find(|t| t.index == w.help)
                 .ok_or_else(|| format!("no help topic {} for the wizard {}", w.help, w.num))?;
-            assert_eq!(topic.title, w.name, "wizard {}", w.num);
+            assert_eq!(
+                topic.title,
+                crate::test_app::shipped::names().wizard(w.num).to_string(),
+                "wizard {}",
+                w.num
+            );
             assert!(!topic.text.trim().is_empty(), "wizard {}", w.num);
         }
         Ok(())

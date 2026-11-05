@@ -28,7 +28,7 @@ pub fn player(game: &Game, id: PlayerId) -> String {
 }
 
 pub fn unit(game: &Game, u: hecs::Entity) -> String {
-    let name = game.units().unit_def(u).map_or("?", |d| d.name.as_str());
+    let name = game.units().unit_def(u).map_or("?", |d| d.id.as_str());
     let at = game
         .units()
         .unit_position(u)
@@ -49,15 +49,15 @@ pub fn city_name(game: &Game, c: hecs::Entity) -> String {
 pub fn item(game: &Game, item: ProductionItem) -> String {
     let rules = &game.content().rules;
     match item {
-        ProductionItem::Building(b) => rules.buildings.get(b).name.clone(),
-        ProductionItem::Unit(u) => rules.units.get(u).name.clone(),
+        ProductionItem::Building(b) => rules.buildings.get(b).id.clone(),
+        ProductionItem::Unit(u) => rules.units.get(u).id.clone(),
         ProductionItem::TradeGoods => "Trade Goods".into(),
         ProductionItem::Housing => "Housing".into(),
     }
 }
 
 pub fn spell(game: &Game, s: f4x_core::rules::SpellId) -> String {
-    game.content().rules.spells.get(s).name.clone()
+    game.content().rules.spells.get(s).id.clone()
 }
 
 fn units(game: &Game, list: &[hecs::Entity]) -> String {
@@ -77,7 +77,7 @@ pub fn offer(game: &Game, o: &f4x_core::player::offer::Offer) -> String {
                 .hero_templates
                 .get(*kind)
                 .and_then(|t| rules.units.by_name(&t.unit))
-                .map_or("a hero", |u| u.name.as_str());
+                .map_or("a hero", |u| u.id.as_str());
             format!("{name} asks {price} gold to join you")
         }
         Offer::Summoned { kind, .. } => {
@@ -85,7 +85,7 @@ pub fn offer(game: &Game, o: &f4x_core::player::offer::Offer) -> String {
                 .hero_templates
                 .get(*kind)
                 .and_then(|t| rules.units.by_name(&t.unit))
-                .map_or("a hero", |u| u.name.as_str());
+                .map_or("a hero", |u| u.id.as_str());
             format!("{name} is summoned and waits to be accepted")
         }
         Offer::Mercenaries {
@@ -97,16 +97,15 @@ pub fn offer(game: &Game, o: &f4x_core::player::offer::Offer) -> String {
             let name = rules
                 .units
                 .by_name(unit)
-                .map_or(unit.as_str(), |u| u.name.as_str());
+                .map_or(unit.as_str(), |u| u.id.as_str());
             format!("{count} {name} of level {} for {price} gold", level + 1)
         }
-        Offer::Item { item, price } => format!(
-            "the item {} for {price} gold",
-            item.display_name(game.content())
-        ),
+        Offer::Item { item, price } => {
+            format!("the item {} for {price} gold", item_label(game, item))
+        }
         Offer::Resale { item, price, .. } => format!(
             "the item {} for {price} gold, sold by another wizard",
-            item.display_name(game.content())
+            item_label(game, item)
         ),
     }
 }
@@ -143,7 +142,7 @@ pub fn event(game: &Game, e: &Event) -> String {
                 line += &format!(": {units_lost} unit(s) destroyed");
             }
             if let Some(b) = building {
-                line += &format!(", {} falls", game.content().rules.buildings.get(*b).name);
+                line += &format!(", {} falls", game.content().rules.buildings.get(*b).id);
             }
             line
         }
@@ -179,7 +178,7 @@ pub fn event(game: &Game, e: &Event) -> String {
         } => {
             let names: Vec<_> = spells
                 .iter()
-                .map(|&s| game.content().rules.spells.get(s).name.clone())
+                .map(|&s| game.content().rules.spells.get(s).id.clone())
                 .collect();
             format!(
                 "{} takes {} from {}",
@@ -310,8 +309,8 @@ pub fn event(game: &Game, e: &Event) -> String {
         } => format!("{}'s {} slays {count} units", player(game, *p), spell(game, *s)),
         Event::UnitTransformed { from, to, .. } => format!(
             "A {} becomes {}",
-            game.content().rules.units.get(*from).name,
-            game.content().rules.units.get(*to).name
+            game.content().rules.units.get(*from).id,
+            game.content().rules.units.get(*to).id
         ),
         Event::EarthquakeStruck {
             units_lost,
@@ -479,13 +478,15 @@ pub fn event(game: &Game, e: &Event) -> String {
         Event::OfferMade { player: p, offer: o } => {
             format!("{} is offered: {}", player(game, *p), offer(game, o))
         }
-        Event::ItemSold { player: p, name, gold } => {
+        Event::ItemSold { player: p, item, gold } => {
+            let name = item_label(game, item);
             format!("{} sells the item {name} for {gold} gold", player(game, *p))
         }
         Event::MercenariesHired { player: p, units } => {
             format!("{} hires {} mercenaries", player(game, *p), units.len())
         }
-        Event::ItemMade { player: p, name, .. } => {
+        Event::ItemMade { player: p, item, .. } => {
+            let name = item_label(game, item);
             format!("{} gets the item {name}", player(game, *p))
         }
         Event::Rejected(why) => format!("Refused: {why:?}"),
@@ -687,18 +688,18 @@ pub fn magic_item(game: &Game, item: &f4x_core::item::Item) -> String {
         rules
             .item_powers
             .try_get(p)
-            .map_or_else(|| format!("power {}", p.num()), |d| d.name.clone())
+            .map_or_else(|| format!("power {}", p.num()), |d| d.id.clone())
     }));
     if let Some((spell, n)) = &item.charges {
         let name = rules
             .spells
             .try_get(*spell)
-            .map_or_else(|| format!("spell {}", spell.num()), |s| s.name.clone());
+            .map_or_else(|| format!("spell {}", spell.num()), |s| s.id.clone());
         parts.push(format!("{name} x{n}"));
     }
     format!(
         "{} ({:?}, worth {}): {}",
-        item.display_name(game.content()),
+        item_label(game, item),
         item.kind,
         item.cost,
         if parts.is_empty() {
@@ -707,4 +708,16 @@ pub fn magic_item(game: &Game, item: &f4x_core::item::Item) -> String {
             parts.join(", ")
         }
     )
+}
+
+/// An item as the console shows it: the name it was given, else the alias of the prefab item it
+/// copies, else "made item" (the console shows aliases and numbers; the client names things).
+fn item_label(game: &Game, item: &f4x_core::item::Item) -> String {
+    if !item.name.is_empty() {
+        return item.name.clone();
+    }
+    match item.prefab {
+        Some(id) => game.content().rules.items.get(id).id.clone(),
+        None => "made item".to_string(),
+    }
 }

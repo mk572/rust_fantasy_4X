@@ -144,9 +144,8 @@ pub struct BattleUnit {
     pub side: Side,
     /// The overland unit this was copied from (a list index, not an entity: see `game.rs`).
     pub source: Option<usize>,
-    /// The unit definition (`None` for a plain unit made for a test) and its display name.
+    /// The unit definition (`None` for a plain unit made for a test); the client names it.
     pub unit_id: Option<UnitId>,
-    pub name: String,
     pub cell: Pos,
     pub melee: i32,
     pub ranged: i32,
@@ -280,20 +279,12 @@ fn dangling() -> hecs::Entity {
 
 impl BattleUnit {
     /// A plain unit for tests and simple scenarios: one dice per melee point, no specials.
-    pub fn simple(
-        side: Side,
-        name: &str,
-        figures: u32,
-        hits: i32,
-        melee: i32,
-        defense: i32,
-    ) -> Self {
+    pub fn simple(side: Side, figures: u32, hits: i32, melee: i32, defense: i32) -> Self {
         Self {
             id: 0,
             side,
             source: None,
             unit_id: None,
-            name: name.to_string(),
             cell: (0, 0),
             melee,
             ranged: 0,

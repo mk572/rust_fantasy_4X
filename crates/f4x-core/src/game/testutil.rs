@@ -47,8 +47,8 @@ pub fn settings() -> crate::game::setting::SettingsDef {
         .expect("rules_settings.ron parses")
 }
 
-/// The game's own `content/` folder, read as `f4x_data::load_content` reads it (the names from
-/// `text/en/name/`, the city names, the ready-made wizards' names), without its checks and
+/// The game's own `content/` folder, read as `f4x_data::load_content` reads it (the city names, the
+/// ready-made wizards' names), without its checks and
 /// without the messages. It is parsed once per test process; `f4x-data` tests the loader.
 pub fn shipped() -> Content {
     static SHIPPED: std::sync::OnceLock<Content> = std::sync::OnceLock::new();
@@ -57,7 +57,6 @@ pub fn shipped() -> Content {
 
 fn load_shipped() -> Content {
     use serde::de::DeserializeOwned;
-    use std::collections::BTreeMap;
 
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
     // The names are the client's files.
@@ -67,50 +66,9 @@ fn load_shipped() -> Content {
             .unwrap_or_else(|e| panic!("content/{name}: {e}"));
         ron::from_str(&text).unwrap_or_else(|e| panic!("content/{name}: {e}"))
     }
-    /// Put `text/en/name/<file>.ron` on the definitions, by their numbers.
-    fn named<T, V: DeserializeOwned + Clone>(
-        dir: &std::path::Path,
-        file: &str,
-        defs: &mut [T],
-        num: fn(&T) -> u16,
-        set: fn(&mut T, V),
-    ) {
-        let names: BTreeMap<u16, V> = parse(dir, &format!("text/en/name/{file}.ron"));
-        for d in defs {
-            let name = names
-                .get(&num(d))
-                .unwrap_or_else(|| panic!("text/en/name/{file}.ron has no name for {}", num(d)));
-            set(d, name.clone());
-        }
-    }
-
-    let mut terrains: Vec<TerrainDef> = parse(&dir, "terrain.ron");
-    named(
-        &client,
-        "terrain",
-        &mut terrains,
-        |d| d.num,
-        |d, n: String| d.name = n,
-    );
-    let mut features: Vec<FeatureDef> = parse(&dir, "features.ron");
-    named(
-        &client,
-        "feature",
-        &mut features,
-        |d| d.num,
-        |d, n: String| d.name = n,
-    );
+    let terrains: Vec<TerrainDef> = parse(&dir, "terrain.ron");
+    let features: Vec<FeatureDef> = parse(&dir, "features.ron");
     let mut races: Vec<crate::rules::RaceDef> = parse(&dir, "races.ron");
-    named(
-        &client,
-        "race",
-        &mut races,
-        |d| d.num,
-        |d, n: (String, String)| {
-            d.name = n.0;
-            d.plural = n.1;
-        },
-    );
     #[derive(serde::Deserialize)]
     struct CityNames {
         race: String,
@@ -122,81 +80,14 @@ fn load_shipped() -> Content {
         }
     }
     let mut units: Vec<UnitDef> = parse(&dir, "units.ron");
-    named(
-        &client,
-        "unit",
-        &mut units,
-        |d| d.num,
-        |d, n: String| d.name = n,
-    );
     let mut abilities: Vec<crate::rules::AbilityDef> = parse(&dir, "abilities.ron");
-    named(
-        &client,
-        "ability",
-        &mut abilities,
-        |d| d.num,
-        |d, n: String| d.name = n,
-    );
     let mut buildings: Vec<crate::rules::BuildingDef> = parse(&dir, "buildings.ron");
-    named(
-        &client,
-        "building",
-        &mut buildings,
-        |d| d.num,
-        |d, n: String| d.name = n,
-    );
     let mut realms: Vec<crate::rules::RealmDef> = parse(&dir, "realms.ron");
-    named(
-        &client,
-        "realm",
-        &mut realms,
-        |d| d.num,
-        |d, n: String| d.name = n,
-    );
     let mut spells: Vec<crate::rules::SpellDef> = parse(&dir, "spells.ron");
-    named(
-        &client,
-        "spell",
-        &mut spells,
-        |d| d.num,
-        |d, n: String| d.name = n,
-    );
     let mut items: Vec<crate::rules::ItemDef> = parse(&dir, "items.ron");
-    named(
-        &client,
-        "item",
-        &mut items,
-        |d| d.num,
-        |d, n: String| d.name = n,
-    );
     let mut powers: Vec<crate::rules::ItemPowerDef> = parse(&dir, "item_powers.ron");
-    named(
-        &client,
-        "item_power",
-        &mut powers,
-        |d| d.num,
-        |d, n: String| d.name = n,
-    );
     let mut retorts: Vec<crate::rules::RetortDef> = parse(&dir, "retorts.ron");
-    named(
-        &client,
-        "retort",
-        &mut retorts,
-        |d| d.num,
-        |d, n: String| d.name = n,
-    );
     let mut wizards: Vec<crate::rules::WizardDef> = parse(&dir, "wizards.ron");
-    for w in wizards.iter_mut() {
-        w.name =
-            w.id.split('_')
-                .map(|word| {
-                    let mut c = word.chars();
-                    c.next()
-                        .map_or(String::new(), |f| f.to_uppercase().chain(c).collect())
-                })
-                .collect::<Vec<_>>()
-                .join(" ");
-    }
     let mut level_paths: Vec<crate::rules::LevelPathDef> = parse(&dir, "level_paths.ron");
     let mut hero_templates: Vec<crate::rules::HeroTemplate> = parse(&dir, "heroes.ron");
     let mut config: crate::rules::RulesConfig = parse(&dir, "rules.ron");

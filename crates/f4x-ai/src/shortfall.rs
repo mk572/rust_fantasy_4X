@@ -187,7 +187,6 @@ mod tests {
         let e: Vec<_> = (0..4).map(|_| world.spawn(())).collect();
         let line = |unit, cost, hero, ship, aboard| TroopLine {
             unit,
-            label: String::new(),
             gold: 1,
             food: 0,
             hero,

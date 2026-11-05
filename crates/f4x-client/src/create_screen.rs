@@ -122,7 +122,10 @@ impl CreateState {
         self.build
             .portrait
             .and_then(|p| app.game.content().rules.wizards.defs().get(usize::from(p)))
-            .map_or_else(|| app.text("create.default_name"), |w| w.name.clone())
+            .map_or_else(
+                || app.text("create.default_name"),
+                |w| app.names.wizard(w.num).to_string(),
+            )
     }
 
     pub(crate) fn begin_game(&mut self, app: &mut App) {
@@ -133,6 +136,7 @@ impl CreateState {
             build.name.trim().to_string()
         };
         app.human_build = Some(build);
+        app.human_preset = self.preset;
         app.new_map(app.seed);
     }
 }
@@ -188,7 +192,10 @@ mod tests {
         state.build.portrait = Some(0);
         state.build.name = "   ".into();
         state.begin_game(&mut app);
-        let first = app.game.content().rules.wizards.defs()[0].name.clone();
+        let first = app
+            .names
+            .wizard(app.game.content().rules.wizards.defs()[0].num)
+            .to_string();
         assert_eq!(
             app.human_build.as_ref().map(|b| b.name.as_str()),
             Some(first.as_str()),

@@ -100,14 +100,14 @@ impl App {
         let Some(def) = self.game.units().unit_def(unit) else {
             return String::new();
         };
-        let race = def
-            .race
-            .as_ref()
-            .and_then(|r| r.id())
-            .map(|r| self.game.content().rules.races.get(r).name.clone());
+        let race = def.race.as_ref().and_then(|r| r.id()).map(|r| {
+            self.names
+                .race(self.game.content().rules.races.get(r).num)
+                .to_string()
+        });
         match race {
-            Some(r) => format!("{r} {}", def.name),
-            None => def.name.clone(),
+            Some(r) => format!("{r} {}", self.names.unit(def.num)),
+            None => self.names.unit(def.num).to_string(),
         }
     }
 
@@ -327,7 +327,11 @@ impl Page for ArmyUi {
                 .unit_enchantments(unit)
                 .into_iter()
                 .take(4)
-                .map(|(s, _)| app.game.content().rules.spells.get(s).name.clone())
+                .map(|(s, _)| {
+                    app.names
+                        .spell(app.game.content().rules.spells.get(s).num)
+                        .to_string()
+                })
                 .collect();
             let step = if names.len() < 4 { 7.0 } else { 6.0 };
             for (i, n) in names.iter().enumerate() {

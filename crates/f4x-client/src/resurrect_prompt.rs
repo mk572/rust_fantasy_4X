@@ -149,7 +149,10 @@ impl App {
             Color::new(0.08, 0.06, 0.04, 0.95),
         );
         draw_rectangle_lines(w / 2.0 - 280.0, h / 2.0 - 80.0, 560.0, height, 3.0, GOLD);
-        let name = self.game.content().rules.spells.get(spell).name.clone();
+        let name = self
+            .names
+            .spell(self.game.content().rules.spells.get(spell).num)
+            .to_string();
         crate::frame::text_centered(
             &self.text_with("spell.choose_dead", &Args::new().text("spell", &name)),
             w / 2.0,

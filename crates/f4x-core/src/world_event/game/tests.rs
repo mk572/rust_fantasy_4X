@@ -227,14 +227,14 @@ fn disjunction_clears_every_wizards_overland_enchantments_and_needs_one_to_exist
 fn the_gift_is_an_artifact_in_the_armory() {
     let mut g = world();
     let told = play(&mut g, armed(K::Gift, P0, None));
-    assert!(!told[0].item.is_empty());
+    assert!(told[0].item.is_some());
     let armory = g.items().armory(P0);
     assert!(armory
         .vault
         .iter()
         .flatten()
         .chain(&armory.awards)
-        .any(|i| i.display_name(&g.content) == told[0].item));
+        .any(|i| Some(i) == told[0].item.as_ref()));
 }
 
 #[test]

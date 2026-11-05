@@ -149,7 +149,7 @@ fn map_counts(c: &Content, g: &f4x_core::map::mapgen::Generated) -> BTreeMap<Str
                     add(format!("tiles: {class:?}"), 1.0);
                 }
                 if let Some(m) = grid.mineral(x, y).and_then(|f| c.features.get(f)) {
-                    add(format!("mineral: {}", m.name), 1.0);
+                    add(format!("mineral: {}", m.id), 1.0);
                 }
                 add("rivers".into(), f64::from(u8::from(grid.has_river(x, y))));
                 add("lakes".into(), f64::from(u8::from(grid.is_lake(x, y))));
@@ -188,7 +188,7 @@ fn map_counts(c: &Content, g: &f4x_core::map::mapgen::Generated) -> BTreeMap<Str
     }
     for p in &g.placements {
         if let Some(d) = c.features.get(p.feature) {
-            add(format!("{:?}: {}", d.kind, d.name), 1.0);
+            add(format!("{:?}: {}", d.kind, d.id), 1.0);
         }
     }
     n

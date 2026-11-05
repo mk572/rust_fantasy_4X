@@ -102,7 +102,8 @@ impl App {
                     unit,
                     cause,
                 } if *player == HUMAN => {
-                    let args = Args::new().text("unit", &rules.units.get(*unit).name);
+                    let args =
+                        Args::new().text("unit", self.names.unit(rules.units.get(*unit).num));
                     disbanded.push(say(
                         match cause {
                             LossCause::Food => "chancellor.lost_food",
@@ -126,7 +127,7 @@ impl App {
                 Event::HeroLeft { player, hero } if rival_name(player).is_some() => {
                     let args = self
                         .wizard_arg(Args::new(), "wizard", *player)
-                        .text("hero", &rules.units.get(*hero).name);
+                        .text("hero", self.names.unit(rules.units.get(*hero).num));
                     rivals.push(say("chancellor.rival_hero_left", args));
                 }
                 Event::ShipLanded { player, units, at } if *player == HUMAN => ships.push(say(
@@ -159,7 +160,7 @@ impl App {
                     "chancellor.lost_building",
                     Args::new()
                         .text("city", self.city_name(*city))
-                        .text("building", &rules.buildings.get(*b).name),
+                        .text("building", self.names.building(rules.buildings.get(*b).num)),
                 )),
                 Event::BuildingsCollapsed { city, count } if mine(*city) => buildings.push(say(
                     "chancellor.lost_buildings",
@@ -190,7 +191,7 @@ impl App {
                         SpellTarget::OwnCity | SpellTarget::EnemyCity => &mut city_spells,
                         _ => &mut global_spells,
                     };
-                    list.push(def.name.clone());
+                    list.push(self.names.spell(def.num).to_string());
                 }
                 _ => {}
             }

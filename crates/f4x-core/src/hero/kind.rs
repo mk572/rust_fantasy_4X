@@ -187,12 +187,7 @@ fn roll_one(rng: &mut GameRng, rules: &Rules, kind: usize, t: &HeroTemplate) -> 
     }
     // The original gives a hero a name for each of the five wizards' games; there is one hero
     // here, so it has the first.
-    let name = t
-        .names
-        .first()
-        .cloned()
-        .or_else(|| def.map(|d| d.name.clone()))
-        .unwrap_or_else(|| t.unit.clone());
+    let name = t.names.first().cloned().unwrap_or_else(|| t.unit.clone());
     Hero {
         kind,
         name,

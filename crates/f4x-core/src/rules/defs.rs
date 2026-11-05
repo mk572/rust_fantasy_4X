@@ -19,15 +19,9 @@ pub struct RaceDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
-    /// From `text/<language>/name/` by `num`, not from the rules file.
-    #[serde(default)]
-    pub name: String,
     /// The race's townsfolk topic in `help.ron` (an index).
     #[serde(default)]
     pub help: Option<u16>,
-    /// The name for more than one ("Barbarians"); empty uses the name.
-    #[serde(default)]
-    pub plural: String,
     /// Units cities of this race can build.
     pub units: Vec<Ref<UnitDef>>,
     /// Buildings cities of this race can build (besides race-neutral ones).
@@ -232,9 +226,6 @@ pub struct UnitDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
-    /// From `text/<language>/name/` by `num`, not from the rules file.
-    #[serde(default)]
-    pub name: String,
     pub kind: UnitKind,
     /// Required for `Normal` units; heroes and creatures have none.
     #[serde(default)]
@@ -278,9 +269,6 @@ pub struct AbilityDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
-    /// From `text/<language>/name/` by `num`, not from the rules file.
-    #[serde(default)]
-    pub name: String,
     #[serde(default)]
     pub description: String,
     /// The ability's topic in `help.ron` (an index).
@@ -295,9 +283,6 @@ pub struct BuildingDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
-    /// From `text/<language>/name/` by `num`, not from the rules file.
-    #[serde(default)]
-    pub name: String,
     /// The building's topic in `help.ron` (an index): its description in the city builder and its
     /// help pop-up.
     #[serde(default)]
@@ -338,9 +323,6 @@ pub struct RealmDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
-    /// From `text/<language>/name/` by `num`, not from the rules file.
-    #[serde(default)]
-    pub name: String,
     /// The realm's spells topic in `help.ron` (an index).
     #[serde(default)]
     pub help: Option<u16>,
@@ -378,9 +360,6 @@ pub struct RetortDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
-    /// From `text/<language>/name/retort.ron` by `num`, not from the rules file.
-    #[serde(default)]
-    pub name: String,
     /// The retort's topic in `help.ron` (an index).
     #[serde(default)]
     pub help: Option<u16>,
@@ -413,9 +392,6 @@ pub struct WizardDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
-    /// From `text/<language>/name/wizard.ron` by `num`, not from the rules file.
-    #[serde(default)]
-    pub name: String,
     /// The wizard's topic in `help.ron` (an index).
     pub help: u16,
     #[serde(default)]
@@ -469,9 +445,6 @@ pub struct SpellDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
-    /// From `text/<language>/name/` by `num`, not from the rules file.
-    #[serde(default)]
-    pub name: String,
     /// The spell's topic in `help.ron` (an index).
     #[serde(default)]
     pub help: Option<u16>,
@@ -525,9 +498,6 @@ pub struct ItemDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
-    /// From `text/<language>/name/` by `num`, not from the rules file.
-    #[serde(default)]
-    pub name: String,
     pub slot: ItemSlot,
     /// The original's item type; it fixes the slot (see [`ItemKind::slot`]).
     pub kind: ItemKind,
@@ -605,9 +575,6 @@ pub struct ItemPowerDef {
     pub num: u16,
     /// The alias for human editing.
     pub id: String,
-    /// From `text/<language>/name/` by `num`, not from the rules file.
-    #[serde(default)]
-    pub name: String,
     /// At most one power of a group on an item.
     pub group: u8,
     /// Mana cost of adding the power to an item.
@@ -643,9 +610,6 @@ pub enum PowerBonus {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LevelDef {
-    /// From `text/<language>/name/level_path.ron`, not from the rules file.
-    #[serde(default)]
-    pub name: String,
     /// Experience needed to reach this level.
     pub xp: u32,
     pub effects: Vec<EffectRule>,
@@ -668,38 +632,23 @@ pub struct LevelPathDef {
 /// A level that experience alone never gives.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BonusLevelDef {
-    /// From `text/<language>/name/level_path.ron`, not from the rules file.
-    #[serde(default)]
-    pub name: String,
     pub effects: Vec<EffectRule>,
 }
 
 impl LevelPathDef {
-    /// Put the names of a language on the levels, the bonus levels last; a list of the wrong
-    /// length names only as many levels as it has.
-    pub fn set_level_names(&mut self, names: Vec<String>) {
-        let mut names = names.into_iter();
-        for l in &mut self.levels {
-            l.name = names.next().unwrap_or_default();
-        }
-        for b in &mut self.bonus {
-            b.name = names.next().unwrap_or_default();
-        }
-    }
-
     /// Levels in all, those experience gives and the bonus levels.
     pub fn level_count(&self) -> usize {
         self.levels.len() + self.bonus.len()
     }
 
-    /// Name and effects of level `index` (0-based), bonus levels last.
-    pub fn level(&self, index: usize) -> Option<(&str, &[EffectRule])> {
+    /// The effects of level `index` (0-based), bonus levels last.
+    pub fn level(&self, index: usize) -> Option<&[EffectRule]> {
         match self.levels.get(index) {
-            Some(l) => Some((&l.name, &l.effects)),
+            Some(l) => Some(&l.effects),
             None => self
                 .bonus
                 .get(index - self.levels.len())
-                .map(|b| (&b.name[..], &b.effects[..])),
+                .map(|b| &b.effects[..]),
         }
     }
 }

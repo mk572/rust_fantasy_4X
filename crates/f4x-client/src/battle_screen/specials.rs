@@ -109,7 +109,10 @@ impl App {
         };
         let mut rows: Vec<Row> = Vec::new();
         for s in self.game.battle_unit_spells(id) {
-            let name = self.game.content().rules.spells.get(s.spell).name.clone();
+            let name = self
+                .names
+                .spell(self.game.content().rules.spells.get(s.spell).num)
+                .to_string();
             let label = if s.cost > 0 {
                 self.text_with(
                     "battle.spell_row",

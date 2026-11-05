@@ -69,7 +69,7 @@ impl App {
             .and_then(|t| content.terrains.get(t))?;
         let spoiled = grid.is_corrupted(pos.x as i32, pos.y as i32);
         let mut text = SquareText {
-            terrain: def.name.clone(),
+            terrain: self.names.terrain(def.num).to_string(),
             ..Default::default()
         };
         let survey = self.game.site_survey(HUMAN, pos);
@@ -120,7 +120,7 @@ impl App {
                 self.city_name(city),
             ];
         } else if let Some(f) = feature {
-            text.special.push(f.name.clone());
+            text.special.push(self.names.feature(f.num).to_string());
             let b = f.city;
             let mut bits = Vec::new();
             if b.gold > 0 {
@@ -225,7 +225,7 @@ impl App {
         guards
             .iter()
             .take(2)
-            .map(|&(id, _)| rules.units.get(id).name.clone())
+            .map(|&(id, _)| self.names.unit(rules.units.get(id).num).to_string())
             .collect()
     }
 

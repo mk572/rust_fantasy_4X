@@ -272,10 +272,11 @@ impl Page for WizardUi {
             py + 131.0,
         );
         for (i, hero) in app.game.wizard_heroes(ui.who).iter().enumerate() {
+            let hero = app.names.unit(hero.num()).to_string();
             app.draw_styled(
                 view,
                 &Style::gold_shadowed(1),
-                hero,
+                &hero,
                 px + 13.0,
                 py + 142.0 + 8.0 * i as f32,
             );

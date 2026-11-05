@@ -171,6 +171,39 @@ impl App {
     }
 }
 
+impl App {
+    /// What an upkeep line of the mana shortfall says: "Haste on Spearmen", "Skeleton".
+    fn upkeep_label(&self, line: &f4x_core::player::upkeep::UpkeepLine) -> String {
+        let spell = |s: f4x_core::rules::SpellId| self.names.spell(s.num()).to_string();
+        let unit = |u: hecs::Entity| {
+            self.game
+                .units()
+                .unit_def(u)
+                .map_or_else(String::new, |d| self.names.unit(d.num).to_string())
+        };
+        let on = |s, target: &str| {
+            self.text_with(
+                "upkeep.spell_on",
+                &Args::new().text("spell", spell(s)).text("target", target),
+            )
+        };
+        match line.kind {
+            UpkeepKind::Global(s) => spell(s),
+            UpkeepKind::City(c, s) => on(s, &self.city_name(c)),
+            UpkeepKind::UnitSpell(u, s) => on(s, &unit(u)),
+            UpkeepKind::Unit(u) => unit(u),
+        }
+    }
+
+    /// What a troop line of the gold and food shortfall says: its unit's name.
+    fn troop_label(&self, line: &f4x_core::player::shortfall::TroopLine) -> String {
+        self.game
+            .units()
+            .unit_def(line.unit)
+            .map_or_else(String::new, |d| self.names.unit(d.num).to_string())
+    }
+}
+
 impl UpkeepPrompt {
     /// Marks what the turn change would give up by itself, so Enter keeps the default.
     pub(crate) fn new(mana: Option<Shortfall>, troops: Option<TreasuryShortfall>) -> Self {
@@ -275,20 +308,21 @@ impl UpkeepPrompt {
     }
 
     /// What the line says, and its price on the right.
-    fn text(&self, texts: &Texts, line: Line) -> (String, String) {
+    fn text(&self, app: &App, line: Line) -> (String, String) {
+        let texts = &app.game.content().texts;
         let count = |key: &str, n: i32| texts.get(key, &Args::new().count("n", n));
         match line {
             Line::Mana(i) => {
                 let Some(l) = self.mana.as_ref().and_then(|o| o.lines.get(i)) else {
                     return (String::new(), String::new());
                 };
-                (l.label.clone(), count("upkeep.price_mana", l.mana))
+                (app.upkeep_label(l), count("upkeep.price_mana", l.mana))
             }
             Line::Troop(i) => {
                 let Some(l) = self.troops.as_ref().and_then(|o| o.troops.get(i)) else {
                     return (String::new(), String::new());
                 };
-                let mut label = l.label.clone();
+                let mut label = app.troop_label(l);
                 if l.hero {
                     label.push_str(&texts.get("upkeep.hero_note", &Args::new()));
                 } else if l.ship && l.aboard > 0 {
@@ -301,7 +335,10 @@ impl UpkeepPrompt {
                 let Some(l) = self.items.as_ref().and_then(|o| o.lines.get(i)) else {
                     return (String::new(), String::new());
                 };
-                (l.label.clone(), count("upkeep.price_item", l.mana))
+                (
+                    app.names.item_name(&l.item, app.game.content()),
+                    count("upkeep.price_item", l.mana),
+                )
             }
             Line::Header(key) => (texts.get(key, &Args::new()), String::new()),
         }
@@ -592,7 +629,7 @@ impl App {
         );
         for (i, &line) in lines.iter().enumerate().skip(first).take(rows) {
             let y = by + 24.0 + (i - first) as f32 * ROW;
-            let (label, price) = prompt.text(&self.game.content().texts, line);
+            let (label, price) = prompt.text(self, line);
             if let Line::Header(_) = line {
                 say(self, gold, &label, bx + 8.0, y + 1.0, Align::Left);
                 continue;
@@ -692,7 +729,6 @@ mod tests {
             Ok(UpkeepLine {
                 kind: UpkeepKind::Global(spell),
                 mana,
-                label: id.to_string(),
             })
         };
         Ok(Shortfall {
@@ -763,13 +799,13 @@ mod tests {
     #[test]
     fn a_line_reads_as_its_label_and_its_price() -> TestResult {
         let prompt = UpkeepPrompt::new(Some(short_of_mana(25)?), None);
-        let texts = shipped::texts();
+        let app = App::for_test();
         assert_eq!(
-            prompt.text(texts, Line::Mana(1)),
-            ("chaos_surge".to_string(), "20 mana".to_string())
+            prompt.text(&app, Line::Mana(1)),
+            ("Chaos Surge".to_string(), "20 mana".to_string())
         );
         assert_eq!(
-            prompt.text(texts, Line::Mana(9)),
+            prompt.text(&app, Line::Mana(9)),
             (String::new(), String::new())
         );
         Ok(())

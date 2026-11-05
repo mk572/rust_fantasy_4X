@@ -268,7 +268,7 @@ impl App {
             let r = lay.rect((x, y, 312.0, 161.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.07, 0.04, 0.96));
         }
-        let name = item.display_name(self.game.content());
+        let name = self.names.item_name(item, self.game.content());
         let text = self.text_with(key, &Args::new().text("item", &name).count("price", price));
         let mut at = y + 9.0;
         for line in self.bm_wrap(4, &text, 182.0) {
@@ -415,7 +415,7 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         self.draw_pic(lay, "itemisc", 25, 0, x, y);
         self.draw_pic(lay, "items", self.art.item_icon(item), 0, x + 9.0, y + 6.0);
-        let name = item.display_name(self.game.content());
+        let name = self.names.item_name(item, self.game.content());
         self.draw_styled(view, &Style::set(4, 4), &name, x + 31.0, y + 12.0);
         let rules = self.game.content().rules.clone();
         let b = item.bonus;
@@ -438,7 +438,10 @@ impl App {
             lines.push(self.text_with("item.spell_save", &args));
         }
         if let Some((spell, count)) = &item.charges {
-            let name = rules.spells.try_get(*spell).map_or("", |d| d.name.as_str());
+            let name = rules
+                .spells
+                .try_get(*spell)
+                .map_or("", |d| self.names.spell(d.num));
             let args = Args::new().text("spell", name).count("n", *count);
             lines.push(self.text_with("item.charges", &args));
         }
@@ -448,7 +451,9 @@ impl App {
             let line = def
                 .and_then(|d| POWER_LINES.iter().find(|(power, _)| *power == d.id))
                 .map(|(_, key)| self.text(key));
-            lines.push(line.unwrap_or_else(|| def.map_or_else(String::new, |d| d.name.clone())));
+            lines.push(line.unwrap_or_else(|| {
+                def.map_or_else(String::new, |d| self.names.item_power(d.num).to_string())
+            }));
         }
         lines.truncate(5);
         let (space, top) = if lines.len() == 5 {

@@ -423,7 +423,13 @@ impl App {
                 },
             );
         }
-        self.bar_text(view, 0, &u.name, (112.0, 167.0), Align::Center);
+        self.bar_text(
+            view,
+            0,
+            &self.battle_unit_name(u),
+            (112.0, 167.0),
+            Align::Center,
+        );
         if let Some(icon) = melee_icon(u) {
             self.bar_text(view, 0, &u.melee.to_string(), (126.0, 174.0), Align::Right);
             self.draw_pic(&lay, "compix", 29 + icon, 0, 128.0, 172.0);
@@ -491,7 +497,12 @@ impl App {
         let text = |app: &mut App, s: &str, at: (f32, f32), align: Align| {
             app.flat_text(view, 0, s, at, align, ink, black);
         };
-        text(self, &u.name, (x + w / 2.0, y + 2.0), Align::Center);
+        text(
+            self,
+            &self.battle_unit_name(u),
+            (x + w / 2.0, y + 2.0),
+            Align::Center,
+        );
         if let Some(icon) = melee_icon(u) {
             text(
                 self,

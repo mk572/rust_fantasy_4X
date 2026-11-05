@@ -412,7 +412,7 @@ impl CreateState {
             .wizards
             .defs()
             .iter()
-            .map(|w| (w.id.clone(), w.name.clone()))
+            .map(|w| (w.id.clone(), app.names.wizard(w.num).to_string()))
             .collect();
         let intro = app.options.difficulty == 0;
         let right_count = if picture || intro { 7 } else { 8 };
@@ -618,7 +618,7 @@ impl CreateState {
             .races
             .defs()
             .iter()
-            .map(|r| (r.name.clone(), r.id.clone()))
+            .map(|r| (app.names.race(r.num).to_string(), r.id.clone()))
             .unzip();
         let live = self.ng_input();
         let clicked = input.mouse_pressed(MouseButton::Left) && live;

@@ -184,8 +184,8 @@ fn propose(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         "break" => ProposalKind::BreakAllianceWith(ctx.other_wizard(a, 2)?),
         "swap" => {
             let spells = &ctx.game.content().rules.spells;
-            let give = resolve(spells, a.need(2, "your spell")?, |d| &d.name, "spell")?;
-            let get = resolve(spells, a.need(3, "their spell")?, |d| &d.name, "spell")?;
+            let give = resolve(spells, a.need(2, "your spell")?, |d| &d.id, "spell")?;
+            let get = resolve(spells, a.need(3, "their spell")?, |d| &d.id, "spell")?;
             ProposalKind::Exchange { give, get }
         }
         other => {
@@ -244,7 +244,7 @@ fn givespell(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let spell = resolve(
         &ctx.game.content().rules.spells,
         a.need(1, "spell")?,
-        |d| &d.name,
+        |d| &d.id,
         "spell",
     )?;
     let from = ctx.session.player;

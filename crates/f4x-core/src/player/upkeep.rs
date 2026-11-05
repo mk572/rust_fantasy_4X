@@ -18,8 +18,6 @@ pub struct UpkeepLine {
     pub kind: UpkeepKind,
     /// What it costs each turn (a Channeler's half already taken).
     pub mana: i32,
-    /// "Haste on Spearmen", "Flying Fortress on Aldaria", "Skeleton".
-    pub label: String,
 }
 
 /// The upkeep the next turn change cannot pay.
@@ -72,7 +70,6 @@ impl Game {
             .map(|i| UpkeepLine {
                 kind: i.kind,
                 mana: i.mana / divisor,
-                label: self.upkeep_label(i),
             })
             .collect();
         Some(Shortfall {
@@ -80,25 +77,6 @@ impl Game {
             owed,
             lines,
         })
-    }
-
-    fn upkeep_label(&self, item: &UpkeepItem) -> String {
-        let spells = &self.content.rules.spells;
-        match item.kind {
-            UpkeepKind::Global(s) => spells.get(s).name.clone(),
-            UpkeepKind::City(c, s) => {
-                let city = self.city_name(c).unwrap_or_default();
-                format!("{} on {city}", spells.get(s).name)
-            }
-            UpkeepKind::UnitSpell(u, s) => {
-                let unit = self.units().unit_def(u).map_or("?", |d| d.name.as_str());
-                format!("{} on {unit}", spells.get(s).name)
-            }
-            UpkeepKind::Unit(u) => self
-                .units()
-                .unit_def(u)
-                .map_or_else(|| "?".to_string(), |d| d.name.clone()),
-        }
     }
 
     /// Give up the chosen upkeep items now. Each must be something the wizard really pays for

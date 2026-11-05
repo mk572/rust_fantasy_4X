@@ -291,7 +291,11 @@ impl Page for OutpostUi {
         let race = app
             .game
             .city_race(city)
-            .map(|r| app.game.content().rules.races.get(r).name.clone())
+            .map(|r| {
+                app.names
+                    .race(app.game.content().rules.races.get(r).num)
+                    .to_string()
+            })
             .unwrap_or_default();
         app.draw_styled(view, &Style::city_figures(), &race, wx + 6.0, wy + 23.0);
 

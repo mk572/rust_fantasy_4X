@@ -566,9 +566,13 @@ impl App {
             .and_then(|p| {
                 let i = units.unit_level(unit);
                 p.level(i)
-                    .map(|(name, _)| (name, units.unit_experience(unit), i))
+                    .map(|_| (self.names.level(p.num, i), units.unit_experience(unit), i))
             });
-        let ability_name = |id: Ability| content.rules.abilities.get(id).name.clone();
+        let ability_name = |id: Ability| {
+            self.names
+                .ability(content.rules.abilities.get(id).num)
+                .to_string()
+        };
         let ability_help = |id: Ability| content.rules.abilities.get(id).help;
         let enchantments = units
             .unit_enchantments(unit)
@@ -577,7 +581,7 @@ impl App {
                 let def = content.rules.spells.get(spell);
                 (
                     spell,
-                    def.name.clone(),
+                    self.names.spell(def.num).to_string(),
                     caster == crate::view::HUMAN,
                     def.help,
                 )
@@ -624,7 +628,7 @@ impl App {
         Some(Sheet {
             source: Source::Overland(unit),
             race: self.sheet_race(def),
-            name: def.name.clone(),
+            name: self.names.unit(def.num).to_string(),
             unit_type: art
                 .as_ref()
                 .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry)),
@@ -722,13 +726,17 @@ impl App {
                 }
             }
             if let Some(l) = path.levels.get(level) {
-                level_line = Some((l.name.as_str(), l.xp, level));
+                level_line = Some((self.names.level(path.num, level), l.xp, level));
             }
         }
         let stat = |s: Stat| stats.get(&s).copied().unwrap_or(0);
         let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
         let abilities = &def.ability_ids;
-        let ability_name = |id: Ability| content.rules.abilities.get(id).name.clone();
+        let ability_name = |id: Ability| {
+            self.names
+                .ability(content.rules.abilities.get(id).num)
+                .to_string()
+        };
         let ability_help = |id: Ability| content.rules.abilities.get(id).help;
         let mana = if abilities.contains(&Ability::new(62)) {
             40
@@ -758,7 +766,7 @@ impl App {
         Sheet {
             source: Source::Offer,
             race: self.sheet_race(def),
-            name: def.name.clone(),
+            name: self.names.unit(def.num).to_string(),
             unit_type: self
                 .art
                 .unit_entry(&def.id)
@@ -795,7 +803,11 @@ impl App {
     /// units of a race show it, creatures and heroes do not.
     fn sheet_race(&self, def: &f4x_core::rules::UnitDef) -> Option<String> {
         let race = def.race.as_ref()?.id()?;
-        Some(self.game.content().rules.races.get(race).name.clone())
+        Some(
+            self.names
+                .race(self.game.content().rules.races.get(race).num)
+                .to_string(),
+        )
     }
 
     /// The sheet of a unit in the battle on screen.
@@ -804,7 +816,11 @@ impl App {
         let content = self.game.content();
         let def = content.rules.units.get(u.unit_id?);
         let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
-        let ability_name = |id: Ability| content.rules.abilities.get(id).name.clone();
+        let ability_name = |id: Ability| {
+            self.names
+                .ability(content.rules.abilities.get(id).num)
+                .to_string()
+        };
         let ability_help = |id: Ability| content.rules.abilities.get(id).help;
         let enchantments = u
             .enchantments
@@ -813,7 +829,7 @@ impl App {
             .chain(u.combat_spells.iter().map(|&(spell, _)| spell))
             .map(|spell| {
                 let s = content.rules.spells.get(spell);
-                (spell, s.name.clone(), false, s.help)
+                (spell, self.names.spell(s.num).to_string(), false, s.help)
             })
             .collect();
         let specials = specials(&SpecialsInput {
@@ -841,7 +857,7 @@ impl App {
         Some(Sheet {
             source: Source::Battle(id),
             race: self.sheet_race(def),
-            name: def.name.clone(),
+            name: self.names.unit(def.num).to_string(),
             unit_type: art
                 .as_ref()
                 .and_then(|(lbx, entry)| crate::art::unit_type_number(lbx, *entry)),

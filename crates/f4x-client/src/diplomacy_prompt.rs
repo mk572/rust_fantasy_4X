@@ -73,7 +73,10 @@ impl App {
             }
             ProposalKind::Exchange { give, get } => {
                 let spells = &self.game.content().rules.spells;
-                let (give, get) = (spells.get(give).name.clone(), spells.get(get).name.clone());
+                let (give, get) = (
+                    self.names.spell(spells.get(give).num).to_string(),
+                    self.names.spell(spells.get(get).num).to_string(),
+                );
                 args = args.text("give", &give).text("get", &get);
             }
             ProposalKind::Demand { gold } => args = args.count("gold", gold),

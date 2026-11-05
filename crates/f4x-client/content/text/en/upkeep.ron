@@ -3,6 +3,7 @@
 {
     "upkeep.too_many_items": "Too many items for the armory: mark what to disband for mana",
     "upkeep.mana": "Mana",
+    "upkeep.spell_on": "{spell} on {target}",
     "upkeep.gold_and_food": "Gold and food",
     "upkeep.price_mana": "{n} mana",
     "upkeep.price_item": "+{n} mana",

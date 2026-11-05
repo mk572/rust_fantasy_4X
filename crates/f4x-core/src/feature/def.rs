@@ -52,9 +52,6 @@ pub struct FeatureDef {
     /// The feature's number, the id the game passes around (ours: counted from 1 in the
     /// alphabetical order of the ids).
     pub num: u16,
-    /// From `text/<language>/name/` by `num`, not from the feature file.
-    #[serde(default)]
-    pub name: String,
     pub kind: FeatureKind,
     #[serde(default)]
     pub city: CityBonus,

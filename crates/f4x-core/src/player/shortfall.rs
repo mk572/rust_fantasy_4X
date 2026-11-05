@@ -12,7 +12,6 @@
 //!
 //! Tests: in player/shortfall/tests.rs.
 
-use crate::content::Content;
 use crate::item::armory::{ItemError, ItemSpot};
 use crate::item::Item;
 use crate::player::finance::{gold_after_income, settle};
@@ -27,7 +26,6 @@ use crate::game::{Event, Game, LossCause, Rejection, Shortage};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TroopLine {
     pub unit: hecs::Entity,
-    pub label: String,
     pub gold: i32,
     /// In half food, as the unit table has it.
     pub food: i32,
@@ -81,7 +79,8 @@ impl TreasuryShortfall {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ItemLine {
     pub spot: ItemSpot,
-    pub label: String,
+    /// The item itself; the client names it.
+    pub item: Item,
     /// The mana the anvil gives for it.
     pub mana: i32,
 }
@@ -115,9 +114,6 @@ impl Game {
                 let eco = self.economy();
                 TroopLine {
                     unit: tr.id,
-                    label: units
-                        .unit_def(tr.id)
-                        .map_or_else(|| "?".to_string(), |d| d.name.clone()),
                     gold: tr.gold,
                     food: tr.food,
                     hero: units.hero_kind(tr.id).is_some(),
@@ -154,24 +150,24 @@ impl Game {
     ) -> Option<ItemOverflow> {
         let armory = self.items().armory(player);
         let mut lines = Vec::new();
-        fn line(lines: &mut Vec<ItemLine>, spot: ItemSpot, item: &Item, content: &Content) {
+        fn line(lines: &mut Vec<ItemLine>, spot: ItemSpot, item: &Item) {
             lines.push(ItemLine {
                 spot,
-                label: item.display_name(content),
+                item: item.clone(),
                 mana: item.anvil_mana(),
             })
         }
         for (i, item) in armory.vault.iter().enumerate() {
             if let Some(item) = item {
-                line(&mut lines, ItemSpot::Vault(i), item, &self.content);
+                line(&mut lines, ItemSpot::Vault(i), item);
             }
         }
         for (i, item) in armory.awards.iter().enumerate() {
-            line(&mut lines, ItemSpot::Award(i), item, &self.content);
+            line(&mut lines, ItemSpot::Award(i), item);
         }
         for &hero in released {
             for (slot, item) in self.hero_slot_items(hero) {
-                line(&mut lines, ItemSpot::Hero(hero, slot), &item, &self.content);
+                line(&mut lines, ItemSpot::Hero(hero, slot), &item);
             }
         }
         // The vault has no limit, so releasing heroes never leaves items without a place.
