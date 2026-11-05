@@ -202,7 +202,7 @@ pub struct App {
     pub(crate) game_over_seen: bool,
     pub(crate) menu: crate::menu_screen::MenuState,
     pub(crate) help_ui: crate::help_popup::HelpUi,
-    /// The keys of the overland map (`content/hotkeys.ron`).
+    /// The keys of the overland map (`crates/f4x-client/content/hotkeys.ron`).
     pub(crate) hotkeys: crate::hotkeys::Hotkeys,
     /// The text console's state (backquote key).
     pub(crate) console: crate::console_screen::ConsoleUi,

@@ -128,7 +128,7 @@ impl App {
             (mx - lay.origin.x) / lay.scale - 5.0,
             (my - lay.origin.y) / lay.scale - 5.0,
         );
-        self.draw_pic(lay, "items", usize::from(item.icon), 0, x, y);
+        self.draw_pic(lay, "items", self.art.item_icon(item), 0, x, y);
         let name = item.display_name(self.game.content());
         self.draw_styled(view, &Style::shadowed(1), &name, x + 20.0, y + 4.0);
     }
@@ -377,7 +377,7 @@ impl Page for ItemUi {
                 let spot = ItemSpot::Hero(hero, slot);
                 match app.item_at(spot) {
                     Some(item) => {
-                        app.draw_pic(&lay, "items", usize::from(item.icon), 0, sx, sy);
+                        app.draw_pic(&lay, "items", app.art.item_icon(&item), 0, sx, sy);
                     }
                     None => {
                         app.draw_pic(&lay, "itemisc", slot_icon(kind), 0, sx + 1.0, sy + 2.0);
@@ -432,7 +432,7 @@ impl Page for ItemUi {
             let (sx, sy) = (wx + 52.0 + slot as f32 * 21.0, wy + 170.0);
             let spot = ItemSpot::Vault(self.vault_offset + slot);
             if let Some(item) = app.item_at(spot) {
-                app.draw_pic(&lay, "items", usize::from(item.icon), 0, sx, sy);
+                app.draw_pic(&lay, "items", app.art.item_icon(&item), 0, sx, sy);
             }
             if ui::hit(lay.rect((sx, sy + 2.0, 20.0, 16.0)), true, input).hovered() {
                 if left {

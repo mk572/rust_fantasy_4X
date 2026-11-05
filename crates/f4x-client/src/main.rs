@@ -43,6 +43,7 @@ mod global_spell;
 mod hall_of_fame;
 mod help_popup;
 mod hotkeys;
+mod icon_art;
 mod input;
 mod intro_screen;
 mod item_screen;
@@ -97,6 +98,10 @@ use input::Input;
 use macroquad::prelude::*;
 
 use view::App;
+
+/// The client's own tables (which asset a game element uses, the keys): shipped with the client,
+/// not with the rules; a `--content` folder can replace any of them.
+const CLIENT_CONTENT: &str = "crates/f4x-client/content";
 
 struct Options {
     content: PathBuf,
@@ -590,7 +595,7 @@ async fn main() {
         }
     };
     let help = f4x_data::load_help(Path::new("content")).unwrap_or_default();
-    let layers = [options.content.as_path(), Path::new("content")];
+    let layers = [options.content.as_path(), Path::new(CLIENT_CONTENT)];
     let tables = match asset_check::load_tables(&layers, &content.rules) {
         Ok(tables) => tables,
         Err(e) => {
@@ -600,7 +605,13 @@ async fn main() {
     };
     let mut app = match App::new(
         content,
-        art::Art::load(options.assets, tables.spells, tables.units, tables.wizards),
+        art::Art::load(
+            options.assets,
+            tables.spells,
+            tables.units,
+            tables.wizards,
+            tables.icons,
+        ),
         if options.seed_given {
             options.seed
         } else {

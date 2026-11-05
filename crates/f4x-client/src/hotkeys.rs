@@ -1,4 +1,4 @@
-//! The keys of the overland map, by what they do (`content/hotkeys.ron`). The file lists the keys
+//! The keys of the overland map, by what they do (`crates/f4x-client/content/hotkeys.ron`). The file lists the keys
 //! of each action; the player's own `saves/hotkeys.ron` and the `hotkeys.ron` of a mod's content
 //! folder replace the keys of the actions they name. The screens' own keys (Enter and Escape in a
 //! question, the arrows in a list) stay as they are.
@@ -255,11 +255,11 @@ pub(crate) struct Hotkeys {
 }
 
 /// The file as shipped, so the game has its keys wherever it is started from.
-const SHIPPED: &str = include_str!("../../../content/hotkeys.ron");
+const SHIPPED: &str = include_str!("../content/hotkeys.ron");
 
 impl Default for Hotkeys {
     fn default() -> Self {
-        Self::from_layers(&[SHIPPED]).expect("content/hotkeys.ron is valid")
+        Self::from_layers(&[SHIPPED]).expect("crates/f4x-client/content/hotkeys.ron is valid")
     }
 }
 

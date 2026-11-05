@@ -10,7 +10,7 @@ Track and effect numbers below are identifiers, not content.
 (`crates/f4x-client/src/audio.rs`, on macroquad's audio: OGG and WAV, needs ALSA on Linux) plays the effects and
 music from `assets-local/audio` and is silent without the files. The songs are XMI, which it cannot play: it looks
 for `music/NNN_name.ogg`, which task 363 will render, so until then the effects play and the music is silent.
-`content/sound.ron` (made by `scripts/sound_table.py`) says which entry each spell and unit plays.
+`crates/f4x-client/content/sound.ron` (made by `scripts/sound_table.py`) says which entry each spell and unit plays.
 
 What is wired:
 

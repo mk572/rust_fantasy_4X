@@ -532,9 +532,6 @@ pub struct ItemDef {
     /// The original's item type; it fixes the slot (see [`ItemKind::slot`]).
     pub kind: ItemKind,
     pub cost: u32,
-    /// The picture, an entry of the original's `ITEMS.LBX`.
-    #[serde(default)]
-    pub icon: u16,
     /// The plain bonuses: attack, to hit, defence, movement (in half-moves), resistance.
     pub effects: Vec<EffectRule>,
     /// Added to the hero's mana in battle.

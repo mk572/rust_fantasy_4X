@@ -6,7 +6,7 @@ the battle animations are done (`spell_fx.rs`, `battle_screen/spell_anim.rs`). S
 (`Cast_Spell_Overland_Do`), `SBookScr.c` (`Spell_Animation_Load_Graphics`, `Spell_Animation_Screen__WIP`),
 `Spells129.c` to `Spells132.c` (the special casts) and `Spells137.c` (the summon, city and global animations).
 
-**Where the pictures are.** The `specfx`, `cmbtfx` and `spellscr` numbers below are the original's. Which spell uses which is in `content/spell_art.ron`, and the extracted files are in `assets-local/art/spells/<spell id>/` (`_shared/` for pictures several spells use: the realm pictures, the summon scene, the city scroll, the masks), named `<lbx>_<entry>_<frame>.png`. The client finds them by spell id and role (`Art::spell_picture`), so a number here only says what to look up.
+**Where the pictures are.** The `specfx`, `cmbtfx` and `spellscr` numbers below are the original's. Which spell uses which is in `crates/f4x-client/content/spell_art.ron`, and the extracted files are in `assets-local/art/spells/<spell id>/` (`_shared/` for pictures several spells use: the realm pictures, the summon scene, the city scroll, the masks), named `<lbx>_<entry>_<frame>.png`. The client finds them by spell id and role (`Art::spell_picture`), so a number here only says what to look up.
 
 ## Rules that apply to all of them
 

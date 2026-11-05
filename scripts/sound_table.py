@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes `content/sound.ron`: which of the original's sounds each spell and unit plays.
+"""Writes `crates/f4x-client/content/sound.ron`: which of the original's sounds each spell and unit plays.
 
 Reads the spell table (`SPELLDAT.LBX`, byte 30 of a record: the cast sound, positive is a `SOUNDFX.LBX`
 entry and negative a `NEWSOUND.LBX` entry, and byte 32: the music of a global enchantment) from the
@@ -60,7 +60,7 @@ def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__.split("\n", 2)[2])
     ap.add_argument("--game", type=Path, default=DEFAULT_GAME, help="the original game folder")
     ap.add_argument("--remom", type=Path, default=DEFAULT_REMOM, help="the ReMoM clone")
-    ap.add_argument("--out", type=Path, default=REPO / "content/sound.ron", help="file to write")
+    ap.add_argument("--out", type=Path, default=REPO / "crates/f4x-client/content/sound.ron", help="file to write")
     args = ap.parse_args(argv)
 
     spell_ids = ids_of(REPO / "content/spells.ron")

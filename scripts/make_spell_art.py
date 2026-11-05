@@ -4,7 +4,7 @@
   petrify   Change Terrain's sparkles (specfx 8), green turned to dark brown.
 
 Reads the player's own extracted art (assets-local/art/spells/...) and writes
-assets-local/art/spells/<spell>/000_NN.png, where `content/spell_art.ron` finds it as
+assets-local/art/spells/<spell>/000_NN.png, where `crates/f4x-client/content/spell_art.ron` finds it as
 `(lbx: "spells/<spell>", entry: 0)`. The output is derived from the original's art, so it stays
 local like the rest of assets-local (not committed). Needs Pillow (.venv).
 """

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 /// What a test returns when it uses `?` instead of `unwrap`.
 pub type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-/// The game's own `content/` folder.
+/// The client's own `content/` folder (`crates/f4x-client/content`).
 pub fn content_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../content")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../content")
 }

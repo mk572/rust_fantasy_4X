@@ -1,6 +1,6 @@
 //! How a spell cast in a battle is played (`Combat_Spell_Animation`, `Spell_Animation_Load_Graphics`
 //! in ReMoM): how its animation moves. Which file and entry hold its pictures is in
-//! `content/spell_art.ron` (`crate::spell_art`), under the files `cmbtfx` and `specfx`.
+//! `crates/f4x-client/content/spell_art.ron` (`crate::spell_art`), under the files `cmbtfx` and `specfx`.
 
 use f4x_extract::spell_art::{Role, SpellArt};
 

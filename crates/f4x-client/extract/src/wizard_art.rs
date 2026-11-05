@@ -1,4 +1,4 @@
-//! Which pictures each ready-made wizard uses (`content/wizard_art.ron`). A wizard's place in the
+//! Which pictures each ready-made wizard uses (`crates/f4x-client/content/wizard_art.ron`). A wizard's place in the
 //! list is its slot, the number the game keeps as the wizard's portrait; every other number here is
 //! an entry of the original's file that the role names (the comment in the file lists them). The
 //! rules do not know this table; the client reads it, and checks the ids against the rules

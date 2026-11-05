@@ -208,9 +208,10 @@ impl App {
             let Some(item) = cell else {
                 continue;
             };
-            if let Some(tex) = item
-                .icon
-                .and_then(|i| self.art.picture("compix", 42 + usize::from(i), 0).cloned())
+            if let Some(tex) = self
+                .art
+                .battle_info_icon(item.key)
+                .and_then(|entry| self.art.picture("compix", entry, 0).cloned())
             {
                 let (px, py) = at(x, y);
                 draw_texture_ex(

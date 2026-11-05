@@ -1,4 +1,4 @@
-//! Which of the original's sounds each spell and unit plays (`content/sound.ron`).
+//! Which of the original's sounds each spell and unit plays (`crates/f4x-client/content/sound.ron`).
 //!
 //! The numbers are entries of the original's sound files, which the client plays from
 //! `assets-local/audio` when they are there (`docs/sound.md`). The file is optional.

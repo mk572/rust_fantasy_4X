@@ -31,7 +31,7 @@ const STAGES: usize = 120;
 pub(crate) struct GlobalCast {
     player: PlayerId,
     spell: SpellId,
-    /// The picture in the mirror (`Role::Global` of the spell in `content/spell_art.ron`).
+    /// The picture in the mirror (`Role::Global` of the spell in `crates/f4x-client/content/spell_art.ron`).
     picture: (String, usize),
     /// The spell's own piece of music, when it has one.
     music: Option<Track>,

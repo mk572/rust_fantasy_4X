@@ -2,7 +2,7 @@
 
 The original's keys and the client's defaults are compared in `hotkeys.md`.
 
-The keys of the overland map are not in the code: `content/hotkeys.ron` lists, for each action
+The keys of the overland map are not in the code: `crates/f4x-client/content/hotkeys.ron` lists, for each action
 (`end_turn`, `move_left`, `quick_save`, ...), the keys that do it. `crates/f4x-client/src/hotkeys.rs`
 reads it.
 

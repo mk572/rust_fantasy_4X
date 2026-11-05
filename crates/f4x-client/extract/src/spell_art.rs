@@ -1,4 +1,4 @@
-//! Which pictures of the original's art belong to which spell (`content/spell_art.ron`).
+//! Which pictures of the original's art belong to which spell (`crates/f4x-client/content/spell_art.ron`).
 //!
 //! The table names each picture by its source `(lbx, entry)` and what it is used for. The client
 //! reads the pictures to draw from it and `f4x-extract art` files them by it: a picture of one spell

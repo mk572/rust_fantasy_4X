@@ -57,7 +57,9 @@ pub struct Item {
     pub kind: ItemKind,
     /// The item's value in gold: what the anvil and the merchants go by.
     pub cost: u32,
-    /// The picture, an entry of the original's `ITEMS.LBX`.
+    /// The picture, an entry of the original's `ITEMS.LBX`, of an item a wizard made or one found
+    /// at random. A copy of a prefab item has none (0): the client's table `item_art.ron` says
+    /// which picture the prefab has.
     #[serde(default)]
     pub icon: u16,
     pub bonus: ItemBonus,
@@ -102,7 +104,7 @@ impl Item {
             name: def.name.clone(),
             kind: def.kind,
             cost: def.cost,
-            icon: def.icon,
+            icon: 0,
             bonus,
             powers: crate::rules::refs::ids(&def.powers),
             charges: def

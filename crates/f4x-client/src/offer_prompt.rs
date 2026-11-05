@@ -414,7 +414,7 @@ impl App {
     ) {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         self.draw_pic(lay, "itemisc", 25, 0, x, y);
-        self.draw_pic(lay, "items", usize::from(item.icon), 0, x + 9.0, y + 6.0);
+        self.draw_pic(lay, "items", self.art.item_icon(item), 0, x + 9.0, y + 6.0);
         let name = item.display_name(self.game.content());
         self.draw_styled(view, &Style::set(4, 4), &name, x + 31.0, y + 12.0);
         let rules = self.game.content().rules.clone();

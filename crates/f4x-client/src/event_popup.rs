@@ -51,7 +51,7 @@ const RED: usize = 43;
 const FIZZLE_TOP: f32 = 80.0;
 
 /// A box about a spell: where it goes, the colour of its strip and the picture in it (the role of
-/// a shared picture in `content/spell_art.ron`).
+/// a shared picture in `crates/f4x-client/content/spell_art.ron`).
 #[derive(Debug, Clone)]
 pub(crate) struct SpellNotice {
     text: String,

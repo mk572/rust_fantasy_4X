@@ -1,6 +1,6 @@
 //! Everything that reads the original game's files and writes the client's local assets (pictures,
 //! sounds, music, fonts), and the definitions of which game element uses which asset
-//! (`content/spell_art.ron`, `content/sound.ron`). No game logic: this crate depends on no other
+//! (`crates/f4x-client/content/spell_art.ron`, `crates/f4x-client/content/sound.ron`). No game logic: this crate depends on no other
 //! crate of the workspace. The client depends on it for the definitions only
 //! (`default-features = false`); the extraction code is the `extract` feature, on by default, so the
 //! client does not link `png` or `fontdue`.

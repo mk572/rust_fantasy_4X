@@ -359,7 +359,7 @@ impl App {
             match (special.item, special.icon) {
                 (Some(ItemIcon::Held(item)), _) => {
                     self.draw_pic(lay, "special", 3, 0, x, y);
-                    self.draw_pic(lay, "items", usize::from(item), 0, x - 2.0, y - 2.0);
+                    self.draw_pic(lay, "items", item, 0, x - 2.0, y - 2.0);
                 }
                 (Some(ItemIcon::Empty(slot)), _) => {
                     self.draw_pic(lay, "itemisc", slot, 0, x, y);

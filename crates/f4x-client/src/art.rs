@@ -2,6 +2,7 @@
 //! Everything is optional: a missing file just means the caller draws a flat
 //! placeholder, so the game runs and CI passes without the original assets.
 
+use crate::icon_art::IconArt;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -190,12 +191,14 @@ pub struct Art {
     glows: HashMap<(FigureKey, usize, usize), Option<Texture2D>>,
     /// Map pictures of units with the glow of an enchantment: (file, entry, banner, realm, step).
     unit_glows: HashMap<(String, usize, u8, usize, usize), Option<Texture2D>>,
-    /// Which pictures belong to which spell (`content/spell_art.ron`).
+    /// Which pictures belong to which spell (`crates/f4x-client/content/spell_art.ron`).
     spells: SpellArt,
-    /// Which picture each unit and hero uses, by the unit's id (`content/unit_art.ron`).
+    /// Which picture each unit and hero uses, by the unit's id (`crates/f4x-client/content/unit_art.ron`).
     units: HashMap<String, UnitArt>,
-    /// Which pictures each ready-made wizard uses, by slot (`content/wizard_art.ron`).
+    /// Which pictures each ready-made wizard uses, by slot (`crates/f4x-client/content/wizard_art.ron`).
     wizards: Vec<WizardArt>,
+    /// The small pictures of items and of the battle information window (`content/icon_art.ron`).
+    icons: IconArt,
 }
 
 /// Banner names in the order the game numbers them.
@@ -240,6 +243,7 @@ impl Art {
         spells: SpellArt,
         units: Vec<UnitArt>,
         wizards: Vec<WizardArt>,
+        icons: IconArt,
     ) -> Self {
         let types = std::fs::read_to_string(dir.join("map/tiles/types.tsv")).unwrap_or_default();
         let type_tiles = types
@@ -315,6 +319,7 @@ impl Art {
             spells,
             units: units.into_iter().map(|u| (u.id.clone(), u)).collect(),
             wizards,
+            icons,
         }
     }
 
@@ -329,6 +334,18 @@ impl Art {
         self.wizards
             .get(usize::from(slot))
             .map_or_else(WizardPictures::default, |w| w.pictures)
+    }
+
+    /// The picture of an item, an entry of `ITEMS.LBX`: a prefab item has its picture in the
+    /// table, one a wizard made or found at random carries its own.
+    pub fn item_icon(&self, item: &f4x_core::item::Item) -> usize {
+        let own = item.prefab.and_then(|id| self.icons.item(id.num()));
+        usize::from(own.unwrap_or(item.icon))
+    }
+
+    /// The `COMPIX.LBX` entry of a line of the battle information window, if it has a picture.
+    pub fn battle_info_icon(&self, key: &str) -> Option<usize> {
+        self.icons.battle_info(key)
     }
 
     /// The `(file, entry)` of a unit's picture in the original's unit files, by the unit's id.
@@ -1052,7 +1069,13 @@ mod figure_tests {
     /// glyphs.
     #[test]
     fn the_embedded_fonts_parse_and_cover_ascii() {
-        let art = Art::load(PathBuf::new(), SpellArt::default(), Vec::new(), Vec::new());
+        let art = Art::load(
+            PathBuf::new(),
+            SpellArt::default(),
+            Vec::new(),
+            Vec::new(),
+            IconArt::default(),
+        );
         for (n, font) in art.font_data.iter().enumerate() {
             assert_eq!(font.page, format!("style{n}.png"));
             for ascii in 32u8..=126 {

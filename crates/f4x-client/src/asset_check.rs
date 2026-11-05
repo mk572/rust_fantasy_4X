@@ -1,4 +1,4 @@
-//! The client's asset tables (`content/spell_art.ron`, `unit_art.ron`, `sound.ron`) and their check
+//! The client's asset tables (`crates/f4x-client/content/spell_art.ron`, `unit_art.ron`, `sound.ron`) and their check
 //! against the rules: every id they name must be a spell, unit or realm the rules have.
 //!
 //! The tables themselves, and their checks that need no rules, live in `f4x-extract`, which the
@@ -13,12 +13,15 @@ use f4x_extract::spell_art::{self, Role, SpellArt};
 use f4x_extract::unit_art::{self, UnitArt};
 use f4x_extract::wizard_art::{self, WizardArt};
 
+use crate::icon_art::{self, IconArt};
+
 /// The asset tables of the client.
 pub struct Tables {
     pub spells: SpellArt,
     pub units: Vec<UnitArt>,
     pub wizards: Vec<WizardArt>,
     pub sounds: SoundTable,
+    pub icons: IconArt,
 }
 
 /// The tables from the first of `dirs` that has each, checked against `rules`.
@@ -27,16 +30,19 @@ pub fn load_tables(dirs: &[&Path], rules: &Rules) -> Result<Tables, String> {
     let units = unit_art::load_unit_art(dirs)?;
     let wizards = wizard_art::load_wizard_art(dirs)?;
     let sounds = sound::load_sound(dirs)?;
+    let icons = icon_art::load_icon_art(dirs)?;
     let mut problems = check_spell_art(&spells, rules);
     problems.extend(check_unit_art(&units, rules));
     problems.extend(check_wizard_art(&wizards, rules));
     problems.extend(check_sound(&sounds, rules));
+    problems.extend(check_icon_art(&icons, rules));
     if problems.is_empty() {
         Ok(Tables {
             spells,
             units,
             wizards,
             sounds,
+            icons,
         })
     } else {
         Err(format!("\n  - {}", problems.join("\n  - ")))
@@ -103,6 +109,43 @@ pub fn check_wizard_art(wizards: &[WizardArt], rules: &Rules) -> Vec<String> {
     problems
 }
 
+/// The items of the table are the rules' items, in the rules' order, each with a picture of its
+/// type; the battle information lines are lines the window has.
+pub fn check_icon_art(art: &IconArt, rules: &Rules) -> Vec<String> {
+    let mut problems = Vec::new();
+    let ids: Vec<&str> = rules.items.defs().iter().map(|i| i.id.as_str()).collect();
+    let table: Vec<&str> = art.items.iter().map(|i| i.id.as_str()).collect();
+    if ids != table {
+        problems.push(format!(
+            "icon_art: {} items, the rules have {} (or not in the same order)",
+            table.len(),
+            ids.len()
+        ));
+        return problems;
+    }
+    for (def, item) in rules.items.defs().iter().zip(&art.items) {
+        let (first, last) = def.kind.icon_range();
+        // The original draws its "White Lightning I" sword with a mace's picture.
+        if def.id != "white_lightning_i" && !(first..=last).contains(&item.icon) {
+            problems.push(format!(
+                "icon_art: {} ({:?}) has picture {}, its type has {first} to {last}",
+                def.id, def.kind, item.icon
+            ));
+        }
+    }
+    let keys: Vec<&str> = f4x_core::battle::info::ALL.iter().map(|i| i.key).collect();
+    for key in art
+        .battle_info
+        .keys()
+        .filter(|k| !keys.contains(&k.as_str()))
+    {
+        problems.push(format!(
+            "icon_art: unknown battle information line \"{key}\""
+        ));
+    }
+    problems
+}
+
 /// A spell or unit of the table that the rules do not have.
 pub fn check_sound(table: &SoundTable, rules: &Rules) -> Vec<String> {
     let mut problems = Vec::new();
@@ -128,7 +171,9 @@ mod tests {
     #[test]
     fn the_shipped_tables_agree_with_the_shipped_rules() -> TestResult {
         let rules = &shipped::content().rules;
-        let tables = load_tables(&[Path::new(crate::test_app::CONTENT)], rules)?;
+        let tables = load_tables(&[Path::new(crate::test_app::CLIENT_CONTENT)], rules)?;
+        assert_eq!(tables.icons.items.len(), rules.items.len());
+        assert_eq!(tables.icons.battle_info.len(), 14);
         assert_eq!(tables.sounds.units.len(), rules.units.len());
         assert_eq!(tables.units.len(), rules.units.len());
         assert_eq!(tables.wizards.len(), rules.wizards.len());
@@ -153,6 +198,9 @@ mod tests {
             .any(|p| p.contains("unknown unit")));
         let wizards = wizard_art::parse_wizard_art(r#"[(id: "nobody", pictures: ())]"#)?;
         assert_eq!(check_wizard_art(&wizards, rules).len(), 2);
+        let icons =
+            icon_art::parse_icon_art(r#"(items: [], battle_info: {"battle_info.nothing": 42})"#)?;
+        assert_eq!(check_icon_art(&icons, rules).len(), 1);
         Ok(())
     }
 }

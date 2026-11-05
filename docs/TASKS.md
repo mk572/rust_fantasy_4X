@@ -94,6 +94,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 475 | Medium | Core | Split turn advancement into explicit `game::end_turn()` and `game::start_turn()` phases |
 | 476 | Medium | Client | Cache queried game information and refresh it only after relevant state changes |
 | 477 | Medium | Housekeeping | Add `f4x-master` for player turns and round orchestration |
+| 478 | Low | Housekeeping | Make `f4x-ai-ref` a local-only snapshot: ignored by git, behind a `reference` feature of `f4x-tools` |
 
 ## Descriptions
 
@@ -784,3 +785,13 @@ start/end work and once-per-round processing. Do not run the existing whole-worl
 once per player. The design document records the intended boundaries, cadence rules and
 the system-by-system decisions still needed during implementation.
 
+**478. Make `f4x-ai-ref` a local-only snapshot.** The reference AI is a frozen copy of `f4x-ai` that
+`f4x-tools versus` and `soak` play the current AI against; it is only ever used for local
+development. Put `f4x-ai-ref` behind an optional `reference` feature of `f4x-tools` (the
+`Version::Reference` seats in `contestant.rs`, `versus`, and the reference roster of `soak`), take
+it out of the workspace's required members, untrack it (`git rm -r --cached`) and add it to
+`.gitignore`, so the workspace builds without it. Add `scripts/ai_snapshot.py` (and its row in
+`docs/scripts.md`): copy `crates/f4x-ai` to `crates/f4x-ai-ref` under the new package name, run
+`versus`, keep the winner (keep the new AI, or restore `f4x-ai` from git), then remove the copy.
+A fixed long-term baseline is lost; a snapshot at a git tag can stand in for it. Update
+`docs/rust-dependencies.md`, `docs/crate-layout-plan*.md` and the other docs that name the crate.

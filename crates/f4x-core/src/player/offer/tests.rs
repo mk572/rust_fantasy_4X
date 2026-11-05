@@ -375,7 +375,6 @@ fn a_rejected_or_lapsed_item_can_be_offered_again() -> TestResult {
         slot: crate::rules::ItemSlot::Weapon,
         kind: crate::rules::ItemKind::Sword,
         cost: 10,
-        icon: 0,
         effects: Vec::new(),
         spell_skill: 0,
         spell_save: 0,

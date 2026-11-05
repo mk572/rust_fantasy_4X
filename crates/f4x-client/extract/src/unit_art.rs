@@ -1,4 +1,4 @@
-//! Which picture each unit uses (`content/unit_art.ron`): its sprite sheet `(file, entry)` of the
+//! Which picture each unit uses (`crates/f4x-client/content/unit_art.ron`): its sprite sheet `(file, entry)` of the
 //! original and, for a hero, its portrait entry of `PORTRAIT.LBX`. The rules do not know it; the
 //! client and the extractor read it, and the client checks its ids against the rules
 //! (`asset_check`).

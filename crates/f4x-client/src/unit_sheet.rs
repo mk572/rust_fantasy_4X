@@ -49,7 +49,7 @@ impl Row {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ItemIcon {
     /// The item's own picture, an entry of `items.lbx`.
-    Held(u16),
+    Held(usize),
     /// An empty slot: the picture of the kind of item it takes, an entry of `itemisc.lbx`.
     Empty(usize),
 }
@@ -678,7 +678,7 @@ impl App {
                 removable: false,
                 help: None,
                 item: Some(match &item {
-                    Some(i) => ItemIcon::Held(i.icon),
+                    Some(i) => ItemIcon::Held(self.art.item_icon(i)),
                     None => ItemIcon::Empty(crate::item_screen::slot_icon(kind)),
                 }),
             });

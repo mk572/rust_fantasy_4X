@@ -17,6 +17,8 @@ use crate::art::Art;
 use crate::view::App;
 
 pub(crate) const CONTENT: &str = "../../content";
+/// The client's own tables (`crates/f4x-client/content`).
+pub(crate) const CLIENT_CONTENT: &str = "content";
 
 /// The files of `content/`, each parsed once for the whole test run.
 pub(crate) mod shipped {
@@ -54,7 +56,7 @@ pub(crate) mod shipped {
     pub(crate) fn spell_art() -> &'static SpellArt {
         static CELL: OnceLock<SpellArt> = OnceLock::new();
         CELL.get_or_init(|| {
-            f4x_extract::spell_art::load_spell_art(&[Path::new(CONTENT)])
+            f4x_extract::spell_art::load_spell_art(&[Path::new(CLIENT_CONTENT)])
                 .expect("the shipped spell art loads")
         })
     }
@@ -62,15 +64,23 @@ pub(crate) mod shipped {
     pub(crate) fn wizard_art() -> &'static Vec<WizardArt> {
         static CELL: OnceLock<Vec<WizardArt>> = OnceLock::new();
         CELL.get_or_init(|| {
-            f4x_extract::wizard_art::load_wizard_art(&[Path::new(CONTENT)])
+            f4x_extract::wizard_art::load_wizard_art(&[Path::new(CLIENT_CONTENT)])
                 .expect("the shipped wizard art loads")
+        })
+    }
+
+    pub(crate) fn icon_art() -> &'static crate::icon_art::IconArt {
+        static ART: OnceLock<crate::icon_art::IconArt> = OnceLock::new();
+        ART.get_or_init(|| {
+            crate::icon_art::load_icon_art(&[Path::new(CLIENT_CONTENT)])
+                .expect("the shipped icon art loads")
         })
     }
 
     pub(crate) fn unit_art() -> &'static Vec<UnitArt> {
         static CELL: OnceLock<Vec<UnitArt>> = OnceLock::new();
         CELL.get_or_init(|| {
-            f4x_extract::unit_art::load_unit_art(&[Path::new(CONTENT)])
+            f4x_extract::unit_art::load_unit_art(&[Path::new(CLIENT_CONTENT)])
                 .expect("the shipped unit art loads")
         })
     }
@@ -84,6 +94,7 @@ impl App {
             shipped::spell_art().clone(),
             shipped::unit_art().clone(),
             shipped::wizard_art().clone(),
+            shipped::icon_art().clone(),
         );
         App::new(shipped::content().clone(), art, 1)
             .expect("a new game starts on the shipped content")

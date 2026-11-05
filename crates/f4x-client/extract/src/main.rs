@@ -25,7 +25,7 @@ const USAGE: &str = "usage:
   f4x-extract font-chars | font-coverage | font-bmfont
                                           the characters the text uses, what a font lacks, a TrueType font
                                           as a BMFont (run one without arguments for its usage; docs/fonts.md)
-The tables of which game element uses which asset are read from content/ (spell_art.ron, unit_art.ron).";
+The tables of which game element uses which asset are read from crates/f4x-client/content/ (spell_art.ron, unit_art.ron).";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -70,9 +70,9 @@ fn main() -> ExitCode {
     }
 }
 
-/// The tables of which game element uses which picture, from `content/`.
+/// The tables of which game element uses which picture, from `crates/f4x-client/content/`.
 fn tables() -> Result<TableSet, String> {
-    let content = [Path::new("content")];
+    let content = [Path::new("crates/f4x-client/content")];
     Ok((
         unit_art::load_unit_art(&content)?,
         spell_art::load_spell_art(&content)?,

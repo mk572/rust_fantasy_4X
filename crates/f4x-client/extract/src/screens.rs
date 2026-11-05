@@ -1,6 +1,6 @@
 //! Where `f4x-extract art` puts a picture: the ones that belong to one screen alone (`screens.tsv`) in
 //! `assets-local/screens/<screen>/`, unit art (overland picture, combat figures, hero portrait) in
-//! `assets-local/art/units/<unit id>/`, a spell's pictures (`content/spell_art.ron`) in
+//! `assets-local/art/units/<unit id>/`, a spell's pictures (`crates/f4x-client/content/spell_art.ron`) in
 //! `assets-local/art/spells/<spell id>/` (`_shared` for those of several spells, `_book` for the
 //! spell book), and the rest in `assets-local/art/<lbx>/`.
 

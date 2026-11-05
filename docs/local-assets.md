@@ -44,7 +44,7 @@ are not yet audio, task 363), the MT-32 timbre banks in `timbres/`, and `index.t
 Format code: `crates/f4x-tools/src/audio.rs`.
 The client plays them (`crates/f4x-client/src/audio.rs`, macroquad's audio): `--audio DIR` names another folder, `--mute`
 plays nothing, `--hear soundfx:2` plays one sound and quits (a check that a file decodes). Without the folder the
-game is silent. Which entry a spell or unit plays is `content/sound.ron` (`scripts/sound_table.py`).
+game is silent. Which entry a spell or unit plays is `crates/f4x-client/content/sound.ron` (`scripts/sound_table.py`).
 
 ## Rules data: `content/` (committed)
 

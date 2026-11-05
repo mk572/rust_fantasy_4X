@@ -24,9 +24,6 @@ use crate::rules::SpellId;
 pub struct InfoItem {
     /// The key of the name the window prints, in `content/text`.
     pub key: &'static str,
-    /// The original's picture: the offset of the entry from `compix.lbx` 42, or none for an
-    /// effect the original does not list.
-    pub icon: Option<u8>,
     /// The help topic (the original's `HLP_` number) a right-click opens.
     pub help: u16,
 }
@@ -56,26 +53,45 @@ impl BattleInfo {
     }
 }
 
-const fn item(key: &'static str, icon: Option<u8>, help: u16) -> InfoItem {
-    InfoItem { key, icon, help }
+const fn item(key: &'static str, help: u16) -> InfoItem {
+    InfoItem { key, help }
 }
 
-pub const CRUSADE: InfoItem = item("battle_info.crusade", Some(0), 622);
-pub const HOLY_ARMS: InfoItem = item("battle_info.holy_arms", Some(1), 623);
-pub const CHARM_OF_LIFE: InfoItem = item("battle_info.charm_of_life", Some(3), 624);
-pub const ZOMBIE_MASTERY: InfoItem = item("battle_info.zombie_mastery", Some(9), 625);
-pub const DISPELS_NON_SORCERY: InfoItem = item("battle_info.dispels_non_sorcery", Some(12), 612);
-pub const DISPELS_NON_CHAOS: InfoItem = item("battle_info.dispels_non_chaos", Some(5), 613);
-pub const DISPELS_NON_NATURE: InfoItem = item("battle_info.dispels_non_nature", Some(10), 614);
-pub const SORCERY_AURA: InfoItem = item("battle_info.sorcery_node_aura", Some(13), 615);
-pub const CHAOS_AURA: InfoItem = item("battle_info.chaos_node_aura", Some(6), 616);
-pub const NATURE_AURA: InfoItem = item("battle_info.nature_node_aura", Some(11), 617);
-pub const CLOUD_OF_DARKNESS: InfoItem = item("battle_info.cloud_of_darkness", Some(8), 618);
-pub const HOLY_LIGHT: InfoItem = item("battle_info.holy_light", Some(2), 619);
-pub const CHAOS_SURGE: InfoItem = item("battle_info.chaos_surge", Some(4), 620);
-pub const ETERNAL_NIGHT: InfoItem = item("battle_info.eternal_night", Some(7), 621);
+pub const CRUSADE: InfoItem = item("battle_info.crusade", 622);
+pub const HOLY_ARMS: InfoItem = item("battle_info.holy_arms", 623);
+pub const CHARM_OF_LIFE: InfoItem = item("battle_info.charm_of_life", 624);
+pub const ZOMBIE_MASTERY: InfoItem = item("battle_info.zombie_mastery", 625);
+pub const DISPELS_NON_SORCERY: InfoItem = item("battle_info.dispels_non_sorcery", 612);
+pub const DISPELS_NON_CHAOS: InfoItem = item("battle_info.dispels_non_chaos", 613);
+pub const DISPELS_NON_NATURE: InfoItem = item("battle_info.dispels_non_nature", 614);
+pub const SORCERY_AURA: InfoItem = item("battle_info.sorcery_node_aura", 615);
+pub const CHAOS_AURA: InfoItem = item("battle_info.chaos_node_aura", 616);
+pub const NATURE_AURA: InfoItem = item("battle_info.nature_node_aura", 617);
+pub const CLOUD_OF_DARKNESS: InfoItem = item("battle_info.cloud_of_darkness", 618);
+pub const HOLY_LIGHT: InfoItem = item("battle_info.holy_light", 619);
+pub const CHAOS_SURGE: InfoItem = item("battle_info.chaos_surge", 620);
+pub const ETERNAL_NIGHT: InfoItem = item("battle_info.eternal_night", 621);
 /// Not in the original's window; the help is the spell's own topic (198).
-pub const EVIL_OMENS: InfoItem = item("battle_info.evil_omens", None, 198);
+pub const EVIL_OMENS: InfoItem = item("battle_info.evil_omens", 198);
+
+/// Every line the window can show; the client's `icon_art.ron` has a picture for each it draws one for.
+pub const ALL: [InfoItem; 15] = [
+    CRUSADE,
+    HOLY_ARMS,
+    CHARM_OF_LIFE,
+    ZOMBIE_MASTERY,
+    DISPELS_NON_SORCERY,
+    DISPELS_NON_CHAOS,
+    DISPELS_NON_NATURE,
+    SORCERY_AURA,
+    CHAOS_AURA,
+    NATURE_AURA,
+    CLOUD_OF_DARKNESS,
+    HOLY_LIGHT,
+    CHAOS_SURGE,
+    ETERNAL_NIGHT,
+    EVIL_OMENS,
+];
 
 /// The wizard spells the window lists for one side, in the original's order.
 #[derive(Debug, Clone, Copy, Default)]
@@ -261,7 +277,7 @@ mod tests {
                 "battle_info.evil_omens",
             ]
         );
-        assert_eq!(info.common[0].icon, Some(5));
+        assert_eq!(info.common[0], DISPELS_NON_CHAOS);
         assert_eq!(info.common[1].help, 616);
     }
 

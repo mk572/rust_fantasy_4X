@@ -2,7 +2,7 @@
 //!
 //! The sounds are the original's, extracted by `f4x-extract audio` to `assets-local/audio`
 //! (`<archive>/NNN_name.ogg`); the repository ships none, and a game without them is silent. A
-//! sound is named by its archive and entry, as the original names it; `content/sound.ron` says
+//! sound is named by its archive and entry, as the original names it; `crates/f4x-client/content/sound.ron` says
 //! which entry a spell or unit plays. Effects are played where things happen (a click, a
 //! battle animation starting); the music is declared: every frame `App::want_music` says what
 //! should be playing for the state the game is in, and `Audio::music` changes the track only
@@ -189,7 +189,7 @@ pub(crate) struct Audio {
     playing: Option<(Track, Option<Sound>)>,
     /// The combat track picked when the battle began, so that it does not change mid-fight.
     pub battle_track: Option<(PlayerId, Track)>,
-    /// What `content/sound.ron` says.
+    /// What `crates/f4x-client/content/sound.ron` says.
     pub table: SoundTable,
     pub effects_on: bool,
     pub music_on: bool,
@@ -475,7 +475,7 @@ impl App {
         })
     }
 
-    /// The wizard's number in the original's music order (`content/wizard_art.ron`), when it is
+    /// The wizard's number in the original's music order (`crates/f4x-client/content/wizard_art.ron`), when it is
     /// one of the ready-made wizards.
     pub(crate) fn wizard_tracks_of(&self, player: PlayerId) -> Option<u16> {
         let slot = self.game.wizard(player)?.portrait();
