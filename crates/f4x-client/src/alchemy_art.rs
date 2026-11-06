@@ -5,11 +5,14 @@
 use macroquad::prelude::*;
 use std::cell::RefCell;
 
-use crate::font::{rgb, Style};
+use crate::font::{rgb, Effect, Style};
 use crate::frame::Layout;
 use crate::input::Input;
 use crate::ui;
 use crate::view::App;
+
+/// The space between the words of the title, in the original's pixels.
+const WORD_GAP: f32 = 3.0;
 
 fn load(bytes: &[u8]) -> Texture2D {
     let tex = Texture2D::from_file_with_format(bytes, Some(ImageFormat::Png));
@@ -54,14 +57,36 @@ impl App {
                 ..Default::default()
             },
         );
+        // Embossed as the original: a gold shadow down and to the right, a brown one up and to the
+        // left. The original's words are set closer than the font's space.
         let title = self.text(title_key);
-        self.draw_styled(
-            (lay.origin.x, lay.origin.y, lay.scale),
-            &Style::flat(4, rgb(8, 4, 4)).center(),
-            &title,
-            at.0 + 83.0,
-            at.1 + 9.0,
-        );
+        let font = crate::menu_bar_art::label_font();
+        let words: Vec<&str> = title.split(' ').collect();
+        let widths: Vec<f32> = words
+            .iter()
+            .map(|w| font.measure_text(w, 1.0).width)
+            .collect();
+        let total = widths.iter().sum::<f32>() + WORD_GAP * (words.len() - 1) as f32;
+        for style in [
+            Style::flat(4, rgb(8, 4, 4))
+                .effect(Effect::Shadow)
+                .edge(Color::from_rgba(255, 182, 44, 128)),
+            Style::flat(4, rgb(8, 4, 4))
+                .effect(Effect::ShadowUp)
+                .edge(Color::from_rgba(121, 85, 36, 128)),
+        ] {
+            let mut x = at.0 + 84.0 - total / 2.0;
+            for (word, width) in words.iter().zip(&widths) {
+                self.draw_styled_in(
+                    &font,
+                    (lay.origin.x, lay.origin.y, lay.scale),
+                    &style,
+                    word,
+                    (x, at.1 + 11.0),
+                );
+                x += width + WORD_GAP;
+            }
+        }
     }
 
     /// A stone button at `at` with its label from the text `key`; true when clicked.

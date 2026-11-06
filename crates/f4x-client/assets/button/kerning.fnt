@@ -1,4 +1,4 @@
-kernings count=12
+kernings count=13
 kerning first=97 second=109 amount=-1
 kerning first=97 second=110 amount=-1
 kerning first=77 second=97 amount=-1
@@ -11,3 +11,4 @@ kerning first=84 second=117 amount=-2
 kerning first=116 second=32 amount=-2
 kerning first=120 second=116 amount=-1
 kerning first=73 second=116 amount=-1
+kerning first=84 second=114 amount=-2
