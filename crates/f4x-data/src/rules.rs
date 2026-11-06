@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
 use f4x_core::feature::def::Features;
-use f4x_core::rules::effects::{Condition, Effect, EffectRule, Trigger, CUSTOM_HOOKS};
+use f4x_core::rules::effects::{Condition, Effect, EffectRule, Trigger};
 use f4x_core::rules::{
     AbilityDef, AbilityId, BuildingDef, Def, Duration, HeroTemplate, ItemDef, ItemPowerDef,
     LevelPathDef, RaceDef, RealmDef, Registry, RetortDef, Rules, RulesConfig, SpellDef, Stat,
@@ -416,18 +416,8 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
             ));
         }
     }
-    for spell in r.spells.defs() {
-        let special = spell
-            .effects
-            .iter()
-            .any(|e| matches!(e.effect, Effect::Special));
-        if special && !f4x_core::rules::effects::SPECIAL_SPELLS.contains(&spell.num) {
-            p.push(format!(
-                "spell {:?} has Special code but no Rust code is written for its number",
-                spell.id
-            ));
-        }
-    }
+    // The hooks and special spells the code implements (the definitions do not know them).
+    p.extend(f4x_core::hook::problems(r));
     for (owner, rules) in carriers {
         for rule in rules {
             check_rule(r, features, &owner, rule, &mut p);
@@ -832,9 +822,6 @@ fn check_rule(r: &Rules, features: &Features, owner: &str, rule: &EffectRule, p:
         Effect::Heal(n) if *n <= 0 => p.push(format!("{owner}: heal must be positive")),
         Effect::Dispel { strength: 0 } => {
             p.push(format!("{owner}: dispel strength must be positive"))
-        }
-        Effect::Custom(name) if !CUSTOM_HOOKS.contains(&name.as_str()) => {
-            p.push(format!("{owner}: unknown custom hook {name:?}"));
         }
         _ => {}
     }

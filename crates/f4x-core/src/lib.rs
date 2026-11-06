@@ -13,6 +13,7 @@ pub mod feature;
 pub mod game;
 pub mod help;
 pub mod hero;
+pub mod hook;
 pub mod item;
 pub mod map;
 pub mod player;

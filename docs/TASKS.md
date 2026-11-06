@@ -95,6 +95,8 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 477 | Medium | Housekeeping | Add `f4x-master` for player turns and round orchestration |
 | 478 | Low | Housekeeping | Make `f4x-ai-ref` a local-only snapshot: ignored by git, behind a `reference` feature of `f4x-tools` |
 | 479 | Medium | Meta | The crates below the client know no display text: names and messages leave core, data and the AI for the client |
+| 481 | High | Meta | New crate `f4x-def`: all static definitions and their loaders; `f4x-core` depends on it, `f4x-data` goes away |
+| 482 | Medium | Meta | `Effect::Special` carries a tag from the `.ron` file; the Rust code is found by the tag, not the spell number |
 
 ## Descriptions
 
@@ -441,3 +443,7 @@ unit's `id`, a city `<race id>_city_00`, `_01`, and so on, a rival `rival_1`, `r
 composition code to the client; (3) drop `CLIENT_FOLDER`, `Content.texts` and the client folder from
 core's test content and the data tests. Saves keep their numbers. Do not break the text/code
 agreement tests (`crates/f4x-client/tests/it/text.rs`): they scan every crate's sources for keys.
+
+**481. New crate `f4x-def`.** Decided by the user, 6 November 2026. `f4x-def` holds every static definition (`UnitDef`, `SpellDef`, the registries, `Id<T>`, `Content`) and loads and validates them from `content/*.ron`: a loader sits in the crate whose data it loads. `f4x-core` depends on `f4x-def`, not the other way round, so the definitions import nothing from core. `f4x-data` is replaced by it. Done: save/load files moved into core (`game/save/file.rs`); the hook lists moved into core (`hook.rs`, the content only holds tags). Stages: (1) create the crate with `Id`, `Registry`, the small vocabulary types (`Plane`, `TerrainId`, `FeatureId`, `TerrainClass`) and the pure definitions (`rules/`, `feature/def.rs`, `map/terrain.rs`), core re-exporting them from the old paths; (2) move `HeroAbilities`/`Tier` and the data half of `SettingsDef` (`game/setting.rs`, it uses `Retort`, `PlayerId`, `Bonus`, `MAX_TILE_LIMIT`), keeping the code that applies it in core; (3) move the loader and checks from `f4x-data`, with `Content`; the call of `hook::problems` moves to core's game start; (4) drop the re-exports, point every crate at `f4x-def`, delete `f4x-data`; (5) docs and the six scripts that name `f4x-data`. `Content.texts` stays until task 479 is done. One commit per stage.
+
+**482. `Effect::Special` carries a tag.** Decided by the user, 6 November 2026. Today `Effect::Special` has no data and the code finds its Rust by the spell's number (`def.num == 73` in `battle/spell.rs`, `battle/brain.rs`, `spell/cast.rs`, `spell/special.rs`, `spell/hero.rs`, the client's summon scene, the AI's wizardry, `f4x-learn`). Make it `Special("tag")` in `spells.ron` (50 spells), dispatch on the tag, and let `hook::problems` check the tags the code knows (replacing `SPECIAL_SPELLS`). Same for the number matches that stand for a hook (`city_flag` then `87`/`178`).

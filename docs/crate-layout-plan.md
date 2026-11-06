@@ -120,8 +120,8 @@ it runs effects and uses `battle::immunity`, `game::replay`, `player`, so it mov
 
 | Back-edge | Fix |
 |---|---|
-| `rules/effects.rs` `CUSTOM_HOOKS` names constants of `spell::global_enchantment`, `item::crafting`, `city::gate`, `spell::city`, `battle::field` | define the hook names once in rules (`pub mod hook { pub const BATTLEFIELD: &str = ... }`); core's code uses them from there |
-| `SPECIAL_SPELLS` (list of numbers) and `Effect::Special` | already data, moves unchanged |
+| `rules/effects.rs` `CUSTOM_HOOKS` named constants of core modules | DONE (task 467): the lists moved to core (`hook.rs`) and `hook::problems` checks the content against them; a hook is only a string tag in the `.ron` file, the definitions import nothing from core |
+| `SPECIAL_SPELLS` (list of numbers) and `Effect::Special` | the list moved to core `hook.rs` with the hooks; `Effect::Special` stays in the definitions |
 | `rules/exec.rs` uses `battle`, `game::replay`, `player` | stays in core, see above |
 | `rules/defs.rs` names `hero::HeroAbilities::ids` (doc link only), `text::Gender`, `map::TerrainClass` | doc link dropped; `Gender`, `TerrainClass` move with rules |
 | `setting.rs` uses `mapgen::GenParams`, `city::neutral_city_count`, `player::{Bonus, Neutral, PlayerId}`, `wizard::magic::Retort`, `unit::MAX_STACK`, `MAX_TILE_LIMIT` | `GenParams` and the two counting functions go to newgame; `MAX_STACK` constants go to rules; `Bonus`, `Neutral`, `PlayerId` go to `rules::base` if they are plain data, otherwise `GameSettings` stays in core |

@@ -148,8 +148,8 @@ source has no position; `Chosen` yields none if no target was selected.
 | `SetFeature(id)` | Put a map feature on the target tile. |
 | `ApplyEnchantment(id)` | Attach a lasting spell to the target. |
 | `Dispel { strength }` | Remove eligible enchantments up to the given strength. |
-| `Custom(name)` | Call a named Rust hook; the name must be in `CUSTOM_HOOKS`. |
-| `Special` | Call the Rust implementation for the spell number; the number must be in `SPECIAL_SPELLS`. |
+| `Custom(name)` | Call a named Rust hook. The name is a plain tag in the `.ron` file; `f4x_core::hook::CUSTOM_HOOKS` lists the tags the code implements and `hook::problems` checks the content against it. |
+| `Special` | Call the Rust implementation for the spell number; the number must be in `f4x_core::hook::SPECIAL_SPELLS`. |
 
 Damage kinds are `Physical`, `Fire`, `Cold`, `Lightning`, `Poison`, `Death`
 and `Holy`. `DamageTraits` supports `armor_piercing`, `ignores_defense`, `area`,

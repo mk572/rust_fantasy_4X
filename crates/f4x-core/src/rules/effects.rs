@@ -12,79 +12,6 @@ use super::{AbilityDef, RealmDef, SpellDef};
 use crate::map::terrain::TerrainClass;
 use crate::map::Plane;
 
-/// Names of the `Effect::Custom` hooks implemented in Rust, shared by several spells. A
-/// `Custom` effect naming anything else fails content validation.
-///
-/// `unimplemented` marks an imported rule the engine has no primitive for yet; the
-/// number of uses is the to-do list for new effect primitives.
-pub const CUSTOM_HOOKS: &[&str] = &[
-    "unimplemented",
-    crate::spell::global_enchantment::GLOBAL_EFFECT,
-    crate::item::crafting::CRAFT_ITEM,
-    crate::city::gate::EARTH_GATE,
-    crate::city::gate::ASTRAL_GATE,
-    crate::unit::HEROISM,
-    crate::spell::city::CITY_FLAG,
-    crate::battle::field::BATTLEFIELD,
-    crate::battle::field::DISINTEGRATE,
-];
-
-/// The spells that have code of their own in Rust (`Effect::Special`), by number: the
-/// number is the only link between the spell and its code. A `Special` effect on a spell
-/// not in this list fails content validation.
-pub const SPECIAL_SPELLS: [u16; 50] = [
-    1,   // earth_to_mud
-    3,   // wall_of_stone
-    10,  // earth_lore
-    11,  // cracks_call
-    15,  // change_terrain
-    18,  // transmute
-    19,  // natures_cures
-    26,  // earthquake
-    28,  // move_fortress
-    43,  // floating_island
-    47,  // word_of_recall
-    48,  // counter_magic
-    55,  // enchant_road
-    58,  // spell_blast
-    61,  // disjunction_true
-    68,  // stasis
-    72,  // spell_ward
-    73,  // creature_binding
-    75,  // great_unsummoning
-    76,  // spell_binding
-    81,  // warp_wood
-    82,  // disrupt
-    85,  // corruption
-    89,  // warp_creature
-    93,  // chaos_channels
-    98,  // raise_volcano
-    105, // magic_vortex
-    115, // call_chaos
-    119, // call_the_void
-    132, // plane_shift
-    133, // resurrection
-    137, // raise_dead
-    142, // incarnation
-    167, // life_drain
-    171, // drain_power
-    172, // possession
-    173, // lycanthropy
-    177, // subversion
-    186, // warp_node
-    187, // black_wind
-    191, // cruel_unminding
-    195, // animate_dead
-    199, // death_wish
-    203, // summoning_circle
-    205, // recall_hero
-    208, // summon_hero
-    210, // disjunction
-    212, // summon_champion
-    213, // spell_of_mastery
-    214, // spell_of_return
-];
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Condition {
     Always,
@@ -235,10 +162,10 @@ pub enum Effect {
     Dispel {
         strength: u32,
     },
-    /// A named hook implemented in Rust and shared by several spells; must appear in
-    /// [`CUSTOM_HOOKS`].
+    /// A named hook implemented in Rust and shared by several spells. The name is a plain tag
+    /// the content gives; the game code that implements it checks the tags (`f4x_core::hook`).
     Custom(String),
-    /// The spell's own code in Rust, found by the spell's number ([`SPECIAL_SPELLS`]).
+    /// The spell's own code in Rust, found by the spell's number (`f4x_core::hook::SPECIAL_SPELLS`).
     Special,
 }
 
