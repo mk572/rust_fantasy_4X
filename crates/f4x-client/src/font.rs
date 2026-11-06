@@ -309,44 +309,57 @@ impl App {
         x: f32,
         y: f32,
     ) -> f32 {
-        self.draw_line_of_text(view, style, style.ink, text, (x, y))
+        let font = self.art.bm_font(style.font);
+        draw_line_in(&font, view, style, style.ink, text, (x, y))
     }
 
-    /// One line drawn by the font engine (`macroquad_bitmap_font_engine`) from the BMFont of the
-    /// style, in the ink asked for. Returns the width in the original's pixels.
-    fn draw_line_of_text(
+    /// [`App::draw_styled`] with `font` instead of the style's own BMFont (the same atlas with
+    /// other metrics, such as the kerned face of the menu bar's labels).
+    pub(crate) fn draw_styled_in(
         &mut self,
-        (ox, oy, s): (f32, f32, f32),
+        font: &bm::BmFont,
+        view: (f32, f32, f32),
         style: &Style,
-        ink: Ink,
         text: &str,
         (x, y): (f32, f32),
     ) -> f32 {
-        let font = self.art.bm_font(style.font);
-        let w = font.measure_text(text, 1.0).width;
-        let engine_ink = match ink {
-            // A font of one colour set (a free font) cannot pick one: it is tinted instead.
-            Ink::Nearest(color) if font.colour_sets() == 1 => bm::Ink::Tint(color),
-            Ink::Nearest(color) => bm::Ink::Nearest(color),
-            Ink::Set(set) => bm::Ink::Set(set),
-            Ink::Flat(color) => bm::Ink::Tint(color),
-        };
-        let params = bm::TextParams {
-            scale: s,
-            ink: engine_ink,
-            effect: style.effect,
-            edge: style.edge,
-            ..Default::default()
-        };
-        let left = ox + engine_align(style.align).anchor(x, w) * s;
-        font.draw_text_ex(text, left, oy + (y + font.base) * s, &params);
-        w
+        draw_line_in(font, view, style, style.ink, text, (x, y))
     }
 
     /// Words wrapped to `width` pixels in one of the original's bitmap fonts.
     pub(crate) fn bm_wrap(&self, font: usize, text: &str, width: f32) -> Vec<String> {
         bm::wrap_lines(text, width, |line| self.art.text_width(font, line))
     }
+}
+
+/// One line drawn by the font engine (`macroquad_bitmap_font_engine`) from `font`, in the ink
+/// asked for. Returns the width in the original's pixels.
+fn draw_line_in(
+    font: &bm::BmFont,
+    (ox, oy, s): (f32, f32, f32),
+    style: &Style,
+    ink: Ink,
+    text: &str,
+    (x, y): (f32, f32),
+) -> f32 {
+    let w = font.measure_text(text, 1.0).width;
+    let engine_ink = match ink {
+        // A font of one colour set (a free font) cannot pick one: it is tinted instead.
+        Ink::Nearest(color) if font.colour_sets() == 1 => bm::Ink::Tint(color),
+        Ink::Nearest(color) => bm::Ink::Nearest(color),
+        Ink::Set(set) => bm::Ink::Set(set),
+        Ink::Flat(color) => bm::Ink::Tint(color),
+    };
+    let params = bm::TextParams {
+        scale: s,
+        ink: engine_ink,
+        effect: style.effect,
+        edge: style.edge,
+        ..Default::default()
+    };
+    let left = ox + engine_align(style.align).anchor(x, w) * s;
+    font.draw_text_ex(text, left, oy + (y + font.base) * s, &params);
+    w
 }
 
 #[cfg(test)]

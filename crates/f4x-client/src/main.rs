@@ -56,6 +56,7 @@ mod level_up;
 mod magic_screen;
 mod map_draw;
 mod map_slide;
+mod menu_bar_art;
 mod menu_screen;
 mod modal;
 mod names;

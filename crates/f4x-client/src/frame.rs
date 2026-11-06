@@ -246,40 +246,33 @@ impl App {
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.03, 0.03, 0.05, 1.0));
         }
 
-        // The menu bar: Game, Spells, Armies, Cities, Magic, Info, Plane.
+        // The menu bar: Game, Spells, Armies, Cities, Magic, Info, Plane. The pictures carry no
+        // lettering; the label is a text key drawn over them (`menu_bar_art`).
         for (i, &x) in spot::MENU_X.iter().enumerate() {
-            let entry = i + 1;
-            let state = self
-                .art_picture("main", entry, 0)
-                .map_or(ui::Hit::None, |t| {
-                    let at = lay.point(x, spot::MENU_Y);
-                    let rect = Rect::new(
-                        at.x,
-                        at.y,
-                        crate::resolution::logical_w(&t) * s,
-                        crate::resolution::logical_h(&t) * s,
-                    );
-                    ui::hit(rect, true, input)
-                });
+            let up = crate::menu_bar_art::texture(i, 0);
+            let size = vec2(up.width(), up.height()) * s;
+            let at = lay.point(x, spot::MENU_Y);
+            let state = ui::hit(Rect::new(at.x, at.y, size.x, size.y), true, input);
             let frame = usize::from(state.held());
-            if self
-                .draw_pic(&lay, "main", entry, frame, x, spot::MENU_Y)
-                .is_none()
-            {
-                let names = [
-                    self.text("ui.menu_game"),
-                    self.text("ui.menu_spells"),
-                    self.text("ui.menu_armies"),
-                    self.text("ui.menu_cities"),
-                    self.text("ui.menu_magic"),
-                    self.text("ui.menu_info"),
-                    self.text("ui.menu_plane"),
-                ];
-                let r = lay.rect((x, spot::MENU_Y, 38.0, 12.0));
-                draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.45, 0.3, 0.12, 1.0));
-                text_centered(&names[i], r.x + r.w / 2.0, r.y + r.h * 0.75, 3.2 * s, GOLD);
-                click.menu = click.menu.or_else(|| state.clicked().then_some(i));
-            } else if state.clicked() {
+            draw_texture_ex(
+                &crate::menu_bar_art::texture(i, frame),
+                at.x,
+                at.y,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(size),
+                    ..Default::default()
+                },
+            );
+            let label = self.text(crate::menu_bar_art::KEYS[i]);
+            self.draw_styled_in(
+                &crate::menu_bar_art::label_font(),
+                (lay.origin.x, lay.origin.y, s),
+                &crate::menu_bar_art::label_style(),
+                &label,
+                (x + up.width() / 2.0 + 0.5, spot::MENU_Y + 1.0),
+            );
+            if state.clicked() {
                 click.menu = Some(i);
             }
         }
