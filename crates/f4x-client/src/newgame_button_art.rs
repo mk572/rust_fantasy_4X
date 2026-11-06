@@ -150,3 +150,53 @@ mod tests {
         }
     }
 }
+
+thread_local! {
+    static FRAME: RefCell<Option<Texture2D>> = const { RefCell::new(None) };
+}
+
+/// Where the options screen's labels are: the title's middle, and the four labels' left edge and tops.
+const TITLE: (f32, f32) = (242.5, 1.0);
+const LABEL_X: f32 = 166.0;
+const LABEL_Y: [f32; 4] = [39.0, 66.0, 93.0, 120.0];
+
+impl App {
+    /// The options screen's right half without lettering (`assets/button/options_frame.png`: the
+    /// rope under the title and the frames of the four choice buttons, from `newgame` 1), with the
+    /// title and the four labels drawn by the font engine in the blackletter, style 5, in the gold
+    /// of the start menu's words and a half see-through medium brown shadow.
+    pub(crate) fn draw_options_frame(&mut self, lay: &Layout, labels: [&str; 4], title: &str) {
+        let tex = FRAME.with(|f| {
+            f.borrow_mut()
+                .get_or_insert_with(|| {
+                    let tex = Texture2D::from_file_with_format(
+                        include_bytes!("../assets/button/options_frame.png"),
+                        Some(ImageFormat::Png),
+                    );
+                    tex.set_filter(FilterMode::Nearest);
+                    tex
+                })
+                .clone()
+        });
+        let s = lay.scale;
+        let at = lay.point(165.0, 0.0);
+        draw_texture_ex(
+            &tex,
+            at.x,
+            at.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(vec2(tex.width() * s, tex.height() * s)),
+                ..Default::default()
+            },
+        );
+        let view = (lay.origin.x, lay.origin.y, s);
+        let style = Style::inked(5, crate::font::Ink::Set(crate::font_ramp::MENU_WORD))
+            .shadow()
+            .edge(Color::from_rgba(100, 62, 30, 128));
+        self.draw_styled(view, &style.center(), title, TITLE.0, TITLE.1);
+        for (label, y) in labels.into_iter().zip(LABEL_Y) {
+            self.draw_styled(view, &style, label, LABEL_X, y);
+        }
+    }
+}

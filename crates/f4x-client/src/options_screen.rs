@@ -205,7 +205,6 @@ impl Page for OptionsPage {
             let r = lay.rect(crate::resolution::SCREEN);
             draw_rectangle(r.x, r.y, r.w, r.h, PANEL);
         }
-        app.draw_pic(&lay, "newgame", 1, 0, 165.0, 0.0);
         let o = app.options.clone();
         let settings = &app.game.content().settings;
         let (most, sizes) = (settings.max_opponents, settings.land_sizes.len() as u8);
@@ -218,6 +217,14 @@ impl Page for OptionsPage {
             land,
             app.text(MAGIC_LEVELS[usize::from(o.magic).min(2)]),
         ];
+        let names = [
+            app.text("options.difficulty"),
+            app.text("options.opponents"),
+            app.text("options.land_size"),
+            app.text("options.magic"),
+        ];
+        let title = app.text("options.title");
+        app.draw_options_frame(&lay, names.each_ref().map(|n| &**n), &title);
         let clicked = input.mouse_pressed(MouseButton::Left);
         let mut changed = None;
         for (i, ((y, text_y), label)) in ROWS.into_iter().zip(labels).enumerate() {

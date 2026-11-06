@@ -43,7 +43,8 @@ the light and dark bands run diagonally across the whole word. `sheen_<family>_<
 pattern for one button (same size as the button, a colour for every pixel from the nearest diagonal that
 has lettering on it); the client keeps the lettering's pixels and takes their colours from it.
 
-The new game screens' wooden OK and Cancel (64x16 pictures `newgame` 2 and 3, small OK 30x14) need no
+The options screen's picture `newgame` 1 loses the title "Game Options" and the four labels
+(`options_frame.png`: they are cleared, the rest is transparent already). The new game screens' wooden OK and Cancel (64x16 pictures `newgame` 2 and 3, small OK 30x14) need no
 cleaning: the screen has blank wooden plates of the same style (`newgame_004_00.png`, 64x15 opaque).
 `wood_64.png` is that plate and `wood_30.png` its left and right 15 columns joined (for the small
 OK). The plate is a pixel bigger than the OK picture to the left and up: the client draws it at the OK's
@@ -283,6 +284,11 @@ def main() -> None:
     small.paste(plate.crop((plate.width - 15, 0, plate.width, plate.height)), (15, 0))
     small.save(out_dir / "wood_30.png")
     print("wood_64, wood_30: from the blank plate")
+    frame = Image.open(Path(args.src).parent / "new_game" / "newgame_001_00.png").convert("RGBA")
+    for box in [(0, 0, frame.width, 18), (0, 37, 83, 140)]:
+        frame.paste((0, 0, 0, 0), box)
+    frame.save(out_dir / "options_frame.png")
+    print("options_frame: title and labels cleared")
     for screen, prefix, button in SHEENS:
         img = Image.open(Path(args.src).parent / screen / f"button_{button}_00.png")
         sheen(img).save(out_dir / f"sheen_{prefix}_{button}.png")
