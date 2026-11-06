@@ -8,6 +8,7 @@ use crate::font::Style;
 use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
+use crate::panel_button_art::Panel;
 use crate::ui;
 use f4x_def::text::Args;
 use macroquad::prelude::*;
@@ -117,9 +118,10 @@ impl App {
             .collect()
     }
 
-    /// The OK button (`reload.lbx` 22, two frames); true when clicked.
+    /// The OK button (the army list's text-free one, as `reload.lbx` 22 is the same picture); true
+    /// when clicked.
     fn city_list_ok(&mut self, lay: &Layout, input: &Input) -> bool {
-        self.pic_button_on(lay, ("reload", 22), (239.0, 182.0), input)
+        self.panel_button(lay, Panel::Ok, "ui.button_ok_mixed", (239.0, 182.0), input)
     }
 
     /// Go to a city: its screen (an outpost's for an outpost), with the production menu open
