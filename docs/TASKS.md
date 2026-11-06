@@ -401,7 +401,14 @@ validate commands against the active player, and persist enough master state to 
 saves deterministically without repeating or skipping a player or boundary phase. Update
 the client, AI, console, save/load and tests to use the same lifecycle.
 
-Everything not yet implemented.
+*Progress (6 November 2026):* stages 1 to 4 done. Core has the four phases as recorded commands
+(`StartRound`, `StartPlayerTurn`, `EndPlayerTurn`, `EndRound`; `EndTurn` composes them; the cadence
+table is in `turn-structure.md` 7.1), `f4x-master` runs seats in order with a neutral seat last,
+`f4x-ai` has `AiSeat` and `NeutralSeat`, and the console, the tools' round player and the client
+(a human seat that waits for End Turn; rivals wait while an attack on the human is fought) run on it.
+*Open:* saving the master state (the client saves only on the human's turn, so a load restarts
+there), `f4x-ai-ref` keeps its own `play_round`, `game-flow.md` still describes the old end-turn,
+a client test for a defence mid-round, and a soak to check the balance of the per-player economy.
 
 **Keep this file sorted by task number**: the table and the descriptions below it, both in ascending order. A new task goes at its numeric place in each (a gap is fine; take the next free number across this file and `TASKS-DONE.md`).
 Every row has a priority after its number: High, Medium or Low.
