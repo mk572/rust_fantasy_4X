@@ -146,6 +146,13 @@ of the player text already is (`docs/text.md`):
 5. **Check.** A screenshot of each changed screen in English matches the old look closely (position and size of the
    words); a second language, even a test one with long words, shows no overflow.
 
+*Progress (6 November 2026):* all the buttons are done, steps 2 and 3 for them: every baked-text button is a text-free picture
+in `crates/f4x-client/assets/button/` with its label drawn by the font engine from a text key (checklist and method in
+`docs/button-text-checklist.md`; 16 of 17 items ticked, the last is the race-screen Back/OK shadow, which waits for a check in
+the live game). Originals no longer used moved to `assets-unused/` (`docs/extract-art.md`). *Still open:* the screen titles,
+headings and the names on cards (not yet listed or checked), the table of step 1 in `docs/extract-art.md`, and the font
+decision of step 4 (the bitmap fonts hold only ASCII; needed for 468 and 469).
+
 *Needs:* nothing for 1 to 3; 358 is the same job for the names in the rules files and can share the fonts of step 4.
 
 **364. Scenes with their own music.** **Progress 30 October 2026:** (1) the summon scene and (2) the city-spell scroll are built with their music (`summon_scene.rs`, `city_scroll.rs`; the summon music follows the spell's rarity); only (3) the Force of Nature scene is left. Was: Three scenes of the original that the client does not have, each with the music
