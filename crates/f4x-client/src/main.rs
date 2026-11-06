@@ -83,6 +83,7 @@ mod spell_fx;
 mod spell_sight;
 mod spellbook;
 mod square_anim;
+mod start_menu_art;
 mod summon_scene;
 mod surveyor;
 mod temp_effect_view;

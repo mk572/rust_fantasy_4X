@@ -25,7 +25,7 @@ translucent shadow edge (`.edge(Color::from_rgba(..))`) follows the marbling.
 8. [ ] Road build: OK and CANCEL are baked into the border picture; the surveyor (`main` 41) too
 9. [ ] Spell cast: Cancel, baked into the border and also a picture of its own
 10. [x] Load/Save: Load, Save, Quit, Settings, Ok are text-free planks (`plank_38/39/40/58.png`, widened from the original's blank load button), labels from `menu.*` keys drawn kerned by `plank_button_art.rs`
-11. [ ] Start menu: Continue, Hall Of Fame, Load Game, New Game, Quit To DOS (large blackletter, a bigger style)
+11. [x] Start menu: Continue, Hall Of Fame, Load Game, New Game, Quit are drawn by `start_menu_art.rs` (style 4 in the new gold gradient sets `MENU_WORD` and `MENU_WORD_HOVER`, kerned without the open "am" pair, each word set on its own centre, labels from the `menu.*` keys; New Game and Hall Of Fame match the original pixel for pixel); the `vortex` word pictures are no longer used. The original's "Quit To DOS" is "Quit"
 
 ## Probably text, to verify first
 

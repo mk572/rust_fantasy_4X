@@ -61,6 +61,14 @@ RAMPS = [
 ]
 
 
+# Ramps added after the flats, so the sets of the ramps before them keep their places in the atlases
+# (`scripts/font_ramp_sets.py` appends the new sets to the atlases).
+LATE = [
+    ("MENU_WORD", None, [0, 178, 177, 176, 176], "the start menu's words: gold, light on top (its `vortex` pictures)"),
+    ("MENU_WORD_HOVER", None, [0, 182, 180, 178, 178], "the start menu's word under the mouse: the same gold, darker"),
+]
+
+
 # Palette indexes the original makes a one-colour set of (`colors[0..5] = banner_colors[...]`): the
 # banner colours of the wizards' names and enchantments. `flat(index)` in `font_ramp.rs` gives the set.
 FLATS = [0, 6, 39, 43, 98, 166, 50, 79, 123, 124, 125, 127, 172, 179, 201, 211, 216, 218, 221, 222, 5, 45, 47, 55, 177, 13, 114, 16, 31, 187, 178, 2, 20, 22, 176, 180]
@@ -103,7 +111,9 @@ def main() -> int:
         "#![allow(dead_code)]",
         "",
     ]
-    RAMPS_ALL = RAMPS + [(f"FLAT_{i}", None, [i] * 6, f"palette colour {i} on its own") for i in FLATS]
+    RAMPS_ALL = (
+        RAMPS + [(f"FLAT_{i}", None, [i] * 6, f"palette colour {i} on its own") for i in FLATS] + LATE
+    )
     for k, (name, screen, indexes, origin) in enumerate(RAMPS_ALL):
         colours = [look(screen, indexes[min(c, len(indexes) - 1)]) for c in range(1, 16)]
         body = ", ".join(f"({r}, {g}, {b})" for r, g, b in colours)

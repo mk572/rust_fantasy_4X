@@ -151,8 +151,12 @@ pub(crate) const FLAT_22: usize = 87;
 pub(crate) const FLAT_176: usize = 88;
 /// palette colour 180 on its own.
 pub(crate) const FLAT_180: usize = 89;
+/// the start menu's words: gold, light on top (its `vortex` pictures).
+pub(crate) const MENU_WORD: usize = 90;
+/// the start menu's word under the mouse: the same gold, darker.
+pub(crate) const MENU_WORD_HOVER: usize = 91;
 /// How many ramps there are; the atlases of styles 0 to 5 stack 16 + this many colour sets.
-pub(crate) const COUNT: usize = 74;
+pub(crate) const COUNT: usize = 76;
 
 /// The colour set of one palette colour on its own (`FLATS` in the script); a colour not
 /// listed there panics: add it to `FLATS` and run the script again.

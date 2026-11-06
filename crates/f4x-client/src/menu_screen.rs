@@ -293,8 +293,8 @@ impl Page for MainMenuPage {
             );
         }
 
-        // The entries: the original puts them 12 pixels apart from y = 141, and the "words" are
-        // `vortex.lbx` pictures (1 Continue, 2 Hall of Fame, 3 Quit, 4 New Game, 5 Load Game).
+        // The entries: the original puts them 12 pixels apart from y = 141; the words are drawn by
+        // the font engine (`start_menu_art.rs`) in the place of the original's `vortex.lbx` pictures.
         let mut chosen = None;
         let top = if rows.len() >= 5 {
             141.0
@@ -302,28 +302,18 @@ impl Page for MainMenuPage {
             141.0 + 12.0 * (5 - rows.len()) as f32
         };
         for (i, &entry) in rows.iter().enumerate() {
-            let (label, vortex, hotkey) = match entry {
-                Entry::Continue => ("menu.continue", 1, KeyCode::C),
-                Entry::Load => ("menu.load_game", 5, KeyCode::L),
-                Entry::New => ("menu.new_game", 4, KeyCode::N),
-                Entry::Fame => ("menu.hall_of_fame", 2, KeyCode::H),
-                Entry::Quit => ("menu.quit", 3, KeyCode::Q),
-                Entry::Credits => ("menu.credits", 1, KeyCode::R),
+            let (label, hotkey) = match entry {
+                Entry::Continue => ("menu.continue", KeyCode::C),
+                Entry::Load => ("menu.load_game", KeyCode::L),
+                Entry::New => ("menu.new_game", KeyCode::N),
+                Entry::Fame => ("menu.hall_of_fame", KeyCode::H),
+                Entry::Quit => ("menu.quit", KeyCode::Q),
+                Entry::Credits => ("menu.credits", KeyCode::R),
             };
-            let label = app.text(label);
             let y = top + 12.0 * i as f32;
-            let enabled = true;
-            let clicked = app.menu_button(
-                &lay,
-                (108.0, y - 2.0, 103.0, 12.0),
-                Some(("vortex", vortex, 123.0, y)),
-                &label,
-                enabled,
-                true,
-                false,
-                input,
-            );
-            if (clicked || (enabled && input.key_pressed(hotkey))) && chosen.is_none() {
+            let state = ui::hit(lay.rect((108.0, y - 2.0, 103.0, 12.0)), true, input);
+            app.draw_menu_word(&lay, label, y, state.hovered());
+            if (state.clicked() || input.key_pressed(hotkey)) && chosen.is_none() {
                 chosen = Some(entry);
             }
         }

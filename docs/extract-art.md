@@ -233,7 +233,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   they were edited by hand after the one-time extraction (accents and other fixes), are compiled into the client, and
   are the only copy that ships. The extractor output (`fonts/bmfont/` in `assets-local`) is dev-side only and is not
   copied into the package; never copy it over the committed fonts. A new ramp needs its colour set added to the
-  committed atlases by a tool or by hand (open: no tool does that yet). Use one with `Style::inked(font, Ink::Set(font_ramp::NAME))`, and `.effect(Effect::Shadow |
+  committed atlases: put it in `LATE` of the script (after the flats, so the sets keep their places) and run `scripts/font_ramp_sets.py`, which appends the sets to the atlases of styles 0 to 5. Use one with `Style::inked(font, Ink::Set(font_ramp::NAME))`, and `.effect(Effect::Shadow |
   Outline | OutlineHeavy)` with `.edge(colour)` for `Set_Font_Style_Shadow_Down / Outline / Outline_Heavy`
   and `Set_Outline_Color`. Outline colours from palette index 224 up belong to a screen's own palette: read
   them from that screen's palette in ReMoM, or approximate and say so in a comment. The atlas must stay under
