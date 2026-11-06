@@ -1,6 +1,7 @@
 //! How the AI weighs what it sees: strengths and who can fight. It reads the game only through
 //! a [`PlayerView`], which holds what a player may know.
 
+use f4x_core::battle::ai::strength;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
@@ -11,15 +12,21 @@ use f4x_def::rules::{MovementType, Stat};
 pub fn unit_strength(view: &PlayerView, unit: hecs::Entity) -> f32 {
     let attack = view
         .unit_stat(unit, Stat::Melee)
-        .max(view.unit_stat(unit, Stat::Ranged))
-        .max(0) as f32;
-    let defense = view.unit_stat(unit, Stat::Defense).max(0) as f32;
+        .max(view.unit_stat(unit, Stat::Ranged));
     let (hits, _) = view.unit_hits(unit);
-    (attack * 1.5 + defense + 1.0) * hits as f32
+    strength(attack, view.unit_stat(unit, Stat::Defense), hits as i32)
 }
 
 pub fn stack_strength(view: &PlayerView, units: &[hecs::Entity]) -> f32 {
     units.iter().map(|&u| unit_strength(view, u)).sum()
+}
+
+/// What a defended square puts into a battle: a side fights with at most nine units, the
+/// strongest of a larger stack, and the rest are a reserve.
+pub fn fighting_strength(view: &PlayerView, units: &[hecs::Entity]) -> f32 {
+    let mut each: Vec<f32> = units.iter().map(|&u| unit_strength(view, u)).collect();
+    each.sort_by(|a, b| b.total_cmp(a));
+    each.iter().take(f4x_core::unit::MAX_STACK).sum()
 }
 
 /// A ship: it sails and carries land units.
@@ -88,5 +95,97 @@ pub fn garrison_wanted(view: &PlayerView, at: Position) -> usize {
         2
     } else {
         1
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testworld::{at, game, spawn, COAST_CITY, INLAND_CITY, P0};
+
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    fn city() -> Position {
+        at(COAST_CITY.0, COAST_CITY.1)
+    }
+
+    #[test]
+    fn a_stronger_unit_has_a_bigger_strength_and_a_stack_adds_up() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let spear = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
+        let paladin = spawn(&mut g, P0, city(), 113 /* high_men_paladins */, 1)[0];
+        let view = PlayerView::new(&g, P0);
+        let (spear_s, paladin_s) = (unit_strength(&view, spear), unit_strength(&view, paladin));
+        assert!(
+            spear_s > 0.0 && paladin_s > spear_s,
+            "{spear_s} {paladin_s}"
+        );
+        assert_eq!(
+            stack_strength(&view, &[spear, paladin]),
+            spear_s + paladin_s
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_stack_fights_with_its_strongest_nine() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let stack = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 12);
+        let view = PlayerView::new(&g, P0);
+        let one = unit_strength(&view, stack[0]);
+        assert_eq!(fighting_strength(&view, &stack[..3]), 3.0 * one);
+        assert_eq!(
+            fighting_strength(&view, &stack),
+            f4x_core::unit::MAX_STACK as f32 * one,
+            "the rest are a reserve"
+        );
+    }
+
+    #[test]
+    fn only_a_unit_that_fights_on_land_is_a_fighter_and_only_a_carrier_that_sails_is_a_ship() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let spear = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
+        let galley = spawn(&mut g, P0, city(), 36 /* galley */, 1)[0];
+        let settlers = spawn(&mut g, P0, city(), 111 /* high_men_settlers */, 1)[0];
+        let view = PlayerView::new(&g, P0);
+        assert!(is_fighter(&view, spear) && !is_ship(&view, spear));
+        assert!(is_ship(&view, galley) && !is_fighter(&view, galley));
+        assert!(!is_fighter(&view, settlers) && !is_ship(&view, settlers));
+    }
+
+    #[test]
+    fn a_square_is_coastal_when_the_sea_touches_it() {
+        let g = game(COAST_CITY, 8 /* high_men */);
+        let view = PlayerView::new(&g, P0);
+        assert!(is_coastal(&view, city()));
+        assert!(!is_coastal(&view, at(INLAND_CITY.0, INLAND_CITY.1)));
+    }
+
+    #[test]
+    fn a_city_keeps_one_fighter_at_home_and_the_fortress_city_two() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let inland = at(INLAND_CITY.0, INLAND_CITY.1);
+        assert_eq!(garrison_wanted(&PlayerView::new(&g, P0), city()), 1);
+        g.wizard_mut(P0)
+            .ok_or("player 0 is a wizard")?
+            .put(Some(f4x_core::wizard::fortress::Fortress(city())));
+        let view = PlayerView::new(&g, P0);
+        assert_eq!(garrison_wanted(&view, city()), 2);
+        assert_eq!(garrison_wanted(&view, inland), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn the_nearest_unexplored_square_is_one_the_unit_can_walk_to_and_none_is_left_once_all_is_seen(
+    ) -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let walker = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
+        let view = PlayerView::new(&g, P0);
+        let to = nearest_unexplored(&view, walker).ok_or("something is unexplored")?;
+        assert!(!view.explored(to));
+        assert!(view.reachable(&[walker]).contains(&to));
+        g.reveal_map(P0);
+        assert_eq!(nearest_unexplored(&PlayerView::new(&g, P0), walker), None);
+        Ok(())
     }
 }

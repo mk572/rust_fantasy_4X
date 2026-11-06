@@ -397,6 +397,12 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
             .map(|d| (format!("building {:?}", d.id), &d.effects[..])),
     );
     carriers.extend(
+        r.retorts
+            .defs()
+            .iter()
+            .map(|d| (format!("retort {:?}", d.id), &d.effects[..])),
+    );
+    carriers.extend(
         r.spells
             .defs()
             .iter()
@@ -408,6 +414,27 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
             .iter()
             .map(|d| (format!("item {:?}", d.id), &d.effects[..])),
     );
+    for retort in r.retorts.defs() {
+        for rule in &retort.effects {
+            let fine = rule.when == crate::rules::effects::Trigger::Passive
+                && matches!(
+                    rule.effect,
+                    Effect::Modify {
+                        stat: Stat::SpellCostPercent
+                            | Stat::SpellUpkeepPercent
+                            | Stat::ManaIncome
+                            | Stat::ResearchIncome,
+                        ..
+                    }
+                );
+            if !fine {
+                p.push(format!(
+                    "retort {:?}: only passive changes to SpellCostPercent, SpellUpkeepPercent, ManaIncome and ResearchIncome are understood",
+                    retort.id
+                ));
+            }
+        }
+    }
     for path in r.level_paths.defs() {
         for (i, level) in path.levels.iter().enumerate() {
             carriers.push((

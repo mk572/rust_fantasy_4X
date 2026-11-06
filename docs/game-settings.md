@@ -9,8 +9,8 @@ for later.
 
 **Built so far (16 October 2026):** stage 1 (task 246) and stage 2 (task 247, with the
 settings screen of task 94). The record holds the basic block, the wizard, AI, world, rule, event
-and score groups of the levels; `GameSettings::flat()` is the default of `NewGame` and `Game::new`,
-so tests, the soak and the learning AI play the symmetric game, and the client and the console's
+and score groups of the levels; `GameSettings::default()` (the Average level of `rules_settings.ron`) is the default of `NewGame` and `Game::new`,
+so tests, the soak and the learning AI play the real rules, and the client and the console's
 `new difficulty=...` start from a level. The number of opponents is `settings.basic.opponents`,
 the one place it lives. Not yet read by the rules: `picks.human` (stage 3), the event group
 (task 68). Old saves are not migrated.
@@ -223,9 +223,8 @@ Notes:
 - **This changes today's game.** Our start is 100 gold for everyone and no AI bonus at all, so at
   Average the human starts with 75 instead of 100, the AI with 150, and every AI city gets the
   150% bonuses. The soak baseline changes once, when the AI group lands (stage 2), and the commit
-  says so. A **`flat` preset (today's symmetric game) exists internally, for the soak and the
-  learning AI only**: it is not on any screen and not in the dropdown. It is what the console's
-  `new` makes when no `difficulty=` is given, and what tests build.
+  says so. The old **`flat` preset is gone** (task 459): the console's `new` without `difficulty=` and
+  every test play the Average level.
 - Rows that are today's numbers (`lair_*`, `neutral_city_size_bonus`) must reproduce the present
   output exactly at every level; a test per level checks it.
 - The original applies the AI multipliers to computer wizards' cities and mana only; the human is

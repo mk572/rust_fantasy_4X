@@ -58,6 +58,10 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let planned = settlers_alive(&view) + in_production;
         (mine, planned)
     };
+    let war_force = ai.campaign.map(|target| {
+        let view = PlayerView::new(game, me);
+        crate::military::force_wanted(&view, &ai.city_memory, game.turn, target)
+    });
     for (city, pos) in mine {
         let (plan, port_item) = {
             let view = PlayerView::new(game, me);
@@ -80,20 +84,43 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
                 continue;
             }
-            let port = ai.naval.map(|p| p.port).or(ai.sea_port);
+            let port = ai
+                .naval
+                .map(|p| p.port)
+                .or(ai.sea_port)
+                .or(ai.colony.map(|c| c.port));
             let broke = broke(&view);
             // The port of a landing builds the ship (and what the ship needs) when there is none.
             let port_item = (port == Some(pos)
                 && !broke
                 && !matches!(current, Some(ProductionItem::Building(_)))
-                && !view
+                && view
                     .my_units()
                     .iter()
-                    .any(|&u| crate::view::is_ship(&view, u)))
-            .then(|| crate::naval::port_item(&view, city))
-            .flatten();
+                    .filter(|&&u| crate::view::is_ship(&view, u))
+                    // A landing wants a ship that carries a landing party.
+                    .filter(|&&u| {
+                        (ai.naval.is_none() || ai.colony.is_some())
+                            || view.unit_stat(u, f4x_def::rules::Stat::Transport)
+                                >= crate::naval::MIN_LOAD as i32
+                    })
+                    .count()
+                    < crate::knob("SHIPS", 1.0) as usize)
+                .then(|| {
+                    crate::naval::port_item(&view, city, ai.naval.is_some() && ai.colony.is_none())
+                })
+                .flatten()
+                .or_else(|| colonist_item(ai, &view, city, pos, broke));
             (
-                plan_for(&view, city, pos, broke, &mut settlers_planned),
+                plan_for(
+                    &view,
+                    city,
+                    pos,
+                    broke,
+                    ai.threatened.contains(&pos),
+                    war_force,
+                    &mut settlers_planned,
+                ),
                 port_item,
             )
         };
@@ -117,6 +144,35 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     spend_gold(ai, game, events);
 }
 
+/// The settler a port builds for a voyage by sea once its ship is there: none while one waits in
+/// the port.
+fn colonist_item(
+    ai: &Ai,
+    view: &PlayerView,
+    city: hecs::Entity,
+    pos: Position,
+    broke: bool,
+) -> Option<ProductionItem> {
+    let waiting = view
+        .garrison(pos)
+        .into_iter()
+        .any(|u| view.unit_has_ability(u, Ability::new(12)));
+    let ship = view
+        .my_units()
+        .iter()
+        .any(|&u| crate::view::is_ship(view, u));
+    let size = view.city_economy(city).map_or(0, |e| e.figures);
+    (ai.colony.is_some_and(|c| c.port == pos)
+        && ai.colonists.is_none()
+        && ship
+        && !waiting
+        && !broke
+        && size >= 3
+        && spare_food(view) >= 0)
+        .then(|| settler_item(view, city))
+        .flatten()
+}
+
 /// The treasury cannot bear a deficit: net gold (with the gold on hand, spread over a hundred
 /// turns, counted as income) is negative and the gold on hand is low.
 fn broke(view: &PlayerView) -> bool {
@@ -133,6 +189,8 @@ fn plan_for(
     city: hecs::Entity,
     pos: Position,
     broke: bool,
+    threatened: bool,
+    war_force: Option<usize>,
     settlers_planned: &mut usize,
 ) -> BuildPlan {
     let size = view.city_economy(city).map_or(0, |e| e.figures);
@@ -159,9 +217,12 @@ fn plan_for(
     let temper = view.wizard().map_or(0, |w| {
         crate::objective::army_bias(w.personality(), view.difficulty())
     });
-    let strike = (crate::knob("STRIKE", traits.strike_base as f32) as i32 + temper).max(1) as usize
-        + all / 2;
-    let army_short = fighters < home_guard + strike && treasury_ok;
+    // The strike force is what the campaign needs, once there is one; before that a few per city.
+    let strike = war_force.unwrap_or_else(|| {
+        (crate::knob("STRIKE", traits.strike_base as f32) as i32).max(1) as usize + all / 2
+    });
+    let strike = (strike as i32 + temper).max(1) as usize;
+    let army_short = (fighters < home_guard + strike && treasury_ok) || threatened;
     let expanding =
         all + *settlers_planned < crate::knob("CITIES", traits.cities_wanted as f32) as usize;
     let rival_near = view.known_cities().into_iter().any(|(_, o, p)| {
@@ -207,11 +268,7 @@ fn plan_for(
 
 /// Spare food after feeding the citizens and the army.
 fn spare_food(view: &PlayerView) -> i32 {
-    let upkeep: i32 = view
-        .my_units()
-        .iter()
-        .map(|&u| view.unit_food_upkeep(u))
-        .sum();
+    let upkeep = view.food_of(&view.my_units());
     view.budget().food_surplus - upkeep
 }
 
@@ -262,8 +319,7 @@ fn is_settler_def(view: &PlayerView, unit: f4x_def::rules::UnitId) -> bool {
         .units
         .get(unit)
         .abilities
-        .iter()
-        .any(|a| a.num() == 12 /* create_outpost */)
+        .contains(&f4x_def::rules::Ability::new(12)) // create_outpost
 }
 
 fn settler_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem> {
@@ -271,11 +327,9 @@ fn settler_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem>
     rules
         .units
         .iter()
-        .filter(|(_, d)| {
-            d.abilities
-                .iter()
-                .any(|a| a.num() == 12 /* create_outpost */)
-        })
+        .filter(
+            |(_, d)| d.abilities.contains(&f4x_def::rules::Ability::new(12)), /* create_outpost */
+        )
         .map(|(id, _)| ProductionItem::Unit(id))
         .find(|&i| view.can_build(city, i).is_ok())
 }
@@ -286,27 +340,37 @@ mod tests {
     use crate::testworld::{game, COAST_CITY, P0};
     use f4x_core::city::autobuild::Focus;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    /// The capital of player 0.
+    fn capital(g: &Game) -> Result<hecs::Entity, &'static str> {
+        g.economy()
+            .city_at(crate::testworld::at(COAST_CITY.0, COAST_CITY.1))
+            .ok_or("player 0 has a city on the coast")
+    }
+
     #[test]
-    fn a_young_wizard_plans_for_growth_and_the_city_builds_by_the_plan() {
+    fn a_young_wizard_plans_for_growth_and_the_city_builds_by_the_plan() -> TestResult {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
         cities(&mut ai, &mut g, &mut events);
-        let city = g.economy().city_at(crate::testworld::at(10, 6)).unwrap();
-        let plan = g.autobuild_of(city).expect("the city has a plan").plan;
+        let city = capital(&g)?;
+        let plan = g.autobuild_of(city).ok_or("the city has a plan")?.plan;
         assert_eq!(plan.primary, Focus::Production, "room for more cities");
         assert_eq!(plan.secondary, Some(Focus::Population));
         assert!(plan.settlers && plan.eager_settlers && plan.min_settler_pop == 3);
         // A second look changes nothing and keeps what the city has spent.
-        let again = g.autobuild_of(city).unwrap();
+        let again = g.autobuild_of(city).ok_or("the city has a plan")?;
         cities(&mut ai, &mut g, &mut events);
-        assert_eq!(g.autobuild_of(city).unwrap(), again);
+        assert_eq!(g.autobuild_of(city), Some(again));
         // The city is building something now (the plan took over from housing).
         assert!(g.economy().city_production(city).item.is_some());
+        Ok(())
     }
 
     #[test]
-    fn a_city_that_cannot_feed_settlers_or_has_no_room_plans_without_them() {
+    fn a_city_that_cannot_feed_settlers_or_has_no_room_plans_without_them() -> TestResult {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let mut ai = Ai::new(P0);
         let mut events = Vec::new();
@@ -319,17 +383,22 @@ mod tests {
             6,
         );
         cities(&mut ai, &mut g, &mut events);
-        let city = g.economy().city_at(crate::testworld::at(10, 6)).unwrap();
-        let plan = g.autobuild_of(city).unwrap().plan;
+        let plan = g
+            .autobuild_of(capital(&g)?)
+            .ok_or("the city has a plan")?
+            .plan;
         assert!(!plan.settlers);
         assert_eq!(plan.primary, Focus::Balanced);
+        Ok(())
     }
 
     #[test]
-    fn a_militarist_that_has_settled_builds_for_offence() {
+    fn a_militarist_that_has_settled_builds_for_offence() -> TestResult {
         use f4x_core::wizard::objective::Objective;
         let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.wizard_mut(P0).unwrap().put(Some(Objective::Militarist));
+        g.wizard_mut(P0)
+            .ok_or("player 0 is a wizard")?
+            .put(Some(Objective::Militarist));
         // Six cities to come (Militarist wants six): the wizard is done expanding.
         crate::testworld::spawn(
             &mut g,
@@ -339,9 +408,12 @@ mod tests {
             6,
         );
         cities(&mut Ai::new(P0), &mut g, &mut Vec::new());
-        let city = g.economy().city_at(crate::testworld::at(10, 6)).unwrap();
-        let plan = g.autobuild_of(city).unwrap().plan;
+        let plan = g
+            .autobuild_of(capital(&g)?)
+            .ok_or("the city has a plan")?
+            .plan;
         assert_eq!(plan.primary, Focus::Offense);
         assert_eq!(plan.secondary, Some(Focus::Production));
+        Ok(())
     }
 }

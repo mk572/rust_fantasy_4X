@@ -25,10 +25,7 @@ pub(crate) mod shipped {
     use super::*;
 
     pub(crate) fn content() -> &'static Content {
-        static CELL: OnceLock<Content> = OnceLock::new();
-        CELL.get_or_init(|| {
-            f4x_def::load::load_content(Path::new(CONTENT)).expect("the shipped content loads")
-        })
+        f4x_def::testdir::shipped()
     }
 
     pub(crate) fn texts() -> &'static Texts {

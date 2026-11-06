@@ -81,14 +81,19 @@ pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
         base_from(view, player, city_mana)
     };
     let split = match view.wizard(player) {
-        Some(m) if !casting_return => m.split_power(power_base, city_research),
+        Some(m) if !casting_return => {
+            m.split_power(&view.content().rules, power_base, city_research)
+        }
         _ => PowerShares::default(),
     };
     let research = view.wizard(player).map_or(split.research.max(0), |m| {
         m.research_income(view.content(), &split)
     });
-    let mana_upkeep =
-        view.upkeep_total(player) / view.wizard(player).map_or(1, |m| m.upkeep_divisor());
+    let mana_upkeep = view.upkeep_total(player)
+        * view
+            .wizard(player)
+            .map_or(100, |m| m.upkeep_percent(&view.content().rules))
+        / 100;
     Income {
         power_base,
         city_research,

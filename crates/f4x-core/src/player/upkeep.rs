@@ -52,9 +52,9 @@ impl Game {
     /// The shortfall the wizard faces at the next turn change, or `None` when the reserve
     /// (with the coming mana income) pays the whole upkeep.
     pub fn upkeep_shortfall(&self, player: PlayerId) -> Option<Shortfall> {
-        let divisor = self.wizard(player)?.upkeep_divisor();
+        let percent = self.wizard(player)?.upkeep_percent(&self.content.rules);
         let items = self.upkeep_items(player);
-        let owed: i32 = items.iter().map(|i| i.mana).sum::<i32>() / divisor;
+        let owed: i32 = items.iter().map(|i| i.mana).sum::<i32>() * percent / 100;
         // The turn change adds the mana income first (not for the wizard who stopped time).
         let income = if self.time_stopper() == Some(player) {
             0
@@ -69,7 +69,7 @@ impl Game {
             .iter()
             .map(|i| UpkeepLine {
                 kind: i.kind,
-                mana: i.mana / divisor,
+                mana: i.mana * percent / 100,
             })
             .collect();
         Some(Shortfall {

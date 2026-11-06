@@ -362,6 +362,11 @@ pub struct RetortDef {
     /// What the books must be before it may be picked.
     #[serde(default)]
     pub requires: Vec<RetortNeed>,
+    /// What the retort does. Only passive `Modify` rules count: the wizard's stats
+    /// (`SpellCostPercent`, `ResearchIncome` as a percent) with a condition on the spell
+    /// (`RealmIs`, `SpellIs`).
+    #[serde(default)]
+    pub effects: Vec<super::effects::EffectRule>,
 }
 
 impl RetortDef {

@@ -117,14 +117,26 @@ impl Game {
         let mut def = self.content.rules.spells.get(spell).clone();
         def.cost += extra.max(0) as u32;
         let evil_omens = self.evil_omens_active();
-        crate::wizard::sheet::casting_cost(self.wizard(player).as_ref(), &def, false, evil_omens)
+        crate::wizard::sheet::casting_cost(
+            &self.content.rules,
+            self.wizard(player).as_ref(),
+            &def,
+            false,
+            evil_omens,
+        )
     }
 
     /// Mana needed to cast `spell` (`sheet::casting_cost`).
     pub fn casting_cost(&self, player: PlayerId, spell: SpellId, in_battle: bool) -> i32 {
         let def = self.content.rules.spells.get(spell);
         let evil_omens = self.evil_omens_active();
-        crate::wizard::sheet::casting_cost(self.wizard(player).as_ref(), def, in_battle, evil_omens)
+        crate::wizard::sheet::casting_cost(
+            &self.content.rules,
+            self.wizard(player).as_ref(),
+            def,
+            in_battle,
+            evil_omens,
+        )
     }
 
     // ---- commands ----------------------------------------------------------------
@@ -255,7 +267,8 @@ impl Game {
         let reserve = self.player(player).map_or(0, |p| p.treasury().mana);
         let (dropped, owed) = upkeep_plan(
             &items,
-            self.wizard(player).map_or(1, |w| w.upkeep_divisor()),
+            self.wizard(player)
+                .map_or(100, |w| w.upkeep_percent(&self.content.rules)),
             reserve,
         );
         let mut events = Vec::new();

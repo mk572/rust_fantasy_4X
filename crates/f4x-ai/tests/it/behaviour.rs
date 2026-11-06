@@ -15,9 +15,7 @@ const P0: PlayerId = PlayerId(0);
 const P1: PlayerId = PlayerId(1);
 
 fn content() -> Result<Content, Box<dyn std::error::Error>> {
-    Ok(f4x_def::load::load_content(std::path::Path::new(
-        "../../content",
-    ))?)
+    Ok(f4x_def::testdir::shipped().clone())
 }
 
 fn game(seed: u64) -> Result<Game, Box<dyn std::error::Error>> {

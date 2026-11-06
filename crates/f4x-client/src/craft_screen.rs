@@ -251,7 +251,7 @@ impl App {
         let reduction = self
             .game
             .wizard(HUMAN)
-            .map(|m| m.cost_reduction(rules.spells.get(ui.craft.spell())))
+            .map(|m| m.cost_reduction(rules, rules.spells.get(ui.craft.spell())))
             .unwrap_or(0);
         value - value * reduction / 100
     }

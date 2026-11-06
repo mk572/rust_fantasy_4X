@@ -43,7 +43,7 @@ pub fn parse_retort(rules: &crate::rules::Rules, text: &str) -> Option<Retort> {
 pub use crate::game::setting::{LAND_LARGE, LAND_MEDIUM, LAND_SMALL};
 
 /// What a new game is made from. Everything but the seed is optional.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct NewGame {
     pub seed: u64,
     /// Every wizard is a ready-made one for an AI to play (no human): `human` stays unset.
@@ -71,25 +71,6 @@ impl NewGame {
         let mut spec = Self::default();
         spec.settings.basic.opponents = wizards.saturating_sub(1);
         spec
-    }
-}
-
-impl Default for NewGame {
-    fn default() -> Self {
-        Self {
-            seed: 0,
-            all_ai: false,
-            preset: None,
-            name: None,
-            gender: Default::default(),
-            books: BTreeMap::new(),
-            retorts: BTreeSet::new(),
-            race: None,
-            build: None,
-            // The symmetric game: tests, the soak and the learning AI. The client and the
-            // console's `difficulty=` start from a level instead.
-            settings: GameSettings::flat(),
-        }
     }
 }
 
@@ -703,6 +684,8 @@ mod tests {
     fn a_myrran_wizard_starts_on_myrror_and_the_others_on_arcanus() -> TestResult {
         let mut s = spec(2, 3);
         s.retorts.insert(Retort::new(9) /* myrran */);
+        // Every wizard is the computer's here, and the computer's retorts are rolled.
+        s.settings.ai.wizards.randomise = false;
         let g = new_game(&shipped(), &s)?;
         let plane = |k| {
             g.wizard(PlayerId(k))

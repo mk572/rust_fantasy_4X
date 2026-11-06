@@ -32,6 +32,7 @@
     "temp.stat_research_income": "Research income",
     "temp.stat_casting_skill": "Casting skill",
     "temp.stat_spell_cost_percent": "Spell cost %",
+    "temp.stat_spell_upkeep_percent": "Spell upkeep %",
     "temp.stat_city_food": "City food",
     "temp.stat_city_food_flat": "City food (flat)",
     "temp.stat_farmer_food": "Food per farmer",

@@ -24,9 +24,21 @@ pub enum Condition {
     KindIs(crate::rules::UnitKind),
     InBattle,
     InCity,
+    /// The spell in question is of this kind (for a wizard's retorts: what a spell costs and how
+    /// fast it is researched).
+    SpellIs(SpellTag),
     All(Vec<Condition>),
     Any(Vec<Condition>),
     Not(Box<Condition>),
+}
+
+/// A kind of spell a retort's rule can single out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SpellTag {
+    /// A spell that summons a creature.
+    Summoning,
+    /// Enchant Item and Create Artifact.
+    Crafting,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

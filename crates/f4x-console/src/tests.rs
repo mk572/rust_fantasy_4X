@@ -1,6 +1,4 @@
 use f4x_def::rules::Ability;
-use std::path::Path;
-use std::sync::OnceLock;
 
 use f4x_core::game::Game;
 use f4x_core::player::PlayerId;
@@ -12,11 +10,7 @@ use crate::{commands, Access, Console, ConsoleError, Kind, Mode};
 
 /// The shipped content, read once per test run.
 fn content() -> &'static Content {
-    static CONTENT: OnceLock<Content> = OnceLock::new();
-    CONTENT.get_or_init(|| {
-        f4x_def::load::load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
-            .expect("the shipped content loads")
-    })
+    f4x_def::testdir::shipped()
 }
 
 fn game() -> Game {
@@ -481,18 +475,6 @@ fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() -
             "level {level}"
         );
     }
-    // The symmetric game: the same gold, no bonuses.
-    let g = new_game(content(), &NewGame::default())?;
-    assert!(g.player_ids().into_iter().all(|id| g
-        .player(id)
-        .expect("the player exists")
-        .treasury()
-        .gold
-        == 100
-        && g.player_component::<f4x_core::player::Bonus>(id)
-            .expect("the entity has it")
-            .gold
-            == 100));
     Ok(())
 }
 
@@ -1098,13 +1080,13 @@ fn capital(g: &Game, p: PlayerId) -> (hecs::Entity, f4x_core::map::Position) {
 fn a_wizard_starts_as_in_the_original() -> TestResult {
     let content = content();
     for seed in [1, 2, 3, 4, 5, 6] {
-        let g = new_game(
-            content,
-            &NewGame {
-                seed,
-                ..NewGame::with_wizards(4)
-            },
-        )?;
+        // The computer's wizards are rolled at random; this test is about the start itself.
+        let mut spec = NewGame {
+            seed,
+            ..NewGame::with_wizards(4)
+        };
+        spec.settings.ai.wizards.randomise = false;
+        let g = new_game(content, &spec)?;
         for k in 0..4 {
             let p = PlayerId(k);
             let (city, _) = capital(&g, p);
@@ -1141,7 +1123,10 @@ fn a_wizard_starts_as_in_the_original() -> TestResult {
                 "seed {seed} wizard {k}: {}",
                 eco.max_size
             );
-            assert_eq!(g.player(p).expect("the player exists").treasury().gold, 100);
+            assert_eq!(
+                g.player(p).expect("the player exists").treasury().gold,
+                if k == 0 { 75 } else { 150 }
+            );
         }
     }
     Ok(())
@@ -1168,7 +1153,7 @@ fn the_starting_army_and_capital_pay_their_way() -> TestResult {
         }
         assert_eq!(start_army(&g, HUMAN).len(), 2, "seed {seed}");
         assert!(
-            g.player(HUMAN).expect("the player exists").treasury().gold >= 100,
+            g.player(HUMAN).expect("the player exists").treasury().gold >= 75,
             "seed {seed}"
         );
     }
@@ -3369,21 +3354,28 @@ fn a_recorded_game_is_played_again_by_text() {
 #[test]
 fn a_neutral_city_whose_garrison_is_gone_trains_a_new_one() {
     let mut g = game();
-    let (city, pos) = neutral_cities(&g)
+    // A city's plan decides whether it trains units at all (some only build), so every garrisoned
+    // city loses its garrison and at least one has to train a new one.
+    let cities: Vec<_> = neutral_cities(&g)
         .into_iter()
-        .find(|(_, p)| g.units().units_at(*p).len() >= 2)
-        .expect("a garrisoned city");
-    let owner = g.economy().city_owner(city).expect("the city has an owner");
-    for u in g.units().units_at(pos) {
-        g.apply(f4x_core::game::Command::DismissUnit { unit: u });
+        .filter(|(_, p)| g.units().units_at(*p).len() >= 2)
+        .map(|(c, p)| (g.economy().city_owner(c).expect("the city has an owner"), p))
+        .collect();
+    assert!(!cities.is_empty(), "a garrisoned city");
+    for &(_, pos) in &cities {
+        for u in g.units().units_at(pos) {
+            g.apply(f4x_core::game::Command::DismissUnit { unit: u });
+        }
+        assert!(g.units().units_at(pos).is_empty());
     }
-    assert!(g.units().units_at(pos).is_empty());
     for _ in 0..80 {
         f4x_ai::play_round(&mut g, &mut []);
     }
     assert!(
-        !g.units().player_units(owner).is_empty(),
-        "the city built soldiers again"
+        cities
+            .iter()
+            .any(|&(owner, _)| !g.units().player_units(owner).is_empty()),
+        "a city built soldiers again"
     );
 }
 

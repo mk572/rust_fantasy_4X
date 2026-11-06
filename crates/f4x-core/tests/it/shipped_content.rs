@@ -16,7 +16,7 @@ fn content_dir() -> PathBuf {
 
 /// The game's own `content/` folder, loaded.
 fn real_content() -> Content {
-    load_content(&content_dir()).expect("the shipped content loads")
+    f4x_def::testdir::shipped().clone()
 }
 
 #[test]

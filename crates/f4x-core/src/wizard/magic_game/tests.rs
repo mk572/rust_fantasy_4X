@@ -223,7 +223,7 @@ fn retorts_and_extra_books_change_research_and_cost() -> TestResult {
     assert_eq!(
         g.wizard(P0)
             .ok_or("wizard is missing")?
-            .research_bonus(g.content().rules.spells.get(mend)),
+            .research_bonus(&g.content().rules, g.content().rules.spells.get(mend)),
         45
     );
     // Two books over seven take a fifth off the cost (15 mana in battle).
@@ -232,7 +232,7 @@ fn retorts_and_extra_books_change_research_and_cost() -> TestResult {
     assert_eq!(
         g.wizard(P0)
             .ok_or("wizard is missing")?
-            .research_bonus(g.content().rules.spells.get(runes)),
+            .research_bonus(&g.content().rules, g.content().rules.spells.get(runes)),
         25,
         "arcane gets no book bonus"
     );

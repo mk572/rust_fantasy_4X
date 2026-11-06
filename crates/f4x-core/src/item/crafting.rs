@@ -513,7 +513,7 @@ impl crate::game::Game {
             let item = build(design, &self.content.rules);
             let value = item.cost as i32;
             let def = self.content.rules.spells.get(spell);
-            let price = value - value * magic.cost_reduction(def) / 100;
+            let price = value - value * magic.cost_reduction(&self.content.rules, def) / 100;
             let now = price <= magic.instant_budget(reserve);
             (item, price, now)
         };

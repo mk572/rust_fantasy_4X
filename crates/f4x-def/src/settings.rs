@@ -3,7 +3,7 @@
 //! (`docs/game-settings.md`).
 //!
 //! The figures of the difficulty levels and the defaults of the settings screens are
-//! data, `content/rules_settings.ron` ([`SettingsDef`]); only [`GameSettings::flat`] and the
+//! data, `content/rules_settings.ron` ([`SettingsDef`]); only the default game (the Average level, read from that file) and the
 //! fallback [`BasicSettings::default`] for content without that file are in the code.
 
 use serde::{Deserialize, Serialize};
@@ -443,7 +443,7 @@ impl Default for HalfUpkeep {
 
 /// `content/rules_settings.ron`: the difficulty levels, the defaults of the new-game choices, the
 /// map and land sizes and the spell library. A file without it (the test content) leaves `levels`
-/// empty, and a game then plays the symmetric [`GameSettings::flat`].
+/// empty, and a game then plays the default game.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct SettingsDef {
@@ -709,7 +709,7 @@ impl SettingsDef {
         }
         let choices = GameSettings {
             basic: self.new_game,
-            ..GameSettings::flat()
+            ..GameSettings::default()
         };
         problems.extend(
             choices
@@ -723,7 +723,7 @@ impl SettingsDef {
 
 impl GameSettings {
     /// The settings of a difficulty level: the file's figures for it, with the other basic
-    /// choices at their defaults. Without levels in the file it is [`GameSettings::flat`].
+    /// choices at their defaults. Without levels in the file it is the default game.
     pub fn for_difficulty(def: &SettingsDef, difficulty: u8) -> Self {
         let d = difficulty.min(4);
         let Some(level) = def.level(d) else {
@@ -732,7 +732,7 @@ impl GameSettings {
                     difficulty: d,
                     ..def.new_game
                 },
-                ..Self::flat()
+                ..Self::default()
             };
         };
         Self {
@@ -746,60 +746,6 @@ impl GameSettings {
             rules: level.rules,
             events: level.events,
             scoring: level.scoring,
-        }
-    }
-
-    /// The symmetric game the project played before the original's difficulty effects: the same
-    /// gold for everyone, no bonuses for the computer wizards, the next free ready-made wizard
-    /// for each, no safe flee, no score scale. **Internal**: for the soak, the learning AI and
-    /// the tests, never offered on a screen.
-    pub fn flat() -> Self {
-        Self {
-            basic: BasicSettings::default(),
-            wizards: WizardSettings {
-                starting_gold: Split::both(100),
-                starting_mana: Split::both(0),
-                picks: Split::both(11),
-            },
-            ai: AiSettings {
-                growth_percent: 100,
-                outpost_growth_percent: 100,
-                production_percent: 100,
-                gold_percent: 100,
-                mana_percent: 100,
-                food_percent: 100,
-                research_percent: 100,
-                maintenance_percent: 100,
-                unit_upkeep_percent: 100,
-                wizards: AiWizardSettings {
-                    randomise: false,
-                    consolidate_percent: 0,
-                    erasure_dice: (0, 0),
-                    myrran_rule: false,
-                    guaranteed_summoning_spell: false,
-                },
-            },
-            world: WorldSettings {
-                lair_guard_percent: 75,
-                lair_treasure_percent: 133,
-                neutral_city_size_bonus: 1,
-                raiders_enabled: false,
-                monsters_enabled: false,
-                raider_percent: 33,
-                start_reveal_radius: Radius(2.5),
-            },
-            rules: RuleSettings {
-                safe_flee: Split::both(false),
-                settlers_cost_citizen: true,
-                melee_vs_fliers: MeleeVsFliers::Zero,
-                max_tile: MAX_TILE_LIMIT,
-            },
-            events: EventSettings {
-                random_events: true,
-                pressure_percent: 75,
-                frequency: EventFrequency::Normal,
-            },
-            scoring: ScoreSettings { score_percent: 100 },
         }
     }
 
@@ -1000,5 +946,23 @@ impl GameSettings {
         self.events.pressure_percent = self.events.pressure_percent.clamp(10, 200);
         self.scoring.score_percent = self.scoring.score_percent.clamp(10, 500);
         self
+    }
+}
+
+#[cfg(test)]
+mod tests;
+
+/// The game as the shipped rules play it: the Average level of `content/rules_settings.ron`
+/// (read at build time, so there is one set of figures). A game made for play picks its level in
+/// `game::setup::new_game`; a bare `Game::new` and a `NewGame::default()` start from this.
+impl Default for GameSettings {
+    fn default() -> Self {
+        static AVERAGE: std::sync::OnceLock<GameSettings> = std::sync::OnceLock::new();
+        *AVERAGE.get_or_init(|| {
+            let def: SettingsDef =
+                ron::from_str(include_str!("../../../content/rules_settings.ron"))
+                    .expect("content/rules_settings.ron parses");
+            GameSettings::for_difficulty(&def, 2)
+        })
     }
 }

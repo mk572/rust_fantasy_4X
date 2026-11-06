@@ -21,8 +21,7 @@ Section 2 holds what was measured on the AI before the work, section 8.1 the res
    Mastery). Every step is kept only if it does not make that worse and the tests pass.
 3. **The AI can cast the Spell of Mastery.** Today nobody can: see section 7.
 4. **No information cheats** (`design.md` section 8): the AI sees what a player sees and obeys
-   the same commands. (It has the difficulty bonuses of the game settings, task 247, unless the
-   game is the symmetric `flat` one.) Where the original's AI knows more (it reads the whole map), we do not.
+   the same commands. (It has the difficulty bonuses of the game settings, task 247, at the Average level.) Where the original's AI knows more (it reads the whole map), we do not.
 5. **Deterministic**: the AI draws no random numbers of its own; anything random goes through
    the game's generator (`EffectHost::rng`-style) or is a function of the seed and turn.
 6. **Not touched:** the learned battle agent and `f4x-learn`. The scripted battle AI is also

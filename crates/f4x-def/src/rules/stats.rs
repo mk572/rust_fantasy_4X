@@ -48,6 +48,8 @@ pub enum Stat {
     CastingSkill,
     /// Percent change to spell mana costs.
     SpellCostPercent,
+    /// Percent of the mana upkeep of the wizard's lasting spells that is paid (100 normally).
+    SpellUpkeepPercent,
     // Cities
     CityFood,
     /// Food added after the farmland cap is applied (granaries, markets).
@@ -84,6 +86,7 @@ impl Stat {
             | Stat::CityGrowth
             | Stat::CityUnrestPercent
             | Stat::SpellCostPercent
+            | Stat::SpellUpkeepPercent
             | Stat::UnitCostPercent => None,
             _ => Some(0),
         }
@@ -112,6 +115,7 @@ pub enum Source {
     Ability(Id<AbilityDef>),
     Building(Id<BuildingDef>),
     Spell(Id<SpellDef>),
+    Retort(Id<super::RetortDef>),
     /// The item in this slot of a hero (0 to 2); crafted items have no id of their own.
     Item(u8),
     /// Experience level reached, 0-based.

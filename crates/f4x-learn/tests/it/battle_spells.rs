@@ -20,7 +20,7 @@ const NEEDS_SETUP: [u16; 4] = [
 #[test]
 #[ignore = "slow: casts every battle spell of the content once"]
 fn every_battle_spell_that_is_offered_is_accepted_and_the_fight_goes_on() {
-    let content = f4x_def::load::load_content(std::path::Path::new("../../content")).unwrap();
+    let content = f4x_def::testdir::shipped().clone();
     let spells: Vec<u16> = content
         .rules
         .spells

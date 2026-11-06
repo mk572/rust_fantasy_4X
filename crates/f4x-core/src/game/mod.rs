@@ -97,9 +97,9 @@ impl Game {
             fog: map::fog::Fog::default(),
             next_serial: 1,
             rng: game::rng::GameRng::new(seed),
-            // The symmetric game, as `game::setting::GameSettings::flat` says; a game made for
-            // play gets its level from `game::setup::new_game`.
-            settings: game::setting::GameSettings::flat(),
+            // The Average level of the shipped rules; a game made for play gets its level from
+            // `game::setup::new_game`.
+            settings: game::setting::GameSettings::default(),
             battle: None,
             game_over: None,
             diplomacy: diplomacy::Diplomacy::default(),

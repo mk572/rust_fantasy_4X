@@ -65,6 +65,8 @@ fn game() -> Game {
         .0 = 2;
     g.set_grand_vizier(P0, true);
     g.add_player(PlayerId(1), "Rival");
+    // A loaded game gives its players the settings' bonuses, so the one made by hand has them too.
+    g.apply_wizard_settings();
     let magic_node = g.spawn_feature(crate::feature::entity::Placement {
         at: Position {
             plane: Plane::Myrror,

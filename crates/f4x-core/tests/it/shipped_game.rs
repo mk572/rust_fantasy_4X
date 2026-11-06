@@ -1,18 +1,12 @@
 //! A whole game on the shipped content (`content/`), through the public interface only.
 
-use std::sync::OnceLock;
-
 use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::{Command, Event, Game};
 use f4x_def::content::Content;
 use f4x_def::testdir::TestResult;
 
 fn shipped() -> &'static Content {
-    static CONTENT: OnceLock<Content> = OnceLock::new();
-    CONTENT.get_or_init(|| {
-        f4x_def::load::load_content(std::path::Path::new("../../content"))
-            .expect("the shipped content loads")
-    })
+    f4x_def::testdir::shipped()
 }
 
 fn game(seed: u64) -> Result<Game, String> {

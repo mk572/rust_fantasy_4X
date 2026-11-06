@@ -7,7 +7,7 @@ use f4x_learn::build::{build_at, Spot};
 use f4x_learn::scenario::generate_raw;
 
 fn fights_end(spot: Spot, hero: bool) {
-    let content = f4x_def::load::load_content(std::path::Path::new("../../content")).unwrap();
+    let content = f4x_def::testdir::shipped().clone();
     let mut fought = 0;
     for seed in 0..4u64 {
         let scenario = generate_raw(&content, seed);

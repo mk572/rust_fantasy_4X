@@ -22,7 +22,7 @@ Decided October 2026, `design.md` section 8.
   The original gives computer wizards difficulty-based extras (gold, production, growth, mana,
   research, food, outpost growth, cheaper maintenance and unit upkeep, extra picks, starting
   gold). They are now the levels' settings (`game-settings.md`), applied to computer wizards only
-  and changeable on the advanced screen; the internal `flat` settings give the old symmetric game.
+  and changeable on the advanced screen; the default game (`GameSettings::default()`) is the Average level.
   Still skipped: other code that treats the human and the AI differently, and the neutral cities'
   halved growth. Difficulty also scales lair guards, lair treasure, neutral city population and
   the final score, and sets how well the AI plays (task 148).
@@ -754,7 +754,7 @@ immunity** protects against Terror. The other differences listed there are kept 
   and roam, settle in empty stands and attack the cities they find; the monsters that win a city
   vanish, as the original's message says, and the lair choice has no bias to the human's plane (the
   original rerolls towards it). A city a raiding city conquers is its own, not a new independent city
-  (item 33's design is still planned). Both are off in the symmetric `flat` game.
+  (item 33's design is still planned). Both are on at every level.
 
 ## 37. The three event switches the original never reads (tasks 269 to 271, 276 to 278)
 

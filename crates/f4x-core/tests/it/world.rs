@@ -1,7 +1,5 @@
 //! The shipped content and a small game on it, for the tests that set up their own situation.
 
-use std::sync::OnceLock;
-
 use f4x_core::game::Game;
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
@@ -15,11 +13,7 @@ pub const P1: PlayerId = PlayerId(1);
 
 /// The shipped content, parsed once for the whole test run.
 pub fn shipped() -> &'static Content {
-    static CONTENT: OnceLock<Content> = OnceLock::new();
-    CONTENT.get_or_init(|| {
-        f4x_def::load::load_content(std::path::Path::new("../../content"))
-            .expect("the shipped content loads")
-    })
+    f4x_def::testdir::shipped()
 }
 
 pub fn at(plane: Plane, x: u32, y: u32) -> Position {

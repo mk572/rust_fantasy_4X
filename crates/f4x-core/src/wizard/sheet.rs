@@ -13,13 +13,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::game::rng::GameRng;
 use crate::game::setting::SpellLibraryDef;
-use crate::rules::{Rarity, RealmId, SpellDef, SpellId};
+use crate::rules::{Rarity, RealmId, Rules, SpellDef, SpellId, Stat};
 use crate::spell::instance::{Owed, Spells};
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::{
-    base_casting_skill, default_spells, is_crafting, is_summoning, pick_spells, skill_points_for,
-    spells_of, CastStart, Casting, MagicError, PowerShares, Retort, RESEARCH_SLOTS,
+    base_casting_skill, default_spells, pick_spells, skill_points_for, spells_of, CastStart,
+    Casting, MagicError, PowerShares, Retort, RESEARCH_SLOTS,
 };
+use crate::wizard::retort;
 use f4x_def::content::Content;
 
 /// Spell books per realm id.
@@ -221,76 +222,45 @@ impl<'a> Wizard<'a> {
     }
 
     /// Mana needed to cast `def`. Overland casting of a spell that can also be cast in battle
-    /// costs five times the battle price; reductions come from books beyond seven, masteries,
-    /// artificer, conjurer and runemaster. `evil_omens`: life and nature spells cost half as
-    /// much again (for every wizard, the caster too; the game says whether Evil Omens is in
-    /// force).
-    pub fn casting_cost(&self, def: &SpellDef, in_battle: bool, evil_omens: bool) -> i32 {
-        casting_cost(Some(self), def, in_battle, evil_omens)
+    /// costs five times the battle price; reductions come from books beyond seven and from the
+    /// retorts (`retorts.ron`). `evil_omens`: life and nature spells cost half as much again (for
+    /// every wizard, the caster too; the game says whether Evil Omens is in force).
+    pub fn casting_cost(
+        &self,
+        rules: &Rules,
+        def: &SpellDef,
+        in_battle: bool,
+        evil_omens: bool,
+    ) -> i32 {
+        casting_cost(rules, Some(self), def, in_battle, evil_omens)
     }
 
-    /// Percent off the cost of `def`.
-    pub fn cost_reduction(&self, def: &SpellDef) -> i32 {
-        let mut cut = 0;
-        let realm = Some(def.realm);
-        if realm == Some(RealmId::new(5) /* arcane */) {
-            if self.has(Retort::new(14) /* runemaster */) {
-                cut += 25;
-            }
-        } else if let Some(realm) = realm {
-            cut += (self.books_in(realm) - 7).max(0) * 10;
-        }
-        if self.has_mastery(realm) {
-            cut += 15;
-        }
-        if self.has(Retort::new(17) /* artificer */) && is_crafting(def) {
-            cut += 50;
-        }
-        if self.has(Retort::new(15) /* conjurer */) && is_summoning(def) {
-            cut += 25;
-        }
-        cut
+    /// Percent off the cost of `def`: the books beyond seven in its realm, and the retorts.
+    pub fn cost_reduction(&self, rules: &Rules, def: &SpellDef) -> i32 {
+        self.extra_books(def) * 10 + retort::cost_cut(rules, &self.retorts(), def)
     }
 
-    /// Whether the wizard has the mastery of this realm.
-    fn has_mastery(&self, realm: Option<RealmId>) -> bool {
-        match realm.map(RealmId::num) {
-            Some(0 /* nature */) => self.has(Retort::new(3) /* nature_mastery */),
-            Some(1 /* sorcery */) => self.has(Retort::new(4) /* sorcery_mastery */),
-            Some(2 /* chaos */) => self.has(Retort::new(2) /* chaos_mastery */),
-            _ => false,
+    /// Books beyond the seventh in the realm of `def` (none for the arcane spells).
+    fn extra_books(&self, def: &SpellDef) -> i32 {
+        if def.realm == RealmId::new(5)
+        /* arcane */
+        {
+            0
+        } else {
+            (self.books_in(def.realm) - 7).max(0)
         }
     }
 
-    /// Percent added to research of `def`: sage master, conjurer for summoning, realm
-    /// masteries, books beyond seven in the realm, runemaster for arcane.
-    pub fn research_bonus(&self, def: &SpellDef) -> i32 {
-        let mut bonus = 0;
-        if self.has(Retort::new(7) /* sage_master */) {
-            bonus += 25;
-        }
-        if self.has(Retort::new(15) /* conjurer */) && is_summoning(def) {
-            bonus += 25;
-        }
-        let realm = Some(def.realm);
-        if self.has_mastery(realm) {
-            bonus += 15;
-        }
-        if realm == Some(RealmId::new(5) /* arcane */) {
-            if self.has(Retort::new(14) /* runemaster */) {
-                bonus += 25;
-            }
-        } else if let Some(realm) = realm {
-            bonus += (self.books_in(realm) - 7).max(0) * 10;
-        }
-        bonus
+    /// Percent added to research of `def`: the books beyond seven in its realm, and the retorts.
+    pub fn research_bonus(&self, rules: &Rules, def: &SpellDef) -> i32 {
+        self.extra_books(def) * 10 + retort::research_bonus(rules, &self.retorts(), def)
     }
 
     /// The power base split by the wizard's percentages. Rounding goes to research; if the
     /// research share is switched off, what it would have been goes to skill (or to mana
     /// when skill is off too). Mana Focusing adds a quarter to mana. `city_research` is what
     /// the wizard's cities produce, added to the research share.
-    pub fn split_power(&self, power: i32, city_research: i32) -> PowerShares {
+    pub fn split_power(&self, rules: &Rules, power: i32, city_research: i32) -> PowerShares {
         let split = self.power_split();
         let mut mana = (power * i32::from(split.mana) + 50) / 100;
         let mut skill = (power * i32::from(split.skill) + 50) / 100;
@@ -303,9 +273,7 @@ impl<'a> Wizard<'a> {
             }
             research = 0;
         }
-        if self.has(Retort::new(11) /* mana_focusing */) {
-            mana += mana / 4;
-        }
+        mana = retort::stat(rules, &self.retorts(), Stat::ManaIncome, mana);
         PowerShares {
             mana,
             skill,
@@ -315,9 +283,9 @@ impl<'a> Wizard<'a> {
 
     /// Research points that will be paid next turn change, with bonuses.
     pub fn research_income(&self, content: &Content, split: &PowerShares) -> i32 {
-        let bonus = self
-            .researching()
-            .map_or(0, |s| self.research_bonus(content.rules.spells.get(s)));
+        let bonus = self.researching().map_or(0, |s| {
+            self.research_bonus(&content.rules, content.rules.spells.get(s))
+        });
         let research = split.research.max(0);
         research + research * bonus / 100
     }
@@ -427,18 +395,15 @@ impl<'a> Wizard<'a> {
         }
     }
 
-    /// 2 for a Channeler (half the spell maintenance), else 1.
-    pub fn upkeep_divisor(&self) -> i32 {
-        if self.has(Retort::new(8) /* channeler */) {
-            2
-        } else {
-            1
-        }
+    /// Percent of the spell upkeep the wizard pays: 100, half of it for a Channeler.
+    pub fn upkeep_percent(&self, rules: &Rules) -> i32 {
+        retort::stat(rules, &self.retorts(), Stat::SpellUpkeepPercent, 100)
     }
 }
 
 /// The mana a spell costs `wizard` (a player without a wizard pays the listed cost).
 pub fn casting_cost(
+    rules: &Rules,
     wizard: Option<&Wizard<'_>>,
     def: &SpellDef,
     in_battle: bool,
@@ -449,7 +414,7 @@ pub fn casting_cost(
         cost *= 5;
     }
     if let Some(w) = wizard {
-        cost -= cost * w.cost_reduction(def) / 100;
+        cost -= cost * w.cost_reduction(rules, def) / 100;
     }
     if matches!(Some(def.realm.num()), Some(3 /* life */ | 0 /* nature */)) && evil_omens {
         cost += cost / 2;
@@ -685,7 +650,7 @@ impl<'a> WizardMut<'a> {
         let w = self.view();
         let time = |s: SpellId| {
             let def = content.rules.spells.get(s);
-            let bonus = w.research_bonus(def);
+            let bonus = w.research_bonus(&content.rules, def);
             let cost = w.research_cost(content, s) * 100 / (100 + bonus);
             if income == 0 {
                 cost

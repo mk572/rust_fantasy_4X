@@ -13,7 +13,6 @@
 //! `.save` files from the set-ups below, then the targets.
 
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
 
 use f4x_core::game::save::Snapshot;
 use f4x_core::game::setup::{new_game, NewGame};
@@ -23,10 +22,7 @@ use f4x_def::content::Content;
 use f4x_def::testdir::TestResult;
 
 fn shipped() -> &'static Content {
-    static CONTENT: OnceLock<Content> = OnceLock::new();
-    CONTENT.get_or_init(|| {
-        f4x_def::load::load_content(Path::new("../../content")).expect("the shipped content loads")
-    })
+    f4x_def::testdir::shipped()
 }
 
 fn folder() -> PathBuf {

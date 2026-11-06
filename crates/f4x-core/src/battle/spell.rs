@@ -392,7 +392,7 @@ impl Game {
             return Err(SpellError::TooLittle);
         }
         let cut = self.wizard(player).map_or(0, |m| {
-            m.cost_reduction(self.content.rules.spells.get(spell))
+            m.cost_reduction(&self.content.rules, self.content.rules.spells.get(spell))
         });
         Ok((least + (pool - def.cost as i32) * (100 - cut) / 100, pool))
     }

@@ -1,6 +1,10 @@
 //! A small hand-made world with the shipped content, for the unit tests of the AI modules: two
 //! islands in an ocean, one wizard on each, so that a unit cannot walk to the other side.
+//!
+//! Tests: none, because this is test support; the modules that use it test it.
 
+use f4x_core::feature::entity::Placement;
+use f4x_core::feature::lair::Lair;
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_def::content::Content;
@@ -18,9 +22,25 @@ const WEST: std::ops::RangeInclusive<u32> = 3..=10;
 const EAST: std::ops::RangeInclusive<u32> = 28..=35;
 const ROWS: std::ops::RangeInclusive<u32> = 3..=10;
 
+/// The shipped content, parsed once for all the tests of the process.
+pub fn shipped() -> &'static Content {
+    f4x_def::testdir::shipped()
+}
+
+/// A copy of the shipped content, for a `Game`, which owns its content.
 pub fn content() -> Content {
-    f4x_def::load::load_content(std::path::Path::new("../../content"))
-        .expect("the rules data loads")
+    shipped().clone()
+}
+
+/// A new game as the game itself sets it up (wizards, cities, heroes), on the shipped content.
+pub fn fresh_game() -> Result<Game, Box<dyn std::error::Error>> {
+    Ok(f4x_core::game::setup::new_game(
+        shipped(),
+        &f4x_core::game::setup::NewGame {
+            seed: 7,
+            ..Default::default()
+        },
+    )?)
 }
 
 pub fn at(x: u32, y: u32) -> Position {
@@ -98,6 +118,64 @@ pub fn spawn(
     (0..count)
         .map(|_| game.spawn_unit(owner, pos, id))
         .collect()
+}
+
+/// An intact encounter site at `pos` with these guards (unit id, count) and 300 gold. The players
+/// in `fought_by` have fought for it before, so they know its guards.
+pub fn spawn_site(
+    game: &mut Game,
+    pos: Position,
+    guards: Vec<(f4x_def::rules::UnitId, u32)>,
+    fought_by: Vec<PlayerId>,
+) -> Result<hecs::Entity, &'static str> {
+    let feature = game
+        .content()
+        .features
+        .id_numbered(13)
+        .ok_or("monster_lair is shipped")?;
+    Ok(game.spawn_feature(Placement {
+        at: pos,
+        feature,
+        node: None,
+        lair: Some(Lair {
+            intact: true,
+            guards,
+            gold: 300,
+            mana: 0,
+            items: Vec::new(),
+            prisoner: false,
+            special: 0,
+            fought_by,
+        }),
+    }))
+}
+
+/// A tower at `pos`, guarded by one zombie while `intact`.
+pub fn spawn_tower(
+    game: &mut Game,
+    pos: Position,
+    intact: bool,
+) -> Result<hecs::Entity, &'static str> {
+    let feature = game
+        .content()
+        .features
+        .id_numbered(21)
+        .ok_or("tower is shipped")?;
+    Ok(game.spawn_feature(Placement {
+        at: pos,
+        feature,
+        node: None,
+        lair: Some(Lair {
+            intact,
+            guards: vec![(f4x_def::rules::UnitId::new(174) /* zombies */, 1)],
+            gold: 0,
+            mana: 0,
+            items: Vec::new(),
+            prisoner: false,
+            special: 0,
+            fought_by: Vec::new(),
+        }),
+    }))
 }
 
 /// Give the city at `pos` the buildings (by id), in the order given.

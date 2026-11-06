@@ -24,11 +24,7 @@ const ROWS: std::ops::RangeInclusive<u32> = 3..=10;
 
 /// The shipped content, parsed once for all the tests of the process.
 pub fn shipped() -> &'static Content {
-    static SHIPPED: std::sync::OnceLock<Content> = std::sync::OnceLock::new();
-    SHIPPED.get_or_init(|| {
-        f4x_def::load::load_content(std::path::Path::new("../../content"))
-            .expect("the rules data loads")
-    })
+    f4x_def::testdir::shipped()
 }
 
 /// A copy of the shipped content, for a `Game`, which owns its content.

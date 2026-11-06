@@ -44,16 +44,10 @@ pub fn settings() -> crate::game::setting::SettingsDef {
         .expect("rules_settings.ron parses")
 }
 
-/// The game's own `content/` folder, loaded by the real loader (`f4x_def::load::load_content`:
-/// checks, names and messages included). It is parsed once per test process.
+/// The game's own `content/` folder, loaded by the real loader (`f4x_def::testdir::shipped`), as
+/// a copy for a `Game`, which owns its content.
 pub fn shipped() -> Content {
-    static SHIPPED: std::sync::OnceLock<Content> = std::sync::OnceLock::new();
-    SHIPPED
-        .get_or_init(|| {
-            let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
-            f4x_def::load::load_content(&dir).expect("the shipped content loads")
-        })
-        .clone()
+    f4x_def::testdir::shipped().clone()
 }
 
 /// The number of the ability the content file calls `alias`, for tests that name abilities in

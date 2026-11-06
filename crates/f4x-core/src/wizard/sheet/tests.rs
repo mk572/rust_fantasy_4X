@@ -94,9 +94,12 @@ fn the_cost_of_a_spell_follows_the_books_the_retorts_and_where_it_is_cast() -> T
         .get(spell(&g, 4 /* giant_strength */));
     let base = strength.cost as i32;
     let bare = g.wizard(P0).ok_or("wizard is missing")?;
-    assert_eq!(bare.casting_cost(strength, true, false), base);
     assert_eq!(
-        bare.casting_cost(strength, false, false),
+        bare.casting_cost(&g.content.rules, strength, true, false),
+        base
+    );
+    assert_eq!(
+        bare.casting_cost(&g.content.rules, strength, false, false),
         base * 5,
         "five times as much away from a battle"
     );
@@ -106,11 +109,14 @@ fn the_cost_of_a_spell_follows_the_books_the_retorts_and_where_it_is_cast() -> T
         &[Retort::new(3) /* nature_mastery */],
     );
     let deep = g.wizard(P0).ok_or("wizard is missing")?;
-    assert_eq!(deep.cost_reduction(strength), 20 + 15);
-    let cost = deep.casting_cost(strength, true, false);
+    assert_eq!(deep.cost_reduction(&g.content.rules, strength), 20 + 15);
+    let cost = deep.casting_cost(&g.content.rules, strength, true, false);
     assert_eq!(cost, base - base * 35 / 100);
     // Evil Omens: half as much again for life and nature.
-    assert_eq!(deep.casting_cost(strength, true, true), cost + cost / 2);
+    assert_eq!(
+        deep.casting_cost(&g.content.rules, strength, true, true),
+        cost + cost / 2
+    );
     Ok(())
 }
 
@@ -121,7 +127,10 @@ fn the_power_is_split_by_the_percentages() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .set_split(40, 30, 30)
         .map_err(|e| format!("{e:?}"))?;
-    let split = g.wizard(P0).ok_or("wizard is missing")?.split_power(100, 6);
+    let split = g
+        .wizard(P0)
+        .ok_or("wizard is missing")?
+        .split_power(&g.content.rules, 100, 6);
     assert_eq!((split.mana, split.skill, split.research), (40, 30, 30 + 6));
     assert_eq!(
         g.wizard_mut(P0)
@@ -135,7 +144,10 @@ fn the_power_is_split_by_the_percentages() -> TestResult {
     w.get_mut::<Retorts>()
         .0
         .insert(Retort::new(11) /* mana_focusing */);
-    let split = g.wizard(P0).ok_or("wizard is missing")?.split_power(10, 0);
+    let split = g
+        .wizard(P0)
+        .ok_or("wizard is missing")?
+        .split_power(&g.content.rules, 10, 0);
     assert_eq!((split.mana, split.skill, split.research), (5 + 1, 5, 0));
     Ok(())
 }

@@ -8,7 +8,7 @@ use f4x_def::text::Args;
 use crate::view::App;
 
 /// The name of each statistic.
-const STAT_NAMES: [(Stat, &str); 34] = [
+const STAT_NAMES: [(Stat, &str); 35] = [
     (Stat::Melee, "temp.stat_melee"),
     (Stat::Ranged, "temp.stat_ranged"),
     (Stat::Defense, "temp.stat_defense"),
@@ -29,6 +29,7 @@ const STAT_NAMES: [(Stat, &str); 34] = [
     (Stat::ResearchIncome, "temp.stat_research_income"),
     (Stat::CastingSkill, "temp.stat_casting_skill"),
     (Stat::SpellCostPercent, "temp.stat_spell_cost_percent"),
+    (Stat::SpellUpkeepPercent, "temp.stat_spell_upkeep_percent"),
     (Stat::CityFood, "temp.stat_city_food"),
     (Stat::CityFoodFlat, "temp.stat_city_food_flat"),
     (Stat::FarmerFood, "temp.stat_farmer_food"),

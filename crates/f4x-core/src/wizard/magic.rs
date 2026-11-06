@@ -172,20 +172,20 @@ pub(crate) fn pick_spells(
 }
 
 /// What to do about the mana upkeep: the items to give up (newest first) so that the reserve
-/// can pay the rest, and what is then owed. A Channeler's items count half (`divisor` 2).
+/// can pay the rest, and what is then owed. A Channeler's items count half (`percent` 50).
 pub(crate) fn upkeep_plan(
     items: &[UpkeepItem],
-    divisor: i32,
+    percent: i32,
     reserve: i32,
 ) -> (Vec<UpkeepItem>, i32) {
-    let mut owed: i32 = items.iter().map(|i| i.mana).sum::<i32>() / divisor;
+    let mut owed: i32 = items.iter().map(|i| i.mana).sum::<i32>() * percent / 100;
     let mut rest = items.to_vec();
     let mut dropped = Vec::new();
     while owed > reserve {
         let Some(item) = rest.pop() else {
             break;
         };
-        owed -= item.mana / divisor;
+        owed -= item.mana * percent / 100;
         dropped.push(item);
     }
     (dropped, owed)
@@ -256,25 +256,25 @@ mod tests {
     #[test]
     fn upkeep_is_paid_from_the_reserve_and_the_newest_items_go_first() {
         let items = [item(5), item(10), item(20)];
-        let (dropped, owed) = upkeep_plan(&items, 1, 100);
+        let (dropped, owed) = upkeep_plan(&items, 100, 100);
         assert!(dropped.is_empty());
         assert_eq!(owed, 35);
         // 35 owed against 20: drop the newest (20) and 15 is left, within 20.
-        let (dropped, owed) = upkeep_plan(&items, 1, 20);
+        let (dropped, owed) = upkeep_plan(&items, 100, 20);
         assert_eq!(dropped, [item(20)]);
         assert_eq!(owed, 15);
         // With nothing in the reserve everything goes.
-        let (dropped, owed) = upkeep_plan(&items, 1, 0);
+        let (dropped, owed) = upkeep_plan(&items, 100, 0);
         assert_eq!(dropped, [item(20), item(10), item(5)]);
         assert_eq!(owed, 0);
-        assert_eq!(upkeep_plan(&[], 1, 0), (Vec::new(), 0));
+        assert_eq!(upkeep_plan(&[], 100, 0), (Vec::new(), 0));
     }
 
     #[test]
-    fn a_channeler_pays_half_the_upkeep() {
+    fn half_the_upkeep_percent_halves_what_is_owed_and_dropped() {
         let items = [item(10), item(20)];
-        assert_eq!(upkeep_plan(&items, 2, 15), (Vec::new(), 15));
-        let (dropped, owed) = upkeep_plan(&items, 2, 10);
+        assert_eq!(upkeep_plan(&items, 50, 15), (Vec::new(), 15));
+        let (dropped, owed) = upkeep_plan(&items, 50, 10);
         assert_eq!(dropped, [item(20)]);
         assert_eq!(owed, 5);
     }

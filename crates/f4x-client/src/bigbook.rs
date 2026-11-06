@@ -183,7 +183,10 @@ impl App {
         self.draw_styled(view, &Style::nearest(4, color), &shown, x, y);
         let line = if research_page {
             let bonus = self.game.wizard(HUMAN).map_or(0, |m| {
-                m.research_bonus(self.game.content().rules.spells.get(spell))
+                m.research_bonus(
+                    &self.game.content().rules,
+                    self.game.content().rules.spells.get(spell),
+                )
             });
             let cost = if current {
                 research_left

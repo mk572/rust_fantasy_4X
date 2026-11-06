@@ -48,6 +48,8 @@ pub struct Facts {
     pub kind: Option<crate::rules::UnitKind>,
     pub in_battle: bool,
     pub in_city: bool,
+    /// The kinds the spell in question is (for a wizard's retorts).
+    pub spell_tags: Vec<crate::rules::effects::SpellTag>,
 }
 
 /// Who is acting, and on what, when an effect rule runs.
@@ -192,6 +194,7 @@ pub fn eval(cond: &Condition, facts: &Facts) -> bool {
         Condition::KindIs(k) => facts.kind == Some(*k),
         Condition::InBattle => facts.in_battle,
         Condition::InCity => facts.in_city,
+        Condition::SpellIs(t) => facts.spell_tags.contains(t),
         Condition::All(cs) => cs.iter().all(|c| eval(c, facts)),
         Condition::Any(cs) => cs.iter().any(|c| eval(c, facts)),
         Condition::Not(c) => !eval(c, facts),

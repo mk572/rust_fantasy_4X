@@ -1,4 +1,5 @@
 use super::*;
+use crate::game::setting::AiWizardSettings;
 use crate::game::testutil::{realm, shipped};
 use crate::rules::RealmId;
 use crate::rules::Rules;
@@ -25,10 +26,10 @@ fn rules() -> Rules {
     shipped().rules
 }
 
-/// A game that knows the retorts, which the computer wizards are drawn from.
+/// A game on the shipped content.
 fn new_game(seed: u64) -> Game {
     let mut g = Game::new(seed);
-    g.content.rules.retorts = rules().retorts;
+    g.set_content(shipped());
     g
 }
 
@@ -75,9 +76,18 @@ fn game_with(seed: u64, defs: Vec<WizardDef>) -> Game {
 }
 
 fn settings(opponents: u8, picks: u8) -> GameSettings {
-    let mut s = GameSettings::flat();
+    let mut s =
+        GameSettings::for_difficulty(&crate::game::testutil::settings(), 2 /* Average */);
     s.basic.opponents = opponents;
     s.wizards.picks.ai = picks;
+    // Each test switches on the one wizard rule it is about.
+    s.ai.wizards = AiWizardSettings {
+        randomise: false,
+        consolidate_percent: 0,
+        erasure_dice: (0, 0),
+        myrran_rule: false,
+        guaranteed_summoning_spell: false,
+    };
     s
 }
 

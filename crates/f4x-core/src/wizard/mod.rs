@@ -17,6 +17,7 @@ pub(crate) mod magic_command;
 pub(crate) mod magic_game;
 pub mod magic_income;
 pub mod objective;
+pub mod retort;
 pub mod sheet;
 
 use std::collections::{BTreeMap, BTreeSet};
