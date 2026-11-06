@@ -9,6 +9,7 @@ use std::cell::RefCell;
 
 use crate::font::{rgb, Style};
 use crate::frame::Layout;
+use crate::menu_bar_art::draw_button;
 use crate::menu_bar_art::label_font;
 use crate::view::App;
 
@@ -40,14 +41,16 @@ fn texture(width: u32) -> Option<Texture2D> {
 
 impl App {
     /// Draw the plank `width` wide with the label `key` (a text key) with its top left at `at`, in
-    /// the original's pixels. `fade` (1 = opaque) dims a disabled button. False when there is no
-    /// picture of that width.
+    /// the original's pixels. `pressed` is the look every button of the client has while held
+    /// (`menu_bar_art::draw_button`: the picture and the label a pixel right and down); `fade`
+    /// (1 = opaque) dims a disabled button. False when there is no picture of that width.
     pub(crate) fn draw_plank(
         &mut self,
         lay: &Layout,
         width: u32,
         key: &str,
         at: (f32, f32),
+        pressed: bool,
         fade: f32,
     ) -> bool {
         let Some(tex) = texture(width) else {
@@ -56,16 +59,15 @@ impl App {
         let s = lay.scale;
         let size = vec2(tex.width(), tex.height());
         let p = lay.point(at.0, at.1);
-        draw_texture_ex(
+        draw_button(
             &tex,
-            p.x,
-            p.y,
+            p,
+            size * s,
+            s,
+            pressed,
             Color::new(1.0, 1.0, 1.0, fade),
-            DrawTextureParams {
-                dest_size: Some(size * s),
-                ..Default::default()
-            },
         );
+        let shift = if pressed { 1.0 } else { 0.0 };
         let label = self.text(key);
         let ink = rgb(97, 56, 16);
         let style = Style::flat(4, Color::new(ink.r, ink.g, ink.b, fade))
@@ -77,7 +79,7 @@ impl App {
             (lay.origin.x, lay.origin.y, s),
             &style,
             &label,
-            (at.0 + size.x / 2.0 - 1.0, at.1 + 2.0),
+            (at.0 + size.x / 2.0 - 1.0 + shift, at.1 + 2.0 + shift),
         );
         true
     }

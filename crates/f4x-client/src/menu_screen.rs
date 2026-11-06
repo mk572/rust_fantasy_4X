@@ -196,9 +196,8 @@ impl App {
         input: &Input,
     ) -> bool {
         let state = ui::hit(lay.rect((at.0, at.1, width as f32, 13.0)), enabled, input);
-        let shift = if state.held() { 1.0 } else { 0.0 };
         let fade = if enabled { 1.0 } else { 0.4 };
-        self.draw_plank(lay, width, key, (at.0 + shift, at.1 + shift), fade);
+        self.draw_plank(lay, width, key, at, state.held(), fade);
         state.clicked()
     }
 

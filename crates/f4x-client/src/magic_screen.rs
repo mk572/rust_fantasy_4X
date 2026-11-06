@@ -13,6 +13,7 @@ use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
+use crate::panel_button_art::Panel;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
@@ -751,37 +752,29 @@ impl Page for MagicUi {
         app.magic_gems(&lay, view, !modal, input, &mut self.first_wizard);
         self.magic_enchantments(app, &lay, view, !modal, input);
 
-        // The Alchemy and OK buttons.
-        let alchemy = app.draw_pic(&lay, "magic", 13, 0, 232.0, 181.0);
-        let ok = app.draw_pic(&lay, "magic", 14, 0, 291.0, 181.0);
-        let hit = |r: Option<Rect>| r.is_some_and(|r| ui::hit(r, true, input).clicked());
-        if !modal {
-            if hit(alchemy)
-                || (alchemy.is_none()
-                    && button(
-                        lay.rect((232.0, 181.0, 58.0, 15.0)),
-                        &app.text("magic.alchemy"),
-                        true,
-                        input,
-                    ))
-            {
-                let gold_to_mana = true;
-                self.alchemy = Some(AlchemyUi {
-                    gold_to_mana,
-                    slider: 3,
-                });
-            }
-            if hit(ok)
-                || (ok.is_none()
-                    && button(
-                        lay.rect((291.0, 181.0, 26.0, 15.0)),
-                        &app.text("ui.ok"),
-                        true,
-                        input,
-                    ))
-            {
-                app.screen = Screen::Map;
-            }
+        // The Alchemy and OK buttons (drawn while a box is open, but not clickable).
+        let alchemy = app.panel_button(
+            &lay,
+            Panel::BlueAlchemy,
+            "magic.alchemy",
+            (232.0, 181.0),
+            input,
+        );
+        let ok = app.panel_button(
+            &lay,
+            Panel::BlueOk,
+            "ui.button_ok_mixed",
+            (291.0, 181.0),
+            input,
+        );
+        if alchemy && !modal {
+            self.alchemy = Some(AlchemyUi {
+                gold_to_mana: true,
+                slider: 3,
+            });
+        }
+        if ok && !modal {
+            app.screen = Screen::Map;
         }
         if self.alchemy.is_some() {
             self.alchemy_popup(app, &lay, view, input);

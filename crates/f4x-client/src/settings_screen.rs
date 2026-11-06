@@ -183,13 +183,14 @@ impl Page for SettingsPage {
         let (l, t, r, b) = OK_AREA;
         let ok = lay.rect((l, t, r - l, b - t));
         let ok_hit = ui::hit(ok, true, input);
-        let hover = ok_hit.hovered();
-        let (dx, dy) = if hover {
-            (267.0, 177.0)
-        } else {
-            (266.0, 176.0)
-        };
-        app.draw_plank(&lay, 40, "ui.button_ok_mixed", (dx, dy), 1.0);
+        app.draw_plank(
+            &lay,
+            40,
+            "ui.button_ok_mixed",
+            (266.0, 176.0),
+            ok_hit.held(),
+            1.0,
+        );
         app.volume_sliders(&lay, view, mouse, input);
         // The game's own settings, which the original keeps on the new-game screen.
         let game_label = app.text("settings.game");

@@ -31,8 +31,17 @@ widened by repeating columns from its middle, so the Settings screen's Ok (40 wi
 plus a label from the font engine.
 
 The army list's Items and Ok (41x15, dark blue marble with a gold border; gold blackletter, a black
-shadow) are cleaned at everything gold or black inside the border and written as `panel_<name>.png`.
-The pressed picture is the up one moved, as for the others.
+shadow), the item screen's Alchemy and Ok (59x15, brown stone) and the magic screen's Alchemy and Ok
+(58x15 and 26x15, blue stone) share one blank per family and width, made from the Ok picture (it has
+the least lettering to overwrite): `panel_41.png`, `stone_59.png` and `blue_26.png`; the magic screen's
+Ok is too small to widen, so `blue_58.png` is made from its Alchemy. The army list's lettering is gold (or the black of
+its shadow) inside the border; the stone ones are lavender (four exact greys the stone does not have);
+all are taken with their shadow down and to the right. The pressed picture is the up one moved.
+
+The lavender lettering of those four buttons has a metallic sheen: its tone depends only on x - y, so
+the light and dark bands run diagonally across the whole word. `sheen_<family>_<name>.png` holds that
+pattern for one button (same size as the button, a colour for every pixel from the nearest diagonal that
+has lettering on it); the client keeps the lettering's pixels and takes their colours from it.
 """
 import argparse
 from pathlib import Path
@@ -43,7 +52,21 @@ INK = (8, 4, 4)
 NAMES = ["game", "spells", "armies", "cities", "magic", "info", "plane"]
 ACTIONS = ["done", "patrol", "wait", "build", "meld", "purify"]
 CITY = ["buy", "change", "ok"]
-PANELS = ["items", "ok"]
+# (screen, output name, button, widths): the button's picture, cleaned, at each width. The Ok is the
+# base where it is as wide as the others; the magic screen's (26) is too small to widen, so its
+# Alchemy (58) is the base of the wide one.
+OKS = [
+    ("army_list", "panel", "ok", [41]),
+    ("item_screen", "stone", "ok", [59]),
+    ("magic_screen", "blue", "ok", [26]),
+    ("magic_screen", "blue", "alchemy", [58]),
+]
+SHEENS = [
+    ("item_screen", "stone", "alchemy"),
+    ("item_screen", "stone", "ok"),
+    ("magic_screen", "blue", "alchemy"),
+    ("magic_screen", "blue", "ok"),
+]
 LOCKED = ["done", "patrol", "wait", "build"]
 PLANK_WIDTHS = [38, 39, 40, 58]
 
@@ -149,6 +172,64 @@ def panel_ink(img: Image.Image) -> set[tuple[int, int]]:
     }
 
 
+LAVENDER = {(146, 146, 166), (178, 178, 195), (117, 117, 142), (174, 166, 162)}
+
+
+def stone_ink(img: Image.Image) -> set[tuple[int, int]]:
+    """The lavender lettering of the item and magic screens' buttons: the four greys the lettering
+    is made of (none is in the stone), rows 3 to 11 inside the frame."""
+    img = img.convert("RGBA")
+    w, h = img.size
+    px = img.load()
+    return {
+        (x, y)
+        for y in range(3, 12)
+        for x in range(4, w - 4)
+        if px[x, y][:3] in LAVENDER
+    }
+
+
+def sheen(img: Image.Image) -> Image.Image:
+    """The colour of the lettering along each diagonal x - y of the button, as a picture of the
+    button's size: the commonest colour of the lettering on that diagonal, and for a diagonal with
+    none the colour of the nearest one that has."""
+    from collections import Counter
+
+    img = img.convert("RGBA")
+    w, h = img.size
+    by_diagonal: dict[int, Counter] = {}
+    for x, y in stone_ink(img):
+        by_diagonal.setdefault(x - y, Counter())[img.getpixel((x, y))[:3]] += 1
+    known = sorted(by_diagonal)
+    out = Image.new("RGBA", (w, h))
+    for y in range(h):
+        for x in range(w):
+            u = min(known, key=lambda k: (abs(k - (x - y)), k))
+            out.putpixel((x, y), (*by_diagonal[u].most_common(1)[0][0], 255))
+    return out
+
+
+def widen(img: Image.Image, width: int, edge: int = 6) -> Image.Image:
+    """`img` made `width` wide: its `edge` columns at each end kept, the middle filled by walking
+    its middle columns back and forth. The same width returns the picture."""
+    w, h = img.size
+    if width == w:
+        return img
+    out = Image.new("RGBA", (width, h))
+    middle = list(range(edge, w - edge))
+    walk = middle + middle[-2:0:-1]
+    for x in range(width):
+        if x < edge:
+            src = x
+        elif x >= width - edge:
+            src = w - (width - x)
+        else:
+            src = walk[(x - edge) % len(walk)]
+        for y in range(h):
+            out.putpixel((x, y), img.getpixel((src, y)))
+    return out
+
+
 def plank(blank: Image.Image, width: int) -> Image.Image:
     """The blank plank widened to `width` by repeating columns of its middle."""
     w, h = blank.size
@@ -181,11 +262,17 @@ def main() -> None:
         img, n = clean(img, city_ink(img), shadow=False)
         img.save(out_dir / f"city_{name}.png")
         print(f"city {name}: {n} label pixels replaced")
-    for name in PANELS:
-        img = Image.open(Path(args.src).parent / "army_list" / f"button_{name}_00.png")
-        img, n = clean(img, panel_ink(img), shadow=False)
-        img.save(out_dir / f"panel_{name}.png")
-        print(f"panel {name}: {n} label pixels replaced")
+    for screen, prefix, button, widths in OKS:
+        img = Image.open(Path(args.src).parent / screen / f"button_{button}_00.png")
+        ink = panel_ink(img) if prefix == "panel" else stone_ink(img)
+        img, n = clean(img, ink, shadow=prefix != "panel")
+        for width in widths:
+            widen(img, width).save(out_dir / f"{prefix}_{width}.png")
+            print(f"{prefix} {width}: {n} label pixels replaced")
+    for screen, prefix, button in SHEENS:
+        img = Image.open(Path(args.src).parent / screen / f"button_{button}_00.png")
+        sheen(img).save(out_dir / f"sheen_{prefix}_{button}.png")
+        print(f"sheen {prefix} {button}")
     blank = Image.open(Path(args.src).parent / "load_save" / "button_load_inactive_00.png")
     for width in PLANK_WIDTHS:
         plank(blank, width).save(out_dir / f"plank_{width}.png")

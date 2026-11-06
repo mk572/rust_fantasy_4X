@@ -12,6 +12,7 @@ use crate::font::{Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
+use crate::panel_button_art::Panel;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::item::armory::{ItemError, ItemSpot, Spot, TRANSFER_MANA, VAULT_SLOTS};
@@ -159,11 +160,6 @@ impl App {
             color,
         );
         ui::hit(lay.rect((ax - 1.0, ay, 11.0, 18.0)), enabled, input).hovered()
-    }
-
-    /// One of the screen's two-frame buttons (`armylist` 7 and 8); true when clicked.
-    fn item_button(&mut self, lay: &Layout, entry: usize, x: f32, y: f32, input: &Input) -> bool {
-        self.army_button(lay, entry, x, y, true, input)
     }
 }
 impl ItemUi {
@@ -477,8 +473,22 @@ impl Page for ItemUi {
             wx + 203.0,
             wy + 164.0,
         );
-        let alchemy = !held && app.item_button(&lay, 7, wx + 219.0, wy + 155.0, input);
-        let ok = !held && app.item_button(&lay, 8, wx + 219.0, wy + 175.0, input);
+        let alchemy = !held
+            && app.panel_button(
+                &lay,
+                Panel::StoneAlchemy,
+                "magic.alchemy",
+                (wx + 219.0, wy + 155.0),
+                input,
+            );
+        let ok = !held
+            && app.panel_button(
+                &lay,
+                Panel::StoneOk,
+                "ui.button_ok_mixed",
+                (wx + 219.0, wy + 175.0),
+                input,
+            );
         if left && ui::hit(lay.rect((wx + 9.0, wy + 155.0, 39.0, 34.0)), true, input).hovered() {
             self.scrap_held(app);
         }

@@ -17,10 +17,10 @@ translucent shadow edge (`.edge(Color::from_rgba(..))`) follows the marbling.
 
 1. [x] Main screen: Next Turn (one 67x16 picture, `main` 35 and 58)
 2. [x] City screen: Buy, Change, OK (the scroll arrows have no text; a disabled button fades as the original's does, so the extractor's Buy (locked) picture is not needed)
-3. [x] Army list: Items, Ok are text-free (`panel_items.png`, `panel_ok.png`) with the labels drawn by `panel_button_art.rs` (style 4 in the gold set `PANEL_WORD`, black shadow, kerned); both match the original pixel for pixel
+3. [x] Army list: Items, Ok are text-free (`panel_41.png`, made from the Ok, shared by both) with the labels drawn by `panel_button_art.rs` (style 4 in the gold set `PANEL_WORD`, black shadow, kerned); both match the original pixel for pixel
 4. [x] City list: OK is the army list's text-free Ok (`reload` 22 is the same picture; the arrows have no text)
-5. [ ] Item screen: Alchemy, Ok
-6. [ ] Magic screen: Alchemy, Ok
+5. [x] Item screen: Alchemy, Ok are text-free (`stone_59.png`, made from the Ok, shared by both) with lavender labels from `panel_button_art.rs` (composed from the text's shape, a diagonal sheen picture and a light and a dark emboss edge)
+6. [x] Magic screen: Alchemy, Ok are text-free (`blue_58.png` from the Alchemy, `blue_26.png` from the Ok), labels from `panel_button_art.rs`; they now move a pixel when pressed, as the others do
 7. [ ] Alchemy: Cancel, OK (the arrows have no text)
 8. [ ] Road build: OK and CANCEL are baked into the border picture; the surveyor (`main` 41) too
 9. [ ] Spell cast: Cancel, baked into the border and also a picture of its own
