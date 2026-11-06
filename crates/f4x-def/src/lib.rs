@@ -5,8 +5,10 @@
 //! Tests: with each module.
 
 pub mod feature;
+pub mod hero;
 pub mod map;
 pub mod rules;
+pub mod settings;
 #[cfg(any(test, feature = "testutil"))]
 pub mod testdir;
 pub mod text;

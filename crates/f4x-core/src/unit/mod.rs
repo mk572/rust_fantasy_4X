@@ -89,13 +89,7 @@ impl UnitView<'_> {
     }
 }
 
-/// The most units a game may let stand on one tile: the ceiling of the `max_tile` setting and its
-/// default. Read the game's own limit with `Game::max_tile()`.
-pub const MAX_TILE_LIMIT: usize = 20;
-
-/// Most units in an army: the group that moves, attacks and fights together. A battle side is
-/// at most this many too (`battle::casting::MAX_SIDE_UNITS`).
-pub const MAX_STACK: usize = 9;
+pub use f4x_def::settings::{MAX_STACK, MAX_TILE_LIMIT};
 
 /// The unit rules' view of the game: the world, the content and the players.
 #[derive(Clone, Copy)]

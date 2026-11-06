@@ -27,8 +27,7 @@ use crate::player::PlayerId;
 use crate::game::Game;
 use crate::rules::{RaceId, UnitKind};
 
-/// Neutral cities placed on each plane.
-pub const NEUTRAL_CITIES_PER_PLANE: u32 = 15;
+pub use f4x_def::settings::NEUTRAL_CITIES_PER_PLANE;
 
 /// Neutral cities on a plane of `width` by `height`: 15 for every 60 by 40 squares.
 pub fn neutral_city_count(width: u32, height: u32) -> u32 {

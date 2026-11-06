@@ -96,13 +96,7 @@ const LAND_LATTICE: u32 = 6;
 /// turns to tundra with the chance that a roll of 1 to this beats its row.
 const TUNDRA_REACH: u32 = 3;
 
-/// The size of the map the original's counts are for: 60 by 40 squares.
-pub const REFERENCE_AREA: u32 = 60 * 40;
-
-/// `base` per [`REFERENCE_AREA`] squares, for a map of `width` by `height`, rounded.
-pub fn scaled_count(base: u32, width: u32, height: u32) -> u32 {
-    (base * width * height + REFERENCE_AREA / 2) / REFERENCE_AREA
-}
+pub use f4x_def::settings::{scaled_count, REFERENCE_AREA};
 
 impl GenParams {
     /// The parameters for a map of `width` by `height`: the counts of towers, nodes and
