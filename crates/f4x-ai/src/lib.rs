@@ -2,14 +2,16 @@
 //! through `Game::apply`. Nothing here reaches into the game's internals.
 //!
 //! One [`Ai`] plays one wizard. [`Ai::play_turn`] does that wizard's whole turn (research,
-//! spells, city production, settlers, the army) and leaves ending the turn to the caller,
-//! because a turn ends for every wizard at once; [`play_round`] does that for a list of AIs.
+//! spells, city production, settlers, the army) and leaves the turn's boundaries to `f4x-master`,
+//! which runs the rounds and the turn of each seat in order; [`AiSeat`] and [`NeutralSeat`] are
+//! the controllers it calls, and [`play_round`] plays one round for a list of AIs.
 //!
 //! Tests: in the modules (each decision has its own file and tests); `tests/it/` has the rules of
 //! the ships and the slow whole-game behaviour tests (ignored by default).
 
 pub mod battle;
 mod colony;
+mod controller;
 mod diplomacy;
 mod economy;
 mod expand;
@@ -307,19 +309,7 @@ pub fn answer_proposals(game: &mut Game, player: PlayerId) -> Vec<Event> {
 pub use neutral::{play_neutrals, play_neutrals_for};
 pub use offer::answer_resales;
 
-/// Let every AI play its turn, then end the turn for everyone. Returns all the events.
-pub fn play_round(game: &mut Game, ais: &mut [Ai]) -> Vec<Event> {
-    battle::install();
-    let mut events = Vec::new();
-    for ai in ais.iter_mut() {
-        events.extend(ai.play_turn(game));
-    }
-    events.extend(play_neutrals(game));
-    if game.game_over.is_none() {
-        events.extend(game.apply(Command::EndTurn));
-    }
-    events
-}
+pub use controller::{play_round, AiSeat, NeutralSeat};
 
 /// A tuning number that an experiment may set from the environment (`AIK_<NAME>`).
 pub(crate) fn knob(name: &str, default: f32) -> f32 {

@@ -91,7 +91,13 @@ impl Game {
         }
         let ends_history = matches!(
             command,
-            Command::EndTurn | Command::Battle(_) | Command::EnterSite { .. }
+            Command::EndTurn
+                | Command::StartRound
+                | Command::StartPlayerTurn { .. }
+                | Command::EndPlayerTurn { .. }
+                | Command::EndRound
+                | Command::Battle(_)
+                | Command::EnterSite { .. }
         );
         let label = label_of(&command);
         let before = (!ends_history).then(|| self.snapshot());

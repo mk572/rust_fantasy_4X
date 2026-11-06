@@ -22,7 +22,7 @@ struct Recorder {
 }
 
 impl Recorder {
-    fn seat(log: &Log, player: PlayerId, waits: u32) -> Seat {
+    fn seat(log: &Log, player: PlayerId, waits: u32) -> Seat<'static> {
         Seat::new(
             vec![player],
             Box::new(Recorder {
@@ -61,7 +61,7 @@ fn game(wizards: u8) -> Game {
     .expect("a new game")
 }
 
-fn seats(g: &Game, log: &Log) -> Vec<Seat> {
+fn seats(g: &Game, log: &Log) -> Vec<Seat<'static>> {
     g.player_ids()
         .into_iter()
         .filter(|&p| !g.is_neutral_player(p))
@@ -84,8 +84,8 @@ fn each_round_every_seat_plays_once_in_order() {
     assert_eq!(played, expect);
     assert_eq!(
         g.turn,
-        start + 2,
-        "the round counter advances once per round (the first round had begun)"
+        start + 3,
+        "the round counter advances once per round"
     );
 }
 

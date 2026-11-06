@@ -2597,6 +2597,7 @@ version = "0.0.4"
 dependencies = [
  "f4x-core",
  "f4x-def",
+ "f4x-master",
  "hecs",
 ]
 
@@ -2703,6 +2704,7 @@ dependencies = [
  "f4x-core",
  "f4x-def",
  "f4x-learn",
+ "f4x-master",
  "ron",
  "serde",
 ]

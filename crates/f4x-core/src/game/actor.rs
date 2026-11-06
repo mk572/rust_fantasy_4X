@@ -16,6 +16,8 @@ impl Game {
         let city = |c: hecs::Entity| self.economy().city_owner(c);
         match command {
             Command::EndTurn
+            | Command::StartRound
+            | Command::EndRound
             | Command::Battle(_)
             | Command::Diplomacy(_)
             | Command::AutoResolve { .. } => None,
@@ -47,6 +49,8 @@ impl Game {
             | Command::RejectOffer { player, .. }
             | Command::PlaceFortress { player, .. }
             | Command::Resign { player }
+            | Command::StartPlayerTurn { player }
+            | Command::EndPlayerTurn { player }
             | Command::RazeCity { player, .. }
             | Command::SetTaxRate { player, .. }
             | Command::SetGrandVizier { player, .. }

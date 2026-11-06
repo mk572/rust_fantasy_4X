@@ -6,6 +6,8 @@
 
 use f4x_core::game::{Event, Game};
 use f4x_core::player::PlayerId;
+use f4x_master::{Controller, Master, Seat, Status, Until};
+use std::cell::RefCell;
 
 /// Which copy of the AI plays a wizard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -99,21 +101,55 @@ pub fn play_neutrals(version: Version, game: &mut Game) -> Vec<Event> {
     }
 }
 
-/// Every contestant plays its turn, then the neutrals, then the turn ends for everyone (the same
-/// order as `f4x_ai::play_round`). Returns the events of each contestant's turn, in order, and
-/// then those of the neutrals and the turn change.
+/// A contestant at its seat: it plays when the master calls, and its events are kept apart
+/// from the master's (the soak reports each contestant's turn on its own).
+struct ContestantSeat<'a> {
+    contestant: &'a mut dyn Contestant,
+    turns: &'a RefCell<Vec<(PlayerId, Vec<Event>)>>,
+}
+
+impl Controller for ContestantSeat<'_> {
+    fn play(&mut self, game: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+        let events = self.contestant.play_turn(game);
+        self.turns
+            .borrow_mut()
+            .push((self.contestant.player(), events));
+        Status::Done
+    }
+}
+
+/// The neutral seat of one version of the AI.
+struct NeutralSeat(Version);
+
+impl Controller for NeutralSeat {
+    fn play(&mut self, game: &mut Game, _: &[PlayerId], events: &mut Vec<Event>) -> Status {
+        events.extend(play_neutrals(self.0, game));
+        Status::Done
+    }
+}
+
+/// The rest of the current round is played by the master: each contestant in seat order (the
+/// order of `players`), then the neutrals, then the round ends and the next one begins. Returns
+/// the events of each contestant's turn, in order, and then those of the neutrals and the round
+/// boundaries. A wizard without a contestant passes.
 pub fn play_round(
     game: &mut Game,
     players: &mut [Box<dyn Contestant>],
     neutrals: Version,
 ) -> (Vec<(PlayerId, Vec<Event>)>, Vec<Event>) {
-    let turns = players
-        .iter_mut()
-        .map(|p| (p.player(), p.play_turn(game)))
-        .collect();
-    let mut rest = play_neutrals(neutrals, game);
-    if game.game_over.is_none() {
-        rest.extend(game.apply(f4x_core::game::Command::EndTurn));
+    let turns = RefCell::new(Vec::new());
+    let mut seats: Vec<Seat> = Vec::new();
+    for p in players.iter_mut() {
+        let player = p.player();
+        seats.push(Seat::new(
+            vec![player],
+            Box::new(ContestantSeat {
+                contestant: p.as_mut(),
+                turns: &turns,
+            }),
+        ));
     }
-    (turns, rest)
+    seats.push(Seat::neutrals(Box::new(NeutralSeat(neutrals))));
+    let rest = Master::new(seats).run(game, Until::Rounds(1)).events;
+    (turns.into_inner(), rest)
 }

@@ -383,6 +383,10 @@ impl Game {
     fn execute_command(&mut self, cmd: Command) -> Vec<Event> {
         match cmd {
             Command::EndTurn => self.end_turn(),
+            Command::StartRound => self.start_round(),
+            Command::StartPlayerTurn { player } => self.start_player_turn(player),
+            Command::EndPlayerTurn { player } => self.end_player_turn(player),
+            Command::EndRound => self.end_round(),
             Command::CreateUnit { owner, pos, unit } => {
                 let unit = self.spawn_unit(owner, pos, unit);
                 vec![Event::UnitCreated { unit, pos }]

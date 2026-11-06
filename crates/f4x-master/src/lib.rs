@@ -40,22 +40,50 @@ pub trait Controller {
     fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status;
 }
 
-/// A seat at the table: the players it plays for and the controller that plays them.
-pub struct Seat {
-    players: Vec<PlayerId>,
-    controller: Box<dyn Controller>,
+/// A controller that plays nothing and finishes at once: for a seat the host does not drive
+/// (a human in a test or a tool that issues no commands).
+pub struct Pass;
+
+impl Controller for Pass {
+    fn play(&mut self, _: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+        Status::Done
+    }
 }
 
-impl Seat {
+/// A seat at the table: the players it plays for and the controller that plays them.
+pub struct Seat<'a> {
+    players: Vec<PlayerId>,
+    neutral: bool,
+    controller: Box<dyn Controller + 'a>,
+}
+
+impl<'a> Seat<'a> {
     /// A seat for the players in the order given (one wizard, or the neutral players).
-    pub fn new(players: Vec<PlayerId>, controller: Box<dyn Controller>) -> Self {
+    pub fn new(players: Vec<PlayerId>, controller: Box<dyn Controller + 'a>) -> Self {
         Self {
             players,
+            neutral: false,
             controller,
         }
     }
 
-    /// The players this seat plays.
+    /// The neutral seat: it plays every independent city's player and the monsters' owner, as
+    /// they are when its turn comes (cities turn neutral during a game). It always takes a turn.
+    pub fn neutrals(controller: Box<dyn Controller + 'a>) -> Self {
+        Self {
+            players: Vec::new(),
+            neutral: true,
+            controller,
+        }
+    }
+
+    /// Whether this is the neutral seat.
+    pub fn is_neutral(&self) -> bool {
+        self.neutral
+    }
+
+    /// The players this seat plays (none listed for the neutral seat; see
+    /// [`Master::players_of`]).
     pub fn players(&self) -> &[PlayerId] {
         &self.players
     }
@@ -121,20 +149,22 @@ pub enum Stopped {
 pub enum Until {
     /// Until a controller waits for input, or the game ends.
     Waiting,
-    /// Until this many rounds have ended (or a controller waits, or the game ends).
+    /// Until this many more rounds have begun (the round counter has advanced and the round-start
+    /// work is done), or a controller waits, or the game ends. `Rounds(1)` from a fresh master
+    /// plays out the current round and begins the next, as the old `EndTurn` did.
     Rounds(u32),
 }
 
 /// Runs the rounds.
-pub struct Master {
-    seats: Vec<Seat>,
+pub struct Master<'a> {
+    seats: Vec<Seat<'a>>,
     state: State,
 }
 
-impl Master {
+impl<'a> Master<'a> {
     /// A master for a game whose current round has already begun (a new game, whose set-up did
     /// the opening, or a game loaded without a saved state): the first seat plays first.
-    pub fn new(seats: Vec<Seat>) -> Self {
+    pub fn new(seats: Vec<Seat<'a>>) -> Self {
         Self {
             seats,
             state: State {
@@ -144,7 +174,7 @@ impl Master {
     }
 
     /// A master that goes on from a saved state.
-    pub fn resume(seats: Vec<Seat>, state: State) -> Self {
+    pub fn resume(seats: Vec<Seat<'a>>, state: State) -> Self {
         Self { seats, state }
     }
 
@@ -154,7 +184,7 @@ impl Master {
     }
 
     /// The seats, in playing order.
-    pub fn seats(&self) -> &[Seat] {
+    pub fn seats(&self) -> &[Seat<'a>] {
         &self.seats
     }
 
@@ -189,10 +219,10 @@ impl Master {
             return Err(Refused::UseLifecycle);
         }
         let seat = self.active_seat().ok_or(Refused::NobodyActing)?;
-        let players = &self.seats[seat].players;
+        let players = self.players_of(game, seat);
         if !players.contains(&actor) {
             return Err(Refused::NotYourTurn {
-                active: players[0],
+                active: players.first().copied().unwrap_or(actor),
                 actor,
             });
         }
@@ -204,12 +234,26 @@ impl Master {
         Ok(game.apply(command))
     }
 
+    /// The players a seat plays now: its own, or for the neutral seat every independent city's
+    /// player and the monsters' owner that exist.
+    pub fn players_of(&self, game: &Game, seat: usize) -> Vec<PlayerId> {
+        if self.seats[seat].neutral {
+            game.turn_players()
+                .into_iter()
+                .filter(|&p| game.is_neutral_player(p))
+                .collect()
+        } else {
+            self.seats[seat].players.clone()
+        }
+    }
+
     /// Whether the seat can take a turn: some player of it is still in the game.
     fn eligible(&self, game: &Game, seat: usize) -> bool {
-        self.seats[seat]
-            .players
-            .iter()
-            .any(|&p| game.player(p).is_some_and(|pl| !pl.is_defeated()))
+        self.seats[seat].neutral
+            || self.seats[seat]
+                .players
+                .iter()
+                .any(|&p| game.player(p).is_some_and(|pl| !pl.is_defeated()))
     }
 
     /// The first seat from `from` that can take a turn.
@@ -227,28 +271,28 @@ impl Master {
         match self.state.phase {
             Phase::Over => stopped = Stopped::Over,
             Phase::RoundStart => {
-                events.extend(game.start_round());
+                events.extend(game.apply(Command::StartRound));
                 self.state.phase = match self.next_eligible(game, 0) {
                     Some(i) => Phase::TurnStart(i),
                     None => Phase::Over,
                 };
             }
             Phase::TurnStart(i) => {
-                for &p in &self.seats[i].players {
-                    events.extend(game.start_player_turn(p));
+                for p in self.players_of(game, i) {
+                    events.extend(game.apply(Command::StartPlayerTurn { player: p }));
                 }
                 self.state.phase = Phase::Acting(i);
             }
             Phase::Acting(i) => {
-                let players = self.seats[i].players.clone();
+                let players = self.players_of(game, i);
                 match self.seats[i].controller.play(game, &players, &mut events) {
                     Status::Done => self.state.phase = Phase::TurnEnd(i),
                     Status::Waiting => stopped = Stopped::Waiting(i),
                 }
             }
             Phase::TurnEnd(i) => {
-                for &p in &self.seats[i].players {
-                    events.extend(game.end_player_turn(p));
+                for p in self.players_of(game, i) {
+                    events.extend(game.apply(Command::EndPlayerTurn { player: p }));
                 }
                 // A player may have been defeated during the turn; the next one to play is the
                 // next seat that is still in the game.
@@ -258,7 +302,7 @@ impl Master {
                 };
             }
             Phase::RoundEnd => {
-                events.extend(game.end_round());
+                events.extend(game.apply(Command::EndRound));
                 self.state.phase = if game.game_over.is_some() {
                     Phase::Over
                 } else {
@@ -275,25 +319,23 @@ impl Master {
     /// Step until the stop condition, collecting the events.
     pub fn run(&mut self, game: &mut Game, until: Until) -> Progress {
         let mut events = Vec::new();
-        let mut rounds = 0;
+        let mut begun = 0;
         loop {
-            let ending = self.state.phase == Phase::RoundEnd;
+            let starting = self.state.phase == Phase::RoundStart;
             let p = self.step(game);
             events.extend(p.events);
-            if ending && self.state.phase != Phase::RoundEnd {
-                rounds += 1;
+            if starting {
+                begun += 1;
             }
             match p.stopped {
                 Stopped::Ready => {}
                 stopped => return Progress { events, stopped },
             }
-            if let Until::Rounds(n) = until {
-                if rounds >= n {
-                    return Progress {
-                        events,
-                        stopped: Stopped::Ready,
-                    };
-                }
+            if matches!(until, Until::Rounds(n) if begun >= n) {
+                return Progress {
+                    events,
+                    stopped: Stopped::Ready,
+                };
             }
         }
     }

@@ -113,9 +113,20 @@ impl Ctx<'_> {
 }
 
 fn end(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
-    // The independent cities are run by their AI; the game does not run them itself.
-    f4x_ai::play_neutrals(ctx.game);
-    ctx.apply(Command::EndTurn)
+    // The master runs the rest of the round: the other wizards pass (the console plays one
+    // wizard), the independent cities are run by their AI, then the round ends and the next
+    // begins.
+    if ctx.game.game_over.is_some() {
+        // The game refuses every command once it is over; say so the usual way.
+        return ctx.apply(Command::EndTurn);
+    }
+    let events = f4x_ai::play_round(ctx.game, &mut []);
+    for e in &events {
+        let text = crate::describe::event(ctx.game, e);
+        ctx.say(text);
+    }
+    ctx.events.extend(events);
+    Ok(())
 }
 
 fn undo(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {

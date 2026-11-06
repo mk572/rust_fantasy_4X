@@ -7,6 +7,19 @@ use crate::{battle, city, diplomacy, game, item, map, player, rules, spell, unit
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Command {
     EndTurn,
+    /// The round begins (`Game::start_round`): the round counter advances and the world's
+    /// opening work runs. Sent by `f4x-master` once per round.
+    StartRound,
+    /// The turn of a player begins (`Game::start_player_turn`).
+    StartPlayerTurn {
+        player: player::PlayerId,
+    },
+    /// The turn of a player ends (`Game::end_player_turn`).
+    EndPlayerTurn {
+        player: player::PlayerId,
+    },
+    /// The round ends (`Game::end_round`): durations and world-wide work, once.
+    EndRound,
     /// Create a unit (summoning, production and scenario setup go through this).
     CreateUnit {
         owner: player::PlayerId,
