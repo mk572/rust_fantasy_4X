@@ -274,9 +274,9 @@ damages an existing one. Saves live in `saves/` (gitignored).
 fields does not need a bump. Migrating older versions would be added as a conversion step
 before `restore`. Version 3 saves (names for spells, items and powers) are refused with the version message; the converter is task 462.
 
-**Game version.** The game has one version, the workspace `version` in `Cargo.toml` (now 0.0.3),
+**Game version.** The game has one version, the workspace `version` in `Cargo.toml` (now 0.0.4),
 read as `save::GAME_VERSION`. Every save records it in `Snapshot.game_version` and in the header
-comment (`// f4x save, version 4, game 0.0.3`). A load reads a save or replay when `SAVE_VERSION`
+comment (`// f4x save, version 4, game 0.0.4`). A load reads a save or replay when `SAVE_VERSION`
 matches and its game version lies from `save::OLDEST_COMPATIBLE_VERSION` up to `GAME_VERSION`
 (compared as numbers). Raise `OLDEST_COMPATIBLE_VERSION` when a change makes older files unreadable;
 leave it when they still load. A newer or unparsable version is refused. Bump the game version in

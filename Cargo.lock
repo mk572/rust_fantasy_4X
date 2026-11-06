@@ -2593,7 +2593,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-ai"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "f4x-core",
  "f4x-def",
@@ -2602,7 +2602,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-ai-ref"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "f4x-core",
  "f4x-def",
@@ -2611,7 +2611,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-client"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "f4x-ai",
  "f4x-console",
@@ -2629,7 +2629,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-console"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "f4x-ai",
  "f4x-core",
@@ -2639,7 +2639,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-core"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "f4x-core",
  "f4x-def",
@@ -2652,7 +2652,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-def"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "f4x-def",
  "ron",
@@ -2661,7 +2661,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-extract"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "fontdue",
  "png 0.17.16",
@@ -2671,7 +2671,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-learn"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "burn",
  "f4x-ai",
@@ -2686,7 +2686,7 @@ dependencies = [
 
 [[package]]
 name = "f4x-tools"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "f4x-ai",
  "f4x-ai-ref",

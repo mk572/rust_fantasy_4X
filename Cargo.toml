@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/*", "crates/f4x-client/extract"]
 
 [workspace.package]
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 license = "CC0-1.0"
 

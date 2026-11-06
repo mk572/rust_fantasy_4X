@@ -56,7 +56,7 @@ pub const GAME_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// makes older files unreadable; leave it when they still load.
 pub const OLDEST_COMPATIBLE_VERSION: &str = "0.0.2";
 
-/// `"0.0.3"` as numbers, to compare versions (`"0.0.10"` is newer than `"0.0.9"`).
+/// `"0.0.4"` as numbers, to compare versions (`"0.0.10"` is newer than `"0.0.9"`).
 fn version_parts(version: &str) -> Option<Vec<u32>> {
     version.split('.').map(|p| p.parse().ok()).collect()
 }
