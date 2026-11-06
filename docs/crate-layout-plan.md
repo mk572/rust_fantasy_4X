@@ -103,7 +103,7 @@ them: the only callers inside core are tests (`new_game(` appears 24 times in co
 | From | Notes |
 |---|---|
 | `core/game/save.rs` (1,765 lines) and its tests (734), `game/serial.rs`, the `battle/save.rs` snapshot structs | the format (`SAVE_VERSION` 4) does not change |
-| `f4x-data/src/save.rs` (221 lines): `save_game`, `load_game`, atomic write | |
+| `f4x-data/src/save.rs` (221 lines): `save_game`, `load_game`, atomic write | moved into core as `game/save/file.rs` (task 467); the user decided save/load belongs to `f4x-core`, which replaces this stage |
 
 Risk (section 6): `save.rs` reads 25 `pub(crate)` fields of `Game` and calls `pub(crate)` restore
 methods (`restore_battle`, `Diplomacy::restore`). Moving it out means exposing a deliberate interface

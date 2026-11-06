@@ -239,7 +239,8 @@ fn named_path(name: Option<&str>) -> Result<PathBuf, ConsoleError> {
 
 fn save(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let path = save_path(a)?;
-    f4x_data::save::save_game(&path, ctx.game).map_err(|e| ConsoleError::Failed(e.to_string()))?;
+    f4x_core::game::save::save_game(&path, ctx.game)
+        .map_err(|e| ConsoleError::Failed(e.to_string()))?;
     ctx.say(format!("saved to {}", path.display()));
     Ok(())
 }
@@ -258,7 +259,7 @@ fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     replaces_game(ctx)?;
     let path = save_path(a)?;
     let content = ctx.game.content().clone();
-    let (mut game, integrity) = f4x_data::save::load_game(&path, content)
+    let (mut game, integrity) = f4x_core::game::save::load_game(&path, content)
         .map_err(|e| ConsoleError::Failed(e.to_string()))?;
     game.ensure_human(ctx.session.player);
     game.set_undo(true);

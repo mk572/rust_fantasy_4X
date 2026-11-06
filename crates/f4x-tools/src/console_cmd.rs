@@ -48,7 +48,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let mut game = match load {
         Some(path) => {
             let (mut g, _) =
-                f4x_data::save::load_game(&path, content).map_err(|e| e.to_string())?;
+                f4x_core::game::save::load_game(&path, content).map_err(|e| e.to_string())?;
             g.ensure_human(HUMAN);
             g
         }

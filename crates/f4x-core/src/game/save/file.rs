@@ -1,11 +1,12 @@
-//! Reading and writing save files.
+//! Reading and writing save files: the file side of [`Snapshot`] (a crash-safe write, the checksum
+//! check on reading, the summary a save slot list shows).
 
 use std::fmt;
 use std::path::Path;
 
-use f4x_core::content::Content;
-use f4x_core::game::save::{Integrity, LoadError, Snapshot};
-use f4x_core::game::Game;
+use crate::content::Content;
+use crate::game::save::{Integrity, LoadError, Snapshot};
+use crate::game::Game;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -82,18 +83,18 @@ pub fn summarize_save(path: &Path) -> Result<SaveSummary, SaveError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::game::Command;
-    use f4x_core::map::mapgen::{generate, GenParams};
-    use f4x_core::map::Plane;
-    use f4x_core::map::Position;
-    use f4x_core::player::PlayerId;
-    use f4x_core::rules::RealmId;
-    use f4x_core::testdir::TestDir;
-    use f4x_core::testdir::TestResult;
+    use crate::game::testutil::shipped;
+    use crate::game::Command;
+    use crate::map::mapgen::{generate, GenParams};
+    use crate::map::Plane;
+    use crate::map::Position;
+    use crate::player::PlayerId;
+    use crate::rules::RealmId;
+    use crate::testdir::TestDir;
+    use crate::testdir::TestResult;
 
     fn content() -> Content {
-        crate::load_content_layers(&[&crate::testutil::content_dir()])
-            .expect("the shipped content loads")
+        shipped()
     }
 
     /// A real generated map with the shipped content, a city, units and a few turns.
@@ -110,7 +111,7 @@ mod tests {
                 (RealmId::new(3 /* life */), 2),
                 (RealmId::new(2 /* chaos */), 1),
             ],
-            &[f4x_core::wizard::magic::Retort::new(0) /* alchemy */],
+            &[crate::wizard::magic::Retort::new(0) /* alchemy */],
             None,
         )
         .map_err(|e| format!("init_wizard: {e:?}"))?;

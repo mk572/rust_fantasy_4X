@@ -13,7 +13,10 @@
 //! the same snapshots. The random stream is resumed from the seed and the number of values
 //! drawn so far.
 //!
-//! Tests: in game/save/tests.rs.
+//! The files themselves (crash-safe write, checksum check on read, the save slot summary) are in
+//! `file`.
+//!
+//! Tests: in game/save/tests.rs and game/save/file.rs.
 
 use std::collections::BTreeMap;
 
@@ -1760,6 +1763,10 @@ fn restore_fog(f: FogSave, map: Option<&Map>) -> Result<Fog, LoadError> {
     Fog::from_parts(f.width, f.height, players)
         .ok_or_else(|| LoadError::Inconsistent("the explored area is malformed".into()))
 }
+
+pub mod file;
+
+pub use file::{load_game, save_game, summarize_save, SaveError, SaveSummary};
 
 #[cfg(test)]
 mod tests;

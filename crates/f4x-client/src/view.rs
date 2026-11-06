@@ -1109,7 +1109,7 @@ impl App {
 
     /// Write the game to `path`, reporting the outcome in the message log.
     pub fn save_to(&mut self, path: &Path) {
-        match f4x_data::save::save_game(path, &self.game) {
+        match f4x_core::game::save::save_game(path, &self.game) {
             Ok(()) => {
                 let args = Args::new()
                     .count("turn", self.game.turn)
@@ -1127,7 +1127,7 @@ impl App {
     pub fn load_from(&mut self, path: &Path) -> Result<(), String> {
         let content = self.game.content().clone();
         let (game, integrity) =
-            f4x_data::save::load_game(path, content).map_err(|e| e.to_string())?;
+            f4x_core::game::save::load_game(path, content).map_err(|e| e.to_string())?;
         // The next new game keeps its own seed; a loaded game does not set it.
         // Keep playing the same race: the human player's capital race.
         if let Some(r) = game.wizard(HUMAN).and_then(|w| w.capital_race()) {

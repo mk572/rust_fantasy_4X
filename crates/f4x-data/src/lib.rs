@@ -1,7 +1,6 @@
 //! Loading and validation of game content files.
 
 pub mod rules;
-pub mod save;
 #[cfg(test)]
 mod testutil;
 

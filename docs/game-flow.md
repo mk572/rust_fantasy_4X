@@ -237,7 +237,7 @@ one point.
 ## 8. Saving and loading
 
 `Game::snapshot()` captures a whole game as a `Snapshot`; `Snapshot::restore(content)` builds
-the game again. `f4x_data::save::{save_game, load_game}` do the file work. Code:
+the game again. `f4x_core::game::save::{save_game, load_game}` do the file work. Code:
 `f4x-core/src/game/save.rs`, `f4x-data/src/save.rs`.
 
 **What a save holds:** the seed and how many random numbers have been drawn (so the random
