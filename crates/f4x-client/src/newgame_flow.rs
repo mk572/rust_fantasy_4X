@@ -7,6 +7,7 @@
 
 use crate::font::{Ink, Style};
 use crate::input::Input;
+use crate::newgame_button_art::Board;
 use crate::page::Page;
 use crate::ui;
 use f4x_def::rules::RealmId;
@@ -343,23 +344,13 @@ impl CreateState {
         };
         let r = lay.rect((left, 182.0, 30.0, 14.0));
         let state = ui::hit(r, self.ng_input(), input);
-        let hover = state.hovered();
-        let fill = if hover {
-            Color::new(0.34, 0.24, 0.15, 1.0)
-        } else {
-            Color::new(0.24, 0.17, 0.11, 1.0)
-        };
-        draw_rectangle(r.x, r.y, r.w, r.h, fill);
-        draw_rectangle_lines(r.x, r.y, r.w, r.h, 2.0, Color::new(0.1, 0.07, 0.05, 1.0));
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let label = app.text("create.back");
-        app.draw_styled(view, &ng_ink(3, 31).center(), &label, left + 16.0, 187.0);
-        app.draw_styled(
-            view,
-            &ng_ink(3, if hover { 178 } else { 187 }).center(),
-            &label,
-            left + 15.0,
-            186.0,
+        app.draw_board(
+            lay,
+            Board::Small,
+            "create.back",
+            (left, 182.0),
+            state.held(),
+            1.0,
         );
         if state.clicked() {
             self.create_back(app);
