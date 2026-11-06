@@ -6,7 +6,7 @@
 use crate::map::{Position, TerrainId};
 use crate::player::PlayerId;
 
-use crate::game::Game;
+use crate::game::{Event, Game};
 use crate::rules::SpellId;
 
 impl Game {
@@ -127,6 +127,11 @@ impl Game {
         spells.researchable.remove(&spell);
         spells.known.insert(spell);
         true
+    }
+
+    /// Defeat a wizard now, as if `winner` had beaten them (for tests and the console).
+    pub fn cheat_defeat_player(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
+        self.defeat(loser, winner)
     }
 }
 

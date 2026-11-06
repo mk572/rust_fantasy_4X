@@ -5,6 +5,7 @@
 //! Tests: in game/tests.rs, and in the tests of the modules that add methods to `Game`.
 
 pub(crate) mod access;
+pub mod actor;
 pub mod cheat;
 pub mod command;
 pub mod endgame;

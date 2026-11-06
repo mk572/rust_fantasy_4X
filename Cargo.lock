@@ -2685,6 +2685,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "f4x-master"
+version = "0.0.4"
+dependencies = [
+ "f4x-core",
+ "f4x-def",
+ "serde",
+]
+
+[[package]]
 name = "f4x-tools"
 version = "0.0.4"
 dependencies = [
