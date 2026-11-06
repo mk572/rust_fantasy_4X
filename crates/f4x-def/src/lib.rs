@@ -4,8 +4,11 @@
 //!
 //! Tests: with each module.
 
+pub mod content;
 pub mod feature;
+pub mod help;
 pub mod hero;
+pub mod load;
 pub mod map;
 pub mod rules;
 pub mod settings;

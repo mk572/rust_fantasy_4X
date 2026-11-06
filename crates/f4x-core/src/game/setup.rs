@@ -98,6 +98,11 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     if !problems.is_empty() {
         return Err(problems.join("; "));
     }
+    // The hooks and special spells the code implements are the only ones the content may name.
+    let hooks = crate::hook::problems(&content.rules);
+    if !hooks.is_empty() {
+        return Err(hooks.join("; "));
+    }
     if spec.settings.basic.opponents > content.settings.max_opponents {
         return Err(format!(
             "{} opponents is over the most this content allows, {}",

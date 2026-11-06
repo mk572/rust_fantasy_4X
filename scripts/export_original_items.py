@@ -6,7 +6,7 @@
 spell save, the charges of the embedded spell, the 32-bit power mask and the flag byte.
 `item_powers.tsv`: the powers in the original's order: the mask of the item types that may carry
 it, its mana cost, group, realm (0 nature, 1 sorcery, 2 chaos, 3 life, 4 death, 5 arcane), the
-books it needs and its power mask. `crates/f4x-data/tests/it/original_content.rs` compares the
+books it needs and its power mask. `crates/f4x-core/tests/it/original_content.rs` compares the
 content with them. Needs the author's copy of the game; the output is numbers and names, so it
 is committed.
 
@@ -19,7 +19,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_GAME = REPO / "reference/mom-classic/Master of Magic Official Release"
-DEFAULT_OUT = REPO / "crates/f4x-data/tests/original"
+DEFAULT_OUT = REPO / "crates/f4x-core/tests/original"
 sys.path.insert(0, str(REPO / "scripts"))
 from import_mom import cstr, read_lbx, read_records  # noqa: E402
 

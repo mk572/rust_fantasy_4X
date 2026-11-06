@@ -7,11 +7,11 @@
 
 pub mod battle;
 pub mod city;
-pub mod content;
+pub use f4x_def::content;
 pub mod diplomacy;
 pub mod feature;
 pub mod game;
-pub mod help;
+pub use f4x_def::help;
 pub mod hero;
 pub mod hook;
 pub mod item;
@@ -21,7 +21,7 @@ pub mod rules;
 pub mod spell;
 #[cfg(any(test, feature = "testutil"))]
 pub use f4x_def::testdir;
-pub mod text;
+pub use f4x_def::text;
 pub mod threat;
 pub mod turn;
 pub mod unit;

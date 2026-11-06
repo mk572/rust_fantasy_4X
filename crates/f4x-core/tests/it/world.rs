@@ -17,7 +17,7 @@ pub const P1: PlayerId = PlayerId(1);
 pub fn shipped() -> &'static Content {
     static CONTENT: OnceLock<Content> = OnceLock::new();
     CONTENT.get_or_init(|| {
-        f4x_data::load_content(std::path::Path::new("../../content"))
+        f4x_def::load::load_content(std::path::Path::new("../../content"))
             .expect("the shipped content loads")
     })
 }

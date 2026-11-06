@@ -10,5 +10,5 @@ pub fn content_dir() -> PathBuf {
 }
 
 pub fn content() -> Content {
-    f4x_data::load_content(&content_dir()).expect("the shipped content loads")
+    f4x_def::load::load_content(&content_dir()).expect("the shipped content loads")
 }

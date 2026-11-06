@@ -3,7 +3,7 @@
 
 One row per race in the original's order (the order of `content/races.ron`): name, the buildings the
 race cannot build (record numbers of `BUILDDAT.LBX`, space separated), the outpost growth rate,
-the growth modifier (tens of percent) and the house type. `crates/f4x-data/tests/it/original_content.rs`
+the growth modifier (tens of percent) and the house type. `crates/f4x-core/tests/it/original_content.rs`
 compares every race of the content with it. Needs the ReMoM clone; the output is numbers, so it is committed.
 
     python3 -I scripts/export_original_races.py [--remom DIR] [--out FILE]
@@ -16,7 +16,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_REMOM = Path.home() / "projects/ReMoM"
-DEFAULT_OUT = REPO / "crates/f4x-data/tests/original/races.tsv"
+DEFAULT_OUT = REPO / "crates/f4x-core/tests/original/races.tsv"
 RACES = 14
 
 

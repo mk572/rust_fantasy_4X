@@ -25,7 +25,7 @@ use f4x_core::testdir::TestResult;
 fn shipped() -> &'static Content {
     static CONTENT: OnceLock<Content> = OnceLock::new();
     CONTENT.get_or_init(|| {
-        f4x_data::load_content(Path::new("../../content")).expect("the shipped content loads")
+        f4x_def::load::load_content(Path::new("../../content")).expect("the shipped content loads")
     })
 }
 

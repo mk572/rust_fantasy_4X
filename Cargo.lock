@@ -2642,7 +2642,6 @@ name = "f4x-core"
 version = "0.0.3"
 dependencies = [
  "f4x-core",
- "f4x-data",
  "f4x-def",
  "hecs",
  "rand 0.8.8",
@@ -2655,9 +2654,7 @@ dependencies = [
 name = "f4x-data"
 version = "0.0.3"
 dependencies = [
- "f4x-core",
- "ron",
- "serde",
+ "f4x-def",
 ]
 
 [[package]]

@@ -3,15 +3,15 @@
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
-use f4x_core::feature::def::Features;
-use f4x_core::rules::effects::{Condition, Effect, EffectRule, Trigger};
-use f4x_core::rules::{
+use crate::feature::Features;
+use crate::rules::effects::{Condition, Effect, EffectRule, Trigger};
+use crate::rules::{
     AbilityDef, AbilityId, BuildingDef, Def, Duration, HeroTemplate, ItemDef, ItemPowerDef,
     LevelPathDef, RaceDef, RealmDef, Registry, RetortDef, Rules, RulesConfig, SpellDef, Stat,
     UnitDef, UnitKind, WizardDef,
 };
 
-use crate::{id_problem, ContentError};
+use super::{id_problem, ContentError};
 
 /// The first of `dirs` that has the file `name`.
 fn find(dirs: &[&Path], name: &str) -> Option<std::path::PathBuf> {
@@ -89,7 +89,7 @@ fn name_table<V: serde::de::DeserializeOwned>(
     file: &str,
 ) -> Result<std::collections::BTreeMap<u16, V>, ContentError> {
     let mut all = std::collections::BTreeMap::new();
-    for l in [f4x_core::text::FALLBACK_LANGUAGE, lang] {
+    for l in [crate::text::FALLBACK_LANGUAGE, lang] {
         let name = format!("text/{l}/name/{file}.ron");
         if find(dirs, &name).is_some() {
             all.extend(parse::<std::collections::BTreeMap<u16, V>>(dirs, &name)?);
@@ -103,12 +103,12 @@ fn name_table<V: serde::de::DeserializeOwned>(
 fn rival_names(
     dirs: &[&Path],
     lang: &str,
-) -> Result<Vec<Vec<(String, f4x_core::text::Gender)>>, ContentError> {
+) -> Result<Vec<Vec<(String, crate::text::Gender)>>, ContentError> {
     let own = format!("text/{lang}/name/rival.ron");
     let name = if find(dirs, &own).is_some() {
         own
     } else {
-        format!("text/{}/name/rival.ron", f4x_core::text::FALLBACK_LANGUAGE)
+        format!("text/{}/name/rival.ron", crate::text::FALLBACK_LANGUAGE)
     };
     parse(dirs, &name)
 }
@@ -165,9 +165,9 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         // Fallback names for rival wizards, also optional.
         // The lair rules, also optional: a rule set without the file uses the original's.
         lairs: if find(dir, "lairs.ron").is_some() {
-            parse::<f4x_core::rules::lair::LairRules>(dir, "lairs.ron")?
+            parse::<crate::rules::lair::LairRules>(dir, "lairs.ron")?
         } else {
-            f4x_core::rules::lair::LairRules::default()
+            crate::rules::lair::LairRules::default()
         },
         wizard_names: rival_names(dir, lang)?,
     };
@@ -277,7 +277,7 @@ fn check_hero_templates(r: &Rules, p: &mut Vec<String>) {
             p.push(format!("{who} appears twice"));
         }
         for &a in &t.abilities {
-            if !f4x_core::hero::HeroAbilities::is_hero_ability(a) {
+            if !crate::hero::HeroAbilities::is_hero_ability(a) {
                 p.push(format!("{who} has unknown hero ability {}", a.num()));
             }
         }
@@ -291,7 +291,7 @@ fn check_hero_templates(r: &Rules, p: &mut Vec<String>) {
         }
     }
     for u in r.units.defs().iter().filter(|u| u.kind == UnitKind::Hero) {
-        if !seen.contains(&f4x_core::rules::UnitId::new(u.num)) {
+        if !seen.contains(&crate::rules::UnitId::new(u.num)) {
             p.push(format!("hero {:?} has no hero template", u.id));
         }
     }
@@ -416,8 +416,6 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
             ));
         }
     }
-    // The hooks and special spells the code implements (the definitions do not know them).
-    p.extend(f4x_core::hook::problems(r));
     for (owner, rules) in carriers {
         for rule in rules {
             check_rule(r, features, &owner, rule, &mut p);
@@ -428,7 +426,7 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
 
 fn check_races(r: &Rules, p: &mut Vec<String>) {
     for race in r.races.defs() {
-        let this = f4x_core::rules::RaceId::new(race.num);
+        let this = crate::rules::RaceId::new(race.num);
         if race.units.is_empty() {
             p.push(format!("race {:?} has no units", race.id));
         }
@@ -538,9 +536,10 @@ fn check_units(r: &Rules, p: &mut Vec<String>) {
                 match &u.race {
                     None => p.push(format!("{who} is Normal and needs a race")),
                     Some(race) => {
-                        let listed = r.races.try_get(*race).is_some_and(|rd| {
-                            rd.units.contains(&f4x_core::rules::UnitId::new(u.num))
-                        });
+                        let listed = r
+                            .races
+                            .try_get(*race)
+                            .is_some_and(|rd| rd.units.contains(&crate::rules::UnitId::new(u.num)));
                         if !listed {
                             p.push(format!(
                                 "{who} is not in its race's unit list, so nothing can build it"
@@ -696,7 +695,7 @@ fn check_spells(r: &Rules, p: &mut Vec<String>) {
 fn check_wizards(r: &Rules, p: &mut Vec<String>) {
     for retort in r.retorts.defs() {
         for need in &retort.requires {
-            if let f4x_core::rules::RetortNeed::Books(realm, _) = need {
+            if let crate::rules::RetortNeed::Books(realm, _) = need {
                 if r.realms.try_get(*realm).is_none() {
                     p.push(format!(
                         "retort {:?} needs books in unknown realm {}",
@@ -740,7 +739,7 @@ fn check_wizards(r: &Rules, p: &mut Vec<String>) {
                 )),
             }
         }
-        let budget = u32::from(f4x_core::wizard::PICKS);
+        let budget = u32::from(crate::settings::PICKS);
         if picks != budget {
             p.push(format!(
                 "wizard {:?} spends {picks} picks, not {budget}",
@@ -771,7 +770,7 @@ fn check_rule(r: &Rules, features: &Features, owner: &str, rule: &EffectRule, p:
             p.push(format!("{owner}: unknown ability {}", a.num()));
         }
     };
-    let realm = |m: &f4x_core::rules::RealmId, p: &mut Vec<String>| {
+    let realm = |m: &crate::rules::RealmId, p: &mut Vec<String>| {
         if r.realms.try_get(*m).is_none() {
             p.push(format!("{owner}: unknown realm {}", m.num()));
         }
@@ -825,7 +824,7 @@ fn check_rule(r: &Rules, features: &Features, owner: &str, rule: &EffectRule, p:
         }
         _ => {}
     }
-    if let f4x_core::rules::effects::TargetSel::UnitsInArea(0) = rule.target {
+    if let crate::rules::effects::TargetSel::UnitsInArea(0) = rule.target {
         p.push(format!("{owner}: area radius must be at least 1"));
     }
 }
@@ -858,14 +857,15 @@ fn check_condition(r: &Rules, owner: &str, c: &Condition, p: &mut Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::rules::stats::{compute, passive_modifiers};
-    use f4x_core::rules::Source;
-    use f4x_core::testdir::TestResult;
+    use crate::rules::stats::{compute, passive_modifiers};
+    use crate::rules::Source;
+    use crate::testdir::TestResult;
 
     #[test]
     fn the_committed_wizards_have_their_names_and_books() -> TestResult {
-        let dir = crate::testutil::content_dir();
-        let features = crate::parse_features(&std::fs::read_to_string(dir.join("features.ron"))?)?;
+        let dir = crate::load::testutil::content_dir();
+        let features =
+            crate::load::parse_features(&std::fs::read_to_string(dir.join("features.ron"))?)?;
         let rules = load_rules(&[dir.as_path(), &client_dir()], "en", &features)?;
         let wizards = rules.wizards.defs();
         assert_eq!(wizards.len(), 14);
@@ -878,17 +878,17 @@ mod tests {
     }
 
     fn content_dir() -> std::path::PathBuf {
-        crate::testutil::content_dir()
+        crate::load::testutil::content_dir()
     }
 
     fn client_dir() -> std::path::PathBuf {
-        crate::testutil::client_dir()
+        crate::load::testutil::client_dir()
     }
 
     fn features() -> Features {
         let src = std::fs::read_to_string(content_dir().join("features.ron"))
             .expect("content/features.ron exists");
-        crate::parse_features(&src).expect("the shipped features parse")
+        crate::load::parse_features(&src).expect("the shipped features parse")
     }
 
     /// The shipped files after applying `(file, from, to)` text replacements (for the files the
@@ -903,19 +903,19 @@ mod tests {
             }
             ron::from_str(&s).unwrap_or_else(|e| panic!("content/{name}: {e}"))
         }
-        let races: Vec<f4x_core::rules::RaceDef> = shipped("races.ron", edits);
+        let races: Vec<crate::rules::RaceDef> = shipped("races.ron", edits);
         let units: Vec<UnitDef> = shipped("units.ron", edits);
-        let abilities: Vec<f4x_core::rules::AbilityDef> = shipped("abilities.ron", edits);
-        let buildings: Vec<f4x_core::rules::BuildingDef> = shipped("buildings.ron", edits);
+        let abilities: Vec<crate::rules::AbilityDef> = shipped("abilities.ron", edits);
+        let buildings: Vec<crate::rules::BuildingDef> = shipped("buildings.ron", edits);
         let realms: Vec<RealmDef> = shipped("realms.ron", edits);
         let retorts: Vec<RetortDef> = shipped("retorts.ron", edits);
         let spells: Vec<SpellDef> = shipped("spells.ron", edits);
         let item_powers: Vec<ItemPowerDef> = shipped("item_powers.ron", edits);
         let level_paths: Vec<LevelPathDef> = shipped("level_paths.ron", edits);
-        let wizards: Vec<f4x_core::rules::WizardDef> = Vec::new();
-        let items: Vec<f4x_core::rules::ItemDef> = shipped("items.ron", edits);
-        let hero_templates: Vec<f4x_core::rules::HeroTemplate> = Vec::new();
-        let config: f4x_core::rules::RulesConfig = shipped("rules.ron", edits);
+        let wizards: Vec<crate::rules::WizardDef> = Vec::new();
+        let items: Vec<crate::rules::ItemDef> = shipped("items.ron", edits);
+        let hero_templates: Vec<crate::rules::HeroTemplate> = Vec::new();
+        let config: crate::rules::RulesConfig = shipped("rules.ron", edits);
         Rules {
             config,
             races: Registry::new(races),
@@ -937,14 +937,14 @@ mod tests {
 
     /// The shipped definitions, to change one by one.
     struct Lists {
-        races: Vec<f4x_core::rules::RaceDef>,
-        units: Vec<f4x_core::rules::UnitDef>,
-        abilities: Vec<f4x_core::rules::AbilityDef>,
-        buildings: Vec<f4x_core::rules::BuildingDef>,
-        spells: Vec<f4x_core::rules::SpellDef>,
-        items: Vec<f4x_core::rules::ItemDef>,
-        item_powers: Vec<f4x_core::rules::ItemPowerDef>,
-        level_paths: Vec<f4x_core::rules::LevelPathDef>,
+        races: Vec<crate::rules::RaceDef>,
+        units: Vec<crate::rules::UnitDef>,
+        abilities: Vec<crate::rules::AbilityDef>,
+        buildings: Vec<crate::rules::BuildingDef>,
+        spells: Vec<crate::rules::SpellDef>,
+        items: Vec<crate::rules::ItemDef>,
+        item_powers: Vec<crate::rules::ItemPowerDef>,
+        level_paths: Vec<crate::rules::LevelPathDef>,
     }
 
     /// Find a definition by its id, to change it.
@@ -994,7 +994,7 @@ mod tests {
     fn the_shipped_lair_table_is_the_default_and_bad_ones_are_refused() {
         assert_eq!(
             rules_with(&[]).lairs,
-            f4x_core::rules::lair::LairRules::default()
+            crate::rules::lair::LairRules::default()
         );
         assert!(has(
             &problems(&[("lairs.ron", "(4, 3), (3, 1)", "(99, 3)")]),
@@ -1043,11 +1043,11 @@ mod tests {
     fn catches_item_problems() {
         let p = problems_after(|l| {
             let item = find(&mut l.items, "black_asp", |i| &i.id);
-            item.slot = f4x_core::rules::ItemSlot::Armor;
-            item.powers = vec![f4x_core::rules::ItemPowerId::new(9990)];
-            item.charges = Some((f4x_core::rules::SpellId::new(9991), 0));
+            item.slot = crate::rules::ItemSlot::Armor;
+            item.powers = vec![crate::rules::ItemPowerId::new(9990)];
+            item.charges = Some((crate::rules::SpellId::new(9991), 0));
             find(&mut l.item_powers, "flaming", |i| &i.id).realm =
-                Some(f4x_core::rules::RealmId::new(9992));
+                Some(crate::rules::RealmId::new(9992));
         });
         assert!(has(&p, "a Sword does not go in the Armor slot"), "{p:?}");
         assert!(has(&p, "unknown power 9990"), "{p:?}");
@@ -1061,12 +1061,12 @@ mod tests {
         let p = problems_after(|l| {
             find(&mut l.units, "dwarf", |u| &u.id)
                 .abilities
-                .push(f4x_core::rules::Ability::new(9990));
-            find(&mut l.spells, "web", |s| &s.id).realm = f4x_core::rules::RealmId::new(9991);
+                .push(crate::rules::Ability::new(9990));
+            find(&mut l.spells, "web", |s| &s.id).realm = crate::rules::RealmId::new(9991);
             let race = find(&mut l.races, "barbarian", |r| &r.id);
             // The barbarians' bowmen (unit 41) become a unit nobody has.
             let bowmen = race.units.iter_mut().find(|u| u.num() == 41);
-            *bowmen.expect("the barbarians build bowmen") = f4x_core::rules::UnitId::new(9992);
+            *bowmen.expect("the barbarians build bowmen") = crate::rules::UnitId::new(9992);
         });
         assert!(has(&p, "unknown ability 9990"), "{p:?}");
         assert!(has(&p, "unknown realm 9991"), "{p:?}");
@@ -1080,13 +1080,13 @@ mod tests {
 
     #[test]
     fn catches_hero_template_problems() {
-        use f4x_core::rules::{HeroTemplate, PickType};
+        use crate::rules::{HeroTemplate, PickType};
         let mut rules = rules_with(&[]);
         let template = |unit: u16| HeroTemplate {
-            unit: f4x_core::rules::UnitId::new(unit),
+            unit: crate::rules::UnitId::new(unit),
             picks: 1,
             pick_type: PickType::Any,
-            abilities: vec![f4x_core::rules::Ability::new(85 /* might */)],
+            abilities: vec![crate::rules::Ability::new(85 /* might */)],
             casting_skill: 0,
             spells: Vec::new(),
             names: Vec::new(),
@@ -1096,11 +1096,11 @@ mod tests {
         rules.hero_templates = vec![template(39 /* barbarian_spearmen */), template(9990)];
         rules.hero_templates[0]
             .abilities
-            .push(f4x_core::rules::Ability::new(24 /* flying */));
+            .push(crate::rules::Ability::new(24 /* flying */));
         // Flying is an ability, but not a hero one.
         rules.hero_templates[0]
             .spells
-            .push(f4x_core::rules::SpellId::new(9991));
+            .push(crate::rules::SpellId::new(9991));
         let p = validate_rules(&rules, &features());
         assert!(
             has(&p, "hero template for unit 39 is not a Hero unit"),
@@ -1133,7 +1133,7 @@ mod tests {
     fn catches_a_building_replacing_nothing() {
         let p = problems_after(|l| {
             find(&mut l.buildings, "armory", |b| &b.id).replaces =
-                Some(f4x_core::rules::BuildingId::new(9990));
+                Some(crate::rules::BuildingId::new(9990));
         });
         assert!(has(&p, "replaces unknown building 9990"), "{p:?}");
     }
@@ -1143,14 +1143,14 @@ mod tests {
         // The armory needs the barracks; make the barracks need the armory.
         let p = problems_after(|l| {
             find(&mut l.buildings, "barracks", |b| &b.id).requires =
-                vec![f4x_core::rules::BuildingId::new(4 /* armory */)];
+                vec![crate::rules::BuildingId::new(4 /* armory */)];
         });
         assert!(has(&p, "requirement cycle"), "{p:?}");
         // A unit that needs a building its race cannot build.
         let q = problems_after(|l| {
             let walls = find(&mut l.buildings, "armorers_guild", |b| &b.id);
-            let guild = f4x_core::rules::BuildingId::new(walls.num);
-            let gnoll = f4x_core::rules::RaceId::new(5 /* gnoll */);
+            let guild = crate::rules::BuildingId::new(walls.num);
+            let gnoll = crate::rules::RaceId::new(5 /* gnoll */);
             assert!(!walls.races.contains(&gnoll));
             let unit = l
                 .units
@@ -1165,8 +1165,8 @@ mod tests {
 
     #[test]
     fn catches_spell_and_effect_problems() {
-        use f4x_core::rules::effects::Effect;
-        use f4x_core::rules::Duration;
+        use crate::rules::effects::Effect;
+        use crate::rules::Duration;
         let p = problems_after(|l| {
             // a passive modifier on an instant spell
             find(&mut l.spells, "giant_strength", |s| &s.id).duration = Duration::Instant;
@@ -1177,19 +1177,16 @@ mod tests {
                     *count = 0;
                 }
             }
-            // a custom hook that does not exist
             let healing = find(&mut l.spells, "healing", |s| &s.id);
-            healing.effects[0].effect = Effect::Custom("mystery".into());
             // an ability that applies an instant spell as an enchantment
             let mut rule = healing.effects[0].clone();
             let fireball =
-                f4x_core::rules::SpellId::new(find(&mut l.spells, "fireball", |s| &s.id).num);
+                crate::rules::SpellId::new(find(&mut l.spells, "fireball", |s| &s.id).num);
             rule.effect = Effect::ApplyEnchantment(fireball);
             l.abilities[0].effects = vec![rule];
         });
         assert!(has(&p, "instant but has Passive"), "{p:?}");
         assert!(has(&p, "summon count"), "{p:?}");
-        assert!(has(&p, "unknown custom hook"), "{p:?}");
         assert!(has(&p, "instant spell, not an enchantment"), "{p:?}");
     }
 
@@ -1203,10 +1200,10 @@ mod tests {
 
     #[test]
     fn veteran_stats_come_from_def_plus_level_modifiers() -> TestResult {
-        use f4x_core::rules::effects::Effect;
-        use f4x_core::rules::ModOp;
+        use crate::rules::effects::Effect;
+        use crate::rules::ModOp;
         // What a list of effects adds to a stat.
-        let added = |effects: &[f4x_core::rules::effects::EffectRule], stat: Stat| -> i32 {
+        let added = |effects: &[crate::rules::effects::EffectRule], stat: Stat| -> i32 {
             effects
                 .iter()
                 .map(|r| match r.effect {
@@ -1252,7 +1249,7 @@ mod tests {
 
     #[test]
     fn city_names_come_from_the_first_directory_that_has_the_file() -> TestResult {
-        let over = f4x_core::testdir::TestDir::new("names");
+        let over = crate::testdir::TestDir::new("names");
         std::fs::write(
             over.join("city_names.ron"),
             r#"[(race: "barbarian", names: ["Alpha", "Beta"])]"#,

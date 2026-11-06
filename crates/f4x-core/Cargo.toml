@@ -20,6 +20,3 @@ testutil = ["f4x-def/testutil"]
 [dev-dependencies]
 f4x-def = { workspace = true, features = ["testutil"] }
 f4x-core = { path = ".", features = ["testutil"] }
-# The integration tests in tests/it/ run on the shipped content. A dev-dependency cycle is fine for
-# them; unit tests in src/ would see two copies of this crate's types.
-f4x-data.workspace = true

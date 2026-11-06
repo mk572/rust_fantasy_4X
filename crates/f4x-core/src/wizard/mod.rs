@@ -27,8 +27,7 @@ use crate::player::PlayerId;
 use crate::rules::{Rarity, RealmId, Rules, SpellId};
 use crate::wizard::magic::{MagicError, Retort};
 
-/// Picks the wizard spends on books and retorts.
-pub const PICKS: u8 = 11;
+pub use f4x_def::settings::PICKS;
 /// Most retorts a wizard may have.
 pub const MAX_RETORTS: usize = 6;
 /// Most books in one realm.

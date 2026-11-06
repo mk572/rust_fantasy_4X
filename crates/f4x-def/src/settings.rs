@@ -31,6 +31,9 @@ pub const NEUTRAL_CITIES_PER_PLANE: u32 = 15;
 /// default. Read the game's own limit with `Game::max_tile()`.
 pub const MAX_TILE_LIMIT: usize = 20;
 
+/// Picks the wizard spends on books and retorts.
+pub const PICKS: u8 = 11;
+
 /// Most units in an army: the group that moves, attacks and fights together. A battle side is
 /// at most this many too (`battle::casting::MAX_SIDE_UNITS`).
 pub const MAX_STACK: usize = 9;

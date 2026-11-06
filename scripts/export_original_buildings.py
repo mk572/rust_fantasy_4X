@@ -3,7 +3,7 @@
 
 One row per record, in the original's order: name, cost, upkeep (gold a turn), the two
 required buildings (a record number, 0 for none, 100 and up for a terrain), the building it
-replaces and the experience it gives to new units (20 or 60). `crates/f4x-data/tests/
+replaces and the experience it gives to new units (20 or 60). `crates/f4x-core/tests/
 original_content.rs` compares the content with it. Needs the author's copy of the game; the
 output is numbers and names, so it is committed.
 
@@ -16,7 +16,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_GAME = REPO / "reference/mom-classic/Master of Magic Official Release"
-DEFAULT_OUT = REPO / "crates/f4x-data/tests/original/buildings.tsv"
+DEFAULT_OUT = REPO / "crates/f4x-core/tests/original/buildings.tsv"
 sys.path.insert(0, str(REPO / "scripts"))
 from import_mom import cstr, read_lbx, read_records  # noqa: E402
 
