@@ -17,6 +17,7 @@ use crate::art::{TILE_H, TILE_W};
 use crate::sell_prompt::{CityPanel, SellPrompt};
 use crate::ui::GOLD;
 use crate::view::{App, Screen, HUMAN};
+use crate::wood_button_art::Wood;
 
 /// Virtual-to-screen mapping for the 320x200 layout.
 #[derive(Clone, Copy)]
@@ -1557,9 +1558,9 @@ impl App {
             .map_or(0, |p| p.treasury().gold);
         let price = self.game.economy().buy_cost(city);
         // Clickable whenever the item can be bought; too little gold is answered with a box.
-        if self.backgrnd_button(
+        if self.city_wood_button(
             lay,
-            7,
+            Wood::Buy,
             214.0,
             188.0,
             price.is_some() && !self.choosing,
@@ -1574,12 +1575,29 @@ impl App {
                 });
             }
         }
-        if self.backgrnd_button(lay, 8, 247.0, 188.0, !self.choosing, input) {
+        if self.city_wood_button(lay, Wood::Change, 247.0, 188.0, !self.choosing, input) {
             self.open_production(page);
         }
-        if self.backgrnd_button(lay, 9, 286.0, 188.0, !self.choosing, input) {
+        if self.city_wood_button(lay, Wood::Ok, 286.0, 188.0, !self.choosing, input) {
             self.screen = Screen::Map;
         }
+    }
+
+    /// One of the wooden buttons (Buy, Change, OK); true when clicked.
+    fn city_wood_button(
+        &mut self,
+        lay: Layout,
+        which: Wood,
+        x: f32,
+        y: f32,
+        enabled: bool,
+        input: &Input,
+    ) -> bool {
+        let lay = crate::frame::Layout {
+            scale: lay.scale,
+            origin: vec2(lay.ox, lay.oy),
+        };
+        self.draw_wood_button(&lay, which, (x, y), enabled, input)
     }
 
     /// One of the original's two-frame buttons from `backgrnd.lbx`; true when clicked.

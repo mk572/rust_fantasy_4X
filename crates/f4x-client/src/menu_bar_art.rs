@@ -54,14 +54,21 @@ pub(crate) fn texture(index: usize) -> Texture2D {
 
 /// Draw a button picture with its top left at `p`, `size` big on screen. Pressed, the original's
 /// picture is the up one a pixel (`scale` screen pixels) right and down under a dark top row and
-/// left column.
-pub(crate) fn draw_button(tex: &Texture2D, p: Vec2, size: Vec2, scale: f32, pressed: bool) {
+/// left column. `tint` colours the picture (its alpha fades it).
+pub(crate) fn draw_button(
+    tex: &Texture2D,
+    p: Vec2,
+    size: Vec2,
+    scale: f32,
+    pressed: bool,
+    tint: Color,
+) {
     if !pressed {
         draw_texture_ex(
             tex,
             p.x,
             p.y,
-            WHITE,
+            tint,
             DrawTextureParams {
                 dest_size: Some(size),
                 ..Default::default()
@@ -69,13 +76,19 @@ pub(crate) fn draw_button(tex: &Texture2D, p: Vec2, size: Vec2, scale: f32, pres
         );
         return;
     }
-    draw_rectangle(p.x, p.y, size.x, size.y, Color::from_rgba(8, 4, 4, 255));
+    draw_rectangle(
+        p.x,
+        p.y,
+        size.x,
+        size.y,
+        Color::new(8.0 / 255.0, 4.0 / 255.0, 4.0 / 255.0, tint.a),
+    );
     let (w, h) = (tex.width(), tex.height());
     draw_texture_ex(
         tex,
         p.x + scale,
         p.y + scale,
-        WHITE,
+        tint,
         DrawTextureParams {
             dest_size: Some(size - vec2(scale, scale)),
             source: Some(Rect::new(0.0, 0.0, w - 1.0, h - 1.0)),

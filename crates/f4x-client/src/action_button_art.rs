@@ -208,6 +208,7 @@ impl App {
             size * s,
             s,
             look == Look::Pressed,
+            WHITE,
         );
         let push = f32::from(u8::from(look == Look::Pressed));
         let label = self.text(action.key());

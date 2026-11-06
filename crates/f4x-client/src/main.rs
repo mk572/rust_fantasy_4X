@@ -98,6 +98,7 @@ mod view;
 mod wizard_anim;
 mod wizard_pick;
 mod wizard_screen;
+mod wood_button_art;
 
 use std::path::{Path, PathBuf};
 

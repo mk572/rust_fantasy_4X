@@ -254,7 +254,7 @@ impl App {
             let size = vec2(up.width(), up.height()) * s;
             let at = lay.point(x, spot::MENU_Y);
             let state = ui::hit(Rect::new(at.x, at.y, size.x, size.y), true, input);
-            crate::menu_bar_art::draw_button(&up, at, size, s, state.held());
+            crate::menu_bar_art::draw_button(&up, at, size, s, state.held(), WHITE);
             let label = self.text(crate::menu_bar_art::KEYS[i]);
             self.draw_styled_in(
                 &crate::menu_bar_art::label_font(),

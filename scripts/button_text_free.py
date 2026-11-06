@@ -14,6 +14,10 @@ the marble streaks run sideways. Needs Pillow (`.venv`).
 The Next Turn button (67x16, gold lettering with a dark shadow on grey stone) is cleaned by colour:
 the stone is grey and the lettering saturated.
 
+The city screen's Buy, Change and OK (wooden, 30x10 and 36x10; style 1 lettering in lavender grey,
+no shadow) are cleaned by colour: the lettering is the only blue-over-red pixels. They are written as
+`city_<name>.png`; the pressed picture is the up one moved, as for the others.
+
 The four action buttons of the unit window (Done, Patrol, Wait and Build, Meld or Purify) are
 33x9 and lettered in style 0 (5 px), ink (8,4,4), at y=2, with the "shadow down" copies in a lighter gold. Only the rows of the lettering
 count as ink, since the Wait and Build pictures have a dark speck below it. Only the up picture is
@@ -29,6 +33,7 @@ from PIL import Image
 INK = (8, 4, 4)
 NAMES = ["game", "spells", "armies", "cities", "magic", "info", "plane"]
 ACTIONS = ["done", "patrol", "wait", "build", "meld", "purify"]
+CITY = ["buy", "change", "ok"]
 LOCKED = ["done", "patrol", "wait", "build"]
 
 
@@ -104,6 +109,20 @@ def clean_next_turn(img: Image.Image) -> tuple[Image.Image, int]:
     return out, len(taken)
 
 
+def city_ink(img: Image.Image) -> set[tuple[int, int]]:
+    """The lettering of the city screen's wooden buttons: a cool lavender grey (blue above red) on
+    brown wood (red above blue), in rows 2 to 6."""
+    img = img.convert("RGBA")
+    w, _ = img.size
+    px = img.load()
+    return {
+        (x, y)
+        for y in range(2, 7)
+        for x in range(1, w - 2)
+        if px[x, y][2] > px[x, y][0] + 5
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--src", default="assets-local/screens/main_screen")
@@ -119,6 +138,11 @@ def main() -> None:
     img, n = clean_next_turn(Image.open(Path(args.src) / "button_next_turn_00.png"))
     img.save(out_dir / "next_turn.png")
     print(f"next_turn: {n} label pixels replaced")
+    for name in CITY:
+        img = Image.open(Path(args.src).parent / "city_screen" / f"button_{name}_00.png")
+        img, n = clean(img, city_ink(img), shadow=False)
+        img.save(out_dir / f"city_{name}.png")
+        print(f"city {name}: {n} label pixels replaced")
     for name in ACTIONS:
         img = Image.open(Path(args.src) / f"button_{name}_00.png")
         ink = ink_of(img, range(2, 7))

@@ -16,7 +16,7 @@ translucent shadow edge (`.edge(Color::from_rgba(..))`) follows the marbling.
 ## Pictures with baked text, confirmed (extractor `button_*` pictures)
 
 1. [x] Main screen: Next Turn (one 67x16 picture, `main` 35 and 58)
-2. [ ] City screen: Buy, Buy (locked), Change, OK (the scroll arrows have no text)
+2. [x] City screen: Buy, Change, OK (the scroll arrows have no text; a disabled button fades as the original's does, so the extractor's Buy (locked) picture is not needed)
 3. [ ] Army list: Items, Ok
 4. [ ] City list: OK (`reload` 22; the arrows have no text)
 5. [ ] Item screen: Alchemy, Ok

@@ -34,6 +34,10 @@
     "ui.button_build": "BUILD",
     "ui.button_meld": "MELD",
     "ui.button_purify": "PURIFY",
+    // The city screen's buttons.
+    "ui.button_buy": "BUY",
+    "ui.button_change": "CHANGE",
+    "ui.button_ok": "OK",
     "ui.gold": "Gold",
     "ui.food": "Food",
     "ui.mana": "Mana",
