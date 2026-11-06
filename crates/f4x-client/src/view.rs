@@ -1820,7 +1820,7 @@ impl App {
         let skill = self
             .game
             .wizard(HUMAN)
-            .map_or(1, |m| m.casting_skill())
+            .map_or(1, |m| m.casting_skill(&self.game.content().rules))
             .max(1);
         (remaining + skill - 1) / skill
     }

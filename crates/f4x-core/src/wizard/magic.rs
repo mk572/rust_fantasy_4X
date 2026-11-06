@@ -34,21 +34,21 @@ pub struct Casting {
 }
 
 /// Casting skill for an invested total: the number of triangular steps (2, 6, 12, 20...)
-/// the total has passed, plus 10 for an archmage.
-pub fn base_casting_skill(points: i32, archmage: bool) -> i32 {
+/// the total has passed, plus the `bonus` the retorts give (10 for an archmage).
+pub fn base_casting_skill(points: i32, bonus: i32) -> i32 {
     let (mut skill, mut step, mut threshold) = (0, 0, 0);
     while points > threshold {
         skill += 1;
         step += 2;
         threshold += step;
     }
-    skill + if archmage { 10 } else { 0 }
+    skill + bonus
 }
 
 /// Smallest invested total whose casting skill reaches `target`.
-pub fn skill_points_for(target: i32, archmage: bool) -> i32 {
+pub fn skill_points_for(target: i32, bonus: i32) -> i32 {
     let mut points = 0;
-    while base_casting_skill(points, archmage) < target {
+    while base_casting_skill(points, bonus) < target {
         points += 1;
     }
     points
@@ -226,18 +226,18 @@ mod tests {
     #[test]
     fn casting_skill_grows_one_step_at_each_triangular_total() {
         // The totals 2, 6, 12, 20 ... are the last points of each step: one more passes it.
-        let skill = |p| base_casting_skill(p, false);
+        let skill = |p| base_casting_skill(p, 0);
         assert_eq!([skill(0), skill(1), skill(2)], [0, 1, 1]);
         assert_eq!([skill(3), skill(6), skill(7)], [2, 2, 3]);
         assert_eq!([skill(12), skill(13)], [3, 4]);
         assert_eq!([skill(20), skill(21)], [4, 5]);
-        assert_eq!(base_casting_skill(7, true), 13, "an archmage adds ten");
-        assert_eq!(base_casting_skill(0, true), 10);
+        assert_eq!(base_casting_skill(7, 10), 13, "an archmage adds ten");
+        assert_eq!(base_casting_skill(0, 10), 10);
     }
 
     #[test]
     fn the_points_for_a_skill_are_the_least_that_reach_it() {
-        for archmage in [false, true] {
+        for archmage in [0, 10] {
             for target in 0..30 {
                 let points = skill_points_for(target, archmage);
                 assert!(base_casting_skill(points, archmage) >= target);
@@ -249,8 +249,8 @@ mod tests {
                 }
             }
         }
-        assert_eq!(skill_points_for(0, true), 0, "an archmage has ten already");
-        assert_eq!(skill_points_for(11, true), 1);
+        assert_eq!(skill_points_for(0, 10), 0, "an archmage has ten already");
+        assert_eq!(skill_points_for(11, 10), 1);
     }
 
     #[test]

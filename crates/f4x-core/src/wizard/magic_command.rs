@@ -8,10 +8,11 @@ use crate::player::Treasury;
 use crate::wizard::magic::MagicError;
 use crate::wizard::sheet::WizardMut;
 
-/// Convert gold to mana or mana to gold (alchemy): one for one with the retort, two for one
-/// without. `gold_to_mana` converts that much gold; otherwise that much mana becomes gold.
+/// Convert gold to mana or mana to gold (alchemy): `percent` of the amount comes back (half
+/// normally, all of it with the retort; `Stat::AlchemyPercent`). `gold_to_mana` converts that much
+/// gold; otherwise that much mana becomes gold.
 pub(crate) fn alchemy(
-    skilled: bool,
+    percent: i32,
     treasury: &mut Treasury,
     amount: i32,
     gold_to_mana: bool,
@@ -22,13 +23,13 @@ pub(crate) fn alchemy(
             return Err(MagicError::NotEnoughGold);
         }
         treasury.gold -= amount;
-        treasury.mana += if skilled { amount } else { amount / 2 };
+        treasury.mana += amount * percent / 100;
     } else {
         if treasury.mana < amount {
             return Err(MagicError::NotEnoughMana);
         }
         treasury.mana -= amount;
-        treasury.gold += if skilled { amount } else { amount / 2 };
+        treasury.gold += amount * percent / 100;
     }
     Ok(())
 }

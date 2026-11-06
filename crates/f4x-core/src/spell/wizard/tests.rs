@@ -145,27 +145,38 @@ fn cruel_unminding_takes_a_tenth_at_most_and_at_least_one_point() -> TestResult 
     g.wizard_mut(P1)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
-        .points = skill_points_for(60, false);
-    let before = g.wizard(P1).ok_or("wizard is missing")?.casting_skill();
+        .points = skill_points_for(60, 0);
+    let before = g
+        .wizard(P1)
+        .ok_or("wizard is missing")?
+        .casting_skill(&g.content.rules);
     assert_eq!(before, 60);
     cast(
         &mut g,
         191, /* cruel_unminding */
         Some(Target::Player(P1)),
     );
-    let after = g.wizard(P1).ok_or("wizard is missing")?.casting_skill();
+    let after = g
+        .wizard(P1)
+        .ok_or("wizard is missing")?
+        .casting_skill(&g.content.rules);
     assert!((54..=59).contains(&after), "{after}");
     // A tiny skill still loses a point.
     g.wizard_mut(P2)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
-        .points = skill_points_for(5, false);
-    let before = g.wizard(P2).ok_or("wizard is missing")?.casting_skill();
+        .points = skill_points_for(5, 0);
+    let before = g
+        .wizard(P2)
+        .ok_or("wizard is missing")?
+        .casting_skill(&g.content.rules);
     let mut rng = crate::game::rng::GameRng::new(1);
     let lost = g.cruel_unminding(P2, &mut rng);
     assert_eq!(lost, 1);
     assert_eq!(
-        g.wizard(P2).ok_or("wizard is missing")?.casting_skill(),
+        g.wizard(P2)
+            .ok_or("wizard is missing")?
+            .casting_skill(&g.content.rules),
         before - 1
     );
     Ok(())
@@ -178,17 +189,24 @@ fn an_archmages_ten_points_are_safe() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
-        .insert(Retort::new(10) /* archmage */);
+        .insert(crate::wizard::magic::Retort::new(10) /* archmage */);
     g.wizard_mut(P1)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
-        .points = skill_points_for(40, true);
-    assert_eq!(g.wizard(P1).ok_or("wizard is missing")?.casting_skill(), 40);
+        .points = skill_points_for(40, 10);
+    assert_eq!(
+        g.wizard(P1)
+            .ok_or("wizard is missing")?
+            .casting_skill(&g.content.rules),
+        40
+    );
     let mut rng = crate::game::rng::GameRng::new(2);
     let lost = g.cruel_unminding(P1, &mut rng);
     assert!((1..=4).contains(&lost), "{lost}");
     assert_eq!(
-        g.wizard(P1).ok_or("wizard is missing")?.casting_skill(),
+        g.wizard(P1)
+            .ok_or("wizard is missing")?
+            .casting_skill(&g.content.rules),
         40 - lost
     );
     Ok(())

@@ -17,7 +17,6 @@ pub mod map;
 pub mod player;
 pub mod rules;
 pub mod spell;
-#[cfg(any(test, feature = "testutil"))]
 pub mod threat;
 pub mod turn;
 pub mod unit;

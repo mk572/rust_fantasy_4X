@@ -62,15 +62,10 @@ pub fn level_of(rules: &Rules, unit: UnitId, xp: u32) -> usize {
         })
 }
 
-/// The hire price: `cost + level * cost / 4`, half of it for a Charismatic wizard
-/// (`Hire_Hero_Popup`). `level` is the 0-based level the kept experience gives.
-pub fn hire_cost(cost: i32, level: usize, charismatic: bool) -> i32 {
-    let price = cost + level as i32 * cost / 4;
-    if charismatic {
-        price / 2
-    } else {
-        price
-    }
+/// The hire price: `cost + level * cost / 4`, `percent` of it (50 for a Charismatic wizard;
+/// `Hire_Hero_Popup`). `level` is the 0-based level the kept experience gives.
+pub fn hire_cost(cost: i32, level: usize, percent: i32) -> i32 {
+    (cost + level as i32 * cost / 4) * percent / 100
 }
 
 /// The 35 heroes of the game, as `Init_Heroes` makes them (once for the game, not for each
@@ -273,9 +268,9 @@ mod tests {
 
     #[test]
     fn the_price_grows_with_the_level_and_halves_for_a_charismatic_wizard() {
-        assert_eq!(hire_cost(100, 0, false), 100);
-        assert_eq!(hire_cost(100, 4, false), 200);
-        assert_eq!(hire_cost(300, 2, false), 450);
-        assert_eq!(hire_cost(300, 2, true), 225);
+        assert_eq!(hire_cost(100, 0, 100), 100);
+        assert_eq!(hire_cost(100, 4, 100), 200);
+        assert_eq!(hire_cost(300, 2, 100), 450);
+        assert_eq!(hire_cost(300, 2, 50), 225);
     }
 }

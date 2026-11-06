@@ -50,6 +50,32 @@ pub enum Stat {
     SpellCostPercent,
     /// Percent of the mana upkeep of the wizard's lasting spells that is paid (100 normally).
     SpellUpkeepPercent,
+    /// Casting skill a new wizard is made with, on top of twice the books.
+    StartingSkill,
+    /// Percent of the skill share of the power base that becomes casting skill (100 normally).
+    SkillGainPercent,
+    /// How many times its cost a spell the wizard casts resists a dispel (1 normally).
+    DispelMultiplier,
+    /// Above 0, the wizard's spells are not stopped by the node a battle is fought on.
+    NodeImmunity,
+    /// The squares from the fortress a battle counts as for the cost of casting in it.
+    CastingDistance,
+    /// Levels added to every unit of the wizard.
+    UnitLevels,
+    /// Percent of the gold (or mana) that alchemy returns as mana (or gold); 50 normally.
+    AlchemyPercent,
+    /// The quality of the weapons new units are made with (0 normal, 1 magic, 2 mithril, 3 adamantine).
+    StartingWeapons,
+    /// Fame a new wizard starts with.
+    StartingFame,
+    /// Percent of a good change in other wizards' regard that counts (100 normally).
+    DiplomacyGainPercent,
+    /// Percent of a bad change in other wizards' regard that counts (100 normally).
+    DiplomacyLossPercent,
+    /// Percent of the price of a hero's hire (100 normally).
+    HeroCostPercent,
+    /// Percent of the power and pacifying of the religious buildings (100 normally).
+    ReligiousPercent,
     // Cities
     CityFood,
     /// Food added after the farmland cap is applied (granaries, markets).

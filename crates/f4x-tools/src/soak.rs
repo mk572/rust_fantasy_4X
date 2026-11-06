@@ -609,7 +609,7 @@ fn detail_lines(game: &Game, ais: &[Box<dyn Contestant>]) -> Vec<String> {
             "p{}: skill {}/{}, gold {} (cities {}, buildings -{}, units -{}, food {}), food {}, mana {} (+{} upkeep {}), spells {}, researching {} ({} left), casting {}, split {}/{}/{}, explored {}{}",
             id.0,
             m.skill_left(),
-            m.casting_skill(),
+            m.casting_skill(&game.content().rules),
             game.budget(id).net_gold(),
             game.budget(id).city_gold,
             game.budget(id).building_upkeep,

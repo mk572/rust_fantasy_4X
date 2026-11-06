@@ -103,15 +103,15 @@ fn add_building(g: &mut Game, city: hecs::Entity, id: u16) {
 #[test]
 fn casting_skill_follows_triangular_numbers() {
     // Skill k needs more than (k-1)*k points: 2, 6, 12, 20...
-    assert_eq!(base_casting_skill(0, false), 0);
-    assert_eq!(base_casting_skill(1, false), 1);
-    assert_eq!(base_casting_skill(2, false), 1);
-    assert_eq!(base_casting_skill(3, false), 2);
-    assert_eq!(base_casting_skill(56, false), 7);
-    assert_eq!(base_casting_skill(57, false), 8);
-    assert_eq!(base_casting_skill(0, true), 10, "archmage adds ten");
-    assert_eq!(skill_points_for(8, false), 57);
-    assert_eq!(base_casting_skill(skill_points_for(14, true), true), 14);
+    assert_eq!(base_casting_skill(0, 0), 0);
+    assert_eq!(base_casting_skill(1, 0), 1);
+    assert_eq!(base_casting_skill(2, 0), 1);
+    assert_eq!(base_casting_skill(3, 0), 2);
+    assert_eq!(base_casting_skill(56, 0), 7);
+    assert_eq!(base_casting_skill(57, 0), 8);
+    assert_eq!(base_casting_skill(0, 10), 10, "archmage adds ten");
+    assert_eq!(skill_points_for(8, 0), 57);
+    assert_eq!(base_casting_skill(skill_points_for(14, 10), 10), 14);
 }
 
 #[test]
@@ -152,7 +152,12 @@ fn a_new_wizard_starts_with_books_spells_and_skill() -> TestResult {
         .researchable()
         .contains(&spell(&g, 213 /* spell_of_mastery */)));
     // 5 books + 5 for the archmage, doubled.
-    assert_eq!(g.wizard(P0).ok_or("wizard is missing")?.casting_skill(), 20);
+    assert_eq!(
+        g.wizard(P0)
+            .ok_or("wizard is missing")?
+            .casting_skill(&g.content.rules),
+        20
+    );
     Ok(())
 }
 
@@ -564,7 +569,12 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() -> TestResult {
         .insert(strength);
     let melee = g.units().unit_stat(unit, Stat::Melee);
     // 40 mana overland; the wizard's skill is 4, so it takes many turns.
-    assert_eq!(g.wizard(P0).ok_or("wizard is missing")?.casting_skill(), 4);
+    assert_eq!(
+        g.wizard(P0)
+            .ok_or("wizard is missing")?
+            .casting_skill(&g.content.rules),
+        4
+    );
     assert_eq!(g.start_cast(P0, strength, None), Ok(vec![]));
     assert_eq!(
         g.wizard(P0)

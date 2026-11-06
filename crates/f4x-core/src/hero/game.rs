@@ -22,7 +22,6 @@ use crate::unit::{Experience, Hurt, MovesLeft, Unit, UnitView};
 
 use crate::game::{Event, Game};
 use crate::rules::RealmId;
-use crate::wizard::magic::Retort;
 
 impl UnitView<'_> {
     /// Every hero of the game, in the order of the hero types.
@@ -140,17 +139,17 @@ impl UnitView<'_> {
     }
 
     /// What the wizard pays to hire this hero type now: the cost plus a quarter of it for
-    /// each level the hero kept from earlier service, half for a Charismatic wizard.
+    /// each level the hero kept from earlier service, less for a Charismatic wizard (`HeroCostPercent`).
     pub fn hero_hire_price(&self, player: PlayerId, kind: usize) -> Option<i32> {
         let rules = &self.content.rules;
         let hero = self.hero_entity(kind)?;
         let unit = kind::unit_of(rules, kind)?;
         let cost = rules.units.get(unit).hero.as_ref()?.hire_cost as i32;
         let level = kind::level_of(rules, unit, self.hero_xp(hero));
-        let charismatic = self
-            .wizard(player)
-            .is_some_and(|m| m.has(Retort::new(16) /* charismatic */));
-        Some(kind::hire_cost(cost, level, charismatic))
+        let percent = self.wizard(player).map_or(100, |m| {
+            m.stat(rules, crate::rules::Stat::HeroCostPercent, 100)
+        });
+        Some(kind::hire_cost(cost, level, percent))
     }
 
     /// The level a hero type would have if hired now.
@@ -570,7 +569,10 @@ pub(crate) mod tests {
             .ok_or("healing is not in the content")?;
         let hero_skill = g.hero_casting_skill(P0);
         assert!(hero_skill > 0);
-        let nominal = g.wizard(P0).ok_or("wizard is missing")?.casting_skill();
+        let nominal = g
+            .wizard(P0)
+            .ok_or("wizard is missing")?
+            .casting_skill(&g.content.rules);
         // Healing needs a unit to aim at, and the wizard keeps one after the hero is gone.
         let soldier = g
             .content

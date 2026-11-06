@@ -1648,12 +1648,15 @@ mod casting {
             (None, 30),
         ];
         for (distance, percent) in table {
-            assert_eq!(range_percent(distance, false), percent, "{distance:?}");
+            assert_eq!(range_percent(distance, |d| d), percent, "{distance:?}");
         }
         // A channeler is two squares away wherever they are, except at the fortress.
-        assert_eq!(range_percent(Some(25), true), 10);
-        assert_eq!(range_percent(None, true), 10);
-        assert_eq!(range_percent(Some(0), true), 5);
+        let rules = shipped().rules;
+        let channeler = [crate::wizard::magic::Retort::new(8)].into_iter().collect();
+        let counted = |d| crate::wizard::retort::stat(&rules, &channeler, Stat::CastingDistance, d);
+        assert_eq!(range_percent(Some(25), counted), 10);
+        assert_eq!(range_percent(None, counted), 10);
+        assert_eq!(range_percent(Some(0), counted), 5);
     }
 
     #[test]
@@ -5338,7 +5341,10 @@ fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() ->
             .known
             .insert(id);
     }
-    let skill = g.wizard(A).ok_or("wizard is missing")?.casting_skill() as u32;
+    let skill = g
+        .wizard(A)
+        .ok_or("wizard is missing")?
+        .casting_skill(&g.content.rules) as u32;
     assert_eq!(g.strategic_mana_default(A), Some(skill.clamp(1, 250)));
     g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 10;
     assert_eq!(g.strategic_mana_default(A), Some(skill.clamp(1, 5)));

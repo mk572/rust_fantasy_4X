@@ -222,7 +222,9 @@ impl<'a> PlayerView<'a> {
     /// How much of a spell the wizard pays for in a turn: its casting skill and the mana of its
     /// heroes at the fortress. A spell costing more takes more turns.
     pub fn casting_power(&self) -> i32 {
-        self.game.wizard(self.me).map_or(0, |w| w.casting_skill())
+        self.game
+            .wizard(self.me)
+            .map_or(0, |w| w.casting_skill(&self.game.content().rules))
             + self.game.hero_casting_skill(self.me)
     }
 

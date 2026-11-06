@@ -377,8 +377,10 @@ impl Game {
     /// A wizard who could not pay for the spell (casting skill under 40, or no mana) is
     /// defeated on the spot, the human too (`Banish_Wizard`).
     fn banish(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
-        let skill =
-            self.wizard(loser).map_or(0, |m| m.casting_skill()) + self.hero_casting_skill(loser);
+        let skill = self
+            .wizard(loser)
+            .map_or(0, |m| m.casting_skill(&self.content.rules))
+            + self.hero_casting_skill(loser);
         let mana = self.player(loser).map_or(0, |p| p.treasury().mana);
         if let Some(mut w) = self.wizard_mut(loser) {
             fortress_falls(&mut w);

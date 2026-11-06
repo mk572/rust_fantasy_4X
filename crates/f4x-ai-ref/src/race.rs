@@ -22,7 +22,7 @@ fn own_turns(view: &PlayerView, mastery: SpellId) -> Option<f32> {
     let magic = view.wizard()?;
     let mana = view.treasury().mana;
     let income = view.income();
-    let skill = magic.casting_skill().max(1) as f32;
+    let skill = magic.casting_skill(&view.content().rules).max(1) as f32;
     let mana_rate = income.split.mana.max(1) as f32;
     let (left, research) = match magic.casting() {
         Some(c) if c.spell == mastery => (c.remaining, 0.0),
@@ -68,9 +68,9 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let mastery = f4x_def::rules::SpellId::new(213) /* spell_of_mastery */;
     let (mine, own_rate, casting_other) = {
         let view = PlayerView::new(game, me);
-        let rate = view
-            .wizard()
-            .map_or(1.0, |m| m.casting_skill().max(1) as f32);
+        let rate = view.wizard().map_or(1.0, |m| {
+            m.casting_skill(&view.content().rules).max(1) as f32
+        });
         (
             own_turns(&view, mastery),
             rate,

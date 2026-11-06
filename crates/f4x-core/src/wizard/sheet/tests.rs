@@ -37,14 +37,16 @@ fn a_new_wizard_has_skill_from_books_and_an_archmage_more() -> TestResult {
     let w = g.wizard(P0).ok_or("wizard is missing")?;
     assert_eq!(w.total_books(), 5);
     // Twice the books: ten points of target, reached by the triangular steps.
-    assert_eq!(w.casting_skill(), 10);
+    assert_eq!(w.casting_skill(&f4x_def::testdir::shipped().rules), 10);
     assert_eq!(w.skill_left(), 10);
     let g = game_with(
         &[(RealmId::new(3 /* life */), 3)],
         &[Retort::new(10) /* archmage */],
     );
     assert_eq!(
-        g.wizard(P0).ok_or("wizard is missing")?.casting_skill(),
+        g.wizard(P0)
+            .ok_or("wizard is missing")?
+            .casting_skill(&f4x_def::testdir::shipped().rules),
         2 * (3 + 5)
     );
     let g = game_with(&[(RealmId::new(3 /* life */), 15)], &[]);
@@ -255,7 +257,7 @@ fn research_runs_from_choice_to_a_known_spell() -> TestResult {
         if w.finish_research().is_some() {
             break;
         }
-        w.take_power(&split, income);
+        w.take_power(&f4x_def::testdir::shipped().rules, &split, income);
         turns += 1;
         assert!(turns < 100);
     }
@@ -287,10 +289,10 @@ fn casting_is_paid_over_turns_and_cancelled_without_a_refund() -> TestResult {
         w.view().check_can_cast(strength),
         Err(MagicError::AlreadyCasting)
     );
-    let skill = w.view().casting_skill();
+    let skill = w.view().casting_skill(&f4x_def::testdir::shipped().rules);
     // The skill left from last turn pays first; the nominal skill pays only if it finishes the
     // spell, which it cannot here. What is paid comes out of the reserve.
-    let reserve = w.pay_casting(1000);
+    let reserve = w.pay_casting(&f4x_def::testdir::shipped().rules, 1000);
     assert_eq!(
         w.view().casting().ok_or("casting is missing")?.remaining,
         40 - skill
@@ -306,7 +308,7 @@ fn casting_is_paid_over_turns_and_cancelled_without_a_refund() -> TestResult {
     g.scenario_casting(P0, strength, skill);
     let mut w = g.wizard_mut(P0).ok_or("wizard_mut is missing")?;
     w.get_mut::<Skill>().left = 0;
-    let reserve = w.pay_casting(1000);
+    let reserve = w.pay_casting(&f4x_def::testdir::shipped().rules, 1000);
     assert_eq!(w.view().casting_paid(), Some(strength));
     assert_eq!(reserve, 1000 - skill);
     assert_eq!(w.view().skill_left(), 0, "borrowed and paid back at once");
@@ -347,13 +349,16 @@ fn power_reaches_the_reserve_the_research_and_the_skill() -> TestResult {
         research: 4,
         skill: 4,
     };
-    assert_eq!(w.take_power(&split, 4), 7);
+    assert_eq!(
+        w.take_power(&f4x_def::testdir::shipped().rules, &split, 4),
+        7
+    );
     assert_eq!(w.view().research_remaining(), 6);
     assert_eq!(
         w.view().skill_points() - points,
         6,
         "an archmage gets half as much again"
     );
-    assert_eq!(base_casting_skill(0, false), 0);
+    assert_eq!(base_casting_skill(0, 0), 0);
     Ok(())
 }

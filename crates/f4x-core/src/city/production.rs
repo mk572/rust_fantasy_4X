@@ -424,15 +424,16 @@ impl Economy<'_> {
     }
 
     /// What a unit finished in this city starts with: its experience and the quality of its
-    /// weapons (a wizard with Alchemy gives every unit at least magic weapons).
+    /// weapons (a wizard with Alchemy gives every unit at least magic weapons: `StartingWeapons`).
     pub(crate) fn new_unit_start(&self, city: hecs::Entity, owner: PlayerId) -> (u32, u8) {
         let mut weapons = self.city_weapon_quality(city);
-        if weapons == 0
-            && self
-                .wizard(owner)
-                .is_some_and(|m| m.has(crate::wizard::magic::Retort::new(0) /* alchemy */))
-        {
-            weapons = crate::unit::WEAPON_MAGIC;
+        if let Some(m) = self.wizard(owner) {
+            let better = m.stat(
+                &self.content.rules,
+                crate::rules::Stat::StartingWeapons,
+                i32::from(weapons),
+            );
+            weapons = u8::try_from(better).unwrap_or(weapons);
         }
         (self.city_starting_xp(city), weapons)
     }

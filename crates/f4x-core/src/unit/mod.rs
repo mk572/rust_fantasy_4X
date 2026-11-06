@@ -29,7 +29,6 @@ use f4x_def::content::Content;
 use crate::game::{Event, Game};
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
 use crate::rules::{LevelPathDef, Stat, UnitDef, UnitId, UnitKind};
-use crate::wizard::magic::Retort;
 
 /// Marks an entity as a unit of this definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -268,11 +267,10 @@ impl<'a> UnitView<'a> {
             level = HEROISM_LEVEL;
         }
         if let Some(owner) = self.unit_owner(unit) {
-            if self
-                .wizard(owner)
-                .is_some_and(|m| m.has(Retort::new(1) /* warlord */))
-            {
-                level += 1;
+            if let Some(m) = self.wizard(owner) {
+                level +=
+                    usize::try_from(m.stat(&self.content.rules, crate::rules::Stat::UnitLevels, 0))
+                        .unwrap_or(0);
             }
             let normal = self.unit_def(unit).is_some_and(|d| {
                 matches!(

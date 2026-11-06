@@ -24,7 +24,7 @@ use crate::rules::exec::Target;
 use crate::rules::SpellId;
 use crate::spell::instance::SpellTarget;
 use crate::spell::target_error::TargetError;
-use crate::wizard::magic::{MagicError, Retort};
+use crate::wizard::magic::MagicError;
 
 /// Enchantments with the wizard who cast each.
 pub(crate) type Spells = Vec<(SpellId, PlayerId)>;
@@ -109,7 +109,7 @@ impl Game {
     }
 
     /// How many times its cost a spell cast by `caster` resists: one, plus one for the
-    /// caster's mastery of its realm and one for Archmage.
+    /// caster's mastery of its realm and one for Archmage (`DispelMultiplier`).
     pub fn dispel_multiplier(
         &self,
         realm: Option<crate::rules::RealmId>,
@@ -118,13 +118,18 @@ impl Game {
         let Some(m) = caster.and_then(|c| self.wizard(c)) else {
             return 1;
         };
-        let mastery = match realm.map(|r| r.num()) {
-            Some(0 /* nature */) => m.has(Retort::new(3) /* nature_mastery */),
-            Some(1 /* sorcery */) => m.has(Retort::new(4) /* sorcery_mastery */),
-            Some(2 /* chaos */) => m.has(Retort::new(2) /* chaos_mastery */),
-            _ => false,
+        let facts = crate::rules::exec::Facts {
+            realm,
+            ..Default::default()
         };
-        1 + u32::from(mastery) + u32::from(m.has(Retort::new(10) /* archmage */))
+        let times = crate::wizard::retort::stat_with(
+            &self.content.rules,
+            &m.retorts(),
+            crate::rules::Stat::DispelMultiplier,
+            1,
+            &facts,
+        );
+        u32::try_from(times).unwrap_or(1)
     }
 
     /// The difficulty of dispelling `spell` cast by `caster` (`None` for no caster's retorts).

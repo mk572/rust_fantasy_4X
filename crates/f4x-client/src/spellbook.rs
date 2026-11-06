@@ -841,7 +841,10 @@ impl BookUi {
             y,
         );
         // Turns to cast: a symbol for each, twenty to a row; no symbols for an instant spell.
-        let skill = app.game.wizard(HUMAN).map_or(0, |m| m.casting_skill());
+        let skill = app
+            .game
+            .wizard(HUMAN)
+            .map_or(0, |m| m.casting_skill(&app.game.content().rules));
         let mana = app.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         let income = app.game.income(HUMAN).split.mana;
         let limit = skill.min(mana + income).max(0);

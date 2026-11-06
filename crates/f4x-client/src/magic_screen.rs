@@ -16,7 +16,6 @@ use crate::page::Page;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
-use f4x_core::wizard::magic::Retort;
 use f4x_def::rules::SpellId;
 use f4x_def::text::Args;
 use macroquad::prelude::*;
@@ -503,7 +502,10 @@ impl MagicUi {
             160.0,
         );
 
-        let skill = app.game.wizard(HUMAN).map_or(0, |m| m.casting_skill());
+        let skill = app
+            .game
+            .wizard(HUMAN)
+            .map_or(0, |m| m.casting_skill(&app.game.content().rules));
         let reserve = app.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         let base = income.power_base;
         let name = |g: &f4x_core::game::Game, s: SpellId| {
@@ -626,11 +628,13 @@ impl MagicUi {
         let (px, py) = (80.0, 60.0);
         let gold = app.game.player(HUMAN).map_or(0, |p| p.treasury().gold);
         let mana = app.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
-        let skilled = app
-            .game
-            .wizard(HUMAN)
-            .is_some_and(|m| m.has(Retort::new(0) /* alchemy */));
-        let divisor = if skilled { 1 } else { 2 };
+        let percent = app.game.wizard(HUMAN).map_or(50, |m| {
+            m.stat(
+                &app.game.content().rules,
+                f4x_def::rules::Stat::AlchemyPercent,
+                50,
+            )
+        });
         let pool = if ui.gold_to_mana { gold } else { mana };
         if pool <= 1 {
             ui.slider = 3;
@@ -651,9 +655,9 @@ impl MagicUi {
         app.draw_pic_rows(lay, "magic", 57, px + 50.0, py + 25.0, 0.0, 1000.0);
         app.draw_pic(lay, "magic", 58, 0, px + 47.0 + ui.slider as f32, py + 25.0);
         let (gold_amount, power_amount) = if ui.gold_to_mana {
-            (amount, amount / divisor)
+            (amount, amount * percent / 100)
         } else {
-            (amount / divisor, amount)
+            (amount * percent / 100, amount)
         };
         app.draw_styled(
             view,

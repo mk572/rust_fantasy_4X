@@ -96,6 +96,11 @@ pub(crate) fn bundle() -> (
 }
 
 impl<'a> Wizard<'a> {
+    /// `base` changed by what the wizard's retorts say about `stat` (`retorts.ron`).
+    pub fn stat(&self, rules: &crate::rules::Rules, stat: crate::rules::Stat, base: i32) -> i32 {
+        crate::wizard::retort::stat(rules, &self.retorts(), stat, base)
+    }
+
     pub fn has(&self, retort: Retort) -> bool {
         self.component::<Retorts>()
             .is_some_and(|r| r.0.contains(&retort))
@@ -135,10 +140,10 @@ impl<'a> Wizard<'a> {
     }
 
     /// Casting skill now.
-    pub fn casting_skill(&self) -> i32 {
+    pub fn casting_skill(&self, rules: &crate::rules::Rules) -> i32 {
         base_casting_skill(
             self.skill_points(),
-            self.has(Retort::new(10) /* archmage */),
+            self.stat(rules, crate::rules::Stat::CastingSkill, 0),
         )
     }
 
@@ -461,10 +466,15 @@ impl<'a> WizardMut<'a> {
     }
 
     /// Set the sheet up for a new wizard: books and retorts, and the starting casting skill
-    /// (twice the books, plus 5 books' worth for an archmage), found by growing the invested
+    /// (twice the books, plus what the retorts add: `StartingSkill`), found by growing the invested
     /// total until the skill reaches it; a Famous wizard starts with a fame of 10. The spell
     /// library comes with [`WizardMut::init_library`].
-    pub fn found(&mut self, books: &[(RealmId, u8)], retorts: &[Retort]) {
+    pub fn found(
+        &mut self,
+        rules: &crate::rules::Rules,
+        books: &[(RealmId, u8)],
+        retorts: &[Retort],
+    ) {
         let mut sheet = Books::default();
         for &(realm, n) in books {
             if n > 0 {
@@ -473,18 +483,19 @@ impl<'a> WizardMut<'a> {
         }
         let total: i32 = sheet.0.values().map(|&n| i32::from(n)).sum();
         let retorts = Retorts(retorts.iter().copied().collect());
-        let archmage = retorts.0.contains(&Retort::new(10) /* archmage */);
-        let famous = retorts.0.contains(&Retort::new(13) /* famous */);
-        let target = 2 * (total + if archmage { 5 } else { 0 });
-        let points = skill_points_for(target, archmage);
+        let stat = |s, base| crate::wizard::retort::stat(rules, &retorts.0, s, base);
+        let bonus = stat(crate::rules::Stat::CastingSkill, 0);
+        let target = stat(crate::rules::Stat::StartingSkill, 2 * total);
+        let points = skill_points_for(target, bonus);
+        let fame = stat(crate::rules::Stat::StartingFame, 0);
         *self.get_mut::<Books>() = sheet;
         *self.get_mut::<Retorts>() = retorts;
         *self.get_mut::<Skill>() = Skill {
             points,
-            left: base_casting_skill(points, archmage),
+            left: base_casting_skill(points, bonus),
         };
         *self.get_mut::<PowerSplit>() = PowerSplit::default();
-        *self.get_mut::<Fame>() = Fame(if famous { 10 } else { 0 });
+        *self.get_mut::<Fame>() = Fame(fame);
     }
 
     /// Known and researchable spells from books and retorts, by the tables in `rules_settings.ron`
@@ -677,12 +688,19 @@ impl<'a> WizardMut<'a> {
     }
 
     /// The turn's income of research and skill: research goes to the spell, skill points to
-    /// casting skill (an archmage gets half as much again). Returns the mana for the reserve.
-    pub fn take_power(&mut self, split: &PowerShares, research: i32) -> i32 {
-        let archmage = self.view().has(Retort::new(10) /* archmage */);
+    /// casting skill (an archmage gets half as much again: `SkillGainPercent`). Returns the mana for the reserve.
+    pub fn take_power(
+        &mut self,
+        rules: &crate::rules::Rules,
+        split: &PowerShares,
+        research: i32,
+    ) -> i32 {
+        let percent = self
+            .view()
+            .stat(rules, crate::rules::Stat::SkillGainPercent, 100);
         self.add_research(research);
         let skill = split.skill.max(0);
-        self.get_mut::<Skill>().points += if archmage { skill * 3 / 2 } else { skill };
+        self.get_mut::<Skill>().points += skill * percent / 100;
         split.mana.max(0)
     }
 
@@ -702,8 +720,8 @@ impl<'a> WizardMut<'a> {
     }
 
     /// Spend casting skill and mana on the spell being cast. Returns the reserve left.
-    pub fn pay_casting(&mut self, reserve: i32) -> i32 {
-        let nominal = self.view().casting_skill();
+    pub fn pay_casting(&mut self, rules: &crate::rules::Rules, reserve: i32) -> i32 {
+        let nominal = self.view().casting_skill(rules);
         let mut reserve = reserve;
         let mut skill = *self.get_mut::<Skill>();
         if let Some(cast) = self.cast() {

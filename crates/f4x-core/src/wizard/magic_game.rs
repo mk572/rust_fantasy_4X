@@ -31,7 +31,7 @@ impl Game {
             .and_then(|&e| crate::wizard::entity::of_player(&self.world, e))
             .ok_or(MagicError::UnknownPlayer)?;
         let mut w = crate::wizard::sheet::WizardMut::new(&mut self.world, entity);
-        w.found(books, retorts);
+        w.found(&content.rules, books, retorts);
         w.init_library(content, rng, start_spells);
         self.refill_research(player);
         Ok(())
@@ -234,8 +234,8 @@ impl Game {
     /// `research` are what the wizard's cities and fortress make, worked out by the game.
     fn collect_power(&mut self, player: PlayerId, split: &PowerShares, research: i32) {
         let Some(mana) = self
-            .wizard_mut(player)
-            .map(|mut w| w.take_power(split, research))
+            .wizard_mut_with_rules(player)
+            .map(|(mut w, rules)| w.take_power(rules, split, research))
         else {
             return;
         };
@@ -250,11 +250,11 @@ impl Game {
         let Some(reserve) = self.player(player).map(|p| p.treasury().mana) else {
             return;
         };
-        let Some(mut w) = self.wizard_mut(player) else {
+        let Some((mut w, rules)) = self.wizard_mut_with_rules(player) else {
             return;
         };
         w.add_skill_left(heroes);
-        let reserve = w.pay_casting(reserve);
+        let reserve = w.pay_casting(rules, reserve);
         if let Some(t) = self.treasury_mut(player) {
             t.mana = reserve;
         }

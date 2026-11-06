@@ -1824,7 +1824,7 @@ fn a_wizard_goes_into_battle_with_skill_mana_and_a_range_cost() {
         mine.skill_left,
         g.wizard(HUMAN)
             .expect("the player is a wizard")
-            .casting_skill()
+            .casting_skill(&g.content().rules)
     );
     assert_eq!(mine.mana, 5000);
     assert!(mine.range >= 5 && mine.range <= 30 && mine.range % 5 == 0);

@@ -668,7 +668,7 @@ fn set_skill(g: &mut Game, player: PlayerId, skill: i32) {
     g.wizard_mut(player)
         .expect("value succeeds")
         .get_mut::<crate::wizard::sheet::Skill>()
-        .points = crate::wizard::magic::skill_points_for(skill, false);
+        .points = crate::wizard::magic::skill_points_for(skill, 0);
 }
 
 fn banish_world(skill: i32) -> (Game, hecs::Entity, hecs::Entity) {

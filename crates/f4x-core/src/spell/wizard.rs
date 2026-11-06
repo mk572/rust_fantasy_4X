@@ -14,7 +14,7 @@ use crate::player::PlayerId;
 use crate::rules::Ability;
 use crate::rules::UnitKind;
 use crate::spell::target_error::TargetError;
-use crate::wizard::magic::{base_casting_skill, skill_points_for, Retort};
+use crate::wizard::magic::{base_casting_skill, skill_points_for};
 
 /// The unit Lycanthropy turns a normal unit into.
 const WEREWOLVES: crate::rules::UnitId = crate::rules::UnitId::new(168) /* werewolves */;
@@ -47,17 +47,19 @@ impl Game {
     /// Cruel Unminding: the victim permanently loses 1 to 10 percent of their casting skill (at
     /// least a point). Returns the skill lost.
     pub(crate) fn cruel_unminding(&mut self, victim: PlayerId, rng: &mut GameRng) -> i32 {
-        let Some(mut wizard) = self.wizard_mut(victim) else {
+        let Some((mut wizard, rules)) = self.wizard_mut_with_rules(victim) else {
             return 0;
         };
-        let archmage = wizard.view().has(Retort::new(10) /* archmage */);
-        let skill = wizard.view().casting_skill();
+        let bonus = wizard
+            .view()
+            .stat(rules, crate::rules::Stat::CastingSkill, 0);
+        let skill = wizard.view().casting_skill(rules);
         let lost = (skill * rng.roll(10) as i32 / 100).max(1);
-        // An archmage's ten extra points are not part of what the spell eats into.
-        let target = (skill - lost - if archmage { 10 } else { 0 }).max(0);
+        // The extra points the retorts give are not part of what the spell eats into.
+        let target = (skill - lost - bonus).max(0);
         let mut sheet = wizard.get_mut::<crate::wizard::sheet::Skill>();
-        sheet.points = sheet.points.min(skill_points_for(target, false));
-        let now = base_casting_skill(sheet.points, archmage);
+        sheet.points = sheet.points.min(skill_points_for(target, 0));
+        let now = base_casting_skill(sheet.points, bonus);
         sheet.left = sheet.left.min(now);
         skill - now
     }

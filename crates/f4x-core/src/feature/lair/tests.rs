@@ -918,7 +918,7 @@ fn sheet(
 ) -> (hecs::World, hecs::Entity) {
     let mut world = hecs::World::new();
     let e = world.spawn(crate::wizard::sheet::bundle());
-    crate::wizard::sheet::WizardMut::new(&mut world, e).found(books, retorts);
+    crate::wizard::sheet::WizardMut::new(&mut world, e).found(&shipped().rules, books, retorts);
     (world, e)
 }
 

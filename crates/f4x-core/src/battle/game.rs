@@ -181,7 +181,10 @@ impl Game {
         if mana == 0 || self.battle_spells(player).is_empty() {
             return None;
         }
-        let skill = self.wizard(player)?.casting_skill().max(0) as u32;
+        let skill = self
+            .wizard(player)?
+            .casting_skill(&self.content.rules)
+            .max(0) as u32;
         Some(skill.min(mana / 2).max(1).min(mana))
     }
 

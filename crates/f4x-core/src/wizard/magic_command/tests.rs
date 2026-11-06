@@ -15,11 +15,11 @@ fn treasury() -> Treasury {
 #[test]
 fn alchemy_is_two_for_one_without_the_retort_and_one_for_one_with_it() -> TestResult {
     let mut t = treasury();
-    alchemy(false, &mut t, 10, true).map_err(|e| format!("{e:?}"))?;
+    alchemy(50, &mut t, 10, true).map_err(|e| format!("{e:?}"))?;
     assert_eq!((t.gold, t.mana), (90, 25));
-    alchemy(false, &mut t, 10, false).map_err(|e| format!("{e:?}"))?;
+    alchemy(50, &mut t, 10, false).map_err(|e| format!("{e:?}"))?;
     assert_eq!((t.gold, t.mana), (95, 15));
-    alchemy(true, &mut t, 10, true).map_err(|e| format!("{e:?}"))?;
+    alchemy(100, &mut t, 10, true).map_err(|e| format!("{e:?}"))?;
     assert_eq!((t.gold, t.mana), (85, 25));
     Ok(())
 }
@@ -28,11 +28,11 @@ fn alchemy_is_two_for_one_without_the_retort_and_one_for_one_with_it() -> TestRe
 fn alchemy_refuses_what_the_wizard_cannot_pay_and_changes_nothing() {
     let mut t = treasury();
     assert_eq!(
-        alchemy(false, &mut t, 101, true),
+        alchemy(50, &mut t, 101, true),
         Err(MagicError::NotEnoughGold)
     );
     assert_eq!(
-        alchemy(false, &mut t, 21, false),
+        alchemy(50, &mut t, 21, false),
         Err(MagicError::NotEnoughMana)
     );
     assert_eq!((t.gold, t.mana), (100, 20));

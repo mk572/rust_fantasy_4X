@@ -24,8 +24,7 @@ use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
-use crate::rules::{RealmId, SpellId};
-use crate::wizard::magic::Retort;
+use crate::rules::{RealmId, SpellId, Stat};
 use crate::wizard::objective::Personality;
 
 /// What a wizard is bound to with another.
@@ -477,11 +476,6 @@ fn start_relation(view: &Game, a: PlayerId, b: PlayerId) -> i32 {
     score.max(-90)
 }
 
-fn charismatic(view: &Game, wizard: PlayerId) -> bool {
-    view.wizard(wizard)
-        .is_some_and(|m| m.has(Retort::new(16) /* charismatic */))
-}
-
 /// The enchantments that sour or sweeten relations: the change, whom it touches, and the
 /// divisor of the once-a-turn reaction (`Change_Relations_For_Enchantments`, whose cast-time
 /// divisor is 1 and, for the Spell of Mastery, 2 while it is being cast).
@@ -655,11 +649,12 @@ impl Diplomacy {
             _ => {}
         }
         let before_charisma = v;
-        if charismatic(ctx.view, attacker) {
+        if let Some(m) = ctx.view.wizard(attacker) {
+            let rules = &ctx.view.content().rules;
             if v > 0 {
-                v *= 2;
+                v = v * m.stat(rules, Stat::DiplomacyGainPercent, 100) / 100;
             } else if v < 0 {
-                v /= 2;
+                v = v * m.stat(rules, Stat::DiplomacyLossPercent, 100) / 100;
             }
         }
         let at_war = self.treaty(defender, attacker) == Treaty::War;

@@ -423,13 +423,27 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
                         stat: Stat::SpellCostPercent
                             | Stat::SpellUpkeepPercent
                             | Stat::ManaIncome
-                            | Stat::ResearchIncome,
+                            | Stat::ResearchIncome
+                            | Stat::CastingSkill
+                            | Stat::StartingSkill
+                            | Stat::SkillGainPercent
+                            | Stat::DispelMultiplier
+                            | Stat::NodeImmunity
+                            | Stat::CastingDistance
+                            | Stat::UnitLevels
+                            | Stat::AlchemyPercent
+                            | Stat::StartingWeapons
+                            | Stat::StartingFame
+                            | Stat::DiplomacyGainPercent
+                            | Stat::DiplomacyLossPercent
+                            | Stat::HeroCostPercent
+                            | Stat::ReligiousPercent,
                         ..
                     }
                 );
             if !fine {
                 p.push(format!(
-                    "retort {:?}: only passive changes to SpellCostPercent, SpellUpkeepPercent, ManaIncome and ResearchIncome are understood",
+                    "retort {:?}: only passive changes to the wizard stats (SpellCostPercent, SpellUpkeepPercent, ManaIncome, ResearchIncome, CastingSkill and the others a wizard has) are understood",
                     retort.id
                 ));
             }

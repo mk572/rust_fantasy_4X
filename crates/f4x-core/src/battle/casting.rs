@@ -109,13 +109,14 @@ impl BattleCaster {
 /// the fortress (`Combat_Casting_Cost_Multiplier`). `None` is a battle on the other plane, or
 /// from a wizard with no fortress: as far as it gets. At the fortress itself casting costs
 /// half; beyond five squares each five more add half the cost again, up to three times.
-/// A Channeler counts as two squares away anywhere but at the fortress.
-pub fn range_percent(distance: Option<u32>, channeler: bool) -> i32 {
+/// `counted` turns the distance into the one the wizard's retorts make of it (a Channeler counts
+/// as two squares away anywhere but at the fortress: `Stat::CastingDistance`).
+pub fn range_percent(distance: Option<u32>, counted: impl FnOnce(i32) -> i32) -> i32 {
     let distance = distance.unwrap_or(30);
     if distance == 0 {
         return 5;
     }
-    let distance = if channeler { 2 } else { distance };
+    let distance = u32::try_from(counted(i32::try_from(distance).unwrap_or(i32::MAX))).unwrap_or(0);
     10 + 5 * [5, 10, 15, 20].iter().filter(|&&t| distance > t).count() as i32
 }
 

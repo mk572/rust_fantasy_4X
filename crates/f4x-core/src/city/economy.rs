@@ -29,7 +29,6 @@ use crate::spell::city::RELIGIOUS;
 use crate::unit::UnitView;
 
 use crate::game::Game;
-use crate::wizard::magic::Retort;
 
 /// Citizens plus tens of people (0..100), so one citizen is 100 tens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -251,9 +250,8 @@ impl<'a> Economy<'a> {
             // Divine and Infernal Power add half again to the power and the pacifying of the
             // religious buildings: the original adds the buildings up, then takes 150 percent.
             let owner = self.city_owner(city);
-            let devout = owner.and_then(|o| self.wizard(o)).is_some_and(|m| {
-                m.has(Retort::new(6) /* divine_power */)
-                    || m.has(Retort::new(5) /* infernal_power */)
+            let devout = owner.and_then(|o| self.wizard(o)).map_or(100, |m| {
+                m.stat(&self.content.rules, Stat::ReligiousPercent, 100)
             });
             let (mut power, mut pacify) = (0, 0);
             // While another wizard keeps Armageddon going, the city has two more rebels' worth of
@@ -296,11 +294,11 @@ impl<'a> Economy<'a> {
                     Source::Other,
                 ));
             }
-            // Divine and Infernal Power take 150 percent of the religious buildings' power,
+            // Divine and Infernal Power take 150 percent (`ReligiousPercent`) of the religious buildings' power,
             // Dark Rituals doubles it, and the two together make 300 percent (`CITYCALC.c`).
             let rituals =
                 self.city_has_enchantment(city, SpellId::new(163) /* dark_rituals */);
-            let percent = if devout { 150 } else { 100 } * if rituals { 2 } else { 1 };
+            let percent = devout * if rituals { 2 } else { 1 };
             let religious = power * percent / 100;
             if religious > power {
                 mods.push(Modifier::new(
@@ -310,11 +308,11 @@ impl<'a> Economy<'a> {
                     Source::Other,
                 ));
             }
-            if devout && pacify > 0 {
+            if devout > 100 && pacify > 0 {
                 mods.push(Modifier::new(
                     Stat::CityUnrest,
                     crate::rules::ModOp::Add,
-                    -(pacify * 150 / 100 - pacify),
+                    -(pacify * devout / 100 - pacify),
                     Source::Other,
                 ));
             }

@@ -302,17 +302,23 @@ fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         ) else {
             return;
         };
-        let due = w.casting_skill().min(casting.remaining).max(0);
+        let due = w
+            .casting_skill(&view.content().rules)
+            .min(casting.remaining)
+            .max(0);
         let short = due - view.treasury().mana;
         if !w.is_banished() || short <= 0 {
             return;
         }
-        let rate = if w.has(f4x_core::wizard::magic::Retort::new(0) /* alchemy */) {
-            1
-        } else {
-            2
-        };
-        (short * rate).min(view.treasury().gold)
+        // Alchemy returns a percent of what is put in, so the gold needed is mana over that.
+        let percent = w
+            .stat(
+                &view.content().rules,
+                f4x_def::rules::Stat::AlchemyPercent,
+                50,
+            )
+            .max(1);
+        (short * 100 / percent).min(view.treasury().gold)
     };
     if gold > 0 {
         ai.send(
@@ -1120,7 +1126,7 @@ mod tests {
         let due = g
             .wizard(P0)
             .ok_or("player 0 is a wizard")?
-            .casting_skill()
+            .casting_skill(&g.content().rules)
             .min(500);
         assert!(due > 4, "the test wizard has a casting skill ({due})");
         {
@@ -1209,6 +1215,7 @@ mod tests {
         treasury(&mut g, P0)?.mana = 20_000;
         let mut wizard = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
         wizard.found(
+            &f4x_def::testdir::shipped().rules,
             &[
                 (RealmId::new(2) /* chaos */, 11),
                 (RealmId::new(4) /* death */, 11),
@@ -1244,9 +1251,11 @@ mod tests {
         g.make_contact(P0, P1);
         let wrath = spell(40 /* natures_wrath */)?;
         let storm = spell(113 /* meteor_storm */)?;
-        g.wizard_mut(P1)
-            .ok_or("player 1 is a wizard")?
-            .found(&[(RealmId::new(3) /* life */, 5)], &[]);
+        g.wizard_mut(P1).ok_or("player 1 is a wizard")?.found(
+            &f4x_def::testdir::shipped().rules,
+            &[(RealmId::new(3) /* life */, 5)],
+            &[],
+        );
         let victim = |g: &Game, id| {
             let def = g.content().rules.spells.get(id);
             world_spell_has_victim(&PlayerView::new(g, P0), def)
@@ -1258,9 +1267,11 @@ mod tests {
         }));
         assert!(victim(&g, storm), "at war: the storm has a victim");
         assert!(!victim(&g, wrath), "only Life: no Wrath");
-        g.wizard_mut(P1)
-            .ok_or("player 1 is a wizard")?
-            .found(&[(RealmId::new(2) /* chaos */, 5)], &[]);
+        g.wizard_mut(P1).ok_or("player 1 is a wizard")?.found(
+            &f4x_def::testdir::shipped().rules,
+            &[(RealmId::new(2) /* chaos */, 5)],
+            &[],
+        );
         assert!(victim(&g, wrath), "Chaos books: Wrath");
         Ok(())
     }

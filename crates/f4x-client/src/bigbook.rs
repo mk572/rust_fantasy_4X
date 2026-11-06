@@ -208,7 +208,7 @@ impl App {
             let limit = self
                 .game
                 .wizard(HUMAN)
-                .map_or(0, |m| m.casting_skill())
+                .map_or(0, |m| m.casting_skill(&self.game.content().rules))
                 .min(
                     self.game.player(HUMAN).map_or(0, |p| p.treasury().mana)
                         + self.game.income(HUMAN).split.mana,

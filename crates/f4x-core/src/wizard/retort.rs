@@ -46,9 +46,15 @@ fn modifiers(rules: &Rules, retorts: &BTreeSet<Retort>, def: &SpellDef) -> Vec<M
     out
 }
 
-/// `base` changed by the retorts' unconditional rules for `stat` (a wizard-wide stat such as
-/// `ManaIncome` or `SpellUpkeepPercent`, not one about a spell).
-pub fn stat(rules: &Rules, retorts: &BTreeSet<Retort>, stat: Stat, base: i32) -> i32 {
+/// `base` changed by the retorts' rules for `stat` (a wizard-wide stat such as `ManaIncome` or
+/// `CastingSkill`, not one about a spell), the rules whose condition holds for `facts`.
+pub fn stat_with(
+    rules: &Rules,
+    retorts: &BTreeSet<Retort>,
+    stat: Stat,
+    base: i32,
+    facts: &Facts,
+) -> i32 {
     let mods = retorts
         .iter()
         .filter_map(|&r| rules.retorts.try_get(r).map(|row| (r, row)))
@@ -56,7 +62,7 @@ pub fn stat(rules: &Rules, retorts: &BTreeSet<Retort>, stat: Stat, base: i32) ->
             row.effects
                 .iter()
                 .filter(|rule| rule.when == Trigger::Passive)
-                .filter(|rule| eval(&rule.condition, &Facts::default()))
+                .filter(|rule| eval(&rule.condition, facts))
                 .filter_map(move |rule| match rule.effect {
                     Effect::Modify { stat, op, value } => {
                         Some(Modifier::new(stat, op, value, Source::Retort(r)))
@@ -68,6 +74,11 @@ pub fn stat(rules: &Rules, retorts: &BTreeSet<Retort>, stat: Stat, base: i32) ->
     compute(stat, base, &mods)
 }
 
+/// [`stat_with`] for a rule that asks nothing (its condition is `Always`).
+pub fn stat(rules: &Rules, retorts: &BTreeSet<Retort>, stat: Stat, base: i32) -> i32 {
+    stat_with(rules, retorts, stat, base, &Facts::default())
+}
+
 /// Percent off the mana cost of `def` that the retorts give.
 pub fn cost_cut(rules: &Rules, retorts: &BTreeSet<Retort>, def: &SpellDef) -> i32 {
     -compute(Stat::SpellCostPercent, 0, &modifiers(rules, retorts, def))
@@ -76,7 +87,9 @@ pub fn cost_cut(rules: &Rules, retorts: &BTreeSet<Retort>, def: &SpellDef) -> i3
 /// Percent the retorts add to the research of `def`.
 pub fn research_bonus(rules: &Rules, retorts: &BTreeSet<Retort>, def: &SpellDef) -> i32 {
     let mods = modifiers(rules, retorts, def);
-    debug_assert!(mods.iter().all(|m| m.op != ModOp::Set));
+    debug_assert!(mods
+        .iter()
+        .all(|m| m.stat != Stat::ResearchIncome || m.op != ModOp::Set));
     compute(Stat::ResearchIncome, 100, &mods) - 100
 }
 
@@ -166,5 +179,63 @@ mod tests {
             .find(|d| d.realm == realm_ref(0 /* nature */))
             .expect("a nature spell");
         assert_eq!(research_bonus(rules, &both, nature), 40);
+    }
+
+    #[test]
+    fn the_wizard_wide_retorts_change_their_stats() {
+        let rules = &shipped().rules;
+        let none = retorts(&[]);
+        let check = |nums: &[u16], stat_: Stat, base: i32, want: i32| {
+            assert_eq!(
+                stat(rules, &retorts(nums), stat_, base),
+                want,
+                "{nums:?} {stat_:?}"
+            );
+        };
+        // Alchemy: all the mana back, magic weapons at least.
+        check(&[0], Stat::AlchemyPercent, 50, 100);
+        check(&[], Stat::AlchemyPercent, 50, 50);
+        check(&[0], Stat::StartingWeapons, 0, 1);
+        check(&[0], Stat::StartingWeapons, 3, 3);
+        // Warlord: a level more.
+        check(&[1], Stat::UnitLevels, 0, 1);
+        // Channeler: two squares from the fortress wherever the battle is.
+        check(&[8], Stat::CastingDistance, 25, 2);
+        check(&[], Stat::CastingDistance, 25, 25);
+        // Node Mastery.
+        check(&[12], Stat::NodeImmunity, 0, 1);
+        assert_eq!(stat(rules, &none, Stat::NodeImmunity, 0), 0);
+        // Famous, Charismatic.
+        check(&[13], Stat::StartingFame, 0, 10);
+        check(&[16], Stat::DiplomacyGainPercent, 100, 200);
+        check(&[16], Stat::DiplomacyLossPercent, 100, 50);
+        check(&[16], Stat::HeroCostPercent, 100, 50);
+        // Divine and Infernal Power, alone or together (they do not add up).
+        check(&[5], Stat::ReligiousPercent, 100, 150);
+        check(&[6], Stat::ReligiousPercent, 100, 150);
+        // Archmage: ten more casting skill, the same to start with, half as much more gained.
+        check(&[10], Stat::CastingSkill, 0, 10);
+        check(&[10], Stat::StartingSkill, 6, 16);
+        check(&[10], Stat::SkillGainPercent, 100, 150);
+    }
+
+    #[test]
+    fn a_dispel_resists_once_more_for_the_casters_mastery_of_the_realm_and_for_archmage() {
+        let rules = &shipped().rules;
+        let times = |nums: &[u16], realm: u16| {
+            let facts = Facts {
+                realm: Some(realm_ref(realm)),
+                ..Facts::default()
+            };
+            stat_with(rules, &retorts(nums), Stat::DispelMultiplier, 1, &facts)
+        };
+        assert_eq!(times(&[], 0), 1);
+        assert_eq!(times(&[3 /* nature_mastery */], 0 /* nature */), 2);
+        assert_eq!(times(&[3], 2 /* chaos */), 1);
+        assert_eq!(times(&[10 /* archmage */, 3], 0), 3);
+        assert_eq!(
+            times(&[10, 2 /* chaos_mastery */, 4 /* sorcery_mastery */], 1),
+            3
+        );
     }
 }

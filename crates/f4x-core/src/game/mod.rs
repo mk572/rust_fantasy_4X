@@ -205,6 +205,18 @@ impl Game {
         Some(wizard::sheet::WizardMut::new(&mut self.world, w))
     }
 
+    /// A write handle on the wizard of a player, with the rules it plays by.
+    pub(crate) fn wizard_mut_with_rules(
+        &mut self,
+        id: player::PlayerId,
+    ) -> Option<(wizard::sheet::WizardMut<'_>, &crate::rules::Rules)> {
+        let w = wizard::entity::of_player(&self.world, self.player_entity(id)?)?;
+        Some((
+            wizard::sheet::WizardMut::new(&mut self.world, w),
+            &self.content.rules,
+        ))
+    }
+
     /// Change a wizard's fame by `change`; it stays above zero.
     pub fn add_fame(&mut self, id: player::PlayerId, change: i32) {
         if let Some(mut w) = self.wizard_mut(id) {
@@ -619,11 +631,11 @@ impl Game {
                 amount,
                 gold_to_mana,
             } => {
-                let skilled = self
-                    .wizard(player)
-                    .is_some_and(|w| w.has(wizard::magic::Retort::new(0) /* alchemy */));
+                let percent = self.wizard(player).map_or(50, |w| {
+                    w.stat(&self.content.rules, crate::rules::Stat::AlchemyPercent, 50)
+                });
                 reject(match self.treasury_mut(player) {
-                    Some(t) => wizard::magic_command::alchemy(skilled, t, amount, gold_to_mana),
+                    Some(t) => wizard::magic_command::alchemy(percent, t, amount, gold_to_mana),
                     None => Err(wizard::magic::MagicError::UnknownPlayer),
                 })
             }
