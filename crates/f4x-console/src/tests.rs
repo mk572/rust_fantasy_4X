@@ -227,11 +227,11 @@ fn moving_into_an_enemy_starts_a_battle_you_can_fight_by_text() -> TestResult {
         let b = g.battle().expect("a battle is on");
         if b.player_of(b.active) == PlayerId(1) {
             // The opponent's side: let the console play it as that player.
-            let order = f4x_core::battle::ai::next_command(b);
+            let order = f4x_ai::battle::order::next_command(b);
             g.apply(f4x_core::game::Command::Battle(order));
             continue;
         }
-        let order = f4x_core::battle::ai::next_command(b);
+        let order = f4x_ai::battle::order::next_command(b);
         let line = match order {
             f4x_core::battle::BattleCommand::Move { unit, to } => {
                 format!("bmove {unit} {},{}", to.0, to.1)

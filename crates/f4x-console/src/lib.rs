@@ -183,6 +183,7 @@ pub fn find(name: &str) -> Option<&'static CommandDef> {
 
 impl Console {
     pub fn new(player: PlayerId, access: Access) -> Self {
+        f4x_ai::battle::install();
         Self {
             session: Session {
                 player,

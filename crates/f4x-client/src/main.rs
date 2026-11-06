@@ -582,6 +582,7 @@ fn window_conf() -> Conf {
 
 #[macroquad::main(window_conf)]
 async fn main() {
+    f4x_ai::battle::install();
     let options = match parse_args(std::env::args().skip(1)) {
         Ok(o) => o,
         Err(e) => {

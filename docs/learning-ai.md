@@ -1,7 +1,7 @@
 # A self-learning AI
 
 Design for AI players that learn the game by playing it, instead of following hand-written
-rules (`crates/f4x-ai`, `battle/ai.rs`) or loading weights somebody else trained. Status
+rules (`crates/f4x-ai`, `f4x-ai/src/battle/order.rs`) or loading weights somebody else trained. Status
 (13 October 2026): **phases 0 to 2 are built and tested (the battle AI); the strategic AI is
 still design only** and waits for the review after phase 2 (section 13). The battle agent beats
 the scripted battle AI but is not clearly better than random orders, so it is **not the default**
@@ -602,7 +602,7 @@ work, but the scenario bank should be remade (`make_bank`) because the odds were
 ## 8. Training both: how the stages combine
 
 1. Train the battle AI alone on generated fights (section 7) until it beats the plain
-   `battle/ai.rs` opponent and keeps improving only slowly.
+   `f4x-ai/src/battle/order.rs` opponent and keeps improving only slowly.
 2. Train the strategic AI with the **battle AI frozen** doing all tactical fights. Strategy
    sees a stable battle world, so the learning signal is not chasing a moving target.
 3. Alternate: unfreeze the battle AI on the fights the strategic AI really creates (a replay
@@ -617,7 +617,7 @@ work, but the scenario bank should be remade (`make_bank`) because the odds were
 
 ## 9. Starting from the existing AI
 
-The scripted AI (`crates/f4x-ai`, `battle/ai.rs`) has no weights; what it knows is in its
+The scripted AI (`crates/f4x-ai`, `f4x-ai/src/battle/order.rs`) has no weights; what it knows is in its
 rules and constants. Three ways to carry that into the learned AI, so it **starts able to play,
 then adjusts through play**, used together:
 
@@ -636,14 +636,14 @@ then adjusts through play**, used together:
    (1) and (2) help or only anchor the agent to the scripted AI's habits.
 
 The scripted AI is also still the sparring partner and the yardstick of the league (6.4).
-The battle opponent `battle/ai.rs` is weak (everything walks at the nearest enemy), so for
+The battle opponent `f4x-ai/src/battle/order.rs` is weak (everything walks at the nearest enemy), so for
 battles the advice is dropped more often and the warm start is short.
 
 ## 10. Evaluation and safety
 
 - **Yardstick**: Elo and win rates against the scripted AI, and against past checkpoints.
   Fixed seeds, fixed setups, fixed league, run on a schedule while training.
-- **Battle**: win rate and loss rate by army matchup against `battle/ai.rs`, plus handpicked
+- **Battle**: win rate and loss rate by army matchup against `f4x-ai/src/battle/order.rs`, plus handpicked
   scenario tests (a siege, a flier-versus-spearmen, a ranged-versus-melee).
 - **Behaviour tests**: replays reviewed for stalling, suicidal moves, wasted mana, never-built
   buildings.
@@ -696,7 +696,7 @@ The plan is to build the battle AI first and decide on the rest after seeing how
 | Phase | Work | Done when |
 |---|---|---|
 | 0 (done) | Shared legal-action functions and the alignment test (section 4); `f4x-learn` env for battles; the Burn spike; measure battles per second | a random policy plays battles without a rules error, and numbers for speed and for the M4 exist |
-| 1 (done, review open) | Battle generator; PPO for the battle AI with the scripted battle AI's advice and a warm start (section 9), the control run, the league | beats `battle/ai.rs` in the evaluation suite; advice versus control compared |
+| 1 (done, review open) | Battle generator; PPO for the battle AI with the scripted battle AI's advice and a warm start (section 9), the control run, the league | beats `f4x-ai/src/battle/order.rs` in the evaluation suite; advice versus control compared |
 | 2 (done) | Battle brief (`mana_budget`, `stakes`); casting; wiring into the game as the battle AI of AI wizards (closes task 46) | spends no more than the budget, trades losses for the win as `stakes` changes, and plays in the real game |
 | **Review** | Look at what phases 0 to 2 cost and gave, then decide whether to go on | a decision |
 | 3 | (if go) Strategic env, factored actions on the console's families, reward shaping, curriculum stages 1 to 4 | agent founds and grows cities, builds an economy, takes a neutral city |

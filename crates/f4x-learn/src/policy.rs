@@ -1,6 +1,7 @@
 //! Simple policies: a random one that explores, and the plain scripted battle AI of the core.
 
-use f4x_core::battle::{ai, Battle, BattleCommand};
+use f4x_ai::battle::order as ai;
+use f4x_core::battle::{Battle, BattleCommand};
 use rand::Rng;
 
 /// The class of a command, for choosing a kind of action before a particular one.

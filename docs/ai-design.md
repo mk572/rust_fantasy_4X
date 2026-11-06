@@ -1,7 +1,7 @@
 # The scripted AI: strategic and battle
 
 Design for the hand-written AI players: the strategic AI (`crates/f4x-ai`) and the conventional
-battle AI (`crates/f4x-core/src/battle/ai.rs`). The learned AI is a separate design
+battle AI (`crates/f4x-ai/src/battle/order.rs`). The learned AI is a separate design
 ([`learning-ai.md`](learning-ai.md)) and is not touched here. Related tasks: 46 (battle AI), 61
 (Spell of Mastery), 64 to 67 (personalities, AI v1, spells, attack), planned 24 (soak runs), 106
 (battle views), 224 to 232 (this design's steps, section 9).
@@ -48,9 +48,9 @@ cast, settlers, army, city production (`lib.rs`). Each part:
 It never sets the power split (mana, research, skill stay at 33/34/33), never uses heroes,
 items, nodes, lairs, ships, gates, plane travel or the new special spells, and does not use
 `legal_battle_casts`. Battle commands never come from the AI crate: a battle is run by the core,
-and its AI is `battle::ai::next_command`, which is given only the `Battle`.
+and its AI is `f4x_ai::battle::order::next_command`, which is given only the `Battle`.
 
-### 2.2 Battle AI (`battle/ai.rs`, 178 lines)
+### 2.2 Battle AI (`f4x-ai/src/battle/order.rs`, 178 lines)
 
 Every unit goes for the nearest enemy and attacks, shoots when it cannot reach, and walks round
 walls. It does not cast spells (it has no `Game`), does not choose targets by value, does not
@@ -259,8 +259,9 @@ and learn tests still pass.
 
 ### 6.2 A brain with the game (step 9)
 
-Built as `battle::brain::next_command(&Game)`, which `Game::next_battle_command` calls for every
-wizard that has no learned brain set (it is not itself a `BattleBrain` object: it needs no state).
+Built as `f4x_ai::battle::cast::next_command(&Game)`, which `Game::next_battle_command` calls for every
+wizard that has no learned brain set (the game holds it as a function pointer, `battle::game::set_battle_ai`,
+set by `f4x_ai::battle::install()`, which `Ai::new`, `play_round`, `play_neutrals`, `Console::new` and the client's `main` call) (it is not itself a `BattleBrain` object: it needs no state).
 It does: (1) if the wizard may cast this turn, choose a cast from `legal_battle_casts` (section
 6.5); (2) otherwise the unit orders of `ai::next_command`. `ai::next_command(&Battle)` stays for
 callers that have no game (the client's auto-battle, the console tests, the learn crate) and is
@@ -422,9 +423,9 @@ in section 8.1.
 | 4 | 228 | Casting beyond summons; the win spell cast (5.3, 7.3) | done (task 228) |
 | 5 | 228 | The special spells in the AI (Earth Lore, Word of Recall, Nature's Cures...) | done, except Transmute (task 434) and Plane Shift (task 444) |
 | 6 | 229 | War: target value, memory of garrisons, defence (5.2, 5.4) | partly: unreachable targets, committed marches, strike force; no garrison memory yet |
-| 7 | 229 | Stack strength shared with the battle AI | not done (`worth` and `expected_damage` exist in `battle/ai.rs`) |
+| 7 | 229 | Stack strength shared with the battle AI | not done (`worth` and `expected_damage` exist in `f4x-ai/src/battle/order.rs`) |
 | 8 | 230 | Ships and other land masses | not done |
-| 9 | 231 | Battle: wizard brain with spells (6.2, 6.5) | done (`battle/brain.rs`) |
+| 9 | 231 | Battle: wizard brain with spells (6.2, 6.5) | done (`f4x-ai/src/battle/cast.rs`) |
 | 10 | 232 | Battle: target values, focus fire, shooters hold (6.3) | done |
 | 11 | 232 | Battle: defence and fleeing (6.4) | walls held; no sally, no fleeing |
 
@@ -448,7 +449,7 @@ that does not improve the soak or the mirrored fights is reverted and noted in t
 
 Written after steps 0 to 7 and 9 to 11. Each finding below was found by looking at a soak game,
 not guessed; the fixes are small and each has a test (`crates/f4x-ai/tests/it/behaviour.rs`, the
-unit tests in `wizardry.rs` and `battle/ai.rs`, `crates/f4x-learn/tests/it/mirror.rs`).
+unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/tests/it/mirror.rs`).
 
 ### 11.1 Strategic AI
 
@@ -514,7 +515,7 @@ unit tests in `wizardry.rs` and `battle/ai.rs`, `crates/f4x-learn/tests/it/mirro
 - **The special spells in the AI** (step 5): Earth Lore, Word of Recall and Nature's Cures are
   cast; Transmute waits for task 434, Plane Shift for task 444.
 - **Sallying out and fleeing** (6.4), **a shared strength function** (step 7): `worth` and
-  `expected_damage` in `battle/ai.rs` are the pieces.
+  `expected_damage` in `f4x-ai/src/battle/order.rs` are the pieces.
 - **Heroes and items** (`heroes-items-design.md`) once they exist.
 - **The economy limits the war.** A wizard's net income is a few gold a turn at 200 turns; a unit
   costs one or two gold a turn, so armies stop at 15 to 40 units. Outposts take hundreds of turns
@@ -535,7 +536,7 @@ unit tests in `wizardry.rs` and `battle/ai.rs`, `crates/f4x-learn/tests/it/mirro
 
 ## 12. State after the entity rework (24 October 2026)
 
-The scripted AI (`f4x-ai`, the battle AI in `battle/ai.rs` and `brain.rs`) and the trained one
+The scripted AI (`f4x-ai`, the battle AI in `f4x-ai/src/battle/order.rs` and `cast.rs`) and the trained one
 (`f4x-learn`) already ran on the new entities (task 336 moved them to the handles). This pass checked
 them, fixed what the soak showed, and gave the objective and the personality something to do. All
 numbers are from `f4x-tools soak` on the shipped content plus `content-local`, release build.

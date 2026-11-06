@@ -171,6 +171,17 @@ impl Game {
         let _ = self.world.insert_one(unit, Experience(xp));
     }
 
+    /// Give the wizard of `side` in the battle on the table `mana` to cast with and the same
+    /// to spend, with a casting skill of ten (a test or a scenario setting up a fight).
+    pub fn scenario_battle_caster(&mut self, side: crate::battle::Side, mana: i32) {
+        if let Some(a) = self.battle.as_mut() {
+            a.battle.set_caster(
+                side,
+                crate::battle::casting::BattleCaster::new(mana, mana, 10),
+            );
+        }
+    }
+
     /// Wound a unit by this many hit points (over all figures), as a scenario sets it up.
     pub fn scenario_set_hurt(&mut self, unit: hecs::Entity, hurt: u32) {
         let _ = self.world.insert_one(unit, Hurt(hurt));

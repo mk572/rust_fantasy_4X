@@ -8,12 +8,12 @@
 //! a defender inside a walled city stays behind the wall. Spells are chosen by the wizard's brain
 //! with the whole game (`game.rs`), not here: a [`Battle`] alone knows nothing of the wizard.
 
-use super::attack::Mode;
-use super::immunity::{AttackNature, Immunities};
-use super::map::{distance, in_city_area, Pos};
-use super::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
-use crate::game::setting::MeleeVsFliers;
-use crate::rules::Ability;
+use f4x_core::battle::attack::Mode;
+use f4x_core::battle::immunity::{AttackNature, Immunities};
+use f4x_core::battle::map::{distance, in_city_area, Pos};
+use f4x_core::battle::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
+use f4x_core::game::setting::MeleeVsFliers;
+use f4x_core::rules::Ability;
 
 /// The nearest active enemy the unit's side can see (lowest id on ties).
 fn closest_enemy<'a>(battle: &'a Battle, unit: &BattleUnit) -> Option<&'a BattleUnit> {
@@ -143,15 +143,9 @@ pub fn baseline_command(battle: &Battle) -> BattleCommand {
 
 // ---- the smarter AI ------------------------------------------------------------
 
-/// How hard a unit hits and how much it can take, as one number: the one strength both the
-/// battle AI (`worth`) and the strategic AI (`f4x_ai::view::unit_strength`) weigh units by.
-pub fn strength(attack: i32, defense: i32, hit_points: i32) -> f32 {
-    (attack.max(0) as f32 * 1.5 + defense.max(0) as f32 + 1.0) * hit_points.max(0) as f32
-}
-
 /// What a unit is worth in a fight: its strength times what it has left.
 pub fn worth(u: &BattleUnit) -> f32 {
-    strength(u.melee.max(u.ranged), u.defense, u.hit_points())
+    f4x_core::battle::strength(u.melee.max(u.ranged), u.defense, u.hit_points())
 }
 
 /// The damage (hit points) `attacker` is expected to do to `target` with one attack of kind
@@ -338,9 +332,9 @@ fn approach(battle: &Battle, unit: &BattleUnit, goal: &BattleUnit) -> Option<Pos
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::battle::map::BattleMap;
-    use crate::battle::{BattleUnit, Side};
-    use crate::player::PlayerId;
+    use f4x_core::battle::map::BattleMap;
+    use f4x_core::battle::{BattleUnit, Side};
+    use f4x_core::player::PlayerId;
     use f4x_def::testdir::TestResult;
 
     fn duel(a: Pos, d: Pos) -> Battle {
@@ -495,7 +489,7 @@ mod tests {
                 > expected_damage(&a, &hard, false, MeleeVsFliers::default())
         );
         let mut stone = BattleUnit::simple(Side::Defender, 4, 1, 1, 0);
-        stone.abilities.push(crate::rules::Ability::new(72));
+        stone.abilities.push(f4x_core::rules::Ability::new(72));
         assert_eq!(
             expected_damage(&a, &stone, false, MeleeVsFliers::default()),
             0.0
@@ -535,6 +529,45 @@ mod tests {
             b.apply(c).map_err(|e| format!("{e:?}"))?;
         }
         assert!(b.winner.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn the_battle_ai_takes_a_walled_city() -> TestResult {
+        // Attackers with a crusher against a few guards behind the wall: the fight ends, and the
+        // crusher has opened the walls or the army has come through the gate.
+        let crusher = {
+            let mut u = BattleUnit::simple(Side::Attacker, 1, 20, 8, 3).at((6, 12));
+            u.abilities = vec![f4x_core::rules::Ability::new(70) /* wall_crusher */];
+            u
+        };
+        let guard = |cell| BattleUnit::simple(Side::Defender, 4, 3, 3, 3).at(cell);
+        let mut results = (0, 0);
+        for seed in 0..12 {
+            let attackers = [
+                crusher.clone(),
+                BattleUnit::simple(Side::Attacker, 4, 4, 4, 3).at((6, 11)),
+                BattleUnit::simple(Side::Attacker, 4, 4, 4, 3).at((6, 13)),
+                BattleUnit::simple(Side::Attacker, 4, 4, 4, 3).at((5, 12)),
+            ];
+            let defenders = [guard((12, 12)), guard((13, 11)), guard((13, 12))];
+            let units = attackers.into_iter().chain(defenders).collect();
+            let map = BattleMap::open().with_city(true);
+            let mut b = Battle::new(PlayerId(0), PlayerId(1), map, units, seed);
+            for _ in 0..5_000 {
+                if b.winner.is_some() {
+                    break;
+                }
+                let c = next_command(&b);
+                b.apply(c).map_err(|e| format!("{e:?}"))?;
+            }
+            assert!(b.winner.is_some(), "seed {seed} never ended");
+            match b.winner {
+                Some(Side::Attacker) => results.0 += 1,
+                _ => results.1 += 1,
+            }
+        }
+        assert!(results.0 > 0, "the attackers never get in: {results:?}");
         Ok(())
     }
 }

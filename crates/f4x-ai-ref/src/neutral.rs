@@ -43,6 +43,7 @@ pub fn play_neutrals(game: &mut Game) -> Vec<Event> {
 /// Like [`play_neutrals`], but the players in `defended_by` fight the battles against them
 /// themselves: an attack on them is not resolved but returned, for the host to play out.
 pub fn play_neutrals_for(game: &mut Game, defended_by: &[PlayerId]) -> (Vec<Event>, Vec<Attack>) {
+    crate::battle::install();
     let cities: Vec<_> = game
         .player_ids()
         .into_iter()

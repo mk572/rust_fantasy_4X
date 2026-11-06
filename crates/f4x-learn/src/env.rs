@@ -99,6 +99,7 @@ pub const STEP_LIMIT: u32 = 20_000;
 
 impl BattleEnv {
     pub fn new(content: &Content, scenario: BattleScenario) -> Result<Self, String> {
+        f4x_ai::battle::install();
         let game = build(content, &scenario)?;
         let battle = game.battle().ok_or("no battle")?;
         let mut sent = [0u32; 2];

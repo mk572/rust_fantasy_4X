@@ -1587,39 +1587,6 @@ fn attackers_inside_the_city_hurt_it_each_turn() -> TestResult {
     Ok(())
 }
 
-#[test]
-fn the_battle_ai_takes_a_walled_city() -> TestResult {
-    // Attackers with a crusher against a few guards behind the wall: the fight ends, and the
-    // crusher has opened the walls or the army has come through the gate.
-    let mut results = (0, 0);
-    for seed in 0..12 {
-        let attackers = [
-            crusher(Side::Attacker, (6, 12), false),
-            BattleUnit::simple(Side::Attacker, 4, 4, 4, 3).at((6, 11)),
-            BattleUnit::simple(Side::Attacker, 4, 4, 4, 3).at((6, 13)),
-            BattleUnit::simple(Side::Attacker, 4, 4, 4, 3).at((5, 12)),
-        ];
-        let defenders = [guard(GATE_SPOT), guard((13, 11)), guard((13, 12))];
-        let mut b = siege(attackers.into_iter().chain(defenders).collect(), true, seed);
-        for _ in 0..5_000 {
-            if b.winner.is_some() {
-                break;
-            }
-            let c = ai::next_command(&b);
-            b.apply(c).map_err(|e| format!("{e:?}"))?;
-        }
-        assert!(b.winner.is_some(), "seed {seed} never ended");
-        match b.winner {
-            Some(Side::Attacker) => results.0 += 1,
-            _ => results.1 += 1,
-        }
-    }
-    assert!(results.0 > 0, "the attackers never get in: {results:?}");
-    Ok(())
-}
-
-const GATE_SPOT: Pos = (12, 12);
-
 // ---- spells -----------------------------------------------------------------
 
 mod casting {
@@ -3239,13 +3206,6 @@ fn the_twelve_units_with_a_casting_ability_cast_its_spell_once_for_no_mana() -> 
             (_, None) => return Err(format!("{unit_id} cannot cast {spell_id}").into()),
         }
         let aim = SpellAim::Unit(if spell_id == 125 /* healing */ { 0 } else { 1 });
-        // The scripted unit makes the cast at the enemy (a lone, unhurt Healing has no point).
-        let chosen = super::brain::unit_cast_choice(&g, g.battle().ok_or("no battle")?);
-        assert!(
-            spell_id == 125 /* healing */
-                || matches!(chosen, Some(BattleCommand::UnitCast { spell: s, aim: SpellAim::Unit(1), .. }) if s == spell),
-            "{unit_id}: {chosen:?}"
-        );
         g.battle_command(BattleCommand::UnitCast {
             unit: 0,
             spell,
@@ -5235,72 +5195,6 @@ fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() ->
     Ok(())
 }
 
-/// A fight of player A's wizard (who knows `spells`, with `mana` in the reserve) against a
-/// stack of walkers, left to the battle AI; returns the mana spent.
-fn strategic_fight(spells: &[u16], mana: i32, budget: Option<u32>) -> i32 {
-    let mut g = casting_game();
-    g.treasury_mut(A).expect("treasury_mut succeeds").mana = 2000;
-    g.init_wizard(
-        A,
-        &[
-            (RealmId::new(0 /* nature */), 5),
-            (RealmId::new(3 /* life */), 5),
-            (RealmId::new(4 /* death */), 5),
-        ],
-        &[],
-        None,
-    )
-    .expect("value succeeds");
-    for name in spells {
-        let id = g
-            .content
-            .rules
-            .spells
-            .id_numbered(*name)
-            .expect("id_of succeeds");
-        let mut m = g.wizard_mut(A).expect("wizard_mut succeeds");
-        m.get_mut::<crate::wizard::sheet::KnownSpells>()
-            .researchable
-            .remove(&id);
-        m.get_mut::<crate::wizard::sheet::Candidates>()
-            .0
-            .retain(|c| *c != id);
-        m.get_mut::<crate::wizard::sheet::KnownSpells>()
-            .known
-            .insert(id);
-    }
-    g.treasury_mut(A).expect("treasury_mut succeeds").mana = mana;
-    let walker = g
-        .content
-        .rules
-        .units
-        .id_numbered(107)
-        .expect("id_of succeeds");
-    let ours: Vec<_> = (0..3).map(|_| g.spawn_unit(A, at(4, 4), walker)).collect();
-    let theirs: Vec<_> = (0..6).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
-    g.apply(Command::AutoResolve {
-        attackers: ours,
-        defenders: theirs,
-        mana_budget: budget.map(|b| (A, b)),
-    });
-    assert!(!g.in_battle());
-    mana - g.treasury_mut(A).expect("treasury_mut succeeds").mana
-}
-
-#[test]
-fn the_battle_ai_spends_mana_in_a_strategic_fight_and_a_limit_stops_it() {
-    let spells = [
-        4,   /* giant_strength */
-        7,   /* stone_skin */
-        121, /* bless */
-    ];
-    let free = strategic_fight(&spells, 500, None);
-    assert!(free > 3, "the AI casts when it may: spent {free}");
-    let limited = strategic_fight(&spells, 500, Some(3));
-    assert!(limited <= 3, "limited to 3, spent {limited}");
-    assert_eq!(strategic_fight(&spells, 500, Some(0)), 0);
-}
-
 #[test]
 fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() -> TestResult {
     let mut g = casting_game();
@@ -5552,185 +5446,6 @@ fn monsters_that_win_get_no_experience_and_the_loser_loses_no_fame() -> TestResu
     Ok(())
 }
 
-/// A battle of `ours` against `foes` cavalry in which wizard A knows `spell`, has `mana` in the
-/// battle and `reserve` overland.
-fn spell_duel(
-    spell: u16,
-    foes: usize,
-    mana: i32,
-    reserve: i32,
-) -> Result<Game, Box<dyn std::error::Error>> {
-    let mut g = game_with_abilities(107 /* high_men_cavalry */, &[]);
-    let id = g
-        .content
-        .rules
-        .spells
-        .id_numbered(spell)
-        .ok_or("the spell is not in the content")?;
-    {
-        let mut m = g.wizard_mut(A).ok_or("wizard_mut is missing")?;
-        m.get_mut::<crate::wizard::sheet::KnownSpells>()
-            .researchable
-            .remove(&id);
-        m.get_mut::<crate::wizard::sheet::Candidates>()
-            .0
-            .retain(|c| *c != id);
-        m.get_mut::<crate::wizard::sheet::KnownSpells>()
-            .known
-            .insert(id);
-        m.get_mut::<crate::wizard::sheet::Skill>().left = 500;
-    }
-    g.treasury_mut(A).ok_or("A has no treasury")?.mana = reserve;
-    let walker = g
-        .content
-        .rules
-        .units
-        .id_numbered(107)
-        .ok_or("high_men_cavalry is not in the content")?;
-    let ours = g.spawn_unit(A, at(4, 4), walker);
-    let theirs: Vec<_> = (0..foes)
-        .map(|_| g.spawn_unit(D, at(5, 4), walker))
-        .collect();
-    g.apply(Command::BeginBattle {
-        attackers: vec![ours],
-        defenders: theirs,
-    });
-    g.battle
-        .as_mut()
-        .ok_or("as_mut is missing")?
-        .battle
-        .set_caster(Side::Attacker, BattleCaster::new(mana, mana, 10));
-    Ok(g)
-}
-
-#[test]
-fn the_scripted_wizard_casts_a_damage_spell_at_an_enemy_when_it_can_pay() -> TestResult {
-    let g = spell_duel(83 /* fire_bolt */, 2, 50, 50)?;
-    let bolt = g
-        .content
-        .rules
-        .spells
-        .id_numbered(83)
-        .ok_or("fire_bolt is not in the content")?;
-    let Some(BattleCommand::Cast { spell, aim, .. }) = super::brain::next_command(&g) else {
-        return Err("the wizard did not cast".into());
-    };
-    assert_eq!(spell, bolt);
-    let SpellAim::Unit(target) = aim else {
-        return Err(format!("a bolt is aimed at a unit, not {aim:?}").into());
-    };
-    let battle = g.battle().ok_or("battle is missing")?;
-    assert_eq!(
-        battle.unit(target).ok_or("no such unit")?.side,
-        Side::Defender
-    );
-    Ok(())
-}
-
-#[test]
-fn the_scripted_wizard_casts_call_chaos_and_a_magic_vortex_when_enemies_are_there() -> TestResult {
-    for name in [115 /* call_chaos */, 105 /* magic_vortex */] {
-        let g = spell_duel(name, 3, 200, 200)?;
-        let id = g
-            .content
-            .rules
-            .spells
-            .id_numbered(name)
-            .ok_or("the spell is not in the content")?;
-        let Some(BattleCommand::Cast { spell, aim, .. }) = super::brain::next_command(&g) else {
-            return Err(format!("the wizard did not cast {name}").into());
-        };
-        assert_eq!(spell, id, "{name}");
-        if name == 105
-        /* magic_vortex */
-        {
-            let SpellAim::Tile(cell) = aim else {
-                return Err(format!("a vortex is raised on a square, not {aim:?}").into());
-            };
-            let battle = g.battle().ok_or("battle is missing")?;
-            assert!(
-                battle
-                    .units
-                    .iter()
-                    .any(|u| u.side == Side::Defender && super::map::distance(u.cell, cell) <= 2),
-                "the vortex is raised among the enemy, not at {cell:?}"
-            );
-        }
-    }
-    Ok(())
-}
-
-#[test]
-fn the_scripted_side_steers_its_vortex_onto_an_enemy_once_and_leaves_the_enemys_alone() -> TestResult
-{
-    let mut b = duel(
-        spearman(Side::Attacker, (3, 10)),
-        spearman(Side::Defender, (10, 10)),
-        5,
-    );
-    b.make_vortex(Side::Attacker, (9, 10));
-    assert_eq!(
-        super::brain::steer_choice(&b),
-        Some(BattleCommand::MoveVortex {
-            index: 0,
-            to: (10, 10)
-        })
-    );
-    b.vortices[0].steered = true;
-    assert_eq!(super::brain::steer_choice(&b), None, "once a turn");
-    b.vortices[0].steered = false;
-    b.vortices[0].owner = Side::Defender;
-    assert_eq!(
-        super::brain::steer_choice(&b),
-        None,
-        "the other side's vortex is not ours to move"
-    );
-    Ok(())
-}
-
-#[test]
-fn the_scripted_wizard_with_no_mana_to_spare_moves_its_units_instead() -> TestResult {
-    // No mana in the battle.
-    let g = spell_duel(83 /* fire_bolt */, 2, 0, 50)?;
-    assert!(!matches!(
-        super::brain::next_command(&g),
-        Some(BattleCommand::Cast { .. })
-    ));
-    // Mana in the battle, but an empty reserve overland: the upkeep comes first.
-    let mut g = spell_duel(83 /* fire_bolt */, 2, 50, 0)?;
-    g.treasury_mut(A).ok_or("A has no treasury")?.mana = -5;
-    assert!(!matches!(
-        super::brain::next_command(&g),
-        Some(BattleCommand::Cast { .. })
-    ));
-    Ok(())
-}
-
-#[test]
-fn the_scripted_wizard_heals_a_hurt_unit_but_not_a_whole_one() -> TestResult {
-    let mut g = spell_duel(125 /* healing */, 1, 50, 50)?;
-    assert!(
-        !matches!(
-            super::brain::next_command(&g),
-            Some(BattleCommand::Cast { .. })
-        ),
-        "nothing is hurt"
-    );
-    let battle = &mut g.battle.as_mut().ok_or("no battle")?.battle;
-    let hurt = battle
-        .units
-        .iter_mut()
-        .find(|u| u.side == Side::Attacker)
-        .ok_or("no attacker")?;
-    hurt.front_damage = 5;
-    let id = hurt.id;
-    let Some(BattleCommand::Cast { aim, .. }) = super::brain::next_command(&g) else {
-        return Err("the wizard did not heal".into());
-    };
-    assert_eq!(aim, SpellAim::Unit(id));
-    Ok(())
-}
-
 #[test]
 fn the_legal_unit_casts_are_the_castable_spells_with_the_units_they_can_hit() -> TestResult {
     let mut g = casting_game();
@@ -5748,10 +5463,5 @@ fn the_legal_unit_casts_are_the_castable_spells_with_the_units_they_can_hit() ->
     let (unit, cast) = &legal[0];
     assert_eq!((*unit, cast.spell, cast.least_mana), (0, bolt, 5));
     assert_eq!(cast.aims, [SpellAim::Unit(1)], "only the enemy unit");
-    // The scripted units choose that cast.
-    assert!(matches!(
-        super::brain::unit_cast_choice(&g, g.battle().ok_or("no battle")?),
-        Some(BattleCommand::UnitCast { unit: 0, spell, aim: SpellAim::Unit(1), mana: 5 }) if spell == bolt
-    ));
     Ok(())
 }

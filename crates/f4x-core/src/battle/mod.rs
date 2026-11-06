@@ -11,9 +11,7 @@
 //!
 //! Tests: in battle/tests.rs.
 
-pub mod ai;
 pub mod attack;
-pub mod brain;
 pub mod casting;
 pub mod field;
 pub mod game;
@@ -1293,7 +1291,7 @@ impl Battle {
     /// Whether a Wall of Darkness stops `unit` shooting at `target`: the target is in the city
     /// and the shooter outside it, and the shooter does not see through illusions (the
     /// original's code forgets the innate immunity, which its help text allows).
-    fn blocked_by_darkness(&self, unit: usize, target: usize) -> bool {
+    pub fn blocked_by_darkness(&self, unit: usize, target: usize) -> bool {
         self.wall_of_darkness
             && in_city_area(self.units[target].cell)
             && !in_city_area(self.units[unit].cell)
@@ -1601,6 +1599,12 @@ impl Battle {
         events.extend(self.crush_wall_under(att, def));
         events
     }
+}
+
+/// How hard a unit hits and how much it can take, as one number: the one strength both the
+/// battle AI (`f4x_ai::battle`) and the strategic AI weigh units by, and the pick screen sorts by.
+pub fn strength(attack: i32, defense: i32, hit_points: i32) -> f32 {
+    (attack.max(0) as f32 * 1.5 + defense.max(0) as f32 + 1.0) * hit_points.max(0) as f32
 }
 
 #[cfg(test)]

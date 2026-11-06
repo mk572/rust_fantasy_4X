@@ -3,7 +3,8 @@
 //! `Game::next_battle_command` plays a wizard) on each side in turn against the plain one
 //! (`ai::baseline_command`, which casts nothing), and it must win more of them than it loses.
 
-use f4x_core::battle::{ai, BattleCommand, Side};
+use f4x_ai::battle::order as ai;
+use f4x_core::battle::{BattleCommand, Side};
 use f4x_def::content::Content;
 use f4x_learn::env::BattleEnv;
 use f4x_learn::scenario::generate_raw;

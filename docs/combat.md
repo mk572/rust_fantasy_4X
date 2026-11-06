@@ -357,7 +357,7 @@ Code: `crates/f4x-client/src/battle_screen.rs`.
   the next unit that can still act, Enter or E ends the turn, Flee asks twice. The buttons are the original's `compix.lbx` pictures (Spell, Wait, Done, Auto, Info, Flee; Wait picks the next unit); Auto and Info are drawn greyed until auto-play (133) and the info window exist; Spell opens the wizard's spell list (section 8). End turn is a plain button, as the original ends a turn when every unit is done. The panel shows the
   hovered (else selected) unit's melee, ranged, defence, resistance, figures, hit points, moves,
   ammunition and abilities, and the last combat lines.
-- **The other side** is played by `battle/ai.rs` after a short delay per order: each unit attacks
+- **The other side** is played by `f4x-ai/src/battle/order.rs` after a short delay per order: each unit attacks
   an adjacent enemy, else shoots, else walks to the reachable square nearest the closest enemy,
   else is done. This is a placeholder for the real battle AI (task 46).
 - `--battle` together with `--shot FILE` opens a test fight for screenshots. `--battle-field vortex` adds a Magic Vortex (the

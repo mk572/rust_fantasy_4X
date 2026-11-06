@@ -124,6 +124,7 @@ fn spawn_army(
 /// Build the game of a scenario and begin its battle: the attacker is wizard 0, the defender
 /// wizard 1.
 pub fn build(content: &Content, s: &BattleScenario) -> Result<Game, String> {
+    f4x_ai::battle::install();
     let mut game = new_game(
         content,
         &NewGame {
@@ -230,6 +231,7 @@ pub fn build_at(
     nth: usize,
     hero: bool,
 ) -> Result<Game, String> {
+    f4x_ai::battle::install();
     let mut game = new_game(
         content,
         &NewGame {

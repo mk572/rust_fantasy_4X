@@ -15,13 +15,13 @@
 //!
 //! Tests: in battle/tests.rs (`the_scripted_wizard_...` for the wizard, `the_legal_unit_casts_...` for the units).
 
-use super::ai::{self, worth};
-use super::casting::SpellAim;
-use super::map::{self, Pos};
-use super::{Battle, BattleCommand, BattleUnit, Side};
-use crate::game::Game;
-use crate::rules::effects::{Effect, EffectRule, TargetSel};
-use crate::rules::{ModOp, SpellDef, Stat};
+use super::order::{self as ai, worth};
+use f4x_core::battle::casting::SpellAim;
+use f4x_core::battle::map::{self, Pos};
+use f4x_core::battle::{Battle, BattleCommand, BattleUnit, Side};
+use f4x_core::game::Game;
+use f4x_core::rules::effects::{Effect, EffectRule, TargetSel};
+use f4x_core::rules::{ModOp, SpellDef, Stat};
 
 /// A cast must be worth at least this share of the dearest enemy unit to be made.
 const WORTH_FLOOR: f32 = 0.12;
@@ -305,5 +305,263 @@ fn rule_value(
         }
         Effect::GrantAbility(_) => on.iter().filter(|u| ours(u)).map(|u| 0.25 * worth(u)).sum(),
         _ => 0.0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::testworld::{at, game, shipped, COAST_CITY, P0, P1};
+    use f4x_core::battle::{BattleCommand, Side};
+    use f4x_core::game::Command;
+    use f4x_def::testdir::TestResult;
+
+    /// A battle of player 0's cavalry against `foes` more, in which player 0's wizard knows
+    /// `spell`, has `mana` in the battle and `reserve` overland.
+    fn spell_duel(
+        spell: u16,
+        foes: usize,
+        mana: i32,
+        reserve: i32,
+    ) -> Result<Game, Box<dyn std::error::Error>> {
+        spell_duel_hurt(spell, foes, mana, reserve, 0)
+    }
+
+    /// [`spell_duel`] with our cavalry wounded by `hurt` hit points before the battle.
+    fn spell_duel_hurt(
+        spell: u16,
+        foes: usize,
+        mana: i32,
+        reserve: i32,
+        hurt: u32,
+    ) -> Result<Game, Box<dyn std::error::Error>> {
+        let mut g = game(COAST_CITY, 7);
+        let id = shipped()
+            .rules
+            .spells
+            .id_numbered(spell)
+            .ok_or("the spell is not in the content")?;
+        g.cheat_learn_spell(P0, id);
+        g.wizard_mut(P0)
+            .ok_or("no wizard")?
+            .get_mut::<f4x_core::wizard::sheet::Skill>()
+            .left = 500;
+        g.treasury_mut(P0).ok_or("no treasury")?.mana = reserve;
+        let walker = shipped().rules.units.id_numbered(107).ok_or("no cavalry")?;
+        let ours = g.spawn_unit(P0, at(4, 4), walker);
+        g.scenario_set_hurt(ours, hurt);
+        let theirs: Vec<_> = (0..foes)
+            .map(|_| g.spawn_unit(P1, at(5, 4), walker))
+            .collect();
+        g.apply(Command::BeginBattle {
+            attackers: vec![ours],
+            defenders: theirs,
+        });
+        g.scenario_battle_caster(Side::Attacker, mana);
+        Ok(g)
+    }
+
+    #[test]
+    fn the_scripted_wizard_casts_a_damage_spell_at_an_enemy_when_it_can_pay() -> TestResult {
+        let g = spell_duel(83 /* fire_bolt */, 2, 50, 50)?;
+        let bolt = shipped()
+            .rules
+            .spells
+            .id_numbered(83)
+            .ok_or("no fire bolt")?;
+        let Some(BattleCommand::Cast { spell, aim, .. }) = next_command(&g) else {
+            return Err("the wizard did not cast".into());
+        };
+        assert_eq!(spell, bolt);
+        let SpellAim::Unit(target) = aim else {
+            return Err(format!("a bolt is aimed at a unit, not {aim:?}").into());
+        };
+        let battle = g.battle().ok_or("battle is missing")?;
+        assert_eq!(
+            battle.unit(target).ok_or("no such unit")?.side,
+            Side::Defender
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn the_scripted_wizard_casts_call_chaos_and_a_magic_vortex_when_enemies_are_there() -> TestResult
+    {
+        for name in [115 /* call_chaos */, 105 /* magic_vortex */] {
+            let g = spell_duel(name, 3, 200, 200)?;
+            let id = shipped()
+                .rules
+                .spells
+                .id_numbered(name)
+                .ok_or("no such spell")?;
+            let Some(BattleCommand::Cast { spell, aim, .. }) = next_command(&g) else {
+                return Err(format!("the wizard did not cast {name}").into());
+            };
+            assert_eq!(spell, id, "{name}");
+            if name == 105 {
+                let SpellAim::Tile(cell) = aim else {
+                    return Err(format!("a vortex is raised on a square, not {aim:?}").into());
+                };
+                let battle = g.battle().ok_or("battle is missing")?;
+                assert!(
+                    battle
+                        .units
+                        .iter()
+                        .any(|u| u.side == Side::Defender && map::distance(u.cell, cell) <= 2),
+                    "the vortex is raised among the enemy, not at {cell:?}"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn the_scripted_side_steers_its_vortex_onto_an_enemy_once_and_leaves_the_enemys_alone() {
+        use f4x_core::battle::map::BattleMap;
+        let units = vec![
+            BattleUnit::simple(Side::Attacker, 3, 2, 3, 2).at((3, 10)),
+            BattleUnit::simple(Side::Defender, 3, 2, 3, 2).at((10, 10)),
+        ];
+        let mut b = Battle::new(P0, P1, BattleMap::open(), units, 5);
+        b.make_vortex(Side::Attacker, (9, 10));
+        assert_eq!(
+            steer_choice(&b),
+            Some(BattleCommand::MoveVortex {
+                index: 0,
+                to: (10, 10)
+            })
+        );
+        b.vortices[0].steered = true;
+        assert_eq!(steer_choice(&b), None, "once a turn");
+        b.vortices[0].steered = false;
+        b.vortices[0].owner = Side::Defender;
+        assert_eq!(
+            steer_choice(&b),
+            None,
+            "the other side's vortex is not ours to move"
+        );
+    }
+
+    #[test]
+    fn the_scripted_wizard_with_no_mana_to_spare_moves_its_units_instead() -> TestResult {
+        let g = spell_duel(83 /* fire_bolt */, 2, 0, 50)?;
+        assert!(!matches!(
+            next_command(&g),
+            Some(BattleCommand::Cast { .. })
+        ));
+        // Mana in the battle, but an empty reserve overland: the upkeep comes first.
+        let mut g = spell_duel(83 /* fire_bolt */, 2, 50, 0)?;
+        g.treasury_mut(P0).ok_or("no treasury")?.mana = -5;
+        assert!(!matches!(
+            next_command(&g),
+            Some(BattleCommand::Cast { .. })
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn the_scripted_wizard_heals_a_hurt_unit_but_not_a_whole_one() -> TestResult {
+        let g = spell_duel(125 /* healing */, 1, 50, 50)?;
+        assert!(
+            !matches!(next_command(&g), Some(BattleCommand::Cast { .. })),
+            "nothing is hurt"
+        );
+        let g = spell_duel_hurt(125 /* healing */, 1, 50, 50, 5)?;
+        let Some(BattleCommand::Cast { aim, .. }) = next_command(&g) else {
+            return Err("the wizard did not heal".into());
+        };
+        let ours = g
+            .battle()
+            .ok_or("no battle")?
+            .units
+            .iter()
+            .find(|u| u.side == Side::Attacker)
+            .ok_or("no attacker")?
+            .id;
+        assert_eq!(aim, SpellAim::Unit(ours));
+        Ok(())
+    }
+
+    /// A fight of player 0's wizard (who knows `spells`, with `mana` in the reserve) against a
+    /// stack of walkers, left to the battle AI; returns the mana spent.
+    fn strategic_fight(
+        spells: &[u16],
+        mana: i32,
+        budget: Option<u32>,
+    ) -> Result<i32, Box<dyn std::error::Error>> {
+        crate::battle::install();
+        let mut g = game(COAST_CITY, 7);
+        g.init_wizard(
+            P0,
+            &[
+                (f4x_core::rules::RealmId::new(0 /* nature */), 5),
+                (f4x_core::rules::RealmId::new(3 /* life */), 5),
+                (f4x_core::rules::RealmId::new(4 /* death */), 5),
+            ],
+            &[],
+            None,
+        )
+        .map_err(|e| format!("{e:?}"))?;
+        for name in spells {
+            let id = shipped()
+                .rules
+                .spells
+                .id_numbered(*name)
+                .ok_or("no such spell")?;
+            g.cheat_learn_spell(P0, id);
+        }
+        g.treasury_mut(P0).ok_or("no treasury")?.mana = mana;
+        let walker = shipped().rules.units.id_numbered(107).ok_or("no cavalry")?;
+        let ours: Vec<_> = (0..3).map(|_| g.spawn_unit(P0, at(4, 4), walker)).collect();
+        let theirs: Vec<_> = (0..6).map(|_| g.spawn_unit(P1, at(5, 4), walker)).collect();
+        g.apply(Command::AutoResolve {
+            attackers: ours,
+            defenders: theirs,
+            mana_budget: budget.map(|b| (P0, b)),
+        });
+        assert!(!g.in_battle());
+        Ok(mana - g.treasury_mut(P0).ok_or("no treasury")?.mana)
+    }
+
+    #[test]
+    fn the_battle_ai_spends_mana_in_a_strategic_fight_and_a_limit_stops_it() -> TestResult {
+        let spells = [
+            4,   /* giant_strength */
+            7,   /* stone_skin */
+            121, /* bless */
+        ];
+        let free = strategic_fight(&spells, 500, None)?;
+        assert!(free > 3, "the AI casts when it may: spent {free}");
+        let limited = strategic_fight(&spells, 500, Some(3))?;
+        assert!(limited <= 3, "limited to 3, spent {limited}");
+        assert_eq!(strategic_fight(&spells, 500, Some(0))?, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn a_unit_that_casts_by_its_ability_makes_the_cast_at_the_enemy() -> TestResult {
+        let rules = &shipped().rules;
+        let ability = rules.abilities.id_numbered(5).ok_or("no casts_fireball")?;
+        let fireball = rules.spells.id_numbered(96).ok_or("no fireball")?;
+        let caster = rules
+            .units
+            .defs()
+            .iter()
+            .find(|d| d.abilities.contains(&ability))
+            .ok_or("no unit casts fireball")?;
+        let mut g = game(COAST_CITY, 7);
+        let walker = rules.units.id_numbered(107).ok_or("no cavalry")?;
+        let ours = g.spawn_unit(P0, at(4, 4), f4x_core::rules::UnitId::new(caster.num));
+        let theirs = g.spawn_unit(P1, at(5, 4), walker);
+        g.apply(Command::BeginBattle {
+            attackers: vec![ours],
+            defenders: vec![theirs],
+        });
+        let chosen = unit_cast_choice(&g, g.battle().ok_or("no battle")?);
+        assert!(
+            matches!(chosen, Some(BattleCommand::UnitCast { spell, aim: SpellAim::Unit(1), .. }) if spell == fireball),
+            "{chosen:?}"
+        );
+        Ok(())
     }
 }

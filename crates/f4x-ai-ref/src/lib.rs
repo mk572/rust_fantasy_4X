@@ -8,6 +8,7 @@
 //! Tests: in the modules (each decision has its own file and tests); `tests/it/` has the rules of
 //! the ships and the slow whole-game behaviour tests (ignored by default).
 
+pub mod battle;
 mod colony;
 mod diplomacy;
 mod economy;
@@ -132,6 +133,7 @@ pub struct Attack {
 
 impl Ai {
     pub fn new(player: PlayerId) -> Self {
+        battle::install();
         Self {
             player,
             settler_targets: HashMap::new(),
@@ -307,6 +309,7 @@ pub use offer::answer_resales;
 
 /// Let every AI play its turn, then end the turn for everyone. Returns all the events.
 pub fn play_round(game: &mut Game, ais: &mut [Ai]) -> Vec<Event> {
+    battle::install();
     let mut events = Vec::new();
     for ai in ais.iter_mut() {
         events.extend(ai.play_turn(game));

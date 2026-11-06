@@ -2674,6 +2674,7 @@ name = "f4x-learn"
 version = "0.0.3"
 dependencies = [
  "burn",
+ "f4x-ai",
  "f4x-core",
  "f4x-def",
  "hecs",

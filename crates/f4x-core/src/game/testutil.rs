@@ -47,7 +47,62 @@ pub fn settings() -> crate::game::setting::SettingsDef {
 /// The game's own `content/` folder, loaded by the real loader (`f4x_def::testdir::shipped`), as
 /// a copy for a `Game`, which owns its content.
 pub fn shipped() -> Content {
+    crate::battle::game::set_battle_ai(battle_policy);
     f4x_def::testdir::shipped().clone()
+}
+
+/// The battle player of core's own tests: every unit hits what is next to it, shoots what it can
+/// or walks at the nearest enemy, with no walls and no spells. It stands in for the scripted
+/// battle AI (`f4x_ai::battle`), which core cannot use, wherever a test only needs a fight to
+/// get played to the end.
+pub fn battle_policy(game: &crate::game::Game) -> Option<crate::battle::BattleCommand> {
+    use crate::battle::map::distance;
+    use crate::battle::{BattleCommand, RangedKind};
+    let battle = game.battle()?;
+    let side = battle.active;
+    for unit in battle.active_units(side) {
+        if unit.attacked && unit.moves_left == 0 {
+            continue;
+        }
+        let Some(enemy) = battle
+            .active_units(side.other())
+            .filter(|e| battle.seen_by(side, e.id))
+            .min_by_key(|e| (distance(unit.cell, e.cell), e.id))
+        else {
+            return Some(BattleCommand::EndTurn);
+        };
+        if !unit.attacked {
+            if distance(unit.cell, enemy.cell) == 1 {
+                return Some(BattleCommand::Attack {
+                    unit: unit.id,
+                    target: enemy.id,
+                });
+            }
+            let shoots = matches!(unit.ranged_kind, RangedKind::Missile | RangedKind::Magic)
+                && unit.ranged > 0
+                && unit.ammo > 0;
+            if shoots && !battle.blocked_by_darkness(unit.id, enemy.id) {
+                return Some(BattleCommand::Shoot {
+                    unit: unit.id,
+                    target: enemy.id,
+                });
+            }
+        }
+        if unit.moves_left > 0 {
+            let here = distance(unit.cell, enemy.cell);
+            let best = battle
+                .reachable(unit.id)
+                .into_iter()
+                .min_by_key(|&(p, cost)| (distance(p, enemy.cell), cost, p));
+            if let Some((to, _)) = best {
+                if distance(to, enemy.cell) < here {
+                    return Some(BattleCommand::Move { unit: unit.id, to });
+                }
+            }
+        }
+        return Some(BattleCommand::Done { unit: unit.id });
+    }
+    Some(BattleCommand::EndTurn)
 }
 
 /// The number of the ability the content file calls `alias`, for tests that name abilities in

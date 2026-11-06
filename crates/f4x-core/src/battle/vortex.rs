@@ -52,7 +52,7 @@ impl Battle {
         self.vortices.len() < MAX_VORTICES && self.map.is_playable(cell) && !self.is_occupied(cell)
     }
 
-    pub(super) fn make_vortex(&mut self, side: Side, cell: Pos) -> BattleEvent {
+    pub fn make_vortex(&mut self, side: Side, cell: Pos) -> BattleEvent {
         self.vortices.push(Vortex {
             cell,
             owner: side,

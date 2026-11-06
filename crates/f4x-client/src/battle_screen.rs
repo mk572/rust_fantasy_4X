@@ -15,7 +15,7 @@ use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::spellbook::BookUi;
-use f4x_core::battle::ai::next_command;
+use f4x_ai::battle::order::next_command;
 use f4x_core::battle::map::{distance, BattleMap, Pos, Wall, GRID_H, GRID_W};
 use f4x_core::battle::{
     Battle, BattleCommand, BattleEvent, BattleUnit, Confusion, Fate, RangedKind, Side, SpellAim,

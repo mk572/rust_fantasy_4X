@@ -117,16 +117,28 @@ pub fn ranged_kind_of(abilities: &[Ability]) -> RangedKind {
 }
 
 /// Something that plays a wizard's side of a battle: it is asked for one command at a time.
-/// The core's own player is [`super::ai::next_command`]; a learned one (`f4x-learn`) is plugged
-/// in with [`Game::set_battle_brain`]. The brain sees the whole game, as a player does.
+/// The scripted player is `f4x_ai::battle`, set once with [`set_battle_ai`]; a learned one
+/// (`f4x-learn`) is plugged in with [`Game::set_battle_brain`]. The brain sees the whole game, as
+/// a player does.
 pub trait BattleBrain {
     /// The next command for the side to play in the battle in progress.
     fn command(&mut self, game: &Game) -> BattleCommand;
 }
 
+/// The scripted battle player that plays every side no brain was set for.
+static BATTLE_AI: std::sync::OnceLock<fn(&Game) -> Option<BattleCommand>> =
+    std::sync::OnceLock::new();
+
+/// Name the scripted battle player: `f4x_ai::battle::install` calls this once. The battle AI is
+/// behaviour, so it lives in the AI crate; the game only asks it for the next command. Without
+/// one (and without a brain for the side) a battle has no next command.
+pub fn set_battle_ai(ai: fn(&Game) -> Option<BattleCommand>) {
+    let _ = BATTLE_AI.set(ai);
+}
+
 impl Game {
     /// Let `brain` play the battles of `player` (an AI wizard) from now on; `None` goes back to
-    /// the plain battle AI.
+    /// the scripted battle AI.
     pub fn set_battle_brain(&mut self, player: PlayerId, brain: Option<Box<dyn BattleBrain>>) {
         let Some(player) = self.player_entity(player) else {
             return;
@@ -138,7 +150,7 @@ impl Game {
     }
 
     /// The next command for the side to play: from the brain of its wizard if it has one, else
-    /// from the plain battle AI. `None` when no battle is on.
+    /// from the scripted battle AI ([`set_battle_ai`]). `None` when no battle is on or there is no AI.
     pub fn next_battle_command(&mut self) -> Option<BattleCommand> {
         let player = {
             let b = self.battle()?;
@@ -156,7 +168,7 @@ impl Game {
             self.battle_brains.push((p, brain));
             return Some(c);
         }
-        super::brain::next_command(self)
+        BATTLE_AI.get().and_then(|ai| ai(self))
     }
 
     /// Is a battle being fought?
@@ -378,14 +390,14 @@ impl Game {
     }
 
     /// How strong a unit is as a fighter: the number the preset and the pick screen sort by
-    /// (`battle::ai::strength` of its better attack, defence and hit points now).
+    /// (`battle::strength` of its better attack, defence and hit points now).
     pub fn fighter_strength(&self, unit: hecs::Entity) -> f32 {
         use crate::rules::Stat;
         let e = self.units();
         let attack = e
             .unit_stat(unit, Stat::Melee)
             .max(e.unit_stat(unit, Stat::Ranged));
-        super::ai::strength(
+        super::strength(
             attack,
             e.unit_stat(unit, Stat::Defense),
             e.unit_hits(unit).0 as i32,

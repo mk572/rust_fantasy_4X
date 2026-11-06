@@ -210,7 +210,7 @@ Similarly, the notes about AI storm spells targeting random or non-existent unit
 
 The battle code exposes legal-command generation and validates commands when applied. Preserve that separation: AI scoring should select from legal actions, and command application should independently reject stale or illegal targets.
 
-Relevant code: [battle/legal.rs](../crates/f4x-core/src/battle/legal.rs), [battle/ai.rs](../crates/f4x-core/src/battle/ai.rs), [battle/brain.rs](../crates/f4x-core/src/battle/brain.rs), [ai-design.md](ai-design.md).
+Relevant code: [battle/legal.rs](../crates/f4x-core/src/battle/legal.rs), [f4x-ai/src/battle/order.rs](../crates/f4x-ai/src/battle/order.rs), [f4x-ai/src/battle/cast.rs](../crates/f4x-ai/src/battle/cast.rs), [ai-design.md](ai-design.md).
 
 **Recommended tests:** AI spell target becomes invalid between scoring and execution; friendly and inactive targets excluded; flying target rejected by a ground-only attack; battle memory reset between battles; multi-AI turn execution completes one wizard's whole turn before the next wizard begins.
 
@@ -329,7 +329,7 @@ The battle brain iterates legal battle casts and aims, values effects against fr
 
 Many 1.50 notes describe conditional value: do not cast Guardian Wind without missile threats; avoid Life Drain on large targets; avoid duplicate Haste/Invisibility; avoid Possession against Death Immunity; use Web against flyers or when the battle is favorable; use Mind Storm in an even matchup; avoid targets protected by Spell Lock; and dispel field effects such as Call Lightning/Wrack when useful. A generic scorer cannot infer all these conditions from coarse effect value. It needs spell-rule metadata or explicit named tactical evaluators.
 
-Relevant code: [battle/brain.rs](../crates/f4x-core/src/battle/brain.rs), [battle/ai.rs](../crates/f4x-core/src/battle/ai.rs).
+Relevant code: [f4x-ai/src/battle/cast.rs](../crates/f4x-ai/src/battle/cast.rs), [f4x-ai/src/battle/order.rs](../crates/f4x-ai/src/battle/order.rs).
 
 **Recommended tests:** matchup matrix for the named spells; no redundant buffs; legal target filtering after Spell Lock and immunity; field-dispel scoring for Call Lightning/Wrack; tactical behavior when outmatched and when no attack target is reachable.
 
@@ -428,7 +428,7 @@ Tests: pair-scoped bounded relation changes; refused alliance-break request reta
 
 The stated outcome—more survivors but more wounded—is a balance consequence, not a hardcoded objective. Test mixed-cost stacks, heroes, one-figure units, overkill, ties and exceptional/zero-cost units.
 
-Relevant code: [battle/brain.rs](../crates/f4x-core/src/battle/brain.rs), [battle/ai.rs](../crates/f4x-core/src/battle/ai.rs). A separate strategic-combat resolver was not established by this narrow review.
+Relevant code: [f4x-ai/src/battle/cast.rs](../crates/f4x-ai/src/battle/cast.rs), [f4x-ai/src/battle/order.rs](../crates/f4x-ai/src/battle/order.rs). A separate strategic-combat resolver was not established by this narrow review.
 
 ### 4. UI, unit information and combat feedback
 
