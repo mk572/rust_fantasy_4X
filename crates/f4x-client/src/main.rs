@@ -61,6 +61,7 @@ mod menu_bar_art;
 mod menu_screen;
 mod modal;
 mod names;
+mod newgame_button_art;
 mod newgame_flow;
 mod newgame_picks;
 mod offer_prompt;

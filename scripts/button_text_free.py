@@ -42,6 +42,12 @@ The lavender lettering of those four buttons has a metallic sheen: its tone depe
 the light and dark bands run diagonally across the whole word. `sheen_<family>_<name>.png` holds that
 pattern for one button (same size as the button, a colour for every pixel from the nearest diagonal that
 has lettering on it); the client keeps the lettering's pixels and takes their colours from it.
+
+The new game screens' wooden OK and Cancel (64x16 pictures `newgame` 2 and 3, small OK 30x14) need no
+cleaning: the screen has blank wooden plates of the same style (`newgame_004_00.png`, 64x15 opaque).
+`wood_64.png` is that plate and `wood_30.png` its left and right 15 columns joined (for the small
+OK). The plate is a pixel bigger than the OK picture to the left and up: the client draws it at the OK's
+position less (1, 1), so the bottom right edges meet. The pressed look is the plate moved.
 """
 import argparse
 from pathlib import Path
@@ -269,6 +275,14 @@ def main() -> None:
         for width in widths:
             widen(img, width).save(out_dir / f"{prefix}_{width}.png")
             print(f"{prefix} {width}: {n} label pixels replaced")
+    plate = Image.open(Path(args.src).parent / "new_game" / "newgame_004_00.png").convert("RGBA")
+    plate = plate.crop(plate.getbbox())
+    plate.save(out_dir / "wood_64.png")
+    small = Image.new("RGBA", (30, plate.height))
+    small.paste(plate.crop((0, 0, 15, plate.height)), (0, 0))
+    small.paste(plate.crop((plate.width - 15, 0, plate.width, plate.height)), (15, 0))
+    small.save(out_dir / "wood_30.png")
+    print("wood_64, wood_30: from the blank plate")
     for screen, prefix, button in SHEENS:
         img = Image.open(Path(args.src).parent / screen / f"button_{button}_00.png")
         sheen(img).save(out_dir / f"sheen_{prefix}_{button}.png")

@@ -108,18 +108,6 @@ impl App {
     pub fn open_options(&mut self) {
         self.open_page(Screen::Options, OptionsPage);
     }
-
-    /// A two-frame button of `newgame.lbx` (the second frame while pressed); true when clicked.
-    pub(crate) fn newgame_button(
-        &mut self,
-        lay: &Layout,
-        entry: usize,
-        x: f32,
-        y: f32,
-        input: &Input,
-    ) -> bool {
-        self.pic_button_on(lay, ("newgame", entry), (x, y), input)
-    }
 }
 
 /// What a game was made with, one line each (the Settings screen of a running game).
@@ -327,8 +315,8 @@ impl Page for OptionsPage {
             Some(3) => o.magic = (o.magic + 1) % 3,
             _ => {}
         }
-        let ok = app.newgame_button(&lay, 2, 252.0, 179.0, input);
-        let cancel = app.newgame_button(&lay, 3, 171.0, 179.0, input);
+        let ok = app.board_button(&lay, "ui.button_ok", (252.0, 179.0), input);
+        let cancel = app.board_button(&lay, "ui.cancel", (171.0, 179.0), input);
         if cancel || input.key_pressed(KeyCode::Escape) {
             app.open_main_menu();
         } else if ok || input.key_pressed(KeyCode::Enter) {

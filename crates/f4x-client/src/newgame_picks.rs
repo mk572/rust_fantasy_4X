@@ -300,7 +300,7 @@ impl CreateState {
         app.ng_name(lay, &name);
         self.ng_abilities(app, lay);
         let ok = left == 0;
-        app.draw_pic(lay, "newgame", if ok { 42 } else { 43 }, 0, 252.0, 182.0);
+        app.draw_small_ok(lay, input, (252.0, 182.0), ok);
         if ui::hit(lay.rect((251.0, 181.0, 32.0, 16.0)), live, input).clicked() {
             if ok {
                 self.next_spells(app, 0);
@@ -492,7 +492,7 @@ impl CreateState {
         app.ng_name(lay, &name);
         self.ng_abilities(app, lay);
         let ok = remaining == 0;
-        app.draw_pic(lay, "newgame", if ok { 42 } else { 43 }, 0, 252.0, 182.0);
+        app.draw_small_ok(lay, input, (252.0, 182.0), ok);
         if ui::hit(lay.rect((251.0, 181.0, 32.0, 16.0)), live, input).clicked() {
             if ok {
                 self.next_spells(app, index + 1);

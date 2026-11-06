@@ -568,7 +568,7 @@ impl CreateState {
             38.0,
         );
         // OK, where it stands on the other steps; Enter does the same.
-        app.draw_pic(lay, "newgame", 42, 0, 252.0, 182.0);
+        app.draw_small_ok(lay, input, (252.0, 182.0), true);
         if !self.ng_input() {
             return;
         }
@@ -689,7 +689,7 @@ impl CreateState {
         }
         // OK goes on, once a race is picked.
         let ok = self.race_pick.is_some();
-        app.draw_pic(lay, "newgame", if ok { 42 } else { 43 }, 0, 286.0, 182.0);
+        app.draw_small_ok(lay, input, (286.0, 182.0), ok);
         if ui::hit(lay.rect((285.0, 181.0, 32.0, 16.0)), live, input).clicked() {
             match self.race_pick {
                 Some(race) => {

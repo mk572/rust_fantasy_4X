@@ -30,7 +30,7 @@ translucent shadow edge (`.edge(Color::from_rgba(..))`) follows the marbling.
 ## Probably text, to verify first
 
 12. [ ] Item crafting: 54 pictures (weapon types and their "chosen" variants, charges 1 to 4, OK, arrows)
-13. [ ] New game screens: OK and Cancel (`newgame` 2 and 3) and the other entries of `newgame_flow.rs` and `newgame_picks.rs`
+13. [ ] New game screens: OK and Cancel are done (`wood_64.png`, `wood_30.png`, from the screen's blank plate `newgame` 4; labels from `newgame_button_art.rs`; the small OK fades while disabled and presses like the others). Still baked into the options picture (`newgame` 1, at x=165): the title "Game Options" and the labels Difficulty, Opponents, Land Size and Magic. To check: the other entries of `newgame_flow.rs` and `newgame_picks.rs`
 14. [ ] Site encounter and prompts: Yes/No (`resource` 3 and 4), `bottom_with_button`
 15. [ ] Offers: `hire`, `merchant_buttons`
 16. [x] Settings screen: Ok is a text-free plank (`plank_40.png`, from the original's blank load/save button) with the label drawn by `plank_button_art.rs`; the background (`load` 11) has no baked button text
