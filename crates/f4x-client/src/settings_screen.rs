@@ -15,7 +15,7 @@ use macroquad::prelude::*;
 
 use crate::frame::Layout;
 use crate::preferences::{Pref, FILE};
-use crate::ui::{self, button, GOLD};
+use crate::ui::{self, GOLD};
 use crate::view::{App, Screen};
 
 /// Where a switch sits, in the original's pixels: the check box's left edge and top.
@@ -189,12 +189,7 @@ impl Page for SettingsPage {
         } else {
             (266.0, 176.0)
         };
-        if app.draw_pic(&lay, "load", 4, 0, dx, dy).is_none() {
-            let near = lay.rect((l, t, 41.0, 14.0));
-            if button(near, "OK", true, input) {
-                app.leave_settings();
-            }
-        }
+        app.draw_plank(&lay, 40, "ui.button_ok_mixed", (dx, dy), 1.0);
         app.volume_sliders(&lay, view, mouse, input);
         // The game's own settings, which the original keeps on the new-game screen.
         let game_label = app.text("settings.game");

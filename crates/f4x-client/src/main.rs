@@ -68,6 +68,7 @@ mod options_screen;
 mod outpost_screen;
 mod page;
 mod page_turn;
+mod plank_button_art;
 mod pointer;
 mod preferences;
 mod production_screen;

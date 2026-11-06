@@ -24,6 +24,11 @@ count as ink, since the Wait and Build pictures have a dark speck below it. Only
 made: the original's pressed picture (frame 1) is the up one a pixel right and down under a dark
 top row and left column, which the client draws itself. The locked pictures (`button_<name>_locked_00.png`, a dimmed copy with
 the label in (121,85,36)) are cleaned at the places where the up picture has its ink.
+
+The plank buttons of the load/save and settings screens (gold brown, lettering in mixed case) have a
+blank picture already: `button_load_inactive_00.png` (38x13). `plank_<width>.png` is that picture
+widened by repeating columns from its middle, so the Settings screen's Ok (40 wide) is the plank
+plus a label from the font engine.
 """
 import argparse
 from pathlib import Path
@@ -35,6 +40,7 @@ NAMES = ["game", "spells", "armies", "cities", "magic", "info", "plane"]
 ACTIONS = ["done", "patrol", "wait", "build", "meld", "purify"]
 CITY = ["buy", "change", "ok"]
 LOCKED = ["done", "patrol", "wait", "build"]
+PLANK_WIDTHS = [38, 39, 40, 58]
 
 
 def ink_of(img: Image.Image, rows: range = None) -> set[tuple[int, int]]:
@@ -123,6 +129,18 @@ def city_ink(img: Image.Image) -> set[tuple[int, int]]:
     }
 
 
+def plank(blank: Image.Image, width: int) -> Image.Image:
+    """The blank plank widened to `width` by repeating columns of its middle."""
+    w, h = blank.size
+    mid = w // 2
+    out = Image.new("RGBA", (width, h))
+    for x in range(width):
+        src = x if x < mid else (mid if x < mid + width - w else x - (width - w))
+        for y in range(h):
+            out.putpixel((x, y), blank.convert("RGBA").getpixel((src, y)))
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--src", default="assets-local/screens/main_screen")
@@ -143,6 +161,10 @@ def main() -> None:
         img, n = clean(img, city_ink(img), shadow=False)
         img.save(out_dir / f"city_{name}.png")
         print(f"city {name}: {n} label pixels replaced")
+    blank = Image.open(Path(args.src).parent / "load_save" / "button_load_inactive_00.png")
+    for width in PLANK_WIDTHS:
+        plank(blank, width).save(out_dir / f"plank_{width}.png")
+        print(f"plank {width}: widened from the blank picture")
     for name in ACTIONS:
         img = Image.open(Path(args.src) / f"button_{name}_00.png")
         ink = ink_of(img, range(2, 7))

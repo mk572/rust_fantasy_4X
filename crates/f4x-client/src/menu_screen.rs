@@ -184,6 +184,24 @@ impl App {
         self.open_page(Screen::Slots, SlotsPage);
     }
 
+    /// A text-free plank button (`plank_button_art`) at `at` with the label of text key `key`; it
+    /// moves a pixel while held and fades when disabled. True when clicked.
+    fn plank_button(
+        &mut self,
+        lay: &Layout,
+        at: (f32, f32),
+        width: u32,
+        key: &str,
+        enabled: bool,
+        input: &Input,
+    ) -> bool {
+        let state = ui::hit(lay.rect((at.0, at.1, width as f32, 13.0)), enabled, input);
+        let shift = if state.held() { 1.0 } else { 0.0 };
+        let fade = if enabled { 1.0 } else { 0.4 };
+        self.draw_plank(lay, width, key, (at.0 + shift, at.1 + shift), fade);
+        state.clicked()
+    }
+
     /// A button on the 320 by 200 layout: the original's picture (a different frame while the
     /// mouse is over it) or a plain box. True when clicked.
     #[allow(clippy::too_many_arguments)]
@@ -455,61 +473,17 @@ impl Page for SlotsPage {
         let can_save = in_game && selected.is_some() && app.game.game_over.is_none();
 
         // Buttons along y = 171: Quit, Load, Save, Settings, OK (the original's positions).
-        let quit_label = app.text(if app.menu.from_menu {
+        let quit_key = if app.menu.from_menu {
             "menu.back"
         } else {
             "menu.quit"
-        });
-        let quit = app.menu_button(
-            &lay,
-            (43.0, 171.0, 39.0, 13.0),
-            Some(("load", 2, 43.0, 171.0)),
-            &quit_label,
-            true,
-            false,
-            true,
-            input,
-        );
-        let load = app.menu_button(
-            &lay,
-            (83.0, 171.0, 38.0, 13.0),
-            Some(("load", if can_load { 1 } else { 6 }, 83.0, 171.0)),
-            &app.text("menu.load"),
-            can_load,
-            false,
-            true,
-            input,
-        );
-        let save = app.menu_button(
-            &lay,
-            (122.0, 171.0, 38.0, 13.0),
-            Some(("load", if can_save { 3 } else { 7 }, 122.0, 171.0)),
-            &app.text("menu.save"),
-            can_save,
-            false,
-            true,
-            input,
-        );
-        let settings = app.menu_button(
-            &lay,
-            (172.0, 171.0, 58.0, 13.0),
-            Some(("load", 12, 172.0, 171.0)),
-            &app.text("menu.settings"),
-            true,
-            false,
-            true,
-            input,
-        );
-        let ok = app.menu_button(
-            &lay,
-            (231.0, 171.0, 40.0, 13.0),
-            Some(("load", 4, 231.0, 171.0)),
-            &app.text("ui.ok"),
-            true,
-            false,
-            true,
-            input,
-        ) || input.key_pressed(KeyCode::Escape);
+        };
+        let quit = app.plank_button(&lay, (43.0, 171.0), 39, quit_key, true, input);
+        let load = app.plank_button(&lay, (83.0, 171.0), 38, "menu.load", can_load, input);
+        let save = app.plank_button(&lay, (122.0, 171.0), 38, "menu.save", can_save, input);
+        let settings = app.plank_button(&lay, (172.0, 171.0), 58, "menu.settings", true, input);
+        let ok = app.plank_button(&lay, (231.0, 171.0), 40, "ui.button_ok_mixed", true, input)
+            || input.key_pressed(KeyCode::Escape);
 
         if app.menu.confirm_overwrite {
             app.draw_styled(

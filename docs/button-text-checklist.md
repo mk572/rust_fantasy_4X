@@ -24,7 +24,7 @@ translucent shadow edge (`.edge(Color::from_rgba(..))`) follows the marbling.
 7. [ ] Alchemy: Cancel, OK (the arrows have no text)
 8. [ ] Road build: OK and CANCEL are baked into the border picture; the surveyor (`main` 41) too
 9. [ ] Spell cast: Cancel, baked into the border and also a picture of its own
-10. [ ] Load/Save: Load, Save, Quit, Settings, Ok (the inactive variants are already blank)
+10. [x] Load/Save: Load, Save, Quit, Settings, Ok are text-free planks (`plank_38/39/40/58.png`, widened from the original's blank load button), labels from `menu.*` keys drawn kerned by `plank_button_art.rs`
 11. [ ] Start menu: Continue, Hall Of Fame, Load Game, New Game, Quit To DOS (large blackletter, a bigger style)
 
 ## Probably text, to verify first
@@ -33,5 +33,5 @@ translucent shadow edge (`.edge(Color::from_rgba(..))`) follows the marbling.
 13. [ ] New game screens: OK and Cancel (`newgame` 2 and 3) and the other entries of `newgame_flow.rs` and `newgame_picks.rs`
 14. [ ] Site encounter and prompts: Yes/No (`resource` 3 and 4), `bottom_with_button`
 15. [ ] Offers: `hire`, `merchant_buttons`
-16. [ ] Settings screen (`load` 4 and 11)
+16. [x] Settings screen: Ok is a text-free plank (`plank_40.png`, from the original's blank load/save button) with the label drawn by `plank_button_art.rs`; the background (`load` 11) has no baked button text
 17. [ ] Unit screen, diplomacy, spell book, upkeep and sell prompts: check whether the buttons already come from the client's `red_button` (text drawn by the client); if so they are fine
