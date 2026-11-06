@@ -1,7 +1,6 @@
 //! The seven buttons of the main screen's menu bar (Game, Spells, Armies, Cities, Magic, Info,
 //! Plane) without their labels: the marbled gold of the original's pictures with the lettering
-//! taken out (`scripts/button_text_free.py`, files `assets/button/<name>_<frame>.png`, frame 1 is
-//! the pressed button). The label is a text key, drawn over the picture by the font engine, so the
+//! taken out (`scripts/button_text_free.py`, files `assets/button/<name>.png`). The label is a text key, drawn over the picture by the font engine, so the
 //! menu bar can be translated.
 
 use macroquad::prelude::*;
@@ -11,35 +10,14 @@ use std::rc::Rc;
 
 use crate::font::{rgb, Style};
 
-const NAMES: [[&[u8]; 2]; 7] = [
-    [
-        include_bytes!("../assets/button/game_0.png"),
-        include_bytes!("../assets/button/game_1.png"),
-    ],
-    [
-        include_bytes!("../assets/button/spells_0.png"),
-        include_bytes!("../assets/button/spells_1.png"),
-    ],
-    [
-        include_bytes!("../assets/button/armies_0.png"),
-        include_bytes!("../assets/button/armies_1.png"),
-    ],
-    [
-        include_bytes!("../assets/button/cities_0.png"),
-        include_bytes!("../assets/button/cities_1.png"),
-    ],
-    [
-        include_bytes!("../assets/button/magic_0.png"),
-        include_bytes!("../assets/button/magic_1.png"),
-    ],
-    [
-        include_bytes!("../assets/button/info_0.png"),
-        include_bytes!("../assets/button/info_1.png"),
-    ],
-    [
-        include_bytes!("../assets/button/plane_0.png"),
-        include_bytes!("../assets/button/plane_1.png"),
-    ],
+const PICTURES: [&[u8]; 7] = [
+    include_bytes!("../assets/button/game.png"),
+    include_bytes!("../assets/button/spells.png"),
+    include_bytes!("../assets/button/armies.png"),
+    include_bytes!("../assets/button/cities.png"),
+    include_bytes!("../assets/button/magic.png"),
+    include_bytes!("../assets/button/info.png"),
+    include_bytes!("../assets/button/plane.png"),
 ];
 
 /// The text keys of the seven buttons, in the order of the bar.
@@ -57,25 +35,53 @@ thread_local! {
     static TEXTURES: RefCell<Vec<Option<Texture2D>>> = const { RefCell::new(Vec::new()) };
 }
 
-/// The picture of button `index` (0 to 6) in `frame` (0 up, 1 pressed).
-pub(crate) fn texture(index: usize, frame: usize) -> Texture2D {
+/// The picture of button `index` (0 to 6), up.
+pub(crate) fn texture(index: usize) -> Texture2D {
     TEXTURES.with(|cache| {
         let mut cache = cache.borrow_mut();
         if cache.is_empty() {
-            cache.resize(14, None);
+            cache.resize(PICTURES.len(), None);
         }
-        let slot = index * 2 + frame.min(1);
-        cache[slot]
+        cache[index]
             .get_or_insert_with(|| {
-                let tex = Texture2D::from_file_with_format(
-                    NAMES[index][frame.min(1)],
-                    Some(ImageFormat::Png),
-                );
+                let tex = Texture2D::from_file_with_format(PICTURES[index], Some(ImageFormat::Png));
                 tex.set_filter(FilterMode::Nearest);
                 tex
             })
             .clone()
     })
+}
+
+/// Draw a button picture with its top left at `p`, `size` big on screen. Pressed, the original's
+/// picture is the up one a pixel (`scale` screen pixels) right and down under a dark top row and
+/// left column.
+pub(crate) fn draw_button(tex: &Texture2D, p: Vec2, size: Vec2, scale: f32, pressed: bool) {
+    if !pressed {
+        draw_texture_ex(
+            tex,
+            p.x,
+            p.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(size),
+                ..Default::default()
+            },
+        );
+        return;
+    }
+    draw_rectangle(p.x, p.y, size.x, size.y, Color::from_rgba(8, 4, 4, 255));
+    let (w, h) = (tex.width(), tex.height());
+    draw_texture_ex(
+        tex,
+        p.x + scale,
+        p.y + scale,
+        WHITE,
+        DrawTextureParams {
+            dest_size: Some(size - vec2(scale, scale)),
+            source: Some(Rect::new(0.0, 0.0, w - 1.0, h - 1.0)),
+            ..Default::default()
+        },
+    );
 }
 
 /// The font of the labels: style 4 with the pairs the original's pictures set a pixel tighter than

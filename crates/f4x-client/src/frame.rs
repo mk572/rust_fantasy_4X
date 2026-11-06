@@ -6,6 +6,7 @@
 //! resource panels and the Next Turn button. The original pictures come from the local art
 //! set; without it the same layout is drawn in flat colours.
 
+use crate::action_button_art::Action;
 use crate::font::Style;
 use crate::input::Input;
 use f4x_core::map::Position;
@@ -249,21 +250,11 @@ impl App {
         // The menu bar: Game, Spells, Armies, Cities, Magic, Info, Plane. The pictures carry no
         // lettering; the label is a text key drawn over them (`menu_bar_art`).
         for (i, &x) in spot::MENU_X.iter().enumerate() {
-            let up = crate::menu_bar_art::texture(i, 0);
+            let up = crate::menu_bar_art::texture(i);
             let size = vec2(up.width(), up.height()) * s;
             let at = lay.point(x, spot::MENU_Y);
             let state = ui::hit(Rect::new(at.x, at.y, size.x, size.y), true, input);
-            let frame = usize::from(state.held());
-            draw_texture_ex(
-                &crate::menu_bar_art::texture(i, frame),
-                at.x,
-                at.y,
-                WHITE,
-                DrawTextureParams {
-                    dest_size: Some(size),
-                    ..Default::default()
-                },
-            );
+            crate::menu_bar_art::draw_button(&up, at, size, s, state.held());
             let label = self.text(crate::menu_bar_art::KEYS[i]);
             self.draw_styled_in(
                 &crate::menu_bar_art::label_font(),
@@ -361,15 +352,15 @@ impl App {
             self.income_text(view, value, &label, 101.0 + 32.0 * k as f32);
         }
 
-        // The locked buttons (done, patrol, wait, and build or purify).
-        for (entry, at) in [
-            (12, (246.0, 176.0)),
-            (13, (280.0, 176.0)),
-            (14, (246.0, 186.0)),
+        // The locked buttons (done, patrol, wait and build).
+        for (action, at) in [
+            (Action::Done, (246.0, 176.0)),
+            (Action::Patrol, (280.0, 176.0)),
+            (Action::Wait, (246.0, 186.0)),
+            (Action::Build, (280.0, 186.0)),
         ] {
-            self.draw_pic(lay, "main", entry, 0, at.0, at.1);
+            self.draw_action_button(lay, action, at, true, input);
         }
-        self.draw_pic(lay, "main", 15, 0, 280.0, 186.0);
 
         // While a wizard's Time Stop runs, a note says whose it is.
         if let Some(stopper) = self.game.time_stopper() {

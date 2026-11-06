@@ -27,6 +27,13 @@
     "ui.menu_magic": "Magic",
     "ui.menu_info": "Info",
     "ui.menu_plane": "Plane",
+    // The labels of the unit window's buttons: capitals, as the original's pictures are lettered.
+    "ui.button_done": "DONE",
+    "ui.button_patrol": "PATROL",
+    "ui.button_wait": "WAIT",
+    "ui.button_build": "BUILD",
+    "ui.button_meld": "MELD",
+    "ui.button_purify": "PURIFY",
     "ui.gold": "Gold",
     "ui.food": "Food",
     "ui.mana": "Mana",

@@ -1,6 +1,7 @@
 //! The desktop client: reads the core's state and draws it, never mutating the
 //! world except by sending commands.
 
+mod action_button_art;
 mod advisor;
 mod advisor_screen;
 mod alias;

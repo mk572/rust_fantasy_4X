@@ -4017,7 +4017,7 @@ dependencies = [
 [[package]]
 name = "macroquad_bitmap_font_engine"
 version = "0.1.0"
-source = "git+https://github.com/mk572/macroquad_bitmap_font_engine?rev=11b9011627bd9680a65a1c9909fbe89d56f906c2#11b9011627bd9680a65a1c9909fbe89d56f906c2"
+source = "git+https://github.com/mk572/macroquad_bitmap_font_engine?rev=0e52cd7539f91df6c025bd540224fbf3a285c2db#0e52cd7539f91df6c025bd540224fbf3a285c2db"
 dependencies = [
  "macroquad",
 ]
@@ -4749,7 +4749,7 @@ dependencies = [
  "combine",
  "downcast-rs",
  "dyn-clone",
- "hashbrown 0.15.5",
+ "hashbrown 0.13.2",
  "hi_sparse_bitset 0.10.0",
  "indexmap",
  "inventory",

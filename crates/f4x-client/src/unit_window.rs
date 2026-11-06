@@ -3,6 +3,7 @@
 //! to nine unit pictures in a grid of three, the Done, Patrol, Wait and Build buttons and the
 //! stack's moves. A click on a picture picks that unit, a right-click opens its sheet.
 
+use crate::action_button_art::Action;
 use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
@@ -235,33 +236,22 @@ impl App {
 
         // The buttons.
         let special = self.special_action();
-        let mut button = |app: &mut App, entry: usize, at: (f32, f32), which: StackButton| {
-            let tex_size = app
-                .art_picture("main", entry, 0)
-                .map(|t| crate::resolution::logical_size(&t));
-            let state = tex_size.map_or(ui::Hit::None, |s| {
-                let p = lay.point(at.0, at.1);
-                ui::hit(
-                    Rect::new(p.x, p.y, s.x * lay.scale, s.y * lay.scale),
-                    true,
-                    input,
-                )
-            });
-            app.draw_pic(lay, "main", entry, usize::from(state.held()), at.0, at.1);
+        let mut button = |app: &mut App, action: Action, at: (f32, f32), which: StackButton| {
+            let state = app.draw_action_button(lay, action, at, false, input);
             if state.clicked() {
                 click.button = Some(which);
             }
         };
-        button(self, 8, DONE, StackButton::Done);
-        button(self, 9, PATROL, StackButton::Patrol);
-        button(self, 10, WAIT, StackButton::Wait);
+        button(self, Action::Done, DONE, StackButton::Done);
+        button(self, Action::Patrol, PATROL, StackButton::Patrol);
+        button(self, Action::Wait, WAIT, StackButton::Wait);
         match special {
             Special::None => {
-                self.draw_pic(lay, "main", 15, 0, SPECIAL.0, SPECIAL.1);
+                self.draw_action_button(lay, Action::Build, SPECIAL, true, input);
             }
-            Special::Build => button(self, 11, SPECIAL, StackButton::Special),
-            Special::Meld => button(self, 49, SPECIAL, StackButton::Special),
-            Special::Purify => button(self, 42, SPECIAL, StackButton::Special),
+            Special::Build => button(self, Action::Build, SPECIAL, StackButton::Special),
+            Special::Meld => button(self, Action::Meld, SPECIAL, StackButton::Special),
+            Special::Purify => button(self, Action::Purify, SPECIAL, StackButton::Special),
         }
 
         // "Moves:" and what the active units have left, in whole and half moves.
