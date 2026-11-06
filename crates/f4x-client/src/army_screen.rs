@@ -9,6 +9,7 @@ use crate::font::Style;
 use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
+use crate::panel_button_art::Panel;
 use crate::ui;
 use f4x_core::map::Position;
 use f4x_def::text::Args;
@@ -349,8 +350,8 @@ impl Page for ArmyUi {
         }
 
         // Buttons and leaving.
-        let items = app.army_button(&lay, 3, 273.0, 163.0, true, input);
-        let ok = app.army_button(&lay, 4, 273.0, 182.0, true, input);
+        let items = app.panel_button(&lay, Panel::Items, "ui.button_items", (273.0, 163.0), input);
+        let ok = app.panel_button(&lay, Panel::Ok, "ui.button_ok_mixed", (273.0, 182.0), input);
         *self = ui;
         if items {
             app.open_item_screen();

@@ -29,6 +29,10 @@ The plank buttons of the load/save and settings screens (gold brown, lettering i
 blank picture already: `button_load_inactive_00.png` (38x13). `plank_<width>.png` is that picture
 widened by repeating columns from its middle, so the Settings screen's Ok (40 wide) is the plank
 plus a label from the font engine.
+
+The army list's Items and Ok (41x15, dark blue marble with a gold border; gold blackletter, a black
+shadow) are cleaned at everything gold or black inside the border and written as `panel_<name>.png`.
+The pressed picture is the up one moved, as for the others.
 """
 import argparse
 from pathlib import Path
@@ -39,6 +43,7 @@ INK = (8, 4, 4)
 NAMES = ["game", "spells", "armies", "cities", "magic", "info", "plane"]
 ACTIONS = ["done", "patrol", "wait", "build", "meld", "purify"]
 CITY = ["buy", "change", "ok"]
+PANELS = ["items", "ok"]
 LOCKED = ["done", "patrol", "wait", "build"]
 PLANK_WIDTHS = [38, 39, 40, 58]
 
@@ -129,6 +134,21 @@ def city_ink(img: Image.Image) -> set[tuple[int, int]]:
     }
 
 
+def panel_ink(img: Image.Image) -> set[tuple[int, int]]:
+    """The lettering of the army list's blue buttons: gold, or the black of its shadow, inside the
+    border (the bright gold line at row 1 and column 1, the darker one at the bottom and right, and the
+    black frame)."""
+    img = img.convert("RGBA")
+    w, h = img.size
+    px = img.load()
+    return {
+        (x, y)
+        for y in range(2, h - 2)
+        for x in range(2, w - 2)
+        if px[x, y][0] > px[x, y][2] or px[x, y][:3] == INK
+    }
+
+
 def plank(blank: Image.Image, width: int) -> Image.Image:
     """The blank plank widened to `width` by repeating columns of its middle."""
     w, h = blank.size
@@ -161,6 +181,11 @@ def main() -> None:
         img, n = clean(img, city_ink(img), shadow=False)
         img.save(out_dir / f"city_{name}.png")
         print(f"city {name}: {n} label pixels replaced")
+    for name in PANELS:
+        img = Image.open(Path(args.src).parent / "army_list" / f"button_{name}_00.png")
+        img, n = clean(img, panel_ink(img), shadow=False)
+        img.save(out_dir / f"panel_{name}.png")
+        print(f"panel {name}: {n} label pixels replaced")
     blank = Image.open(Path(args.src).parent / "load_save" / "button_load_inactive_00.png")
     for width in PLANK_WIDTHS:
         plank(blank, width).save(out_dir / f"plank_{width}.png")

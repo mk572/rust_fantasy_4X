@@ -17,7 +17,7 @@ translucent shadow edge (`.edge(Color::from_rgba(..))`) follows the marbling.
 
 1. [x] Main screen: Next Turn (one 67x16 picture, `main` 35 and 58)
 2. [x] City screen: Buy, Change, OK (the scroll arrows have no text; a disabled button fades as the original's does, so the extractor's Buy (locked) picture is not needed)
-3. [ ] Army list: Items, Ok
+3. [x] Army list: Items, Ok are text-free (`panel_items.png`, `panel_ok.png`) with the labels drawn by `panel_button_art.rs` (style 4 in the gold set `PANEL_WORD`, black shadow, kerned); both match the original pixel for pixel
 4. [ ] City list: OK (`reload` 22; the arrows have no text)
 5. [ ] Item screen: Alchemy, Ok
 6. [ ] Magic screen: Alchemy, Ok

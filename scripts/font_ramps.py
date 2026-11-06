@@ -66,6 +66,7 @@ RAMPS = [
 LATE = [
     ("MENU_WORD", None, [0, 178, 177, 176, 176], "the start menu's words: gold, light on top (its `vortex` pictures)"),
     ("MENU_WORD_HOVER", None, [0, 182, 180, 178, 178], "the start menu's word under the mouse: the same gold, darker"),
+    ("PANEL_WORD", None, [0, 180, 180, 179, 178], "the army list's Items and Ok: gold, darker towards the bottom"),
 ]
 
 
