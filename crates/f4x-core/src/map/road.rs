@@ -169,12 +169,13 @@ impl Game {
     }
 
     /// One turn of road work for every engineer stack.
-    pub(crate) fn process_road_work(&mut self) -> Vec<Event> {
+    pub(crate) fn process_road_work(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
         let mut workers: Vec<hecs::Entity> = self
             .world
             .query::<&RoadWork>()
             .iter()
             .map(|(e, _)| e)
+            .filter(|&e| self.units().unit_owner(e) == Some(player))
             .collect();
         self.sort_by_serial(&mut workers);
         let mut events = Vec::new();

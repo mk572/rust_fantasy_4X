@@ -137,9 +137,12 @@ impl Game {
         gain_xp(&mut self.world, &self.content, unit, amount);
     }
 
-    pub(crate) fn process_experience(&mut self) {
-        let stopper = self.time_stopper();
-        process(&mut self.world, &self.content, stopper);
+    pub(crate) fn process_experience(&mut self, player: crate::player::PlayerId) {
+        // While a wizard's Time Stop lasts, only their units gain experience.
+        if self.time_stopper().is_some_and(|keeper| keeper != player) {
+            return;
+        }
+        process(&mut self.world, &self.content, Some(player));
     }
 }
 
@@ -299,11 +302,11 @@ mod tests {
             .clear();
         // Enough experience for a veteran: the spell stays.
         set_xp(&mut g, unit, 60);
-        g.process_experience();
+        g.process_experience_all();
         assert!(g.units().unit_has_heroism(unit));
         // An elite by experience no longer needs it.
         set_xp(&mut g, unit, 120);
-        g.process_experience();
+        g.process_experience_all();
         assert!(!g.units().unit_has_heroism(unit));
         assert_eq!(g.units().unit_level(unit), 3);
         Ok(())
@@ -329,7 +332,7 @@ mod tests {
         let top = g.units().armsmaster_xp(hero);
         assert!(top > first, "a higher level trains more");
         // Each turn a unit also gains its own one xp.
-        g.process_experience();
+        g.process_experience_all();
         assert_eq!(xp(&g, near), 1 + top);
         assert_eq!(xp(&g, far), 1);
         assert_eq!(
@@ -340,7 +343,7 @@ mod tests {
         // Another hero on the same square: the best trainer counts, not the sum.
         let _other = hire(&mut g, 0 /* dwarf */, at(3, 3));
         let before = xp(&g, near);
-        g.process_experience();
+        g.process_experience_all();
         assert_eq!(
             xp(&g, near),
             before + 1 + top.max(g.units().armsmaster_xp(_other))
@@ -355,14 +358,14 @@ mod tests {
         let undead = spawn(&mut g, 107 /* high_men_cavalry */, at(5, 3));
         g.make_undead(undead);
         let hero = hire(&mut g, 26 /* swordsman */, at(6, 3));
-        g.process_experience();
+        g.process_experience_all();
         assert_eq!(xp(&g, normal), 1);
         assert_eq!(xp(&g, hero), 1);
         assert_eq!(xp(&g, creature), 0, "creatures gain none");
         assert_eq!(xp(&g, undead), 0, "nor the undead");
         set_xp(&mut g, normal, 119);
-        g.process_experience();
-        g.process_experience();
+        g.process_experience_all();
+        g.process_experience_all();
         assert_eq!(xp(&g, normal), 120, "elite is where experience stops");
     }
 }

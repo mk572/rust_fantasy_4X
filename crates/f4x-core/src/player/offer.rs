@@ -245,34 +245,29 @@ impl Game {
         )
     }
 
-    /// Roll the offers of every wizard for the turn that begins (`Determine_Offer`). Offers not
+    /// Roll the offers of a wizard for the turn that begins (`Determine_Offer`). Offers not
     /// answered last turn lapse first.
-    pub(crate) fn determine_offers(&mut self) -> Vec<Event> {
+    pub(crate) fn determine_offers(&mut self, id: PlayerId) -> Vec<Event> {
         let mut events = Vec::new();
-        let ids: Vec<PlayerId> = crate::player::ids(&self.world);
-        for &id in &ids {
-            let old = self
-                .player_component_mut::<Offers>(id)
-                .map(|o| {
-                    // A summoned hero waits for its answer however long it takes.
-                    let (kept, lapsed) = std::mem::take(&mut o.0)
-                        .into_iter()
-                        .partition(|x| matches!(x, Offer::Summoned { .. }));
-                    o.0 = kept;
-                    lapsed
-                })
-                .unwrap_or_default();
-            for offer in &old {
-                self.release_offer(id, offer);
-            }
+        let old = self
+            .player_component_mut::<Offers>(id)
+            .map(|o| {
+                // A summoned hero waits for its answer however long it takes.
+                let (kept, lapsed) = std::mem::take(&mut o.0)
+                    .into_iter()
+                    .partition(|x| matches!(x, Offer::Summoned { .. }));
+                o.0 = kept;
+                lapsed
+            })
+            .unwrap_or_default();
+        for offer in &old {
+            self.release_offer(id, offer);
         }
-        for id in ids {
-            for offer in self.offers_for(id) {
-                if let Some(o) = self.player_component_mut::<Offers>(id) {
-                    o.0.push(offer.clone());
-                }
-                events.push(Event::OfferMade { player: id, offer });
+        for offer in self.offers_for(id) {
+            if let Some(o) = self.player_component_mut::<Offers>(id) {
+                o.0.push(offer.clone());
             }
+            events.push(Event::OfferMade { player: id, offer });
         }
         events
     }

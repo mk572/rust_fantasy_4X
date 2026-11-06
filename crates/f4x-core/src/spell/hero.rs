@@ -316,7 +316,7 @@ mod tests {
         assert_eq!(state(&g, *kind), HeroState::Free);
         assert!(g.player(P0).ok_or("player is missing")?.treasury().mana < 1000);
         // The turn change does not take the offer away.
-        g.determine_offers();
+        g.determine_offers_all();
         assert_eq!(waiting(&g), Some((*kind, true)));
         // Accepting names the hero, costs no gold and brings it to the circle.
         let events = g

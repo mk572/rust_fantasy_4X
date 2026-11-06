@@ -468,13 +468,14 @@ impl Game {
         Ok(plan.cost)
     }
 
-    /// A new turn: every city may sell a building again.
-    pub(crate) fn reopen_sales(&mut self) {
+    /// A new turn of `player`: each of their cities may sell a building again.
+    pub(crate) fn reopen_sales(&mut self, player: crate::player::PlayerId) {
         let sold: Vec<hecs::Entity> = self
             .world
             .query::<(&City, &SoldBuilding)>()
             .iter()
             .map(|(e, _)| e)
+            .filter(|&e| self.economy().city_owner(e) == Some(player))
             .collect();
         for e in sold {
             let _ = self.world.remove_one::<SoldBuilding>(e);

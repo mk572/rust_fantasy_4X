@@ -999,7 +999,7 @@ impl Game {
             }
         }
         // Passengers of a ship that went down in the fight scramble ashore or drown.
-        events.extend(self.drown_stranded());
+        events.extend(self.drown_stranded(None));
         if let Some(side) = battle.winner {
             events.push(Event::BattleEnded {
                 winner: battle.player_of(side),

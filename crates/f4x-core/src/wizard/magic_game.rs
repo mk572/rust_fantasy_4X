@@ -180,51 +180,39 @@ impl Game {
 
     // ---- turn change -------------------------------------------------------------
 
-    /// All wizards' magic at the turn change: income, research, upkeep, casting. The steps run
-    /// over all wizards in turn, as in the original (power for all, then the research check for
-    /// all, and so on). The temporary effects, global spells and experience that used to
-    /// start here are the turn's (`turn.rs`).
-    pub(crate) fn process_magic(&mut self) -> Vec<Event> {
+    /// One wizard's magic at the end of their turn: income, research, upkeep, casting (the
+    /// original does each step for all wizards in turn; the turn is now the player's own). The
+    /// temporary effects, global spells and experience that used to start here are the
+    /// round's (`turn.rs`).
+    pub(crate) fn process_magic(&mut self, player: PlayerId) -> Vec<Event> {
         let mut events = Vec::new();
-        let ids: Vec<PlayerId> = crate::player::ids(&self.world);
         // While Time Stop lasts, its wizard has no income and only the others' time is stopped
         // for casting: no spell of theirs gets any further.
         let stopper = self.time_stopper();
-        for &player in &ids {
-            if stopper == Some(player) {
-                continue;
-            }
+        if stopper != Some(player) {
             let income = self.income(player);
             self.collect_power(player, &income.split, income.research);
         }
-        for &player in &ids {
-            if let Some(spell) = self
-                .wizard_mut(player)
-                .and_then(|mut w| w.finish_research())
-            {
-                events.push(Event::SpellLearned { player, spell });
-            }
+        if let Some(spell) = self
+            .wizard_mut(player)
+            .and_then(|mut w| w.finish_research())
+        {
+            events.push(Event::SpellLearned { player, spell });
         }
-        for &player in &ids {
-            self.refill_research(player);
-        }
-        for &player in &ids {
-            events.extend(self.apply_mana_upkeep(player));
-        }
-        for &player in ids.iter().filter(|&&p| stopper.is_none_or(|s| s == p)) {
+        self.refill_research(player);
+        events.extend(self.apply_mana_upkeep(player));
+        if stopper.is_none_or(|s| s == player) {
             // A spell with nothing to aim at is not paid for; its wizard is asked whether to stop.
             if let Some((spell, paid)) = self.aimless_cast(player) {
                 if !paid {
                     events.push(Event::NoTargetForCast { player, spell });
                 }
-                continue;
+            } else {
+                // Heroes at the fortress add to the skill that pays for a spell over turns.
+                let heroes = self.hero_casting_skill(player);
+                self.pay_for_casting(player, heroes);
+                events.extend(self.finish_casting(player));
             }
-            // Heroes at the fortress add to the skill that pays for a spell over turns.
-            let heroes = self.hero_casting_skill(player);
-            self.pay_for_casting(player, heroes);
-        }
-        for &player in ids.iter().filter(|&&p| stopper.is_none_or(|s| s == p)) {
-            events.extend(self.finish_casting(player));
         }
         events
     }

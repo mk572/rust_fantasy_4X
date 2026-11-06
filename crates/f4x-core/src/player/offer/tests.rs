@@ -45,7 +45,7 @@ fn offers_of(g: &Game, p: PlayerId, f: impl Fn(&Offer) -> bool) -> Vec<usize> {
 /// Roll the turn's offers until `wanted` is among player 0's; the game is left with them.
 fn roll_until(g: &mut Game, wanted: impl Fn(&Offer) -> bool) -> usize {
     for _ in 0..3000 {
-        g.determine_offers();
+        g.determine_offers_all();
         if let Some(&i) = offers_of(g, P0, &wanted).first() {
             return i;
         }
@@ -145,7 +145,7 @@ fn only_wizards_with_a_standing_fortress_are_offered_anything() {
         .put(Some(crate::wizard::fortress::Banishment { by: None }));
     g.wiz_mut(1).put::<crate::wizard::fortress::Fortress>(None);
     for _ in 0..300 {
-        g.determine_offers();
+        g.determine_offers_all();
     }
     assert!(g.offers(P0).is_empty() && g.offers(P1).is_empty());
     assert!(g.offers(PlayerId(9)).is_empty());
@@ -157,7 +157,7 @@ fn mercenaries_come_from_the_first_mercenary_turn_to_a_wizard_who_can_pay_and_ar
     let mut g = world();
     g.turn = FIRST_MERCENARY_TURN - 1;
     for _ in 0..400 {
-        g.determine_offers();
+        g.determine_offers_all();
         assert!(offers_of(&g, P0, |o| matches!(o, Offer::Mercenaries { .. })).is_empty());
     }
     g.turn = 40;
@@ -206,7 +206,7 @@ fn mercenaries_are_not_offered_to_a_wizard_who_cannot_pay_even_at_the_discount()
     let mut g = world();
     g.tr_mut(0).gold = 0;
     for _ in 0..500 {
-        g.determine_offers();
+        g.determine_offers_all();
         assert!(offers_of(&g, P0, |o| matches!(o, Offer::Mercenaries { .. })).is_empty());
     }
 }
@@ -284,7 +284,7 @@ fn every_wizard_meets_the_merchant_and_the_item_goes_to_the_armory() -> TestResu
     // The computer wizard (player 1) gets the same offers as the human.
     let mut computer_met_him = false;
     for _ in 0..400 {
-        g.determine_offers();
+        g.determine_offers_all();
         computer_met_him |= !offers_of(&g, P1, |o| matches!(o, Offer::Item { .. })).is_empty();
     }
     assert!(computer_met_him);
@@ -341,7 +341,7 @@ fn the_price_is_tested_after_the_charismatic_discount() -> TestResult {
     const GOLD: i32 = 400;
     for _ in 0..3000 {
         g.tr_mut(0).gold = GOLD;
-        g.determine_offers();
+        g.determine_offers_all();
         for offer in g.offers(P0) {
             if let Offer::Item { item, price } = offer {
                 if item.cost as i32 * 3 > GOLD {

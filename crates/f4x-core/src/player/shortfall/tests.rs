@@ -178,7 +178,7 @@ fn a_ship_let_go_at_sea_sails_to_the_shore_and_unloads() -> TestResult {
             .units()
             .unit_position(boat)
             .ok_or("unit_position is missing")?;
-        landed.extend(g.sail_marooned());
+        landed.extend(g.sail_marooned_all());
         turns += 1;
         if g.world.contains(boat) {
             let after = g
@@ -254,7 +254,7 @@ fn a_ship_with_no_free_shore_loses_its_passengers() -> TestResult {
             }
         }
     }
-    let events = g.sail_marooned();
+    let events = g.sail_marooned_all();
     assert!(!g.world.contains(boat) && !g.world.contains(rider));
     assert!(events.contains(&Event::UnitsDrowned {
         player: P0,

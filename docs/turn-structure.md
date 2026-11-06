@@ -124,6 +124,51 @@ Before moving each existing operation, make a system-by-system inventory from [g
 
 Update `game-flow.md` after implementation so it describes the new lifecycle rather than the old single-player end-turn sequence.
 
+### 7.1 Inventory of the current pipeline (decided 6 November 2026)
+
+Decisions: the economy of a player runs **per player** (at that player's turn end); the world-wide
+work runs once per round; the order of players is fixed (seat order, the human first) and the
+**neutral seat** (independent cities, the monsters, raiders) acts last, before round-end work. The
+core keeps `Game.turn` as the round counter; `Command::EndTurn` stays as a compatibility
+composition of the four phases for tests and tools (all players, in order).
+
+Phases (core operations, orchestrated by `f4x-master`): `start_round`, `start_player_turn(p)`,
+`end_player_turn(p)`, `end_round`.
+
+| Step (today, in order) | New cadence | Phase | Scope / note |
+|---|---|---|---|
+| `close_raze_windows` | player | `end_player_turn(p)` | only cities `p` took (marker is per taker) |
+| `reopen_sales` | player | `start_player_turn(p)` | `p`'s cities only |
+| `process_land_corruption` | player | `end_player_turn(p)` | `p`'s units that stood still all turn (needs unrefilled moves) |
+| `turn += 1` | round | `start_round` | the round counter |
+| `process_stasis` | player | `start_player_turn(p)` | `p`'s units, before the moves refill |
+| moves refill, `Standby::Done` cleared | player | `start_player_turn(p)` | Time Stop: units of others get 0 |
+| `TurnStarted` event | round | `start_round` | once per round |
+| min farmers | player | `end_player_turn(p)` | `p`'s cities |
+| `settle_treasury` | player | `end_player_turn(p)` | skipped for the Time Stop wizard as today |
+| `process_events` (world events) | round | `start_round` | before any player acts (turn-structure section 4) |
+| outposts, production, growth, pestilence | player | `end_player_turn(p)` | `p`'s cities |
+| `tick_temp_effects`, `process_globals` | round | `end_round` | durations must not be multiplied by player count |
+| `process_world_enchantments` | round | `end_round` | |
+| `cool_volcanoes`, `fade_corruption` | round | `end_round` | |
+| `process_experience` | player | `end_player_turn(p)` | `p`'s units (already takes an owner filter) |
+| `process_magic` | player | `end_player_turn(p)` | power, research, upkeep, casting of `p` |
+| `process_gaias_blessing` | player | `end_player_turn(p)` | `p`'s cities |
+| `heal_units` | player | `end_player_turn(p)` | `p`'s units |
+| `process_chaos_rifts` | player | `end_player_turn(p)` | `p`'s cities hit what stands on them |
+| `process_threats` (raiders, monsters) | round | `start_round` | the clocks tick once |
+| `determine_offers` | player | `start_player_turn(p)` | offers lapse and are rolled for `p` |
+| `record_history` | round | `end_round` | |
+| `process_diplomacy` | round | `end_round` | timers once; proposals are answered in the AI turns |
+| `process_purify`, `process_road_work` | player | `start_player_turn(p)` | `p`'s workers |
+| `sail_marooned`, `drown_stranded` | player | `start_player_turn(p)` | `p`'s ships and units |
+| `follow_orders` | player | `start_player_turn(p)` | `p`'s units with standing orders, last |
+
+Elimination: a defeated player gets no `start_player_turn`/`end_player_turn`; its cities and units
+are already gone or neutral. Time Stop: while it lasts, other wizards' turns still run their
+economy except where the table says "skipped"; the stopper's units are the only ones that move.
+Loading: the master state (round, phase, active seat) is saved with the game (stage 5).
+
 ## 8. Determinism and tests
 
 The lifecycle must be deterministic and testable without the client. At minimum, tests should cover:

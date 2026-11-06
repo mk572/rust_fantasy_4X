@@ -244,7 +244,7 @@ fn a_chaos_rift_bolts_the_units_inside_and_may_bring_a_building_down() -> TestRe
     let hurt = |g: &Game, u| g.world.get::<&crate::unit::Hurt>(u).map_or(0, |h| h.0);
     let mut fell = false;
     for _ in 0..200 {
-        let events = g.process_chaos_rifts();
+        let events = g.process_chaos_rifts_all();
         assert!(events
             .iter()
             .all(|e| matches!(e, Event::ChaosRiftStrikes { .. })));
@@ -270,7 +270,7 @@ fn a_chaos_rift_bolts_the_units_inside_and_may_bring_a_building_down() -> TestRe
     let mut turns = 0;
     while !fell && turns < 2000 {
         turns += 1;
-        fell |= g.process_chaos_rifts().iter().any(|e| {
+        fell |= g.process_chaos_rifts_all().iter().any(|e| {
             matches!(
                 e,
                 Event::ChaosRiftStrikes {

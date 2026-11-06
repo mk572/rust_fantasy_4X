@@ -668,7 +668,7 @@ fn turning_off_water_walking_at_sea_drowns_the_unit() -> TestResult {
     let walking = sp(&g, 8 /* water_walking */);
     g.attach_enchantment(Target::Unit(unit), walking, P0);
     assert!(
-        g.drown_stranded().is_empty(),
+        g.drown_stranded(None).is_empty(),
         "afloat while the spell holds"
     );
     assert_eq!(g.drowned_if_off(unit, walking), 1);
@@ -710,7 +710,7 @@ fn flight_keeps_a_unit_afloat_and_turning_it_off_drowns_it() -> TestResult {
     let flight = sp(&g, 56 /* flight */);
     g.attach_enchantment(Target::Unit(unit), flight, P0);
     assert!(g.units().unit_has_ability(unit, Ability::new(24)));
-    assert!(g.drown_stranded().is_empty());
+    assert!(g.drown_stranded(None).is_empty());
     assert_eq!(g.drowned_if_off(unit, flight), 1);
     let events = g.apply(Command::TurnOffUnitSpell {
         player: P0,

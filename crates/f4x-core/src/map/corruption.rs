@@ -113,12 +113,13 @@ impl Game {
     }
 
     /// One turn of cleansing: squares whose last purifier finishes become clean.
-    pub(crate) fn process_purify(&mut self) -> Vec<Event> {
+    pub(crate) fn process_purify(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
         let mut workers: Vec<hecs::Entity> = self
             .world
             .query::<&PurifyWork>()
             .iter()
             .map(|(e, _)| e)
+            .filter(|&e| self.units().unit_owner(e) == Some(player))
             .collect();
         self.sort_by_serial(&mut workers);
         let mut events = Vec::new();
@@ -168,9 +169,15 @@ impl Game {
 
     /// Units with Land Corruption that stood still all turn corrupt their square. Call
     /// before the moves are refilled.
-    pub(crate) fn process_land_corruption(&mut self) -> Vec<Event> {
+    pub(crate) fn process_land_corruption(
+        &mut self,
+        player: crate::player::PlayerId,
+    ) -> Vec<Event> {
         let mut events = Vec::new();
         for u in self.units().all_units() {
+            if self.units().unit_owner(u) != Some(player) {
+                continue;
+            }
             if !self.units().unit_has_ability(u, Ability::new(102)) {
                 continue;
             }
@@ -187,13 +194,14 @@ impl Game {
     /// Gaia's Blessing: each turn a city's deserts may turn to grassland, its volcanoes to
     /// hills (a tenth each) and its corrupted squares come clean (a fifth). Consecration cleans
     /// every corrupted square of its city's area each turn.
-    pub(crate) fn process_gaias_blessing(&mut self) -> Vec<Event> {
+    pub(crate) fn process_gaias_blessing(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
         let mut events = Vec::new();
         let mut cities: Vec<_> = self
             .economy()
             .cities()
             .into_iter()
             .map(|(e, ..)| e)
+            .filter(|&e| self.economy().city_owner(e) == Some(player))
             .collect();
         self.sort_by_serial(&mut cities);
         for city in cities {

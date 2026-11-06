@@ -46,12 +46,13 @@ impl Game {
 
     /// At a turn change: a lingering unit rolls to be freed, and a fresh one starts lingering.
     /// Call before the moves are refilled.
-    pub(crate) fn process_stasis(&mut self) -> Vec<Event> {
+    pub(crate) fn process_stasis(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
         let mut held: Vec<(hecs::Entity, Stasis)> = self
             .world
             .query::<&Stasis>()
             .iter()
             .map(|(e, s)| (e, *s))
+            .filter(|&(e, _)| self.units().unit_owner(e) == Some(player))
             .collect();
         held.sort_by_key(|&(e, _)| (self.units().serial_of(e), e.id()));
         let mut rng = std::mem::replace(&mut self.rng, GameRng::lent());

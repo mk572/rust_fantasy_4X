@@ -135,10 +135,10 @@ fn one_engineer_needs_three_turns_on_grassland() {
     });
     assert!(events.is_empty(), "nothing finishes at once: {events:?}");
     assert!(!has_road(&g, at(5, 5)));
-    g.process_road_work();
-    g.process_road_work();
+    g.process_road_work_all();
+    g.process_road_work_all();
     assert!(!has_road(&g, at(5, 5)), "two turns are not enough");
-    let events = g.process_road_work();
+    let events = g.process_road_work_all();
     assert!(has_road(&g, at(5, 5)));
     assert!(events.iter().any(|e| matches!(e, Event::RoadBuilt { .. })));
     assert!(g.world.get::<&RoadWork>(e).is_err(), "the work is over");
@@ -154,7 +154,7 @@ fn a_strong_stack_divides_the_time_but_never_below_one_turn() {
         units: vec![a, b],
         path: vec![],
     });
-    let events = g.process_road_work();
+    let events = g.process_road_work_all();
     assert!(has_road(&g, at(5, 5)), "{events:?}");
     // A mountain takes 8 / 3 = 2 turns.
     set_terrain(&mut g, at(8, 8), TerrainClass::Mountains);
@@ -164,9 +164,9 @@ fn a_strong_stack_divides_the_time_but_never_below_one_turn() {
         units: vec![c, d],
         path: vec![],
     });
-    g.process_road_work();
+    g.process_road_work_all();
     assert!(!has_road(&g, at(8, 8)));
-    g.process_road_work();
+    g.process_road_work_all();
     assert!(has_road(&g, at(8, 8)));
 }
 
@@ -180,7 +180,7 @@ fn engineers_work_along_a_path() {
     });
     for _ in 0..4 {
         let _ = g.world.insert_one(e, MovesLeft(4));
-        g.process_road_work();
+        g.process_road_work_all();
     }
     for x in 5..=7 {
         assert!(has_road(&g, at(x, 5)), "x = {x}");
@@ -206,7 +206,7 @@ fn bad_orders_are_refused_and_moving_away_cancels() -> TestResult {
     );
     g.build_road(&[e], vec![]).map_err(|e| format!("{e:?}"))?;
     let _ = g.world.insert_one(e, at(5, 6));
-    g.process_road_work();
+    g.process_road_work_all();
     assert!(
         g.world.get::<&RoadWork>(e).is_err(),
         "moved away: cancelled"
@@ -291,7 +291,7 @@ fn road_work_and_enchanted_roads_survive_a_save() -> TestResult {
     let e = engineer(&mut g, 110 /* high_men_engineers */, at(5, 5));
     g.build_road(&[e], vec![at(5, 5), at(6, 5)])
         .map_err(|e| format!("{e:?}"))?;
-    g.process_road_work();
+    g.process_road_work_all();
     g.map
         .as_mut()
         .ok_or("as_mut is missing")?

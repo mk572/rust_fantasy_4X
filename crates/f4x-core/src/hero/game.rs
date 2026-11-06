@@ -583,7 +583,7 @@ pub(crate) mod tests {
         g.spawn_unit(P0, at(3, 3), soldier);
         g.scenario_casting(P0, spell, 1000);
         g.tr_mut(0).mana = 5000;
-        let _ = g.process_magic();
+        let _ = g.process_magic_all();
         let left = g
             .wizard(P0)
             .ok_or("wizard is missing")?
@@ -592,7 +592,7 @@ pub(crate) mod tests {
             .remaining;
         assert_eq!(1000 - left, nominal + hero_skill);
         // The heroes' skill counts for that turn only: the next payment is the wizard's alone.
-        let _ = g.process_magic();
+        let _ = g.process_magic_all();
         let after = g
             .wizard(P0)
             .ok_or("wizard is missing")?
@@ -605,7 +605,7 @@ pub(crate) mod tests {
             "the hero is still there"
         );
         g.remove_unit(sage, Fate::Released);
-        let _ = g.process_magic();
+        let _ = g.process_magic_all();
         let last = g
             .wizard(P0)
             .ok_or("wizard is missing")?

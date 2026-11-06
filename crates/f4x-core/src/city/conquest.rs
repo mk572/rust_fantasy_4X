@@ -294,12 +294,16 @@ impl Game {
         events
     }
 
-    /// The window to raze a taken city closes when its taker's turn ends.
-    pub(crate) fn close_raze_windows(&mut self) {
+    /// The window to raze a city `player` took closes when their turn ends.
+    pub(crate) fn close_raze_windows(&mut self, player: crate::player::PlayerId) {
+        let Some(taker) = self.player_entity(player) else {
+            return;
+        };
         let marked: Vec<hecs::Entity> = self
             .world
             .query::<(&City, &Conquered)>()
             .iter()
+            .filter(|(_, (_, c))| c.0 == taker)
             .map(|(e, _)| e)
             .collect();
         for e in marked {

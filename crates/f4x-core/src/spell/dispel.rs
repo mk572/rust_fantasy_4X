@@ -104,7 +104,7 @@ impl Game {
             return Err(MagicError::Target(TargetError::SpellNotThere));
         }
         let mut events = vec![Event::EnchantmentLapsed { player, spell }];
-        events.extend(self.drown_stranded());
+        events.extend(self.drown_stranded(None));
         Ok(events)
     }
 

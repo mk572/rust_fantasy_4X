@@ -222,12 +222,13 @@ pub(crate) fn update_aboard(
 impl Game {
     /// Every marooned ship sails on towards the nearest shore with room for its passengers; the
     /// ones that arrive land them and are released. A ship with nowhere to land loses them.
-    pub(crate) fn sail_marooned(&mut self) -> Vec<Event> {
+    pub(crate) fn sail_marooned(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
         let mut ships: Vec<hecs::Entity> = self
             .world
             .query::<&Marooned>()
             .iter()
             .map(|(e, _)| e)
+            .filter(|&e| self.units().unit_owner(e) == Some(player))
             .collect();
         self.sort_by_serial(&mut ships);
         let mut events = Vec::new();
@@ -352,10 +353,13 @@ impl Game {
     /// when they flee: where free land lies beside them they scramble ashore, half of the troops
     /// and three in four of the heroes making it (`overland_aftermath`'s odds); anywhere else
     /// they drown. Fliers and swimmers never need a ship, so they never come here.
-    pub(crate) fn drown_stranded(&mut self) -> Vec<Event> {
+    pub(crate) fn drown_stranded(&mut self, only: Option<crate::player::PlayerId>) -> Vec<Event> {
         let mut events = Vec::new();
         let mut drowned: Vec<(crate::player::PlayerId, u32)> = Vec::new();
         for (owner, unit) in self.economy().stranded() {
+            if only.is_some_and(|p| p != owner) {
+                continue;
+            }
             let at = self.units().unit_position(unit);
             let landing = at.and_then(|at| {
                 crate::unit::pathing::neighbours(self, at)
@@ -728,7 +732,7 @@ mod tests {
                 .set(x, y, ocean);
         }
         g.despawn_with_spells(boat);
-        let events = g.drown_stranded();
+        let events = g.drown_stranded(None);
         assert_eq!(
             events,
             vec![Event::UnitsDrowned {
@@ -740,7 +744,7 @@ mod tests {
         // Fliers and ships are never in danger.
         let flier = unit(&mut g, 103 /* high_elf_pegasai */, at(6, 4));
         let other = unit(&mut g, 38 /* warship */, at(7, 4));
-        assert!(g.drown_stranded().is_empty());
+        assert!(g.drown_stranded(None).is_empty());
         assert!(
             g.units().unit_position(flier).is_some() && g.units().unit_position(other).is_some()
         );
@@ -757,7 +761,7 @@ mod tests {
             let w = unit(&mut g, 107 /* high_men_cavalry */, at(4, 4));
             g.move_stack(&[w], at(5, 4)).map_err(|e| format!("{e:?}"))?;
             g.despawn_with_spells(boat);
-            g.drown_stranded();
+            g.drown_stranded(None);
             if let Some(p) = g.units().unit_position(w) {
                 assert!(!g.economy().is_sea(p), "the survivors stand on land");
                 ashore += 1;

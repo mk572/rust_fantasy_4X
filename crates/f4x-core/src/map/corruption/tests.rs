@@ -192,10 +192,10 @@ fn purifiers_clean_a_square_in_three_turns_and_moving_cancels() -> TestResult {
     let clean_spot = g.spawn_unit(P0, at(7, 7), walker);
     assert_eq!(g.purify(&[clean_spot]), Err(PurifyError::NotCorrupted));
     g.purify(&[cleric, other]).map_err(|e| format!("{e:?}"))?;
-    assert!(g.process_purify().is_empty());
+    assert!(g.process_purify_all().is_empty());
     assert!(g.is_corrupted(at(5, 5)), "two turns is not enough");
-    assert!(g.process_purify().is_empty());
-    let events = g.process_purify();
+    assert!(g.process_purify_all().is_empty());
+    let events = g.process_purify_all();
     assert!(events
         .iter()
         .any(|e| matches!(e, Event::LandPurified { .. })));
@@ -208,7 +208,7 @@ fn purifiers_clean_a_square_in_three_turns_and_moving_cancels() -> TestResult {
         .set_corrupted(5, 5, true);
     g.purify(&[cleric]).map_err(|e| format!("{e:?}"))?;
     let _ = g.world.insert_one(cleric, at(6, 5));
-    g.process_purify();
+    g.process_purify_all();
     assert!(g.world.get::<&PurifyWork>(cleric).is_err());
     Ok(())
 }
@@ -265,7 +265,7 @@ fn gaias_blessing_cleans_land_and_greens_deserts() -> TestResult {
         grid.set_corrupted(9, 6, true);
     }
     for _ in 0..200 {
-        g.process_gaias_blessing();
+        g.process_gaias_blessing_all();
     }
     assert!(!g.is_corrupted(at(9, 6)));
     assert_eq!(
@@ -280,7 +280,7 @@ fn gaias_blessing_cleans_land_and_greens_deserts() -> TestResult {
         .plane_mut(Plane::Arcanus)
         .set_corrupted(9, 6, true);
     for _ in 0..200 {
-        g.process_gaias_blessing();
+        g.process_gaias_blessing_all();
     }
     assert!(g.is_corrupted(at(9, 6)));
     Ok(())
@@ -383,7 +383,7 @@ fn consecration_cleans_every_corrupted_square_of_its_city_at_once() -> TestResul
         grid.set_corrupted(9, 6, true);
         grid.set_corrupted(11, 7, true);
     }
-    g.process_gaias_blessing();
+    g.process_gaias_blessing_all();
     assert!(g.is_corrupted(at(9, 6)), "no spell, no cleaning");
     let consecration = g
         .content
@@ -392,7 +392,7 @@ fn consecration_cleans_every_corrupted_square_of_its_city_at_once() -> TestResul
         .id_numbered(155)
         .ok_or("consecration is not in the content")?;
     g.add_city_enchantment(city, consecration, P0);
-    g.process_gaias_blessing();
+    g.process_gaias_blessing_all();
     assert!(!g.is_corrupted(at(9, 6)));
     assert!(!g.is_corrupted(at(11, 7)));
     Ok(())

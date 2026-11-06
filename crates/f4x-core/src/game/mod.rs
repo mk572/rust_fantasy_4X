@@ -711,7 +711,7 @@ impl Game {
     }
 
     /// Advance each listed unit along its standing order as far as its moves allow.
-    fn follow_orders(&mut self, units: &[hecs::Entity]) -> Vec<Event> {
+    pub(crate) fn follow_orders(&mut self, units: &[hecs::Entity]) -> Vec<Event> {
         let mut events = Vec::new();
         // Units sharing a tile and an order walk together.
         let mut groups: Vec<Vec<hecs::Entity>> = Vec::new();
@@ -824,46 +824,20 @@ impl Game {
         events
     }
 
+    /// The old turn change for everyone at once, kept for tests and tools: every player ends
+    /// their turn, the round ends and the next begins, and every player starts theirs.
+    /// `f4x-master` calls the four phases itself.
     fn end_turn(&mut self) -> Vec<Event> {
-        self.close_raze_windows();
-        self.reopen_sales();
-        let mut corruption = self.process_land_corruption();
-        self.turn += 1;
-        let mut freed = self.process_stasis();
-        let stopper = self.time_stopper();
-        for unit in self.units().all_units() {
-            // A unit in stasis cannot move, nor can any unit but the Time Stop wizard's.
-            let moves = if self.unit_in_stasis(unit)
-                || stopper.is_some_and(|s| self.units().unit_owner(unit) != Some(s))
-            {
-                0
-            } else {
-                self.units().unit_max_moves(unit)
-            };
-            let _ = self.world.insert_one(unit, unit::MovesLeft(moves));
-            if self.units().unit_standby(unit) == Some(unit::Standby::Done) {
-                let _ = self.world.remove_one::<unit::Standby>(unit);
-            }
+        let players = self.turn_players();
+        let mut events = Vec::new();
+        for &p in &players {
+            events.extend(self.end_player_turn(p));
         }
-        let mut events = vec![Event::TurnStarted { turn: self.turn }];
-        events.append(&mut corruption);
-        events.append(&mut freed);
-        events.extend(self.process_turn());
-        self.record_history();
-        self.process_diplomacy();
-        events.extend(self.process_purify());
-        events.extend(self.sail_marooned());
-        events.extend(self.drown_stranded());
-        events.extend(self.process_road_work());
-        let with_orders: Vec<_> = self
-            .world
-            .query::<&unit::Order>()
-            .iter()
-            .map(|(e, _)| e)
-            .collect();
-        let mut with_orders = with_orders;
-        self.sort_by_serial(&mut with_orders);
-        events.extend(self.follow_orders(&with_orders));
+        events.extend(self.end_round());
+        events.extend(self.start_round());
+        for &p in &players {
+            events.extend(self.start_player_turn(p));
+        }
         events
     }
 

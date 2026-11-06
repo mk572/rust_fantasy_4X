@@ -80,7 +80,7 @@ impl Game {
     /// 8 (armour piercing, stopped by magic immunity), and there is a 5 percent chance that a
     /// building falls (one that no other building needs). The original's code for it is a stub, so
     /// this is the help text's rule.
-    pub(crate) fn process_chaos_rifts(&mut self) -> Vec<Event> {
+    pub(crate) fn process_chaos_rifts(&mut self, player: crate::player::PlayerId) -> Vec<Event> {
         use crate::battle::immunity::{AttackNature, Immunities, Realm};
         use crate::rules::effects::DamageTraits;
         use rand::SeedableRng;
@@ -91,8 +91,10 @@ impl Game {
             .into_iter()
             .map(|(city, _, _)| city)
             .filter(|&c| {
-                self.economy()
-                    .city_has_enchantment(c, SpellId::new(110) /* chaos_rift */)
+                self.economy().city_owner(c) == Some(player)
+                    && self
+                        .economy()
+                        .city_has_enchantment(c, SpellId::new(110) /* chaos_rift */)
             })
             .collect();
         for city in rifts {
