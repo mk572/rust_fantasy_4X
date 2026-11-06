@@ -24,6 +24,9 @@ pub(crate) enum Action {
     Build,
     Meld,
     Purify,
+    /// OK and Cancel of the road and spell panels: the Done's blank picture.
+    Ok,
+    Cancel,
 }
 
 impl Action {
@@ -45,6 +48,8 @@ impl Action {
             Action::Build => "ui.button_build",
             Action::Meld => "ui.button_meld",
             Action::Purify => "ui.button_purify",
+            Action::Ok => "ui.button_ok",
+            Action::Cancel => "ui.button_cancel",
         }
     }
 
@@ -240,6 +245,62 @@ fn battle_texture(locked: bool) -> Texture2D {
             })
             .clone()
     })
+}
+
+/// The stone slabs of the question boxes (66 by 17): Yes with green lettering, No with red.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Slab {
+    Yes,
+    No,
+}
+
+fn slab_texture(slab: Slab) -> Texture2D {
+    thread_local! {
+        static TEX: RefCell<[Option<Texture2D>; 2]> = const { RefCell::new([None, None]) };
+    }
+    TEX.with(|t| {
+        t.borrow_mut()[slab as usize]
+            .get_or_insert_with(|| {
+                load(match slab {
+                    Slab::Yes => include_bytes!("../assets/button/yes.png"),
+                    Slab::No => include_bytes!("../assets/button/no.png"),
+                })
+            })
+            .clone()
+    })
+}
+
+impl App {
+    /// A slab of a question box at `at`, its label from the text key; the state of the pointer.
+    pub(crate) fn slab_button(
+        &mut self,
+        lay: &Layout,
+        (slab, key): (Slab, &str),
+        at: (f32, f32),
+        input: &Input,
+    ) -> ui::Hit {
+        let s = lay.scale;
+        let tex = slab_texture(slab);
+        let size = vec2(tex.width(), tex.height());
+        let p = lay.point(at.0, at.1);
+        let state = ui::hit(Rect::new(p.x, p.y, size.x * s, size.y * s), true, input);
+        crate::menu_bar_art::draw_button(&tex, p, size * s, s, state.held(), WHITE);
+        let push = f32::from(u8::from(state.held()));
+        let label = self.text(key);
+        let ink = match slab {
+            Slab::Yes => rgb(4, 69, 36),
+            Slab::No => rgb(93, 16, 16),
+        };
+        let font = self.art.bm_font(4);
+        self.draw_styled_in(
+            &font,
+            (lay.origin.x, lay.origin.y, s),
+            &Style::flat(4, ink).center(),
+            &label,
+            (at.0 + size.x / 2.0 + push, at.1 + 3.0 + push),
+        );
+        state
+    }
 }
 
 /// The font of the battle buttons' labels: style 0 with the original's own I, W, N, S, F and O

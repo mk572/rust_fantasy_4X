@@ -13,6 +13,7 @@ use f4x_def::feature::FeatureKind;
 use f4x_def::text::{Args, Texts};
 use macroquad::prelude::*;
 
+use crate::action_button_art::Action;
 use crate::frame::Layout;
 use crate::view::{App, HUMAN};
 
@@ -239,7 +240,9 @@ impl App {
         let art = self.draw_pic(&lay, "main", 44, 0, 242.0, 173.0).is_some()
             && self.draw_pic(&lay, "main", 57, 0, 240.0, 76.0).is_some();
         self.draw_pic(&lay, "main", 47, 0, 240.0, 173.0);
-        let cancel = self.pic_button_on(&lay, ("main", 41), CANCEL_AT, input);
+        let cancel = self
+            .draw_action_button(&lay, Action::Cancel, CANCEL_AT, false, input)
+            .clicked();
         let mut leave =
             input.key_pressed(KeyCode::C) || input.key_pressed(KeyCode::Escape) || cancel;
         if !art {

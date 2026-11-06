@@ -22,6 +22,7 @@ use f4x_def::rules::{CastContext, ItemKind, ItemPowerDef};
 use f4x_def::text::Args;
 use macroquad::prelude::*;
 
+use crate::craft_art::TAB_KEYS;
 use crate::frame::Layout;
 use crate::view::{App, Screen, HUMAN};
 
@@ -435,10 +436,8 @@ impl Page for CraftUi {
         for (i, kind) in KINDS.into_iter().enumerate() {
             let (x, y) = (156.0 + 33.0 * (i % 5) as f32, 3.0 + 15.0 * (i / 5) as f32);
             let on = kind == ui.design.kind;
-            let entry = if on { 25 + i } else { 14 + i };
-            let pressed = !busy && input.mouse_down(MouseButton::Left);
-            let rect = app.draw_pic(&lay, "spellscr", entry, usize::from(pressed), x, y);
-            if rect.is_some_and(|r| ui::hit(r, click, input).clicked()) {
+            let rect = app.craft_tab(&lay, TAB_KEYS[i], on, (x, y), (!busy, input));
+            if ui::hit(rect, click, input).clicked() {
                 ui.set_kind(kind, &app.craft_allowed(ui.craft, kind));
                 ui.message = None;
             }
@@ -564,7 +563,7 @@ impl Page for CraftUi {
             .edge(rgb(0x41, 0x2C, 0x24));
         let at = app.draw_styled(view, &cost, &cost_label, 198.0, 185.0);
         app.draw_styled(view, &cost, &price.to_string(), 198.0 + at + 4.0, 185.0);
-        let ok_rect = app.draw_pic(&lay, "spellscr", 24, 0, 281.0, 180.0);
+        let ok_rect = Some(app.craft_ok(&lay, (281.0, 180.0), (!busy, input)));
         if let Some(message) = &ui.message {
             app.draw_styled(
                 view,

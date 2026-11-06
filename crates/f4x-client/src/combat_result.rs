@@ -427,8 +427,8 @@ impl App {
         if r.asking {
             let text = self.text("combat.raze_question");
             match self.question_box(&lay, &text, &RAZE_OR_SPARE, input) {
-                Some(true) => r.asking = false,
-                Some(false) => {
+                Some(false) => r.asking = false,
+                Some(true) => {
                     r.asking = false;
                     if let Some(city) = r.city {
                         let events = self.game.apply(Command::RazeCity {

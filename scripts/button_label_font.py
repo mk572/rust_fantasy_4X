@@ -19,6 +19,8 @@ from pathlib import Path
 
 from PIL import Image
 
+from button_text_free import open_image
+
 FONTS = Path("crates/f4x-client/assets/fonts")
 OUT = Path("crates/f4x-client/assets/button")
 SET_H = 66
@@ -43,7 +45,7 @@ def make_wood(src: Path) -> None:
     x = 384
     done = {}
     for name, label, left in WOOD:
-        pic = I.open(src / "city_screen" / f"button_{name}_00.png").convert("RGB")
+        pic = open_image(src / "city_screen" / f"button_{name}_00.png").convert("RGB")
         for i, ch in enumerate(label):
             if ch in done:
                 continue

@@ -648,10 +648,12 @@ impl MagicUi {
         if ui::hit(bar, pool > 1, input).held() {
             ui.slider = ((vx - (px + 50.0)).round() as i32 + 3).clamp(3, 53);
         }
-        app.draw_pic(lay, "magic", 52, 0, px - 5.0, py);
-        if !ui.gold_to_mana {
-            app.draw_pic(lay, "magic", 59, 0, px + 7.0, py + 10.0);
-        }
+        let title = if ui.gold_to_mana {
+            "magic.alchemy_gold_to_power"
+        } else {
+            "magic.alchemy_power_to_gold"
+        };
+        app.draw_alchemy_frame(lay, title, (px - 5.0, py));
         // The bar's shaded part up to the star, then the star.
         app.draw_pic_rows(lay, "magic", 57, px + 50.0, py + 25.0, 0.0, 1000.0);
         app.draw_pic(lay, "magic", 58, 0, px + 47.0 + ui.slider as f32, py + 25.0);
@@ -693,14 +695,15 @@ impl MagicUi {
             let r = app.draw_pic(lay, "magic", entry, 0, x, y);
             r.is_some_and(|r| ui::hit(r, true, input).clicked())
         };
-        let cancel = click(app, 53, px + 13.0, py + 39.0);
+        let cancel =
+            app.alchemy_stone_button(lay, "magic.alchemy_cancel", (px + 13.0, py + 39.0), input);
         let turn = click(
             app,
             if ui.gold_to_mana { 56 } else { 55 },
             px + 66.0,
             py + 39.0,
         );
-        let ok = click(app, 54, px + 96.0, py + 39.0);
+        let ok = app.alchemy_stone_button(lay, "magic.alchemy_ok", (px + 96.0, py + 39.0), input);
         if turn || input.key_pressed(KeyCode::Space) {
             ui.gold_to_mana = !ui.gold_to_mana;
             ui.slider = 3;

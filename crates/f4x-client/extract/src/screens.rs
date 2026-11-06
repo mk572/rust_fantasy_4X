@@ -12,6 +12,10 @@ use crate::wizard_art::WizardArt;
 
 /// The table, compiled in so the extractor needs no extra file.
 const TABLE: &str = include_str!("../screens.tsv");
+/// The pictures the game no longer draws, compiled in too.
+const UNUSED: &str = include_str!("../unused.tsv");
+/// Where those pictures go, beside `assets-local/` (relative to it).
+pub const UNUSED_FOLDER: &str = "../assets-unused";
 
 /// One row of the table.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,6 +57,8 @@ pub struct Placer {
     spells: BTreeMap<(String, usize), String>,
     /// `(file, entry)` of a wizard's pictures -> the place in its folder (`art/wizards/<id>/<name>`).
     wizards: HashMap<(String, usize), String>,
+    /// `(lbx, entry)` of the pictures the game no longer draws (`unused.tsv`).
+    unused: Vec<(String, usize)>,
 }
 
 impl Placer {
@@ -96,12 +102,22 @@ impl Placer {
             map_sprites,
             spells: spell_art.folders(),
             wizards: wizard_files,
+            unused: unused().unwrap_or_default(),
         }
     }
 
     /// Where a picture goes, relative to `assets-local/` and without the frame suffix
-    /// (`<place>_<frame>.png`), or `None` to leave it in `art/<lbx>/`.
+    /// (`<place>_<frame>.png`), or `None` to leave it in `art/<lbx>/`. A picture of `unused.tsv`
+    /// goes to the same place in `assets-unused/`, beside `assets-local/`.
     pub fn place(&self, lbx: &str, entry: usize) -> Option<String> {
+        let place = self.place_used(lbx, entry)?;
+        if self.unused.iter().any(|(l, e)| l == lbx && *e == entry) {
+            return Some(format!("{UNUSED_FOLDER}/{place}"));
+        }
+        Some(place)
+    }
+
+    fn place_used(&self, lbx: &str, entry: usize) -> Option<String> {
         if lbx == "spells" {
             return Some(format!("art/spells/{}/{lbx}_{entry:03}", spell_art::BOOK));
         }
@@ -201,6 +217,26 @@ pub fn parse(text: &str) -> Result<Vec<Rule>, String> {
     Ok(rules)
 }
 
+/// The pictures of `unused.tsv`: one `(lbx, entry)` for each entry of the ranges.
+pub fn unused() -> Result<Vec<(String, usize)>, String> {
+    let mut list = Vec::new();
+    for (n, line) in UNUSED.lines().enumerate() {
+        if line.trim().is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let f: Vec<&str> = line.split('\t').collect();
+        let bad = |what: &str| format!("unused.tsv line {}: {what}", n + 1);
+        let number = |i: usize| {
+            f.get(i)
+                .and_then(|v| v.parse::<usize>().ok())
+                .ok_or_else(|| bad("needs lbx, first and last"))
+        };
+        let (first, last) = (number(1)?, number(2)?);
+        list.extend((first..=last).map(|e| (f[0].to_string(), e)));
+    }
+    Ok(list)
+}
+
 /// The compiled-in table.
 pub fn rules() -> Result<Vec<Rule>, String> {
     parse(TABLE)
@@ -247,7 +283,11 @@ mod tests {
         assert_eq!(p.place("figures1", 8), None);
         assert_eq!(
             p.place("main", 8).as_deref(),
-            Some("screens/main_screen/button_done")
+            Some("../assets-unused/screens/main_screen/button_done")
+        );
+        assert_eq!(
+            p.place("main", 24).as_deref(),
+            Some("screens/main_screen/main_024")
         );
         assert_eq!(p.place("terrain", 0), None);
         assert_eq!(
@@ -269,7 +309,7 @@ mod tests {
         );
         assert_eq!(
             p.place("compix", 4).as_deref(),
-            Some("screens/combat/interface/button_auto")
+            Some("../assets-unused/screens/combat/interface/button_auto")
         );
         assert_eq!(
             p.place("cmbdesrc", 7).as_deref(),
@@ -283,6 +323,21 @@ mod tests {
             p.place("cmbtwall", 1).as_deref(),
             Some("screens/combat/cmbtwall_unknown/cmbtwall_001")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn the_unused_table_names_pictures_the_screens_table_places() -> TestResult {
+        let p = Placer::new(rules()?, &[], &SpellArt::default(), &[]);
+        let list = unused()?;
+        assert!(!list.is_empty());
+        for (lbx, entry) in list {
+            let place = p.place(&lbx, entry).unwrap_or_default();
+            assert!(
+                place.starts_with("../assets-unused/screens/"),
+                "{lbx} {entry}: {place}"
+            );
+        }
         Ok(())
     }
 

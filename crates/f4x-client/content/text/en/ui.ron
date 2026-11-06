@@ -29,6 +29,10 @@
     "ui.menu_plane": "Plane",
     // The labels of the unit window's buttons: capitals, as the original's pictures are lettered.
     "ui.button_done": "DONE",
+    "ui.button_ok": "OK",
+    "ui.button_yes": "Yes",
+    "ui.button_no": "No",
+    "ui.button_cancel": "CANCEL",
     "ui.button_patrol": "PATROL",
     "ui.button_wait": "WAIT",
     "ui.button_build": "BUILD",

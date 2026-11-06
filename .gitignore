@@ -1,5 +1,6 @@
 /target
 /assets-local
+/assets-unused
 *.lbx
 *.LBX
 /content-local

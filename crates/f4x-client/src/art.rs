@@ -888,6 +888,7 @@ fn picture_base(
 /// whole pixels, so an image is always the art scale times the size of its picture on the design
 /// grid.
 fn read_image(dir: &Path, relative: &Path) -> Option<Image> {
+    trace_read(relative);
     let scale = crate::resolution::art_scale();
     if scale > 1 {
         let fine = dir.join(format!("x{scale}")).join(relative);
@@ -901,6 +902,20 @@ fn read_image(dir: &Path, relative: &Path) -> Option<Image> {
     let bytes = std::fs::read(dir.join(relative)).ok()?;
     let image = Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()?;
     Some(enlarged(image, usize::from(scale)))
+}
+
+/// With `F4X_TRACE_ART=FILE` in the environment, every picture file the game reads is appended to
+/// FILE (`scripts/unused_art.py` lists what no run reads).
+fn trace_read(relative: &Path) {
+    use std::io::Write;
+    if let Some(Ok(mut file)) = std::env::var_os("F4X_TRACE_ART").map(|path| {
+        std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+    }) {
+        let _ = writeln!(file, "{}", relative.display());
+    }
 }
 
 /// `image` with every pixel repeated `by` times across and down.

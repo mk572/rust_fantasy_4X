@@ -373,3 +373,14 @@ The table is a guide. For anything with an index not listed here read the loader
 - Animation timing, the order frames play in, and which frames are "idle" or "pressed" come from
   the original's code and are not stored with the pictures.
 - Unused effect pictures: `cmbtfx` 7 (Mind Twist), 12 (Petrify) and 32 (Zombie) are loaded by no code in the original, so no spell shows them. `cmbtfx` 27 to 31 belong to the undead rising scene (task 448) and 28 to the combat message panel.
+
+## Pictures the game no longer draws (`assets-unused/`)
+
+The pictures with lettering baked in have text-free copies in `crates/f4x-client/assets/` and the
+client draws their labels, so the originals are no longer read. `crates/f4x-client/extract/unused.tsv`
+lists them (lbx, first and last entry, the name); `f4x-extract art` and `refile` write them to the same
+place under `assets-unused/` beside `assets-local/` (git-ignored like it), and `index.tsv` says so
+(`../assets-unused/screens/...`; the client would still find one it asks for). They stay for
+reference and as the sources of `scripts/button_text_free.py`, which looks there when a picture is no
+longer in `assets-local/`. `scripts/unused_art.py` lists candidates from a trace of the pictures the
+client reads (`F4X_TRACE_ART=FILE`). `make_app.sh` copies `assets-local` only, so the app leaves them out.

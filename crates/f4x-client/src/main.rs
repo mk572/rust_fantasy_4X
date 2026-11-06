@@ -4,6 +4,7 @@
 mod action_button_art;
 mod advisor;
 mod advisor_screen;
+mod alchemy_art;
 mod alias;
 mod army_screen;
 mod art;
@@ -25,6 +26,7 @@ mod cityscape;
 mod client_settings;
 mod combat_result;
 mod console_screen;
+mod craft_art;
 mod craft_screen;
 mod create_screen;
 mod credits_screen;
@@ -133,6 +135,8 @@ struct Options {
     choose: bool,
     /// With `--shot`, open the magic screen first.
     magic: bool,
+    /// With `--shot`, open the magic screen with the alchemy window.
+    alchemy: bool,
     /// With `--shot`, open this wizard's sheet first (0 is you; a rival's shows as if met).
     wizard: Option<u8>,
     /// With `--shot`, open the diplomacy screen with the first rival (`--talk MENU`, `--mood N`).
@@ -293,6 +297,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
         scene: None,
         shot_after: None,
         magic: false,
+        alchemy: false,
         wizard: None,
         talk: None,
         mood: 0,
@@ -485,6 +490,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
             "--sheet-ask" => o.sheet_ask = true,
             "--battle" => o.battle = true,
             "--magic" => o.magic = true,
+            "--alchemy" => o.alchemy = true,
             "--wizard" => {
                 o.wizard = Some(
                     value("--wizard")?
@@ -593,7 +599,7 @@ async fn main() {
     let options = match parse_args(std::env::args().skip(1)) {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|mastery_lost|conquest|conquest_by_wizard|return|parade] [--shot-after SECONDS] [--magic] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--game-settings [--menu]] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--hall-demo] [--warn-box] [--craft enchant|artifact] [--offer KIND] [--event KIND] [--fizzle] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--extra-mana] [--wizard-pick] [--attack-box] [--pick-box] [--crowd (with --city: fourteen units in the city, list scrolled one row)] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|mastery_lost|conquest|conquest_by_wizard|return|parade] [--shot-after SECONDS] [--magic] [--alchemy] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--game-settings [--menu]] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--hall-demo] [--warn-box] [--craft enchant|artifact] [--offer KIND] [--event KIND] [--fizzle] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--extra-mana] [--wizard-pick] [--attack-box] [--pick-box] [--crowd (with --city: fourteen units in the city, list scrolled one row)] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
@@ -719,7 +725,9 @@ async fn main() {
     if let Some((x, y)) = options.at {
         app.set_camera(x, y);
     }
-    if options.magic {
+    if options.alchemy {
+        app.open_magic_alchemy();
+    } else if options.magic {
         app.open_magic();
     }
     if let Some(who) = options.wizard {

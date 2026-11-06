@@ -10,7 +10,8 @@ use f4x_core::map::Position;
 use f4x_def::text::Args;
 use macroquad::prelude::*;
 
-use crate::frame::{Disabled, Layout};
+use crate::action_button_art::Action;
+use crate::frame::Layout;
 use crate::ui::{self, button, GOLD};
 use crate::view::App;
 
@@ -285,8 +286,12 @@ impl App {
                 106.0 + i as f32 * 9.0,
             );
         }
-        let ok = self.pic_button(&lay, ("main", 46), OK_AT, (can, Disabled::Fade(0.5)), input);
-        let cancel = self.pic_button_on(&lay, ("main", 41), CANCEL_AT, input);
+        let ok = self
+            .draw_action_button(&lay, Action::Ok, OK_AT, !can, input)
+            .clicked();
+        let cancel = self
+            .draw_action_button(&lay, Action::Cancel, CANCEL_AT, false, input)
+            .clicked();
         if ok {
             self.road_plan_confirm();
         } else if cancel {

@@ -15,8 +15,9 @@ use f4x_def::rules::BuildingId;
 use f4x_def::text::Args;
 use macroquad::prelude::*;
 
+use crate::action_button_art::Slab;
 use crate::frame::Layout;
-use crate::ui::{self, Hit};
+use crate::ui::Hit;
 use crate::view::App;
 
 /// What the box says.
@@ -49,8 +50,9 @@ pub(crate) enum SellPrompt {
 
 /// The two buttons of a question box and what answers it besides a click on them.
 pub(crate) struct Buttons {
-    right: (&'static str, usize),
-    left: (&'static str, usize),
+    /// The slab of each button (`Slab`) and the text key of its label.
+    right: (Slab, &'static str),
+    left: (Slab, &'static str),
     right_key: KeyCode,
     left_key: KeyCode,
     /// Whether a click elsewhere answers (as the left button).
@@ -61,23 +63,23 @@ pub(crate) struct Buttons {
 
 /// Yes (right) and No (left): `resource.lbx` 3 and 4.
 const YES_NO: Buttons = Buttons {
-    right: ("resource", 3),
-    left: ("resource", 4),
+    right: (Slab::Yes, "ui.button_yes"),
+    left: (Slab::No, "ui.button_no"),
     right_key: KeyCode::Y,
     left_key: KeyCode::N,
     elsewhere: true,
     escape: false,
 };
 
-/// `Raze_City_Prompt`: Raze (left, R) and the button that spares the city (right, N), from
-/// `compix.lbx` 82 and 81. Esc spares it; a click elsewhere does nothing.
+/// `Raze_City_Prompt`: "Do you wish to completely destroy this city?" Yes (right, Y) razes it and
+/// No (left, N) spares it. Esc spares it; a click elsewhere does nothing.
 pub(crate) const RAZE_OR_SPARE: Buttons = Buttons {
-    right: ("compix", 81),
-    left: ("compix", 82),
-    right_key: KeyCode::N,
-    left_key: KeyCode::R,
+    right: (Slab::Yes, "ui.button_yes"),
+    left: (Slab::No, "ui.button_no"),
+    right_key: KeyCode::Y,
+    left_key: KeyCode::N,
     elsewhere: false,
-    escape: true,
+    escape: false,
 };
 
 /// What the city screen and the outpost screen share: the question box over them and the
@@ -283,25 +285,9 @@ impl App {
         self.draw_box_text(view, &lines, x + 9.0, y + 9.0, line);
         let right_at = (x + 101.0, y + paragraph + 15.0);
         let left_at = (x + 18.0, y + paragraph + 15.0);
-        let right = ui::hit(lay.rect((right_at.0, right_at.1, 33.0, 17.0)), true, input);
-        let left = ui::hit(lay.rect((left_at.0, left_at.1, 33.0, 17.0)), true, input);
-        let (lbx, entry) = buttons.right;
-        self.draw_pic(
-            lay,
-            lbx,
-            entry,
-            usize::from(right.held()),
-            right_at.0,
-            right_at.1,
-        );
-        let (lbx, entry) = buttons.left;
-        self.draw_pic(
-            lay,
-            lbx,
-            entry,
-            usize::from(left.held()),
-            left_at.0,
-            left_at.1,
+        let (right, left) = (
+            self.slab_button(lay, buttons.right, right_at, input),
+            self.slab_button(lay, buttons.left, left_at, input),
         );
         buttons.answer(right, left, input)
     }
@@ -403,15 +389,18 @@ mod tests {
         let elsewhere = input_at(MouseButton::Left, 0.0, 0.0);
         assert_eq!(RAZE_OR_SPARE.answer(Hit::None, Hit::None, &elsewhere), None);
         let esc = Input::key(KeyCode::Escape);
-        assert_eq!(RAZE_OR_SPARE.answer(Hit::None, Hit::None, &esc), Some(true));
         assert_eq!(
-            RAZE_OR_SPARE.answer(Hit::None, Hit::None, &Input::key(KeyCode::R)),
-            Some(false),
-            "R razes"
+            RAZE_OR_SPARE.answer(Hit::None, Hit::None, &esc),
+            Some(false)
+        );
+        assert_eq!(
+            RAZE_OR_SPARE.answer(Hit::None, Hit::None, &Input::key(KeyCode::Y)),
+            Some(true),
+            "Y razes"
         );
         assert_eq!(
             RAZE_OR_SPARE.answer(Hit::None, Hit::None, &Input::key(KeyCode::N)),
-            Some(true),
+            Some(false),
             "N spares"
         );
     }
