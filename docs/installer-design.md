@@ -109,7 +109,7 @@ design does to keep it as clean as it can be:
 
 - **Python and ReMoM: not needed by the player.** `import_mom.py` stays a developer script. What the
   game reads from `content-local/` is only three small files (`city_names.ron`, `diplomsg.ron`,
-  `event_texts.ron`; the loaders are `rules.rs` and `lib.rs` of `f4x-data`), and all three come from
+  `event_texts.ron`; the loaders are in `f4x-def/src/load`), and all three come from
   the original's LBX files alone:
   - `CITYNAME.LBX` gives the names per race in race-table order. The script takes the race list from
     ReMoM's `RACETYPE.c`; the Rust import takes it from the committed `content/races.ron`, whose `num`

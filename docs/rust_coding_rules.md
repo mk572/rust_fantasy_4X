@@ -22,11 +22,10 @@ Avoid cloning, especially on large entities.
 The game is built on four major components: rules engine, game engine, client and ai.
 
 The crates depend on each other in one direction: `f4x-def` is at the bottom (the static definitions,
-no other game crate); `f4x-core` depends on `f4x-def`; `f4x-data` and `f4x-ai` depend on `f4x-core`
-(`f4x-ai` uses `f4x-data` only in its tests); `f4x-console` depends on core, data and ai; `f4x-learn`
-on core and data; `f4x-client` and `f4x-tools` on all of these (`f4x-tools` also on `f4x-ai-ref`).
-`f4x-data` is being folded into `f4x-def` (task 481): a crate loads the data it holds. `f4x-core`
-reads and writes save files only (`game/save/file.rs`); it is deterministic otherwise.
+no other game crate); `f4x-core` and `f4x-ai` depend on `f4x-def`, and `f4x-ai` on `f4x-core`;
+`f4x-console` depends on def, core and ai; `f4x-learn` on def and core; `f4x-client` and `f4x-tools` on
+all of these (`f4x-tools` also on `f4x-ai-ref`). A crate loads the data it holds: `f4x-def` loads the
+definitions (`f4x_def::load`). `f4x-core` reads and writes save files only (`game/save/file.rs`); it is deterministic otherwise.
 
 ## Rules engine
 
@@ -37,11 +36,10 @@ For example, unit stats and abilities, buildings, spells, terrain etc. are all p
 The rules engine is split over two crates:
 
 - **f4x-def** holds the types of the rules (`UnitDef`, `SpellDef`, `Effect`, `Stat`, the registries,
-  the terrain and feature definitions). Core re-exports them under their old paths (`rules`,
-  `map::terrain`, `feature::def`) until task 481 stage 4 points every crate at `f4x-def`.
-- **f4x-core, `rules/exec.rs`** applies the effects; `Content` is still in core (`content.rs`).
-- **f4x-data** loads the files in `content/` (`.ron`), validates them and builds core's types from
-  them (`load_content`). It holds no rules of its own.
+  the terrain and feature definitions, `Content`) and loads the files in `content/` (`.ron`),
+  validates them and builds the types from them (`f4x_def::load::load_content`). Core still
+  offers `rules`, `map` and `feature` paths for the parts it shares with them.
+- **f4x-core, `rules/exec.rs`** applies the effects.
 
 ## Game engine
 
@@ -102,7 +100,7 @@ change that finds it. `docs/test-review-log.md` lists the files checked.
 ### Test on the actual game data and rules
 
 **Always test on the shipped game data and the real rules, never on fixtures.** A test loads the content
-the game ships with (`f4x_data::load_content`, the `content/` folder) and runs the real engine, so that
+the game ships with (`f4x_def::load::load_content`, the `content/` folder) and runs the real engine, so that
 it behaves as close to actual gameplay as possible. Hand-built content, a second copy of a rule in the
 test environment, or an empty `Content::default()` lets the test drift from the game and pass for the
 wrong reason.
@@ -126,12 +124,10 @@ wrong reason.
   belongs to the test that needs it, with the reason, not to a shared `world()`.
 - A test whose subject needs content (spells, units) must fail when the content is missing. An empty
   registry that makes the test skip its assertions is a bug.
-- A unit test inside `f4x-core/src/` cannot use `f4x_data::load_content`: `f4x-core` is below
-  `f4x-data`, and with `f4x-data` as a dev-dependency the test build and `f4x-data` hold two copies of
-  core's types (`expected content::Content, found f4x_core::content::Content`). Such a test calls
-  `game::testutil::shipped()`, which reads the same `content/` files (the names from `text/en/name/`
-  included, the messages and the checks of the loader not) and parses them once per test process.
-  The integration tests in `f4x-core/tests/it/` use `f4x_data::load_content` itself (`tests/it/world.rs`).
+- A unit test inside `f4x-core/src/` calls `game::testutil::shipped()`, which is
+  `f4x_def::load::load_content` on the `content/` folder (the same loader and checks as the game),
+  run once per test process. The integration tests in `f4x-core/tests/it/` use
+  `f4x_def::load::load_content` itself (`tests/it/world.rs`).
   Do not hand-build units, spells, buildings or terrains in either.
 
 ### Where a test lives
@@ -148,7 +144,7 @@ game or content.
 - **A unit test in `src/`** (`shipped()` for the rules) when the test needs a module's internals (a
   private system, a component, a field) or no game at all: a formula, a parser, an ordering, a
   state machine of one type. Keep it to the minimum the mechanic needs.
-- **A test in `f4x-data`** when its subject is the content itself (counts, cross-references, the
+- **A test in `f4x-def` (`load`) or `f4x-core/tests/it`** when its subject is the content itself (counts, cross-references, the
   original's numbers) and no engine behaviour is involved.
 
 ### Error handling in tests
@@ -224,7 +220,7 @@ Click-flow tests (no window, no screenshot) are unit tests in the client crate. 
 `App::for_test()` (`test_app.rs`: the shipped content and a new game, no art), `Input::key(..)` and
 `Input::click(..)` build one frame by hand, `frame::window_size()` gives tests a fixed window, and
 `App::modals` shows which prompts are open. `test_app::shipped` holds the parsed `content/` (content, texts,
-settings, spell art) once per test run; a test does not call `f4x_data::load_*` itself. Anything that draws needs a window, so put the part that
+settings, spell art) once per test run; a test does not call `f4x_def::load::load_*` itself. Anything that draws needs a window, so put the part that
 decides (what a key answers, whether a notice closes, which events open a prompt) in a function
 that takes `&Input` and returns the new state (`resign_answer`, `Input::dismisses`), draw after it,
 and test that function.

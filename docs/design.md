@@ -19,8 +19,8 @@ Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer),
 
 ## 2. Workspace layout
 ```
-crates/f4x-core/    rules + simulation, no I/O or rendering
-crates/f4x-data/    content loaders and cross-reference validation (RON)
+crates/f4x-core/    simulation (reads the definitions of f4x-def), no I/O but save files, no rendering
+crates/f4x-def/     the static definitions, their loaders and cross-reference validation (RON)
 crates/f4x-ai/      AI players, depends on f4x-core only (empty so far)
 crates/f4x-console/ the text console: every action as a line of text (`console.md`)
 crates/f4x-client/  rendering, input, UI (macroquad)
@@ -148,7 +148,7 @@ Not started. Intended design:
 ## 10. Cross-cutting
 - **Determinism:** seeded RNG (`rand_pcg`) behind `Game::roll`; entity iteration in logic is sorted by creation number (`Serial`), never by `hecs` id; no floats in rules; integer maths with a fixed order in the stats engine.
 - **Save/load:** done. A save is a text snapshot (RON) of the whole game with content referenced by name, a version number and load-time checks; autosave runs each turn. Details in [`game-flow.md`](game-flow.md) section 8.
-- **Testing:** unit tests build small synthetic content (`testutil`) for units, buildings and terrain, but use the game's real spells and realms (`content/spells.ron`, `content/realms.ron`, read by `testutil::real_spells`), so a test casts the spell the game does; a test that needs a number the real spell does not have changes the real spell in place and says so. Shipped data is validated in `f4x-data`. Planned: golden-seed scenario tests, property tests for pathfinding and combat, AI-vs-AI soak runs.
+- **Testing:** unit tests build small synthetic content (`testutil`) for units, buildings and terrain, but use the game's real spells and realms (`content/spells.ron`, `content/realms.ron`, read by `testutil::real_spells`), so a test casts the spell the game does; a test that needs a number the real spell does not have changes the real spell in place and says so. Shipped data is validated in `f4x-def`. Planned: golden-seed scenario tests, property tests for pathfinding and combat, AI-vs-AI soak runs.
 - **Where tests live:** unit tests stay in the file they test as a child module (`#[cfg(test)] mod tests`), so they can reach private items and are left out of release builds. When a file's test module goes over 250 lines (the size of the test module alone; the file's total size does not matter), the tests move to their own file next to it, still as a child module: `#[cfg(test)] mod tests;` in `foo.rs` and the tests in `foo/tests.rs` (`tests.rs` beside `mod.rs` or `lib.rs`). Tests that use only the public API go in the crate's `tests/` directory. Do not make items `pub` just to test them from another file.
 - **Performance:** not a concern except pathfinding and AI, which can be budgeted per turn.
 - **Lint and format:** `cargo fmt`, `cargo clippy -D warnings` in CI.

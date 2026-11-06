@@ -480,7 +480,7 @@ Needs: the data (20 spells for each of the 14 races), a `Magic`-like record for 
 - **Names and text.** Each variant gets its own name and a short description in the style of the originals, written for the project (not the original's text; the original's descriptions belong to the base wizards).
 - **AI.** The AI's personality and objective draw (task 64) is unchanged; the books and retorts decide its spells as they do now.
 
-Needs: the data file and its loader (`f4x-data`), the palette tables and the importer step that writes the recoloured portraits (`scripts/import_mom.py` or a new script, logged in `docs/scripts.md` with `--help`), the new-game screen's longer list, saves (the wizard is saved by its books and retorts, so a variant needs only its portrait number, to check), the console and the help, tests that every variant is a legal pick, and a balance pass.
+Needs: the data file and its loader (`f4x-def`), the palette tables and the importer step that writes the recoloured portraits (`scripts/import_mom.py` or a new script, logged in `docs/scripts.md` with `--help`), the new-game screen's longer list, saves (the wizard is saved by its books and retorts, so a variant needs only its portrait number, to check), the console and the help, tests that every variant is a legal pick, and a balance pass.
 
 **36. Multiplayer (to be discussed).** Nothing is decided; this item holds the questions so the scope is settled before any work (`design.md` section 13 asks the same). Items 18 (hot seat) and 19 (asynchronous play) are the small versions; this one is for the rest, mainly play over a network at the same time.
 

@@ -1,5 +1,9 @@
 # Crate layout: plan B (definitions in `f4x-static`, the game in `f4x-core`)
 
+> **Superseded (6 November 2026):** the user chose neither plan as written. The static definitions and
+> their loaders are in `f4x-def` (task 481), `f4x-data` is gone, and save/load is in `f4x-core`. This file
+> stays as the record of the options.
+
 Asked for by the user, 2 November 2026, as the alternative to plan A (`docs/crate-layout-plan.md`).
 One of the two is to be chosen; until then no task changes. This file is meant to be executed without
 reading plan A: everything a step needs is written out here. Numbers were measured on the code of that

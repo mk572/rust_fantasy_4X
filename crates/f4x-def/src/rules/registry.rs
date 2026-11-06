@@ -1,5 +1,5 @@
 //! Loaded definition tables. Definitions refer to each other by number in the content files;
-//! `f4x-data` validates that every reference resolves, and the registry finds a definition by its
+//! `load` validates that every reference resolves, and the registry finds a definition by its
 //! number. The alias (`id`) of an entry is a human's aid in the files and is not looked up here.
 
 use super::ids::Id;

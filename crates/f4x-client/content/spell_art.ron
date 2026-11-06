@@ -1,6 +1,6 @@
 // Which pictures of the original's art (`assets-local/art`) belong to which spell. A picture is
 // its source file and entry (`lbx`, `entry`) and what it is for (`role`, see `Role` in
-// `crates/f4x-data/src/spell_art.rs`). `f4x-extract art` files a picture of one spell under
+// `crates/f4x-client`). `f4x-extract art` files a picture of one spell under
 // `art/spells/<spell id>/`, one used by several spells or listed under `shared` under
 // `art/spells/_shared/`. The client reads the pictures to draw from here; how an animation moves
 // stays in `spell_fx.rs`. Sources: ReMoM's `Spell_Animation_Load_Graphics` and the tables in

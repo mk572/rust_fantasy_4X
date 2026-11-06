@@ -3,9 +3,6 @@
 //!
 //! Tests: none, because this is test support.
 
-use crate::feature::def::{FeatureDef, Features};
-use crate::map::terrain::{TerrainDef, Terrains};
-use crate::rules::{Registry, Rules, UnitDef};
 use f4x_def::content::Content;
 
 /// The numbers (`num` in `content/`) of the terrains and map features that tests name. The number
@@ -47,75 +44,16 @@ pub fn settings() -> crate::game::setting::SettingsDef {
         .expect("rules_settings.ron parses")
 }
 
-/// The game's own `content/` folder, read as `f4x_def::load::load_content` reads it (the city names, the
-/// ready-made wizards' names), without its checks and
-/// without the messages. It is parsed once per test process; `f4x-data` tests the loader.
+/// The game's own `content/` folder, loaded by the real loader (`f4x_def::load::load_content`:
+/// checks, names and messages included). It is parsed once per test process.
 pub fn shipped() -> Content {
     static SHIPPED: std::sync::OnceLock<Content> = std::sync::OnceLock::new();
-    SHIPPED.get_or_init(load_shipped).clone()
-}
-
-fn load_shipped() -> Content {
-    use serde::de::DeserializeOwned;
-
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
-    // The names are the client's files.
-    let client = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../f4x-client/content");
-    fn parse<T: DeserializeOwned>(dir: &std::path::Path, name: &str) -> T {
-        let text = std::fs::read_to_string(dir.join(name))
-            .unwrap_or_else(|e| panic!("content/{name}: {e}"));
-        ron::from_str(&text).unwrap_or_else(|e| panic!("content/{name}: {e}"))
-    }
-    let terrains: Vec<TerrainDef> = parse(&dir, "terrain.ron");
-    let features: Vec<FeatureDef> = parse(&dir, "features.ron");
-    let mut races: Vec<crate::rules::RaceDef> = parse(&dir, "races.ron");
-    #[derive(serde::Deserialize)]
-    struct CityNames {
-        race: String,
-        names: Vec<String>,
-    }
-    for list in parse::<Vec<CityNames>>(&dir, "city_names.ron") {
-        if let Some(race) = races.iter_mut().find(|r| r.id == list.race) {
-            race.city_names = list.names;
-        }
-    }
-    let units: Vec<UnitDef> = parse(&dir, "units.ron");
-    let abilities: Vec<crate::rules::AbilityDef> = parse(&dir, "abilities.ron");
-    let buildings: Vec<crate::rules::BuildingDef> = parse(&dir, "buildings.ron");
-    let realms: Vec<crate::rules::RealmDef> = parse(&dir, "realms.ron");
-    let spells: Vec<crate::rules::SpellDef> = parse(&dir, "spells.ron");
-    let items: Vec<crate::rules::ItemDef> = parse(&dir, "items.ron");
-    let powers: Vec<crate::rules::ItemPowerDef> = parse(&dir, "item_powers.ron");
-    let retorts: Vec<crate::rules::RetortDef> = parse(&dir, "retorts.ron");
-    let wizards: Vec<crate::rules::WizardDef> = parse(&dir, "wizards.ron");
-    let level_paths: Vec<crate::rules::LevelPathDef> = parse(&dir, "level_paths.ron");
-    let hero_templates: Vec<crate::rules::HeroTemplate> = parse(&dir, "heroes.ron");
-    let config: crate::rules::RulesConfig = parse(&dir, "rules.ron");
-    let settings: crate::game::setting::SettingsDef = parse(&dir, "rules_settings.ron");
-    let abilities = Registry::new(abilities);
-    Content {
-        terrains: Terrains::new(terrains),
-        features: Features::new(features),
-        rules: Rules {
-            config,
-            races: Registry::new(races),
-            units: Registry::new(units),
-            abilities,
-            buildings: Registry::new(buildings),
-            realms: Registry::new(realms),
-            spells: Registry::new(spells),
-            items: Registry::new(items),
-            item_powers: Registry::new(powers),
-            level_paths: Registry::new(level_paths),
-            wizards: Registry::new(wizards),
-            retorts: Registry::new(retorts),
-            hero_templates,
-            lairs: parse(&dir, "lairs.ron"),
-            wizard_names: parse(&client, "text/en/name/rival.ron"),
-        },
-        settings,
-        texts: Default::default(),
-    }
+    SHIPPED
+        .get_or_init(|| {
+            let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+            f4x_def::load::load_content(&dir).expect("the shipped content loads")
+        })
+        .clone()
 }
 
 /// The number of the ability the content file calls `alias`, for tests that name abilities in

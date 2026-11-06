@@ -274,7 +274,7 @@ f4x-core/src/rules/      defs.rs      definition types + typed ids
                          stats.rs     Stat enum, Modifier, compute()
                          effects.rs   Condition, Target, Effect, execute()
 f4x-core/src/systems/    economy.rs, spells.rs, combat.rs, city/production.rs
-f4x-data/                RON loading, cross-reference validation
+f4x-def/src/load/        RON loading, cross-reference validation
 content/                 races.ron, units.ron, buildings.ron, abilities.ron,
                          realms.ron, spells.ron, items.ron, rules.ron
 ```

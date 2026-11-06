@@ -1,5 +1,9 @@
 # Crate layout: plan to resort the crates
 
+> **Superseded (6 November 2026):** the user chose neither plan as written. The static definitions and
+> their loaders are in `f4x-def` (task 481), `f4x-data` is gone, and save/load is in `f4x-core`. This file
+> stays as the record of the options.
+
 **This is plan A. Plan B (an `f4x-game` crate on top of core) is in `docs/crate-layout-plan-b.md`; one of
 the two is to be chosen.**
 

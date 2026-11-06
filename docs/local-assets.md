@@ -70,7 +70,7 @@ areas open which topic), (the preset wizards' descriptions are no longer importe
 rules files there; the importer now removes those stale copies.
 
 The client and `f4x-tools` read `content-local/` first and `content/` for every file it lacks
-(`f4x_data::load_content_layers`), so the game runs without any local files, only without help
+(`f4x_def::load::load_content_layers`), so the game runs without any local files, only without help
 or preset wizards. The importer also cross-checks costs, upkeep and race build bans against the
 help text (`[check]` lines in the report). What the help describes that is not implemented yet
 is in `docs/mechanics-gaps.md`.

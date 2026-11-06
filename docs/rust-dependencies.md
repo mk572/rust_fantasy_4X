@@ -25,7 +25,7 @@ alone, the music, is 135 MB of the 195.
 | `serde` 1 (via core and data) | derives for the above | |
 | `rand` 0.8, `rand_pcg` 0.3 | seeded random numbers | `rand` without default features |
 
-The workspace crates themselves (`f4x-core`, `f4x-data`, `f4x-ai`, `f4x-console`) are ours.
+The workspace crates themselves (`f4x-def`, `f4x-core`, `f4x-ai`, `f4x-console`) are ours.
 
 ### Pulled in by `macroquad`
 

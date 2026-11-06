@@ -435,8 +435,8 @@ pub(crate) mod tests {
             .map(|h| g.units().hero_kind(h).expect("hero_kind succeeds"))
             .collect();
         assert_eq!(kinds, (0..35).collect::<Vec<_>>());
-        // Without a list of names for the hero (the client's text), its unit's alias stands.
-        assert_eq!(g.units().hero_type_name(0).as_deref(), Some("dwarf"));
+        // The first of the five names the client's text gives the Dwarf hero.
+        assert_eq!(g.units().hero_type_name(0).as_deref(), Some("Brax"));
         assert!((0..35).all(|k| state(&g, k) == HeroState::Free));
         for p in [P0, P1, PlayerId(9)] {
             assert!(g.units().heroes(p).is_empty());
@@ -454,7 +454,7 @@ pub(crate) mod tests {
             .spawn_hero(P0, at(1, 1), dervish)
             .map_err(|e| format!("{e:?}"))?;
         let hero: Hero = (*g.world.get::<&Hero>(h)?).clone();
-        assert_eq!(hero.name, "dervish");
+        assert_eq!(hero.name, "B'Shan");
         assert_eq!(hero.abilities.might, Tier::None);
         assert!(hero.spells.is_empty());
         assert_eq!(g.units().hero_kind(h), Some(dervish));

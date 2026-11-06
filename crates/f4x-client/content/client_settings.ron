@@ -1,5 +1,5 @@
 // Client settings: the language and the starting state of the switches of the Settings screen (read
-// by `f4x_data::load_content_layers`, optional; `game::setting::ClientSettingsDef` is the schema).
+// by `f4x_def::load::load_content_layers`, optional; `game::setting::ClientSettingsDef` is the schema).
 // None of this changes the rules of a game: the choices that do (starting gold, map size,
 // difficulty) are in `rules_settings.ron`.
 

@@ -210,7 +210,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   the rest of `assets-local`.
 - `fonts/colour_sets.ron` is the colour set table itself (set, colour index 1 to 15, RGB). It is only numbers, so a
   copy is committed as `crates/f4x-client/content/font_colour_sets.ron`; after `f4x-extract art` copy it over (`cp
-  assets-local/art/fonts/colour_sets.ron crates/f4x-client/content/font_colour_sets.ron`). A test in `f4x-data` checks its shape.
+  assets-local/art/fonts/colour_sets.ron crates/f4x-client/content/font_colour_sets.ron`). A test checks its shape.
 - In the client (`art.rs`, `frame.rs`): `Art::text_width`, `Art::nearest_font_set(style, colour)`
   (the set whose average colour is closest to the colour wanted) and `Art::draw_bitmap_text`;
   the one function to use on a screen is `App::draw_styled(view, &Style, text, x, y)` (`font.rs`),
