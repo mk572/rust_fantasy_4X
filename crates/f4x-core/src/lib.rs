@@ -20,7 +20,7 @@ pub mod player;
 pub mod rules;
 pub mod spell;
 #[cfg(any(test, feature = "testutil"))]
-pub mod testdir;
+pub use f4x_def::testdir;
 pub mod text;
 pub mod threat;
 pub mod turn;

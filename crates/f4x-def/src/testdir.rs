@@ -1,4 +1,5 @@
-//! A folder of its own for one test. Tests that write files use this instead of a fixed name in
+//! Test support, for this crate's tests and (with the `testutil` feature) for every crate above it:
+//! a folder of its own for one test. Tests that write files use this instead of a fixed name in
 //! the temp folder, so that two test runs at the same time (two `cargo test`, nextest) and two tests
 //! of one run never share a folder.
 
@@ -48,7 +49,6 @@ impl Drop for TestDir {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testdir::TestResult;
 
     #[test]
     fn two_folders_with_one_label_are_different_and_empty_and_removed_on_drop() -> TestResult {

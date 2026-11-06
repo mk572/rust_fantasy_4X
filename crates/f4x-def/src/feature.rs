@@ -5,8 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::map::terrain::TerrainClass;
-use crate::map::{FeatureId, Plane};
+use crate::map::{FeatureId, Plane, TerrainClass};
 
 /// What a feature is; drives placement, and which features block city founding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

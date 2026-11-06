@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 use super::ids::Id;
 use super::stats::{ModOp, Stat};
 use super::{AbilityDef, RealmDef, SpellDef};
-use crate::map::terrain::TerrainClass;
 use crate::map::Plane;
+use crate::map::TerrainClass;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Condition {

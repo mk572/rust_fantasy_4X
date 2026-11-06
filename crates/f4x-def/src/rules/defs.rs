@@ -10,7 +10,7 @@ use super::ids::Id;
 use super::registry::{Def, Registry};
 use super::stats::Stat;
 use super::{Ability, BuildingId, RealmId};
-use crate::map::terrain::TerrainClass;
+use crate::map::TerrainClass;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RaceDef {

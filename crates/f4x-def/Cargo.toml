@@ -1,0 +1,17 @@
+[package]
+name = "f4x-def"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+ron.workspace = true
+
+[features]
+# `testdir` (a folder of its own for a test, `TestResult`) is for tests only: this crate's unit tests
+# have it, the crates above turn it on through their `testutil` feature.
+testutil = []
+
+[dev-dependencies]
+f4x-def = { path = ".", features = ["testutil"] }

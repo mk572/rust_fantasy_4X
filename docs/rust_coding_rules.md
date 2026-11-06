@@ -21,11 +21,12 @@ Avoid cloning, especially on large entities.
 
 The game is built on four major components: rules engine, game engine, client and ai.
 
-The crates depend on each other in one direction: `f4x-core` is at the bottom and depends on no other
-game crate; `f4x-data` and `f4x-ai` depend on `f4x-core` (`f4x-ai` uses `f4x-data` only in its tests);
-`f4x-console` depends on core, data and ai; `f4x-learn` on core and data; `f4x-client` and `f4x-tools`
-on all of these (`f4x-tools` also on `f4x-ai-ref`). `f4x-core` does no file I/O (it is deterministic,
-see its `lib.rs`).
+The crates depend on each other in one direction: `f4x-def` is at the bottom (the static definitions,
+no other game crate); `f4x-core` depends on `f4x-def`; `f4x-data` and `f4x-ai` depend on `f4x-core`
+(`f4x-ai` uses `f4x-data` only in its tests); `f4x-console` depends on core, data and ai; `f4x-learn`
+on core and data; `f4x-client` and `f4x-tools` on all of these (`f4x-tools` also on `f4x-ai-ref`).
+`f4x-data` is being folded into `f4x-def` (task 481): a crate loads the data it holds. `f4x-core`
+reads and writes save files only (`game/save/file.rs`); it is deterministic otherwise.
 
 ## Rules engine
 
@@ -35,9 +36,10 @@ For example, unit stats and abilities, buildings, spells, terrain etc. are all p
 
 The rules engine is split over two crates:
 
-- **f4x-core, `rules/`** (and the definition types next to their concepts, such as `map/terrain.rs`
-  and `feature/def.rs`) holds the types of the rules (`UnitDef`, `SpellDef`, `Effect`, `Stat`,
-  `Content`) and the code that applies them.
+- **f4x-def** holds the types of the rules (`UnitDef`, `SpellDef`, `Effect`, `Stat`, the registries,
+  the terrain and feature definitions). Core re-exports them under their old paths (`rules`,
+  `map::terrain`, `feature::def`) until task 481 stage 4 points every crate at `f4x-def`.
+- **f4x-core, `rules/exec.rs`** applies the effects; `Content` is still in core (`content.rs`).
 - **f4x-data** loads the files in `content/` (`.ron`), validates them and builds core's types from
   them (`load_content`). It holds no rules of its own.
 
@@ -184,7 +186,7 @@ A test fails when it panics or when it returns `Err`; both are fine. Choose by w
 - **Gates before a commit:** `cargo fmt --all`, `cargo clippy --workspace --tests`, and the test
   commands in `CLAUDE.md`.
 
-A test that writes files takes its folder from `f4x_core::testdir::TestDir::new("label")`, never a fixed
+A test that writes files takes its folder from `f4x_def::testdir::TestDir::new("label")` (`f4x_core::testdir` re-exports it), never a fixed
 name in the temp folder: the name is unique per process and per call, so two `cargo test` runs at the same
 time (or nextest) never share a folder, and the folder is removed when the value is dropped.
 

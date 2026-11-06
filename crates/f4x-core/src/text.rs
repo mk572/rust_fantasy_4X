@@ -9,19 +9,12 @@ use std::collections::HashMap;
 use std::fmt;
 
 use serde::de::{self, MapAccess, Visitor};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Deserializer};
 
 /// The language that fills in the keys another language lacks.
 pub const FALLBACK_LANGUAGE: &str = "en";
 
-/// The grammatical gender of a hero or a wizard, for the messages that name one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub enum Gender {
-    Masculine,
-    Feminine,
-    #[default]
-    Neuter,
-}
+pub use f4x_def::text::Gender;
 
 /// A value given to a message.
 #[derive(Debug, Clone, PartialEq, Eq)]

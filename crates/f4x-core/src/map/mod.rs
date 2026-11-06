@@ -32,27 +32,7 @@ impl Position {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Plane {
-    Arcanus,
-    Myrror,
-}
-
-impl Plane {
-    pub const ALL: [Plane; 2] = [Plane::Arcanus, Plane::Myrror];
-
-    pub fn index(self) -> usize {
-        self as usize
-    }
-}
-
-/// The number (`num`) of a terrain definition in the loaded [`crate::map::terrain::Terrains`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TerrainId(pub u16);
-
-/// The number (`num`) of a feature definition in the loaded [`crate::feature::def::Features`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct FeatureId(pub u16);
+pub use f4x_def::map::{FeatureId, Plane, TerrainId};
 
 /// One plane: a base terrain layer plus an optional mineral per tile, with the layers of roads,
 /// rivers, lakes and corruption. Cities, towers, nodes, encounter sites and volcanoes are
