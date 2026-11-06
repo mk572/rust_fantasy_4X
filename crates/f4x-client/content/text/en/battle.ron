@@ -74,6 +74,13 @@
     "battle.skill": "Skill",
     "battle.mana": "Mana",
     "battle.range": "Range",
+    // The panel's buttons: capitals, as the original's pictures are lettered.
+    "battle.button_spell": "SPELL",
+    "battle.button_wait": "WAIT",
+    "battle.button_info": "INFO",
+    "battle.button_auto": "AUTO",
+    "battle.button_flee": "FLEE",
+    "battle.button_done": "DONE",
     "battle.flee_question": "Do you wish to flee?",
     "battle.hits_label": "Hits",
     "battle.ammo_label": "Ammo",

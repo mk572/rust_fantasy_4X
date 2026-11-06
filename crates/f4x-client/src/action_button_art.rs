@@ -224,6 +224,94 @@ impl App {
     }
 }
 
+/// The battle screen's gold buttons (26 by 10): one blank picture for all six, and its dimmed copy.
+fn battle_texture(locked: bool) -> Texture2D {
+    thread_local! {
+        static TEX: RefCell<[Option<Texture2D>; 2]> = const { RefCell::new([None, None]) };
+    }
+    TEX.with(|t| {
+        t.borrow_mut()[usize::from(locked)]
+            .get_or_insert_with(|| {
+                load(if locked {
+                    include_bytes!("../assets/button/battle_locked.png")
+                } else {
+                    include_bytes!("../assets/button/battle.png")
+                })
+            })
+            .clone()
+    })
+}
+
+/// The font of the battle buttons' labels: style 0 with the original's own I, W, N, S, F and O
+/// (`scripts/button_label_font.py`).
+fn battle_font() -> Rc<bm::BmFont> {
+    thread_local! {
+        static FONT: RefCell<Option<Rc<bm::BmFont>>> = const { RefCell::new(None) };
+    }
+    FONT.with(|font| {
+        font.borrow_mut()
+            .get_or_insert_with(|| {
+                Rc::new(
+                    bm::BmFont::from_bytes(
+                        include_str!("../assets/button/battle_label.fnt"),
+                        include_bytes!("../assets/button/battle_label.png"),
+                    )
+                    .expect("the battle buttons' font loads"),
+                )
+            })
+            .clone()
+    })
+}
+
+impl App {
+    /// A battle panel button at `at` in the original's pixels, its label from the text `key`.
+    /// True on the frame it is clicked.
+    pub(crate) fn battle_button(
+        &mut self,
+        lay: &Layout,
+        key: &str,
+        at: (f32, f32),
+        enabled: bool,
+        input: &Input,
+    ) -> bool {
+        let s = lay.scale;
+        let tex = battle_texture(!enabled);
+        let size = vec2(tex.width(), tex.height());
+        let p = lay.point(at.0, at.1);
+        let state = if enabled {
+            ui::hit(Rect::new(p.x, p.y, size.x * s, size.y * s), true, input)
+        } else {
+            ui::Hit::None
+        };
+        let look = match (enabled, state.held()) {
+            (false, _) => Look::Locked,
+            (_, true) => Look::Pressed,
+            _ => Look::Up,
+        };
+        crate::menu_bar_art::draw_button(&tex, p, size * s, s, look == Look::Pressed, WHITE);
+        let push = f32::from(u8::from(look == Look::Pressed));
+        let label = self.text(key);
+        let font = battle_font();
+        self.draw_styled_in(
+            &font,
+            (lay.origin.x, lay.origin.y, s),
+            &Style::flat(
+                0,
+                match look {
+                    Look::Locked => rgb(142, 97, 36),
+                    _ => rgb(52, 40, 28),
+                },
+            )
+            .shadow()
+            .edge(Color::from_rgba(255, 196, 56, 100))
+            .center(),
+            &label,
+            (at.0 + size.x / 2.0 + push, at.1 + 1.0 + push),
+        );
+        state.clicked()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,6 +322,13 @@ mod tests {
             // A PNG's header holds the size at bytes 16 to 24.
             let size = |at: usize| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
             assert_eq!((size(16), size(20)), (33, 9));
+        }
+        for bytes in [
+            include_bytes!("../assets/button/battle.png").as_slice(),
+            include_bytes!("../assets/button/battle_locked.png").as_slice(),
+        ] {
+            let size = |at: usize| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap());
+            assert_eq!((size(16), size(20)), (26, 10));
         }
         let fnt = include_str!("../assets/button/label.fnt");
         let i = fnt.lines().find(|l| l.starts_with("char id=73 ")).unwrap();

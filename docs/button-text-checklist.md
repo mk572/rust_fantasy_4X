@@ -11,6 +11,7 @@ translucent shadow edge (`.edge(Color::from_rgba(..))`) follows the marbling.
 ## Done
 
 - [x] Main screen menu bar: Game, Spells, Armies, Cities, Magic, Info, Plane
+- [x] Battle screen: Spell, Wait, Info, Auto, Flee, Done are one text-free 26x10 picture (`battle.png`, `battle_locked.png`, from the Info) with labels from the `battle.button_*` keys drawn by `action_button_art.rs` (`battle_label.*`: style 0 with the original's I, W, N, S, F, O; brown ink); they match the original's lettering
 - [x] Main screen action row: Done, Patrol, Wait, Build, Meld, Purify, and the locked ones
 
 ## Pictures with baked text, confirmed (extractor `button_*` pictures)

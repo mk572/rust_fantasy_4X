@@ -43,6 +43,9 @@ the light and dark bands run diagonally across the whole word. `sheen_<family>_<
 pattern for one button (same size as the button, a colour for every pixel from the nearest diagonal that
 has lettering on it); the client keeps the lettering's pixels and takes their colours from it.
 
+The battle screen's six buttons (26x10, Spell, Wait, Info, Auto, Flee, Done; style 0 lettering in
+(52,40,28) at rows 1 to 6 with a lighter shadow) share one blank made from the Info: `battle.png` and `battle_locked.png`.
+
 The options screen's picture `newgame` 1 loses the title "Game Options" and the four labels
 (`options_frame.png`: they are cleared, the rest is transparent already). The new game screens' wooden OK and Cancel (64x16 pictures `newgame` 2 and 3, small OK 30x14) need no
 cleaning: the screen has blank wooden plates of the same style (`newgame_004_00.png`, 64x15 opaque).
@@ -76,6 +79,8 @@ SHEENS = [
 ]
 LOCKED = ["done", "patrol", "wait", "build"]
 PLANK_WIDTHS = [38, 39, 40, 58]
+# The battle screen's six 26x10 gold buttons (`combat/interface/button_<name>_00.png`).
+BATTLE_INK = (52, 40, 28)
 
 
 def ink_of(img: Image.Image, rows: range = None) -> set[tuple[int, int]]:
@@ -308,6 +313,19 @@ def main() -> None:
             img, n = clean(img, ink)
             img.save(out_dir / f"{name}_locked.png")
             print(f"{name} locked: {n} label pixels replaced")
+
+    # one blank for all six: the Info picture cleans best (Spell and Auto keep dark patches)
+    folder = Path(args.src).parent / "combat" / "interface"
+    img = Image.open(folder / "button_info_00.png").convert("RGBA")
+    px = img.load()
+    ink = {
+        (x, y) for y in range(1, 7) for x in range(3, 23) if px[x, y][:3] == BATTLE_INK
+    }
+    cleaned, n = clean(img, ink)
+    cleaned.save(out_dir / "battle.png")
+    locked, _ = clean(Image.open(folder / "button_info_locked_00.png"), ink)
+    locked.save(out_dir / "battle_locked.png")
+    print(f"battle: {n} label pixels replaced")
 
 
 if __name__ == "__main__":
