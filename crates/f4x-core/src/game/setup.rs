@@ -8,12 +8,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod original;
 
-use crate::content::Content;
 use crate::game::setting::GameSettings;
 use crate::map::mapgen::{generate, GenParams};
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
 use crate::rules::{BuildingId, RealmId};
+use f4x_def::content::Content;
 
 use crate::game::{Command, Game};
 use crate::wizard::magic::Retort;
@@ -52,7 +52,7 @@ pub struct NewGame {
     pub preset: Option<u16>,
     /// A custom wizard for player 0 (used when no preset is given).
     pub name: Option<String>,
-    pub gender: crate::text::Gender,
+    pub gender: f4x_def::text::Gender,
     pub books: BTreeMap<RealmId, u8>,
     pub retorts: BTreeSet<Retort>,
     /// Player 0's race number; the default is the first race with city names.
@@ -134,10 +134,10 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     game.set_generated(map);
     for k in 0..wizards {
         let name = match (k, spec.all_ai) {
-            (0, false) => content.texts.get("setup.you", &crate::text::Args::new()),
+            (0, false) => content.texts.get("setup.you", &f4x_def::text::Args::new()),
             _ => content.texts.get(
                 "setup.wizard_number",
-                &crate::text::Args::new().count("n", k as i32 + 1),
+                &f4x_def::text::Args::new().count("n", k as i32 + 1),
             ),
         };
         game.add_player(PlayerId(k), name);
@@ -392,7 +392,7 @@ fn plain_computer_build(content: &Content, seed: u64, k: usize) -> WizardBuild {
 /// A name for rival `k` when no ready-made wizards are loaded: one of the ten in that slot's list
 /// (`content/text/en/name/rival.ron`), picked from the seed without touching the game's random stream.
 /// Empty if there is no list, which leaves the plain "Wizard N".
-fn fallback_name(content: &Content, seed: u64, k: usize) -> (String, crate::text::Gender) {
+fn fallback_name(content: &Content, seed: u64, k: usize) -> (String, f4x_def::text::Gender) {
     let lists = &content.rules.wizard_names;
     let Some(list) = lists.get(k.saturating_sub(1).min(lists.len().saturating_sub(1))) else {
         return Default::default();
@@ -477,7 +477,7 @@ fn start_player(
         .city_names
         .first()
         .cloned()
-        .unwrap_or_else(|| rules_texts.get("setup.capital", &crate::text::Args::new()));
+        .unwrap_or_else(|| rules_texts.get("setup.capital", &f4x_def::text::Args::new()));
     let army = race_def.start_army.clone();
     let buildings: Vec<_> = CAPITAL_BUILDINGS.to_vec();
     let plane = if is_myrran(game, player) {
@@ -571,7 +571,7 @@ fn start_player(
 mod tests {
     use super::*;
     use crate::game::testutil::shipped;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn spec(seed: u64, wizards: u8) -> NewGame {
         let mut spec = NewGame::with_wizards(wizards);

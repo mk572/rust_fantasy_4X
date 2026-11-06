@@ -1,12 +1,12 @@
 //! The shipped content through the loader, in the tests that need the game code too (the map
 //! generator, the item maker, the hero roll); the loader's own tests are in `f4x-def`.
 
-use f4x_core::content::Content;
-use f4x_core::feature::def::FeatureKind;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Plane;
-use f4x_core::testdir::TestResult;
+use f4x_def::content::Content;
+use f4x_def::feature::FeatureKind;
 use f4x_def::load::*;
+use f4x_def::testdir::TestResult;
 use std::path::{Path, PathBuf};
 
 /// The game's own `content/` folder.

@@ -10,7 +10,7 @@ use f4x_core::game::Command;
 use f4x_core::player::shortfall::{ItemOverflow, TreasuryShortfall};
 use f4x_core::player::upkeep::Shortfall;
 use f4x_core::spell::cast::UpkeepKind;
-use f4x_core::text::{Args, Texts};
+use f4x_def::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -174,7 +174,7 @@ impl App {
 impl App {
     /// What an upkeep line of the mana shortfall says: "Haste on Spearmen", "Skeleton".
     fn upkeep_label(&self, line: &f4x_core::player::upkeep::UpkeepLine) -> String {
-        let spell = |s: f4x_core::rules::SpellId| self.names.spell(s.num()).to_string();
+        let spell = |s: f4x_def::rules::SpellId| self.names.spell(s.num()).to_string();
         let unit = |u: hecs::Entity| {
             self.game
                 .units()
@@ -432,7 +432,7 @@ impl App {
             .spells
             .defs()
             .iter()
-            .filter(|s| s.upkeep > 0 && s.target == f4x_core::rules::SpellTarget::None)
+            .filter(|s| s.upkeep > 0 && s.target == f4x_def::rules::SpellTarget::None)
             .take(2)
             .filter_map(|s| rules.spells.id_numbered(s.num))
             .collect();
@@ -722,7 +722,7 @@ mod tests {
     use super::*;
     use crate::test_app::shipped;
     use f4x_core::player::upkeep::UpkeepLine;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     /// Three lasting global spells of 10, 20 and 30 mana a turn, oldest first, and a reserve of
     /// `reserve` against the 60 owed.

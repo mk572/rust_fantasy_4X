@@ -24,9 +24,8 @@ pub mod view;
 mod tests;
 
 use crate::rules::Ability;
-use crate::{
-    battle, city, content, diplomacy, game, item, map, player, threat, unit, wizard, world_event,
-};
+use crate::{battle, city, diplomacy, game, item, map, player, threat, unit, wizard, world_event};
+use f4x_def::content;
 use rand::RngCore;
 
 pub use command::Command;

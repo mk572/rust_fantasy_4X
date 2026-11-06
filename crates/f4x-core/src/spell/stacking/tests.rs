@@ -4,7 +4,7 @@ use crate::game::Command;
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
 use crate::rules::Stat;
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
 const P1: PlayerId = PlayerId(1);

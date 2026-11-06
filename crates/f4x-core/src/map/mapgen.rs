@@ -8,12 +8,12 @@ use rand_pcg::Pcg64Mcg;
 
 mod original;
 
-use crate::content::Content;
 use crate::feature::def::FeatureKind;
 use crate::feature::entity::Placement;
 use crate::feature::place;
 use crate::map::terrain::{TerrainClass, Terrains, REQUIRED_CLASSES};
 use crate::map::{Grid, Map, Plane, Position, TerrainId};
+use f4x_def::content::Content;
 
 /// Per-plane feature settings; Myrror is denser in minerals than Arcanus by default.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -546,7 +546,7 @@ pub fn land_percent(grid: &Grid, terrains: &Terrains) -> u32 {
 mod tests {
     use super::*;
     use crate::game::testutil::shipped;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn same_seed_same_map_different_seed_differs() -> TestResult {

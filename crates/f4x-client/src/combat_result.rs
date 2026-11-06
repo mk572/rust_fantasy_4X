@@ -11,7 +11,7 @@ use crate::input::Input;
 use f4x_core::game::{Command, Event};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -504,7 +504,7 @@ impl Line {
 mod tests {
     use super::*;
     use f4x_core::battle::{BattleEvent, Side};
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     const RIVAL: PlayerId = PlayerId(1);
 

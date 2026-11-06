@@ -10,7 +10,7 @@ use f4x_core::diplomacy::{DiplomacyEvent, Proposal};
 use f4x_core::game::{Event, Game};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::{CastContext, MovementType, Rules, Stat, UnitDef};
+use f4x_def::rules::{CastContext, MovementType, Rules, Stat, UnitDef};
 use serde::{Deserialize, Serialize};
 
 /// Whether a unit kind is a ship: it sails and carries land units.
@@ -446,7 +446,7 @@ mod tests {
     use crate::contestant::{self, Version};
     use crate::testutil::shipped;
     use f4x_core::game::setup::{new_game, NewGame};
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     /// A real two-wizard game: every city a wizard has at the end was there at the start, was
     /// founded or was taken, and none that was lost is still there.

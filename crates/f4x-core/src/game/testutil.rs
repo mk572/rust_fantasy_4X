@@ -3,10 +3,10 @@
 //!
 //! Tests: none, because this is test support.
 
-use crate::content::Content;
 use crate::feature::def::{FeatureDef, Features};
 use crate::map::terrain::{TerrainDef, Terrains};
 use crate::rules::{Registry, Rules, UnitDef};
+use f4x_def::content::Content;
 
 /// The numbers (`num` in `content/`) of the terrains and map features that tests name. The number
 /// is the one source of truth, as in a save; the constant's name only tells the reader which
@@ -47,7 +47,7 @@ pub fn settings() -> crate::game::setting::SettingsDef {
         .expect("rules_settings.ron parses")
 }
 
-/// The game's own `content/` folder, read as `f4x_data::load_content` reads it (the city names, the
+/// The game's own `content/` folder, read as `f4x_def::load::load_content` reads it (the city names, the
 /// ready-made wizards' names), without its checks and
 /// without the messages. It is parsed once per test process; `f4x-data` tests the loader.
 pub fn shipped() -> Content {

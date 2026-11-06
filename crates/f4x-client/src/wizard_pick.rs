@@ -13,7 +13,7 @@ use crate::view::{App, Screen, HUMAN};
 use f4x_core::game::Command;
 use f4x_core::player::PlayerId;
 use f4x_core::rules::exec::Target;
-use f4x_core::rules::SpellId;
+use f4x_def::rules::SpellId;
 use macroquad::prelude::*;
 
 /// The most portraits the box holds (a game has at most four rivals).
@@ -105,7 +105,7 @@ impl Modal for WizardPick {
             .to_string();
         let title = app.text_with(
             "spell.pick_wizard",
-            &f4x_core::text::Args::new().text("spell", &name),
+            &f4x_def::text::Args::new().text("spell", &name),
         );
         app.draw_styled(
             view,

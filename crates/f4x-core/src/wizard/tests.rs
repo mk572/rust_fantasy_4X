@@ -1,7 +1,7 @@
 use super::*;
 use crate::game::testutil::shipped;
 use crate::rules::RealmId;
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
 

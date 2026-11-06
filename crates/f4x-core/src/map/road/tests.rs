@@ -2,7 +2,7 @@ use super::*;
 use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 use crate::game::Command;
 use crate::unit::MovesLeft;

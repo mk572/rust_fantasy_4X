@@ -5,8 +5,8 @@
 
 use std::path::Path;
 
-use f4x_core::text::{Args, Texts};
 use f4x_core::world_event::EventNotice;
+use f4x_def::text::{Args, Texts};
 
 /// One line of `EVENTMSG.LBX`, as the importer writes it to `event_texts.ron`: the event, its
 /// voice (the line within the event's seven) and the text with `{city}`, `{size}`, `{player}`,
@@ -67,12 +67,12 @@ pub fn compose(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
     use f4x_core::world_event::{EventKind, Voice};
+    use f4x_def::testdir::TestResult;
 
     /// The words the messages are filled with, as `content/text/en/event.ron` has them.
     fn words() -> Texts {
-        let entries: std::collections::HashMap<String, f4x_core::text::Entry> = ron::from_str(
+        let entries: std::collections::HashMap<String, f4x_def::text::Entry> = ron::from_str(
             r#"{
                 "event.none": "no",
                 "event.number": "{n}",

@@ -4,8 +4,8 @@
 //!
 //! Tests: none of their own; `asset_check` and the developer flags use it.
 
-use f4x_core::rules::ids::Id;
-use f4x_core::rules::{Def, Registry};
+use f4x_def::rules::ids::Id;
+use f4x_def::rules::{Def, Registry};
 
 /// The definition whose alias is exactly `alias`.
 pub fn id_of<T: Def>(registry: &Registry<T>, alias: &str) -> Option<Id<T>> {

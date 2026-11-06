@@ -21,10 +21,10 @@ use crate::rules::Ability;
 use crate::rules::SpellId;
 use hecs::World;
 
-use crate::content::Content;
 use crate::game::serial::Serial;
 use crate::map::Position;
 use crate::player::{Owner, PlayerId};
+use f4x_def::content::Content;
 
 use crate::game::{Event, Game};
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
@@ -626,7 +626,7 @@ mod tests {
     use super::*;
     use crate::game::testutil::shipped;
     use crate::map::Plane;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     const AT: Position = Position {
         plane: Plane::Arcanus,

@@ -13,7 +13,7 @@ use crate::modal::{keep, Modal};
 use crate::page::Page;
 use crate::ui;
 use f4x_core::game::Command;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -89,7 +89,7 @@ impl App {
                     .spells
                     .defs()
                     .iter()
-                    .filter(|s| s.target == f4x_core::rules::SpellTarget::OwnCity)
+                    .filter(|s| s.target == f4x_def::rules::SpellTarget::OwnCity)
                     .take(8)
                     .filter_map(|s| self.game.content().rules.spells.id_numbered(s.num))
                     .collect();
@@ -134,7 +134,7 @@ impl App {
         }
         let flying =
             self.game.city_enchantments(city).iter().any(|&(s, _)| {
-                s == f4x_core::rules::SpellId::new(77)
+                s == f4x_def::rules::SpellId::new(77)
             } /* flying_fortress */);
         let house_type = self.game.city_race(city).map_or(0, |r| {
             self.game.content().rules.races.get(r).house_type as usize

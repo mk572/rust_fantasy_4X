@@ -374,7 +374,7 @@ pub(crate) fn fill_keys(text: &str, hotkeys: &Hotkeys) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn a_chord_is_parsed_and_shown() -> TestResult {

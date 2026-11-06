@@ -10,8 +10,8 @@ use crate::page::Page;
 use crate::page_turn::{Book, BookTurn};
 use crate::ui;
 use f4x_core::game::Command;
-use f4x_core::rules::SpellId;
-use f4x_core::text::Args;
+use f4x_def::rules::SpellId;
+use f4x_def::text::Args;
 use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 
@@ -44,7 +44,7 @@ pub(crate) struct BigBookUi {
 }
 
 /// What a spell does: the text of its help topic (`help` of the spell). Empty without one.
-pub(crate) fn describe_spell(help: &f4x_core::help::Help, topic: Option<u16>) -> String {
+pub(crate) fn describe_spell(help: &f4x_def::help::Help, topic: Option<u16>) -> String {
     help.topic_of(topic)
         .map(|t| t.text.split_whitespace().collect::<Vec<_>>().join(" "))
         .unwrap_or_default()
@@ -602,7 +602,7 @@ impl BigBookUi {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::help::{Help, HelpTopic};
+    use f4x_def::help::{Help, HelpTopic};
 
     #[test]
     fn a_spells_description_is_the_text_of_its_topic() {

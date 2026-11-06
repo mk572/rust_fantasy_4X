@@ -8,11 +8,11 @@
 use crate::create_screen::CreateState;
 use crate::input::Input;
 use crate::ui;
-use f4x_core::content::Content;
-use f4x_core::rules::{Rarity, RealmId};
-use f4x_core::text::Args;
 use f4x_core::wizard::magic::Retort;
 use f4x_core::wizard::{all_retorts, retort_available, retort_cost, MAX_RETORTS};
+use f4x_def::content::Content;
+use f4x_def::rules::{Rarity, RealmId};
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::create_screen::Step;
@@ -46,7 +46,7 @@ pub(crate) fn prerequisite_text(
     content: &Content,
     retort: Retort,
 ) -> String {
-    use f4x_core::rules::RetortNeed;
+    use f4x_def::rules::RetortNeed;
     let texts = &content.texts;
     let picks = |n: u8| texts.get("picks.n_picks", &Args::new().count("n", n));
     content
@@ -84,7 +84,7 @@ impl App {
         lay: &Layout,
         view: (f32, f32, f32),
         top: f32,
-        hovered: Option<f4x_core::rules::SpellId>,
+        hovered: Option<f4x_def::rules::SpellId>,
     ) {
         let (x, w) = (167.0, 148.0);
         let bottom = 178.0;

@@ -16,12 +16,12 @@ use std::cell::OnceCell;
 
 use crate::city::economy::CityEconomy;
 use crate::city::production::{Production, ProductionError, ProductionItem};
-use crate::content::Content;
 use crate::diplomacy::Proposal;
 use crate::game::serial::Serial;
 use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::{PlayerId, Treasury};
+use f4x_def::content::Content;
 
 use crate::player::finance::Budget;
 
@@ -581,7 +581,7 @@ mod tests {
     use crate::game::testutil::{num, shipped};
     use crate::game::Command;
     use crate::map::{Grid, Map, Plane};
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     const ME: PlayerId = PlayerId(0);
     const THEM: PlayerId = PlayerId(1);

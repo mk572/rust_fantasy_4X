@@ -8,7 +8,7 @@ use super::*;
 use crate::frame::Layout;
 use crate::spell_fx::{self, SpellFx};
 use battle_anim::{BOLT_FRAME, SPELL_FRAME};
-use f4x_core::rules::effects::Effect;
+use f4x_def::rules::effects::Effect;
 use f4x_extract::spell_art::Role;
 
 impl App {

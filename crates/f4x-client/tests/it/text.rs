@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use std::error::Error;
 use std::path::{Path, PathBuf};
 
-use f4x_core::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 /// A literal like "hall.txt" is a file name, not a key.
 const FILE_EXTENSIONS: [&str; 4] = ["ron", "txt", "png", "json"];
@@ -30,7 +30,7 @@ fn written() -> Result<Vec<Area>, Box<dyn Error>> {
     files.sort();
     let mut areas = Vec::new();
     for path in &files {
-        let entries: std::collections::BTreeMap<String, f4x_core::text::Entry> =
+        let entries: std::collections::BTreeMap<String, f4x_def::text::Entry> =
             ron::from_str(&std::fs::read_to_string(path)?)?;
         let area = path
             .file_stem()

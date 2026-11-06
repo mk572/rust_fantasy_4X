@@ -16,11 +16,11 @@
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
-use crate::content::Content;
 use crate::feature::def::FeatureKind;
 use crate::feature::place::Placed;
 use crate::map::terrain::TerrainClass;
 use crate::map::{Map, Plane};
+use f4x_def::content::Content;
 
 use super::{place_lakes, place_rivers, scaled_count, GenParams};
 use crate::map::{Grid, TerrainId};

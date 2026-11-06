@@ -3,11 +3,11 @@
 //! `cargo test -p f4x-ai --test it behaviour -- --ignored` when the AI changes.
 
 use f4x_ai::{play_round, Ai};
-use f4x_core::content::Content;
 use f4x_core::game::endgame::EndKind;
 use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::Game;
 use f4x_core::player::PlayerId;
+use f4x_def::content::Content;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -15,7 +15,7 @@ const P0: PlayerId = PlayerId(0);
 const P1: PlayerId = PlayerId(1);
 
 fn content() -> Result<Content, Box<dyn std::error::Error>> {
-    Ok(f4x_data::load_content(std::path::Path::new(
+    Ok(f4x_def::load::load_content(std::path::Path::new(
         "../../content",
     ))?)
 }

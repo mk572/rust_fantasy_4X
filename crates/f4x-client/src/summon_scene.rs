@@ -14,10 +14,10 @@ use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 use f4x_core::item::crafting::CRAFT_ITEM;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::effects::Effect;
-use f4x_core::rules::SpellDef;
-use f4x_core::rules::{Rarity, SpellId, UnitId};
-use f4x_core::text::{Args, Gender};
+use f4x_def::rules::effects::Effect;
+use f4x_def::rules::SpellDef;
+use f4x_def::rules::{Rarity, SpellId, UnitId};
+use f4x_def::text::{Args, Gender};
 use macroquad::prelude::*;
 
 /// Where the frame goes (`start_x`, `start_y`).

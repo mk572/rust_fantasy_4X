@@ -10,8 +10,8 @@ use crate::font::Style;
 use crate::input::Input;
 use crate::page::Page;
 use crate::ui;
-use f4x_core::rules::Ability;
-use f4x_core::text::Args;
+use f4x_def::rules::Ability;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::city_screen::Layout;

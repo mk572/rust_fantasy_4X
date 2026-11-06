@@ -56,7 +56,7 @@ pub fn item(game: &Game, item: ProductionItem) -> String {
     }
 }
 
-pub fn spell(game: &Game, s: f4x_core::rules::SpellId) -> String {
+pub fn spell(game: &Game, s: f4x_def::rules::SpellId) -> String {
     game.content().rules.spells.get(s).id.clone()
 }
 
@@ -602,7 +602,7 @@ fn diplomacy(game: &Game, d: &f4x_core::diplomacy::DiplomacyEvent) -> String {
                 player(game, *attacker),
                 game.content()
                     .texts
-                    .get(relation_key(now), &f4x_core::text::Args::new())
+                    .get(relation_key(now), &f4x_def::text::Args::new())
             )
         }
         D::TreatyChanged { a, b, treaty } => format!(

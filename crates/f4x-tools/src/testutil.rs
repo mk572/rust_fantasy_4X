@@ -5,7 +5,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use f4x_core::content::Content;
+use f4x_def::content::Content;
 
 /// The folder of the shipped content.
 pub fn content_dir() -> PathBuf {
@@ -14,6 +14,7 @@ pub fn content_dir() -> PathBuf {
 
 pub fn shipped() -> &'static Content {
     static CONTENT: OnceLock<Content> = OnceLock::new();
-    CONTENT
-        .get_or_init(|| f4x_data::load_content(&content_dir()).expect("the shipped content loads"))
+    CONTENT.get_or_init(|| {
+        f4x_def::load::load_content(&content_dir()).expect("the shipped content loads")
+    })
 }

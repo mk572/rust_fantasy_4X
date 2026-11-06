@@ -710,8 +710,8 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// A swap of spells `me` could offer `other`: the cheapest spell each has and the other lacks.
 fn spell_swap(game: &Game, me: PlayerId, other: PlayerId) -> Option<ProposalKind> {
     let (mine, theirs) = (game.wizard(me)?, game.wizard(other)?);
-    let cheapest = |from: &dyn Fn(f4x_core::rules::SpellId) -> bool,
-                    to: &dyn Fn(f4x_core::rules::SpellId) -> bool| {
+    let cheapest = |from: &dyn Fn(f4x_def::rules::SpellId) -> bool,
+                    to: &dyn Fn(f4x_def::rules::SpellId) -> bool| {
         game.content()
             .rules
             .spells

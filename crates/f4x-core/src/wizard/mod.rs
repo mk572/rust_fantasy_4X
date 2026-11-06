@@ -38,7 +38,7 @@ pub const MAX_BOOKS: u8 = 11;
 pub struct WizardBuild {
     pub name: String,
     /// For the messages that name the wizard (`docs/text.md`).
-    pub gender: crate::text::Gender,
+    pub gender: f4x_def::text::Gender,
     /// Books by realm id.
     pub books: BTreeMap<RealmId, u8>,
     pub retorts: BTreeSet<Retort>,

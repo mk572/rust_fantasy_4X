@@ -11,8 +11,8 @@ use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::rules::{MovementType, Stat};
 use f4x_core::unit::movement::{Entry, MoveError};
+use f4x_def::rules::{MovementType, Stat};
 use testworld::{at, build, game, spawn, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;

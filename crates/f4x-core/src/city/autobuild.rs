@@ -12,12 +12,12 @@ use crate::rules::Ability;
 use serde::{Deserialize, Serialize};
 
 use crate::city::production::ProductionItem;
-use crate::content::Content;
 use crate::game::Game;
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::effects::Effect;
 use crate::rules::{BuildingId, ModOp, MovementType, Stat, UnitId, UnitKind};
+use f4x_def::content::Content;
 
 /// Net gold of the treasury under which the city builds gold first.
 pub const GOLD_FLOOR: i32 = 3;

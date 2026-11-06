@@ -267,7 +267,7 @@ mod tests {
     fn item(cost: u32) -> f4x_core::item::Item {
         f4x_core::item::Item {
             name: "Sword".into(),
-            kind: f4x_core::rules::ItemKind::Sword,
+            kind: f4x_def::rules::ItemKind::Sword,
             cost,
             icon: 0,
             bonus: f4x_core::item::ItemBonus::default(),

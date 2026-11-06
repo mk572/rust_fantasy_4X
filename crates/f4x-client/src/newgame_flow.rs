@@ -9,8 +9,8 @@ use crate::font::{Ink, Style};
 use crate::input::Input;
 use crate::page::Page;
 use crate::ui;
-use f4x_core::rules::RealmId;
-use f4x_core::text::Args;
+use f4x_def::rules::RealmId;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::create_screen::{CreateState, Step};
@@ -542,7 +542,7 @@ impl CreateState {
         if self.custom {
             // Tab turns the wizard's gender: he, she, they.
             if self.ng_input() && input.key_pressed(KeyCode::Tab) {
-                use f4x_core::text::Gender::*;
+                use f4x_def::text::Gender::*;
                 self.build.gender = match self.build.gender {
                     Masculine => Feminine,
                     Feminine => Neuter,

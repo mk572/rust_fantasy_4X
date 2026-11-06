@@ -8,9 +8,9 @@ use crate::font::{Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use f4x_core::game::{Event, LossCause};
-use f4x_core::rules::SpellTarget;
-use f4x_core::text::Args;
 use f4x_core::world_event::EventKind;
+use f4x_def::rules::SpellTarget;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -465,7 +465,7 @@ mod tests {
     }
 
     #[test]
-    fn the_report_names_the_running_world_event() -> f4x_core::testdir::TestResult {
+    fn the_report_names_the_running_world_event() -> f4x_def::testdir::TestResult {
         let mut app = App::for_test();
         assert!(app.running_events().is_empty());
         app.game.cheat_event(EventKind::GoodMoon, HUMAN)?;

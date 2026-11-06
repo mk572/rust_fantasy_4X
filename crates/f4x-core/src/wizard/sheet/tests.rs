@@ -3,8 +3,8 @@ use crate::game::testutil::shipped;
 use crate::game::Game;
 use crate::player::PlayerId;
 use crate::rules::RealmId;
-use crate::testdir::TestResult;
 use crate::wizard::magic::{base_casting_skill, MagicError, PowerShares};
+use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
 

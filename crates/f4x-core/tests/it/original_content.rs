@@ -3,7 +3,7 @@
 //! original's row order; the content rows are in the same order. A number of the content may
 //! differ from the original only where `DEPARTURES` says so, with the reason.
 
-use f4x_core::rules::Stat;
+use f4x_def::rules::Stat;
 use std::collections::BTreeMap;
 
 use crate::shipped::content;
@@ -269,8 +269,8 @@ fn every_item_power_has_the_originals_types_cost_group_realm_and_books() {
 
 #[test]
 fn every_prefab_item_has_the_originals_type_cost_bonuses_and_powers() {
-    use f4x_core::rules::effects::Effect;
-    use f4x_core::rules::ModOp;
+    use f4x_def::rules::effects::Effect;
+    use f4x_def::rules::ModOp;
     let c = content();
     let rows = named_table(include_str!("../original/items.tsv"));
     let powers = named_table(include_str!("../original/item_powers.tsv"));
@@ -359,7 +359,7 @@ fn every_prefab_item_has_the_originals_type_cost_bonuses_and_powers() {
 
 #[test]
 fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
-    use f4x_core::rules::{effects::Effect, ModOp, UnitKind};
+    use f4x_def::rules::{effects::Effect, ModOp, UnitKind};
     let c = content();
     let rows = named_table(include_str!("../original/races.tsv"));
     let defs = c.rules.races.defs();
@@ -417,7 +417,7 @@ fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
         // A building with no race list is open to every race.
         let mut cannot: Vec<&str> = buildings
             .iter()
-            .filter(|b| !b.buildable_by(f4x_core::rules::RaceId::new(def.num)))
+            .filter(|b| !b.buildable_by(f4x_def::rules::RaceId::new(def.num)))
             .map(|b| b.id.as_str())
             .collect();
         cannot.sort_unstable();
@@ -479,7 +479,7 @@ const SPELL_DEPARTURES: &[(&str, u32, &str)] = &[
 
 #[test]
 fn every_spell_has_the_originals_name_realm_cost_research_rarity_and_summoned_unit() {
-    use f4x_core::rules::{effects::Effect, Rarity};
+    use f4x_def::rules::{effects::Effect, Rarity};
     let c = content();
     let rows = named_table(include_str!("../original/spells.tsv"));
     let defs = c.rules.spells.defs();

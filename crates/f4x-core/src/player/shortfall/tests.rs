@@ -4,7 +4,7 @@ use crate::hero::game::tests::{at, world, P0};
 use crate::item::ItemBonus;
 use crate::map::{Grid, Map};
 use crate::rules::ItemKind;
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 use crate::unit::MovesLeft;
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 fn pop(figures: u32, tens: u32) -> Population {
     Population { figures, tens }

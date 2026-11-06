@@ -11,7 +11,7 @@ use std::mem::{discriminant, Discriminant};
 
 use crate::audio::Track;
 use crate::input::Input;
-use f4x_core::rules::SpellId;
+use f4x_def::rules::SpellId;
 
 use crate::view::{App, Screen};
 

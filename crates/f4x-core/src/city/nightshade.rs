@@ -99,7 +99,7 @@ mod tests {
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::{Registry, SpellTarget};
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);

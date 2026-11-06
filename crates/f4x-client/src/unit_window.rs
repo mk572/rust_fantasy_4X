@@ -9,9 +9,9 @@ use crate::input::Input;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
-use f4x_core::rules::Ability;
-use f4x_core::text::Args;
 use f4x_core::unit::Standby;
+use f4x_def::rules::Ability;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{FrameClick, Layout};
@@ -55,7 +55,7 @@ impl App {
         };
         let builds = self.selection.iter().any(|&u| {
             units.unit_has_ability(u, Ability::new(12))
-                || units.unit_stat(u, f4x_core::rules::Stat::Construction) > 0
+                || units.unit_stat(u, f4x_def::rules::Stat::Construction) > 0
         });
         if builds {
             Special::Build
@@ -363,7 +363,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     /// The human's first unit stands on a square; `unit` is put there and selected alone.
     fn select_new(app: &mut App, unit: u16) -> Result<(), Box<dyn std::error::Error>> {

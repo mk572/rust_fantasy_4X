@@ -3,11 +3,11 @@
 //!
 //! Tests: none, because this is test support; the modules that use it test it.
 
-use f4x_core::content::Content;
 use f4x_core::feature::entity::Placement;
 use f4x_core::feature::lair::Lair;
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
+use f4x_def::content::Content;
 
 use f4x_core::game::{Command, Game};
 
@@ -26,7 +26,8 @@ const ROWS: std::ops::RangeInclusive<u32> = 3..=10;
 pub fn shipped() -> &'static Content {
     static SHIPPED: std::sync::OnceLock<Content> = std::sync::OnceLock::new();
     SHIPPED.get_or_init(|| {
-        f4x_data::load_content(std::path::Path::new("../../content")).expect("the rules data loads")
+        f4x_def::load::load_content(std::path::Path::new("../../content"))
+            .expect("the rules data loads")
     })
 }
 
@@ -128,7 +129,7 @@ pub fn spawn(
 pub fn spawn_site(
     game: &mut Game,
     pos: Position,
-    guards: Vec<(f4x_core::rules::UnitId, u32)>,
+    guards: Vec<(f4x_def::rules::UnitId, u32)>,
     fought_by: Vec<PlayerId>,
 ) -> Result<hecs::Entity, &'static str> {
     let feature = game
@@ -170,7 +171,7 @@ pub fn spawn_tower(
         node: None,
         lair: Some(Lair {
             intact,
-            guards: vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
+            guards: vec![(f4x_def::rules::UnitId::new(174) /* zombies */, 1)],
             gold: 0,
             mana: 0,
             items: Vec::new(),

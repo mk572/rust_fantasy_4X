@@ -11,8 +11,8 @@ use crate::input::Input;
 use f4x_core::feature::lair::Loot;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
-use f4x_core::rules::RealmId;
-use f4x_core::text::{Args, Texts};
+use f4x_def::rules::RealmId;
+use f4x_def::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::audio::{music, Track};
@@ -129,8 +129,8 @@ pub(crate) fn found_text(texts: &Texts, site: usize, guards: Option<(&str, u32)>
 }
 
 /// The words for an item kind in the treasure box.
-fn kind_key(kind: f4x_core::rules::ItemKind) -> &'static str {
-    use f4x_core::rules::ItemKind as K;
+fn kind_key(kind: f4x_def::rules::ItemKind) -> &'static str {
+    use f4x_def::rules::ItemKind as K;
     match kind {
         K::Sword => "site.item.sword",
         K::Mace => "site.item.mace",
@@ -154,7 +154,7 @@ pub(crate) fn treasure_text(
     spell: Option<&str>,
     books: &[String],
     retorts: &[String],
-    item_kinds: &[f4x_core::rules::ItemKind],
+    item_kinds: &[f4x_def::rules::ItemKind],
 ) -> String {
     let none = Args::new();
     let mut parts: Vec<String> = Vec::new();
@@ -210,7 +210,7 @@ impl App {
         let site = site_type(lair.site.0);
         let first = lair.guards.first().map(|&(id, _)| {
             let unit = self.game.content().rules.units.get(id);
-            let figures = unit.stats.get(&f4x_core::rules::Stat::Figures).copied();
+            let figures = unit.stats.get(&f4x_def::rules::Stat::Figures).copied();
             (
                 self.names.unit(unit.num).to_string(),
                 figures.unwrap_or(1) as u32,
@@ -530,7 +530,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::rules::ItemKind;
+    use f4x_def::rules::ItemKind;
 
     fn loot() -> Loot {
         Loot::default()

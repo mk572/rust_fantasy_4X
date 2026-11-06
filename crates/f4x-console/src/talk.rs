@@ -125,7 +125,7 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             ctx.game
                 .content()
                 .texts
-                .get(relation_key(rel), &f4x_core::text::Args::new()),
+                .get(relation_key(rel), &f4x_def::text::Args::new()),
             treaty_word(ctx.game.treaty(me, w))
         ));
         if a.get(0).is_some() {

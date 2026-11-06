@@ -9,8 +9,8 @@ use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::ui;
-use f4x_core::text::Args;
 use f4x_core::wizard::astrology::HISTORY_TURNS;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -267,8 +267,8 @@ pub(crate) struct CartographerPage {
 
 impl Page for CartographerPage {
     fn frame(&mut self, app: &mut App, input: &Input) {
-        use f4x_core::feature::def::FeatureKind;
         use f4x_core::map::Plane;
+        use f4x_def::feature::FeatureKind;
 
         clear_background(BLACK);
         let lay = Layout::new();

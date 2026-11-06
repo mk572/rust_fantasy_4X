@@ -88,7 +88,7 @@ fn main() {
             }
         }
     }
-    let content = f4x_data::load_content_layers(&[
+    let content = f4x_def::load::load_content_layers(&[
         std::path::Path::new(&dir),
         std::path::Path::new("content"),
     ])

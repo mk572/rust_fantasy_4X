@@ -112,7 +112,7 @@ impl App {
     /// The realm of the glow round a unit on the map (0 chaos to 4 sorcery), when an
     /// enchantment of its own is on it.
     pub(crate) fn unit_glow_realm(&self, unit: hecs::Entity) -> Option<usize> {
-        let ids: Vec<f4x_core::rules::SpellId> = self
+        let ids: Vec<f4x_def::rules::SpellId> = self
             .game
             .units()
             .unit_enchantments(unit)
@@ -132,7 +132,7 @@ pub(crate) fn glow_step() -> usize {
 mod tests {
     use super::*;
     use f4x_core::map::Plane;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     // The slide of a step that is shown reads the clock, which needs a window; these are the
     // moves that are not shown at all.

@@ -170,7 +170,7 @@ mod tests {
     /// given guards two squares west. `known`: the wizard has fought for the site before.
     fn world(
         paladins: usize,
-        guards: Vec<(f4x_core::rules::UnitId, u32)>,
+        guards: Vec<(f4x_def::rules::UnitId, u32)>,
         known: bool,
     ) -> Result<Game, Box<dyn std::error::Error>> {
         let mut g = game(COAST_CITY, 8 /* high_men */);
@@ -217,7 +217,7 @@ mod tests {
         spawn_site(
             &mut g,
             at(33, 7),
-            vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
+            vec![(f4x_def::rules::UnitId::new(174) /* zombies */, 1)],
             Vec::new(),
         )?;
         g.reveal_map(P0);
@@ -230,7 +230,7 @@ mod tests {
     fn a_strong_party_next_to_an_encounter_site_clears_it() -> TestResult {
         let mut g = world(
             5,
-            vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
+            vec![(f4x_def::rules::UnitId::new(174) /* zombies */, 1)],
             false,
         )?;
         let mut ai = Ai::new(P0);
@@ -251,7 +251,7 @@ mod tests {
     fn a_weak_party_leaves_a_site_whose_guards_it_knows_to_be_too_strong() -> TestResult {
         let mut g = world(
             4,
-            vec![(f4x_core::rules::UnitId::new(164) /* great_drake */, 2)],
+            vec![(f4x_def::rules::UnitId::new(164) /* great_drake */, 2)],
             true,
         )?;
         let mut ai = Ai::new(P0);
@@ -267,7 +267,7 @@ mod tests {
         // One spare fighter beyond the single guard is not a party.
         let mut g = world(
             2,
-            vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
+            vec![(f4x_def::rules::UnitId::new(174) /* zombies */, 1)],
             false,
         )?;
         let mut ai = Ai::new(P0);
@@ -281,7 +281,7 @@ mod tests {
     fn the_survivors_come_home_after_the_raid() -> TestResult {
         let mut g = world(
             6,
-            vec![(f4x_core::rules::UnitId::new(174) /* zombies */, 1)],
+            vec![(f4x_def::rules::UnitId::new(174) /* zombies */, 1)],
             false,
         )?;
         let mut ai = Ai::new(P0);

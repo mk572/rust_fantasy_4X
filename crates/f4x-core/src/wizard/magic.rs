@@ -12,10 +12,10 @@ use std::collections::BTreeSet;
 
 use crate::spell::cast::UpkeepItem;
 
-use crate::content::Content;
 use crate::game::rng::GameRng;
 use crate::rules::effects::Effect;
 use crate::rules::{Id, Rarity, RealmId, RetortDef, SpellDef, SpellId};
+use f4x_def::content::Content;
 
 /// A retort ("special ability" in the original's manual): its number in `retorts.ron`, which is the
 /// original's place in its wizard record. The saved game writes the number; the name is the text

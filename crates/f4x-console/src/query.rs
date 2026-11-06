@@ -4,7 +4,7 @@
 
 use f4x_core::map::{Plane, Position};
 
-use f4x_core::rules::Stat;
+use f4x_def::rules::Stat;
 
 use crate::args::{city_by_serial, parse_pos, unit_by_serial, Args};
 use crate::describe;
@@ -263,7 +263,7 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
 /// The temporary effects on a unit or city, one line each.
 fn say_temp_effects(ctx: &mut Ctx, e: hecs::Entity) {
     use f4x_core::spell::temp_effect::TempKind;
-    let name = |a: f4x_core::rules::Ability| ctx.game.content().rules.abilities.get(a).id.clone();
+    let name = |a: f4x_def::rules::Ability| ctx.game.content().rules.abilities.get(a).id.clone();
     let lines: Vec<String> = ctx
         .game
         .units()
@@ -658,7 +658,7 @@ fn spells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             .wizard(me)
             .ok_or_else(|| ConsoleError::NoSuch("wizard".into()))?;
         let rules = &game.content().rules;
-        let line = |ids: &mut dyn Iterator<Item = &f4x_core::rules::SpellId>,
+        let line = |ids: &mut dyn Iterator<Item = &f4x_def::rules::SpellId>,
                     cost_research: bool| {
             ids.map(|&s| {
                 let d = rules.spells.get(s);
@@ -836,7 +836,7 @@ fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn uspells(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     use f4x_core::battle::spell::SpellSource;
-    use f4x_core::rules::defs::SpellTarget;
+    use f4x_def::rules::defs::SpellTarget;
     let unit = a.int(0, "battle unit number")?.max(0) as usize;
     let b = ctx
         .game
@@ -888,7 +888,7 @@ fn uspells(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 }
 
 fn bspells(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
-    use f4x_core::rules::defs::SpellTarget;
+    use f4x_def::rules::defs::SpellTarget;
     let me = ctx.session.player;
     let rules = &ctx.game.content().rules;
     let lines: Vec<String> = ctx
@@ -1054,7 +1054,7 @@ fn items(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             .game
             .items()
             .hero_slots(me, hero)
-            .unwrap_or([f4x_core::rules::SlotKind::Misc; 3]);
+            .unwrap_or([f4x_def::rules::SlotKind::Misc; 3]);
         for (slot, kind) in kinds.iter().enumerate() {
             let held = match ctx.game.items().hero_item(hero, slot) {
                 Some(item) => describe::magic_item(ctx.game, &item),

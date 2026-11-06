@@ -9,7 +9,7 @@ use f4x_core::diplomacy::{DiplomacyCommand, Treaty};
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::SpellId;
+use f4x_def::rules::SpellId;
 
 use crate::Ai;
 
@@ -68,7 +68,7 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         ai.war_on = None;
         return;
     }
-    let mastery = f4x_core::rules::SpellId::new(213) /* spell_of_mastery */;
+    let mastery = f4x_def::rules::SpellId::new(213) /* spell_of_mastery */;
     let (mine, own_rate, casting_other) = {
         let view = PlayerView::new(game, me);
         let rate = view

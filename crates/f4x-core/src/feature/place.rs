@@ -7,11 +7,11 @@
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 
-use crate::content::Content;
 use crate::feature::def::FeatureKind;
 use crate::map::mapgen::{GenError, GenParams};
 use crate::map::terrain::TerrainClass;
 use crate::map::{FeatureId, Grid, Map, Plane};
+use f4x_def::content::Content;
 
 /// Minimum distance between towers (when the map has room for it).
 const TOWER_SPACING: u32 = 10;
@@ -439,7 +439,7 @@ mod tests {
     use super::*;
     use crate::game::testutil::shipped;
     use crate::map::mapgen::{generate, Generated};
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn made(seed: u64) -> Result<(Generated, GenParams, Content), GenError> {
         let (c, p) = (shipped(), GenParams::default());

@@ -597,7 +597,7 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    let content = match f4x_data::load_content_in(
+    let content = match f4x_def::load::load_content_in(
         &[&options.content, Path::new("content")],
         &settings.language,
     ) {
@@ -610,7 +610,7 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    let help = f4x_data::load_help(&layers, &settings.language).unwrap_or_default();
+    let help = f4x_def::load::load_help(&layers, &settings.language).unwrap_or_default();
     let tables = match asset_check::load_tables(&layers, &content.rules, &settings.language) {
         Ok(tables) => tables,
         Err(e) => {
@@ -658,7 +658,7 @@ async fn main() {
         }
     }
     app.event_texts = event_message::load(&options.content).unwrap_or_default();
-    app.diplomsg = f4x_data::load_diplomacy_lines(&options.content).unwrap_or_default();
+    app.diplomsg = f4x_def::load::load_diplomacy_lines(&options.content).unwrap_or_default();
     match preferences::Preferences::from_defaults(&settings.preferences) {
         Ok(base) => app.prefs = base,
         Err(e) => {

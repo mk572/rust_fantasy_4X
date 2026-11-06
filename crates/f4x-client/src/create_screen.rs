@@ -2,8 +2,8 @@
 //! `newgame_flow.rs` (wizard, picture, name, race, banner) and `newgame_picks.rs` (picks and
 //! spells); a ready-made wizard skips the picture, picks and spells.
 
-use f4x_core::rules::{Rarity, RealmId, SpellId};
 use f4x_core::wizard::WizardBuild;
+use f4x_def::rules::{Rarity, RealmId, SpellId};
 
 use crate::view::App;
 
@@ -49,7 +49,7 @@ pub(crate) struct CreateState {
 impl App {
     /// Realm ids that hold spell books, in the rules' order (arcane has none).
     pub(crate) fn book_realms(&self) -> Vec<RealmId> {
-        f4x_core::rules::BOOK_REALMS.to_vec()
+        f4x_def::rules::BOOK_REALMS.to_vec()
     }
 }
 impl CreateState {

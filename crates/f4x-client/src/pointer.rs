@@ -95,7 +95,7 @@ impl App {
 mod tests {
     use super::*;
     use crate::view::HUMAN;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn over_the_map(app: &App) -> Input {
         let r = app.map_rect();

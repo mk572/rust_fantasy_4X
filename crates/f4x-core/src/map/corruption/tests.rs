@@ -5,8 +5,8 @@ use crate::map::{Grid, Map, Plane};
 use crate::rules::exec::Target;
 use crate::rules::RealmId;
 use crate::rules::Registry;
-use crate::testdir::TestResult;
 use crate::unit::MovesLeft;
+use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
 const P1: PlayerId = PlayerId(1);

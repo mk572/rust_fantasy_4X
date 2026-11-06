@@ -367,7 +367,7 @@ mod tests {
     use crate::item::ItemBonus;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::{HeroKind, ItemKind};
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);

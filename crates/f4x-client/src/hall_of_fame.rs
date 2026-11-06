@@ -9,7 +9,7 @@ use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -87,7 +87,7 @@ pub(crate) fn insert(table: &mut Vec<Entry>, entry: Entry) -> Option<usize> {
 /// (a table kept from another set of rules) stays as it is written.
 pub(crate) fn plural(
     names: &crate::names::Names,
-    races: &f4x_core::rules::Registry<f4x_core::rules::RaceDef>,
+    races: &f4x_def::rules::Registry<f4x_def::rules::RaceDef>,
     race: &str,
 ) -> String {
     races
@@ -215,8 +215,8 @@ mod tests {
     }
 
     #[test]
-    fn the_file_round_trips_and_a_damaged_line_is_skipped() -> f4x_core::testdir::TestResult {
-        let dir = f4x_core::testdir::TestDir::new("hof");
+    fn the_file_round_trips_and_a_damaged_line_is_skipped() -> f4x_def::testdir::TestResult {
+        let dir = f4x_def::testdir::TestDir::new("hof");
         let path = dir.join("hall.txt");
         let table = vec![e("Merlin", 1200), e("Raven", 800)];
         save(&path, &table)?;

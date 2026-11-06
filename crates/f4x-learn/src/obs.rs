@@ -9,9 +9,9 @@
 use f4x_core::battle::immunity::Realm;
 use f4x_core::battle::map::{in_city_area, GRID_H, GRID_W};
 use f4x_core::battle::{Battle, RangedKind, Side};
-use f4x_core::content::Content;
 use f4x_core::game::Game;
-use f4x_core::rules::defs::SpellTarget;
+use f4x_def::content::Content;
+use f4x_def::rules::defs::SpellTarget;
 
 use crate::reward::{is_hurt, unit_value, FLEE_SURVIVAL, HURT_ENEMY_CREDIT, HURT_OWN_DISCOUNT};
 
@@ -54,7 +54,7 @@ pub struct Observation {
     pub spells: Vec<f32>,
     pub spell_mask: Vec<bool>,
     /// The spell of each token.
-    pub spell_ids: Vec<f4x_core::rules::SpellId>,
+    pub spell_ids: Vec<f4x_def::rules::SpellId>,
     pub globals: Vec<f32>,
 }
 
@@ -62,7 +62,7 @@ pub struct Observation {
 #[derive(Debug, Clone)]
 pub struct ObsSpec {
     /// The abilities in the order of the rules table, by number.
-    abilities: Vec<f4x_core::rules::Ability>,
+    abilities: Vec<f4x_def::rules::Ability>,
     /// The same abilities' aliases, kept in a checkpoint's signature so a difference can be told
     /// in words (a checkpoint saved with the aliases stays readable).
     names: Vec<String>,

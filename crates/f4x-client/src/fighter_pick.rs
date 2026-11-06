@@ -13,7 +13,7 @@ use crate::input::Input;
 use crate::ui;
 use crate::unit_sheet::special_picture;
 use crate::view::App;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 /// The panel on the original's 320 by 200 screen.
@@ -320,7 +320,7 @@ const GOLD_CHECK: Color = Color::new(0.95, 0.8, 0.3, 1.0);
 mod tests {
     use super::*;
     use crate::view::HUMAN;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     /// A pick of `n` units, the first `ticked` of them ticked.
     fn pick_of(n: usize, ticked: usize, attacking: bool) -> FighterPick {

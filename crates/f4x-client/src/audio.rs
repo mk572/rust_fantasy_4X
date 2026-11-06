@@ -591,8 +591,8 @@ mod tests {
     }
 
     #[test]
-    fn files_are_found_by_archive_and_entry() -> f4x_core::testdir::TestResult {
-        let dir = f4x_core::testdir::TestDir::new("audio-scan");
+    fn files_are_found_by_archive_and_entry() -> f4x_def::testdir::TestResult {
+        let dir = f4x_def::testdir::TestDir::new("audio-scan");
         std::fs::create_dir_all(dir.join("soundfx"))?;
         std::fs::create_dir_all(dir.join("music"))?;
         std::fs::write(dir.join("soundfx/002_left_btn_clk.ogg"), b"x")?;

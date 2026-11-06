@@ -6,7 +6,7 @@ use crate::input::Input;
 use f4x_core::diplomacy::{DiplomacyCommand, Proposal, ProposalKind};
 use f4x_core::game::Command;
 use f4x_core::player::view::PlayerView;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::modal::{keep, kind, Modal};
@@ -102,7 +102,7 @@ mod tests {
     use super::*;
     use crate::test_app::shipped;
     use f4x_core::player::PlayerId;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn every_kind_of_proposal_asks_a_question_that_the_texts_have() -> TestResult {

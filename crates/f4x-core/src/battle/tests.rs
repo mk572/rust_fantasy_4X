@@ -9,7 +9,7 @@ use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
 use crate::rules::RealmId;
 use crate::spell::target_error::TargetError;
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 
@@ -1629,7 +1629,7 @@ mod casting {
     use crate::battle::immunity::{AttackNature, Immunities, Realm};
     use crate::rules::effects::DamageTraits;
     use crate::rules::stats::{ModOp, Modifier, Source, Stat};
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn casting_costs_more_the_further_from_the_fortress() {
@@ -1913,7 +1913,7 @@ mod fields {
     use crate::battle::immunity::Realm;
     use crate::rules::stats::{ModOp, Modifier, Source, Stat};
     use crate::rules::SpellId;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn spell() -> SpellId {
         SpellId::new(1)

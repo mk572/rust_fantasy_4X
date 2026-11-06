@@ -7,7 +7,7 @@
 
 use super::*;
 use crate::input::Input;
-use f4x_core::rules::Ability;
+use f4x_def::rules::Ability;
 
 use crate::pointer::{BOOT, BOW, FINGER, RED_CROSS, SWORDS, WAND};
 
@@ -93,7 +93,7 @@ mod tests {
     use super::*;
     use crate::view::HUMAN;
     use f4x_core::battle::RangedKind;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     /// A real battle between the human's first unit and a monster, the units placed by hand on a
     /// row: ours at (5, 5), theirs at (5, 6) next to it and one more of theirs at (5, 9).

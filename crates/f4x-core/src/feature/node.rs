@@ -10,12 +10,12 @@ use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
 
-use crate::content::Content;
 use crate::feature::def::FeatureKind;
 use crate::feature::entity::NodeInfo;
 use crate::feature::place::Placed;
 use crate::map::{Map, Plane, Position};
 use crate::player::PlayerId;
+use f4x_def::content::Content;
 
 use crate::game::{Event, Game};
 use crate::wizard::magic::Retort;
@@ -272,7 +272,7 @@ pub(crate) mod tests {
     use crate::game::Command;
     use crate::map::Grid;
     use crate::rules::{Registry, UnitKind};
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);

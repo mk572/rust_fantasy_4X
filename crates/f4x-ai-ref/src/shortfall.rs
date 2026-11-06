@@ -69,7 +69,7 @@ fn sell_for_gold(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 fn next_sale(
     game: &Game,
     me: f4x_core::player::PlayerId,
-) -> Option<(hecs::Entity, f4x_core::rules::BuildingId)> {
+) -> Option<(hecs::Entity, f4x_def::rules::BuildingId)> {
     let cities = f4x_core::player::view::PlayerView::new(game, me).my_cities();
     let rules = &game.content().rules;
     for name in SELL_ORDER {
@@ -182,11 +182,11 @@ mod tests {
         crate::testworld::build(&mut g, pos, &[9 /* stables */]);
         assert!(g
             .economy()
-            .sale_price(city, f4x_core::rules::BuildingId::new(8) /* smithy */)
+            .sale_price(city, f4x_def::rules::BuildingId::new(8) /* smithy */)
             .is_err());
         assert_eq!(sale(&g).as_deref(), Some("library"));
         // Without the library nothing else is both dispensable and free to sell.
-        let library = f4x_core::rules::BuildingId::new(16) /* library */;
+        let library = f4x_def::rules::BuildingId::new(16) /* library */;
         g.scenario_set_building(city, library, false);
         assert_eq!(sale(&g), None);
     }

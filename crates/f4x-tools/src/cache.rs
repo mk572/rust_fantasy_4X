@@ -14,7 +14,7 @@ use crate::soak::{GameResult, Options};
 /// The folders and files whose contents decide the reference-only game.
 const SOURCES: [&str; 6] = [
     "crates/f4x-core/src",
-    "crates/f4x-data/src",
+    "crates/f4x-def/src",
     "crates/f4x-ai-ref/src",
     "crates/f4x-tools/src",
     "Cargo.lock",

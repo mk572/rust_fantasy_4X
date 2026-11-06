@@ -306,7 +306,7 @@ mod tests {
     use crate::map::{Grid, Map, Plane};
     use crate::rules::exec::Target;
     use crate::rules::RealmId;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
 

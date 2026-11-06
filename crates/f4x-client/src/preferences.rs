@@ -213,7 +213,7 @@ impl Preferences {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::{TestDir, TestResult};
+    use f4x_def::testdir::{TestDir, TestResult};
 
     #[test]
     fn everything_is_on_but_strategic_combat() {

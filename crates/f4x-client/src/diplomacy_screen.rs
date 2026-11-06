@@ -16,8 +16,8 @@ use crate::ui;
 use f4x_core::diplomacy::{relation_level, ProposalKind, Stage, Treaty};
 use f4x_core::game::{Command, Event};
 use f4x_core::player::PlayerId;
-use f4x_core::rules::{RealmId, SpellId};
-use f4x_core::text::Args;
+use f4x_def::rules::{RealmId, SpellId};
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::diplomacy_text as say;
@@ -1045,7 +1045,7 @@ impl Page for DiploUi {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     const RIVAL: PlayerId = PlayerId(1);
 

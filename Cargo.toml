@@ -19,7 +19,6 @@ png = { version = "0.17", default-features = false }
 macroquad_bitmap_font_engine = { git = "https://github.com/mk572/macroquad_bitmap_font_engine", rev = "11b9011627bd9680a65a1c9909fbe89d56f906c2" }
 f4x-def = { path = "crates/f4x-def" }
 f4x-core = { path = "crates/f4x-core" }
-f4x-data = { path = "crates/f4x-data" }
 f4x-ai = { path = "crates/f4x-ai" }
 f4x-ai-ref = { path = "crates/f4x-ai-ref" }
 f4x-console = { path = "crates/f4x-console" }

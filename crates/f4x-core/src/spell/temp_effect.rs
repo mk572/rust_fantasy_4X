@@ -330,7 +330,7 @@ mod tests {
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::player::PlayerId;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const AT: Position = Position {

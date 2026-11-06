@@ -6,13 +6,13 @@
 #[cfg(test)]
 mod tests {
     use crate::test_app::shipped;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     /// A building's help topic is its description in the city builder: it names the topic,
     /// is titled with the building's name, and gives each plain effect with its number.
     #[test]
     fn every_building_has_a_help_topic_that_gives_its_effects_with_their_numbers() -> TestResult {
-        use f4x_core::rules::effects::{Effect, Trigger};
+        use f4x_def::rules::effects::{Effect, Trigger};
         let help = shipped::help();
         let content = shipped::content();
         for (_, def) in content.rules.buildings.iter() {
@@ -56,7 +56,7 @@ mod tests {
                 .ok_or_else(|| format!("{} has no help topic", r.id))?;
             let topic = help.topic(index).ok_or("the value is missing")?;
             for (_, b) in content.rules.buildings.iter() {
-                if !b.buildable_by(f4x_core::rules::RaceId::new(r.num)) {
+                if !b.buildable_by(f4x_def::rules::RaceId::new(r.num)) {
                     assert!(
                         topic
                             .text

@@ -13,7 +13,7 @@ fn main() {
         .nth(1)
         .and_then(|s| s.parse().ok())
         .unwrap_or(40);
-    let content = f4x_data::load_content_layers(&[Path::new("content")]).expect("content/");
+    let content = f4x_def::load::load_content_layers(&[Path::new("content")]).expect("content/");
     let (mut build, mut play, mut steps, mut done) = (0.0f64, 0.0f64, 0u64, 0u64);
     for seed in 0..n {
         let t = Instant::now();

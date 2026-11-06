@@ -114,7 +114,7 @@ impl UnitView<'_> {
     }
 
     /// The gender of a hero, from its type (`heroes.ron`).
-    pub fn hero_gender(&self, unit: hecs::Entity) -> crate::text::Gender {
+    pub fn hero_gender(&self, unit: hecs::Entity) -> f4x_def::text::Gender {
         self.hero_kind(unit)
             .and_then(|k| self.content.rules.hero_templates.get(k))
             .map_or_else(Default::default, |t| t.gender)
@@ -360,7 +360,7 @@ pub(crate) mod tests {
     use crate::hero::Tier;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::Ability;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     pub(crate) const P0: PlayerId = PlayerId(0);
     pub(crate) const P1: PlayerId = PlayerId(1);

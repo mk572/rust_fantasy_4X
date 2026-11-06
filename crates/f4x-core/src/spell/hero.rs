@@ -166,8 +166,8 @@ mod tests {
     use crate::hero::Fate;
     use crate::map::Plane;
     use crate::rules::RealmId;
-    use crate::testdir::TestResult;
     use crate::unit::Experience;
+    use f4x_def::testdir::TestResult;
 
     /// The hero world, with the four spells known to wizard 0, a circle at (3, 3), 100 gold
     /// and plenty of mana and skill. The last of the seven hero types is "Torin".

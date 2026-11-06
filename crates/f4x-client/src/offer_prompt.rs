@@ -12,7 +12,7 @@ use crate::font::{rgb, Style};
 use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::player::offer::Offer;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -326,7 +326,7 @@ impl App {
                 .and_then(|k| rules.hero_templates.get(k))
                 .is_some_and(|t| {
                     t.abilities
-                        .contains(&f4x_core::rules::Ability::new(96) /* noble */)
+                        .contains(&f4x_def::rules::Ability::new(96) /* noble */)
                 });
             if let (true, Some(upkeep)) = (noble, sheet.upkeep.as_mut()) {
                 upkeep[0] = 0;
@@ -471,7 +471,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn gold(app: &App) -> Result<i32, &'static str> {
         Ok(app.game.player(HUMAN).ok_or("no human")?.treasury().gold)

@@ -8,7 +8,7 @@ use crate::font::Style;
 use crate::input::Input;
 use crate::ui;
 use f4x_core::game::Command;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;

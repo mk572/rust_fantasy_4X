@@ -7,7 +7,7 @@
 //! when it never wins, and `Even` in between. A bank is written once and trained from.
 
 use f4x_core::battle::Side;
-use f4x_core::content::Content;
+use f4x_def::content::Content;
 
 use crate::env::BattleEnv;
 use crate::policy;

@@ -8,8 +8,8 @@ use std::path::Path;
 use burn::prelude::*;
 use f4x_core::battle::game::BattleBrain;
 use f4x_core::battle::BattleCommand;
-use f4x_core::content::Content;
 use f4x_core::game::Game;
+use f4x_def::content::Content;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 

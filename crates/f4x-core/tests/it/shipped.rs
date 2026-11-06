@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use f4x_core::content::Content;
+use f4x_def::content::Content;
 
 /// The game's own `content/` folder.
 pub fn content_dir() -> PathBuf {

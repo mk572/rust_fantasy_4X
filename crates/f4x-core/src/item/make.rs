@@ -146,7 +146,7 @@ pub fn random_item(rng: &mut GameRng, rules: &Rules, grade: Grade, value: u32) -
 mod tests {
     use super::*;
     use crate::game::testutil::shipped;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn cost_of(rules: &Rules, id: &ItemId) -> Result<u32, String> {
         rules

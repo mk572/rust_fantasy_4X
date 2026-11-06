@@ -4,7 +4,7 @@
 //! (`economy.rs`); here the plan is chosen and the voyage sailed. The settler then founds the city
 //! like any other (`expand.rs`).
 
-use f4x_core::rules::Ability;
+use f4x_def::rules::Ability;
 use std::collections::{HashSet, VecDeque};
 
 use f4x_core::game::serial::Serial;

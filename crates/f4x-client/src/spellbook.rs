@@ -12,8 +12,8 @@ use crate::page_turn::{Book, BookTurn};
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::rules::exec::Target;
-use f4x_core::rules::{CastContext, RealmId, SpellId, SpellTarget};
-use f4x_core::text::Args;
+use f4x_def::rules::{CastContext, RealmId, SpellId, SpellTarget};
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -267,7 +267,7 @@ impl App {
     /// global enchantment is picked from a list, anything else is aimed on the map.
     pub(crate) fn aim_paid_spell(&mut self, spell: SpellId) {
         self.screen = Screen::Map;
-        if spell == f4x_core::rules::SpellId::new(133)
+        if spell == f4x_def::rules::SpellId::new(133)
         /* resurrection */
         {
             self.open_resurrect(spell, true);
@@ -332,7 +332,7 @@ impl App {
         let mana = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         if needs && cost <= instant.min(mana) {
             // The dead hero Resurrection raises is chosen from a list.
-            if spell == f4x_core::rules::SpellId::new(133)
+            if spell == f4x_def::rules::SpellId::new(133)
             /* resurrection */
             {
                 self.open_resurrect(spell, false);
@@ -450,7 +450,7 @@ impl App {
             _ => Some(Target::Tile(pos)),
         };
         // A Spell Ward also needs a realm: ask for it.
-        if t.spell == f4x_core::rules::SpellId::new(72)
+        if t.spell == f4x_def::rules::SpellId::new(72)
         /* spell_ward */
         {
             match target {

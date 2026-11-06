@@ -7,7 +7,7 @@ use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{Disabled, Layout};
@@ -298,7 +298,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn the_mode_needs_a_selection_and_opens_where_the_stack_stands() -> TestResult {

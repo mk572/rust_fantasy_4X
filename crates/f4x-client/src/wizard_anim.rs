@@ -9,7 +9,7 @@ use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 use f4x_core::player::PlayerId;
-use f4x_core::rules::SpellId;
+use f4x_def::rules::SpellId;
 use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 
@@ -110,7 +110,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn a_spell_on_a_wizard_animates_for_the_human_and_not_when_animations_are_off() -> TestResult {

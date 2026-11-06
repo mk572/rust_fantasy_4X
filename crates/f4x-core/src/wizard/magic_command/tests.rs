@@ -2,8 +2,8 @@ use super::*;
 use crate::game::testutil::shipped;
 use crate::player::Treasury;
 use crate::rules::RealmId;
-use crate::testdir::TestResult;
 use crate::wizard::magic::Retort;
+use f4x_def::testdir::TestResult;
 
 fn treasury() -> Treasury {
     Treasury {

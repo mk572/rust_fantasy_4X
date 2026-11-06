@@ -5,9 +5,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use f4x_core::content::Content;
 use f4x_core::game::setting::SettingsDef;
-use f4x_core::text::Texts;
+use f4x_def::content::Content;
+use f4x_def::text::Texts;
 
 use f4x_extract::spell_art::SpellArt;
 use f4x_extract::unit_art::UnitArt;
@@ -27,14 +27,14 @@ pub(crate) mod shipped {
     pub(crate) fn content() -> &'static Content {
         static CELL: OnceLock<Content> = OnceLock::new();
         CELL.get_or_init(|| {
-            f4x_data::load_content(Path::new(CONTENT)).expect("the shipped content loads")
+            f4x_def::load::load_content(Path::new(CONTENT)).expect("the shipped content loads")
         })
     }
 
     pub(crate) fn texts() -> &'static Texts {
         static CELL: OnceLock<Texts> = OnceLock::new();
         CELL.get_or_init(|| {
-            f4x_data::load_texts(&[Path::new(CLIENT_CONTENT)], "en")
+            f4x_def::load::load_texts(&[Path::new(CLIENT_CONTENT)], "en")
                 .expect("the shipped texts load")
         })
     }
@@ -42,7 +42,7 @@ pub(crate) mod shipped {
     pub(crate) fn settings() -> &'static SettingsDef {
         static CELL: OnceLock<SettingsDef> = OnceLock::new();
         CELL.get_or_init(|| {
-            f4x_data::load_settings(&[Path::new(CONTENT)]).expect("the shipped settings load")
+            f4x_def::load::load_settings(&[Path::new(CONTENT)]).expect("the shipped settings load")
         })
     }
 
@@ -70,10 +70,11 @@ pub(crate) mod shipped {
         })
     }
 
-    pub(crate) fn help() -> &'static f4x_core::help::Help {
-        static CELL: OnceLock<f4x_core::help::Help> = OnceLock::new();
+    pub(crate) fn help() -> &'static f4x_def::help::Help {
+        static CELL: OnceLock<f4x_def::help::Help> = OnceLock::new();
         CELL.get_or_init(|| {
-            f4x_data::load_help(&[Path::new(CLIENT_CONTENT)], "en").expect("the shipped help loads")
+            f4x_def::load::load_help(&[Path::new(CLIENT_CONTENT)], "en")
+                .expect("the shipped help loads")
         })
     }
 

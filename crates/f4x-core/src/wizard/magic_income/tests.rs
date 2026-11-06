@@ -1,8 +1,8 @@
 use super::*;
 use crate::game::testutil::shipped;
-use crate::testdir::TestResult;
 use crate::wizard::magic::Retort;
 use crate::wizard::sheet::{Books, Retorts, WizardMut};
+use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
 

@@ -424,7 +424,7 @@ impl Game {
                     .iter()
                     .find(|&&(num, _)| num == d.ore.0)
                     .map_or(String::new(), |(_, key)| {
-                        self.content.texts.get(key, &crate::text::Args::new())
+                        self.content.texts.get(key, &f4x_def::text::Args::new())
                     });
                 notice.city = Some(d.city);
             }
@@ -490,7 +490,7 @@ impl Game {
             let people = self.world.get::<&Population>(c).map_or(0, |p| p.figures);
             notice.city_size = self.content.texts.get(
                 CITY_SIZE_KEYS[city_size_class(people) as usize],
-                &crate::text::Args::new(),
+                &f4x_def::text::Args::new(),
             );
         }
         out.push(Event::RandomEvent(notice));

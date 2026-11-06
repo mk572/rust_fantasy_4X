@@ -4,8 +4,8 @@
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::rules::Ability;
-use f4x_core::rules::{MovementType, Stat};
+use f4x_def::rules::Ability;
+use f4x_def::rules::{MovementType, Stat};
 
 /// How hard a unit hits and how much it can take, as one number.
 pub fn unit_strength(view: &PlayerView, unit: hecs::Entity) -> f32 {

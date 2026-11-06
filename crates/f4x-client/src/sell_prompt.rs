@@ -11,8 +11,8 @@
 use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::Command;
-use f4x_core::rules::BuildingId;
-use f4x_core::text::Args;
+use f4x_def::rules::BuildingId;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -42,7 +42,7 @@ pub(crate) enum SellPrompt {
     /// "Do you wish to turn off the ... spell?", for a spell of the player's on the city.
     TurnOff {
         city: hecs::Entity,
-        spell: f4x_core::rules::SpellId,
+        spell: f4x_def::rules::SpellId,
         name: String,
     },
 }
@@ -340,7 +340,7 @@ impl App {
 mod tests {
     use super::*;
     use crate::view::HUMAN;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn input_at(button: MouseButton, x: f32, y: f32) -> Input {
         Input::click(button, x, y)

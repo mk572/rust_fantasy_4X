@@ -1,9 +1,9 @@
 //! A small hand-made world with the shipped content, for the unit tests of the AI modules: two
 //! islands in an ocean, one wizard on each, so that a unit cannot walk to the other side.
 
-use f4x_core::content::Content;
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
+use f4x_def::content::Content;
 
 use f4x_core::game::{Command, Game};
 
@@ -19,7 +19,8 @@ const EAST: std::ops::RangeInclusive<u32> = 28..=35;
 const ROWS: std::ops::RangeInclusive<u32> = 3..=10;
 
 pub fn content() -> Content {
-    f4x_data::load_content(std::path::Path::new("../../content")).expect("the rules data loads")
+    f4x_def::load::load_content(std::path::Path::new("../../content"))
+        .expect("the rules data loads")
 }
 
 pub fn at(x: u32, y: u32) -> Position {

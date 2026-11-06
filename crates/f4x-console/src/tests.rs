@@ -1,11 +1,11 @@
-use f4x_core::rules::Ability;
+use f4x_def::rules::Ability;
 use std::path::Path;
 use std::sync::OnceLock;
 
-use f4x_core::content::Content;
 use f4x_core::game::Game;
 use f4x_core::player::PlayerId;
-use f4x_core::testdir::TestResult;
+use f4x_def::content::Content;
+use f4x_def::testdir::TestResult;
 
 use crate::setup::{new_game, NewGame, HUMAN};
 use crate::{commands, Access, Console, ConsoleError, Kind, Mode};
@@ -14,7 +14,7 @@ use crate::{commands, Access, Console, ConsoleError, Kind, Mode};
 fn content() -> &'static Content {
     static CONTENT: OnceLock<Content> = OnceLock::new();
     CONTENT.get_or_init(|| {
-        f4x_data::load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
+        f4x_def::load::load_content(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content"))
             .expect("the shipped content loads")
     })
 }
@@ -1131,7 +1131,7 @@ fn a_wizard_starts_as_in_the_original() -> TestResult {
             for (b, name) in [(8, "smithy"), (3, "barracks"), (32, "builders_hall")] {
                 assert!(
                     g.economy()
-                        .city_has_building(city, f4x_core::rules::BuildingId::new(b)),
+                        .city_has_building(city, f4x_def::rules::BuildingId::new(b)),
                     "seed {seed} wizard {k}: {name}"
                 );
             }
@@ -2069,18 +2069,18 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
     {
         let b = &mut g.battle.as_mut().expect("the value is there").battle;
         let m = |stat, value| {
-            f4x_core::rules::stats::Modifier::new(
+            f4x_def::rules::stats::Modifier::new(
                 stat,
-                f4x_core::rules::stats::ModOp::Add,
+                f4x_def::rules::stats::ModOp::Add,
                 value,
-                f4x_core::rules::stats::Source::Other,
+                f4x_def::rules::stats::Source::Other,
             )
         };
         b.enchant_unit(
             enemy,
             strength,
             rival,
-            &[m(f4x_core::rules::stats::Stat::Melee, 1)],
+            &[m(f4x_def::rules::stats::Stat::Melee, 1)],
             &[],
         );
     }
@@ -2139,7 +2139,7 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
         .id_numbered(202)
         .expect("the shipped content has it");
     g.scenario_enchant_unit(defender, spell, rival);
-    let plain = g.units().unit_stat(defender, f4x_core::rules::Stat::Melee) - 1;
+    let plain = g.units().unit_stat(defender, f4x_def::rules::Stat::Melee) - 1;
     {
         g.treasury_mut(HUMAN)
             .expect("the player has a treasury")
@@ -2160,7 +2160,7 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
             u.side == Side::Defender
                 && u.melee == plain + 1
                 && u.enchantments
-                    .contains(&f4x_core::rules::SpellId::new(4) /* giant_strength */)
+                    .contains(&f4x_def::rules::SpellId::new(4) /* giant_strength */)
         })
         .expect("the copy carries the spell");
     let mut gone = false;
@@ -2997,7 +2997,7 @@ fn raise_dead_brings_a_fallen_normal_unit_back_with_half_its_figures() {
         let b = &mut g.battle.as_mut().expect("the value is there").battle;
         b.units[fallen]
             .enchantments
-            .push(f4x_core::rules::SpellId::new(121) /* bless */);
+            .push(f4x_def::rules::SpellId::new(121) /* bless */);
         b.units[fantastic].realm = Some(Realm::Chaos);
     }
     let start = g
@@ -3023,7 +3023,7 @@ fn raise_dead_brings_a_fallen_normal_unit_back_with_half_its_figures() {
         !u.undead
             && !u
                 .enchantments
-                .contains(&f4x_core::rules::SpellId::new(121) /* bless */)
+                .contains(&f4x_def::rules::SpellId::new(121) /* bless */)
     );
     assert!(
         u.hit_points() < u.max_hit_points(),
@@ -3196,7 +3196,7 @@ fn ai_wizards_get_a_personality_and_an_objective_at_the_start() -> TestResult {
 fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() -> TestResult {
     let mut content = content().clone();
     // The fallback is for a rule set with no ready-made wizards.
-    content.rules.wizards = f4x_core::rules::Registry::new(Vec::new());
+    content.rules.wizards = f4x_def::rules::Registry::new(Vec::new());
     let names = |seed: u64| -> Vec<String> {
         let g = new_game(
             &content,
@@ -3424,7 +3424,7 @@ fn the_start_gives_the_settings_mana_and_reveals_only_the_start_radius() -> Test
 fn a_ring() -> f4x_core::item::Item {
     f4x_core::item::Item {
         name: "Test Ring".into(),
-        kind: f4x_core::rules::ItemKind::Misc,
+        kind: f4x_def::rules::ItemKind::Misc,
         cost: 100,
         icon: 80,
         bonus: f4x_core::item::ItemBonus {

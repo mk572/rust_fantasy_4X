@@ -9,7 +9,7 @@ use rand::Rng;
 use rand_pcg::Pcg64Mcg;
 
 use f4x_core::battle::{Battle, BattleCommand, Side};
-use f4x_core::content::Content;
+use f4x_def::content::Content;
 
 use crate::act::{self, AIM_VOCAB, UNIT_VOCAB, WIZARD_VOCAB};
 use crate::agent::{Driver, Pending, Request};

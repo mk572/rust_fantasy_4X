@@ -101,8 +101,8 @@ mod tests {
     use crate::hero::game::tests::{at, world, P0};
     use crate::rules::stats::{Modifier, Stat};
     use crate::rules::Ability;
-    use crate::testdir::TestResult;
     use crate::unit::Experience;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn the_formulas_follow_the_table() {

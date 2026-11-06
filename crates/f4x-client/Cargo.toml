@@ -6,7 +6,7 @@ license.workspace = true
 
 [dependencies]
 f4x-core.workspace = true
-f4x-data.workspace = true
+f4x-def.workspace = true
 f4x-console.workspace = true
 f4x-extract.workspace = true
 f4x-ai.workspace = true
@@ -19,4 +19,5 @@ ron.workspace = true
 serde.workspace = true
 
 [dev-dependencies]
+f4x-def = { workspace = true, features = ["testutil"] }
 f4x-core = { workspace = true, features = ["testutil"] }

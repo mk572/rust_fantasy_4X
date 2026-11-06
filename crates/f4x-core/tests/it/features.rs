@@ -1,7 +1,7 @@
 //! What the shipped feature rows say about the sites and minerals the code names by number.
 
-use f4x_core::feature::def::FeatureKind;
 use f4x_core::world_event::ORES;
+use f4x_def::feature::FeatureKind;
 
 use crate::shipped::content;
 

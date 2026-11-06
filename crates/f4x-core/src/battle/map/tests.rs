@@ -1,5 +1,5 @@
 use super::*;
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
 

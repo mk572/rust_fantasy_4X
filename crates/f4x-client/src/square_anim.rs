@@ -10,7 +10,7 @@ use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::{SpellId, SpellTarget};
+use f4x_def::rules::{SpellId, SpellTarget};
 use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 
@@ -151,7 +151,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn tile(app: &App) -> Result<Position, &'static str> {
         app.game

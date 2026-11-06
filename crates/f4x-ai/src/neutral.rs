@@ -13,7 +13,7 @@ use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::Stat;
+use f4x_def::rules::Stat;
 
 use crate::military::expected_defence;
 use crate::view::{distance, garrison_wanted, is_fighter, stack_strength};
@@ -607,7 +607,7 @@ mod tests {
     /// A world with an independent city at (4, 4), nine paladins in it and an encounter site
     /// of one guard at (6, 4).
     fn raiding_world(
-        guards: Option<Vec<(f4x_core::rules::UnitId, u32)>>,
+        guards: Option<Vec<(f4x_def::rules::UnitId, u32)>>,
         known: bool,
     ) -> Result<Game, Box<dyn std::error::Error>> {
         let mut g = game(COAST_CITY, 8 /* high_men */);
@@ -665,7 +665,7 @@ mod tests {
     fn a_city_with_soldiers_to_spare_clears_a_weak_site_and_keeps_the_gold() -> TestResult {
         let mut g = raiding_world(
             Some(vec![(
-                f4x_core::rules::UnitId::new(174), /* zombies */
+                f4x_def::rules::UnitId::new(174), /* zombies */
                 1,
             )]),
             false,
@@ -703,7 +703,7 @@ mod tests {
         // The city lost a fight there earlier (`known`), so it knows what stands there.
         let mut g = raiding_world(
             Some(vec![(
-                f4x_core::rules::UnitId::new(164), /* great_drake */
+                f4x_def::rules::UnitId::new(164), /* great_drake */
                 2,
             )]),
             true,
@@ -721,7 +721,7 @@ mod tests {
         for (n, war) in [false, true].into_iter().enumerate() {
             let mut g = raiding_world(
                 Some(vec![(
-                    f4x_core::rules::UnitId::new(174), /* zombies */
+                    f4x_def::rules::UnitId::new(174), /* zombies */
                     1,
                 )]),
                 false,

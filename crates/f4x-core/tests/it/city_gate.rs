@@ -4,8 +4,8 @@ use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::exec::Target;
-use f4x_core::testdir::TestResult;
 use f4x_core::unit::movement::MoveError;
+use f4x_def::testdir::TestResult;
 
 use crate::world::{at, flat_game, shipped, P0, P1};
 

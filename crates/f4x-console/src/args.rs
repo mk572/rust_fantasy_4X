@@ -9,8 +9,8 @@ use f4x_core::player::PlayerId;
 
 use f4x_core::game::Game;
 use f4x_core::rules::exec::Target;
-use f4x_core::rules::ids::Id;
-use f4x_core::rules::{Def, Registry};
+use f4x_def::rules::ids::Id;
+use f4x_def::rules::{Def, Registry};
 
 use crate::ConsoleError;
 
@@ -292,7 +292,7 @@ pub fn parse_item_spot(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn words_split_on_spaces_and_quotes() -> TestResult {

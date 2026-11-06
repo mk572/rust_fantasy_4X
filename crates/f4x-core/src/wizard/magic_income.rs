@@ -5,12 +5,12 @@
 //!
 //! Tests: in wizard/magic_income/tests.rs.
 
-use crate::content::Content;
 use crate::game::Game;
 use crate::map::Plane;
 use crate::player::PlayerId;
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::PowerShares;
+use f4x_def::content::Content;
 
 /// What the income rules ask of the world, for one wizard at a time.
 pub(crate) trait IncomeView {

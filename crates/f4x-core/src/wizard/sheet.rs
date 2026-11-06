@@ -11,7 +11,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::content::Content;
 use crate::game::rng::GameRng;
 use crate::game::setting::SpellLibraryDef;
 use crate::rules::{Rarity, RealmId, SpellDef, SpellId};
@@ -21,6 +20,7 @@ use crate::wizard::magic::{
     base_casting_skill, default_spells, is_crafting, is_summoning, pick_spells, skill_points_for,
     spells_of, CastStart, Casting, MagicError, PowerShares, Retort, RESEARCH_SLOTS,
 };
+use f4x_def::content::Content;
 
 /// Spell books per realm id.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

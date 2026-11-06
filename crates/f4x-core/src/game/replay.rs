@@ -203,7 +203,7 @@ impl Replay {
     /// history; its events are returned for each command.
     pub fn play(
         &self,
-        content: crate::content::Content,
+        content: f4x_def::content::Content,
         count: usize,
     ) -> Result<(Game, Vec<Vec<Event>>), ReplayError> {
         let mut game = self

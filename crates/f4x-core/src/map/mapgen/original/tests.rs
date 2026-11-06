@@ -11,7 +11,7 @@ fn original(land_percent: u8) -> GenParams {
     }
 }
 
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 #[test]
 fn deterministic_and_unlike_the_noise_map() -> TestResult {
     let (c, p) = (shipped(), original(30));

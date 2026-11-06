@@ -3,7 +3,7 @@
 use f4x_core::city::autobuild::{choose, AutoBuild, BuildPlan, CityFacts, Focus, Mix, AFFINITY};
 use f4x_core::city::production::ProductionItem;
 
-use f4x_core::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 use crate::shipped::content;
 
@@ -31,14 +31,14 @@ fn every_building_has_an_affinity_row_and_every_row_a_building() {
 }
 
 /// A fresh size-5 city of the race with every building that needs nothing buildable.
-fn facts(c: &f4x_core::content::Content, race: u16) -> CityFacts {
+fn facts(c: &f4x_def::content::Content, race: u16) -> CityFacts {
     let race_id = c.rules.races.id_numbered(race).expect("the race exists");
     let race = c.rules.races.get(race_id);
     let possible: Vec<_> = c
         .rules
         .buildings
         .iter()
-        .filter(|(_, d)| d.buildable_by(f4x_core::rules::RaceId::new(race.num)))
+        .filter(|(_, d)| d.buildable_by(f4x_def::rules::RaceId::new(race.num)))
         .filter(|(_, d)| !d.coastal)
         .map(|(id, _)| id)
         .collect();

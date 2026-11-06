@@ -10,8 +10,8 @@ use f4x_core::game::serial::Serial;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::rules::Ability;
-use f4x_core::rules::Stat;
+use f4x_def::rules::Ability;
+use f4x_def::rules::Stat;
 
 use crate::view::{distance, is_fighter};
 use crate::Ai;

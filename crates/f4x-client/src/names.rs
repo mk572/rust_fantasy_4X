@@ -6,8 +6,8 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use f4x_core::rules::Rules;
-use f4x_core::text::FALLBACK_LANGUAGE;
+use f4x_def::rules::Rules;
+use f4x_def::text::FALLBACK_LANGUAGE;
 use serde::de::DeserializeOwned;
 
 type Table<V> = BTreeMap<u16, V>;
@@ -230,10 +230,10 @@ impl Names {
     }
 }
 
-use f4x_core::content::Content;
 use f4x_core::item::crafting::{MadeName, Suffix};
 use f4x_core::item::Item;
-use f4x_core::text::Args;
+use f4x_def::content::Content;
+use f4x_def::text::Args;
 
 impl Names {
     /// What an item is called: the name it was given, the name of the prefab item it is a copy
@@ -287,7 +287,7 @@ impl Names {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::{TestDir, TestResult};
+    use f4x_def::testdir::{TestDir, TestResult};
 
     #[test]
     fn a_name_is_found_by_number_and_a_language_falls_back_to_english() -> TestResult {
@@ -335,7 +335,7 @@ mod tests {
         item.name.clear();
         item.prefab = None;
         item.made = Some(MadeName {
-            kind: f4x_core::item::crafting::TypeName::of(f4x_core::rules::ItemKind::Sword, 0),
+            kind: f4x_core::item::crafting::TypeName::of(f4x_def::rules::ItemKind::Sword, 0),
             bonus: Some(3),
             suffix: Some(Suffix::Wizardry),
         });

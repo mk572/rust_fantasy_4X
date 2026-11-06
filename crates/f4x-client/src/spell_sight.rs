@@ -7,7 +7,7 @@ use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::SpellId;
+use f4x_def::rules::SpellId;
 
 impl App {
     /// `at` is the square the spell lands on when it must be explored; `contact` asks for contact

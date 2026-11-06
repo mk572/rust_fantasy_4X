@@ -2,10 +2,10 @@
 
 use std::sync::OnceLock;
 
-use f4x_core::content::Content;
 use f4x_core::game::Game;
 use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
+use f4x_def::content::Content;
 
 /// The number of grassland in `content/terrain.ron`.
 const GRASSLAND: u16 = 4;

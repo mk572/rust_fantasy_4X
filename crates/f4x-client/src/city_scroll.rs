@@ -14,8 +14,8 @@ use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::{RealmId, SpellId, SpellTarget};
-use f4x_core::text::Args;
+use f4x_def::rules::{RealmId, SpellId, SpellTarget};
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 /// Where the scroll goes, and the cityscape inside it.

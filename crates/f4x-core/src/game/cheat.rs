@@ -138,7 +138,7 @@ mod tests {
     use crate::hero::HeroState;
     use crate::map::{Plane, Position};
     use crate::player::PlayerId;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
 

@@ -5,7 +5,7 @@ use crate::game::testutil::{num, realm, shipped};
 use crate::map::{FeatureId, Grid, Plane};
 use crate::player::PlayerId;
 use crate::rules::RealmId;
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 use crate::game::Command;
 use crate::rules::Registry;

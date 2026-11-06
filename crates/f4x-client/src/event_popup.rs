@@ -12,9 +12,9 @@ use crate::event_message::compose;
 use crate::font::Style;
 use crate::input::Input;
 use f4x_core::game::DispelSite;
-use f4x_core::rules::RealmId;
-use f4x_core::text::Args;
 use f4x_core::world_event::EventKind;
+use f4x_def::rules::RealmId;
+use f4x_def::text::Args;
 use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 
@@ -278,7 +278,7 @@ impl App {
     /// too, and later ones are not announced. `count` is how many this dispel has announced.
     pub(crate) fn announce_dispelled(
         &mut self,
-        spell: f4x_core::rules::SpellId,
+        spell: f4x_def::rules::SpellId,
         site: DispelSite,
         count: &mut u32,
     ) {
@@ -290,7 +290,7 @@ impl App {
     /// The box for the next announced dispel, if the dispel has any left to announce.
     fn dispelled_notice(
         &self,
-        spell: f4x_core::rules::SpellId,
+        spell: f4x_def::rules::SpellId,
         site: DispelSite,
         count: &mut u32,
     ) -> Option<SpellNotice> {
@@ -335,12 +335,12 @@ impl App {
 
     /// The human has taken `spells` (none, one or two) from a wizard it banished or defeated
     /// (`Conquest_Spells`): the green box with the learn-spell picture.
-    pub(crate) fn announce_conquest_spells(&mut self, spells: &[f4x_core::rules::SpellId]) {
+    pub(crate) fn announce_conquest_spells(&mut self, spells: &[f4x_def::rules::SpellId]) {
         let notice = self.conquest_notice(spells);
         self.modals.enqueue(notice);
     }
 
-    fn conquest_notice(&self, spells: &[f4x_core::rules::SpellId]) -> SpellNotice {
+    fn conquest_notice(&self, spells: &[f4x_def::rules::SpellId]) -> SpellNotice {
         let name = |app: &Self, spell| {
             self.names
                 .spell(app.game.content().rules.spells.get(spell).num)
@@ -375,7 +375,7 @@ impl App {
         &mut self,
         caster: f4x_core::player::PlayerId,
         counter: f4x_core::player::PlayerId,
-        spell: f4x_core::rules::SpellId,
+        spell: f4x_def::rules::SpellId,
         counter_spell: &str,
     ) {
         if let Some(notice) = self.fizzle_notice(caster, counter, spell, counter_spell) {
@@ -389,7 +389,7 @@ impl App {
         &self,
         caster: f4x_core::player::PlayerId,
         counter: f4x_core::player::PlayerId,
-        spell: f4x_core::rules::SpellId,
+        spell: f4x_def::rules::SpellId,
         counter_spell: &str,
     ) -> Option<SpellNotice> {
         if caster != HUMAN && counter != HUMAN {
@@ -493,9 +493,9 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
-    fn spell(app: &App, id: u16) -> Result<f4x_core::rules::SpellId, String> {
+    fn spell(app: &App, id: u16) -> Result<f4x_def::rules::SpellId, String> {
         app.game
             .content()
             .rules

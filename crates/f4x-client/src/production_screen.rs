@@ -354,7 +354,7 @@ impl App {
     fn production_allows(
         &self,
         city: hecs::Entity,
-        building: Option<f4x_core::rules::BuildingId>,
+        building: Option<f4x_def::rules::BuildingId>,
     ) -> Vec<String> {
         let Some(building) = building else {
             return Vec::new();
@@ -378,7 +378,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn a_building_lists_what_it_opens_until_that_is_built() -> TestResult {
@@ -391,8 +391,8 @@ mod tests {
             .map(|c| c.0)
             .ok_or("the new game has no city")?;
         let rules = &app.game.content().rules;
-        let barracks = f4x_core::rules::BuildingId::new(3) /* barracks */;
-        let armory = f4x_core::rules::BuildingId::new(4) /* armory */;
+        let barracks = f4x_def::rules::BuildingId::new(3) /* barracks */;
+        let armory = f4x_def::rules::BuildingId::new(4) /* armory */;
         let armory_name = app
             .names
             .building(rules.buildings.get(armory).num)

@@ -133,7 +133,7 @@ mod tests {
     use crate::game::testutil::{num, shipped};
     use crate::map::Plane;
     use crate::spell::instance::SpellTarget;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);

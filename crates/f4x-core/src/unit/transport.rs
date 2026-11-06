@@ -166,7 +166,7 @@ impl Economy<'_> {
 pub(crate) fn update_aboard(
     world: &mut hecs::World,
     map: Option<&crate::map::Map>,
-    content: &crate::content::Content,
+    content: &f4x_def::content::Content,
     stack: &[hecs::Entity],
     to: Position,
     stack_flies: bool,
@@ -174,7 +174,7 @@ pub(crate) fn update_aboard(
     fn economy<'a>(
         world: &'a hecs::World,
         map: Option<&'a crate::map::Map>,
-        content: &'a crate::content::Content,
+        content: &'a f4x_def::content::Content,
     ) -> Economy<'a> {
         Economy::new(world, map, content)
     }
@@ -395,9 +395,9 @@ mod tests {
     use crate::map::{Grid, Map, Plane};
     use crate::rules::RealmId;
     use crate::rules::Registry;
-    use crate::testdir::TestResult;
     use crate::unit::movement::{Entry, MoveError};
     use crate::unit::MovesLeft;
+    use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
     const P1: PlayerId = PlayerId(1);

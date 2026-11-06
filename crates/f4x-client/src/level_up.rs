@@ -7,7 +7,7 @@
 use crate::font::{Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::audio::{music, Track};
@@ -211,7 +211,7 @@ const _: () = assert!(HEAD + 4.0 * ROW <= 128.0);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn a_hero_that_gains_a_level_between_turns_is_announced_once() -> TestResult {

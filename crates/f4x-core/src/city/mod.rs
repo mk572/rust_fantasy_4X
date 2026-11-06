@@ -108,7 +108,7 @@ mod tests {
     use crate::game::testutil::{num, shipped};
     use crate::game::{Command, Event, Game, Rejection};
     use crate::map::Grid;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     /// 20x12 grassland world with ocean at x=0, a mountain at (5,5), a lair at (8,5)
     /// and a mineral at (12,5) (a city may sit on a mineral).

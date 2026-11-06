@@ -1,6 +1,6 @@
 use super::*;
 use crate::game::testutil::{num, shipped};
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 fn building(c: &Content, id: u16) -> BuildingId {
     c.rules.buildings.id_numbered(id).expect("id_of succeeds")

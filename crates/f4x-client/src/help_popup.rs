@@ -127,7 +127,7 @@ impl App {
     /// Ask for the pop-up of a spell's own topic, out of the area `from`. False without a topic.
     pub(crate) fn ask_spell_help(
         &mut self,
-        spell: f4x_core::rules::SpellId,
+        spell: f4x_def::rules::SpellId,
         from: (f32, f32, f32, f32),
     ) -> bool {
         let help = self.game.content().rules.spells.get(spell).help;

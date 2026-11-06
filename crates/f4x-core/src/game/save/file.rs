@@ -4,9 +4,9 @@
 use std::fmt;
 use std::path::Path;
 
-use crate::content::Content;
 use crate::game::save::{Integrity, LoadError, Snapshot};
 use crate::game::Game;
+use f4x_def::content::Content;
 
 #[derive(Debug)]
 pub enum SaveError {
@@ -90,8 +90,8 @@ mod tests {
     use crate::map::Position;
     use crate::player::PlayerId;
     use crate::rules::RealmId;
-    use crate::testdir::TestDir;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestDir;
+    use f4x_def::testdir::TestResult;
 
     fn content() -> Content {
         shipped()

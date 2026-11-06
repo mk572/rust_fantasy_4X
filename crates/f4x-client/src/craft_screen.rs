@@ -16,10 +16,10 @@ use f4x_core::item::crafting::{
     available_powers, check, cost, made_name, Craft, ItemDesign, MAX_CHARGES, MAX_POWERS,
     SPELL_CHARGES,
 };
-use f4x_core::rules::ItemPowerId;
-use f4x_core::rules::SpellId;
-use f4x_core::rules::{CastContext, ItemKind, ItemPowerDef};
-use f4x_core::text::Args;
+use f4x_def::rules::ItemPowerId;
+use f4x_def::rules::SpellId;
+use f4x_def::rules::{CastContext, ItemKind, ItemPowerDef};
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -606,7 +606,7 @@ impl Page for CraftUi {
 mod tests {
     use super::*;
     use crate::test_app::shipped;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn power(id: u16) -> Result<&'static ItemPowerDef, String> {
         shipped::content()

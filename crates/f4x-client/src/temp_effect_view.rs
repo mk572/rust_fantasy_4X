@@ -1,9 +1,9 @@
 //! What the unit sheet and the city screen say about temporary effects
 //! (`temp_effect.rs` in the core holds them): each line names the change and how long it lasts.
 
-use f4x_core::rules::{ModOp, Stat};
 use f4x_core::spell::temp_effect::{TempEffect, TempKind};
-use f4x_core::text::Args;
+use f4x_def::rules::{ModOp, Stat};
+use f4x_def::text::Args;
 
 use crate::view::App;
 
@@ -59,7 +59,7 @@ impl App {
     fn temp_effect_line(&self, t: &TempEffect) -> String {
         let abilities = &self.game.content().rules.abilities;
         let ability =
-            |id: f4x_core::rules::Ability| self.names.ability(abilities.get(id).num).to_string();
+            |id: f4x_def::rules::Ability| self.names.ability(abilities.get(id).num).to_string();
         let effect = match &t.kind {
             TempKind::Modifier { stat, op, value } => {
                 let name = STAT_NAMES
@@ -105,7 +105,7 @@ mod tests {
     use super::*;
     use crate::view::HUMAN;
     use f4x_core::rules::exec::Target;
-    use f4x_core::rules::{Modifier, Source};
+    use f4x_def::rules::{Modifier, Source};
 
     #[test]
     fn a_unit_lists_its_effects_with_their_length_and_a_lasting_one_says_none() {
@@ -117,7 +117,7 @@ mod tests {
         let set = Modifier::new(Stat::Moves, ModOp::Set, 4, Source::Other);
         app.game.add_temp_modifier(who, set, None);
         app.game
-            .grant_temp_ability(who, f4x_core::rules::Ability::new(23), Some(1));
+            .grant_temp_ability(who, f4x_def::rules::Ability::new(23), Some(1));
         let ability = app
             .game
             .content()

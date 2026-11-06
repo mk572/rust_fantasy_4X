@@ -13,12 +13,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::Instant;
 
-use f4x_core::content::Content;
 use f4x_core::game::endgame::GameOver;
 use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::Game;
 use f4x_core::player::PlayerId;
 use f4x_core::world_event::EventKind;
+use f4x_def::content::Content;
 use serde::{Deserialize, Serialize};
 
 use crate::contestant::{self, Contestant, Version};
@@ -132,7 +132,8 @@ impl Options {
     }
 
     pub fn load_content(&self) -> Result<Content, String> {
-        f4x_data::load_content_layers(&[&self.dir, Path::new("content")]).map_err(|e| e.to_string())
+        f4x_def::load::load_content_layers(&[&self.dir, Path::new("content")])
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -598,7 +599,7 @@ fn detail_lines(game: &Game, ais: &[Box<dyn Contestant>]) -> Vec<String> {
         let Some(m) = game.wizard(id) else {
             continue;
         };
-        let name = |s: f4x_core::rules::SpellId| game.content().rules.spells.get(s).id.clone();
+        let name = |s: f4x_def::rules::SpellId| game.content().rules.spells.get(s).id.clone();
         let explored = game.explored_squares(id);
         let income = game.income(id);
         let mut known: Vec<String> = m.known().iter().map(|&s| name(s)).collect();
@@ -666,7 +667,7 @@ fn grant_mastery_to_all(game: &mut Game) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn parse(line: &[&str]) -> Result<Options, String> {
         let args: Vec<String> = line.iter().map(|s| s.to_string()).collect();

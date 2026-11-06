@@ -4,11 +4,11 @@
 //! any battle can be replayed, loaded into a test or kept in the evaluation suite. [`generate`]
 //! makes random ones from the rules.
 
-use f4x_core::content::Content;
+use f4x_def::content::Content;
 
 use crate::obs::MAX_SPELLS;
-use f4x_core::rules::UnitKind;
-use f4x_core::rules::{RealmId, Stat};
+use f4x_def::rules::UnitKind;
+use f4x_def::rules::{RealmId, Stat};
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
@@ -93,7 +93,7 @@ fn rough_strength(content: &Content, unit: u16) -> f32 {
 
 /// The units that can fight in a generated army: a creature with an attack that walks or flies.
 fn fighters(content: &Content) -> Vec<u16> {
-    use f4x_core::rules::MovementType;
+    use f4x_def::rules::MovementType;
     content
         .rules
         .units
@@ -149,9 +149,9 @@ const NOT_TRAINED: [u16; 7] = [
 
 /// A spell the game can cast in a battle at all: not a placeholder (`unimplemented`), and one
 /// the agent trains with.
-pub fn battle_spell(d: &f4x_core::rules::defs::SpellDef) -> bool {
-    use f4x_core::rules::defs::CastContext;
-    use f4x_core::rules::effects::Effect;
+pub fn battle_spell(d: &f4x_def::rules::defs::SpellDef) -> bool {
+    use f4x_def::rules::defs::CastContext;
+    use f4x_def::rules::effects::Effect;
     d.contexts.contains(&CastContext::Battle)
         && !d.effects.iter().any(|r| match &r.effect {
             Effect::Custom(h) => h == "unimplemented",
@@ -161,7 +161,7 @@ pub fn battle_spell(d: &f4x_core::rules::defs::SpellDef) -> bool {
 }
 
 /// The realms a wizard's books can be in.
-const REALMS: [RealmId; 5] = f4x_core::rules::BOOK_REALMS;
+const REALMS: [RealmId; 5] = f4x_def::rules::BOOK_REALMS;
 
 /// How many realms a generated wizard has books in: mostly one or two, as in real games, and
 /// now and then three to five so the agent is not helpless against the rest.

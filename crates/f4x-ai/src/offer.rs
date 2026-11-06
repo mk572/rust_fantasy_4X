@@ -280,7 +280,7 @@ mod tests {
             .items
             .iter()
             .map(|(_, def)| def)
-            .find(|def| def.kind == f4x_core::rules::ItemKind::Sword)
+            .find(|def| def.kind == f4x_def::rules::ItemKind::Sword)
             .map(f4x_core::item::Item::from_def)
             .ok_or("the shipped content has a sword")
     }

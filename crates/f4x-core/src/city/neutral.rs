@@ -504,7 +504,7 @@ mod tests {
     use super::*;
     use crate::game::setup::{new_game, NewGame};
     use crate::game::testutil::shipped;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn world(seed: u64) -> Result<Game, String> {
         new_game(

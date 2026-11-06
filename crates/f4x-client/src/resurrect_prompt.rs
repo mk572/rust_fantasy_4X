@@ -7,14 +7,14 @@
 
 use crate::input::Input;
 use f4x_core::game::Command;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::modal::{keep, Modal};
 use crate::ui::{self, GOLD};
 use crate::view::{App, Screen, HUMAN};
 use f4x_core::rules::exec::Target;
-use f4x_core::rules::SpellId;
+use f4x_def::rules::SpellId;
 
 /// The dead hero to raise, the row picked at `row`.
 pub(crate) struct Resurrect {
@@ -178,7 +178,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn none() -> Input {
         Input::default()

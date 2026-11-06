@@ -111,10 +111,10 @@ impl<'a> Wizard<'a> {
             .unwrap_or_default()
     }
 
-    pub fn gender(&self) -> crate::text::Gender {
+    pub fn gender(&self) -> f4x_def::text::Gender {
         self.world
-            .get::<&crate::text::Gender>(self.entity)
-            .map_or_else(|_| crate::text::Gender::default(), |g| *g)
+            .get::<&f4x_def::text::Gender>(self.entity)
+            .map_or_else(|_| f4x_def::text::Gender::default(), |g| *g)
     }
 
     pub fn portrait(&self) -> u8 {

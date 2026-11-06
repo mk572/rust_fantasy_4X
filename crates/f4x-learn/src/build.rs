@@ -1,10 +1,10 @@
 //! Turn a [`BattleScenario`] into a game with its battle begun.
 
-use f4x_core::content::Content;
 use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
+use f4x_def::content::Content;
 
 use f4x_core::game::{Command, Event, Game};
 
@@ -148,7 +148,7 @@ pub fn build(content: &Content, s: &BattleScenario) -> Result<Game, String> {
     let (from, to) = match s.ground {
         Ground::City { walls } => {
             let (city, at) = capital;
-            let wall = f4x_core::rules::BuildingId::new(35); // city_walls
+            let wall = f4x_def::rules::BuildingId::new(35); // city_walls
             game.scenario_set_building(city, wall, walls);
             let from = around(at)
                 .find(|&p| walkable(&game, p))

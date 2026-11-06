@@ -2,7 +2,7 @@
 //! `Notify2` strip over the map with the count of the lost units, closed by a click or a key.
 
 use crate::input::Input;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 
 use crate::frame::Layout;
 use crate::modal::{keep, Modal};

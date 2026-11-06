@@ -1,7 +1,7 @@
 //! The reward of a battle (`docs/learning-ai.md` 7.4), from a finished [`Outcome`].
 
 use f4x_core::battle::{BattleUnit, Side};
-use f4x_core::content::Content;
+use f4x_def::content::Content;
 
 use crate::env::Outcome;
 

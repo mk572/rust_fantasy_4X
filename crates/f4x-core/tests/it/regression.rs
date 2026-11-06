@@ -15,12 +15,12 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use f4x_core::content::Content;
 use f4x_core::game::save::Snapshot;
 use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::{Command, Game};
 use f4x_core::player::PlayerId;
-use f4x_core::testdir::TestResult;
+use f4x_def::content::Content;
+use f4x_def::testdir::TestResult;
 
 fn shipped() -> &'static Content {
     static CONTENT: OnceLock<Content> = OnceLock::new();

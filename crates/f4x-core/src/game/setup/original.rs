@@ -83,7 +83,7 @@ mod tests {
     use crate::game::setup::{new_game, NewGame};
     use crate::game::testutil::shipped;
     use crate::player::PlayerId;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn original(seed: u64, wizards: u8) -> Result<Game, String> {
         let mut spec = NewGame::with_wizards(wizards);

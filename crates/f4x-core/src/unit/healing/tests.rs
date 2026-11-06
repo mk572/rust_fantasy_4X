@@ -1,11 +1,11 @@
 use super::*;
 use crate::city::economy::Buildings;
 use crate::city::City;
-use crate::content::Content;
 use crate::game::serial::Serial;
 use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
+use f4x_def::content::Content;
 
 use crate::rules::BuildingId;
 use hecs::World;

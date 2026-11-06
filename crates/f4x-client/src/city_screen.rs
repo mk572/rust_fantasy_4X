@@ -9,8 +9,8 @@ use crate::ui;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
-use f4x_core::rules::SpellId;
-use f4x_core::text::Args;
+use f4x_def::rules::SpellId;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::art::{TILE_H, TILE_W};
@@ -1227,8 +1227,8 @@ impl App {
             .units
             .defs()
             .iter()
-            .find(|d| d.kind == f4x_core::rules::UnitKind::Normal && d.race.is_some())
-            .map(|d| f4x_core::rules::UnitId::new(d.num));
+            .find(|d| d.kind == f4x_def::rules::UnitKind::Normal && d.race.is_some())
+            .map(|d| f4x_def::rules::UnitId::new(d.num));
         if let Some(kind) = kind {
             for _ in 0..14 {
                 self.game.spawn_unit(HUMAN, at, kind);
@@ -1436,7 +1436,7 @@ impl App {
                 };
                 let ships = def
                     .stats
-                    .get(&f4x_core::rules::Stat::Transport)
+                    .get(&f4x_def::rules::Stat::Transport)
                     .is_some_and(|&t| t > 0);
                 if ships {
                     self.city_pic(lay, "unitview", 34, 0, 219.0, 157.0);
@@ -1445,7 +1445,7 @@ impl App {
                 }
                 let figures = def
                     .stats
-                    .get(&f4x_core::rules::Stat::Figures)
+                    .get(&f4x_def::rules::Stat::Figures)
                     .copied()
                     .unwrap_or(1);
                 let banner = self.banner_index(HUMAN.0);
@@ -1638,7 +1638,7 @@ fn thousands(n: u32) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn a_city_is_named_for_its_size_and_the_fortress_is_the_capital() -> TestResult {

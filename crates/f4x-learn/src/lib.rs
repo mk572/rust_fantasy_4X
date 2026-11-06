@@ -31,12 +31,12 @@ mod tests {
     use rand_pcg::Pcg64Mcg;
     use std::path::Path;
 
-    fn content() -> f4x_core::content::Content {
-        f4x_data::load_content_layers(&[Path::new("../../content")]).expect("content/ loads")
+    fn content() -> f4x_def::content::Content {
+        f4x_def::load::load_content_layers(&[Path::new("../../content")]).expect("content/ loads")
     }
 
     /// Play a scenario to the end with random commands for both sides.
-    fn play_random(content: &f4x_core::content::Content, seed: u64) -> BattleEnv {
+    fn play_random(content: &f4x_def::content::Content, seed: u64) -> BattleEnv {
         let scenario = generate(content, seed);
         let mut env =
             BattleEnv::new(content, scenario).unwrap_or_else(|e| panic!("seed {seed}: {e}"));
@@ -133,7 +133,7 @@ mod tests {
         };
         // Every pair of realms with the arcane spells fits whole, so a generated wizard of one or
         // two realms is never cut short.
-        let battle: Vec<f4x_core::rules::RealmId> = {
+        let battle: Vec<f4x_def::rules::RealmId> = {
             content
                 .rules
                 .spells
@@ -142,9 +142,9 @@ mod tests {
                 .map(|(_, d)| d.realm)
                 .collect()
         };
-        let in_realm = |r: f4x_core::rules::RealmId| battle.iter().filter(|x| **x == r).count();
-        let arcane = in_realm(f4x_core::rules::RealmId::new(5) /* arcane */);
-        let names = f4x_core::rules::BOOK_REALMS;
+        let in_realm = |r: f4x_def::rules::RealmId| battle.iter().filter(|x| **x == r).count();
+        let arcane = in_realm(f4x_def::rules::RealmId::new(5) /* arcane */);
+        let names = f4x_def::rules::BOOK_REALMS;
         for a in names {
             for b in names {
                 let n = in_realm(a) + if a == b { 0 } else { in_realm(b) } + arcane;
@@ -161,7 +161,7 @@ mod tests {
                 .into_iter()
                 .flatten()
             {
-                let mut realms: Vec<f4x_core::rules::RealmId> = w
+                let mut realms: Vec<f4x_def::rules::RealmId> = w
                     .spells
                     .iter()
                     .map(|&num| realm_of(num))
@@ -344,7 +344,7 @@ mod agent_tests {
 
     #[test]
     fn a_random_agent_playing_by_the_masks_is_never_refused() {
-        let content = f4x_data::load_content_layers(&[Path::new("../../content")]).unwrap();
+        let content = f4x_def::load::load_content_layers(&[Path::new("../../content")]).unwrap();
         let spec = ObsSpec::new(&content);
         let brief = Brief {
             may_flee: true,
@@ -406,9 +406,9 @@ mod brain_tests {
     /// the game through the core's hook and every command it gives is accepted.
     #[test]
     fn a_checkpoint_plays_battles_through_the_core_hook() {
-        let content = f4x_data::load_content_layers(&[Path::new("../../content")]).unwrap();
+        let content = f4x_def::load::load_content_layers(&[Path::new("../../content")]).unwrap();
         let spec = obs::ObsSpec::new(&content);
-        let dir = f4x_core::testdir::TestDir::new("learn-test");
+        let dir = f4x_def::testdir::TestDir::new("learn-test");
         let file = dir.join("net");
         net::save_checkpoint(
             net::PolicyNet::new(spec.unit_features(), &Device::flex()),
@@ -439,9 +439,9 @@ mod brain_tests {
     /// what it reads is refused with a reason, not a panic.
     #[test]
     fn a_checkpoint_for_other_rules_is_refused_with_a_reason() {
-        let content = f4x_data::load_content_layers(&[Path::new("../../content")]).unwrap();
+        let content = f4x_def::load::load_content_layers(&[Path::new("../../content")]).unwrap();
         let spec = obs::ObsSpec::new(&content);
-        let dir = f4x_core::testdir::TestDir::new("learn-shape");
+        let dir = f4x_def::testdir::TestDir::new("learn-shape");
         let file = dir.join("net");
         net::save_checkpoint(
             net::PolicyNet::new(spec.unit_features(), &Device::flex()),

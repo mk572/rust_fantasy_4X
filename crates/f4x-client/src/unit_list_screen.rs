@@ -9,7 +9,7 @@ use crate::font_ramp;
 use crate::input::Input;
 use crate::modal::{keep, Modal};
 use f4x_core::map::Position;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -165,7 +165,7 @@ impl App {
                 .game
                 .units()
                 .unit_def(units[0])
-                .is_some_and(|d| d.kind == f4x_core::rules::UnitKind::Fantastic);
+                .is_some_and(|d| d.kind == f4x_def::rules::UnitKind::Fantastic);
             if fantastic {
                 self.text("unit_list.monsters")
             } else {

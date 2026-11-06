@@ -2,7 +2,7 @@ use super::*;
 use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map};
 use crate::player::PlayerId;
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 fn world() -> Game {
     let c = shipped();

@@ -16,8 +16,8 @@ use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::item::armory::{ItemError, ItemSpot, Spot, TRANSFER_MANA, VAULT_SLOTS};
 use f4x_core::item::Item;
-use f4x_core::rules::SlotKind;
-use f4x_core::text::Args;
+use f4x_def::rules::SlotKind;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;

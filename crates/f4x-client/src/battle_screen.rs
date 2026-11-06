@@ -7,7 +7,7 @@
 //! mirrored one, and the picture comes out as the original's. Like the original this draws only
 //! the band of 200 squares it plays on (the field generator shuts the rest).
 
-use f4x_core::rules::Ability;
+use f4x_def::rules::Ability;
 use std::collections::{HashMap, VecDeque};
 
 use crate::font::{Ink, Style};
@@ -22,9 +22,9 @@ use f4x_core::battle::{
 };
 use f4x_core::game::{Command, Event};
 use f4x_core::map::Plane;
-use f4x_core::rules::defs::SpellTarget;
-use f4x_core::rules::SpellId;
-use f4x_core::text::{Args, Texts};
+use f4x_def::rules::defs::SpellTarget;
+use f4x_def::rules::SpellId;
+use f4x_def::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::art::FigureEffect;
@@ -739,9 +739,9 @@ impl App {
             .units
             .defs()
             .iter()
-            .filter(|d| d.kind == f4x_core::rules::UnitKind::Normal && d.race.is_some())
+            .filter(|d| d.kind == f4x_def::rules::UnitKind::Normal && d.race.is_some())
             .take(6)
-            .map(|d| f4x_core::rules::UnitId::new(d.num))
+            .map(|d| f4x_def::rules::UnitId::new(d.num))
             .collect();
         let mut ids = ids;
         // A fight at sea needs ships on both sides.
@@ -1015,7 +1015,7 @@ impl App {
     }
 
     /// The animation that plays the cast sound of a spell, if the table has one.
-    fn spell_cast_sound(&self, spell: f4x_core::rules::SpellId) -> Option<Anim> {
+    fn spell_cast_sound(&self, spell: f4x_def::rules::SpellId) -> Option<Anim> {
         let id = &self.game.content().rules.spells.get(spell).id;
         self.audio
             .table

@@ -11,7 +11,7 @@ use crate::font::{rgb, Effect, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use f4x_core::player::PlayerId;
-use f4x_core::text::{Args, Gender};
+use f4x_def::text::{Args, Gender};
 use macroquad::prelude::*;
 
 use crate::audio::Track;

@@ -100,7 +100,7 @@ mod tests {
     use crate::game::testutil::{num, shipped};
     use crate::game::Game;
     use crate::map::{Grid, Map};
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn units_and_cities_see_around_them() -> TestResult {

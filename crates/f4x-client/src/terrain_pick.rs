@@ -9,9 +9,9 @@
 //! passes in ReMoM `MAPGEN.c`). Look-alike variants are picked from the square's position so
 //! they stay put.
 
-use f4x_core::content::Content;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Grid;
+use f4x_def::content::Content;
 
 pub const GRASS: [usize; 3] = [0xA2, 0xAC, 0xAD];
 pub const FOREST: [usize; 3] = [0xA3, 0xB7, 0xB8];

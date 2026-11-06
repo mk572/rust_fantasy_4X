@@ -7,10 +7,10 @@
 //! original's `special.lbx` (and `special2.lbx` from 111 on), not art.
 
 use f4x_core::battle::{Battle, BattleUnit, RangedKind};
-use f4x_core::rules::Ability;
-use f4x_core::rules::SpellId;
-use f4x_core::rules::{MovementType, Stat, UnitKind};
-use f4x_core::text::{Args, Texts};
+use f4x_def::rules::Ability;
+use f4x_def::rules::SpellId;
+use f4x_def::rules::{MovementType, Stat, UnitKind};
+use f4x_def::text::{Args, Texts};
 
 use crate::view::App;
 
@@ -70,7 +70,7 @@ pub(crate) struct Special {
     /// Picture index (see [`special_picture`]); `None` draws no icon.
     pub icon: Option<usize>,
     /// The lasting spell this line is, when it is one.
-    pub spell: Option<f4x_core::rules::SpellId>,
+    pub spell: Option<f4x_def::rules::SpellId>,
     /// A click on the line turns the spell off: it is the viewer's own and not in a battle.
     pub removable: bool,
     /// The help topic a right-click on the line opens: the `help` of its ability or spell.
@@ -337,7 +337,7 @@ pub(crate) struct SpecialsInput<'a> {
     pub ability_help: &'a dyn Fn(Ability) -> Option<u16>,
     pub texts: &'a Texts,
     /// Lasting spells on the unit: spell, id, name, and whether the viewer may turn it off.
-    pub enchantments: Vec<(f4x_core::rules::SpellId, String, bool, Option<u16>)>,
+    pub enchantments: Vec<(f4x_def::rules::SpellId, String, bool, Option<u16>)>,
 }
 
 /// The abilities list in the original's order: level, quiver, to hit, construction, the listed
@@ -693,12 +693,12 @@ impl App {
     /// own numbers, with what its level adds when it has one (`level` is 0-based).
     pub(crate) fn offer_sheet(
         &self,
-        def: &f4x_core::rules::UnitDef,
+        def: &f4x_def::rules::UnitDef,
         level: Option<usize>,
         owner: u8,
     ) -> Sheet {
-        use f4x_core::rules::effects::Effect;
-        use f4x_core::rules::ModOp;
+        use f4x_def::rules::effects::Effect;
+        use f4x_def::rules::ModOp;
         let content = self.game.content();
         let mut stats = def.stats.clone();
         let mut level_line = None;
@@ -793,7 +793,7 @@ impl App {
 
     /// The race prefix of a race-specific unit's name ("High Elf" in "High Elf Magicians"):
     /// units of a race show it, creatures and heroes do not.
-    fn sheet_race(&self, def: &f4x_core::rules::UnitDef) -> Option<String> {
+    fn sheet_race(&self, def: &f4x_def::rules::UnitDef) -> Option<String> {
         let race = def.race?;
         Some(
             self.names

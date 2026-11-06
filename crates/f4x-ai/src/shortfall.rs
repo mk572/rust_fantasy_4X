@@ -69,7 +69,7 @@ fn sell_for_gold(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 fn next_sale(
     game: &Game,
     me: f4x_core::player::PlayerId,
-) -> Option<(hecs::Entity, f4x_core::rules::BuildingId)> {
+) -> Option<(hecs::Entity, f4x_def::rules::BuildingId)> {
     let cities = f4x_core::player::view::PlayerView::new(game, me).my_cities();
     let rules = &game.content().rules;
     for name in SELL_ORDER {
@@ -173,8 +173,8 @@ mod tests {
             ],
         );
         let city = g.economy().city_at(pos).ok_or("player 0 has a city")?;
-        let smithy = f4x_core::rules::BuildingId::new(8) /* smithy */;
-        let library = f4x_core::rules::BuildingId::new(16) /* library */;
+        let smithy = f4x_def::rules::BuildingId::new(8) /* smithy */;
+        let library = f4x_def::rules::BuildingId::new(16) /* library */;
         let name = |g: &Game, b| g.content().rules.buildings.get(b).id.clone();
         let sale = |g: &Game| next_sale(g, P0).map(|(_, b)| name(g, b));
         assert_eq!(sale(&g).as_deref(), Some("library"));

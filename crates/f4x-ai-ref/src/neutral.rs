@@ -17,7 +17,7 @@ use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
-use f4x_core::rules::Stat;
+use f4x_def::rules::Stat;
 
 use crate::military::expected_defence;
 use crate::view::{distance, garrison_wanted, is_fighter, stack_strength};
@@ -610,7 +610,7 @@ mod tests {
 
     /// A world with an independent city at (4, 4), nine paladins in it and an encounter site
     /// of one guard at (6, 4).
-    fn raiding_world(guards: Option<Vec<(f4x_core::rules::UnitId, u32)>>, known: bool) -> Game {
+    fn raiding_world(guards: Option<Vec<(f4x_def::rules::UnitId, u32)>>, known: bool) -> Game {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         g.add_neutral_player(TOWN);
         let race = g.content().rules.races.id_numbered(8);
@@ -668,7 +668,7 @@ mod tests {
     fn a_city_with_soldiers_to_spare_clears_a_weak_site_and_keeps_the_gold() {
         let mut g = raiding_world(
             Some(vec![(
-                f4x_core::rules::UnitId::new(174), /* zombies */
+                f4x_def::rules::UnitId::new(174), /* zombies */
                 1,
             )]),
             false,
@@ -715,7 +715,7 @@ mod tests {
         // what stands there.
         let mut g = raiding_world(
             Some(vec![(
-                f4x_core::rules::UnitId::new(164), /* great_drake */
+                f4x_def::rules::UnitId::new(164), /* great_drake */
                 2,
             )]),
             true,
@@ -735,7 +735,7 @@ mod tests {
         // garrison and party; at war it sends everyone but the garrison.
         let mut g = raiding_world(
             Some(vec![(
-                f4x_core::rules::UnitId::new(174), /* zombies */
+                f4x_def::rules::UnitId::new(174), /* zombies */
                 1,
             )]),
             false,

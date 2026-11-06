@@ -4,7 +4,7 @@
 
 use crate::input::Input;
 use f4x_core::game::Command;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::fighter_pick::PickStep;
@@ -109,8 +109,8 @@ impl App {
             .units
             .defs()
             .iter()
-            .find(|d| d.kind == f4x_core::rules::UnitKind::Normal && d.race.is_some())
-            .map(|d| f4x_core::rules::UnitId::new(d.num))
+            .find(|d| d.kind == f4x_def::rules::UnitKind::Normal && d.race.is_some())
+            .map(|d| f4x_def::rules::UnitId::new(d.num))
         else {
             return;
         };
@@ -152,8 +152,8 @@ impl App {
                 .units
                 .defs()
                 .iter()
-                .filter(|d| d.kind == f4x_core::rules::UnitKind::Normal && d.race.is_some())
-                .map(|d| f4x_core::rules::UnitId::new(d.num))
+                .filter(|d| d.kind == f4x_def::rules::UnitKind::Normal && d.race.is_some())
+                .map(|d| f4x_def::rules::UnitId::new(d.num))
                 .collect()
         };
         for i in 0..14usize.saturating_sub(self.own_units_at(pos).len()) {
@@ -485,7 +485,7 @@ impl App {
 mod tests {
     use super::*;
     use f4x_core::player::{PlayerId, MONSTERS};
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn attack(
         app: &App,

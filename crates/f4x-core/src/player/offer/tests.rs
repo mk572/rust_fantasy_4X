@@ -1,5 +1,5 @@
 use super::*;
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 use crate::hero::game::tests::{at, world as hero_world, P0, P1};
 use crate::item::armory::Placed;

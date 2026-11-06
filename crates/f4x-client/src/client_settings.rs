@@ -21,7 +21,7 @@ impl Default for ClientSettings {
     /// Without a file: the fallback language, every switch at the client's own default.
     fn default() -> Self {
         Self {
-            language: f4x_core::text::FALLBACK_LANGUAGE.into(),
+            language: f4x_def::text::FALLBACK_LANGUAGE.into(),
             preferences: BTreeMap::new(),
         }
     }
@@ -47,7 +47,7 @@ impl ClientSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::{TestDir, TestResult};
+    use f4x_def::testdir::{TestDir, TestResult};
 
     #[test]
     fn the_shipped_settings_name_the_language_and_every_switch() -> TestResult {

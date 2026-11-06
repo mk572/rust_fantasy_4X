@@ -649,13 +649,13 @@ mod tests {
     use crate::city::economy::{Farmers, Population};
     use crate::game::testutil::{num, shipped};
     use crate::map::{Grid, Map, Plane};
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     /// A one-city world with the elves' content, and no `Game`.
     struct Rig {
         world: World,
         map: Map,
-        content: crate::content::Content,
+        content: f4x_def::content::Content,
         city: hecs::Entity,
     }
 

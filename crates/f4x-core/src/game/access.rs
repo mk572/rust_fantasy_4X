@@ -10,9 +10,9 @@
 //! Tests: below.
 
 use crate::city::economy::{Buildings, CityRace, Farmers, Population};
-use crate::content::Content;
 use crate::map::{Map, Position};
 use crate::player::PlayerId;
+use f4x_def::content::Content;
 
 use crate::game::Game;
 use crate::rules::{BuildingId, RaceId, SpellId};
@@ -262,8 +262,8 @@ mod tests {
     use crate::game::setup::{new_game, NewGame};
     use crate::game::testutil::shipped;
     use crate::map::Plane;
-    use crate::testdir::TestResult;
     use crate::world_event::EventKind;
+    use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
 

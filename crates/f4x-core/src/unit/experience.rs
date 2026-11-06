@@ -14,10 +14,10 @@
 //! gives (Elite; a hero's Demi-god): `Do_All_Units_XP_Check` in the original. Creatures and the
 //! undead gain none. A won battle gives xp too (`battle/spoils.rs`).
 
-use crate::content::Content;
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::Ability;
+use f4x_def::content::Content;
 
 use crate::game::Game;
 use crate::rules::UnitKind;
@@ -149,8 +149,8 @@ mod tests {
     use crate::map::Plane;
     use crate::rules::RealmId;
     use crate::rules::Stat;
-    use crate::testdir::TestResult;
     use crate::wizard::magic::Retort;
+    use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
 

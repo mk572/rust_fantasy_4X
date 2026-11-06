@@ -16,7 +16,7 @@ use crate::page::Page;
 use crate::ui;
 use f4x_core::game::save::LoadError;
 use f4x_core::game::save::{summarize_save, SaveError, SaveSummary};
-use f4x_core::text::{Args, Texts};
+use f4x_def::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -587,7 +587,7 @@ impl Page for SlotsPage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_core::testdir::{TestDir, TestResult};
+    use f4x_def::testdir::{TestDir, TestResult};
 
     #[test]
     fn times_are_written_as_utc_dates() {

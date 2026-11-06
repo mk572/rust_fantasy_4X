@@ -4,7 +4,7 @@
 //! (`ai::baseline_command`, which casts nothing), and it must win more of them than it loses.
 
 use f4x_core::battle::{ai, BattleCommand, Side};
-use f4x_core::content::Content;
+use f4x_def::content::Content;
 use f4x_learn::env::BattleEnv;
 use f4x_learn::scenario::generate_raw;
 
@@ -26,7 +26,7 @@ fn fight(content: &Content, seed: u64, side: Side) -> Option<bool> {
 #[test]
 #[ignore = "fights 300 mirrored battles; run with --ignored when the battle AI changes"]
 fn the_smarter_ai_beats_the_plain_one_on_both_sides() {
-    let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
+    let content = f4x_def::load::load_content(std::path::Path::new("../../content")).unwrap();
     let (mut wins, mut losses) = (0, 0);
     for seed in 0..150u64 {
         for side in [Side::Attacker, Side::Defender] {
@@ -75,7 +75,7 @@ fn bolt_scenario(content: &Content, mana: i32) -> f4x_learn::scenario::BattleSce
 
 #[test]
 fn a_wizard_with_a_bolt_casts_it_on_the_first_turn() {
-    let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
+    let content = f4x_def::load::load_content(std::path::Path::new("../../content")).unwrap();
     let env = BattleEnv::new(&content, bolt_scenario(&content, 100)).unwrap();
     let bolt = content.rules.spells.id_numbered(83).unwrap();
     let mut game = env.game;
@@ -87,7 +87,7 @@ fn a_wizard_with_a_bolt_casts_it_on_the_first_turn() {
 
 #[test]
 fn a_wizard_without_mana_to_spare_casts_nothing() {
-    let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
+    let content = f4x_def::load::load_content(std::path::Path::new("../../content")).unwrap();
     let env = BattleEnv::new(&content, bolt_scenario(&content, 0)).unwrap();
     let mut game = env.game;
     assert!(!matches!(

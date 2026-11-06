@@ -15,7 +15,6 @@ use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
 
-use crate::content::Content;
 use crate::feature::def::FeatureKind;
 use crate::feature::entity::LairInfo;
 use crate::feature::node::Node;
@@ -25,6 +24,7 @@ use crate::map::mapgen::GenParams;
 use crate::map::{Map, Plane, Position};
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::lair::{HoardKind, LairRules};
+use f4x_def::content::Content;
 
 use crate::rules::{Rarity, RealmId, SpellId, Stat, UnitId, UnitKind};
 use crate::unit::movement::MoveError;

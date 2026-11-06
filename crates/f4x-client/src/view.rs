@@ -1,16 +1,16 @@
 //! The overworld: map, units, fog, selection and orders. The city screen is in
 //! `city_screen.rs`.
 
-use f4x_core::rules::{Ability, RealmId};
+use f4x_def::rules::{Ability, RealmId};
 use std::collections::HashMap;
 use std::path::Path;
 
-use f4x_core::content::Content;
 use f4x_core::game::setup::{self, NewGame};
 use f4x_core::map::mapgen::GenParams;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
-use f4x_core::text::Args;
+use f4x_def::content::Content;
+use f4x_def::text::Args;
 
 use crate::font::Style;
 use crate::input::Input;
@@ -135,7 +135,7 @@ pub struct App {
     pub(crate) greetings_due: Vec<PlayerId>,
     /// A Summon Hero or Summon Champion cast whose scene waits for the hero it brought (its
     /// gender picks the figure): the caster and the spell.
-    pub(crate) hero_summon_due: Option<(PlayerId, f4x_core::rules::SpellId)>,
+    pub(crate) hero_summon_due: Option<(PlayerId, f4x_def::rules::SpellId)>,
     /// The box that shows the offers made at the turn change.
     pub(crate) offer_ui: crate::offer_prompt::OfferUi,
     /// The rival wizards, who play their turns when the human ends theirs.
@@ -147,9 +147,9 @@ pub struct App {
     /// What the small spell book keeps between openings.
     pub(crate) book_prefs: crate::spellbook::BookPrefs,
     /// A spell to research once the research under way is done (set from the spell book).
-    pub(crate) queued_research: Option<f4x_core::rules::SpellId>,
+    pub(crate) queued_research: Option<f4x_def::rules::SpellId>,
     /// The help topics (local only), which describe the spells.
-    pub(crate) help: f4x_core::help::Help,
+    pub(crate) help: f4x_def::help::Help,
     /// The messages of the random events (`event_texts.ron`).
     pub(crate) event_texts: Vec<crate::event_message::EventText>,
     /// The original's lines of the wizards' talk by situation (`diplomsg.ron`, local only).
@@ -246,7 +246,7 @@ impl Modal for Resign {
 
 /// Which realm a Spell Ward guards a city against.
 pub(crate) struct Ward {
-    pub(crate) spell: f4x_core::rules::SpellId,
+    pub(crate) spell: f4x_def::rules::SpellId,
     pub(crate) city: hecs::Entity,
     pub(crate) resolve: bool,
 }
@@ -261,7 +261,7 @@ impl Modal for Ward {
 }
 
 /// The cast has nothing to aim at: keep the spell or give it up.
-pub(crate) struct NoTarget(pub(crate) f4x_core::rules::SpellId);
+pub(crate) struct NoTarget(pub(crate) f4x_def::rules::SpellId);
 
 impl Modal for NoTarget {
     fn kind(&self) -> &'static str {
@@ -274,7 +274,7 @@ impl Modal for NoTarget {
 
 /// The rival's global enchantment to dispel, the row picked at `row`.
 pub(crate) struct Global {
-    pub(crate) spell: f4x_core::rules::SpellId,
+    pub(crate) spell: f4x_def::rules::SpellId,
     pub(crate) resolve: bool,
     pub(crate) row: usize,
 }
@@ -297,7 +297,7 @@ impl App {
     }
 
     /// All the messages, for the code that picks among several.
-    pub(crate) fn texts(&self) -> &f4x_core::text::Texts {
+    pub(crate) fn texts(&self) -> &f4x_def::text::Texts {
         &self.game.content().texts
     }
 
@@ -1016,7 +1016,7 @@ impl App {
     }
 
     /// `args` with the name of a spell.
-    pub(crate) fn spell_arg(&self, args: Args, spell: f4x_core::rules::SpellId) -> Args {
+    pub(crate) fn spell_arg(&self, args: Args, spell: f4x_def::rules::SpellId) -> Args {
         args.text(
             "spell",
             self.names
@@ -2254,7 +2254,7 @@ impl App {
             .filter(|&u| {
                 self.game
                     .units()
-                    .unit_stat(u, f4x_core::rules::Stat::Construction)
+                    .unit_stat(u, f4x_def::rules::Stat::Construction)
                     > 0
             })
             .collect();

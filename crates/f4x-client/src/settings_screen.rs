@@ -10,7 +10,7 @@ use crate::font::{Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
-use f4x_core::text::Args;
+use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -277,7 +277,7 @@ mod tests {
 
     #[test]
     fn every_switch_has_a_help_topic_with_text_and_a_right_click_finds_its_row() {
-        let help = f4x_data::load_help(
+        let help = f4x_def::load::load_help(
             &[std::path::Path::new(crate::test_app::CLIENT_CONTENT)],
             "en",
         )

@@ -17,7 +17,7 @@ use rand_pcg::Pcg64Mcg;
 use serde::{Deserialize, Serialize};
 
 use f4x_core::battle::{Battle, BattleCommand, Side};
-use f4x_core::content::Content;
+use f4x_def::content::Content;
 
 use crate::act;
 use crate::agent::{Driver, Pending, Request};
@@ -426,7 +426,7 @@ mod tests {
     fn a_network_plays_pairs_against_itself_and_the_records_repeat() {
         use rand::SeedableRng;
         let content =
-            f4x_data::load_content_layers(&[std::path::Path::new("../../content")]).unwrap();
+            f4x_def::load::load_content_layers(&[std::path::Path::new("../../content")]).unwrap();
         let spec = ObsSpec::new(&content);
         let device = Device::flex();
         let net = PolicyNet::new(spec.unit_features(), &device);

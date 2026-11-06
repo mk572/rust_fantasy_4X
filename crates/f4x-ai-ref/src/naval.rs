@@ -14,7 +14,7 @@ use f4x_core::game::serial::Serial;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::rules::Stat;
+use f4x_def::rules::Stat;
 
 use crate::view::{garrison_wanted, is_coastal, is_fighter, is_ship};
 use crate::Ai;
@@ -60,7 +60,7 @@ pub fn port_item(view: &PlayerView, city: hecs::Entity) -> Option<ProductionItem
             .filter(|&i| view.can_build(city, i).is_ok())
     };
     let building = |num: u16| {
-        Some(ProductionItem::Building(f4x_core::rules::BuildingId::new(
+        Some(ProductionItem::Building(f4x_def::rules::BuildingId::new(
             num,
         )))
     };

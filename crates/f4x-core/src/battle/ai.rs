@@ -341,7 +341,7 @@ mod tests {
     use crate::battle::map::BattleMap;
     use crate::battle::{BattleUnit, Side};
     use crate::player::PlayerId;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     fn duel(a: Pos, d: Pos) -> Battle {
         let units = vec![

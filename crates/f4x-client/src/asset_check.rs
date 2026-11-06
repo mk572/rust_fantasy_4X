@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use f4x_core::rules::Rules;
+use f4x_def::rules::Rules;
 use f4x_extract::sound::{self, SoundTable};
 use f4x_extract::spell_art::{self, Role, SpellArt};
 use f4x_extract::unit_art::{self, UnitArt};
@@ -174,7 +174,7 @@ pub fn check_sound(table: &SoundTable, rules: &Rules) -> Vec<String> {
 mod tests {
     use super::*;
     use crate::test_app::shipped;
-    use f4x_core::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn the_shipped_tables_agree_with_the_shipped_rules() -> TestResult {

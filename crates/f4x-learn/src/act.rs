@@ -13,7 +13,7 @@
 
 use f4x_core::battle::map::{GRID_H, GRID_W};
 use f4x_core::battle::{BattleCommand, SpellAim};
-use f4x_core::rules::SpellId;
+use f4x_def::rules::SpellId;
 
 use crate::obs::{Observation, MAX_SPELLS, MAX_UNITS};
 

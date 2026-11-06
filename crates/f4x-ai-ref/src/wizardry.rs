@@ -11,9 +11,9 @@ use f4x_core::diplomacy::Treaty;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::rules::effects::Effect;
 use f4x_core::rules::exec::Target;
-use f4x_core::rules::{CastContext, Duration, SpellDef, SpellId, SpellTarget};
+use f4x_def::rules::effects::Effect;
+use f4x_def::rules::{CastContext, Duration, SpellDef, SpellId, SpellTarget};
 
 use crate::view::{is_fighter, unit_strength};
 use crate::Ai;
@@ -112,7 +112,7 @@ pub fn kind(def: &SpellDef) -> Kind {
     if def.effects.is_empty() || has_hook(def, "unimplemented") {
         return Kind::Other;
     }
-    let helps = |r: &f4x_core::rules::effects::EffectRule| match &r.effect {
+    let helps = |r: &f4x_def::rules::effects::EffectRule| match &r.effect {
         Effect::Modify { value, .. } => *value >= 0,
         Effect::GrantAbility(_) => true,
         Effect::Custom(h) => h == "city_flag",
@@ -411,7 +411,7 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     // Resurrection: the last of the dead heroes, chosen now that the cost is paid.
     let paid = PlayerView::new(game, ai.player).paid_spell();
     if paid.is_some_and(
-        |s| s == f4x_core::rules::SpellId::new(133), /* resurrection */
+        |s| s == f4x_def::rules::SpellId::new(133), /* resurrection */
     ) {
         if let Some(kind) = game.units().ai_resurrection_pick() {
             let command = Command::ResolveCast {
@@ -574,7 +574,7 @@ fn upkeep_ok(view: &PlayerView, def: &SpellDef) -> bool {
 fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
     let kind = {
-        let spell = f4x_core::rules::SpellId::new(133) /* resurrection */;
+        let spell = f4x_def::rules::SpellId::new(133) /* resurrection */;
         let knows = game
             .wizard(me)
             .is_some_and(|m| m.casting().is_none() && m.knows(spell));
@@ -583,7 +583,7 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
                 .units()
                 .hero_spell_blocked(
                     me,
-                    f4x_core::rules::SpellId::new(133), /* resurrection */
+                    f4x_def::rules::SpellId::new(133), /* resurrection */
                 )
                 .is_some()
         {
@@ -601,7 +601,7 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let Some(kind) = kind else {
         return false;
     };
-    let spell = f4x_core::rules::SpellId::new(133) /* resurrection */;
+    let spell = f4x_def::rules::SpellId::new(133) /* resurrection */;
     let command = Command::CastSpell {
         extra: 0,
         player: me,
@@ -733,7 +733,7 @@ mod tests {
     }
 
     fn kind_of(id: u16) -> Kind {
-        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
+        let content = f4x_def::load::load_content(std::path::Path::new("../../content")).unwrap();
         let spell = content
             .rules
             .spells
@@ -782,7 +782,7 @@ mod tests {
         )
         .expect("a new game");
         let ai = Ai::new(P1);
-        let spell = f4x_core::rules::SpellId::new(133) /* resurrection */;
+        let spell = f4x_def::rules::SpellId::new(133) /* resurrection */;
         g.treasury_mut(P1).unwrap().gold = 50_000;
         g.treasury_mut(P1).unwrap().mana = 5_000;
         for k in [1, 4] {
@@ -818,7 +818,7 @@ mod tests {
     fn an_objective_researches_the_sort_of_spell_it_likes_first() {
         use crate::objective::{traits_of, Like};
         use f4x_core::wizard::objective::Objective;
-        let content = f4x_data::load_content(std::path::Path::new("../../content")).unwrap();
+        let content = f4x_def::load::load_content(std::path::Path::new("../../content")).unwrap();
         let def = |id: u16| {
             let spell = content.rules.spells.id_numbered(id).unwrap();
             content.rules.spells.get(spell)

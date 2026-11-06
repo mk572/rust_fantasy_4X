@@ -18,10 +18,10 @@ use std::collections::{HashSet, VecDeque};
 use hecs::World;
 
 use crate::city::{City, CityInfo};
-use crate::content::Content;
 use crate::map::terrain::TerrainClass;
 use crate::map::{Map, Plane, Position};
 use crate::player::{Owner, PlayerId};
+use f4x_def::content::Content;
 
 use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
 use crate::rules::{RaceDef, RealmId, Stat};
@@ -1016,7 +1016,7 @@ mod handle_tests {
     use super::*;
     use crate::game::testutil::{num, shipped};
     use crate::map::Grid;
-    use crate::testdir::TestResult;
+    use f4x_def::testdir::TestResult;
 
     #[test]
     fn a_cities_yields_come_from_a_world_a_map_and_the_content_alone() -> TestResult {

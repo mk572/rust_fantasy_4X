@@ -4,7 +4,7 @@ use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::rules::Ability;
+use f4x_def::rules::Ability;
 
 use crate::view::{distance, nearest_unexplored};
 use crate::Ai;

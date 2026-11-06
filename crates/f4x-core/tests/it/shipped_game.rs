@@ -2,10 +2,10 @@
 
 use std::sync::OnceLock;
 
-use f4x_core::content::Content;
 use f4x_core::game::setup::{new_game, NewGame};
 use f4x_core::game::{Command, Event, Game};
-use f4x_core::testdir::TestResult;
+use f4x_def::content::Content;
+use f4x_def::testdir::TestResult;
 
 fn shipped() -> &'static Content {
     static CONTENT: OnceLock<Content> = OnceLock::new();
@@ -87,7 +87,7 @@ fn towers_in(g: &Game) -> usize {
         .filter(|l| {
             economy
                 .feature_at(l.pos)
-                .is_some_and(|f| f.kind == f4x_core::feature::def::FeatureKind::Tower)
+                .is_some_and(|f| f.kind == f4x_def::feature::FeatureKind::Tower)
         })
         .count()
 }

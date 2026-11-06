@@ -5,7 +5,7 @@ use f4x_core::city::production::ProductionItem;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
-use f4x_core::rules::Ability;
+use f4x_def::rules::Ability;
 
 use crate::view::{garrison_wanted, is_fighter};
 use crate::Ai;
@@ -256,7 +256,7 @@ fn settlers_alive(view: &PlayerView) -> usize {
         .count()
 }
 
-fn is_settler_def(view: &PlayerView, unit: f4x_core::rules::UnitId) -> bool {
+fn is_settler_def(view: &PlayerView, unit: f4x_def::rules::UnitId) -> bool {
     view.content()
         .rules
         .units

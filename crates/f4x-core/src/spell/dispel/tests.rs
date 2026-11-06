@@ -3,7 +3,7 @@ use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::rules::Ability;
 use crate::rules::RealmId;
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 use crate::feature::node::Node;
 use crate::game::Command;

@@ -6,8 +6,8 @@
 //! `Game::legal_battle_casts`), so the environment can never offer a refused command.
 
 use f4x_core::battle::{Battle, BattleCommand, BattleEvent, Side};
-use f4x_core::content::Content;
 use f4x_core::game::Game;
+use f4x_def::content::Content;
 
 use crate::build::{build, ATTACKER, DEFENDER};
 use crate::reward::{hit_points, is_hurt, unit_value};
@@ -76,7 +76,7 @@ pub struct BattleEnv {
     pub outcome: Outcome,
     alive: [u32; 2],
     /// The spells each side has cast so far, to count the different ones.
-    cast: [Vec<f4x_core::rules::SpellId>; 2],
+    cast: [Vec<f4x_def::rules::SpellId>; 2],
     /// Each battle unit by number as it stood before the last command (so the dead of the step
     /// are known with their side and value).
     notes: Vec<Note>,

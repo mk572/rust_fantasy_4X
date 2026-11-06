@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::battle::game::ranged_kind_of;
 use crate::battle::RangedKind;
-use crate::content::Content;
+use f4x_def::content::Content;
 
 use crate::game::Game;
 use crate::rules::effects::Effect;

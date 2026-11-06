@@ -5,7 +5,7 @@ use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::{Stat, UnitId};
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
 const TOWN: PlayerId = PlayerId(100);

@@ -350,7 +350,7 @@ fn power(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     })
 }
 
-fn spell_arg(ctx: &Ctx, text: &str) -> Result<f4x_core::rules::SpellId, ConsoleError> {
+fn spell_arg(ctx: &Ctx, text: &str) -> Result<f4x_def::rules::SpellId, ConsoleError> {
     resolve(&ctx.game.content().rules.spells, text, |d| &d.id, "spell")
 }
 
@@ -660,7 +660,7 @@ fn resurrect(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     match paid {
         Some(_) => ctx.apply(Command::ResolveCast { player, target }),
         None => {
-            let spell = f4x_core::rules::SpellId::new(133) /* resurrection */;
+            let spell = f4x_def::rules::SpellId::new(133) /* resurrection */;
             ctx.apply(Command::CastSpell {
                 extra: 0,
                 player,
@@ -673,7 +673,7 @@ fn resurrect(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn craft(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     use f4x_core::item::crafting::{Craft, ItemDesign};
-    use f4x_core::rules::ItemKind;
+    use f4x_def::rules::ItemKind;
     let craft = match a.need(0, "enchant or artifact")? {
         "enchant" | "enchant_item" => Craft::EnchantItem,
         "artifact" | "create_artifact" => Craft::CreateArtifact,

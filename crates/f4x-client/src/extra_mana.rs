@@ -12,7 +12,7 @@ use crate::input::Input;
 use crate::modal::Modal;
 use crate::ui::{self, GOLD};
 use crate::view::App;
-use f4x_core::rules::SpellId;
+use f4x_def::rules::SpellId;
 use macroquad::prelude::*;
 
 /// The bar in the box's own coordinates: where it starts, how long it is.

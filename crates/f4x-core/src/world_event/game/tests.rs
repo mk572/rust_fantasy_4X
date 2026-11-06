@@ -3,8 +3,8 @@ use crate::game::testutil::{num, shipped};
 use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::rules::RealmId;
-use crate::testdir::TestResult;
 use crate::world_event::EventKind as K;
+use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
 const P1: PlayerId = PlayerId(1);

@@ -95,7 +95,7 @@ const HEADER: &str = "# Methods in `impl Game` blocks per source file of f4x-cor
 # A measurement, read by tests/game_methods.rs, which reports growth and files over the guideline.\n\
 # Regenerate: F4X_WRITE_LIMITS=1 cargo test -p f4x-core --test it game_methods\n";
 
-use f4x_core::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 #[test]
 fn report_game_methods() -> TestResult {
     let limits_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("game_method_limits.txt");

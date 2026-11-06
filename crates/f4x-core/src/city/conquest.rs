@@ -109,7 +109,7 @@ pub(crate) fn razing_fame_loss(size: i32) -> i32 {
 pub(crate) fn destroy_building(
     world: &mut hecs::World,
     map: Option<&crate::map::Map>,
-    content: &crate::content::Content,
+    content: &f4x_def::content::Content,
     city: hecs::Entity,
     building: BuildingId,
 ) -> bool {

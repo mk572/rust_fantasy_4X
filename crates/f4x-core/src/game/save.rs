@@ -25,7 +25,6 @@ use serde::{Deserialize, Serialize};
 use crate::city::economy::{Buildings, CityRace, Farmers, Population};
 use crate::city::production::{Production, ProductionItem};
 use crate::city::City;
-use crate::content::Content;
 use crate::game::serial::Serial;
 use crate::map::fog::Fog;
 use crate::map::{FeatureId, Grid, Map, Position, TerrainId};
@@ -33,6 +32,7 @@ use crate::player::{Defeat, History, Offers, Owner, PlayerId, Tax, Treasury};
 use crate::spell::instance::{Extra, Owed, SpellTarget};
 use crate::wizard::entity::{Banner, CapitalRace, Portrait};
 use crate::wizard::fortress::{Banishment, Fortress, SummonAt};
+use f4x_def::content::Content;
 
 use crate::rules::SpellId;
 use crate::unit::{Experience, Hurt, MovesLeft, Order, Unit};
@@ -238,7 +238,7 @@ pub struct WizardSave {
     pub player: u8,
     pub name: String,
     #[serde(default)]
-    pub gender: crate::text::Gender,
+    pub gender: f4x_def::text::Gender,
     pub portrait: u8,
     pub banner: u8,
     pub capital_race: Option<u16>,

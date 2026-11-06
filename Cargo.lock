@@ -2596,7 +2596,7 @@ name = "f4x-ai"
 version = "0.0.3"
 dependencies = [
  "f4x-core",
- "f4x-data",
+ "f4x-def",
  "hecs",
 ]
 
@@ -2605,7 +2605,7 @@ name = "f4x-ai-ref"
 version = "0.0.3"
 dependencies = [
  "f4x-core",
- "f4x-data",
+ "f4x-def",
  "hecs",
 ]
 
@@ -2616,7 +2616,7 @@ dependencies = [
  "f4x-ai",
  "f4x-console",
  "f4x-core",
- "f4x-data",
+ "f4x-def",
  "f4x-extract",
  "hecs",
  "macroquad",
@@ -2633,7 +2633,7 @@ version = "0.0.3"
 dependencies = [
  "f4x-ai",
  "f4x-core",
- "f4x-data",
+ "f4x-def",
  "hecs",
 ]
 
@@ -2648,13 +2648,6 @@ dependencies = [
  "rand_pcg",
  "ron",
  "serde",
-]
-
-[[package]]
-name = "f4x-data"
-version = "0.0.3"
-dependencies = [
- "f4x-def",
 ]
 
 [[package]]
@@ -2682,7 +2675,7 @@ version = "0.0.3"
 dependencies = [
  "burn",
  "f4x-core",
- "f4x-data",
+ "f4x-def",
  "hecs",
  "rand 0.8.8",
  "rand_pcg",
@@ -2698,7 +2691,7 @@ dependencies = [
  "f4x-ai-ref",
  "f4x-console",
  "f4x-core",
- "f4x-data",
+ "f4x-def",
  "f4x-learn",
  "ron",
  "serde",
