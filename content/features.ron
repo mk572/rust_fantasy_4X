@@ -15,28 +15,28 @@
     (id: "nightshade", num: 16, kind: Mineral, city: (outpost_growth: 10), spawn: [
         (terrain: [Swamp], planes: [Arcanus, Myrror], weight: 100),
     ]),
-    (id: "iron_ore", num: 11, kind: Mineral, city: (unit_cost_percent: 5, outpost_growth: 5), spawn: [
+    (id: "iron_ore", num: 11, kind: Mineral, transmute: Some(10) /* gold_ore */, city: (unit_cost_percent: 5, outpost_growth: 5), spawn: [
         (terrain: [Hills],     planes: [Arcanus], weight: 200),
         (terrain: [Mountains], planes: [Arcanus], weight: 133),
         (terrain: [Hills, Mountains], planes: [Myrror], weight: 10),
     ]),
-    (id: "coal", num: 5, kind: Mineral, city: (unit_cost_percent: 10, outpost_growth: 10), spawn: [
+    (id: "coal", num: 5, kind: Mineral, transmute: Some(9) /* gem */, city: (unit_cost_percent: 10, outpost_growth: 10), spawn: [
         (terrain: [Hills],     planes: [Arcanus], weight: 100),
         (terrain: [Mountains], planes: [Arcanus], weight: 167),
         (terrain: [Hills, Mountains], planes: [Myrror], weight: 10),
     ]),
-    (id: "silver_ore", num: 19, kind: Mineral, city: (gold: 2, outpost_growth: 5), spawn: [
+    (id: "silver_ore", num: 19, kind: Mineral, transmute: Some(12) /* mithril_ore */, city: (gold: 2, outpost_growth: 5), spawn: [
         (terrain: [Hills],     planes: [Arcanus], weight: 133),
         (terrain: [Mountains], planes: [Arcanus], weight: 100),
         (terrain: [Hills, Mountains], planes: [Myrror], weight: 10),
     ]),
-    (id: "gold_ore", num: 10, kind: Mineral, city: (gold: 3, outpost_growth: 10), spawn: [
+    (id: "gold_ore", num: 10, kind: Mineral, transmute: Some(11) /* iron_ore */, city: (gold: 3, outpost_growth: 10), spawn: [
         (terrain: [Hills],     planes: [Arcanus], weight: 133),
         (terrain: [Mountains], planes: [Arcanus], weight: 100),
         (terrain: [Hills],     planes: [Myrror],  weight: 40),
         (terrain: [Mountains], planes: [Myrror],  weight: 20),
     ]),
-    (id: "mithril_ore", num: 12, kind: Mineral, city: (mana: 1, outpost_growth: 10), spawn: [
+    (id: "mithril_ore", num: 12, kind: Mineral, transmute: Some(19) /* silver_ore */, city: (mana: 1, outpost_growth: 10), spawn: [
         (terrain: [Hills],     planes: [Arcanus], weight: 33),
         (terrain: [Mountains], planes: [Arcanus], weight: 100),
         (terrain: [Hills],     planes: [Myrror],  weight: 20),
@@ -47,7 +47,7 @@
         (terrain: [Hills],     planes: [Myrror], weight: 10),
         (terrain: [Mountains], planes: [Myrror], weight: 20),
     ]),
-    (id: "gem", num: 9, kind: Mineral, city: (gold: 5, outpost_growth: 10), spawn: [
+    (id: "gem", num: 9, kind: Mineral, transmute: Some(5) /* coal */, city: (gold: 5, outpost_growth: 10), spawn: [
         (terrain: [Desert], planes: [Arcanus], weight: 67),
         (terrain: [Desert], planes: [Myrror],  weight: 20),
     ]),
@@ -63,25 +63,25 @@
     // ---- Encounter sites -------------------------------------------------------
     (id: "monster_lair", num: 13,    kind: Encounter, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
     (id: "mysterious_cave", num: 14, kind: Encounter, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
-    (id: "ancient_temple", num: 3,  kind: Encounter, holy: true, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
-    (id: "fallen_temple", num: 8,   kind: Encounter, holy: true, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
-    (id: "ruins", num: 18,           kind: Encounter, holy: true, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
-    (id: "abandoned_keep", num: 1,  kind: Encounter, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
-    (id: "dungeon", num: 7,         kind: Encounter, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
+    (id: "ancient_temple", num: 3,  kind: Encounter, reward: Some(3), holy: true, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
+    (id: "fallen_temple", num: 8,   kind: Encounter, reward: Some(3), holy: true, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
+    (id: "ruins", num: 18,           kind: Encounter, reward: Some(4), holy: true, spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
+    (id: "abandoned_keep", num: 1,  kind: Encounter, reward: Some(4), spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
+    (id: "dungeon", num: 7,         kind: Encounter, reward: Some(4), spawn: [(terrain: [Grassland, Forest, Hills, Mountains, Swamp, Desert, Tundra], planes: [Arcanus, Myrror], weight: 10)]),
 
     // ---- Tower: one per site, same coordinates on every plane ------------------
     (id: "tower", num: 21, kind: Tower),
 
     // ---- Magic nodes: type follows the surrounding terrain ---------------------
-    (id: "nature_node", num: 15, kind: Node, realm: Some(0), spawn: [
+    (id: "nature_node", num: 15, kind: Node, reward: Some(0), realm: Some(0), spawn: [
         (terrain: [Forest, Swamp],  planes: [Arcanus, Myrror], weight: 4),
         (terrain: [Grassland],      planes: [Arcanus, Myrror], weight: 1),
     ]),
-    (id: "sorcery_node", num: 20, kind: Node, realm: Some(1), spawn: [
+    (id: "sorcery_node", num: 20, kind: Node, reward: Some(1), realm: Some(1), spawn: [
         (terrain: [Grassland, Tundra, Desert], planes: [Arcanus, Myrror], weight: 4),
         (terrain: [Forest, Swamp, Hills],      planes: [Arcanus, Myrror], weight: 1),
     ]),
-    (id: "chaos_node", num: 4, kind: Node, realm: Some(2), spawn: [
+    (id: "chaos_node", num: 4, kind: Node, reward: Some(2), realm: Some(2), spawn: [
         (terrain: [Mountains, Hills], planes: [Arcanus, Myrror], weight: 4),
         (terrain: [Desert, Swamp],    planes: [Arcanus, Myrror], weight: 2),
     ]),

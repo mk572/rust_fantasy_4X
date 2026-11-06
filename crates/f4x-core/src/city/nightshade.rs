@@ -123,6 +123,8 @@ mod tests {
             kind: FeatureKind::Mineral,
             realm: None,
             holy: false,
+            reward: None,
+            transmute: None,
             city: CityBonus::default(),
             spawn: vec![],
         });

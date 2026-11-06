@@ -442,7 +442,11 @@ pub fn event(game: &Game, e: &Event) -> String {
             count,
             evicted,
         } => format!(
-            "{count} monsters settle in the {site} at {} and drive out {evicted}",
+            "{count} monsters settle in the {} at {} and drive out {evicted}",
+            game.content()
+                .features
+                .get(*site)
+                .map_or("site", |d| d.id.as_str()),
             pos(*at)
         ),
         Event::CityRampaged {

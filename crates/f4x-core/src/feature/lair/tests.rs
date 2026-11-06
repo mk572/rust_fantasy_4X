@@ -2,7 +2,7 @@ use super::*;
 use crate::battle::{BattleCommand, Side};
 use crate::feature::place::Placed;
 use crate::game::testutil::{num, realm, shipped};
-use crate::map::{Grid, Plane};
+use crate::map::{FeatureId, Grid, Plane};
 use crate::player::PlayerId;
 use crate::rules::RealmId;
 use crate::testdir::TestResult;
@@ -45,12 +45,14 @@ fn put_lair(g: &mut Game, x: u32, y: u32, site: u16, guards: Vec<(u16, u32)>) ->
     g.put_lair(at(x, y), site, lair(guards))
 }
 
-/// What the rules read of a site called `site` with nothing in it.
-fn info(site: &str) -> LairInfo {
+/// What the rules read of the site with the feature number `site`, with nothing in it; `reward`
+/// is the realm of its book.
+fn info(site: u16, reward: Option<u16>) -> LairInfo {
     LairInfo {
         entity: hecs::Entity::DANGLING,
         pos: at(1, 1),
-        site: site.into(),
+        site: FeatureId(site),
+        reward: reward.map(RealmId::new),
         intact: true,
         guards: Vec::new(),
         gold: 0,
@@ -407,7 +409,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
         .iter()
         .any(|e| matches!(e, Event::SpellLearned { .. })));
     // A book of a dungeon's realm (death): refused while the wizard has life books.
-    let l = info("dungeon");
+    let l = info(7 /* dungeon */, Some(4 /* death */));
     let mut loot = Loot::default();
     let e = crate::wizard::entity::of_player(
         &g.world,
@@ -421,7 +423,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
         "life and death exclude each other"
     );
     // A temple gives a life book, up to the twelve-book limit.
-    let l = info("ancient_temple");
+    let l = info(3 /* ancient_temple */, Some(3 /* life */));
     let mut books = 0;
     for _ in 0..40 {
         let mut loot = Loot::default();
@@ -926,13 +928,14 @@ fn a_hoard_of_books_obeys_the_realm_and_the_limit_without_a_game() {
     let (mut world, e) = sheet(&[(RealmId::new(3 /* life */), 11)], &[]);
     let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
     let mut rng = crate::game::rng::GameRng::new(5);
-    let mut l = info("ruins");
+    let mut l = info(18 /* ruins */, Some(4 /* death */));
     for _ in 0..30 {
         let mut loot = Loot::default();
         award_special(&rules, &mut magic, &mut rng, &l, 1, &mut loot);
         assert!(loot.books.is_empty(), "death clashes with life");
     }
-    l.site = "ancient_temple".into();
+    l.site = FeatureId(3 /* ancient_temple */);
+    l.reward = Some(RealmId::new(3 /* life */));
     for _ in 0..60 {
         award_special(&rules, &mut magic, &mut rng, &l, 2, &mut Loot::default());
     }
@@ -943,7 +946,7 @@ fn a_hoard_of_books_obeys_the_realm_and_the_limit_without_a_game() {
 fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort() {
     let rules = shipped().rules;
     use crate::wizard::magic::Retort;
-    let l = info("nature_node");
+    let l = info(15 /* nature_node */, Some(0 /* nature */));
     // Six retorts: only books can come.
     let (mut world, e) = sheet(
         &[(RealmId::new(0 /* nature */), 3)],

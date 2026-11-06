@@ -246,7 +246,7 @@ impl Game {
         let rules = &self.content;
         let ores: Vec<_> = ORES
             .iter()
-            .filter_map(|(id, _)| rules.features.id_of(id))
+            .filter_map(|&(num, _)| rules.features.id_numbered(num))
             .collect();
         let mut found: Vec<Candidate> = Vec::new();
         for city in self.cities_with_people(|o| o == owner) {
@@ -420,14 +420,9 @@ impl Game {
                     map.plane_mut(d.at.plane)
                         .set_mineral(d.at.x, d.at.y, feature);
                 }
-                let id = self
-                    .content
-                    .features
-                    .get(d.ore)
-                    .map_or("", |f| f.id.as_str());
                 notice.ore = ORES
                     .iter()
-                    .find(|(f, _)| *f == id)
+                    .find(|&&(num, _)| num == d.ore.0)
                     .map_or(String::new(), |(_, key)| {
                         self.content.texts.get(key, &crate::text::Args::new())
                     });

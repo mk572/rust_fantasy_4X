@@ -710,7 +710,7 @@ mod tests {
     #[test]
     fn shipped_terrain_file_is_valid() -> TestResult {
         let t = parse_terrains(&shipped())?;
-        assert!(t.id_of("grassland").is_some());
+        assert!(t.id_numbered(4 /* grassland */).is_some());
         Ok(())
     }
 
@@ -747,28 +747,20 @@ mod tests {
         generated: &f4x_core::map::mapgen::Generated,
         plane: Plane,
         c: &Content,
-    ) -> Vec<(u32, u32, String)> {
+    ) -> Vec<(u32, u32, u16)> {
         let grid = generated.map.plane(plane);
         let mut out = Vec::new();
         for y in 0..grid.height() {
             for x in 0..grid.width() {
                 if let Some(f) = grid.mineral(x as i32, y as i32) {
-                    out.push((
-                        x,
-                        y,
-                        c.features
-                            .get(f)
-                            .expect("a placed mineral exists")
-                            .id
-                            .clone(),
-                    ));
+                    out.push((x, y, f.0));
                 }
             }
         }
         for p in &generated.placements {
             let def = c.features.get(p.feature).expect("a placed feature exists");
             if p.at.plane == plane || def.kind == FeatureKind::Tower {
-                out.push((p.at.x, p.at.y, def.id.clone()));
+                out.push((p.at.x, p.at.y, def.num));
             }
         }
         out
@@ -930,7 +922,7 @@ mod tests {
             let towers = |plane| -> Vec<(u32, u32)> {
                 feature_ids(&map, plane, &c)
                     .into_iter()
-                    .filter(|(_, _, id)| id == "tower")
+                    .filter(|&(_, _, id)| id == 21 /* tower */)
                     .map(|(x, y, _)| (x, y))
                     .collect()
             };
@@ -945,7 +937,12 @@ mod tests {
                 let grid = map.map.plane(plane);
                 let nodes = feature_ids(&map, plane, &c)
                     .into_iter()
-                    .filter(|(_, _, id)| id.ends_with("_node"))
+                    .filter(|&(_, _, id)| {
+                        c.features
+                            .id_numbered(id)
+                            .and_then(|f| c.features.get(f))
+                            .is_some_and(|d| d.kind == FeatureKind::Node)
+                    })
                     .count();
                 assert_eq!(
                     nodes,
@@ -962,11 +959,11 @@ mod tests {
                     assert_ne!(class, TerrainClass::Ocean, "{id} on ocean, seed {seed}");
                     let def = c
                         .features
-                        .get(c.features.id_of(&id).ok_or("the value is missing")?)
+                        .get(c.features.id_numbered(id).ok_or("the value is missing")?)
                         .ok_or("the value is missing")?;
                     if def.kind == FeatureKind::Node {
                         // A node's square has its own base terrain, and no river runs there.
-                        let realm = id.strip_suffix("_node").ok_or("the value is missing")?;
+                        let realm = def.realm.ok_or("a node has a realm")?;
                         assert_eq!(
                             Some(class),
                             TerrainClass::of_node_realm(realm),
@@ -978,7 +975,7 @@ mod tests {
                             c.features
                                 .weighted(def.kind, class, plane)
                                 .iter()
-                                .any(|(f, _)| c.features.get(*f).is_some_and(|d| d.id == id)),
+                                .any(|(f, _)| f.0 == id),
                             "{id} not allowed on {class:?}/{plane:?}, seed {seed}"
                         );
                     }
@@ -997,19 +994,19 @@ mod tests {
             let map = f4x_core::map::mapgen::generate(seed, &p, &c)?;
             let arcanus = feature_ids(&map, Plane::Arcanus, &c);
             let myrror = feature_ids(&map, Plane::Myrror, &c);
-            let is_myrror_only = |id: &str| id == "adamantium_ore" || id == "crysx_crystal";
+            let is_myrror_only = |id: u16| id == 2 /* adamantium_ore */ || id == 6 /* crysx_crystal */;
             assert!(
-                arcanus.iter().all(|(_, _, id)| !is_myrror_only(id)),
+                arcanus.iter().all(|&(_, _, id)| !is_myrror_only(id)),
                 "seed {seed}"
             );
-            let is_mineral = |id: &String| {
+            let is_mineral = |id: u16| {
                 c.features
-                    .id_of(id)
+                    .id_numbered(id)
                     .and_then(|f| c.features.get(f))
                     .is_some_and(|f| f.kind == FeatureKind::Mineral)
             };
-            arc_minerals += arcanus.iter().filter(|(_, _, id)| is_mineral(id)).count();
-            myr_minerals += myrror.iter().filter(|(_, _, id)| is_mineral(id)).count();
+            arc_minerals += arcanus.iter().filter(|&&(_, _, id)| is_mineral(id)).count();
+            myr_minerals += myrror.iter().filter(|&&(_, _, id)| is_mineral(id)).count();
         }
         assert!(
             myr_minerals > arc_minerals,
@@ -1027,7 +1024,7 @@ mod tests {
             let map = f4x_core::map::mapgen::generate(seed, &p, &c)?;
             found |= feature_ids(&map, Plane::Myrror, &c)
                 .iter()
-                .any(|(_, _, id)| id == "adamantium_ore");
+                .any(|&(_, _, id)| id == 2 /* adamantium_ore */);
             if found {
                 break;
             }

@@ -96,7 +96,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 477 | Medium | Housekeeping | Add `f4x-master` for player turns and round orchestration |
 | 478 | Low | Housekeeping | Make `f4x-ai-ref` a local-only snapshot: ignored by git, behind a `reference` feature of `f4x-tools` |
 | 479 | Medium | Meta | The crates below the client know no display text: names and messages leave core, data and the AI for the client |
-| 480 | Medium | Core | Features by number: a lair's site, the ore and transmute lists and the site rewards stop using aliases |
 
 ## Descriptions
 
@@ -445,13 +444,3 @@ unit's `id`, a city `<race id>_city_00`, `_01`, and so on, a rival `rival_1`, `r
 composition code to the client; (3) drop `CLIENT_FOLDER`, `Content.texts` and the client folder from
 core's test content and the data tests. Saves keep their numbers. Do not break the text/code
 agreement tests (`crates/f4x-client/tests/it/text.rs`): they scan every crate's sources for keys.
-
-**480. Features by number.** A feature (mineral, lair, tower, node) is still found by its alias in a
-few places: `Features::id_of`, a lair's `site` (a `String`, saved), `ORES` in `world_event` and
-`TRANSMUTED` in `spell/special.rs` (feature ids as strings), the reward realm of a site by name in
-`feature/lair.rs` (`"nature_node"`, `s.contains("temple")`, `"dungeon" | "abandoned_keep" | "ruins"`),
-the client's `site_type(&str)` and `view.rs`. Give the lair a `FeatureId`, make the lists numbers
-with the alias beside them, and put the reward realm of a site in `features.ron` (a node and a
-temple already carry `realm` and `holy` there). Then drop `Features::id_of` (and `Terrains::id_of`
-if no one needs it). Saves change (the lair's site becomes a number), so raise `SAVE_VERSION` and
-write the converter, or decide that an old save is refused.

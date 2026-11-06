@@ -9,16 +9,6 @@ use crate::rules::exec::Target;
 use crate::spell::target_error::TargetError;
 use crate::unit::Hurt;
 
-/// What Transmute turns each mineral into. Adamantium and the crystals are left alone.
-const TRANSMUTED: [(&str, &str); 6] = [
-    ("iron_ore", "gold_ore"),
-    ("gold_ore", "iron_ore"),
-    ("coal", "gem"),
-    ("gem", "coal"),
-    ("silver_ore", "mithril_ore"),
-    ("mithril_ore", "silver_ore"),
-];
-
 /// The block Earth Lore reveals, in tiles: the original's map window.
 const LORE_WIDTH: u32 = 12;
 const LORE_HEIGHT: u32 = 10;
@@ -29,9 +19,9 @@ impl Game {
         let map = self.map.as_ref().ok_or(TargetError::OffMap)?;
         (|| {
             let here = map.plane(at.plane).mineral(at.x as i32, at.y as i32)?;
-            let name = &self.content.features.get(here)?.id;
-            let (_, to) = TRANSMUTED.iter().find(|(from, _)| from == name)?;
-            self.content.features.id_of(to)
+            // The mineral's row says what Transmute makes of it; adamantium and the crystals have none.
+            let to = self.content.features.get(here)?.transmute?;
+            self.content.features.id_numbered(to)
         })()
         .ok_or(TargetError::NothingToTransmute)
     }

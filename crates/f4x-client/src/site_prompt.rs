@@ -20,56 +20,60 @@ use crate::frame::Layout;
 use crate::modal::{keep, kind, Modal};
 use crate::view::{App, Screen};
 
-/// The sites by the id of `lairs`, in the order of the original's table `TBL_EZ_Names` (the
+/// The sites by the feature number of `lairs`, in the order of the original's table `TBL_EZ_Names` (the
 /// picture in `reload` is `9 +` the place): the message that announces the site, and its name.
-const SITES: [(&str, &str, &str); 11] = [
-    ("tower", "site.tower.found", "site.tower.name"),
+const SITES: [(u16, &str, &str); 11] = [
+    (21 /* tower */, "site.tower.found", "site.tower.name"),
     (
-        "chaos_node",
+        4, /* chaos_node */
         "site.chaos_node.found",
         "site.chaos_node.name",
     ),
     (
-        "nature_node",
+        15, /* nature_node */
         "site.nature_node.found",
         "site.nature_node.name",
     ),
     (
-        "sorcery_node",
+        20, /* sorcery_node */
         "site.sorcery_node.found",
         "site.sorcery_node.name",
     ),
     (
-        "mysterious_cave",
+        14, /* mysterious_cave */
         "site.mysterious_cave.found",
         "site.mysterious_cave.name",
     ),
-    ("dungeon", "site.dungeon.found", "site.dungeon.name"),
     (
-        "ancient_temple",
+        7, /* dungeon */
+        "site.dungeon.found",
+        "site.dungeon.name",
+    ),
+    (
+        3, /* ancient_temple */
         "site.ancient_temple.found",
         "site.ancient_temple.name",
     ),
     (
-        "abandoned_keep",
+        1, /* abandoned_keep */
         "site.abandoned_keep.found",
         "site.abandoned_keep.name",
     ),
     (
-        "monster_lair",
+        13, /* monster_lair */
         "site.monster_lair.found",
         "site.monster_lair.name",
     ),
-    ("ruins", "site.ruins.found", "site.ruins.name"),
+    (18 /* ruins */, "site.ruins.found", "site.ruins.name"),
     (
-        "fallen_temple",
+        8, /* fallen_temple */
         "site.fallen_temple.found",
         "site.fallen_temple.name",
     ),
 ];
 
 /// The site's place in the original's table; a site it does not know is a lair.
-pub(crate) fn site_type(site: &str) -> usize {
+pub(crate) fn site_type(site: u16) -> usize {
     SITES.iter().position(|s| s.0 == site).unwrap_or(8)
 }
 
@@ -203,7 +207,7 @@ impl App {
         let Some(lair) = self.game.economy().lair_at(to) else {
             return;
         };
-        let site = site_type(&lair.site);
+        let site = site_type(lair.site.0);
         let first = lair.guards.first().map(|&(id, _)| {
             let unit = self.game.content().rules.units.get(id);
             let figures = unit.stats.get(&f4x_core::rules::Stat::Figures).copied();
@@ -226,8 +230,13 @@ impl App {
     }
 
     /// A site was cleared by the human: the box for an unguarded one first, then the treasure.
-    pub(crate) fn site_cleared(&mut self, site: &str, guarded: bool, loot: &Loot) {
-        let kind = site_type(site);
+    pub(crate) fn site_cleared(
+        &mut self,
+        site: f4x_core::map::FeatureId,
+        guarded: bool,
+        loot: &Loot,
+    ) {
+        let kind = site_type(site.0);
         if !guarded {
             self.modals.enqueue(SiteNotice::Found {
                 text: found_text(&self.game.content().texts, kind, None),
@@ -259,18 +268,14 @@ impl App {
     /// For the screenshot check: the box of kind `ask`, `found` or `treasure` for the first
     /// guarded site of the map (the treasure is a made-up one).
     pub fn open_test_site(&mut self, kind: &str) {
-        let Some(lair) = self
-            .game
-            .economy()
-            .lairs()
-            .into_iter()
-            .find(|l| l.intact && !l.guards.is_empty() && l.site != "tower")
-        else {
+        let Some(lair) = self.game.economy().lairs().into_iter().find(|l| {
+            l.intact && !l.guards.is_empty() && l.site.0 != 21
+        } /* tower */) else {
             return;
         };
         let to = lair.pos;
         self.center_on(to);
-        let site = site_type(&lair.site);
+        let site = site_type(lair.site.0);
         match kind {
             "ask" => {
                 let first = lair.guards.first().map(|&(id, _)| {
@@ -305,7 +310,7 @@ impl App {
                     books: vec![RealmId::new(0) /* nature */],
                     ..Loot::default()
                 };
-                self.site_cleared(&lair.site, true, &loot);
+                self.site_cleared(lair.site, true, &loot);
             }
         }
     }
@@ -539,19 +544,19 @@ mod tests {
     fn the_question_names_the_site_and_the_scouts_report() {
         let t = texts();
         assert_eq!(
-            found_text(t, site_type("mysterious_cave"), Some(("Efreet", 1))),
+            found_text(t, site_type(14 /* mysterious_cave */), Some(("Efreet", 1))),
             "You have found a mysterious cave.  Scouts have spotted a single Efreet within the mysterious cave.  Do you wish to enter?"
         );
         assert_eq!(
-            found_text(t, site_type("dungeon"), Some(("Skeletons", 6))),
+            found_text(t, site_type(7 /* dungeon */), Some(("Skeletons", 6))),
             "You have found a dungeon.  Scouts have spotted Skeletons within the dungeon.  Do you wish to enter?"
         );
         assert_eq!(
-            found_text(t, site_type("ruins"), None),
+            found_text(t, site_type(18 /* ruins */), None),
             "You have found some ruins."
         );
         assert_eq!(
-            found_text(t, site_type("ancient_temple"), None),
+            found_text(t, site_type(3 /* ancient_temple */), None),
             "You have found an ancient temple."
         );
     }

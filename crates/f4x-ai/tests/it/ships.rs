@@ -90,7 +90,11 @@ fn at_sea(g: &Game, p: Position) -> bool {
 fn the_shipped_ships_sail_and_carry_as_the_help_says() -> TestResult {
     let g = game(COAST_CITY, 8 /* high_men */);
     let units = &g.content().rules.units;
-    for (id, carries) in [(35 /* trireme */, 2), (36 /* galley */, 5), (38 /* warship */, 3)] {
+    for (id, carries) in [
+        (35 /* trireme */, 2),
+        (36 /* galley */, 5),
+        (38 /* warship */, 3),
+    ] {
         let def = units.get(units.id_numbered(id).ok_or("no such unit")?);
         assert_eq!(def.movement, MovementType::Sailing, "{id} sails");
         assert_eq!(

@@ -595,14 +595,10 @@ pub(crate) fn award_special(
     picks: i32,
     loot: &mut Loot,
 ) {
-    let [nature, sorcery, chaos, life, death] = crate::rules::BOOK_REALMS;
-    let realm = match lair.site.as_str() {
-        "nature_node" => nature,
-        "sorcery_node" => sorcery,
-        "chaos_node" => chaos,
-        s if s.contains("temple") => life,
-        "dungeon" | "abandoned_keep" | "ruins" => death,
-        _ => crate::rules::BOOK_REALMS[rng.roll(5) as usize - 1],
+    let [_, _, _, life, death] = crate::rules::BOOK_REALMS;
+    let realm = match lair.reward {
+        Some(realm) => realm,
+        None => crate::rules::BOOK_REALMS[rng.roll(5) as usize - 1],
     };
     // Three times in four a book; the original turns to the other kind when the wizard is at
     // the limit of six retorts or twelve books.
@@ -736,12 +732,8 @@ impl Game {
         if let Ok(mut l) = self.world.get::<&mut Lair>(entity) {
             l.intact = false;
         }
-        let is_encounter = self
-            .content
-            .features
-            .id_of(&lair.site)
-            .and_then(|f| self.content.features.get(f).map(|d| d.kind))
-            == Some(FeatureKind::Encounter);
+        let is_encounter =
+            self.content.features.get(lair.site).map(|d| d.kind) == Some(FeatureKind::Encounter);
         if is_encounter {
             self.despawn_feature(entity);
         }
@@ -922,7 +914,7 @@ impl Game {
         let mut events = vec![Event::SiteCleared {
             player,
             pos,
-            site: lair.site.clone(),
+            site: lair.site,
             guarded: !lair.guards.is_empty(),
             loot,
         }];

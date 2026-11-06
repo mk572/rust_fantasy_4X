@@ -59,6 +59,12 @@ pub struct FeatureDef {
     /// A temple or ruin: the guards of the site draw on life and death.
     #[serde(default)]
     pub holy: bool,
+    /// The realm of the book a cleared site gives (a random one where there is none).
+    #[serde(default)]
+    pub reward: Option<crate::rules::RealmId>,
+    /// The mineral Transmute makes of this one (its number).
+    #[serde(default)]
+    pub transmute: Option<u16>,
     #[serde(default)]
     pub city: CityBonus,
     /// Empty for towers, which are placed by dedicated rules.
@@ -97,13 +103,6 @@ impl Features {
             .binary_search_by_key(&id.0, |d| d.num)
             .ok()
             .map(|i| &self.defs[i])
-    }
-
-    pub fn id_of(&self, name: &str) -> Option<FeatureId> {
-        self.defs
-            .iter()
-            .find(|d| d.id == name)
-            .map(|d| FeatureId(d.num))
     }
 
     pub fn first_of_kind(&self, kind: FeatureKind) -> Option<FeatureId> {

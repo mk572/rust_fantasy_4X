@@ -172,14 +172,12 @@ impl Game {
         if guards.is_empty() {
             return Vec::new();
         }
+        let Some(site) = self.economy().lair_of(zone).map(|l| l.site) else {
+            return Vec::new();
+        };
         for &u in units {
             self.despawn_with_spells(u);
         }
-        let site = self
-            .economy()
-            .lair_of(zone)
-            .map(|l| l.site)
-            .unwrap_or_default();
         if let Ok(mut lair) = self.world.get::<&mut Lair>(zone) {
             lair.intact = true;
             lair.guards = tally(&guards);

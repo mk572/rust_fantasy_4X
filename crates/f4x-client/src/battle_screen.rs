@@ -496,7 +496,13 @@ impl App {
         else {
             return;
         };
-        let Some(feature) = self.game.content().features.id_of(id) else {
+        let features = &self.game.content().features;
+        let Some(feature) = features
+            .defs()
+            .iter()
+            .find(|d| d.id == id)
+            .and_then(|d| features.id_numbered(d.num))
+        else {
             return;
         };
         // Out of the city, which would have the field to itself.

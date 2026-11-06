@@ -27,12 +27,12 @@ pub enum TerrainClass {
 }
 
 impl TerrainClass {
-    /// The base terrain class under a node of this realm (`"sorcery"`, `"nature"`, `"chaos"`).
-    pub fn of_node_realm(realm: &str) -> Option<Self> {
-        match realm {
-            "sorcery" => Some(Self::SorceryNode),
-            "nature" => Some(Self::NatureNode),
-            "chaos" => Some(Self::ChaosNode),
+    /// The base terrain class under a node of this realm (sorcery, nature or chaos).
+    pub fn of_node_realm(realm: crate::rules::RealmId) -> Option<Self> {
+        match realm.num() {
+            1 /* sorcery */ => Some(Self::SorceryNode),
+            0 /* nature */ => Some(Self::NatureNode),
+            2 /* chaos */ => Some(Self::ChaosNode),
             _ => None,
         }
     }
@@ -119,13 +119,6 @@ impl Terrains {
             .map(|i| &self.defs[i])
     }
 
-    pub fn id_of(&self, name: &str) -> Option<TerrainId> {
-        self.defs
-            .iter()
-            .find(|d| d.id == name)
-            .map(|d| TerrainId(d.num))
-    }
-
     /// First definition of `class` that is available on `plane`.
     pub fn first_of_class(&self, class: TerrainClass, plane: Plane) -> Option<TerrainId> {
         self.defs
@@ -148,15 +141,22 @@ mod tests {
 
     #[test]
     fn node_realms_name_their_base_terrain() {
+        use crate::rules::RealmId;
         for (realm, class) in [
-            ("sorcery", TerrainClass::SorceryNode),
-            ("nature", TerrainClass::NatureNode),
-            ("chaos", TerrainClass::ChaosNode),
+            (1 /* sorcery */, TerrainClass::SorceryNode),
+            (0 /* nature */, TerrainClass::NatureNode),
+            (2 /* chaos */, TerrainClass::ChaosNode),
         ] {
-            assert_eq!(TerrainClass::of_node_realm(realm), Some(class));
+            assert_eq!(
+                TerrainClass::of_node_realm(RealmId::new(realm)),
+                Some(class)
+            );
             assert!(class.is_node());
         }
-        assert_eq!(TerrainClass::of_node_realm("life"), None);
+        assert_eq!(
+            TerrainClass::of_node_realm(RealmId::new(3 /* life */)),
+            None
+        );
         assert!(!TerrainClass::Hills.is_node());
     }
 }

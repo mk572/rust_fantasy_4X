@@ -496,18 +496,18 @@ pub const CITY_SIZE_KEYS: [&str; 6] = [
     "city.size_capital",
 ];
 
-/// The minerals an event can put on the map: the feature id and the key of the word for it,
+/// The minerals an event can put on the map: the feature number and the key of the word for it,
 /// what follows the article in "a{ore} deposit".
-pub const ORES: [(&str, &str); 9] = [
-    ("iron_ore", "event.ore_iron_ore"),
-    ("coal", "event.ore_coal"),
-    ("silver_ore", "event.ore_silver_ore"),
-    ("gold_ore", "event.ore_gold_ore"),
-    ("gem", "event.ore_gem"),
-    ("mithril_ore", "event.ore_mithril_ore"),
-    ("adamantium_ore", "event.ore_adamantium_ore"),
-    ("quork_crystal", "event.ore_quork_crystal"),
-    ("crysx_crystal", "event.ore_crysx_crystal"),
+pub const ORES: [(u16, &str); 9] = [
+    (11 /* iron_ore */, "event.ore_iron_ore"),
+    (5 /* coal */, "event.ore_coal"),
+    (19 /* silver_ore */, "event.ore_silver_ore"),
+    (10 /* gold_ore */, "event.ore_gold_ore"),
+    (9 /* gem */, "event.ore_gem"),
+    (12 /* mithril_ore */, "event.ore_mithril_ore"),
+    (2 /* adamantium_ore */, "event.ore_adamantium_ore"),
+    (17 /* quork_crystal */, "event.ore_quork_crystal"),
+    (6 /* crysx_crystal */, "event.ore_crysx_crystal"),
 ];
 
 #[cfg(test)]

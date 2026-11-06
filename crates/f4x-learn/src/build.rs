@@ -175,11 +175,11 @@ pub fn build(content: &Content, s: &BattleScenario) -> Result<Game, String> {
 }
 
 /// Where a situation fight is held instead of the scenario's own ground (the situations of
-/// `examples/situations.rs`): on a terrain class, or at a site of the map by its feature id.
+/// `examples/situations.rs`): on a terrain class, or at a site of the map by its feature number.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Spot {
     Class(TerrainClass),
-    Site(String),
+    Site(u16),
 }
 
 fn neighbour_land(game: &Game, at: Position) -> Option<Position> {
@@ -208,13 +208,13 @@ fn square_of_class(game: &Game, class: TerrainClass, nth: usize) -> Option<(Posi
     (!found.is_empty()).then(|| found[nth % found.len()])
 }
 
-/// The `nth` intact site with the feature id, and land beside it.
-fn square_of_site(game: &Game, feature: &str, nth: usize) -> Option<(Position, Position)> {
+/// The `nth` intact site with the feature number, and land beside it.
+fn square_of_site(game: &Game, feature: u16, nth: usize) -> Option<(Position, Position)> {
     let found: Vec<(Position, Position)> = game
         .economy()
         .lairs()
         .into_iter()
-        .filter(|l| l.intact && l.site == feature && !l.guards.is_empty())
+        .filter(|l| l.intact && l.site.0 == feature && !l.guards.is_empty())
         .filter_map(|l| neighbour_land(game, l.pos).map(|from| (from, l.pos)))
         .collect();
     (!found.is_empty()).then(|| found[nth % found.len()])
@@ -246,7 +246,7 @@ pub fn build_at(
     set_wizard(&mut game, DEFENDER, &s.defender_wizard);
     let (from, to) = match spot {
         Spot::Class(class) => square_of_class(&game, *class, nth),
-        Spot::Site(feature) => square_of_site(&game, feature, nth),
+        Spot::Site(feature) => square_of_site(&game, *feature, nth),
     }
     .ok_or("the map has no such square")?;
     let mut attackers = spawn_army(&mut game, ATTACKER, from, &s.attackers);

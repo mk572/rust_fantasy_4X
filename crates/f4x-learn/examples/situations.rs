@@ -106,20 +106,20 @@ fn main() {
         .iter()
         .map(|(n, c)| ((*n).to_string(), Spot::Class(*c)))
         .collect();
-    for site in [
-        "tower",
-        "chaos_node",
-        "nature_node",
-        "sorcery_node",
-        "mysterious_cave",
-        "monster_lair",
-        "dungeon",
-        "ruins",
-        "ancient_temple",
-        "abandoned_keep",
-        "fallen_temple",
+    for (site, num) in [
+        ("tower", 21),
+        ("chaos_node", 4),
+        ("nature_node", 15),
+        ("sorcery_node", 20),
+        ("mysterious_cave", 14),
+        ("monster_lair", 13),
+        ("dungeon", 7),
+        ("ruins", 18),
+        ("ancient_temple", 3),
+        ("abandoned_keep", 1),
+        ("fallen_temple", 8),
     ] {
-        spots.push((format!("site {site}"), Spot::Site(site.to_string())));
+        spots.push((format!("site {site}"), Spot::Site(num)));
     }
     let mut bad = 0;
     println!(

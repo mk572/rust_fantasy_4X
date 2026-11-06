@@ -47,18 +47,18 @@ fn battles_on_other_terrain_end_without_a_refused_command() {
 #[test]
 fn battles_at_sites_end_without_a_refused_command() {
     for site in [
-        "tower",
-        "chaos_node",
-        "sorcery_node",
-        "monster_lair",
-        "dungeon",
+        21, // tower
+        4,  // chaos_node
+        20, // sorcery_node
+        13, // monster_lair
+        7,  // dungeon
     ] {
-        fights_end(Spot::Site(site.into()), false);
+        fights_end(Spot::Site(site), false);
     }
 }
 
 #[test]
 fn a_hero_with_an_item_fights_on_to_the_end() {
     fights_end(Spot::Class(TerrainClass::Grassland), true);
-    fights_end(Spot::Site("ancient_temple".into()), true);
+    fights_end(Spot::Site(3 /* ancient_temple */), true);
 }

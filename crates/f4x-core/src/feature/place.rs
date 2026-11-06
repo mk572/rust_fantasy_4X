@@ -354,7 +354,7 @@ fn put_node_terrain(
     let terrain = content
         .features
         .get(node)
-        .and_then(|d| d.id.strip_suffix("_node"))
+        .and_then(|d| d.realm)
         .and_then(TerrainClass::of_node_realm)
         .and_then(|class| content.terrains.first_of_class(class, plane));
     if let Some(terrain) = terrain {

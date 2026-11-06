@@ -690,7 +690,7 @@ impl App {
                     ..
                 } => {
                     if player == HUMAN {
-                        self.site_cleared(&site, guarded, &loot);
+                        self.site_cleared(site, guarded, &loot);
                     }
                     Some(self.loot_line(&loot))
                 }
@@ -750,13 +750,10 @@ impl App {
                     count,
                     evicted,
                 } => self.game.is_explored(HUMAN, pos).then(|| {
-                    let name = self
-                        .game
-                        .content()
-                        .features
-                        .id_of(&site)
-                        .and_then(|f| self.game.content().features.get(f))
-                        .map_or(site, |def| self.names.feature(def.num).to_string());
+                    let name = self.game.content().features.get(site).map_or_else(
+                        || site.0.to_string(),
+                        |def| self.names.feature(def.num).to_string(),
+                    );
                     let args = Args::new().text("site", name).count("n", count);
                     let key = if evicted > 0 {
                         "log.monsters_took_over"

@@ -462,8 +462,8 @@ pub enum Event {
     /// guards out (`evicted` of them), or roaming monsters settled in an empty one.
     MonstersSettled {
         pos: map::Position,
-        /// The site's feature id.
-        site: String,
+        /// The site's feature.
+        site: map::FeatureId,
         count: u32,
         evicted: u32,
     },
@@ -479,8 +479,8 @@ pub enum Event {
     SiteCleared {
         player: player::PlayerId,
         pos: map::Position,
-        /// The site's feature id (`ruins`, `chaos_node`, `tower`).
-        site: String,
+        /// The site's feature (ruins, a node, a tower).
+        site: map::FeatureId,
         /// The site had guards, which were fought; an unguarded site is taken on arrival.
         guarded: bool,
         loot: feature::lair::Loot,

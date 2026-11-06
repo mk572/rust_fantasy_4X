@@ -89,8 +89,10 @@ pub struct NodeInfo {
 pub struct LairInfo {
     pub entity: Entity,
     pub pos: Position,
-    /// Id of the site's feature: `tower`, a node, or an encounter site.
-    pub site: String,
+    /// The site's feature: a tower, a node, or an encounter site.
+    pub site: FeatureId,
+    /// The realm of the book the site gives when cleared (its row's `reward`).
+    pub reward: Option<RealmId>,
     pub intact: bool,
     pub guards: Vec<(UnitId, u32)>,
     pub gold: u32,
@@ -159,15 +161,13 @@ impl<'a> Economy<'a> {
     fn lair_info(&self, entity: Entity) -> Option<LairInfo> {
         let lair = self.world.get::<&Lair>(entity).ok()?;
         let pos = *self.world.get::<&Position>(entity).ok()?;
-        let site = self
-            .world
-            .get::<&TerrainFeature>(entity)
-            .ok()
-            .and_then(|f| self.content.features.get(f.0).map(|d| d.id.clone()))?;
+        let site = self.world.get::<&TerrainFeature>(entity).ok()?.0;
+        let reward = self.content.features.get(site).and_then(|d| d.reward);
         Some(LairInfo {
             entity,
             pos,
             site,
+            reward,
             intact: lair.intact,
             guards: lair.guards.clone(),
             gold: lair.gold,
