@@ -2619,6 +2619,7 @@ dependencies = [
  "f4x-core",
  "f4x-def",
  "f4x-extract",
+ "f4x-master",
  "hecs",
  "macroquad",
  "macroquad_bitmap_font_engine",

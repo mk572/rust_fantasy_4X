@@ -94,6 +94,7 @@ mod temp_effect_view;
 mod terrain_pick;
 #[cfg(test)]
 mod test_app;
+mod turn_seats;
 mod ui;
 mod unit_list_screen;
 mod unit_screen;

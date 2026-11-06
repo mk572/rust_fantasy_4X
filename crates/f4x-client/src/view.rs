@@ -142,8 +142,15 @@ pub struct App {
     pub(crate) ais: Vec<f4x_ai::Ai>,
     /// Attacks on the human this turn, waiting to be fought one after the other.
     pub(crate) defences: std::collections::VecDeque<crate::attack_prompt::PendingAttack>,
-    /// The turn is half over: the rivals have moved and the human is defending before it ends.
+    /// The turn change is under way: the rivals take their turns one after another and the
+    /// human may be defending against one (this holds what happened so far).
     pub(crate) turn_events: Option<Vec<Event>>,
+    /// Where `f4x-master` is in the round (the human's turn, or a rival's, waiting for a defence).
+    pub(crate) master_state: f4x_master::State,
+    /// What the seats remember between calls into the master.
+    pub(crate) seating: crate::turn_seats::Seating,
+    /// The neutral seat (independent cities, monsters): attacks on the human are fought in person.
+    pub(crate) neutral_seat: f4x_ai::NeutralSeat,
     /// What the small spell book keeps between openings.
     pub(crate) book_prefs: crate::spellbook::BookPrefs,
     /// A spell to research once the research under way is done (set from the spell book).
@@ -353,6 +360,11 @@ impl App {
             ais: Vec::new(),
             defences: Default::default(),
             turn_events: None,
+            master_state: f4x_master::State {
+                phase: f4x_master::Phase::Acting(0),
+            },
+            seating: Default::default(),
+            neutral_seat: f4x_ai::NeutralSeat::defended_by(&[HUMAN]),
             book_prefs: Default::default(),
             queued_research: None,
             help: Default::default(),
@@ -438,8 +450,7 @@ impl App {
     /// Look at the human wizard's fortress, where the game starts.
     fn start_game(&mut self) {
         self.ais = self.rival_wizards();
-        self.defences.clear();
-        self.turn_events = None;
+        self.reset_master();
         let fortress = self
             .game
             .economy()
@@ -1137,10 +1148,9 @@ impl App {
         self.game.ensure_human(HUMAN);
         self.game.set_undo(true);
         self.ais = self.rival_wizards();
-        self.defences.clear();
+        self.reset_master();
         // A game saved in a battle comes back in it: the frame loop opens the battle screen.
         self.close_page(&Screen::Battle);
-        self.turn_events = None;
         self.game_over_seen = false;
         self.end_scenes.clear();
         self.end_scene_queued = false;
@@ -1189,8 +1199,22 @@ impl App {
         }
     }
 
+    /// The master waits for the human's turn: no rival is mid-turn and nothing is held up.
+    fn reset_master(&mut self) {
+        self.defences.clear();
+        self.turn_events = None;
+        self.master_state = f4x_master::State {
+            phase: f4x_master::Phase::Acting(0),
+        };
+        self.seating = Default::default();
+        self.neutral_seat = f4x_ai::NeutralSeat::defended_by(&[HUMAN]);
+    }
+
     /// End the turn. First put more citizens on farms if the army would otherwise go hungry
-    /// (the city screen lets you set farmers by hand; this just protects the troops).
+    /// (the city screen lets you set farmers by hand; this just protects the troops). Then the
+    /// master takes the round on: the human's turn ends, each rival plays in turn (an attack on
+    /// the human is fought before the next one plays), the neutrals play, the round ends and the
+    /// next begins with the human's turn.
     pub(crate) fn end_turn(&mut self) {
         if self.turn_events.is_some() {
             return;
@@ -1199,43 +1223,14 @@ impl App {
         if t.food_surplus < t.food_upkeep {
             self.game.balance_farmers(HUMAN);
         }
-        // The rival wizards play first; an attack on the human is fought before the turn ends.
-        // Their commands are not taken back, and undo would snapshot the whole game for each.
-        let undo = self.game.undo_enabled();
-        self.game.set_undo(false);
-        let mut events = Vec::new();
-        for ai in &mut self.ais {
-            events.extend(ai.play_turn(&mut self.game));
-            for attack in ai.take_attacks() {
-                self.defences
-                    .push_back(crate::attack_prompt::PendingAttack {
-                        attackers: attack.attackers,
-                        defenders: attack.defenders,
-                        defending: true,
-                        treaty_asked: true,
-                    });
-            }
-        }
-        // The independent cities and the roaming monsters run themselves through their own AI
-        // (farmers, taxes, builds, raids); the human fights the attacks on them in person.
-        let (neutral_events, attacks) = f4x_ai::play_neutrals_for(&mut self.game, &[HUMAN]);
-        events.extend(neutral_events);
-        self.game.set_undo(undo);
-        for attack in attacks {
-            self.defences
-                .push_back(crate::attack_prompt::PendingAttack {
-                    attackers: attack.attackers,
-                    defenders: attack.defenders,
-                    defending: true,
-                    treaty_asked: true,
-                });
-        }
-        self.turn_events = Some(events);
+        self.seating.human_done = true;
+        self.turn_events = Some(Vec::new());
         self.resume_turn();
     }
 
-    /// Go on with the turn change once no attack on the human waits: end the turn for everyone
-    /// and report what the rivals and the turn did.
+    /// Let the master go on from where it stopped: a rival's attack on the human has been
+    /// fought, or the turn was just ended. Stops again at the next attack on the human, or at
+    /// the human's next turn, when it reports what the rivals and the turn did.
     pub(crate) fn resume_turn(&mut self) {
         if self.modals.has(crate::modal::kind::ATTACK) || self.game.in_battle() {
             return;
@@ -1248,8 +1243,21 @@ impl App {
         let Some(mut events) = self.turn_events.take() else {
             return;
         };
+        // The rivals' commands are not taken back, and undo would snapshot the whole game for each.
+        let undo = self.game.undo_enabled();
+        self.game.set_undo(false);
+        let progress = self.run_master();
+        self.game.set_undo(undo);
+        events.extend(progress.events);
+        if let f4x_master::Stopped::Waiting(seat) = progress.stopped {
+            if seat != 0 {
+                // A rival has attacked the human: fight it, then go on.
+                self.turn_events = Some(events);
+                self.resume_turn();
+                return;
+            }
+        }
         if self.game.game_over.is_none() {
-            events.extend(self.game.apply(Command::EndTurn));
             // The rivals now say what they have to say to the human: offers, requests, war.
             let undo = self.game.undo_enabled();
             self.game.set_undo(false);
@@ -1270,6 +1278,45 @@ impl App {
         self.open_chancellor(news);
         self.log
             .push(self.text_with("log.turn", &Args::new().count("turn", turn)));
+    }
+
+    /// Run the master until it waits: for the human's next turn, or for an attack on the human
+    /// to be fought. The seats are the human, the rivals in the order of their ids, and the
+    /// neutrals. Two rounds at most, so that a game without a human seat cannot loop for ever.
+    fn run_master(&mut self) -> f4x_master::Progress {
+        use crate::turn_seats::{HumanSeat, NeutralSeat, RivalSeat};
+        use f4x_master::{Master, Seat, Until};
+        // The seats share the small `seating` memory and the queue of defences; one acts at a time.
+        let seating = std::cell::RefCell::new(std::mem::take(&mut self.seating));
+        let defences = std::cell::RefCell::new(std::mem::take(&mut self.defences));
+        let progress = {
+            let mut seats: Vec<Seat> = vec![Seat::new(
+                vec![HUMAN],
+                Box::new(HumanSeat { seating: &seating }),
+            )];
+            for ai in self.ais.iter_mut() {
+                seats.push(Seat::new(
+                    vec![ai.player],
+                    Box::new(RivalSeat {
+                        ai,
+                        seating: &seating,
+                        defences: &defences,
+                    }),
+                ));
+            }
+            seats.push(Seat::neutrals(Box::new(NeutralSeat {
+                inner: &mut self.neutral_seat,
+                seating: &seating,
+                defences: &defences,
+            })));
+            let mut master = Master::resume(seats, self.master_state);
+            let progress = master.run(&mut self.game, Until::Rounds(2));
+            self.master_state = master.state();
+            progress
+        };
+        self.seating = seating.into_inner();
+        self.defences = defences.into_inner();
+        progress
     }
 
     /// The next attack on the human that is still real (a unit may have died to an earlier one).
