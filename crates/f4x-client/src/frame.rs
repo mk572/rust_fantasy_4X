@@ -378,21 +378,32 @@ impl App {
         if self.draw_pic(lay, "main", 35, 0, nx, ny).is_some() {
             // The button has one picture; it sits 2 px down and right while it is held.
             let (bx, by) = (nx + 6.0, ny + 5.0);
-            let state = self.art_picture("main", 58, 0).map_or(ui::Hit::None, |t| {
-                let p = lay.point(bx, by);
-                ui::hit(
-                    Rect::new(
-                        p.x,
-                        p.y,
-                        crate::resolution::logical_w(&t) * s,
-                        crate::resolution::logical_h(&t) * s,
-                    ),
-                    true,
-                    input,
-                )
-            });
+            let tex = crate::action_button_art::next_turn_texture();
+            let size = vec2(tex.width(), tex.height());
+            let p = lay.point(bx, by);
+            let state = ui::hit(Rect::new(p.x, p.y, size.x * s, size.y * s), true, input);
             let push = if state.held() { 2.0 } else { 0.0 };
-            self.draw_pic(lay, "main", 58, 0, bx + push, by + push);
+            let at = lay.point(bx + push, by + push);
+            draw_texture_ex(
+                &tex,
+                at.x,
+                at.y,
+                WHITE,
+                DrawTextureParams {
+                    dest_size: Some(size * s),
+                    ..Default::default()
+                },
+            );
+            let label = self.text("ui.next_turn");
+            for style in crate::action_button_art::next_turn_styles() {
+                self.draw_styled_in(
+                    &crate::menu_bar_art::label_font(),
+                    view,
+                    &style,
+                    &label,
+                    (bx + push + size.x / 2.0 + 1.0, by + push + 4.0),
+                );
+            }
             click.next_turn = state.clicked();
         } else {
             let r = lay.rect((nx + 4.0, ny + 4.0, 72.0, 19.0));

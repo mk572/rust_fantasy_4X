@@ -84,7 +84,7 @@ pub(crate) fn draw_button(tex: &Texture2D, p: Vec2, size: Vec2, scale: f32, pres
     );
 }
 
-/// The font of the labels: style 4 with the pairs the original's pictures set a pixel tighter than
+/// The font of the labels (the menu bar and Next Turn): style 4 with the pairs the original's pictures set tighter than
 /// its print routine does (`assets/button/kerning.fnt`). The original draws its own text without
 /// kerning (`Print_Character`: width plus spacing), so the rest of the game keeps the plain font;
 /// only these pictures' lettering was tighter, and this face reproduces it.

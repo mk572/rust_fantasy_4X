@@ -11,6 +11,9 @@ by its colour takes the three shifted copies of it too, and fills every pixel it
 marbling of the same row (the nearest pixel left or right that is not part of the label), because
 the marble streaks run sideways. Needs Pillow (`.venv`).
 
+The Next Turn button (67x16, gold lettering with a dark shadow on grey stone) is cleaned by colour:
+the stone is grey and the lettering saturated.
+
 The four action buttons of the unit window (Done, Patrol, Wait and Build, Meld or Purify) are
 33x9 and lettered in style 0 (5 px), ink (8,4,4), at y=2, with the "shadow down" copies in a lighter gold. Only the rows of the lettering
 count as ink, since the Wait and Build pictures have a dark speck below it. Only the up picture is
@@ -68,6 +71,39 @@ def clean(
     return out, len(taken)
 
 
+def clean_next_turn(img: Image.Image) -> tuple[Image.Image, int]:
+    """The Next Turn button: gold lettering with a dark brown shadow on grey stone. The stone is
+    grey (little colour), the lettering and its shadow are saturated, so those pixels are the
+    label; they are filled from the stone of the same row."""
+    img = img.convert("RGBA")
+    w, h = img.size
+    px = img.load()
+    taken = {
+        (x, y)
+        for y in range(h)
+        for x in range(w)
+        if max(px[x, y][:3]) - min(px[x, y][:3]) > 30
+    }
+    # the shadow's darkest edge is nearly grey: dark pixels touching the label belong to it
+    for x, y in list(taken):
+        for dx, dy in ((1, 0), (0, 1), (1, 1)):
+            q = (x + dx, y + dy)
+            if 0 <= q[0] < w and 0 <= q[1] < h and max(px[q][:3]) < 110:
+                taken.add(q)
+    out = img.copy()
+    po = out.load()
+    for x, y in sorted(taken):
+        for k in range(1, w):
+            sides = (x + k, x - k) if (x + y) % 2 else (x - k, x + k)
+            found = next(
+                (px[s, y] for s in sides if 0 <= s < w and (s, y) not in taken), None
+            )
+            if found:
+                po[x, y] = found
+                break
+    return out, len(taken)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--src", default="assets-local/screens/main_screen")
@@ -80,6 +116,9 @@ def main() -> None:
         img, n = clean(img, ink_of(img))
         img.save(out_dir / f"{name}.png")
         print(f"{name}: {n} label pixels replaced")
+    img, n = clean_next_turn(Image.open(Path(args.src) / "button_next_turn_00.png"))
+    img.save(out_dir / "next_turn.png")
+    print(f"next_turn: {n} label pixels replaced")
     for name in ACTIONS:
         img = Image.open(Path(args.src) / f"button_{name}_00.png")
         ink = ink_of(img, range(2, 7))

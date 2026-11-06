@@ -105,6 +105,39 @@ pub(crate) fn texture(action: Action, look: Look) -> Texture2D {
     })
 }
 
+/// The Next Turn button's picture (67 by 16, grey stone), without its lettering.
+pub(crate) fn next_turn_texture() -> Texture2D {
+    thread_local! {
+        static TEX: RefCell<Option<Texture2D>> = const { RefCell::new(None) };
+    }
+    TEX.with(|t| {
+        t.borrow_mut()
+            .get_or_insert_with(|| load(include_bytes!("../assets/button/next_turn.png")))
+            .clone()
+    })
+}
+
+/// The Next Turn label in two passes, the second over the first: the gold lettering with a dark
+/// brown shadow down and to the right, then the lettering again with a light brown shadow up and
+/// to the left over it.
+pub(crate) fn next_turn_styles() -> [Style; 2] {
+    let gold = rgb(255, 182, 44);
+    [
+        Style::flat(4, gold)
+            .effect(crate::font::Effect::Shadow)
+            .edge(rgb(69, 36, 4))
+            .center(),
+        Style::flat(4, gold)
+            .effect(crate::font::Effect::ShadowUp)
+            .edge(Color::from_rgba(190, 125, 20, 200))
+            .highlight(
+                Color::from_rgba(255, 236, 130, 200),
+                Color::from_rgba(255, 236, 130, 90),
+            )
+            .center(),
+    ]
+}
+
 /// The font of the labels: style 0, with the serif "I" of the Build picture's lettering for Build
 /// (`scripts/button_label_font.py`).
 fn label_font(app: &App, action: Action) -> Rc<bm::BmFont> {
@@ -137,7 +170,7 @@ fn label_style(look: Look) -> Style {
         _ => Style::set(0, 1),
     }
     .shadow()
-    .edge(Color::from_rgba(255, 214, 110, 150))
+    .edge(Color::from_rgba(255, 196, 56, 100))
     .center()
 }
 

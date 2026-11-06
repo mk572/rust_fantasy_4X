@@ -49,6 +49,10 @@ pub(crate) struct Style {
     pub(crate) effect: Effect,
     /// The colour of the shadow or outline copies (`Set_Outline_Color`).
     pub(crate) edge: Color,
+    /// The light-source reflection on the top and left edges of the letters, if any.
+    pub(crate) highlight: Option<Color>,
+    /// The rest of the top and left edges (`None`: as `highlight`).
+    pub(crate) highlight_edge: Option<Color>,
     pub(crate) align: Align,
 }
 
@@ -59,6 +63,8 @@ impl Style {
             ink,
             effect: Effect::Plain,
             edge: EDGE_BLACK,
+            highlight: None,
+            highlight_edge: None,
             align: Align::Left,
         }
     }
@@ -176,6 +182,14 @@ impl Style {
     /// The colour of the shadow or outline, from the original's `Set_Outline_Color`.
     pub(crate) fn edge(self, edge: Color) -> Style {
         Style { edge, ..self }
+    }
+
+    /// The top-left corner pixels of the letters painted in `corner` over the ink, and the rest
+    /// of their top and left edges in `edge`.
+    pub(crate) fn highlight(mut self, corner: Color, edge: Color) -> Style {
+        self.highlight = Some(corner);
+        self.highlight_edge = Some(edge);
+        self
     }
 
     pub(crate) fn center(self) -> Style {
@@ -355,6 +369,8 @@ fn draw_line_in(
         ink: engine_ink,
         effect: style.effect,
         edge: style.edge,
+        highlight: style.highlight,
+        highlight_edge: style.highlight_edge,
         ..Default::default()
     };
     let left = ox + engine_align(style.align).anchor(x, w) * s;
