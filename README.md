@@ -11,7 +11,7 @@ A fantasy 4X strategy game written in Rust. It starts from a Master of Magic-sty
 
 ```
 cargo test --workspace
-cargo run -p f4x-client            # uses content-local/ and assets-local/ if present
+cargo run -p f4x-client            # uses assets-local/ (art, audio) if present
 ```
 
 Client keys follow the original's (the original's against ours: `docs/hotkeys.md`): N or Enter end turn, M magic screen, S spells, B found a city, arrows or numpad move the selected stack (arrows scroll when nothing is selected), P or Tab switch plane, +/- zoom, F10 quick-save, Ctrl-L quick-load (also autosaved each turn to `saves/`), Esc game menu. The keys can be changed (`crates/f4x-client/content/hotkeys.ron`, `docs/hotkey-settings.md`).

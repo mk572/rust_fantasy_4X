@@ -69,9 +69,11 @@ areas open which topic), (the preset wizards' descriptions are no longer importe
 `IMPORT_REPORT.txt` (everything it could not map) to `content-local/`. Old runs also wrote the
 rules files there; the importer now removes those stale copies.
 
-The client and `f4x-tools` read `content-local/` first and `crates/f4x-def/content/` for every file it lacks
-(`f4x_def::load::load_content_layers`), so the game runs without any local files, only without help
-or preset wizards. The importer also cross-checks costs, upkeep and race build bans against the
+The client reads the rules from `crates/f4x-def/content/` and its own tables, texts and settings from
+`crates/f4x-client/content/`, and nothing overrides them (modding comes later). The only files read from
+outside the repository are the pictures and sounds (`assets-local/art`, `assets-local/audio`, `--assets`
+and `--audio`) and the player's own `saves/hotkeys.ron`. `f4x-tools` reads the rules from
+`crates/f4x-def/content/` and takes `--dir` or `--content` for another folder. `content-local/` is not read. The importer also cross-checks costs, upkeep and race build bans against the
 help text (`[check]` lines in the report). What the help describes that is not implemented yet
 is in `docs/archive/mechanics-gaps.md`.
 

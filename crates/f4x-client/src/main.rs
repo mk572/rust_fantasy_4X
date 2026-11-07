@@ -118,11 +118,11 @@ use macroquad::prelude::*;
 use view::App;
 
 /// The client's own tables (which asset a game element uses, the keys): shipped with the client,
-/// not with the rules; a `--content` folder can replace any of them.
+/// not with the rules. Nothing overrides them yet (modding comes later); the pictures and sounds are
+/// the only files read from outside the repository (`--assets`, `--audio`).
 const CLIENT_CONTENT: &str = "crates/f4x-client/content";
 
 struct Options {
-    content: PathBuf,
     assets: PathBuf,
     seed: u64,
     /// `--seed` was given: every new game uses it. Without it each game gets a seed of its own.
@@ -280,11 +280,6 @@ struct Options {
 fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
     let mut args = args;
     let mut o = Options {
-        content: if Path::new("content-local").exists() {
-            "content-local".into()
-        } else {
-            f4x_def::SHIPPED_CONTENT.into()
-        },
         assets: "assets-local/art".into(),
         audio: "assets-local/audio".into(),
         mute: false,
@@ -380,7 +375,6 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
     while let Some(a) = args.next() {
         let mut value = |name: &str| args.next().ok_or(format!("{name} needs a value"));
         match a.as_str() {
-            "--content" => o.content = value("--content")?.into(),
             "--assets" => o.assets = value("--assets")?.into(),
             "--audio" => o.audio = value("--audio")?.into(),
             "--mute" => o.mute = true,
@@ -603,11 +597,11 @@ async fn main() {
     let options = match parse_args(std::env::args().skip(1)) {
         Ok(o) => o,
         Err(e) => {
-            eprintln!("{e}\nusage: f4x-client [--content DIR] [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|mastery_lost|conquest|conquest_by_wizard|return|parade] [--shot-after SECONDS] [--magic] [--alchemy] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--game-settings [--menu]] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--hall-demo] [--warn-box] [--craft enchant|artifact] [--offer KIND] [--event KIND] [--fizzle] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--extra-mana] [--wizard-pick] [--attack-box] [--pick-box] [--crowd (with --city: fourteen units in the city, list scrolled one row)] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
+            eprintln!("{e}\nusage: f4x-client [--assets DIR] [--audio DIR] [--mute] [--art-scale 1|2|4] [--hear ARCHIVE:ENTRY] [--seed N] [--load FILE] [--save FILE] [--shot FILE [--city [--autobuild|--sell|--choose] [--city-fx LIST]] [--warp-nodes] [--scene win|lose|mastery_lost|conquest|conquest_by_wizard|return|parade] [--shot-after SECONDS] [--magic] [--alchemy] [--wizard N] [--talk MENU [--mood N]] [--spells [--spells-view all|known|overland|battle[,cost]]] [--apprentice] [--research] [--create] [--create-step wizard|portrait|name|picks|spells|race|banner|custom-NAME] [--options] [--menu] [--slots] [--settings] [--game-settings [--menu]] [--advisor N [--survey-at X,Y]] [--scroll|--scroll-long] [--quick] [--select] [--armies] [--cities] [--outpost|--outpost-new] [--capital-name] [--unit-list] [--site ask|found|treasure] [--battle-site FEATURE] [--enemy-city] [--score] [--items] [--hall] [--hall-demo] [--warn-box] [--craft enchant|artifact] [--offer KIND] [--event KIND] [--fizzle] [--mastery [--global-by N] [--global-at SECONDS]] [--level-up] [--dispelled city|unit|battle|field] [--built ID] [--learn SPELL [--learn-at SECONDS]] [--turn forward|back [--turn-at SECONDS]] [--global SPELL [--global-by N] [--global-at SECONDS]] [--summon SPELL [--global-by N] [--global-at SECONDS]] [--square SPELL [--global-at SECONDS]] [--wizard-spell SPELL [--global-by N] [--global-at SECONDS]] [--city-scroll SPELL [--global-by N] [--global-at SECONDS]] [--results won|lost|fled|exhausted|rampage|ruins|raiders|city|raze] [--upkeep] [--extra-mana] [--wizard-pick] [--attack-box] [--pick-box] [--crowd (with --city: fourteen units in the city, list scrolled one row)] [--sheet N [--sheet-spell ID [--sheet-ask]]] [--turns N]]");
             std::process::exit(2);
         }
     };
-    let layers = [options.content.as_path(), Path::new(CLIENT_CONTENT)];
+    let layers = [Path::new(CLIENT_CONTENT)];
     let settings = match client_settings::ClientSettings::load(&layers) {
         Ok(s) => s,
         Err(e) => {
@@ -615,15 +609,13 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    let content = match f4x_def::load::load_content_layers(&[
-        &options.content,
-        Path::new(f4x_def::SHIPPED_CONTENT),
-    ]) {
+    // The rules come from the shipped content alone.
+    let content = match f4x_def::load::load_content_layers(&[Path::new(f4x_def::SHIPPED_CONTENT)]) {
         Ok(c) => c,
         Err(e) => {
             eprintln!(
                 "could not load content from {}: {e}",
-                options.content.display()
+                f4x_def::SHIPPED_CONTENT
             );
             std::process::exit(1);
         }
@@ -670,7 +662,7 @@ async fn main() {
         }
     };
     app.help = help;
-    match hotkeys::Hotkeys::load(&[&options.content, Path::new("saves")]) {
+    match hotkeys::Hotkeys::load(&[Path::new("saves")]) {
         Ok(keys) => app.hotkeys = keys,
         Err(e) => eprintln!("{e}; the shipped keys are used"),
     }
@@ -683,8 +675,10 @@ async fn main() {
             );
         }
     }
-    app.event_texts = event_message::load(&options.content).unwrap_or_default();
-    app.diplomsg = f4x_def::load::load_diplomacy_lines(&options.content).unwrap_or_default();
+    // The event sentences and the diplomacy lines come from the shipped client content only.
+    app.event_texts = event_message::load(Path::new(CLIENT_CONTENT)).unwrap_or_default();
+    app.diplomsg =
+        f4x_def::load::load_diplomacy_lines(Path::new(CLIENT_CONTENT)).unwrap_or_default();
     match preferences::Preferences::from_defaults(&settings.preferences) {
         Ok(base) => app.prefs = base,
         Err(e) => {

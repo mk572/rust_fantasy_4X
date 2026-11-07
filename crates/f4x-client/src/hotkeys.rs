@@ -289,8 +289,8 @@ impl Hotkeys {
         Ok(Hotkeys { keys })
     }
 
-    /// The shipped keys, then the `hotkeys.ron` of each folder (a mod's content, then the
-    /// player's own), skipping the ones that are not there.
+    /// The shipped keys, then the `hotkeys.ron` of each folder (the player's own), skipping the
+    /// ones that are not there.
     pub fn load(folders: &[&Path]) -> Result<Hotkeys, String> {
         let mut texts = vec![SHIPPED.to_string()];
         for folder in folders {

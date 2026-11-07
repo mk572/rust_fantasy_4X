@@ -5,7 +5,7 @@
 //! Tests: with each module.
 
 /// The game's own rules files, from the root of the repository (the folder the game and its tools
-/// run from). `content-local` and a mod's folder are layered over it (`load::load_content_layers`).
+/// run from). A mod's folder is layered over it (`load::load_content_layers`).
 pub const SHIPPED_CONTENT: &str = "crates/f4x-def/content";
 
 pub mod content;

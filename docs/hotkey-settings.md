@@ -9,9 +9,9 @@ reads it.
 - **Format:** a map from the action's name to a list of keys, each `"Key"`, `"Ctrl+Key"`,
   `"Shift+Key"` or `"Alt+Key"`. Ctrl is Control, or Cmd on a Mac, and must be held exactly when the
   key names it (so `M` and `Ctrl+M` are different keys). The file's header lists the key names.
-- **Changing a key:** copy the action's line into `saves/hotkeys.ron` (the player's own) or into the
-  `hotkeys.ron` of a content folder (a mod). The base is the shipped file; each later file replaces
-  the keys of the actions it names, the player's last. An empty list turns an action's key off.
+- **Changing a key:** copy the action's line into `saves/hotkeys.ron` (the player's own). The base
+  is the shipped file; the player's file replaces the keys of the actions it names. An empty list
+  turns an action's key off.
   An unknown action or key name is reported on start-up and the shipped keys are used.
 - **Shared keys:** the arrows are in `move_*` and `scroll_*`: with a stack selected they move it, with
   nothing selected (or Shift held) they scroll the map. Two other actions on one key both fire.
