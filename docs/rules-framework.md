@@ -103,16 +103,8 @@ Abilities, spells, buildings and items all describe what they do with the same t
 | Condition | Meaning |
 |---|---|
 | `Always` | Always passes. |
-| `HasAbility(id)` | Subject has the named ability. |
-| `TerrainIs(class)` | Subject is on the named terrain class. |
-| `OnPlane(plane)` | Subject is on the named plane. |
-| `RaceIs(id)` | Subject has the named race. |
 | `RealmIs(id)` | Subject has the named realm. |
 | `KindIs(kind)` | Subject is the named unit kind (normal, hero, creature, etc.). |
-| `InBattle` | Subject is in a battle. |
-| `InCity` | Subject is in a city. |
-| `All([..])` | Every nested condition passes. |
-| `Any([..])` | At least one nested condition passes. |
 | `Not(..)` | The nested condition does not pass. |
 
 **Target selectors** choose the subjects to which an effect is applied:
@@ -123,9 +115,6 @@ Abilities, spells, buildings and items all describe what they do with the same t
 | `Owner` | The player who owns the source. |
 | `AllOwnUnits` | Every unit owned by the source owner. |
 | `AllEnemyUnits` | Every unit not owned by the source owner. |
-| `UnitsInTile` | Every unit on the source's tile. |
-| `UnitsInArea(radius)` | Every unit within Chebyshev distance radius on the same plane. |
-| `City` | The city represented by the source, or the city on its tile. |
 | `Tile` | The source's map tile. |
 | `Chosen` | The target selected by the caster. |
 | `UnitsOnChosenSquare` | Every unit on the chosen target's tile, regardless of owner; includes a city's garrison. |
@@ -138,15 +127,11 @@ source has no position; `Chosen` yields none if no target was selected.
 | Effect | Meaning |
 |---|---|
 | `Modify { stat, op, value }` | Add a stat modifier tagged with the rule's source. |
-| `GrantAbility(id)` / `RemoveAbility(id)` | Add or remove an ability. |
+| `GrantAbility(id)` | Add an ability. |
 | `Damage { ... }` | Deal damage of a `DamageKind`, optionally resistible, with explicit immunity abilities, realm, resistance modifier and battle damage traits. |
 | `Heal(amount)` | Restore hit points. |
 | `Slay { ... }` | Battle-only destruction effect with realm, resistance modifier, immunity list and optional restrictions/thresholds. |
-| `AddResource { gold, food, mana, research }` | Add the specified resources to the target. |
 | `Summon { unit, count }` | Summon a number of units at the target's tile. |
-| `ChangeTerrain(class)` | Change the target tile's terrain class. |
-| `SetFeature(id)` | Put a map feature on the target tile. |
-| `ApplyEnchantment(id)` | Attach a lasting spell to the target. |
 | `Custom(name: "x", args: [..])` | Call a named Rust hook. The name is a plain tag in the `.ron` file; `args` (optional) tell the spells that share a hook apart, e.g. `Custom(name: "wall", args: ["fire"])`. `f4x_core::hook::CUSTOM_HOOKS` lists the hooks the code implements and the argument each takes, and `hook::problems` checks the content against it. A hook may also take one trailing number, e.g. `Custom(name: "counter_effect", args: ["dispel", "10"])`. There is no spell-number dispatch: the engine asks a spell for its hook and arguments. |
 
 Damage kinds are `Physical`, `Fire`, `Cold`, `Lightning`, `Poison`, `Death`
@@ -164,17 +149,12 @@ interpret, and the turn itself is an ordered sequence of direct method calls. Th
 turn sequence is documented in [game-flow.md](game-flow.md) and implemented by
 `game/mod.rs::end_turn` and `turn.rs::process_turn`.
 
-The complete `Trigger` enum currently contains:
+The complete `Trigger` enum has two triggers (task 491 removed five that nothing dispatched):
 
 | Trigger | What the code currently does |
 |---|---|
 | `Passive` | Used for effects that are continuously in force. `stats::passive_modifiers` extracts unconditional `Modify` rules for races, abilities, buildings, spells and level paths. Other readers explicitly interpret passive rules: unit and city systems evaluate conditional modifiers; unit ability lookup reads passive `GrantAbility` rules from lasting spells and items. This is not one universal execution path. |
 | `OnCast` | Used when a spell is cast. Overland spell resolution calls `run_rules(..., Trigger::OnCast, ...)` in `spell/cast.rs`. Battle spell handling also recognises OnCast rules and translates supported shapes into battle spell behaviour in `battle/spell.rs`; it is not simply the same overland executor. |
-| `OnTurnStart` | Declared in the enum, but no caller dispatches it. |
-| `OnAttack` | Declared in the enum, but no caller dispatches it. An executor unit test proves the generic executor can be asked to run it; it does not mean the game sends that trigger. |
-| `OnDefend` | Declared in the enum, but no caller dispatches it. |
-| `OnDeath` | Declared in the enum, but no caller dispatches it. |
-| `OnBuilt` | Declared in the enum, but no caller dispatches it. |
 
 `rules::exec::run_rules` is a small interpreter: a caller supplies one specific
 `Trigger`, a `Context` and an `EffectHost`; it filters rules by that trigger, resolves their
@@ -196,8 +176,7 @@ The start-of-turn event is currently a notification, not an effect trigger:
 3. After `process_turn`, `end_turn` records history, processes diplomacy, handles purifying,
    stranded ships and road work, then follows unit standing orders.
 
-The precise order is maintained in [game-flow.md](game-flow.md). Nothing in this sequence
-looks for `Trigger::OnTurnStart`. Likewise, `Event::TurnStarted` is returned to the caller
+The precise order is maintained in [game-flow.md](game-flow.md). `Event::TurnStarted` is returned to the caller
 alongside other outcome/notification events; it is not sent back into the rules executor.
 More generally, `Game::apply` returns `Event` values for the client, log and other callers.
 They are not an internal event bus that automatically invokes `EffectRule`s.
@@ -229,7 +208,7 @@ Determines which units and buildings a city can produce and its baseline economy
 Runtime: `Unit { def }`, `Owner`, `Position`, `Damage`, `Experience`, plus enchantments and equipment attached as modifiers.
 
 ### Ability
-Reusable, named bundles of abilities and passive effects: flying, poison touch, regeneration, immunities, and stat bonuses. An `OnAttack` example would be misleading: the game currently has no generic attack-trigger dispatch.
+Reusable, named bundles of abilities and passive effects: flying, poison touch, regeneration, immunities, and stat bonuses.
 
 ### Building
 ```

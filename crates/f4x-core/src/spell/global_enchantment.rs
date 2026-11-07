@@ -271,7 +271,6 @@ impl UnitView<'_> {
         }
         let facts = Facts {
             abilities: self.unit_abilities(unit),
-            race: def.race,
             realm: self.unit_realm(unit),
             // The undead are not normal units: Holy Arms and Crusade pass them by.
             kind: Some(if self.unit_is_undead(unit) {

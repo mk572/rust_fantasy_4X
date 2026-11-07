@@ -250,7 +250,7 @@ pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
     let terrains = parse_terrains(&read("terrain.ron")?)?;
     let features = parse_features(&read("features.ron")?)?;
     let settings = load_settings(dirs)?;
-    let rules = rules::load_rules(dirs, &features)?;
+    let rules = rules::load_rules(dirs)?;
     if dirs.iter().any(|d| d.join("rules_settings.ron").exists()) {
         check_spell_library(&settings.spell_library, &rules)?;
     }

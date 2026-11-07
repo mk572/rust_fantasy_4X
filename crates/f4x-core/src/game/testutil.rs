@@ -136,24 +136,6 @@ pub fn ability_ref(alias: u16) -> crate::rules::Ability {
     ability(alias)
 }
 
-/// The number of the spell the content file calls `alias`.
-pub fn spell_ref(alias: u16) -> crate::rules::SpellId {
-    shipped()
-        .rules
-        .spells
-        .id_numbered(alias)
-        .unwrap_or_else(|| panic!("no spell {alias:?} in the shipped content"))
-}
-
-/// The number of the race the content file calls `alias`.
-pub fn race_ref(alias: u16) -> crate::rules::RaceId {
-    shipped()
-        .rules
-        .races
-        .id_numbered(alias)
-        .unwrap_or_else(|| panic!("no race {alias:?} in the shipped content"))
-}
-
 /// [`ability`] for a list of aliases.
 pub fn abilities(aliases: &[u16]) -> Vec<crate::rules::Ability> {
     aliases.iter().map(|&a| ability(a)).collect()

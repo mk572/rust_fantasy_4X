@@ -3,7 +3,6 @@
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
-use crate::feature::Features;
 use crate::rules::effects::{Condition, Effect, EffectRule, Trigger};
 use crate::rules::{
     AbilityDef, AbilityId, BuildingDef, Def, Duration, HeroTemplate, ItemDef, ItemPowerDef,
@@ -30,7 +29,7 @@ fn parse<T: serde::de::DeserializeOwned>(dirs: &[&Path], name: &str) -> Result<T
 
 /// Load and validate every rules file. Each file comes from the first of `dirs` that has it,
 /// so a local directory can replace single files of the committed one.
-pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentError> {
+pub fn load_rules(dirs: &[&Path]) -> Result<Rules, ContentError> {
     let dir = dirs;
     let races = parse::<Vec<RaceDef>>(dir, "races.ron")?;
     let hero_templates = if find(dir, "heroes.ron").is_some() {
@@ -81,7 +80,7 @@ pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentE
             crate::rules::lair::LairRules::default()
         },
     };
-    let problems = validate_rules(&rules, features);
+    let problems = validate_rules(&rules);
     if problems.is_empty() {
         Ok(rules)
     } else {
@@ -262,7 +261,7 @@ fn check_items(r: &Rules, p: &mut Vec<String>) {
 }
 
 /// Returns a human-readable list of problems; empty means valid.
-pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
+pub fn validate_rules(r: &Rules) -> Vec<String> {
     let mut p = Vec::new();
     check_lairs(r, &mut p);
     check_ids("race", &r.races, &mut p);
@@ -371,7 +370,7 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
     }
     for (owner, rules) in carriers {
         for rule in rules {
-            check_rule(r, features, &owner, rule, &mut p);
+            check_rule(r, &owner, rule, &mut p);
         }
     }
     p
@@ -716,7 +715,7 @@ fn check_level_paths(r: &Rules, p: &mut Vec<String>) {
     }
 }
 
-fn check_rule(r: &Rules, features: &Features, owner: &str, rule: &EffectRule, p: &mut Vec<String>) {
+fn check_rule(r: &Rules, owner: &str, rule: &EffectRule, p: &mut Vec<String>) {
     check_condition(r, owner, &rule.condition, p);
     let ability = |a: &AbilityId, p: &mut Vec<String>| {
         if r.abilities.try_get(*a).is_none() {
@@ -729,7 +728,7 @@ fn check_rule(r: &Rules, features: &Features, owner: &str, rule: &EffectRule, p:
         }
     };
     match &rule.effect {
-        Effect::GrantAbility(a) | Effect::RemoveAbility(a) => ability(a, p),
+        Effect::GrantAbility(a) => ability(a, p),
         Effect::Summon { unit, count } => {
             if r.units.try_get(*unit).is_none() {
                 p.push(format!("{owner}: summons unknown unit {}", unit.num()));
@@ -738,21 +737,6 @@ fn check_rule(r: &Rules, features: &Features, owner: &str, rule: &EffectRule, p:
                 p.push(format!("{owner}: summon count must be at least 1"));
             }
         }
-        Effect::SetFeature(f) => {
-            if features.get(*f).is_none() {
-                p.push(format!("{owner}: unknown feature {}", f.0));
-            }
-        }
-        Effect::ApplyEnchantment(s) => match r.spells.try_get(*s) {
-            None => p.push(format!("{owner}: applies unknown enchantment {}", s.num())),
-            Some(sd) if sd.duration == Duration::Instant => {
-                p.push(format!(
-                    "{owner}: {:?} is an instant spell, not an enchantment",
-                    sd.id
-                ));
-            }
-            Some(_) => {}
-        },
         Effect::Damage {
             amount,
             immune,
@@ -774,30 +758,15 @@ fn check_rule(r: &Rules, features: &Features, owner: &str, rule: &EffectRule, p:
         Effect::Heal(n) if *n <= 0 => p.push(format!("{owner}: heal must be positive")),
         _ => {}
     }
-    if let crate::rules::effects::TargetSel::UnitsInArea(0) = rule.target {
-        p.push(format!("{owner}: area radius must be at least 1"));
-    }
 }
 
 fn check_condition(r: &Rules, owner: &str, c: &Condition, p: &mut Vec<String>) {
     match c {
-        Condition::HasAbility(a) if r.abilities.try_get(*a).is_none() => {
-            p.push(format!(
-                "{owner}: condition names unknown ability {}",
-                a.num()
-            ));
-        }
-        Condition::RaceIs(x) if r.races.try_get(*x).is_none() => {
-            p.push(format!("{owner}: condition names unknown race {}", x.num()));
-        }
         Condition::RealmIs(x) if r.realms.try_get(*x).is_none() => {
             p.push(format!(
                 "{owner}: condition names unknown realm {}",
                 x.num()
             ));
-        }
-        Condition::All(cs) | Condition::Any(cs) => {
-            cs.iter().for_each(|c| check_condition(r, owner, c, p))
         }
         Condition::Not(c) => check_condition(r, owner, c, p),
         _ => {}
@@ -814,9 +783,7 @@ mod tests {
     #[test]
     fn the_committed_wizards_have_their_names_and_books() -> TestResult {
         let dir = crate::load::testutil::content_dir();
-        let features =
-            crate::load::parse_features(&std::fs::read_to_string(dir.join("features.ron"))?)?;
-        let rules = load_rules(&[dir.as_path()], &features)?;
+        let rules = load_rules(&[dir.as_path()])?;
         let wizards = rules.wizards.defs();
         assert_eq!(wizards.len(), 14);
         let lo_pan = wizards
@@ -829,12 +796,6 @@ mod tests {
 
     fn content_dir() -> std::path::PathBuf {
         crate::load::testutil::content_dir()
-    }
-
-    fn features() -> Features {
-        let src = std::fs::read_to_string(content_dir().join("features.ron"))
-            .expect("crates/f4x-def/content/features.ron exists");
-        crate::load::parse_features(&src).expect("the shipped features parse")
     }
 
     /// The shipped files after applying `(file, from, to)` text replacements (for the files the
@@ -924,11 +885,11 @@ mod tests {
             level_paths: Registry::new(lists.level_paths),
             ..shipped
         };
-        validate_rules(&rules, &features())
+        validate_rules(&rules)
     }
 
     fn problems(edits: &[(&str, &str, &str)]) -> Vec<String> {
-        validate_rules(&rules_with(edits), &features())
+        validate_rules(&rules_with(edits))
     }
 
     fn has(problems: &[String], needle: &str) -> bool {
@@ -962,7 +923,7 @@ mod tests {
     #[test]
     fn shipped_rules_are_valid() -> TestResult {
         assert_eq!(problems(&[]), Vec::<String>::new());
-        let rules = load_rules(&[&content_dir()], &features())?;
+        let rules = load_rules(&[&content_dir()])?;
         for realm in 0..=4 {
             assert!(rules.realms.by_num(realm).is_some(), "{realm}");
         }
@@ -977,7 +938,7 @@ mod tests {
 
     #[test]
     fn typed_ids_round_trip() -> TestResult {
-        let rules = load_rules(&[&content_dir()], &features())?;
+        let rules = load_rules(&[&content_dir()])?;
         let id = rules.units.id_numbered(39).ok_or("the value is missing")?;
         assert_eq!(rules.units.get(id).id, "barbarian_spearmen");
         assert!(rules.units.by_num(9999).is_none());
@@ -1045,7 +1006,7 @@ mod tests {
         rules.hero_templates[0]
             .spells
             .push(crate::rules::SpellId::new(9991));
-        let p = validate_rules(&rules, &features());
+        let p = validate_rules(&rules);
         assert!(
             has(&p, "hero template for unit 39 is not a Hero unit"),
             "{p:?}"
@@ -1121,17 +1082,9 @@ mod tests {
                     *count = 0;
                 }
             }
-            let healing = find(&mut l.spells, "healing", |s| &s.id);
-            // an ability that applies an instant spell as an enchantment
-            let mut rule = healing.effects[0].clone();
-            let fireball =
-                crate::rules::SpellId::new(find(&mut l.spells, "fireball", |s| &s.id).num);
-            rule.effect = Effect::ApplyEnchantment(fireball);
-            l.abilities[0].effects = vec![rule];
         });
         assert!(has(&p, "instant but has Passive"), "{p:?}");
         assert!(has(&p, "summon count"), "{p:?}");
-        assert!(has(&p, "instant spell, not an enchantment"), "{p:?}");
     }
 
     #[test]
@@ -1160,7 +1113,7 @@ mod tests {
                 })
                 .sum()
         };
-        let rules = load_rules(&[&content_dir()], &features())?;
+        let rules = load_rules(&[&content_dir()])?;
         let unit = rules.units.by_num(39).ok_or("the value is missing")?;
         let path = rules
             .level_paths

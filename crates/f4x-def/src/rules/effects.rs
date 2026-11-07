@@ -8,27 +8,17 @@ use serde::{Deserialize, Serialize};
 
 use super::ids::Id;
 use super::stats::{ModOp, Stat};
-use super::{AbilityDef, RealmDef, SpellDef};
-use crate::map::Plane;
-use crate::map::TerrainClass;
+use super::{AbilityDef, RealmDef};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Condition {
     Always,
-    HasAbility(Id<AbilityDef>),
-    TerrainIs(TerrainClass),
-    OnPlane(Plane),
-    RaceIs(Id<super::RaceDef>),
     RealmIs(Id<RealmDef>),
     /// The subject is a unit of this kind (normal units, heroes, creatures).
     KindIs(crate::rules::UnitKind),
-    InBattle,
-    InCity,
     /// The spell in question is of this kind (for a wizard's retorts: what a spell costs and how
     /// fast it is researched).
     SpellIs(SpellTag),
-    All(Vec<Condition>),
-    Any(Vec<Condition>),
     Not(Box<Condition>),
 }
 
@@ -47,9 +37,6 @@ pub enum TargetSel {
     Owner,
     AllOwnUnits,
     AllEnemyUnits,
-    UnitsInTile,
-    UnitsInArea(u8),
-    City,
     Tile,
     /// The target picked when casting.
     Chosen,
@@ -62,12 +49,7 @@ pub enum TargetSel {
 pub enum Trigger {
     /// Applies continuously while the source exists.
     Passive,
-    OnTurnStart,
     OnCast,
-    OnAttack,
-    OnDefend,
-    OnDeath,
-    OnBuilt,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -117,7 +99,6 @@ pub enum Effect {
         value: i32,
     },
     GrantAbility(Id<AbilityDef>),
-    RemoveAbility(Id<AbilityDef>),
     /// `resistible`: the target gets a resistance check, against `realm` with `resist_modifier`
     /// added to its resistance (negative for a spell that is hard to resist). A target with
     /// one of the `immune` abilities (`fire_immunity`, `magic_immunity`, ...) takes nothing.
@@ -152,25 +133,10 @@ pub enum Effect {
         #[serde(default)]
         mana_per_step: u32,
     },
-    AddResource {
-        #[serde(default)]
-        gold: i32,
-        #[serde(default)]
-        food: i32,
-        #[serde(default)]
-        mana: i32,
-        #[serde(default)]
-        research: i32,
-    },
     Summon {
         unit: super::UnitId,
         count: u8,
     },
-    ChangeTerrain(TerrainClass),
-    /// Put a map feature on the tile: its number in `features.ron`.
-    SetFeature(crate::map::FeatureId),
-    /// Attach a lasting spell (by spell id) to the target.
-    ApplyEnchantment(Id<SpellDef>),
     /// A named hook implemented in Rust and shared by several spells. The name is a plain tag
     /// the content gives, with the arguments that tell the spells sharing it apart (`Custom(name:
     /// "wall", args: ["fire"])`); the game code that implements it checks both (`f4x_core::hook`).

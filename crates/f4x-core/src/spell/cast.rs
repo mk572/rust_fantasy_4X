@@ -8,7 +8,6 @@ use rand::RngCore;
 use crate::battle::immunity::Realm;
 use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
-use crate::map::terrain::TerrainClass;
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::effects::{DamageKind, Trigger};
@@ -86,16 +85,9 @@ impl EffectHost for GameHost<'_> {
     fn facts(&self, who: Target) -> Facts {
         let g = &*self.game;
         let mut facts = Facts::default();
-        let pos = self.position(who);
-        if let Some(p) = pos {
-            facts.plane = Some(p.plane);
-            facts.terrain = g.economy().terrain_class_at(p);
-            facts.in_city = g.economy().city_at(p).is_some();
-        }
         if let Target::Unit(u) = who {
             if let Some(def) = g.units().unit_def(u) {
                 facts.abilities = g.units().unit_abilities(u);
-                facts.race = def.race;
                 facts.realm = g.units().unit_realm(u);
                 facts.kind = Some(if g.units().unit_is_undead(u) {
                     crate::rules::UnitKind::Summoned
@@ -174,10 +166,6 @@ impl EffectHost for GameHost<'_> {
         self.game.grant_temp_ability(who, ability, None);
     }
 
-    fn remove_ability(&mut self, who: Target, ability: Ability) {
-        self.game.remove_temp_ability(who, ability, None);
-    }
-
     fn damage(&mut self, who: Target, amount: i32, _kind: DamageKind) -> i32 {
         let Target::Unit(u) = who else {
             return 0;
@@ -232,48 +220,12 @@ impl EffectHost for GameHost<'_> {
         healed
     }
 
-    fn add_resources(&mut self, who: Target, gold: i32, _food: i32, mana: i32, research: i32) {
-        let Some(owner) = self.owner_of(who) else {
-            return;
-        };
-        if let Some(t) = self.game.treasury_mut(owner) {
-            t.gold += gold;
-            t.mana += mana;
-        }
-        if let Some(mut w) = self.game.wizard_mut(owner) {
-            w.add_research(research);
-        }
-    }
-
     fn summon(&mut self, owner: PlayerId, at: Position, id: UnitId, count: u8) {
         // Summoned creatures appear at the summoning circle; without one, where aimed.
         let at = self.game.summon_point(owner).unwrap_or(at);
         for _ in 0..count {
             self.game.spawn_unit(owner, at, id);
         }
-    }
-
-    fn change_terrain(&mut self, at: Position, class: TerrainClass) {
-        let Some(id) = self.game.content.terrains.first_of_class(class, at.plane) else {
-            return;
-        };
-        if let Some(map) = self.game.map.as_mut() {
-            map.plane_mut(at.plane).set(at.x, at.y, id);
-        }
-    }
-
-    fn set_feature(&mut self, at: Position, feature: crate::map::FeatureId) {
-        if self.game.content.features.get(feature).is_none() {
-            return;
-        }
-        if let Some(map) = self.game.map.as_mut() {
-            map.plane_mut(at.plane)
-                .set_mineral(at.x, at.y, Some(feature));
-        }
-    }
-
-    fn apply_enchantment(&mut self, who: Target, spell: SpellId, caster: PlayerId) {
-        self.game.attach_enchantment(who, spell, caster);
     }
 
     fn rng(&mut self) -> &mut dyn RngCore {

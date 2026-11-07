@@ -8,15 +8,13 @@
 //!
 //! Tests: in rules/exec/tests.rs.
 
-use crate::rules::SpellId;
 use crate::rules::{Ability, RealmId, UnitId};
 use rand::RngCore;
 
 use super::effects::{Condition, DamageKind, Effect, EffectRule, TargetSel, Trigger};
 use super::stats::{ModOp, Modifier, Source, Stat};
 use crate::battle::immunity::{resistance_failure, Realm};
-use crate::map::terrain::TerrainClass;
-use crate::map::{Plane, Position};
+use crate::map::Position;
 use crate::player::PlayerId;
 
 /// Something an effect can act on.
@@ -40,14 +38,10 @@ pub enum Target {
 /// What the rules need to know about a target to evaluate a [`Condition`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Facts {
+    /// The target's abilities, which the executor reads for the immunities of a damage effect.
     pub abilities: Vec<Ability>,
-    pub terrain: Option<TerrainClass>,
-    pub plane: Option<Plane>,
-    pub race: Option<super::RaceId>,
     pub realm: Option<RealmId>,
     pub kind: Option<crate::rules::UnitKind>,
-    pub in_battle: bool,
-    pub in_city: bool,
     /// The kinds the spell in question is (for a wizard's retorts).
     pub spell_tags: Vec<crate::rules::effects::SpellTag>,
 }
@@ -88,7 +82,6 @@ pub trait EffectHost {
 
     fn add_modifier(&mut self, who: Target, modifier: Modifier);
     fn grant_ability(&mut self, who: Target, ability: Ability);
-    fn remove_ability(&mut self, who: Target, ability: Ability);
     /// Returns the damage actually dealt (after hp clamping), for the event log.
     fn damage(&mut self, who: Target, amount: i32, kind: DamageKind) -> i32;
     /// A damage spell of `strength` struck by the dice of a battle (every figure of the unit is
@@ -105,11 +98,7 @@ pub trait EffectHost {
         self.damage(who, strength, kind)
     }
     fn heal(&mut self, who: Target, amount: i32) -> i32;
-    fn add_resources(&mut self, who: Target, gold: i32, food: i32, mana: i32, research: i32);
     fn summon(&mut self, owner: PlayerId, at: Position, unit: UnitId, count: u8);
-    fn change_terrain(&mut self, at: Position, class: TerrainClass);
-    fn set_feature(&mut self, at: Position, feature: crate::map::FeatureId);
-    fn apply_enchantment(&mut self, who: Target, spell: SpellId, caster: PlayerId);
     fn custom(&mut self, hook: &str, args: &[String], who: Target, ctx: &Context);
     /// The random numbers of the rules being run. The host owns the stream (the game's own, in
     /// play), so the executor and the hooks it calls draw from one generator.
@@ -124,10 +113,6 @@ pub enum Outcome {
         stat: Stat,
     },
     AbilityGranted {
-        who: Target,
-        ability: Ability,
-    },
-    AbilityRemoved {
         who: Target,
         ability: Ability,
     },
@@ -148,24 +133,9 @@ pub enum Outcome {
         who: Target,
         amount: i32,
     },
-    ResourcesAdded {
-        who: Target,
-    },
     Summoned {
         unit: UnitId,
         count: u8,
-    },
-    TerrainChanged {
-        at: Position,
-        class: TerrainClass,
-    },
-    FeatureSet {
-        at: Position,
-        feature: crate::map::FeatureId,
-    },
-    Enchanted {
-        who: Target,
-        spell: SpellId,
     },
     Custom {
         hook: String,
@@ -176,24 +146,11 @@ pub enum Outcome {
 pub fn eval(cond: &Condition, facts: &Facts) -> bool {
     match cond {
         Condition::Always => true,
-        Condition::HasAbility(a) => facts.abilities.contains(a),
-        Condition::TerrainIs(c) => facts.terrain == Some(*c),
-        Condition::OnPlane(p) => facts.plane == Some(*p),
-        Condition::RaceIs(r) => facts.race == Some(*r),
         Condition::RealmIs(r) => facts.realm == Some(*r),
         Condition::KindIs(k) => facts.kind == Some(*k),
-        Condition::InBattle => facts.in_battle,
-        Condition::InCity => facts.in_city,
         Condition::SpellIs(t) => facts.spell_tags.contains(t),
-        Condition::All(cs) => cs.iter().all(|c| eval(c, facts)),
-        Condition::Any(cs) => cs.iter().any(|c| eval(c, facts)),
         Condition::Not(c) => !eval(c, facts),
     }
-}
-
-/// Chebyshev distance on one plane; `None` across planes.
-fn distance(a: Position, b: Position) -> Option<u32> {
-    (a.plane == b.plane).then(|| a.x.abs_diff(b.x).max(a.y.abs_diff(b.y)))
 }
 
 /// The targets a selector picks out, in a stable order.
@@ -211,32 +168,6 @@ pub fn resolve_targets(sel: TargetSel, ctx: &Context, host: &dyn EffectHost) -> 
             .map(Target::Unit)
             .filter(|t| host.owner_of(*t).is_some_and(|o| o != ctx.owner))
             .collect(),
-        TargetSel::UnitsInTile => match here {
-            Some(p) => units()
-                .map(Target::Unit)
-                .filter(|t| host.position(*t) == Some(p))
-                .collect(),
-            None => Vec::new(),
-        },
-        TargetSel::UnitsInArea(r) => match here {
-            Some(p) => units()
-                .map(Target::Unit)
-                .filter(|t| {
-                    host.position(*t)
-                        .and_then(|q| distance(p, q))
-                        .is_some_and(|d| d <= r as u32)
-                })
-                .collect(),
-            None => Vec::new(),
-        },
-        TargetSel::City => match ctx.this {
-            Target::City(_) => vec![ctx.this],
-            _ => here
-                .and_then(|p| host.city_at(p))
-                .map(Target::City)
-                .into_iter()
-                .collect(),
-        },
         TargetSel::Tile => here.map(Target::Tile).into_iter().collect(),
         TargetSel::Chosen => ctx.chosen.into_iter().collect(),
         TargetSel::UnitsOnChosenSquare => match ctx.chosen.and_then(|t| tile_of(t, host)) {
@@ -272,11 +203,6 @@ fn run_effect(
             let ability = *ability;
             host.grant_ability(who, ability);
             out.push(Outcome::AbilityGranted { who, ability });
-        }
-        Effect::RemoveAbility(ability) => {
-            let ability = *ability;
-            host.remove_ability(who, ability);
-            out.push(Outcome::AbilityRemoved { who, ability });
         }
         Effect::Damage {
             amount,
@@ -315,15 +241,6 @@ fn run_effect(
         }
         // Battle spells: the battle carries them out (`battle/spells.rs`).
         Effect::Slay { .. } => {}
-        Effect::AddResource {
-            gold,
-            food,
-            mana,
-            research,
-        } => {
-            host.add_resources(who, *gold, *food, *mana, *research);
-            out.push(Outcome::ResourcesAdded { who });
-        }
         Effect::Summon { unit, count } => {
             if let Some(at) = tile_of(who, host) {
                 host.summon(ctx.owner, at, *unit, *count);
@@ -332,23 +249,6 @@ fn run_effect(
                     count: *count,
                 });
             }
-        }
-        Effect::ChangeTerrain(class) => {
-            if let Some(at) = tile_of(who, host) {
-                host.change_terrain(at, *class);
-                out.push(Outcome::TerrainChanged { at, class: *class });
-            }
-        }
-        Effect::SetFeature(f) => {
-            if let Some(at) = tile_of(who, host) {
-                host.set_feature(at, *f);
-                out.push(Outcome::FeatureSet { at, feature: *f });
-            }
-        }
-        Effect::ApplyEnchantment(spell) => {
-            let spell = *spell;
-            host.apply_enchantment(who, spell, ctx.owner);
-            out.push(Outcome::Enchanted { who, spell });
         }
         Effect::Custom { name: hook, args } => {
             host.custom(hook, args, who, ctx);

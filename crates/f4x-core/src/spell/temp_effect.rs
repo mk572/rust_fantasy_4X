@@ -467,9 +467,7 @@ mod tests {
         drop(host);
         assert_eq!(g.units().unit_stat(u, Stat::Melee), melee + 2);
         assert!(g.units().unit_has_ability(u, Ability::new(24)));
-        let mut host = crate::spell::cast::tests_support::host(&mut g);
-        host.remove_ability(Target::Unit(u), Ability::new(24) /* flying */);
-        drop(host);
+        g.remove_temp_ability(Target::Unit(u), Ability::new(24) /* flying */, None);
         assert!(!g.units().unit_has_ability(u, Ability::new(24)));
     }
 
