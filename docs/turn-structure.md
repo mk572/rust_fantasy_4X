@@ -141,7 +141,7 @@ the people* is the next turn start:
 
 | Turn end (`end_player_turn`) | Turn start (`start_player_turn`) |
 |---|---|
-| raze windows, land corruption (needs the unspent moves) | reopen sales, stasis |
+| raze windows | reopen sales, stasis |
 | minimum farmers | research learned, next spell chosen (`process_research`) |
 | `settle_treasury`: gold and food income, then food and gold upkeep; a shortage releases units now | Gaia's Blessing, Chaos Rift (terrain and buildings change before food is counted) |
 | `process_magic`: mana income, research points, mana upkeep, casting (a summon or ward finished now defends) | outposts, population growth, pestilence (`grow_city`) |
@@ -176,7 +176,6 @@ Phases (core operations, orchestrated by `f4x-master`): `start_round`, `start_pl
 |---|---|---|---|
 | `close_raze_windows` | player | `end_player_turn(p)` | only cities `p` took (marker is per taker) |
 | `reopen_sales` | player | `start_player_turn(p)` | `p`'s cities only |
-| `process_land_corruption` | player | `end_player_turn(p)` | `p`'s units that stood still all turn (needs unrefilled moves) |
 | `turn += 1` | round | `start_round` | the round counter |
 | `process_stasis` | player | `start_player_turn(p)` | `p`'s units, before the moves refill |
 | moves refill, `Standby::Done` cleared | player | `start_player_turn(p)` | Time Stop: units of others get 0 |

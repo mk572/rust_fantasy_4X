@@ -3,11 +3,12 @@
 //! - **Experience.** The winner's units still standing (normal units and heroes, not creatures
 //!   or the undead) each gain 2 xp for every enemy unit that died, summoned ones too. Units
 //!   that fled give nothing, as in the original, which counts the dead.
-//! - **Fame.** The winner gains 1 fame for killing four or more enemy units (8 xp), and 1 for a
-//!   very rare foe (a dead enemy unit costing 600 or more). The loser loses half a hero's level
-//!   rounded up (`(level + 1) / 2`) for every hero it lost, and a human loser with more
-//!   than 20 fame also loses a point when the winner got its point for four kills (the
-//!   original takes it back from the human attacker or defender who lost).
+//! - **Fame** (the Master of Magic wiki's article on Fame). The winner gains 1 fame for killing
+//!   four or more enemy units (8 xp; summoned ones count) and 1 for a very rare foe (a dead
+//!   fantastic unit that costs 600 or more). The loser loses the same two points the same way
+//!   (four or more of its units dead, a very rare unit of its own dead) and, for every hero it
+//!   lost, half a level rounded down with the lowest level counted as 1 (`(level + 1) / 2` of our
+//!   level from 0): a Myrmidon or Captain costs 1, a Commander or Champion 2.
 //!
 //! A neutral winner (monsters) gets nothing.
 //!
@@ -21,10 +22,10 @@ use crate::rules::UnitKind;
 pub const XP_PER_KILL: u32 = 2;
 /// Experience that earns the winner a point of fame (four kills).
 pub const FAME_XP: u32 = 8;
-/// An enemy unit that costs this much is a rare foe.
+/// A fantastic unit that costs this much (its mana budget) is a very rare foe.
 pub const RARE_FOE_COST: u32 = 600;
-/// A human loser with more fame than this loses a point when the winner earned one for four kills.
-const HUMAN_FAME_LIMIT: i32 = 20;
+/// Units dead on one side that cost it a point of fame, and earn the other side one.
+pub const FAME_KILLS: usize = 4;
 
 /// The result of a battle, worked out before the units are written back.
 #[derive(Debug, Default)]
@@ -38,6 +39,15 @@ pub struct Spoils {
 }
 
 impl Game {
+    /// A very rare unit: a fantastic one (summoned or built, not a hero or a normal unit) whose
+    /// cost, its mana budget, reaches [`RARE_FOE_COST`].
+    fn very_rare(&self, u: &BattleUnit) -> bool {
+        u.unit_id.is_some_and(|id| {
+            let d = self.content.rules.units.get(id);
+            matches!(d.kind, UnitKind::Fantastic | UnitKind::Summoned) && d.cost >= RARE_FOE_COST
+        })
+    }
+
     /// Work out the experience and fame of a finished battle. Reads the units, so call it
     /// before the dead are removed.
     pub(super) fn battle_spoils(&self, battle: &Battle, sources: &[hecs::Entity]) -> Spoils {
@@ -48,18 +58,21 @@ impl Game {
         if self.is_neutral_player(battle.player_of(winner)) {
             return out;
         }
+        // The loser's dead units decide both sides' fame: the winner gains, the loser loses, a
+        // point for four or more of them and a point for a very rare one among them.
         let fallen = |u: &&BattleUnit| u.side != winner && u.status == Status::Dead;
-        out.experience = battle.units.iter().filter(fallen).count() as u32 * XP_PER_KILL;
-        if out.experience >= FAME_XP {
-            out.winner_fame += 1;
-        }
-        let rare = battle.units.iter().filter(fallen).any(|u| {
-            u.unit_id
-                .is_some_and(|id| self.content.rules.units.get(id).cost >= RARE_FOE_COST)
-        });
-        if rare {
-            out.winner_fame += 1;
-        }
+        let killed = battle.units.iter().filter(fallen).count();
+        out.experience = killed as u32 * XP_PER_KILL;
+        let point = i32::from(killed >= FAME_KILLS)
+            + i32::from(
+                battle
+                    .units
+                    .iter()
+                    .filter(fallen)
+                    .any(|u| self.very_rare(u)),
+            );
+        out.winner_fame += point;
+        out.loser_fame -= point;
         for u in battle.units.iter().filter(fallen) {
             let Some(entity) = u.source.and_then(|i| sources.get(i).copied()) else {
                 continue;
@@ -87,13 +100,7 @@ impl Game {
             return Vec::new();
         };
         let (won, lost) = (battle.player_of(winner), battle.player_of(winner.other()));
-        let mut loser_fame = spoils.loser_fame;
-        if spoils.experience >= FAME_XP && self.human() == Some(lost) {
-            let fame = self.fame(lost);
-            if fame + loser_fame > HUMAN_FAME_LIMIT {
-                loser_fame -= 1;
-            }
-        }
+        let loser_fame = spoils.loser_fame;
         if spoils.experience == 0 && spoils.winner_fame == 0 && loser_fame == 0 {
             return Vec::new();
         }

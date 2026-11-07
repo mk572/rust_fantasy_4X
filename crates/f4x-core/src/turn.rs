@@ -106,14 +106,12 @@ impl Game {
 
     /// The end of one player's turn: income, bills and production, as the original's turn
     /// change does them, so a defender finished now defends against the rivals' turns and a
-    /// shortage costs its units now. Raze windows shut; land corruption spreads under units
-    /// that stood still (it needs the moves the turn left unspent, which the next start
-    /// refills); farmers are kept on the farms; the treasury settles (gold and food income,
+    /// shortage costs its units now. Raze windows shut; farmers are kept on the farms; the treasury settles (gold and food income,
     /// upkeep); the wizard's magic runs (mana income, research points, mana upkeep, casting);
     /// the cities build.
     pub fn end_player_turn(&mut self, player: PlayerId) -> Vec<Event> {
         self.close_raze_windows(player);
-        let mut events = self.process_land_corruption(player);
+        let mut events = Vec::new();
         // The monsters' owner has units only: no cities, no treasury, no magic.
         if player == crate::player::MONSTERS {
             return events;

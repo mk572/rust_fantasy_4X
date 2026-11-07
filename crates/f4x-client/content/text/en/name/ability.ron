@@ -101,7 +101,6 @@
     99: "Death Touch",  // death_touch
     100: "Destruction",  // destruction
     101: "Doom Damage",  // doom_damage
-    102: "Land Corruption",  // land_corruption
     103: "Power Drain",  // power_drain
     104: "Demon Skin",  // mutation_armor
     105: "Demon Wings",  // mutation_wings

@@ -159,8 +159,7 @@ units before the rivals can attack) and growth is the next turn **start**.
 
 ### 4.2 `Game::end_player_turn(player)`
 
-1. Close the player's raze windows; land corruption spreads under units that stood still (it
-   needs the moves the turn left unspent).
+1. Close the player's raze windows.
 2. Raise farmers to the minimum needed to feed each inhabited city.
 3. Settle the treasury (section 5): gold and food income, then food and gold upkeep. A wizard
    under Time Stop is skipped.

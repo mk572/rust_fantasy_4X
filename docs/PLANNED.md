@@ -578,7 +578,7 @@ options of the game setup (`docs/game-settings.md`), off by default so the base 
     original's `Node` rules) and give the new two the same rule with their own numbers as data. If the original
     gives the three realms different kinds of power, decide and write down what a life node and a death node give
     instead.
-  - **Spells that touch nodes:** Meld with Node (the spell and its unit rule), Corruption and Land Corruption on
+  - **Spells that touch nodes:** Meld with Node (the spell and its unit rule), Corruption on
     a node, Warp Node, Change Terrain's refusal on a node, and the awareness spells (Nature Awareness shows nature
     nodes; add whichever shows the new ones), so each takes the five realms, not three. Death Wish, Armageddon and
     the other world spells that look at nodes are checked for a node of any realm.

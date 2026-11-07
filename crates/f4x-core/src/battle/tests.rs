@@ -2683,13 +2683,6 @@ fn a_hero_with_casting_skill_has_mana_that_pays_for_its_spell_shots() -> TestRes
     Ok(())
 }
 
-/// A game with the game's real spells, for battle units that cast them.
-fn casting_game() -> Game {
-    let mut g = game();
-    g.content.rules.spells = crate::game::testutil::shipped().rules.spells;
-    g
-}
-
 /// A hero of player A that serves at (4, 4), made the way the game makes one: a hero type in the
 /// rules (a walker that is a hero), the hero entity, and hiring it. Skill 0 and the spells it knows
 /// are set after, as the rolled ones would be.
@@ -2735,7 +2728,7 @@ fn begin(g: &mut Game, attacker: hecs::Entity) {
 
 #[test]
 fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() -> TestResult {
-    let mut g = casting_game();
+    let mut g = game();
     g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 2000;
     g.init_wizard(A, &[(RealmId::new(2 /* chaos */), 5)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
@@ -2837,7 +2830,7 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
 
 #[test]
 fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() -> TestResult {
-    let mut g = casting_game();
+    let mut g = game();
     g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 2000;
     g.init_wizard(A, &[(RealmId::new(2 /* chaos */), 5)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
@@ -2928,7 +2921,7 @@ fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() -> TestResult {
 
 #[test]
 fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() -> TestResult {
-    let mut g = casting_game();
+    let mut g = game();
     let hero = hero_unit(&mut g, &[83 /* fire_bolt */, 125 /* healing */], 2);
     begin(&mut g, hero);
     let zap = g
@@ -3018,7 +3011,7 @@ fn a_hero_casts_an_innate_spell_with_its_own_mana_and_ends_its_turn() -> TestRes
 fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() -> TestResult {
     use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
-    let mut g = casting_game();
+    let mut g = game();
     let hero = hero_unit(&mut g, &[], 0);
     let wand = |slot_name: &str| Item {
         name: slot_name.into(),
@@ -3094,19 +3087,14 @@ fn an_items_spell_costs_a_charge_and_the_charges_stay_on_the_item() -> TestResul
 
 #[test]
 fn an_ability_spell_is_cast_once_a_battle_and_a_ward_or_a_miss_of_aim_stops_it() -> TestResult {
-    let mut g = casting_game();
+    let mut g = game();
     let walker = g
         .content
         .rules
         .units
-        .id_numbered(107)
-        .ok_or("high_men_cavalry is not in the content")?;
+        .id_numbered(108)
+        .ok_or("high_men_priests is not in the content")?;
     let unit = g.spawn_unit(A, at(4, 4), walker);
-    let mut defs = g.content.rules.units.defs().to_vec();
-    for d in defs.iter_mut().filter(|d| d.id == "high_men_cavalry") {
-        d.abilities.push(Ability::new(6));
-    }
-    g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     begin(&mut g, unit);
     let healing = g
         .content
@@ -3173,8 +3161,7 @@ fn the_twelve_units_with_a_casting_ability_cast_its_spell_once_for_no_mana() -> 
     .collect();
     assert_eq!(casters.len(), 12);
     for (unit_id, spell_id) in casters {
-        let mut g = casting_game();
-        g.content.rules.units = shipped.rules.units.clone();
+        let mut g = game();
         let id = g
             .content
             .rules
@@ -3248,7 +3235,7 @@ fn a_spell_save_makes_the_resistance_checks_of_the_cast_harder() {
 /// A game whose hero (casting skill 4, so mana for several casts) has the real spell `id`. The
 /// battle is on; the enemy is battle unit 1.
 fn hook_game(id: u16) -> Game {
-    let mut g = casting_game();
+    let mut g = game();
     let hero = hero_unit(&mut g, &[id], 4);
     begin(&mut g, hero);
     g.battle.as_mut().expect("as_mut succeeds").battle.units[0].mana = 1000;
@@ -3499,17 +3486,12 @@ fn word_of_recall_takes_any_unit_to_the_circle_where_recall_hero_wants_a_hero() 
 #[test]
 fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() -> TestResult {
     let mut g = game();
-    let mut defs = g.content.rules.units.defs().to_vec();
-    for d in defs.iter_mut().filter(|d| d.id == "high_men_cavalry") {
-        d.abilities.push(Ability::new(67));
-    }
-    g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     let walker = g
         .content
         .rules
         .units
-        .id_numbered(107)
-        .ok_or("high_men_cavalry is not in the content")?;
+        .id_numbered(173)
+        .ok_or("demon_lord is not in the content")?;
     let lord = g.spawn_unit(A, at(4, 4), walker);
     begin(&mut g, lord);
     assert!(g.can_summon_demon(0));
@@ -4186,69 +4168,82 @@ fn fewer_than_four_kills_give_experience_but_no_fame() -> TestResult {
     Ok(())
 }
 
-#[test]
-fn a_very_rare_foe_is_worth_a_point_of_fame() -> TestResult {
-    let mut g = game_with_abilities(107 /* high_men_cavalry */, &[]);
-    let mut units = g.content.rules.units.defs().to_vec();
-    for u in units.iter_mut().filter(|u| u.id == "high_men_cavalry") {
-        u.cost = 600;
-    }
-    g.content.rules.units = crate::rules::Registry::new_sorted(units);
-    let walker = g
-        .content
-        .rules
-        .units
-        .id_numbered(107)
-        .ok_or("high_men_cavalry is not in the content")?;
+/// A battle of one cavalry of player A against `foes` of player D (unit numbers), all the foes
+/// dead, with D's fame at 5. Returns the fame of A and D afterwards.
+fn fame_after_killing(foes: &[u16]) -> Result<(i32, i32), String> {
+    let mut g = game();
+    let walker = g.content.rules.units.id_numbered(107).ok_or("no cavalry")?;
     let a = g.spawn_unit(A, at(4, 4), walker);
-    let d = g.spawn_unit(D, at(5, 4), walker);
+    let mut ids = Vec::new();
+    for &num in foes {
+        let kind = g.content.rules.units.id_numbered(num).ok_or("no foe")?;
+        ids.push(g.spawn_unit(D, at(5, 4), kind));
+    }
     g.set_fame(D, 5);
-    finish_with_dead(&mut g, &[a], &[d], &[1]);
-    assert_eq!(g.wizard(A).ok_or("wizard is missing")?.fame(), 1);
-    assert_eq!(
-        g.wizard(D).ok_or("wizard is missing")?.fame(),
-        5,
-        "no hero fell, so the loser keeps its fame"
-    );
+    let dead: Vec<usize> = (1..=foes.len()).collect();
+    finish_with_dead(&mut g, &[a], &ids, &dead);
+    let fame = |p| {
+        g.wizard(p)
+            .map(|w| w.fame())
+            .ok_or("wizard is missing".to_string())
+    };
+    Ok((fame(A)?, fame(D)?))
+}
+
+#[test]
+fn a_very_rare_fantastic_foe_is_worth_a_point_of_fame_and_costs_its_owner_one() -> TestResult {
+    // The Great Drake is summoned for 900 mana.
+    assert_eq!(fame_after_killing(&[164])?, (1, 4));
+    // The Hydra, at 650, is rare too; the Sky Drake, the Demon Lord as well.
+    assert_eq!(fame_after_killing(&[163])?, (1, 4));
     Ok(())
 }
 
 #[test]
-fn a_fallen_hero_costs_its_owner_fame_by_level_and_a_human_loser_gives_one_back() -> TestResult {
-    let mut g = game_with_abilities(107 /* high_men_cavalry */, &[]);
-    let mut units = g.content.rules.units.defs().to_vec();
-    for u in units.iter_mut().filter(|u| u.id == "high_men_cavalry") {
-        u.kind = crate::rules::UnitKind::Hero;
+fn a_fantastic_foe_below_the_rare_cost_and_a_normal_foe_give_no_fame() -> TestResult {
+    // A galley (fantastic, 100) and a cavalry (normal, 200).
+    assert_eq!(fame_after_killing(&[36])?, (0, 5));
+    assert_eq!(fame_after_killing(&[107])?, (0, 5));
+    Ok(())
+}
+
+#[test]
+fn the_loser_loses_the_point_the_winner_gets_for_four_dead_units() -> TestResult {
+    assert_eq!(fame_after_killing(&[107, 107, 107])?, (0, 5));
+    assert_eq!(fame_after_killing(&[107, 107, 107, 107])?, (1, 4));
+    // A rare foe among the four earns and costs both points.
+    assert_eq!(fame_after_killing(&[164, 107, 107, 107])?, (2, 3));
+    Ok(())
+}
+
+#[test]
+fn a_fallen_hero_costs_its_owner_half_its_level_rounded_down_counting_from_one() -> TestResult {
+    // (xp, fame lost): Hero 0, Myrmidon 20 and Captain 60 lose 0, 1 and 1 (by the wiki's level
+    // count from 1, halved and rounded down), Commander 120 and Champion 200 lose 2.
+    for (xp, lost) in [(0, 0), (20, 1), (60, 1), (120, 2), (200, 2)] {
+        let mut g = game();
+        let walker = g.content.rules.units.id_numbered(107).ok_or("no cavalry")?;
+        let hero = g.content.rules.units.id_numbered(0).ok_or("no dwarf")?;
+        let a = g.spawn_unit(A, at(4, 4), walker);
+        let d = g.spawn_unit(D, at(5, 4), hero);
+        g.world.insert_one(d, crate::unit::Experience(xp))?;
+        g.set_fame(D, 5);
+        finish_with_dead(&mut g, &[a], &[d], &[1]);
+        assert_eq!(
+            g.wizard(D).ok_or("wizard is missing")?.fame(),
+            5 - lost,
+            "xp {xp}"
+        );
     }
-    g.content.rules.units = crate::rules::Registry::new_sorted(units);
-    let walker = g
-        .content
-        .rules
-        .units
-        .id_numbered(107)
-        .ok_or("high_men_cavalry is not in the content")?;
-    let a = g.spawn_unit(A, at(4, 4), walker);
+    // A human loser with a lot of fame loses no more than the rules say.
+    let mut g = game();
+    let walker = g.content.rules.units.id_numbered(107).ok_or("no cavalry")?;
     let foes: Vec<_> = (0..4).map(|_| g.spawn_unit(D, at(5, 4), walker)).collect();
-    // The first foe is a Veteran (level 1): half of 1 + 1 is 1.
-    g.world.insert_one(foes[0], crate::unit::Experience(20))?;
+    let a = g.spawn_unit(A, at(4, 4), walker);
     g.set_fame(D, 25);
     g.set_human(Some(D));
     finish_with_dead(&mut g, &[a], &foes, &[1, 2, 3, 4]);
-    // 25 - 1 for the hero, then one more for the four kills of a human loser above 20 fame.
-    assert_eq!(g.wizard(D).ok_or("wizard is missing")?.fame(), 23);
-    // A hero's level 0 costs nothing.
-    let mut g2 = game_with_abilities(107 /* high_men_cavalry */, &[]);
-    let walker = g2
-        .content
-        .rules
-        .units
-        .id_numbered(107)
-        .ok_or("high_men_cavalry is not in the content")?;
-    let a = g2.spawn_unit(A, at(4, 4), walker);
-    let d = g2.spawn_unit(D, at(5, 4), walker);
-    g2.set_fame(D, 5);
-    finish_with_dead(&mut g2, &[a], &[d], &[1]);
-    assert_eq!(g2.wizard(D).ok_or("wizard is missing")?.fame(), 5);
+    assert_eq!(g.wizard(D).ok_or("wizard is missing")?.fame(), 24);
     Ok(())
 }
 
@@ -4545,7 +4540,7 @@ fn invisibility_that_begins_in_battle_hides_the_unit_at_once() {
 /// is still up.
 fn dispel_the_field(burn: usize) -> (bool, bool) {
     use crate::battle::field::Field;
-    let mut g = casting_game();
+    let mut g = game();
     for _ in 0..burn {
         g.next_u64();
     }
@@ -4635,7 +4630,7 @@ fn dispel_magic_takes_down_the_enemy_battlefield_spells_and_leaves_its_casters_o
 /// A battle of player A's wizard, who knows `spells` and has plenty to cast with; the first
 /// attacker is a `unit` of the test content.
 fn wizard_battle(unit: u16, spells: &[u16]) -> Game {
-    let mut g = casting_game();
+    let mut g = game();
     g.treasury_mut(A).expect("treasury_mut succeeds").mana = 2000;
     g.init_wizard(
         A,
@@ -4943,7 +4938,7 @@ fn heroism_cast_in_a_battle_raises_the_unit_to_the_level_it_gives() -> TestResul
 fn a_battle_is_saved_and_read_back_with_its_spells_and_items() -> TestResult {
     use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
-    let mut g = casting_game();
+    let mut g = game();
     let hero = hero_unit(&mut g, &[], 0);
     let wand = Item {
         name: "Wand".into(),
@@ -5005,7 +5000,7 @@ fn a_battle_is_saved_and_read_back_with_its_spells_and_items() -> TestResult {
 fn battle_in_the_middle() -> (Game, hecs::Entity) {
     use crate::item::{Item, ItemBonus};
     use crate::rules::ItemKind;
-    let mut g = casting_game();
+    let mut g = game();
     let hero = hero_unit(&mut g, &[], 0);
     let wand = Item {
         name: "Wand".into(),
@@ -5200,7 +5195,7 @@ fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() ->
 
 #[test]
 fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() -> TestResult {
-    let mut g = casting_game();
+    let mut g = game();
     g.init_wizard(
         A,
         &[
@@ -5451,7 +5446,7 @@ fn monsters_that_win_get_no_experience_and_the_loser_loses_no_fame() -> TestResu
 
 #[test]
 fn the_legal_unit_casts_are_the_castable_spells_with_the_units_they_can_hit() -> TestResult {
-    let mut g = casting_game();
+    let mut g = game();
     let hero = hero_unit(&mut g, &[83 /* fire_bolt */, 125 /* healing */], 2);
     begin(&mut g, hero);
     let bolt = g

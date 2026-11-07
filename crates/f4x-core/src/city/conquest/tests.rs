@@ -28,10 +28,10 @@ fn the_loot_is_the_citys_share_of_the_losers_gold() {
 }
 
 #[test]
-fn razing_pays_a_tenth_of_each_building_and_costs_the_size_plus_one() {
+fn razing_pays_a_tenth_of_each_building_and_costs_the_size() {
     assert_eq!(razing_loot([100, 45, 9]), 10 + 4);
     assert_eq!(razing_loot([]), 0);
-    assert_eq!(razing_fame_loss(3), 4);
+    assert_eq!(razing_fame_loss(3), 3);
 }
 
 fn b(n: u16) -> BuildingId {

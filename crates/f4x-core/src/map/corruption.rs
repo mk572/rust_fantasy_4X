@@ -1,4 +1,4 @@
-//! Corrupted land: made by the Corruption spell and by units with Land Corruption, cleansed
+//! Corrupted land: made by the Corruption spell, cleansed
 //! in three turns by units with Purify, and by Gaia's Blessing.
 //!
 //! A corrupted square gives its city no food, no production bonus and no mineral bonus.
@@ -165,30 +165,6 @@ impl Game {
                 }
             }
         }
-    }
-
-    /// Units with Land Corruption that stood still all turn corrupt their square. Call
-    /// before the moves are refilled.
-    pub(crate) fn process_land_corruption(
-        &mut self,
-        player: crate::player::PlayerId,
-    ) -> Vec<Event> {
-        let mut events = Vec::new();
-        for u in self.units().all_units() {
-            if self.units().unit_owner(u) != Some(player) {
-                continue;
-            }
-            if !self.units().unit_has_ability(u, Ability::new(102)) {
-                continue;
-            }
-            let Some(at) = self.units().unit_position(u) else {
-                continue;
-            };
-            if self.units().unit_moves_left(u) >= self.units().unit_max_moves(u) {
-                events.extend(self.corrupt(at));
-            }
-        }
-        events
     }
 
     /// Gaia's Blessing: each turn a city's deserts may turn to grassland, its volcanoes to

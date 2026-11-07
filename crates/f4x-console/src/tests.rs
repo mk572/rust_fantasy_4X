@@ -1582,7 +1582,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() -> TestResult {
         matches!(events[..], [f4x_core::game::Event::Rejected(_)]),
         "{events:?}"
     );
-    // The taker razes it: the size plus one more fame is lost (the fighting leaves a size that
+    // The taker razes it: the size in fame is lost (the fighting leaves a size that
     // depends on the dice), and a tenth of each building's cost is looted.
     let size = f4x_core::city::conquest::city_size_class(
         g.component::<f4x_core::city::economy::Population>(city)
@@ -1602,7 +1602,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() -> TestResult {
     assert!(g.component::<f4x_core::city::City>(city).is_none());
     assert_eq!(
         g.wizard(HUMAN).expect("the player is a wizard").fame(),
-        (fame_after_taking - (size + 1)).max(0)
+        (fame_after_taking - size).max(0)
     );
     assert!(g.player(HUMAN).expect("the player exists").treasury().gold > gold_after_taking);
 

@@ -6,7 +6,6 @@ use f4x_def::testdir::TestResult;
 
 use crate::game::Command;
 use crate::rules::exec::Target;
-use crate::rules::Registry;
 use crate::spell::target_error::TargetError;
 
 const P0: PlayerId = PlayerId(0);
@@ -214,12 +213,6 @@ fn divine_and_infernal_power_add_half_again_to_the_religious_buildings() -> Test
 fn the_caster_pays_upkeep_for_enchantments_on_enemy_cities() -> TestResult {
     let mut g = world();
     let city = found(&mut g, P0, at(10, 6), 4);
-    let mut defs = g.content.rules.spells.defs().to_vec();
-    defs.iter_mut()
-        .find(|d| d.id == "chaos_rift")
-        .ok_or("find is missing")?
-        .upkeep = 10;
-    g.content.rules.spells = Registry::new(defs);
     enchant(&mut g, city, 110 /* chaos_rift */, P1);
     let cost = |g: &Game, p| g.upkeep_items(p).iter().map(|i| i.mana).sum::<i32>();
     assert_eq!(cost(&g, P1), 10, "the wizard who cast it pays");

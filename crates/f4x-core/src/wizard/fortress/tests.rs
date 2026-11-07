@@ -697,12 +697,6 @@ fn a_computer_wizard_who_cannot_pay_for_the_return_resigns_and_the_cities_go_neu
         .units
         .id_numbered(36)
         .ok_or("galley is not in the content")?;
-    let mut defs = g.content.rules.units.defs().to_vec();
-    defs.iter_mut()
-        .find(|d| d.id == "galley")
-        .ok_or("find is missing")?
-        .kind = crate::rules::UnitKind::Fantastic;
-    g.content.rules.units = crate::rules::Registry::new_sorted(defs);
     let beast = g.spawn_unit(P0, at(15, 5), galley);
     let events = g.capture_city(capital, P1);
     assert!(

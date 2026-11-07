@@ -5,7 +5,6 @@ use crate::map::{Grid, Map, Plane};
 use crate::rules::exec::Target;
 use crate::rules::RealmId;
 use crate::rules::Registry;
-use crate::unit::MovesLeft;
 use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
@@ -25,7 +24,6 @@ fn world() -> Game {
     for u in units.iter_mut() {
         match u.id.as_str() {
             "high_men_cavalry" => u.abilities.push(Ability::new(54)),
-            "high_men_spearmen" => u.abilities.push(Ability::new(102)),
             _ => {}
         }
     }
@@ -210,25 +208,6 @@ fn purifiers_clean_a_square_in_three_turns_and_moving_cancels() -> TestResult {
     let _ = g.world.insert_one(cleric, at(6, 5));
     g.process_purify_all();
     assert!(g.world.get::<&PurifyWork>(cleric).is_err());
-    Ok(())
-}
-
-#[test]
-fn a_unit_that_stays_put_corrupts_its_square_when_it_has_land_corruption() -> TestResult {
-    let mut g = world();
-    let slow = g
-        .content
-        .rules
-        .units
-        .id_numbered(104)
-        .ok_or("high_men_spearmen is not in the content")?;
-    let still = g.spawn_unit(P0, at(5, 5), slow);
-    let moved = g.spawn_unit(P0, at(9, 9), slow);
-    let _ = g.world.insert_one(moved, MovesLeft(0));
-    g.apply(Command::EndTurn);
-    assert!(g.is_corrupted(at(5, 5)));
-    assert!(!g.is_corrupted(at(9, 9)), "it moved this turn");
-    let _ = still;
     Ok(())
 }
 

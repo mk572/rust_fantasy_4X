@@ -14,7 +14,7 @@
 //!   damage is one for each of the winner's units standing inside the city at the start of each
 //!   turn of the battle (`Battle::city_damage`), so a long siege inside the walls costs more.
 //! - **The winner may then raze it** ([`Command::RazeCity`]) until their turn ends: another
-//!   fame penalty of the size plus one, a tenth of the cost of each building as gold, and the
+//!   fame penalty of the size, a tenth of the cost of each building as gold, and the
 //!   city is gone. The wizard whose fortress it was is banished either way.
 //!
 //! [`Command::RazeCity`]: crate::game::Command::RazeCity
@@ -99,9 +99,10 @@ pub(crate) fn razing_loot(costs: impl IntoIterator<Item = u32>) -> i32 {
     costs.into_iter().map(|c| (c / 10) as i32).sum()
 }
 
-/// The fame razing a city costs: the size class plus one.
+/// The fame razing a city costs: the size class, as losing it to an enemy does (the wiki's
+/// article on Fame; conquering it gains less).
 pub(crate) fn razing_fame_loss(size: i32) -> i32 {
-    size + 1
+    size
 }
 
 /// Destroy a building, unless another that is built needs it (also down a chain). Returns

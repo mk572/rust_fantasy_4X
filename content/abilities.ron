@@ -104,7 +104,6 @@
     (num: 99, id: "death_touch", help: Some(1098), description: "An item gives the carrier a touch that kills a figure.", effects: []),
     (num: 100, id: "destruction", help: Some(1099), description: "An item gives the carrier an attack that destroys a figure outright.", effects: []),
     (num: 101, id: "doom_damage", help: Some(1100), description: "The attack ignores defence: its strength is the damage.", effects: []),
-    (num: 102, id: "land_corruption", help: Some(1101), description: "Its presence corrupts the land around it.", effects: []),
     (num: 103, id: "power_drain", help: Some(1102), description: "The attack drains the mana of a spell caster.", effects: []),
     (num: 104, id: "mutation_armor", help: Some(1103), description: "Marks a unit given demon-skin armour by Chaos Channels.", effects: []),
     (num: 105, id: "mutation_wings", help: Some(1104), description: "Marks a unit given wings by Chaos Channels.", effects: []),

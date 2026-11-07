@@ -75,10 +75,12 @@ Not yet: haste, fear.
 
 Each of the winner's surviving normal units and heroes gains 2 xp for every enemy unit that died
 (summoned ones too; fled ones give nothing), up to the last level experience gives. The winner
-gains 1 fame for four or more kills and 1 for a very rare foe (an enemy unit of cost 600 or
-more); the loser loses `(level + 1) / 2` fame for each hero it lost, and a human loser with more
-than 20 fame loses one more when the winner got the four-kill point (the original's rule). A
-neutral winner gets nothing. The fallen heroes' items are loot in the original (task 221).
+gains 1 fame for four or more kills and 1 for a very rare foe (a dead fantastic unit, summoned or
+built, that costs 600 or more); the loser loses the same two points for the same dead units, and
+`(level + 1) / 2` fame for each hero it lost (half the level counted from 1, rounded down: a
+Myrmidon or Captain 1, a Commander or Champion 2). These are the rules of the Master of Magic wiki's
+article on Fame (`reference/Fame ... .html`, 7 November 2026); the original's extra point for a human
+loser above 20 fame is gone. A neutral winner gets nothing. The fallen heroes' items are loot in the original (task 221).
 
 ### 2.1 Immunities and resistance (task 35)
 
@@ -407,7 +409,7 @@ mirrored, so the defenders are at the east and the city stands at x 12 to 15, y 
   damage (at most 50), and destroys each building nothing else needs with a chance of the city
   damage plus 10 percent (at most 75). The old owner's spells on the city end, production
   starts at trade goods. A fortress city's wizard is banished (`wizard/fortress.rs`).
-- **Razing:** until the turn ends the taker may `RazeCity` (console `raze <city>`, the client asks): the size plus one more fame
+- **Razing:** until the turn ends the taker may `RazeCity` (console `raze <city>`, the client asks): the size in fame
   lost, a tenth of every building's cost looted, and the city is destroyed. This is the original's
   path when the player presses R on the results scroll. The client asks at once; an AI never razes (no
   decision exists for it yet).

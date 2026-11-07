@@ -30,7 +30,7 @@ Data: `content/terrain.ron`, `content/features.ron`.
 | **Enchanted road** | `Grid` array of `bool` | roads that cost nothing to travel | Enchant Road; all Myrror roads count |
 | **River** | `Grid` array of `bool` | a river runs through the tile | map generation (rivers end in the sea or a basin lake) |
 | **Lake** | `Grid` array of `bool` | water tile inside land, drawn as a shore with land all round | map generation |
-| **Corruption** | `Grid` array of `bool` | corrupted land: no food or production, no mineral bonus | Corruption, Land Corruption; purified by engineers or Gaia's Blessing |
+| **Corruption** | `Grid` array of `bool` | corrupted land: no food or production, no mineral bonus | Corruption; purified by engineers or Gaia's Blessing |
 | **Tower, node, encounter site, volcano** | entities with a `Position` (`feature/entity.rs`); `Map` keeps the square-to-entity index | a tower (one entity on both planes), a node (power, aura squares, guardian and warped flags, owner), a guarded site (`Lair`: guards and hoard of every tower, node and encounter site) and a volcano (its owner gets a point of power a turn) | generation, melding, Warp Node, clearing, the volcano spells, tower claims |
 | **Cities** | entities with a `Position` | founded cities and outposts | `FoundCity`, `SettleOutpost` |
 | **Units** | entities with a `Position` | everything that moves | movement commands |
