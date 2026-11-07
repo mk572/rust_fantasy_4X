@@ -79,6 +79,14 @@ pub(crate) struct Special {
     pub item: Option<ItemIcon>,
 }
 
+/// What a unit costs each turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SheetUpkeep {
+    pub gold: i32,
+    pub mana: i32,
+    pub food: f4x_def::half_int::HalfInt,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Sheet {
     pub source: Source,
@@ -92,7 +100,7 @@ pub(crate) struct Sheet {
     pub moves: u32,
     pub move_icon: usize,
     /// Gold, mana and food upkeep (the map sheet).
-    pub upkeep: Option<[i32; 3]>,
+    pub upkeep: Option<SheetUpkeep>,
     /// Damage on the front figure (the battle sheet).
     pub damage: Option<i32>,
     pub melee: Row,
@@ -634,11 +642,11 @@ impl App {
                 || stat(Stat::Transport) > 0,
             moves: stat(Stat::Moves).max(0) as u32,
             move_icon: move_icon_of(def.movement),
-            upkeep: Some([
-                units.unit_gold_upkeep(unit),
-                def.upkeep.mana as i32,
-                units.unit_food(unit).ceil(),
-            ]),
+            upkeep: Some(SheetUpkeep {
+                gold: units.unit_gold_upkeep(unit),
+                mana: def.upkeep.mana as i32,
+                food: units.unit_food(unit),
+            }),
             damage: None,
             melee: Row::stat(
                 melee_icon(units.unit_weapon_quality(unit)),
@@ -769,11 +777,11 @@ impl App {
                 || stat(Stat::Transport) > 0,
             moves: stat(Stat::Moves).max(0) as u32,
             move_icon: move_icon_of(def.movement),
-            upkeep: Some([
-                def.upkeep.gold as i32,
-                def.upkeep.mana as i32,
-                def.upkeep.food.ceil(),
-            ]),
+            upkeep: Some(SheetUpkeep {
+                gold: def.upkeep.gold as i32,
+                mana: def.upkeep.mana as i32,
+                food: def.upkeep.food,
+            }),
             damage: None,
             melee: Row::stat(melee_icon(0), stat(Stat::Melee), base(Stat::Melee)),
             ranged: (ranged > 0)

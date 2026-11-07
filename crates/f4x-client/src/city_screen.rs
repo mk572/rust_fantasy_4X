@@ -500,11 +500,12 @@ impl App {
         small: usize,
         big: usize,
         count: i32,
+        half: bool,
         x: f32,
         y: f32,
     ) -> f32 {
         let mut at = x;
-        if count <= 0 {
+        if count <= 0 && !half {
             return at;
         }
         let (tens, ones) = (count / 10, count % 10);
@@ -516,6 +517,11 @@ impl App {
         }
         for _ in 0..ones {
             self.city_pic(lay, "backgrnd", small, 0, at, y);
+            at += 8.0;
+        }
+        if half {
+            let screen = lay.rect(at, y, 0.0, 0.0);
+            self.draw_half_icon(small, (screen.x, screen.y), lay.scale);
             at += 8.0;
         }
         at
@@ -540,19 +546,20 @@ impl App {
                 40usize,
                 34usize,
                 eco.food.floor(),
+                !eco.food.is_whole(),
                 self.signed_amount(eco.food - f4x_def::half_int::HalfInt::from_int(figures)),
             ),
-            (41, 35, eco.production, String::new()),
-            (42, 36, eco.gold, format!("{net_gold:+}")),
-            (43, 37, eco.mana, String::new()),
-            (44, 38, eco.research, String::new()),
+            (41, 35, eco.production, false, String::new()),
+            (42, 36, eco.gold, false, format!("{net_gold:+}")),
+            (43, 37, eco.mana, false, String::new()),
+            (44, 38, eco.research, false, String::new()),
         ];
         let ink = Color::new(0.12, 0.1, 0.08, 1.0);
-        for (i, (small, big, count, note)) in rows.into_iter().enumerate() {
+        for (i, (small, big, count, half, note)) in rows.into_iter().enumerate() {
             let y = 54.0 + i as f32 * 8.6;
-            let mut end = self.icon_row(lay, small, big, count, 8.0, y);
+            let mut end = self.icon_row(lay, small, big, count, half, 8.0, y);
             if i == 2 && eco.gold_upkeep > 0 {
-                end = self.icon_row(lay, 73, 73, eco.gold_upkeep, end + 6.0, y);
+                end = self.icon_row(lay, 73, 73, eco.gold_upkeep, false, end + 6.0, y);
             }
             let _ = end;
             if !note.is_empty() {
@@ -1361,6 +1368,30 @@ impl App {
         }
     }
 
+    /// A `backgrnd` icon cut along its diagonal, the triangle above it from the top right: half a
+    /// food, half a loaf.
+    pub(crate) fn draw_half_icon(&mut self, entry: usize, screen: (f32, f32), scale: f32) {
+        let Some(tex) = self.art.picture("backgrnd", entry, 0).cloned() else {
+            return;
+        };
+        let (w, h) = (
+            crate::resolution::logical_w(&tex) * scale,
+            crate::resolution::logical_h(&tex) * scale,
+        );
+        let corner = |dx: f32, dy: f32, u: f32, v: f32| {
+            Vertex::new(screen.0 + dx, screen.1 + dy, 0.0, u, v, WHITE)
+        };
+        draw_mesh(&Mesh {
+            vertices: vec![
+                corner(0.0, 0.0, 0.0, 0.0),
+                corner(w, 0.0, 1.0, 0.0),
+                corner(0.0, h, 0.0, 1.0),
+            ],
+            indices: vec![0, 1, 2],
+            texture: Some(tex),
+        });
+    }
+
     /// `whole` icons of `backgrnd` entry `entry` in a row that overlaps as far as it must to fit
     /// the 18 pixels of a square, and a half icon (cut along its diagonal) after them.
     fn draw_icon_stack(
@@ -1392,19 +1423,8 @@ impl App {
                 crate::resolution::logical_h(&tex) * lay.scale,
             );
             if half && k == slots - 1 {
-                // The half loaf: the triangle above the diagonal from the top right.
-                let corner = |dx: f32, dy: f32, u: f32, v: f32| {
-                    Vertex::new(at.x + dx, at.y + dy, 0.0, u, v, WHITE)
-                };
-                draw_mesh(&Mesh {
-                    vertices: vec![
-                        corner(0.0, 0.0, 0.0, 0.0),
-                        corner(w, 0.0, 1.0, 0.0),
-                        corner(0.0, h, 0.0, 1.0),
-                    ],
-                    indices: vec![0, 1, 2],
-                    texture: Some(tex.clone()),
-                });
+                let screen = lay.rect(x + k as f32 * step, y, 0.0, 0.0);
+                self.draw_half_icon(entry, (screen.x, screen.y), lay.scale);
             } else {
                 draw_texture_ex(
                     &tex,

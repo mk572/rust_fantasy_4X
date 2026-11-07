@@ -63,12 +63,12 @@ impl App {
             .collect()
     }
 
-    /// Gold, mana and food the army costs each turn.
-    fn army_upkeep(&self) -> [i32; 3] {
+    /// Gold, mana and food the army costs each turn, as text.
+    fn army_upkeep(&self) -> [String; 3] {
         let units = self.game.units();
         let rules = &self.game.content().rules;
-        let mut out = [0; 3];
-        out[2] = units.food_of(&units.player_units(HUMAN)).ceil();
+        let mut out = [0; 2];
+        let food = units.food_of(&units.player_units(HUMAN));
         for u in units.player_units(HUMAN) {
             out[0] += units.unit_gold_upkeep(u);
             if let Some(def) = units.unit_def(u) {
@@ -80,7 +80,11 @@ impl App {
                 }
             }
         }
-        out
+        [
+            out[0].to_string(),
+            out[1].to_string(),
+            self.texts.half_amount(food),
+        ]
     }
 
     pub(crate) fn open_army_list(&mut self) {
@@ -255,13 +259,7 @@ impl Page for ArmyUi {
         );
         let upkeep = app.army_upkeep();
         for (value, y) in upkeep.into_iter().zip([173.0, 183.0, 192.0]) {
-            app.draw_styled(
-                view,
-                &Style::list_text(1).center(),
-                &value.to_string(),
-                45.0,
-                y,
-            );
+            app.draw_styled(view, &Style::list_text(1).center(), &value, 45.0, y);
         }
 
         // Scrolling: the arrows, U and D, the wheel.

@@ -303,16 +303,24 @@ impl App {
                 py + moves_y - 2.0,
             );
         }
-        if let Some([gold_up, mana_up, food_up]) = sheet.upkeep {
+        if let Some(up) = sheet.upkeep {
             let word = self.text("army.upkeep");
             self.draw_styled(view, &Style::unit_view(1), &word, name_x, py + upkeep_y);
             let (mut x, y) = (px + ox + 85.0, py + upkeep_y - 1.0);
             // Gold, then mana, then food, each a small icon from `backgrnd`.
-            for (count, entry) in [(gold_up, 42), (mana_up, 43), (food_up, 40)] {
+            for (count, entry) in [(up.gold, 42), (up.mana, 43), (up.food.floor(), 40)] {
                 for _ in 0..count.max(0) {
                     self.draw_pic(lay, "backgrnd", entry, 0, x, y);
                     x += 8.0;
                 }
+            }
+            // A half food is half a loaf, cut along its diagonal.
+            if !up.food.is_whole() {
+                self.draw_half_icon(
+                    40,
+                    (lay.origin.x + x * lay.scale, lay.origin.y + y * lay.scale),
+                    lay.scale,
+                );
             }
         } else if let Some(damage) = sheet.damage {
             let word = self.text("unit.damage");

@@ -329,7 +329,7 @@ impl App {
                         .contains(&f4x_def::rules::Ability::new(96) /* noble */)
                 });
             if let (true, Some(upkeep)) = (noble, sheet.upkeep.as_mut()) {
-                upkeep[0] = 0;
+                upkeep.gold = 0;
             }
             debug_assert_eq!(sheet.source, Source::Offer);
             let mut panel = std::mem::take(&mut self.offer_ui.panel);
