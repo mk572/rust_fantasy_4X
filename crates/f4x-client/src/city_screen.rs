@@ -10,6 +10,7 @@ use crate::ui;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
+use f4x_def::half_int::HalfInt;
 use macroquad::prelude::*;
 
 use crate::art::{TILE_H, TILE_W};
@@ -1181,18 +1182,31 @@ impl App {
                     self.city_pic(lay, "backgrnd", 0, 0, cx + 7.0, cy + 4.0);
                 }
                 if page.area_figures {
-                    let (food, production) = self.game.map().map_or((0, 0), |m| {
+                    let (food, production) = self.game.map().map_or((HalfInt::ZERO, 0), |m| {
                         let eco = self.game.economy();
                         let half = |v: i32| if shared { v / 2 } else { v };
                         let g = m.plane(at.plane);
                         (
-                            half(eco.square_food(g, x, y)),
+                            eco.square_food(g, x, y),
                             half(eco.square_production(g, x, y, gaia)),
                         )
                     });
                     // Food as stacked bread, half a loaf cut across the diagonal; production
                     // as one hammer for each percent.
-                    self.draw_icon_stack(lay, 40, food / 2, food % 2 == 1, cx + 1.0, cy + 1.0);
+                    // A shared square gives half of it, rounded down to a half.
+                    let food = if shared {
+                        HalfInt::from_raw(food.raw() / 2)
+                    } else {
+                        food
+                    };
+                    self.draw_icon_stack(
+                        lay,
+                        40,
+                        food.floor(),
+                        !food.is_whole(),
+                        cx + 1.0,
+                        cy + 1.0,
+                    );
                     self.draw_icon_stack(lay, 41, production, false, cx + 1.0, cy + 9.0);
                 }
             }

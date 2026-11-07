@@ -56,7 +56,8 @@ impl Game {
             let spoiled = grid.is_corrupted(p.x as i32, p.y as i32);
             let half = |v: i32| if shared { v / 2 } else { v };
             if !spoiled {
-                food_x2 += half(def.food.raw() * 2);
+                let food = self.economy().square_food(grid, p.x as i32, p.y as i32);
+                food_x2 += half(food.raw() * 2);
                 survey.production_percent += half(def.production_percent);
             }
             if let Some(f) = grid

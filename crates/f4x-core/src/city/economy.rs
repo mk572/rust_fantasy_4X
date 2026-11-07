@@ -419,15 +419,15 @@ impl<'a> Economy<'a> {
         total
     }
 
-    /// What one square gives a city that works it, in half-food units (the original's
-    /// `Square_Food_x2`): the terrain's own food (a magic node's square has its own terrain); a
+    /// What one square gives a city that works it (the original's `Square_Food_x2`, here an
+    /// amount in halves): the terrain's own food (a magic node's square has its own terrain); a
     /// river square gives two food whatever it is laid on; water next to land (the shore) gives
     /// half a food, open sea none.
-    pub fn square_food(&self, grid: &crate::map::Grid, x: i32, y: i32) -> i32 {
+    pub fn square_food(&self, grid: &crate::map::Grid, x: i32, y: i32) -> HalfInt {
         let Some(def) = grid.get(x, y).and_then(|t| self.content.terrains.get(t)) else {
-            return 0;
+            return HalfInt::ZERO;
         };
-        let food = def.food.raw();
+        let food = def.food;
         if def.class == TerrainClass::Ocean {
             let land = |dx: i32, dy: i32| {
                 grid.get(x + dx, y + dy)
@@ -459,12 +459,12 @@ impl<'a> Economy<'a> {
             // other land squares around it, the water gives two food. A shore hemmed in by
             // four or more takes the plain shore's half food (the original's tile sets).
             if river_in && (grid.is_lake(x, y) || shore <= 3) {
-                return food.max(4);
+                return food.max(HalfInt::from_int(2));
             }
-            return food.max(i32::from(shore > 0 || river_in));
+            return food.max(HalfInt::from_raw(i32::from(shore > 0 || river_in)));
         }
         if grid.has_river(x, y) {
-            return food.max(4);
+            return food.max(HalfInt::from_int(2));
         }
         food
     }
@@ -498,7 +498,7 @@ impl<'a> Economy<'a> {
         let grid = map.plane(at.plane);
         let (mut food_x2, mut wild_food) = (0i32, HalfInt::ZERO);
         for (p, shared) in self.city_area(at) {
-            let food = self.square_food(grid, p.x as i32, p.y as i32) * 2;
+            let food = self.square_food(grid, p.x as i32, p.y as i32).raw() * 2;
             food_x2 += if shared { food / 2 } else { food };
             if let Some(f) = grid
                 .mineral(p.x as i32, p.y as i32)
@@ -615,7 +615,7 @@ impl<'a> Economy<'a> {
             let mut food = if spoiled {
                 0
             } else {
-                self.square_food(grid, p.x as i32, p.y as i32) * 2
+                self.square_food(grid, p.x as i32, p.y as i32).raw() * 2
             };
             let mut prod = if spoiled {
                 0
@@ -1203,21 +1203,37 @@ mod handle_tests {
         let world = World::new();
         let eco = Economy::new(&world, Some(&map), &content);
         let g = map.plane(Plane::Arcanus);
-        assert_eq!(eco.square_food(g, 12, 12), 3, "grassland: one and a half");
-        assert_eq!(eco.square_food(g, 5, 5), 1, "swamp: half a food");
-        assert_eq!(eco.square_food(g, 7, 7), 4, "a river: two food");
+        assert_eq!(
+            eco.square_food(g, 12, 12),
+            HalfInt::from_raw(3),
+            "grassland: one and a half"
+        );
+        assert_eq!(
+            eco.square_food(g, 5, 5),
+            HalfInt::from_raw(1),
+            "swamp: half a food"
+        );
+        assert_eq!(
+            eco.square_food(g, 7, 7),
+            HalfInt::from_raw(4),
+            "a river: two food"
+        );
         assert_eq!(
             eco.square_food(g, 9, 9),
-            4,
+            HalfInt::from_raw(4),
             "a node square has its own terrain and food"
         );
-        assert_eq!(eco.square_food(g, 2, 2), 0, "open sea");
+        assert_eq!(eco.square_food(g, 2, 2), HalfInt::from_raw(0), "open sea");
         assert_eq!(
             eco.square_food(g, 2, 3),
-            1,
+            HalfInt::from_raw(1),
             "the shore (land one step south)"
         );
-        assert_eq!(eco.square_food(g, 7, 3), 1, "the shore, diagonally");
+        assert_eq!(
+            eco.square_food(g, 7, 3),
+            HalfInt::from_raw(1),
+            "the shore, diagonally"
+        );
         Ok(())
     }
 
@@ -1269,10 +1285,26 @@ mod handle_tests {
         let world = World::new();
         let eco = Economy::new(&world, Some(&map), &content);
         let g = map.plane(Plane::Arcanus);
-        assert_eq!(eco.square_food(g, 5, 5), 4, "a lake fed by a river");
-        assert_eq!(eco.square_food(g, 9, 5), 1, "a lake alone is a shore");
-        assert_eq!(eco.square_food(g, 15, 1), 4, "the sea where a river ends");
-        assert_eq!(eco.square_food(g, 14, 1), 1, "the shore beside it");
+        assert_eq!(
+            eco.square_food(g, 5, 5),
+            HalfInt::from_raw(4),
+            "a lake fed by a river"
+        );
+        assert_eq!(
+            eco.square_food(g, 9, 5),
+            HalfInt::from_raw(1),
+            "a lake alone is a shore"
+        );
+        assert_eq!(
+            eco.square_food(g, 15, 1),
+            HalfInt::from_raw(4),
+            "the sea where a river ends"
+        );
+        assert_eq!(
+            eco.square_food(g, 14, 1),
+            HalfInt::from_raw(1),
+            "the shore beside it"
+        );
         assert_eq!(eco.square_production(g, 12, 7, false), 3, "forest");
         assert_eq!(
             eco.square_production(g, 12, 7, true),

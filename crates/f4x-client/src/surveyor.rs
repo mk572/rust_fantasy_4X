@@ -11,6 +11,7 @@ use f4x_core::city::FoundCityError;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_def::feature::FeatureKind;
+use f4x_def::half_int::HalfInt;
 use macroquad::prelude::*;
 
 use crate::action_button_art::Action;
@@ -36,13 +37,13 @@ pub(crate) struct SquareText {
 }
 
 /// Half-food units as the original writes them: "1/2 food", "1 1/2 food", "2 food".
-pub(crate) fn food_text(texts: &Texts, half_units: u8) -> String {
-    let whole = Args::new().count("n", half_units / 2);
-    match (half_units / 2, half_units % 2) {
-        (0, 0) => String::new(),
-        (0, _) => texts.get("surveyor.food_half", &whole),
-        (_, 0) => texts.get("surveyor.food", &whole),
-        (_, _) => texts.get("surveyor.food_and_half", &whole),
+pub(crate) fn food_text(texts: &Texts, food: HalfInt) -> String {
+    let whole = Args::new().count("n", food.floor().max(0));
+    match (food.floor().max(0), food.is_whole()) {
+        (0, true) => String::new(),
+        (0, false) => texts.get("surveyor.food_half", &whole),
+        (_, true) => texts.get("surveyor.food", &whole),
+        (_, false) => texts.get("surveyor.food_and_half", &whole),
     }
 }
 
@@ -78,7 +79,7 @@ impl App {
             .game
             .economy()
             .square_food(grid, pos.x as i32, pos.y as i32);
-        text.effects[0] = food_text(self.texts(), food.clamp(0, 255) as u8);
+        text.effects[0] = food_text(self.texts(), food.max(HalfInt::ZERO));
         let production =
             self.game
                 .economy()
@@ -369,10 +370,10 @@ mod tests {
     #[test]
     fn food_reads_in_halves() {
         let t = crate::test_app::shipped::texts();
-        assert_eq!(food_text(t, 0), "");
-        assert_eq!(food_text(t, 1), "1/2 food");
-        assert_eq!(food_text(t, 2), "1 food");
-        assert_eq!(food_text(t, 3), "1 1/2 food");
-        assert_eq!(food_text(t, 4), "2 food");
+        assert_eq!(food_text(t, HalfInt::ZERO), "");
+        assert_eq!(food_text(t, HalfInt::from_raw(1)), "1/2 food");
+        assert_eq!(food_text(t, HalfInt::from_raw(2)), "1 food");
+        assert_eq!(food_text(t, HalfInt::from_raw(3)), "1 1/2 food");
+        assert_eq!(food_text(t, HalfInt::from_raw(4)), "2 food");
     }
 }
