@@ -187,7 +187,9 @@ fn walkers_outside_cannot_enter_a_wall_except_by_the_gate() {
     assert!(r.contains_key(&GATE));
     assert!(r.contains_key(&(13, 12)), "inside, by the gate");
     // Every other wall section is shut, as are the corner towers.
-    for w in m.standing_walls() {
+    let walls: Vec<_> = m.standing_walls().into_iter().collect();
+    assert!(walls.contains(&GATE), "the gate stands in the wall");
+    for w in walls {
         assert_eq!(r.contains_key(&w), w == GATE, "{w:?}");
     }
     // Around the walls the field is open.

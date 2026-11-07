@@ -40,7 +40,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 386 | Low | Client | Magic screen: scroll the enemy wizard portraits |
 | 388 | Low | Magic | Spell Images |
 | 408 | Medium | Core | Find tests that pass without asserting |
-| 409 | Medium | Core | Note what each test protects; delete tests of our own inventions |
+| 409 | Medium | Core | Walk the areas task 407 did not cover and add their non-original mechanics to the table |
 | 411 | Medium | Core | Floating Island as a plain summoning, as in the original |
 | 415 | Medium | Console | Bring the console cheat (override) commands back for building test scenarios |
 | 416 | Medium | Client | Button extras to decide: hotkey label, disabled-reason tooltip |
@@ -227,7 +227,7 @@ the drawing changes. *Needs:* nothing.
 
 **408. Find tests that pass without asserting.** Part (3) of the old task 302, what the first part (the registry refusing a repeated id, the scout test) did not cover. Grep the test code for guarded `if let` and `match` that skip the assertion on `None`, loops over a list that may be empty, and `for` over a registry filtered to nothing; make each assert that it ran (`expect`, a count check) or delete it.
 
-**409. Note what each test protects, and delete the ones that protect only our own inventions.** Part (5) of the old task 302: after 407 and 408, go through the tests of the core, mark each with one line of what rule of the original it protects, and delete those that protect only a mechanic we invented (after 407's decision). Report the list before deleting.
+**409. Walk the areas task 407 did not cover and add their non-original mechanics to the table.** Part (5) of the old task 302, narrowed on 7 November 2026: marking every test (about 1900) with the rule of the original it protects is dropped, as it costs much and protects little. What stays: read the areas `docs/non-original-mechanics.md` lists under "Not covered" (the inside of `battle/`, `unit/movement`, `map/mapgen`, the `Effect` variants of `rules/effects.rs`, the settings of `game/setting.rs`), with their tests, and add a row for each mechanic, field or rule the original does not have. Report the new rows before deleting anything; a removal the user decides on becomes a task of its own, with the tests that protect only that mechanic.
 
 **411. Floating Island as a plain summoning, as in the original.** In the original the Floating Island spell is a summoning like the others: its spell record is category 0 (summoning) and its first parameter is the unit it creates (`SPELLDAT.LBX`; `tests/original/spells.tsv`). Ours runs a custom hook (`Effect::Custom("floating_island")`, `Game::floating_island` in `spell/special.rs`) that spawns the unit `floating_island`, and the content test `every_spell_has_the_originals_...` has an exception for it. Change the spell to `Summon(unit: "floating_island", count: 1)` as War Bears is, keep the target check (a water square with no enemy and room, `check_floating_island`) where the summoning checks its target, delete the custom hook and the exception in the test, and keep the tests of the island as a ship (`unit/transport.rs`). Check in ReMoM what the original does with the target (`Cast_Floating_Island`-like code in `OverSpel.c`) so the placement rule stays the original's.
 

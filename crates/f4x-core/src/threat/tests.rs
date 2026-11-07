@@ -434,13 +434,17 @@ fn monsters_that_beat_the_defenders_in_a_battle_rampage_through_the_city() -> Te
             attackers: monsters,
             defenders,
         });
-        if events
+        if let Some(Event::CityRampaged { ruined, .. }) = events
             .iter()
-            .any(|e| matches!(e, Event::CityRampaged { .. }))
+            .find(|e| matches!(e, Event::CityRampaged { .. }))
         {
             rampaged += 1;
             assert!(g.units().player_units(MONSTERS).is_empty());
-            if let Some(city) = g.economy().city_at(at(16, 9)) {
+            let city = g.economy().city_at(at(16, 9));
+            if *ruined {
+                assert!(city.is_none(), "a ruined city is gone");
+            } else {
+                let city = city.ok_or("a kept city is still there")?;
                 assert_eq!(g.economy().city_owner(city), Some(P0));
             }
         }

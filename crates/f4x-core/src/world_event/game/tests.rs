@@ -158,15 +158,14 @@ fn a_rebellion_spares_the_fortress_city_and_cities_with_a_hero() {
         .units
         .iter()
         .find(|(_, d)| d.kind == UnitKind::Hero)
-        .map(|(id, _)| id);
-    let hero = kind.map(|id| g.spawn_unit(P0, at(10, 5), id));
-    if let Some(hero) = hero {
-        assert_eq!(
-            g.units().unit_def(hero).map(|d| d.kind),
-            Some(UnitKind::Hero)
-        );
-        assert!(!g.can_rebel(P0, town));
-    }
+        .map(|(id, _)| id)
+        .expect("the shipped rules have a hero unit");
+    let hero = g.spawn_unit(P0, at(10, 5), kind);
+    assert_eq!(
+        g.units().unit_def(hero).map(|d| d.kind),
+        Some(UnitKind::Hero)
+    );
+    assert!(!g.can_rebel(P0, town));
 }
 
 #[test]

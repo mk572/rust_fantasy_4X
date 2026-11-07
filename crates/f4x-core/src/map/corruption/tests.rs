@@ -291,14 +291,17 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() -> TestResult {
     g.move_stack(&[rival], at(8, 8))
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.economy().tower_owner(at(8, 8)), Some(PlayerId(1)));
-    let seal = g.content.rules.spells.id_numbered(135);
-    if let Some(s) = seal {
-        g.attach_enchantment(Target::Player(P0), s, P0);
-        let third = g.spawn_unit(P0, at(7, 8), walker);
-        g.move_stack(&[third], at(8, 8))
-            .unwrap_or(crate::unit::movement::Entry::Free);
-        assert_eq!(g.economy().tower_owner(at(8, 8)), Some(PlayerId(1)));
-    }
+    let seal = g
+        .content
+        .rules
+        .spells
+        .id_numbered(135)
+        .ok_or("the seal spell is not in the content")?;
+    g.attach_enchantment(Target::Player(P0), seal, P0);
+    let third = g.spawn_unit(P0, at(7, 8), walker);
+    g.move_stack(&[third], at(8, 8))
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(g.economy().tower_owner(at(8, 8)), Some(PlayerId(1)));
     Ok(())
 }
 

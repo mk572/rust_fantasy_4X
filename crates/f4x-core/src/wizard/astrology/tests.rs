@@ -51,7 +51,9 @@ fn the_history_keeps_the_last_288_turns() -> TestResult {
 #[test]
 fn scores_are_cut_back_to_their_limits() {
     let g = world();
-    for (_, a, power) in g.astrology_table() {
+    let table = g.astrology_table();
+    assert!(!table.is_empty(), "the table has rows");
+    for (_, a, power) in table {
         assert!(a.power <= 200 && a.strength <= 200 && a.research <= 200);
         assert!(power <= 160);
     }

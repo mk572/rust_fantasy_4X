@@ -3156,11 +3156,13 @@ fn ai_wizards_get_a_personality_and_an_objective_at_the_start() -> TestResult {
         None,
         "the human has no objective"
     );
-    for id in g
+    let rivals: Vec<_> = g
         .player_ids()
         .into_iter()
         .filter(|id| !g.is_neutral_player(*id) && *id != human)
-    {
+        .collect();
+    assert_eq!(rivals.len(), 3, "three AI wizards");
+    for id in rivals {
         assert!(
             g.wizard(id)
                 .expect("the player is a wizard")

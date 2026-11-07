@@ -1,7 +1,6 @@
 mod autobuild;
 mod city_gate;
 mod features;
-mod game_methods;
 mod regression;
 mod shipped;
 mod shipped_content;
