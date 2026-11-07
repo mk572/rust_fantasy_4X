@@ -12,6 +12,7 @@ use crate::game::Game;
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::spell::city::CityEffect;
+use f4x_def::half_int::HalfInt;
 
 /// Apply `delta_tens` to a city's people: tens of 100 make a citizen (up to `cap`); a city
 /// that loses people drops a citizen but never below one, and never below zero tens.
@@ -153,7 +154,7 @@ impl Game {
             Buildings::default(),
             Production {
                 item: Some(ProductionItem::Housing),
-                progress: 0,
+                progress: HalfInt::ZERO,
             },
         ));
         if let Some(r) = race {

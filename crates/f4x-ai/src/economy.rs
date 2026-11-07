@@ -280,7 +280,7 @@ fn spend_gold(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     const RESERVE: i32 = 40;
     let wanted = {
         let view = PlayerView::new(game, me);
-        let mut wanted: Vec<(u32, u32, hecs::Entity)> = Vec::new();
+        let mut wanted: Vec<(u32, HalfInt, hecs::Entity)> = Vec::new();
         for (city, pos) in view.my_cities() {
             let Some(item) = view.city_production(city).item else {
                 continue;
@@ -301,7 +301,7 @@ fn spend_gold(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     for (_, cost, city) in wanted {
         let gold = PlayerView::new(game, me).treasury().gold;
-        if gold - cost as i32 >= RESERVE {
+        if gold - cost >= RESERVE {
             ai.send(game, Command::BuyProduction { city }, events);
         }
     }

@@ -134,7 +134,7 @@ impl IncomeView for GameIncome<'_> {
             .filter(|(_, c, _)| c.owner == player)
             .filter_map(|(e, ..)| self.0.economy().city_economy(e))
             .fold((0, 0), |(mana, research), eco| {
-                (mana + eco.mana, research + eco.research)
+                (mana + eco.mana.floor(), research + eco.research)
             });
         (mana, research + self.0.units().sage_research(player))
     }

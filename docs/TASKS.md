@@ -83,6 +83,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 485 | Low | Core | Smaller save files: the fog and map grids, compression |
 | 488 | Medium | AI | AI spellcasting helper: the AI picks an intent (buff, harm a city, boost production, kill a unit), a helper with learned weights returns the best known spell |
 | 489 | Medium | Client | Separate Magic and Diplomacy screens: Magic keeps research, mana and power; Diplomacy lists every rival wizard with status, fame and relations |
+| 525 | Medium | Housekeeping | New `f4x-lang` crate: the interface text files, apart from the client |
 
 ## Descriptions
 
@@ -343,3 +344,5 @@ and make invalidation explicit and testable so the client never displays stale i
 - **Diplomacy screen (new overview):** more room for rival wizards (all ten colours are playable, task 381; scroll or page when they do not fit). One row or card per wizard: portrait, name, whether met, the treaty status (peace, pact, alliance, war), the relationship level, fame, and basic wizard info (books, retorts, and whatever the player may see by the AI-plays-like-a-human rule). A click on a wizard opens the existing talk screen with the menu of proposals.
 - **Also:** hotkeys and menu entries for both; help text and screen texts as keys in `crates/f4x-client/content/text/en/*.ron`; update `docs/` for the screens.
 - Makes task 386 (scrolling the portraits on the Magic screen) unnecessary: close it when this is done. Open question for the author: whether the Magic screen should be redrawn once the gems are gone, or keep the original's layout with the space empty. *Needs:* nothing. Asked for by the user, 3 November 2026.
+
+**525. New `f4x-lang` crate.** Move the interface text files (`crates/f4x-client/content/text/en/*.ron` and the other languages, task 468) and their loading and import code out of `f4x-client` into a new crate `f4x-lang`, which the client depends on. The split is needed so that the game can be played with different clients without copying all the language text. List first what the text loader needs (`docs/text.md`: keys, count, plural and gender forms, `Texts`) and which of it is client-specific (the font and glyph handling stays in the client); update the crate lists in `docs/ecs-structure.md` and `docs/text.md`, and keep the tests that check every key is present. *Needs:* nothing. Asked for by the user, 8 November 2026.

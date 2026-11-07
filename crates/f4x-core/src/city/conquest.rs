@@ -230,7 +230,7 @@ impl Game {
             city,
             Production {
                 item: Some(ProductionItem::TradeGoods),
-                progress: 0,
+                progress: HalfInt::ZERO,
             },
         );
         let farmers = self.economy().city_min_farmers(city);

@@ -50,7 +50,7 @@ struct Row {
     race: String,
     pop: u32,
     gold: f4x_def::half_int::HalfInt,
-    production: i32,
+    production: f4x_def::half_int::HalfInt,
     building: String,
     turns: Option<u32>,
     outpost: bool,
@@ -94,9 +94,11 @@ impl App {
                 let prod = eco.city_production(city);
                 let turns = prod.item.and_then(|item| {
                     let cost = eco.item_cost(city, item);
-                    (cost > 0 && e.production > 0).then(|| {
-                        cost.saturating_sub(prod.progress)
-                            .div_ceil(e.production as u32)
+                    (cost > 0 && e.production > f4x_def::half_int::HalfInt::ZERO).then(|| {
+                        let left = (f4x_def::half_int::HalfInt::from_int(cost as i32)
+                            - prod.progress)
+                            .max(f4x_def::half_int::HalfInt::ZERO);
+                        (left.raw() as u32).div_ceil(e.production.raw() as u32)
                     })
                 });
                 Row {
@@ -262,7 +264,7 @@ impl Page for CityListUi {
             app.draw_styled(
                 view,
                 &Style::city_list_text(1).right(),
-                &row.production.to_string(),
+                &app.texts.half_amount(row.production),
                 RIGHTS[2],
                 ty,
             );

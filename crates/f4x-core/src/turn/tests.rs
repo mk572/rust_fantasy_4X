@@ -852,7 +852,7 @@ fn vizier_city(on: bool) -> (Game, hecs::Entity) {
 #[test]
 fn without_the_vizier_a_finished_building_leaves_the_city_on_housing() {
     let (mut g, city) = vizier_city(false);
-    g.apply_production(city, 1000);
+    g.apply_production(city, f4x_def::half_int::HalfInt::from_int(1000));
     assert_eq!(
         g.economy().city_production(city).item,
         Some(ProductionItem::Housing)
@@ -864,7 +864,7 @@ fn the_vizier_keeps_choosing_new_buildings_until_none_is_worth_building() {
     let (mut g, city) = vizier_city(true);
     let mut seen = Vec::new();
     for _ in 0..40 {
-        g.apply_production(city, 1000);
+        g.apply_production(city, f4x_def::half_int::HalfInt::from_int(1000));
         match g.economy().city_production(city).item {
             Some(ProductionItem::Building(b)) => {
                 assert!(!seen.contains(&b), "a building is chosen twice");
@@ -951,31 +951,31 @@ fn buying_costs_more_the_less_is_done() -> TestResult {
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         g.economy().buy_cost(city),
-        Some(240),
+        Some(f4x_def::half_int::HalfInt::from_int(240)),
         "nothing done: 4 x 60"
     );
     g.world.insert_one(
         city,
         Production {
             item: Some(ProductionItem::Building(hall)),
-            progress: 10,
+            progress: f4x_def::half_int::HalfInt::from_int(10),
         },
     )?;
     assert_eq!(
         g.economy().buy_cost(city),
-        Some(150),
+        Some(f4x_def::half_int::HalfInt::from_int(150)),
         "remaining 50, accumulated 10 < 25: 3 x 50"
     );
     g.world.insert_one(
         city,
         Production {
             item: Some(ProductionItem::Building(hall)),
-            progress: 40,
+            progress: f4x_def::half_int::HalfInt::from_int(40),
         },
     )?;
     assert_eq!(
         g.economy().buy_cost(city),
-        Some(40),
+        Some(f4x_def::half_int::HalfInt::from_int(40)),
         "remaining 20, accumulated 40: 2 x 20"
     );
     let gold = g.player(P0).ok_or("player is missing")?.treasury().gold;
@@ -1238,7 +1238,7 @@ fn units_are_trained_with_the_cities_weapons_and_alchemy_gives_magic() -> TestRe
     let train = |g: &mut Game| {
         g.set_production(city, ProductionItem::Unit(spear))
             .expect("set_production succeeds");
-        g.apply_production(city, 100);
+        g.apply_production(city, f4x_def::half_int::HalfInt::from_int(100));
         g.units()
             .units_at(at(10, 6))
             .into_iter()
@@ -1852,7 +1852,9 @@ fn a_finished_unit_waits_while_nine_units_stand_in_the_city() -> TestResult {
     g.set_production(city, ProductionItem::Unit(spear))
         .map_err(|e| format!("{e:?}"))?;
     let cost = g.economy().item_cost(city, ProductionItem::Unit(spear));
-    assert!(g.production_blocked(city, cost as i32).is_some());
+    assert!(g
+        .production_blocked(city, f4x_def::half_int::HalfInt::from_int(cost as i32))
+        .is_some());
     assert_eq!(
         g.units().units_at(at(10, 6)).len(),
         crate::unit::MAX_TILE_LIMIT
@@ -1861,7 +1863,10 @@ fn a_finished_unit_waits_while_nine_units_stand_in_the_city() -> TestResult {
         g.economy().city_production(city).item,
         Some(ProductionItem::Unit(spear))
     );
-    assert!(g.economy().city_production(city).progress >= cost);
+    assert!(
+        g.economy().city_production(city).progress
+            >= f4x_def::half_int::HalfInt::from_int(cost as i32)
+    );
     Ok(())
 }
 
@@ -1934,7 +1939,7 @@ fn settlers_cost_a_citizen_unless_the_setting_makes_them_free() -> TestResult {
     assert_eq!(g.economy().can_build(city, item), Ok(()));
     g.set_production(city, item).map_err(|e| format!("{e:?}"))?;
     let cost = g.economy().item_cost(city, item);
-    g.apply_production(city, cost as i32);
+    g.apply_production(city, f4x_def::half_int::HalfInt::from_int(cost as i32));
     assert_eq!(g.city_population(city).figures, 2);
     g.settings.rules.settlers_cost_citizen = false;
     assert!(!g.economy().costs_a_citizen(settlers));
@@ -2098,7 +2103,7 @@ fn time_stop_halts_production_growth_and_income_for_everyone_but_the_spells_own_
             .map_err(|e| e.to_string())?
             .figures;
         let t = g.player(player).ok_or("no player")?.treasury();
-        Ok((progress, figures, t.gold.floor(), t.mana))
+        Ok((progress.floor() as u32, figures, t.gold.floor(), t.mana))
     };
     // Without it the cities build and the treasuries move.
     let (progress, _, gold, _) = state(&free, mine, P0)?;

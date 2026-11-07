@@ -873,7 +873,7 @@ impl Game {
             let mut p = self.economy().city_production(city);
             if p.item != Some(item) {
                 p.item = Some(item);
-                p.progress = 0;
+                p.progress = HalfInt::ZERO;
                 let _ = self.world.insert_one(city, p);
             }
         }

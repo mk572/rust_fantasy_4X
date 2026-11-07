@@ -362,7 +362,7 @@ impl<'a> PlayerView<'a> {
         self.game.economy().can_build(city, item)
     }
 
-    pub fn buy_cost(&self, city: hecs::Entity) -> Option<u32> {
+    pub fn buy_cost(&self, city: hecs::Entity) -> Option<HalfInt> {
         self.game.economy().buy_cost(city)
     }
 

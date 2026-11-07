@@ -549,7 +549,13 @@ impl App {
                 !eco.food.is_whole(),
                 self.signed_amount(eco.food - f4x_def::half_int::HalfInt::from_int(figures)),
             ),
-            (41, 35, eco.production, false, String::new()),
+            (
+                41,
+                35,
+                eco.production.floor(),
+                !eco.production.is_whole(),
+                String::new(),
+            ),
             (
                 42,
                 36,
@@ -557,7 +563,13 @@ impl App {
                 false,
                 self.signed_amount(net_gold),
             ),
-            (43, 37, eco.mana, false, String::new()),
+            (
+                43,
+                37,
+                eco.mana.floor(),
+                !eco.mana.is_whole(),
+                String::new(),
+            ),
             (44, 38, eco.research, false, String::new()),
         ];
         let ink = Color::new(0.12, 0.1, 0.08, 1.0);
@@ -1343,7 +1355,13 @@ impl App {
     /// The progress as coins, ten production points to a coin and ten coins to a row: the full
     /// coin (`backgrnd` 12) for each ten made, the empty one (11) for the rest, and half a coin
     /// cut off for a partial one (`City_Screen_Draw_Production_Coins`).
-    fn draw_production_coins(&mut self, lay: Layout, progress: u32, cost: u32) {
+    fn draw_production_coins(
+        &mut self,
+        lay: Layout,
+        progress: f4x_def::half_int::HalfInt,
+        cost: u32,
+    ) {
+        let progress = progress.floor().max(0) as u32;
         let (mut per_row, mut space) = (10u32, 5.0f32);
         let coins = (cost / 10).max(1);
         if coins > 50 {
@@ -1556,11 +1574,13 @@ impl App {
                 }
                 let cost = self.game.economy().item_cost(city, item);
                 if cost > 0 {
-                    let remaining = cost.saturating_sub(prod.progress);
-                    if eco.production > 0 {
+                    let remaining = (f4x_def::half_int::HalfInt::from_int(cost as i32)
+                        - prod.progress)
+                        .max(f4x_def::half_int::HalfInt::ZERO);
+                    if eco.production > f4x_def::half_int::HalfInt::ZERO {
                         // "N Turns" as the original prints it: the number right-aligned at 286,
                         // the word after it.
-                        let turns = remaining.div_ceil(eco.production as u32);
+                        let turns = (remaining.raw() as u32).div_ceil(eco.production.raw() as u32);
                         self.draw_styled(
                             view,
                             &Style::city_figures().right(),
@@ -1606,7 +1626,7 @@ impl App {
         let gold = self
             .game
             .player(crate::view::HUMAN)
-            .map_or(0, |p| p.treasury().gold.floor());
+            .map_or(f4x_def::half_int::HalfInt::ZERO, |p| p.treasury().gold);
         let price = self.game.economy().buy_cost(city);
         // Clickable whenever the item can be bought; too little gold is answered with a box.
         if self.city_wood_button(
@@ -1618,7 +1638,7 @@ impl App {
             input,
         ) {
             if let (Some(price), Some(item)) = (price, prod.item) {
-                page.panel.sell = Some(if price as i32 <= gold {
+                page.panel.sell = Some(if price <= gold {
                     let name = self.item_name(item);
                     SellPrompt::Buy { city, name, price }
                 } else {

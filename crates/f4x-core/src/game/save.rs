@@ -491,7 +491,7 @@ pub struct CitySave {
     /// The numbers of the realms a Spell Ward guards the city against.
     pub wards: Vec<u16>,
     pub item: Option<ItemSave>,
-    pub progress: u32,
+    pub progress: HalfInt,
     /// Temporary modifiers.
     pub effects: Vec<crate::spell::temp_effect::TempEffect>,
     /// Taken this turn by this player, who may still raze it.

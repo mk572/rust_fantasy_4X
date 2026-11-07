@@ -456,7 +456,7 @@ impl Game {
             city,
             Production {
                 item: Some(item.unwrap_or(ProductionItem::Housing)),
-                progress: 0,
+                progress: HalfInt::ZERO,
             },
         );
         city

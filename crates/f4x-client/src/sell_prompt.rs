@@ -38,7 +38,7 @@ pub(crate) enum SellPrompt {
     Buy {
         city: hecs::Entity,
         name: String,
-        price: u32,
+        price: f4x_def::half_int::HalfInt,
     },
     /// "Do you wish to turn off the ... spell?", for a spell of the player's on the city.
     TurnOff {
@@ -203,7 +203,9 @@ impl App {
             }
             SellPrompt::Refused(text) => text.clone(),
             SellPrompt::Buy { name, price, .. } => {
-                let args = Args::new().count("price", *price).text("building", name);
+                let args = Args::new()
+                    .text("price", self.texts.half_amount(*price))
+                    .text("building", name);
                 self.text_with("sell.buy", &args)
             }
             SellPrompt::TurnOff { name, .. } => {

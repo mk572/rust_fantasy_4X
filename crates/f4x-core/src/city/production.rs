@@ -6,6 +6,7 @@
 //! content and the players. `Game` makes the changes that need more (the owner's gold, the new
 //! unit, the treasury for the Vizier).
 
+use f4x_def::half_int::HalfInt;
 use hecs::World;
 
 use crate::city::economy::{Buildings, CityRace, Economy};
@@ -29,7 +30,8 @@ pub enum ProductionItem {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Production {
     pub item: Option<ProductionItem>,
-    pub progress: u32,
+    /// Production points gathered, in halves.
+    pub progress: HalfInt,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,9 +87,9 @@ pub struct SoldBuilding(pub BuildingId);
 /// What buying the current item takes (`Economy::buy_plan`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct BuyPlan {
-    pub cost: u32,
+    pub cost: HalfInt,
     /// The production that is added, which completes the item.
-    pub remaining: u32,
+    pub remaining: HalfInt,
     pub owner: PlayerId,
 }
 
@@ -233,29 +235,30 @@ impl Economy<'_> {
     }
 
     /// Production still needed for the current item.
-    pub fn production_remaining(&self, city: hecs::Entity) -> u32 {
+    pub fn production_remaining(&self, city: hecs::Entity) -> HalfInt {
         let p = self.city_production(city);
         match p.item {
-            Some(item) => self.item_cost(city, item).saturating_sub(p.progress),
-            None => 0,
+            Some(item) => (HalfInt::from_int(self.item_cost(city, item) as i32) - p.progress)
+                .max(HalfInt::ZERO),
+            None => HalfInt::ZERO,
         }
     }
 
     /// Gold to finish the current item now: four times what is left from scratch, three
     /// times with less than half of the remainder already done, otherwise twice.
-    pub fn buy_cost(&self, city: hecs::Entity) -> Option<u32> {
+    pub fn buy_cost(&self, city: hecs::Entity) -> Option<HalfInt> {
         let p = self.city_production(city);
         let item = p.item?;
         if matches!(item, ProductionItem::TradeGoods | ProductionItem::Housing) {
             return None;
         }
         let remaining = self.production_remaining(city);
-        if remaining == 0 {
+        if remaining == HalfInt::ZERO {
             return None;
         }
-        Some(if p.progress == 0 {
+        Some(if p.progress == HalfInt::ZERO {
             remaining * 4
-        } else if p.progress < remaining / 2 {
+        } else if p.progress * 2 < remaining {
             remaining * 3
         } else {
             remaining * 2
@@ -402,15 +405,15 @@ impl Economy<'_> {
     pub(crate) fn advance_production(
         &self,
         city: hecs::Entity,
-        production: i32,
+        production: HalfInt,
     ) -> Option<Advance> {
         let mut p = self.city_production(city);
         let item = p.item?;
         if matches!(item, ProductionItem::TradeGoods | ProductionItem::Housing) {
             return None;
         }
-        p.progress += production.max(0) as u32;
-        if p.progress < self.item_cost(city, item) {
+        p.progress += production.max(HalfInt::ZERO);
+        if p.progress < HalfInt::from_int(self.item_cost(city, item) as i32) {
             return Some(Advance::Waiting(p));
         }
         let at = *self.world.get::<&Position>(city).ok()?;
@@ -453,15 +456,15 @@ impl Game {
     }
 
     /// Pay to complete the current item at the next turn change.
-    pub fn buy_production(&mut self, city: hecs::Entity) -> Result<u32, ProductionError> {
+    pub fn buy_production(&mut self, city: hecs::Entity) -> Result<HalfInt, ProductionError> {
         let plan = self.economy().buy_plan(city)?;
         let treasury = self
             .treasury_mut(plan.owner)
             .ok_or(ProductionError::NotACity)?;
-        if treasury.gold < plan.cost as i32 {
+        if treasury.gold < plan.cost {
             return Err(ProductionError::NotEnoughGold);
         }
-        treasury.gold -= plan.cost as i32;
+        treasury.gold -= plan.cost;
         let mut p = self.economy().city_production(city);
         p.progress += plan.remaining;
         let _ = self.world.insert_one(city, p);
@@ -529,7 +532,7 @@ impl Game {
     pub(crate) fn production_blocked(
         &mut self,
         city: hecs::Entity,
-        production: i32,
+        production: HalfInt,
     ) -> Option<ProductionItem> {
         let Some(Advance::Done {
             item: item @ ProductionItem::Unit(_),
@@ -555,7 +558,7 @@ impl Game {
     pub fn apply_production(
         &mut self,
         city: hecs::Entity,
-        production: i32,
+        production: HalfInt,
     ) -> Option<ProductionItem> {
         let (item, mut p, at, owner) = match self.economy().advance_production(city, production)? {
             Advance::Waiting(p) => {
@@ -583,7 +586,7 @@ impl Game {
                         self.autobuild_choice(city, owner)
                             .unwrap_or(ProductionItem::Housing),
                     ),
-                    progress: 0,
+                    progress: HalfInt::ZERO,
                 };
             }
             ProductionItem::Unit(u) => {
@@ -606,7 +609,7 @@ impl Game {
                         .world
                         .insert_one(unit, crate::unit::WeaponQuality(weapons));
                 }
-                p.progress = 0;
+                p.progress = HalfInt::ZERO;
                 self.autobuild_spent(city, item, cost);
                 // A unit is built over and over, unless the auto-builder picks the next item.
                 if let Some(next) = self.autobuild_choice(city, owner) {
@@ -637,7 +640,7 @@ impl Game {
                     city,
                     Production {
                         item: Some(item),
-                        progress: 0,
+                        progress: HalfInt::ZERO,
                     },
                 );
             }
@@ -752,14 +755,23 @@ mod tests {
         rig.world.get::<&mut Production>(rig.city)?.item = Some(barracks);
         let eco = rig.eco();
         assert_eq!(eco.item_cost(rig.city, barracks), 30);
-        assert_eq!(eco.production_remaining(rig.city), 30);
-        assert_eq!(eco.buy_cost(rig.city), Some(120), "four times from scratch");
-        rig.world.get::<&mut Production>(rig.city)?.progress = 10;
-        assert_eq!(rig.eco().buy_cost(rig.city), Some(40), "twice what is left");
+        assert_eq!(eco.production_remaining(rig.city), HalfInt::from_int(30));
+        assert_eq!(
+            eco.buy_cost(rig.city),
+            Some(HalfInt::from_int(120)),
+            "four times from scratch"
+        );
+        rig.world.get::<&mut Production>(rig.city)?.progress =
+            f4x_def::half_int::HalfInt::from_int(10);
+        assert_eq!(
+            rig.eco().buy_cost(rig.city),
+            Some(HalfInt::from_int(40)),
+            "twice what is left"
+        );
         let plan = rig.eco().buy_plan(rig.city).map_err(|e| format!("{e:?}"))?;
         assert_eq!(
             (plan.cost, plan.remaining, plan.owner),
-            (40, 20, PlayerId(0))
+            (HalfInt::from_int(40), HalfInt::from_int(20), PlayerId(0))
         );
         Ok(())
     }
@@ -771,16 +783,17 @@ mod tests {
         rig.world.get::<&mut Production>(rig.city)?.item = Some(ProductionItem::Building(barracks));
         match rig
             .eco()
-            .advance_production(rig.city, 12)
+            .advance_production(rig.city, f4x_def::half_int::HalfInt::from_int(12))
             .ok_or("advance_production is missing")?
         {
             Advance::Waiting(p) => assert_eq!(p.progress, 12),
             other => panic!("{other:?}"),
         }
-        rig.world.get::<&mut Production>(rig.city)?.progress = 25;
+        rig.world.get::<&mut Production>(rig.city)?.progress =
+            f4x_def::half_int::HalfInt::from_int(25);
         match rig
             .eco()
-            .advance_production(rig.city, 10)
+            .advance_production(rig.city, f4x_def::half_int::HalfInt::from_int(10))
             .ok_or("advance_production is missing")?
         {
             Advance::Done { item, owner, .. } => {

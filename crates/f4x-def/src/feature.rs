@@ -37,7 +37,7 @@ pub struct SpawnRule {
 #[serde(default)]
 pub struct CityBonus {
     pub gold: HalfInt,
-    pub mana: i32,
+    pub mana: HalfInt,
     /// Food (wild game); not affected by mining.
     pub food: HalfInt,
     /// Percent off the cost of military units built in the city (stacks up to a limit).

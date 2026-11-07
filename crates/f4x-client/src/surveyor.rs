@@ -131,8 +131,11 @@ impl App {
                     &Args::new().text("n", self.texts.half_amount(b.gold)),
                 ));
             }
-            if b.mana > 0 {
-                bits.push(self.text_with("surveyor.bonus_power", &Args::new().count("n", b.mana)));
+            if b.mana > f4x_def::half_int::HalfInt::ZERO {
+                bits.push(self.text_with(
+                    "surveyor.bonus_power",
+                    &Args::new().text("n", self.texts.half_amount(b.mana)),
+                ));
             }
             if b.food > f4x_def::half_int::HalfInt::ZERO {
                 bits.push(self.text_with(

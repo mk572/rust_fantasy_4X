@@ -536,7 +536,7 @@ impl Game {
             city,
             Production {
                 item: Some(ProductionItem::TradeGoods),
-                progress: 0,
+                progress: HalfInt::ZERO,
             },
         );
         self.explore(to, pos, crate::map::fog::sight_for(3));

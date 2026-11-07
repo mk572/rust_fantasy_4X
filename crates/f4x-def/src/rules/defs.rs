@@ -40,12 +40,12 @@ pub struct RaceDef {
     /// Food each farmer grows.
     #[serde(default = "two_food")]
     pub farmer_food: HalfInt,
-    /// Production per worker, in half-units (4 = two).
-    #[serde(default = "four")]
-    pub worker_production_x2: u8,
-    /// Mana per citizen, in half-units (2 = one per citizen).
+    /// Production per worker, as an amount (2 is two, 1.5 one and a half).
+    #[serde(default = "two_food")]
+    pub worker_production: HalfInt,
+    /// Mana per citizen, as an amount (1 is one per citizen, 0.5 half).
     #[serde(default)]
-    pub mana_per_citizen_x2: u8,
+    pub mana_per_citizen: HalfInt,
     /// Doubles taxes and the yield of mines.
     #[serde(default)]
     pub double_mining: bool,
@@ -68,9 +68,6 @@ fn yes() -> bool {
 }
 fn two_food() -> HalfInt {
     HalfInt::from_int(2)
-}
-fn four() -> u8 {
-    4
 }
 fn ten() -> u8 {
     10
