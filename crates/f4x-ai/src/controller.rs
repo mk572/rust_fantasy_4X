@@ -17,6 +17,10 @@ impl Controller for AiSeat<'_> {
         events.extend(self.0.play_turn(game));
         Status::Done
     }
+
+    fn plans(&self) -> Option<(PlayerId, String)> {
+        Some((self.0.player, self.0.to_text().ok()?))
+    }
 }
 
 /// The neutral seat: independent cities and roaming monsters play. Attacks on the players in

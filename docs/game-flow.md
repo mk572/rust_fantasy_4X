@@ -245,7 +245,7 @@ each player's explored area (bit-packed), the players, every unit (with moves, d
 experience and any standing order) and every city (population, farmers, buildings,
 enchantments, race, current item and progress).
 
-**Where the game is in its round:** the optional `flow` (`Game::flow`), written by `f4x-master` after every step and cleared by the lifecycle commands, says which phase and seat come next; a save without it was made on the human's turn. The client's autosave is made at the start of a round.
+**Where the game is in its round:** the optional `flow` (`Game::flow`), written by `f4x-master` after every step and cleared by the lifecycle commands, says which phase and seat come next; a save without it was made on the human's turn. The client's autosave is made at the start of a round. What each AI has in mind (`Game::plans`) is saved with it.
 
 **What it does not hold:** content definitions, events, the command log, or the AI's own memory (targets, campaigns). A save is a game
 state, not a content pack.

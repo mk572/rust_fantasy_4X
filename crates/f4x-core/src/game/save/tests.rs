@@ -436,6 +436,24 @@ fn a_save_made_before_the_flow_existed_loads_without_one() -> TestResult {
 }
 
 #[test]
+fn the_computer_players_plans_survive_a_save_and_an_old_save_has_none() -> TestResult {
+    use crate::player::PlayerId;
+    let mut g = game();
+    assert!(g.plans().is_empty());
+    g.set_plans(vec![(PlayerId(1), "(player:(1))".into())]);
+    let text = g.snapshot().to_text()?;
+    let back = Snapshot::from_text(&text)?.restore(g.content().clone())?;
+    assert_eq!(back.plans(), &[(PlayerId(1), "(player:(1))".to_string())]);
+    // The file as an older build wrote it: without the field.
+    let old = game().snapshot().to_text()?.replace("plans: [],", "");
+    assert!(Snapshot::from_text(&old)?
+        .restore(g.content().clone())?
+        .plans()
+        .is_empty());
+    Ok(())
+}
+
+#[test]
 fn every_setting_survives_a_save() -> TestResult {
     let mut g = Game::new(5);
     g.settings.basic = crate::game::setting::BasicSettings {

@@ -87,6 +87,10 @@ pub struct Snapshot {
     /// was made on the human's turn.
     #[serde(default)]
     pub flow: Option<String>,
+    /// What each computer player has in mind (`Game::plans`). A save without it loads with
+    /// computer players that start afresh.
+    #[serde(default)]
+    pub plans: Vec<(crate::player::PlayerId, String)>,
     /// Override (cheat) commands used in this game.
     pub override_log: Vec<String>,
     /// The prefab items already given out (`Make_Item` gives each once a game).
@@ -908,6 +912,7 @@ impl Game {
                 .to_save(|e| crate::player::id_of(&self.world, e)),
             threat: self.threat,
             flow: self.flow.clone(),
+            plans: self.plans.clone(),
             override_log: self.override_log.clone(),
             prefab_taken: self.prefab_taken.clone(),
             map,
@@ -1065,6 +1070,7 @@ impl Snapshot {
         game.prefab_taken = self.prefab_taken;
         game.threat = self.threat;
         game.flow = self.flow;
+        game.plans = self.plans;
         game.next_serial = self.next_serial;
         // Resume the random stream where it stopped.
         game.rng = crate::game::rng::GameRng::resume(self.seed, self.draws);

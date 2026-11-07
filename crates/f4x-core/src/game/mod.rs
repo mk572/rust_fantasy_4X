@@ -74,6 +74,8 @@ pub struct Game {
     /// is saved with the game. The lifecycle commands clear it, so it never outlives the step
     /// it describes (see [`Game::flow`]).
     flow: Option<String>,
+    /// What each computer player has in mind, as text the AI wrote (see [`Game::plans`]).
+    plans: Vec<(player::PlayerId, String)>,
     /// Items that fell to wizards from slain heroes since the last command ended: the wizard,
     /// the item's name and whether the armory had room for it.
     pub(crate) item_awards: Vec<(hecs::Entity, String, bool)>,
@@ -111,6 +113,7 @@ impl Game {
             events: world_event::Events::default(),
             threat: threat::Threat::default(),
             flow: None,
+            plans: Vec::new(),
             item_awards: Vec::new(),
             override_log: Vec::new(),
             prefab_taken: Vec::new(),
@@ -131,6 +134,20 @@ impl Game {
     /// Record where the game is in its round (the master calls this after each step).
     pub fn set_flow(&mut self, flow: Option<String>) {
         self.flow = flow;
+    }
+
+    /// What each computer player has in mind (its targets, marches, voyages), as opaque text the
+    /// AI wrote with [`Game::set_plans`]. It is saved and loaded with the game, so a loaded game
+    /// plays on as the saved one would have. Empty for a game nobody has set it on.
+    pub fn plans(&self) -> &[(player::PlayerId, String)] {
+        &self.plans
+    }
+
+    /// Record what the computer players have in mind, one text for each (the AI crate writes
+    /// these just before the game is saved). It is not cleared by play: it is as old as the
+    /// last call.
+    pub fn set_plans(&mut self, plans: Vec<(player::PlayerId, String)>) {
+        self.plans = plans;
     }
 
     /// The settings the game is played with.

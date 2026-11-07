@@ -73,6 +73,10 @@ impl Controller for RivalSeat<'_> {
         }
         finished(self.seating, self.defences)
     }
+
+    fn plans(&self) -> Option<(PlayerId, String)> {
+        Some((self.ai.player, self.ai.to_text().ok()?))
+    }
 }
 
 /// The independent cities and the monsters.

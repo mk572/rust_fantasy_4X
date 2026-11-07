@@ -1120,6 +1120,7 @@ impl App {
 
     /// Write the game to `path`, reporting the outcome in the message log.
     pub fn save_to(&mut self, path: &Path) {
+        f4x_ai::Ai::remember(&mut self.game, &self.ais);
         match f4x_core::game::save::save_game(path, &self.game) {
             Ok(()) => {
                 let args = Args::new()
@@ -1148,6 +1149,7 @@ impl App {
         self.game.ensure_human(HUMAN);
         self.game.set_undo(true);
         self.ais = self.rival_wizards();
+        f4x_ai::Ai::recall(&self.game, &mut self.ais);
         self.reset_master();
         // A game saved in a battle comes back in it: the frame loop opens the battle screen.
         self.close_page(&Screen::Battle);

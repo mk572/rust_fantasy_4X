@@ -21,6 +21,7 @@ mod naval;
 mod neutral;
 mod objective;
 mod offer;
+mod persist;
 mod race;
 mod raze;
 mod scout;
@@ -57,17 +58,21 @@ pub struct Refusal {
 pub struct Ai {
     pub player: PlayerId,
     /// Where each settler is heading to found a city.
+    #[serde(serialize_with = "persist::sorted")]
     settler_targets: HashMap<Serial, Position>,
     /// The enemy city the army is gathering to attack, once it has chosen one.
     campaign: Option<Position>,
     /// Where each settler stood last turn, to notice one that is stuck.
+    #[serde(serialize_with = "persist::sorted")]
     settler_last: HashMap<Serial, Position>,
     /// Sites the AI gave up on.
     bad_sites: Vec<Position>,
     /// The units set to find the rest of the world, and where each is heading.
     scouts: Vec<Serial>,
+    #[serde(serialize_with = "persist::sorted")]
     scout_targets: HashMap<Serial, Position>,
     /// Where each scout stood last turn and for how many turns it has not moved.
+    #[serde(serialize_with = "persist::sorted")]
     scout_last: HashMap<Serial, (Position, u32)>,
     /// Targets scouts could not get to.
     bad_scout_targets: Vec<Position>,
@@ -101,6 +106,7 @@ pub struct Ai {
     /// Own cities with a stack of a wizard at war near and too few defenders, this turn.
     threatened: Vec<Position>,
     /// The strength last seen in each enemy city and the turn it was seen.
+    #[serde(serialize_with = "persist::sorted")]
     city_memory: HashMap<Position, (f32, u32)>,
     /// Enemy cities no march found a way to, and when the last was added.
     unreachable: Vec<Position>,
@@ -109,6 +115,7 @@ pub struct Ai {
     frontier_closed: bool,
     /// Whether refused commands are kept (see [`Ai::take_refusals`]) and the ones kept so far.
     /// What was last seen of each rival casting the Spell of Mastery (`race.rs`).
+    #[serde(serialize_with = "persist::sorted")]
     mastery_seen: HashMap<PlayerId, race::Sighting>,
     /// The AI means to win the race for the Spell of Mastery, or has declared war on the wizard
     /// it cannot beat to it.
@@ -147,6 +154,32 @@ impl Ai {
     pub fn from_text(text: &str) -> Result<Self, ron::error::SpannedError> {
         battle::install();
         ron::de::from_str(text)
+    }
+
+    /// Put the plans of every AI in `ais` into `game`, to be saved with it.
+    pub fn remember(game: &mut Game, ais: &[Ai]) {
+        let plans = ais
+            .iter()
+            .filter_map(|ai| Some((ai.player, ai.to_text().ok()?)))
+            .collect();
+        game.set_plans(plans);
+    }
+
+    /// Give each AI in `ais` the plans `game` carries for its player. An AI the game has no plans
+    /// for, or plans that cannot be read, starts afresh. Who defends in person (a setting of the
+    /// seats, not a plan) is kept.
+    pub fn recall(game: &Game, ais: &mut [Ai]) {
+        for ai in ais {
+            let saved = game
+                .plans()
+                .iter()
+                .find(|(player, _)| *player == ai.player)
+                .and_then(|(_, text)| Ai::from_text(text).ok());
+            if let Some(mut saved) = saved {
+                saved.defended_by = std::mem::take(&mut ai.defended_by);
+                *ai = saved;
+            }
+        }
     }
 
     pub fn new(player: PlayerId) -> Self {
