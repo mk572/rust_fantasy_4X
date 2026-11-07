@@ -1,4 +1,5 @@
 use super::*;
+use crate::wizard::magic::Retort;
 use f4x_def::testdir::TestResult;
 
 use crate::hero::game::tests::{at, world as hero_world, P0, P1};
@@ -55,21 +56,21 @@ fn roll_until(g: &mut Game, wanted: impl Fn(&Offer) -> bool) -> usize {
 #[test]
 fn the_chances_follow_fame_the_retort_and_the_computer_bonus() {
     // 2 + fame/25, doubled for a Famous wizard, at most 10.
-    assert_eq!(item_chance(0, false), 2);
-    assert_eq!(item_chance(50, false), 4);
-    assert_eq!(item_chance(50, true), 8);
-    assert_eq!(item_chance(500, true), 10);
+    assert_eq!(item_chance(0, 100), 2);
+    assert_eq!(item_chance(50, 100), 4);
+    assert_eq!(item_chance(50, 200), 8);
+    assert_eq!(item_chance(500, 200), 10);
     // 1 + fame/20; the computer wizards get ten more on top of the cap.
-    assert_eq!(mercenary_chance(40, false, false), 3);
-    assert_eq!(mercenary_chance(400, true, false), 10);
-    assert_eq!(mercenary_chance(400, true, true), 20);
+    assert_eq!(mercenary_chance(40, 100, false), 3);
+    assert_eq!(mercenary_chance(400, 200, false), 10);
+    assert_eq!(mercenary_chance(400, 200, true), 20);
     // 3 + fame/25, plus ten for the computer, divided by (heroes + 1) / 2 + 1.
-    assert_eq!(hero_chance(0, false, false, 0), 3);
-    assert_eq!(hero_chance(0, false, true, 0), 13);
-    assert_eq!(hero_chance(500, true, true, 0), 20);
-    assert_eq!(hero_chance(500, true, true, 1), 10);
-    assert_eq!(hero_chance(500, true, true, 4), 20 / 3);
-    assert_eq!(hero_chance(500, true, true, 5), 5);
+    assert_eq!(hero_chance(0, 100, false, 0), 3);
+    assert_eq!(hero_chance(0, 100, true, 0), 13);
+    assert_eq!(hero_chance(500, 200, true, 0), 20);
+    assert_eq!(hero_chance(500, 200, true, 1), 10);
+    assert_eq!(hero_chance(500, 200, true, 4), 20 / 3);
+    assert_eq!(hero_chance(500, 200, true, 5), 5);
 }
 
 #[test]
@@ -83,10 +84,10 @@ fn a_company_has_a_level_a_size_and_a_price() {
     assert_eq!(mercenary_count(61, 0), 2);
     assert_eq!(mercenary_count(60, 0), 1);
     // 20 gold units, level 3: 20 * 6 / 2 = 60 each.
-    assert_eq!(mercenary_price(20, 3, 2, false), 120);
-    assert_eq!(mercenary_price(20, 3, 2, true), 60);
-    assert_eq!(item_price(500, false), 1500);
-    assert_eq!(item_price(500, true), 750);
+    assert_eq!(mercenary_price(20, 3, 2, 100), 120);
+    assert_eq!(mercenary_price(20, 3, 2, 50), 60);
+    assert_eq!(item_price(500, 100), 1500);
+    assert_eq!(item_price(500, 50), 750);
 }
 
 #[test]
@@ -291,7 +292,7 @@ fn every_wizard_meets_the_merchant_and_the_item_goes_to_the_armory() -> TestResu
     let Offer::Item { item, price } = g.offers(P0)[i].clone() else {
         unreachable!()
     };
-    assert_eq!(price, item_price(item.cost, false));
+    assert_eq!(price, item_price(item.cost, 100));
     let gold = g.tr(0).gold;
     let events = g.accept_offer(P0, i, None).map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.tr(0).gold, gold - price);

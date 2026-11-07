@@ -16,6 +16,7 @@ rand = { version = "0.8", default-features = false }
 rand_pcg = "0.3"
 serde = { version = "1", features = ["derive"] }
 ron = "0.8"
+strum = { version = "0.26", features = ["derive"] }
 macroquad = { version = "0.4", default-features = false, features = ["audio"] }
 png = { version = "0.17", default-features = false }
 # Bitmap font renderer (BMFont text format); pinned to a commit so builds stay reproducible.

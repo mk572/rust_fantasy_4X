@@ -2620,6 +2620,7 @@ dependencies = [
  "rand_pcg",
  "ron",
  "serde",
+ "strum",
 ]
 
 [[package]]
@@ -2652,6 +2653,7 @@ dependencies = [
  "f4x-def",
  "ron",
  "serde",
+ "strum",
 ]
 
 [[package]]

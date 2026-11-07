@@ -346,7 +346,9 @@ pub fn validate_rules(r: &Rules, features: &Features) -> Vec<String> {
                             | Stat::StartingFame
                             | Stat::DiplomacyGainPercent
                             | Stat::DiplomacyLossPercent
-                            | Stat::HeroCostPercent
+                            | Stat::HireCostPercent
+                            | Stat::OfferChancePercent
+                            | Stat::NodePowerDoublings
                             | Stat::ReligiousPercent,
                         ..
                     }

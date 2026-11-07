@@ -541,7 +541,8 @@ pub(crate) fn award_spell(
     rarity: i32,
 ) -> Option<SpellId> {
     let mut realms: Vec<RealmId> = crate::rules::BOOK_REALMS
-        .into_iter()
+        .iter()
+        .copied()
         .filter(|&r| wizard.view().books_in(r) > 0)
         .collect();
     realms.push(RealmId::new(5) /* arcane */);
@@ -595,7 +596,10 @@ pub(crate) fn award_special(
     picks: i32,
     loot: &mut Loot,
 ) {
-    let [_, _, _, life, death] = crate::rules::BOOK_REALMS;
+    let (life, death) = (
+        RealmId::new(3), /* life */
+        RealmId::new(4), /* death */
+    );
     let realm = match lair.reward {
         Some(realm) => realm,
         None => crate::rules::BOOK_REALMS[rng.roll(5) as usize - 1],
@@ -863,13 +867,14 @@ impl Game {
                     for &realm in &loot.books {
                         w.open_book_spells(&self.content, &mut self.rng, realm);
                     }
-                    // Famous brings its ten points of fame with it.
-                    if loot
-                        .retorts
-                        .contains(&crate::wizard::magic::Retort::new(13) /* famous */)
-                    {
-                        w.get_mut::<crate::wizard::sheet::Fame>().0 += 10;
-                    }
+                    // A retort found may bring fame with it (Famous: ten points).
+                    let fame = crate::wizard::retort::stat(
+                        &self.content.rules,
+                        &loot.retorts.iter().copied().collect(),
+                        crate::rules::Stat::StartingFame,
+                        0,
+                    );
+                    w.get_mut::<crate::wizard::sheet::Fame>().0 += fame;
                 }
                 _ => {}
             }

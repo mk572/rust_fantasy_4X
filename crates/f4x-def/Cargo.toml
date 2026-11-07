@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 serde.workspace = true
 ron.workspace = true
+strum.workspace = true
 
 [features]
 # `testdir` (a folder of its own for a test, `TestResult`) is for tests only: this crate's unit tests

@@ -18,7 +18,6 @@ use crate::player::PlayerId;
 use f4x_def::content::Content;
 
 use crate::game::{Event, Game};
-use crate::wizard::magic::Retort;
 
 /// A magic node: a component of the feature entity on the node's square, with an aura of squares
 /// around it. A wizard who melds a spirit into it owns it (the entity's `Owner`) and draws power
@@ -163,18 +162,18 @@ impl Game {
             return 0;
         };
         if let Some(m) = self.wizard(owner) {
-            let mastery = match node.realm.num() {
-                1 /* sorcery */ => m.has(Retort::new(4) /* sorcery_mastery */),
-                0 /* nature */ => m.has(Retort::new(3) /* nature_mastery */),
-                2 /* chaos */ => m.has(Retort::new(2) /* chaos_mastery */),
-                _ => false,
+            let facts = crate::rules::exec::Facts {
+                realm: Some(node.realm),
+                ..Default::default()
             };
-            if mastery {
-                power *= 2;
-            }
-            if m.has(Retort::new(12) /* node_mastery */) {
-                power *= 2;
-            }
+            let doublings = crate::wizard::retort::stat_with(
+                &self.content.rules,
+                &m.retorts(),
+                crate::rules::Stat::NodePowerDoublings,
+                0,
+                &facts,
+            );
+            power <<= doublings.clamp(0, 8);
         }
         power
     }
@@ -271,6 +270,7 @@ pub(crate) mod tests {
     use crate::game::testutil::{num, shipped};
     use crate::game::Command;
     use crate::map::Grid;
+    use crate::wizard::magic::Retort;
     use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);

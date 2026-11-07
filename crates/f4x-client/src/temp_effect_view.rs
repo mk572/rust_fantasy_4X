@@ -7,63 +7,62 @@ use f4x_def::rules::{ModOp, Stat};
 
 use crate::view::App;
 
-/// The name of each statistic.
-const STAT_NAMES: [(Stat, &str); 48] = [
-    (Stat::Melee, "temp.stat_melee"),
-    (Stat::Ranged, "temp.stat_ranged"),
-    (Stat::Defense, "temp.stat_defense"),
-    (Stat::Resistance, "temp.stat_resistance"),
-    (Stat::MaxHp, "temp.stat_max_hp"),
-    (Stat::Figures, "temp.stat_figures"),
-    (Stat::Moves, "temp.stat_moves"),
-    (Stat::HalfMoves, "temp.stat_half_moves"),
-    (Stat::Sight, "temp.stat_sight"),
-    (Stat::ToHit, "temp.stat_to_hit"),
-    (Stat::MeleeToHit, "temp.stat_melee_to_hit"),
-    (Stat::RangedToHit, "temp.stat_ranged_to_hit"),
-    (Stat::Ammo, "temp.stat_ammo"),
-    (Stat::SpecialLevel, "temp.stat_special_level"),
-    (Stat::Construction, "temp.stat_construction"),
-    (Stat::Transport, "temp.stat_transport"),
-    (Stat::ManaIncome, "temp.stat_mana_income"),
-    (Stat::ResearchIncome, "temp.stat_research_income"),
-    (Stat::CastingSkill, "temp.stat_casting_skill"),
-    (Stat::SpellCostPercent, "temp.stat_spell_cost_percent"),
-    (Stat::SpellUpkeepPercent, "temp.stat_spell_upkeep_percent"),
-    (Stat::StartingSkill, "temp.stat_starting_skill"),
-    (Stat::SkillGainPercent, "temp.stat_skill_gain_percent"),
-    (Stat::DispelMultiplier, "temp.stat_dispel_multiplier"),
-    (Stat::NodeImmunity, "temp.stat_node_immunity"),
-    (Stat::CastingDistance, "temp.stat_casting_distance"),
-    (Stat::UnitLevels, "temp.stat_unit_levels"),
-    (Stat::AlchemyPercent, "temp.stat_alchemy_percent"),
-    (Stat::StartingWeapons, "temp.stat_starting_weapons"),
-    (Stat::StartingFame, "temp.stat_starting_fame"),
-    (
-        Stat::DiplomacyGainPercent,
-        "temp.stat_diplomacy_gain_percent",
-    ),
-    (
-        Stat::DiplomacyLossPercent,
-        "temp.stat_diplomacy_loss_percent",
-    ),
-    (Stat::HeroCostPercent, "temp.stat_hero_cost_percent"),
-    (Stat::ReligiousPercent, "temp.stat_religious_percent"),
-    (Stat::CityFood, "temp.stat_city_food"),
-    (Stat::CityFoodFlat, "temp.stat_city_food_flat"),
-    (Stat::FarmerFood, "temp.stat_farmer_food"),
-    (Stat::CityUnrestPercent, "temp.stat_city_unrest_percent"),
-    (Stat::StartingXp, "temp.stat_starting_xp"),
-    (Stat::CityProduction, "temp.stat_city_production"),
-    (Stat::CityGold, "temp.stat_city_gold"),
-    (Stat::CityMana, "temp.stat_city_mana"),
-    (Stat::CityResearch, "temp.stat_city_research"),
-    (Stat::CityGrowthPercent, "temp.stat_city_growth_percent"),
-    (Stat::CityGrowth, "temp.stat_city_growth"),
-    (Stat::CityUnrest, "temp.stat_city_unrest"),
-    (Stat::UnitCostPercent, "temp.stat_unit_cost_percent"),
-    (Stat::CitySight, "temp.stat_city_sight"),
-];
+/// The key of the text that names a statistic. No wildcard arm: a new `Stat` does not compile
+/// until it has its text.
+fn stat_key(stat: Stat) -> &'static str {
+    match stat {
+        Stat::Melee => "temp.stat_melee",
+        Stat::Ranged => "temp.stat_ranged",
+        Stat::Defense => "temp.stat_defense",
+        Stat::Resistance => "temp.stat_resistance",
+        Stat::MaxHp => "temp.stat_max_hp",
+        Stat::Figures => "temp.stat_figures",
+        Stat::Moves => "temp.stat_moves",
+        Stat::HalfMoves => "temp.stat_half_moves",
+        Stat::Sight => "temp.stat_sight",
+        Stat::ToHit => "temp.stat_to_hit",
+        Stat::MeleeToHit => "temp.stat_melee_to_hit",
+        Stat::RangedToHit => "temp.stat_ranged_to_hit",
+        Stat::Ammo => "temp.stat_ammo",
+        Stat::SpecialLevel => "temp.stat_special_level",
+        Stat::Construction => "temp.stat_construction",
+        Stat::Transport => "temp.stat_transport",
+        Stat::ManaIncome => "temp.stat_mana_income",
+        Stat::ResearchIncome => "temp.stat_research_income",
+        Stat::CastingSkill => "temp.stat_casting_skill",
+        Stat::SpellCostPercent => "temp.stat_spell_cost_percent",
+        Stat::SpellUpkeepPercent => "temp.stat_spell_upkeep_percent",
+        Stat::StartingSkill => "temp.stat_starting_skill",
+        Stat::SkillGainPercent => "temp.stat_skill_gain_percent",
+        Stat::DispelMultiplier => "temp.stat_dispel_multiplier",
+        Stat::NodeImmunity => "temp.stat_node_immunity",
+        Stat::CastingDistance => "temp.stat_casting_distance",
+        Stat::UnitLevels => "temp.stat_unit_levels",
+        Stat::AlchemyPercent => "temp.stat_alchemy_percent",
+        Stat::StartingWeapons => "temp.stat_starting_weapons",
+        Stat::StartingFame => "temp.stat_starting_fame",
+        Stat::DiplomacyGainPercent => "temp.stat_diplomacy_gain_percent",
+        Stat::DiplomacyLossPercent => "temp.stat_diplomacy_loss_percent",
+        Stat::HireCostPercent => "temp.stat_hire_cost_percent",
+        Stat::OfferChancePercent => "temp.stat_offer_chance_percent",
+        Stat::NodePowerDoublings => "temp.stat_node_power_doublings",
+        Stat::ReligiousPercent => "temp.stat_religious_percent",
+        Stat::CityFood => "temp.stat_city_food",
+        Stat::CityFoodFlat => "temp.stat_city_food_flat",
+        Stat::FarmerFood => "temp.stat_farmer_food",
+        Stat::CityUnrestPercent => "temp.stat_city_unrest_percent",
+        Stat::StartingXp => "temp.stat_starting_xp",
+        Stat::CityProduction => "temp.stat_city_production",
+        Stat::CityGold => "temp.stat_city_gold",
+        Stat::CityMana => "temp.stat_city_mana",
+        Stat::CityResearch => "temp.stat_city_research",
+        Stat::CityGrowthPercent => "temp.stat_city_growth_percent",
+        Stat::CityGrowth => "temp.stat_city_growth",
+        Stat::CityUnrest => "temp.stat_city_unrest",
+        Stat::UnitCostPercent => "temp.stat_unit_cost_percent",
+        Stat::CitySight => "temp.stat_city_sight",
+    }
+}
 
 impl App {
     /// One line for each temporary effect on a unit or city: "Melee +2 (3 turns)".
@@ -82,10 +81,7 @@ impl App {
             |id: f4x_def::rules::Ability| self.names.ability(abilities.get(id).num).to_string();
         let effect = match &t.kind {
             TempKind::Modifier { stat, op, value } => {
-                let name = STAT_NAMES
-                    .iter()
-                    .find(|(s, _)| s == stat)
-                    .map_or_else(String::new, |(_, key)| self.text(key));
+                let name = self.text(stat_key(*stat));
                 let key = match op {
                     ModOp::Add => "temp.modifier_add",
                     ModOp::Percent => "temp.modifier_percent",
@@ -164,7 +160,8 @@ mod tests {
     #[test]
     fn every_stat_a_modifier_can_name_has_its_text() {
         let texts = crate::test_app::shipped::texts();
-        for (stat, key) in STAT_NAMES {
+        for stat in <Stat as strum::IntoEnumIterator>::iter() {
+            let key = stat_key(stat);
             assert!(texts.has(key), "{stat:?} has no text {key}");
         }
     }

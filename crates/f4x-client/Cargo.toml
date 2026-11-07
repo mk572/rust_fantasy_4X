@@ -12,6 +12,7 @@ f4x-extract.workspace = true
 f4x-ai.workspace = true
 f4x-master.workspace = true
 macroquad.workspace = true
+strum.workspace = true
 macroquad_bitmap_font_engine.workspace = true
 hecs.workspace = true
 rand.workspace = true

@@ -209,7 +209,9 @@ mod tests {
         check(&[13], Stat::StartingFame, 0, 10);
         check(&[16], Stat::DiplomacyGainPercent, 100, 200);
         check(&[16], Stat::DiplomacyLossPercent, 100, 50);
-        check(&[16], Stat::HeroCostPercent, 100, 50);
+        check(&[16], Stat::HireCostPercent, 100, 50);
+        check(&[13], Stat::OfferChancePercent, 100, 200);
+        check(&[], Stat::OfferChancePercent, 100, 100);
         // Divine and Infernal Power, alone or together (they do not add up).
         check(&[5], Stat::ReligiousPercent, 100, 150);
         check(&[6], Stat::ReligiousPercent, 100, 150);
@@ -237,5 +239,23 @@ mod tests {
             times(&[10, 2 /* chaos_mastery */, 4 /* sorcery_mastery */], 1),
             3
         );
+    }
+
+    #[test]
+    fn a_node_doubles_for_its_realms_mastery_and_again_for_node_mastery() {
+        let rules = &shipped().rules;
+        let doublings = |nums: &[u16], realm: u16| {
+            let facts = Facts {
+                realm: Some(realm_ref(realm)),
+                ..Facts::default()
+            };
+            stat_with(rules, &retorts(nums), Stat::NodePowerDoublings, 0, &facts)
+        };
+        assert_eq!(doublings(&[], 0), 0);
+        assert_eq!(doublings(&[3 /* nature_mastery */], 0 /* nature */), 1);
+        assert_eq!(doublings(&[3], 1 /* sorcery */), 0);
+        assert_eq!(doublings(&[12 /* node_mastery */], 2 /* chaos */), 1);
+        assert_eq!(doublings(&[12, 2 /* chaos_mastery */], 2), 2);
+        assert_eq!(doublings(&[12, 2, 4, 3], 1), 2);
     }
 }

@@ -4,6 +4,7 @@
 //! deterministic and independent of the order modifiers were added.
 
 use serde::{Deserialize, Serialize};
+use strum::EnumIter;
 
 use super::defs::{AbilityDef, BuildingDef, RaceDef, SpellDef};
 use super::effects::{Condition, Effect, EffectRule, Trigger};
@@ -11,7 +12,9 @@ use super::ids::Id;
 
 /// Every numeric attribute the rules know about. Fixed in code: content files
 /// may use these but not invent new ones.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, EnumIter,
+)]
 pub enum Stat {
     // Units and heroes
     Melee,
@@ -72,8 +75,12 @@ pub enum Stat {
     DiplomacyGainPercent,
     /// Percent of a bad change in other wizards' regard that counts (100 normally).
     DiplomacyLossPercent,
-    /// Percent of the price of a hero's hire (100 normally).
-    HeroCostPercent,
+    /// Percent of the price of a hero's hire, a mercenary company or a merchant's item (100 normally).
+    HireCostPercent,
+    /// Percent of the chance that a hero, a mercenary company or an item merchant comes to the wizard (100 normally).
+    OfferChancePercent,
+    /// Times a node the wizard holds doubles its power (0 normally; the condition is the node's realm).
+    NodePowerDoublings,
     /// Percent of the power and pacifying of the religious buildings (100 normally).
     ReligiousPercent,
     // Cities

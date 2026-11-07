@@ -23,9 +23,8 @@ use crate::item::armory::Placed;
 use crate::item::make::{make_item, Grade};
 use crate::item::Item;
 use crate::player::{Offers, PlayerId};
-use crate::rules::{MovementType, Rules, UnitDef, UnitId, UnitKind};
+use crate::rules::{MovementType, Rules, Stat, UnitDef, UnitId, UnitKind};
 use crate::unit::Experience;
-use crate::wizard::magic::Retort;
 
 /// No mercenaries are offered before this turn (`Generate_Mercenaries`).
 pub const FIRST_MERCENARY_TURN: u32 = 30;
@@ -108,27 +107,27 @@ impl OfferError {
     }
 }
 
-/// The chance in percent of an offer: `base + fame / per`, doubled for a Famous wizard, at most 10.
-pub fn offer_chance(base: i32, per: i32, fame: i32, famous: bool) -> i32 {
-    let chance = base + fame / per;
-    let chance = if famous { chance * 2 } else { chance };
+/// The chance in percent of an offer: `base + fame / per`, changed by the wizard's `percent` (200
+/// for a Famous wizard, 100 normally; `OfferChancePercent`), at most 10.
+pub fn offer_chance(base: i32, per: i32, fame: i32, percent: i32) -> i32 {
+    let chance = (base + fame / per) * percent / 100;
     chance.min(MAX_CHANCE)
 }
 
 /// The merchant's chance.
-pub fn item_chance(fame: i32, famous: bool) -> i32 {
-    offer_chance(2, 25, fame, famous)
+pub fn item_chance(fame: i32, percent: i32) -> i32 {
+    offer_chance(2, 25, fame, percent)
 }
 
 /// The mercenaries' chance; the computer wizards get ten more.
-pub fn mercenary_chance(fame: i32, famous: bool, computer: bool) -> i32 {
-    offer_chance(1, 20, fame, famous) + if computer { AI_BONUS } else { 0 }
+pub fn mercenary_chance(fame: i32, percent: i32, computer: bool) -> i32 {
+    offer_chance(1, 20, fame, percent) + if computer { AI_BONUS } else { 0 }
 }
 
 /// The hero's chance: the computer wizards get ten more, and the chance is divided by
 /// `(heroes + 1) / 2 + 1`, so it falls the more heroes the wizard already has.
-pub fn hero_chance(fame: i32, famous: bool, computer: bool, heroes: usize) -> i32 {
-    let chance = offer_chance(3, 25, fame, famous) + if computer { AI_BONUS } else { 0 };
+pub fn hero_chance(fame: i32, percent: i32, computer: bool, heroes: usize) -> i32 {
+    let chance = offer_chance(3, 25, fame, percent) + if computer { AI_BONUS } else { 0 };
     chance / ((heroes as i32 + 1) / 2 + 1)
 }
 
@@ -152,24 +151,17 @@ pub fn mercenary_count(roll: i32, fame: i32) -> u32 {
     }
 }
 
-/// What the company costs in all: `cost * (3 + level) / 2` a unit, half for a Charismatic wizard.
-pub fn mercenary_price(cost: u32, level: u8, count: u32, charismatic: bool) -> i32 {
+/// What the company costs in all: `cost * (3 + level) / 2` a unit, times the wizard's `percent`
+/// (50 for a Charismatic wizard, 100 normally; `HireCostPercent`).
+pub fn mercenary_price(cost: u32, level: u8, count: u32, percent: i32) -> i32 {
     let price = (cost as i32 * (3 + i32::from(level)) / 2) * count as i32;
-    if charismatic {
-        price / 2
-    } else {
-        price
-    }
+    price * percent / 100
 }
 
-/// What the merchant asks: three times the item's value, half for a Charismatic wizard.
-pub fn item_price(cost: u32, charismatic: bool) -> i32 {
+/// What the merchant asks: three times the item's value, times the wizard's `percent` (`HireCostPercent`).
+pub fn item_price(cost: u32, percent: i32) -> i32 {
     let price = cost as i32 * 3;
-    if charismatic {
-        price / 2
-    } else {
-        price
-    }
+    price * percent / 100
 }
 
 /// The computer wizard hires a hero whose price is at most nine tenths of its gold
@@ -315,20 +307,20 @@ impl Game {
         if !self.can_be_offered(player) {
             return offers;
         }
-        let famous = self
-            .wizard(player)
-            .is_some_and(|m| m.has(Retort::new(13) /* famous */));
+        let percent = self.wizard(player).map_or(100, |m| {
+            m.stat(&self.content.rules, Stat::OfferChancePercent, 100)
+        });
         let fame = self.fame(player);
         let computer = self.human() != Some(player);
 
-        if self.rng.roll(100) as i32 <= item_chance(fame, famous) {
+        if self.rng.roll(100) as i32 <= item_chance(fame, percent) {
             offers.extend(self.item_offer(player));
         }
-        if self.rng.roll(100) as i32 <= mercenary_chance(fame, famous, computer) {
+        if self.rng.roll(100) as i32 <= mercenary_chance(fame, percent, computer) {
             offers.extend(self.mercenary_offer(player));
         }
         let heroes = self.units().hero_units(player).len();
-        if self.rng.roll(100) as i32 <= hero_chance(fame, famous, computer, heroes) {
+        if self.rng.roll(100) as i32 <= hero_chance(fame, percent, computer, heroes) {
             offers.extend(self.hero_offer(player));
         }
         offers
@@ -344,9 +336,11 @@ impl Game {
                 .is_some_and(|w| !w.is_banished() && w.summon_point().is_some())
     }
 
-    fn charismatic(&self, player: PlayerId) -> bool {
-        self.wizard(player)
-            .is_some_and(|m| m.has(Retort::new(16) /* charismatic */))
+    /// The percent of the price of a hire or a purchase the wizard pays (`HireCostPercent`).
+    fn hire_percent(&self, player: PlayerId) -> i32 {
+        self.wizard(player).map_or(100, |m| {
+            m.stat(&self.content.rules, Stat::HireCostPercent, 100)
+        })
     }
 
     /// The merchant's item, if the wizard can pay for it (`Make_Item`). An item the wizard cannot pay for is not offered and a prefab one is given back.
@@ -358,7 +352,7 @@ impl Game {
             0,
             &mut self.prefab_taken,
         );
-        let price = item_price(item.cost, self.charismatic(player));
+        let price = item_price(item.cost, self.hire_percent(player));
         if price <= self.player(player).map_or(0, |p| p.treasury().gold) {
             self.spawn_item(item.clone(), crate::item::entity::HeldBy::Offered(player));
             Some(Offer::Item { item, price })
@@ -379,7 +373,7 @@ impl Game {
     /// offer, it fits the summoning circle's square and the wizard can pay.
     fn mercenary_offer(&mut self, player: PlayerId) -> Option<Offer> {
         let fame = self.fame(player);
-        let charismatic = self.charismatic(player);
+        let percent = self.hire_percent(player);
         let gold = self.player(player).map_or(0, |p| p.treasury().gold);
         if self.turn < FIRST_MERCENARY_TURN {
             return None;
@@ -393,7 +387,7 @@ impl Game {
         let (id, cost) = (UnitId::new(def.num), def.cost);
         let level = mercenary_level(self.rng.roll(100) as i32, fame);
         let count = mercenary_count(self.rng.roll(100) as i32, fame);
-        let price = mercenary_price(cost, level, count, charismatic);
+        let price = mercenary_price(cost, level, count, percent);
         let at = self.summon_point(player)?;
         let room = self.units().units_at(at).len() + count as usize <= self.max_tile();
         (price <= gold && room).then_some(Offer::Mercenaries {

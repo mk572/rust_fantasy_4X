@@ -9,17 +9,17 @@
 // stats are understood (the loader names them): `SpellCostPercent` (added, so -15 is 15% off),
 // `ResearchIncome` and `ManaIncome` (percents of the research and the mana shares),
 // `SpellUpkeepPercent`, `SkillGainPercent`, `AlchemyPercent`, `DiplomacyGainPercent`,
-// `DiplomacyLossPercent`, `HeroCostPercent` and `ReligiousPercent` (percents), `CastingSkill`,
+// `DiplomacyLossPercent`, `HireCostPercent` and `ReligiousPercent` (percents), `CastingSkill`,
 // `StartingSkill`, `StartingFame`, `UnitLevels`, `DispelMultiplier`, `NodeImmunity` (above 0 it
-// holds), `CastingDistance` and `StartingWeapons` (numbers). A condition on the spell:
+// holds), `OfferChancePercent`, `NodePowerDoublings` (per node, by its realm), `CastingDistance` and `StartingWeapons` (numbers). A condition on the spell:
 // `RealmIs(realm)` or `SpellIs(Summoning | Crafting)`; for the dispel multiplier, the realm of the
 // spell dispelled against.
 [
     (num: 0, id: "alchemy", help: Some(693), cost: 1, requires: [], effects: [(effect: Modify(stat: AlchemyPercent, op: Add, value: 50)), (effect: Modify(stat: StartingWeapons, op: Min, value: 1))]),
     (num: 1, id: "warlord", help: Some(694), cost: 2, requires: [], effects: [(effect: Modify(stat: UnitLevels, op: Add, value: 1))]),
-    (num: 2, id: "chaos_mastery", help: Some(705), cost: 1, requires: [Books(2, 4)], effects: [(condition: RealmIs(2), effect: Modify(stat: SpellCostPercent, op: Add, value: -15)), (condition: RealmIs(2), effect: Modify(stat: ResearchIncome, op: Percent, value: 15)), (condition: RealmIs(2), effect: Modify(stat: DispelMultiplier, op: Add, value: 1))]),
-    (num: 3, id: "nature_mastery", help: Some(706), cost: 1, requires: [Books(0, 4)], effects: [(condition: RealmIs(0), effect: Modify(stat: SpellCostPercent, op: Add, value: -15)), (condition: RealmIs(0), effect: Modify(stat: ResearchIncome, op: Percent, value: 15)), (condition: RealmIs(0), effect: Modify(stat: DispelMultiplier, op: Add, value: 1))]),
-    (num: 4, id: "sorcery_mastery", help: Some(707), cost: 1, requires: [Books(1, 4)], effects: [(condition: RealmIs(1), effect: Modify(stat: SpellCostPercent, op: Add, value: -15)), (condition: RealmIs(1), effect: Modify(stat: ResearchIncome, op: Percent, value: 15)), (condition: RealmIs(1), effect: Modify(stat: DispelMultiplier, op: Add, value: 1))]),
+    (num: 2, id: "chaos_mastery", help: Some(705), cost: 1, requires: [Books(2, 4)], effects: [(condition: RealmIs(2), effect: Modify(stat: SpellCostPercent, op: Add, value: -15)), (condition: RealmIs(2), effect: Modify(stat: ResearchIncome, op: Percent, value: 15)), (condition: RealmIs(2), effect: Modify(stat: DispelMultiplier, op: Add, value: 1)), (condition: RealmIs(2), effect: Modify(stat: NodePowerDoublings, op: Add, value: 1))]),
+    (num: 3, id: "nature_mastery", help: Some(706), cost: 1, requires: [Books(0, 4)], effects: [(condition: RealmIs(0), effect: Modify(stat: SpellCostPercent, op: Add, value: -15)), (condition: RealmIs(0), effect: Modify(stat: ResearchIncome, op: Percent, value: 15)), (condition: RealmIs(0), effect: Modify(stat: DispelMultiplier, op: Add, value: 1)), (condition: RealmIs(0), effect: Modify(stat: NodePowerDoublings, op: Add, value: 1))]),
+    (num: 4, id: "sorcery_mastery", help: Some(707), cost: 1, requires: [Books(1, 4)], effects: [(condition: RealmIs(1), effect: Modify(stat: SpellCostPercent, op: Add, value: -15)), (condition: RealmIs(1), effect: Modify(stat: ResearchIncome, op: Percent, value: 15)), (condition: RealmIs(1), effect: Modify(stat: DispelMultiplier, op: Add, value: 1)), (condition: RealmIs(1), effect: Modify(stat: NodePowerDoublings, op: Add, value: 1))]),
     (num: 5, id: "infernal_power", help: Some(708), cost: 2, requires: [Books(4, 4)], effects: [(effect: Modify(stat: ReligiousPercent, op: Percent, value: 50))]),
     (num: 6, id: "divine_power", help: Some(701), cost: 2, requires: [Books(3, 4)], effects: [(effect: Modify(stat: ReligiousPercent, op: Percent, value: 50))]),
     (num: 7, id: "sage_master", help: Some(699), cost: 1, requires: [Realms(2, 1)], effects: [(condition: Always, effect: Modify(stat: ResearchIncome, op: Percent, value: 25))]),
@@ -27,10 +27,10 @@
     (num: 9, id: "myrran", help: Some(700), cost: 3, requires: []),
     (num: 10, id: "archmage", help: Some(696), cost: 1, requires: [Realms(1, 4)], effects: [(effect: Modify(stat: CastingSkill, op: Add, value: 10)), (effect: Modify(stat: StartingSkill, op: Add, value: 10)), (effect: Modify(stat: SkillGainPercent, op: Percent, value: 50)), (effect: Modify(stat: DispelMultiplier, op: Add, value: 1))]),
     (num: 11, id: "mana_focusing", help: Some(709), cost: 1, requires: [Realms(1, 4)], effects: [(effect: Modify(stat: ManaIncome, op: Percent, value: 25))]),
-    (num: 12, id: "node_mastery", help: Some(710), cost: 1, requires: [Books(2, 1), Books(1, 1), Books(0, 1)], effects: [(effect: Modify(stat: NodeImmunity, op: Add, value: 1))]),
-    (num: 13, id: "famous", help: Some(702), cost: 2, requires: [], effects: [(effect: Modify(stat: StartingFame, op: Add, value: 10))]),
+    (num: 12, id: "node_mastery", help: Some(710), cost: 1, requires: [Books(2, 1), Books(1, 1), Books(0, 1)], effects: [(effect: Modify(stat: NodeImmunity, op: Add, value: 1)), (effect: Modify(stat: NodePowerDoublings, op: Add, value: 1))]),
+    (num: 13, id: "famous", help: Some(702), cost: 2, requires: [], effects: [(effect: Modify(stat: StartingFame, op: Add, value: 10)), (effect: Modify(stat: OfferChancePercent, op: Percent, value: 100))]),
     (num: 14, id: "runemaster", help: Some(703), cost: 1, requires: [Realms(3, 2)], effects: [(condition: RealmIs(5), effect: Modify(stat: SpellCostPercent, op: Add, value: -25)), (condition: RealmIs(5), effect: Modify(stat: ResearchIncome, op: Percent, value: 25))]),
     (num: 15, id: "conjurer", help: Some(698), cost: 1, requires: [], effects: [(condition: SpellIs(Summoning), effect: Modify(stat: SpellCostPercent, op: Add, value: -25)), (condition: SpellIs(Summoning), effect: Modify(stat: ResearchIncome, op: Percent, value: 25))]),
-    (num: 16, id: "charismatic", help: Some(704), cost: 1, requires: [], effects: [(effect: Modify(stat: DiplomacyGainPercent, op: Percent, value: 100)), (effect: Modify(stat: DiplomacyLossPercent, op: Percent, value: -50)), (effect: Modify(stat: HeroCostPercent, op: Percent, value: -50))]),
+    (num: 16, id: "charismatic", help: Some(704), cost: 1, requires: [], effects: [(effect: Modify(stat: DiplomacyGainPercent, op: Percent, value: 100)), (effect: Modify(stat: DiplomacyLossPercent, op: Percent, value: -50)), (effect: Modify(stat: HireCostPercent, op: Percent, value: -50))]),
     (num: 17, id: "artificer", help: Some(697), cost: 1, requires: [], effects: [(condition: SpellIs(Crafting), effect: Modify(stat: SpellCostPercent, op: Add, value: -50))]),
 ]

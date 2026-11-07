@@ -139,7 +139,7 @@ impl UnitView<'_> {
     }
 
     /// What the wizard pays to hire this hero type now: the cost plus a quarter of it for
-    /// each level the hero kept from earlier service, less for a Charismatic wizard (`HeroCostPercent`).
+    /// each level the hero kept from earlier service, less for a Charismatic wizard (`HireCostPercent`).
     pub fn hero_hire_price(&self, player: PlayerId, kind: usize) -> Option<i32> {
         let rules = &self.content.rules;
         let hero = self.hero_entity(kind)?;
@@ -147,7 +147,7 @@ impl UnitView<'_> {
         let cost = rules.units.get(unit).hero.as_ref()?.hire_cost as i32;
         let level = kind::level_of(rules, unit, self.hero_xp(hero));
         let percent = self.wizard(player).map_or(100, |m| {
-            m.stat(rules, crate::rules::Stat::HeroCostPercent, 100)
+            m.stat(rules, crate::rules::Stat::HireCostPercent, 100)
         });
         Some(kind::hire_cost(cost, level, percent))
     }
