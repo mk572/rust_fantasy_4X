@@ -33,7 +33,7 @@ fn facts(c: &Content) -> CityFacts {
         figures: 4,
         max_size: 12,
         food: HalfInt::from_int(4),
-        net_gold: 20,
+        net_gold: f4x_def::half_int::HalfInt::from_int(20),
         defenders: 2,
         buildable: possible.iter().copied().filter(|&b| free(b)).collect(),
         built,
@@ -186,7 +186,7 @@ fn rebels_call_for_a_building_that_lowers_unrest() {
 fn low_gold_builds_a_gold_building_then_trade_goods() {
     let c = shipped();
     let mut f = facts(&c);
-    f.net_gold = 1;
+    f.net_gold = f4x_def::half_int::HalfInt::from_int(1);
     let p = plan(Mix::Buildings, Focus::Offense);
     assert_eq!(
         choose(&c, &p, &f, &mut first),
@@ -202,7 +202,7 @@ fn low_gold_builds_a_gold_building_then_trade_goods() {
 fn a_building_whose_upkeep_the_treasury_cannot_bear_is_skipped() {
     let c = shipped();
     let mut f = facts(&c);
-    f.net_gold = 3;
+    f.net_gold = f4x_def::half_int::HalfInt::from_int(3);
     f.buildable = vec![
         building(&c, 23 /* temple */),
         building(&c, 16 /* library */),
@@ -211,7 +211,7 @@ fn a_building_whose_upkeep_the_treasury_cannot_bear_is_skipped() {
     let item = choose(&c, &plan(Mix::Buildings, Focus::Magic), &f, &mut first);
     // The temple costs 2 and the library 1; both are borne at 3.
     assert!(matches!(item, ProductionItem::Building(_)));
-    f.net_gold = 3;
+    f.net_gold = f4x_def::half_int::HalfInt::from_int(3);
     f.buildable = vec![building(&c, 7 /* war_college */)];
     let item = choose(&c, &plan(Mix::Buildings, Focus::Offense), &f, &mut first);
     assert_ne!(
@@ -446,7 +446,7 @@ fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() -> TestResult {
     g.add_player(PlayerId(0), "W");
     g.treasury_mut(PlayerId(0))
         .ok_or("treasury_mut is missing")?
-        .gold = 500;
+        .gold = f4x_def::half_int::HalfInt::from_int(500);
     g.player_component_mut::<crate::player::Tax>(PlayerId(0))
         .ok_or("value is missing")?
         .0 = 2;

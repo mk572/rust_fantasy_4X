@@ -41,7 +41,8 @@ fn world() -> Game {
     game.content = c;
     game.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     game.add_player(P0, "Merlin");
-    game.treasury_mut(P0).expect("treasury_mut succeeds").gold = 500;
+    game.treasury_mut(P0).expect("treasury_mut succeeds").gold =
+        f4x_def::half_int::HalfInt::from_int(500);
     game.player_component_mut::<crate::player::Tax>(P0)
         .expect("value succeeds")
         .0 = 2;

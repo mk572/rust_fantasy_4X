@@ -15,6 +15,7 @@ use crate::item::make::{make_item, Grade};
 use crate::map::{FeatureId, Position};
 use crate::player::PlayerId;
 use crate::world_event::BIG_EVENTS_FROM_TURN;
+use f4x_def::half_int::HalfInt;
 
 use crate::game::{Event, Game};
 use crate::rules::UnitKind;
@@ -119,7 +120,12 @@ impl Game {
         if kind.is_world() && self.events.world_event().is_some() {
             return None;
         }
-        if kind == EventKind::Piracy && self.player(victim).map_or(0, |p| p.treasury().gold) < 100 {
+        if kind == EventKind::Piracy
+            && self
+                .player(victim)
+                .map_or(HalfInt::ZERO, |p| p.treasury().gold)
+                < 100
+        {
             return None;
         }
         let (mut city, mut other) = (None, None);
@@ -384,10 +390,12 @@ impl Game {
                 notice.lost_population = people;
             }
             EventKind::Piracy => {
-                let gold = self.player(victim).map_or(0, |p| p.treasury().gold);
-                let take = pirates_take(gold, rng.roll(21)).min(gold);
+                let gold = self
+                    .player(victim)
+                    .map_or(HalfInt::ZERO, |p| p.treasury().gold);
+                let take = pirates_take(gold.floor(), rng.roll(21)).min(gold.floor());
                 if let Some(t) = self.treasury_mut(victim) {
-                    t.gold = (t.gold - take).max(0);
+                    t.gold = (t.gold - take).max(HalfInt::ZERO);
                 }
                 notice.number = take;
             }

@@ -29,6 +29,7 @@ use crate::game::{Event, Game};
 use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::BuildingId;
+use f4x_def::half_int::HalfInt;
 
 /// Marks a city taken this turn by the player it holds, who may still raze it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,11 +49,14 @@ pub(crate) fn fame_change(size: i32) -> (i32, i32) {
 
 /// The share of the loser's gold that a city loots: the treasury (not below nothing) times this
 /// city's citizens over all the loser's citizens.
-pub(crate) fn loot_share(gold: i32, citizens: u32, all_citizens: u32) -> i32 {
+pub(crate) fn loot_share(gold: HalfInt, citizens: u32, all_citizens: u32) -> HalfInt {
     if all_citizens == 0 {
-        return 0;
+        return HalfInt::ZERO;
     }
-    (i64::from(gold.max(0)) * i64::from(citizens) / i64::from(all_citizens)) as i32
+    HalfInt::from_raw(
+        (i64::from(gold.max(HalfInt::ZERO).raw()) * i64::from(citizens) / i64::from(all_citizens))
+            as i32,
+    )
 }
 
 /// What the fighting cost a city.
@@ -134,9 +138,9 @@ impl Economy<'_> {
 
     /// How much gold taking `city` loots from its owner: the owner's gold in proportion to the
     /// city's share of their citizens.
-    pub fn conquest_loot(&self, city: hecs::Entity) -> i32 {
+    pub fn conquest_loot(&self, city: hecs::Entity) -> HalfInt {
         let Some(owner) = self.city_owner(city) else {
-            return 0;
+            return HalfInt::ZERO;
         };
         let all: u32 = self
             .cities()
@@ -145,7 +149,7 @@ impl Economy<'_> {
             .map(|(e, ..)| self.citizens(e))
             .sum();
         let gold = crate::player::component::<crate::player::Treasury>(self.world, owner)
-            .map_or(0, |t| t.gold);
+            .map_or(HalfInt::ZERO, |t| t.gold);
         loot_share(gold, self.citizens(city), all)
     }
 }
@@ -191,7 +195,7 @@ impl Game {
             t.gold += loot;
         }
         if let Some(t) = self.treasury_mut(loser) {
-            t.gold = (t.gold - loot).max(0);
+            t.gold = (t.gold - loot).max(HalfInt::ZERO);
         }
 
         // The fighting kills citizens and wrecks buildings.
@@ -214,7 +218,7 @@ impl Game {
 
         let mut events = vec![Event::CityLooted {
             city,
-            gold: loot,
+            gold: loot.floor(),
             citizens_lost: toll.citizens_lost,
             buildings_lost: lost,
             fame_lost: if loser_is_wizard { fame_lost } else { 0 },

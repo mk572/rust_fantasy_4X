@@ -688,7 +688,7 @@ pub(crate) mod tests {
         let h = g
             .spawn_hero(P0, at(1, 1), 0)
             .map_err(|e| format!("{e:?}"))?;
-        g.tr_mut(0).gold = 0;
+        g.tr_mut(0).gold = f4x_def::half_int::HalfInt::from_int(0);
         let _ = g.settle_treasury(P0);
         assert!(g.world.get::<&Unit>(h).is_err());
         assert_eq!(state(&g, 0), HeroState::Free);

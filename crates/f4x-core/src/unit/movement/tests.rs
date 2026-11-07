@@ -438,7 +438,8 @@ fn path_prefers_cheap_terrain() -> TestResult {
 fn goto_orders_continue_over_turns() -> TestResult {
     let mut g = world();
     // A hero eats no food, and the treasury pays its gold.
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 1000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(1000);
     let w = unit(&mut g, P0, 0 /* dwarf */, at(0, 1));
     let events = g.apply(Command::GoTo {
         units: vec![w],
@@ -480,7 +481,8 @@ fn goto_orders_continue_over_turns() -> TestResult {
 #[test]
 fn end_turn_refills_moves() -> TestResult {
     let mut g = world();
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 1000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(1000);
     let w = unit(&mut g, P0, 0 /* dwarf */, at(1, 1));
     g.world.insert_one(w, MovesLeft(0))?;
     g.apply(Command::EndTurn);

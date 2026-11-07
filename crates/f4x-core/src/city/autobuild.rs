@@ -294,7 +294,7 @@ pub struct CityFacts {
     pub food: HalfInt,
     pub rebels: u32,
     /// The treasury's net gold per turn.
-    pub net_gold: i32,
+    pub net_gold: HalfInt,
     /// Fighting Normal units of the owner standing in the city.
     pub defenders: u32,
     /// A rival wizard's city is known within range.
@@ -423,7 +423,9 @@ fn ranked_buildings(content: &Content, plan: &BuildPlan, f: &CityFacts) -> Vec<(
         .buildable
         .iter()
         .copied()
-        .filter(|&b| f.net_gold >= content.rules.buildings.get(b).upkeep_gold as i32)
+        .filter(|&b| {
+            f.net_gold >= HalfInt::from_int(content.rules.buildings.get(b).upkeep_gold as i32)
+        })
         .map(|b| (b, building_score(content, plan, f, b)))
         .collect();
     v.sort_by(|a, b| b.1.total_cmp(&a.1).then(place(a.0).cmp(&place(b.0))));
@@ -632,7 +634,7 @@ pub fn choose(
     }
 
     // 3. The gold floor.
-    if buildings_ok && f.net_gold < GOLD_FLOOR {
+    if buildings_ok && f.net_gold < HalfInt::from_int(GOLD_FLOOR) {
         return match gold_building(content, f) {
             Some(b) => ProductionItem::Building(b),
             None => ProductionItem::TradeGoods,

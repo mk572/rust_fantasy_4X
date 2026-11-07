@@ -549,7 +549,13 @@ impl App {
                 self.signed_amount(eco.food - f4x_def::half_int::HalfInt::from_int(figures)),
             ),
             (41, 35, eco.production, false, String::new()),
-            (42, 36, eco.gold, false, format!("{net_gold:+}")),
+            (
+                42,
+                36,
+                eco.gold.floor(),
+                false,
+                self.signed_amount(net_gold),
+            ),
             (43, 37, eco.mana, false, String::new()),
             (44, 38, eco.research, false, String::new()),
         ];
@@ -557,8 +563,8 @@ impl App {
         for (i, (small, big, count, half, note)) in rows.into_iter().enumerate() {
             let y = 54.0 + i as f32 * 8.6;
             let mut end = self.icon_row(lay, (small, big), count, half, 8.0, y);
-            if i == 2 && eco.gold_upkeep > 0 {
-                end = self.icon_row(lay, (73, 73), eco.gold_upkeep, false, end + 6.0, y);
+            if i == 2 && eco.gold_upkeep > f4x_def::half_int::HalfInt::ZERO {
+                end = self.icon_row(lay, (73, 73), eco.gold_upkeep.ceil(), false, end + 6.0, y);
             }
             let _ = end;
             if !note.is_empty() {
@@ -1586,7 +1592,7 @@ impl App {
         let gold = self
             .game
             .player(crate::view::HUMAN)
-            .map_or(0, |p| p.treasury().gold);
+            .map_or(0, |p| p.treasury().gold.floor());
         let price = self.game.economy().buy_cost(city);
         // Clickable whenever the item can be bought; too little gold is answered with a box.
         if self.city_wood_button(

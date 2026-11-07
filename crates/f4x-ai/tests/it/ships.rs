@@ -77,7 +77,8 @@ fn can_build_building(
 
 /// A funded wizard whose city feeds its troops, so end turns do not disband the test army.
 fn fund(game: &mut Game) -> TestResult {
-    game.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold = 1_000_000;
+    game.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
+        f4x_def::half_int::HalfInt::from_int(1_000_000);
     game.balance_farmers(P0);
     Ok(())
 }

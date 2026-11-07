@@ -82,7 +82,7 @@ pub(crate) struct Special {
 /// What a unit costs each turn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SheetUpkeep {
-    pub gold: i32,
+    pub gold: f4x_def::half_int::HalfInt,
     pub mana: i32,
     pub food: f4x_def::half_int::HalfInt,
 }
@@ -778,7 +778,7 @@ impl App {
             moves: stat(Stat::Moves).max(0) as u32,
             move_icon: move_icon_of(def.movement),
             upkeep: Some(SheetUpkeep {
-                gold: def.upkeep.gold as i32,
+                gold: def.upkeep.gold,
                 mana: def.upkeep.mana as i32,
                 food: def.upkeep.food,
             }),

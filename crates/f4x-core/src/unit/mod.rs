@@ -523,26 +523,24 @@ impl<'a> UnitView<'a> {
     }
 
     /// Gold a unit costs per turn (heroes with the noble trait cost nothing).
-    pub fn unit_gold_upkeep(&self, unit: hecs::Entity) -> i32 {
+    pub fn unit_gold_upkeep(&self, unit: hecs::Entity) -> HalfInt {
         let Some(def) = self.unit_def(unit) else {
-            return 0;
+            return HalfInt::ZERO;
         };
         if self.unit_is_undead(unit) || self.unit_is_unpaid(unit) || !self.pays_upkeep(unit) {
-            return 0;
+            return HalfInt::ZERO;
         }
         let gold = match def.kind {
-            UnitKind::Normal => def.upkeep.gold as i32,
-            UnitKind::Hero if !self.unit_has_ability(unit, Ability::new(96)) => {
-                def.upkeep.gold as i32
-            }
-            _ => 0,
+            UnitKind::Normal => def.upkeep.gold,
+            UnitKind::Hero if !self.unit_has_ability(unit, Ability::new(96)) => def.upkeep.gold,
+            _ => HalfInt::ZERO,
         };
         // A computer wizard's difficulty cuts its units' upkeep.
         let cut = self
             .unit_owner(unit)
             .and_then(|o| crate::player::component::<crate::player::Bonus>(self.world, o))
             .map_or(100, |b| b.unit_upkeep);
-        crate::player::Bonus::of(cut, gold)
+        crate::player::Bonus::of_half(cut, gold)
     }
 
     /// A player's units, in the order of `all_units`.
@@ -683,7 +681,7 @@ mod tests {
         let costs = |content: &Content| {
             let units = UnitView::new(&world, content);
             made.iter()
-                .map(|&u| (units.unit_gold_upkeep(u), units.unit_food(u).ceil()))
+                .map(|&u| (units.unit_gold_upkeep(u).floor(), units.unit_food(u).ceil()))
                 .collect::<Vec<_>>()
         };
         // Off: every unit pays in full.

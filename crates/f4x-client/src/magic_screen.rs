@@ -627,7 +627,10 @@ impl MagicUi {
             return;
         };
         let (px, py) = (80.0, 60.0);
-        let gold = app.game.player(HUMAN).map_or(0, |p| p.treasury().gold);
+        let gold = app
+            .game
+            .player(HUMAN)
+            .map_or(0, |p| p.treasury().gold.floor());
         let mana = app.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         let percent = app.game.wizard(HUMAN).map_or(50, |m| {
             m.stat(

@@ -167,7 +167,7 @@ mod tests {
     fn set_gold(g: &mut Game, player: PlayerId, gold: i32) -> TestResult {
         g.treasury_mut(player)
             .ok_or("the player has a treasury")?
-            .gold = gold;
+            .gold = f4x_def::half_int::HalfInt::from_int(gold);
         Ok(())
     }
 

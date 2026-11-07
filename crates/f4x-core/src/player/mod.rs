@@ -9,6 +9,7 @@ pub mod shortfall;
 pub mod upkeep;
 pub mod view;
 
+use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
 /// Who a player is outside the world (fog, diplomacy, map owners, saves, commands). A component of
@@ -48,7 +49,7 @@ pub const MONSTERS: PlayerId = PlayerId(u8::MAX);
 /// On a player: its gold and mana.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Treasury {
-    pub gold: i32,
+    pub gold: HalfInt,
     pub mana: i32,
 }
 
@@ -63,7 +64,10 @@ impl Treasury {
 
 impl Default for Treasury {
     fn default() -> Self {
-        Self { gold: 100, mana: 0 }
+        Self {
+            gold: HalfInt::from_int(100),
+            mana: 0,
+        }
     }
 }
 
@@ -139,6 +143,15 @@ impl Default for Bonus {
 }
 
 impl Bonus {
+    /// `value` as a percent of itself.
+    pub fn of_half(percent: i32, value: HalfInt) -> HalfInt {
+        if percent == 100 {
+            value
+        } else {
+            HalfInt::from_raw((i64::from(value.raw()) * i64::from(percent)).div_euclid(100) as i32)
+        }
+    }
+
     /// `value` as a percent of itself.
     pub fn of(percent: i32, value: i32) -> i32 {
         if percent == 100 {

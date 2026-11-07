@@ -4,6 +4,7 @@
 //!
 //! Tests: below, and in game/setup/original.rs for the original's fortress sites.
 
+use f4x_def::half_int::HalfInt;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod original;
@@ -276,7 +277,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
             settings.wizards.starting_mana.of(human),
         );
         if let Some(t) = game.treasury_mut(id) {
-            t.gold = gold;
+            t.gold = HalfInt::from_int(gold);
             t.mana = mana;
         }
     }

@@ -960,7 +960,7 @@ fn a_neutral_city_that_cannot_pay_loses_its_garrison() {
     }
     g.treasury_mut(owner)
         .expect("the player has a treasury")
-        .gold = 0;
+        .gold = f4x_def::half_int::HalfInt::from_int(0);
     g.apply(f4x_core::game::Command::EndTurn);
     assert!(
         g.units().units_at(pos).len() < units,
@@ -1444,7 +1444,8 @@ fn taking_a_city_loots_gold_costs_fame_and_hurts_the_city() {
     let (mut g, city) = siege_world(12, &[26 /* marketplace */, 16 /* library */]);
     let loser = PlayerId(1);
     for (p, gold, fame) in [(HUMAN, 10, 0), (loser, 200, 5)] {
-        g.treasury_mut(p).expect("the player has a treasury").gold = gold;
+        g.treasury_mut(p).expect("the player has a treasury").gold =
+            f4x_def::half_int::HalfInt::from_int(gold);
         g.set_fame(p, fame);
     }
     // The rival's other cities share the gold out by citizens: the capital is all of theirs.
@@ -1577,7 +1578,7 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() -> TestResult {
     g.set_fame(HUMAN, 10);
     g.treasury_mut(HUMAN)
         .expect("the player has a treasury")
-        .gold = 0;
+        .gold = f4x_def::half_int::HalfInt::from_int(0);
     g.conquer_city(city, HUMAN, 0);
     let fame_after_taking = g.wizard(HUMAN).expect("the player is a wizard").fame();
     let gold_after_taking = g.player(HUMAN).expect("the player exists").treasury().gold;

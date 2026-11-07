@@ -174,7 +174,8 @@ mod tests {
         known: bool,
     ) -> Result<Game, Box<dyn std::error::Error>> {
         let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold = 1_000_000;
+        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
+            f4x_def::half_int::HalfInt::from_int(1_000_000);
         spawn(
             &mut g,
             P0,

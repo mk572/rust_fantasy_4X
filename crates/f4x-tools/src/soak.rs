@@ -625,7 +625,7 @@ pub(crate) fn status(game: &Game) -> String {
             format!(
                 "p{}{temper} {cities}c({outposts}o)/{units}u/{}g{tag}",
                 id.0,
-                game.player(id).map_or(0, |p| p.treasury().gold)
+                game.player(id).map_or(0, |p| p.treasury().gold.floor())
             )
         })
         .collect::<Vec<_>>()

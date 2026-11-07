@@ -14,6 +14,7 @@
 //! Tests: in player/offer/tests.rs.
 
 use crate::rules::Ability;
+use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
 use crate::game::{Event, Game};
@@ -167,20 +168,20 @@ pub fn item_price(cost: u32, percent: i32) -> i32 {
 /// The computer wizard hires a hero whose price is at most nine tenths of its gold
 /// (`AI_Accept_Hero`: the original's comment says so, its arithmetic allows a price a ninth over
 /// the gold).
-pub fn ai_accepts_hero(price: i32, gold: i32) -> bool {
-    price * 100 <= gold * 90
+pub fn ai_accepts_hero(price: i32, gold: HalfInt) -> bool {
+    i64::from(price) * 200 <= i64::from(gold.raw()) * 90
 }
 
 /// The computer wizard buys the merchant's item when it has a hero to carry it and the price is
 /// at most half its gold (the original's merchant calls on the human only; computer wizards meet
 /// him too here, `divergences.md` section 11).
-pub fn ai_accepts_item(price: i32, gold: i32, heroes: usize) -> bool {
-    heroes > 0 && price <= gold / 2
+pub fn ai_accepts_item(price: i32, gold: HalfInt, heroes: usize) -> bool {
+    heroes > 0 && HalfInt::from_int(price) * 2 <= gold
 }
 
 /// The computer wizard hires mercenaries from turn 50 if the price is at most half its gold.
-pub fn ai_accepts_mercenaries(turn: u32, price: i32, gold: i32) -> bool {
-    turn >= AI_FIRST_MERCENARY_TURN && price <= gold / 2
+pub fn ai_accepts_mercenaries(turn: u32, price: i32, gold: HalfInt) -> bool {
+    turn >= AI_FIRST_MERCENARY_TURN && HalfInt::from_int(price) * 2 <= gold
 }
 
 /// Which units a company can be drawn from: ordinary race units, not settlers or boats and not
@@ -353,7 +354,11 @@ impl Game {
             &mut self.prefab_taken,
         );
         let price = item_price(item.cost, self.hire_percent(player));
-        if price <= self.player(player).map_or(0, |p| p.treasury().gold) {
+        if HalfInt::from_int(price)
+            <= self
+                .player(player)
+                .map_or(HalfInt::ZERO, |p| p.treasury().gold)
+        {
             self.spawn_item(item.clone(), crate::item::entity::HeldBy::Offered(player));
             Some(Offer::Item { item, price })
         } else {
@@ -374,7 +379,9 @@ impl Game {
     fn mercenary_offer(&mut self, player: PlayerId) -> Option<Offer> {
         let fame = self.fame(player);
         let percent = self.hire_percent(player);
-        let gold = self.player(player).map_or(0, |p| p.treasury().gold);
+        let gold = self
+            .player(player)
+            .map_or(HalfInt::ZERO, |p| p.treasury().gold);
         if self.turn < FIRST_MERCENARY_TURN {
             return None;
         }
@@ -390,7 +397,7 @@ impl Game {
         let price = mercenary_price(cost, level, count, percent);
         let at = self.summon_point(player)?;
         let room = self.units().units_at(at).len() + count as usize <= self.max_tile();
-        (price <= gold && room).then_some(Offer::Mercenaries {
+        (HalfInt::from_int(price) <= gold && room).then_some(Offer::Mercenaries {
             unit: id,
             count,
             level,
@@ -428,7 +435,11 @@ impl Game {
             .player_component::<Offers>(player)
             .and_then(|o| o.0.get(index).cloned())
             .ok_or(OfferError::NoOffer)?;
-        if self.player(player).map_or(0, |p| p.treasury().gold) < offer.price() {
+        if self
+            .player(player)
+            .map_or(HalfInt::ZERO, |p| p.treasury().gold)
+            < offer.price()
+        {
             return Err(OfferError::NoGold);
         }
         let taken = offer.clone();
@@ -598,7 +609,10 @@ impl Game {
         while !queue.is_empty() {
             let buyer = queue.remove(0);
             if !self.can_be_offered(buyer)
-                || self.player(buyer).map_or(0, |p| p.treasury().gold) < price
+                || self
+                    .player(buyer)
+                    .map_or(HalfInt::ZERO, |p| p.treasury().gold)
+                    < price
             {
                 continue;
             }

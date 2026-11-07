@@ -17,13 +17,13 @@ use f4x_def::half_int::HalfInt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Budget {
     /// Taxes, trade and mines from all cities.
-    pub city_gold: i32,
-    pub building_upkeep: i32,
-    pub noble_gold: i32,
+    pub city_gold: HalfInt,
+    pub building_upkeep: HalfInt,
+    pub noble_gold: HalfInt,
     /// Gold from selling food the cities grow beyond what citizens and troops eat.
-    pub food_gold: i32,
+    pub food_gold: HalfInt,
     /// Gold paid for troops, after fame.
-    pub unit_upkeep: i32,
+    pub unit_upkeep: HalfInt,
     pub food_surplus: HalfInt,
     pub food_upkeep: HalfInt,
 }
@@ -31,8 +31,8 @@ pub struct Budget {
 /// What one city adds to the treasury.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CityYield {
-    pub gold: i32,
-    pub gold_upkeep: i32,
+    pub gold: HalfInt,
+    pub gold_upkeep: HalfInt,
     pub food: HalfInt,
     /// Citizens, who eat one food each.
     pub figures: i32,
@@ -44,7 +44,7 @@ pub struct Troop {
     pub id: hecs::Entity,
     /// The food it eats (the unit table's `upkeep.food`).
     pub food: HalfInt,
-    pub gold: i32,
+    pub gold: HalfInt,
     /// A noble hero brings in gold instead of costing it.
     pub noble_hero: bool,
     /// What it cost to make (of two units that cost the same upkeep, the cheaper goes first).
@@ -55,7 +55,7 @@ pub struct Troop {
 
 impl Budget {
     /// Net change in gold.
-    pub fn net_gold(&self) -> i32 {
+    pub fn net_gold(&self) -> HalfInt {
         self.city_gold - self.building_upkeep + self.noble_gold + self.food_gold - self.unit_upkeep
     }
 
@@ -69,12 +69,15 @@ impl Budget {
             let excess = (city.food - HalfInt::from_int(city.figures)).max(HalfInt::ZERO);
             t.food_surplus += excess;
         }
-        t.noble_gold = 10 * troops.iter().filter(|u| u.noble_hero).count() as i32;
+        t.noble_gold =
+            HalfInt::from_int(10 * troops.iter().filter(|u| u.noble_hero).count() as i32);
         t.food_upkeep = troops.iter().map(|u| u.food).sum();
         // The empire's spare food is sold at two for one gold once the army has eaten: the original
-        // rounded each city and the army down on their own, here only the total is rounded.
-        t.food_gold = ((t.food_surplus - t.food_upkeep).raw() / 4).max(0);
-        t.unit_upkeep = (troops.iter().map(|u| u.gold).sum::<i32>() - fame).max(0);
+        // rounded each city and the army down on their own, here only the total is rounded (to a
+        // half gold).
+        t.food_gold = HalfInt::from_raw(((t.food_surplus - t.food_upkeep).raw() / 2).max(0));
+        t.unit_upkeep = (troops.iter().map(|u| u.gold).sum::<HalfInt>() - HalfInt::from_int(fame))
+            .max(HalfInt::ZERO);
         t
     }
 }
@@ -87,12 +90,12 @@ pub struct Settlement {
     /// How many of the first `disbanded` went for lack of food; the rest, for lack of gold.
     pub for_food: usize,
     /// The gold left after income and upkeep.
-    pub gold: i32,
+    pub gold: HalfInt,
 }
 
 /// The gold on hand once the turn's income and the buildings' upkeep are counted (not below 0).
-pub fn gold_after_income(t: &Budget, gold: i32) -> i32 {
-    (gold + t.city_gold - t.building_upkeep + t.noble_gold + t.food_gold).max(0)
+pub fn gold_after_income(t: &Budget, gold: HalfInt) -> HalfInt {
+    (gold + t.city_gold - t.building_upkeep + t.noble_gold + t.food_gold).max(HalfInt::ZERO)
 }
 
 /// The order in which units are let go for one kind of upkeep (`upkeep`: the food or the gold a
@@ -115,7 +118,7 @@ pub fn release_order<K: Ord>(troops: &[Troop], upkeep: impl Fn(&Troop) -> K) -> 
 /// Income, food and gold upkeep: the income is added, an army that eats more than the cities
 /// grow is disbanded in `release_order` by food, then more units go in `release_order` by gold
 /// until the gold covers the upkeep of those left.
-pub fn settle(t: &Budget, gold: i32, fame: i32, troops: &[Troop]) -> Settlement {
+pub fn settle(t: &Budget, gold: HalfInt, fame: i32, troops: &[Troop]) -> Settlement {
     let gold = gold_after_income(t, gold);
     let mut disbanded = Vec::new();
     let mut eating: HalfInt = troops.iter().map(|u| u.food).sum();
@@ -130,13 +133,13 @@ pub fn settle(t: &Budget, gold: i32, fame: i32, troops: &[Troop]) -> Settlement 
         }
     }
     let for_food = disbanded.len();
-    let upkeep_without = |gone: &[hecs::Entity]| -> i32 {
-        let total: i32 = troops
+    let upkeep_without = |gone: &[hecs::Entity]| -> HalfInt {
+        let total: HalfInt = troops
             .iter()
             .filter(|u| !gone.contains(&u.id))
             .map(|u| u.gold)
             .sum();
-        (total - fame).max(0)
+        (total - HalfInt::from_int(fame)).max(HalfInt::ZERO)
     };
     let mut upkeep = upkeep_without(&disbanded);
     for &i in &release_order(troops, |u| u.gold) {
@@ -144,7 +147,7 @@ pub fn settle(t: &Budget, gold: i32, fame: i32, troops: &[Troop]) -> Settlement 
         if upkeep <= gold {
             break;
         }
-        if !disbanded.contains(&unit.id) && unit.gold > 0 {
+        if !disbanded.contains(&unit.id) && unit.gold > HalfInt::ZERO {
             disbanded.push(unit.id);
             upkeep = upkeep_without(&disbanded);
         }
@@ -152,7 +155,7 @@ pub fn settle(t: &Budget, gold: i32, fame: i32, troops: &[Troop]) -> Settlement 
     Settlement {
         disbanded,
         for_food,
-        gold: (gold - upkeep).max(0),
+        gold: (gold - upkeep).max(HalfInt::ZERO),
     }
 }
 
@@ -164,13 +167,13 @@ impl Game {
         let Some(start) = self.player_component::<Tax>(player).map(|t| t.0) else {
             return;
         };
-        let mut best = (i32::MIN, start);
+        let mut best = (HalfInt::from_raw(i32::MIN), start);
         for rate in 0..rates {
             if let Some(t) = self.player_component_mut::<Tax>(player) {
                 t.0 = rate;
             }
             let net = self.budget(player).net_gold();
-            if net >= 0 {
+            if net >= HalfInt::ZERO {
                 best = (net, rate);
                 break;
             }

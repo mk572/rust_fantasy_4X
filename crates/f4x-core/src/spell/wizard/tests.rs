@@ -69,7 +69,7 @@ fn unit(g: &mut Game, owner: PlayerId, id: u16, pos: Position) -> hecs::Entity {
 fn fund(g: &mut Game, players: &[crate::player::PlayerId]) {
     for &p in players {
         if let Some(t) = g.treasury_mut(p) {
-            t.gold = t.gold.max(10_000);
+            t.gold = t.gold.max(f4x_def::half_int::HalfInt::from_int(10_000));
         }
     }
 }
@@ -1232,7 +1232,8 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() -> Te
     g.attach_enchantment(Target::Player(P0), sp(&g, 80 /* time_stop */), P0);
     // Another global enchantment of the wizard's costs nothing now.
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 500;
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 100;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(100);
     g.wizard_mut(P1)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()

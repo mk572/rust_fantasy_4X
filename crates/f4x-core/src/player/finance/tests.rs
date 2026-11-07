@@ -10,7 +10,7 @@ fn troop(id: hecs::Entity, food: i32, gold: i32) -> Troop {
     Troop {
         id,
         food: HalfInt::from_int(food), // whole food in the call
-        gold,
+        gold: HalfInt::from_int(gold),
         noble_hero: false,
         cost: 0,
         last: false,
@@ -19,8 +19,8 @@ fn troop(id: hecs::Entity, food: i32, gold: i32) -> Troop {
 
 fn city(gold: i32, upkeep: i32, food: i32, figures: i32) -> CityYield {
     CityYield {
-        gold,
-        gold_upkeep: upkeep,
+        gold: HalfInt::from_int(gold),
+        gold_upkeep: HalfInt::from_int(upkeep),
         food: HalfInt::from_int(food),
         figures,
     }
@@ -61,7 +61,7 @@ fn an_army_that_eats_too_much_loses_its_newest_units_when_all_are_alike() {
         food_upkeep: HalfInt::from_int(3),
         ..Budget::default()
     };
-    let s = settle(&t, 0, 0, &troops);
+    let s = settle(&t, f4x_def::half_int::HalfInt::from_int(0), 0, &troops);
     assert_eq!(s.disbanded, vec![e[2], e[1]]);
 }
 
@@ -70,19 +70,19 @@ fn units_go_newest_first_until_the_gold_covers_the_rest() {
     let e = ids(3);
     let troops = [troop(e[0], 0, 4), troop(e[1], 0, 4), troop(e[2], 0, 4)];
     let t = Budget {
-        city_gold: 5,
-        unit_upkeep: 12,
+        city_gold: f4x_def::half_int::HalfInt::from_int(5),
+        unit_upkeep: f4x_def::half_int::HalfInt::from_int(12),
         ..Budget::default()
     };
     // 3 + 5 = 8 gold: two units (8) are affordable, the newest goes.
-    let s = settle(&t, 3, 0, &troops);
+    let s = settle(&t, f4x_def::half_int::HalfInt::from_int(3), 0, &troops);
     assert_eq!(s.disbanded, vec![e[2]]);
     assert_eq!(s.gold, 0);
     // Fame pays for 4 of the 12, so all three can stay: 8 gold covers the 8 left.
-    let s = settle(&t, 3, 4, &troops);
+    let s = settle(&t, f4x_def::half_int::HalfInt::from_int(3), 4, &troops);
     assert!(s.disbanded.is_empty());
     assert_eq!(s.gold, 0);
-    let s = settle(&t, 10, 4, &troops);
+    let s = settle(&t, f4x_def::half_int::HalfInt::from_int(10), 4, &troops);
     assert_eq!(s.gold, 15 - 8);
 }
 
@@ -91,7 +91,7 @@ fn units_that_cost_nothing_are_never_let_go() {
     let e = ids(2);
     let troops = [troop(e[0], 0, 0), troop(e[1], 0, 5)];
     let t = Budget::default();
-    let s = settle(&t, 0, 0, &troops);
+    let s = settle(&t, f4x_def::half_int::HalfInt::from_int(0), 0, &troops);
     assert_eq!(s.disbanded, vec![e[1]]);
 }
 
@@ -101,7 +101,7 @@ fn halves_of_food_are_added_exactly() {
     let half = |id| Troop {
         id,
         food: HalfInt::from_raw(1),
-        gold: 0,
+        gold: f4x_def::half_int::HalfInt::from_int(0),
         noble_hero: false,
         cost: 0,
         last: false,
@@ -144,11 +144,11 @@ fn heroes_and_loaded_ships_are_let_go_last() {
     let mut troops = [troop(e[0], 0, 9), troop(e[1], 0, 2), troop(e[2], 0, 3)];
     troops[0].last = true;
     let t = Budget {
-        unit_upkeep: 14,
+        unit_upkeep: f4x_def::half_int::HalfInt::from_int(14),
         ..Budget::default()
     };
     // 10 gold does not cover 14: the highest upkeep that is not last (e[2], then e[1]) goes first.
-    let s = settle(&t, 10, 0, &troops);
+    let s = settle(&t, f4x_def::half_int::HalfInt::from_int(10), 0, &troops);
     assert_eq!(s.disbanded, vec![e[2], e[1]]);
 }
 
@@ -182,4 +182,22 @@ fn spare_food_is_sold_from_the_empires_total_not_a_city_at_a_time() {
     };
     let t = Budget::compute(&[a, b], &[half], 0);
     assert_eq!(t.food_gold, 1);
+}
+
+#[test]
+fn half_a_gold_of_tax_or_upkeep_is_kept_and_paid() {
+    let cities = [CityYield {
+        gold: HalfInt::from_raw(9),        // 4.5
+        gold_upkeep: HalfInt::from_raw(3), // 1.5
+        food: HalfInt::ZERO,
+        figures: 0,
+    }];
+    let troops = [Troop {
+        gold: HalfInt::from_raw(1), // 0.5
+        ..troop(hecs::Entity::DANGLING, 0, 0)
+    }];
+    let t = Budget::compute(&cities, &troops, 0);
+    assert_eq!(t.net_gold(), HalfInt::from_raw(5)); // 4.5 - 1.5 - 0.5
+    let settled = settle(&t, HalfInt::from_raw(1), 0, &troops);
+    assert_eq!(settled.gold, HalfInt::from_int(3)); // 0.5 + 4.5 - 1.5 - 0.5
 }

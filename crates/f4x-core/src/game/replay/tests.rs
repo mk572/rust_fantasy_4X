@@ -32,7 +32,8 @@ fn world() -> (Game, Serial) {
         .units
         .id_numbered(0)
         .expect("id_of succeeds");
-    g.treasury_mut(P0).expect("treasury_mut succeeds").gold = 1000;
+    g.treasury_mut(P0).expect("treasury_mut succeeds").gold =
+        f4x_def::half_int::HalfInt::from_int(1000);
     let u = g.spawn_unit(P0, at(5, 5), walker);
     g.fog.explore(P0, at(10, 5), 25, false);
     let serial = g.serial_of(u);
@@ -110,7 +111,8 @@ fn commands_find_their_units_after_a_load_changed_the_entities() -> TestResult {
         .units
         .id_numbered(0)
         .ok_or("dwarf is not in the content")?;
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 1000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(1000);
     let spare = g.spawn_unit(P0, at(1, 1), walker);
     let _ = g.world.despawn(spare);
     g.set_undo(true);

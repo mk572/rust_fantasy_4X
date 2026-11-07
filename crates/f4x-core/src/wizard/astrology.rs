@@ -4,6 +4,7 @@
 //!
 //! Tests: in wizard/astrology/tests.rs.
 
+use f4x_def::half_int::HalfInt;
 use std::collections::BTreeMap;
 
 use crate::game::Game;
@@ -27,7 +28,7 @@ pub struct Astrology {
 impl Game {
     /// The raw scores of one wizard.
     pub fn astrology(&self, player: PlayerId) -> Astrology {
-        let upkeep: i32 = self
+        let upkeep: HalfInt = self
             .units()
             .player_units(player)
             .into_iter()
@@ -49,7 +50,7 @@ impl Game {
             .map_or(0, |m| m.known().iter().filter_map(|s| rank.get(s)).sum());
         Astrology {
             power: (self.income(player).power_base - 10).max(0),
-            strength: upkeep / 5,
+            strength: upkeep.floor() / 5,
             research: research / 8,
         }
     }

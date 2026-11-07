@@ -15,6 +15,7 @@ use crate::player::offer::Offer;
 use crate::player::PlayerId;
 use crate::rules::SpellId;
 use crate::unit::UnitView;
+use f4x_def::half_int::HalfInt;
 
 /// The hook of the spells that bring a free hero in: Summon Hero, Summon Champion, Incarnation.
 pub const SUMMON_HERO: &str = "summon_hero";
@@ -110,7 +111,11 @@ impl Game {
             .units()
             .hero_hire_price(player, kind)
             .ok_or(HeroError::Unknown)?;
-        if self.player(player).map_or(0, |p| p.treasury().gold) < price {
+        if self
+            .player(player)
+            .map_or(HalfInt::ZERO, |p| p.treasury().gold)
+            < price
+        {
             return Err(HeroError::NoGold);
         }
         let unit = self.arrive(player, kind)?;
@@ -221,7 +226,7 @@ mod tests {
             .left = 99_999;
         let t = g.treasury_mut(P0).expect("treasury_mut succeeds");
         t.mana = 1000;
-        t.gold = 100;
+        t.gold = f4x_def::half_int::HalfInt::from_int(100);
         let mut w = g.wizard_mut(P0).expect("wizard_mut succeeds");
         w.put(Some(crate::wizard::fortress::Fortress(at(3, 3))));
         w.put(Some(crate::wizard::fortress::SummonAt(at(3, 3))));
@@ -258,7 +263,8 @@ mod tests {
         assert_eq!(g.hire_hero(P1, 0), Err(HeroError::NotAvailable));
         assert_eq!(g.hire_hero(P0, 1), Err(HeroError::NoGold));
         assert_eq!(g.hire_hero(P0, 99), Err(HeroError::Unknown));
-        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 500;
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+            f4x_def::half_int::HalfInt::from_int(500);
         g.wizard_mut(P0)
             .ok_or("wizard_mut is missing")?
             .put::<crate::wizard::fortress::SummonAt>(None);
@@ -277,7 +283,8 @@ mod tests {
     #[test]
     fn a_dead_hero_is_not_hired_and_there_is_no_limit_on_how_many_serve() -> TestResult {
         let mut g = caster();
-        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 5000;
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+            f4x_def::half_int::HalfInt::from_int(5000);
         let first = g.hire_hero(P0, 0).map_err(|e| format!("{e:?}"))?;
         g.remove_unit(first, Fate::Slain);
         assert_eq!(g.hire_hero(P0, 0), Err(HeroError::NotAvailable));
@@ -387,7 +394,8 @@ mod tests {
     fn summoning_is_refused_when_nobody_is_left_or_without_a_circle_and_costs_nothing() -> TestResult
     {
         let mut g = caster();
-        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 100_000;
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+            f4x_def::half_int::HalfInt::from_int(100_000);
         // Every hero serves: nobody is left to summon.
         for k in 0..=torin(&g.content.rules) {
             g.hire_hero(P0, k).map_err(|e| format!("{e:?}"))?;
@@ -502,7 +510,8 @@ mod tests {
     #[test]
     fn resurrection_raises_the_chosen_dead_hero() -> TestResult {
         let mut g = caster();
-        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 5000;
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+            f4x_def::half_int::HalfInt::from_int(5000);
         let a = g.hire_hero(P0, 0).map_err(|e| format!("{e:?}"))?;
         let b = g.hire_hero(P0, 1).map_err(|e| format!("{e:?}"))?;
         let _ = g.world.insert_one(b, Experience(75));
@@ -534,7 +543,8 @@ mod tests {
     #[test]
     fn resurrection_picks_its_hero_when_the_cost_is_paid_and_survives_a_save() -> TestResult {
         let mut g = caster();
-        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 5000;
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+            f4x_def::half_int::HalfInt::from_int(5000);
         let a = g.hire_hero(P0, 3).map_err(|e| format!("{e:?}"))?;
         g.remove_unit(a, Fate::Slain);
         let mut skill = g.wizard_mut(P0).ok_or("wizard_mut is missing")?;
@@ -617,7 +627,8 @@ mod tests {
         );
         // Torin is raised by Incarnation only; a computer wizard raises the last dead hero.
         let mut g = caster();
-        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 5000;
+        g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+            f4x_def::half_int::HalfInt::from_int(5000);
         for k in [1, 4, 34] {
             let h = g.hire_hero(P0, k).map_err(|e| format!("{e:?}"))?;
             g.remove_unit(h, Fate::Slain);

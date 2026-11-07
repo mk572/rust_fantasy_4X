@@ -5,6 +5,7 @@
 //! Once it has ended every command is refused. A defeated wizard's belongings are cleared away
 //! first (`aftermath`).
 
+use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
 use crate::game::{Event, Game};
@@ -239,7 +240,9 @@ impl Game {
                 }
             }
         }
-        let loot = self.player(loser).map_or(0, |p| p.treasury().gold / 2);
+        let loot = self.player(loser).map_or(HalfInt::ZERO, |p| {
+            HalfInt::from_raw(p.treasury().gold.raw() / 2)
+        });
         if let Some(t) = self.treasury_mut(loser) {
             t.gold -= loot;
         }

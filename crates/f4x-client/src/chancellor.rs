@@ -296,9 +296,10 @@ impl App {
                 ));
             }
             if gold > 0 {
-                lines.push(
-                    self.text_with("chancellor.forecast_gold", &Args::new().count("n", gold)),
-                );
+                lines.push(self.text_with(
+                    "chancellor.forecast_gold",
+                    &Args::new().text("n", self.texts.half_amount(gold)),
+                ));
             }
             lines.push(self.text("chancellor.forecast_advice"));
         }

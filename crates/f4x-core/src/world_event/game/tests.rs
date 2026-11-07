@@ -29,7 +29,8 @@ fn world() -> Game {
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     for id in [P0, P1] {
         g.add_player(id, if id == P0 { "Merlin" } else { "Rjak" });
-        g.treasury_mut(id).expect("treasury_mut succeeds").gold = 1000;
+        g.treasury_mut(id).expect("treasury_mut succeeds").gold =
+            f4x_def::half_int::HalfInt::from_int(1000);
         g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
         g.init_wizard(id, &[(RealmId::new(3 /* life */), 2)], &[], None)
             .expect("init_wizard succeeds");
@@ -92,7 +93,12 @@ fn spear(g: &mut Game, owner: PlayerId, pos: Position) -> hecs::Entity {
 fn a_donation_pays_105_to_600_gold_and_the_wizard_is_told() -> TestResult {
     let mut g = world();
     let told = play(&mut g, armed(K::Donation, P0, None));
-    let gold = g.player(P0).ok_or("player is missing")?.treasury().gold;
+    let gold = g
+        .player(P0)
+        .ok_or("player is missing")?
+        .treasury()
+        .gold
+        .floor();
     assert!((1105..=1600).contains(&gold), "{gold}");
     assert_eq!(told.len(), 1);
     assert_eq!(told[0].voice, Voice::Started);
@@ -105,10 +111,16 @@ fn a_donation_pays_105_to_600_gold_and_the_wizard_is_told() -> TestResult {
 fn piracy_takes_thirty_to_fifty_percent_and_cannot_hit_a_pauper() -> TestResult {
     let mut g = world();
     let told = play(&mut g, armed(K::Piracy, P0, None));
-    let gold = g.player(P0).ok_or("player is missing")?.treasury().gold;
+    let gold = g
+        .player(P0)
+        .ok_or("player is missing")?
+        .treasury()
+        .gold
+        .floor();
     assert!((500..=700).contains(&gold), "{gold}");
     assert_eq!(told[0].number, 1000 - gold);
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 99;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(99);
     let mut rng = GameRng::new(1);
     assert!(g.try_event(K::Piracy, P0, &mut rng).is_none());
     Ok(())

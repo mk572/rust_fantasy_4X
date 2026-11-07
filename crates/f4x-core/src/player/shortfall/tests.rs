@@ -32,7 +32,7 @@ fn the_wizard_sees_the_shortfall_and_picks_who_goes() -> TestResult {
         g.spawn_hero(P0, at(1, 2), 1)
             .map_err(|e| format!("{e:?}"))?,
     );
-    g.tr_mut(0).gold = 2;
+    g.tr_mut(0).gold = f4x_def::half_int::HalfInt::from_int(2);
     let short = g
         .treasury_shortfall(P0)
         .expect("4 gold of heroes against 2");
@@ -41,8 +41,8 @@ fn the_wizard_sees_the_shortfall_and_picks_who_goes() -> TestResult {
         vec![b],
         "the turn change lets the newest go"
     );
-    assert_eq!(short.missing(&[]), (HalfInt::ZERO, 2));
-    assert_eq!(short.missing(&[a]), (HalfInt::ZERO, 0));
+    assert_eq!(short.missing(&[]), (HalfInt::ZERO, HalfInt::from_int(2)));
+    assert_eq!(short.missing(&[a]), (HalfInt::ZERO, HalfInt::ZERO));
     assert!(short.troops.iter().all(|l| l.hero && l.gold == 2));
     // The wizard keeps the newest and gives up the first; its item comes home.
     g.give_item(P0, item("Sword", 100));
@@ -70,7 +70,7 @@ fn a_released_heros_items_return_to_the_armory() -> TestResult {
         .spawn_hero(P0, at(1, 1), 0)
         .map_err(|e| format!("{e:?}"))?;
     g.spawn_item(item("Axe", 200), crate::item::entity::HeldBy::Hero(h, 0));
-    g.tr_mut(0).gold = 0;
+    g.tr_mut(0).gold = f4x_def::half_int::HalfInt::from_int(0);
     g.release_troops(P0, &[h], &[])
         .map_err(|e| format!("{e:?}"))?;
     let names: Vec<_> = g
@@ -157,7 +157,7 @@ fn a_ship_let_go_at_sea_sails_to_the_shore_and_unloads() -> TestResult {
             .world
             .insert_one(r, crate::unit::transport::Aboard(serial));
     }
-    g.tr_mut(0).gold = 0;
+    g.tr_mut(0).gold = f4x_def::half_int::HalfInt::from_int(0);
     // 3 gold of upkeep, nothing to pay it: the boat goes, the riders are the next to be paid for.
     let events = g
         .release_troops(P0, &[boat], &[])
@@ -299,14 +299,20 @@ fn a_unit_let_go_for_food_is_not_counted_for_gold() {
     let short = TreasuryShortfall {
         food_upkeep: HalfInt::from_int(2),
         food_surplus: HalfInt::from_int(1),
-        gold: 1,
+        gold: f4x_def::half_int::HalfInt::from_int(1),
         fame: 0,
-        troops: vec![line(a, 1, 1), line(b, 1, 1)],
+        troops: vec![
+            line(a, f4x_def::half_int::HalfInt::from_int(1), 1),
+            line(b, f4x_def::half_int::HalfInt::from_int(1), 1),
+        ],
         default_release: vec![b],
     };
-    assert_eq!(short.missing(&[]), (HalfInt::from_int(1), 1));
+    assert_eq!(
+        short.missing(&[]),
+        (HalfInt::from_int(1), HalfInt::from_int(1))
+    );
     // One unit lets go of a mouth and of a gold coin at once: both books balance.
-    assert_eq!(short.missing(&[b]), (HalfInt::ZERO, 0));
+    assert_eq!(short.missing(&[b]), (HalfInt::ZERO, HalfInt::ZERO));
 }
 
 #[test]

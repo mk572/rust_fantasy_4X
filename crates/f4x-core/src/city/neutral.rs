@@ -16,6 +16,7 @@
 //! Tests: below.
 
 use crate::rules::{Ability, BuildingId};
+use f4x_def::half_int::HalfInt;
 use std::collections::VecDeque;
 
 use crate::city::economy::{Buildings, Farmers};
@@ -442,7 +443,7 @@ impl Game {
             self.balance_farmers(owner);
             self.balance_taxes(owner);
             let t = self.budget(owner);
-            if t.food_upkeep > t.food_surplus || t.net_gold() < 0 {
+            if t.food_upkeep > t.food_surplus || t.net_gold() < HalfInt::ZERO {
                 self.despawn_with_spells(soldier);
                 break;
             }

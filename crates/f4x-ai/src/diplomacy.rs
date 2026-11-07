@@ -491,7 +491,7 @@ fn demand(
     treaty: Treaty,
 ) {
     let me = ai.player;
-    let gold = game.player(human).map_or(0, |p| p.treasury().gold);
+    let gold = game.player(human).map_or(0, |p| p.treasury().gold.floor());
     if treaty == Treaty::Alliance
         || relation >= -20
         || gold < 100
@@ -541,7 +541,7 @@ fn gift(
             return;
         }
     }
-    let gold = game.player(me).map_or(0, |p| p.treasury().gold);
+    let gold = game.player(me).map_or(0, |p| p.treasury().gold.floor());
     if gold >= 200 {
         let amount = 25 * (1 + game.roll(4) as i32);
         ai.send(
@@ -588,7 +588,7 @@ fn answer_threat(game: &mut Game, judge: PlayerId, asker: PlayerId) -> bool {
     } else if score < 90 {
         false
     } else if score < 200 {
-        let gold = game.player(judge).map_or(0, |p| p.treasury().gold);
+        let gold = game.player(judge).map_or(0, |p| p.treasury().gold.floor());
         let pay = (25 * (2 + game.roll(8) as i32)).min(gold / 25 * 25);
         if pay > 0 {
             game.apply(Command::Diplomacy(DiplomacyCommand::GiveGold {
@@ -1095,7 +1095,8 @@ mod tests {
         let mut outcomes = std::collections::BTreeSet::new();
         for seed in 0..80u64 {
             let mut g = game_seeded(seed);
-            g.treasury_mut(AI).ok_or("the AI has a treasury")?.gold = 500;
+            g.treasury_mut(AI).ok_or("the AI has a treasury")?.gold =
+                f4x_def::half_int::HalfInt::from_int(500);
             g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
                 from: HUMAN,
                 to: AI,
@@ -1115,7 +1116,7 @@ mod tests {
         feeling(&mut g, -3);
         g.treasury_mut(HUMAN)
             .ok_or("the human has a treasury")?
-            .gold = 400;
+            .gold = f4x_def::half_int::HalfInt::from_int(400);
         let ai = Ai::new(AI);
         let relation = g.relation(AI, HUMAN);
         for _ in 0..200 {

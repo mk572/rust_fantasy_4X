@@ -425,7 +425,13 @@ mod tests {
     }
 
     fn gold(app: &App) -> Result<i32, &'static str> {
-        Ok(app.game.player(HUMAN).ok_or("no human")?.treasury().gold)
+        Ok(app
+            .game
+            .player(HUMAN)
+            .ok_or("no human")?
+            .treasury()
+            .gold
+            .floor())
     }
 
     fn ask(app: &App, city: hecs::Entity, building: BuildingId) -> SellPrompt {

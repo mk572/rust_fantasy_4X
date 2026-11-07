@@ -50,7 +50,7 @@ fn every_unit_has_the_originals_numbers() {
             ("moves_half", stat(Stat::Moves) * 2),
             ("cost", def.cost as i32),
             // Gold, or mana for a summoned creature; the food of a normal unit is a rule of its own.
-            ("upkeep", (def.upkeep.gold + def.upkeep.mana) as i32),
+            ("upkeep", def.upkeep.gold.floor() + def.upkeep.mana as i32),
             ("hits", stat(Stat::MaxHp)),
             // The original's scouting range in squares around the unit; ours counts the unit's own
             // square and a ring per point (`2 * range + 1`).

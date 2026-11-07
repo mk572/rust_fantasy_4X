@@ -886,7 +886,8 @@ mod tests {
             ],
         );
         g.reveal_map(P0);
-        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold = 1_000_000;
+        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
+            f4x_def::half_int::HalfInt::from_int(1_000_000);
         let ship = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];
         let army = spawn(&mut g, P0, port(), 104 /* high_men_spearmen */, 6);
         // One of them rides out to sea and comes back aboard.
@@ -935,7 +936,8 @@ mod tests {
         );
         g.reveal_map(P0);
         // Upkeep must not interfere.
-        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold = 1_000_000;
+        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
+            f4x_def::half_int::HalfInt::from_int(1_000_000);
         spawn(&mut g, P0, port(), 36 /* galley */, 1);
         // One stays as the garrison; four go.
         let army = spawn(&mut g, P0, port(), 104 /* high_men_spearmen */, 5);

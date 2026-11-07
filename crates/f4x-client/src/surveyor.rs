@@ -124,8 +124,11 @@ impl App {
             text.special.push(self.names.feature(f.num).to_string());
             let b = f.city;
             let mut bits = Vec::new();
-            if b.gold > 0 {
-                bits.push(self.text_with("surveyor.bonus_gold", &Args::new().count("n", b.gold)));
+            if b.gold > f4x_def::half_int::HalfInt::ZERO {
+                bits.push(self.text_with(
+                    "surveyor.bonus_gold",
+                    &Args::new().text("n", self.texts.half_amount(b.gold)),
+                ));
             }
             if b.mana > 0 {
                 bits.push(self.text_with("surveyor.bonus_power", &Args::new().count("n", b.mana)));

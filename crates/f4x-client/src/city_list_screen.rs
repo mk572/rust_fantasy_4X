@@ -49,7 +49,7 @@ struct Row {
     name: String,
     race: String,
     pop: u32,
-    gold: i32,
+    gold: f4x_def::half_int::HalfInt,
     production: i32,
     building: String,
     turns: Option<u32>,
@@ -177,11 +177,16 @@ impl Page for CityListUi {
         let (reserve_gold, reserve_mana) = app
             .game
             .player(HUMAN)
-            .map_or((0, 0), |p| (p.treasury().gold, p.treasury().mana));
+            .map_or((f4x_def::half_int::HalfInt::ZERO, 0), |p| {
+                (p.treasury().gold, p.treasury().mana)
+            });
         app.draw_styled(
             view,
             &Style::city_list_text(1).center(),
-            &app.text_with("cities.reserve_gold", &Args::new().count("n", reserve_gold)),
+            &app.text_with(
+                "cities.reserve_gold",
+                &Args::new().text("n", app.texts.half_amount(reserve_gold)),
+            ),
             242.0,
             172.0,
         );
@@ -250,7 +255,7 @@ impl Page for CityListUi {
             app.draw_styled(
                 view,
                 &Style::city_list_text(1).right(),
-                &row.gold.to_string(),
+                &app.texts.half_amount(row.gold),
                 RIGHTS[1],
                 ty,
             );

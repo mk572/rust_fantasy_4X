@@ -31,7 +31,8 @@ fn world(seed: u64) -> Game {
     g.fog = crate::map::fog::Fog::new(24, 14);
     for id in [P0, PlayerId(1)] {
         g.add_player(id, "W");
-        g.treasury_mut(id).expect("treasury_mut succeeds").gold = 100;
+        g.treasury_mut(id).expect("treasury_mut succeeds").gold =
+            f4x_def::half_int::HalfInt::from_int(100);
         g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
     }
     g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
@@ -358,7 +359,11 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() -> TestResu
     assert_eq!(g.items().armory(P0).items().count(), 2);
     assert_eq!(
         (
-            g.player(P0).ok_or("player is missing")?.treasury().gold,
+            g.player(P0)
+                .ok_or("player is missing")?
+                .treasury()
+                .gold
+                .floor(),
             g.player(P0).ok_or("player is missing")?.treasury().mana
         ),
         (220, 130)
@@ -1051,7 +1056,10 @@ fn a_neutral_winner_gets_no_spell_and_the_value_comes_back_as_gold_or_mana() -> 
     assert!(loot.items.is_empty(), "no hero, no item");
     let t = g.player(town).ok_or("player is missing")?.treasury();
     assert_eq!(
-        ((t.gold - before.gold) as u32, (t.mana - before.mana) as u32),
+        (
+            (t.gold - before.gold).floor() as u32,
+            (t.mana - before.mana) as u32
+        ),
         (loot.gold, loot.mana)
     );
     Ok(())

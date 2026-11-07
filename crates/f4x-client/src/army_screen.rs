@@ -68,9 +68,10 @@ impl App {
         let units = self.game.units();
         let rules = &self.game.content().rules;
         let mut out = [0; 2];
+        let mut gold = f4x_def::half_int::HalfInt::ZERO;
         let food = units.food_of(&units.player_units(HUMAN));
         for u in units.player_units(HUMAN) {
-            out[0] += units.unit_gold_upkeep(u);
+            gold += units.unit_gold_upkeep(u);
             if let Some(def) = units.unit_def(u) {
                 out[1] += def.upkeep.mana as i32;
             }
@@ -81,7 +82,7 @@ impl App {
             }
         }
         [
-            out[0].to_string(),
+            self.texts.half_amount(gold),
             out[1].to_string(),
             self.texts.half_amount(food),
         ]

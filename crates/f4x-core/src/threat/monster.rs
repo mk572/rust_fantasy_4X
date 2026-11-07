@@ -16,6 +16,7 @@ use crate::map::Position;
 use crate::player::MONSTERS;
 use crate::rules::{RealmId, UnitId};
 use crate::unit::{Unit, MAX_STACK};
+use f4x_def::half_int::HalfInt;
 
 use super::MONSTER_FIRST_TURN;
 
@@ -285,9 +286,9 @@ impl Game {
                 ruined: false,
             }];
         };
-        let gold = self.economy().conquest_loot(city).max(0);
+        let gold = self.economy().conquest_loot(city).max(HalfInt::ZERO);
         if let Some(t) = self.treasury_mut(owner) {
-            t.gold = (t.gold - gold).max(0);
+            t.gold = (t.gold - gold).max(HalfInt::ZERO);
         }
         // The two dearest kinds among the monsters stay to guard the ruins.
         let rules = &self.content.rules;
@@ -319,7 +320,7 @@ impl Game {
             lair: Some(Lair {
                 intact: true,
                 guards: kinds,
-                gold: gold as u32,
+                gold: gold.floor() as u32,
                 mana: 0,
                 items: Vec::new(),
                 prisoner: false,

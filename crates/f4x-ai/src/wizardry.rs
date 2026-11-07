@@ -302,7 +302,7 @@ fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 50,
             )
             .max(1);
-        (short * 100 / percent).min(view.treasury().gold)
+        (short * 100 / percent).min(view.treasury().gold.floor())
     };
     if gold > 0 {
         ai.send(
@@ -1038,7 +1038,7 @@ mod tests {
         let mut g = fresh_game()?;
         let ai = Ai::new(P1);
         let resurrection = f4x_def::rules::SpellId::new(133) /* resurrection */;
-        treasury(&mut g, P1)?.gold = 50_000;
+        treasury(&mut g, P1)?.gold = f4x_def::half_int::HalfInt::from_int(50_000);
         treasury(&mut g, P1)?.mana = 5_000;
         for k in [1, 4] {
             let hero = g
@@ -1116,7 +1116,7 @@ mod tests {
         {
             let t = treasury(&mut g, P0)?;
             t.mana = 0;
-            t.gold = 10_000;
+            t.gold = f4x_def::half_int::HalfInt::from_int(10_000);
         }
         let ai = Ai::new(P0);
         fund_return(&ai, &mut g, &mut Vec::new());

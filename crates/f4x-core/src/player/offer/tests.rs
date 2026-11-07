@@ -21,7 +21,8 @@ fn world() -> Game {
     g.set_human(Some(P0));
     g.turn = 40;
     for (i, id) in g.player_ids().into_iter().take(2).enumerate() {
-        g.treasury_mut(id).expect("treasury_mut succeeds").gold = 5000;
+        g.treasury_mut(id).expect("treasury_mut succeeds").gold =
+            f4x_def::half_int::HalfInt::from_int(5000);
         g.wizard_mut(id)
             .expect("value succeeds")
             .put(Some(crate::wizard::fortress::Fortress(at(
@@ -93,13 +94,34 @@ fn a_company_has_a_level_a_size_and_a_price() {
 #[test]
 fn the_computer_wizards_answer_by_gold_and_turn() {
     // A hero at nine tenths of the gold is hired, one dearer is not.
-    assert!(ai_accepts_hero(90, 100));
-    assert!(!ai_accepts_hero(91, 100));
+    assert!(ai_accepts_hero(
+        90,
+        f4x_def::half_int::HalfInt::from_int(100)
+    ));
+    assert!(!ai_accepts_hero(
+        91,
+        f4x_def::half_int::HalfInt::from_int(100)
+    ));
     // The original's arithmetic would have taken a price a ninth over the gold.
-    assert!(!ai_accepts_hero(110, 100));
-    assert!(ai_accepts_mercenaries(50, 50, 100));
-    assert!(!ai_accepts_mercenaries(49, 50, 100));
-    assert!(!ai_accepts_mercenaries(60, 51, 100));
+    assert!(!ai_accepts_hero(
+        110,
+        f4x_def::half_int::HalfInt::from_int(100)
+    ));
+    assert!(ai_accepts_mercenaries(
+        50,
+        50,
+        f4x_def::half_int::HalfInt::from_int(100)
+    ));
+    assert!(!ai_accepts_mercenaries(
+        49,
+        50,
+        f4x_def::half_int::HalfInt::from_int(100)
+    ));
+    assert!(!ai_accepts_mercenaries(
+        60,
+        51,
+        f4x_def::half_int::HalfInt::from_int(100)
+    ));
 }
 
 #[test]
@@ -204,7 +226,7 @@ fn mercenaries_come_from_the_first_mercenary_turn_to_a_wizard_who_can_pay_and_ar
 #[test]
 fn mercenaries_are_not_offered_to_a_wizard_who_cannot_pay_even_at_the_discount() {
     let mut g = world();
-    g.tr_mut(0).gold = 0;
+    g.tr_mut(0).gold = f4x_def::half_int::HalfInt::from_int(0);
     for _ in 0..500 {
         g.determine_offers_all();
         assert!(offers_of(&g, P0, |o| matches!(o, Offer::Mercenaries { .. })).is_empty());
@@ -272,7 +294,7 @@ fn a_prisoner_in_a_cleared_lair_is_a_hero_who_joins_for_nothing() -> TestResult 
 fn a_hero_the_wizard_cannot_pay_for_stays_on_offer() {
     let mut g = world();
     let i = roll_until(&mut g, |o| matches!(o, Offer::Hero { .. }));
-    g.tr_mut(0).gold = 0;
+    g.tr_mut(0).gold = f4x_def::half_int::HalfInt::from_int(0);
     assert_eq!(g.accept_offer(P0, i, None), Err(OfferError::NoGold));
     assert!(!g.offers(P0).is_empty());
     assert!(g.units().hero_units(P0).is_empty());
@@ -340,7 +362,7 @@ fn the_price_is_tested_after_the_charismatic_discount() -> TestResult {
     // Gold for half the price of a mid-priced item but not for the full price.
     const GOLD: i32 = 400;
     for _ in 0..3000 {
-        g.tr_mut(0).gold = GOLD;
+        g.tr_mut(0).gold = f4x_def::half_int::HalfInt::from_int(GOLD);
         g.determine_offers_all();
         for offer in g.offers(P0) {
             if let Offer::Item { item, price } = offer {
@@ -512,7 +534,8 @@ fn a_sold_item_nobody_buys_is_gone_and_one_nobody_can_pay_for_is_not_offered() -
     assert_eq!(g.items().armory(P0).vault.iter().flatten().count(), 0);
     // A buyer without the gold is not asked.
     g.give_item(P0, plain_item(1000));
-    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold = 100;
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(100);
     let events = g.apply(crate::game::Command::SellItem {
         player: P0,
         from: Spot::Vault(0),

@@ -12,6 +12,7 @@
 //! or a city) may then be asked about freely, as a player may look at a unit it sees.
 
 use crate::rules::Ability;
+use f4x_def::half_int::HalfInt;
 use std::cell::OnceCell;
 
 use crate::city::economy::CityEconomy;
@@ -71,9 +72,13 @@ impl<'a> PlayerView<'a> {
 
     /// The player's gold and mana.
     pub fn treasury(&self) -> Treasury {
-        self.game
-            .player(self.me)
-            .map_or(Treasury { gold: 0, mana: 0 }, |p| p.treasury())
+        self.game.player(self.me).map_or(
+            Treasury {
+                gold: HalfInt::ZERO,
+                mana: 0,
+            },
+            |p| p.treasury(),
+        )
     }
 
     /// Has the player lost everything?

@@ -197,7 +197,8 @@ fn the_turn_meets_those_whose_units_one_can_see() -> TestResult {
         .units
         .id_numbered(0)
         .ok_or("dwarf is not in the content")?;
-    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold = 1000;
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(1000);
     g.spawn_unit(P1, at(12, 10), walker);
     // Forget that they have been shown to each other already.
     set_pair(&mut g, P0, P1, |p| p.contacted = false);
@@ -875,8 +876,10 @@ fn gold_is_a_gift_that_warms() -> TestResult {
     let mut g = world();
     met(&mut g, P0, P1);
     set_rel(&mut g, P0, P1, 0);
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 300;
-    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold = 100;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(300);
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(100);
     let events = command(
         &mut g,
         DiplomacyCommand::GiveGold {
@@ -1433,7 +1436,7 @@ fn taking_an_independent_city_is_no_diplomacy() -> TestResult {
     g.add_neutral_player(PlayerId(9));
     g.treasury_mut(PlayerId(9))
         .ok_or("treasury_mut is missing")?
-        .gold = 0;
+        .gold = f4x_def::half_int::HalfInt::from_int(0);
     let target = city(&mut g, PlayerId(9), at(10, 10));
     g.conquer_city(target, P1, 0);
     assert!(g.drain_diplomacy_events().is_empty());
@@ -1616,8 +1619,10 @@ fn a_threat_that_works_buys_the_threatener_some_peace_and_costs_goodwill() -> Te
 fn a_demand_is_paid_when_accepted_and_resented_when_refused() -> TestResult {
     let mut g = world();
     met(&mut g, P1, P0);
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 200;
-    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold = 10;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(200);
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(10);
     set_rel(&mut g, P0, P1, 0);
     propose_and_answer(&mut g, P1, P0, ProposalKind::Demand { gold: 75 }, true);
     assert_eq!(

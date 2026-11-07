@@ -623,7 +623,8 @@ mod tests {
             population: 8,
         });
         assert!(!events.iter().any(|e| matches!(e, Event::Rejected(_))));
-        g.treasury_mut(TOWN).ok_or("the town has a treasury")?.gold = 1_000_000;
+        g.treasury_mut(TOWN).ok_or("the town has a treasury")?.gold =
+            f4x_def::half_int::HalfInt::from_int(1_000_000);
         spawn(&mut g, TOWN, at(4, 4), 113 /* high_men_paladins */, 9);
         if let Some(guards) = guards {
             spawn_site(

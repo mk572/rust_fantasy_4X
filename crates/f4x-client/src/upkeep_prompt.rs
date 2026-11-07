@@ -329,7 +329,7 @@ impl UpkeepPrompt {
                     label.push_str(&count("upkeep.ship_note", l.aboard as i32));
                 }
                 let price = Args::new()
-                    .count("gold", l.gold)
+                    .text("gold", texts.half_amount(l.gold))
                     .text("food", texts.half_amount(l.food));
                 (label, texts.get("upkeep.price_gold_food", &price))
             }
@@ -380,8 +380,11 @@ impl UpkeepPrompt {
                     &Args::new().text("n", texts.half_amount(food)),
                 ));
             }
-            if gold > 0 {
-                missing.push(texts.get("upkeep.short_gold", &Args::new().count("n", gold)));
+            if gold > f4x_def::half_int::HalfInt::ZERO {
+                missing.push(texts.get(
+                    "upkeep.short_gold",
+                    &Args::new().text("n", texts.half_amount(gold)),
+                ));
             }
         }
         if missing.is_empty() {
@@ -446,7 +449,7 @@ impl App {
         }
         let _ = self.game.spawn_hero(HUMAN, at, 0);
         if let Some(t) = self.game.treasury_mut(HUMAN) {
-            t.gold = 0;
+            t.gold = f4x_def::half_int::HalfInt::ZERO;
             t.mana = 0;
         }
         for spell in spells {

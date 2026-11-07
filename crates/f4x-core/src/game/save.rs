@@ -18,6 +18,7 @@
 //!
 //! Tests: in game/save/tests.rs and game/save/file.rs.
 
+use f4x_def::half_int::HalfInt;
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -233,7 +234,7 @@ pub struct FogSave {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlayerSave {
     pub id: u8,
-    pub gold: i32,
+    pub gold: HalfInt,
     pub mana: i32,
     pub tax_rate: u8,
     /// The Grand Vizier chooses what the cities build.
@@ -791,7 +792,9 @@ impl Game {
             .iter()
             .map(|id| PlayerSave {
                 id: id.0,
-                gold: self.player(*id).map_or(0, |p| p.treasury().gold),
+                gold: self
+                    .player(*id)
+                    .map_or(HalfInt::ZERO, |p| p.treasury().gold),
                 mana: self.player(*id).map_or(0, |p| p.treasury().mana),
                 tax_rate: self.player_component::<Tax>(*id).map_or(0, |t| t.0),
                 grand_vizier: self.player(*id).is_some_and(|p| p.has_grand_vizier()),

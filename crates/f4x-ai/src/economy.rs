@@ -17,7 +17,7 @@ pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     const MAX_RATE: u8 = 3;
     let wanted_net = crate::knob("NET", 3.0) as i32;
     let me = ai.player;
-    let mut best: Option<(i32, u8)> = None;
+    let mut best: Option<(HalfInt, u8)> = None;
     let mut chosen = None;
     for rate in 0..=MAX_RATE {
         game.apply(Command::SetTaxRate { player: me, rate });
@@ -177,7 +177,7 @@ fn colonist_item(
 /// The treasury cannot bear a deficit: net gold (with the gold on hand, spread over a hundred
 /// turns, counted as income) is negative and the gold on hand is low.
 fn broke(view: &PlayerView) -> bool {
-    let gold = view.treasury().gold;
+    let gold = view.treasury().gold.floor();
     let net = view.budget().net_gold() + (gold / 100).max(0);
     net < 0 && gold < 60
 }
@@ -200,7 +200,7 @@ fn plan_for(
         .into_iter()
         .filter(|&u| is_fighter(view, u))
         .count();
-    let gold = view.treasury().gold;
+    let gold = view.treasury().gold.floor();
     let net = view.budget().net_gold() + (gold / 100).max(0);
     let treasury_ok = net >= 1 && spare_food(view) >= HalfInt::from_int(1);
     let fighters = view

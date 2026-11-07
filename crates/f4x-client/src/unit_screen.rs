@@ -308,7 +308,7 @@ impl App {
             self.draw_styled(view, &Style::unit_view(1), &word, name_x, py + upkeep_y);
             let (mut x, y) = (px + ox + 85.0, py + upkeep_y - 1.0);
             // Gold, then mana, then food, each a small icon from `backgrnd`.
-            for (count, entry) in [(up.gold, 42), (up.mana, 43), (up.food.floor(), 40)] {
+            for (count, entry) in [(up.gold.ceil(), 42), (up.mana, 43), (up.food.floor(), 40)] {
                 for _ in 0..count.max(0) {
                     self.draw_pic(lay, "backgrnd", entry, 0, x, y);
                     x += 8.0;

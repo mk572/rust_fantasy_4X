@@ -7,7 +7,7 @@ use f4x_def::testdir::TestResult;
 
 fn treasury() -> Treasury {
     Treasury {
-        gold: 100,
+        gold: f4x_def::half_int::HalfInt::from_int(100),
         mana: 20,
     }
 }
@@ -16,11 +16,11 @@ fn treasury() -> Treasury {
 fn alchemy_is_two_for_one_without_the_retort_and_one_for_one_with_it() -> TestResult {
     let mut t = treasury();
     alchemy(50, &mut t, 10, true).map_err(|e| format!("{e:?}"))?;
-    assert_eq!((t.gold, t.mana), (90, 25));
+    assert_eq!((t.gold.floor(), t.mana), (90, 25));
     alchemy(50, &mut t, 10, false).map_err(|e| format!("{e:?}"))?;
-    assert_eq!((t.gold, t.mana), (95, 15));
+    assert_eq!((t.gold.floor(), t.mana), (95, 15));
     alchemy(100, &mut t, 10, true).map_err(|e| format!("{e:?}"))?;
-    assert_eq!((t.gold, t.mana), (85, 25));
+    assert_eq!((t.gold.floor(), t.mana), (85, 25));
     Ok(())
 }
 
@@ -35,7 +35,7 @@ fn alchemy_refuses_what_the_wizard_cannot_pay_and_changes_nothing() {
         alchemy(50, &mut t, 21, false),
         Err(MagicError::NotEnoughMana)
     );
-    assert_eq!((t.gold, t.mana), (100, 20));
+    assert_eq!((t.gold.floor(), t.mana), (100, 20));
 }
 
 #[test]

@@ -6,6 +6,7 @@ use crate::player::{
     Control, Defeat, GrandVizier, History, Neutral, PlayerId, Treasury, WizardLink, NEUTRAL_BANNER,
 };
 use crate::wizard::entity::Wizard;
+use f4x_def::half_int::HalfInt;
 
 /// A read handle on one player entity. Made by [`crate::game::Game::player`].
 #[derive(Clone, Copy)]
@@ -35,8 +36,13 @@ impl<'a> Player<'a> {
 
     /// The player's gold and mana.
     pub fn treasury(&self) -> Treasury {
-        self.component::<Treasury>()
-            .map_or(Treasury { gold: 0, mana: 0 }, |t| *t)
+        self.component::<Treasury>().map_or(
+            Treasury {
+                gold: HalfInt::ZERO,
+                mana: 0,
+            },
+            |t| *t,
+        )
     }
 
     /// The monsters' owner or an independent city's player: no wizard.

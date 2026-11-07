@@ -20,11 +20,28 @@ fn the_loser_loses_the_size_and_the_winner_gains_the_size_less_two() {
 
 #[test]
 fn the_loot_is_the_citys_share_of_the_losers_gold() {
-    assert_eq!(loot_share(200, 5, 10), 100);
-    assert_eq!(loot_share(200, 10, 10), 200, "an only city loses it all");
-    assert_eq!(loot_share(201, 1, 3), 67);
-    assert_eq!(loot_share(-50, 5, 10), 0, "debts are not looted");
-    assert_eq!(loot_share(200, 0, 0), 0);
+    assert_eq!(
+        loot_share(f4x_def::half_int::HalfInt::from_int(200), 5, 10),
+        100
+    );
+    assert_eq!(
+        loot_share(f4x_def::half_int::HalfInt::from_int(200), 10, 10),
+        200,
+        "an only city loses it all"
+    );
+    assert_eq!(
+        loot_share(f4x_def::half_int::HalfInt::from_int(201), 1, 3),
+        67
+    );
+    assert_eq!(
+        loot_share(f4x_def::half_int::HalfInt::from_int(-50), 5, 10),
+        0,
+        "debts are not looted"
+    );
+    assert_eq!(
+        loot_share(f4x_def::half_int::HalfInt::from_int(200), 0, 0),
+        0
+    );
 }
 
 #[test]

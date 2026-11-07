@@ -443,7 +443,7 @@ impl Page for ItemUi {
         let (gold, mana) = app
             .game
             .player(HUMAN)
-            .map_or((0, 0), |p| (p.treasury().gold, p.treasury().mana));
+            .map_or((0, 0), |p| (p.treasury().gold.floor(), p.treasury().mana));
         let style = if gold > 19999 || mana > 19999 { 0 } else { 1 };
         app.draw_styled(
             view,

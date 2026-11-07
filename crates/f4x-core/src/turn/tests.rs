@@ -64,7 +64,8 @@ fn world_seeded(seed: u64) -> Game {
     game.map = Some(map);
     game.add_player(P0, "Merlin");
     game.add_player(PlayerId(1), "Rival");
-    game.treasury_mut(P0).expect("treasury_mut succeeds").gold = 500;
+    game.treasury_mut(P0).expect("treasury_mut succeeds").gold =
+        f4x_def::half_int::HalfInt::from_int(500);
     game.player_component_mut::<crate::player::Tax>(P0)
         .expect("value succeeds")
         .0 = 2;
@@ -415,8 +416,8 @@ fn mines_add_gold_mana_and_cheaper_units() -> TestResult {
             .city_economy(city)
             .ok_or("city_economy is missing")?
             .gold,
-        4 + 4,
-        "3 x 1.5 rounds down to 4"
+        f4x_def::half_int::HalfInt::from_raw(17),
+        "the taxes 4 plus the ore 3 x 1.5 = 4.5, kept as it is"
     );
     assert_eq!(
         g.economy()
@@ -996,7 +997,8 @@ fn buying_costs_more_the_less_is_done() -> TestResult {
 #[test]
 fn buying_needs_the_gold() -> TestResult {
     let mut g = world();
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 10;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(10);
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     let hall = building(&g, 32 /* builders_hall */);
     g.set_production(city, ProductionItem::Building(hall))
@@ -1103,7 +1105,8 @@ fn done_lasts_the_turn_and_patrol_until_the_unit_moves() -> TestResult {
     let mut g = world();
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     farm_all(&mut g, city);
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 100;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(100);
     let spear = g
         .content
         .rules
@@ -1377,7 +1380,8 @@ fn an_army_that_cannot_be_fed_or_paid_is_disbanded() -> TestResult {
     )));
     assert_eq!(g.units().player_units(P0).len(), 2);
     // Broke: upkeep above the treasury sends the rest home.
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 0;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(0);
     g.player_component_mut::<crate::player::Tax>(P0)
         .ok_or("value is missing")?
         .0 = 0;
@@ -2048,7 +2052,8 @@ fn two_cities(time_stop: bool) -> Result<(Game, hecs::Entity, hecs::Entity), Str
     let mut g = world();
     for p in [P0, PlayerId(1)] {
         let t = g.treasury_mut(p).ok_or("no treasury")?;
-        (t.gold, t.mana) = (500, 1000);
+        t.gold = f4x_def::half_int::HalfInt::from_int(500);
+        t.mana = 1000;
     }
     let mine = found(&mut g, at(10, 6), 7 /* high_elf */, 6);
     let race = race(&g, 7 /* high_elf */);
@@ -2093,7 +2098,7 @@ fn time_stop_halts_production_growth_and_income_for_everyone_but_the_spells_own_
             .map_err(|e| e.to_string())?
             .figures;
         let t = g.player(player).ok_or("no player")?.treasury();
-        Ok((progress, figures, t.gold, t.mana))
+        Ok((progress, figures, t.gold.floor(), t.mana))
     };
     // Without it the cities build and the treasuries move.
     let (progress, _, gold, _) = state(&free, mine, P0)?;

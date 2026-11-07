@@ -219,7 +219,7 @@ mod tests {
         app.game
             .treasury_mut(HUMAN)
             .ok_or("the human has no treasury")?
-            .gold = 100_000;
+            .gold = f4x_def::half_int::HalfInt::from_int(100_000);
         let kinds = app.game.content().rules.hero_templates.len();
         let hero = (0..kinds)
             .find_map(|kind| app.game.hire_hero(HUMAN, kind).ok())

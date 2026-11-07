@@ -10,6 +10,7 @@ use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::shortfall::TreasuryShortfall;
 use f4x_core::player::upkeep::Shortfall;
 use f4x_core::spell::cast::UpkeepKind;
+use f4x_def::half_int::HalfInt;
 use std::cmp::Reverse;
 
 use crate::Ai;
@@ -57,8 +58,10 @@ pub fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 fn sell_for_gold(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     loop {
-        let missing = game.treasury_shortfall(me).map_or(0, |s| s.missing(&[]).1);
-        if missing == 0 {
+        let missing = game
+            .treasury_shortfall(me)
+            .map_or(HalfInt::ZERO, |s| s.missing(&[]).1);
+        if missing == HalfInt::ZERO {
             return;
         }
         let Some((city, building)) = next_sale(game, me) else {
@@ -123,7 +126,11 @@ fn choose_troops(short: &TreasuryShortfall) -> Vec<hecs::Entity> {
         let mut order: Vec<usize> = (0..short.troops.len()).collect();
         order.sort_by_key(|&i| {
             let t = &short.troops[i];
-            let upkeep = if want_food { t.food.raw() } else { t.gold };
+            let upkeep = if want_food {
+                t.food.raw()
+            } else {
+                t.gold.raw()
+            };
             (
                 t.hero,
                 t.ship && t.aboard > 0,
@@ -167,7 +174,8 @@ mod tests {
     fn the_ai_lets_go_of_the_units_it_cannot_feed_or_pay_for() -> TestResult {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let army = spawn(&mut g, P0, at(9, 6), 104 /* high_men_spearmen */, 8);
-        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold = 3;
+        g.treasury_mut(P0).ok_or("player 0 has a treasury")?.gold =
+            f4x_def::half_int::HalfInt::from_int(3);
         g.apply(Command::SetTaxRate {
             player: P0,
             rate: 0,
@@ -235,7 +243,7 @@ mod tests {
         let e: Vec<_> = (0..4).map(|_| world.spawn(())).collect();
         let line = |unit, cost, hero, ship, aboard| TroopLine {
             unit,
-            gold: 1,
+            gold: f4x_def::half_int::HalfInt::from_int(1),
             food: f4x_def::half_int::HalfInt::ZERO,
             hero,
             cost,
@@ -245,7 +253,7 @@ mod tests {
         let short = TreasuryShortfall {
             food_upkeep: f4x_def::half_int::HalfInt::ZERO,
             food_surplus: f4x_def::half_int::HalfInt::ZERO,
-            gold: 1,
+            gold: f4x_def::half_int::HalfInt::from_int(1),
             fame: 0,
             troops: vec![
                 line(e[0], 500, true, false, 0),

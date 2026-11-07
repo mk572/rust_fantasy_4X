@@ -27,7 +27,7 @@ use crate::game::{Event, Game, LossCause, Rejection, Shortage};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TroopLine {
     pub unit: hecs::Entity,
-    pub gold: i32,
+    pub gold: HalfInt,
     /// The food it eats, as the unit table has it.
     pub food: HalfInt,
     pub hero: bool,
@@ -45,7 +45,7 @@ pub struct TreasuryShortfall {
     pub food_upkeep: HalfInt,
     pub food_surplus: HalfInt,
     /// The gold on hand once the turn's income and the buildings' upkeep are counted.
-    pub gold: i32,
+    pub gold: HalfInt,
     /// Fame pays this much of the troops' gold.
     pub fame: i32,
     /// The troops, oldest first; the turn end lets go in the order of `finance::release_order`.
@@ -57,7 +57,7 @@ pub struct TreasuryShortfall {
 impl TreasuryShortfall {
     /// The food and the gold still missing if `released` go. A unit let go for food does not cost
     /// gold either.
-    pub fn missing(&self, released: &[hecs::Entity]) -> (HalfInt, i32) {
+    pub fn missing(&self, released: &[hecs::Entity]) -> (HalfInt, HalfInt) {
         let gone = |l: &&TroopLine| released.contains(&l.unit);
         let freed_food: HalfInt = self
             .troops
@@ -66,13 +66,14 @@ impl TreasuryShortfall {
             .map(|l| l.food)
             .sum();
         let food = (self.food_upkeep - freed_food - self.food_surplus).max(HalfInt::ZERO);
-        let gold_upkeep: i32 = self
+        let gold_upkeep: HalfInt = self
             .troops
             .iter()
             .filter(|l| !gone(l))
             .map(|l| l.gold)
             .sum();
-        let gold = ((gold_upkeep - self.fame).max(0) - self.gold).max(0);
+        let gold = ((gold_upkeep - HalfInt::from_int(self.fame)).max(HalfInt::ZERO) - self.gold)
+            .max(HalfInt::ZERO);
         (food, gold)
     }
 }
@@ -133,7 +134,7 @@ impl Game {
             troops: lines,
             default_release: settle(&t, gold, fame, &troops).disbanded,
         };
-        (short.missing(&[]) != (HalfInt::ZERO, 0)).then_some(short)
+        (short.missing(&[]) != (HalfInt::ZERO, HalfInt::ZERO)).then_some(short)
     }
 
     fn hero_slot_items(&self, hero: hecs::Entity) -> Vec<(usize, Item)> {

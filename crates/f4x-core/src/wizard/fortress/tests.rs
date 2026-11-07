@@ -390,7 +390,8 @@ fn saves_keep_the_fortress_and_reject_a_misplaced_one() -> TestResult {
 fn taking_the_last_rivals_last_city_wins_by_conquest() -> TestResult {
     let mut g = world();
     let capital = place(&mut g, P0, at(5, 5));
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold = 90;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
+        f4x_def::half_int::HalfInt::from_int(90);
     let events = g.capture_city(capital, P1);
     assert!(events.contains(&Event::GameOver {
         winner: P1,
@@ -619,7 +620,10 @@ fn a_banished_wizard_returns_and_takes_the_cities_race() -> TestResult {
     assert_eq!(return_to(&mut w, square(4)), Err(FortressError::WrongState));
     fortress_falls(&mut w);
     assert_eq!(sites(&w), (None, None));
-    let mut t = crate::player::Treasury { gold: 0, mana: 11 };
+    let mut t = crate::player::Treasury {
+        gold: f4x_def::half_int::HalfInt::from_int(0),
+        mana: 11,
+    };
     assert_eq!(t.take_half_mana(), 5);
     assert_eq!(t.mana, 6, "the odd point stays");
     banish_player(&mut w, P1);

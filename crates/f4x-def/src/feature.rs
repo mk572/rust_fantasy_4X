@@ -36,7 +36,7 @@ pub struct SpawnRule {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct CityBonus {
-    pub gold: i32,
+    pub gold: HalfInt,
     pub mana: i32,
     /// Food (wild game); not affected by mining.
     pub food: HalfInt,

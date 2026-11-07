@@ -271,21 +271,26 @@ impl App {
         // Gold and mana in the boxes under the minimap (`Main_Screen_Draw_Status_Window`): the
         // figures right-aligned in white, the units after them; the narrow font when a figure
         // has five digits.
-        let gold = self.game.player(HUMAN).map_or(0, |p| p.treasury().gold);
+        let gold = self
+            .game
+            .player(HUMAN)
+            .map_or(f4x_def::half_int::HalfInt::ZERO, |p| p.treasury().gold);
         let mana = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         let view = (lay.origin.x, lay.origin.y, s);
-        let style = if gold > 9999 || mana > 9999 { 0 } else { 1 };
+        let style = if gold.floor() > 9999 || mana > 9999 {
+            0
+        } else {
+            1
+        };
         for (value, right, unit) in [
-            (gold, 265.0, self.text("ui.gold_unit")),
-            (mana, 303.0, self.text("ui.mana_unit")),
+            (
+                self.texts.half_amount(gold),
+                265.0,
+                self.text("ui.gold_unit"),
+            ),
+            (mana.to_string(), 303.0, self.text("ui.mana_unit")),
         ] {
-            self.draw_styled(
-                view,
-                &Style::sh_set(style, 0).right(),
-                &value.to_string(),
-                right,
-                68.0,
-            );
+            self.draw_styled(view, &Style::sh_set(style, 0).right(), &value, right, 68.0);
             self.draw_styled(view, &Style::sh_set(0, 0), &unit, right + 3.0, 68.0);
         }
 

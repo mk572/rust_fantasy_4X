@@ -99,7 +99,7 @@ pub enum MovementType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Upkeep {
     #[serde(default)]
-    pub gold: u32,
+    pub gold: HalfInt,
     /// Food a turn: 1 is one food, 0.5 half a food, 1.5 one and a half, 0 eats nothing.
     #[serde(default)]
     pub food: HalfInt,

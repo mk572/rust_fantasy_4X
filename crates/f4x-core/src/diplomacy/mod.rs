@@ -17,6 +17,7 @@
 //! Tests: in diplomacy/tests.rs.
 
 use crate::rules::Ability;
+use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -1059,7 +1060,12 @@ impl Diplomacy {
         }
         // The original offers a quarter, half, three quarters or all of the receiver's gold: the
         // larger the share, the warmer the thanks.
-        let reserve = ctx.view.player(to).map_or(0, |p| p.treasury().gold).max(1);
+        let reserve = ctx
+            .view
+            .player(to)
+            .map_or(HalfInt::ZERO, |p| p.treasury().gold)
+            .floor()
+            .max(1);
         let choice = ((amount * 4 + reserve - 1) / reserve).clamp(1, 4);
         let base = if army_strength(ctx.view, to) > 0 {
             choice * 4

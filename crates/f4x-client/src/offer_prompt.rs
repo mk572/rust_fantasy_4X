@@ -148,7 +148,7 @@ impl App {
         };
         self.game.set_fame(HUMAN, 100);
         if let Some(t) = self.game.treasury_mut(HUMAN) {
-            t.gold = 5000;
+            t.gold = f4x_def::half_int::HalfInt::from_int(5000);
         }
         self.game.turn = self.game.turn.max(40);
         // A hero is drawn at random from those fame allows: try until one comes.
@@ -329,7 +329,7 @@ impl App {
                         .contains(&f4x_def::rules::Ability::new(96) /* noble */)
                 });
             if let (true, Some(upkeep)) = (noble, sheet.upkeep.as_mut()) {
-                upkeep.gold = 0;
+                upkeep.gold = f4x_def::half_int::HalfInt::ZERO;
             }
             debug_assert_eq!(sheet.source, Source::Offer);
             let mut panel = std::mem::take(&mut self.offer_ui.panel);
@@ -474,7 +474,13 @@ mod tests {
     use f4x_def::testdir::TestResult;
 
     fn gold(app: &App) -> Result<i32, &'static str> {
-        Ok(app.game.player(HUMAN).ok_or("no human")?.treasury().gold)
+        Ok(app
+            .game
+            .player(HUMAN)
+            .ok_or("no human")?
+            .treasury()
+            .gold
+            .floor())
     }
 
     fn first_offer(app: &App) -> Result<Offer, &'static str> {

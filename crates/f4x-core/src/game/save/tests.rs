@@ -59,7 +59,8 @@ fn game() -> Game {
     g.settings.basic.difficulty = 4;
     g.map = Some(map);
     g.add_player(P0, "Merlin");
-    g.treasury_mut(P0).expect("treasury_mut succeeds").gold = 300;
+    g.treasury_mut(P0).expect("treasury_mut succeeds").gold =
+        f4x_def::half_int::HalfInt::from_int(300);
     g.player_component_mut::<crate::player::Tax>(P0)
         .expect("value succeeds")
         .0 = 2;

@@ -87,6 +87,47 @@ impl Neg for HalfInt {
     }
 }
 
+/// A whole number beside a `HalfInt` is that many whole units: `gold >= 5`, `gold - 5`.
+impl PartialEq<i32> for HalfInt {
+    fn eq(&self, other: &i32) -> bool {
+        i64::from(self.0) == i64::from(*other) * 2
+    }
+}
+
+impl PartialOrd<i32> for HalfInt {
+    fn partial_cmp(&self, other: &i32) -> Option<std::cmp::Ordering> {
+        Some(i64::from(self.0).cmp(&(i64::from(*other) * 2)))
+    }
+}
+
+impl Add<i32> for HalfInt {
+    type Output = Self;
+
+    fn add(self, rhs: i32) -> Self::Output {
+        self + Self::from_int(rhs)
+    }
+}
+
+impl Sub<i32> for HalfInt {
+    type Output = Self;
+
+    fn sub(self, rhs: i32) -> Self::Output {
+        self - Self::from_int(rhs)
+    }
+}
+
+impl AddAssign<i32> for HalfInt {
+    fn add_assign(&mut self, rhs: i32) {
+        *self += Self::from_int(rhs);
+    }
+}
+
+impl SubAssign<i32> for HalfInt {
+    fn sub_assign(&mut self, rhs: i32) {
+        *self -= Self::from_int(rhs);
+    }
+}
+
 impl Mul<i32> for HalfInt {
     type Output = Self;
 
@@ -193,6 +234,18 @@ mod tests {
         assert_eq!((a - b).raw(), 3); // 1.5
         assert_eq!((-a).raw(), -7); // -3.5
         assert_eq!((a + b).raw(), 11); // 5.5
+    }
+
+    #[test]
+    fn a_whole_number_beside_a_half_int_is_that_many_whole_units() {
+        let gold = HalfInt::from_raw(7); // 3.5
+        assert!(gold > 3 && gold < 4 && gold != 3);
+        assert_eq!(HalfInt::from_int(3), 3);
+        assert_eq!((gold - 2).raw(), 3);
+        let mut g = gold;
+        g += 1;
+        g -= 5;
+        assert_eq!(g.raw(), -1);
     }
 
     #[test]

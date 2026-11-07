@@ -66,8 +66,8 @@ pub struct CityEconomy {
     pub max_size: u32,
     pub food: HalfInt,
     pub production: i32,
-    pub gold: i32,
-    pub gold_upkeep: i32,
+    pub gold: HalfInt,
+    pub gold_upkeep: HalfInt,
     pub research: i32,
     pub mana: i32,
     /// Change in tens of people this turn.
@@ -597,7 +597,8 @@ impl<'a> Economy<'a> {
         let gaia = self.city_has_effect(city, CityEffect::GaiasBlessing);
         let mut blighted = 0i32;
         let (mut terrain_food_x2, mut production_percent) = (0i32, 0i32);
-        let (mut mine_gold, mut mine_mana, mut cost_reduction) = (0, 0, 0);
+        let (mut mine_mana, mut cost_reduction) = (0, 0);
+        let mut mine_gold = HalfInt::ZERO;
         let mut wild_food = HalfInt::ZERO;
         for &(p, shared) in &area {
             if grid
@@ -645,7 +646,7 @@ impl<'a> Economy<'a> {
                     }
                     v
                 };
-                mine_gold += scale(b.gold, (3, 2));
+                mine_gold += HalfInt::from_raw(scale(b.gold.raw(), (3, 2)));
                 mine_mana += scale(b.mana, (3, 2));
                 wild_food += HalfInt::from_raw(if shared {
                     b.food.raw() / 2
@@ -774,9 +775,10 @@ impl<'a> Economy<'a> {
         let production = compute(Stat::CityProduction, base_production, &production_mods);
 
         // Gold: taxes, trade bonus, mines, then percentage buildings.
-        let mut gold = (figures as i32 - rebels as i32) * tax_rate as i32 / 2;
+        // The tax rate is half a gold for each citizen who is not a rebel.
+        let mut gold = HalfInt::from_raw((figures as i32 - rebels as i32) * tax_rate as i32);
         if dwarf {
-            gold *= 2;
+            gold = gold * 2;
         }
         gold += mine_gold;
         let coast = (-1i32..=1).any(|dy| {
@@ -805,15 +807,16 @@ impl<'a> Economy<'a> {
             site_bonus,
             Source::Other,
         ));
-        let mut gold = compute(Stat::CityGold, gold, &gold_mods);
+        let mut gold = compute_half(Stat::CityGold, gold, &gold_mods);
         if let Ok(p) = self.world.get::<&crate::city::production::Production>(city) {
             if p.item == Some(crate::city::production::ProductionItem::TradeGoods) {
-                gold += production / 2;
+                // Half a gold for each production point.
+                gold += HalfInt::from_raw(production);
             }
         }
-        let gold = gold.min(255);
+        let gold = gold.min(HalfInt::from_int(255));
 
-        let gold_upkeep = self.city_building_upkeep(city) as i32;
+        let gold_upkeep = HalfInt::from_int(self.city_building_upkeep(city) as i32);
         let research = compute(Stat::CityResearch, 0, &mods);
         let citizen_mana =
             figures as i32 * i32::from(race.map_or(0, |r| r.mana_per_citizen_x2)) / 2;
@@ -866,8 +869,8 @@ impl<'a> Economy<'a> {
             max_size,
             food: HalfInt::from_raw(of(bonus.food, food.raw())),
             production: of(bonus.production, production),
-            gold: of(bonus.gold, gold),
-            gold_upkeep: of(bonus.maintenance, gold_upkeep),
+            gold: crate::player::Bonus::of_half(bonus.gold, gold),
+            gold_upkeep: crate::player::Bonus::of_half(bonus.maintenance, gold_upkeep),
             research: of(bonus.research, research),
             mana: of(bonus.mana, mana),
             growth_tens,
@@ -1155,7 +1158,10 @@ mod handle_tests {
         assert_eq!(after.gold, before.gold * 2);
         assert_eq!(after.research, before.research * 3 / 2);
         assert_eq!(after.mana, before.mana * 2);
-        assert_eq!(after.gold_upkeep, before.gold_upkeep / 2);
+        assert_eq!(
+            after.gold_upkeep,
+            HalfInt::from_raw(before.gold_upkeep.raw() / 2)
+        );
         assert_eq!(after.growth_tens, before.growth_tens * 2);
         assert_eq!(
             after.figures, before.figures,
