@@ -425,7 +425,7 @@ Gaps found while working on the base game are added here as new tasks, not left 
 Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 `python3 scripts/archive_done_tasks.py` (a task is done when its row or title says "(done)").
 
-**478. Make `f4x-ai-ref` a local-only snapshot.** The reference AI is a frozen copy of `f4x-ai` that
+**478. Make `f4x-ai-ref` a local-only snapshot.** *Partly done 7 November 2026:* the crate is outside the workspace (`exclude`), `f4x-tools` has an optional `reference` feature, `fork_ai.py` writes a standalone package with a `build.rs` that honours the `STALE` marker, and `scripts/ai_battle.py` forks a stale reference again before a battle. *Left:* untrack it and add it to `.gitignore`, and `scripts/ai_snapshot.py`. The reference AI is a frozen copy of `f4x-ai` that
 `f4x-tools versus` and `soak` play the current AI against; it is only ever used for local
 development. Put `f4x-ai-ref` behind an optional `reference` feature of `f4x-tools` (the
 `Version::Reference` seats in `contestant.rs`, `versus`, and the reference roster of `soak`), take

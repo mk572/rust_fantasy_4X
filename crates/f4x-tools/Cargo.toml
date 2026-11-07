@@ -12,10 +12,13 @@ serde.workspace = true
 ron.workspace = true
 f4x-console.workspace = true
 f4x-ai.workspace = true
-f4x-ai-ref.workspace = true
+f4x-ai-ref = { workspace = true, optional = true }
 f4x-learn = { workspace = true, optional = true, features = ["train"] }
 
 [features]
+# The frozen reference AI (`crates/f4x-ai-ref`) for `soak-versus` and a reference roster in `soak`;
+# build it through `scripts/ai_battle.py`, which re-forks a stale copy first.
+reference = ["dep:f4x-ai-ref"]
 # `soak --battle-ai CHECKPOINT`: the AI wizards fight their battles with a trained network.
 learned = ["dep:f4x-learn"]
 

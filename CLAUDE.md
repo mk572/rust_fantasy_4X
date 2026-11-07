@@ -45,6 +45,10 @@ Refer to `docs/ecs-structure.md`
 - **Project lessons** (non-obvious findings of the rework) are in `docs/KNOWLEDGE.md`; add to it when you
   find something like that.
 
+- **`crates/f4x-ai-ref` is never repaired.** It is outside the workspace; if a change breaks it, run
+  `python3 scripts/fork_ai.py --mark-stale` and go on. `scripts/ai_battle.py` forks it again before the
+  next AI battle (`docs/ai-design.md` 8.1a).
+
 - **Always check what scripts exist** before writing a new one or doing a repetitive job by hand:
   read `docs/scripts.md` (the table of every script in `scripts/`) and list `scripts/`.
 

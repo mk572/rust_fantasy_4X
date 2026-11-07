@@ -83,13 +83,26 @@ macro_rules! contestant {
 }
 
 contestant!(f4x_ai);
+#[cfg(feature = "reference")]
 contestant!(f4x_ai_ref);
+
+/// The reference AI is not built in: say how to get it, rather than play something else.
+#[cfg(not(feature = "reference"))]
+fn without_reference() -> ! {
+    panic!(
+        "the reference AI is not built in; run this through `python3 scripts/ai_battle.py` \
+         (or build f4x-tools with `--features reference`)"
+    )
+}
 
 /// A player of the given version.
 pub fn make(version: Version, player: PlayerId) -> Box<dyn Contestant> {
     match version {
         Version::New => Box::new(f4x_ai::Ai::new(player)),
+        #[cfg(feature = "reference")]
         Version::Reference => Box::new(f4x_ai_ref::Ai::new(player)),
+        #[cfg(not(feature = "reference"))]
+        Version::Reference => without_reference(),
     }
 }
 
@@ -97,7 +110,10 @@ pub fn make(version: Version, player: PlayerId) -> Box<dyn Contestant> {
 pub fn play_neutrals(version: Version, game: &mut Game) -> Vec<Event> {
     match version {
         Version::New => f4x_ai::play_neutrals(game),
+        #[cfg(feature = "reference")]
         Version::Reference => f4x_ai_ref::play_neutrals(game),
+        #[cfg(not(feature = "reference"))]
+        Version::Reference => without_reference(),
     }
 }
 

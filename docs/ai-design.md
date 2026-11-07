@@ -382,7 +382,12 @@ Soak is deterministic; two runs of one build give identical lines (timings strip
 
 To measure a change to the scripted strategic AI: freeze the AI before editing it
 (`python3 scripts/fork_ai.py`, or `--from REF` for an earlier commit), change `crates/f4x-ai`, then
-`f4x-tools soak-versus --seeds 1..8 --turns 400`. Per seed it plays four games with the reference's
+`python3 scripts/ai_battle.py soak-versus --seeds 1..8 --turns 400`. The reference is outside the
+workspace (it is built only with `f4x-tools --features reference`), so a change to the core never
+breaks the workspace's build or tests through it. When a change breaks it, do not repair it: mark
+it with `python3 scripts/fork_ai.py --mark-stale`; `ai_battle.py` forks it again from the live AI
+before the next battle (and does the same when it finds the reference no longer builds). A battle
+right after such a fork compares the AI with itself. Per seed it plays four games with the reference's
 neutral cities and monsters (so the neutrals stay the same whatever the live AI does; fork again
 after a change to `neutral.rs` to test it): reference only, new in the first half of the seats,
 new in the second half, new only. The report gives per wizard and game the counts of

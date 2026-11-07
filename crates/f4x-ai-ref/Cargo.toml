@@ -1,18 +1,19 @@
 [package]
 name = "f4x-ai-ref"
-edition.workspace = true
-version.workspace = true
-license.workspace = true
+edition = "2021"
+version = "0.0.4"
+license = "CC0-1.0"
+build = "build.rs"
 
 [lib]
 test = false
 doctest = false
 
 [dependencies]
-f4x-core.workspace = true
-f4x-def.workspace = true
-f4x-master.workspace = true
-hecs.workspace = true
+f4x-core = { path = "../f4x-core" }
+f4x-def = { path = "../f4x-def" }
+f4x-master = { path = "../f4x-master" }
+hecs = { version = "0.10", features = ["serde"] }
 
 [dev-dependencies]
-f4x-def = { workspace = true, features = ["testutil"] }
+f4x-def = { path = "../f4x-def", features = ["testutil"] }

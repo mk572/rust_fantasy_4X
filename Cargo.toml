@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/*", "crates/f4x-client/extract"]
+# The frozen reference AI is built only for `f4x-tools --features reference` (scripts/ai_battle.py).
+exclude = ["crates/f4x-ai-ref"]
 
 [workspace.package]
 version = "0.0.4"
