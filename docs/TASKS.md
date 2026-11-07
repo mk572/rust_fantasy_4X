@@ -401,7 +401,7 @@ the client, AI, console, save/load and tests to use the same lifecycle.
 table is in `turn-structure.md` 7.1), `f4x-master` runs seats in order with a neutral seat last,
 `f4x-ai` has `AiSeat` and `NeutralSeat`, and the console, the tools' round player and the client
 (a human seat that waits for End Turn; rivals wait while an attack on the human is fought) run on it.
-The economy now runs at the start of the player's own turn (7 November 2026, see 7.1), and `f4x-ai-ref`
+The economy now runs per player: income, bills and production at the player's turn end, growth and healing at the next turn start (7 November 2026, see 7.1), and `f4x-ai-ref`
 was re-forked from `f4x-ai` (`scripts/fork_ai.py`) so it has the same `controller.rs` and `play_round`.
 
 **DONE** (checked 7 November 2026)
@@ -413,7 +413,7 @@ was re-forked from `f4x-ai` (`scripts/fork_ai.py`) so it has the same `controlle
 
 **TODO**
 1. A client test for a defence in the middle of a round (a rival attacks the human while the master waits; `App::next_defence`).
-2. A soak to check the balance of the per-player economy (the economy now runs at the start of each player's own turn).
+2. A soak to check the balance of the per-player economy: income, upkeep, mana and production now run at each player's own turn end, growth, research learned and healing at the next turn start (`turn-structure.md` 7.1), so the players no longer settle their treasuries at one moment.
 
 **483. Review the constants in code.** Raised by the user, 6 November 2026, during the `f4x-def` work (task 481). Numbers and lists that are fixed in the Rust source and never change during play are definitions in all but place. Go through `f4x-core` (and the other crates below the client) and list them: the map generator's defaults (`GenParams`: towers, nodes, sites, `REFERENCE_AREA`), the limits (`MAX_TILE_LIMIT`, `MAX_STACK`, `MAX_SIDE_UNITS`, `MAX_OPPONENTS`, `PICKS`), the hero constants (`CHARMED_RESISTANCE`, the `by_tier` fractions, the ability numbers in `HeroAbilities`), and the like. For each, decide: it stays in code (a true invariant of the rules engine, or a technical limit), it moves into a content file (a rule of the game that a mod might change), or it becomes a setting in `rules_settings.ron` (a choice the player or the difficulty level makes). Done when the list is in this file or `docs/`, with the decision for each, and the ones that move are moved (one task each if they are many).
 
