@@ -227,7 +227,8 @@ fn nature_awareness_meets_everyone() -> TestResult {
         .id_numbered(34)
         .ok_or("nature_awareness is not in the content")?;
     // The spell's upkeep is paid from the reserve.
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(1000);
     g.add_global(P0, spell);
     g.apply(Command::EndTurn);
     assert!(g.have_met(P0, P1) && g.have_met(P0, P2));

@@ -46,7 +46,8 @@ fn world() -> Game {
     game.player_component_mut::<crate::player::Tax>(P0)
         .expect("value succeeds")
         .0 = 2;
-    game.treasury_mut(P0).expect("treasury_mut succeeds").mana = 100;
+    game.treasury_mut(P0).expect("treasury_mut succeeds").mana =
+        f4x_def::half_int::HalfInt::from_int(100);
     game.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .expect("init_wizard succeeds");
     game
@@ -171,7 +172,7 @@ fn power_comes_from_cities_and_is_split_by_percentages() -> TestResult {
     assert_eq!(
         g.income(P0).split,
         PowerShares {
-            mana: 2,
+            mana: f4x_def::half_int::HalfInt::from_int(2),
             skill: 2,
             research: 2 + 2
         }
@@ -183,7 +184,7 @@ fn power_comes_from_cities_and_is_split_by_percentages() -> TestResult {
     assert_eq!(
         g.income(P0).split,
         PowerShares {
-            mana: 6,
+            mana: f4x_def::half_int::HalfInt::from_int(6),
             skill: 0,
             research: 2
         }
@@ -199,7 +200,11 @@ fn power_comes_from_cities_and_is_split_by_percentages() -> TestResult {
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
         .insert(Retort::new(11) /* mana_focusing */);
-    assert_eq!(g.income(P0).split.mana, 7, "a quarter more mana");
+    assert_eq!(
+        g.income(P0).split.mana,
+        f4x_def::half_int::HalfInt::from_raw(15),
+        "a quarter more mana"
+    );
     Ok(())
 }
 
@@ -328,7 +333,8 @@ fn an_affordable_spell_takes_effect_at_once() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 100;
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(1000);
     let cost = g.casting_cost(P0, bless, false);
     assert!(
         cost > 0 && cost <= 100,
@@ -421,11 +427,14 @@ fn a_channeler_pays_half_the_spell_maintenance() -> TestResult {
         .get_mut::<crate::wizard::sheet::Retorts>()
         .0
         .insert(Retort::new(8) /* channeler */);
-    assert_eq!(g.income(P0).mana_upkeep, dear.1 / 2);
+    assert_eq!(g.income(P0).mana_upkeep, HalfInt::from_raw(dear.1));
     // The reserve pays the half, and the spell stays.
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = dear.1 / 2;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = HalfInt::from_raw(dear.1);
     g.apply_mana_upkeep(P0);
-    assert_eq!(g.player(P0).ok_or("player is missing")?.treasury().mana, 0);
+    assert_eq!(
+        g.player(P0).ok_or("player is missing")?.treasury().mana,
+        HalfInt::ZERO
+    );
     assert!(g.wizard(P0).ok_or("wizard is missing")?.has_global(dear.0));
     Ok(())
 }
@@ -458,7 +467,8 @@ fn short_of_mana() -> Result<(Game, [SpellId; 2]), Box<dyn std::error::Error>> {
         .expect("wizard_mut succeeds")
         .set_split(0, 100, 0)
         .ok();
-    g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 14;
+    g.treasury_mut(P0).expect("treasury_mut succeeds").mana =
+        f4x_def::half_int::HalfInt::from_int(14);
     Ok((g, ids))
 }
 
@@ -467,9 +477,12 @@ fn the_wizard_sees_the_shortfall_and_chooses_what_to_give_up() -> TestResult {
     use crate::spell::cast::UpkeepKind;
     let (mut g, [first, second]) = short_of_mana()?;
     let short = g.upkeep_shortfall(P0).expect("20 owed against 14");
-    assert_eq!((short.owed, short.reserve), (20, 14));
+    assert_eq!(
+        (short.owed, short.reserve),
+        (HalfInt::from_int(20), HalfInt::from_int(14))
+    );
     assert_eq!(short.lines.len(), 2);
-    assert!(short.lines.iter().all(|l| l.mana == 10));
+    assert!(short.lines.iter().all(|l| l.mana == HalfInt::from_int(10)));
     // The turn change would drop the newest (the second); the wizard keeps it and loses the first.
     let events = g
         .release_upkeep(P0, &[UpkeepKind::Global(first)])
@@ -617,7 +630,8 @@ fn a_dear_spell_is_paid_over_turns_then_aimed_and_costs_upkeep() -> TestResult {
     );
 
     // With no mana left the enchantment lapses.
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 0;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(0);
     let events = g.apply(Command::EndTurn);
     assert!(events.contains(&Event::EnchantmentLapsed {
         player: P0,
@@ -697,7 +711,8 @@ fn a_city_enchantment_is_cast_and_paid_for() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 999;
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(1000);
     let gold = g
         .economy()
         .city_economy(city)
@@ -797,7 +812,8 @@ fn a_spell_with_nothing_to_aim_at_is_not_paid_for_until_there_is_a_target() -> T
     g.add_player(P1, "Rival");
     g.init_wizard(P1, &[(RealmId::new(1 /* sorcery */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
-    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.mana = 10_000;
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(10_000);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .set_split(0, 100, 0)
@@ -808,7 +824,8 @@ fn a_spell_with_nothing_to_aim_at_is_not_paid_for_until_there_is_a_target() -> T
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
         .insert(disjunction);
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 500;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(500);
     assert_eq!(g.start_cast(P0, disjunction, None), Ok(vec![]));
     let owed = g
         .wizard(P0)
@@ -888,7 +905,8 @@ fn extra_mana_is_part_of_the_price_and_only_for_a_spell_that_takes_it() -> TestR
             .known
             .insert(s);
     }
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(1000);
     assert_eq!(
         g.start_cast_with(P0, bears, None, 5),
         Err(MagicError::NotAvailable)
@@ -911,7 +929,8 @@ fn the_extra_mana_of_a_cast_in_progress_survives_a_save() -> TestResult {
     let mut g = world();
     let area = spell(&g, 204 /* disenchant_area */);
     g.learn_spell(P0, area);
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(1000);
     assert!(g.start_cast_with(P0, area, None, 20).is_ok());
     let text = g.snapshot().to_text()?;
     let back = crate::game::save::Snapshot::from_text(&text)?.restore(g.content.clone())?;

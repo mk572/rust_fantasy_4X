@@ -225,7 +225,7 @@ mod tests {
             .get_mut::<crate::wizard::sheet::Skill>()
             .left = 99_999;
         let t = g.treasury_mut(P0).expect("treasury_mut succeeds");
-        t.mana = 1000;
+        t.mana = f4x_def::half_int::HalfInt::from_int(1000);
         t.gold = f4x_def::half_int::HalfInt::from_int(100);
         let mut w = g.wizard_mut(P0).expect("wizard_mut succeeds");
         w.put(Some(crate::wizard::fortress::Fortress(at(3, 3))));

@@ -33,7 +33,8 @@ fn world(seed: u64) -> Game {
         g.add_player(id, "W");
         g.treasury_mut(id).expect("treasury_mut succeeds").gold =
             f4x_def::half_int::HalfInt::from_int(100);
-        g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
+        g.treasury_mut(id).expect("treasury_mut succeeds").mana =
+            f4x_def::half_int::HalfInt::from_int(100);
     }
     g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .expect("init_wizard succeeds");
@@ -364,7 +365,11 @@ fn walking_into_an_unguarded_site_takes_the_treasure_and_clears_it() -> TestResu
                 .treasury()
                 .gold
                 .floor(),
-            g.player(P0).ok_or("player is missing")?.treasury().mana
+            g.player(P0)
+                .ok_or("player is missing")?
+                .treasury()
+                .mana
+                .floor()
         ),
         (220, 130)
     );
@@ -1058,7 +1063,7 @@ fn a_neutral_winner_gets_no_spell_and_the_value_comes_back_as_gold_or_mana() -> 
     assert_eq!(
         (
             (t.gold - before.gold).floor() as u32,
-            (t.mana - before.mana) as u32
+            (t.mana - before.mana).floor() as u32
         ),
         (loot.gold, loot.mana)
     );

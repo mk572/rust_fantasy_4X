@@ -189,7 +189,7 @@ impl Game {
     /// half the reserve, at least one. `None` when the wizard has no mana or knows no spell
     /// that can be cast in a battle: there is nothing to ask.
     pub fn strategic_mana_default(&self, player: PlayerId) -> Option<u32> {
-        let mana = u32::try_from(self.player(player)?.treasury().mana).ok()?;
+        let mana = u32::try_from(self.player(player)?.treasury().mana.floor()).ok()?;
         if mana == 0 || self.battle_spells(player).is_empty() {
             return None;
         }

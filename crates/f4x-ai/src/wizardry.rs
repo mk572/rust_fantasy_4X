@@ -290,7 +290,7 @@ fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             .casting_skill(&view.content().rules)
             .min(casting.remaining)
             .max(0);
-        let short = due - view.treasury().mana;
+        let short = due - view.treasury().mana.floor();
         if !w.is_banished() || short <= 0 {
             return;
         }
@@ -793,10 +793,10 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
         if !knows || game.units().hero_spell_blocked(me, spell).is_some() {
             return false;
         }
-        let mana = game.player(me).map_or(0, |p| p.treasury().mana);
+        let mana = game.player(me).map_or(0, |p| p.treasury().mana.floor());
         let cost = game.casting_cost(me, spell, false);
         // The same gate as the other spells: paid from the reserve, not more than fifty turns.
-        let per_turn = mana / 10 + game.income(me).split.mana;
+        let per_turn = mana / 10 + game.income(me).split.mana.floor();
         if cost * 3 / 2 > mana || cost / 50 > per_turn {
             return false;
         }
@@ -833,7 +833,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         if magic.casting().is_some() {
             return;
         }
-        let mana = view.treasury().mana;
+        let mana = view.treasury().mana.floor();
         let income = view.income();
         let fighters = view
             .my_units()
@@ -902,7 +902,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 Kind::Other => false,
             };
             // The original's check: not more than fifty turns of what the AI can put towards it.
-            let per_turn = mana / 10 + income.split.mana;
+            let per_turn = mana / 10 + income.split.mana.floor();
             if wanted
                 && (k == Kind::Mastery
                     || (cost / 50 <= per_turn && quick_enough(cost, view.casting_power())))
@@ -1039,7 +1039,7 @@ mod tests {
         let ai = Ai::new(P1);
         let resurrection = f4x_def::rules::SpellId::new(133) /* resurrection */;
         treasury(&mut g, P1)?.gold = f4x_def::half_int::HalfInt::from_int(50_000);
-        treasury(&mut g, P1)?.mana = 5_000;
+        treasury(&mut g, P1)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
         for k in [1, 4] {
             let hero = g
                 .hire_hero(P1, k)
@@ -1069,7 +1069,7 @@ mod tests {
                 .ok_or("player 0 is a wizard")?
                 .put(Some(objective));
             // A big reserve needs no spare mana income: the first candidate that pays is taken.
-            treasury(&mut g, P0)?.mana = 1_000;
+            treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(1_000);
             split(&Ai::new(P0), &mut g, &mut Vec::new());
             Ok(g.wizard(P0)
                 .ok_or("player 0 is a wizard")?
@@ -1115,7 +1115,7 @@ mod tests {
         assert!(due > 4, "the test wizard has a casting skill ({due})");
         {
             let t = treasury(&mut g, P0)?;
-            t.mana = 0;
+            t.mana = f4x_def::half_int::HalfInt::from_int(0);
             t.gold = f4x_def::half_int::HalfInt::from_int(10_000);
         }
         let ai = Ai::new(P0);
@@ -1134,7 +1134,7 @@ mod tests {
     fn a_wizard_that_is_not_banished_keeps_its_gold() -> TestResult {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         g.scenario_casting(P0, spell(214 /* spell_of_return */)?, 500);
-        treasury(&mut g, P0)?.mana = 0;
+        treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(0);
         let gold = g.player(P0).ok_or("player 0 exists")?.treasury().gold;
         fund_return(&Ai::new(P0), &mut g, &mut Vec::new());
         assert_eq!(g.player(P0).ok_or("player 0 exists")?.treasury().gold, gold);
@@ -1148,7 +1148,7 @@ mod tests {
         g.make_contact(P0, P1);
         let famine = spell(189 /* famine */)?;
         g.cheat_learn_spell(P0, famine);
-        treasury(&mut g, P0)?.mana = 5_000;
+        treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
         g.wizard_mut(P0)
             .ok_or("player 0 is a wizard")?
             .set_split(20, 40, 40)
@@ -1196,7 +1196,7 @@ mod tests {
         g.make_contact(P0, P1);
         let storm = spell(113 /* meteor_storm */)?;
         g.cheat_learn_spell(P0, storm);
-        treasury(&mut g, P0)?.mana = 20_000;
+        treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(20_000);
         let mut wizard = g.wizard_mut(P0).ok_or("player 0 is a wizard")?;
         wizard.found(
             &f4x_def::testdir::shipped().rules,
@@ -1269,7 +1269,7 @@ mod tests {
             spell(12 /* natures_eye */)?,
         );
         g.cheat_learn_spell(P0, area);
-        treasury(&mut g, P0)?.mana = 5_000;
+        treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
         let city = g
             .economy()
             .city_at(at(COAST_CITY.0, COAST_CITY.1))
@@ -1313,7 +1313,7 @@ mod tests {
         g.make_contact(P0, P1);
         let blast = spell(58 /* spell_blast */)?;
         g.cheat_learn_spell(P0, blast);
-        treasury(&mut g, P0)?.mana = 5_000;
+        treasury(&mut g, P0)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
         let aim = |g: &Game| pick_target(&PlayerView::new(g, P0), blast);
         g.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: P0,

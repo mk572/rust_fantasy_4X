@@ -37,7 +37,8 @@ fn world() -> Game {
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     for (id, name) in [(P0, "Merlin"), (P1, "Rjak")] {
         g.add_player(id, name);
-        g.treasury_mut(id).expect("treasury_mut succeeds").mana = 20_000;
+        g.treasury_mut(id).expect("treasury_mut succeeds").mana =
+            f4x_def::half_int::HalfInt::from_int(20_000);
         g.init_wizard(id, &[(RealmId::new(3 /* life */), 2)], &[], None)
             .expect("init_wizard succeeds");
         g.wizard_mut(id)
@@ -464,7 +465,9 @@ fn spell_blast_fails_when_the_caster_cannot_match_the_mana() -> TestResult {
     let cost = g.casting_cost(P1, aura, false);
     g.scenario_casting(P1, aura, cost - 90);
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
-        g.casting_cost(P0, sp(&g, 58 /* spell_blast */), false) + 50;
+        f4x_def::half_int::HalfInt::from_int(
+            g.casting_cost(P0, sp(&g, 58 /* spell_blast */), false) + 50,
+        );
     let events = cast(&mut g, 58 /* spell_blast */, Target::Player(P1));
     assert!(
         !events
@@ -774,7 +777,8 @@ fn a_spell_blast_is_refused_without_contact_or_the_mana_to_match() -> TestResult
         ))
     );
     g.make_contact(P0, P1);
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 10;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(10);
     assert_eq!(
         refused(&g),
         Err(crate::wizard::magic::MagicError::Target(

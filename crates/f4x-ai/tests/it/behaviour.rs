@@ -79,7 +79,8 @@ fn a_wizard_that_knows_the_spell_of_mastery_casts_it_and_wins() -> TestResult {
         .known
         .insert(mastery);
     w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 5000;
-    g.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana = 20_000;
+    g.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana =
+        f4x_def::half_int::HalfInt::from_int(20_000);
     play(&mut g, 80);
     let over = g.game_over.ok_or("the game ended")?;
     assert_eq!(over.winner, P0);
@@ -104,7 +105,8 @@ fn a_wizard_that_knows_earth_lore_casts_it_and_sees_far_more() -> TestResult {
                 .known
                 .insert(spell);
             w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 400;
-            g.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana = 2000;
+            g.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana =
+                f4x_def::half_int::HalfInt::from_int(2000);
         }
         play(&mut g, 6);
         Ok(g.explored_squares(P0))

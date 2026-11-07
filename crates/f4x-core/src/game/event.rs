@@ -249,7 +249,7 @@ pub enum Event {
     PowerDrained {
         player: player::PlayerId,
         victim: player::PlayerId,
-        amount: i32,
+        amount: f4x_def::half_int::HalfInt,
     },
     /// Cruel Unminding took `amount` points of casting skill from `victim` for good.
     SkillDestroyed {

@@ -714,7 +714,7 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() -> TestResult
     assert!(!sees(&g, near), "four squares is out of sight at first");
     g.treasury_mut(HUMAN)
         .expect("the player has a treasury")
-        .mana = 5000;
+        .mana = f4x_def::half_int::HalfInt::from_int(5000);
     g.start_cast(HUMAN, eye, Some(Target::City(city)))
         .map_err(|e| format!("{e:?}"))?;
     // Paid over turns by the casting skill, then aimed.
@@ -1777,7 +1777,7 @@ fn arm_human(g: &mut Game, spells: &[u16]) {
         .collect();
     g.treasury_mut(HUMAN)
         .expect("the player has a treasury")
-        .mana = 5000;
+        .mana = f4x_def::half_int::HalfInt::from_int(5000);
     let mut w = g.wizard_mut(HUMAN).expect("the player is a wizard");
     w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
     w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
@@ -2138,7 +2138,7 @@ fn a_dispel_in_battle_also_takes_the_overland_spells_off_the_unit_it_copied() {
     {
         g.treasury_mut(HUMAN)
             .expect("the player has a treasury")
-            .mana = 5000;
+            .mana = f4x_def::half_int::HalfInt::from_int(5000);
         let mut w = g.wizard_mut(HUMAN).expect("the player is a wizard");
         w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
         w.get_mut::<f4x_core::wizard::sheet::KnownSpells>()
@@ -2331,7 +2331,7 @@ fn mana_leak_drains_the_rivals_reserve_in_the_game_too() {
     let mut g = casting_siege(&[170 /* mana_leak */]);
     g.treasury_mut(PlayerId(1))
         .expect("the player has a treasury")
-        .mana = 100;
+        .mana = f4x_def::half_int::HalfInt::from_int(100);
     // The rival's wizard in the battle has its reserve from the game.
     g.battle
         .as_mut()

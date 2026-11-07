@@ -278,7 +278,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
         );
         if let Some(t) = game.treasury_mut(id) {
             t.gold = HalfInt::from_int(gold);
-            t.mana = mana;
+            t.mana = HalfInt::from_int(mana);
         }
     }
     // Races: player 0's choice, then the others in turn, skipping races already taken. A

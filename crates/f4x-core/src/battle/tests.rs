@@ -2729,7 +2729,8 @@ fn begin(g: &mut Game, attacker: hecs::Entity) {
 #[test]
 fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() -> TestResult {
     let mut g = game();
-    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 2000;
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(2000);
     g.init_wizard(A, &[(RealmId::new(2 /* chaos */), 5)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     let call = g
@@ -2831,7 +2832,8 @@ fn call_chaos_deals_every_enemy_unit_one_of_its_eight_outcomes_and_says_which() 
 #[test]
 fn chaos_channels_mutates_an_own_normal_unit_in_a_battle_once() -> TestResult {
     let mut g = game();
-    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 2000;
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(2000);
     g.init_wizard(A, &[(RealmId::new(2 /* chaos */), 5)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     let spell = g
@@ -4517,7 +4519,8 @@ fn dispel_the_field(burn: usize) -> (bool, bool) {
     for _ in 0..burn {
         g.next_u64();
     }
-    g.treasury_mut(A).expect("treasury_mut succeeds").mana = 2000;
+    g.treasury_mut(A).expect("treasury_mut succeeds").mana =
+        f4x_def::half_int::HalfInt::from_int(2000);
     g.init_wizard(A, &[(RealmId::new(1 /* sorcery */), 5)], &[], None)
         .expect("init_wizard succeeds");
     let dispel = g
@@ -4604,7 +4607,8 @@ fn dispel_magic_takes_down_the_enemy_battlefield_spells_and_leaves_its_casters_o
 /// attacker is a `unit` of the test content.
 fn wizard_battle(unit: u16, spells: &[u16]) -> Game {
     let mut g = game();
-    g.treasury_mut(A).expect("treasury_mut succeeds").mana = 2000;
+    g.treasury_mut(A).expect("treasury_mut succeeds").mana =
+        f4x_def::half_int::HalfInt::from_int(2000);
     g.init_wizard(
         A,
         &[
@@ -5092,7 +5096,8 @@ fn a_replay_can_start_in_a_battle() -> TestResult {
 #[test]
 fn the_defender_raises_walls_at_its_city_for_the_battle_and_nobody_else_can() -> TestResult {
     let mut g = wizard_battle(107 /* high_men_cavalry */, &[]);
-    g.treasury_mut(D).ok_or("treasury_mut is missing")?.mana = 2000;
+    g.treasury_mut(D).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(2000);
     g.init_wizard(
         D,
         &[
@@ -5180,7 +5185,8 @@ fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() ->
         None,
     )
     .map_err(|e| format!("{e:?}"))?;
-    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 500;
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(500);
     // No spell for a battle: nothing to ask.
     g.wizard_mut(A)
         .ok_or("wizard_mut is missing")?
@@ -5211,11 +5217,14 @@ fn the_default_limit_is_the_lower_of_the_casting_skill_and_half_the_reserve() ->
         .ok_or("wizard is missing")?
         .casting_skill(&g.content.rules) as u32;
     assert_eq!(g.strategic_mana_default(A), Some(skill.clamp(1, 250)));
-    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 10;
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(10);
     assert_eq!(g.strategic_mana_default(A), Some(skill.clamp(1, 5)));
-    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 1;
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(1);
     assert_eq!(g.strategic_mana_default(A), Some(1));
-    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana = 0;
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(0);
     assert_eq!(g.strategic_mana_default(A), None);
     Ok(())
 }

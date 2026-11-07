@@ -168,7 +168,8 @@ mod tests {
     /// The hero world (the game's real units, level paths and heroes) with a life wizard.
     fn world() -> Game {
         let mut g = crate::hero::game::tests::world();
-        g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 5000;
+        g.treasury_mut(P0).expect("treasury_mut succeeds").mana =
+            f4x_def::half_int::HalfInt::from_int(5000);
         g.init_wizard(P0, &[(RealmId::new(3 /* life */), 4)], &[], None)
             .expect("init_wizard succeeds");
         g

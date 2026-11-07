@@ -39,7 +39,7 @@ impl<'a> Player<'a> {
         self.component::<Treasury>().map_or(
             Treasury {
                 gold: HalfInt::ZERO,
-                mana: 0,
+                mana: HalfInt::ZERO,
             },
             |t| *t,
         )

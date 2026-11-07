@@ -15,6 +15,7 @@ use crate::rules::Ability;
 use crate::rules::UnitKind;
 use crate::spell::target_error::TargetError;
 use crate::wizard::magic::{base_casting_skill, skill_points_for};
+use f4x_def::half_int::HalfInt;
 
 /// The hook of the spells aimed straight at an opponent wizard.
 pub const WIZARD_EFFECT: &str = "wizard_effect";
@@ -67,12 +68,12 @@ const EARTHQUAKE_UNIT_PERCENT: u32 = 25;
 impl Game {
     /// Drain Power: the victim loses 10 to 200 mana (not more than they have); returns what
     /// was taken.
-    pub(crate) fn drain_power(&mut self, victim: PlayerId, rng: &mut GameRng) -> i32 {
-        let wanted: i32 = (0..DRAIN_ROLLS).map(|_| rng.roll(DRAIN_DIE) as i32).sum();
+    pub(crate) fn drain_power(&mut self, victim: PlayerId, rng: &mut GameRng) -> HalfInt {
+        let wanted = HalfInt::from_int((0..DRAIN_ROLLS).map(|_| rng.roll(DRAIN_DIE) as i32).sum());
         let Some(t) = self.treasury_mut(victim) else {
-            return 0;
+            return HalfInt::ZERO;
         };
-        let taken = wanted.min(t.mana.max(0));
+        let taken = wanted.min(t.mana.max(HalfInt::ZERO));
         t.mana -= taken;
         taken
     }

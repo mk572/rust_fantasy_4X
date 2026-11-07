@@ -18,6 +18,7 @@ use crate::text::Args;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
+use f4x_def::half_int::HalfInt;
 use f4x_def::rules::SpellId;
 use macroquad::prelude::*;
 
@@ -472,9 +473,10 @@ impl MagicUi {
             let base = income.power_base;
             let [m, _, s] = self.pos;
             let mut p = income.split;
-            p.mana = base * 2 * m / 100;
-            p.skill = base * 2 * s / 100;
-            p.research = base - p.mana - p.skill + income.city_research;
+            p.mana = HalfInt::from_raw(base.raw() * 2 * m / 100);
+            p.skill = base.raw() * 2 * s / 100 / 2;
+            p.research =
+                (base - p.mana - HalfInt::from_int(p.skill)).floor() + income.city_research;
             p
         } else {
             income.split
@@ -484,7 +486,10 @@ impl MagicUi {
         app.draw_styled(
             view,
             &Style::sh_set(2, 3).edge(EDGE_FIGURES).right(),
-            &app.text_with("magic.mp", &Args::new().count("n", split.mana)),
+            &app.text_with(
+                "magic.mp",
+                &Args::new().text("n", app.texts.half_amount(split.mana)),
+            ),
             54.0,
             160.0,
         );
@@ -507,8 +512,11 @@ impl MagicUi {
             .game
             .wizard(HUMAN)
             .map_or(0, |m| m.casting_skill(&app.game.content().rules));
-        let reserve = app.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
-        let base = income.power_base;
+        let reserve = app
+            .game
+            .player(HUMAN)
+            .map_or(0, |p| p.treasury().mana.floor());
+        let base = income.power_base.floor();
         let name = |g: &f4x_core::game::Game, s: SpellId| {
             app.names
                 .spell(g.content().rules.spells.get(s).num)
@@ -631,7 +639,10 @@ impl MagicUi {
             .game
             .player(HUMAN)
             .map_or(0, |p| p.treasury().gold.floor());
-        let mana = app.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
+        let mana = app
+            .game
+            .player(HUMAN)
+            .map_or(0, |p| p.treasury().mana.floor());
         let percent = app.game.wizard(HUMAN).map_or(50, |m| {
             m.stat(
                 &app.game.content().rules,

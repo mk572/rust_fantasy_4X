@@ -2,6 +2,7 @@ use super::*;
 use crate::game::testutil::shipped;
 use crate::wizard::magic::Retort;
 use crate::wizard::sheet::{Books, Retorts, WizardMut};
+use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
@@ -12,7 +13,7 @@ struct Fake {
     wizard: hecs::Entity,
     content: Content,
     casting_return: bool,
-    city: (i32, i32),
+    city: (HalfInt, i32),
     fortress: Option<Plane>,
     volcanoes: i32,
     nodes: i32,
@@ -31,7 +32,7 @@ fn fake() -> Fake {
         wizard,
         content: shipped(),
         casting_return: false,
-        city: (4, 2),
+        city: (HalfInt::from_int(4), 2),
         fortress: None,
         volcanoes: 0,
         nodes: 0,
@@ -49,7 +50,7 @@ impl IncomeView for Fake {
     fn casting_return(&self, _: PlayerId) -> bool {
         self.casting_return
     }
-    fn city_yield(&self, _: PlayerId) -> (i32, i32) {
+    fn city_yield(&self, _: PlayerId) -> (HalfInt, i32) {
         self.city
     }
     fn fortress_plane(&self, _: PlayerId) -> Option<Plane> {
@@ -77,7 +78,7 @@ fn the_power_base_adds_cities_fortress_volcanoes_and_nodes() {
     v.volcanoes = 1;
     v.nodes = 3;
     assert_eq!(income(&v, P0).power_base, 4 + 2 + 5 + 1 + 3);
-    v.city = (-30, 0);
+    v.city = (HalfInt::from_int(-30), 0);
     assert_eq!(income(&v, P0).power_base, 0, "never below nothing");
 }
 
@@ -90,7 +91,7 @@ fn the_power_is_split_by_the_percentages_and_the_cities_add_research() -> TestRe
     assert_eq!(
         i.split,
         PowerShares {
-            mana: 2,
+            mana: f4x_def::half_int::HalfInt::from_int(2),
             skill: 2,
             research: 2 + 2
         }
@@ -102,7 +103,7 @@ fn the_power_is_split_by_the_percentages_and_the_cities_add_research() -> TestRe
     assert_eq!(
         income(&v, P0).split,
         PowerShares {
-            mana: 6,
+            mana: f4x_def::half_int::HalfInt::from_int(6),
             skill: 0,
             research: 2
         }
@@ -111,7 +112,11 @@ fn the_power_is_split_by_the_percentages_and_the_cities_add_research() -> TestRe
         .get_mut::<Retorts>()
         .0
         .insert(Retort::new(11) /* mana_focusing */);
-    assert_eq!(income(&v, P0).split.mana, 7, "a quarter more mana");
+    assert_eq!(
+        income(&v, P0).split.mana,
+        HalfInt::from_raw(15),
+        "a quarter more mana"
+    );
     Ok(())
 }
 
@@ -125,17 +130,21 @@ fn the_spell_of_return_stops_all_income() {
     assert_eq!(i.power_base, 0);
     assert_eq!(i.split, PowerShares::default());
     assert_eq!(i.research, 0);
-    assert_eq!(i.mana_upkeep, 6, "the upkeep is still owed");
+    assert_eq!(
+        i.mana_upkeep,
+        HalfInt::from_int(6),
+        "the upkeep is still owed"
+    );
 }
 
 #[test]
 fn a_channeler_pays_half_the_upkeep() {
     let mut v = fake();
     v.upkeep = 9;
-    assert_eq!(income(&v, P0).mana_upkeep, 9);
+    assert_eq!(income(&v, P0).mana_upkeep, HalfInt::from_int(9));
     WizardMut::new(&mut v.world, v.wizard)
         .get_mut::<Retorts>()
         .0
         .insert(Retort::new(8) /* channeler */);
-    assert_eq!(income(&v, P0).mana_upkeep, 4);
+    assert_eq!(income(&v, P0).mana_upkeep, HalfInt::from_raw(9));
 }

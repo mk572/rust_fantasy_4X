@@ -100,7 +100,7 @@ fn the_vault_has_room_for_all_so_nothing_overflows_and_scrapping_is_the_wizards_
         "thirteen items, no limit"
     );
     // The wizard may still scrap an item for mana while releasing a hero.
-    g.tr_mut(0).mana = 0;
+    g.tr_mut(0).mana = f4x_def::half_int::HalfInt::from_int(0);
     g.release_troops(P0, &[h], &[ItemSpot::Vault(6)])
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(g.tr(0).mana, 35, "Junk6, worth 70 gold, gives half in mana");

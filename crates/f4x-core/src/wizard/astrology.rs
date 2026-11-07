@@ -49,7 +49,7 @@ impl Game {
             .wizard(player)
             .map_or(0, |m| m.known().iter().filter_map(|s| rank.get(s)).sum());
         Astrology {
-            power: (self.income(player).power_base - 10).max(0),
+            power: (self.income(player).power_base.floor() - 10).max(0),
             strength: upkeep.floor() / 5,
             research: research / 8,
         }

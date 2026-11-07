@@ -176,12 +176,13 @@ impl Page for CityListUi {
             let head = app.text(head);
             app.draw_styled(view, &Style::city_list_text(1), &head, x, 17.0);
         }
-        let (reserve_gold, reserve_mana) = app
-            .game
-            .player(HUMAN)
-            .map_or((f4x_def::half_int::HalfInt::ZERO, 0), |p| {
-                (p.treasury().gold, p.treasury().mana)
-            });
+        let (reserve_gold, reserve_mana) = app.game.player(HUMAN).map_or(
+            (
+                f4x_def::half_int::HalfInt::ZERO,
+                f4x_def::half_int::HalfInt::ZERO,
+            ),
+            |p| (p.treasury().gold, p.treasury().mana),
+        );
         app.draw_styled(
             view,
             &Style::city_list_text(1).center(),
@@ -195,7 +196,10 @@ impl Page for CityListUi {
         app.draw_styled(
             view,
             &Style::city_list_text(1).center(),
-            &app.text_with("cities.reserve_mana", &Args::new().count("n", reserve_mana)),
+            &app.text_with(
+                "cities.reserve_mana",
+                &Args::new().text("n", app.texts.half_amount(reserve_mana)),
+            ),
             276.0,
             172.0,
         );

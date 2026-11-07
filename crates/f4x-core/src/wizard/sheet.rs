@@ -9,6 +9,7 @@
 //!
 //! Tests: in wizard/sheet/tests.rs.
 
+use f4x_def::half_int::HalfInt;
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::game::rng::GameRng;
@@ -284,20 +285,22 @@ impl<'a> Wizard<'a> {
     /// research share is switched off, what it would have been goes to skill (or to mana
     /// when skill is off too). Mana Focusing adds a quarter to mana. `city_research` is what
     /// the wizard's cities produce, added to the research share.
-    pub fn split_power(&self, rules: &Rules, power: i32, city_research: i32) -> PowerShares {
+    pub fn split_power(&self, rules: &Rules, power: HalfInt, city_research: i32) -> PowerShares {
         let split = self.power_split();
-        let mut mana = (power * i32::from(split.mana) + 50) / 100;
-        let mut skill = (power * i32::from(split.skill) + 50) / 100;
-        let mut research = power - mana - skill;
+        // The mana share keeps halves; the skill and research points are whole, so the halves
+        // they would have had stay with the research (or with the mana, when it takes the rest).
+        let mut mana = HalfInt::from_raw((power.raw() * i32::from(split.mana) + 50) / 100);
+        let mut skill = (power.raw() * i32::from(split.skill) + 50) / 100 / 2;
+        let mut research = (power - mana - HalfInt::from_int(skill)).floor();
         if split.research == 0 && research > 0 {
             if split.skill == 0 {
-                mana += research;
+                mana += HalfInt::from_int(research);
             } else {
                 skill += research;
             }
             research = 0;
         }
-        mana = retort::stat(rules, &self.retorts(), Stat::ManaIncome, mana);
+        mana = retort::stat_half(rules, &self.retorts(), Stat::ManaIncome, mana);
         PowerShares {
             mana,
             skill,
@@ -753,14 +756,14 @@ impl<'a> WizardMut<'a> {
         rules: &crate::rules::Rules,
         split: &PowerShares,
         research: i32,
-    ) -> i32 {
+    ) -> HalfInt {
         let percent = self
             .view()
             .stat(rules, crate::rules::Stat::SkillGainPercent, 100);
         self.add_research(research);
         let skill = split.skill.max(0);
         self.get_mut::<Skill>().points += skill * percent / 100;
-        split.mana.max(0)
+        split.mana.max(HalfInt::ZERO)
     }
 
     /// The spell being researched is learned if its research is paid for.
@@ -779,9 +782,11 @@ impl<'a> WizardMut<'a> {
     }
 
     /// Spend casting skill and mana on the spell being cast. Returns the reserve left.
-    pub fn pay_casting(&mut self, rules: &crate::rules::Rules, reserve: i32) -> i32 {
+    pub fn pay_casting(&mut self, rules: &crate::rules::Rules, reserve: HalfInt) -> HalfInt {
         let nominal = self.view().casting_skill(rules);
-        let mut reserve = reserve;
+        // Skill and mana trade one for one, in whole points; a half point of mana stays.
+        let half = reserve - HalfInt::from_int(reserve.floor());
+        let mut reserve = reserve.floor();
         let mut skill = *self.get_mut::<Skill>();
         if let Some(cast) = self.cast() {
             if let Ok(mut c) = self.world.get::<&mut Owed>(cast) {
@@ -805,7 +810,7 @@ impl<'a> WizardMut<'a> {
             skill.left = nominal;
         }
         *self.get_mut::<Skill>() = skill;
-        reserve
+        HalfInt::from_int(reserve) + half
     }
 
     /// Research points reach the spell being researched (nothing when none is).

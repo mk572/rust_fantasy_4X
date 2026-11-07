@@ -218,7 +218,8 @@ mod tests {
         g.content = c;
         g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
         g.add_player(P0, "W");
-        g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 1000;
+        g.treasury_mut(P0).expect("treasury_mut succeeds").mana =
+            f4x_def::half_int::HalfInt::from_int(1000);
         g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
             .expect("init_wizard succeeds");
         g
@@ -240,7 +241,8 @@ mod tests {
             .expect("value succeeds")
             .get_mut::<crate::wizard::sheet::Skill>()
             .left = 500;
-        g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 1000;
+        g.treasury_mut(P0).expect("treasury_mut succeeds").mana =
+            f4x_def::half_int::HalfInt::from_int(1000);
         g.apply(Command::CastSpell {
             extra: 0,
             player: P0,

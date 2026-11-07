@@ -129,11 +129,15 @@ fn the_power_is_split_by_the_percentages() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .set_split(40, 30, 30)
         .map_err(|e| format!("{e:?}"))?;
-    let split = g
-        .wizard(P0)
-        .ok_or("wizard is missing")?
-        .split_power(&g.content.rules, 100, 6);
-    assert_eq!((split.mana, split.skill, split.research), (40, 30, 30 + 6));
+    let split = g.wizard(P0).ok_or("wizard is missing")?.split_power(
+        &g.content.rules,
+        f4x_def::half_int::HalfInt::from_int(100),
+        6,
+    );
+    assert_eq!(
+        (split.mana.floor(), split.skill, split.research),
+        (40, 30, 30 + 6)
+    );
     assert_eq!(
         g.wizard_mut(P0)
             .ok_or("wizard_mut is missing")?
@@ -146,11 +150,15 @@ fn the_power_is_split_by_the_percentages() -> TestResult {
     w.get_mut::<Retorts>()
         .0
         .insert(Retort::new(11) /* mana_focusing */);
-    let split = g
-        .wizard(P0)
-        .ok_or("wizard is missing")?
-        .split_power(&g.content.rules, 10, 0);
-    assert_eq!((split.mana, split.skill, split.research), (5 + 1, 5, 0));
+    let split = g.wizard(P0).ok_or("wizard is missing")?.split_power(
+        &g.content.rules,
+        f4x_def::half_int::HalfInt::from_int(10),
+        0,
+    );
+    assert_eq!(
+        (split.mana.floor(), split.skill, split.research),
+        (5 + 1, 5, 0)
+    );
     Ok(())
 }
 
@@ -239,7 +247,7 @@ fn research_runs_from_choice_to_a_known_spell() -> TestResult {
     );
     // A sage master's research goes a quarter further.
     let split = PowerShares {
-        mana: 0,
+        mana: f4x_def::half_int::HalfInt::from_int(0),
         skill: 0,
         research: 100,
     };
@@ -294,7 +302,10 @@ fn casting_is_paid_over_turns_and_cancelled_without_a_refund() -> TestResult {
     let skill = w.view().casting_skill(&f4x_def::testdir::shipped().rules);
     // The skill left from last turn pays first; the nominal skill pays only if it finishes the
     // spell, which it cannot here. What is paid comes out of the reserve.
-    let reserve = w.pay_casting(&f4x_def::testdir::shipped().rules, 1000);
+    let reserve = w.pay_casting(
+        &f4x_def::testdir::shipped().rules,
+        f4x_def::half_int::HalfInt::from_int(1000),
+    );
     assert_eq!(
         w.view().casting().ok_or("casting is missing")?.remaining,
         40 - skill
@@ -310,7 +321,10 @@ fn casting_is_paid_over_turns_and_cancelled_without_a_refund() -> TestResult {
     g.scenario_casting(P0, strength, skill);
     let mut w = g.wizard_mut(P0).ok_or("wizard_mut is missing")?;
     w.get_mut::<Skill>().left = 0;
-    let reserve = w.pay_casting(&f4x_def::testdir::shipped().rules, 1000);
+    let reserve = w.pay_casting(
+        &f4x_def::testdir::shipped().rules,
+        f4x_def::half_int::HalfInt::from_int(1000),
+    );
     assert_eq!(w.view().casting_paid(), Some(strength));
     assert_eq!(reserve, 1000 - skill);
     assert_eq!(w.view().skill_left(), 0, "borrowed and paid back at once");
@@ -347,7 +361,7 @@ fn power_reaches_the_reserve_the_research_and_the_skill() -> TestResult {
     };
     let points = w.view().skill_points();
     let split = PowerShares {
-        mana: 7,
+        mana: f4x_def::half_int::HalfInt::from_int(7),
         research: 4,
         skill: 4,
     };

@@ -14,6 +14,7 @@ use crate::map::Position;
 use crate::player::PlayerId;
 use crate::wizard::entity::{CapitalRace, Wizard};
 use crate::wizard::sheet::WizardMut;
+use f4x_def::half_int::HalfInt;
 
 use crate::game::{Event, Game};
 use crate::rules::RaceId;
@@ -336,7 +337,9 @@ impl Game {
     /// What the winner gets from a wizard who loses the fortress or the last city: 5 fame and
     /// half the loser's mana.
     fn take_fortress_prize(&mut self, loser: PlayerId, winner: PlayerId) {
-        let half = self.treasury_mut(loser).map_or(0, |t| t.take_half_mana());
+        let half = self
+            .treasury_mut(loser)
+            .map_or(HalfInt::ZERO, |t| t.take_half_mana());
         self.add_fame(winner, FORTRESS_PRIZE_FAME);
         if let Some(t) = self.treasury_mut(winner) {
             t.mana += half;
@@ -385,7 +388,9 @@ impl Game {
             .wizard(loser)
             .map_or(0, |m| m.casting_skill(&self.content.rules))
             + self.hero_casting_skill(loser);
-        let mana = self.player(loser).map_or(0, |p| p.treasury().mana);
+        let mana = self
+            .player(loser)
+            .map_or(HalfInt::ZERO, |p| p.treasury().mana);
         if let Some(mut w) = self.wizard_mut(loser) {
             fortress_falls(&mut w);
         }

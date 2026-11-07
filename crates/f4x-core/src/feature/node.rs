@@ -302,7 +302,8 @@ pub(crate) mod tests {
         g.put_node(at(6, 6), num::feature::SORCERY_NODE, 1);
         for id in [P0, P1] {
             g.add_player(id, "W");
-            g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
+            g.treasury_mut(id).expect("treasury_mut succeeds").mana =
+                f4x_def::half_int::HalfInt::from_int(100);
             g.init_wizard(id, &[(RealmId::new(3 /* life */), 2)], &[], None)
                 .expect("init_wizard succeeds");
         }

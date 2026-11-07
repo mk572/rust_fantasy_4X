@@ -872,7 +872,7 @@ impl App {
                 Event::PowerDrained { victim, amount, .. } => {
                     let args = self
                         .wizard_arg(Args::new(), "wizard", victim)
-                        .count("amount", amount);
+                        .text("amount", self.texts.half_amount(amount));
                     Some(self.text_with("log.power_drained", &args))
                 }
                 Event::SkillDestroyed { victim, amount, .. } => {

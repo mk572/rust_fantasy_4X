@@ -7,9 +7,10 @@ use std::collections::BTreeSet;
 
 use crate::rules::effects::{Effect, SpellTag, Trigger};
 use crate::rules::exec::{eval, Facts};
-use crate::rules::stats::compute;
+use crate::rules::stats::{compute, compute_half};
 use crate::rules::{ModOp, Modifier, Rules, Source, SpellDef, Stat};
 use crate::wizard::magic::{is_crafting, is_summoning, Retort};
+use f4x_def::half_int::HalfInt;
 
 /// What the retort conditions can ask about `def`.
 fn facts(def: &SpellDef) -> Facts {
@@ -55,7 +56,20 @@ pub fn stat_with(
     base: i32,
     facts: &Facts,
 ) -> i32 {
-    let mods = retorts
+    compute(stat, base, &stat_modifiers(rules, retorts, facts))
+}
+
+/// [`stat`] over an amount in halves (the mana income).
+pub fn stat_half(rules: &Rules, retorts: &BTreeSet<Retort>, stat: Stat, base: HalfInt) -> HalfInt {
+    compute_half(
+        stat,
+        base,
+        &stat_modifiers(rules, retorts, &Facts::default()),
+    )
+}
+
+fn stat_modifiers(rules: &Rules, retorts: &BTreeSet<Retort>, facts: &Facts) -> Vec<Modifier> {
+    retorts
         .iter()
         .filter_map(|&r| rules.retorts.try_get(r).map(|row| (r, row)))
         .flat_map(|(r, row)| {
@@ -70,8 +84,7 @@ pub fn stat_with(
                     _ => None,
                 })
         })
-        .collect::<Vec<_>>();
-    compute(stat, base, &mods)
+        .collect()
 }
 
 /// [`stat_with`] for a rule that asks nothing (its condition is `Always`).

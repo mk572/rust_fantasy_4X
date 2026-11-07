@@ -78,7 +78,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 473 | Low | Audio | Denoise the original speech sound files (the intro's spoken lines and any other voice clips) |
 | 474 | Low | AI | AI heroes and items: lairs, experience, Resurrection, hiring, item trade and crafting (split from 367) |
 | 476 | Medium | Client | Cache queried game information and refresh it only after relevant state changes |
-| 478 | Low | Housekeeping | Make `f4x-ai-ref` a local-only snapshot: ignored by git, behind a `reference` feature of `f4x-tools` |
 | 483 | Medium | Meta | Review the constants in code: which should move to content or to a settings file |
 | 485 | Low | Core | Smaller save files: the fog and map grids, compression |
 | 488 | Medium | AI | AI spellcasting helper: the AI picks an intent (buff, harm a city, boost production, kill a unit), a helper with learned weights returns the best known spell |

@@ -416,7 +416,7 @@ impl Standing {
             buildings: cities.iter().map(|&c| game.city_buildings(c).len()).sum(),
             units: game.units().player_units(player).len(),
             gold: treasury.map_or(0, |t| t.gold.floor()),
-            mana: treasury.map_or(0, |t| t.mana),
+            mana: treasury.map_or(0, |t| t.mana.floor()),
             spells_known: game.wizard(player).map_or(0, |w| w.known().len()),
             explored: game.explored_squares(player),
             fame: game.wizard(player).map_or(0, |w| w.fame()),

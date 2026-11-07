@@ -86,7 +86,7 @@ fn set_wizard(game: &mut Game, player: PlayerId, spec: &Option<WizardSpec>) {
         .as_ref()
         .map_or((0, 0), |w| (w.mana, w.skill_points as i32));
     if let Some(t) = game.treasury_mut(player) {
-        t.mana = mana;
+        t.mana = f4x_def::half_int::HalfInt::from_int(mana);
     }
     let Some(mut w) = game.wizard_mut(player) else {
         return;

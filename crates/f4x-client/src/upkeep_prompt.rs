@@ -316,7 +316,13 @@ impl UpkeepPrompt {
                 let Some(l) = self.mana.as_ref().and_then(|o| o.lines.get(i)) else {
                     return (String::new(), String::new());
                 };
-                (app.upkeep_label(l), count("upkeep.price_mana", l.mana))
+                (
+                    app.upkeep_label(l),
+                    texts.get(
+                        "upkeep.price_mana",
+                        &Args::new().text("n", texts.half_amount(l.mana)),
+                    ),
+                )
             }
             Line::Troop(i) => {
                 let Some(l) = self.troops.as_ref().and_then(|o| o.troops.get(i)) else {
@@ -360,16 +366,19 @@ impl UpkeepPrompt {
         }
         let mut missing = Vec::new();
         if let Some(m) = &self.mana {
-            let freed: i32 = m
+            let freed: f4x_def::half_int::HalfInt = m
                 .lines
                 .iter()
                 .zip(&self.mana_marked)
                 .filter(|(_, &x)| x)
                 .map(|(l, _)| l.mana)
                 .sum();
-            let short = (m.owed - freed - m.reserve).max(0);
-            if short > 0 {
-                missing.push(texts.get("upkeep.short_mana", &Args::new().count("n", short)));
+            let short = (m.owed - freed - m.reserve).max(f4x_def::half_int::HalfInt::ZERO);
+            if short > f4x_def::half_int::HalfInt::ZERO {
+                missing.push(texts.get(
+                    "upkeep.short_mana",
+                    &Args::new().text("n", texts.half_amount(short)),
+                ));
             }
         }
         if let Some(t) = &self.troops {
@@ -450,7 +459,7 @@ impl App {
         let _ = self.game.spawn_hero(HUMAN, at, 0);
         if let Some(t) = self.game.treasury_mut(HUMAN) {
             t.gold = f4x_def::half_int::HalfInt::ZERO;
-            t.mana = 0;
+            t.mana = f4x_def::half_int::HalfInt::ZERO;
         }
         for spell in spells {
             self.game.attach_enchantment(
@@ -741,12 +750,21 @@ mod tests {
             })
         };
         Ok(Shortfall {
-            reserve,
-            owed: 60,
+            reserve: f4x_def::half_int::HalfInt::from_int(reserve),
+            owed: f4x_def::half_int::HalfInt::from_int(60),
             lines: vec![
-                line(158 /* crusade */, 10)?,
-                line(116 /* chaos_surge */, 20)?,
-                line(120 /* armageddon */, 30)?,
+                line(
+                    158, /* crusade */
+                    f4x_def::half_int::HalfInt::from_int(10),
+                )?,
+                line(
+                    116, /* chaos_surge */
+                    f4x_def::half_int::HalfInt::from_int(20),
+                )?,
+                line(
+                    120, /* armageddon */
+                    f4x_def::half_int::HalfInt::from_int(30),
+                )?,
             ],
         })
     }

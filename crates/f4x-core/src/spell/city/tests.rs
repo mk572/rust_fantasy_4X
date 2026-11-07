@@ -33,7 +33,8 @@ fn world() -> Game {
     g.fog = crate::map::fog::Fog::new(24, 14);
     for id in [P0, P1] {
         g.add_player(id, "W");
-        g.treasury_mut(id).expect("treasury_mut succeeds").mana = 1000;
+        g.treasury_mut(id).expect("treasury_mut succeeds").mana =
+            f4x_def::half_int::HalfInt::from_int(1000);
         g.player_component_mut::<crate::player::Tax>(id)
             .expect("value succeeds")
             .0 = 4;
@@ -388,7 +389,8 @@ fn cast_ward(g: &mut Game, city: hecs::Entity, id: u16) -> Vec<Event> {
         .expect("value succeeds")
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 500;
-    g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 5000;
+    g.treasury_mut(P0).expect("treasury_mut succeeds").mana =
+        f4x_def::half_int::HalfInt::from_int(5000);
     let realm = realm(g, id);
     g.apply(Command::CastSpell {
         extra: 0,

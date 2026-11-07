@@ -29,7 +29,8 @@ fn world() -> Game {
     g.map = Some(Map::new(Grid::new(24, 14, grass), Grid::new(24, 14, grass)));
     for id in [P0, P1] {
         g.add_player(id, "W");
-        g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
+        g.treasury_mut(id).expect("treasury_mut succeeds").mana =
+            f4x_def::half_int::HalfInt::from_int(100);
     }
     g.init_wizard(P0, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .expect("init_wizard succeeds");
@@ -85,7 +86,8 @@ fn cast(g: &mut Game, id: u16, city: hecs::Entity) -> Vec<Event> {
         .expect("value succeeds")
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 500;
-    g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 500;
+    g.treasury_mut(P0).expect("treasury_mut succeeds").mana =
+        f4x_def::half_int::HalfInt::from_int(500);
     g.apply(Command::CastSpell {
         extra: 0,
         player: P0,
@@ -141,7 +143,8 @@ fn summoned_creatures_appear_at_the_circle() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 99;
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 500;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(500);
     // No target is needed: the creatures come to the circle.
     assert!(!g.spell_needs_target(P0, call));
     g.apply(Command::CastSpell {
@@ -166,7 +169,8 @@ fn summoned_creatures_appear_at_the_circle() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 99;
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 500;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(500);
     g.apply(Command::CastSpell {
         extra: 0,
         player: P0,
@@ -295,7 +299,8 @@ fn losing_the_fortress_banishes_and_the_spell_of_return_brings_the_wizard_back()
     );
     // It is paid over the following turns (a thousand points at the wizard's skill), then needs a
     // city.
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 5000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(5000);
     let mut ready = false;
     for _ in 0..400 {
         let events = g.apply(Command::EndTurn);
@@ -449,7 +454,8 @@ fn finishing_the_spell_of_mastery_wins_and_scores() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 9000;
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 9000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(9000);
     let _ = capital;
     let events = g.apply(Command::CastSpell {
         extra: 0,
@@ -492,7 +498,8 @@ fn starting_the_spell_of_mastery_is_announced_and_visible_to_all() -> TestResult
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
         .insert(s);
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 500;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(500);
     assert!(g.mastery_casters().is_empty());
     let events = g.apply(Command::CastSpell {
         extra: 0,
@@ -622,10 +629,14 @@ fn a_banished_wizard_returns_and_takes_the_cities_race() -> TestResult {
     assert_eq!(sites(&w), (None, None));
     let mut t = crate::player::Treasury {
         gold: f4x_def::half_int::HalfInt::from_int(0),
-        mana: 11,
+        mana: f4x_def::half_int::HalfInt::from_int(11),
     };
-    assert_eq!(t.take_half_mana(), 5);
-    assert_eq!(t.mana, 6, "the odd point stays");
+    assert_eq!(t.take_half_mana(), f4x_def::half_int::HalfInt::from_raw(11));
+    assert_eq!(
+        t.mana,
+        f4x_def::half_int::HalfInt::from_raw(11),
+        "an odd amount splits in halves"
+    );
     banish_player(&mut w, P1);
     assert!(w.view().is_banished());
     assert_eq!(w.view().banished_by(), Some(P1));
@@ -730,7 +741,8 @@ fn a_computer_wizard_who_cannot_pay_for_the_return_resigns_and_the_cities_go_neu
 #[test]
 fn a_computer_wizard_with_no_mana_resigns_too() -> TestResult {
     let (mut g, capital, _) = banish_world(40);
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 0;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(0);
     let events = g.capture_city(capital, P1);
     assert!(
         events.contains(&Event::WizardDefeated { player: P0 }),
@@ -883,7 +895,7 @@ fn the_last_city_taken_without_the_fortress_still_pays_the_prize() -> TestResult
     );
     assert_eq!(
         g.player(P1).ok_or("player is missing")?.treasury().mana,
-        mana + theirs / 2
+        mana + f4x_def::half_int::HalfInt::from_raw(theirs.raw() / 2)
     );
     Ok(())
 }

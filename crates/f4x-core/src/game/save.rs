@@ -235,7 +235,7 @@ pub struct FogSave {
 pub struct PlayerSave {
     pub id: u8,
     pub gold: HalfInt,
-    pub mana: i32,
+    pub mana: HalfInt,
     pub tax_rate: u8,
     /// The Grand Vizier chooses what the cities build.
     pub grand_vizier: bool,
@@ -795,7 +795,9 @@ impl Game {
                 gold: self
                     .player(*id)
                     .map_or(HalfInt::ZERO, |p| p.treasury().gold),
-                mana: self.player(*id).map_or(0, |p| p.treasury().mana),
+                mana: self
+                    .player(*id)
+                    .map_or(HalfInt::ZERO, |p| p.treasury().mana),
                 tax_rate: self.player_component::<Tax>(*id).map_or(0, |t| t.0),
                 grand_vizier: self.player(*id).is_some_and(|p| p.has_grand_vizier()),
                 neutral: self.is_neutral_player(*id),

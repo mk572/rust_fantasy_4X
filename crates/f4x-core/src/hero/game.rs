@@ -585,7 +585,7 @@ pub(crate) mod tests {
             .ok_or("high_men_spearmen is not in the content")?;
         g.spawn_unit(P0, at(3, 3), soldier);
         g.scenario_casting(P0, spell, 1000);
-        g.tr_mut(0).mana = 5000;
+        g.tr_mut(0).mana = f4x_def::half_int::HalfInt::from_int(5000);
         let _ = g.process_magic_all();
         let left = g
             .wizard(P0)

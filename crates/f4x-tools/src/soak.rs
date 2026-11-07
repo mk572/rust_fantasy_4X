@@ -661,7 +661,7 @@ fn detail_lines(game: &Game, ais: &[Box<dyn Contestant>]) -> Vec<String> {
             game.budget(id).unit_upkeep,
             game.budget(id).food_gold,
             game.budget(id).food_surplus,
-            game.player(id).map_or(0, |p| p.treasury().mana),
+            game.player(id).map_or(0, |p| p.treasury().mana.floor()),
             income.split.mana,
             income.mana_upkeep,
             m.known().len(),

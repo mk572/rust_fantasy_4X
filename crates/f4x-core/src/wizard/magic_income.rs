@@ -11,6 +11,7 @@ use crate::player::PlayerId;
 use crate::wizard::entity::Wizard;
 use crate::wizard::magic::PowerShares;
 use f4x_def::content::Content;
+use f4x_def::half_int::HalfInt;
 
 /// What the income rules ask of the world, for one wizard at a time.
 pub(crate) trait IncomeView {
@@ -19,7 +20,7 @@ pub(crate) trait IncomeView {
     /// Whether the wizard is casting the Spell of Return (then there is no income of any kind).
     fn casting_return(&self, player: PlayerId) -> bool;
     /// The mana and the research points the wizard's cities make (and its Sage heroes).
-    fn city_yield(&self, player: PlayerId) -> (i32, i32);
+    fn city_yield(&self, player: PlayerId) -> (HalfInt, i32);
     /// The plane of the wizard's fortress city, if it has one.
     fn fortress_plane(&self, player: PlayerId) -> Option<Plane>;
     /// Power from the volcanoes the wizard owns.
@@ -46,7 +47,7 @@ pub(crate) trait IncomeView {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Income {
     /// Power before the split.
-    pub power_base: i32,
+    pub power_base: HalfInt,
     /// Research points the cities produce.
     pub city_research: i32,
     /// The power base split by the wizard's percentages.
@@ -54,12 +55,12 @@ pub struct Income {
     /// Research points paid at the next turn change, with bonuses.
     pub research: i32,
     /// Mana per turn to keep lasting spells and summoned creatures going.
-    pub mana_upkeep: i32,
+    pub mana_upkeep: HalfInt,
 }
 
 /// Mana from the wizard's cities, plus the fortress (a point per book, five more on Myrror),
 /// the volcanoes and the nodes.
-fn base_from(view: &impl IncomeView, player: PlayerId, city_mana: i32) -> i32 {
+fn base_from(view: &impl IncomeView, player: PlayerId, city_mana: HalfInt) -> HalfInt {
     let fortress = match view.fortress_plane(player) {
         Some(plane) => {
             let books = view.wizard(player).map_or(0, |m| m.total_books());
@@ -68,7 +69,9 @@ fn base_from(view: &impl IncomeView, player: PlayerId, city_mana: i32) -> i32 {
         None => 0,
     };
     let nodes = crate::player::Bonus::of(view.node_percent(player), view.node_income(player));
-    (city_mana + fortress + view.volcanoes(player) + view.blight_power(player) + nodes).max(0)
+    (city_mana
+        + HalfInt::from_int(fortress + view.volcanoes(player) + view.blight_power(player) + nodes))
+    .max(HalfInt::ZERO)
 }
 
 /// Everything the wizard earns (zero power while the Spell of Return is cast or mana is short) and owes, with the cities asked once.
@@ -76,7 +79,7 @@ pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
     let (city_mana, city_research) = view.city_yield(player);
     let casting_return = view.casting_return(player);
     let power_base = if casting_return || view.mana_is_short() {
-        0
+        HalfInt::ZERO
     } else {
         base_from(view, player, city_mana)
     };
@@ -89,11 +92,11 @@ pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
     let research = view.wizard(player).map_or(split.research.max(0), |m| {
         m.research_income(view.content(), &split)
     });
-    let mana_upkeep = view.upkeep_total(player)
-        * view
-            .wizard(player)
-            .map_or(100, |m| m.upkeep_percent(&view.content().rules))
-        / 100;
+    let percent = view
+        .wizard(player)
+        .map_or(100, |m| m.upkeep_percent(&view.content().rules));
+    let mana_upkeep =
+        HalfInt::from_raw(view.upkeep_total(player).saturating_mul(2) * percent / 100);
     Income {
         power_base,
         city_research,
@@ -124,7 +127,7 @@ impl IncomeView for GameIncome<'_> {
         self.0.casting_return(player)
     }
 
-    fn city_yield(&self, player: PlayerId) -> (i32, i32) {
+    fn city_yield(&self, player: PlayerId) -> (HalfInt, i32) {
         // Sage heroes add to the research share, as the cities' points do (`CITYCALC.c`).
         let (mana, research) = self
             .0
@@ -133,8 +136,8 @@ impl IncomeView for GameIncome<'_> {
             .into_iter()
             .filter(|(_, c, _)| c.owner == player)
             .filter_map(|(e, ..)| self.0.economy().city_economy(e))
-            .fold((0, 0), |(mana, research), eco| {
-                (mana + eco.mana.floor(), research + eco.research)
+            .fold((HalfInt::ZERO, 0), |(mana, research), eco| {
+                (mana + eco.mana, research + eco.research)
             });
         (mana, research + self.0.units().sage_research(player))
     }

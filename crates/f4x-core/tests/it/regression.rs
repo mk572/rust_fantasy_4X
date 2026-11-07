@@ -67,7 +67,7 @@ fn war() -> Result<Game, String> {
 fn enchanted() -> Result<Game, String> {
     let mut g = fresh(31)?;
     let me = g.player_ids()[0];
-    g.treasury_mut(me).ok_or("no treasury")?.mana = 30_000;
+    g.treasury_mut(me).ok_or("no treasury")?.mana = f4x_def::half_int::HalfInt::from_int(30_000);
     for id in [
         57,  /* wind_mastery */
         158, /* crusade */

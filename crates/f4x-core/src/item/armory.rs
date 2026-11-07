@@ -290,7 +290,7 @@ impl Game {
         }
         let plan = {
             let armory = self.items().armory(player);
-            let mana = self.player(player).map_or(0, |p| p.treasury().mana);
+            let mana = self.player(player).map_or(0, |p| p.treasury().mana.floor());
             plan_move(&self.items(), &armory, mana, player, from, to, pay)?
         };
         let heroes: Vec<hecs::Entity> = [from, to]
@@ -419,7 +419,7 @@ mod tests {
         g.add_player(P1, "B");
         g.wiz_mut(0)
             .put(Some(crate::wizard::fortress::Fortress(at(1, 1))));
-        g.tr_mut(0).mana = 100;
+        g.tr_mut(0).mana = f4x_def::half_int::HalfInt::from_int(100);
         g
     }
 
@@ -573,12 +573,12 @@ mod tests {
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), false),
             Err(ItemError::Transfer)
         );
-        g.tr_mut(0).mana = 19;
+        g.tr_mut(0).mana = f4x_def::half_int::HalfInt::from_int(19);
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), true),
             Err(ItemError::NoMana)
         );
-        g.tr_mut(0).mana = 100;
+        g.tr_mut(0).mana = f4x_def::half_int::HalfInt::from_int(100);
         assert_eq!(
             g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(far, 0), true),
             Ok(())
@@ -601,7 +601,7 @@ mod tests {
         g.give_item(P0, item("Sword", ItemKind::Sword));
         g.move_item(P0, ItemSpot::Vault(0), ItemSpot::Hero(a, 0), true)
             .map_err(|e| format!("{e:?}"))?;
-        g.tr_mut(0).mana = 0;
+        g.tr_mut(0).mana = f4x_def::half_int::HalfInt::from_int(0);
         assert_eq!(
             g.move_item(P0, ItemSpot::Hero(a, 0), ItemSpot::Hero(b, 0), false),
             Ok(())

@@ -8,6 +8,7 @@
 //!
 //! Tests: below.
 
+use f4x_def::half_int::HalfInt;
 use std::collections::BTreeSet;
 
 use crate::spell::cast::UpkeepItem;
@@ -57,7 +58,7 @@ pub fn skill_points_for(target: i32, bonus: i32) -> i32 {
 /// The power base split three ways, as it will be applied at the turn change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PowerShares {
-    pub mana: i32,
+    pub mana: HalfInt,
     pub skill: i32,
     /// Includes research points from the wizard's cities.
     pub research: i32,
@@ -193,16 +194,18 @@ pub fn upkeep_release_order(entries: &[(i32, i32)]) -> Vec<usize> {
 pub(crate) fn upkeep_plan(
     items: &[UpkeepItem],
     percent: i32,
-    reserve: i32,
-) -> (Vec<UpkeepItem>, i32) {
-    let mut owed: i32 = items.iter().map(|i| i.mana).sum::<i32>() * percent / 100;
+    reserve: HalfInt,
+) -> (Vec<UpkeepItem>, HalfInt) {
+    // Whole mana times a percent, kept in halves (a Channeler's half of 3 is 1.5).
+    let part = |mana: i32| HalfInt::from_raw(mana.saturating_mul(2).saturating_mul(percent) / 100);
+    let mut owed: HalfInt = part(items.iter().map(|i| i.mana).sum::<i32>());
     let entries: Vec<(i32, i32)> = items.iter().map(|i| (i.mana, i.cost)).collect();
     let mut dropped = Vec::new();
     for i in upkeep_release_order(&entries) {
         if owed <= reserve {
             break;
         }
-        owed -= items[i].mana * percent / 100;
+        owed -= part(items[i].mana);
         dropped.push(items[i]);
     }
     (dropped, owed)
@@ -274,18 +277,21 @@ mod tests {
     #[test]
     fn upkeep_is_paid_from_the_reserve_and_the_dearest_items_go_first() {
         let items = [item(5), item(10), item(20)];
-        let (dropped, owed) = upkeep_plan(&items, 100, 100);
+        let (dropped, owed) = upkeep_plan(&items, 100, HalfInt::from_int(100));
         assert!(dropped.is_empty());
-        assert_eq!(owed, 35);
+        assert_eq!(owed, HalfInt::from_int(35));
         // 35 owed against 20: drop the dearest (20) and 15 is left, within 20.
-        let (dropped, owed) = upkeep_plan(&items, 100, 20);
+        let (dropped, owed) = upkeep_plan(&items, 100, HalfInt::from_int(20));
         assert_eq!(dropped, [item(20)]);
-        assert_eq!(owed, 15);
+        assert_eq!(owed, HalfInt::from_int(15));
         // With nothing in the reserve everything goes.
-        let (dropped, owed) = upkeep_plan(&items, 100, 0);
+        let (dropped, owed) = upkeep_plan(&items, 100, HalfInt::from_int(0));
         assert_eq!(dropped, [item(20), item(10), item(5)]);
-        assert_eq!(owed, 0);
-        assert_eq!(upkeep_plan(&[], 100, 0), (Vec::new(), 0));
+        assert_eq!(owed, HalfInt::from_int(0));
+        assert_eq!(
+            upkeep_plan(&[], 100, HalfInt::from_int(0)),
+            (Vec::new(), HalfInt::ZERO)
+        );
     }
 
     #[test]
@@ -296,18 +302,21 @@ mod tests {
             upkeep_release_order(&[(10, 50), (10, 30), (10, 30)]),
             [2, 1, 0]
         );
-        let (dropped, owed) = upkeep_plan(&items, 100, 20);
+        let (dropped, owed) = upkeep_plan(&items, 100, HalfInt::from_int(20));
         assert_eq!(dropped, [items[2]], "the newest of the cheapest");
-        assert_eq!(owed, 20);
+        assert_eq!(owed, HalfInt::from_int(20));
     }
 
     #[test]
     fn half_the_upkeep_percent_halves_what_is_owed_and_dropped() {
         let items = [item(10), item(20)];
-        assert_eq!(upkeep_plan(&items, 50, 15), (Vec::new(), 15));
-        let (dropped, owed) = upkeep_plan(&items, 50, 10);
+        assert_eq!(
+            upkeep_plan(&items, 50, HalfInt::from_int(15)),
+            (Vec::new(), HalfInt::from_int(15))
+        );
+        let (dropped, owed) = upkeep_plan(&items, 50, HalfInt::from_int(10));
         assert_eq!(dropped, [item(20)]);
-        assert_eq!(owed, 5);
+        assert_eq!(owed, HalfInt::from_int(5));
     }
 
     #[test]

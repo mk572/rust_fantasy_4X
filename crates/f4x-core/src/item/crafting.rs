@@ -514,7 +514,7 @@ impl crate::game::Game {
             let value = item.cost as i32;
             let def = self.content.rules.spells.get(spell);
             let price = value - value * magic.cost_reduction(&self.content.rules, def) / 100;
-            let now = price <= magic.instant_budget(reserve);
+            let now = price <= magic.instant_budget(reserve.floor());
             (item, price, now)
         };
         if now {
@@ -599,7 +599,8 @@ mod tests {
         g.content = c;
         g.map = Some(Map::new(Grid::new(8, 8, grass), Grid::new(8, 8, grass)));
         g.add_player(P0, "Merlin");
-        g.treasury_mut(P0).expect("treasury_mut succeeds").mana = 2000;
+        g.treasury_mut(P0).expect("treasury_mut succeeds").mana =
+            f4x_def::half_int::HalfInt::from_int(2000);
         g.init_wizard(P0, &[(RealmId::new(2 /* chaos */), 2)], &[], None)
             .expect("init_wizard succeeds");
         let known: Vec<_> = [

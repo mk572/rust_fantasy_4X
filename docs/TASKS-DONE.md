@@ -404,6 +404,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 472 | Magic | Spell research against the wiki and ReMoM (done) |
 | 475 | Core | ~~Split turn advancement into explicit end-turn and start-turn phases~~ (done, as four phases in task 477) |
 | 477 | Housekeeping | Add `f4x-master` for player turns and round orchestration (done) |
+| 478 | Housekeeping | (done) Make `f4x-ai-ref` a local-only snapshot: ignored by git, behind a `reference` feature of `f4x-tools` |
 | 479 | Meta | ~~The crates below the client know no display text: names and messages leave core, data and the AI for the client~~ (done) |
 | 480 | Core | ~~Features by number: a lair's site, the ore and transmute lists and the site rewards stop using aliases~~ (done) |
 | 481 | Meta | New crate `f4x-def`: all static definitions and their loaders; `f4x-core` depends on it, `f4x-data` goes away (done) |

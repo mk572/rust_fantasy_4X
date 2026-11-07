@@ -31,7 +31,8 @@ fn world() -> Game {
         g.add_player(id, if id == P0 { "Merlin" } else { "Rjak" });
         g.treasury_mut(id).expect("treasury_mut succeeds").gold =
             f4x_def::half_int::HalfInt::from_int(1000);
-        g.treasury_mut(id).expect("treasury_mut succeeds").mana = 100;
+        g.treasury_mut(id).expect("treasury_mut succeeds").mana =
+            f4x_def::half_int::HalfInt::from_int(100);
         g.init_wizard(id, &[(RealmId::new(3 /* life */), 2)], &[], None)
             .expect("init_wizard succeeds");
     }

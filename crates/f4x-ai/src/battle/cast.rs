@@ -101,8 +101,8 @@ pub fn unit_cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
 pub fn cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
     let side = battle.active;
     let player = battle.player_of(side);
-    let reserve = game.player(player).map_or(0, |p| p.treasury().mana);
-    let upkeep = game.income(player).mana_upkeep;
+    let reserve = game.player(player).map_or(0, |p| p.treasury().mana.floor());
+    let upkeep = game.income(player).mana_upkeep.ceil();
     let enemies: Vec<&BattleUnit> = battle
         .active_units(side.other())
         .filter(|e| battle.seen_by(side, e.id))
@@ -349,7 +349,8 @@ mod tests {
             .ok_or("no wizard")?
             .get_mut::<f4x_core::wizard::sheet::Skill>()
             .left = 500;
-        g.treasury_mut(P0).ok_or("no treasury")?.mana = reserve;
+        g.treasury_mut(P0).ok_or("no treasury")?.mana =
+            f4x_def::half_int::HalfInt::from_int(reserve);
         let walker = shipped().rules.units.id_numbered(107).ok_or("no cavalry")?;
         let ours = g.spawn_unit(P0, at(4, 4), walker);
         g.scenario_set_hurt(ours, hurt);
@@ -454,7 +455,7 @@ mod tests {
         ));
         // Mana in the battle, but an empty reserve overland: the upkeep comes first.
         let mut g = spell_duel(83 /* fire_bolt */, 2, 50, 0)?;
-        g.treasury_mut(P0).ok_or("no treasury")?.mana = -5;
+        g.treasury_mut(P0).ok_or("no treasury")?.mana = f4x_def::half_int::HalfInt::from_int(-5);
         assert!(!matches!(
             next_command(&g),
             Some(BattleCommand::Cast { .. })
@@ -513,7 +514,7 @@ mod tests {
                 .ok_or("no such spell")?;
             g.cheat_learn_spell(P0, id);
         }
-        g.treasury_mut(P0).ok_or("no treasury")?.mana = mana;
+        g.treasury_mut(P0).ok_or("no treasury")?.mana = f4x_def::half_int::HalfInt::from_int(mana);
         let walker = shipped().rules.units.id_numbered(107).ok_or("no cavalry")?;
         let ours: Vec<_> = (0..3).map(|_| g.spawn_unit(P0, at(4, 4), walker)).collect();
         let theirs: Vec<_> = (0..6).map(|_| g.spawn_unit(P1, at(5, 4), walker)).collect();
@@ -523,7 +524,7 @@ mod tests {
             mana_budget: budget.map(|b| (P0, b)),
         });
         assert!(!g.in_battle());
-        Ok(mana - g.treasury_mut(P0).ok_or("no treasury")?.mana)
+        Ok(mana - g.treasury_mut(P0).ok_or("no treasury")?.mana.floor())
     }
 
     #[test]

@@ -210,8 +210,10 @@ impl App {
                 .wizard(HUMAN)
                 .map_or(0, |m| m.casting_skill(&self.game.content().rules))
                 .min(
-                    self.game.player(HUMAN).map_or(0, |p| p.treasury().mana)
-                        + self.game.income(HUMAN).split.mana,
+                    self.game
+                        .player(HUMAN)
+                        .map_or(0, |p| p.treasury().mana.floor())
+                        + self.game.income(HUMAN).split.mana.floor(),
                 );
             let turns = if limit <= 0 {
                 999

@@ -11,13 +11,14 @@ use crate::game::{Event, Game};
 use crate::player::PlayerId;
 use crate::spell::cast::{UpkeepItem, UpkeepKind};
 use crate::wizard::magic::MagicError;
+use f4x_def::half_int::HalfInt;
 
 /// One thing the wizard pays mana for each turn.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpkeepLine {
     pub kind: UpkeepKind,
     /// What it costs each turn (a Channeler's half already taken).
-    pub mana: i32,
+    pub mana: HalfInt,
     /// What it takes to replace it (see `UpkeepItem::cost`).
     pub cost: i32,
 }
@@ -26,9 +27,9 @@ pub struct UpkeepLine {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Shortfall {
     /// The reserve the turn change will find, with this turn's mana income added.
-    pub reserve: i32,
+    pub reserve: HalfInt,
     /// The upkeep it will ask for.
-    pub owed: i32,
+    pub owed: HalfInt,
     /// Everything that costs mana, oldest first; the turn change would give up from the end.
     pub lines: Vec<UpkeepLine>,
 }
@@ -40,7 +41,7 @@ impl Shortfall {
     pub fn default_release(&self) -> Vec<UpkeepKind> {
         let mut owed = self.owed;
         let mut out = Vec::new();
-        let entries: Vec<(i32, i32)> = self.lines.iter().map(|l| (l.mana, l.cost)).collect();
+        let entries: Vec<(i32, i32)> = self.lines.iter().map(|l| (l.mana.raw(), l.cost)).collect();
         for i in crate::wizard::magic::upkeep_release_order(&entries) {
             if owed <= self.reserve {
                 break;
@@ -58,14 +59,16 @@ impl Game {
     pub fn upkeep_shortfall(&self, player: PlayerId) -> Option<Shortfall> {
         let percent = self.wizard(player)?.upkeep_percent(&self.content.rules);
         let items = self.upkeep_items(player);
-        let owed: i32 = items.iter().map(|i| i.mana).sum::<i32>() * percent / 100;
+        let part =
+            |mana: i32| HalfInt::from_raw(mana.saturating_mul(2).saturating_mul(percent) / 100);
+        let owed = part(items.iter().map(|i| i.mana).sum::<i32>());
         // The turn change adds the mana income first (not for the wizard who stopped time).
         let income = if self.time_stopper() == Some(player) {
-            0
+            HalfInt::ZERO
         } else {
-            self.income(player).split.mana.max(0)
+            self.income(player).split.mana.max(HalfInt::ZERO)
         };
-        let reserve = self.player(player)?.treasury().mana.saturating_add(income);
+        let reserve = self.player(player)?.treasury().mana + income;
         if owed <= reserve {
             return None;
         }
@@ -73,7 +76,7 @@ impl Game {
             .iter()
             .map(|i| UpkeepLine {
                 kind: i.kind,
-                mana: i.mana * percent / 100,
+                mana: part(i.mana),
                 cost: i.cost,
             })
             .collect();

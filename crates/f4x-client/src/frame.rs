@@ -275,9 +275,12 @@ impl App {
             .game
             .player(HUMAN)
             .map_or(f4x_def::half_int::HalfInt::ZERO, |p| p.treasury().gold);
-        let mana = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
+        let mana = self
+            .game
+            .player(HUMAN)
+            .map_or(f4x_def::half_int::HalfInt::ZERO, |p| p.treasury().mana);
         let view = (lay.origin.x, lay.origin.y, s);
-        let style = if gold.floor() > 9999 || mana > 9999 {
+        let style = if gold.floor() > 9999 || mana.floor() > 9999 {
             0
         } else {
             1
@@ -288,7 +291,11 @@ impl App {
                 265.0,
                 self.text("ui.gold_unit"),
             ),
-            (mana.to_string(), 303.0, self.text("ui.mana_unit")),
+            (
+                self.texts.half_amount(mana),
+                303.0,
+                self.text("ui.mana_unit"),
+            ),
         ] {
             self.draw_styled(view, &Style::sh_set(style, 0).right(), &value, right, 68.0);
             self.draw_styled(view, &Style::sh_set(0, 0), &unit, right + 3.0, 68.0);

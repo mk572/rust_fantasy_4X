@@ -283,8 +283,8 @@ impl App {
         let mut lines = Vec::new();
         if let Some(m) = self.game.upkeep_shortfall(HUMAN) {
             let args = Args::new()
-                .count("needed", m.owed)
-                .count("reserve", m.reserve);
+                .text("needed", self.texts.half_amount(m.owed))
+                .text("reserve", self.texts.half_amount(m.reserve));
             lines.push(self.text_with("chancellor.forecast_mana", &args));
         }
         if let Some(t) = self.game.treasury_shortfall(HUMAN) {

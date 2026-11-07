@@ -23,7 +23,7 @@ fn own_turns(view: &PlayerView, mastery: SpellId) -> Option<f32> {
     let mana = view.treasury().mana;
     let income = view.income();
     let skill = magic.casting_skill(&view.content().rules).max(1) as f32;
-    let mana_rate = income.split.mana.max(1) as f32;
+    let mana_rate = income.split.mana.as_f32().max(1.0);
     let (left, research) = match magic.casting() {
         Some(c) if c.spell == mastery => (c.remaining, 0.0),
         _ if magic.knows(mastery) => (view.casting_cost(mastery), 0.0),
@@ -38,7 +38,7 @@ fn own_turns(view: &PlayerView, mastery: SpellId) -> Option<f32> {
     };
     let left = left.max(0) as f32;
     let by_skill = left / skill;
-    let by_mana = (left - mana as f32).max(0.0) / mana_rate;
+    let by_mana = (left - mana.as_f32()).max(0.0) / mana_rate;
     Some(research + by_skill.max(by_mana))
 }
 
@@ -197,7 +197,8 @@ mod tests {
             spells.known.insert(other);
             drop(spells);
             w.get_mut::<f4x_core::wizard::sheet::Skill>().points = 20_000;
-            g.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana = 20_000;
+            g.treasury_mut(P0).ok_or("player 0 has a treasury")?.mana =
+                f4x_def::half_int::HalfInt::from_int(20_000);
         }
         casts(&mut g, P0, other, 300);
         casts(&mut g, P1, mastery, 40_000);

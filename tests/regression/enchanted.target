@@ -4,8 +4,8 @@ cities 12
 units 3
 spells 3
 items 0
-player 0 cities 1 gold 194 mana 27361
-player 1 cities 1 gold 252 mana 496
+player 0 cities 1 gold 194 mana 27356
+player 1 cities 1 gold 252 mana 501
 player 100 cities 1 gold 353 mana 0
 player 101 cities 1 gold 200 mana 0
 player 102 cities 1 gold 322 mana 0
@@ -16,4 +16,4 @@ player 106 cities 1 gold 695 mana 0
 player 107 cities 1 gold 629 mana 0
 player 108 cities 1 gold 1216 mana 0
 player 109 cities 1 gold 721 mana 0
-checksum ebe1b7de1883ebe1
+checksum 6a9e019160dd48b0

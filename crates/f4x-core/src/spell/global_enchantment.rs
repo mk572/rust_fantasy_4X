@@ -339,7 +339,8 @@ mod tests {
         g.fog = crate::map::fog::Fog::new(24, 14);
         for id in [P0, P1] {
             g.add_player(id, "W");
-            g.treasury_mut(id).expect("treasury_mut succeeds").mana = 5000;
+            g.treasury_mut(id).expect("treasury_mut succeeds").mana =
+                f4x_def::half_int::HalfInt::from_int(5000);
             g.init_wizard(id, &[(RealmId::new(3 /* life */), 4)], &[], None)
                 .expect("init_wizard succeeds");
         }

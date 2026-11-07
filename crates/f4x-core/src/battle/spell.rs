@@ -513,7 +513,7 @@ impl Game {
                 side,
                 BattleCaster::new(
                     skill,
-                    self.player(player).map_or(0, |p| p.treasury().mana),
+                    self.player(player).map_or(0, |p| p.treasury().mana.floor()),
                     range,
                 ),
             );
@@ -532,7 +532,7 @@ impl Game {
             .collect();
         for (player, mana) in reserves {
             if let Some(t) = self.treasury_mut(player) {
-                t.mana = mana;
+                t.set_whole_mana(mana);
             }
         }
     }

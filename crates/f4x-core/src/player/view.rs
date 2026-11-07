@@ -75,7 +75,7 @@ impl<'a> PlayerView<'a> {
         self.game.player(self.me).map_or(
             Treasury {
                 gold: HalfInt::ZERO,
-                mana: 0,
+                mana: HalfInt::ZERO,
             },
             |p| p.treasury(),
         )

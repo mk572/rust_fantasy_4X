@@ -327,7 +327,10 @@ impl App {
             .game
             .casting_cost_with_extra(HUMAN, spell, self.chosen_extra(spell));
         let instant = self.game.wizard(HUMAN).map_or(0, |m| m.skill_left());
-        let mana = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
+        let mana = self
+            .game
+            .player(HUMAN)
+            .map_or(0, |p| p.treasury().mana.floor());
         if needs && cost <= instant.min(mana) {
             // The dead hero Resurrection raises is chosen from a list.
             if f4x_core::spell::hero::HeroSummon::Resurrection
@@ -848,8 +851,11 @@ impl BookUi {
             .game
             .wizard(HUMAN)
             .map_or(0, |m| m.casting_skill(&app.game.content().rules));
-        let mana = app.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
-        let income = app.game.income(HUMAN).split.mana;
+        let mana = app
+            .game
+            .player(HUMAN)
+            .map_or(0, |p| p.treasury().mana.floor());
+        let income = app.game.income(HUMAN).split.mana.floor();
         let limit = skill.min(mana + income).max(0);
         let turns = if limit == 0 {
             40

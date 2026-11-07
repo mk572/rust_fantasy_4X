@@ -35,7 +35,8 @@ fn world() -> Game {
     g.fog = crate::map::fog::Fog::new(24, 14);
     for (id, name) in [(P0, "Merlin"), (P1, "Rjak"), (P2, "Sss-ra")] {
         g.add_player(id, name);
-        g.treasury_mut(id).expect("treasury_mut succeeds").mana = 5000;
+        g.treasury_mut(id).expect("treasury_mut succeeds").mana =
+            f4x_def::half_int::HalfInt::from_int(5000);
         g.init_wizard(id, &[(RealmId::new(4 /* death */), 3)], &[], None)
             .expect("init_wizard succeeds");
         g.wizard_mut(id)
@@ -93,7 +94,8 @@ fn cast(g: &mut Game, spell: u16, target: Option<Target>) -> Vec<Event> {
 fn drain_power_takes_what_the_victim_has_up_to_the_roll() -> TestResult {
     let mut g = world();
     g.make_contact(P0, P1);
-    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.mana = 1000;
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(1000);
     let events = cast(&mut g, 171 /* drain_power */, Some(Target::Player(P1)));
     let taken = events
         .iter()
@@ -102,7 +104,7 @@ fn drain_power_takes_what_the_victim_has_up_to_the_roll() -> TestResult {
             _ => None,
         })
         .ok_or_else(|| format!("{events:?}"))?;
-    assert!((10..=200).contains(&taken), "{taken}");
+    assert!((10..=200).contains(&taken.floor()), "{taken}");
     // The client plays the spell's picture on the victim's portrait.
     assert!(events.iter().any(|e| matches!(
         e,
@@ -110,15 +112,16 @@ fn drain_power_takes_what_the_victim_has_up_to_the_roll() -> TestResult {
     )));
     assert_eq!(
         g.player(P1).ok_or("player is missing")?.treasury().mana,
-        1000 - taken
+        f4x_def::half_int::HalfInt::from_int(1000) - taken
     );
     // A poor victim loses only what is there.
-    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.mana = 4;
+    g.treasury_mut(P1).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(4);
     let events = cast(&mut g, 171 /* drain_power */, Some(Target::Player(P1)));
     assert!(events.contains(&Event::PowerDrained {
         player: P0,
         victim: P1,
-        amount: 4
+        amount: f4x_def::half_int::HalfInt::from_int(4)
     }));
     assert_eq!(g.player(P1).ok_or("player is missing")?.treasury().mana, 0);
     Ok(())
@@ -1231,7 +1234,8 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() -> Te
     keep(&mut g, P0, 80 /* time_stop */);
     g.attach_enchantment(Target::Player(P0), sp(&g, 80 /* time_stop */), P0);
     // Another global enchantment of the wizard's costs nothing now.
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 500;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(500);
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
         f4x_def::half_int::HalfInt::from_int(100);
     g.wizard_mut(P1)

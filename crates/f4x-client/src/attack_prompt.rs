@@ -75,7 +75,10 @@ impl App {
     /// Leave the pending attack to the battle AI: ask how much mana to spend if the wizard could
     /// cast anything (the box that does is returned), else fight at once.
     fn start_auto_battle(&mut self, attack: PendingAttack) -> Option<AttackAsk> {
-        let reserve = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
+        let reserve = self
+            .game
+            .player(HUMAN)
+            .map_or(0, |p| p.treasury().mana.floor());
         match self.game.strategic_mana_default(HUMAN) {
             Some(amount) => Some(AttackAsk {
                 attack,
@@ -116,7 +119,7 @@ impl App {
         };
         let defender = self.game.spawn_unit(f4x_core::player::MONSTERS, pos, kind);
         if let Some(t) = self.game.treasury_mut(HUMAN) {
-            t.mana = t.mana.max(120);
+            t.mana = t.mana.max(f4x_def::half_int::HalfInt::from_int(120));
         }
         let attack = PendingAttack {
             attackers,

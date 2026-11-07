@@ -9,6 +9,7 @@ use crate::game::{Event, Game};
 use crate::player::PlayerId;
 use crate::rules::{CastContext, RealmId, SpellId};
 use crate::wizard::magic::{upkeep_plan, CastStart, MagicError, PowerShares, Retort};
+use f4x_def::half_int::HalfInt;
 
 impl Game {
     /// Set up a new wizard (see [`WizardMut::found`] and [`WizardMut::init_library`]), with the
@@ -237,7 +238,7 @@ impl Game {
             return;
         };
         if let Some(t) = self.treasury_mut(player) {
-            t.mana = t.mana.saturating_add(mana);
+            t.mana += mana;
         }
     }
 
@@ -261,7 +262,9 @@ impl Game {
     /// summoned creatures are given up until it can (`upkeep_plan`).
     fn apply_mana_upkeep(&mut self, player: PlayerId) -> Vec<Event> {
         let items = self.upkeep_items(player);
-        let reserve = self.player(player).map_or(0, |p| p.treasury().mana);
+        let reserve = self
+            .player(player)
+            .map_or(HalfInt::ZERO, |p| p.treasury().mana);
         let (dropped, owed) = upkeep_plan(
             &items,
             self.wizard(player)
@@ -279,7 +282,7 @@ impl Game {
             events.extend(self.drop_upkeep_item(player, item));
         }
         if let Some(t) = self.treasury_mut(player) {
-            t.mana = (t.mana - owed).max(0);
+            t.mana = (t.mana - owed).max(HalfInt::ZERO);
         }
         events
     }
@@ -412,7 +415,7 @@ impl Game {
         let start = {
             let w = self.wizard(player).ok_or(MagicError::UnknownPlayer)?;
             w.check_can_cast(spell)?;
-            w.cast_start(cost, reserve)
+            w.cast_start(cost, reserve.floor())
         };
         match start {
             CastStart::Now => {

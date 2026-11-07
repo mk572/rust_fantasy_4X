@@ -521,7 +521,8 @@ fn stream_of_life_ends_unrest_and_heals_the_units_in_the_city() -> TestResult {
         .ok_or("value is missing")?
         .0 = 4;
     // The spell costs eight mana a turn to keep.
-    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
+    g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(1000);
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 10);
     farm_all(&mut g, city);
     let spear = g
@@ -1693,7 +1694,7 @@ fn pestilence_adds_unrest_and_each_citizen_may_die_but_the_last_is_spared() -> T
     let mut g = world();
     g.treasury_mut(PlayerId(1))
         .ok_or("treasury_mut is missing")?
-        .mana = 100_000;
+        .mana = f4x_def::half_int::HalfInt::from_int(100_000);
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 10);
     let unrest = |g: &Game| {
         g.economy()
@@ -2058,7 +2059,7 @@ fn two_cities(time_stop: bool) -> Result<(Game, hecs::Entity, hecs::Entity), Str
     for p in [P0, PlayerId(1)] {
         let t = g.treasury_mut(p).ok_or("no treasury")?;
         t.gold = f4x_def::half_int::HalfInt::from_int(500);
-        t.mana = 1000;
+        t.mana = f4x_def::half_int::HalfInt::from_int(1000);
     }
     let mine = found(&mut g, at(10, 6), 7 /* high_elf */, 6);
     let race = race(&g, 7 /* high_elf */);
@@ -2103,7 +2104,12 @@ fn time_stop_halts_production_growth_and_income_for_everyone_but_the_spells_own_
             .map_err(|e| e.to_string())?
             .figures;
         let t = g.player(player).ok_or("no player")?.treasury();
-        Ok((progress.floor() as u32, figures, t.gold.floor(), t.mana))
+        Ok((
+            progress.floor() as u32,
+            figures,
+            t.gold.floor(),
+            t.mana.floor(),
+        ))
     };
     // Without it the cities build and the treasuries move.
     let (progress, _, gold, _) = state(&free, mine, P0)?;

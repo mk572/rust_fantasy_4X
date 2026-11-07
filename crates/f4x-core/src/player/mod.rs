@@ -50,13 +50,20 @@ pub const MONSTERS: PlayerId = PlayerId(u8::MAX);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Treasury {
     pub gold: HalfInt,
-    pub mana: i32,
+    pub mana: HalfInt,
 }
 
 impl Treasury {
+    /// Set the whole points of mana, keeping a half point that is there (a battle counts whole
+    /// mana only).
+    pub fn set_whole_mana(&mut self, whole: i32) {
+        let half = self.mana - HalfInt::from_int(self.mana.floor());
+        self.mana = HalfInt::from_int(whole) + half;
+    }
+
     /// Take half the mana (rounded down) out of the treasury and return it.
-    pub fn take_half_mana(&mut self) -> i32 {
-        let half = self.mana / 2;
+    pub fn take_half_mana(&mut self) -> HalfInt {
+        let half = HalfInt::from_raw(self.mana.raw() / 2);
         self.mana -= half;
         half
     }
@@ -66,7 +73,7 @@ impl Default for Treasury {
     fn default() -> Self {
         Self {
             gold: HalfInt::from_int(100),
-            mana: 0,
+            mana: HalfInt::ZERO,
         }
     }
 }
