@@ -262,6 +262,9 @@ pub struct WizardSave {
     pub skill_pct: u8,
     pub known: Vec<u16>,
     pub researchable: Vec<u16>,
+    /// The spells the wizard started with (they do not lower the Spell of Mastery's cost).
+    #[serde(default)]
+    pub starting_spells: Vec<u16>,
     /// The spells on offer for research.
     pub candidates: Vec<u16>,
     pub researching: Option<u16>,
@@ -323,6 +326,7 @@ impl WizardSave {
             skill_pct: split.skill,
             known: w.known().iter().map(name).collect(),
             researchable: w.researchable().iter().map(name).collect(),
+            starting_spells: w.starting_spells().iter().map(name).collect(),
             candidates: w.candidates().iter().map(name).collect(),
             researching: w.researching().as_ref().map(name),
             research_remaining: w.research_remaining(),
@@ -389,6 +393,7 @@ impl WizardSave {
         *wizard.get_mut::<KnownSpells>() = KnownSpells {
             known,
             researchable,
+            starting: ids(&self.starting_spells)?.into_iter().collect(),
         };
         *wizard.get_mut::<Candidates>() = Candidates(ids(&self.candidates)?);
         *wizard.get_mut::<Research>() = Research {

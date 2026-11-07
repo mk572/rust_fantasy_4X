@@ -903,6 +903,9 @@ impl Diplomacy {
                     && view.wizard(to).is_some_and(|m| m.knows(get))
                     && view.wizard(to).is_some_and(|m| !m.knows(give))
                     && view.wizard(from).is_some_and(|m| !m.knows(get))
+                    // Each side needs the books for what it would receive.
+                    && view.wizard(to).is_some_and(|m| m.books_allow(view.content().rules.spells.get(give)))
+                    && view.wizard(from).is_some_and(|m| m.books_allow(view.content().rules.spells.get(get)))
             }
         };
         if ok {

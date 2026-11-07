@@ -90,6 +90,25 @@ remaining cost reaches 0 the spell becomes known (`SpellLearned`), leaves the of
 player picks the next. Not done: the Spell of Mastery joining the offer when nothing else is
 left (task 61).
 
+Task 472 (research against the wiki and ReMoM):
+- **Arcane rarities** are the wiki's (`spells.ron`): Magic Spirit, Dispel Magic, Summoning Circle
+  common; Disenchant Area, Recall Hero, Detect Magic, Enchant Item, Summon Hero uncommon; Awareness,
+  Disjunction, Create Artifact, Summon Champion rare. The arcane realm now follows the ordinary
+  lowest-rarity rule in `research_pool`, which is the original's three steps.
+- **Spell of Mastery cost:** 60,000, less half the research cost of every spell gained since the start
+  (the starting spells, `KnownSpells::starting`, do not count), less 3,000 for 11 books of one realm
+  (the wiki; the original's test needs all five realms, so it never applies there).
+- **Books found in treasure** (`award_special`): refused only above 12 books, so a wizard can reach 13
+  (the +10% bonuses go on). Each book opens the realm's spells by the same `spell_library.researchable`
+  table (`open_book_spells`), the patch 1.50 behaviour without the original's table bugs.
+- **Which spells a wizard may hold** (`Wizard::books_allow`): a spell of a realm needs a book in it; one
+  book allows up to uncommon, two up to rare; arcane needs none. Conquest and the exchange between
+  wizards give only such spells (`Get_Differential_Spell_List`, `Calc_Spell_Value`).
+- **Patch 1.40 cap** (`spell_library.arcane_candidate_cap`, 0 = off, the patch uses 4): while another
+  realm has something to research, at most that many arcane spells are on offer at once.
+- Starting spells are saved with the wizard (`starting_spells`, defaults to none, so old saves still
+  load and count all their spells for the cost of the Spell of Mastery).
+
 ## 6. Casting overland
 
 > **Rework (done).** The spell being paid for (`casting`, and the item being crafted and the hero being

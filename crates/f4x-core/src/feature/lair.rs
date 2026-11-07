@@ -584,7 +584,7 @@ pub(crate) fn award_spell(
 }
 
 /// Spell book and retort treasure: three times in four a book of the site's realm (never life
-/// with death or the reverse, nor past twelve books), otherwise a retort. A two-pick hoard
+/// with death or the reverse, nor to a wizard with more than twelve books already), otherwise a retort. A two-pick hoard
 /// gives a two-pick retort or two books. The original's version loops and awards oddly (its
 /// own comments call these bugs); this keeps the odds and the restrictions.
 pub(crate) fn award_special(
@@ -601,10 +601,10 @@ pub(crate) fn award_special(
         None => crate::rules::BOOK_REALMS[rng.roll(5) as usize - 1],
     };
     // Three times in four a book; the original turns to the other kind when the wizard is at
-    // the limit of six retorts or twelve books.
+    // the limit of six retorts or more than twelve books.
     let wants_retort = if wizard.view().retorts().len() >= crate::wizard::MAX_RETORTS {
         false
-    } else if wizard.view().total_books() >= 12 {
+    } else if wizard.view().total_books() > crate::wizard::sheet::BOOKS_BEFORE_LIMIT {
         true
     } else {
         rng.roll(100) > 75
@@ -632,7 +632,7 @@ pub(crate) fn award_special(
     for _ in 0..picks {
         let clash = (realm == life && wizard.view().books_in(death) > 0)
             || (realm == death && wizard.view().books_in(life) > 0);
-        if clash || wizard.view().total_books() >= 12 {
+        if clash || wizard.view().total_books() > crate::wizard::sheet::BOOKS_BEFORE_LIMIT {
             continue;
         }
         *wizard
@@ -859,6 +859,10 @@ impl Game {
                         picks,
                         &mut loot,
                     );
+                    // A book found opens more of its realm's spells to research.
+                    for &realm in &loot.books {
+                        w.open_book_spells(&self.content, &mut self.rng, realm);
+                    }
                     // Famous brings its ten points of fame with it.
                     if loot
                         .retorts
@@ -869,6 +873,9 @@ impl Game {
                 }
                 _ => {}
             }
+        }
+        if !loot.books.is_empty() {
+            self.refill_research(player);
         }
         // A hoard of a book or a retort that gave nothing (nothing left to give) pays an item
         // worth 1200 instead, or 1000 mana when the hoard already has three items (the original

@@ -502,6 +502,9 @@ pub struct SpellLibraryDef {
     /// main realm, by realm number.
     pub ai_main_realm_researchable: std::collections::BTreeMap<RealmId, SpellId>,
     pub ai_main_realm_researchable_from: u8,
+    /// Patch 1.40 of the original: while another realm has spells to research, at most this many
+    /// arcane spells are on offer at once (4 in the patch). 0 is off, as in the original game.
+    pub arcane_candidate_cap: u8,
 }
 
 impl SpellLibraryDef {
@@ -604,6 +607,7 @@ impl Default for SpellLibraryDef {
             ]
             .into(),
             ai_main_realm_researchable_from: 3,
+            arcane_candidate_cap: 0,
         }
     }
 }

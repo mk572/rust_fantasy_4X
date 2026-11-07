@@ -711,17 +711,18 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 fn spell_swap(game: &Game, me: PlayerId, other: PlayerId) -> Option<ProposalKind> {
     let (mine, theirs) = (game.wizard(me)?, game.wizard(other)?);
     let cheapest = |from: &dyn Fn(f4x_def::rules::SpellId) -> bool,
-                    to: &dyn Fn(f4x_def::rules::SpellId) -> bool| {
+                    to: &dyn Fn(f4x_def::rules::SpellId) -> bool,
+                    receiver: &f4x_core::wizard::entity::Wizard<'_>| {
         game.content()
             .rules
             .spells
             .iter()
-            .filter(|&(id, _)| from(id) && !to(id))
+            .filter(|&(id, def)| from(id) && !to(id) && receiver.books_allow(def))
             .min_by_key(|&(_, def)| (def.research_cost, def.num))
             .map(|(id, _)| id)
     };
-    let give = cheapest(&|id| mine.knows(id), &|id| theirs.knows(id))?;
-    let get = cheapest(&|id| theirs.knows(id), &|id| mine.knows(id))?;
+    let give = cheapest(&|id| mine.knows(id), &|id| theirs.knows(id), &theirs)?;
+    let get = cheapest(&|id| theirs.knows(id), &|id| mine.knows(id), &mine)?;
     Some(ProposalKind::Exchange { give, get })
 }
 

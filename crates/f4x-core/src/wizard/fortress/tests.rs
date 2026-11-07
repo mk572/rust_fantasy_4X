@@ -798,6 +798,14 @@ fn spell_world(leave: usize) -> (Game, hecs::Entity, Vec<crate::rules::SpellId>)
     let mut g = world();
     g.init_wizard(P1, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .expect("init_wizard succeeds");
+    // Books in every realm, so that no spell is refused for the lack of one.
+    for realm in crate::rules::BOOK_REALMS {
+        g.wizard_mut(P1)
+            .expect("wizard succeeds")
+            .get_mut::<crate::wizard::sheet::Books>()
+            .0
+            .insert(realm, 3);
+    }
     set_skill(&mut g, P0, 40);
     let capital = place(&mut g, P0, at(5, 5));
     city(&mut g, P0, at(15, 5));
@@ -891,6 +899,33 @@ fn a_defeat_gives_the_winner_two_of_the_spells_the_loser_knew() -> TestResult {
     for s in &taken {
         assert!(g.wizard(P1).ok_or("wizard is missing")?.knows(*s));
     }
+    Ok(())
+}
+
+#[test]
+fn the_winner_takes_only_spells_its_books_allow() -> TestResult {
+    let (mut g, capital, taught) = spell_world(2);
+    // Books of one realm only, and one of them: nothing above uncommon, nothing of other realms.
+    let winner_books = [(RealmId::new(3 /* life */), 1)];
+    g.wizard_mut(P1)
+        .ok_or("wizard_mut is missing")?
+        .get_mut::<crate::wizard::sheet::Books>()
+        .0 = winner_books.into_iter().collect();
+    g.capture_city(
+        g.economy().city_at(at(15, 5)).ok_or("city_at is missing")?,
+        P1,
+    );
+    let events = g.capture_city(capital, P1);
+    let taken = spells_taken(&events).ok_or("no conquest event")?;
+    let w = g.wizard(P1).ok_or("wizard is missing")?;
+    let spells = &g.content.rules.spells;
+    for s in &taken {
+        assert!(w.books_allow(spells.get(*s)), "{s:?}");
+    }
+    assert!(
+        taken.len() <= taught.len() && taken.iter().all(|s| taught.contains(s)),
+        "{events:?}"
+    );
     Ok(())
 }
 

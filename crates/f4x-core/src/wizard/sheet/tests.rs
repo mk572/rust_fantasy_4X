@@ -187,11 +187,13 @@ fn the_spell_of_mastery_is_offered_last_and_costs_less_for_each_spell_known() ->
     let w = g.wizard(P0).ok_or("wizard is missing")?;
     let listed = content.rules.spells.get(mastery).research_cost as i32;
     let cost = w.research_cost(&content, mastery);
+    // The starting spells do not count, only what was gained since.
     let half: i32 = w
         .known()
-        .iter()
+        .difference(&w.starting_spells())
         .map(|&s| content.rules.spells.get(s).research_cost as i32 / 2)
         .sum();
+    assert!(half > 0, "spells were learned");
     assert!(cost < listed);
     assert_eq!(cost, (listed - half).max(0));
     assert_ne!(
@@ -360,5 +362,170 @@ fn power_reaches_the_reserve_the_research_and_the_skill() -> TestResult {
         "an archmage gets half as much again"
     );
     assert_eq!(base_casting_skill(0, 0), 0);
+    Ok(())
+}
+
+#[test]
+fn a_starting_spell_does_not_lower_the_cost_of_the_spell_of_mastery() -> TestResult {
+    let g = game_with(&[(RealmId::new(3 /* life */), 4)], &[]);
+    let mastery = spell(&g, 213 /* spell_of_mastery */);
+    let w = g.wizard(P0).ok_or("wizard is missing")?;
+    assert!(!w.starting_spells().is_empty());
+    assert_eq!(w.starting_spells(), w.known());
+    let listed = g.content.rules.spells.get(mastery).research_cost as i32;
+    assert_eq!(w.research_cost(&g.content, mastery), listed);
+    Ok(())
+}
+
+#[test]
+fn eleven_books_of_one_realm_take_3000_off_the_spell_of_mastery() -> TestResult {
+    let mastery_of = |books: u8| -> Result<i32, Box<dyn std::error::Error>> {
+        let g = game_with(&[(RealmId::new(3 /* life */), books)], &[]);
+        let mastery = spell(&g, 213 /* spell_of_mastery */);
+        Ok(g.wizard(P0)
+            .ok_or("wizard is missing")?
+            .research_cost(&g.content, mastery))
+    };
+    assert_eq!(mastery_of(10)? - mastery_of(11)?, MASTERY_DISCOUNT);
+    Ok(())
+}
+
+#[test]
+fn a_found_book_opens_the_spells_its_realms_table_row_allows() -> TestResult {
+    let mut g = game_with(&[(RealmId::new(3 /* life */), 2)], &[]);
+    let content = g.content.clone();
+    let life = RealmId::new(3);
+    let mut rng = GameRng::new(11);
+    let count = |g: &Game, rarity: Rarity| -> usize {
+        let w = g.wizard(P0).expect("wizard succeeds");
+        let (known, open) = (w.known(), w.researchable());
+        spells_of(&content, life, rarity)
+            .iter()
+            .filter(|s| known.contains(s) || open.contains(s))
+            .count()
+    };
+    for books in 3..=13u8 {
+        let mut w = g.wizard_mut(P0).ok_or("wizard_mut is missing")?;
+        w.get_mut::<Books>().0.insert(life, books);
+        w.open_book_spells(&content, &mut rng, life);
+        let row = SpellLibraryDef::row(&content.settings.spell_library.researchable, books);
+        for (rarity, limit) in [
+            (Rarity::Common, row.common),
+            (Rarity::Uncommon, row.uncommon),
+            (Rarity::Rare, row.rare),
+            (Rarity::VeryRare, row.very_rare),
+        ] {
+            let all = spells_of(&content, life, rarity).len();
+            assert_eq!(
+                count(&g, rarity),
+                usize::from(limit).min(all),
+                "{books} books, {rarity:?}"
+            );
+        }
+    }
+    // Thirteen books: all of the realm.
+    let all = [
+        Rarity::Common,
+        Rarity::Uncommon,
+        Rarity::Rare,
+        Rarity::VeryRare,
+    ]
+    .iter()
+    .map(|&r| spells_of(&content, life, r).len())
+    .sum::<usize>();
+    let w = g.wizard(P0).ok_or("wizard is missing")?;
+    let mine = w
+        .known()
+        .union(&w.researchable())
+        .filter(|s| content.rules.spells.get(**s).realm == life)
+        .count();
+    assert_eq!(mine, all);
+    Ok(())
+}
+
+#[test]
+fn a_wizards_books_decide_which_spells_it_may_hold() -> TestResult {
+    let g = game_with(
+        &[
+            (RealmId::new(3 /* life */), 1),
+            (RealmId::new(0 /* nature */), 2),
+        ],
+        &[],
+    );
+    let w = g.wizard(P0).ok_or("wizard is missing")?;
+    let spells = &g.content.rules.spells;
+    let allowed = |realm: u16, rarity: Rarity| -> Vec<bool> {
+        spells
+            .iter()
+            .filter(|(_, d)| d.realm.num() == realm && d.rarity == rarity)
+            .map(|(_, d)| w.books_allow(d))
+            .collect()
+    };
+    assert!(allowed(3, Rarity::Uncommon).iter().all(|&a| a));
+    assert!(allowed(3, Rarity::Rare).iter().all(|&a| !a));
+    assert!(allowed(0, Rarity::Rare).iter().all(|&a| a));
+    assert!(allowed(0, Rarity::VeryRare).iter().all(|&a| !a));
+    assert!(
+        allowed(2, Rarity::Common).iter().all(|&a| !a),
+        "no chaos book"
+    );
+    assert!(
+        allowed(5, Rarity::Rare).iter().all(|&a| a),
+        "arcane needs no book"
+    );
+    Ok(())
+}
+
+#[test]
+fn the_arcane_spells_are_offered_in_the_wikis_three_rarities() {
+    let c = shipped();
+    let rarity_of = |n: u16| {
+        c.rules
+            .spells
+            .get(c.rules.spells.id_numbered(n).expect("id succeeds"))
+            .rarity
+    };
+    // Magic Spirit, Dispel Magic, Summoning Circle | Disenchant Area, Recall Hero, Detect Magic,
+    // Enchant Item, Summon Hero | Awareness, Disjunction, Create Artifact, Summon Champion.
+    for n in 201..=203 {
+        assert_eq!(rarity_of(n), Rarity::Common, "{n}");
+    }
+    for n in 204..=208 {
+        assert_eq!(rarity_of(n), Rarity::Uncommon, "{n}");
+    }
+    for n in 209..=212 {
+        assert_eq!(rarity_of(n), Rarity::Rare, "{n}");
+    }
+}
+
+#[test]
+fn with_the_patch_setting_only_so_many_arcane_spells_are_on_offer_at_once() -> TestResult {
+    let mut g = game_with(&[(RealmId::new(3 /* life */), 4)], &[]);
+    let mut content = g.content.clone();
+    content.settings.spell_library.arcane_candidate_cap = 4;
+    let mut rng = GameRng::new(3);
+    let arcane_on_offer = |g: &Game| {
+        g.wizard(P0)
+            .expect("wizard succeeds")
+            .candidates()
+            .iter()
+            .filter(|&&s| g.content.rules.spells.get(s).realm == RealmId::new(5))
+            .count()
+    };
+    // Without a cap the arcane spells fill the eight places that life leaves free.
+    let plain = g.content.clone();
+    g.wizard_mut(P0)
+        .ok_or("wizard_mut is missing")?
+        .refill_research(&plain, &mut rng, 5);
+    assert!(arcane_on_offer(&g) > 0);
+    g.wizard_mut(P0)
+        .ok_or("wizard_mut is missing")?
+        .get_mut::<Candidates>()
+        .0
+        .clear();
+    g.wizard_mut(P0)
+        .ok_or("wizard_mut is missing")?
+        .refill_research(&content, &mut rng, 5);
+    assert!(arcane_on_offer(&g) <= 4);
     Ok(())
 }

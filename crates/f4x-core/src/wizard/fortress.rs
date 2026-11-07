@@ -344,19 +344,23 @@ impl Game {
     }
 
     /// `Conquest_Spells`: the winner takes up to two spells chosen at random from those the loser
-    /// knows and it does not. Nothing happens unless both are wizards. The event is made even when
+    /// knows and it does not, that its books allow. Nothing happens unless both are wizards. The event is made even when
     /// nothing is found, for the human winner's box.
     fn conquest_spells(&mut self, winner: PlayerId, loser: PlayerId) -> Vec<Event> {
         if winner == loser || self.wizard(winner).is_none() || self.wizard(loser).is_none() {
             return Vec::new();
         }
         let mine = self.wizard(winner).map(|w| w.known()).unwrap_or_default();
+        // Only a spell the winner has the books for (`Get_Differential_Spell_List`).
+        let spells = &self.content.rules.spells;
+        let winner_sheet = self.wizard(winner);
         let mut pool: Vec<_> = self
             .wizard(loser)
             .map(|w| w.known())
             .unwrap_or_default()
             .into_iter()
             .filter(|s| !mine.contains(s))
+            .filter(|&s| winner_sheet.is_some_and(|w| w.books_allow(spells.get(s))))
             .collect();
         let mut found = Vec::new();
         while found.len() < 2 && !pool.is_empty() {

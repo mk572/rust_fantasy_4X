@@ -1006,6 +1006,27 @@ fn spells_are_exchanged_one_for_one() -> TestResult {
         give: famine,
         get: gaia,
     };
+    // Without a book of the spell's realm the receiver cannot be given it.
+    for p in [P0, P1] {
+        g.wizard_mut(p)
+            .ok_or("wizard_mut is missing")?
+            .get_mut::<crate::wizard::sheet::Books>()
+            .0
+            .clear();
+    }
+    assert_eq!(
+        g.check_proposal(P0, P1, kind),
+        Err(DiplomacyError::NotAllowed)
+    );
+    for p in [P0, P1] {
+        for realm in crate::rules::BOOK_REALMS {
+            g.wizard_mut(p)
+                .ok_or("wizard_mut is missing")?
+                .get_mut::<crate::wizard::sheet::Books>()
+                .0
+                .insert(realm, 3);
+        }
+    }
     assert!(g.check_proposal(P0, P1, kind).is_ok());
     command(
         &mut g,

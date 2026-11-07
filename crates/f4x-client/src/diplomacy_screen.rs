@@ -326,7 +326,7 @@ impl App {
             .known()
             .iter()
             .copied()
-            .filter(|s| !mb.knows(*s))
+            .filter(|s| !mb.knows(*s) && mb.books_allow(spells.get(*s)))
             .collect();
         out.sort_by_key(|&s| (std::cmp::Reverse(spells.get(s).research_cost), s));
         out
@@ -1049,9 +1049,22 @@ mod tests {
 
     const RIVAL: PlayerId = PlayerId(1);
 
+    /// The app with a book of every realm for the human wizard, so the rival's spells are all
+    /// ones the human's books allow.
+    fn app_with_books() -> App {
+        let mut app = App::for_test();
+        let mut human = app.game.wizard_mut(HUMAN).expect("a human wizard");
+        for realm in f4x_core::rules::BOOK_REALMS {
+            let books = &mut human.get_mut::<f4x_core::wizard::sheet::Books>().0;
+            let n = books.entry(realm).or_insert(0);
+            *n = (*n).max(3);
+        }
+        app
+    }
+
     #[test]
     fn what_a_wizard_can_give_is_what_the_other_lacks_the_dearest_first() -> TestResult {
-        let mut app = App::for_test();
+        let mut app = app_with_books();
         let offered = app.spells_to_give(RIVAL, HUMAN);
         assert!(
             !offered.is_empty(),
@@ -1071,7 +1084,7 @@ mod tests {
 
     #[test]
     fn the_exchange_menu_lists_the_realms_the_wizard_has_a_spell_in() {
-        let app = App::for_test();
+        let app = app_with_books();
         let rules = &app.game.content().rules;
         let spells = app.spells_to_give(RIVAL, HUMAN);
         let realms = app.exchange_realms(RIVAL);

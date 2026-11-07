@@ -58,6 +58,15 @@ impl Default for PowerSplit {
     }
 }
 
+/// Books of one realm that take [`MASTERY_DISCOUNT`] off the Spell of Mastery's research cost.
+pub const MASTERY_DISCOUNT_BOOKS: i32 = 11;
+/// Research points off the Spell of Mastery for a wizard with [`MASTERY_DISCOUNT_BOOKS`] books
+/// of one realm.
+pub const MASTERY_DISCOUNT: i32 = 3000;
+/// A wizard with more books than this finds no more in treasure, so the most is one above it
+/// (the original refuses a book at `Book_Count > 12`).
+pub const BOOKS_BEFORE_LIMIT: i32 = 12;
+
 /// The spell being researched and the research points still to pay for it.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Research {
@@ -70,6 +79,9 @@ pub struct Research {
 pub struct KnownSpells {
     pub known: BTreeSet<SpellId>,
     pub researchable: BTreeSet<SpellId>,
+    /// The spells the wizard started with (the original sets them directly, without the gain
+    /// that lowers the Spell of Mastery's cost, so they do not count towards it).
+    pub starting: BTreeSet<SpellId>,
 }
 
 /// The spells on offer for research now (at most [`RESEARCH_SLOTS`]), fastest first: the wizard
@@ -175,6 +187,13 @@ impl<'a> Wizard<'a> {
     pub fn researchable(&self) -> BTreeSet<SpellId> {
         self.component::<KnownSpells>()
             .map(|k| k.researchable.clone())
+            .unwrap_or_default()
+    }
+
+    /// The spells the wizard started with.
+    pub fn starting_spells(&self) -> BTreeSet<SpellId> {
+        self.component::<KnownSpells>()
+            .map(|k| k.starting.clone())
             .unwrap_or_default()
     }
 
@@ -296,10 +315,11 @@ impl<'a> Wizard<'a> {
     }
 
     /// What researching `spell` costs this wizard. The Spell of Mastery's cost is its listed
-    /// 60,000 less half the research cost of every spell the wizard already knows (the original
-    /// takes that off as each spell is gained; counting the starting spells too is our
-    /// simplification, so the sum needs no saved field). Any other spell costs its listed
-    /// amount.
+    /// 60,000 less half the research cost of every spell gained since the start (the original
+    /// takes that off as each spell is gained; the starting ones do not count, as the wiki
+    /// says), and 3,000 less for a wizard with eleven books of one realm (the wiki; in the
+    /// original the test needs eleven in all five realms, so it never applies). Any other
+    /// spell costs its listed amount.
     pub fn research_cost(&self, content: &Content, spell: SpellId) -> i32 {
         let spells = &content.rules.spells;
         let listed = spells.get(spell).research_cost as i32;
@@ -309,13 +329,34 @@ impl<'a> Wizard<'a> {
         {
             return listed;
         }
-        let known: i32 = self.component::<KnownSpells>().map_or(0, |k| {
+        let gained: i32 = self.component::<KnownSpells>().map_or(0, |k| {
             k.known
-                .iter()
+                .difference(&k.starting)
                 .map(|&s| spells.get(s).research_cost as i32 / 2)
                 .sum()
         });
-        (listed - known).max(0)
+        let full_realm = crate::rules::BOOK_REALMS
+            .into_iter()
+            .any(|r| self.books_in(r) >= MASTERY_DISCOUNT_BOOKS);
+        let discount = if full_realm { MASTERY_DISCOUNT } else { 0 };
+        (listed - gained - discount).max(0)
+    }
+
+    /// May the wizard hold `def`? A realm needs a book: with one book up to uncommon spells,
+    /// with two up to rare ones (`Calc_Spell_Value`); arcane spells need none. Conquest and
+    /// the exchange between wizards give only such spells.
+    pub fn books_allow(&self, def: &SpellDef) -> bool {
+        if def.realm == RealmId::new(5)
+        /* arcane */
+        {
+            return true;
+        }
+        match self.books_in(def.realm) {
+            0 => false,
+            1 => def.rarity <= Rarity::Uncommon,
+            2 => def.rarity <= Rarity::Rare,
+            _ => true,
+        }
     }
 
     /// The spells the books would let the wizard add to the offer next (the original's
@@ -327,43 +368,31 @@ impl<'a> Wizard<'a> {
         let researchable = self.researchable();
         let candidates = self.candidates();
         let open = |s: &SpellId| researchable.contains(s) && !candidates.contains(s);
+        let cap = usize::from(content.settings.spell_library.arcane_candidate_cap);
         let mut pool = Vec::new();
-        for realm in crate::rules::BOOK_REALMS {
+        let realms = crate::rules::BOOK_REALMS
+            .into_iter()
+            .chain([RealmId::new(5) /* arcane */]);
+        for realm in realms {
             let mut of: Vec<(Rarity, SpellId)> = rules
                 .spells
                 .iter()
                 .filter(|(id, d)| d.realm == (realm) && open(id))
                 .map(|(id, d)| (d.rarity, id))
                 .collect();
+            // Patch 1.40: while another realm has something to research, only so many arcane
+            // spells are on offer at once (a setting, off by default).
+            let arcane_on_offer = candidates
+                .iter()
+                .filter(|&&c| rules.spells.get(c).realm == realm)
+                .count();
+            if cap > 0 && realm == RealmId::new(5) && arcane_on_offer >= cap && !pool.is_empty() {
+                continue;
+            }
             if let Some(lowest) = of.iter().map(|&(r, _)| r).min() {
                 of.retain(|&(r, _)| r == lowest);
                 pool.extend(of.into_iter().map(|(_, id)| id));
             }
-        }
-        let arcane: Vec<SpellId> = rules
-            .spells
-            .iter()
-            .filter(|(_, d)| d.realm == (RealmId::new(5)/* arcane */))
-            .map(|(id, _)| id)
-            .collect();
-        let step = |at: usize| match at {
-            0..=2 => 0,
-            3..=7 => 1,
-            _ => 2,
-        };
-        let open_arcane: Vec<(usize, SpellId)> = arcane
-            .iter()
-            .copied()
-            .enumerate()
-            .filter(|(_, s)| open(s))
-            .collect();
-        if let Some(first) = open_arcane.iter().map(|&(i, _)| step(i)).min() {
-            pool.extend(
-                open_arcane
-                    .into_iter()
-                    .filter(|&(i, _)| step(i) == first)
-                    .map(|(_, s)| s),
-            );
         }
         pool
     }
@@ -584,9 +613,36 @@ impl<'a> WizardMut<'a> {
         known.extend(given);
         *self.get_mut::<KnownSpells>() = KnownSpells {
             researchable: available.difference(&known).copied().collect(),
+            starting: known.clone(),
             known,
         };
         self.get_mut::<Candidates>().0.clear();
+    }
+
+    /// A book of `realm` was found: the realm's table row for its new number of books
+    /// (`spell_library.researchable`) lets more of its spells be researched, picked at random
+    /// from those not yet known or open. The wizard's offer is refilled by the caller.
+    pub fn open_book_spells(&mut self, content: &Content, rng: &mut GameRng, realm: RealmId) {
+        let open = SpellLibraryDef::row(
+            &content.settings.spell_library.researchable,
+            self.view().books_in(realm).clamp(0, 255) as u8,
+        );
+        let mut taken: BTreeSet<SpellId> = {
+            let spells = self.get_mut::<KnownSpells>();
+            spells.known.union(&spells.researchable).copied().collect()
+        };
+        for (rarity, limit) in [
+            (Rarity::Common, open.common),
+            (Rarity::Uncommon, open.uncommon),
+            (Rarity::Rare, open.rare),
+            (Rarity::VeryRare, open.very_rare),
+        ] {
+            let pool = spells_of(content, realm, rarity);
+            let have = pool.iter().filter(|s| taken.contains(s)).count();
+            let more = pick_spells(rng, &pool, &taken, usize::from(limit).saturating_sub(have));
+            taken.extend(&more);
+            self.get_mut::<KnownSpells>().researchable.extend(more);
+        }
     }
 
     /// Change how power is split. The three shares must add up to 100.

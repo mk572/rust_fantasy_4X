@@ -339,5 +339,9 @@
             3: 136,
             4: 180,
         },
+        // Patch 1.40 of the original: while another realm has spells to research, at most this
+        // many arcane spells are on offer at once (the patch uses 4). 0 is off, as in the
+        // original game.
+        arcane_candidate_cap: 0,
     ),
 )

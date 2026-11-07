@@ -421,7 +421,8 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
         !loot.books.contains(&realm(4 /* death */)),
         "life and death exclude each other"
     );
-    // A temple gives a life book, up to the twelve-book limit.
+    // A temple gives a life book, up to the limit (a wizard with twelve may still find a
+    // thirteenth, as in the original).
     let l = info(3 /* ancient_temple */, Some(3 /* life */));
     let mut books = 0;
     for _ in 0..40 {
@@ -437,7 +438,7 @@ fn the_hoard_can_hold_a_spell_book_a_retort_or_a_spell() -> TestResult {
         assert!(loot.books.iter().all(|&b| b == realm(3 /* life */)));
     }
     assert!(books > 0);
-    assert!(g.wizard(P0).ok_or("wizard is missing")?.total_books() <= 12);
+    assert!(g.wizard(P0).ok_or("wizard is missing")?.total_books() <= 13);
     Ok(())
 }
 
@@ -917,11 +918,11 @@ fn a_hoard_of_books_obeys_the_realm_and_the_limit_without_a_game() {
     for _ in 0..60 {
         award_special(&rules, &mut magic, &mut rng, &l, 2, &mut Loot::default());
     }
-    assert!(magic.view().total_books() <= 12);
+    assert_eq!(magic.view().total_books(), 13);
 }
 
 #[test]
-fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort() {
+fn the_limits_of_six_retorts_and_thirteen_books_decide_between_a_book_and_a_retort() {
     let rules = shipped().rules;
     use crate::wizard::magic::Retort;
     let l = info(15 /* nature_node */, Some(0 /* nature */));
@@ -945,10 +946,21 @@ fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort
         assert!(loot.retorts.is_empty());
     }
     assert_eq!(magic.view().retorts().len(), 6);
-    // Twelve books: only retorts can come.
+    // Twelve books: one more can come (the original refuses a book only above twelve).
+    let (mut world, e) = sheet(&[(RealmId::new(0 /* nature */), 12)], &[]);
+    let mut magic = crate::wizard::sheet::WizardMut::new(&mut world, e);
+    let mut found = false;
+    for _ in 0..40 {
+        let mut loot = Loot::default();
+        award_special(&rules, &mut magic, &mut rng, &l, 1, &mut loot);
+        found |= !loot.books.is_empty();
+    }
+    assert!(found, "a wizard with twelve books finds a thirteenth");
+    assert_eq!(magic.view().total_books(), 13);
+    // Thirteen books: only retorts can come.
     let (mut world, e) = sheet(
         &[
-            (RealmId::new(0 /* nature */), 6),
+            (RealmId::new(0 /* nature */), 7),
             (RealmId::new(1 /* sorcery */), 6),
         ],
         &[],
@@ -959,7 +971,7 @@ fn the_limits_of_six_retorts_and_twelve_books_decide_between_a_book_and_a_retort
         award_special(&rules, &mut magic, &mut rng, &l, 1, &mut loot);
         assert!(loot.books.is_empty());
     }
-    assert_eq!(magic.view().total_books(), 12);
+    assert_eq!(magic.view().total_books(), 13);
 }
 
 #[test]

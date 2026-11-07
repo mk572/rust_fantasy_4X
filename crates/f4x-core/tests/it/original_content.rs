@@ -524,7 +524,19 @@ fn every_spell_has_the_originals_name_realm_cost_research_rarity_and_summoned_un
                 REALMS[realm]
             ));
         }
-        let tier = tiers[(seen[realm] / 10).min(3)];
+        // The arcane realm is not in tens: the original's research list offers it in three steps
+        // (the first three, the next five, the next four), which the wiki names common, uncommon
+        // and rare. The Spell of Mastery and the Spell of Return follow, uncommon.
+        let tier = if REALMS[realm] == "arcane" {
+            match seen[realm] {
+                0..=2 => Rarity::Common,
+                3..=7 => Rarity::Uncommon,
+                8..=11 => Rarity::Rare,
+                _ => Rarity::Uncommon,
+            }
+        } else {
+            tiers[(seen[realm] / 10).min(3)]
+        };
         seen[realm] += 1;
         if def.rarity != tier {
             wrong.push(format!(
