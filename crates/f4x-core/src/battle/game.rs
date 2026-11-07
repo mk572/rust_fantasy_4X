@@ -341,8 +341,12 @@ impl Game {
             warp: None,
             enchantments: {
                 let mut list = self.units().unit_enchantment_ids(unit);
+                // Held in Stasis it counts as under Black Sleep, so no other sleep can be put on it.
                 if self.unit_in_stasis(unit) {
-                    list.push(SpellId::new(165) /* black_sleep */);
+                    list.extend(
+                        crate::spell::unit_effect::UnitEffect::BlackSleep
+                            .spell_in(&self.content.rules),
+                    );
                 }
                 list
             },

@@ -7,6 +7,7 @@
 //! mirrored one, and the picture comes out as the original's. Like the original this draws only
 //! the band of 200 squares it plays on (the field generator shuts the rest).
 
+use f4x_core::spell::unit_effect::UnitEffect;
 use f4x_def::rules::Ability;
 use std::collections::{HashMap, VecDeque};
 
@@ -2077,9 +2078,9 @@ impl App {
                 // Black Sleep greys a figure, Warp Creature turns it red and inside out.
                 let effect = if u.is_invisible() {
                     Some(FigureEffect::Revealed)
-                } else if ids.iter().any(|i| i.num() == 89 /* warp_creature */) {
+                } else if u.effects.contains(UnitEffect::WarpCreature) {
                     Some(FigureEffect::Warped)
-                } else if ids.iter().any(|i| i.num() == 165 /* black_sleep */) {
+                } else if u.effects.contains(UnitEffect::BlackSleep) {
                     Some(FigureEffect::Asleep)
                 } else {
                     None
