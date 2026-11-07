@@ -14,6 +14,7 @@ use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 use f4x_core::item::crafting::CRAFT_ITEM;
 use f4x_core::player::PlayerId;
+use f4x_core::spell::hero::{HeroSummon, SUMMON_HERO};
 use f4x_def::rules::effects::Effect;
 use f4x_def::rules::SpellDef;
 use f4x_def::rules::{Rarity, SpellId, UnitId};
@@ -79,8 +80,12 @@ impl Modal for SummonScene {
 pub(crate) fn summoned_by(def: &SpellDef) -> Option<Summoned> {
     def.effects.iter().find_map(|e| match &e.effect {
         Effect::Summon { unit, .. } => Some(Summoned::Creature(*unit)),
-        Effect::Special if def.num == 208 /* summon_hero */ => Some(Summoned::Hero),
-        Effect::Special if def.num == 212 /* summon_champion */ => Some(Summoned::Champion),
+        Effect::Custom { name, .. } if name == SUMMON_HERO => match HeroSummon::of(def) {
+            Some(HeroSummon::Hero) => Some(Summoned::Hero),
+            Some(HeroSummon::Champion) => Some(Summoned::Champion),
+            // Incarnation shows no scene of its own.
+            _ => None,
+        },
         Effect::Custom { name, .. } if name == CRAFT_ITEM => Some(Summoned::Item),
         _ => None,
     })

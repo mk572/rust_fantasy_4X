@@ -395,6 +395,13 @@ impl EffectHost for GameHost<'_> {
                 self.building_moved(result);
             }
         }
+        if hook == crate::spell::hero::SUMMON_HERO {
+            if let Source::Spell(spell) = ctx.source {
+                if let Some(events) = self.game.hero_hook(spell, ctx.owner, who, &mut self.rng) {
+                    self.events.extend(events);
+                }
+            }
+        }
         if hook == crate::spell::unit_effect::UNIT_EFFECT {
             for effect in args
                 .iter()
@@ -568,7 +575,13 @@ impl Game {
             .get(spell)
             .effects
             .iter()
-            .any(|r| matches!(r.effect, crate::rules::effects::Effect::Summon { .. }))
+            .any(|r| match &r.effect {
+                crate::rules::effects::Effect::Summon { .. } => true,
+                crate::rules::effects::Effect::Custom { name, .. } => {
+                    name == crate::spell::hero::SUMMON_HERO
+                }
+                _ => false,
+            })
     }
 
     /// Does casting `spell` ask the wizard for a target? Summoning spells do not when the

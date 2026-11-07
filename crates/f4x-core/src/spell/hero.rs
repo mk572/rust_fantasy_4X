@@ -16,6 +16,24 @@ use crate::player::PlayerId;
 use crate::rules::SpellId;
 use crate::unit::UnitView;
 
+/// The hook of the spells that bring a free hero in: Summon Hero, Summon Champion, Incarnation.
+pub const SUMMON_HERO: &str = "summon_hero";
+
+crate::hook::effect_enum! {
+    /// Which hero a spell with the `summon_hero` hook brings: the argument of the hook.
+    pub enum HeroSummon in SUMMON_HERO;
+    Hero = "hero",
+    Champion = "champion",
+    Torin = "torin",
+}
+
+impl HeroSummon {
+    /// What the spell summons, if it has the hook.
+    pub fn of(def: &crate::rules::SpellDef) -> Option<HeroSummon> {
+        HeroSummon::named(def.hook_args(SUMMON_HERO)?.first()?)
+    }
+}
+
 /// Torin the Chosen, the last hero type: only Incarnation brings him.
 pub fn torin(rules: &crate::rules::Rules) -> usize {
     rules.hero_templates.len().saturating_sub(1)
@@ -66,14 +84,14 @@ impl UnitView<'_> {
             return Some(HeroError::NoCircle);
         }
         let record = |k: usize| states.get(k).copied();
-        let possible = match spell.num() {
-            208 /* summon_hero */ => self.hero_summonable(player, Class::Hero),
-            212 /* summon_champion */ => self.hero_summonable(player, Class::Champion),
-            142 /* incarnation */ => matches!(
+        let possible = match HeroSummon::of(self.content.rules.spells.get(spell)) {
+            Some(HeroSummon::Hero) => self.hero_summonable(player, Class::Hero),
+            Some(HeroSummon::Champion) => self.hero_summonable(player, Class::Champion),
+            Some(HeroSummon::Torin) => matches!(
                 record(torin(&self.content.rules)),
                 Some(HeroState::Free | HeroState::Dead)
             ),
-            _ => true,
+            None => true,
         };
         (!possible).then_some(HeroError::NotAvailable)
     }
@@ -124,13 +142,14 @@ impl Game {
     ) -> Option<Vec<Event>> {
         let standing = self.units().hero_standing(player);
         let states = self.units().hero_states();
+        let summon = HeroSummon::of(self.content.rules.spells.get(spell));
         let mut pick =
             |class| kind::pick(rng, &self.content.rules, &states, &standing, true, class);
-        let kind = match spell.num() {
-            208 /* summon_hero */ => pick(Class::Hero),
-            212 /* summon_champion */ => pick(Class::Champion),
-            142 /* incarnation */ => Some(torin(&self.content.rules)),
-            133 /* resurrection */ => {
+        let kind = match summon {
+            Some(HeroSummon::Hero) => pick(Class::Hero),
+            Some(HeroSummon::Champion) => pick(Class::Champion),
+            Some(HeroSummon::Torin) => Some(torin(&self.content.rules)),
+            None if spell.num() == 133 /* resurrection */ => {
                 // Nobody to raise if the hero is not dead any more: the spell is lost, with a warning.
                 let dead = self.units().raisable_heroes();
                 match who {
@@ -138,12 +157,14 @@ impl Game {
                     _ => None,
                 }
             }
-            _ => return None,
+            None => return None,
         };
         // The human wizard is asked to accept a summoned hero (`Hire_Hero_Popup`, types 1 and 3).
-        if matches!(spell.num(), 208 | 212) && self.human() == Some(player) {
+        if matches!(summon, Some(HeroSummon::Hero | HeroSummon::Champion))
+            && self.human() == Some(player)
+        {
             if let Some(kind) = kind {
-                let champion = spell.num() == 212; // summon_champion
+                let champion = summon == Some(HeroSummon::Champion);
                 if let Some(o) = self.player_component_mut::<crate::player::Offers>(player) {
                     o.0.push(Offer::Summoned { kind, champion });
                     return Some(vec![Event::HeroSummoned { player, kind }]);
