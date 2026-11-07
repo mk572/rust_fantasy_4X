@@ -348,6 +348,14 @@ pub fn game(
         }
         if let Some(n) = opts.snapshots_every.filter(|&n| n > 0) {
             if game.turn % n == 0 {
+                // The plans of the AIs go into the save, so it is a full game save.
+                let plans: Vec<_> = ais
+                    .iter()
+                    .filter_map(|ai| Some((ai.player(), ai.plans()?)))
+                    .collect();
+                if !plans.is_empty() {
+                    game.set_plans(plans);
+                }
                 fingerprints.push((game.turn, save_snapshot(&game, snapshot_dir.as_deref())?));
             }
         }

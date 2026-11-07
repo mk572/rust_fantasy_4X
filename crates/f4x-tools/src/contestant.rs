@@ -35,10 +35,15 @@ pub trait Contestant {
     fn take_refusals(&self) -> Vec<Refused>;
     /// The AI's own state for the soak's detail lines: the tail of the player's line.
     fn describe(&self) -> String;
+    /// What the AI has in mind, as text for a save (`Game::set_plans`); `None` for a version that
+    /// cannot write it (the frozen reference).
+    fn plans(&self) -> Option<String> {
+        None
+    }
 }
 
 macro_rules! contestant {
-    ($krate:ident) => {
+    ($krate:ident $(, plans $plans:ident)?) => {
         impl Contestant for $krate::Ai {
             fn player(&self) -> PlayerId {
                 self.player
@@ -78,11 +83,16 @@ macro_rules! contestant {
                         .map(|(t, port, f)| ((t.x, t.y), (port.x, port.y), f))
                 )
             }
+            $(
+                fn plans(&self) -> Option<String> {
+                    self.$plans().ok()
+                }
+            )?
         }
     };
 }
 
-contestant!(f4x_ai);
+contestant!(f4x_ai, plans to_text);
 #[cfg(feature = "reference")]
 contestant!(f4x_ai_ref);
 
