@@ -95,7 +95,7 @@ Not compiled into `f4x-client`:
 - **`burn`** (the machine-learning framework, `f4x-learn`, behind a feature): most of the 712 packages come from
   here. It is off in the game and the normal tests.
 - **`fontdue`, `png`** in `f4x-extract` (the extractor and font tools, under `crates/f4x-client/extract`): 44 crates for that program in all.
-- `f4x-ai-ref`, `f4x-learn`, `f4x-tools`: our own dev-side crates. `scripts/make_app.sh` builds only
+- `f4x-ai-ref` (a local copy, ignored by git, outside the workspace), `f4x-learn`, `f4x-tools`: our own dev-side crates. `scripts/make_app.sh` builds only
   `f4x-client`.
 
 ## 4. What could be trimmed

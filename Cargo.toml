@@ -1,7 +1,8 @@
 [workspace]
 resolver = "2"
 members = ["crates/*", "crates/f4x-client/extract"]
-# The frozen reference AI is built only for `f4x-tools --features reference` (scripts/ai_battle.py).
+# The frozen reference AI is a local copy, ignored by git (scripts/fork_ai.py); scripts/ai_battle.py adds it
+# to f4x-tools while it builds with `--features reference`.
 exclude = ["crates/f4x-ai-ref"]
 
 [workspace.package]
@@ -23,7 +24,6 @@ f4x-def = { path = "crates/f4x-def" }
 f4x-core = { path = "crates/f4x-core" }
 f4x-master = { path = "crates/f4x-master" }
 f4x-ai = { path = "crates/f4x-ai" }
-f4x-ai-ref = { path = "crates/f4x-ai-ref" }
 f4x-console = { path = "crates/f4x-console" }
 f4x-learn = { path = "crates/f4x-learn" }
 f4x-extract = { path = "crates/f4x-client/extract", default-features = false }

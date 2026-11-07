@@ -1,4 +1,5 @@
 /target
+/crates/f4x-ai-ref
 /assets-local
 /assets-unused
 *.lbx

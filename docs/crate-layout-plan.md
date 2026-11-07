@@ -198,7 +198,7 @@ task, unless compile times of core become the pain first.
 | `f4x-text` | `text.rs` (438 lines) and `help.rs` (209) are content; they live in rules |
 | `f4x-testkit` | `shipped()`, `num` and `TestDir` fit in `rules::testutil`. A later `f4x-testworld` (the `Game` builders: `flat_game`, `testworld.rs` of `f4x-ai`) could be shared by core, ai, console and learn; not needed yet |
 | split of `f4x-client` (44k lines, 90 files) | possible later: art and asset loading (`art.rs`, `font*.rs`, `unit_sheet.rs`, `river_art.rs`) versus screens. Not measured here. The main gain would be compile time, so measure that first (task 445) |
-| `f4x-ai-ref` | a frozen copy of the AI (7.4k lines). Whether it stays in the workspace is part of task 460 |
+| `f4x-ai-ref` | a frozen copy of the AI (7.4k lines); since task 478 a local copy outside the workspace, ignored by git |
 
 ## 4. Step by step
 

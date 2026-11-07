@@ -425,17 +425,6 @@ Gaps found while working on the base game are added here as new tasks, not left 
 Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 `python3 scripts/archive_done_tasks.py` (a task is done when its row or title says "(done)").
 
-**478. Make `f4x-ai-ref` a local-only snapshot.** *Partly done 7 November 2026:* the crate is outside the workspace (`exclude`), `f4x-tools` has an optional `reference` feature, `fork_ai.py` writes a standalone package with a `build.rs` that honours the `STALE` marker, and `scripts/ai_battle.py` forks a stale reference again before a battle. *Left:* untrack it and add it to `.gitignore`, and `scripts/ai_snapshot.py`. The reference AI is a frozen copy of `f4x-ai` that
-`f4x-tools versus` and `soak` play the current AI against; it is only ever used for local
-development. Put `f4x-ai-ref` behind an optional `reference` feature of `f4x-tools` (the
-`Version::Reference` seats in `contestant.rs`, `versus`, and the reference roster of `soak`), take
-it out of the workspace's required members, untrack it (`git rm -r --cached`) and add it to
-`.gitignore`, so the workspace builds without it. Add `scripts/ai_snapshot.py` (and its row in
-`docs/scripts.md`): copy `crates/f4x-ai` to `crates/f4x-ai-ref` under the new package name, run
-`versus`, keep the winner (keep the new AI, or restore `f4x-ai` from git), then remove the copy.
-A fixed long-term baseline is lost; a snapshot at a git tag can stand in for it. Update
-`docs/rust-dependencies.md`, `docs/crate-layout-plan*.md` and the other docs that name the crate.
-
 **479. The crates below the client know no display text.** Tests of interface text sit in the client,
 and nothing below it needs to know what the client calls a building, unit or spell. Done (task 467):
 the rules carry numbers and the readable alias `id` only, the display names are the client's
