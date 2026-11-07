@@ -1188,4 +1188,338 @@ mod tests {
         );
         Ok(())
     }
+
+    /// Which races can build each building, as the wiki's "Urban Tech by Race" table gives it
+    /// (`reference/Races _ Master of Magic Wiki _ Fandom.html`; it counts the prerequisite
+    /// buildings in, so a University shows the 7 races that can have a Sages' Guild and a
+    /// University). A building not listed has no race restriction. The one cell not followed: the
+    /// table lets Gnolls build a Sages' Guild, but it has no Gnoll Alchemists' Guild or University,
+    /// which need one, and the original's table (`RACETYPE.c`) bars Gnolls from it.
+    #[test]
+    fn the_races_that_can_build_each_building_follow_the_wiki() -> TestResult {
+        let rules = &crate::testdir::shipped().rules;
+        let wiki: &[(&str, &[&str])] = &[
+            (
+                "sawmill",
+                &[
+                    "barbarian",
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "dwarven",
+                    "gnoll",
+                    "halfling",
+                    "high_elf",
+                    "high_men",
+                    "klackon",
+                    "nomad",
+                    "orc",
+                    "troll",
+                ],
+            ),
+            (
+                "foresters_guild",
+                &[
+                    "barbarian",
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "dwarven",
+                    "gnoll",
+                    "halfling",
+                    "high_elf",
+                    "high_men",
+                    "klackon",
+                    "nomad",
+                    "orc",
+                    "troll",
+                ],
+            ),
+            (
+                "miners_guild",
+                &[
+                    "barbarian",
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "dwarven",
+                    "gnoll",
+                    "halfling",
+                    "high_elf",
+                    "high_men",
+                    "klackon",
+                    "nomad",
+                    "orc",
+                ],
+            ),
+            (
+                "mechanicians_guild",
+                &[
+                    "beastmen", "dark_elf", "high_elf", "high_men", "nomad", "orc",
+                ],
+            ),
+            (
+                "bank",
+                &[
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "high_elf",
+                    "high_men",
+                    "nomad",
+                    "orc",
+                ],
+            ),
+            (
+                "merchants_guild",
+                &[
+                    "dark_elf",
+                    "draconian",
+                    "high_elf",
+                    "high_men",
+                    "nomad",
+                    "orc",
+                ],
+            ),
+            (
+                "armorers_guild",
+                &[
+                    "barbarian",
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "dwarven",
+                    "high_elf",
+                    "high_men",
+                    "klackon",
+                    "lizardman",
+                    "nomad",
+                    "orc",
+                    "troll",
+                ],
+            ),
+            (
+                "war_college",
+                &[
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "high_elf",
+                    "high_men",
+                    "nomad",
+                    "orc",
+                ],
+            ),
+            (
+                "temple",
+                &[
+                    "barbarian",
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "dwarven",
+                    "gnoll",
+                    "halfling",
+                    "high_elf",
+                    "high_men",
+                    "lizardman",
+                    "nomad",
+                    "orc",
+                    "troll",
+                ],
+            ),
+            (
+                "parthenon",
+                &[
+                    "barbarian",
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "halfling",
+                    "high_men",
+                    "nomad",
+                    "orc",
+                    "troll",
+                ],
+            ),
+            (
+                "cathedral",
+                &[
+                    "beastmen",
+                    "draconian",
+                    "halfling",
+                    "high_men",
+                    "nomad",
+                    "orc",
+                    "troll",
+                ],
+            ),
+            (
+                "oracle",
+                &[
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "high_men",
+                    "nomad",
+                    "orc",
+                ],
+            ),
+            (
+                "sages_guild",
+                &[
+                    "barbarian",
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "dwarven",
+                    "halfling",
+                    "high_elf",
+                    "high_men",
+                    "nomad",
+                    "orc",
+                ],
+            ),
+            (
+                "alchemists_guild",
+                &[
+                    "barbarian",
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "dwarven",
+                    "halfling",
+                    "high_elf",
+                    "high_men",
+                    "nomad",
+                    "orc",
+                ],
+            ),
+            (
+                "university",
+                &[
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "high_elf",
+                    "high_men",
+                    "nomad",
+                    "orc",
+                ],
+            ),
+            (
+                "wizards_guild",
+                &[
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "high_elf",
+                    "high_men",
+                    "orc",
+                ],
+            ),
+            (
+                "stables",
+                &[
+                    "barbarian",
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "gnoll",
+                    "high_elf",
+                    "high_men",
+                    "klackon",
+                    "lizardman",
+                    "nomad",
+                    "orc",
+                    "troll",
+                ],
+            ),
+            (
+                "animists_guild",
+                &[
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "high_elf",
+                    "high_men",
+                    "nomad",
+                    "orc",
+                    "troll",
+                ],
+            ),
+            (
+                "fantastic_stable",
+                &["dark_elf", "high_elf", "nomad", "orc"],
+            ),
+            (
+                "ship_wrights_guild",
+                &[
+                    "barbarian",
+                    "beastmen",
+                    "dark_elf",
+                    "draconian",
+                    "dwarven",
+                    "gnoll",
+                    "halfling",
+                    "high_elf",
+                    "high_men",
+                    "klackon",
+                    "nomad",
+                    "orc",
+                    "troll",
+                ],
+            ),
+            (
+                "ship_yard",
+                &[
+                    "barbarian",
+                    "dark_elf",
+                    "draconian",
+                    "gnoll",
+                    "high_elf",
+                    "high_men",
+                    "nomad",
+                    "orc",
+                ],
+            ),
+            ("maritime_guild", &["barbarian", "high_men", "orc"]),
+        ];
+        // The races that can build a building: its own list, and for each building it needs, theirs.
+        fn builders(rules: &Rules, b: &BuildingDef) -> Vec<String> {
+            let mut races: Vec<String> = rules
+                .races
+                .defs()
+                .iter()
+                .filter(|r| {
+                    b.buildable_by(
+                        rules
+                            .races
+                            .id_numbered(r.num)
+                            .expect("the race is in the table"),
+                    )
+                })
+                .map(|r| r.id.clone())
+                .collect();
+            for need in &b.requires {
+                let needed = builders(rules, rules.buildings.get(*need));
+                races.retain(|r| needed.contains(r));
+            }
+            races
+        }
+        for (id, expected) in wiki {
+            let def = rules
+                .buildings
+                .defs()
+                .iter()
+                .find(|b| b.id == *id)
+                .ok_or_else(|| format!("building {id} is missing"))?;
+            let mut got = builders(rules, def);
+            got.sort();
+            let mut want: Vec<String> = expected.iter().map(|s| s.to_string()).collect();
+            want.sort();
+            assert_eq!(got, want, "the races that can build the {id}");
+        }
+        Ok(())
+    }
 }
