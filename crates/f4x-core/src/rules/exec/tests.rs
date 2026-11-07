@@ -526,7 +526,7 @@ fn world_changing_effects_reach_the_host() {
             Trigger::OnCast,
             Condition::Always,
             TargetSel::This,
-            Effect::Custom("hook".into()),
+            Effect::hook("hook"),
         ),
     ];
     run_rules(&rules, Trigger::OnCast, &cx, &mut h);

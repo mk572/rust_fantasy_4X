@@ -175,10 +175,33 @@ pub enum Effect {
         strength: u32,
     },
     /// A named hook implemented in Rust and shared by several spells. The name is a plain tag
-    /// the content gives; the game code that implements it checks the tags (`f4x_core::hook`).
-    Custom(String),
+    /// the content gives, with the arguments that tell the spells sharing it apart (`Custom(name:
+    /// "wall", args: ["fire"])`); the game code that implements it checks both (`f4x_core::hook`).
+    Custom {
+        name: String,
+        #[serde(default)]
+        args: Vec<String>,
+    },
     /// The spell's own code in Rust, found by the spell's number (`f4x_core::hook::SPECIAL_SPELLS`).
     Special,
+}
+
+impl Effect {
+    /// A hook with no arguments.
+    pub fn hook(name: &str) -> Effect {
+        Effect::Custom {
+            name: name.to_string(),
+            args: Vec::new(),
+        }
+    }
+
+    /// The hook's name and arguments, if this is a `Custom` effect.
+    pub fn as_hook(&self) -> Option<(&str, &[String])> {
+        match self {
+            Effect::Custom { name, args } => Some((name, args)),
+            _ => None,
+        }
+    }
 }
 
 fn always() -> Condition {

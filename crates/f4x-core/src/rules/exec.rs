@@ -364,7 +364,7 @@ fn run_effect(
             let removed = host.dispel(who, *strength, ctx.owner);
             out.push(Outcome::Dispelled { who, removed });
         }
-        Effect::Custom(hook) => {
+        Effect::Custom { name: hook, .. } => {
             host.custom(hook, who, ctx);
             out.push(Outcome::Custom { hook: hook.clone() });
         }

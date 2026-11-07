@@ -34,7 +34,7 @@ Proposed hook or primitive: **spell_of_return**
 
 ## B. City effects
 
-Joins the existing `city_flag` walls (spells 87 and 178). The city screen's `num == 72` becomes a tag lookup.
+Joins the walls of fire and darkness (spells 87 and 178), which task 486 already moved to `Custom(name: "wall", args: ["fire"])` and `["darkness"]`. The city screen's `num == 72` becomes a tag lookup.
 
 Proposed hook or primitive: **wall (args stone, fire, darkness)**
 

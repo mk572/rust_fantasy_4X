@@ -239,7 +239,7 @@ impl Game {
                         grants.push(*a);
                     }
                     // Heroism's tag: the level it gives is read where the unit's level is.
-                    Effect::Custom(h) if h == crate::unit::HEROISM => {}
+                    Effect::Custom { name, .. } if name == crate::unit::HEROISM => {}
                     _ => return None,
                 }
             }
@@ -301,12 +301,14 @@ impl Game {
                 mana_per_step: *mana_per_step,
                 all: all_enemies,
             }),
-            Effect::Custom(h) if h == BATTLEFIELD => Field::of(spell).map(Kind::Field),
-            Effect::Custom(h) if h == "city_flag" => match spell.num() {
-                87 /* wall_of_fire */ => Some(Kind::CityWall(CityWall::Fire)),
-                178 /* wall_of_darkness */ => Some(Kind::CityWall(CityWall::Darkness)),
-                _ => None,
-            },
+            Effect::Custom { name, .. } if name == BATTLEFIELD => Field::of(spell).map(Kind::Field),
+            Effect::Custom { name, args } if name == crate::hook::WALL => {
+                match args.first().map(String::as_str) {
+                    Some("fire") => Some(Kind::CityWall(CityWall::Fire)),
+                    Some("darkness") => Some(Kind::CityWall(CityWall::Darkness)),
+                    _ => None,
+                }
+            }
             Effect::Special => match spell.num() {
                 48 /* counter_magic */ => Some(Kind::CounterMagic),
                 115 /* call_chaos */ => Some(Kind::CallChaos),

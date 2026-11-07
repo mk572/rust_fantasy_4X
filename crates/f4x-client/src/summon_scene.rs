@@ -81,7 +81,7 @@ pub(crate) fn summoned_by(def: &SpellDef) -> Option<Summoned> {
         Effect::Summon { unit, .. } => Some(Summoned::Creature(*unit)),
         Effect::Special if def.num == 208 /* summon_hero */ => Some(Summoned::Hero),
         Effect::Special if def.num == 212 /* summon_champion */ => Some(Summoned::Champion),
-        Effect::Custom(name) if name == CRAFT_ITEM => Some(Summoned::Item),
+        Effect::Custom { name, .. } if name == CRAFT_ITEM => Some(Summoned::Item),
         _ => None,
     })
 }

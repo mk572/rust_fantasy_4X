@@ -125,7 +125,7 @@ fn world_spell_has_victim(view: &PlayerView, def: &SpellDef) -> bool {
 fn has_hook(def: &SpellDef, name: &str) -> bool {
     def.effects
         .iter()
-        .any(|r| matches!(&r.effect, Effect::Custom(h) if h == name))
+        .any(|r| matches!(&r.effect, Effect::Custom { name: h, .. } if h == name))
 }
 
 /// What the AI makes of a spell.
@@ -194,7 +194,7 @@ pub fn kind(def: &SpellDef) -> Kind {
     let helps = |r: &f4x_def::rules::effects::EffectRule| match &r.effect {
         Effect::Modify { value, .. } => *value >= 0,
         Effect::GrantAbility(_) => true,
-        Effect::Custom(h) => h == "city_flag",
+        Effect::Custom { name, .. } => name == "city_flag" || name == "wall",
         Effect::Special => def.num == 3, // wall_of_stone
         _ => false,
     };
@@ -204,7 +204,7 @@ pub fn kind(def: &SpellDef) -> Kind {
                 && def
                     .effects
                     .iter()
-                    .all(|r| !matches!(r.effect, Effect::Custom(_) | Effect::Special))
+                    .all(|r| !matches!(r.effect, Effect::Custom { .. } | Effect::Special))
                 && def.effects.iter().all(helps) =>
         {
             Kind::UnitBuff

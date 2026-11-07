@@ -154,7 +154,7 @@ pub fn battle_spell(d: &f4x_def::rules::defs::SpellDef) -> bool {
     use f4x_def::rules::effects::Effect;
     d.contexts.contains(&CastContext::Battle)
         && !d.effects.iter().any(|r| match &r.effect {
-            Effect::Custom(h) => h == "unimplemented",
+            Effect::Custom { name, .. } => name == "unimplemented",
             Effect::Special => NOT_TRAINED.contains(&d.num),
             _ => false,
         })

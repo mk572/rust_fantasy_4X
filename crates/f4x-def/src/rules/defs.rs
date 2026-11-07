@@ -758,9 +758,17 @@ impl Def for BuildingDef {
 impl SpellDef {
     /// Whether the spell runs the named `Custom` hook.
     pub fn has_hook(&self, hook: &str) -> bool {
-        self.effects
-            .iter()
-            .any(|r| matches!(&r.effect, super::effects::Effect::Custom(h) if h == hook))
+        self.hook_args(hook).is_some()
+    }
+
+    /// The arguments the spell gives the named `Custom` hook, if it runs it.
+    pub fn hook_args(&self, hook: &str) -> Option<&[String]> {
+        self.effects.iter().find_map(|r| {
+            r.effect
+                .as_hook()
+                .filter(|(n, _)| *n == hook)
+                .map(|(_, a)| a)
+        })
     }
 }
 

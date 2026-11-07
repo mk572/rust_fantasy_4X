@@ -7,21 +7,39 @@
 use crate::rules::effects::{Effect, EffectRule};
 use crate::rules::Rules;
 
-/// Names of the `Effect::Custom` hooks implemented in Rust, shared by several spells. A
-/// `Custom` effect naming anything else fails [`problems`].
+/// A hook the Rust code implements: its name and the argument it takes. `args` empty means the
+/// hook takes none; otherwise it takes exactly one, one of these.
+pub struct Hook {
+    pub name: &'static str,
+    pub args: &'static [&'static str],
+}
+
+/// The name of the hook of the city walls, and its arguments.
+pub const WALL: &str = "wall";
+
+const fn plain(name: &'static str) -> Hook {
+    Hook { name, args: &[] }
+}
+
+/// The `Effect::Custom` hooks implemented in Rust, shared by several spells. A `Custom` effect
+/// naming anything else, or giving arguments the hook does not take, fails [`problems`].
 ///
 /// `unimplemented` marks an imported rule the engine has no primitive for yet; the
 /// number of uses is the to-do list for new effect primitives.
-pub const CUSTOM_HOOKS: &[&str] = &[
-    "unimplemented",
-    crate::spell::global_enchantment::GLOBAL_EFFECT,
-    crate::item::crafting::CRAFT_ITEM,
-    crate::city::gate::EARTH_GATE,
-    crate::city::gate::ASTRAL_GATE,
-    crate::unit::HEROISM,
-    crate::spell::city::CITY_FLAG,
-    crate::battle::field::BATTLEFIELD,
-    crate::battle::field::DISINTEGRATE,
+pub const CUSTOM_HOOKS: &[Hook] = &[
+    plain("unimplemented"),
+    plain(crate::spell::global_enchantment::GLOBAL_EFFECT),
+    plain(crate::item::crafting::CRAFT_ITEM),
+    plain(crate::city::gate::EARTH_GATE),
+    plain(crate::city::gate::ASTRAL_GATE),
+    plain(crate::unit::HEROISM),
+    plain(crate::spell::city::CITY_FLAG),
+    plain(crate::battle::field::BATTLEFIELD),
+    plain(crate::battle::field::DISINTEGRATE),
+    Hook {
+        name: WALL,
+        args: &["fire", "darkness"],
+    },
 ];
 
 /// The spells that have code of their own in Rust (`Effect::Special`), by number: the
@@ -131,9 +149,25 @@ pub fn problems(rules: &Rules) -> Vec<String> {
     }
     for (owner, effects) in carriers {
         for rule in effects {
-            if let Effect::Custom(name) = &rule.effect {
-                if !CUSTOM_HOOKS.contains(&name.as_str()) {
+            if let Effect::Custom { name, args } = &rule.effect {
+                let Some(hook) = CUSTOM_HOOKS.iter().find(|h| h.name == name) else {
                     p.push(format!("{owner}: unknown custom hook {name:?}"));
+                    continue;
+                };
+                let ok = if hook.args.is_empty() {
+                    args.is_empty()
+                } else {
+                    matches!(&args[..], [a] if hook.args.contains(&a.as_str()))
+                };
+                if !ok {
+                    p.push(format!(
+                        "{owner}: hook {name:?} takes {}, not {args:?}",
+                        if hook.args.is_empty() {
+                            "no arguments".to_string()
+                        } else {
+                            format!("one of {:?}", hook.args)
+                        }
+                    ));
                 }
             }
         }
@@ -172,6 +206,32 @@ mod tests {
     }
 
     #[test]
+    fn a_hook_with_arguments_it_does_not_take_is_reported() {
+        let mut c = shipped();
+        let wall = c
+            .rules
+            .spells
+            .defs()
+            .iter()
+            .position(|s| s.id == "wall_of_fire")
+            .expect("wall of fire is shipped");
+        for (args, bad) in [(vec!["lava"], true), (vec![], true), (vec!["fire"], false)] {
+            let mut defs = c.rules.spells.defs().to_vec();
+            defs[wall].effects[0].effect = Effect::Custom {
+                name: WALL.into(),
+                args: args.iter().map(|a| a.to_string()).collect(),
+            };
+            c.rules.spells = crate::rules::Registry::new(defs);
+            let p = problems(&c.rules);
+            assert_eq!(
+                p.iter().any(|m| m.contains("takes")),
+                bad,
+                "{args:?}: {p:?}"
+            );
+        }
+    }
+
+    #[test]
     fn a_hook_without_code_is_reported() {
         let mut c = shipped();
         let healing = c
@@ -182,7 +242,7 @@ mod tests {
             .position(|s| s.id == "healing")
             .expect("healing is shipped");
         let mut defs = c.rules.spells.defs().to_vec();
-        defs[healing].effects[0].effect = Effect::Custom("mystery".into());
+        defs[healing].effects[0].effect = Effect::hook("mystery");
         c.rules.spells = crate::rules::Registry::new(defs);
         let p = problems(&c.rules);
         assert!(p.iter().any(|m| m.contains("unknown custom hook")), "{p:?}");
