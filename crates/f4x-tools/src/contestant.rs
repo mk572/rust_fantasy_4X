@@ -36,7 +36,7 @@ pub trait Contestant {
     /// The AI's own state for the soak's detail lines: the tail of the player's line.
     fn describe(&self) -> String;
     /// What the AI has in mind, as text for a save (`Game::set_plans`); `None` for a version that
-    /// cannot write it (the frozen reference).
+    /// cannot write it (a reference forked before plans existed).
     fn plans(&self) -> Option<String> {
         None
     }
@@ -100,7 +100,7 @@ macro_rules! contestant {
 
 contestant!(f4x_ai, plans to_text);
 #[cfg(feature = "reference")]
-contestant!(f4x_ai_ref);
+contestant!(f4x_ai_ref, plans to_text);
 
 /// The reference AI is not built in: say how to get it, rather than play something else.
 #[cfg(not(feature = "reference"))]
