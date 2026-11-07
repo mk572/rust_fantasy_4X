@@ -194,9 +194,7 @@ impl App {
         };
         if first {
             ui.menu = Menu::Greeting;
-            ui.message = self
-                .original_say(say::greeting_situation(personality), with, salt, &[])
-                .unwrap_or_else(|| say::greeting(self.texts(), level, personality, salt));
+            ui.message = say::greeting(self.texts(), level, personality, salt);
             ui.mood = if level >= 7 {
                 Mood::Good
             } else if level <= 3 {
@@ -212,9 +210,7 @@ impl App {
             ));
         } else if self.audience_refused(with) {
             ui.menu = Menu::Reply;
-            ui.message = self
-                .original_say(71, with, salt, &[])
-                .unwrap_or_else(|| say::cold_shoulder(self.texts(), salt));
+            ui.message = say::cold_shoulder(self.texts(), salt);
             ui.mood = Mood::Bad;
             ui.leave_after = true;
         } else {
@@ -348,46 +344,6 @@ impl App {
             })
             .map(|(i, _)| i)
             .collect()
-    }
-
-    fn wizard_name(&self, p: PlayerId) -> String {
-        self.game
-            .wizard(p)
-            .map_or_else(|| self.text("log.a_rival"), |w| w.name().to_string())
-    }
-
-    /// The original's line for `situation` when its text is on this machine, with the human's
-    /// and the wizard's names, the year and `extra` filled in.
-    fn original_say(
-        &self,
-        situation: u16,
-        with: PlayerId,
-        salt: usize,
-        extra: &[(&str, String)],
-    ) -> Option<String> {
-        let name = |p: PlayerId| {
-            self.game
-                .wizard(p)
-                .map_or_else(|| self.text("log.a_rival"), |w| w.name().to_string())
-        };
-        let mut values = vec![
-            ("player", name(HUMAN)),
-            ("wizard", name(with)),
-            ("year", (1400 + self.game.turn / 12).to_string()),
-        ];
-        values.extend(extra.iter().map(|(k, v)| (*k, v.clone())));
-        say::original_line(
-            &self.diplomsg,
-            situation,
-            salt,
-            self.game
-                .player_ids()
-                .into_iter()
-                .filter(|&p| self.game.wizard(p).is_some())
-                .count()
-                == 2,
-            &values,
-        )
     }
 
     /// Break a long message into lines that fit `width` in a font style.
@@ -735,9 +691,7 @@ impl DiploUi {
         ));
         if events.iter().any(|e| matches!(e, Event::Rejected(_))) {
             app.note(events);
-            let said = app
-                .original_say(57, with, salt, &[])
-                .unwrap_or_else(|| say::refused(app.texts(), kind, level, salt));
+            let said = say::refused(app.texts(), kind, level, salt);
             self.diplo_say(said, Mood::Neutral, false);
             return;
         }
@@ -753,19 +707,7 @@ impl DiploUi {
         app.note(events);
         match answer {
             Some((true, _)) => {
-                let target = match kind {
-                    ProposalKind::WarOn(t) | ProposalKind::BreakAllianceWith(t) => {
-                        Some(app.wizard_name(t))
-                    }
-                    _ => None,
-                };
-                let extra: Vec<(&str, String)> = target
-                    .into_iter()
-                    .flat_map(|t| [("target", t.clone()), ("third_other", t)])
-                    .collect();
-                let said = say::accepted_situation(kind)
-                    .and_then(|n| app.original_say(n, with, salt, &extra))
-                    .unwrap_or_else(|| say::accepted(app.texts(), kind, salt));
+                let said = say::accepted(app.texts(), kind, salt);
                 self.diplo_say(said, Mood::Good, false)
             }
             Some((false, false)) if kind == ProposalKind::Threat => {
@@ -780,9 +722,7 @@ impl DiploUi {
             }
             Some((false, false)) => {
                 let level = relation_level(app.game.relation(HUMAN, with));
-                let said = app
-                    .original_say(57, with, salt, &[])
-                    .unwrap_or_else(|| say::refused(app.texts(), kind, level, salt));
+                let said = say::refused(app.texts(), kind, level, salt);
                 self.diplo_say(said, Mood::Bad, false);
             }
             _ => self.diplo_say(say::lapsed(app.texts()), Mood::Neutral, false),
@@ -829,9 +769,7 @@ impl DiploUi {
                 let failed = events.iter().any(|e| matches!(e, Event::Rejected(_)));
                 app.note(events);
                 if !failed {
-                    let said = app
-                        .original_say(1, with, salt, &[])
-                        .unwrap_or_else(|| say::gold_thanks(app.texts(), salt));
+                    let said = say::gold_thanks(app.texts(), salt);
                     self.diplo_say(said, Mood::Good, false);
                 }
             }
@@ -846,13 +784,7 @@ impl DiploUi {
                 let failed = events.iter().any(|e| matches!(e, Event::Rejected(_)));
                 app.note(events);
                 if !failed {
-                    let gift = app
-                        .names
-                        .spell(app.game.content().rules.spells.get(spell).num)
-                        .to_string();
-                    let said = app
-                        .original_say(54, with, salt, &[("gift", gift)])
-                        .unwrap_or_else(|| say::spell_thanks(app.texts(), salt));
+                    let said = say::spell_thanks(app.texts(), salt);
                     self.diplo_say(said, Mood::Good, false);
                 }
             }
@@ -953,9 +885,7 @@ impl Page for DiploUi {
                 if self.menu == Menu::Greeting {
                     if app.audience_refused(with) {
                         let salt = app.game.turn as usize;
-                        let said = app
-                            .original_say(71, with, salt, &[])
-                            .unwrap_or_else(|| say::cold_shoulder(app.texts(), salt));
+                        let said = say::cold_shoulder(app.texts(), salt);
                         self.diplo_say(said, Mood::Bad, true);
                     } else {
                         chosen = Some(Act::Back);

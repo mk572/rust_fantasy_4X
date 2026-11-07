@@ -31,11 +31,13 @@ that does it.
    AppImage) is only a wrapper around 1 and 2.
 4. Keep "compile locally" as the developer path (`scripts/make_app.sh`), not the player path.
 
-**Rule: `scripts/import_mom.py`, Python and ReMoM are for development only.** The player's machine
-needs none of them, and neither does the game: the client and `f4x-setup` read the original's files
-directly and nothing else. The script stays as the developer's tool for the local files (city names,
-event texts, diplomacy lines, building descriptions) and is never shipped, run or
-required by an installer.
+**Rule: `scripts/import_mom_text.py`, Python and ReMoM are for development only.** The player's machine
+needs none of them, and neither does the game: the client and `f4x-setup` read the original's art and
+sound directly and nothing else. The game reads **no text of the original**: its texts, event sentences,
+diplomacy lines, city names and help are its own files in `crates/f4x-client/content/text/`. The text
+import script (city names, event texts, diplomacy lines, building descriptions, written to the
+gitignored `content-local/`) is the developer's tool for comparing the game's text with the original's,
+and is never shipped, run or required by an installer.
 
 This differs from the wording of the request in one place: the request says the installer builds an
 executable. Section 5 says why a prebuilt executable is better for players, and what it costs. If the
@@ -51,7 +53,7 @@ Measured or read in this repository:
 | 2 | Extract art (about 25,000 PNG) | `f4x-extract art` (Rust) | nothing | `assets-local/art`, `assets-local/screens` (86 MB and 53 MB) |
 | 3 | Extract sound effects to OGG | `f4x-extract audio` (Rust) | `oggenc` or `ffmpeg` for the encoding | `assets-local/audio` |
 | 4 | Extract the 118 songs as XMI | same | nothing | `music/*.xmi` |
-| 5 | Local texts: city names, the wizards' diplomacy lines, event texts | `scripts/import_mom.py` (Python, developer only) | system Python and a clone of ReMoM: **not acceptable for players**, replaced by `f4x-import` (3.4) | `content-local/` (320 KB) |
+| 5 | (none) | The game has its own texts in `crates/f4x-client/content/text/`; `scripts/import_mom_text.py` (developer only) writes the original's prose to `content-local/` for comparison, and nothing reads it | not part of the player's setup | |
 | 6 | Get the MT-32 ROMs | by hand | | `reference/Roland MT-32/rom-new/` |
 | 7 | Render the songs to OGG | `tools/xmi-play -R` (Rust, own workspace, LGPL `mt32-rs`) | the ROMs; `oggenc` or `ffmpeg`; about 2 minutes | `music/*.ogg` (129 MB) |
 | 8 | Build the game | `cargo build --release -p f4x-client` via `make_app.sh` | Rust toolchain, a C toolchain, system libraries | `target/release/f4x-client` (12.6 MB) |
@@ -107,19 +109,13 @@ design does to keep it as clean as it can be:
 
 ### 3.4 Dependencies that a player cannot be asked to have
 
-- **Python and ReMoM: not needed by the player.** `import_mom.py` stays a developer script. What the
-  game reads from `content-local/` is only three small files (`text/en/name/city.ron`, `diplomsg.ron`,
-  `event_texts.ron`; the loaders are in `f4x-def/src/load`), and all three come from
-  the original's LBX files alone:
-  - `CITYNAME.LBX` gives the names per race in race-table order. The script takes the race list from
-    ReMoM's `RACETYPE.c`; the Rust import takes it from the committed `crates/f4x-def/content/races.ron`, whose `num`
-    is the same race number.
-  - `DIPLOMSG.LBX` and `EVENTMSG.LBX` are read by the script without ReMoM.
-  - The help screens (`crates/f4x-client/content/help_screens.ron`) are committed and edited by hand;
-    the script no longer reads `HLPENTRY.LBX` or `HLPENTRY_LBX.md`.
-  The rest of the script (the building texts check) is a development check and is not
-  ported. The Rust import is checked against the script: both write the three files from the author's
-  copy and the results must be identical.
+- **Python and ReMoM: not needed by the player.** The game reads no text of the original any more:
+  the city names, the event sentences, the diplomacy lines and the help are its own files in
+  `crates/f4x-client/content/text/` (the diplomacy lines are the keys of `text/en/diplomacy.ron`, and
+  the `diplomsg` loader is gone). `scripts/import_mom_text.py` stays a developer script: it writes the
+  original's prose (`CITYNAME.LBX`, `EVENTMSG.LBX`, `DIPLOMSG.LBX`, `BUILDESC.LBX`) to the gitignored
+  `content-local/` and cross-checks the building descriptions against `buildings.ron`. It needs
+  ReMoM's `RACETYPE.c` for the race list and is not ported to Rust.
 - **`oggenc` / `ffmpeg`**: steps 3 and 7. Options: (a) write WAV and skip encoding: the client
   already plays `.wav`, but 129 MB of OGG music becomes well over a gigabyte of WAV, too large.
   (b) Use a Rust binding that compiles `libvorbis` into the tool (for example `vorbis_rs` **(verify the
@@ -129,7 +125,7 @@ design does to keep it as clean as it can be:
 
 ### 3.5 Where the game finds its files
 
-`crates/f4x-client/src/main.rs` looks for `content-local`/`content`, `assets-local/art`,
+`crates/f4x-client/src/main.rs` looks for `assets-local/art`,
 `assets-local/audio` and `saves/` **relative to the working directory**. On macOS the launcher script
 links the data folder and starts the game from there. That does not carry over to Windows and Linux.
 Needed: a **data folder per user**, found by the program itself:
@@ -197,7 +193,7 @@ compiling), A needs nothing beyond B's setup program plus a documented `cargo in
 | Part | What | Where |
 |---|---|---|
 | `f4x-client` | the game; finds its data folder (3.5); starts `f4x-setup` when the folder has no art and no `import.json` | `crates/f4x-client` |
-| `f4x-import` (library) | the whole import: read LBX, art, audio, the three local text files; no process calls, no UI; returns progress events and a report | new; move `lbx.rs`, `image.rs`, `art.rs`, `audio.rs`, `fonts.rs`, `map_art.rs` and the like out of `f4x-tools`, which keeps its development commands and calls the library |
+| `f4x-import` (library) | the whole import: read LBX, art, audio; no process calls, no UI; returns progress events and a report | new; move `lbx.rs`, `image.rs`, `art.rs`, `audio.rs`, `fonts.rs`, `map_art.rs` and the like out of `f4x-tools`, which keeps its development commands and calls the library |
 | `f4x-setup` | the wizard around the library: locate, confirm, extract, ROM step, render music, report | new binary crate |
 | `f4x-music` | MT-32 renderer started by `f4x-setup` with a folder of XMI and a folder of ROMs; LGPL, separate; today `tools/xmi-play` | `tools/`, outside the workspace |
 | release pipeline | GitHub Actions workflow for the targets and the packaging of 6.5 | `.github/workflows/release.yml` |
@@ -231,7 +227,6 @@ in place.
 <data folder>/
   import.json
   assets-local/art/ screens/ audio/       (as today, so the client code changes little)
-  content-local/                          (help text, city names, event texts)
   roms/                                   (the two ROMs, if the player allowed it)
   saves/
 ```
@@ -267,9 +262,7 @@ Ordered so that each step is useful on its own. These are proposals, not tasks y
    First, because everything for Windows depends on it.
 2. **Data folder** (3.5): the client and `f4x-tools` find the per-user folder, with `--data` and the
    current relative paths as the fallback. No change to tests.
-3. **The three local text files in Rust** (`text/en/name/city.ron`, `diplomsg`, `event_texts`; 3.4), reading the
-   original's LBX and the committed `crates/f4x-def/content/races.ron`, with no Python and no ReMoM. The script stays
-   for development; a test on the author's copy (not in CI) compares the two outputs byte for byte.
+3. ~~The three local text files in Rust~~ **dropped**: the game has its own texts, so there is nothing to port; `scripts/import_mom_text.py` stays a developer tool.
 4. **Audio encoding without `oggenc`** (3.4), by spike.
 5. **`f4x-import` library**, then **`f4x-setup`** (6.2), with tests that run the unattended path on a
    fixture and on the author's real folder (not in CI; CI has no original files).
@@ -291,7 +284,7 @@ When the author accepts the design, tasks 81 and 176 are replaced by this list. 
 | 1 | Players compile (A) or download a prebuilt game (B)? | B. A stays as the developer path and for platforms without a prebuilt |
 | 2 | Is the ROM download from archive.org acceptable, and which item? | The author decides and supplies the URL and the two SHA-256 values; the dialog and the "I have them" path are in the design either way |
 | 3 | Which versions of the original are supported? | Steam first (verified); GOG when the author has checked the file names and hashes |
-| 4 | The ReMoM inputs of the importer (3.4) | Decided by the user, 2 November 2026: `import_mom.py` is for development only. The player path needs neither Python nor ReMoM; the Rust import uses the committed `crates/f4x-def/content/races.ron` |
+| 4 | The ReMoM inputs of the importer (3.4) | Decided by the user, 2 November 2026: the text import (`scripts/import_mom_text.py`) is for development only. The player path needs neither Python nor ReMoM, and needs no text import at all |
 | 5 | Sound encoder (3.4)? | A Rust binding with libvorbis compiled in, after the spike; `oggenc` shipped beside it as fallback |
 | 6 | Keep the embedded river pictures for a public release (3.1)? | Move them to the local extraction, so the binary is clean |
 | 7 | Sign and notarise the macOS app? Windows certificate? | Not at first; document the warnings. Decide when the first public release is near |

@@ -122,6 +122,22 @@ use view::App;
 /// the only files read from outside the repository (`--assets`, `--audio`).
 const CLIENT_CONTENT: &str = "crates/f4x-client/content";
 
+/// The folder of the long messages (`event_texts.ron`) that holds `file` for a
+/// language, or the English one.
+fn message_dir(language: &str, file: &str) -> PathBuf {
+    let folder = |lang: &str| {
+        Path::new(CLIENT_CONTENT)
+            .join("text")
+            .join(lang)
+            .join("message")
+    };
+    [language, "en"]
+        .into_iter()
+        .map(folder)
+        .find(|dir| dir.join(file).exists())
+        .unwrap_or_else(|| folder("en"))
+}
+
 struct Options {
     assets: PathBuf,
     seed: u64,
@@ -675,10 +691,10 @@ async fn main() {
             );
         }
     }
-    // The event sentences and the diplomacy lines come from the shipped client content only.
-    app.event_texts = event_message::load(Path::new(CLIENT_CONTENT)).unwrap_or_default();
-    app.diplomsg =
-        f4x_def::load::load_diplomacy_lines(Path::new(CLIENT_CONTENT)).unwrap_or_default();
+    // The event sentences come from the shipped client content only,
+    // in the player's language, or in English where a language lacks the file.
+    app.event_texts = event_message::load(&message_dir(&settings.language, "event_texts.ron"))
+        .unwrap_or_default();
     match preferences::Preferences::from_defaults(&settings.preferences) {
         Ok(base) => app.prefs = base,
         Err(e) => {

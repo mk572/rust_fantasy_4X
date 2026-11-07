@@ -26,7 +26,7 @@ crates/f4x-console/ the text console: every action as a line of text (`console.m
 crates/f4x-client/  rendering, input, UI (macroquad)
 crates/f4x-tools/   validator, map preview, original-art extractor
 crates/f4x-def/content/  shipped, original sample data (terrain, features, a small rules set)
-scripts/            import_mom.py (original rules data -> content, help text -> content-local), list_ogbugs.py
+scripts/            import_mom.py (reader of the original's .lbx files), import_mom_text.py (the original's prose -> content-local, for comparison), list_ogbugs.py
 docs/               design and reference documents
 ```
 Gitignored, local only: `assets-local/` (extracted art, screenshots), `content-local/` (the help text and the screen-to-topic map imported from the author's own copy of the original game, plus the preset wizards written from them).
@@ -141,7 +141,7 @@ Not started. Intended design:
 
 ### Placeholder art and original data (local only)
 - The original game's art, music, help text and code are copyrighted and have never been released under a free licence, so they are never committed or distributed with this project. Its rules data (races, units, buildings, spells, items, abilities, realms, level paths and rule values) is committed in `crates/f4x-def/content/`.
-- For development, art is extracted locally from the author's own purchased copy (Steam "Master of Magic Classic") by `f4x-extract art` into `assets-local/art`. Rules data is imported by `scripts/import_mom.py` into `crates/f4x-def/content/` (committed), and the help text into `content-local/`. The original game files and the ReMoM reverse-engineering clone live in `reference/` inside the project directory, which is gitignored (and so is `*.lbx`, as a second safeguard).
+- For development, art is extracted locally from the author's own purchased copy (Steam "Master of Magic Classic") by `f4x-extract art` into `assets-local/art`. The rules data is kept by hand in `crates/f4x-def/content/` (committed), and the game's texts are its own (`crates/f4x-client/content/text/`); `scripts/import_mom_text.py` can write the original's prose to `content-local/` for comparison. The original game files and the ReMoM reverse-engineering clone live in `reference/` inside the project directory, which is gitignored (and so is `*.lbx`, as a second safeguard).
 - The client loads local art if present and falls back to flat colours otherwise, so the game runs and CI passes without it.
 - Before any public release, all placeholders must be replaced with original art or art under a free licence. Treat anything in `assets-local/` and `content-local/` as temporary. The rules data in `crates/f4x-def/content/` stays: it is ours to change.
 

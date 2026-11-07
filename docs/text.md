@@ -70,8 +70,9 @@ Debug output of the console and test messages are not player-facing and stay in 
   the random events (`event.none`, `event.thousand`, `event.plural_ending`, `event.ore_*`, the city
   size names `city.size_*`); the default names of wizards and cities (`setup.*`); the lines of the
   battle Info window (`battle_info.*`, `InfoItem.key`). The sentences of the random events
-  (`EVENTMSG.LBX`, `event_texts.ron`) are the original's text, local data like the help: a language
-  brings its own file with the same placeholders, they are not keys. A name a player typed (a hero,
+  are the game's own, in `text/<lang>/message/event_texts.ron` (a list by event number and voice,
+  not a map of keys, so it sits in the `message/` folder): a language brings its own file with the
+  same placeholders, and falls back to English for a file it lacks. A name a player typed (a hero,
   a made item) is kept as typed.
 - The console prints English from the core and from its own words; it is a developer tool, and
   so are the validation errors of `rules_settings.ron` and `setup.rs` (they are written for the content

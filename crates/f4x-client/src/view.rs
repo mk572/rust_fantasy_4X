@@ -157,10 +157,8 @@ pub struct App {
     pub(crate) queued_research: Option<f4x_def::rules::SpellId>,
     /// The help topics (local only), which describe the spells.
     pub(crate) help: f4x_def::help::Help,
-    /// The messages of the random events (`event_texts.ron`).
+    /// The sentences of the random events (`text/<lang>/message/event_texts.ron`).
     pub(crate) event_texts: Vec<crate::event_message::EventText>,
-    /// The original's lines of the wizards' talk by situation (`diplomsg.ron`, local only).
-    pub(crate) diplomsg: std::collections::HashMap<u16, Vec<String>>,
     /// Heroes died and their items were awarded: the warning box comes before the item screen.
     pub(crate) item_pool_warning: bool,
     /// The full-screen scenes waiting to be played, oldest first (`end_scene.rs`), and whether the
@@ -370,7 +368,6 @@ impl App {
             queued_research: None,
             help: Default::default(),
             event_texts: Vec::new(),
-            diplomsg: Default::default(),
             item_pool_warning: false,
             build_in: None,
             end_scenes: Default::default(),

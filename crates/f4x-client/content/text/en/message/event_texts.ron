@@ -1,0 +1,83 @@
+// The sentences of the random events, by event number and voice (see `event_message.rs`).
+// Event numbers: 1 great meteor, 2 gift, 3 disjunction, 4 diplomatic marriage, 5 earthquake,
+// 6 piracy, 7 plague, 8 rebellion, 9 donation, 10 depletion, 11 new minerals, 12 population boom,
+// 13 good moon, 14 bad moon, 15 conjunction of chaos, 16 conjunction of nature, 17 conjunction of
+// sorcery, 18 mana short.
+// Voices: 0 it happened to you, 1 it ended, 3 it began for the whole world, 4 it happened to a rival.
+// Placeholders: {city} {size} {player} {number} {ore} {item} {units} {people} {buildings}, and the
+// plural endings {units_s} and {buildings_s}. `a{ore}` gives "a coal" or "an iron" (use `A{ore}` at the start of a sentence).
+// This file is in `message/` and not in `text/en` itself: it is a list, not a map of keys.
+[
+    // 1 great meteor
+    (event: 1, voice: 0, text: "A meteor crashes into {city}, killing {people} people and {units} unit{units_s} and flattening {buildings} building{buildings_s}."),
+    (event: 1, voice: 4, text: "A meteor has struck {city}, a city of {player}, killing {people} people and {units} unit{units_s} and flattening {buildings} building{buildings_s}."),
+
+    // 2 gift
+    (event: 2, voice: 0, text: "A gift from the heavens! A forgotten god returns and lays {item} at your feet."),
+    (event: 2, voice: 4, text: "The gods have favoured {player} with a gift: {item}."),
+
+    // 3 disjunction
+    (event: 3, voice: 3, text: "Disjunction! A shudder runs through the weave of magic, and every enchantment in the world is unravelled."),
+
+    // 4 diplomatic marriage
+    (event: 4, voice: 0, text: "A diplomatic marriage! The neutral {size} of {city} asks to join you of its own free will."),
+    (event: 4, voice: 4, text: "The neutral {size} of {city} has pledged itself to {player}."),
+
+    // 5 earthquake
+    (event: 5, voice: 0, text: "Earthquake! The ground splits under {city}, killing {people} people and {units} unit{units_s} and bringing down {buildings} building{buildings_s}."),
+    (event: 5, voice: 4, text: "An earthquake has shaken the {size} of {city}, a city of {player}, killing {people} people and {units} unit{units_s} and bringing down {buildings} building{buildings_s}."),
+
+    // 6 piracy
+    (event: 6, voice: 0, text: "Pirates! Raiders from the sea have broken into your treasury and carried off {number} gold."),
+    (event: 6, voice: 4, text: "Pirates are said to have robbed {player} of {number} gold."),
+
+    // 7 plague
+    (event: 7, voice: 0, text: "Plague! A deadly sickness spreads through the {size} of {city}."),
+    (event: 7, voice: 1, text: "The sickness in {city} has run its course."),
+    (event: 7, voice: 4, text: "Plague has struck the {size} of {city}, a city of {player}."),
+
+    // 8 rebellion
+    (event: 8, voice: 0, text: "Rebellion! The people of {city} have thrown off your rule, and the {size} is neutral now."),
+    (event: 8, voice: 4, text: "The {size} of {city} has risen against {player} and declared itself neutral."),
+
+    // 9 donation
+    (event: 9, voice: 0, text: "A donation! A rich patron, moved by your cause, sends you {number} gold."),
+    (event: 9, voice: 4, text: "A rich patron has sent {player} {number} gold."),
+
+    // 10 depletion
+    (event: 10, voice: 0, text: "Depletion! A{ore} mine at {city} has run dry and gives nothing more."),
+    (event: 10, voice: 4, text: "A{ore} mine at the {size} of {city} has run dry."),
+
+    // 11 new minerals
+    (event: 11, voice: 0, text: "A new find! Prospectors report a{ore} deposit near the {size} of {city}."),
+    (event: 11, voice: 4, text: "The prospectors of {player} have found a{ore} deposit near the {size} of {city}."),
+
+    // 12 population boom
+    (event: 12, voice: 0, text: "A population boom! Families flock to the {size} of {city}, and it grows twice as fast."),
+    (event: 12, voice: 1, text: "The rush to {city} is over, and its growth is back to normal."),
+    (event: 12, voice: 4, text: "The {size} of {city}, a city of {player}, is booming and grows twice as fast."),
+
+    // 13 good moon
+    (event: 13, voice: 1, text: "The bright moon has set; the temples of the good are back to their usual strength."),
+    (event: 13, voice: 3, text: "The good moon! A bright moon rises over the world, and the temples of the good give twice their power."),
+
+    // 14 bad moon
+    (event: 14, voice: 1, text: "The dark moon has set; the temples of evil are back to their usual strength."),
+    (event: 14, voice: 3, text: "The bad moon! A dark moon rises over the world, and the temples of evil give twice their power."),
+
+    // 15 conjunction of chaos
+    (event: 15, voice: 1, text: "The red stars have drifted apart; the chaos nodes give their usual power again."),
+    (event: 15, voice: 3, text: "A conjunction of chaos! Three red stars meet in the sky: the nodes of chaos give twice their power, and all other nodes only half."),
+
+    // 16 conjunction of nature
+    (event: 16, voice: 1, text: "The green stars have drifted apart; the nature nodes give their usual power again."),
+    (event: 16, voice: 3, text: "A conjunction of nature! Three green stars meet in the sky: the nodes of nature give twice their power, and all other nodes only half."),
+
+    // 17 conjunction of sorcery
+    (event: 17, voice: 1, text: "The blue stars have drifted apart; the sorcery nodes give their usual power again."),
+    (event: 17, voice: 3, text: "A conjunction of sorcery! Three blue stars meet in the sky: the nodes of sorcery give twice their power, and all other nodes only half."),
+
+    // 18 mana short
+    (event: 18, voice: 1, text: "The shortage is over. Magic flows again as it always did."),
+    (event: 18, voice: 3, text: "Mana short! Every source of magic in the world has gone dim."),
+]

@@ -48,37 +48,39 @@ game is silent. Which entry a spell or unit plays is `crates/f4x-client/content/
 
 ## Rules data: `crates/f4x-def/content/` (committed)
 
+The game's rules (races, units, buildings, abilities, spells, items, realms, level paths,
+`rules.ron`, terrain, features) are hand-kept names and numbers, committed in
+`crates/f4x-def/content/`. No script writes them. Check them with:
+
 ```
-python3 -I scripts/import_mom.py [--game DIR] [--remom DIR]
 cargo run -p f4x-tools -- validate content
 ```
 
-Writes the game's rules to `crates/f4x-def/content/`: races, units, buildings, abilities,
-spells, items, realms, level paths and `rules.ron`, from the original `.lbx` files and the
-unit/race tables of a local ReMoM clone. These are names and numbers, not IP-protected prose,
-so they are committed (`terrain.ron` and `features.ron` there are hand-written). Rerun the
-importer to regenerate them; edit the importer, not the files, for anything it produces.
-Spells without a matching effect primitive use the `unimplemented` custom hook; the count of
-those is the to-do list for new primitives. Spell rarity is inferred from table order and some
-upkeep values are estimated (see the report).
+The client reads the rules from there and its own tables, texts and settings from
+`crates/f4x-client/content/`, and nothing overrides them (modding comes later). The only files read
+from outside the repository are the pictures and sounds (`assets-local/art`, `assets-local/audio`,
+`--assets` and `--audio`) and the player's own `saves/hotkeys.ron`. `f4x-tools` reads the rules from
+`crates/f4x-def/content/` and takes `--dir` or `--content` for another folder.
 
-## Help text: `content-local/` (gitignored)
+The data loader's tests read `crates/f4x-def/content/` alone; there is no separate test rule set, so a
+test cannot pass on data the game no longer has.
 
-The city names are IP too: `crates/f4x-client/content/text/en/name/city.ron` holds invented names in each race's style (20 a race, by the race's number), and the same run writes the original's to `content-local/text/en/name/city.ron`, which replaces that table when present. The run also writes the original help (`help.ron`: 807 topics; `help_screens.ron`: which screen
-areas open which topic), (the preset wizards' descriptions are no longer imported: they are our own help topics, named by `help` in `wizards.ron`; the random events' messages in `event_texts.ron`, from `EVENTMSG.LBX`; the building descriptions of `BUILDESC.LBX` in `building_texts.ron`, which the game does not show (it has its own in `crates/f4x-client/content/text/en/building.ron`); the wizards' lines of `DIPLOMSG.LBX` in `diplomsg.ron`, which the client uses when present (`diplomacy_text.rs`) and falls back to its own otherwise but the importer compares with our building effects, each difference a `[check]` line in the report; their books and retorts are in the committed `crates/f4x-def/content/wizards.ron`) and
-`IMPORT_REPORT.txt` (everything it could not map) to `content-local/`. Old runs also wrote the
-rules files there; the importer now removes those stale copies.
+## The original's prose: `content-local/` (gitignored, developer only)
 
-The client reads the rules from `crates/f4x-def/content/` and its own tables, texts and settings from
-`crates/f4x-client/content/`, and nothing overrides them (modding comes later). The only files read from
-outside the repository are the pictures and sounds (`assets-local/art`, `assets-local/audio`, `--assets`
-and `--audio`) and the player's own `saves/hotkeys.ron`. `f4x-tools` reads the rules from
-`crates/f4x-def/content/` and takes `--dir` or `--content` for another folder. `content-local/` is not read. The importer also cross-checks costs, upkeep and race build bans against the
-help text (`[check]` lines in the report). What the help describes that is not implemented yet
-is in `docs/archive/mechanics-gaps.md`.
+The game reads **no text of the original**: its texts, event sentences, diplomacy lines, city names and
+help are its own files in `crates/f4x-client/content/text/`. For comparing them with the original's,
+a developer can write the original's prose to `content-local/`, which nothing reads:
 
-The data loader's tests read `crates/f4x-def/content/` alone (never `content-local/`); there is no separate
-test rule set, so a test cannot pass on data the game no longer has.
+```
+python3 -I scripts/import_mom_text.py [--game DIR] [--remom DIR]
+```
+
+It writes `text/en/name/city.ron` (`CITYNAME.LBX`), `event_texts.ron` (`EVENTMSG.LBX`), `diplomsg.ron`
+(`DIPLOMSG.LBX`), `building_texts.ron` (`BUILDESC.LBX`) and `IMPORT_REPORT.txt` (everything it could
+not map). It cross-checks the building descriptions against the effects in `buildings.ron`; each
+difference is a `[check]` line in the report. `scripts/import_mom.py` is only the shared reader of the
+`.lbx` files (`read_lbx`, `read_records`, `cstr`) that the export scripts import. Never commit
+`content-local/`.
 
 ## Local Mac app
 

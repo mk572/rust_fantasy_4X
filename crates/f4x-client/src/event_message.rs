@@ -1,5 +1,5 @@
-//! The message of a random event (`Get_Event_Message`): the client composes it from the
-//! original's lines (`event_texts.ron`, from `EVENTMSG.LBX`) and the notice the game sends.
+//! The message of a random event: the client composes it from the game's sentences
+//! (`text/<lang>/message/event_texts.ron`) and the notice the game sends.
 //! A count of nothing reads "no", the people lost are given in thousands, and the plural ending
 //! is dropped for exactly one.
 
@@ -8,10 +8,9 @@ use std::path::Path;
 use crate::text::{Args, Texts};
 use f4x_core::world_event::EventNotice;
 
-/// One line of `EVENTMSG.LBX`, as the importer writes it to `event_texts.ron`: the event, its
-/// voice (the line within the event's seven) and the text with `{city}`, `{size}`, `{player}`,
-/// `{number}`, `{ore}`, `{item}`, `{units}`, `{people}`, `{buildings}` and the plural endings
-/// `{units_s}` and `{buildings_s}` where the original has its data bytes.
+/// One sentence of `event_texts.ron`: the event, its voice (see [`Voice`](f4x_core::world_event::Voice))
+/// and the text with `{city}`, `{size}`, `{player}`, `{number}`, `{ore}`, `{item}`, `{units}`,
+/// `{people}`, `{buildings}` and the plural endings `{units_s}` and `{buildings_s}`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 pub struct EventText {
     pub event: u32,
@@ -19,7 +18,7 @@ pub struct EventText {
     pub text: String,
 }
 
-/// The optional event messages (`event_texts.ron`) of a content directory. A directory without
+/// The event sentences (`event_texts.ron`) of a folder. A folder without
 /// them yields none, and the events are told without words.
 pub fn load(dir: &Path) -> Result<Vec<EventText>, String> {
     let path = dir.join("event_texts.ron");
@@ -174,6 +173,61 @@ mod tests {
         );
         n.voice = Voice::Happened;
         assert_eq!(compose(&texts, &words(), &n, ""), None);
+        Ok(())
+    }
+
+    /// The shipped English sentences give every notice the game can send a message, and use only
+    /// the placeholders `compose` fills in.
+    #[test]
+    fn the_shipped_sentences_cover_every_notice() -> TestResult {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("content/text/en/message");
+        let lines = load(&dir)?;
+        assert!(!lines.is_empty(), "the shipped event sentences are missing");
+        let known = [
+            "city",
+            "size",
+            "player",
+            "number",
+            "ore",
+            "item",
+            "units",
+            "people",
+            "buildings",
+            "units_s",
+            "buildings_s",
+        ];
+        for kind in EventKind::all() {
+            // The voices the game gives each kind: see `world_event::game`.
+            let voices: &[Voice] = if kind == EventKind::Disjunction {
+                &[Voice::Happened]
+            } else if kind.is_world() {
+                &[Voice::Happened, Voice::Ended]
+            } else if kind.lasts() {
+                &[Voice::Started, Voice::Ended, Voice::Elsewhere]
+            } else {
+                &[Voice::Started, Voice::Elsewhere]
+            };
+            for &voice in voices {
+                let n = lines
+                    .iter()
+                    .filter(|t| t.event == kind.number() && t.voice == voice as u32)
+                    .count();
+                assert_eq!(n, 1, "{kind:?} {voice:?}: one sentence expected, found {n}");
+            }
+        }
+        for t in &lines {
+            let mut rest = t.text.as_str();
+            while let Some(open) = rest.find('{') {
+                let close = rest[open..].find('}').ok_or("an unclosed placeholder")? + open;
+                let name = &rest[open + 1..close];
+                assert!(
+                    known.contains(&name),
+                    "event {}: unknown {{{name}}}",
+                    t.event
+                );
+                rest = &rest[close + 1..];
+            }
+        }
         Ok(())
     }
 }
