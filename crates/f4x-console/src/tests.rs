@@ -32,8 +32,16 @@ fn wizards(g: &Game) -> usize {
         .count()
 }
 
+/// A console that keeps its saves in the crate's permanent `tests/saves`, never in `saves`.
 fn console() -> Console {
-    Console::new(HUMAN, Access::Full)
+    console_for(Access::Full)
+}
+
+fn console_for(access: Access) -> Console {
+    let mut c = Console::new(HUMAN, access);
+    c.session.saves_dir =
+        std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/saves"));
+    c
 }
 
 fn err(r: &crate::Reply) -> &ConsoleError {
@@ -94,11 +102,11 @@ fn queries_describe_the_new_game() {
 #[test]
 fn access_limits_what_a_front_end_can_ever_do() {
     let mut g = game();
-    let mut spectator = Console::new(HUMAN, Access::ReadOnly);
+    let mut spectator = console_for(Access::ReadOnly);
     assert!(spectator.execute(&mut g, "status").ok);
     assert!(!spectator.execute(&mut g, "end").ok);
     assert_eq!(g.turn, 1);
-    let mut player = Console::new(HUMAN, Access::Play);
+    let mut player = console_for(Access::Play);
     assert!(player.execute(&mut g, "end").ok);
     assert_eq!(g.turn, 2);
     assert!(
@@ -296,10 +304,10 @@ fn read_only_mode_runs_queries_and_nothing_else() {
     assert!(c.execute(&mut g, "end").ok);
     assert_eq!(g.turn, 2);
     // A console limited to read-only access starts there and cannot leave.
-    let mut spectator = Console::new(HUMAN, Access::ReadOnly);
+    let mut spectator = console_for(Access::ReadOnly);
     assert_eq!(spectator.session.mode, Mode::ReadOnly);
     assert!(!spectator.execute(&mut g, "mode legal").ok);
-    let mut player = Console::new(HUMAN, Access::Play);
+    let mut player = console_for(Access::Play);
     assert!(player.execute(&mut g, "mode readonly").ok);
     assert!(player.execute(&mut g, "mode legal").ok);
 }
@@ -2775,7 +2783,7 @@ fn the_talk_commands_are_legal_ones_and_diplomacy_a_query() {
         assert_eq!(kind(name), Kind::Legal, "{name}");
     }
     let (mut g, _) = (game(), console());
-    let mut read_only = Console::new(HUMAN, Access::ReadOnly);
+    let mut read_only = console_for(Access::ReadOnly);
     meet_all(&mut g);
     assert!(read_only.execute(&mut g, "diplomacy").ok);
     assert!(!read_only.execute(&mut g, "propose 1 pact").ok);
@@ -2929,7 +2937,7 @@ fn blegal_lists_what_the_game_allows_and_the_listed_orders_work() {
     assert!(r.ok, "{} / {}", first, r.text());
     // The side that does not play gets no list.
     assert!(cast(&mut g, "bend").ok);
-    let mut play = Console::new(HUMAN, Access::Play);
+    let mut play = console_for(Access::Play);
     let refused = play.execute(&mut g, "blegal");
     assert!(!refused.ok, "{}", refused.text());
 }
@@ -3346,8 +3354,7 @@ fn a_recorded_game_is_played_again_by_text() {
     );
     let mut fresh = game();
     let r = c.execute(&mut fresh, &format!("replay {name}"));
-    let _ = std::fs::remove_file(format!("saves/{name}.replay.ron"));
-    let _ = std::fs::remove_dir("saves");
+    let _ = std::fs::remove_file(c.session.saves_dir.join(format!("{name}.replay.ron")));
     assert!(r.ok, "{}", r.text());
     assert_eq!(
         (

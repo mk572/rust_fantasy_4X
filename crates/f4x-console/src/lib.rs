@@ -25,6 +25,7 @@ pub mod talk;
 
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::PlayerId;
+use std::path::PathBuf;
 
 use args::Args;
 
@@ -159,6 +160,9 @@ pub struct Session {
     pub access: Access,
     /// Set by `quit`: the front end should close.
     pub quit: bool,
+    /// The folder `save`, `load`, `record` and `replay` use (`saves` in the game's folder; the
+    /// tests of a crate use its `tests/saves`).
+    pub saves_dir: PathBuf,
 }
 
 /// A console for one game.
@@ -194,6 +198,7 @@ impl Console {
                 },
                 access,
                 quit: false,
+                saves_dir: PathBuf::from("saves"),
             },
             history: Vec::new(),
         }

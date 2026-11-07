@@ -219,11 +219,11 @@ fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     Ok(())
 }
 
-fn save_path(a: &Args) -> Result<PathBuf, ConsoleError> {
-    named_path(a.get(0))
+fn save_path(ctx: &Ctx, a: &Args) -> Result<PathBuf, ConsoleError> {
+    named_path(ctx, a.get(0))
 }
 
-fn named_path(name: Option<&str>) -> Result<PathBuf, ConsoleError> {
+fn named_path(ctx: &Ctx, name: Option<&str>) -> Result<PathBuf, ConsoleError> {
     let name = name.unwrap_or("quick");
     if name.is_empty()
         || !name
@@ -234,11 +234,11 @@ fn named_path(name: Option<&str>) -> Result<PathBuf, ConsoleError> {
             "a save name is letters, digits, - and _".into(),
         ));
     }
-    Ok(PathBuf::from("saves").join(format!("{name}.ron")))
+    Ok(ctx.session.saves_dir.join(format!("{name}.ron")))
 }
 
 fn save(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
-    let path = save_path(a)?;
+    let path = save_path(ctx, a)?;
     f4x_core::game::save::save_game(&path, ctx.game)
         .map_err(|e| ConsoleError::Failed(e.to_string()))?;
     ctx.say(format!("saved to {}", path.display()));
@@ -257,7 +257,7 @@ fn replaces_game(ctx: &Ctx) -> Result<(), ConsoleError> {
 
 fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     replaces_game(ctx)?;
-    let path = save_path(a)?;
+    let path = save_path(ctx, a)?;
     let content = ctx.game.content().clone();
     let (mut game, integrity) = f4x_core::game::save::load_game(&path, content)
         .map_err(|e| ConsoleError::Failed(e.to_string()))?;
@@ -275,8 +275,8 @@ fn load(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     Ok(())
 }
 
-fn replay_path(name: Option<&str>) -> Result<PathBuf, ConsoleError> {
-    let path = named_path(name)?;
+fn replay_path(ctx: &Ctx, name: Option<&str>) -> Result<PathBuf, ConsoleError> {
+    let path = named_path(ctx, name)?;
     Ok(path.with_extension("replay.ron"))
 }
 
@@ -292,7 +292,7 @@ fn record(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             Err(_) => ctx.say("not recording".to_string()),
         },
         "stop" => {
-            let path = replay_path(a.get(1))?;
+            let path = replay_path(ctx, a.get(1))?;
             let replay = ctx
                 .game
                 .stop_recording()
@@ -300,7 +300,8 @@ fn record(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             let text = replay
                 .to_text()
                 .map_err(|e| ConsoleError::Failed(format!("{e:?}")))?;
-            std::fs::create_dir_all("saves").map_err(|e| ConsoleError::Failed(e.to_string()))?;
+            std::fs::create_dir_all(&ctx.session.saves_dir)
+                .map_err(|e| ConsoleError::Failed(e.to_string()))?;
             std::fs::write(&path, text).map_err(|e| ConsoleError::Failed(e.to_string()))?;
             ctx.say(format!(
                 "wrote {} ({} commands)",
@@ -319,7 +320,7 @@ fn record(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 
 fn replay(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     replaces_game(ctx)?;
-    let path = replay_path(a.get(0))?;
+    let path = replay_path(ctx, a.get(0))?;
     let count = match a.get(1) {
         Some(n) => n
             .parse()

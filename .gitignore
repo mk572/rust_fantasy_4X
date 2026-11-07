@@ -14,3 +14,7 @@ __pycache__/
 /tools/*/target
 .DS_Store
 /soak-out
+
+# What the tests save is theirs to leave behind; the folder itself stays.
+/crates/*/tests/saves/*
+!/crates/*/tests/saves/.gitkeep
