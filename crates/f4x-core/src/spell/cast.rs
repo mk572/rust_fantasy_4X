@@ -95,31 +95,6 @@ impl GameHost<'_> {
             _ => return None,
         })
     }
-
-    /// Disjunction, Spell Binding and Spell Blast; `None` for any other hook.
-    fn dispel_hook(&mut self, spell: SpellId, who: Target, ctx: &Context) -> Option<Vec<Event>> {
-        use crate::spell::dispel::global_attack_events;
-        let by = ctx.owner;
-        let cost = self.game.content.rules.spells.get(spell).cost + self.extra;
-        let (factor, steal) = match spell.num() {
-            210 /* disjunction */ => (1, false),
-            61 /* disjunction_true */ => (3, false),
-            76 /* spell_binding */ => (1, true),
-            _ => return None,
-        };
-        let Target::Spell(instance) = who else {
-            return Some(Vec::new());
-        };
-        let spells = self.game.spells();
-        let (Some(victim), Some(spell)) = (spells.caster_player(instance), spells.def(instance))
-        else {
-            return Some(Vec::new());
-        };
-        let result = self
-            .game
-            .attack_global(by, instance, cost * factor, steal, &mut self.rng);
-        Some(global_attack_events(by, victim, spell, result, steal))
-    }
 }
 
 impl GameHost<'_> {
@@ -345,18 +320,6 @@ impl EffectHost for GameHost<'_> {
         self.game.attach_enchantment(who, spell, caster);
     }
 
-    /// Other wizards' enchantments on the target are removed with chance
-    /// `strength / (strength + difficulty)` (see `spell/dispel.rs`).
-    fn dispel(&mut self, who: Target, strength: u32, by: PlayerId) -> u32 {
-        let strength = strength + self.boost;
-        let mut gone = Vec::new();
-        let removed = self
-            .game
-            .dispel_target(who, strength, by, &mut self.rng, &mut gone);
-        self.events.extend(gone);
-        removed
-    }
-
     fn rng(&mut self) -> &mut dyn RngCore {
         &mut self.rng
     }
@@ -393,6 +356,11 @@ impl EffectHost for GameHost<'_> {
                     self.game.move_summoning_circle(ctx.owner, city)
                 };
                 self.building_moved(result);
+            }
+        }
+        if hook == crate::spell::dispel::COUNTER_EFFECT {
+            if let Source::Spell(spell) = ctx.source {
+                self.counter_effect(spell, who, ctx.owner);
             }
         }
         if hook == crate::spell::hero::SUMMON_HERO {
@@ -440,10 +408,6 @@ impl EffectHost for GameHost<'_> {
         let Source::Spell(spell) = ctx.source else {
             return;
         };
-        if let Some(events) = self.dispel_hook(spell, who, ctx) {
-            self.events.extend(events);
-            return;
-        }
         if let Some(events) = self.game.hero_hook(spell, ctx.owner, who, &mut self.rng) {
             self.events.extend(events);
             return;
@@ -472,6 +436,60 @@ impl EffectHost for GameHost<'_> {
 }
 
 impl GameHost<'_> {
+    /// Other wizards' enchantments on the target are removed with chance
+    /// `strength / (strength + difficulty)` (see `spell/dispel.rs`).
+    fn dispel(&mut self, who: Target, strength: u32, by: PlayerId) -> u32 {
+        let strength = strength + self.boost;
+        let mut gone = Vec::new();
+        let removed = self
+            .game
+            .dispel_target(who, strength, by, &mut self.rng, &mut gone);
+        self.events.extend(gone);
+        removed
+    }
+
+    /// What a spell with the `counter_effect` hook does against the spell, unit or square aimed
+    /// at. Counter Magic is a battle spell and is carried out there.
+    fn counter_effect(&mut self, spell: SpellId, who: Target, by: PlayerId) {
+        use crate::spell::dispel::{global_attack_events, CounterEffect as C};
+        let def = self.game.content.rules.spells.get(spell);
+        let Some((effect, number)) = C::of(def) else {
+            return;
+        };
+        let cost = def.cost + self.extra;
+        match effect {
+            C::Dispel => {
+                let removed = self.dispel(who, number, by);
+                self.events.push(Event::Dispelled {
+                    player: by,
+                    removed,
+                });
+            }
+            C::Disjunction | C::SpellBinding => {
+                let steal = effect == C::SpellBinding;
+                let Target::Spell(instance) = who else {
+                    return;
+                };
+                let spells = self.game.spells();
+                let (Some(victim), Some(attacked)) =
+                    (spells.caster_player(instance), spells.def(instance))
+                else {
+                    return;
+                };
+                let result = self.game.attack_global(
+                    by,
+                    instance,
+                    cost * number.max(1),
+                    steal,
+                    &mut self.rng,
+                );
+                self.events
+                    .extend(global_attack_events(by, victim, attacked, result, steal));
+            }
+            C::CounterMagic => {}
+        }
+    }
+
     /// What a spell with the `unit_effect` hook does to the unit it is aimed at. The effects that
     /// are only read from a lasting spell do nothing here.
     fn unit_effect(
@@ -789,14 +807,10 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        let disenchants = self
-            .content
-            .rules
-            .spells
-            .get(spell)
-            .effects
-            .iter()
-            .any(|e| matches!(e.effect, crate::rules::effects::Effect::Dispel { .. }));
+        let disenchants = matches!(
+            crate::spell::dispel::CounterEffect::of(self.content.rules.spells.get(spell)),
+            Some((crate::spell::dispel::CounterEffect::Dispel, _))
+        );
         if disenchants && wanted == SpellTarget::Tile {
             if let Some(Target::Tile(at)) = target {
                 self.check_dispel_area(at, player)
@@ -975,16 +989,12 @@ impl Game {
         };
         let def = self.content.rules.spells.get(spell).clone();
         let this = target.unwrap_or(Target::Player(player));
-        let boost = def
-            .effects
-            .iter()
-            .find_map(|e| match e.effect {
-                crate::rules::effects::Effect::Dispel { strength } if def.cost > 0 => {
-                    Some(extra.max(0) as u32 * strength / def.cost)
-                }
-                _ => None,
-            })
-            .unwrap_or(0);
+        let boost = match crate::spell::dispel::CounterEffect::of(&def) {
+            Some((crate::spell::dispel::CounterEffect::Dispel, strength)) if def.cost > 0 => {
+                extra.max(0) as u32 * strength / def.cost
+            }
+            _ => 0,
+        };
         let ctx = Context {
             this,
             owner: player,
@@ -1035,14 +1045,6 @@ impl Game {
                 .is_in(self.content.rules.spells.get(spell))
             {
                 self.subvert(wizard);
-            }
-        }
-        for o in &outcomes {
-            if let Outcome::Dispelled { removed, .. } = o {
-                events.push(Event::Dispelled {
-                    player,
-                    removed: *removed,
-                });
             }
         }
         events.extend(hook_events);
@@ -1166,6 +1168,21 @@ impl Game {
 #[cfg(test)]
 pub(crate) mod tests_support {
     use super::*;
+
+    /// A dispel of `strength` by `by` on `who`, as the `dispel` counter effect does it: how many
+    /// enchantments came off.
+    pub(crate) fn dispel(game: &mut Game, who: Target, strength: u32, by: PlayerId) -> u32 {
+        let rng = game.rng.clone();
+        let mut host = GameHost {
+            game,
+            rng,
+            events: Vec::new(),
+            slain: 0,
+            extra: 0,
+            boost: 0,
+        };
+        host.dispel(who, strength, by)
+    }
 
     pub(crate) fn host(game: &mut Game) -> impl EffectHost + '_ {
         // A copy of the generator: tests of single effects need no stream of their own.

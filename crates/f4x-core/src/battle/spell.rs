@@ -186,7 +186,6 @@ crate::hook::effect_enum! {
     /// What a spell with the `battle_effect` hook does in a battle: the argument of the hook
     /// (`Custom(name: "battle_effect", args: ["earth_to_mud"])`).
     pub enum BattleEffect in BATTLE_EFFECT;
-    CounterMagic = "counter_magic",
     CallChaos = "call_chaos",
     Animate = "animate",
     Raise = "raise",
@@ -206,7 +205,6 @@ impl BattleEffect {
 
     fn kind(self) -> Kind {
         match self {
-            BattleEffect::CounterMagic => Kind::CounterMagic,
             BattleEffect::CallChaos => Kind::CallChaos,
             BattleEffect::Animate => Kind::Animate,
             BattleEffect::Raise => Kind::Raise,
@@ -331,7 +329,17 @@ impl Game {
                 },
             }),
             Effect::Summon { unit, .. } => Some(Kind::Summon(*unit)),
-            Effect::Dispel { strength } => Some(Kind::Dispel(*strength / def.cost.max(1))),
+            Effect::Custom { name, .. } if name == crate::spell::dispel::COUNTER_EFFECT => {
+                match crate::spell::dispel::CounterEffect::of(def) {
+                    Some((crate::spell::dispel::CounterEffect::Dispel, strength)) => {
+                        Some(Kind::Dispel(strength / def.cost.max(1)))
+                    }
+                    Some((crate::spell::dispel::CounterEffect::CounterMagic, _)) => {
+                        Some(Kind::CounterMagic)
+                    }
+                    _ => None,
+                }
+            }
             Effect::Slay {
                 realm,
                 modifier,

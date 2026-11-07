@@ -860,9 +860,6 @@ fn check_rule(r: &Rules, features: &Features, owner: &str, rule: &EffectRule, p:
             realm(m, p);
         }
         Effect::Heal(n) if *n <= 0 => p.push(format!("{owner}: heal must be positive")),
-        Effect::Dispel { strength: 0 } => {
-            p.push(format!("{owner}: dispel strength must be positive"))
-        }
         _ => {}
     }
     if let crate::rules::effects::TargetSel::UnitsInArea(0) = rule.target {

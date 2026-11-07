@@ -110,9 +110,6 @@ pub trait EffectHost {
     fn change_terrain(&mut self, at: Position, class: TerrainClass);
     fn set_feature(&mut self, at: Position, feature: crate::map::FeatureId);
     fn apply_enchantment(&mut self, who: Target, spell: SpellId, caster: PlayerId);
-    /// Remove other wizards' enchantments (cast by anyone but `by`) that the strength beats;
-    /// returns how many were removed.
-    fn dispel(&mut self, who: Target, strength: u32, by: PlayerId) -> u32;
     fn custom(&mut self, hook: &str, args: &[String], who: Target, ctx: &Context);
     /// The code of the spell that is being run (`ctx.source`), found by the spell's number.
     fn special(&mut self, who: Target, ctx: &Context);
@@ -171,10 +168,6 @@ pub enum Outcome {
     Enchanted {
         who: Target,
         spell: SpellId,
-    },
-    Dispelled {
-        who: Target,
-        removed: u32,
     },
     Custom {
         hook: String,
@@ -359,10 +352,6 @@ fn run_effect(
             let spell = *spell;
             host.apply_enchantment(who, spell, ctx.owner);
             out.push(Outcome::Enchanted { who, spell });
-        }
-        Effect::Dispel { strength } => {
-            let removed = host.dispel(who, *strength, ctx.owner);
-            out.push(Outcome::Dispelled { who, removed });
         }
         Effect::Custom { name: hook, args } => {
             host.custom(hook, args, who, ctx);

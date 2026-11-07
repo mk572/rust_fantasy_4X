@@ -84,9 +84,9 @@ Proposed hook or primitive: **summon_hero / summon_champion / incarnation (to de
 
 Proposed hook or primitive: **dispel (args to decide: factor, steal)**
 
-- [ ] 210 `disjunction`
-- [ ] 61 `disjunction_true`
-- [ ] 76 `spell_binding`
+- [x] 210 `disjunction`
+- [x] 61 `disjunction_true`
+- [x] 76 `spell_binding`
 
 Proposed hook or primitive: **spell_blast**
 

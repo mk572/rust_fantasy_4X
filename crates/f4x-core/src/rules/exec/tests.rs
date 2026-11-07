@@ -149,16 +149,6 @@ impl EffectHost for MockHost {
             u.enchants.push(spell);
         }
     }
-    fn dispel(&mut self, who: Target, strength: u32, _by: PlayerId) -> u32 {
-        let u = self.unit_mut(who).expect("unit_mut succeeds");
-        let n = if strength > 0 {
-            u.enchants.len() as u32
-        } else {
-            0
-        };
-        u.enchants.clear();
-        n
-    }
     fn custom(&mut self, hook: &str, _a: &[String], _w: Target, _c: &Context) {
         self.customs.push(hook.to_string());
     }
@@ -571,19 +561,6 @@ fn grant_remove_heal_and_dispel() {
         Trigger::OnCast,
         &cx,
         &mut h,
-    );
-    let out = run_rules(
-        &on_cast(Effect::Dispel { strength: 50 }),
-        Trigger::OnCast,
-        &cx,
-        &mut h,
-    );
-    assert_eq!(
-        out,
-        vec![Outcome::Dispelled {
-            who: Target::Unit(a),
-            removed: 1
-        }]
     );
 }
 

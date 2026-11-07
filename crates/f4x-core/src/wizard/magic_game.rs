@@ -105,11 +105,8 @@ impl Game {
     pub fn spell_takes_extra_mana(&self, spell: SpellId) -> bool {
         let def = self.content.rules.spells.get(spell);
         def.contexts.contains(&CastContext::Overland)
-            && (def
-                .effects
-                .iter()
-                .any(|e| matches!(e.effect, crate::rules::effects::Effect::Dispel { .. }))
-                || crate::spell::dispel::GLOBAL_ATTACKS.contains(&spell.num()))
+            && crate::spell::dispel::CounterEffect::of(def)
+                .is_some_and(|(e, _)| e.takes_extra_mana())
     }
 
     /// The mana `spell` costs with `extra` mana put into it.

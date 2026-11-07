@@ -50,6 +50,8 @@ pub struct Hook {
     pub name: &'static str,
     pub args: &'static [&'static str],
     pub several: bool,
+    /// After the names, the hook takes one number (a strength): `args: ["dispel", "10"]`.
+    pub number: bool,
 }
 
 /// The name of the hook of the city walls, and its arguments.
@@ -60,6 +62,7 @@ const fn plain(name: &'static str) -> Hook {
         name,
         args: &[],
         several: false,
+        number: false,
     }
 }
 
@@ -78,32 +81,38 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
             crate::city::gate::ASTRAL_GATE,
         ],
         several: false,
+        number: false,
     },
     plain(crate::unit::HEROISM),
     Hook {
         name: crate::spell::city::CITY_EFFECT,
         args: &crate::spell::city::CityEffect::NAMES,
         several: true,
+        number: false,
     },
     Hook {
         name: crate::battle::field::BATTLEFIELD,
         args: &crate::battle::field::Field::NAMES,
         several: false,
+        number: false,
     },
     Hook {
         name: crate::spell::terraform::TERRAIN_EFFECT,
         args: &crate::spell::terraform::TerrainEffect::NAMES,
         several: false,
+        number: false,
     },
     Hook {
         name: crate::spell::global_enchantment::GLOBAL_EFFECT,
         args: &crate::spell::global_enchantment::GlobalEffect::NAMES,
         several: true,
+        number: false,
     },
     Hook {
         name: crate::battle::spell::BATTLE_EFFECT,
         args: &crate::battle::spell::BattleEffect::NAMES,
         several: false,
+        number: false,
     },
     Hook {
         name: crate::spell::special::RECALL,
@@ -112,6 +121,7 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
             crate::spell::special::RECALL_HERO,
         ],
         several: false,
+        number: false,
     },
     plain(crate::spell::special::PLANE_SHIFT),
     Hook {
@@ -121,42 +131,50 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
             crate::spell::special::MOVE_CIRCLE,
         ],
         several: false,
+        number: false,
     },
     Hook {
         name: crate::spell::wizard::WIZARD_EFFECT,
         args: &crate::spell::wizard::WizardEffect::NAMES,
         several: false,
+        number: false,
     },
     Hook {
         name: crate::spell::unit_effect::UNIT_EFFECT,
         args: &crate::spell::unit_effect::UnitEffect::NAMES,
         several: true,
+        number: false,
+    },
+    Hook {
+        name: crate::spell::dispel::COUNTER_EFFECT,
+        args: &crate::spell::dispel::CounterEffect::NAMES,
+        several: false,
+        number: true,
     },
     Hook {
         name: crate::spell::hero::SUMMON_HERO,
         args: &crate::spell::hero::HeroSummon::NAMES,
         several: false,
+        number: false,
     },
     plain(crate::battle::field::DISINTEGRATE),
     Hook {
         name: WALL,
         args: &["stone", "fire", "darkness"],
         several: false,
+        number: false,
     },
 ];
 
 /// The spells that have code of their own in Rust (`Effect::Special`), by number: the
 /// number is the only link between the spell and its code. A `Special` effect on a spell
 /// not in this list fails [`problems`].
-pub const SPECIAL_SPELLS: [u16; 10] = [
+pub const SPECIAL_SPELLS: [u16; 7] = [
     26,  // earthquake
-    61,  // disjunction_true
     75,  // great_unsummoning
-    76,  // spell_binding
     119, // call_the_void
     133, // resurrection
     199, // death_wish
-    210, // disjunction
     213, // spell_of_mastery
     214, // spell_of_return
 ];
@@ -217,12 +235,16 @@ pub fn problems(rules: &Rules) -> Vec<String> {
                     p.push(format!("{owner}: unknown custom hook {name:?}"));
                     continue;
                 };
+                let is_number = |a: &String| a.parse::<u32>().is_ok_and(|n| n > 0);
+                let numbers = args.iter().filter(|a| is_number(a)).count();
+                let names: Vec<&String> = args.iter().filter(|a| !is_number(a)).collect();
                 let ok = if hook.args.is_empty() {
                     args.is_empty()
                 } else {
-                    (hook.several || args.len() == 1)
-                        && !args.is_empty()
-                        && args.iter().all(|a| hook.args.contains(&a.as_str()))
+                    (hook.several || names.len() == 1)
+                        && !names.is_empty()
+                        && names.iter().all(|a| hook.args.contains(&a.as_str()))
+                        && numbers <= usize::from(hook.number)
                 };
                 if !ok {
                     p.push(format!(
@@ -323,6 +345,17 @@ mod tests {
                     .iter()
                     .any(|d| crate::spell::hero::HeroSummon::of(d) == Some(e)),
                 "no spell gives the hero summon {name}"
+            );
+        }
+        for name in crate::spell::dispel::CounterEffect::NAMES {
+            let e = crate::spell::dispel::CounterEffect::named(name).expect("a listed name");
+            assert!(
+                c.rules
+                    .spells
+                    .defs()
+                    .iter()
+                    .any(|d| crate::spell::dispel::CounterEffect::of(d).map(|x| x.0) == Some(e)),
+                "no spell gives the counter effect {name}"
             );
         }
         for name in Field::NAMES {

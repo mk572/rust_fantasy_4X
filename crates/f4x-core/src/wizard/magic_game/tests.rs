@@ -743,10 +743,16 @@ fn dispelling_removes_enchantments_by_strength() -> TestResult {
     g.attach_enchantment(Target::Unit(unit), strength, P0);
     assert_eq!(g.units().unit_stat(unit, Stat::Melee), melee + 1);
     {
-        use crate::rules::exec::EffectHost;
-        let mut host = crate::spell::cast::tests_support::host(&mut g);
         // An overwhelming dispel by another wizard always works.
-        assert_eq!(host.dispel(Target::Unit(unit), 100_000, PlayerId(1)), 1);
+        assert_eq!(
+            crate::spell::cast::tests_support::dispel(
+                &mut g,
+                Target::Unit(unit),
+                100_000,
+                PlayerId(1)
+            ),
+            1
+        );
     }
     assert_eq!(g.units().unit_stat(unit, Stat::Melee), melee);
     Ok(())

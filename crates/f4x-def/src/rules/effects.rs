@@ -171,9 +171,6 @@ pub enum Effect {
     SetFeature(crate::map::FeatureId),
     /// Attach a lasting spell (by spell id) to the target.
     ApplyEnchantment(Id<SpellDef>),
-    Dispel {
-        strength: u32,
-    },
     /// A named hook implemented in Rust and shared by several spells. The name is a plain tag
     /// the content gives, with the arguments that tell the spells sharing it apart (`Custom(name:
     /// "wall", args: ["fire"])`); the game code that implements it checks both (`f4x_core::hook`).

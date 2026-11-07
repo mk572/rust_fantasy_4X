@@ -165,10 +165,10 @@ pub fn kind(def: &SpellDef) -> Kind {
         return Kind::Disjunction;
     }
     if def.target == SpellTarget::Tile
-        && def
-            .effects
-            .iter()
-            .any(|r| matches!(r.effect, Effect::Dispel { .. }))
+        && matches!(
+            f4x_core::spell::dispel::CounterEffect::of(def),
+            Some((f4x_core::spell::dispel::CounterEffect::Dispel, _))
+        )
     {
         return Kind::Disenchant;
     }

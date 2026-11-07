@@ -34,7 +34,10 @@ fn world() -> Game {
     let mut c = shipped();
     let mut defs = c.rules.spells.defs().to_vec();
     for d in defs.iter_mut().filter(|d| d.id == "disenchant_area") {
-        d.effects[0].effect = Effect::Dispel { strength: 5000 };
+        d.effects[0].effect = Effect::Custom {
+            name: crate::spell::dispel::COUNTER_EFFECT.into(),
+            args: vec!["dispel".into(), "5000".into()],
+        };
     }
     for d in defs.iter_mut().filter(|d| d.id == "disjunction") {
         d.cost = 5000;
