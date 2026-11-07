@@ -6,7 +6,7 @@ gives the values; it holds no sentence. This is what makes a second language pos
 ## Files and keys
 
 - `crates/f4x-client/content/client_settings.ron` names the language (`language: "en"`); `en` is the fallback for a key another
-  language lacks. `content-local/text/<lang>/` layers over `crates/f4x-client/content/text/<lang>/`.
+  language lacks.
 - One file per screen or domain (`battle`, `spell`, `hero`, `create`, ...), at most about 100
   entries each. A key is `area.name` and lives in the file `area.ron`, once over all files.
 - A file is a RON map from key to entry.
