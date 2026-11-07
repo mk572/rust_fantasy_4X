@@ -267,8 +267,8 @@ impl App {
     /// global enchantment is picked from a list, anything else is aimed on the map.
     pub(crate) fn aim_paid_spell(&mut self, spell: SpellId) {
         self.screen = Screen::Map;
-        if spell == f4x_def::rules::SpellId::new(133)
-        /* resurrection */
+        if f4x_core::spell::hero::HeroSummon::Resurrection
+            .is_in(self.game.content().rules.spells.get(spell))
         {
             self.open_resurrect(spell, true);
             return;
@@ -332,8 +332,8 @@ impl App {
         let mana = self.game.player(HUMAN).map_or(0, |p| p.treasury().mana);
         if needs && cost <= instant.min(mana) {
             // The dead hero Resurrection raises is chosen from a list.
-            if spell == f4x_def::rules::SpellId::new(133)
-            /* resurrection */
+            if f4x_core::spell::hero::HeroSummon::Resurrection
+                .is_in(self.game.content().rules.spells.get(spell))
             {
                 self.open_resurrect(spell, false);
                 return;

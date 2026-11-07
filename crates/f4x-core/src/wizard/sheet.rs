@@ -303,8 +303,9 @@ impl<'a> Wizard<'a> {
     pub fn research_cost(&self, content: &Content, spell: SpellId) -> i32 {
         let spells = &content.rules.spells;
         let listed = spells.get(spell).research_cost as i32;
-        if spell != SpellId::new(213)
-        /* spell_of_mastery */
+        if !spells
+            .get(spell)
+            .has_hook(crate::spell::special::SPELL_OF_MASTERY)
         {
             return listed;
         }

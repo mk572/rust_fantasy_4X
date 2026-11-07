@@ -47,17 +47,6 @@ impl UnitEffect {
             .find_map(|a| UnitEffect::named(a))
     }
 
-    /// The first spell of the rules that gives this effect: for the code that has to name the
-    /// spell a change came from.
-    pub fn spell_in(self, rules: &crate::rules::Rules) -> Option<crate::rules::SpellId> {
-        rules
-            .spells
-            .defs()
-            .iter()
-            .find(|d| self.is_in(d))
-            .map(|d| crate::rules::SpellId::new(d.num))
-    }
-
     fn bit(self) -> u32 {
         1 << (self as u32)
     }

@@ -152,9 +152,6 @@ impl EffectHost for MockHost {
     fn custom(&mut self, hook: &str, _a: &[String], _w: Target, _c: &Context) {
         self.customs.push(hook.to_string());
     }
-    fn special(&mut self, _w: Target, _c: &Context) {
-        self.customs.push("special".to_string());
-    }
     fn rng(&mut self) -> &mut dyn RngCore {
         &mut self.rng.0
     }

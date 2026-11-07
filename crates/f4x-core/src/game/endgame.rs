@@ -176,9 +176,7 @@ impl Game {
         player: PlayerId,
         spell: crate::rules::SpellId,
     ) -> Vec<Event> {
-        if spell == crate::rules::SpellId::new(213)
-        /* spell_of_mastery */
-        {
+        if self.spell_has_hook(spell, crate::spell::special::SPELL_OF_MASTERY) {
             vec![Event::MasteryStarted { caster: player }]
         } else {
             Vec::new()
@@ -192,7 +190,7 @@ impl Game {
             .into_iter()
             .filter_map(|id| {
                 let c = self.wizard(id)?.casting()?;
-                (c.spell == crate::rules::SpellId::new(213)/* spell_of_mastery */)
+                self.spell_has_hook(c.spell, crate::spell::special::SPELL_OF_MASTERY)
                     .then_some((id, c.remaining))
             })
             .collect()

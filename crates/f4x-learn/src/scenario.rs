@@ -153,11 +153,11 @@ pub fn battle_spell(d: &f4x_def::rules::defs::SpellDef) -> bool {
     use f4x_def::rules::defs::CastContext;
     use f4x_def::rules::effects::Effect;
     d.contexts.contains(&CastContext::Battle)
-        && !d.effects.iter().any(|r| match &r.effect {
-            Effect::Custom { name, .. } => name == "unimplemented",
-            Effect::Special => NOT_TRAINED.contains(&d.num),
-            _ => false,
-        })
+        && !NOT_TRAINED.contains(&d.num)
+        && !d
+            .effects
+            .iter()
+            .any(|r| matches!(&r.effect, Effect::Custom { name, .. } if name == "unimplemented"))
 }
 
 /// The realms a wizard's books can be in.

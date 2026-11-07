@@ -203,7 +203,7 @@ Also: the original adds Evil Omens to the base cost *before* the five-times over
 ## D. Our own content that disagrees with both sources (already known)
 - `rules.ron` `min_city_distance` was 3; fixed to 4 (see B17).
 - The imported Dwarven/Klackon/Halfling production and food per citizen and Dwarf double
-  tax are not modelled at all yet (see `docs/mechanics-gaps.md` §1).
+  tax are not modelled at all yet (see `docs/archive/mechanics-gaps.md` §1).
 - (Fixed) The Animist's Guild's +1 food is per farmer, as in the original; tested.
 
 ## Resolving

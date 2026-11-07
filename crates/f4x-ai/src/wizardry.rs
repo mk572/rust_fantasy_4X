@@ -123,9 +123,7 @@ pub fn kind(def: &SpellDef) -> Kind {
     if !def.contexts.contains(&CastContext::Overland) {
         return Kind::Other;
     }
-    if def.num == 213
-    /* spell_of_mastery */
-    {
+    if def.has_hook(f4x_core::spell::special::SPELL_OF_MASTERY) {
         return Kind::Mastery;
     }
     if def
@@ -185,10 +183,9 @@ pub fn kind(def: &SpellDef) -> Kind {
     match def.target {
         SpellTarget::OwnUnit
             if def.duration != Duration::Instant
-                && def.effects.iter().all(|r| {
-                    !matches!(&r.effect, Effect::Custom { name, .. } if name != "unit_effect")
-                        && !matches!(r.effect, Effect::Special)
-                })
+                && def.effects.iter().all(
+                    |r| !matches!(&r.effect, Effect::Custom { name, .. } if name != "unit_effect"),
+                )
                 && def.effects.iter().all(helps) =>
         {
             Kind::UnitBuff
@@ -283,9 +280,10 @@ fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let Some(w) = view.wizard() else {
             return;
         };
-        let Some(casting) = w.casting().filter(
-            |c| c.spell == f4x_def::rules::SpellId::new(214), /* spell_of_return */
-        ) else {
+        let Some(casting) = w
+            .casting()
+            .filter(|c| game.spell_has_hook(c.spell, f4x_core::spell::special::SPELL_OF_RETURN))
+        else {
             return;
         };
         let due = w
@@ -495,9 +493,9 @@ fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     // Resurrection: the last of the dead heroes, chosen now that the cost is paid.
     let paid = PlayerView::new(game, ai.player).paid_spell();
-    if paid.is_some_and(
-        |s| s == f4x_def::rules::SpellId::new(133), /* resurrection */
-    ) {
+    if paid.is_some_and(|s| {
+        f4x_core::spell::hero::HeroSummon::Resurrection.is_in(game.content().rules.spells.get(s))
+    }) {
         if let Some(kind) = game.units().ai_resurrection_pick() {
             let command = Command::ResolveCast {
                 player: ai.player,
@@ -784,19 +782,15 @@ fn upkeep_ok(view: &PlayerView, def: &SpellDef) -> bool {
 fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
     let kind = {
-        let spell = f4x_def::rules::SpellId::new(133) /* resurrection */;
+        let Some(spell) =
+            f4x_core::spell::hero::HeroSummon::Resurrection.spell_in(&game.content().rules)
+        else {
+            return false;
+        };
         let knows = game
             .wizard(me)
             .is_some_and(|m| m.casting().is_none() && m.knows(spell));
-        if !knows
-            || game
-                .units()
-                .hero_spell_blocked(
-                    me,
-                    f4x_def::rules::SpellId::new(133), /* resurrection */
-                )
-                .is_some()
-        {
+        if !knows || game.units().hero_spell_blocked(me, spell).is_some() {
             return false;
         }
         let mana = game.player(me).map_or(0, |p| p.treasury().mana);
@@ -811,7 +805,11 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let Some(kind) = kind else {
         return false;
     };
-    let spell = f4x_def::rules::SpellId::new(133) /* resurrection */;
+    let Some(spell) =
+        f4x_core::spell::hero::HeroSummon::Resurrection.spell_in(&game.content().rules)
+    else {
+        return false;
+    };
     let command = Command::CastSpell {
         extra: 0,
         player: me,

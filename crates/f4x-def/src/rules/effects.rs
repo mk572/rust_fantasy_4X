@@ -179,8 +179,6 @@ pub enum Effect {
         #[serde(default)]
         args: Vec<String>,
     },
-    /// The spell's own code in Rust, found by the spell's number (`f4x_core::hook::SPECIAL_SPELLS`).
-    Special,
 }
 
 impl Effect {

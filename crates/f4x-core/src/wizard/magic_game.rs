@@ -93,9 +93,13 @@ impl Game {
     pub fn casting_return(&self, player: PlayerId) -> bool {
         self.wizard(player)
             .and_then(|w| w.casting())
-            .is_some_and(
-                |c| c.spell == crate::rules::SpellId::new(214), /* spell_of_return */
-            )
+            .is_some_and(|c| {
+                self.content
+                    .rules
+                    .spells
+                    .get(c.spell)
+                    .has_hook(crate::spell::special::SPELL_OF_RETURN)
+            })
     }
 
     /// Whether mana put into `spell` beyond its cost makes it stronger overland: the spells
@@ -313,8 +317,7 @@ impl Game {
         if !self.spell_needs_target(player, spell) {
             return true;
         }
-        if spell == crate::rules::SpellId::new(133)
-        /* resurrection */
+        if crate::spell::hero::HeroSummon::Resurrection.is_in(self.content.rules.spells.get(spell))
         {
             return !self.units().raisable_heroes().is_empty();
         }
@@ -390,14 +393,18 @@ impl Game {
             return Err(MagicError::NotAvailable);
         }
         // Summon Hero, Summon Champion, Incarnation and Resurrection.
-        if [208, 212, 142, 133].contains(&spell.num())
+        if crate::spell::hero::HeroSummon::of(self.content.rules.spells.get(spell)).is_some()
             && self.units().hero_spell_blocked(player, spell).is_some()
         {
             // No circle to appear in, or nobody left to bring.
             return Err(MagicError::NotAvailable);
         }
-        if spell == crate::rules::SpellId::new(214)
-        /* spell_of_return */
+        if self
+            .content
+            .rules
+            .spells
+            .get(spell)
+            .has_hook(crate::spell::special::SPELL_OF_RETURN)
         {
             // Cast only through banishment, never chosen.
             return Err(MagicError::NotAvailable);

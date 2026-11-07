@@ -25,6 +25,8 @@ crate::hook::effect_enum! {
     Hero = "hero",
     Champion = "champion",
     Torin = "torin",
+    // Raises a dead hero the wizard chooses.
+    Resurrection = "resurrection",
 }
 
 impl HeroSummon {
@@ -91,7 +93,7 @@ impl UnitView<'_> {
                 record(torin(&self.content.rules)),
                 Some(HeroState::Free | HeroState::Dead)
             ),
-            None => true,
+            Some(HeroSummon::Resurrection) | None => true,
         };
         (!possible).then_some(HeroError::NotAvailable)
     }
@@ -149,7 +151,7 @@ impl Game {
             Some(HeroSummon::Hero) => pick(Class::Hero),
             Some(HeroSummon::Champion) => pick(Class::Champion),
             Some(HeroSummon::Torin) => Some(torin(&self.content.rules)),
-            None if spell.num() == 133 /* resurrection */ => {
+            Some(HeroSummon::Resurrection) => {
                 // Nobody to raise if the hero is not dead any more: the spell is lost, with a warning.
                 let dead = self.units().raisable_heroes();
                 match who {

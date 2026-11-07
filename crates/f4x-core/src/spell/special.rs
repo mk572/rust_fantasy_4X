@@ -13,6 +13,10 @@ use crate::unit::Hurt;
 pub const RECALL: &str = "recall";
 pub const RECALL_ANYONE: &str = "anyone";
 pub const RECALL_HERO: &str = "hero";
+/// The hook of the Spell of Mastery, which wins the game when the casting is done.
+pub const SPELL_OF_MASTERY: &str = "spell_of_mastery";
+/// The hook of the Spell of Return, which brings a banished wizard home.
+pub const SPELL_OF_RETURN: &str = "spell_of_return";
 /// The hook of Plane Shift.
 pub const PLANE_SHIFT: &str = "plane_shift";
 /// The hook of the spells that move a building of the wizard to a city: the argument is the

@@ -386,9 +386,6 @@ impl Game {
                     _ => None,
                 }
             }
-            Effect::Special => match spell.num() {
-                _ => None,
-            },
             _ => None,
         }
     }

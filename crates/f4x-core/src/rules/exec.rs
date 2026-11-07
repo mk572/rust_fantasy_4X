@@ -111,8 +111,6 @@ pub trait EffectHost {
     fn set_feature(&mut self, at: Position, feature: crate::map::FeatureId);
     fn apply_enchantment(&mut self, who: Target, spell: SpellId, caster: PlayerId);
     fn custom(&mut self, hook: &str, args: &[String], who: Target, ctx: &Context);
-    /// The code of the spell that is being run (`ctx.source`), found by the spell's number.
-    fn special(&mut self, who: Target, ctx: &Context);
     /// The random numbers of the rules being run. The host owns the stream (the game's own, in
     /// play), so the executor and the hooks it calls draw from one generator.
     fn rng(&mut self) -> &mut dyn RngCore;
@@ -172,7 +170,6 @@ pub enum Outcome {
     Custom {
         hook: String,
     },
-    Special,
 }
 
 /// Evaluate a condition against the facts about the subject.
@@ -356,10 +353,6 @@ fn run_effect(
         Effect::Custom { name: hook, args } => {
             host.custom(hook, args, who, ctx);
             out.push(Outcome::Custom { hook: hook.clone() });
-        }
-        Effect::Special => {
-            host.special(who, ctx);
-            out.push(Outcome::Special);
         }
     }
 }

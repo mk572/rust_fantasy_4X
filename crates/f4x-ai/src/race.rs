@@ -65,7 +65,12 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         ai.war_on = None;
         return;
     }
-    let mastery = f4x_def::rules::SpellId::new(213) /* spell_of_mastery */;
+    let Some(mastery) = f4x_core::hook::spell_with_hook(
+        &game.content().rules,
+        f4x_core::spell::special::SPELL_OF_MASTERY,
+    ) else {
+        return;
+    };
     let (mine, own_rate, casting_other) = {
         let view = PlayerView::new(game, me);
         let rate = view.wizard().map_or(1.0, |m| {

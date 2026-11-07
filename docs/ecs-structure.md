@@ -94,7 +94,7 @@ A **domain** is a part of the rules with state of its own and rules that mostly 
 state: diplomacy, a wizard's magic, the battle engine, the map and fog, the modifier engine.
 `Game` owns the state and orchestrates; it does not hold the rules. The base rule is in
 [`design.md`](design.md) section 3, the audit and the plan are in
-[`architecture-plan.md`](architecture-plan.md). In short:
+[`architecture-plan.md`](archive/architecture-plan.md). In short:
 
 1. **A new rule goes on the domain it belongs to**, as a method of that domain's struct or a
    function over the pieces it needs, not as another `impl Game` method. `Game` only gets

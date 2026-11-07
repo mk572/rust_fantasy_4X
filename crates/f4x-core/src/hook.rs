@@ -1,5 +1,5 @@
-//! The Rust code the content points at: the `Effect::Custom` hooks (a tag in the `.ron` file) and
-//! the spells with an `Effect::Special` of their own. The definitions know nothing of this code;
+//! The Rust code the content points at: the `Effect::Custom` hooks (a tag with arguments in the
+//! `.ron` file). The definitions know nothing of this code;
 //! the code lists what it implements and [`problems`] checks the loaded content against it.
 //!
 //! Tests: below, on the shipped content.
@@ -34,6 +34,17 @@ macro_rules! effect_enum {
                 Self::NAMES.iter().position(|n| *n == name).map(|i| Self::ALL[i])
             }
 
+            /// The first spell of the rules that carries this effect: for the code that has to
+            /// name the spell a change came from, or find the spell to cast.
+            pub fn spell_in(self, rules: &crate::rules::Rules) -> Option<crate::rules::SpellId> {
+                rules
+                    .spells
+                    .defs()
+                    .iter()
+                    .find(|d| self.is_in(d))
+                    .map(|d| crate::rules::SpellId::new(d.num))
+            }
+
             /// Whether the spell carries this effect.
             pub fn is_in(self, def: &crate::rules::SpellDef) -> bool {
                 def.hook_args($hook)
@@ -64,6 +75,17 @@ const fn plain(name: &'static str) -> Hook {
         several: false,
         number: false,
     }
+}
+
+/// The first spell of the rules that runs the named hook, for the code that has to find "the Spell
+/// of Mastery" and the like.
+pub fn spell_with_hook(rules: &Rules, hook: &str) -> Option<crate::rules::SpellId> {
+    rules
+        .spells
+        .defs()
+        .iter()
+        .find(|d| d.has_hook(hook))
+        .map(|d| crate::rules::SpellId::new(d.num))
 }
 
 /// The `Effect::Custom` hooks implemented in Rust, shared by several spells. A `Custom` effect
@@ -157,6 +179,20 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
         several: false,
         number: false,
     },
+    Hook {
+        name: crate::spell::wizard::CITY_STRIKE,
+        args: &crate::spell::wizard::CityStrike::NAMES,
+        several: false,
+        number: false,
+    },
+    Hook {
+        name: crate::spell::wizard::WORLD_KILL,
+        args: &crate::spell::wizard::WorldKill::NAMES,
+        several: false,
+        number: false,
+    },
+    plain(crate::spell::special::SPELL_OF_MASTERY),
+    plain(crate::spell::special::SPELL_OF_RETURN),
     plain(crate::battle::field::DISINTEGRATE),
     Hook {
         name: WALL,
@@ -166,22 +202,8 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
     },
 ];
 
-/// The spells that have code of their own in Rust (`Effect::Special`), by number: the
-/// number is the only link between the spell and its code. A `Special` effect on a spell
-/// not in this list fails [`problems`].
-pub const SPECIAL_SPELLS: [u16; 7] = [
-    26,  // earthquake
-    75,  // great_unsummoning
-    119, // call_the_void
-    133, // resurrection
-    199, // death_wish
-    213, // spell_of_mastery
-    214, // spell_of_return
-];
-
-/// What is wrong between the content and the code: a `Custom` hook no code implements, a `Special`
-/// effect on a spell with no code of its own, and the reverse, a spell in [`SPECIAL_SPELLS`] the
-/// content does not give a `Special`.
+/// What is wrong between the content and the code: a `Custom` hook no code implements, or one
+/// given arguments it does not take.
 pub fn problems(rules: &Rules) -> Vec<String> {
     let mut p = Vec::new();
     let mut carriers: Vec<(String, &[EffectRule])> = Vec::new();
@@ -257,24 +279,6 @@ pub fn problems(rules: &Rules) -> Vec<String> {
                     ));
                 }
             }
-        }
-    }
-    for spell in rules.spells.defs() {
-        let special = spell
-            .effects
-            .iter()
-            .any(|e| matches!(e.effect, Effect::Special));
-        if special && !SPECIAL_SPELLS.contains(&spell.num) {
-            p.push(format!(
-                "spell {:?} has Special code but no Rust code is written for its number",
-                spell.id
-            ));
-        }
-        if !special && SPECIAL_SPELLS.contains(&spell.num) {
-            p.push(format!(
-                "spell {:?} has Rust code but no Special effect",
-                spell.id
-            ));
         }
     }
     p
@@ -356,6 +360,20 @@ mod tests {
                     .iter()
                     .any(|d| crate::spell::dispel::CounterEffect::of(d).map(|x| x.0) == Some(e)),
                 "no spell gives the counter effect {name}"
+            );
+        }
+        for name in crate::spell::wizard::CityStrike::NAMES {
+            let e = crate::spell::wizard::CityStrike::named(name).expect("a listed name");
+            assert!(
+                c.rules.spells.defs().iter().any(|d| e.is_in(d)),
+                "no spell gives the city strike {name}"
+            );
+        }
+        for name in crate::spell::wizard::WorldKill::NAMES {
+            let e = crate::spell::wizard::WorldKill::named(name).expect("a listed name");
+            assert!(
+                c.rules.spells.defs().iter().any(|d| e.is_in(d)),
+                "no spell gives the world kill {name}"
             );
         }
         for name in Field::NAMES {

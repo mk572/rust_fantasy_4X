@@ -7,7 +7,7 @@
 //! commands it issues itself (`f4x-ai/src/diplomacy.rs` holds the rating of a proposal and the
 //! war a wizard declares on the caster of the Spell of Mastery).
 //!
-//! Structure (`architecture-plan.md`): the rules are methods of [`Diplomacy`], which
+//! Structure (`docs/archive/architecture-plan.md`): the rules are methods of [`Diplomacy`], which
 //! owns the state and takes a [`DiplomacyCtx`] with what it needs of the rest of the game: a
 //! read-only [`Game`], the random numbers and a list of changes it asks the game to make
 //! ([`Outcome`]: gold moved, a spell learned). `Game` only lends it out for a call
@@ -1264,8 +1264,9 @@ impl Diplomacy {
         }
         // Lasting enchantments on the wizard are noticed as they are cast (the Spell of Mastery
         // as it is begun, see `start_cast`).
-        if spell != crate::rules::SpellId::new(213)
-        /* spell_of_mastery */
+        if !ctx
+            .view
+            .spell_has_hook(spell, crate::spell::special::SPELL_OF_MASTERY)
         {
             self.enchantment_relations(ctx, caster, spell, 1);
         }
@@ -1278,8 +1279,9 @@ impl Diplomacy {
         player: PlayerId,
         spell: SpellId,
     ) {
-        if spell == crate::rules::SpellId::new(213)
-        /* spell_of_mastery */
+        if ctx
+            .view
+            .spell_has_hook(spell, crate::spell::special::SPELL_OF_MASTERY)
         {
             self.enchantment_relations(ctx, player, spell, 1);
         }
@@ -1561,7 +1563,8 @@ impl Diplomacy {
                 .wizard(wizard)
                 .and_then(|m| m.casting())
                 .filter(|c| {
-                    c.spell == crate::rules::SpellId::new(213) /* spell_of_mastery */
+                    ctx.view
+                        .spell_has_hook(c.spell, crate::spell::special::SPELL_OF_MASTERY)
                 })
                 .map(|c| c.spell);
             if let Some(mastery) = casting_mastery {

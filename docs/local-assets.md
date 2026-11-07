@@ -73,7 +73,7 @@ The client and `f4x-tools` read `content-local/` first and `content/` for every 
 (`f4x_def::load::load_content_layers`), so the game runs without any local files, only without help
 or preset wizards. The importer also cross-checks costs, upkeep and race build bans against the
 help text (`[check]` lines in the report). What the help describes that is not implemented yet
-is in `docs/mechanics-gaps.md`.
+is in `docs/archive/mechanics-gaps.md`.
 
 The data loader's tests read `content/` alone (never `content-local/`); there is no separate
 test rule set, so a test cannot pass on data the game no longer has.

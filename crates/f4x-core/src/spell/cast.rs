@@ -54,50 +54,6 @@ struct GameHost<'a> {
 }
 
 impl GameHost<'_> {
-    /// Drain Power, Cruel Unminding, Great Unsummoning, Death Wish and Earthquake
-    /// (`spell/wizard.rs`); `None` for any other hook. Subversion is carried out after the cast.
-    fn wizard_hook(&mut self, spell: SpellId, who: Target, ctx: &Context) -> Option<Vec<Event>> {
-        let player = ctx.owner;
-        Some(match (spell.num(), who) {
-            (75 /* great_unsummoning */, _) => {
-                let count = self.game.great_unsummoning(&mut self.rng);
-                vec![Event::UnitsSlain {
-                    player,
-                    spell,
-                    count,
-                }]
-            }
-            (199 /* death_wish */, _) => {
-                let count = self.game.death_wish(player, &mut self.rng);
-                vec![Event::UnitsSlain {
-                    player,
-                    spell,
-                    count,
-                }]
-            }
-            (26 /* earthquake */, Target::City(city)) => vec![self.game.earthquake(city, &mut self.rng)],
-            (119 /* call_the_void */, Target::City(city)) => {
-                let (units_lost, buildings_lost, population_lost) =
-                    self.game.call_the_void(city, &mut self.rng);
-                vec![Event::WorldSpellStruck {
-                    spell,
-                    victim: self.game.economy().city_owner(city),
-                    units_lost,
-                    buildings_lost,
-                    population_lost,
-                }]
-            }
-            (
-                26 // earthquake
-                | 119, // call_the_void
-                _,
-            ) => Vec::new(),
-            _ => return None,
-        })
-    }
-}
-
-impl GameHost<'_> {
     /// What a spell with the `terrain_effect` hook does to the square.
     fn terrain_effect(
         &mut self,
@@ -358,6 +314,21 @@ impl EffectHost for GameHost<'_> {
                 self.building_moved(result);
             }
         }
+        if hook == crate::spell::special::SPELL_OF_MASTERY {
+            let events = self.game.win_by_mastery(ctx.owner);
+            self.events.extend(events);
+        }
+        if hook == crate::spell::special::SPELL_OF_RETURN {
+            if let Target::City(city) = who {
+                let result = self.game.return_to_fortress(ctx.owner, city);
+                self.building_moved(result);
+            }
+        }
+        if hook == crate::spell::wizard::CITY_STRIKE || hook == crate::spell::wizard::WORLD_KILL {
+            if let Source::Spell(spell) = ctx.source {
+                self.strike(hook, args, spell, who, ctx.owner);
+            }
+        }
         if hook == crate::spell::dispel::COUNTER_EFFECT {
             if let Source::Spell(spell) = ctx.source {
                 self.counter_effect(spell, who, ctx.owner);
@@ -403,36 +374,6 @@ impl EffectHost for GameHost<'_> {
             }
         }
     }
-
-    fn special(&mut self, who: Target, ctx: &Context) {
-        let Source::Spell(spell) = ctx.source else {
-            return;
-        };
-        if let Some(events) = self.game.hero_hook(spell, ctx.owner, who, &mut self.rng) {
-            self.events.extend(events);
-            return;
-        }
-        if spell.num() == 213
-        /* spell_of_mastery */
-        {
-            let events = self.game.win_by_mastery(ctx.owner);
-            self.events.extend(events);
-            return;
-        }
-        if let Some(events) = self.wizard_hook(spell, who, ctx) {
-            self.events.extend(events);
-            return;
-        }
-        let Target::City(city) = who else {
-            return;
-        };
-        if spell.num() == 214
-        /* spell_of_return */
-        {
-            let result = self.game.return_to_fortress(ctx.owner, city);
-            self.building_moved(result);
-        }
-    }
 }
 
 impl GameHost<'_> {
@@ -446,6 +387,53 @@ impl GameHost<'_> {
             .dispel_target(who, strength, by, &mut self.rng, &mut gone);
         self.events.extend(gone);
         removed
+    }
+
+    /// What a spell with the `city_strike` or `world_kill` hook does.
+    fn strike(
+        &mut self,
+        hook: &str,
+        args: &[String],
+        spell: SpellId,
+        who: Target,
+        player: PlayerId,
+    ) {
+        use crate::spell::wizard::{CityStrike, WorldKill, CITY_STRIKE};
+        let name = args.first().map(String::as_str).unwrap_or_default();
+        let events = if hook == CITY_STRIKE {
+            let Target::City(city) = who else {
+                return;
+            };
+            match CityStrike::named(name) {
+                Some(CityStrike::Earthquake) => {
+                    vec![self.game.earthquake(city, &mut self.rng)]
+                }
+                Some(CityStrike::CallTheVoid) => {
+                    let (units_lost, buildings_lost, population_lost) =
+                        self.game.call_the_void(city, &mut self.rng);
+                    vec![Event::WorldSpellStruck {
+                        spell,
+                        victim: self.game.economy().city_owner(city),
+                        units_lost,
+                        buildings_lost,
+                        population_lost,
+                    }]
+                }
+                None => Vec::new(),
+            }
+        } else {
+            let count = match WorldKill::named(name) {
+                Some(WorldKill::GreatUnsummoning) => self.game.great_unsummoning(&mut self.rng),
+                Some(WorldKill::DeathWish) => self.game.death_wish(player, &mut self.rng),
+                None => return,
+            };
+            vec![Event::UnitsSlain {
+                player,
+                spell,
+                count,
+            }]
+        };
+        self.events.extend(events);
     }
 
     /// What a spell with the `counter_effect` hook does against the spell, unit or square aimed
@@ -605,8 +593,7 @@ impl Game {
     /// Does casting `spell` ask the wizard for a target? Summoning spells do not when the
     /// wizard has a summoning circle: the creatures appear there.
     pub fn spell_needs_target(&self, player: PlayerId, spell: SpellId) -> bool {
-        if spell == crate::rules::SpellId::new(133)
-        /* resurrection */
+        if crate::spell::hero::HeroSummon::Resurrection.is_in(self.content.rules.spells.get(spell))
         {
             // The dead hero to raise is chosen when the cast is finished.
             return true;
@@ -627,8 +614,7 @@ impl Game {
         spell: SpellId,
         target: Option<Target>,
     ) -> Result<(), MagicError> {
-        if spell == crate::rules::SpellId::new(133)
-        /* resurrection */
+        if crate::spell::hero::HeroSummon::Resurrection.is_in(self.content.rules.spells.get(spell))
         {
             return match target {
                 Some(Target::Hero(kind)) if self.units().raisable_heroes().contains(&kind) => {
@@ -669,7 +655,13 @@ impl Game {
             .hook_args(crate::spell::special::MOVE_BUILDING)
             .and_then(|a| a.first())
             .map(String::as_str);
-        if building.is_some() || spell.num() == 214 {
+        let returns = self
+            .content
+            .rules
+            .spells
+            .get(spell)
+            .has_hook(crate::spell::special::SPELL_OF_RETURN);
+        if building.is_some() || returns {
             let w = self.wizard(player).ok_or(MagicError::UnknownPlayer)?;
             let Some(Target::City(c)) = target else {
                 return Err(MagicError::NeedsTarget);

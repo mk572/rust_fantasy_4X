@@ -612,7 +612,7 @@ it out of the workspace's required members, untrack it (`git rm -r --cached`) an
 `docs/scripts.md`): copy `crates/f4x-ai` to `crates/f4x-ai-ref` under the new package name, run
 `versus`, keep the winner (keep the new AI, or restore `f4x-ai` from git), then remove the copy.
 A fixed long-term baseline is lost; a snapshot at a git tag can stand in for it. Update
-`docs/rust-dependencies.md`, `docs/crate-layout-plan*.md` and the other docs that name the crate.
+`docs/rust-dependencies.md`, `docs/archive/crate-layout-plan*.md` and the other docs that name the crate.
 
 **480. Features by number (done).** A feature (mineral, lair, tower, node) was found by its alias in a few places. Done: `Features::id_of` and `Terrains::id_of` are gone; `LairInfo.site` and the `site` of `MonstersSettled` and `SiteCleared` are a `FeatureId`; `ORES` is a list of feature numbers; what Transmute makes of a mineral is `transmute` on its row, the book a cleared site gives is `reward`, a node carries its `realm` and a temple or ruin `holy` in `features.ron`; `TerrainClass::of_node_realm` takes a `RealmId`; the client's site table is keyed by number. The saved game already wrote a feature by its number, so `SAVE_VERSION` did not change. `crates/f4x-data/tests/it/features.rs` pins the numbers the code uses.
 

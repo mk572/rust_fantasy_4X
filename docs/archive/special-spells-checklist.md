@@ -26,11 +26,11 @@ Hook with its own `.rs` file; any spell may carry it. The AI race logic (`f4x-ai
 
 Proposed hook or primitive: **spell_of_mastery**
 
-- [ ] 213 `spell_of_mastery`
+- [x] 213 `spell_of_mastery`
 
 Proposed hook or primitive: **spell_of_return**
 
-- [ ] 214 `spell_of_return`
+- [x] 214 `spell_of_return`
 
 ## B. City effects
 
@@ -68,15 +68,15 @@ The client's summon scene matches 208 and 212 by number.
 
 Proposed hook or primitive: **raise (args to decide)**
 
-- [ ] 133 `resurrection`
+- [x] 133 `resurrection`
 - [x] 137 `raise_dead`
 - [x] 195 `animate_dead`
 
 Proposed hook or primitive: **summon_hero / summon_champion / incarnation (to decide: one tag with args or three)**
 
-- [ ] 142 `incarnation`
-- [ ] 208 `summon_hero`
-- [ ] 212 `summon_champion`
+- [x] 142 `incarnation`
+- [x] 208 `summon_hero`
+- [x] 212 `summon_champion`
 
 ## E. Spells against spells
 
@@ -120,8 +120,8 @@ Proposed hook or primitive: **wizard_drain (args power, skill) or a new primitiv
 
 Proposed hook or primitive: **global kill: extend `Slay` to the whole map, or a hook**
 
-- [ ] 75 `great_unsummoning`
-- [ ] 199 `death_wish`
+- [x] 75 `great_unsummoning`
+- [x] 199 `death_wish`
 
 ## H. Changes to one unit
 
@@ -154,8 +154,8 @@ Proposed hook or primitive: **battlefield**. Task 486's follow-up already gave t
 - [x] 115 `call_chaos`
 - [x] 105 `magic_vortex`
 - [x] 167 `life_drain`
-- [ ] 26 `earthquake`
-- [ ] 119 `call_the_void`
+- [x] 26 `earthquake`
+- [x] 119 `call_the_void`
 
 ## J. Enchantments read by spell number (not Special spells)
 
@@ -168,5 +168,5 @@ Added 7 November 2026, decided by the user. Not one of the 50 `Special` spells: 
 
 ## Last
 
-- [ ] `Effect::Special`, `SPECIAL_SPELLS` and their arms removed; reverse check in `hook::problems`
-- [ ] no `num ==` match for a spell left outside tests (a `grep` over the crates)
+- [x] `Effect::Special`, `SPECIAL_SPELLS`, `Host::special`, `Outcome::Special` and their arms removed (7 November 2026); `hook::problems` checks every hook and its arguments, and a test checks that every argument is used by a spell
+- [ ] no `num ==` match for a spell left outside tests (a `grep` over the crates): what is left is J4: icon tables and art keyed on spell numbers in the client (`battle_screen.rs`, `unit_sheet.rs`, `city_screen.rs` city walls 35), the default-spell lists in `f4x-def/src/settings.rs`, the diplomacy reaction tables (`diplomacy/mod.rs`), the AI's tables in `wizardry.rs`, `battle/game.rs` (the spells a hero casts by type), Stasis's sleep id, and tests

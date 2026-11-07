@@ -29,6 +29,26 @@ crate::hook::effect_enum! {
     Subversion = "subversion",
 }
 
+/// The hook of the spells that strike a city: the argument says which.
+pub const CITY_STRIKE: &str = "city_strike";
+
+crate::hook::effect_enum! {
+    /// What a spell with the `city_strike` hook does to the city it is aimed at.
+    pub enum CityStrike in CITY_STRIKE;
+    Earthquake = "earthquake",
+    CallTheVoid = "call_the_void",
+}
+
+/// The hook of the spells that kill across the whole map: the argument says which.
+pub const WORLD_KILL: &str = "world_kill";
+
+crate::hook::effect_enum! {
+    /// What a spell with the `world_kill` hook does everywhere.
+    pub enum WorldKill in WORLD_KILL;
+    GreatUnsummoning = "great_unsummoning",
+    DeathWish = "death_wish",
+}
+
 /// The unit Lycanthropy turns a normal unit into.
 const WEREWOLVES: crate::rules::UnitId = crate::rules::UnitId::new(168) /* werewolves */;
 /// Black Wind's resistance check is at this penalty.

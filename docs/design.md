@@ -1,7 +1,7 @@
 # High-level design: a Master of Magic-style 4X in Rust with ECS
 
 Status: living document. Scope: gameplay-faithful reimagining, not a port of the original code, data or art.
-Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer), [`map-layers.md`](map-layers.md) (map layers and generation), [`game-flow.md`](game-flow.md) (commands, turn, movement, production, treasury), [`ecs-structure.md`](ecs-structure.md) (how state is stored and how it differs from the original), [`architecture-plan.md`](architecture-plan.md) (the audit of `Game` and the plan for self-contained domains), [`mechanics-gaps.md`](mechanics-gaps.md) (what the original does that we have not built), [`help-vs-implementation-conflicts.md`](help-vs-implementation-conflicts.md) (resolved and open source conflicts), [`local-assets.md`](local-assets.md) (local-only original art and data), [`sound.md`](sound.md) (every music track and sound effect of the original and when it plays).
+Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer), [`map-layers.md`](map-layers.md) (map layers and generation), [`game-flow.md`](game-flow.md) (commands, turn, movement, production, treasury), [`ecs-structure.md`](ecs-structure.md) (how state is stored and how it differs from the original), [`architecture-plan.md`](archive/architecture-plan.md) (the audit of `Game` and the plan for self-contained domains), [`mechanics-gaps.md`](archive/mechanics-gaps.md) (what the original does that we have not built), [`help-vs-implementation-conflicts.md`](help-vs-implementation-conflicts.md) (resolved and open source conflicts), [`local-assets.md`](local-assets.md) (local-only original art and data), [`sound.md`](sound.md) (every music track and sound effect of the original and when it plays).
 
 ## 1. Goals and constraints
 - Replicate MoM's *gameplay*: two planes (Arcanus/Myrror), wizard-led spell-casting, cities and unit production, hero units, tactical battles, and five magic realms.
@@ -52,12 +52,12 @@ and applies what the domain returns; it does not hold the rules.
 - A thin `Game` method that calls the function is fine for the public interface (`Game::apply`,
   queries the client uses); the logic itself is not in it.
 - New code follows this from the start. Existing `impl Game` code moves over in the order
-  of [`architecture-plan.md`](architecture-plan.md) (tasks 177 to 183), one group of methods at a
+  of [`architecture-plan.md`](archive/architecture-plan.md) (tasks 177 to 183), one group of methods at a
   time. The pure parts (`rules/`, `map`, the battle engine) already follow it and are the model.
 
 Why: with every rule a method of one struct, any rule can read or write anything, tests need a
 whole game, and the borrow checker forces `&mut self` everywhere. The audit and the plan are in
-`architecture-plan.md`.
+`archive/architecture-plan.md`.
 
 ## 4. Core entities and components
 
