@@ -12,7 +12,6 @@
 //!
 //! Tests: in feature/lair/tests.rs and node.rs.
 
-use crate::rules::SpellId;
 use std::collections::HashMap;
 
 use hecs::{Entity, World};
@@ -261,7 +260,7 @@ impl<'a> Economy<'a> {
         self.cities().into_iter().any(|(city, info, pos)| {
             if info.owner != player
                 || pos.plane != at.plane
-                || !self.city_has_enchantment(city, SpellId::new(12) /* natures_eye */)
+                || !self.city_has_effect(city, crate::spell::city::CityEffect::NaturesEye)
             {
                 return false;
             }

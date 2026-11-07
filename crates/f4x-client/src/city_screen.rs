@@ -9,7 +9,6 @@ use crate::ui;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
-use f4x_def::rules::SpellId;
 use f4x_def::text::Args;
 use macroquad::prelude::*;
 
@@ -1112,7 +1111,7 @@ impl App {
         let gaia = self
             .game
             .economy()
-            .city_has_enchantment(city, SpellId::new(29) /* gaias_blessing */);
+            .city_has_effect(city, f4x_core::spell::city::CityEffect::GaiasBlessing);
         for dy in -2i32..=2 {
             for dx in -2i32..=2 {
                 let corner = dx.abs() == 2 && dy.abs() == 2;

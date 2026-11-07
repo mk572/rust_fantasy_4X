@@ -9,7 +9,6 @@
 use crate::city::economy::{Farmers, Population};
 use crate::game::{Event, Game};
 use crate::player::PlayerId;
-use crate::rules::SpellId;
 use rand::SeedableRng;
 
 impl Game {
@@ -221,7 +220,7 @@ impl Game {
         // (the original kills one when the city has more people than a roll of 1 to 10).
         if self
             .economy()
-            .city_has_enchantment(city, SpellId::new(196) /* pestilence */)
+            .city_has_effect(city, crate::spell::city::CityEffect::Pestilence)
         {
             let dead = (1..after).filter(|_| self.rng.roll(10) == 1).count() as u32;
             after -= dead;

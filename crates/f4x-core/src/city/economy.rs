@@ -12,7 +12,7 @@
 //! and gold in whole points.
 
 use crate::rules::Ability;
-use crate::rules::SpellId;
+use crate::spell::city::CityEffect;
 use crate::spell::global_enchantment::GlobalEffect;
 use std::collections::{HashSet, VecDeque};
 
@@ -303,8 +303,7 @@ impl<'a> Economy<'a> {
             }
             // Divine and Infernal Power take 150 percent (`ReligiousPercent`) of the religious buildings' power,
             // Dark Rituals doubles it, and the two together make 300 percent (`CITYCALC.c`).
-            let rituals =
-                self.city_has_enchantment(city, SpellId::new(163) /* dark_rituals */);
+            let rituals = self.city_has_effect(city, CityEffect::DarkRituals);
             let percent = devout * if rituals { 2 } else { 1 };
             let religious = power * percent / 100;
             if religious > power {
@@ -589,7 +588,7 @@ impl<'a> Economy<'a> {
                 GlobalEffect::GreatWasting,
             )
         });
-        let gaia = self.city_has_enchantment(city, SpellId::new(29) /* gaias_blessing */);
+        let gaia = self.city_has_effect(city, CityEffect::GaiasBlessing);
         let mut blighted = 0i32;
         let (mut terrain_food_x2, mut production_percent) = (0i32, 0i32);
         let (mut wild_food, mut mine_gold, mut mine_mana, mut cost_reduction) = (0, 0, 0, 0);
@@ -652,7 +651,7 @@ impl<'a> Economy<'a> {
                 cost_reduction += cut;
             }
         }
-        if self.city_has_enchantment(city, SpellId::new(29) /* gaias_blessing */) {
+        if self.city_has_effect(city, CityEffect::GaiasBlessing) {
             terrain_food_x2 = terrain_food_x2 * 3 / 2;
         }
         let terrain_food = terrain_food_x2 / 4;
@@ -688,7 +687,7 @@ impl<'a> Economy<'a> {
         let mut pacify = -compute(Stat::CityUnrest, 0, &mods);
         // Gaia's Blessing pacifies two (the wiki and the original's code say so; its help text
         // does not).
-        if self.city_has_enchantment(city, SpellId::new(29) /* gaias_blessing */) {
+        if self.city_has_effect(city, CityEffect::GaiasBlessing) {
             pacify += 2;
         }
         // Just Cause calms every city of its wizard by one.
@@ -722,7 +721,7 @@ impl<'a> Economy<'a> {
         }
         // Stream of Life: the citizens are so pleased that unrest disappears (the original's
         // code reads the owner's table instead of the city's, see B8).
-        let rebels = if self.city_has_enchantment(city, SpellId::new(148) /* stream_of_life */) {
+        let rebels = if self.city_has_effect(city, CityEffect::StreamOfLife) {
             0
         } else {
             (raw_rebels - pacify).clamp(0, figures as i32) as u32
@@ -740,7 +739,7 @@ impl<'a> Economy<'a> {
         let flat = compute(Stat::CityFoodFlat, 0, &mods);
         food += flat + wild_food;
         // The city feeds as many as its land, farm work and buildings allow.
-        let famine = self.city_has_enchantment(city, SpellId::new(189) /* famine */);
+        let famine = self.city_has_effect(city, CityEffect::Famine);
         let pre_cap_adds = compute(Stat::CityFood, 0, &mods);
         let mut max_size = terrain_food;
         if famine {

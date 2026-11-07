@@ -205,13 +205,11 @@ impl Game {
             .collect();
         self.sort_by_serial(&mut cities);
         for city in cities {
-            let has = |id: &str| {
-                self.spells()
-                    .city_enchantments(city)
-                    .iter()
-                    .any(|&(s, _)| self.content.rules.spells.get(s).id == id)
-            };
-            let (blessed, consecrated) = (has("gaias_blessing"), has("consecration"));
+            let has = |effect| self.economy().city_has_effect(city, effect);
+            let (blessed, consecrated) = (
+                has(crate::spell::city::CityEffect::GaiasBlessing),
+                has(crate::spell::city::CityEffect::Consecration),
+            );
             if !blessed && !consecrated {
                 continue;
             }

@@ -21,8 +21,27 @@ use crate::rules::RealmId;
 use crate::rules::SpellId;
 use crate::spell::target_error::TargetError;
 
-/// The hook of the city enchantments the engine reads by name: casting only enchants the city.
-pub const CITY_FLAG: &str = "city_flag";
+/// The hook of the city enchantments the engine reads by effect: casting only enchants the city.
+/// Its arguments are the [`CityEffect`]s the spell gives; a spell with rules of its own (stat
+/// changes) may carry it too.
+pub const CITY_EFFECT: &str = "city_effect";
+
+crate::hook::effect_enum! {
+    /// The effects the engine reads from the enchantments on a city.
+    pub enum CityEffect in CITY_EFFECT;
+    GaiasBlessing = "gaias_blessing",
+    StreamOfLife = "stream_of_life",
+    Pestilence = "pestilence",
+    Famine = "famine",
+    ChaosRift = "chaos_rift",
+    EvilPresence = "evil_presence",
+    Consecration = "consecration",
+    NaturesEye = "natures_eye",
+    DarkRituals = "dark_rituals",
+    HeavenlyLight = "heavenly_light",
+    CloudOfShadow = "cloud_of_shadow",
+    FlyingFortress = "flying_fortress",
+}
 
 /// Chaos Rift's bolts on each unit in the city every turn, and their strength.
 const CHAOS_RIFT_BOLTS: u32 = 5;
@@ -92,9 +111,7 @@ impl Game {
             .map(|(city, _, _)| city)
             .filter(|&c| {
                 self.economy().city_owner(c) == Some(player)
-                    && self
-                        .economy()
-                        .city_has_enchantment(c, SpellId::new(110) /* chaos_rift */)
+                    && self.economy().city_has_effect(c, CityEffect::ChaosRift)
             })
             .collect();
         for city in rifts {
@@ -247,6 +264,43 @@ impl Economy<'_> {
             .any(|&(s, _)| s == spell)
     }
 
+    /// Whether the city carries an enchantment with this effect, whoever cast it.
+    pub fn city_has_effect(&self, city: hecs::Entity, effect: CityEffect) -> bool {
+        crate::spell::instance::Spells::new(self.world)
+            .city_enchantments(city)
+            .iter()
+            .any(|&(s, _)| effect.is_in(self.content.rules.spells.get(s)))
+    }
+
+    /// The enchantment that gives the city this effect, if it has one.
+    pub fn held_city_effect(
+        &self,
+        city: Option<hecs::Entity>,
+        effect: CityEffect,
+    ) -> Option<SpellId> {
+        crate::spell::instance::Spells::new(self.world)
+            .city_enchantments(city?)
+            .iter()
+            .map(|&(s, _)| s)
+            .find(|&s| effect.is_in(self.content.rules.spells.get(s)))
+    }
+
+    /// Whether the city carries a city wall spell (the `wall` hook) of this kind (`"fire"`,
+    /// `"darkness"`), whoever cast it.
+    pub fn city_has_wall(&self, city: hecs::Entity, kind: &str) -> bool {
+        crate::spell::instance::Spells::new(self.world)
+            .city_enchantments(city)
+            .iter()
+            .any(|&(s, _)| {
+                self.content
+                    .rules
+                    .spells
+                    .get(s)
+                    .hook_args(crate::hook::WALL)
+                    .is_some_and(|a| a.iter().any(|x| x == kind))
+            })
+    }
+
     /// Evil Presence does nothing to a city whose owner can use death magic, and the original
     /// refuses to cast it there.
     pub fn evil_presence_is_wasted_on(&self, city: hecs::Entity) -> bool {
@@ -258,7 +312,7 @@ impl Economy<'_> {
     /// Whether Evil Presence is destroying the city's religious buildings' power: the spell is
     /// on the city and its owner cannot use death magic.
     pub(crate) fn evil_presence_active(&self, city: hecs::Entity) -> bool {
-        self.city_has_enchantment(city, SpellId::new(183) /* evil_presence */)
+        self.city_has_effect(city, CityEffect::EvilPresence)
             && !self.evil_presence_is_wasted_on(city)
     }
 }
@@ -284,7 +338,7 @@ impl Economy<'_> {
     /// and death and chaos under Consecration.
     pub fn city_shielded_realms(&self, city: hecs::Entity) -> Vec<RealmId> {
         let mut realms = self.city_wards(city);
-        if self.city_has_enchantment(city, SpellId::new(155) /* consecration */) {
+        if self.city_has_effect(city, CityEffect::Consecration) {
             for realm in CONSECRATION_REALMS {
                 if !realms.contains(&realm) {
                     realms.push(realm);

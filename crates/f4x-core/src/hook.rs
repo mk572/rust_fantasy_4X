@@ -7,6 +7,43 @@
 use crate::rules::effects::{Effect, EffectRule};
 use crate::rules::Rules;
 
+/// Declares the enum of the effects a hook's arguments name (`GlobalEffect`, `CityEffect`): the
+/// variants with their argument strings, `NAMES` for the hook table, `name`, `named`, and
+/// `is_in(def)`, whether a spell's definition carries the effect in the given hook.
+macro_rules! effect_enum {
+    ($(#[$meta:meta])* $vis:vis enum $name:ident in $hook:expr; $($variant:ident = $text:literal),+ $(,)?) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        $vis enum $name {
+            $($variant),+
+        }
+
+        impl $name {
+            /// The hook arguments, in the enum's order.
+            pub const NAMES: [&'static str; [$($text),+].len()] = [$($text),+];
+
+            const ALL: [$name; [$($text),+].len()] = [$($name::$variant),+];
+
+            /// The hook argument for this effect.
+            pub fn name(self) -> &'static str {
+                Self::NAMES[self as usize]
+            }
+
+            /// The effect a hook argument names.
+            pub fn named(name: &str) -> Option<$name> {
+                Self::NAMES.iter().position(|n| *n == name).map(|i| Self::ALL[i])
+            }
+
+            /// Whether the spell carries this effect.
+            pub fn is_in(self, def: &crate::rules::SpellDef) -> bool {
+                def.hook_args($hook)
+                    .is_some_and(|a| a.iter().any(|x| x == self.name()))
+            }
+        }
+    };
+}
+pub(crate) use effect_enum;
+
 /// A hook the Rust code implements: its name and the arguments it takes. `args` empty means the
 /// hook takes none; otherwise it takes one of these, or, with `several`, one or more.
 pub struct Hook {
@@ -43,7 +80,11 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
         several: false,
     },
     plain(crate::unit::HEROISM),
-    plain(crate::spell::city::CITY_FLAG),
+    Hook {
+        name: crate::spell::city::CITY_EFFECT,
+        args: &crate::spell::city::CityEffect::NAMES,
+        several: true,
+    },
     Hook {
         name: crate::battle::field::BATTLEFIELD,
         args: &crate::battle::field::Field::NAMES,
@@ -228,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn every_global_and_field_effect_is_given_by_a_shipped_spell() {
+    fn every_global_city_and_field_effect_is_given_by_a_shipped_spell() {
         use crate::battle::field::Field;
         use crate::spell::global_enchantment::GlobalEffect;
         let c = shipped();
@@ -237,6 +278,13 @@ mod tests {
             assert!(
                 c.rules.spells.defs().iter().any(|d| e.is_in(d)),
                 "no spell gives the global effect {name}"
+            );
+        }
+        for name in crate::spell::city::CityEffect::NAMES {
+            let e = crate::spell::city::CityEffect::named(name).expect("a listed name");
+            assert!(
+                c.rules.spells.defs().iter().any(|d| e.is_in(d)),
+                "no spell gives the city effect {name}"
             );
         }
         for name in Field::NAMES {

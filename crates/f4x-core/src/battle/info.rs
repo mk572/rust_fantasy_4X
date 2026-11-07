@@ -17,7 +17,6 @@ use super::immunity::Realm;
 use super::Battle;
 use crate::game::Game;
 use crate::player::PlayerId;
-use crate::rules::SpellId;
 
 /// One line of the window.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -222,13 +221,14 @@ impl Game {
             .site
             .and_then(|s| self.economy().city_at(s))
             .filter(|&c| self.economy().city_owner(c) != Some(viewer));
-        let on_city =
-            |spell: SpellId| city.is_some_and(|c| self.economy().city_has_enchantment(c, spell));
+        let on_city = |effect: crate::spell::city::CityEffect| {
+            city.is_some_and(|c| self.economy().city_has_effect(c, effect))
+        };
         Some(build(InfoFacts {
             node_site: battle.node_site,
             node_aura: battle.node_aura,
-            cloud_of_shadow: on_city(SpellId::new(185) /* cloud_of_shadow */),
-            heavenly_light: on_city(SpellId::new(139) /* heavenly_light */),
+            cloud_of_shadow: on_city(crate::spell::city::CityEffect::CloudOfShadow),
+            heavenly_light: on_city(crate::spell::city::CityEffect::HeavenlyLight),
             chaos_surge: self
                 .any_global_effect(crate::spell::global_enchantment::GlobalEffect::ChaosSurge),
             eternal_night: self

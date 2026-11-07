@@ -26,9 +26,7 @@ fn a_shrinking_city_loses_citizens_but_keeps_one() {
 fn curses_raise_the_chance_an_outpost_shrinks() {
     assert_eq!(outpost_shrink_chance(|_| false), 5);
     assert_eq!(
-        outpost_shrink_chance(|n| {
-            n == SpellId::new(189) /* famine */ || n == SpellId::new(183) /* evil_presence */
-        }),
+        outpost_shrink_chance(|n| { n == CityEffect::Famine || n == CityEffect::EvilPresence }),
         20
     );
 }

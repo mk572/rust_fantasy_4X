@@ -8,7 +8,6 @@ use crate::city::economy::Economy;
 use crate::game::rng::GameRng;
 use crate::game::Game;
 use crate::rules::Ability;
-use crate::rules::SpellId;
 use crate::unit::{Hurt, UnitView};
 
 /// The wounds each hurt unit has afterwards, in the order the units are visited. The draws from
@@ -52,7 +51,7 @@ pub(crate) fn healing(
             .filter(|&c| economy.city_owner(c) == owner);
         // Stream of Life: every unit in the city heals completely each turn.
         if city.is_some_and(|c| {
-            economy.city_has_enchantment(c, SpellId::new(148) /* stream_of_life */)
+            economy.city_has_effect(c, crate::spell::city::CityEffect::StreamOfLife)
         }) {
             out.push((unit, 0));
             continue;

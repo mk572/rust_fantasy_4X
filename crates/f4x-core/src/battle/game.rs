@@ -638,11 +638,13 @@ impl Game {
         // The field is built from the square alone, as the original seeds it from the square's
         // place, so a fight on the same square is fought on the same ground.
         let mut map = self.battle_field(site, city, walled, &decks.cells());
-        let has =
-            |spell: SpellId| city.is_some_and(|c| self.economy().city_has_enchantment(c, spell));
+        let has = |effect: crate::spell::city::CityEffect| {
+            city.is_some_and(|c| self.economy().city_has_effect(c, effect))
+        };
+        let has_wall = |kind: &str| city.is_some_and(|c| self.economy().city_has_wall(c, kind));
         if city.is_some() {
             map = map.with_city(walled);
-            if has(SpellId::new(77) /* flying_fortress */) {
+            if has(crate::spell::city::CityEffect::FlyingFortress) {
                 map = map.with_flying_fortress();
             }
         }
@@ -651,32 +653,30 @@ impl Game {
         battle.melee_vs_fliers = self.settings.rules.melee_vs_fliers;
         (battle.node_aura, battle.node_site) = self.node_realms_at(site, city.is_none());
         battle.refresh_fields();
-        battle.wall_of_fire = has(SpellId::new(87) /* wall_of_fire */);
-        battle.wall_of_darkness = has(SpellId::new(178) /* wall_of_darkness */);
+        battle.wall_of_fire = has_wall("fire");
+        battle.wall_of_darkness = has_wall("darkness");
         if let Some(c) = city {
             battle.warded_realms = self.economy().city_shielded_realms(c);
         }
         // A Cloud of Shadow treats every fight at the city as if its owner had cast Darkness.
-        if let Some(cloud) = self.content.rules.spells.id_numbered(185)
-        /* cloud_of_shadow */
+        if let Some(cloud) = self
+            .economy()
+            .held_city_effect(city, crate::spell::city::CityEffect::CloudOfShadow)
         {
-            if has(SpellId::new(185) /* cloud_of_shadow */) {
-                battle.raise_field(Side::Defender, Field::Darkness, cloud);
-            }
+            battle.raise_field(Side::Defender, Field::Darkness, cloud);
         }
         // Heavenly Light gives the defender True Light in every fight at the city.
-        if let Some(light) = self.content.rules.spells.id_numbered(139)
-        /* heavenly_light */
+        if let Some(light) = self
+            .economy()
+            .held_city_effect(city, crate::spell::city::CityEffect::HeavenlyLight)
         {
-            if has(SpellId::new(139) /* heavenly_light */) {
-                battle.raise_field(Side::Defender, Field::TrueLight, light);
-            }
+            battle.raise_field(Side::Defender, Field::TrueLight, light);
         }
         // Eternal Night covers every fight in Darkness, except at a city with Heavenly Light.
         if let Some(night) =
             self.held_global_effect(crate::spell::global_enchantment::GlobalEffect::EternalNight)
         {
-            if !has(SpellId::new(139) /* heavenly_light */) {
+            if !has(crate::spell::city::CityEffect::HeavenlyLight) {
                 battle.raise_field(Side::Defender, Field::Darkness, night);
             }
         }

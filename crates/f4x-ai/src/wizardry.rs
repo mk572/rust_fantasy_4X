@@ -194,7 +194,7 @@ pub fn kind(def: &SpellDef) -> Kind {
     let helps = |r: &f4x_def::rules::effects::EffectRule| match &r.effect {
         Effect::Modify { value, .. } => *value >= 0,
         Effect::GrantAbility(_) => true,
-        Effect::Custom { name, .. } => name == "city_flag" || name == "wall",
+        Effect::Custom { name, .. } => name == "city_effect" || name == "wall",
         Effect::Special => def.num == 3, // wall_of_stone
         _ => false,
     };

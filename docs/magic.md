@@ -302,9 +302,11 @@ Chaos Surge, Charm of Life. The rest is task 87. Holy Arms gives the owner's nor
 > data on the instance. It is despawned with the city.
 
 A city enchantment sits in the city's `Enchantments` (spell and caster), costs its upkeep, and is
-dispelled like any other. Most are read by name where they matter. Stat-only ones (Heavenly Light,
-Consecration, Prosperity, Inspirations, famine, pestilence...) are plain modifiers; the rest have
-the hook `city_flag` (casting only enchants the city), and the code is in `spell/city.rs`:
+dispelled like any other. The engine reads them by effect, not by spell number: a spell lists the effects it gives in the hook
+`city_effect` (`Custom(name: "city_effect", args: ["gaias_blessing"])`; casting only enchants the city), the
+list is `CityEffect` in `spell/city.rs`, and the code asks `city_has_effect(city, CityEffect::...)`. The
+stat-only ones (Heavenly Light, Consecration, famine, pestilence...) have their modifiers as plain rules and the
+same hook beside them; the walls use the `wall` hook (`city_has_wall`):
 
 | Spell | Effect |
 |---|---|

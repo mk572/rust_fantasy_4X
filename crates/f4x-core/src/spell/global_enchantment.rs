@@ -8,7 +8,7 @@ use crate::game::Game;
 use crate::player::PlayerId;
 use crate::rules::effects::{Effect, Trigger};
 use crate::rules::exec::{eval, Facts};
-use crate::rules::{Modifier, Source, SpellDef, SpellId, Stat};
+use crate::rules::{Modifier, Source, SpellId, Stat};
 use crate::spell::instance::SpellTarget;
 use crate::unit::{Hurt, UnitView};
 use crate::wizard::magic::MagicError;
@@ -22,112 +22,36 @@ pub(crate) fn magic_has_global(wizard: &crate::wizard::entity::Wizard<'_>, id: S
 /// running anything when they are cast.
 pub const GLOBAL_EFFECT: &str = "global_effect";
 
-/// The effects the engine reads from a wizard's global spells: the arguments of the
-/// `global_effect` hook (`Custom(name: "global_effect", args: ["crusade"])`). A spell carries the
-/// effects it has; the code asks for the effect, never for a spell number, so a mod can put an
-/// effect on another spell.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum GlobalEffect {
-    NatureAwareness,
-    HerbMastery,
-    NaturesWrath,
-    WindMastery,
-    AuraOfMajesty,
-    SuppressMagic,
-    TimeStop,
-    MeteorStorm,
-    GreatWasting,
-    ChaosSurge,
-    DoomMastery,
-    Armageddon,
-    JustCause,
-    PlanarSeal,
-    HolyArms,
-    LifeForce,
-    Tranquility,
-    Crusade,
-    CharmOfLife,
-    ZombieMastery,
-    EternalNight,
-    EvilOmens,
-    DetectMagic,
-    Awareness,
-}
-
-impl GlobalEffect {
-    /// The hook arguments, in the enum's order.
-    pub const NAMES: [&'static str; 24] = [
-        "nature_awareness",
-        "herb_mastery",
-        "natures_wrath",
-        "wind_mastery",
-        "aura_of_majesty",
-        "suppress_magic",
-        "time_stop",
-        "meteor_storm",
-        "great_wasting",
-        "chaos_surge",
-        "doom_mastery",
-        "armageddon",
-        "just_cause",
-        "planar_seal",
-        "holy_arms",
-        "life_force",
-        "tranquility",
-        "crusade",
-        "charm_of_life",
-        "zombie_mastery",
-        "eternal_night",
-        "evil_omens",
-        "detect_magic",
-        "awareness",
-    ];
-
-    const ALL: [GlobalEffect; 24] = [
-        GlobalEffect::NatureAwareness,
-        GlobalEffect::HerbMastery,
-        GlobalEffect::NaturesWrath,
-        GlobalEffect::WindMastery,
-        GlobalEffect::AuraOfMajesty,
-        GlobalEffect::SuppressMagic,
-        GlobalEffect::TimeStop,
-        GlobalEffect::MeteorStorm,
-        GlobalEffect::GreatWasting,
-        GlobalEffect::ChaosSurge,
-        GlobalEffect::DoomMastery,
-        GlobalEffect::Armageddon,
-        GlobalEffect::JustCause,
-        GlobalEffect::PlanarSeal,
-        GlobalEffect::HolyArms,
-        GlobalEffect::LifeForce,
-        GlobalEffect::Tranquility,
-        GlobalEffect::Crusade,
-        GlobalEffect::CharmOfLife,
-        GlobalEffect::ZombieMastery,
-        GlobalEffect::EternalNight,
-        GlobalEffect::EvilOmens,
-        GlobalEffect::DetectMagic,
-        GlobalEffect::Awareness,
-    ];
-
-    /// The hook argument for this effect.
-    pub fn name(self) -> &'static str {
-        Self::NAMES[self as usize]
-    }
-
-    /// The effect a hook argument names.
-    pub fn named(name: &str) -> Option<GlobalEffect> {
-        Self::NAMES
-            .iter()
-            .position(|n| *n == name)
-            .map(|i| Self::ALL[i])
-    }
-
-    /// Whether the spell carries this effect.
-    pub fn is_in(self, def: &SpellDef) -> bool {
-        def.hook_args(GLOBAL_EFFECT)
-            .is_some_and(|a| a.iter().any(|x| x == self.name()))
-    }
+crate::hook::effect_enum! {
+    /// The effects the engine reads from a wizard's global spells: the arguments of the
+    /// `global_effect` hook (`Custom(name: "global_effect", args: ["crusade"])`). A spell carries
+    /// the effects it has; the code asks for the effect, never for a spell number, so a mod can
+    /// put an effect on another spell.
+    pub enum GlobalEffect in GLOBAL_EFFECT;
+    NatureAwareness = "nature_awareness",
+    HerbMastery = "herb_mastery",
+    NaturesWrath = "natures_wrath",
+    WindMastery = "wind_mastery",
+    AuraOfMajesty = "aura_of_majesty",
+    SuppressMagic = "suppress_magic",
+    TimeStop = "time_stop",
+    MeteorStorm = "meteor_storm",
+    GreatWasting = "great_wasting",
+    ChaosSurge = "chaos_surge",
+    DoomMastery = "doom_mastery",
+    Armageddon = "armageddon",
+    JustCause = "just_cause",
+    PlanarSeal = "planar_seal",
+    HolyArms = "holy_arms",
+    LifeForce = "life_force",
+    Tranquility = "tranquility",
+    Crusade = "crusade",
+    CharmOfLife = "charm_of_life",
+    ZombieMastery = "zombie_mastery",
+    EternalNight = "eternal_night",
+    EvilOmens = "evil_omens",
+    DetectMagic = "detect_magic",
+    Awareness = "awareness",
 }
 
 /// Does this wizard keep a global spell with this effect going?
