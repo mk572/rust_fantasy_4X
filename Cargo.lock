@@ -2683,6 +2683,7 @@ version = "0.0.4"
 dependencies = [
  "f4x-core",
  "f4x-def",
+ "ron",
  "serde",
 ]
 

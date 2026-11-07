@@ -230,3 +230,101 @@ fn a_game_resumes_from_a_saved_state_without_repeating_a_step() {
     assert_eq!(g.turn, straight.turn);
     assert_eq!(g.next_u64(), straight.next_u64(), "the same random draws");
 }
+
+/// A game written out as a save and read back.
+fn saved_and_loaded(g: &Game) -> Game {
+    let text = g.snapshot().to_text().expect("a save");
+    f4x_core::game::save::Snapshot::from_text(&text)
+        .and_then(|s| s.restore(f4x_def::testdir::shipped().clone()))
+        .expect("the save loads")
+}
+
+#[test]
+fn a_game_saved_at_the_start_of_a_round_plays_on_as_the_game_that_went_on() {
+    let log: Log = Log::default();
+    let mut straight = game(3);
+    Master::new(seats(&straight, &log)).run(&mut straight, Until::Rounds(4));
+
+    let log2: Log = Log::default();
+    let mut g = game(3);
+    let mut m = Master::new(seats(&g, &log2)).checkpoints();
+    // Round one is played; the master stops before round two begins, and the game is saved.
+    let progress = m.run(&mut g, Until::Rounds(3));
+    assert_eq!(progress.stopped, Stopped::RoundStart);
+    assert_eq!(m.state().phase, Phase::RoundStart);
+    let mut loaded = saved_and_loaded(&g);
+    assert_eq!(loaded.turn, g.turn, "the round has not begun yet");
+
+    let mut resumed = Master::from_game(seats(&loaded, &log2), &loaded).expect("the flow fits");
+    assert_eq!(resumed.state().phase, Phase::RoundStart);
+    resumed.run(&mut loaded, Until::Rounds(4));
+    assert_eq!(
+        *log.borrow(),
+        *log2.borrow(),
+        "the same turns, none twice or missed"
+    );
+    assert_eq!(loaded.turn, straight.turn);
+    assert_eq!(
+        loaded.next_u64(),
+        straight.next_u64(),
+        "the same random draws"
+    );
+}
+
+#[test]
+fn the_game_knows_where_it_is_in_its_round_while_a_seat_waits() {
+    let log: Log = Log::default();
+    let mut g = game(2);
+    let ids: Vec<PlayerId> = g
+        .player_ids()
+        .into_iter()
+        .filter(|&p| !g.is_neutral_player(p))
+        .collect();
+    let seats = vec![
+        Recorder::seat(&log, ids[0], 1),
+        Recorder::seat(&log, ids[1], 0),
+    ];
+    let mut m = Master::new(seats);
+    assert_eq!(m.run(&mut g, Until::Waiting).stopped, Stopped::Waiting(0));
+    let loaded = saved_and_loaded(&g);
+    let again = Master::from_game(
+        vec![
+            Recorder::seat(&log, ids[0], 1),
+            Recorder::seat(&log, ids[1], 0),
+        ],
+        &loaded,
+    )
+    .expect("the flow fits");
+    assert_eq!(again.state().phase, Phase::Acting(0));
+}
+
+#[test]
+fn a_game_without_a_flow_is_resumed_on_the_first_seats_turn() {
+    let log: Log = Log::default();
+    let g = game(2);
+    assert_eq!(g.flow(), None);
+    let m = Master::from_game(seats(&g, &log), &g).expect("no flow is fine");
+    assert_eq!(m.state().phase, Phase::Acting(0));
+}
+
+#[test]
+fn a_flow_for_another_table_is_refused() {
+    let log: Log = Log::default();
+    let mut g = game(2);
+    g.set_flow(Some(
+        f4x_master::State {
+            phase: Phase::Acting(7),
+        }
+        .to_text(),
+    ));
+    let err = Master::from_game(seats(&g, &log), &g).err();
+    assert!(matches!(
+        err,
+        Some(f4x_master::FlowError::NoSuchSeat { seat: 7, .. })
+    ));
+    g.set_flow(Some("garbage".into()));
+    assert!(matches!(
+        Master::from_game(seats(&g, &log), &g).err(),
+        Some(f4x_master::FlowError::Unreadable(_))
+    ));
+}

@@ -408,8 +408,7 @@ table is in `turn-structure.md` 7.1), `f4x-master` runs seats in order with a ne
 (a human seat that waits for End Turn; rivals wait while an attack on the human is fought) run on it.
 The economy now runs at the start of the player's own turn (7 November 2026, see 7.1), and `f4x-ai-ref`
 was re-forked from `f4x-ai` (`scripts/fork_ai.py`) so it has the same `controller.rs` and `play_round`.
-*Open:* saving the master state (the client saves only on the human's turn, so a load restarts
-there), `game-flow.md` still describes the old end-turn,
+*Done 7 November 2026:* the master state is saved (`Game::flow`, `Master::checkpoints`, `Master::from_game`); the client autosaves at the start of every round. *Open:* the soak's own snapshots should be game saves, the AI's memory is not saved, `game-flow.md` still describes the old end-turn,
 a client test for a defence mid-round, and a soak to check the balance of the per-player economy.
 
 **Keep this file sorted by task number**: the table and the descriptions below it, both in ascending order. A new task goes at its numeric place in each (a gap is fine; take the next free number across this file and `TASKS-DONE.md`).

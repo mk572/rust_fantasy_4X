@@ -1174,6 +1174,12 @@ impl App {
         if integrity != f4x_core::game::save::Integrity::Intact {
             self.log.push(self.text("log.save_edited"));
         }
+        // A game saved at the start of a round, as the autosave is, goes on to the human's turn
+        // now, and the turn's news is told as after any turn.
+        if self.master_state.phase != f4x_master::Phase::Acting(0) {
+            self.turn_events = Some(Vec::new());
+            self.resume_turn();
+        }
         Ok(())
     }
 
@@ -1199,13 +1205,28 @@ impl App {
         }
     }
 
-    /// The master waits for the human's turn: no rival is mid-turn and nothing is held up.
+    /// The master goes on where the game says it is (`Game::flow`, saved with the game): a game
+    /// without one, a new game or one saved on the human's turn, waits for the human. Nothing
+    /// else is held up.
     fn reset_master(&mut self) {
+        use f4x_master::{Phase, State};
         self.defences.clear();
         self.turn_events = None;
-        self.master_state = f4x_master::State {
-            phase: f4x_master::Phase::Acting(0),
+        // The human, the rivals and the neutrals: the seats `run_master` sets.
+        let seats = self.ais.len() + 2;
+        let human = State {
+            phase: Phase::Acting(0),
         };
+        self.master_state = self
+            .game
+            .flow()
+            .and_then(|text| State::from_text(text).ok())
+            .filter(|state| match state.phase {
+                Phase::TurnStart(i) | Phase::Acting(i) | Phase::TurnEnd(i) => i < seats,
+                Phase::Over => false,
+                _ => true,
+            })
+            .unwrap_or(human);
         self.seating = Default::default();
         self.neutral_seat = f4x_ai::NeutralSeat::defended_by(&[HUMAN]);
     }
@@ -1289,6 +1310,7 @@ impl App {
         // The seats share the small `seating` memory and the queue of defences; one acts at a time.
         let seating = std::cell::RefCell::new(std::mem::take(&mut self.seating));
         let defences = std::cell::RefCell::new(std::mem::take(&mut self.defences));
+        let mut autosave_failed: Option<String> = None;
         let progress = {
             let mut seats: Vec<Seat> = vec![Seat::new(
                 vec![HUMAN],
@@ -1309,11 +1331,30 @@ impl App {
                 seating: &seating,
                 defences: &defences,
             })));
-            let mut master = Master::resume(seats, self.master_state);
-            let progress = master.run(&mut self.game, Until::Rounds(2));
+            // The master stops at the start of every round, and the game is saved there: the one
+            // moment when no seat is half way through its turn.
+            let mut master = Master::resume(seats, self.master_state).checkpoints();
+            let mut events = Vec::new();
+            let progress = loop {
+                let progress = master.run(&mut self.game, Until::Rounds(2));
+                events.extend(progress.events);
+                if progress.stopped != f4x_master::Stopped::RoundStart {
+                    break f4x_master::Progress {
+                        events,
+                        stopped: progress.stopped,
+                    };
+                }
+                if let Err(e) = f4x_core::game::save::save_game(Path::new(AUTOSAVE), &self.game) {
+                    autosave_failed = Some(e.to_string());
+                }
+            };
             self.master_state = master.state();
             progress
         };
+        if let Some(why) = autosave_failed {
+            let args = Args::new().text("why", why);
+            self.log.push(self.text_with("log.save_failed", &args));
+        }
         self.seating = seating.into_inner();
         self.defences = defences.into_inner();
         progress
@@ -1532,9 +1573,6 @@ impl App {
         }
         if self.turn_events.is_some() && matches!(self.screen, Screen::Map) {
             self.resume_turn();
-            if self.turn_events.is_none() {
-                self.save_to(std::path::Path::new(AUTOSAVE));
-            }
         }
         if matches!(self.screen, Screen::Map)
             && !self.game.in_battle()

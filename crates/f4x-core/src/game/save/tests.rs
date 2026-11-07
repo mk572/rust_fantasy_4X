@@ -408,6 +408,34 @@ fn an_empty_game_round_trips() -> TestResult {
 }
 
 #[test]
+fn where_the_game_is_in_its_round_survives_a_save_and_a_lifecycle_command_clears_it() -> TestResult
+{
+    let mut g = game();
+    assert_eq!(g.flow(), None, "a game made by hand has none");
+    g.set_flow(Some("(phase: RoundStart)".into()));
+    let back = Snapshot::from_text(&g.snapshot().to_text()?)?.restore(g.content().clone())?;
+    assert_eq!(back.flow(), Some("(phase: RoundStart)"));
+    g.apply(crate::game::Command::StartRound);
+    assert_eq!(g.flow(), None, "the step it described is over");
+    Ok(())
+}
+
+#[test]
+fn a_save_made_before_the_flow_existed_loads_without_one() -> TestResult {
+    let text = game().snapshot().to_text()?;
+    assert!(text.contains("flow: None,"));
+    // The file as an older build wrote it: without the line.
+    let old = text.replace("flow: None,", "");
+    assert_eq!(
+        Snapshot::from_text(&old)?
+            .restore(game().content().clone())?
+            .flow(),
+        None
+    );
+    Ok(())
+}
+
+#[test]
 fn every_setting_survives_a_save() -> TestResult {
     let mut g = Game::new(5);
     g.settings.basic = crate::game::setting::BasicSettings {

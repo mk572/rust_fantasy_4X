@@ -83,6 +83,10 @@ pub struct Snapshot {
     /// The clocks of the raiders and the roaming monsters.
     #[serde(default)]
     pub threat: crate::threat::Threat,
+    /// Where the game is in its round, written by the master (`Game::flow`). A save without it
+    /// was made on the human's turn.
+    #[serde(default)]
+    pub flow: Option<String>,
     /// Override (cheat) commands used in this game.
     pub override_log: Vec<String>,
     /// The prefab items already given out (`Make_Item` gives each once a game).
@@ -903,6 +907,7 @@ impl Game {
                 .events
                 .to_save(|e| crate::player::id_of(&self.world, e)),
             threat: self.threat,
+            flow: self.flow.clone(),
             override_log: self.override_log.clone(),
             prefab_taken: self.prefab_taken.clone(),
             map,
@@ -1059,6 +1064,7 @@ impl Snapshot {
         game.override_log = self.override_log;
         game.prefab_taken = self.prefab_taken;
         game.threat = self.threat;
+        game.flow = self.flow;
         game.next_serial = self.next_serial;
         // Resume the random stream where it stopped.
         game.rng = crate::game::rng::GameRng::resume(self.seed, self.draws);

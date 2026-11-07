@@ -204,7 +204,7 @@ Phases (core operations, orchestrated by `f4x-master`): `start_round`, `start_pl
 Elimination: a defeated player gets no `start_player_turn`/`end_player_turn`; its cities and units
 are already gone or neutral. Time Stop: while it lasts, other wizards' turns still run their
 economy except where the table says "skipped"; the stopper's units are the only ones that move.
-Loading: the master state (round, phase, active seat) is saved with the game (stage 5).
+Loading: the master state (round, phase, active seat) is saved with the game as `Game::flow` (`Snapshot.flow`, opaque text the master writes after every step; a save without it was made on the human's turn). The client's autosave is written when the master reaches the start of a round (`Master::checkpoints`, `Stopped::RoundStart`), the one moment no seat is half way through its turn; loading it plays on from there, so the round start and the human's turn start run again with the same random stream and the news is told as after any turn. A save made while a rival waits for the human to fight its attack (seat above 0) replays that rival's turn from its start.
 
 ## 8. Determinism and tests
 

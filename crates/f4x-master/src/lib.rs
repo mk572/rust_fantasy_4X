@@ -113,6 +113,44 @@ pub struct State {
     pub phase: Phase,
 }
 
+impl State {
+    /// The state as text, for [`Game::set_flow`].
+    pub fn to_text(self) -> String {
+        // A plain enum in a struct cannot fail to serialize.
+        ron::to_string(&self).unwrap_or_default()
+    }
+
+    /// The state from the text [`State::to_text`] made.
+    pub fn from_text(text: &str) -> Result<Self, FlowError> {
+        ron::from_str(text).map_err(|e| FlowError::Unreadable(e.to_string()))
+    }
+}
+
+/// Why a saved flow cannot be used.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FlowError {
+    /// The text is not a master state.
+    Unreadable(String),
+    /// The state names a seat the table does not have (the game was saved at another table).
+    NoSuchSeat { seat: usize, seats: usize },
+}
+
+impl std::fmt::Display for FlowError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FlowError::Unreadable(why) => write!(f, "the saved round state is unreadable: {why}"),
+            FlowError::NoSuchSeat { seat, seats } => {
+                write!(
+                    f,
+                    "the saved round state is at seat {seat}, the table has {seats}"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for FlowError {}
+
 /// Why a command was refused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Refused {
@@ -142,6 +180,9 @@ pub enum Stopped {
     Waiting(usize),
     /// The game is over.
     Over,
+    /// The round is about to begin and the master was asked to stop there
+    /// ([`Master::checkpoints`]): the game can be saved now, and the next step starts the round.
+    RoundStart,
 }
 
 /// How long [`Master::run`] goes on.
@@ -159,6 +200,7 @@ pub enum Until {
 pub struct Master<'a> {
     seats: Vec<Seat<'a>>,
     state: State,
+    checkpoints: bool,
 }
 
 impl<'a> Master<'a> {
@@ -170,12 +212,47 @@ impl<'a> Master<'a> {
             state: State {
                 phase: Phase::TurnStart(0),
             },
+            checkpoints: false,
         }
     }
 
     /// A master that goes on from a saved state.
     pub fn resume(seats: Vec<Seat<'a>>, state: State) -> Self {
-        Self { seats, state }
+        Self {
+            seats,
+            state,
+            checkpoints: false,
+        }
+    }
+
+    /// A master that goes on from where the game was saved (`Game::flow`, which the master
+    /// writes after every step). A game without a flow was saved on the first seat's turn: the
+    /// human's, the seat the client plays and saves on. The state must fit the table.
+    pub fn from_game(seats: Vec<Seat<'a>>, game: &Game) -> Result<Self, FlowError> {
+        let state = match game.flow() {
+            Some(text) => State::from_text(text)?,
+            None => State {
+                phase: Phase::Acting(0),
+            },
+        };
+        let seat = match state.phase {
+            Phase::TurnStart(i) | Phase::Acting(i) | Phase::TurnEnd(i) => Some(i),
+            _ => None,
+        };
+        if let Some(seat) = seat.filter(|&i| i >= seats.len()) {
+            return Err(FlowError::NoSuchSeat {
+                seat,
+                seats: seats.len(),
+            });
+        }
+        Ok(Self::resume(seats, state))
+    }
+
+    /// Stop at the start of every round ([`Stopped::RoundStart`]) so the host can save the game
+    /// there: the one moment when no seat is half way through its turn.
+    pub fn checkpoints(mut self) -> Self {
+        self.checkpoints = true;
+        self
     }
 
     /// The state to save with the game.
@@ -308,11 +385,16 @@ impl<'a> Master<'a> {
                 } else {
                     Phase::RoundStart
                 };
+                if self.checkpoints && self.state.phase == Phase::RoundStart {
+                    stopped = Stopped::RoundStart;
+                }
             }
         }
         if self.state.phase == Phase::Over {
             stopped = Stopped::Over;
         }
+        // Whatever saves the game now saves where it is in its round.
+        game.set_flow(Some(self.state.to_text()));
         Progress { events, stopped }
     }
 

@@ -70,6 +70,10 @@ pub struct Game {
     pub(crate) events: world_event::Events,
     /// The clocks of the raiders and the roaming monsters.
     pub(crate) threat: threat::Threat,
+    /// Where the game is in its round, as the master (`f4x-master`) wrote it: opaque text that
+    /// is saved with the game. The lifecycle commands clear it, so it never outlives the step
+    /// it describes (see [`Game::flow`]).
+    flow: Option<String>,
     /// Items that fell to wizards from slain heroes since the last command ended: the wizard,
     /// the item's name and whether the armory had room for it.
     pub(crate) item_awards: Vec<(hecs::Entity, String, bool)>,
@@ -106,6 +110,7 @@ impl Game {
             diplomacy: diplomacy::Diplomacy::default(),
             events: world_event::Events::default(),
             threat: threat::Threat::default(),
+            flow: None,
             item_awards: Vec::new(),
             override_log: Vec::new(),
             prefab_taken: Vec::new(),
@@ -114,6 +119,18 @@ impl Game {
             undo_on: false,
             undo_stack: Vec::new(),
         }
+    }
+
+    /// Where the game is in its round, as the master last wrote it (`None` when nothing has:
+    /// a game made by hand, or one played by commands alone). It is saved and loaded with the
+    /// game, so a save made at the start of a round resumes at the start of that round.
+    pub fn flow(&self) -> Option<&str> {
+        self.flow.as_deref()
+    }
+
+    /// Record where the game is in its round (the master calls this after each step).
+    pub fn set_flow(&mut self, flow: Option<String>) {
+        self.flow = flow;
     }
 
     /// The settings the game is played with.
@@ -381,6 +398,17 @@ impl Game {
     }
 
     fn execute_command(&mut self, cmd: Command) -> Vec<Event> {
+        // A lifecycle step moves the game on; what the master wrote about it is out of date.
+        if matches!(
+            cmd,
+            Command::EndTurn
+                | Command::StartRound
+                | Command::StartPlayerTurn { .. }
+                | Command::EndPlayerTurn { .. }
+                | Command::EndRound
+        ) {
+            self.flow = None;
+        }
         match cmd {
             Command::EndTurn => self.end_turn(),
             Command::StartRound => self.start_round(),
