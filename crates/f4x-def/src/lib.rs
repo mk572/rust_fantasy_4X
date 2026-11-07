@@ -11,6 +11,8 @@ pub mod hero;
 pub mod load;
 pub mod map;
 pub mod names;
+#[cfg(any(test, feature = "testutil"))]
+pub mod original;
 pub mod rules;
 pub mod settings;
 #[cfg(any(test, feature = "testutil"))]

@@ -94,7 +94,7 @@ Reviewed with the same checks as `f4x-core`. All 72 tests (0.15 s) were already 
 | `src/spell_art.rs` | done | 5 tests (3 on made-up tables, 2 on the shipped one), 6 `unwrap`s replaced. |
 | `src/testutil.rs` | done | New: the folder of the shipped content for the unit tests (compiled for tests only; says so in a `//! Tests:` line). |
 | `tests/it/autobuild.rs` | done | `panic!("{other:?}")` is an error that names the item; the other `unwrap` is `expect`. |
-| `tests/it/original_content.rs` | done | 9 tests against the original's tables. 4 `unwrap`s are `expect` with the cell they parse; "(task 404)" removed from the module doc. **Open:** `original_retort_available` still has a `panic!` for a retort name the table does not know (a lookup in a helper, not a check). |
+| `f4x-def/src/original/tests.rs`, `f4x-core/src/{spell,wizard}/original_content.rs` (moved from `tests/it/original_content.rs`) | done | 9 tests against the original's tables. 4 `unwrap`s are `expect` with the cell they parse; "(task 404)" removed from the module doc. **Open:** `original_retort_available` still has a `panic!` for a retort name the table does not know (a lookup in a helper, not a check). |
 | `tests/it/shipped.rs` | done | New: `content()` and `content_dir()`, replacing three copies of the loader. |
 | `tests/it/stacking.rs` | done | One `unwrap` is `expect`. |
 | `tests/it/text.rs` | done | Three helpers return `Result`, four tests return `TestResult`; 10 `unwrap`s gone. |

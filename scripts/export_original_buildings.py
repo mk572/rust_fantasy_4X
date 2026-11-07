@@ -16,7 +16,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_GAME = REPO / "reference/mom-classic/Master of Magic Official Release"
-DEFAULT_OUT = REPO / "crates/f4x-core/tests/original/buildings.tsv"
+DEFAULT_OUT = REPO / "crates/f4x-def/tests/original/buildings.tsv"
 sys.path.insert(0, str(REPO / "scripts"))
 from import_mom import cstr, read_lbx, read_records  # noqa: E402
 

@@ -239,4 +239,6 @@ impl Game {
 }
 
 #[cfg(test)]
+mod original_content;
+#[cfg(test)]
 mod tests;

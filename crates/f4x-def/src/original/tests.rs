@@ -1,26 +1,5 @@
-//! The shipped content against the original's own numbers. `tests/original/*.tsv` are
-//! the original's tables as `scripts/export_original_*.py` read them from the ReMoM clone, in the
-//! original's row order; the content rows are in the same order. A number of the content may
-//! differ from the original only where `DEPARTURES` says so, with the reason.
-
-use f4x_def::rules::Stat;
-use std::collections::BTreeMap;
-
-use crate::shipped::content;
-
-/// The rows of a TSV table as column name to value, one map per row.
-fn table(text: &str) -> Vec<BTreeMap<String, i32>> {
-    let mut lines = text.lines();
-    let head: Vec<&str> = lines.next().expect("a header").split('\t').collect();
-    lines
-        .map(|line| {
-            head.iter()
-                .zip(line.split('\t'))
-                .map(|(name, v)| (name.to_string(), v.parse().expect("a number")))
-                .collect()
-        })
-        .collect()
-}
+use super::*;
+use crate::rules::Stat;
 
 /// A number of a unit that is deliberately not the original's: `(unit id, column, our value,
 /// reason)`.
@@ -39,8 +18,8 @@ fn departure(id: &str, column: &str, ours: i32) -> bool {
 
 #[test]
 fn every_unit_has_the_originals_numbers() {
-    let c = content();
-    let rows = table(include_str!("../original/units.tsv"));
+    let c = crate::testdir::shipped();
+    let rows = table(UNITS);
     let defs = c.rules.units.defs();
     assert_eq!(
         defs.len(),
@@ -96,14 +75,6 @@ fn every_unit_has_the_originals_numbers() {
     );
 }
 
-/// Letters and digits in lower case, to compare names that differ in an apostrophe.
-fn plain(name: &str) -> String {
-    name.chars()
-        .filter(|c| c.is_alphanumeric())
-        .flat_map(char::to_lowercase)
-        .collect()
-}
-
 /// The records of the original's building table before the first real building (none, trade
 /// goods, housing); the content starts at Barracks.
 const FIRST_BUILDING: usize = 3;
@@ -112,8 +83,8 @@ const TERRAIN: i32 = 100;
 
 #[test]
 fn every_building_has_the_originals_cost_upkeep_requirements_and_replacement() {
-    let c = content();
-    let text = include_str!("../original/buildings.tsv");
+    let c = crate::testdir::shipped();
+    let text = BUILDINGS;
     let rows: Vec<Vec<&str>> = text
         .lines()
         .skip(1)
@@ -183,31 +154,10 @@ fn every_building_has_the_originals_cost_upkeep_requirements_and_replacement() {
     );
 }
 
-/// The rows of a TSV table with a name column, as the cells of each row by column name.
-fn named_table(text: &str) -> Vec<BTreeMap<String, String>> {
-    let mut lines = text.lines();
-    let head: Vec<&str> = lines.next().expect("a header").split('\t').collect();
-    lines
-        .map(|line| {
-            head.iter()
-                .zip(line.split('\t'))
-                .map(|(name, v)| (name.to_string(), v.to_string()))
-                .collect()
-        })
-        .collect()
-}
-
-fn number(row: &BTreeMap<String, String>, column: &str) -> i64 {
-    row[column].parse().expect("a number")
-}
-
-/// The realms in the original's numbering.
-const REALMS: [&str; 6] = ["nature", "sorcery", "chaos", "life", "death", "arcane"];
-
 #[test]
 fn every_item_power_has_the_originals_types_cost_group_realm_and_books() {
-    let c = content();
-    let rows = named_table(include_str!("../original/item_powers.tsv"));
+    let c = crate::testdir::shipped();
+    let rows = named_table(ITEM_POWERS);
     let defs = c.rules.item_powers.defs();
     assert_eq!(defs.len(), rows.len(), "item powers");
     let mut wrong = Vec::new();
@@ -269,11 +219,11 @@ fn every_item_power_has_the_originals_types_cost_group_realm_and_books() {
 
 #[test]
 fn every_prefab_item_has_the_originals_type_cost_bonuses_and_powers() {
-    use f4x_def::rules::effects::Effect;
-    use f4x_def::rules::ModOp;
-    let c = content();
-    let rows = named_table(include_str!("../original/items.tsv"));
-    let powers = named_table(include_str!("../original/item_powers.tsv"));
+    use crate::rules::effects::Effect;
+    use crate::rules::ModOp;
+    let c = crate::testdir::shipped();
+    let rows = named_table(ITEMS);
+    let powers = named_table(ITEM_POWERS);
     let defs = c.rules.items.defs();
     assert_eq!(defs.len(), rows.len(), "items");
     let mut wrong = Vec::new();
@@ -359,14 +309,14 @@ fn every_prefab_item_has_the_originals_type_cost_bonuses_and_powers() {
 
 #[test]
 fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
-    use f4x_def::rules::{effects::Effect, ModOp, UnitKind};
-    let c = content();
-    let rows = named_table(include_str!("../original/races.tsv"));
+    use crate::rules::{effects::Effect, ModOp, UnitKind};
+    let c = crate::testdir::shipped();
+    let rows = named_table(RACES);
     let defs = c.rules.races.defs();
     assert_eq!(defs.len(), rows.len(), "races");
     let buildings = c.rules.buildings.defs();
     let units = c.rules.units.defs();
-    let unit_rows = table(include_str!("../original/units.tsv"));
+    let unit_rows = table(UNITS);
     let mut wrong = Vec::new();
     for (index, (def, row)) in defs.iter().zip(&rows).enumerate() {
         if i64::from(def.num) != number(row, "index") {
@@ -417,7 +367,7 @@ fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
         // A building with no race list is open to every race.
         let mut cannot: Vec<&str> = buildings
             .iter()
-            .filter(|b| !b.buildable_by(f4x_def::rules::RaceId::new(def.num)))
+            .filter(|b| !b.buildable_by(crate::rules::RaceId::new(def.num)))
             .map(|b| b.id.as_str())
             .collect();
         cannot.sort_unstable();
@@ -452,133 +402,6 @@ fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
         theirs.sort_unstable();
         if ours != theirs {
             wrong.push(format!("{} units {ours:?}, original {theirs:?}", def.id));
-        }
-    }
-    assert!(
-        wrong.is_empty(),
-        "{} differ:\n{}",
-        wrong.len(),
-        wrong.join("\n")
-    );
-}
-
-/// Casting cost of a spell the original leaves at 0 because the caster chooses it, and the cost
-/// our content gives it instead: `(spell id, our cost, reason)`.
-const SPELL_DEPARTURES: &[(&str, u32, &str)] = &[
-    (
-        "enchant_item",
-        1,
-        "the original asks for the mana of the item's powers; ours starts at 1",
-    ),
-    (
-        "create_artifact",
-        1,
-        "the original asks for the mana of the item's powers; ours starts at 1",
-    ),
-];
-
-#[test]
-fn every_spell_has_the_originals_name_realm_cost_research_rarity_and_summoned_unit() {
-    use f4x_def::rules::{effects::Effect, Rarity};
-    let c = content();
-    let rows = named_table(include_str!("../original/spells.tsv"));
-    let defs = c.rules.spells.defs();
-    assert_eq!(defs.len(), rows.len(), "spells");
-    let units = c.rules.units.defs();
-    // Each realm's spells come as ten common, ten uncommon, ten rare and ten very rare, in the
-    // original's order.
-    let tiers = [
-        Rarity::Common,
-        Rarity::Uncommon,
-        Rarity::Rare,
-        Rarity::VeryRare,
-    ];
-    let mut seen = [0usize; 6];
-    let mut wrong = Vec::new();
-    for (def, row) in defs.iter().zip(&rows) {
-        // The original misspells Invisibility ("Invisiblity"); the game spells it right.
-        let original = if row["name"] == "Invisiblity" {
-            "Invisibility"
-        } else {
-            row["name"].as_str()
-        };
-        if plain(&def.id) != plain(original) {
-            wrong.push(format!("{}: named {} in the original", def.id, row["name"]));
-            continue;
-        }
-        // The spell's number is the original's record number (the table starts at record 1).
-        if u32::from(def.num) != number(row, "index") as u32 + 1 {
-            wrong.push(format!(
-                "{}: numbered {}, original {}",
-                def.id,
-                def.num,
-                number(row, "index") + 1
-            ));
-        }
-        let realm = number(row, "realm") as usize;
-        if c.rules.realms.get(def.realm).id != REALMS[realm] {
-            wrong.push(format!(
-                "{} realm {}, original {}",
-                def.id,
-                c.rules.realms.get(def.realm).id,
-                REALMS[realm]
-            ));
-        }
-        // The arcane realm is not in tens: the original's research list offers it in three steps
-        // (the first three, the next five, the next four), which the wiki names common, uncommon
-        // and rare. The Spell of Mastery and the Spell of Return follow, uncommon.
-        let tier = if REALMS[realm] == "arcane" {
-            match seen[realm] {
-                0..=2 => Rarity::Common,
-                3..=7 => Rarity::Uncommon,
-                8..=11 => Rarity::Rare,
-                _ => Rarity::Uncommon,
-            }
-        } else {
-            tiers[(seen[realm] / 10).min(3)]
-        };
-        seen[realm] += 1;
-        if def.rarity != tier {
-            wrong.push(format!(
-                "{} rarity {:?}, original {tier:?}",
-                def.id, def.rarity
-            ));
-        }
-        let cost = number(row, "cost");
-        let departs = SPELL_DEPARTURES
-            .iter()
-            .any(|(id, ours, _)| *id == def.id && i64::from(*ours) == i64::from(def.cost));
-        if i64::from(def.cost) != cost && !departs {
-            wrong.push(format!("{} cost {}, original {cost}", def.id, def.cost));
-        }
-        if i64::from(def.research_cost) != number(row, "research") {
-            wrong.push(format!(
-                "{} research {}, original {}",
-                def.id,
-                def.research_cost,
-                number(row, "research")
-            ));
-        }
-        // Category 0 is a summoning; its first parameter is the unit it creates.
-        if number(row, "category") == 0 {
-            let original = &units[number(row, "param") as usize].id;
-            let ours: Vec<&String> = def
-                .effects
-                .iter()
-                .filter_map(|e| match &e.effect {
-                    Effect::Summon { unit, .. } => Some(&c.rules.units.get(*unit).id),
-                    // The Floating Island is a unit in the original; ours is a custom effect of the same name.
-                    Effect::Custom { .. }
-                        if f4x_core::spell::terraform::TerrainEffect::FloatingIsland.is_in(def) =>
-                    {
-                        Some(&def.id)
-                    }
-                    _ => None,
-                })
-                .collect();
-            if ours != [original] {
-                wrong.push(format!("{} summons {ours:?}, original {original}", def.id));
-            }
         }
     }
     assert!(
@@ -635,8 +458,8 @@ const FLAG_ABILITIES: &[(&str, i32, &str)] = &[
 
 #[test]
 fn every_unit_has_the_abilities_the_originals_flags_give_it() {
-    let c = content();
-    let rows = table(include_str!("../original/units.tsv"));
+    let c = crate::testdir::shipped();
+    let rows = table(UNITS);
     let defs = c.rules.units.defs();
     let mut wrong = Vec::new();
     let mut compared = 0;
@@ -673,198 +496,4 @@ fn every_unit_has_the_abilities_the_originals_flags_give_it() {
         wrong.len(),
         wrong.join("\n")
     );
-}
-
-/// The original's retorts ("special abilities") in the order of its wizard record
-/// (`wsa_*` of `NewGame.c`), which is the order of `retorts.ron`.
-const ORIGINAL_RETORTS: [&str; 18] = [
-    "Alchemy",
-    "Warlord",
-    "ChaosMastery",
-    "NatureMastery",
-    "SorceryMastery",
-    "InfernalPower",
-    "DivinePower",
-    "SageMaster",
-    "Channeler",
-    "Myrran",
-    "Archmage",
-    "ManaFocusing",
-    "NodeMastery",
-    "Famous",
-    "Runemaster",
-    "Conjurer",
-    "Charismatic",
-    "Artificer",
-];
-
-/// Picks a retort costs in the original's creation screen: one, two for the five of
-/// `TBL_2pickRetort_Lbls` (Warlord, Channeler, Divine Power, Famous, Infernal Power), three for Myrran.
-fn original_retort_cost(name: &str) -> u8 {
-    match name {
-        "Warlord" | "Channeler" | "DivinePower" | "Famous" | "InfernalPower" => 2,
-        "Myrran" => 3,
-        _ => 1,
-    }
-}
-
-/// Whether the original's creation screen lets the wizard pick the retort with these books
-/// (`wsa_picklist_start` and the unlocks after it), not counting the pick budget. `n` is
-/// life, death, chaos, nature, sorcery.
-fn original_retort_available(name: &str, n: [u8; 5]) -> bool {
-    let [life, death, chaos, nature, sorcery] = n;
-    let realms = n.iter().filter(|&&b| b > 0).count();
-    let strong_realms = n.iter().filter(|&&b| b > 1).count();
-    let mastery_book = n.iter().any(|&b| b > 3);
-    match name {
-        "Alchemy" | "Warlord" | "Channeler" | "Artificer" | "Conjurer" | "Myrran" | "Famous"
-        | "Charismatic" => true,
-        "SageMaster" => realms > 1,
-        "Runemaster" => strong_realms > 2,
-        "Archmage" | "ManaFocusing" => mastery_book,
-        "ChaosMastery" => chaos > 3,
-        "NatureMastery" => nature > 3,
-        "SorceryMastery" => sorcery > 3,
-        "InfernalPower" => death > 3,
-        "DivinePower" => life > 3,
-        "NodeMastery" => chaos > 0 && sorcery > 0 && nature > 0,
-        other => panic!("{other} is not a retort of the original"),
-    }
-}
-
-/// A retort's alias as the original's name for it ("sage_master" is "SageMaster").
-fn camel(alias: &str) -> String {
-    alias
-        .split('_')
-        .map(|w| {
-            let mut c = w.chars();
-            c.next()
-                .map_or_else(String::new, |f| f.to_uppercase().chain(c).collect())
-        })
-        .collect()
-}
-
-#[test]
-fn every_retort_costs_and_unlocks_as_in_the_originals_creation_screen() {
-    use f4x_core::wizard::{all_retorts, retort_available, retort_cost};
-    let c = content();
-    let rules = &c.rules;
-    let retorts: Vec<_> = all_retorts(rules).collect();
-    assert_eq!(retorts.len(), ORIGINAL_RETORTS.len());
-    for (&retort, name) in retorts.iter().zip(ORIGINAL_RETORTS) {
-        assert_eq!(
-            camel(&rules.retorts.get(retort).id),
-            name,
-            "the retort list follows the original's order"
-        );
-        assert_eq!(
-            usize::from(retort.num()),
-            retorts
-                .iter()
-                .position(|&r| r == retort)
-                .unwrap_or(usize::MAX),
-            "{name}: the number is the place in the original's list"
-        );
-        assert_eq!(
-            retort_cost(rules, retort),
-            original_retort_cost(name),
-            "{name} cost"
-        );
-    }
-    let realms = [
-        3, /* life */
-        4, /* death */
-        2, /* chaos */
-        0, /* nature */
-        1, /* sorcery */
-    ];
-    let mut checked = 0;
-    // Every way to spend up to eleven picks on books.
-    for life in 0..=11u8 {
-        for death in 0..=11 - life {
-            for chaos in 0..=11 - life - death {
-                for nature in 0..=11 - life - death - chaos {
-                    for sorcery in 0..=11 - life - death - chaos - nature {
-                        let n = [life, death, chaos, nature, sorcery];
-                        let books = realms
-                            .iter()
-                            .zip(n)
-                            .map(|(r, b)| (rules.realms.id_numbered(*r).unwrap(), b))
-                            .collect();
-                        for (&retort, name) in retorts.iter().zip(ORIGINAL_RETORTS) {
-                            assert_eq!(
-                                retort_available(rules, retort, &books),
-                                original_retort_available(name, n),
-                                "{name} with life {life}, death {death}, chaos {chaos}, nature {nature}, sorcery {sorcery}"
-                            );
-                            checked += 1;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    assert!(checked > 50_000, "only {checked} cases checked");
-}
-
-/// The original's ready-made wizards (`_wizard_presets_table`): name, books in the order life,
-/// sorcery, nature, death, chaos, and the retort's place in `ORIGINAL_RETORTS` (none for Raven).
-const ORIGINAL_WIZARDS: [(&str, [u8; 5], Option<usize>); 14] = [
-    ("Merlin", [5, 0, 5, 0, 0], Some(7)),
-    ("Raven", [0, 6, 5, 0, 0], None),
-    ("Sharee", [0, 0, 0, 5, 5], Some(15)),
-    ("Lo Pan", [0, 5, 0, 0, 5], Some(8)),
-    ("Jafar", [0, 10, 0, 0, 0], Some(0)),
-    ("Oberic", [0, 0, 5, 0, 5], Some(11)),
-    ("Rjak", [0, 0, 0, 9, 0], Some(5)),
-    ("Sss'ra", [4, 0, 0, 0, 4], Some(9)),
-    ("Tauron", [0, 0, 0, 0, 10], Some(2)),
-    ("Freya", [0, 0, 10, 0, 0], Some(3)),
-    ("Horus", [5, 5, 0, 0, 0], Some(10)),
-    ("Ariel", [10, 0, 0, 0, 0], Some(16)),
-    ("Tlaloc", [0, 0, 4, 5, 0], Some(1)),
-    ("Kali", [0, 5, 0, 5, 0], Some(17)),
-];
-
-#[test]
-fn every_ready_made_wizard_has_the_originals_books_and_retort() {
-    let c = content();
-    let rules = &c.rules;
-    let defs = c.rules.wizards.defs();
-    assert_eq!(defs.len(), ORIGINAL_WIZARDS.len(), "ready-made wizards");
-    let realms = ["life", "sorcery", "nature", "death", "chaos"];
-    for (def, (name, books, retort)) in defs.iter().zip(ORIGINAL_WIZARDS) {
-        assert_eq!(
-            plain(&def.id),
-            plain(name),
-            "wizards come in the original's order"
-        );
-        let mut ours: Vec<(&str, u8)> = def
-            .books
-            .iter()
-            .map(|(r, b)| (rules.realms.get(*r).id.as_str(), *b))
-            .collect();
-        ours.sort_unstable();
-        let mut theirs: Vec<(&str, u8)> = realms
-            .iter()
-            .zip(books)
-            .filter(|(_, b)| *b > 0)
-            .map(|(r, b)| (*r, b))
-            .collect();
-        // Lo Pan has one sorcery book fewer than the original (docs/divergences.md).
-        if def.id == "lo_pan" {
-            theirs.iter_mut().for_each(|(r, b)| {
-                if *r == "sorcery" {
-                    *b -= 1;
-                }
-            });
-        }
-        theirs.sort_unstable();
-        assert_eq!(ours, theirs, "{} books", def.id);
-        let retorts: Vec<_> = retort
-            .map(|i| f4x_core::wizard::magic::Retort::new(rules.retorts.defs()[i].num))
-            .into_iter()
-            .collect();
-        assert_eq!(def.retorts, retorts, "{} retorts", def.id);
-    }
 }

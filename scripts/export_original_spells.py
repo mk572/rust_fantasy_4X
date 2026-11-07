@@ -4,7 +4,7 @@
 One row per spell after the empty record 0, in the original's order (the order of
 `content/spells.ron`): name, casting category (`type`: 0 is a summoning), realm (0 nature, 1 sorcery,
 2 chaos, 3 life, 4 death, 5 arcane), casting cost, research cost, and the first parameter (the unit
-a summoning creates). `crates/f4x-core/tests/it/original_content.rs` compares the content with it.
+a summoning creates). `crates/f4x-def/src/original/tests.rs` (and `f4x-core`: `spell/original_content.rs`, `wizard/original_content.rs`) compares the content with it.
 Needs the author's copy of the game; the output is numbers and names, so it is committed.
 
     python3 -I scripts/export_original_spells.py [--game DIR] [--out FILE]
@@ -16,7 +16,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_GAME = REPO / "reference/mom-classic/Master of Magic Official Release"
-DEFAULT_OUT = REPO / "crates/f4x-core/tests/original/spells.tsv"
+DEFAULT_OUT = REPO / "crates/f4x-def/tests/original/spells.tsv"
 sys.path.insert(0, str(REPO / "scripts"))
 from import_mom import cstr, read_lbx, read_records  # noqa: E402
 
