@@ -387,6 +387,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 439 | Map | Number of towers and maximum neutral cities per plane as map settings (done) |
 | 446 | Client | Pop-up leftovers: Hero and Champion Summoned boxes, hire sheet checks (done) |
 | 447 | Client | (done) Help pop-ups: the topics, areas and screens still open |
+| 449 | Core | What each retort does, as data in `retorts.ron` instead of code that tests for it (done) |
 | 454 | Client | Plane Shift's transition on the map (done) |
 | 455 | Housekeeping | New `f4x-rules` crate holding the static rules content, a dependency of `f4x-core` (stage A of `docs/archive/crate-layout-plan.md`) (done) |
 | 456 | Housekeeping | Merge `f4x-data` into `f4x-rules` (stage A of `docs/archive/crate-layout-plan.md`) (done) |
@@ -406,6 +407,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 482 | Meta | (done) The 50 `Effect::Special` spells become primitives or hooks with a tag in their definition; `Special` and the number matches go (needs 486; checklist in `docs/archive/special-spells-checklist.md`) |
 | 484 | Tests | Test review, second pass: tests that edit the rules, tests on the flat settings, wrong crate layer (done) |
 | 486 | Core | Hooks take arguments: `Effect::Custom { name, args }` instead of `Custom(String)` (done) |
+| 487 | Meta | Replace arrays with a hardcoded size by slices, `Vec`s or exhaustive `match`es (done) |
 
 ## Descriptions
 
