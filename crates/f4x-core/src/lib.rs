@@ -10,6 +10,7 @@ pub mod city;
 pub mod diplomacy;
 pub mod feature;
 pub mod game;
+pub mod half_int;
 pub mod hero;
 pub mod hook;
 pub mod item;
