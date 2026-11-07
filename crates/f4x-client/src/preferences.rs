@@ -30,7 +30,7 @@ pub(crate) enum Pref {
     DimBehindBoxes,
 }
 
-pub(crate) const PREFS: [Pref; 19] = [
+pub(crate) const PREFS: &[Pref] = &[
     Pref::SoundEffects,
     Pref::BackgroundMusic,
     Pref::EventMusic,
@@ -114,7 +114,8 @@ pub(crate) const FILE: &str = "saves/preferences.txt";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Preferences {
-    on: [bool; 19],
+    /// Whether each preference is on, by `Pref` number (as long as `PREFS`).
+    on: Vec<bool>,
     /// The music and effect volumes, 0 to 100 (the Settings screen's sliders; not in the
     /// original).
     pub music_volume: u8,
@@ -131,7 +132,7 @@ const EFFECTS_VOLUME: u8 = 100;
 impl Default for Preferences {
     fn default() -> Self {
         Self {
-            on: PREFS.map(Pref::default_on),
+            on: PREFS.iter().copied().map(Pref::default_on).collect(),
             music_volume: MUSIC_VOLUME,
             effects_volume: EFFECTS_VOLUME,
             art_scale: 1,
@@ -261,7 +262,7 @@ mod tests {
         let def = crate::client_settings::ClientSettings::load(&[std::path::Path::new(
             crate::test_app::CLIENT_CONTENT,
         )])?;
-        for p in PREFS {
+        for &p in PREFS {
             assert!(def.preferences.contains_key(p.key()), "{}", p.key());
         }
         let base = Preferences::from_defaults(&def.preferences)?;

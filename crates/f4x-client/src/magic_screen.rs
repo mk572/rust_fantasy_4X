@@ -31,11 +31,11 @@ const EDGE_FIGURES: Color = rgb(0x51, 0x3C, 0x30);
 /// The shadow of the stat rows: `Set_Outline_Color(240)`, an entry of the Magic screen's own palette.
 const EDGE_STATS: Color = rgb(0x28, 0x28, 0x41);
 
-const STAFF_X: [f32; 3] = [29.0, 75.0, 122.0];
+const STAFF_X: &[f32] = &[29.0, 75.0, 122.0];
 /// The picture entries of each staff: empty, full, locked (`magic.lbx`).
-const STAFF_ART: [(usize, usize, usize); 3] = [(7, 8, 15), (9, 10, 16), (11, 12, 17)];
+const STAFF_ART: &[(usize, usize, usize)] = &[(7, 8, 15), (9, 10, 16), (11, 12, 17)];
 /// Where each staff's picture goes (empty, full, lock), in the original's pixels.
-const STAFF_AT: [[(f32, f32); 3]; 3] = [
+const STAFF_AT: &[[(f32, f32); 3]] = &[
     [(29.0, 83.0), (32.0, 102.0), (27.0, 81.0)],
     [(75.0, 85.0), (79.0, 102.0), (74.0, 81.0)],
     [(122.0, 83.0), (126.0, 102.0), (121.0, 81.0)],

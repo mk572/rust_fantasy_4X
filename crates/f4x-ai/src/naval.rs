@@ -1018,7 +1018,7 @@ mod tests {
         assert_eq!(plan.target, tower);
         assert_eq!(plan.port, port());
         // Once its ground across is explored, it is not worth the trip.
-        for plane in f4x_core::map::Plane::ALL {
+        for plane in f4x_core::map::Plane::all() {
             g.explore(P0, Position { plane, ..tower }, 5);
         }
         g.reveal_map(P0);

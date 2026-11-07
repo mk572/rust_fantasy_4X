@@ -37,7 +37,7 @@ pub struct HeroAbilities {
 }
 
 /// The ability names with a plain and a doubled form, as `heroes.ron` spells them.
-const TIERED: [&str; 10] = [
+const TIERED: &[&str] = &[
     "leadership",
     "legendary",
     "blademaster",
@@ -57,7 +57,7 @@ impl HeroAbilities {
         let mut out = Self::default();
         for id in ids {
             let n = id.num();
-            for name in TIERED {
+            for &name in TIERED {
                 let plain = tiered_number(name);
                 if n == plain || n == plain + 1 {
                     if let Some(slot) = out.tier_mut(name) {
@@ -113,7 +113,7 @@ impl HeroAbilities {
     /// the unit definition's own.
     pub fn ids(&self) -> Vec<Ability> {
         let mut out = Vec::new();
-        for name in TIERED {
+        for &name in TIERED {
             let plain = tiered_number(name);
             match self.tier(name) {
                 Some(Tier::Normal) => out.push(Ability::new(plain)),

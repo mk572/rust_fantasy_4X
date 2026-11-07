@@ -123,15 +123,14 @@ fn the_settings_say_how_many_towers_a_map_gets() -> TestResult {
 #[test]
 fn the_settings_cap_the_neutral_cities_of_each_plane() -> TestResult {
     let g = game_with_counts(4, None, Some(3))?;
-    for plane in f4x_core::map::Plane::ALL {
+    for plane in f4x_core::map::Plane::all() {
         let n = neutral_cities_on(&g, plane);
         assert!(n <= 3, "{plane:?}: {n} neutral cities with a cap of 3");
     }
     let open = game_with_counts(4, None, None)?;
     let total = |g: &Game| -> usize {
-        f4x_core::map::Plane::ALL
-            .iter()
-            .map(|&p| neutral_cities_on(g, p))
+        f4x_core::map::Plane::all()
+            .map(|p| neutral_cities_on(g, p))
             .sum()
     };
     assert!(

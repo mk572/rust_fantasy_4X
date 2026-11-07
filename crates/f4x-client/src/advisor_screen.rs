@@ -19,13 +19,13 @@ use crate::view::{App, Screen, HUMAN};
 /// The shadow of the Advisor screens' text: `Set_Outline_Color(254)`, an entry of the screens' own palette.
 const EDGE: Color = rgb(0x18, 0x18, 0x2C);
 /// The banner colours of the wizards' names: `banner_colors[]` of `Powergraph_Screen_Draw`.
-const BANNERS: [u8; 5] = [172, 216, 124, 201, 211];
+const BANNERS: &[u8] = &[172, 216, 124, 201, 211];
 /// The banner colours of the city names on the Cartographer map: `banner_colors[]` there.
-const CART_BANNERS: [u8; 6] = [172, 216, 123, 201, 179, 50];
+const CART_BANNERS: &[u8] = &[172, 216, 123, 201, 179, 50];
 /// The outline of those names: `Set_Outline_Color(1)`.
 const CART_EDGE: Color = rgb(0x08, 0x04, 0x04);
 
-const MONTHS: [&str; 12] = [
+const MONTHS: &[&str] = &[
     "advisor.january",
     "advisor.february",
     "advisor.march",
@@ -170,7 +170,7 @@ impl Page for HistoryPage {
             }
             app.draw_styled(
                 view,
-                &Style::inked(3, app.banner_set_ink(banner, &BANNERS))
+                &Style::inked(3, app.banner_set_ink(banner, BANNERS))
                     .shadow()
                     .edge(EDGE),
                 &name,
@@ -369,7 +369,7 @@ impl Page for CartographerPage {
         if let Some((sx, sy, name, owner_banner)) = hovered {
             app.draw_styled(
                 view,
-                &Style::inked(0, app.banner_set_ink(owner_banner, &CART_BANNERS))
+                &Style::inked(0, app.banner_set_ink(owner_banner, CART_BANNERS))
                     .effect(Effect::Outline)
                     .edge(CART_EDGE)
                     .center(),

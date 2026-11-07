@@ -22,7 +22,7 @@ pub(crate) enum Wood {
     Ok,
 }
 
-const PICTURES: [&[u8]; 3] = [
+const PICTURES: &[&[u8]] = &[
     include_bytes!("../assets/button/city_buy.png"),
     include_bytes!("../assets/button/city_change.png"),
     include_bytes!("../assets/button/city_ok.png"),

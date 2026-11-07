@@ -15,7 +15,7 @@ use crate::ui::{self, PANEL};
 use crate::view::{App, Screen};
 
 /// The message keys of the difficulty names, easiest first.
-pub(crate) const DIFFICULTIES: [&str; 5] = [
+pub(crate) const DIFFICULTIES: &[&str] = &[
     "options.intro",
     "options.easy",
     "options.average",
@@ -23,14 +23,14 @@ pub(crate) const DIFFICULTIES: [&str; 5] = [
     "options.impossible",
 ];
 /// The names on the original's options buttons.
-const OPTION_DIFFICULTIES: [&str; 5] = [
+const OPTION_DIFFICULTIES: &[&str] = &[
     "options.intro",
     "options.easy",
     "options.normal",
     "options.hard",
     "options.impossible",
 ];
-const OPPONENT_NAMES: [&str; 9] = [
+const OPPONENT_NAMES: &[&str] = &[
     "options.one",
     "options.two",
     "options.three",
@@ -41,7 +41,7 @@ const OPPONENT_NAMES: [&str; 9] = [
     "options.eight",
     "options.nine",
 ];
-pub(crate) const MAGIC_LEVELS: [&str; 3] = ["options.weak", "options.normal", "options.powerful"];
+pub(crate) const MAGIC_LEVELS: &[&str] = &["options.weak", "options.normal", "options.powerful"];
 
 /// The choices made on the options step; they start as `rules_settings.ron` says.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,7 +131,7 @@ pub(crate) fn settings_lines(
         texts.get(
             "options.line_difficulty",
             &Args::new()
-                .text("name", name(&DIFFICULTIES, b.difficulty))
+                .text("name", name(DIFFICULTIES, b.difficulty))
                 .text("custom", custom),
         ),
         texts.get(
@@ -163,7 +163,7 @@ pub(crate) fn settings_lines(
         ),
         texts.get(
             "options.line_magic",
-            &Args::new().text("name", name(&MAGIC_LEVELS, b.magic_strength)),
+            &Args::new().text("name", name(MAGIC_LEVELS, b.magic_strength)),
         ),
         texts.get(
             "options.line_gold",
@@ -197,7 +197,7 @@ pub(crate) struct OptionsPage;
 
 impl Page for OptionsPage {
     fn frame(&mut self, app: &mut App, input: &Input) {
-        const ROWS: [(f32, f32); 4] = [(39.0, 43.0), (66.0, 70.0), (93.0, 96.0), (120.0, 123.0)];
+        const ROWS: &[(f32, f32)] = &[(39.0, 43.0), (66.0, 70.0), (93.0, 96.0), (120.0, 123.0)];
         clear_background(BLACK);
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
@@ -227,7 +227,7 @@ impl Page for OptionsPage {
         app.draw_options_frame(&lay, names.each_ref().map(|n| &**n), &title);
         let clicked = input.mouse_pressed(MouseButton::Left);
         let mut changed = None;
-        for (i, ((y, text_y), label)) in ROWS.into_iter().zip(labels).enumerate() {
+        for (i, ((y, text_y), label)) in ROWS.iter().copied().zip(labels).enumerate() {
             let hover = ui::hit(lay.rect((250.0, y - 1.0, 66.0, 17.0)), true, input).hovered();
             let shift = if hover { 1.0 } else { 0.0 };
             app.draw_pic(&lay, "newgame", 4 + i, 0, 251.0 + shift, y + shift);

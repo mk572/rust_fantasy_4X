@@ -49,7 +49,7 @@ pub fn number(row: &BTreeMap<String, String>, column: &str) -> i64 {
 }
 
 /// The realms in the original's numbering.
-pub const REALMS: [&str; 6] = ["nature", "sorcery", "chaos", "life", "death", "arcane"];
+pub const REALMS: &[&str] = &["nature", "sorcery", "chaos", "life", "death", "arcane"];
 
 /// Letters and digits in lower case, to compare names that differ in an apostrophe.
 pub fn plain(name: &str) -> String {

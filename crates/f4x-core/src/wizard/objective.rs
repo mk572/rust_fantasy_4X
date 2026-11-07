@@ -43,7 +43,19 @@ impl Personality {
 
 /// What an AI wizard is after (the original's `AI_OBJ_*`, in its order). On a wizard; the human
 /// has none.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    strum::EnumIter,
+)]
 pub enum Objective {
     Pragmatist,
     Militarist,
@@ -53,13 +65,10 @@ pub enum Objective {
 }
 
 impl Objective {
-    pub const ALL: [Objective; 5] = [
-        Objective::Pragmatist,
-        Objective::Militarist,
-        Objective::Theurgist,
-        Objective::Perfectionist,
-        Objective::Expansionist,
-    ];
+    /// Every objective, in the original's order.
+    pub fn all() -> impl Iterator<Item = Objective> {
+        <Objective as strum::IntoEnumIterator>::iter()
+    }
 
     /// The key of the objective's name in `content/text/`.
     pub fn key(self) -> &'static str {
@@ -74,11 +83,11 @@ impl Objective {
 }
 
 /// The original's realm order, which its weight table is indexed by (`sbr_Nature` to `sbr_Death`).
-const REALMS: [RealmId; 5] = crate::rules::BOOK_REALMS;
+const REALMS: &[RealmId] = crate::rules::BOOK_REALMS;
 
 /// `TBL_AI_Realm_OBJ`: the base weight of each objective by primary realm
 /// (Pragmatist, Militarist, Theurgist, Perfectionist, Expansionist).
-const REALM_WEIGHTS: [[i32; 5]; 5] = [
+const REALM_WEIGHTS: &[[i32; 5]] = &[
     [0, 2, 2, 4, 2],
     [0, 1, 4, 2, 3],
     [0, 3, 2, 2, 3],
@@ -99,7 +108,7 @@ fn primary_realm(books: &impl Fn(RealmId) -> i32) -> usize {
 
 /// `TBL_AI_Realm_PRS`: the base weight of each personality by primary realm (Maniacal, Ruthless,
 /// Aggressive, Chaotic, Lawful, Peaceful).
-const PERSONALITY_WEIGHTS: [[i32; 6]; 5] = [
+const PERSONALITY_WEIGHTS: &[[i32; 6]] = &[
     [0, 1, 1, 1, 5, 2],
     [1, 2, 3, 1, 2, 1],
     [1, 2, 2, 5, 0, 0],
@@ -107,7 +116,7 @@ const PERSONALITY_WEIGHTS: [[i32; 6]; 5] = [
     [3, 3, 2, 1, 1, 0],
 ];
 
-const PERSONALITIES: [Personality; 6] = [
+const PERSONALITIES: &[Personality] = &[
     Personality::Maniacal,
     Personality::Ruthless,
     Personality::Aggressive,
@@ -202,7 +211,9 @@ pub fn pick_objective(weights: &[i32; 5], roll: i32) -> Objective {
         picked += 1;
         left -= weights[picked];
     }
-    Objective::ALL[picked]
+    Objective::all()
+        .nth(picked)
+        .unwrap_or(Objective::Pragmatist)
 }
 
 impl Wizard<'_> {

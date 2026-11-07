@@ -799,7 +799,7 @@ fn spell_world(leave: usize) -> (Game, hecs::Entity, Vec<crate::rules::SpellId>)
     g.init_wizard(P1, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .expect("init_wizard succeeds");
     // Books in every realm, so that no spell is refused for the lack of one.
-    for realm in crate::rules::BOOK_REALMS {
+    for &realm in crate::rules::BOOK_REALMS {
         g.wizard_mut(P1)
             .expect("wizard succeeds")
             .get_mut::<crate::wizard::sheet::Books>()

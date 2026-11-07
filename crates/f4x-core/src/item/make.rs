@@ -32,7 +32,7 @@ pub enum Grade {
 }
 
 /// The item kinds in the original's order, for the random item's draw.
-const KINDS: [ItemKind; 10] = [
+const KINDS: &[ItemKind] = &[
     ItemKind::Sword,
     ItemKind::Mace,
     ItemKind::Axe,

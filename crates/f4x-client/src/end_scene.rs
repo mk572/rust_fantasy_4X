@@ -118,7 +118,7 @@ pub(crate) fn parade_figure(stage: u32) -> usize {
 
 /// One step of the defeated wizard's fall into the limbo (`TBL_DefeatAnimSteps`): where the
 /// picture's top-left corner is, the angle it is turned by (degrees) and its size in percent.
-pub(crate) const LIMBO_FALL: [(f32, f32, f32, f32); 27] = [
+pub(crate) const LIMBO_FALL: &[(f32, f32, f32, f32)] = &[
     (0.0, 90.0, 0.0, 100.0),
     (12.0, 73.0, 10.0, 100.0),
     (25.0, 57.0, 20.0, 100.0),
@@ -149,7 +149,7 @@ pub(crate) const LIMBO_FALL: [(f32, f32, f32, f32); 27] = [
 ];
 
 /// The keys of the four lines of the victory speech.
-const WIN_LINES: [&str; 4] = ["end.win_1", "end.win_2", "end.win_3", "end.win_4"];
+const WIN_LINES: &[&str] = &["end.win_1", "end.win_2", "end.win_3", "end.win_4"];
 
 /// The line of the victory speech shown at a stage (`Win_Animation_Draw`): a new one every
 /// fifteen stages, the last one staying.

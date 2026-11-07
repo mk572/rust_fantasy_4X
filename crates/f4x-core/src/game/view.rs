@@ -47,9 +47,8 @@ impl Game {
             return Vec::new();
         };
         let width = map.width() as usize;
-        let seen: Vec<Vec<bool>> = crate::map::Plane::ALL
-            .iter()
-            .map(|&plane| self.economy().visibility(viewer, plane))
+        let seen: Vec<Vec<bool>> = crate::map::Plane::all()
+            .map(|plane| self.economy().visibility(viewer, plane))
             .collect();
         let sees = |p: Position| {
             seen.get(p.plane.index())

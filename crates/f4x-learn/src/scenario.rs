@@ -161,7 +161,7 @@ pub fn battle_spell(d: &f4x_def::rules::defs::SpellDef) -> bool {
 }
 
 /// The realms a wizard's books can be in.
-const REALMS: [RealmId; 5] = f4x_def::rules::BOOK_REALMS;
+const REALMS: &[RealmId] = f4x_def::rules::BOOK_REALMS;
 
 /// How many realms a generated wizard has books in: mostly one or two, as in real games, and
 /// now and then three to five so the agent is not helpless against the rest.

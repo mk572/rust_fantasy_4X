@@ -168,12 +168,11 @@ fn a_donation_is_a_hundred_and_five_to_six_hundred_gold() {
 
 #[test]
 fn the_table_has_eighteen_events_and_the_good_ones_are_as_the_original_marks_them() {
-    assert_eq!(EventKind::ALL.len(), 18);
-    assert!(EventKind::ALL
-        .iter()
+    assert_eq!(EventKind::count(), 18);
+    assert!(EventKind::all()
         .enumerate()
         .all(|(i, k)| k.number() == i as u32 + 1));
-    let bad: Vec<_> = EventKind::ALL.iter().filter(|k| !k.is_good()).collect();
+    let bad: Vec<_> = EventKind::all().filter(|k| !k.is_good()).collect();
     assert_eq!(bad.len(), 7, "{bad:?}");
     assert!(EventKind::ManaShort.is_world() && !EventKind::Plague.is_world());
     assert!(EventKind::Plague.lasts() && !EventKind::Piracy.lasts());

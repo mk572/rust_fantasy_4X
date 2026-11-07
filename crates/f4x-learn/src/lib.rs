@@ -146,8 +146,8 @@ mod tests {
         let in_realm = |r: f4x_def::rules::RealmId| battle.iter().filter(|x| **x == r).count();
         let arcane = in_realm(f4x_def::rules::RealmId::new(5) /* arcane */);
         let names = f4x_def::rules::BOOK_REALMS;
-        for a in names {
-            for b in names {
+        for &a in names {
+            for &b in names {
                 let n = in_realm(a) + if a == b { 0 } else { in_realm(b) } + arcane;
                 assert!(
                     n <= obs::MAX_SPELLS,

@@ -38,8 +38,8 @@ pub struct Terrain {
 }
 
 /// South, west, north, east and none: the original's `TILE_Cardinal_XMod`/`YMod`.
-const DX: [i32; 5] = [0, -1, 0, 1, 0];
-const DY: [i32; 5] = [1, 0, -1, 0, 0];
+const DX: &[i32] = &[0, -1, 0, 1, 0];
+const DY: &[i32] = &[1, 0, -1, 0, 0];
 
 /// The original's `Random(n)`: 1 to n.
 fn random(rng: &mut Pcg64Mcg, n: u32) -> i32 {
@@ -264,7 +264,7 @@ pub fn extend_islands(seed: u64, map: &mut Map, placed: &Placed, content: &Conte
             .and_then(|f| content.features.get(f))
             .is_some_and(|d| matches!(d.kind, FeatureKind::Node | FeatureKind::Tower))
     };
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         let Some(grass) = content
             .terrains
             .first_of_class(TerrainClass::Grassland, plane)

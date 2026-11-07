@@ -336,7 +336,8 @@ impl<'a> Wizard<'a> {
                 .sum()
         });
         let full_realm = crate::rules::BOOK_REALMS
-            .into_iter()
+            .iter()
+            .copied()
             .any(|r| self.books_in(r) >= MASTERY_DISCOUNT_BOOKS);
         let discount = if full_realm { MASTERY_DISCOUNT } else { 0 };
         (listed - gained - discount).max(0)
@@ -371,7 +372,8 @@ impl<'a> Wizard<'a> {
         let cap = usize::from(content.settings.spell_library.arcane_candidate_cap);
         let mut pool = Vec::new();
         let realms = crate::rules::BOOK_REALMS
-            .into_iter()
+            .iter()
+            .copied()
             .chain([RealmId::new(5) /* arcane */]);
         for realm in realms {
             let mut of: Vec<(Rarity, SpellId)> = rules

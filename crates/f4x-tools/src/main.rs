@@ -114,7 +114,7 @@ fn mapgen(args: &[String]) -> Result<(), String> {
     let c = content(args.get(4))?;
     let generated = generate(seed, &params, &c).map_err(|e| e.to_string())?;
     let (map, placements) = (generated.map, generated.placements);
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         println!("{plane:?}");
         let grid = map.plane(plane);
         for y in 0..grid.height() as i32 {
@@ -132,7 +132,7 @@ fn mapgen(args: &[String]) -> Result<(), String> {
 fn map_counts(c: &Content, g: &f4x_core::map::mapgen::Generated) -> BTreeMap<String, f64> {
     let mut n: BTreeMap<String, f64> = BTreeMap::new();
     let mut add = |k: String, v: f64| *n.entry(k).or_default() += v;
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         let grid = g.map.plane(plane);
         let (w, h) = (grid.width() as i32, grid.height() as i32);
         let land = |x: i32, y: i32| {

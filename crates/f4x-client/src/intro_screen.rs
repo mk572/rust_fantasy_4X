@@ -21,7 +21,7 @@ use crate::preferences::Pref;
 use crate::view::{App, Screen};
 
 /// Frames of each scene (`IntroAnim_FrameCounts`).
-const FRAMES: [usize; 13] = [15, 12, 30, 18, 25, 32, 24, 32, 30, 37, 30, 11, 32];
+const FRAMES: &[usize] = &[15, 12, 30, 18, 25, 32, 24, 32, 30, 37, 30, 11, 32];
 
 /// One timer tick of the original's: the BIOS clock, 55 ms.
 const TICK: f64 = 0.055;

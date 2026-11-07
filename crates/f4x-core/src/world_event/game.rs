@@ -96,7 +96,9 @@ impl Game {
             return None;
         }
         for _ in 0..5 {
-            let kind = EventKind::ALL[rng.roll(18) as usize - 1];
+            let Some(kind) = EventKind::from_roll(rng.roll(EventKind::count())) else {
+                continue;
+            };
             let Some(victim) = self.event_victim(kind.is_good(), rng) else {
                 continue;
             };

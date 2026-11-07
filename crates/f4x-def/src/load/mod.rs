@@ -90,8 +90,8 @@ pub fn validate_terrains(defs: &[TerrainDef]) -> Vec<String> {
             problems.push(format!("walkable terrain {:?} needs move_cost >= 1", d.id));
         }
     }
-    for plane in Plane::ALL {
-        for class in REQUIRED_CLASSES {
+    for plane in Plane::all() {
+        for &class in REQUIRED_CLASSES {
             if !defs
                 .iter()
                 .any(|d| d.class == class && d.planes.contains(&plane))
@@ -162,7 +162,7 @@ pub fn validate_features(defs: &[FeatureDef]) -> Vec<String> {
     if !defs.iter().any(|d| d.kind == FeatureKind::Tower) {
         problems.push("no Tower feature defined".into());
     }
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         for kind in [
             FeatureKind::Mineral,
             FeatureKind::Encounter,

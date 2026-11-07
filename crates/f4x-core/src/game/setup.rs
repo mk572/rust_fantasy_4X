@@ -415,7 +415,7 @@ fn anchor(width: u32, height: u32, k: u8, n: u8) -> (u32, u32) {
 }
 
 /// The buildings a wizard's capital starts with.
-const CAPITAL_BUILDINGS: [BuildingId; 3] = [
+const CAPITAL_BUILDINGS: &[BuildingId] = &[
     BuildingId::new(8),  // smithy
     BuildingId::new(3),  // barracks
     BuildingId::new(32), // builders_hall
@@ -707,7 +707,7 @@ mod tests {
             assert_eq!(g.city_population(city).figures, CAPITAL_FIGURES);
             assert_eq!(g.city_farmers(city), CAPITAL_FARMERS);
             let built = g.city_buildings(city);
-            for b in CAPITAL_BUILDINGS {
+            for &b in CAPITAL_BUILDINGS {
                 assert!(built.contains(&b), "wizard {k} lacks building {}", b.num());
             }
             let army = g.units().units_at(fortress);

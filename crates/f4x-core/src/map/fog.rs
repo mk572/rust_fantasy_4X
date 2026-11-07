@@ -14,7 +14,7 @@ const BOTTOM_RIGHT: u8 = 8;
 const ALL: u8 = 15;
 
 /// The three neighbours (by `dx, dy`) that meet an explored square at each of its corners.
-const AT_CORNER: [(u8, [(i32, i32); 3]); 4] = [
+const AT_CORNER: &[(u8, [(i32, i32); 3])] = &[
     (BOTTOM_LEFT, [(-1, 0), (-1, 1), (0, 1)]),
     (TOP_LEFT, [(-1, 0), (-1, -1), (0, -1)]),
     (TOP_RIGHT, [(0, -1), (1, -1), (1, 0)]),

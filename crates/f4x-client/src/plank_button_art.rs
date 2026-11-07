@@ -14,7 +14,7 @@ use crate::menu_bar_art::label_font;
 use crate::view::App;
 
 /// The plank pictures by width.
-const PLANKS: [(u32, &[u8]); 4] = [
+const PLANKS: &[(u32, &[u8])] = &[
     (38, include_bytes!("../assets/button/plank_38.png")),
     (39, include_bytes!("../assets/button/plank_39.png")),
     (40, include_bytes!("../assets/button/plank_40.png")),
@@ -93,7 +93,7 @@ mod tests {
     /// bytes 16 to 24).
     #[test]
     fn each_plank_has_the_width_it_is_filed_under() {
-        for (width, bytes) in PLANKS {
+        for &(width, bytes) in PLANKS {
             let w = u32::from_be_bytes(bytes[16..20].try_into().unwrap());
             let h = u32::from_be_bytes(bytes[20..24].try_into().unwrap());
             assert_eq!((w, h), (width, 13));

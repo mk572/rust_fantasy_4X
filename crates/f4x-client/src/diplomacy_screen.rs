@@ -1054,7 +1054,7 @@ mod tests {
     fn app_with_books() -> App {
         let mut app = App::for_test();
         let mut human = app.game.wizard_mut(HUMAN).expect("a human wizard");
-        for realm in f4x_core::rules::BOOK_REALMS {
+        for &realm in f4x_core::rules::BOOK_REALMS {
             let books = &mut human.get_mut::<f4x_core::wizard::sheet::Books>().0;
             let n = books.entry(realm).or_insert(0);
             *n = (*n).max(3);

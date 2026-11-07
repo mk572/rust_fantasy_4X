@@ -21,7 +21,7 @@ use crate::newgame_flow::{book_base, ng_ink};
 use crate::view::App;
 
 /// The realms in the order of the rows and of `TBL_Realm_Order`.
-pub(crate) const REALM_ORDER: [RealmId; 5] = [
+pub(crate) const REALM_ORDER: &[RealmId] = &[
     RealmId::new(3), /* life */
     RealmId::new(4), /* death */
     RealmId::new(2), /* chaos */
@@ -250,7 +250,7 @@ impl CreateState {
         }
         // The shelf under the portrait: life, death, chaos, nature, sorcery.
         let books = self.build.books.clone();
-        self.ng_shelf(app, lay, &REALM_ORDER, &|r| {
+        self.ng_shelf(app, lay, REALM_ORDER, &|r| {
             books.get(&r).copied().unwrap_or(0)
         });
 
@@ -396,7 +396,7 @@ impl CreateState {
             6.0,
         );
         let books = self.build.books.clone();
-        self.ng_shelf(app, lay, &REALM_ORDER, &|r| {
+        self.ng_shelf(app, lay, REALM_ORDER, &|r| {
             books.get(&r).copied().unwrap_or(0)
         });
         let live = self.ng_input();

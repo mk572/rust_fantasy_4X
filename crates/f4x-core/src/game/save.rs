@@ -695,9 +695,8 @@ impl Game {
     pub fn snapshot(&self) -> Snapshot {
         let map = self.map.as_ref().map(|map| {
             let (mut terrains, mut features) = (Vec::new(), Vec::new());
-            let planes = crate::map::Plane::ALL
-                .iter()
-                .map(|&plane| {
+            let planes = crate::map::Plane::all()
+                .map(|plane| {
                     let grid = map.plane(plane);
                     let tiles = grid
                         .tiles()

@@ -1019,7 +1019,7 @@ fn spells_are_exchanged_one_for_one() -> TestResult {
         Err(DiplomacyError::NotAllowed)
     );
     for p in [P0, P1] {
-        for realm in crate::rules::BOOK_REALMS {
+        for &realm in crate::rules::BOOK_REALMS {
             g.wizard_mut(p)
                 .ok_or("wizard_mut is missing")?
                 .get_mut::<crate::wizard::sheet::Books>()

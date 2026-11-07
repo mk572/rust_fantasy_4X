@@ -324,7 +324,7 @@ fn key(a: PlayerId, b: PlayerId) -> (u8, u8) {
 }
 
 /// The keys of the words of the relation scale, `Hate` to `Harmony`.
-pub const RELATION_KEYS: [&str; 11] = [
+pub const RELATION_KEYS: &[&str] = &[
     "relation.hate",
     "relation.troubled",
     "relation.tense",

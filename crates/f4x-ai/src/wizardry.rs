@@ -337,7 +337,7 @@ fn stop_aimless(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// Shares for (mana, research, skill) tried in order; the first that keeps the mana income
 /// ahead of the upkeep is taken. Skill stays at a fifth so that spells can still be cast at
 /// once.
-const SPLITS: [(u8, u8, u8); 6] = [
+const SPLITS: &[(u8, u8, u8)] = &[
     (10, 70, 20),
     (25, 55, 20),
     (40, 40, 20),
@@ -365,7 +365,7 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     let traits = crate::objective::traits(&PlayerView::new(game, me));
     let mut chosen = SPLITS[SPLITS.len() - 1];
-    for candidate in SPLITS.into_iter().skip(traits.split_shift) {
+    for candidate in SPLITS.iter().copied().skip(traits.split_shift) {
         game.apply(set_split(me, candidate));
         let view = PlayerView::new(game, me);
         let income = view.income();

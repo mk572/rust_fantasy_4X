@@ -51,10 +51,10 @@ const CHAOS_RIFT_STRENGTH: i32 = 8;
 const CHAOS_RIFT_BUILDING_PERCENT: u32 = 5;
 
 /// The realms a Spell Ward can be set against, in the original's order.
-pub const WARD_REALMS: [RealmId; 5] = crate::rules::BOOK_REALMS;
+pub const WARD_REALMS: &[RealmId] = crate::rules::BOOK_REALMS;
 
 /// The realms whose spells Consecration keeps off the city and the units in it.
-pub const CONSECRATION_REALMS: [RealmId; 2] = [
+pub const CONSECRATION_REALMS: &[RealmId] = &[
     RealmId::new(4), // death
     RealmId::new(2), // chaos
 ];
@@ -66,7 +66,7 @@ pub const CONSECRATION_REALMS: [RealmId; 2] = [
 pub struct SpellWards(pub Vec<RealmId>);
 
 /// The buildings whose magic power Evil Presence destroys.
-pub(crate) const RELIGIOUS: [&str; 4] = ["shrine", "temple", "parthenon", "cathedral"];
+pub(crate) const RELIGIOUS: &[&str] = &["shrine", "temple", "parthenon", "cathedral"];
 
 /// City Walls (building 35).
 const CITY_WALLS: crate::rules::BuildingId = crate::rules::BuildingId::new(35);
@@ -338,7 +338,7 @@ impl Economy<'_> {
     pub fn city_shielded_realms(&self, city: hecs::Entity) -> Vec<RealmId> {
         let mut realms = self.city_wards(city);
         if self.city_has_effect(city, CityEffect::Consecration) {
-            for realm in CONSECRATION_REALMS {
+            for &realm in CONSECRATION_REALMS {
                 if !realms.contains(&realm) {
                     realms.push(realm);
                 }

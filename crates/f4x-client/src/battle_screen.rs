@@ -356,7 +356,7 @@ fn enchantment_realm(u: &BattleUnit, ids: &[SpellId]) -> Option<usize> {
 /// The realm of the first of these lasting spells in the original's order (0 chaos, 1 death,
 /// 2 life, 3 nature, 4 sorcery): the colour of the glow round the unit.
 pub(crate) fn realm_of_spells(ids: &[SpellId]) -> Option<usize> {
-    const ORDER: [(u16, usize); 32] = [
+    const ORDER: &[(u16, usize)] = &[
         (31 /* regeneration */, 3),
         (41 /* resist_magic */, 4),
         (144 /* righteousness */, 2),

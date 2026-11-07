@@ -101,7 +101,7 @@ impl MinimapColours {
 
 /// The eight bitmap fonts of the original as BMFonts (`.fnt` text and atlas PNG, sixteen colour
 /// sets in each atlas), embedded in the client; the index is the font style.
-const FONTS: [(&str, &[u8]); 8] = [
+const FONTS: &[(&str, &[u8])] = &[
     (
         include_str!("../assets/fonts/style0.fnt"),
         include_bytes!("../assets/fonts/style0.png"),
@@ -202,7 +202,7 @@ pub struct Art {
 }
 
 /// Banner names in the order the game numbers them.
-pub const BANNER_NAMES: [&str; 11] = [
+pub const BANNER_NAMES: &[&str] = &[
     "blue",
     "green",
     "purple",
@@ -540,7 +540,7 @@ impl Art {
         realm: usize,
         step: usize,
     ) -> Option<&Texture2D> {
-        const REALMS: [&str; 5] = ["chaos", "death", "life", "nature", "sorcery"];
+        const REALMS: &[&str] = &["chaos", "death", "life", "nature", "sorcery"];
         let key = (figure, realm, step % 8);
         if !self.glows.contains_key(&key) {
             let ramp: Vec<Color> = (0..8)
@@ -569,7 +569,7 @@ impl Art {
     /// The colours of a realm's glow at an animation step, as the eight-colour ramp
     /// `outline_pixels` walks.
     fn glow_ramp(&self, realm: usize, step: usize) -> Vec<Color> {
-        const REALMS: [&str; 5] = ["chaos", "death", "life", "nature", "sorcery"];
+        const REALMS: &[&str] = &["chaos", "death", "life", "nature", "sorcery"];
         (0..8)
             .map(|i| {
                 self.minimap.named(

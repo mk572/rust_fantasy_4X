@@ -111,7 +111,7 @@ pub fn generate_nodes(
 ) -> Vec<(Position, Node)> {
     let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x4E4F_4445_535F_5057);
     let mut nodes = Vec::new();
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         let mut found = Vec::new();
         for y in 0..map.height() {
             for x in 0..map.width() {
@@ -368,7 +368,7 @@ pub(crate) mod tests {
         let build = || {
             let map = Map::new(Grid::new(30, 20, grass), Grid::new(30, 20, grass));
             let mut placed = Placed::new(30, 20);
-            for p in Plane::ALL {
+            for p in Plane::all() {
                 placed.set(p, 10, 10, node);
             }
             generate_nodes(5, &map, &placed, &c)

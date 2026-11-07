@@ -136,7 +136,7 @@ pub fn traits(view: &PlayerView) -> Traits {
 }
 
 /// The temper in order of aggression, the gentlest first.
-const TEMPERS: [Personality; 6] = [
+const TEMPERS: &[Personality] = &[
     Personality::Peaceful,
     Personality::Lawful,
     Personality::Chaotic,
@@ -241,7 +241,7 @@ mod tests {
         assert!(traits_of(Some(Objective::Militarist)).split_shift > 0);
         assert!(traits_of(Some(Objective::Perfectionist)).cities_wanted < base.cities_wanted);
         assert!(traits_of(Some(Objective::Theurgist)).lean_mana);
-        for o in Objective::ALL {
+        for o in Objective::all() {
             assert!(traits_of(Some(o)).like_share <= 1.0);
         }
     }
@@ -250,7 +250,7 @@ mod tests {
     fn the_difficulty_slides_every_temper_up_and_the_top_keeps_a_bigger_army() {
         // Normal and below change nothing.
         for d in 0..=2 {
-            for &p in &TEMPERS {
+            for &p in TEMPERS {
                 assert_eq!(slid(p, d), (p, 0));
             }
         }
@@ -262,7 +262,7 @@ mod tests {
             army_bias(Personality::Maniacal, 4),
             army_bias(Personality::Maniacal, 2) + 2
         );
-        for &p in &TEMPERS {
+        for &p in TEMPERS {
             assert!(army_bias(p, 4) >= army_bias(p, 2));
         }
     }

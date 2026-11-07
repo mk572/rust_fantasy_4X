@@ -49,16 +49,14 @@ pub(crate) enum BookFilter {
 }
 
 impl BookFilter {
-    const ALL: [BookFilter; 4] = [
-        BookFilter::All,
-        BookFilter::Known,
-        BookFilter::KnownOverland,
-        BookFilter::KnownBattle,
-    ];
-
+    /// The next filter in the cycle of the filter button.
     fn next(self) -> Self {
-        let i = Self::ALL.iter().position(|f| *f == self).unwrap_or(0);
-        Self::ALL[(i + 1) % Self::ALL.len()]
+        match self {
+            BookFilter::All => BookFilter::Known,
+            BookFilter::Known => BookFilter::KnownOverland,
+            BookFilter::KnownOverland => BookFilter::KnownBattle,
+            BookFilter::KnownBattle => BookFilter::All,
+        }
     }
 
     fn text_key(self) -> &'static str {
@@ -147,7 +145,7 @@ pub(crate) struct CombatEntry {
 }
 
 /// The realms in the order of the book's pages.
-const BOOK_REALMS: [RealmId; 6] = [
+const BOOK_REALMS: &[RealmId] = &[
     RealmId::new(5), /* arcane */
     RealmId::new(2), /* chaos */
     RealmId::new(4), /* death */
@@ -175,7 +173,7 @@ impl App {
     ) -> Vec<BookPage> {
         let rules = &self.game.content().rules;
         let mut pages: Vec<BookPage> = Vec::new();
-        for realm in BOOK_REALMS {
+        for &realm in BOOK_REALMS {
             let mut of: Vec<SpellId> = spells
                 .iter()
                 .copied()

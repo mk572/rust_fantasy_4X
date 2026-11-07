@@ -196,7 +196,7 @@ impl Game {
         };
         let (w, h) = (map.width(), map.height());
         if self.has_global_effect(player, GlobalEffect::NatureAwareness) {
-            for plane in crate::map::Plane::ALL {
+            for plane in crate::map::Plane::all() {
                 // One square large enough to cover the whole plane.
                 let at = crate::map::Position {
                     plane,

@@ -248,7 +248,7 @@ const LISTED: &[(Ability, usize)] = &[
 /// (`_unit_enchantment_data`, `USW_Combat_FX`; a picture of `special.lbx`) and how the spell
 /// shows over the unit in a battle. Whirlwind and Mind Twist, which the original has
 /// pictures for, are no spells in the rules (task 465).
-const ENCHANTMENT_ART: [(u16, usize, Option<usize>); 44] = [
+const ENCHANTMENT_ART: &[(u16, usize, Option<usize>)] = &[
     (99 /* immolation */, 117, None),
     (44 /* guardian_wind */, 118, None),
     (179 /* berserk */, 128, None),
@@ -502,7 +502,7 @@ fn cells(total: i32, row_length: i32, look: impl Fn(i32) -> (bool, bool)) -> Vec
 /// Where figure `index` of `count` stands on the sheet's diamond, from the figure's top left
 /// (`Unit_Figure_Position`).
 pub(crate) fn figure_spot(count: usize, index: usize) -> (i32, i32) {
-    const TABLE: [&[(i32, i32)]; 8] = [
+    const TABLE: &[&[(i32, i32)]] = &[
         &[(1, 8)],
         &[(-8, 9), (8, 9)],
         &[(0, 4), (-7, 10), (8, 10)],

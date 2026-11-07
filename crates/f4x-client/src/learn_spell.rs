@@ -29,12 +29,12 @@ const DECODE_STEP: f64 = 0.08;
 const DECODE_STAGES: usize = 45;
 /// The window that opens on the real entry from stage 22 to 27 (`g_spell_decode_x_r` and
 /// `_l`): the entry shows between the two, the glowing text outside them.
-const WINDOW_LEFT: [f32; 6] = [53.0, 45.0, 37.0, 16.0, 6.0, 6.0];
-const WINDOW_RIGHT: [f32; 6] = [64.0, 71.0, 79.0, 101.0, 111.0, 111.0];
+const WINDOW_LEFT: &[f32] = &[53.0, 45.0, 37.0, 16.0, 6.0, 6.0];
+const WINDOW_RIGHT: &[f32] = &[64.0, 71.0, 79.0, 101.0, 111.0, 111.0];
 /// The colour of palette entry 198, the glowing text, cycles from the first to the second
 /// (6-bit values) by 2 a stage for the first 15 stages (`Cycle_Palette_Color(198, ...)`).
-const GLOW_FROM: [f32; 3] = [18.0, 14.0, 9.0];
-const GLOW_TO: [f32; 3] = [38.0, 38.0, 53.0];
+const GLOW_FROM: &[f32] = &[18.0, 14.0, 9.0];
+const GLOW_TO: &[f32] = &[38.0, 38.0, 53.0];
 
 /// A learn-spell animation in progress.
 #[derive(Debug, Clone)]
@@ -129,7 +129,7 @@ fn phase(t: f64, lab_end: f64, place: Option<(usize, usize)>, pressed: bool) -> 
 }
 
 /// The first of `books` with the most (nature, sorcery, chaos, life, death in that order on a tie).
-fn strongest(books: [i32; 5]) -> usize {
+fn strongest(books: &[i32]) -> usize {
     let mut best = 0;
     for (i, &n) in books.iter().enumerate() {
         if n > books[best] {
@@ -144,7 +144,13 @@ impl App {
     /// death on a tie (`Prim_Realm`): it colours the familiar.
     pub(crate) fn primary_realm(&self) -> usize {
         let books = |r: RealmId| self.game.wizard(HUMAN).map_or(0, |m| m.books_in(r));
-        strongest(f4x_def::rules::BOOK_REALMS.map(books))
+        strongest(
+            &f4x_def::rules::BOOK_REALMS
+                .iter()
+                .copied()
+                .map(books)
+                .collect::<Vec<_>>(),
+        )
     }
 
     /// `Learn_Spell_Animation_Draw`: the wizard's lab, the wizard on the podium, the familiar
@@ -340,9 +346,9 @@ mod tests {
 
     #[test]
     fn the_familiar_takes_the_realm_of_the_most_books_and_the_first_on_a_tie() {
-        assert_eq!(strongest([0, 0, 0, 0, 0]), 0);
-        assert_eq!(strongest([1, 3, 3, 0, 0]), 1);
-        assert_eq!(strongest([1, 1, 1, 1, 4]), 4);
-        assert_eq!(strongest([2, 1, 0, 2, 2]), 0);
+        assert_eq!(strongest(&[0, 0, 0, 0, 0]), 0);
+        assert_eq!(strongest(&[1, 3, 3, 0, 0]), 1);
+        assert_eq!(strongest(&[1, 1, 1, 1, 4]), 4);
+        assert_eq!(strongest(&[2, 1, 0, 2, 2]), 0);
     }
 }

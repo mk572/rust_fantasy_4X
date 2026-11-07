@@ -24,7 +24,7 @@ pub const INSTANT_FRAME: f32 = 2.0 / 18.2;
 const TELEPORT_FRAMES: usize = 8;
 const TUNNEL_FRAMES: usize = 9;
 /// Walking figures cycle through these animation frames.
-const WALK_FRAMES: [u8; 4] = [0, 1, 2, 1];
+const WALK_FRAMES: &[u8] = &[0, 1, 2, 1];
 const WALK_RATE: f32 = 7.0;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -187,7 +187,7 @@ pub fn facing(from: Pos, to: Pos) -> u8 {
 /// middle of its square's cell (`Battle_Unit_Figure_Position`; the picture's top left is this
 /// point minus (14, 23)).
 pub fn figure_offset(count: usize, index: usize) -> (i32, i32) {
-    const TABLE: [&[(i32, i32)]; 8] = [
+    const TABLE: &[&[(i32, i32)]] = &[
         &[(1, 8)],
         &[(-7, 9), (7, 9)],
         &[(0, 4), (-6, 10), (7, 10)],

@@ -1176,7 +1176,7 @@ fn lair_checksum() -> u64 {
             .id_numbered(n)
             .expect("id_numbered succeeds")
     };
-    for (i, plane) in Plane::ALL.into_iter().enumerate() {
+    for (i, plane) in Plane::all().enumerate() {
         for k in 0..10u32 {
             placed.set(
                 plane,
@@ -1200,7 +1200,11 @@ fn lair_checksum() -> u64 {
     .map(|(i, realm)| {
         (
             Position {
-                plane: Plane::ALL[i % 2],
+                plane: if i % 2 == 0 {
+                    Plane::Arcanus
+                } else {
+                    Plane::Myrror
+                },
                 x: 10 + i as u32,
                 y: 12,
             },

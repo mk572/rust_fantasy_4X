@@ -505,7 +505,7 @@ impl<'a> PlayerView<'a> {
             if !economy.is_tower(lair.pos) {
                 continue;
             }
-            for plane in crate::map::Plane::ALL {
+            for plane in crate::map::Plane::all() {
                 let at = Position { plane, ..lair.pos };
                 if self.explored(at) {
                     found.push((at, lair.intact));

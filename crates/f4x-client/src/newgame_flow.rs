@@ -30,7 +30,7 @@ pub(crate) fn ng_ink(font: usize, colour: u8) -> Style {
 }
 
 /// The Arcanian and Myrran races of the race step, by id, in the original's order.
-const ARCANIAN: [&str; 9] = [
+const ARCANIAN: &[&str] = &[
     "barbarian",
     "gnoll",
     "halfling",
@@ -41,14 +41,14 @@ const ARCANIAN: [&str; 9] = [
     "nomad",
     "orc",
 ];
-const MYRRAN: [&str; 5] = ["beastmen", "dark_elf", "draconian", "dwarven", "troll"];
+const MYRRAN: &[&str] = &["beastmen", "dark_elf", "draconian", "dwarven", "troll"];
 /// The banner of each flag on the banner step, top to bottom: green, blue, red, purple, yellow,
 /// then (the second column) pink, brown, turquoise, dark blue, orange (as numbers of
 /// `BANNER_NAMES`).
-const FLAG_BANNERS: [u8; 10] = [1, 0, 3, 2, 4, 5, 6, 7, 8, 9];
+const FLAG_BANNERS: &[u8] = &[1, 0, 3, 2, 4, 5, 6, 7, 8, 9];
 
 /// The realms in the order of the shelf on the build screens: life, sorcery, nature, death, chaos.
-const SHELF_ORDER: [RealmId; 5] = [
+const SHELF_ORDER: &[RealmId] = &[
     RealmId::new(3), /* life */
     RealmId::new(1), /* sorcery */
     RealmId::new(0), /* nature */
@@ -119,7 +119,7 @@ impl App {
                 .map(|id| races.iter().position(|r| r.id == *id))
                 .collect()
         };
-        (find(&ARCANIAN), find(&MYRRAN))
+        (find(ARCANIAN), find(MYRRAN))
     }
 
     /// The box beside the race lists: the race's name and a short summary of what it is good at.
@@ -253,7 +253,7 @@ impl CreateState {
     /// The shelf and abilities of a build that is being made.
     pub(crate) fn ng_build_shelf(&mut self, app: &mut App, lay: &Layout) {
         let books = self.build.books.clone();
-        self.ng_shelf(app, lay, &SHELF_ORDER, &|r| {
+        self.ng_shelf(app, lay, SHELF_ORDER, &|r| {
             books.get(&r).copied().unwrap_or(0)
         });
         self.ng_abilities(app, lay);

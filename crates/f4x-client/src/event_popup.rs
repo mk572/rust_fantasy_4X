@@ -25,15 +25,15 @@ use crate::view::{App, HUMAN};
 
 /// Where the mascot, the text and the box go for each realm (chaos, death, life, nature,
 /// sorcery): the mascot's offset and the text's left (`notify2_mascot_x1`, `_y1`, `_text_x1`).
-const MASCOT: [(f32, f32); 5] = [
+const MASCOT: &[(f32, f32)] = &[
     (-2.0, 2.0),
     (0.0, -20.0),
     (-22.0, -4.0),
     (8.0, -12.0),
     (2.0, -3.0),
 ];
-const TEXT_X: [f32; 5] = [70.0, 73.0, 62.0, 68.0, 70.0];
-const REALMS: [RealmId; 5] = [
+const TEXT_X: &[f32] = &[70.0, 73.0, 62.0, 68.0, 70.0];
+const REALMS: &[RealmId] = &[
     RealmId::new(2), /* chaos */
     RealmId::new(4), /* death */
     RealmId::new(3), /* life */
@@ -76,7 +76,7 @@ pub(crate) struct EventBox(pub(crate) f4x_core::world_event::EventNotice);
 
 /// The realm whose mascot stands in the box, given the books in `REALMS` order: the most, life
 /// first and a later realm only when it has more.
-fn mascot_of(books: [i32; 5]) -> usize {
+fn mascot_of(books: &[i32]) -> usize {
     let mut best = 2;
     for next in [0, 1, 3, 4] {
         if books[best] < books[next] {
@@ -133,7 +133,10 @@ impl App {
         let Some(kind) = EventKind::from_id(kind) else {
             eprintln!(
                 "unknown event {kind}; one of {}",
-                EventKind::ALL.map(|k| k.id()).join(", ")
+                EventKind::all()
+                    .map(|k| k.id())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             );
             return;
         };
@@ -148,7 +151,11 @@ impl App {
     /// The realm whose mascot stands in the box: the human's strongest book, life first and a
     /// later realm only when it has more.
     fn mascot_realm(&self) -> usize {
-        mascot_of(REALMS.map(|r| self.game.wizard(HUMAN).map_or(0, |m| m.books_in(r))))
+        let books: Vec<i32> = REALMS
+            .iter()
+            .map(|&r| self.game.wizard(HUMAN).map_or(0, |m| m.books_in(r)))
+            .collect();
+        mascot_of(&books)
     }
 
     /// The event box over the screen until a click or a key closes it.
@@ -502,12 +509,12 @@ mod tests {
     #[test]
     fn the_mascot_is_the_realm_of_the_most_books_with_life_first_on_a_tie() {
         // chaos, death, life, nature, sorcery
-        assert_eq!(mascot_of([0, 0, 0, 0, 0]), 2);
-        assert_eq!(mascot_of([3, 3, 3, 3, 3]), 2);
-        assert_eq!(mascot_of([4, 1, 3, 0, 0]), 0);
-        assert_eq!(mascot_of([4, 4, 3, 0, 0]), 0, "chaos before death");
-        assert_eq!(mascot_of([0, 0, 1, 2, 2]), 3, "nature before sorcery");
-        assert_eq!(mascot_of([0, 0, 0, 0, 5]), 4);
+        assert_eq!(mascot_of(&[0, 0, 0, 0, 0]), 2);
+        assert_eq!(mascot_of(&[3, 3, 3, 3, 3]), 2);
+        assert_eq!(mascot_of(&[4, 1, 3, 0, 0]), 0);
+        assert_eq!(mascot_of(&[4, 4, 3, 0, 0]), 0, "chaos before death");
+        assert_eq!(mascot_of(&[0, 0, 1, 2, 2]), 3, "nature before sorcery");
+        assert_eq!(mascot_of(&[0, 0, 0, 0, 5]), 4);
     }
 
     #[test]

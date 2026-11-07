@@ -211,7 +211,7 @@ impl HeroItems {
 
 /// The special powers that change the carrier's attacks in [`modifiers`] rather than becoming a
 /// lasting spell or an ability, or that do nothing to a unit.
-pub const OTHER_POWERS: [ItemPowerId; 4] = [
+pub const OTHER_POWERS: &[ItemPowerId] = &[
     ItemPowerId::new(33), /* flaming */
     ItemPowerId::new(44), /* giant_strength */
     ItemPowerId::new(62), /* merging */

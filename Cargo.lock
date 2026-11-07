@@ -2644,6 +2644,7 @@ dependencies = [
  "rand_pcg",
  "ron",
  "serde",
+ "strum",
 ]
 
 [[package]]

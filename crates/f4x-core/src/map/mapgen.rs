@@ -167,7 +167,8 @@ pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Gene
             "mineral_percent must be at most 100".into(),
         ));
     }
-    let [arcanus, myrror] = Plane::ALL.map(|p| generate_plane(seed, p, params, terrains));
+    let [arcanus, myrror] =
+        [Plane::Arcanus, Plane::Myrror].map(|p| generate_plane(seed, p, params, terrains));
     let mut map = Map::new(arcanus?, myrror?);
     let placed = place::place_features(seed, params, content, &mut map)?;
     let nodes = crate::feature::node::generate_nodes(seed, &map, &placed, content);
@@ -176,7 +177,7 @@ pub fn generate(seed: u64, params: &GenParams, content: &Content) -> Result<Gene
     }
     let lairs = crate::feature::lair::generate_lairs(seed, params, &map, &placed, &nodes, content);
     let mut placements = Vec::new();
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         for y in 0..map.height() {
             for x in 0..map.width() {
                 let Some(feature) = placed.get(plane, x as i32, y as i32) else {
@@ -215,7 +216,7 @@ fn generate_plane(
             .ok_or(GenError::MissingTerrain { class, plane })
     };
     // Fail early if anything is missing, even if the generator wouldn't place it.
-    for class in REQUIRED_CLASSES {
+    for &class in REQUIRED_CLASSES {
         pick(class)?;
     }
     let (ocean, grass, forest, hills, mountains, swamp, desert, tundra) = (
@@ -560,7 +561,7 @@ mod tests {
     fn land_share_matches_request_and_planes_differ() -> TestResult {
         let (c, p) = (shipped(), GenParams::default());
         let map = generate(1, &p, &c)?.map;
-        for plane in Plane::ALL {
+        for plane in Plane::all() {
             let pct = land_percent(map.plane(plane), &c.terrains);
             // The polar caps come on top of the share asked for.
             assert!(
@@ -630,7 +631,7 @@ mod tests {
         let b = generate(7, &GenParams::default(), &c)?;
         assert_eq!(a, b);
         let mut count = 0;
-        for plane in Plane::ALL {
+        for plane in Plane::all() {
             let g = a.map.plane(plane);
             for y in 0..g.height() as i32 {
                 for x in 0..g.width() as i32 {
@@ -663,7 +664,7 @@ mod tests {
         for seed in 1..=30 {
             let generated = generate(seed, &GenParams::default(), &c)?;
             let m = &generated.map;
-            for plane in Plane::ALL {
+            for plane in Plane::all() {
                 let g = m.plane(plane);
                 for y in 0..g.height() as i32 {
                     for x in 0..g.width() as i32 {

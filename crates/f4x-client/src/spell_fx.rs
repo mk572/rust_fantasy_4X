@@ -94,7 +94,7 @@ pub fn strikes_a_side(spell: &str) -> Option<bool> {
 
 /// Whether the picture of each of Call Chaos's eight outcomes (`Cast_Call_Chaos`: nothing, healing,
 /// chaos channels, warp creature, fire bolt, warp lightning, doom bolt, disintegrate) is a big one.
-const CHAOS_BIG: [bool; 8] = [false, true, true, true, false, false, false, false];
+const CHAOS_BIG: &[bool] = &[false, true, true, true, false, false, false, false];
 
 /// The picture of one of Call Chaos's outcomes (0, which does nothing, has none): file, entry and
 /// whether it is a big picture.

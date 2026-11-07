@@ -20,18 +20,21 @@ macro_rules! effect_enum {
 
         impl $name {
             /// The hook arguments, in the enum's order.
-            pub const NAMES: [&'static str; [$($text),+].len()] = [$($text),+];
-
-            const ALL: [$name; [$($text),+].len()] = [$($name::$variant),+];
+            pub const NAMES: &[&'static str] = &[$($text),+];
 
             /// The hook argument for this effect.
             pub fn name(self) -> &'static str {
-                Self::NAMES[self as usize]
+                match self {
+                    $($name::$variant => $text),+
+                }
             }
 
             /// The effect a hook argument names.
             pub fn named(name: &str) -> Option<$name> {
-                Self::NAMES.iter().position(|n| *n == name).map(|i| Self::ALL[i])
+                match name {
+                    $($text => Some($name::$variant),)+
+                    _ => None,
+                }
             }
 
             /// The first spell of the rules that carries this effect: for the code that has to
@@ -108,31 +111,31 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
     plain(crate::unit::HEROISM),
     Hook {
         name: crate::spell::city::CITY_EFFECT,
-        args: &crate::spell::city::CityEffect::NAMES,
+        args: crate::spell::city::CityEffect::NAMES,
         several: true,
         number: false,
     },
     Hook {
         name: crate::battle::field::BATTLEFIELD,
-        args: &crate::battle::field::Field::NAMES,
+        args: crate::battle::field::Field::NAMES,
         several: false,
         number: false,
     },
     Hook {
         name: crate::spell::terraform::TERRAIN_EFFECT,
-        args: &crate::spell::terraform::TerrainEffect::NAMES,
+        args: crate::spell::terraform::TerrainEffect::NAMES,
         several: false,
         number: false,
     },
     Hook {
         name: crate::spell::global_enchantment::GLOBAL_EFFECT,
-        args: &crate::spell::global_enchantment::GlobalEffect::NAMES,
+        args: crate::spell::global_enchantment::GlobalEffect::NAMES,
         several: true,
         number: false,
     },
     Hook {
         name: crate::battle::spell::BATTLE_EFFECT,
-        args: &crate::battle::spell::BattleEffect::NAMES,
+        args: crate::battle::spell::BattleEffect::NAMES,
         several: false,
         number: false,
     },
@@ -157,37 +160,37 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
     },
     Hook {
         name: crate::spell::wizard::WIZARD_EFFECT,
-        args: &crate::spell::wizard::WizardEffect::NAMES,
+        args: crate::spell::wizard::WizardEffect::NAMES,
         several: false,
         number: false,
     },
     Hook {
         name: crate::spell::unit_effect::UNIT_EFFECT,
-        args: &crate::spell::unit_effect::UnitEffect::NAMES,
+        args: crate::spell::unit_effect::UnitEffect::NAMES,
         several: true,
         number: false,
     },
     Hook {
         name: crate::spell::dispel::COUNTER_EFFECT,
-        args: &crate::spell::dispel::CounterEffect::NAMES,
+        args: crate::spell::dispel::CounterEffect::NAMES,
         several: false,
         number: true,
     },
     Hook {
         name: crate::spell::hero::SUMMON_HERO,
-        args: &crate::spell::hero::HeroSummon::NAMES,
+        args: crate::spell::hero::HeroSummon::NAMES,
         several: false,
         number: false,
     },
     Hook {
         name: crate::spell::wizard::CITY_STRIKE,
-        args: &crate::spell::wizard::CityStrike::NAMES,
+        args: crate::spell::wizard::CityStrike::NAMES,
         several: false,
         number: false,
     },
     Hook {
         name: crate::spell::wizard::WORLD_KILL,
-        args: &crate::spell::wizard::WorldKill::NAMES,
+        args: crate::spell::wizard::WorldKill::NAMES,
         several: false,
         number: false,
     },
@@ -301,28 +304,28 @@ mod tests {
         use crate::battle::field::Field;
         use crate::spell::global_enchantment::GlobalEffect;
         let c = shipped();
-        for name in GlobalEffect::NAMES {
+        for &name in GlobalEffect::NAMES {
             let e = GlobalEffect::named(name).expect("a listed name");
             assert!(
                 c.rules.spells.defs().iter().any(|d| e.is_in(d)),
                 "no spell gives the global effect {name}"
             );
         }
-        for name in crate::spell::city::CityEffect::NAMES {
+        for &name in crate::spell::city::CityEffect::NAMES {
             let e = crate::spell::city::CityEffect::named(name).expect("a listed name");
             assert!(
                 c.rules.spells.defs().iter().any(|d| e.is_in(d)),
                 "no spell gives the city effect {name}"
             );
         }
-        for name in crate::spell::terraform::TerrainEffect::NAMES {
+        for &name in crate::spell::terraform::TerrainEffect::NAMES {
             let e = crate::spell::terraform::TerrainEffect::named(name).expect("a listed name");
             assert!(
                 c.rules.spells.defs().iter().any(|d| e.is_in(d)),
                 "no spell gives the terrain effect {name}"
             );
         }
-        for name in crate::battle::spell::BattleEffect::NAMES {
+        for &name in crate::battle::spell::BattleEffect::NAMES {
             let e = crate::battle::spell::BattleEffect::named(name).expect("a listed name");
             assert!(
                 c.rules
@@ -333,14 +336,14 @@ mod tests {
                 "no spell gives the battle effect {name}"
             );
         }
-        for name in crate::spell::wizard::WizardEffect::NAMES {
+        for &name in crate::spell::wizard::WizardEffect::NAMES {
             let e = crate::spell::wizard::WizardEffect::named(name).expect("a listed name");
             assert!(
                 c.rules.spells.defs().iter().any(|d| e.is_in(d)),
                 "no spell gives the wizard effect {name}"
             );
         }
-        for name in crate::spell::hero::HeroSummon::NAMES {
+        for &name in crate::spell::hero::HeroSummon::NAMES {
             let e = crate::spell::hero::HeroSummon::named(name).expect("a listed name");
             assert!(
                 c.rules
@@ -351,7 +354,7 @@ mod tests {
                 "no spell gives the hero summon {name}"
             );
         }
-        for name in crate::spell::dispel::CounterEffect::NAMES {
+        for &name in crate::spell::dispel::CounterEffect::NAMES {
             let e = crate::spell::dispel::CounterEffect::named(name).expect("a listed name");
             assert!(
                 c.rules
@@ -362,21 +365,21 @@ mod tests {
                 "no spell gives the counter effect {name}"
             );
         }
-        for name in crate::spell::wizard::CityStrike::NAMES {
+        for &name in crate::spell::wizard::CityStrike::NAMES {
             let e = crate::spell::wizard::CityStrike::named(name).expect("a listed name");
             assert!(
                 c.rules.spells.defs().iter().any(|d| e.is_in(d)),
                 "no spell gives the city strike {name}"
             );
         }
-        for name in crate::spell::wizard::WorldKill::NAMES {
+        for &name in crate::spell::wizard::WorldKill::NAMES {
             let e = crate::spell::wizard::WorldKill::named(name).expect("a listed name");
             assert!(
                 c.rules.spells.defs().iter().any(|d| e.is_in(d)),
                 "no spell gives the world kill {name}"
             );
         }
-        for name in Field::NAMES {
+        for &name in Field::NAMES {
             let f = Field::named(name).expect("a listed name");
             assert!(
                 c.rules

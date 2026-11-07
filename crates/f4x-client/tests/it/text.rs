@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use f4x_def::testdir::TestResult;
 
 /// A literal like "hall.txt" is a file name, not a key.
-const FILE_EXTENSIONS: [&str; 4] = ["ron", "txt", "png", "json"];
+const FILE_EXTENSIONS: &[&str] = &["ron", "txt", "png", "json"];
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -131,7 +131,7 @@ fn every_key_that_is_written_is_used() -> TestResult {
 /// Files of the client whose literals are not messages: the command line, the picture files, the
 /// developer console, the key-name table, the check of the asset tables (start-up errors about
 /// content files, for the developer).
-const EXEMPT_FILES: [&str; 11] = [
+const EXEMPT_FILES: &[&str] = &[
     "text.rs",
     "tests.rs",
     "main.rs",
@@ -147,7 +147,7 @@ const EXEMPT_FILES: [&str; 11] = [
 
 /// Lines that look like text but are not: number formats, the space between wrapped words, a
 /// screenshot fixture, the debug form of an error, the help parser, an error for the developer.
-const EXEMPT_LINES: [&str; 22] = [
+const EXEMPT_LINES: &[&str] = &[
     "{line} {word}",
     "{current} {word}",
     "format!(\"0.{tenths}x\")",
@@ -173,7 +173,7 @@ const EXEMPT_LINES: [&str; 22] = [
 ];
 
 /// The same, for the lines the list above cannot name by a fragment.
-const EXEMPT_FRAGMENTS: [&str; 6] = [
+const EXEMPT_FRAGMENTS: &[&str] = &[
     "[{name}]",
     "+{prod}%",
     "+{gold}%",
@@ -233,7 +233,7 @@ fn the_client_holds_no_message_in_its_code() -> TestResult {
 
 /// A word of three letters, and not an id, a path or a picture file's name.
 fn looks_like_text(lit: &str) -> bool {
-    const ART: [&str; 14] = [
+    const ART: &[&str] = &[
         "cityscap", "backgrnd", "resource", "reload", "buildscr", "units", "items", "itemisc",
         "hire", "wizards", "newgame", "figures", "spells", "special",
     ];

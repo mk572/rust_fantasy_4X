@@ -154,7 +154,7 @@ impl Game {
         let Some(map) = self.map.as_mut() else {
             return;
         };
-        for plane in crate::map::Plane::ALL {
+        for plane in crate::map::Plane::all() {
             let grid = map.plane_mut(plane);
             for y in 0..grid.height() {
                 for x in 0..grid.width() {

@@ -83,7 +83,7 @@ pub fn place_features(
     let mut left: Vec<usize> = (0..kinds.len())
         .map(|i| total / kinds.len().max(1) + usize::from(i < total % kinds.len().max(1)))
         .collect();
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         let salt = 0x51ED_2701_F00D_0000u64 + plane.index() as u64;
         let mut rng = Pcg64Mcg::seed_from_u64(seed ^ salt.wrapping_mul(0x9E37_79B9_7F4A_7C15));
         let pp = params.planes[plane.index()];
@@ -105,7 +105,7 @@ pub fn place_features(
         rngs.push(rng);
     }
     place_random_sites(seed, params, content, map, &mut placed, &towers);
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         let mut rng = rngs.remove(0);
         let pp = params.planes[plane.index()];
         let grid = map.plane_mut(plane);
@@ -149,7 +149,7 @@ fn place_random_sites(
     }
     let mut rng = Pcg64Mcg::seed_from_u64(seed ^ 0x517E_5EED_0000_0003);
     let mut taken: Vec<(u32, u32)> = towers.to_vec();
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         for y in 0..h {
             for x in 0..w {
                 let is_node = placed_features
@@ -165,7 +165,9 @@ fn place_random_sites(
     let (mut placed, mut tries) = (0, 0);
     while placed < want && tries < want * 100 {
         tries += 1;
-        let plane = Plane::ALL[rng.gen_range(0..2)];
+        let plane = Plane::all()
+            .nth(rng.gen_range(0..2))
+            .unwrap_or(Plane::Arcanus);
         let (x, y) = (
             rng.gen_range(SITE_MARGIN..w - SITE_MARGIN),
             rng.gen_range(SITE_MARGIN..h - SITE_MARGIN),
@@ -237,7 +239,7 @@ fn place_towers(
             }
         }
     }
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         let grass = content
             .terrains
             .first_of_class(TerrainClass::Grassland, plane)
@@ -465,7 +467,7 @@ mod tests {
         for (i, a) in towers.iter().enumerate() {
             let at = (a.at.x, a.at.y);
             assert!((POLE_MARGIN..p.height - POLE_MARGIN).contains(&a.at.y));
-            for plane in Plane::ALL {
+            for plane in Plane::all() {
                 let class = g
                     .map
                     .plane(plane)
@@ -550,7 +552,7 @@ mod tests {
     #[test]
     fn minerals_lie_on_both_planes_and_never_under_a_feature() -> TestResult {
         let (g, ..) = made(5)?;
-        for plane in Plane::ALL {
+        for plane in Plane::all() {
             let grid = g.map.plane(plane);
             let minerals = (0..grid.height() as i32)
                 .flat_map(|y| (0..grid.width() as i32).map(move |x| (x, y)))

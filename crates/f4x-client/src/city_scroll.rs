@@ -28,7 +28,7 @@ const STAGES_ANIMATED: usize = 40;
 const STAGES_PLAIN: usize = 12;
 /// `MUSIC.LBX`: the good tunes of arcane, chaos, death, life, nature and sorcery; the bad ones
 /// follow six on.
-const GOOD_MUSIC: [u16; 6] = [0, 1, 2, 3, 4, 5];
+const GOOD_MUSIC: &[u16] = &[0, 1, 2, 3, 4, 5];
 const BAD_OFFSET: u16 = 6;
 
 #[derive(Debug, Clone)]

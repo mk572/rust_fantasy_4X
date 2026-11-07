@@ -1709,7 +1709,7 @@ impl App {
             city,
             resolve,
         } = ward;
-        const KEYS: [(KeyCode, RealmId); 5] = [
+        const KEYS: &[(KeyCode, RealmId)] = &[
             (KeyCode::N, RealmId::new(0) /* nature */),
             (KeyCode::S, RealmId::new(1) /* sorcery */),
             (KeyCode::C, RealmId::new(2) /* chaos */),
@@ -1717,7 +1717,8 @@ impl App {
             (KeyCode::D, RealmId::new(4) /* death */),
         ];
         let open: Vec<(KeyCode, RealmId)> = KEYS
-            .into_iter()
+            .iter()
+            .copied()
             .filter(|&(_, r)| !self.game.economy().city_warded_against(city, r))
             .collect();
         let mut left = Some(Ward {

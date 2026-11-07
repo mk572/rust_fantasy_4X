@@ -158,7 +158,7 @@ thread_local! {
 /// Where the options screen's labels are: the title's middle, and the four labels' left edge and tops.
 const TITLE: (f32, f32) = (242.5, 1.0);
 const LABEL_X: f32 = 166.0;
-const LABEL_Y: [f32; 4] = [39.0, 66.0, 93.0, 120.0];
+const LABEL_Y: &[f32] = &[39.0, 66.0, 93.0, 120.0];
 
 impl App {
     /// The options screen's right half without lettering (`assets/button/options_frame.png`: the
@@ -195,7 +195,7 @@ impl App {
             .shadow()
             .edge(Color::from_rgba(100, 62, 30, 128));
         self.draw_styled(view, &style.center(), title, TITLE.0, TITLE.1);
-        for (label, y) in labels.into_iter().zip(LABEL_Y) {
+        for (label, y) in labels.into_iter().zip(LABEL_Y.iter().copied()) {
             self.draw_styled(view, &style, label, LABEL_X, y);
         }
     }

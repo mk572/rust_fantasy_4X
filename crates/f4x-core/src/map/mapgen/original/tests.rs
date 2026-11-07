@@ -40,7 +40,7 @@ fn land_reaches_the_wanted_share_and_grows_with_it() -> TestResult {
 fn the_margins_are_ocean_or_tundra_and_the_poles_are_tundra() -> TestResult {
     let c = shipped();
     let map = generate(9, &original(30), &c)?.map;
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         let grid = map.plane(plane);
         let class = |x: i32, y: i32| {
             c.terrains

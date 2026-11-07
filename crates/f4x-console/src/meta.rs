@@ -173,7 +173,7 @@ fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     ctx.say(format!(
         "difficulty {} ({})",
         b.difficulty,
-        level(&DIFFICULTY, b.difficulty)
+        level(DIFFICULTY, b.difficulty)
     ));
     ctx.say(format!("opponents {}", b.opponents));
     ctx.say(format!(
@@ -197,7 +197,7 @@ fn settings(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
     ctx.say(format!(
         "magic power {} ({})",
         b.magic_strength,
-        level(&MAGIC, b.magic_strength)
+        level(MAGIC, b.magic_strength)
     ));
     let e = ctx.game.settings().events;
     if e.random_events {
@@ -361,7 +361,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let (mut events_on, mut frequency) = (None, None);
     for (k, v) in opts {
         match k {
-            "events" => events_on = Some(parse_choice(v, "events", &ON_OFF, 0, 1)? == 1),
+            "events" => events_on = Some(parse_choice(v, "events", ON_OFF, 0, 1)? == 1),
             "event-frequency" => {
                 frequency = Some(match v {
                     "half" => EventFrequency::Half,
@@ -446,7 +446,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             }
             "difficulty" => {
                 // A level brings the original's figures for it; the other basic choices stay.
-                let level = parse_choice(v, "difficulty", &DIFFICULTY, 0, 4)?;
+                let level = parse_choice(v, "difficulty", DIFFICULTY, 0, 4)?;
                 let basic = spec.settings.basic;
                 spec.settings = f4x_core::game::setting::GameSettings::for_difficulty(
                     &ctx.game.content().settings,
@@ -457,7 +457,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                     ..basic
                 };
             }
-            "magic" => spec.settings.basic.magic_strength = parse_choice(v, "magic", &MAGIC, 0, 2)?,
+            "magic" => spec.settings.basic.magic_strength = parse_choice(v, "magic", MAGIC, 0, 2)?,
             "books" => {
                 for part in v.split(',') {
                     let (realm, n) = part.split_once(':').ok_or_else(|| {
@@ -500,15 +500,15 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     Ok(())
 }
 
-const ON_OFF: [(&str, u8); 2] = [("off", 0), ("on", 1)];
-const DIFFICULTY: [(&str, u8); 5] = [
+const ON_OFF: &[(&str, u8)] = &[("off", 0), ("on", 1)];
+const DIFFICULTY: &[(&str, u8)] = &[
     ("intro", 0),
     ("easy", 1),
     ("average", 2),
     ("hard", 3),
     ("impossible", 4),
 ];
-const MAGIC: [(&str, u8); 3] = [("weak", 0), ("normal", 1), ("powerful", 2)];
+const MAGIC: &[(&str, u8)] = &[("weak", 0), ("normal", 1), ("powerful", 2)];
 
 /// A setting given by name or as a number in `min..=max`.
 fn parse_choice(

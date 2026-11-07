@@ -35,7 +35,7 @@ pub struct Undead;
 pub const DEATH: crate::rules::RealmId = crate::rules::RealmId::new(4) /* death */;
 
 /// What an undead unit is immune to, besides what its kind already is.
-pub const UNDEAD_IMMUNITIES: [Ability; 4] = [
+pub const UNDEAD_IMMUNITIES: &[Ability] = &[
     Ability::new(16), // death immunity
     Ability::new(10), // cold immunity
     Ability::new(52), // poison immunity

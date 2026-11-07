@@ -17,7 +17,7 @@ use crate::rules::{SpellId, SpellTarget};
 /// the Shrine checked twice where the Animist's Guild, which its help names, was evidently
 /// meant; we include the Animist's Guild. (The help names only four buildings and is
 /// extended in the imported help.)
-pub const NIGHTSHADE_BUILDINGS: [BuildingId; 9] = [
+pub const NIGHTSHADE_BUILDINGS: &[BuildingId] = &[
     BuildingId::new(22), // shrine
     BuildingId::new(10), // animists_guild
     BuildingId::new(23), // temple

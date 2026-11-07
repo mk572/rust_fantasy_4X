@@ -74,7 +74,7 @@ pub const ETERNAL_NIGHT: InfoItem = item("battle_info.eternal_night", 621);
 pub const EVIL_OMENS: InfoItem = item("battle_info.evil_omens", 198);
 
 /// Every line the window can show; the client's `icon_art.ron` has a picture for each it draws one for.
-pub const ALL: [InfoItem; 15] = [
+pub const ALL: &[InfoItem] = &[
     CRUSADE,
     HOLY_ARMS,
     CHARM_OF_LIFE,

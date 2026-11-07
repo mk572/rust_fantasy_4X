@@ -18,7 +18,7 @@ use crate::ui;
 use crate::view::App;
 
 /// Which picture the button has.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, strum::EnumIter)]
 pub(crate) enum Panel {
     /// The army list's Items and Ok (dark blue with a gold border, gold lettering).
     Items,
@@ -32,16 +32,6 @@ pub(crate) enum Panel {
 }
 
 impl Panel {
-    #[cfg(test)]
-    const ALL: [Panel; 6] = [
-        Panel::Items,
-        Panel::Ok,
-        Panel::StoneAlchemy,
-        Panel::StoneOk,
-        Panel::BlueAlchemy,
-        Panel::BlueOk,
-    ];
-
     /// One blank per family and width, made from the family's Ok (`scripts/button_text_free.py`).
     fn picture(self) -> &'static [u8] {
         match self {
@@ -222,13 +212,14 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::Panel;
+    use strum::IntoEnumIterator;
 
     /// Every picture is 15 high (the PNG header holds the size at bytes 16 to 24); the army list's
     /// are 41 wide, the item screen's 59 and the magic screen's 58 and 26.
     #[test]
     fn the_panels_and_their_sheens_have_the_sizes_of_the_originals() {
         let widths = [41, 41, 59, 59, 58, 26];
-        for (panel, width) in Panel::ALL.into_iter().zip(widths) {
+        for (panel, width) in Panel::iter().zip(widths) {
             let bytes = panel.picture();
             let w = u32::from_be_bytes(bytes[16..20].try_into().unwrap());
             let h = u32::from_be_bytes(bytes[20..24].try_into().unwrap());

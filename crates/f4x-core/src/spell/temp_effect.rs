@@ -202,7 +202,7 @@ impl<'a> UnitView<'a> {
             }
         }
         if self.unit_counts_as_undead(unit) {
-            for a in crate::unit::undead::UNDEAD_IMMUNITIES {
+            for &a in crate::unit::undead::UNDEAD_IMMUNITIES {
                 if !out.contains(&a) {
                     out.push(a);
                 }

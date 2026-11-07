@@ -20,7 +20,7 @@ pub const DESIGN_H: f32 = 200.0;
 pub const SCREEN: (f32, f32, f32, f32) = (0.0, 0.0, DESIGN_W, DESIGN_H);
 
 /// The art scales the game can be asked for.
-pub const ART_SCALES: [u8; 3] = [1, 2, 4];
+pub const ART_SCALES: &[u8] = &[1, 2, 4];
 
 static ART_SCALE: AtomicU8 = AtomicU8::new(1);
 

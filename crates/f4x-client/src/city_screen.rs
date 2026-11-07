@@ -1027,12 +1027,12 @@ impl App {
         }
         // The wards and spells that guard the city, along the bottom, and its magic walls.
         let wards = self.game.economy().city_wards(city);
-        for (realm, entry, left) in cs::REALM_WARDS {
+        for &(realm, entry, left) in cs::REALM_WARDS {
             if wards.iter().any(|&w| self.realm_alias(w) == realm) {
                 self.city_pic(lay, "cityscap", entry, 0, x0 + left, y0 + cs::WARD_ROW);
             }
         }
-        for (spell, entry, left) in cs::CITY_BLESSINGS {
+        for &(spell, entry, left) in cs::CITY_BLESSINGS {
             if enchanted(spell) {
                 self.city_pic(lay, "cityscap", entry, 0, x0 + left, y0 + cs::WARD_ROW);
             }

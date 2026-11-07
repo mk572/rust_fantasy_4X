@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use crate::soak::{GameResult, Options};
 
 /// The folders and files whose contents decide the reference-only game.
-const SOURCES: [&str; 6] = [
+const SOURCES: &[&str] = &[
     "crates/f4x-core/src",
     "crates/f4x-def/src",
     "crates/f4x-ai-ref/src",
@@ -40,7 +40,7 @@ fn hash_path(path: &Path, hasher: &mut DefaultHasher) {
 /// The fingerprint of the reference-only game of `seed` under these options.
 fn key(opts: &Options, seed: u64) -> String {
     let mut hasher = DefaultHasher::new();
-    for source in SOURCES {
+    for &source in SOURCES {
         hash_path(Path::new(source), &mut hasher);
     }
     hash_path(&opts.dir, &mut hasher);

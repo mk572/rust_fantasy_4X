@@ -12,7 +12,7 @@
 /// Frames of each picture.
 pub const FRAMES: usize = 5;
 
-const ARCANUS: [&[u8]; 30] = [
+const ARCANUS: &[&[u8]] = &[
     include_bytes!("../assets/rivers/river_0_0.png"),
     include_bytes!("../assets/rivers/river_0_1.png"),
     include_bytes!("../assets/rivers/river_0_2.png"),
@@ -45,7 +45,7 @@ const ARCANUS: [&[u8]; 30] = [
     include_bytes!("../assets/rivers/river_5_4.png"),
 ];
 
-const MYRROR: [&[u8]; 30] = [
+const MYRROR: &[&[u8]] = &[
     include_bytes!("../assets/rivers/river_myrror_0_0.png"),
     include_bytes!("../assets/rivers/river_myrror_0_1.png"),
     include_bytes!("../assets/rivers/river_myrror_0_2.png"),

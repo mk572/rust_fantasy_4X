@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use crate::font::{rgb, Style};
 
-const PICTURES: [&[u8]; 7] = [
+const PICTURES: &[&[u8]] = &[
     include_bytes!("../assets/button/game.png"),
     include_bytes!("../assets/button/spells.png"),
     include_bytes!("../assets/button/armies.png"),
@@ -21,7 +21,7 @@ const PICTURES: [&[u8]; 7] = [
 ];
 
 /// The text keys of the seven buttons, in the order of the bar.
-pub(crate) const KEYS: [&str; 7] = [
+pub(crate) const KEYS: &[&str] = &[
     "ui.menu_game",
     "ui.menu_spells",
     "ui.menu_armies",

@@ -22,7 +22,7 @@ const SCROLL: usize = 5;
 /// The small map (`CITYLIST_REDUCED_MAP_*`).
 const MAP: (f32, f32, f32, f32) = (42.0, 162.0, 49.0, 33.0);
 /// Where the columns start: name, race, pop, gold, prd, producing, time.
-const HEADS: [(&str, f32); 7] = [
+const HEADS: &[(&str, f32)] = &[
     ("cities.name", 32.0),
     ("cities.race", 88.0),
     ("cities.pop", 136.0),
@@ -32,7 +32,7 @@ const HEADS: [(&str, f32); 7] = [
     ("cities.time", 272.0),
 ];
 /// The right edges of the number columns (pop, gold, prd, time).
-const RIGHTS: [f32; 4] = [148.0, 168.0, 188.0, 287.0];
+const RIGHTS: &[f32] = &[148.0, 168.0, 188.0, 287.0];
 
 /// What the list remembers while it is open.
 #[derive(Debug, Clone, Copy, Default)]
@@ -170,7 +170,7 @@ impl Page for CityListUi {
             &title,
             (160.0, 3.0),
         );
-        for (head, x) in HEADS {
+        for &(head, x) in HEADS {
             let head = app.text(head);
             app.draw_styled(view, &Style::city_list_text(1), &head, x, 17.0);
         }

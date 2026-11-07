@@ -256,8 +256,8 @@ pub const RIVER_TILE: u8 = 56;
 
 /// `step_delta_cgx` and `step_delta_cgy` of the original, indexed 1 to 4 (south, west, north,
 /// east).
-const STEP_X: [i32; 5] = [0, 0, -1, 0, 1];
-const STEP_Y: [i32; 5] = [0, 1, 0, -1, 0];
+const STEP_X: &[i32] = &[0, 0, -1, 0, 1];
+const STEP_Y: &[i32] = &[0, 1, 0, -1, 0];
 
 fn at(cgx: i32, cgy: i32) -> usize {
     (cgy * W + cgx) as usize

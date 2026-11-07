@@ -20,7 +20,7 @@ pub(crate) struct AutoDialog {
     pub had_plan: bool,
 }
 
-const MIXES: [Mix; 3] = [Mix::Both, Mix::Buildings, Mix::Units];
+const MIXES: &[Mix] = &[Mix::Both, Mix::Buildings, Mix::Units];
 /// Row height of the dialog's list, in the original's pixels.
 const ROW: f32 = 10.0;
 const POPULATIONS: std::ops::RangeInclusive<u32> = 2..=12;
@@ -34,7 +34,9 @@ fn step<T: Copy + PartialEq>(all: &[T], current: T, back: bool) -> T {
 
 /// Balanced first, then the seven focuses.
 fn primaries() -> Vec<Focus> {
-    std::iter::once(Focus::Balanced).chain(Focus::ALL).collect()
+    std::iter::once(Focus::Balanced)
+        .chain(Focus::choosable())
+        .collect()
 }
 
 /// What the button on the city screen says.
@@ -213,14 +215,12 @@ impl App {
         if let Some(i) = action {
             let back = right;
             match i {
-                0 => d.plan.mix = step(&MIXES, d.plan.mix, back),
+                0 => d.plan.mix = step(MIXES, d.plan.mix, back),
                 1 => d.plan.primary = step(&primaries(), d.plan.primary, back),
                 2 => {
                     let mut all: Vec<Option<Focus>> = vec![None];
                     all.extend(
-                        Focus::ALL
-                            .iter()
-                            .copied()
+                        Focus::choosable()
                             .filter(|&f| f != d.plan.primary)
                             .map(Some),
                     );
@@ -324,7 +324,7 @@ mod tests {
     fn the_first_primary_is_balanced_and_the_other_seven_follow() {
         let all = primaries();
         assert_eq!(all[0], Focus::Balanced);
-        assert_eq!(&all[1..], &Focus::ALL);
+        assert_eq!(all[1..], Focus::choosable().collect::<Vec<_>>());
     }
 
     #[test]

@@ -555,10 +555,10 @@ impl Default for SpellLibraryDef {
             very_rare,
         };
         let books = |f: &dyn Fn(u8) -> Rarities| (0..=Self::MAX_BOOKS as u8).map(f).collect();
-        const COMMON: [u8; 12] = [0, 3, 5, 6, 7, 8, 9, 10, 10, 10, 10, 99];
-        const UNCOMMON: [u8; 12] = [0, 1, 2, 3, 4, 5, 6, 8, 99, 99, 99, 99];
-        const RARE: [u8; 12] = [0, 0, 1, 2, 3, 4, 5, 6, 7, 9, 99, 99];
-        const VERY_RARE: [u8; 12] = [0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 99, 99];
+        const COMMON: &[u8] = &[0, 3, 5, 6, 7, 8, 9, 10, 10, 10, 10, 99];
+        const UNCOMMON: &[u8] = &[0, 1, 2, 3, 4, 5, 6, 8, 99, 99, 99, 99];
+        const RARE: &[u8] = &[0, 0, 1, 2, 3, 4, 5, 6, 7, 9, 99, 99];
+        const VERY_RARE: &[u8] = &[0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 99, 99];
         Self {
             known: books(&|n| match n {
                 0 => r(0, 0, 0, 0),

@@ -21,7 +21,7 @@ use crate::view::{App, Screen};
 /// Where a switch sits, in the original's pixels: the check box's left edge and top.
 /// Left column x=31, right column x=192; the label starts 16 pixels right of the box and
 /// 2 below its top. The gaps between groups are the original's.
-const ROWS: [(Pref, f32, f32); 19] = [
+const ROWS: &[(Pref, f32, f32)] = &[
     (Pref::SoundEffects, 31.0, 52.0),
     (Pref::BackgroundMusic, 31.0, 63.0),
     (Pref::EventMusic, 31.0, 74.0),
@@ -80,7 +80,7 @@ pub(crate) fn row_at(x: f32, y: f32) -> Option<(Pref, (f32, f32, f32, f32))> {
 }
 
 /// The group headings: text and place.
-const HEADINGS: [(&str, f32, f32); 4] = [
+const HEADINGS: &[(&str, f32, f32)] = &[
     ("settings.sound", 31.0, 42.0),
     ("settings.messages", 31.0, 92.0),
     ("settings.combat", 192.0, 42.0),
@@ -88,7 +88,7 @@ const HEADINGS: [(&str, f32, f32); 4] = [
 ];
 
 /// The volume sliders (not in the original): label x, bar x and width, and the row's top.
-const SLIDERS: [(&str, f32, f32, f32); 2] = [
+const SLIDERS: &[(&str, f32, f32, f32)] = &[
     ("settings.music_volume", 100.0, 126.0, 40.0),
     ("settings.effects_volume", 172.0, 209.0, 46.0),
 ];
@@ -169,7 +169,7 @@ impl Page for SettingsPage {
         if let Some(pref) = clicked_switch(&lay, input) {
             app.prefs.toggle(pref);
         }
-        for &(key, x, y) in &HEADINGS {
+        for &(key, x, y) in HEADINGS {
             let text = app.text(key);
             app.draw_styled(
                 view,
@@ -278,7 +278,7 @@ mod tests {
             "en",
         )
         .expect("the shipped help loads");
-        for &(pref, x, y) in &ROWS {
+        for &(pref, x, y) in ROWS {
             assert!(help.topic(help_topic(pref)).is_some(), "{pref:?}");
             assert_eq!(row_at(x + 5.0, y + 4.0).map(|r| r.0), Some(pref));
         }
@@ -288,7 +288,7 @@ mod tests {
     #[test]
     fn a_click_on_each_row_picks_that_switch_and_no_other() {
         let lay = Layout::new();
-        for &(pref, x, y) in &ROWS {
+        for &(pref, x, y) in ROWS {
             let at = lay.rect((x + 5.0, y + ROW_HEIGHT / 2.0, 0.0, 0.0));
             let input = Input::click(MouseButton::Left, at.x, at.y);
             assert_eq!(clicked_switch(&lay, &input), Some(pref), "{pref:?}");

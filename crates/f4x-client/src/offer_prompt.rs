@@ -39,7 +39,7 @@ const NAME_LEN: usize = 16;
 const WINDOW: (f32, f32) = (25.0, 17.0);
 
 /// The card line of each special power: its name and what it does (`ITEM_ViewTexts`).
-const POWER_LINES: [(&str, &str); 32] = [
+const POWER_LINES: &[(&str, &str)] = &[
     ("vampiric", "item_power.vampiric"),
     ("lightning", "item_power.lightning"),
     ("cloak_of_fear", "item_power.cloak_of_fear"),

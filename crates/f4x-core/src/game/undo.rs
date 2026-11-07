@@ -70,9 +70,8 @@ impl Game {
         self.player_ids()
             .into_iter()
             .map(|id| {
-                crate::map::Plane::ALL
-                    .iter()
-                    .map(|&pl| self.fog.explored_count(id, pl))
+                crate::map::Plane::all()
+                    .map(|pl| self.fog.explored_count(id, pl))
                     .sum::<usize>()
             })
             .sum()

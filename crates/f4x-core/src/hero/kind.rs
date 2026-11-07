@@ -41,7 +41,7 @@ pub fn unit_of(rules: &Rules, kind: usize) -> Option<UnitId> {
 /// The magic ranged attacks, the only ones Arcane Power adds to. (The original's `Init_Heroes`
 /// tests the range `rat_Fireball` to `rat_Nat_Bolt`, which leaves the lightning attack out, and
 /// lets a hero without any of them draw Arcane Power; we count lightning and skip the rest.)
-pub const MAGIC_RANGED: [Ability; 7] = [
+pub const MAGIC_RANGED: &[Ability] = &[
     Ability::new(36), // lightning bolt
     Ability::new(22), // fireball attack
     Ability::new(60), // sorcery bolt

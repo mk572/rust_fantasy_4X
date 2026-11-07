@@ -52,7 +52,7 @@ const THREAT_RATIO: f32 = 0.8;
 /// A relief force is sent to a threatened city only from this far or nearer.
 const RELIEF_RANGE: u32 = 12;
 
-const NEIGHBOURS: [(i32, i32); 8] = [
+const NEIGHBOURS: &[(i32, i32)] = &[
     (-1, -1),
     (0, -1),
     (1, -1),

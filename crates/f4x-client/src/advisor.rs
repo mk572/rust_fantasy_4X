@@ -81,7 +81,7 @@ const SIDE_WIDTH: f32 = 16.0;
 const RIGHT_WIDTH: f32 = 18.0;
 
 /// The advisors in the original's order, with the F key of each.
-const ADVISORS: [&str; 9] = [
+const ADVISORS: &[&str] = &[
     "advisor.surveyor",
     "advisor.cartographer",
     "advisor.apprentice",

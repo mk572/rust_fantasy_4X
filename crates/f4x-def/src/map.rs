@@ -3,14 +3,17 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, strum::EnumIter)]
 pub enum Plane {
     Arcanus,
     Myrror,
 }
 
 impl Plane {
-    pub const ALL: [Plane; 2] = [Plane::Arcanus, Plane::Myrror];
+    /// Both planes, Arcanus first.
+    pub fn all() -> impl Iterator<Item = Plane> {
+        <Plane as strum::IntoEnumIterator>::iter()
+    }
 
     pub fn index(self) -> usize {
         self as usize
@@ -74,7 +77,7 @@ impl TerrainClass {
 }
 
 /// Every class the map generator may place; content must define each one per plane.
-pub const REQUIRED_CLASSES: [TerrainClass; 11] = [
+pub const REQUIRED_CLASSES: &[TerrainClass] = &[
     TerrainClass::Ocean,
     TerrainClass::Grassland,
     TerrainClass::Forest,

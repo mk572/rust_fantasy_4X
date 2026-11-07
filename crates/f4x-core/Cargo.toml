@@ -10,6 +10,7 @@ hecs.workspace = true
 rand.workspace = true
 rand_pcg.workspace = true
 serde.workspace = true
+strum.workspace = true
 ron.workspace = true
 
 [features]

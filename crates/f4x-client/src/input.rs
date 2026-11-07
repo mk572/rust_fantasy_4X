@@ -19,7 +19,7 @@ pub(crate) struct Input {
     pub(crate) chars: Vec<char>,
 }
 
-const BUTTONS: [MouseButton; 3] = [MouseButton::Left, MouseButton::Right, MouseButton::Middle];
+const BUTTONS: &[MouseButton] = &[MouseButton::Left, MouseButton::Right, MouseButton::Middle];
 
 impl Input {
     /// Take this frame's input from the window; the typed characters are consumed.
@@ -33,11 +33,13 @@ impl Input {
             mouse: mq::mouse_position(),
             wheel: mq::mouse_wheel(),
             buttons_pressed: BUTTONS
-                .into_iter()
+                .iter()
+                .copied()
                 .filter(|&b| mq::is_mouse_button_pressed(b))
                 .collect(),
             buttons_down: BUTTONS
-                .into_iter()
+                .iter()
+                .copied()
                 .filter(|&b| mq::is_mouse_button_down(b))
                 .collect(),
             keys_pressed: mq::get_keys_pressed(),

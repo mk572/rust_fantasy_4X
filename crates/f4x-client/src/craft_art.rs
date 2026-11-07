@@ -14,7 +14,7 @@ const TAB: &[u8] = include_bytes!("../assets/button/tab.png");
 const OK: &[u8] = include_bytes!("../assets/button/craft_ok.png");
 
 /// The text keys of the ten tabs, in the order of `craft_screen::KINDS`.
-pub(crate) const TAB_KEYS: [&str; 10] = [
+pub(crate) const TAB_KEYS: &[&str] = &[
     "craft.tab_sword",
     "craft.tab_mace",
     "craft.tab_axe",

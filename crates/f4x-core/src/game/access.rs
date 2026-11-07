@@ -43,9 +43,8 @@ impl Game {
 
     /// How many squares the player has explored, on both planes.
     pub fn explored_squares(&self, player: PlayerId) -> usize {
-        crate::map::Plane::ALL
-            .iter()
-            .map(|&pl| self.fog.explored_count(player, pl))
+        crate::map::Plane::all()
+            .map(|pl| self.fog.explored_count(player, pl))
             .sum()
     }
 

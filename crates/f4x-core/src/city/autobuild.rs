@@ -48,7 +48,7 @@ pub enum Mix {
 }
 
 /// What matters. `Balanced` weighs all the others equally and is only a primary focus.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, strum::EnumIter)]
 pub enum Focus {
     Magic,
     Population,
@@ -61,16 +61,10 @@ pub enum Focus {
 }
 
 impl Focus {
-    /// Every choosable focus, in the order of the affinity table.
-    pub const ALL: [Focus; 7] = [
-        Focus::Magic,
-        Focus::Population,
-        Focus::Production,
-        Focus::Defense,
-        Focus::Offense,
-        Focus::Exploration,
-        Focus::Gold,
-    ];
+    /// Every choosable focus (all but `Balanced`), in the order of the affinity table.
+    pub fn choosable() -> impl Iterator<Item = Focus> {
+        <Focus as strum::IntoEnumIterator>::iter().filter(|f| *f != Focus::Balanced)
+    }
 
     /// The key of the focus's name in `content/text/` (the console uses [`Focus::name`]).
     pub fn key(self) -> &'static str {
@@ -100,9 +94,9 @@ impl Focus {
         }
     }
 
-    /// The place in [`Focus::ALL`] (`None` for `Balanced`).
+    /// The place among the [`Focus::choosable`] ones (`None` for `Balanced`).
     fn index(self) -> Option<usize> {
-        Focus::ALL.iter().position(|&f| f == self)
+        Focus::choosable().position(|f| f == self)
     }
 }
 
@@ -110,9 +104,7 @@ impl Focus {
     /// A focus from its name, in any case.
     pub fn parse(text: &str) -> Option<Focus> {
         let t = text.to_lowercase();
-        Focus::ALL
-            .iter()
-            .copied()
+        Focus::choosable()
             .chain([Focus::Balanced])
             .find(|f| f.name().to_lowercase() == t)
     }
@@ -190,7 +182,7 @@ impl BuildPlan {
         }
     }
 
-    /// The weight of each focus, in the order of [`Focus::ALL`], adding up to 1.
+    /// The weight of each focus, in the order of [`Focus::choosable`], adding up to 1.
     pub fn weights(&self) -> [f32; 7] {
         let mut w = [0.0; 7];
         let (primary, secondary) = match self.secondary {
@@ -233,7 +225,7 @@ impl AutoBuild {
 
 // ---- the affinity table --------------------------------------------------------------------
 
-/// How much each building serves each focus, 0 to 3, in the order of [`Focus::ALL`]: magic,
+/// How much each building serves each focus, 0 to 3, in the order of [`Focus::choosable`]: magic,
 /// population, production, defense, offense, exploration, gold. A test keeps it in step with the
 /// content: every building has a row.
 pub const AFFINITY: &[(&str, [u8; 7])] = &[

@@ -379,7 +379,7 @@ pub fn generate_lairs(
     let mut lairs: Vec<(Position, Lair)> = Vec::new();
     // Towers stand on both planes and share one set of guards and treasure.
     let mut seen_towers: Vec<(u32, u32)> = Vec::new();
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         for y in 0..map.height() {
             for x in 0..map.width() {
                 let Some(def) = placed
@@ -436,7 +436,7 @@ pub fn generate_lairs(
     // The random sites, in map order; exactly `strong_sites` of them (picked at random) are the
     // strong ones, the rest weak.
     let mut sites = Vec::new();
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         for y in 0..map.height() {
             for x in 0..map.width() {
                 let Some(def) = placed

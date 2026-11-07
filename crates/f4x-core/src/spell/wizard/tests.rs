@@ -951,7 +951,7 @@ fn armageddon_raises_far_fewer_volcanoes_at_sea_than_on_land() -> TestResult {
         .terrains
         .first_of_class(crate::map::terrain::TerrainClass::Ocean, Plane::Arcanus)
         .ok_or("first_of_class is missing")?;
-    for plane in Plane::ALL {
+    for plane in Plane::all() {
         for x in 0..12 {
             for y in 0..14 {
                 g.map

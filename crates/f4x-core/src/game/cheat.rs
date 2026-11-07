@@ -41,7 +41,7 @@ impl Game {
             return;
         };
         let (w, h) = (map.width(), map.height());
-        for plane in crate::map::Plane::ALL {
+        for plane in crate::map::Plane::all() {
             self.fog.explore(
                 player,
                 Position {

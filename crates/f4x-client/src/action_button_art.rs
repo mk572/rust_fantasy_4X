@@ -8,6 +8,7 @@ use macroquad::prelude::*;
 use macroquad_bitmap_font_engine as bm;
 use std::cell::RefCell;
 use std::rc::Rc;
+use strum::IntoEnumIterator;
 
 use crate::font::{rgb, Style};
 use crate::frame::Layout;
@@ -16,7 +17,7 @@ use crate::ui;
 use crate::view::App;
 
 /// The buttons of the unit window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum::EnumIter)]
 pub(crate) enum Action {
     Done,
     Patrol,
@@ -30,15 +31,6 @@ pub(crate) enum Action {
 }
 
 impl Action {
-    const ALL: [Action; 6] = [
-        Action::Done,
-        Action::Patrol,
-        Action::Wait,
-        Action::Build,
-        Action::Meld,
-        Action::Purify,
-    ];
-
     /// The text key of the label.
     pub(crate) fn key(self) -> &'static str {
         match self {
@@ -53,8 +45,17 @@ impl Action {
         }
     }
 
+    /// The place of the button's pictures in the cache. OK and Cancel have no pictures of their
+    /// own: they show the Done button's blank one, so they share its place.
     fn index(self) -> usize {
-        Action::ALL.iter().position(|&a| a == self).unwrap_or(0)
+        match self {
+            Action::Done | Action::Ok | Action::Cancel => 0,
+            Action::Patrol => 1,
+            Action::Wait => 2,
+            Action::Build => 3,
+            Action::Meld => 4,
+            Action::Purify => 5,
+        }
     }
 }
 
@@ -67,7 +68,7 @@ pub(crate) enum Look {
     Locked,
 }
 
-const UP: [&[u8]; 6] = [
+const UP: &[&[u8]] = &[
     include_bytes!("../assets/button/done.png"),
     include_bytes!("../assets/button/patrol.png"),
     include_bytes!("../assets/button/wait.png"),
@@ -77,7 +78,7 @@ const UP: [&[u8]; 6] = [
 ];
 
 /// The locked pictures: Done, Patrol, Wait and Build (the original has no locked Meld).
-const LOCKED: [&[u8]; 4] = [
+const LOCKED: &[&[u8]] = &[
     include_bytes!("../assets/button/done_locked.png"),
     include_bytes!("../assets/button/patrol_locked.png"),
     include_bytes!("../assets/button/wait_locked.png"),
@@ -99,7 +100,10 @@ pub(crate) fn texture(action: Action, look: Look) -> Texture2D {
     TEXTURES.with(|cache| {
         let mut cache = cache.borrow_mut();
         if cache.is_empty() {
-            cache.resize(Action::ALL.len() * 2, None);
+            cache.resize(
+                Action::iter().map(Action::index).max().map_or(0, |m| m + 1) * 2,
+                None,
+            );
         }
         let i = action.index();
         let (slot, bytes) = match look {

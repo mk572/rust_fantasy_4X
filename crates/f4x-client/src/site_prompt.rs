@@ -22,7 +22,7 @@ use crate::view::{App, Screen};
 
 /// The sites by the feature number of `lairs`, in the order of the original's table `TBL_EZ_Names` (the
 /// picture in `reload` is `9 +` the place): the message that announces the site, and its name.
-const SITES: [(u16, &str, &str); 11] = [
+const SITES: &[(u16, &str, &str)] = &[
     (21 /* tower */, "site.tower.found", "site.tower.name"),
     (
         4, /* chaos_node */

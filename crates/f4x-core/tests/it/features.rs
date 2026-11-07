@@ -10,7 +10,7 @@ use crate::shipped::content;
 #[test]
 fn the_ores_and_the_transmute_pairs_are_minerals() {
     let c = content();
-    for num in ORES {
+    for &num in ORES {
         let id = c.features.id_numbered(num).expect("an ore is a feature");
         assert_eq!(
             c.features.get(id).map(|d| d.kind),

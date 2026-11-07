@@ -20,7 +20,7 @@ use crate::unit::UnitView;
 /// The ability that marks a unit as mutated.
 pub const MUTATED: Ability = Ability::new(98);
 /// The ability that says which mutation a unit has, for the unit sheet to name it.
-pub const MUTATION_MARKERS: [(Mutation, Ability); 3] = [
+pub const MUTATION_MARKERS: &[(Mutation, Ability)] = &[
     (Mutation::Armor, Ability::new(104)),
     (Mutation::Wings, Ability::new(105)),
     (Mutation::Breath, Ability::new(106)),

@@ -74,7 +74,7 @@ fn every_race_and_plan_gets_an_answer_and_the_focus_shows() -> TestResult {
     let mut roll = |_: u32| 1;
     for (_, race) in c.rules.races.iter() {
         let f = facts(&c, race.num);
-        for primary in Focus::ALL.iter().copied().chain([Focus::Balanced]) {
+        for primary in Focus::choosable().chain([Focus::Balanced]) {
             for mix in [Mix::Buildings, Mix::Units, Mix::Both] {
                 let plan = BuildPlan {
                     mix,

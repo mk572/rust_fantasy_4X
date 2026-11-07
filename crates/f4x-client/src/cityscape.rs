@@ -394,14 +394,14 @@ pub fn water_layers(water_counter: usize) -> usize {
 
 /// Where the ward and enchantment pictures stand along the bottom, left to right: the
 /// realm of a Spell Ward and its picture, then the spells.
-pub const REALM_WARDS: [(&str, usize, f32); 5] = [
+pub const REALM_WARDS: &[(&str, usize, f32)] = &[
     ("death", 94, 8.0),
     ("chaos", 95, 29.0),
     ("nature", 98, 50.0),
     ("life", 96, 71.0),
     ("sorcery", 97, 92.0),
 ];
-pub const CITY_BLESSINGS: [(u16, usize, f32); 4] = [
+pub const CITY_BLESSINGS: &[(u16, usize, f32)] = &[
     (12 /* natures_eye */, 99, 113.0),
     (152 /* inspirations */, 100, 134.0),
     (145 /* prosperity */, 101, 155.0),

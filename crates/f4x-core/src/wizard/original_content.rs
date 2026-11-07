@@ -6,7 +6,7 @@ use f4x_def::original::plain;
 
 /// The original's retorts ("special abilities") in the order of its wizard record
 /// (`wsa_*` of `NewGame.c`), which is the order of `retorts.ron`.
-const ORIGINAL_RETORTS: [&str; 18] = [
+const ORIGINAL_RETORTS: &[&str] = &[
     "Alchemy",
     "Warlord",
     "ChaosMastery",
@@ -80,7 +80,7 @@ fn every_retort_costs_and_unlocks_as_in_the_originals_creation_screen() {
     let rules = &c.rules;
     let retorts: Vec<_> = all_retorts(rules).collect();
     assert_eq!(retorts.len(), ORIGINAL_RETORTS.len());
-    for (&retort, name) in retorts.iter().zip(ORIGINAL_RETORTS) {
+    for (&retort, name) in retorts.iter().zip(ORIGINAL_RETORTS.iter().copied()) {
         assert_eq!(
             camel(&rules.retorts.get(retort).id),
             name,
@@ -138,7 +138,7 @@ fn every_retort_costs_and_unlocks_as_in_the_originals_creation_screen() {
 
 /// The original's ready-made wizards (`_wizard_presets_table`): name, books in the order life,
 /// sorcery, nature, death, chaos, and the retort's place in `ORIGINAL_RETORTS` (none for Raven).
-const ORIGINAL_WIZARDS: [(&str, [u8; 5], Option<usize>); 14] = [
+const ORIGINAL_WIZARDS: &[(&str, [u8; 5], Option<usize>)] = &[
     ("Merlin", [5, 0, 5, 0, 0], Some(7)),
     ("Raven", [0, 6, 5, 0, 0], None),
     ("Sharee", [0, 0, 0, 5, 5], Some(15)),
@@ -176,7 +176,7 @@ fn every_ready_made_wizard_has_the_originals_books_and_retort() {
         ours.sort_unstable();
         let mut theirs: Vec<(&str, u8)> = realms
             .iter()
-            .zip(books)
+            .zip(books.iter().copied())
             .filter(|(_, b)| *b > 0)
             .map(|(r, b)| (*r, b))
             .collect();

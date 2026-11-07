@@ -13,11 +13,11 @@ use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Grid;
 use f4x_def::content::Content;
 
-pub const GRASS: [usize; 3] = [0xA2, 0xAC, 0xAD];
-pub const FOREST: [usize; 3] = [0xA3, 0xB7, 0xB8];
-pub const SWAMP: [usize; 3] = [0xA6, 0xB1, 0xB2];
-pub const DESERT: [usize; 4] = [0xA5, 0xAE, 0xAF, 0xB0];
-pub const TUNDRA: [usize; 3] = [0xA7, 0xB5, 0xB6];
+pub const GRASS: &[usize] = &[0xA2, 0xAC, 0xAD];
+pub const FOREST: &[usize] = &[0xA3, 0xB7, 0xB8];
+pub const SWAMP: &[usize] = &[0xA6, 0xB1, 0xB2];
+pub const DESERT: &[usize] = &[0xA5, 0xAE, 0xAF, 0xB0];
+pub const TUNDRA: &[usize] = &[0xA7, 0xB5, 0xB6];
 pub const MOUNTAIN: usize = 0xA4;
 pub const HILLS: usize = 0xAB;
 pub const VOLCANO: usize = 0xB3;
@@ -35,7 +35,7 @@ const MOUNTAIN_EDGES: std::ops::RangeInclusive<usize> = 0x103..=0x112;
 /// digit of the side the river comes from), by pattern, with their terrain type numbers
 /// (`TerrType.h`). The pattern's digits are the neighbours that are land, in the order of the
 /// mask bits, NW N NE E SE S SW W.
-const RIVER_MOUTHS: [(&str, usize); 176] = [
+const RIVER_MOUTHS: &[(&str, usize)] = &[
     ("1R00000R", 201),
     ("1R10000R", 202),
     ("1R00001R", 203),
@@ -216,7 +216,7 @@ const RIVER_MOUTHS: [(&str, usize); 176] = [
 
 /// The eight neighbours in the order of the mask bits: NW 1, N 2, NE 4, E 8, SE 16, S 32,
 /// SW 64, W 128.
-pub const AROUND: [(i32, i32); 8] = [
+pub const AROUND: &[(i32, i32)] = &[
     (-1, -1),
     (0, -1),
     (1, -1),
@@ -263,7 +263,7 @@ fn mask_of(
 /// plain shore.
 pub fn shore_with_rivers(land: usize, rivers: usize, plain: usize) -> usize {
     // Pattern position of each cardinal side: N 1, E 3, S 5, W 7.
-    const SIDES: [(usize, usize); 4] = [(1, 1), (2, 3), (4, 5), (8, 7)];
+    const SIDES: &[(usize, usize)] = &[(1, 1), (2, 3), (4, 5), (8, 7)];
     // Only a side with land can have a river.
     let cardinal_land = (land >> 1 & 1) | (land >> 2 & 2) | (land >> 3 & 4) | (land >> 4 & 8);
     let mut sides = rivers & cardinal_land;
@@ -274,7 +274,7 @@ pub fn shore_with_rivers(land: usize, rivers: usize, plain: usize) -> usize {
         let mut name: Vec<u8> = (0..8)
             .map(|i| if land >> i & 1 == 1 { b'1' } else { b'0' })
             .collect();
-        for (bit, at) in SIDES {
+        for &(bit, at) in SIDES {
             if sides & bit != 0 {
                 name[at] = b'R';
             }
@@ -410,7 +410,7 @@ pub fn river_type(n: bool, e: bool, s: bool, w: bool, v: usize) -> usize {
 
 /// Which `mapback.lbx` picture shows a mineral or a living thing, by the feature's id.
 pub fn mineral_sprite(id: &str) -> Option<usize> {
-    const TABLE: [(&str, usize); 11] = [
+    const TABLE: &[(&str, usize)] = &[
         ("coal", 78),
         ("iron", 79),
         ("silver", 80),

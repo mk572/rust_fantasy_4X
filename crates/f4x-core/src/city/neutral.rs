@@ -76,7 +76,7 @@ const FORTRESS_CLEARANCE: u32 = 5;
 
 /// What a city's population gives it, in the order the original hands them out: the building
 /// comes with `population - 2` at or above the number.
-const STARTING_BUILDINGS: [(u32, BuildingId); 10] = [
+const STARTING_BUILDINGS: &[(u32, BuildingId)] = &[
     (0, BuildingId::new(3)),   // barracks
     (1, BuildingId::new(8)),   // smithy
     (2, BuildingId::new(32)),  // builders_hall

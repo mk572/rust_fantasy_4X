@@ -102,7 +102,7 @@ mod tests {
     #[test]
     fn every_unit_effect_is_given_by_a_shipped_spell() {
         let c = shipped();
-        for name in UnitEffect::NAMES {
+        for &name in UnitEffect::NAMES {
             let e = UnitEffect::named(name).expect("a listed name");
             assert!(
                 c.rules.spells.defs().iter().any(|d| e.is_in(d)),

@@ -32,7 +32,7 @@ struct Stage {
     curve: &'static [Segment],
 }
 
-const SMALL_STAGES: [Stage; 4] = [
+const SMALL_STAGES: &[Stage] = &[
     Stage {
         percent: 85.0,
         at: (164.0, -18.0),
@@ -86,7 +86,7 @@ const SMALL_STAGES: [Stage; 4] = [
     },
 ];
 
-const BIG_STAGES: [Stage; 4] = [
+const BIG_STAGES: &[Stage] = &[
     Stage {
         percent: 90.0,
         at: (165.0, -24.0),
@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn every_stage_curve_starts_at_the_left_edge_of_the_leaf() {
-        for stages in [&SMALL_STAGES[..], &BIG_STAGES[..]] {
+        for stages in [SMALL_STAGES, BIG_STAGES] {
             for stage in stages {
                 assert_eq!(stage.curve.first().map(|s| s.0), Some(0));
             }

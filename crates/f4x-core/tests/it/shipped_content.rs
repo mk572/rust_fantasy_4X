@@ -200,7 +200,7 @@ fn feature_ids(
 fn the_buildings_that_allow_nightshade_exist() -> TestResult {
     // The real rules data, not the small test set.
     let c = load_content(&content_dir())?;
-    for id in f4x_core::city::nightshade::NIGHTSHADE_BUILDINGS {
+    for &id in f4x_core::city::nightshade::NIGHTSHADE_BUILDINGS {
         assert!(
             c.rules.buildings.id_numbered(id.num()).is_some(),
             "no building {}",
@@ -308,7 +308,7 @@ fn generated_maps_obey_placement_rules() -> TestResult {
             "seed {seed}"
         );
         assert_eq!(towers(Plane::Arcanus), towers(Plane::Myrror), "seed {seed}");
-        for plane in Plane::ALL {
+        for plane in Plane::all() {
             let grid = map.map.plane(plane);
             let nodes = feature_ids(&map, plane, &c)
                 .into_iter()

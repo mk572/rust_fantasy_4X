@@ -57,7 +57,7 @@ fn is_water(game: &Game, grid: &Grid, x: i32, y: i32) -> bool {
 }
 
 /// The eight road directions in the order of `mapback.lbx` 46 to 53: clockwise from north.
-const ROAD_DIRS: [(i32, i32); 8] = [
+const ROAD_DIRS: &[(i32, i32)] = &[
     (0, -1),
     (1, -1),
     (1, 0),

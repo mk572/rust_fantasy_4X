@@ -17,7 +17,7 @@ use crate::player::PlayerId;
 use crate::rules::RealmId;
 
 /// The eighteen events, numbered as in `EVENTS.LBX`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, strum::EnumIter)]
 pub enum EventKind {
     GreatMeteor = 1,
     Gift,
@@ -40,26 +40,20 @@ pub enum EventKind {
 }
 
 impl EventKind {
-    pub const ALL: [EventKind; 18] = [
-        EventKind::GreatMeteor,
-        EventKind::Gift,
-        EventKind::Disjunction,
-        EventKind::Marriage,
-        EventKind::Earthquake,
-        EventKind::Piracy,
-        EventKind::Plague,
-        EventKind::Rebellion,
-        EventKind::Donation,
-        EventKind::Depletion,
-        EventKind::NewMinerals,
-        EventKind::PopulationBoom,
-        EventKind::GoodMoon,
-        EventKind::BadMoon,
-        EventKind::ConjunctionChaos,
-        EventKind::ConjunctionNature,
-        EventKind::ConjunctionSorcery,
-        EventKind::ManaShort,
-    ];
+    /// Every kind, in the original's order.
+    pub fn all() -> impl Iterator<Item = EventKind> {
+        <EventKind as strum::IntoEnumIterator>::iter()
+    }
+
+    /// How many kinds there are.
+    pub fn count() -> u32 {
+        EventKind::all().count() as u32
+    }
+
+    /// The kind of a roll from 1 to [`EventKind::count`], in the original's order.
+    pub fn from_roll(roll: u32) -> Option<EventKind> {
+        EventKind::all().nth((roll as usize).checked_sub(1)?)
+    }
 
     /// The event's number in `EVENTS.LBX` and `EVENTMSG.LBX`, from 1.
     pub fn number(self) -> u32 {
@@ -67,7 +61,7 @@ impl EventKind {
     }
 
     pub fn from_number(number: u32) -> Option<EventKind> {
-        Self::ALL.into_iter().find(|e| e.number() == number)
+        Self::all().find(|e| e.number() == number)
     }
 
     /// The name a save file and the console use.
@@ -95,7 +89,7 @@ impl EventKind {
     }
 
     pub fn from_id(id: &str) -> Option<EventKind> {
-        Self::ALL.into_iter().find(|e| e.id() == id)
+        Self::all().find(|e| e.id() == id)
     }
 
     /// Good events fall more on the weak wizards, bad ones on the strong (`m_event_good_array`).
@@ -487,7 +481,7 @@ impl EventNotice {
 pub const BIG_EVENTS_FROM_TURN: u32 = 150;
 
 /// The minerals an event can put on the map, by feature number.
-pub const ORES: [u16; 9] = [
+pub const ORES: &[u16] = &[
     11, // iron_ore
     5,  // coal
     19, // silver_ore

@@ -19,7 +19,7 @@ use f4x_def::rules::RealmId;
 /// Where the panel's top-left sits on the 320 by 200 screen, and its size.
 const PANEL: (f32, f32, f32, f32) = (75.0, 2.0, 180.0, 196.0);
 /// The realms in the order of the book pictures (`magic` 33 to 50: three variants each).
-const BOOK_REALMS: [RealmId; 5] = f4x_def::rules::BOOK_REALMS;
+const BOOK_REALMS: &[RealmId] = f4x_def::rules::BOOK_REALMS;
 const FIRST_BOOK: usize = 33;
 /// A book icon is eight pixels wide on the shelf.
 const BOOK_STEP: f32 = 8.0;

@@ -322,7 +322,7 @@ pub struct RealmDef {
 
 /// The five realms that have spell books, in the original's order (`sbr_Nature` to `sbr_Death`);
 /// arcane has none.
-pub const BOOK_REALMS: [RealmId; 5] = [
+pub const BOOK_REALMS: &[RealmId] = &[
     RealmId::new(0), // nature
     RealmId::new(1), // sorcery
     RealmId::new(2), // chaos

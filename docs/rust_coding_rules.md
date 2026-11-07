@@ -13,6 +13,22 @@ Avoid unwrap. Avoid panics. (Tests have their own rules, see "Error handling in 
 Clippy's `unwrap_used` and `expect_used` lints keep unwraps out of production code; tests may allow
 them with `#![cfg_attr(test, allow(clippy::unwrap_used))]`.
 
+## Lists, tables and fixed-size arrays
+
+No array type with a written length (`[T; 48]`) for a list or a table: the count must be edited
+whenever an entry is added, and it says nothing about whether the right entries are there.
+
+- A table of constants is a slice: `const NAMES: &[(&str, usize)] = &[...]`.
+- One entry per variant of an enum is an exhaustive `match` with no wildcard arm, so a new variant
+  does not compile until it has its entry (`stat_key` in `temp_effect_view.rs`). The same goes for
+  moving from a variant to its place in a list, and from a name or a number back to a variant.
+- To go over every variant, derive `strum::EnumIter` and use `iter()` (or a small `all()` on the
+  enum, so the callers need no import). A test that must see all of them uses it too, so nothing
+  can be forgotten.
+- An array stays only where the length is the point, and a comment says why: a coordinate or a
+  colour (`[f32; 2]`, `[u8; 4]`), the 8 neighbours of a square, a palette, a file format's fixed
+  buffer, one value per plane or per side of a battle, a machine-learning input of a fixed shape.
+
 ## Resource efficiency
 
 Avoid cloning, especially on large entities.

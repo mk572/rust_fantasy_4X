@@ -26,11 +26,11 @@ const LIFE: RealmId = RealmId::new(3) /* life */;
 const DEATH: RealmId = RealmId::new(4) /* death */;
 
 /// The realms in the order the original's loops go.
-const REALMS: [RealmId; 5] = [LIFE, DEATH, CHAOS, NATURE, SORCERY];
+const REALMS: &[RealmId] = &[LIFE, DEATH, CHAOS, NATURE, SORCERY];
 
 /// The realm pairs the original merges, in its order: the first named is the one that may take
 /// the other's books.
-const OPPOSED: [(RealmId, RealmId); 8] = [
+const OPPOSED: &[(RealmId, RealmId)] = &[
     (DEATH, CHAOS),
     (DEATH, NATURE),
     (DEATH, SORCERY),
@@ -96,7 +96,7 @@ pub(crate) fn balance_planes(
                 break;
             }
             let mut r = game.roll(total);
-            for realm in REALMS {
+            for &realm in REALMS {
                 let n = u32::from(books(&builds[k], realm));
                 if r <= n {
                     if let Some(b) = builds[k].books.get_mut(&realm) {
@@ -182,7 +182,7 @@ pub(crate) fn make(
             if game.roll(100) > u32::from(rules.consolidate_percent) {
                 continue;
             }
-            for (first, second) in OPPOSED {
+            for &(first, second) in OPPOSED {
                 let (x, y) = (books(b, first), books(b, second));
                 if x == 0 || y == 0 {
                     continue;

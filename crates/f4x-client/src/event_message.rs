@@ -31,7 +31,7 @@ pub fn load(dir: &Path) -> Result<Vec<EventText>, String> {
 }
 
 /// The keys of the names of the city size classes, outpost to capital.
-const CITY_SIZE_KEYS: [&str; 6] = [
+const CITY_SIZE_KEYS: &[&str] = &[
     "city.size_outpost",
     "city.size_hamlet",
     "city.size_village",
@@ -42,7 +42,7 @@ const CITY_SIZE_KEYS: [&str; 6] = [
 
 /// The minerals an event can put on the map: the feature number and the key of the word for it,
 /// what follows the article in "a{ore} deposit".
-const ORE_KEYS: [(u16, &str); 9] = [
+const ORE_KEYS: &[(u16, &str)] = &[
     (11 /* iron_ore */, "event.ore_iron_ore"),
     (5 /* coal */, "event.ore_coal"),
     (19 /* silver_ore */, "event.ore_silver_ore"),

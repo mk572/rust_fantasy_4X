@@ -486,7 +486,7 @@ impl Game {
         ) {
             let _ = self.world.insert_one(tower, crate::player::Owner(player));
         }
-        for plane in Plane::ALL {
+        for plane in Plane::all() {
             self.fog.explore(
                 owner,
                 Position { plane, ..at },

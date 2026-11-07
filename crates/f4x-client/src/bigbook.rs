@@ -382,7 +382,7 @@ const MASTERY_STAGE: f64 = 0.11;
 const MASTERY_STAGES: usize = 200;
 /// The stage each of the four vortex animations (`Role::Mastery`, `SPELLSCR.LBX` 67 to 70) starts
 /// at.
-const MASTERY_STARTS: [usize; 4] = [0, 17, 33, 49];
+const MASTERY_STARTS: &[usize] = &[0, 17, 33, 49];
 
 impl App {
     /// For screenshots: the announcement of a cast by player `by`, `seconds` in.

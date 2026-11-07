@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::task::{Context, Poll, Waker};
+use strum::IntoEnumIterator;
 
 use crate::input::Input;
 use f4x_core::player::PlayerId;
@@ -26,7 +27,7 @@ use crate::preferences::Pref;
 use crate::view::{App, Screen, HUMAN};
 
 /// The sound archives the client plays from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, strum::EnumIter)]
 pub(crate) enum Archive {
     SoundFx,
     Combat,
@@ -35,16 +36,9 @@ pub(crate) enum Archive {
 }
 
 impl Archive {
-    const ALL: [Archive; 4] = [
-        Archive::SoundFx,
-        Archive::Combat,
-        Archive::NewSound,
-        Archive::Music,
-    ];
-
     /// The archive by the name of its folder, for `--hear`.
     pub fn named(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|a| a.folder() == name)
+        Self::iter().find(|a| a.folder() == name)
     }
 
     fn folder(self) -> &'static str {
@@ -221,7 +215,7 @@ impl Audio {
     pub fn scan(dir: &Path, table: SoundTable) -> Self {
         let mut audio = Self::silent();
         audio.table = table;
-        for archive in Archive::ALL {
+        for archive in Archive::iter() {
             let Ok(entries) = std::fs::read_dir(dir.join(archive.folder())) else {
                 continue;
             };

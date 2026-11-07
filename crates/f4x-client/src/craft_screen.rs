@@ -27,7 +27,7 @@ use crate::frame::Layout;
 use crate::view::{App, Screen, HUMAN};
 
 /// The kinds in the order of the buttons (`SPELLSCR.LBX` entries 14 to 23).
-pub(crate) const KINDS: [ItemKind; 10] = [
+pub(crate) const KINDS: &[ItemKind] = &[
     ItemKind::Sword,
     ItemKind::Mace,
     ItemKind::Axe,
@@ -431,7 +431,7 @@ impl Page for CraftUi {
         let allowed = app.craft_allowed(ui.craft, ui.design.kind);
 
         // The ten kinds.
-        for (i, kind) in KINDS.into_iter().enumerate() {
+        for (i, kind) in KINDS.iter().copied().enumerate() {
             let (x, y) = (156.0 + 33.0 * (i % 5) as f32, 3.0 + 15.0 * (i / 5) as f32);
             let on = kind == ui.design.kind;
             let rect = app.craft_tab(&lay, TAB_KEYS[i], on, (x, y), (!busy, input));

@@ -10,7 +10,7 @@ use std::path::Path;
 use macroquad::prelude::KeyCode;
 
 /// Every action a key can do on the map; the names are those of `hotkeys.ron`.
-pub(crate) const ACTIONS: [&str; 42] = [
+pub(crate) const ACTIONS: &[&str] = &[
     "end_turn",
     "game_menu",
     "quick_save",

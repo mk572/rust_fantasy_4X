@@ -22,7 +22,7 @@ const X: f32 = 60.0;
 
 /// The citizens' icons: the farmers' first in `backgrnd` 45, the workers' in 59, the rebels'
 /// in 74, one for each race.
-const JOBS: [usize; 3] = [45, 59, 74];
+const JOBS: &[usize] = &[45, 59, 74];
 
 impl App {
     pub(crate) fn open_enemy_city(&mut self, city: hecs::Entity) {
