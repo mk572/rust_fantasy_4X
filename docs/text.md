@@ -1,12 +1,12 @@
 # Player-facing text
 
-Every message the player reads comes from `content/text/<lang>/*.ron` by key. Code names a key and
+Every message the player reads comes from `crates/f4x-client/content/text/<lang>/*.ron` by key. Code names a key and
 gives the values; it holds no sentence. This is what makes a second language possible.
 
 ## Files and keys
 
 - `crates/f4x-client/content/client_settings.ron` names the language (`language: "en"`); `en` is the fallback for a key another
-  language lacks. `content-local/text/<lang>/` layers over `content/text/<lang>/`.
+  language lacks. `content-local/text/<lang>/` layers over `crates/f4x-client/content/text/<lang>/`.
 - One file per screen or domain (`battle`, `spell`, `hero`, `create`, ...), at most about 100
   entries each. A key is `area.name` and lives in the file `area.ron`, once over all files.
 - A file is a RON map from key to entry.
@@ -47,7 +47,7 @@ Debug output of the console and test messages are not player-facing and stay in 
 
 ## What stays outside
 
-- Names of the numbered rules tables are one file each in `content/text/<lang>/name/`: `unit.ron`,
+- Names of the numbered rules tables are one file each in `crates/f4x-client/content/text/<lang>/name/`: `unit.ron`,
   `spell.ron`, `building.ron`, `race.ron` (name and plural), `realm.ron`, `ability.ron`,
   `item.ron`, `item_power.ron`, `terrain.ron`, `feature.ron` (the map features). A file is a RON map from the definition's `num` to its name
   (`{ 95: "Spearmen" }`). The loader puts the name of the language in `crates/f4x-client/content/client_settings.ron` on each

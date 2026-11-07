@@ -273,7 +273,7 @@ mana of a defeat without banishment. See also tasks 70 and 82.
 > components. The computer wizards are built the same way (`wizard/ai.rs`).
 
 `wizard/mod.rs` holds the pick rules and `Game::create_wizard`; `crates/f4x-def/content/wizards.ron` lists the
-ready-made wizards' books and retorts (game rules, committed); their names are in `content/text/en/name/wizard.ron` and their help text is the topic named by `help` in
+ready-made wizards' books and retorts (game rules, committed); their names are in `crates/f4x-client/content/text/en/name/wizard.ron` and their help text is the topic named by `help` in
 `crates/f4x-client/content/text/en/help/help.ron` (ours). Eleven picks buy books (one each) and
 retorts (one; two for Warlord, Channeler, Divine Power, Famous, Infernal Power; three for
 Myrran), at most six retorts, with the prerequisites in `retorts.ron` (`retort_available`). A realm with `n`

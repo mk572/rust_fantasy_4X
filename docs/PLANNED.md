@@ -584,7 +584,7 @@ options of the game setup (`docs/game-settings.md`), off by default so the base 
     the other world spells that look at nodes are checked for a node of any realm.
   - **Art and text:** a node picture and a map tile for each (`docs/extract-art.md`; the original has none, so a
     recolour of an existing node picture, with a note in `docs/divergences.md`), the node name keys in
-    `content/text/en/`, and the node colour the client draws on the minimap and the surveyor.
+    `crates/f4x-client/content/text/en/`, and the node colour the client draws on the minimap and the surveyor.
   - **AI:** the scripted AI's targets and the learned AI's observation of nodes include the new realms; saves list
     nodes by realm already, but old saves with only three realms still load.
 - **Setting: allow life and death together.** A game setting (`game-settings.md`, with the other rules switches) that
