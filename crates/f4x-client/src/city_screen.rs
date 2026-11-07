@@ -309,7 +309,12 @@ impl App {
             return;
         };
         let rules = &self.game.content().rules;
-        let spell_ward = rules.spells.id_numbered(72) /* spell_ward */;
+        let spell_ward = rules
+            .spells
+            .defs()
+            .iter()
+            .find(|d| f4x_core::spell::city::CityEffect::SpellWard.is_in(d))
+            .and_then(|d| rules.spells.id_numbered(d.num));
         let mut spells = Vec::new();
         let mut wards = Vec::new();
         let (mut sell, mut built) = (false, None);
@@ -626,9 +631,7 @@ impl App {
             let i = (row - panel.spell_first) as f32;
             let def = self.game.content().rules.spells.get(spell).clone();
             let mut name = self.names.spell(def.num).to_string();
-            if def.num == 72
-            /* spell_ward */
-            {
+            if f4x_core::spell::city::CityEffect::SpellWard.is_in(&def) {
                 name = self.text_with(
                     "city.spell_ward",
                     &Args::new().text("spell", &name).text(

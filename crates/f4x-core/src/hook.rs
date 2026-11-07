@@ -116,7 +116,7 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
 /// The spells that have code of their own in Rust (`Effect::Special`), by number: the
 /// number is the only link between the spell and its code. A `Special` effect on a spell
 /// not in this list fails [`problems`].
-pub const SPECIAL_SPELLS: [u16; 31] = [
+pub const SPECIAL_SPELLS: [u16; 30] = [
     19,  // natures_cures
     26,  // earthquake
     28,  // move_fortress
@@ -124,7 +124,6 @@ pub const SPECIAL_SPELLS: [u16; 31] = [
     58,  // spell_blast
     61,  // disjunction_true
     68,  // stasis
-    72,  // spell_ward
     73,  // creature_binding
     75,  // great_unsummoning
     76,  // spell_binding

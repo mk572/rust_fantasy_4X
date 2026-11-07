@@ -581,9 +581,7 @@ impl Game {
             };
             return refused.map_or(Ok(()), |e| Err(MagicError::Target(e)));
         }
-        if spell == crate::rules::SpellId::new(72)
-        /* spell_ward */
-        {
+        if crate::spell::city::CityEffect::SpellWard.is_in(self.content.rules.spells.get(spell)) {
             return match target {
                 Some(Target::CityRealm(c, r)) => {
                     own_city(c)?;

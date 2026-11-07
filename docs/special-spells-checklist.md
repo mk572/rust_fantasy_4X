@@ -42,7 +42,7 @@ Proposed hook or primitive: **wall (args stone, fire, darkness)**
 
 Proposed hook or primitive: **spell_ward**
 
-- [ ] 72 `spell_ward`
+- [x] 72 `spell_ward` (done 7 November 2026: `CityEffect::SpellWard`)
 
 ## C. Moving things
 

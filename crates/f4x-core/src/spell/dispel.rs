@@ -61,9 +61,7 @@ impl Game {
         if !self.turn_off_enchantment(SpellTarget::City(city), player, spell) {
             return Err(MagicError::Target(TargetError::SpellNotThere));
         }
-        if spell == crate::rules::SpellId::new(72)
-        /* spell_ward */
-        {
+        if crate::spell::city::CityEffect::SpellWard.is_in(self.content.rules.spells.get(spell)) {
             let _ = self
                 .world
                 .remove_one::<crate::spell::city::SpellWards>(city);

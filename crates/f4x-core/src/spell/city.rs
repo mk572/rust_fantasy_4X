@@ -41,6 +41,7 @@ crate::hook::effect_enum! {
     HeavenlyLight = "heavenly_light",
     CloudOfShadow = "cloud_of_shadow",
     FlyingFortress = "flying_fortress",
+    SpellWard = "spell_ward",
 }
 
 /// Chaos Rift's bolts on each unit in the city every turn, and their strength.
@@ -245,9 +246,7 @@ impl Game {
     /// How many times the city's enchantment `spell` is paid for each turn: a Spell Ward costs
     /// its upkeep for every realm it guards.
     pub(crate) fn upkeep_count(&self, city: hecs::Entity, spell: crate::rules::SpellId) -> i32 {
-        if spell == crate::rules::SpellId::new(72)
-        /* spell_ward */
-        {
+        if CityEffect::SpellWard.is_in(self.content.rules.spells.get(spell)) {
             (self.economy().city_wards(city).len() as i32).max(1)
         } else {
             1
@@ -320,7 +319,7 @@ impl Economy<'_> {
 impl Economy<'_> {
     /// The realms the city is warded against.
     pub fn city_wards(&self, city: hecs::Entity) -> Vec<RealmId> {
-        if !self.city_has_enchantment(city, SpellId::new(72) /* spell_ward */) {
+        if !self.city_has_effect(city, CityEffect::SpellWard) {
             return Vec::new();
         }
         self.world

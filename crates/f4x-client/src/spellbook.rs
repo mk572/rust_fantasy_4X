@@ -450,8 +450,8 @@ impl App {
             _ => Some(Target::Tile(pos)),
         };
         // A Spell Ward also needs a realm: ask for it.
-        if t.spell == f4x_def::rules::SpellId::new(72)
-        /* spell_ward */
+        if f4x_core::spell::city::CityEffect::SpellWard
+            .is_in(self.game.content().rules.spells.get(t.spell))
         {
             match target {
                 Some(Target::City(city))
