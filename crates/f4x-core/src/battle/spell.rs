@@ -301,7 +301,7 @@ impl Game {
                 mana_per_step: *mana_per_step,
                 all: all_enemies,
             }),
-            Effect::Custom { name, .. } if name == BATTLEFIELD => Field::of(spell).map(Kind::Field),
+            Effect::Custom { name, .. } if name == BATTLEFIELD => Field::of(def).map(Kind::Field),
             Effect::Custom { name, args } if name == crate::hook::WALL => {
                 match args.first().map(String::as_str) {
                     Some("fire") => Some(Kind::CityWall(CityWall::Fire)),

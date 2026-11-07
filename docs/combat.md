@@ -520,8 +520,7 @@ area of open ground; walkers pay 12 half-moves to enter, fliers and the bodiless
 ## 9. Battlefield enchantments and destroying spells (tasks 44 and part of 159)
 
 **Battlefield enchantments** (`battle/field.rs`): fourteen spells with the `battlefield` hook and
-target *Battlefield*; the battle knows what each does by the spell's id (`Field::of`), as the
-original's code does. Each side can have each one up once (a second cast is refused,
+target *Battlefield*; the battle knows what each does by the hook's argument (`Field::of`, e.g. `Custom(name: "battlefield", args: ["blur"])`). Each side can have each one up once (a second cast is refused,
 `SpellError::AlreadyUp`); they last the battle. The stat changes are kept on every unit as a
 `FieldBonus` and recomputed by `Battle::refresh_fields` whenever a spell goes up or a unit changes,
 so they never pile up and never push a stat below nothing:

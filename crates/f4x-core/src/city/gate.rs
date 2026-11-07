@@ -21,10 +21,12 @@ use crate::player::PlayerId;
 use crate::unit::movement::MoveError;
 use crate::unit::MovesLeft;
 
-/// The hooks of the gate spells: the effect is read from the city's enchantments, so casting
-/// does nothing beyond enchanting the city. A spell carries the hook in `spells.ron`.
-pub const EARTH_GATE: &str = "earth_gate";
-pub const ASTRAL_GATE: &str = "astral_gate";
+/// The hook of the gate spells: the effect is read from the city's enchantments, so casting
+/// does nothing beyond enchanting the city. A spell carries the hook in `spells.ron`, with the
+/// kind of gate as its argument.
+pub const GATE: &str = "gate";
+pub const EARTH_GATE: &str = "earth";
+pub const ASTRAL_GATE: &str = "astral";
 
 /// One full move in half-moves.
 const FULL_MOVE: u32 = 2;
@@ -83,7 +85,8 @@ impl Game {
 }
 
 impl Economy<'_> {
-    /// Whether `owner` keeps the named gate spell on the city standing at `pos`.
+    /// Whether `owner` keeps a gate spell of the given kind (`EARTH_GATE` or `ASTRAL_GATE`, the
+    /// argument of the `gate` hook) on the city standing at `pos`.
     pub fn has_gate(&self, pos: Position, owner: PlayerId, gate: &str) -> bool {
         let Some(city) = self.city_at(pos) else {
             return false;
@@ -91,7 +94,16 @@ impl Economy<'_> {
         crate::spell::instance::Spells::new(self.world)
             .city_enchantments(city)
             .iter()
-            .any(|&(spell, o)| o == owner && self.content.rules.spells.get(spell).has_hook(gate))
+            .any(|&(spell, o)| {
+                o == owner
+                    && self
+                        .content
+                        .rules
+                        .spells
+                        .get(spell)
+                        .hook_args(GATE)
+                        .is_some_and(|a| a == [gate])
+            })
             && self.city_owner(city) == Some(owner)
     }
 }

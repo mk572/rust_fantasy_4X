@@ -21,7 +21,7 @@ impl App {
         spell: SpellId,
         caster: Result<Side, usize>,
     ) -> Option<Anim> {
-        let (id, realm, summons, name) = {
+        let (id, realm, summons, name, is_field) = {
             let def = self.game.content().rules.spells.get(spell);
             let summons = def
                 .effects
@@ -33,15 +33,10 @@ impl App {
                 self.game.content().rules.realms.get(def.realm).id.clone(),
                 summons,
                 self.names.spell(def.num).to_string(),
+                f4x_core::battle::field::Field::of(def).is_some(),
             )
         };
-        let fx = spell_fx::fx_for(
-            self.art.spells(),
-            &id,
-            &realm,
-            summons,
-            f4x_core::battle::field::Field::of(spell).is_some(),
-        );
+        let fx = spell_fx::fx_for(self.art.spells(), &id, &realm, summons, is_field);
         let side = match caster {
             Ok(side) => side,
             Err(unit) => before.unit(unit)?.side,

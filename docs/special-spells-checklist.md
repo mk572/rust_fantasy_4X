@@ -145,7 +145,7 @@ Proposed hook or primitive: **unit_change (args to decide)**
 
 Joins the 14 spells that already use `battlefield`.
 
-Proposed hook or primitive: **battlefield (args to decide)**
+Proposed hook or primitive: **battlefield**. Task 486's follow-up already gave the 14 existing spells an argument (`Custom(name: "battlefield", args: ["true_light"])`, the names in `Field::NAMES`); a new field effect adds a `Field` variant and its name.
 
 - [ ] 1 `earth_to_mud`
 - [ ] 11 `cracks_call`

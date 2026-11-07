@@ -30,11 +30,19 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
     plain("unimplemented"),
     plain(crate::spell::global_enchantment::GLOBAL_EFFECT),
     plain(crate::item::crafting::CRAFT_ITEM),
-    plain(crate::city::gate::EARTH_GATE),
-    plain(crate::city::gate::ASTRAL_GATE),
+    Hook {
+        name: crate::city::gate::GATE,
+        args: &[
+            crate::city::gate::EARTH_GATE,
+            crate::city::gate::ASTRAL_GATE,
+        ],
+    },
     plain(crate::unit::HEROISM),
     plain(crate::spell::city::CITY_FLAG),
-    plain(crate::battle::field::BATTLEFIELD),
+    Hook {
+        name: crate::battle::field::BATTLEFIELD,
+        args: &crate::battle::field::Field::NAMES,
+    },
     plain(crate::battle::field::DISINTEGRATE),
     Hook {
         name: WALL,

@@ -590,7 +590,7 @@ impl App {
             (Side::Defender, SpellId::new(33) /* entangle */),
         ]
         .into_iter()
-        .filter_map(|(side, spell)| Some((side, Field::of(spell)?, spell)))
+        .filter_map(|(side, spell)| Some((side, Field::of(spells.get(spell))?, spell)))
         .collect();
         let curses: Vec<_> = [
             "confusion",

@@ -24,7 +24,7 @@ use super::immunity::{AttackNature, Immunities, Realm};
 use super::map::{self, Pos};
 use super::{Battle, BattleEvent, BattleUnit, Confusion, RangedKind, Side};
 use crate::rules::effects::DamageTraits;
-use crate::rules::SpellId;
+use crate::rules::{SpellDef, SpellId};
 
 /// Hooks the spell data names.
 pub const BATTLEFIELD: &str = "battlefield";
@@ -55,25 +55,52 @@ pub enum Field {
 }
 
 impl Field {
-    /// The enchantment a spell (by its id) puts up.
-    pub fn of(spell: SpellId) -> Option<Field> {
-        Some(match spell.num() {
-            128 /* true_light */ => Field::TrueLight,
-            169 /* darkness */ => Field::Darkness,
-            108 /* warp_reality */ => Field::WarpReality,
-            174 /* black_prayer */ => Field::BlackPrayer,
-            182 /* wrack */ => Field::Wrack,
-            102 /* metal_fires */ => Field::MetalFires,
-            140 /* prayer */ => Field::Prayer,
-            151 /* high_prayer */ => Field::HighPrayer,
-            168 /* terror */ => Field::Terror,
-            35 /* call_lightning */ => Field::CallLightning,
-            74 /* mass_invisibility */ => Field::MassInvisibility,
-            33 /* entangle */ => Field::Entangle,
-            170 /* mana_leak */ => Field::ManaLeak,
-            51 /* blur */ => Field::Blur,
-            _ => return None,
-        })
+    /// The argument of the `battlefield` hook for each enchantment, in the enum's order.
+    pub const NAMES: [&'static str; 14] = [
+        "true_light",
+        "darkness",
+        "warp_reality",
+        "black_prayer",
+        "wrack",
+        "metal_fires",
+        "prayer",
+        "high_prayer",
+        "terror",
+        "call_lightning",
+        "mass_invisibility",
+        "entangle",
+        "mana_leak",
+        "blur",
+    ];
+
+    const ALL: [Field; 14] = [
+        Field::TrueLight,
+        Field::Darkness,
+        Field::WarpReality,
+        Field::BlackPrayer,
+        Field::Wrack,
+        Field::MetalFires,
+        Field::Prayer,
+        Field::HighPrayer,
+        Field::Terror,
+        Field::CallLightning,
+        Field::MassInvisibility,
+        Field::Entangle,
+        Field::ManaLeak,
+        Field::Blur,
+    ];
+
+    /// The enchantment named by a hook argument.
+    pub fn named(name: &str) -> Option<Field> {
+        Self::NAMES
+            .iter()
+            .position(|n| *n == name)
+            .map(|i| Self::ALL[i])
+    }
+
+    /// The enchantment a spell puts up: the argument of its `battlefield` hook.
+    pub fn of(def: &SpellDef) -> Option<Field> {
+        Field::named(def.hook_args(BATTLEFIELD)?.first()?)
     }
 }
 
