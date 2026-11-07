@@ -44,6 +44,9 @@ fn key(opts: &Options, seed: u64) -> String {
         hash_path(Path::new(source), &mut hasher);
     }
     hash_path(&opts.dir, &mut hasher);
+    if let Some(from) = &opts.from {
+        hash_path(from, &mut hasher);
+    }
     (
         seed,
         opts.turns,

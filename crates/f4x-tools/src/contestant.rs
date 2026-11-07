@@ -40,6 +40,9 @@ pub trait Contestant {
     fn plans(&self) -> Option<String> {
         None
     }
+    /// Take back the plans a loaded game carries for this player (`Game::plans`); a version that
+    /// cannot read them starts afresh.
+    fn recall(&mut self, _game: &Game) {}
 }
 
 macro_rules! contestant {
@@ -86,6 +89,9 @@ macro_rules! contestant {
             $(
                 fn plans(&self) -> Option<String> {
                     self.$plans().ok()
+                }
+                fn recall(&mut self, game: &Game) {
+                    $krate::Ai::recall(game, std::slice::from_mut(self));
                 }
             )?
         }

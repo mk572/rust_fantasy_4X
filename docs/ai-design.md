@@ -394,7 +394,7 @@ after a change to `neutral.rs` to test it): reference only, new in the first hal
 new in the second half, new only. The report gives per wizard and game the counts of
 `crates/f4x-tools/src/metrics.rs` for the reference, for the new AI and for both in the mixed
 games, who won the mixed games, and the first snapshot (every 50 turns, `soak-out/`) that differs
-from the reference-only game. `f4x-tools soak-diff A B` compares two snapshots. A snapshot is an ordinary game save (`Game::snapshot`), with the plans of the AIs that can write them in it (`Game::plans`; not the frozen reference), so the client can load it. The learned battle
+from the reference-only game. `f4x-tools soak-diff A B` compares two snapshots. A snapshot is an ordinary game save (`Game::snapshot`), with the plans of the AIs that can write them in it (`Game::plans`; not the frozen reference), so the client can load it. `soak --from SAVE` (also `soak-versus`) goes on from such a save instead of a new game: the game is loaded by the game's own `load_game`, the AIs take their plans back with `Ai::recall`, and the rounds run in the same master as ever; one game, played to `--turns`. The snapshots of a run that went on from a save equal the straight run's (a test pins it). The learned battle
 brain is not part of this; only the strategic AI. There is
 one reference at a time; fork again to replace it.
 

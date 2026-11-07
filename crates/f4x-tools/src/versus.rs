@@ -15,7 +15,7 @@ use crate::contestant::Version;
 use crate::metrics::{Metrics, Standing};
 use crate::soak::{self, GameResult, Options, Roster};
 
-pub const USAGE: &str = "usage: f4x-tools soak-versus [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--detail] [--snapshots-every N (default 50, 0: none)] [--out DIR (default soak-out)] [--refused-log FILE] [--jobs N (default: one for each core)] [--no-cache]\n       f4x-tools soak-diff SNAPSHOT_A SNAPSHOT_B [--content DIR]";
+pub const USAGE: &str = "usage: f4x-tools soak-versus [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--detail] [--snapshots-every N (default 50, 0: none)] [--out DIR (default soak-out)] [--refused-log FILE] [--jobs N (default: one for each core)] [--no-cache] [--from SAVE (one game, on from that save)]\n       f4x-tools soak-diff SNAPSHOT_A SNAPSHOT_B [--content DIR]";
 
 /// One of the four games of a seed.
 struct Variant {

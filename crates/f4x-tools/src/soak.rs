@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use crate::contestant::{self, Contestant, Version};
 use crate::metrics::{add_casts, casts_line, never_cast, Standing, Tally};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -50,6 +50,9 @@ pub struct Options {
     pub jobs: Option<usize>,
     /// Play the reference-only games again instead of reusing the kept ones.
     pub no_cache: bool,
+    /// Go on from this saved game (a snapshot of an earlier soak, or any save) instead of
+    /// starting a new one: one game, with the save's seed and its AIs' plans.
+    pub from: Option<PathBuf>,
 }
 
 impl Options {
@@ -77,6 +80,7 @@ impl Options {
             out: None,
             jobs: None,
             no_cache: false,
+            from: None,
         };
         let mut it = args.iter();
         while let Some(a) = it.next() {
@@ -114,8 +118,12 @@ impl Options {
                 "--out" => o.out = Some(value("--out")?.into()),
                 "--jobs" => o.jobs = Some(value("--jobs")?.parse().map_err(|_| "bad jobs")?),
                 "--no-cache" => o.no_cache = true,
+                "--from" => o.from = Some(value("--from")?.into()),
                 other => return Err(format!("unknown option {other:?}\n{usage}")),
             }
+        }
+        if o.from.is_some() {
+            o.last = o.first;
         }
         Ok(o)
     }
@@ -246,14 +254,35 @@ pub fn game(
     } else {
         format!("seed {seed} [{label}]")
     };
-    let mut game = new_game(
-        content,
-        &NewGame {
-            seed,
-            all_ai: true,
-            ..NewGame::with_wizards(players)
-        },
-    )?;
+    let mut game = match &opts.from {
+        Some(path) => {
+            let (game, integrity) = f4x_core::game::save::load_game(path, content.clone())
+                .map_err(|e| format!("{}: {e}", path.display()))?;
+            if integrity != f4x_core::game::save::Integrity::Intact {
+                eprintln!("{tag}: {} was edited after it was saved", path.display());
+            }
+            let seated = game
+                .player_ids()
+                .into_iter()
+                .filter(|&p| !game.is_neutral_player(p))
+                .count();
+            if seated != roster.versions.len() {
+                return Err(format!(
+                    "{} has {seated} wizards; use --players {seated}",
+                    path.display()
+                ));
+            }
+            game
+        }
+        None => new_game(
+            content,
+            &NewGame {
+                seed,
+                all_ai: true,
+                ..NewGame::with_wizards(players)
+            },
+        )?,
+    };
     game.set_undo(false);
     if let Some(path) = &opts.battle_ai {
         #[cfg(feature = "learned")]
@@ -274,6 +303,8 @@ pub fn game(
         .map(|(k, &v)| contestant::make(v, PlayerId(k as u8)))
         .collect();
     for ai in &mut ais {
+        // A game that was saved carries what its AIs had in mind.
+        ai.recall(&game);
         ai.record_refusals(
             refused_out
                 .lock()
@@ -738,5 +769,28 @@ mod tests {
             }
         });
         assert_eq!(r.err().as_deref(), Some("item 6 failed"));
+    }
+
+    #[test]
+    fn a_soak_that_goes_on_from_a_snapshot_plays_the_same_game() -> TestResult {
+        let content = f4x_def::testdir::shipped();
+        let dir = std::env::temp_dir().join(format!("f4x-soak-from-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let roster = Roster {
+            versions: vec![Version::New; 2],
+            neutrals: Version::New,
+        };
+        let none: RefusedLog = Mutex::new(None);
+        let mut opts = parse(&["--turns", "30", "--snapshots-every", "10"])?;
+        opts.out = Some(dir.join("straight"));
+        game(content, 7, &opts, &roster, "", &none)?;
+        let mut again = parse(&["--turns", "30", "--snapshots-every", "10"])?;
+        again.out = Some(dir.join("resumed"));
+        again.from = Some(dir.join("straight/seed7/t0010.f4x"));
+        game(content, 7, &again, &roster, "", &none)?;
+        let last = |d: &str| std::fs::read_to_string(dir.join(d).join("seed7/t0030.f4x"));
+        assert_eq!(last("straight")?, last("resumed")?);
+        std::fs::remove_dir_all(&dir)?;
+        Ok(())
     }
 }
