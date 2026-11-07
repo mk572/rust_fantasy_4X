@@ -118,7 +118,7 @@ impl fmt::Display for HalfInt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let sign = if self.0 < 0 { "-" } else { "" };
         let abs = self.0.unsigned_abs();
-        if abs % 2 == 0 {
+        if abs.is_multiple_of(2) {
             write!(f, "{sign}{}", abs / 2)
         } else {
             write!(f, "{sign}{}.5", abs / 2)
