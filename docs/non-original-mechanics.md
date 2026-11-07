@@ -57,8 +57,15 @@ roaming monsters (`threat/`, `Make_Raiders` and `Make_Monsters` in `AIDATA.c`), 
 history screens (`wizard/astrology.rs`, `Record_History`), the wizards' personality and objective
 (`wizard/objective.rs`), and the 99 `Custom` and `Special` spell effects.
 
-## Left for the next pass
+## Checked at the end of task 409
 
-- `UnitDef.requires`, `BuildingDef.shape` and `coastal`, `ItemDef.flag` and `charges`, `RulesConfig.racial_unrest`:
-  the shape of the field was read, the original's counterpart was not.
-- The bodies of `battle/spell.rs` and `battle/attack.rs`, beyond their headers.
+- The five fields whose counterpart was open have one in the original (ReMoM): `UnitDef.requires` is
+  `reqd_bldg_1` and `reqd_bldg_2` of `s_UNIT_TYPE`; `BuildingDef.shape` is `bldg_data_table[].shape`
+  (2x2, 2x3, 3x2, 3x3, `CITYSCAP.c`); `RulesConfig.racial_unrest` is `TBL_Unrest` (`CITYCALC.c`);
+  `ItemDef.charges` are the spell charges of an item (`ItemMake.c`); `ItemDef.flag` is the original's
+  flag byte (its doc comment says so). `BuildingDef.coastal` (Shipyard and the like) was not traced to a
+  line of ReMoM's code.
+- The functions of `battle/attack.rs` and `battle/spell.rs` map to the original's (`process_attack`, raising
+  and animating the dead, Warp Creature, Call Chaos, the battle dispel); the one rule that differs, the
+  refusal of stacking pairs in battle, is in `divergences.md`. The test helper `legal_battle_casts` is
+  tooling (row 20). No new row.
