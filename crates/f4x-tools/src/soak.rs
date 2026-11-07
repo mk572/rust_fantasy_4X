@@ -122,8 +122,16 @@ impl Options {
                 other => return Err(format!("unknown option {other:?}\n{usage}")),
             }
         }
-        if o.from.is_some() {
-            o.last = o.first;
+        if let Some(path) = &o.from {
+            // The game is the save's: its seed is the one the reports, files and cache name.
+            if args.iter().any(|a| a == "--seeds") {
+                return Err("--from takes the seed from the save; leave out --seeds".into());
+            }
+            let text =
+                std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+            let saved = f4x_core::game::save::Snapshot::from_text(&text)
+                .map_err(|e| format!("{}: {e}", path.display()))?;
+            (o.first, o.last) = (saved.seed, saved.seed);
         }
         Ok(o)
     }
@@ -249,17 +257,12 @@ pub fn game(
     refused_out: &RefusedLog,
 ) -> Result<GameResult, String> {
     let players = opts.players;
-    let tag = if label.is_empty() {
-        format!("seed {seed}")
-    } else {
-        format!("seed {seed} [{label}]")
-    };
     let mut game = match &opts.from {
         Some(path) => {
             let (game, integrity) = f4x_core::game::save::load_game(path, content.clone())
                 .map_err(|e| format!("{}: {e}", path.display()))?;
             if integrity != f4x_core::game::save::Integrity::Intact {
-                eprintln!("{tag}: {} was edited after it was saved", path.display());
+                eprintln!("{}: was edited after it was saved", path.display());
             }
             let seated = game
                 .player_ids()
@@ -284,6 +287,13 @@ pub fn game(
         )?,
     };
     game.set_undo(false);
+    // A game that was loaded has its own seed: the one asked for here is only the default range.
+    let seed = game.seed();
+    let tag = if label.is_empty() {
+        format!("seed {seed}")
+    } else {
+        format!("seed {seed} [{label}]")
+    };
     if let Some(path) = &opts.battle_ai {
         #[cfg(feature = "learned")]
         for k in 0..players {
@@ -788,6 +798,15 @@ mod tests {
         again.out = Some(dir.join("resumed"));
         again.from = Some(dir.join("straight/seed7/t0010.f4x"));
         game(content, 7, &again, &roster, "", &none)?;
+        let line = |extra: &[&str]| {
+            let from = dir.join("straight/seed7/t0010.f4x");
+            let mut args = vec!["--from", from.to_str().unwrap_or_default()];
+            args.extend_from_slice(extra);
+            parse(&args)
+        };
+        let o = line(&[])?;
+        assert_eq!((o.first, o.last), (7, 7), "the seed is the save's, not 1");
+        assert!(line(&["--seeds", "3"]).is_err());
         let last = |d: &str| std::fs::read_to_string(dir.join(d).join("seed7/t0030.f4x"));
         assert_eq!(last("straight")?, last("resumed")?);
         std::fs::remove_dir_all(&dir)?;
