@@ -16,11 +16,7 @@ Deliberate departures from a rule the original *has* (a different number, a diff
 - A claim "the original has no such thing" was checked in ReMoM (`~/projects/ReMoM/MoM/src`) by a search
   for the original's own name of the thing; where the search found nothing but I did not read the whole
   code around it, the row says so.
-- **Not covered:** the inside of `battle/` (attack, immunity, special, spell), `unit/movement`, `map/mapgen`,
-  the `Effect` variants of `rules/effects.rs`, the settings of `game/setting.rs`, and the crates
-  `f4x-ai`, `f4x-ai-ref`, `f4x-learn`, `f4x-tools`, `f4x-console` (they are our own by design: the original's
-  AI is not a port; see `design.md` section 8). Task 409 walks the core's tests and will meet more of these;
-  add rows here when it does.
+- **Walked in task 409:** the first paragraph of every file of `battle/`, `unit/movement.rs` and `map/mapgen*`, the settings (`f4x-def/src/settings.rs`, `game/setting.rs`, `game-settings.md`) and the vocabulary of `rules/effects.rs`. Rows 15 to 24 are what it found (23 and 24 are dead vocabulary of the rules data, found by searching the shipped content for each name). **Still not read:** the bodies of `battle/spell.rs` and `battle/attack.rs` beyond their headers, and the crates `f4x-ai`, `f4x-ai-ref`, `f4x-learn`, `f4x-tools`, `f4x-console` (our own by design: the original's AI is not a port; see `design.md` section 8).
 
 ## The table
 
@@ -40,6 +36,16 @@ Deliberate departures from a rule the original *has* (a different number, a diff
 | 12 | **Sounds and tracks the original has not** (life and death node music and others) | `docs/sound.md` section 5.3 | the client | Not a rule | Keep |
 | 13 | **Spell fields `not_with`, `already_able`, `dispel_difficulty`, `save`** | `rules/defs.rs` `SpellDef` | the casting and dispel checks | The original has these rules, but in code (a spell's legality in `Spells*.c`); ours is data. Not an invention | Keep |
 | 14 | **A battle limit of 100 turns** (the original: 50) | `battle/mod.rs` `TURN_LIMIT` | long battles | `divergences.md` section 29 | Pointer only: a different number, not a missing rule |
+| 15 | **Overland diagonal cost** as a setting (a diagonal step costs half as much again, and so does sight along a diagonal) | `BasicSettings.diagonal_extra_cost` (`f4x-def/src/settings.rs`), `unit/movement.rs` | the options step; off by default | The original charges a diagonal like a straight step; the doc comment of the field says so | Keep: an option, off by default, so the original's rule is the default |
+| 16 | **Melee against fliers** as a setting (nothing, half strength, full strength) | `RuleSettings.melee_vs_fliers`, `MeleeVsFliers` | battles with a flier | The original's rule is "nothing" (divergence 26 in `divergences.md`); the other two are ours | Keep: the original's rule is the default; already written down |
+| 17 | **Most units on one square** from 9 up to a ceiling (a reserve above nine on a defended square) | `RuleSettings.max_tile`, `MAX_TILE_LIMIT` | stacks, battles (a battle side stays at nine) | The original has the limit of nine and no reserve | Keep: default nine; see `game-settings.md` 4.3 |
+| 18 | **Settings the original has no switch for**: Spell of Mastery on or off, Spell of Return off, human only or all, random events switch and frequency, Hardcore, No Myrror, scoring percent, banned races per level, raider and monster switches, the start reveal radius | `GameSettings` and its parts (`f4x-def/src/settings.rs`), `game-settings.md` | new game, options | Not in the original's options (only difficulty, opponents, land size and magic power are) | Keep: decided with task 247; every extra defaults to the original's behaviour and never changes the difficulty dropdown (`game-settings.md` 3.2) |
+| 19 | **A battle in the save** (a game saved and loaded in the middle of a fight) | `battle/save.rs` | the save and load of the client and console | The original cannot save during a battle | Keep: a convenience, no hidden information |
+| 20 | **The list of legal battle commands** | `battle/legal.rs` | the console's battle queries and the learning environment (`learning-ai.md` 4) | Tooling, not a rule; a test checks it against `Battle::apply` | Keep |
+| 21 | **Rivers on the battlefield** | `battle/map/layout.rs` (task 255), `combat.md` | battles on plains with a river on the overland square | The original has `Carve_River_Terrain` and never calls it | Keep: the user's choice (task 255); already written down in `combat.md` |
+| 22 | **Our noise generator's rivers and lakes**, also run over the original generator's land | `map/mapgen.rs`, `map/mapgen/original.rs` | new game | The original's generator is only the land; rivers and lakes are ours | Keep: part of row 9 |
+| 23 | **Five `Effect` variants no shipped content uses**: `RemoveAbility`, `AddResource`, `ChangeTerrain`, `SetFeature`, `ApplyEnchantment` | `rules/effects.rs`, `rules/exec.rs`, the checks in `f4x-def/src/load/rules.rs`, tests in `rules/exec/tests.rs` (hand-built rules) | nothing in `crates/f4x-def/content/` (checked by a search for the name); only the executor's own tests | Not a mechanic of the original; the terrain, feature and enchantment spells all run as `Custom` hooks | **Removed** with task 490 (7 November 2026): no spell or ability of the original needs them |
+| 24 | **Triggers never fired and conditions never used**: triggers `OnTurnStart`, `OnAttack`, `OnDefend`, `OnDeath`, `OnBuilt` (no code outside `effects.rs` names them; content uses `OnCast` only); conditions `HasAbility`, `TerrainIs`, `OnPlane`, `RaceIs`, `InBattle`, `InCity`, `All`, `Any` (evaluated in code, but no shipped rule uses them); targets `UnitsInTile`, `UnitsInArea`, `City` (content uses none) | `rules/effects.rs`, the evaluators in `rules/` | nothing shipped | Not a mechanic of the original; a generic vocabulary made ahead of need | **Removed**: the five triggers with task 491 and the eight conditions and three targets with task 492 (7 November 2026). Added back with the rule that needs one |
 
 ## What was found and is **not** ours
 
@@ -53,9 +59,6 @@ history screens (`wizard/astrology.rs`, `Record_History`), the wizards' personal
 
 ## Left for the next pass
 
-- The `Effect` variants of `rules/effects.rs` against what the 214 spells, the abilities and the buildings
-  actually use: a variant no row of `crates/f4x-def/content/` names is dead code (`scripts/untested_content.py` does not
-  list effects).
 - `UnitDef.requires`, `BuildingDef.shape` and `coastal`, `ItemDef.flag` and `charges`, `RulesConfig.racial_unrest`:
   the shape of the field was read, the original's counterpart was not.
-- The settings of `game/setting.rs` one by one: which have a counterpart in `Settings.c` and which are ours.
+- The bodies of `battle/spell.rs` and `battle/attack.rs`, beyond their headers.
