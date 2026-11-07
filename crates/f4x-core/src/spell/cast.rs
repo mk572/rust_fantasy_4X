@@ -179,6 +179,35 @@ impl GameHost<'_> {
     }
 }
 
+impl GameHost<'_> {
+    /// What a spell with the `terrain_effect` hook does to the square.
+    fn terrain_effect(
+        &mut self,
+        effect: crate::spell::terraform::TerrainEffect,
+        at: Position,
+        owner: PlayerId,
+    ) {
+        use crate::spell::terraform::TerrainEffect as T;
+        let events = match effect {
+            T::RaiseVolcano => self.game.raise_volcano(owner, at, &mut self.rng),
+            T::ChangeTerrain => self.game.change_terrain_spell(at),
+            T::EnchantRoad => self.game.enchant_roads(at),
+            T::Corruption => self.game.corrupt(at),
+            T::WarpNode => self.game.warp_node(at),
+            T::Transmute => self.game.transmute(at),
+            T::FloatingIsland => {
+                self.game.floating_island(owner, at);
+                return;
+            }
+            T::EarthLore => {
+                self.game.earth_lore(owner, at);
+                return;
+            }
+        };
+        self.events.extend(events);
+    }
+}
+
 impl EffectHost for GameHost<'_> {
     fn facts(&self, who: Target) -> Facts {
         let g = &*self.game;
@@ -389,12 +418,21 @@ impl EffectHost for GameHost<'_> {
         &mut self.rng
     }
 
-    fn custom(&mut self, hook: &str, _who: Target, ctx: &Context) {
+    fn custom(&mut self, hook: &str, args: &[String], who: Target, ctx: &Context) {
         // The hooks several spells share. Most are carried out by the engine wherever the
         // wizard's global spells are consulted.
         if hook == crate::item::crafting::CRAFT_ITEM {
             let events = self.game.complete_crafting(ctx.owner);
             self.events.extend(events);
+        }
+        if hook == crate::spell::terraform::TERRAIN_EFFECT {
+            if let (Some(effect), Target::Tile(at)) = (
+                args.first()
+                    .and_then(|a| crate::spell::terraform::TerrainEffect::named(a)),
+                who,
+            ) {
+                self.terrain_effect(effect, at, ctx.owner);
+            }
         }
     }
 
@@ -418,27 +456,6 @@ impl EffectHost for GameHost<'_> {
             return;
         }
         if let Some(events) = self.wizard_hook(spell, who, ctx) {
-            self.events.extend(events);
-            return;
-        }
-        if let Target::Tile(at) = who {
-            let events = match spell.num() {
-                98 /* raise_volcano */ => self.game.raise_volcano(ctx.owner, at, &mut self.rng),
-                15 /* change_terrain */ => self.game.change_terrain_spell(at),
-                55 /* enchant_road */ => self.game.enchant_roads(at),
-                85 /* corruption */ => self.game.corrupt(at),
-                186 /* warp_node */ => self.game.warp_node(at),
-                18 /* transmute */ => self.game.transmute(at),
-                43 /* floating_island */ => {
-                    self.game.floating_island(ctx.owner, at);
-                    return;
-                }
-                10 /* earth_lore */ => {
-                    self.game.earth_lore(ctx.owner, at);
-                    return;
-                }
-                _ => return,
-            };
             self.events.extend(events);
             return;
         }
@@ -599,75 +616,23 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if spell == crate::rules::SpellId::new(98)
-        /* raise_volcano */
+        if let Some(effect) =
+            crate::spell::terraform::TerrainEffect::of(self.content.rules.spells.get(spell))
+                .filter(|e| *e != crate::spell::terraform::TerrainEffect::EarthLore)
         {
+            use crate::spell::terraform::TerrainEffect as T;
             return match target {
-                Some(Target::Tile(p)) => self.check_raise_volcano(p).map_err(MagicError::Target),
-                Some(_) => Err(wrong),
-                None => Err(MagicError::NeedsTarget),
-            };
-        }
-        if spell == crate::rules::SpellId::new(85)
-        /* corruption */
-        {
-            return match target {
-                Some(Target::Tile(p)) => self.check_corrupt(p).map_err(MagicError::Target),
-                Some(_) => Err(wrong),
-                None => Err(MagicError::NeedsTarget),
-            };
-        }
-        if spell == crate::rules::SpellId::new(186)
-        /* warp_node */
-        {
-            return match target {
-                Some(Target::Tile(p)) => {
-                    self.check_warp_node(p, player).map_err(MagicError::Target)
+                Some(Target::Tile(p)) => match effect {
+                    T::RaiseVolcano => self.check_raise_volcano(p),
+                    T::Corruption => self.check_corrupt(p),
+                    T::WarpNode => self.check_warp_node(p, player),
+                    T::EnchantRoad => self.check_enchant_road(p),
+                    T::ChangeTerrain => self.change_terrain_result(p).map(|_| ()),
+                    T::Transmute => self.transmute_result(p).map(|_| ()),
+                    T::FloatingIsland => self.check_floating_island(player, p),
+                    T::EarthLore => Ok(()),
                 }
-                Some(_) => Err(wrong),
-                None => Err(MagicError::NeedsTarget),
-            };
-        }
-        if spell == crate::rules::SpellId::new(55)
-        /* enchant_road */
-        {
-            return match target {
-                Some(Target::Tile(p)) => self.check_enchant_road(p).map_err(MagicError::Target),
-                Some(_) => Err(wrong),
-                None => Err(MagicError::NeedsTarget),
-            };
-        }
-        if spell == crate::rules::SpellId::new(15)
-        /* change_terrain */
-        {
-            return match target {
-                Some(Target::Tile(p)) => self
-                    .change_terrain_result(p)
-                    .map(|_| ())
-                    .map_err(MagicError::Target),
-                Some(_) => Err(wrong),
-                None => Err(MagicError::NeedsTarget),
-            };
-        }
-        if spell == crate::rules::SpellId::new(18)
-        /* transmute */
-        {
-            return match target {
-                Some(Target::Tile(p)) => self
-                    .transmute_result(p)
-                    .map(|_| ())
-                    .map_err(MagicError::Target),
-                Some(_) => Err(wrong),
-                None => Err(MagicError::NeedsTarget),
-            };
-        }
-        if spell == crate::rules::SpellId::new(43)
-        /* floating_island */
-        {
-            return match target {
-                Some(Target::Tile(p)) => self
-                    .check_floating_island(player, p)
-                    .map_err(MagicError::Target),
+                .map_err(MagicError::Target),
                 Some(_) => Err(wrong),
                 None => Err(MagicError::NeedsTarget),
             };

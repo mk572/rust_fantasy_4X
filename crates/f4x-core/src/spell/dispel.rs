@@ -280,8 +280,9 @@ impl Game {
             .content
             .rules
             .spells
-            .try_get(crate::rules::SpellId::new(186) /* warp_node */)
-            .map_or(300, |s| s.cost);
+            .iter()
+            .find(|(_, d)| crate::spell::terraform::TerrainEffect::WarpNode.is_in(d))
+            .map_or(300, |(_, s)| s.cost);
         let Some(node) = self.economy().node_at(at) else {
             return 0;
         };

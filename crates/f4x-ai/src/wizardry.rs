@@ -145,9 +145,7 @@ pub fn kind(def: &SpellDef) -> Kind {
     {
         return Kind::Summon;
     }
-    if def.num == 10
-    /* earth_lore */
-    {
+    if f4x_core::spell::terraform::TerrainEffect::EarthLore.is_in(def) {
         return Kind::Explore;
     }
     if def.num == 19

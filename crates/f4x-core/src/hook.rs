@@ -91,6 +91,11 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
         several: false,
     },
     Hook {
+        name: crate::spell::terraform::TERRAIN_EFFECT,
+        args: &crate::spell::terraform::TerrainEffect::NAMES,
+        several: false,
+    },
+    Hook {
         name: crate::spell::global_enchantment::GLOBAL_EFFECT,
         args: &crate::spell::global_enchantment::GlobalEffect::NAMES,
         several: true,
@@ -106,20 +111,15 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
 /// The spells that have code of their own in Rust (`Effect::Special`), by number: the
 /// number is the only link between the spell and its code. A `Special` effect on a spell
 /// not in this list fails [`problems`].
-pub const SPECIAL_SPELLS: [u16; 50] = [
+pub const SPECIAL_SPELLS: [u16; 42] = [
     1,   // earth_to_mud
     3,   // wall_of_stone
-    10,  // earth_lore
     11,  // cracks_call
-    15,  // change_terrain
-    18,  // transmute
     19,  // natures_cures
     26,  // earthquake
     28,  // move_fortress
-    43,  // floating_island
     47,  // word_of_recall
     48,  // counter_magic
-    55,  // enchant_road
     58,  // spell_blast
     61,  // disjunction_true
     68,  // stasis
@@ -129,10 +129,8 @@ pub const SPECIAL_SPELLS: [u16; 50] = [
     76,  // spell_binding
     81,  // warp_wood
     82,  // disrupt
-    85,  // corruption
     89,  // warp_creature
     93,  // chaos_channels
-    98,  // raise_volcano
     105, // magic_vortex
     115, // call_chaos
     119, // call_the_void
@@ -145,7 +143,6 @@ pub const SPECIAL_SPELLS: [u16; 50] = [
     172, // possession
     173, // lycanthropy
     177, // subversion
-    186, // warp_node
     187, // black_wind
     191, // cruel_unminding
     195, // animate_dead
@@ -285,6 +282,13 @@ mod tests {
             assert!(
                 c.rules.spells.defs().iter().any(|d| e.is_in(d)),
                 "no spell gives the city effect {name}"
+            );
+        }
+        for name in crate::spell::terraform::TerrainEffect::NAMES {
+            let e = crate::spell::terraform::TerrainEffect::named(name).expect("a listed name");
+            assert!(
+                c.rules.spells.defs().iter().any(|d| e.is_in(d)),
+                "no spell gives the terrain effect {name}"
             );
         }
         for name in Field::NAMES {

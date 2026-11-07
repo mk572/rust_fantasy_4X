@@ -113,7 +113,7 @@ pub trait EffectHost {
     /// Remove other wizards' enchantments (cast by anyone but `by`) that the strength beats;
     /// returns how many were removed.
     fn dispel(&mut self, who: Target, strength: u32, by: PlayerId) -> u32;
-    fn custom(&mut self, hook: &str, who: Target, ctx: &Context);
+    fn custom(&mut self, hook: &str, args: &[String], who: Target, ctx: &Context);
     /// The code of the spell that is being run (`ctx.source`), found by the spell's number.
     fn special(&mut self, who: Target, ctx: &Context);
     /// The random numbers of the rules being run. The host owns the stream (the game's own, in
@@ -364,8 +364,8 @@ fn run_effect(
             let removed = host.dispel(who, *strength, ctx.owner);
             out.push(Outcome::Dispelled { who, removed });
         }
-        Effect::Custom { name: hook, .. } => {
-            host.custom(hook, who, ctx);
+        Effect::Custom { name: hook, args } => {
+            host.custom(hook, args, who, ctx);
             out.push(Outcome::Custom { hook: hook.clone() });
         }
         Effect::Special => {

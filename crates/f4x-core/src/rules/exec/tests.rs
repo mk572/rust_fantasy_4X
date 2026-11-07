@@ -159,7 +159,7 @@ impl EffectHost for MockHost {
         u.enchants.clear();
         n
     }
-    fn custom(&mut self, hook: &str, _w: Target, _c: &Context) {
+    fn custom(&mut self, hook: &str, _a: &[String], _w: Target, _c: &Context) {
         self.customs.push(hook.to_string());
     }
     fn special(&mut self, _w: Target, _c: &Context) {

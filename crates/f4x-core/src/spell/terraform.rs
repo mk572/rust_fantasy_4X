@@ -14,6 +14,30 @@ use crate::map::Position;
 use crate::player::PlayerId;
 use crate::spell::target_error::TargetError;
 
+/// The hook of the spells that act on one map square.
+pub const TERRAIN_EFFECT: &str = "terrain_effect";
+
+crate::hook::effect_enum! {
+    /// What a spell with the `terrain_effect` hook does to the square it is aimed at: the
+    /// argument of the hook (`Custom(name: "terrain_effect", args: ["corruption"])`).
+    pub enum TerrainEffect in TERRAIN_EFFECT;
+    ChangeTerrain = "change_terrain",
+    RaiseVolcano = "raise_volcano",
+    Corruption = "corruption",
+    EnchantRoad = "enchant_road",
+    WarpNode = "warp_node",
+    Transmute = "transmute",
+    EarthLore = "earth_lore",
+    FloatingIsland = "floating_island",
+}
+
+impl TerrainEffect {
+    /// The effect a spell's definition gives, if it has the hook.
+    pub fn of(def: &crate::rules::SpellDef) -> Option<TerrainEffect> {
+        TerrainEffect::named(def.hook_args(TERRAIN_EFFECT)?.first()?)
+    }
+}
+
 /// Each building in a city under a new volcano collapses with this chance (percent).
 const COLLAPSE_PERCENT: u32 = 15;
 /// A new volcano gets a mineral on its square with this chance (percent).

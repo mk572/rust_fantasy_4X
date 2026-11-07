@@ -98,18 +98,16 @@ Proposed hook or primitive: **counter_magic**
 
 ## F. Map tiles
 
-Check which fit `ChangeTerrain` / `SetFeature` / a new reveal primitive before making hooks.
+Done 7 November 2026 (the user asked for a terrain effect category): one hook, `Custom(name: "terrain_effect", args: ["corruption"])`, with `TerrainEffect` in `spell/terraform.rs`. The cast goes through `Host::custom` (which now gets the hook's arguments) and `GameHost::terrain_effect`; the target checks in `check_target` ask the effect, not the number. Not turned into primitives: floating island stays a hook until task 411 makes it a `Summon`.
 
-Proposed hook or primitive: **terrain (args to decide)**
-
-- [ ] 15 `change_terrain`
-- [ ] 98 `raise_volcano`
-- [ ] 85 `corruption`
-- [ ] 55 `enchant_road`
-- [ ] 186 `warp_node`
-- [ ] 18 `transmute`
-- [ ] 10 `earth_lore`
-- [ ] 43 `floating_island`
+- [x] 15 `change_terrain`
+- [x] 98 `raise_volcano`
+- [x] 85 `corruption`
+- [x] 55 `enchant_road`
+- [x] 186 `warp_node`
+- [x] 18 `transmute`
+- [x] 10 `earth_lore`
+- [x] 43 `floating_island`
 
 ## G. Against wizards and everything alive
 
