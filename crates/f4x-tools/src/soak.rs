@@ -71,11 +71,7 @@ impl Options {
             grant_mastery: None,
             battle_ai: None,
             refused_log: None,
-            dir: if Path::new("content-local").exists() {
-                "content-local".into()
-            } else {
-                f4x_def::SHIPPED_CONTENT.into()
-            },
+            dir: f4x_def::SHIPPED_CONTENT.into(),
             snapshots_every: None,
             out: None,
             jobs: None,

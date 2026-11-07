@@ -36,13 +36,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
             other => return Err(format!("unknown option {other:?}\n{USAGE}")),
         }
     }
-    let dir = content_dir.unwrap_or_else(|| {
-        if Path::new("content-local").exists() {
-            "content-local".into()
-        } else {
-            f4x_def::SHIPPED_CONTENT.into()
-        }
-    });
+    let dir = content_dir.unwrap_or_else(|| f4x_def::SHIPPED_CONTENT.into());
     let content = f4x_def::load::load_content_layers(&[&dir, Path::new(f4x_def::SHIPPED_CONTENT)])
         .map_err(|e| e.to_string())?;
     let mut game = match load {

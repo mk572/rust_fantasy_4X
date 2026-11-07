@@ -545,7 +545,7 @@ unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/
 The scripted AI (`f4x-ai`, the battle AI in `f4x-ai/src/battle/order.rs` and `cast.rs`) and the trained one
 (`f4x-learn`) already ran on the new entities (task 336 moved them to the handles). This pass checked
 them, fixed what the soak showed, and gave the objective and the personality something to do. All
-numbers are from `f4x-tools soak` on the shipped content plus `content-local`, release build.
+numbers are from `f4x-tools soak` on the shipped content, release build.
 
 ### 12.1 What was done
 
