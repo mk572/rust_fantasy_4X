@@ -94,7 +94,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 477 | Medium | Housekeeping | Add `f4x-master` for player turns and round orchestration |
 | 478 | Low | Housekeeping | Make `f4x-ai-ref` a local-only snapshot: ignored by git, behind a `reference` feature of `f4x-tools` |
 | 479 | Medium | Meta | The crates below the client know no display text: names and messages leave core, data and the AI for the client |
-| 482 | Medium | Meta | The 50 `Effect::Special` spells become primitives or hooks with a tag in their definition; `Special` and the number matches go (needs 486; checklist in `docs/archive/special-spells-checklist.md`) |
 | 483 | Medium | Meta | Review the constants in code: which should move to content or to a settings file |
 | 484 | Medium | Tests | Test review, second pass: tests that edit the rules, tests on the flat settings, wrong crate layer |
 | 485 | Low | Core | Smaller save files: the fog and map grids, compression |
@@ -375,8 +374,7 @@ Each item that is changed gets a test on the shipped rules and a line in `docs/m
 
 **475. Split the turn transition into end-turn and start-turn phases.** Refactor the current `game::end_turn()` so that the work before advancing the turn counter stays in `game::end_turn()`, and the work after advancing the counter moves into a new `game::start_turn()`. Keep the existing execution order and behaviour unchanged: this is a lifecycle-clarity refactor, not a redesign of the turn pipeline. `end_turn()` should finish the outgoing turn; `start_turn()` should own the incoming-turn work, including the counter advancement and the processing that follows it. Update callers and tests as needed, and document the boundary between the two phases. Check that turn-start notifications and all existing turn processing still happen exactly once.
 
-Asked for by the user, 3 November 2026.
-**476. Cache queried game information in the client.** The client should keep the
+Asked for by the user, 3 November 2026. **476. Cache queried game information in the client.** The client should keep the
 results of game queries it needs for drawing and enabling controls, and refresh them only
 when a relevant change to game state makes them stale. Define which state changes invalidate
 which cached information (for example, unit movement invalidates position-, path- and
@@ -412,19 +410,6 @@ was re-forked from `f4x-ai` (`scripts/fork_ai.py`) so it has the same `controlle
 *Done 7 November 2026:* the master state is saved (`Game::flow`, `Master::checkpoints`, `Master::from_game`); the client autosaves at the start of every round. *Open:* the soak's own snapshots should be game saves, the AI's memory is not saved, `game-flow.md` still describes the old end-turn,
 a client test for a defence mid-round, and a soak to check the balance of the per-player economy.
 
-**Keep this file sorted by task number**: the table and the descriptions below it, both in ascending order. A new task goes at its numeric place in each (a gap is fine; take the next free number across this file and `TASKS-DONE.md`).
-Every row has a priority after its number: High, Medium or Low.
-Add a summary to the table, then details under Descriptions.
-
-Bracketed numbers like [430] point at topics in the original help
-(`content-local/help.ron`)
-B/C numbers point at `help-vs-implementation-conflicts.md`.
-
-Gaps found while working on the base game are added here as new tasks, not left in notes.
-
-Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
-`python3 scripts/archive_done_tasks.py` (a task is done when its row or title says "(done)").
-
 **479. The crates below the client know no display text.** Tests of interface text sit in the client,
 and nothing below it needs to know what the client calls a building, unit or spell. Done (task 467):
 the rules carry numbers and the readable alias `id` only, the display names are the client's
@@ -446,8 +431,6 @@ unit's `id`, a city `<race id>_city_00`, `_01`, and so on, a rival `rival_1`, `r
 composition code to the client; (3) drop `CLIENT_FOLDER`, `Content.texts` and the client folder from
 core's test content and the data tests. Saves keep their numbers. Do not break the text/code
 agreement tests (`crates/f4x-client/tests/it/text.rs`): they scan every crate's sources for keys.
-
-**482. `Effect::Special` carries a tag.** Decided by the user, 6 November 2026. Today `Effect::Special` has no data and the code finds its Rust by the spell's number (`def.num == 73` in `battle/spell.rs`, `f4x-ai/src/battle/cast.rs`, `spell/cast.rs`, `spell/special.rs`, `spell/hero.rs`, the client's summon scene, the AI's wizardry, `f4x-learn`). Make it `Special("tag")` in `spells.ron` (50 spells), dispatch on the tag, and let `hook::problems` check the tags the code knows (replacing `SPECIAL_SPELLS`). Same for the number matches that stand for a hook (`city_flag` then `87`/`178`). **Revised, 7 November 2026 (decided by the user):** no `Special("tag")`. Spells use the default effect engine as far as they can; what they cannot do goes through a hook, a tag with arguments that is part of the spell's definition, and several spells may carry the same hook (the handler gets the spell's definition and never assumes one spell; no `num ==` inside a handler). `Effect::Special` and `SPECIAL_SPELLS` are removed. The Spell of Mastery and the Spell of Return are hooks of their own (`spell_of_mastery`, `spell_of_return`), each with its own file, so a mod could give the effect to another spell. Needs task 486 (the hook syntax) first. Work through the steps in `docs/archive/special-spells-checklist.md` (the 50 spells grouped, with the number-match sites to clear), one group at a time.
 
 **483. Review the constants in code.** Raised by the user, 6 November 2026, during the `f4x-def` work (task 481). Numbers and lists that are fixed in the Rust source and never change during play are definitions in all but place. Go through `f4x-core` (and the other crates below the client) and list them: the map generator's defaults (`GenParams`: towers, nodes, sites, `REFERENCE_AREA`), the limits (`MAX_TILE_LIMIT`, `MAX_STACK`, `MAX_SIDE_UNITS`, `MAX_OPPONENTS`, `PICKS`), the hero constants (`CHARMED_RESISTANCE`, the `by_tier` fractions, the ability numbers in `HeroAbilities`), and the like. For each, decide: it stays in code (a true invariant of the rules engine, or a technical limit), it moves into a content file (a rule of the game that a mod might change), or it becomes a setting in `rules_settings.ron` (a choice the player or the difficulty level makes). Done when the list is in this file or `docs/`, with the decision for each, and the ones that move are moved (one task each if they are many).
 

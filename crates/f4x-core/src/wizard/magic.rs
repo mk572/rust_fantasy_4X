@@ -96,6 +96,11 @@ pub enum MagicError {
 }
 
 impl MagicError {
+    /// Refused only because the spell would do nothing: the caster may confirm and cast anyway.
+    pub fn is_pointless(self) -> bool {
+        matches!(self, Self::AlreadyEnchanted | Self::AlreadyAble)
+    }
+
     /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {
         match self {

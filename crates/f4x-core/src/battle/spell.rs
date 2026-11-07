@@ -937,21 +937,17 @@ impl Game {
         def: &SpellDef,
         unit: &super::BattleUnit,
     ) -> Result<(), SpellError> {
-        if unit.enchantments.contains(&spell) {
-            return Err(SpellError::AlreadyEnchanted);
+        let carrier = crate::spell::stacking::Carrier {
+            has_spell: &|id| unit.enchantments.contains(&id),
+            has_ability: &|a| unit.has(a),
+            effects: unit.effects,
+        };
+        match crate::spell::stacking::stacking_refusal(spell, def, &carrier, &|id| {
+            self.has_global(player, id)
+        }) {
+            Some(why) if !(why.is_pointless() && self.confirmed) => Err(why.into()),
+            _ => Ok(()),
         }
-        if def
-            .not_with
-            .iter()
-            .copied()
-            .any(|id| unit.enchantments.contains(&id) || self.has_global(player, id))
-        {
-            return Err(SpellError::NotCumulative);
-        }
-        if def.already_able.clone().iter().any(|&a| unit.has(a)) {
-            return Err(SpellError::AlreadyAble);
-        }
-        Ok(())
     }
 
     /// What a lasting spell with no rules of its own gives a unit of the battle: Heroism raises it

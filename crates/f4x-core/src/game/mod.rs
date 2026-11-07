@@ -86,6 +86,9 @@ pub struct Game {
     /// Players of battles that play for some wizards (a learned one; see `battle::game`).
     pub(crate) battle_brains: Vec<(hecs::Entity, Box<dyn battle::game::BattleBrain>)>,
     pub(crate) recording: Option<game::replay::Recording>,
+    /// Set while a command the caster confirmed runs (`Command::Anyway`): a spell that would do
+    /// nothing is cast anyway.
+    pub(crate) confirmed: bool,
     undo_on: bool,
     undo_stack: Vec<game::undo::UndoEntry>,
 }
@@ -119,6 +122,7 @@ impl Game {
             prefab_taken: Vec::new(),
             battle_brains: Vec::new(),
             recording: None,
+            confirmed: false,
             undo_on: false,
             undo_stack: Vec::new(),
         }
@@ -487,6 +491,12 @@ impl Game {
             Command::EnterSite { units, to } => self
                 .enter_site(&units, to)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Site(e))]),
+            Command::Anyway(inner) => {
+                self.confirmed = true;
+                let events = self.execute_command(*inner);
+                self.confirmed = false;
+                events
+            }
             Command::Battle(command) => self
                 .battle_command(command)
                 .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Battle(e))]),

@@ -339,17 +339,7 @@ impl Game {
             }),
             // A unit held in Stasis cannot act: it is as if asleep.
             warp: None,
-            enchantments: {
-                let mut list = self.units().unit_enchantment_ids(unit);
-                // Held in Stasis it counts as under Black Sleep, so no other sleep can be put on it.
-                if self.unit_in_stasis(unit) {
-                    list.extend(
-                        crate::spell::unit_effect::UnitEffect::BlackSleep
-                            .spell_in(&self.content.rules),
-                    );
-                }
-                list
-            },
+            enchantments: self.units().unit_enchantment_ids(unit),
             effects: {
                 let mut effects = self.units().unit_effects(unit);
                 if self.unit_in_stasis(unit) {

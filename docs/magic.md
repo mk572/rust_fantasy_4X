@@ -114,8 +114,14 @@ left (task 61).
   (`NotCumulative`); `already_able` names the abilities a unit has by nature that make the spell
   pointless (Wraith Form on a non-corporeal unit: Immolation, Cloak of Fear, True Sight, Magic
   Immunity, Planar Travel, Invisibility, Wraith Form, Wind Walking, Regeneration)
-  (`AlreadyAble`). The same checks run in a battle (`SpellError`). The no-target prompt and the AI
-  read the same check, so a unit that cannot take the spell is not a target.
+  (`AlreadyAble`). One rule, `stacking_refusal`, serves the map and the battle (`SpellError`); it
+  also refuses a spell whose `unit_effect`s the unit has all of already (Confusion on a unit under
+  Black Sleep, a Stasis unit asleep in a battle). The no-target prompt and the AI read the same
+  check, so a unit that cannot take the spell is not a target.
+  **Pointless casts can be confirmed.** `AlreadyEnchanted` and `AlreadyAble` mean the spell would
+  do nothing (`is_pointless`); the client asks "cast it anyway?" and sends the same command wrapped
+  in `Command::Anyway`, which lifts only those two refusals for that one command. `NotCumulative`
+  is never lifted. The AI never sends `Anyway`, so it never casts a pointless spell.
 
 ## 7. What a spell does
 

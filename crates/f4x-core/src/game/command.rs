@@ -56,6 +56,9 @@ pub enum Command {
         #[serde(with = "game::replay::stable_ref::many")]
         defenders: Vec<hecs::Entity>,
     },
+    /// The command, after the player was told it would do nothing (a lasting spell the unit has
+    /// already) and chose to go on. The AI never sends it.
+    Anyway(Box<Command>),
     /// An order in the battle being fought.
     Battle(battle::BattleCommand),
     /// Fight a battle between two stacks to the end without the tactical map.

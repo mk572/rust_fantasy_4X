@@ -160,6 +160,24 @@ pub enum SpellError {
     Warded,
 }
 
+impl From<crate::spell::stacking::Stacking> for SpellError {
+    fn from(why: crate::spell::stacking::Stacking) -> Self {
+        use crate::spell::stacking::Stacking;
+        match why {
+            Stacking::AlreadyEnchanted => Self::AlreadyEnchanted,
+            Stacking::NotCumulative => Self::NotCumulative,
+            Stacking::AlreadyAble => Self::AlreadyAble,
+        }
+    }
+}
+
+impl SpellError {
+    /// Refused only because the spell would do nothing: the caster may confirm and cast anyway.
+    pub fn is_pointless(self) -> bool {
+        matches!(self, Self::AlreadyEnchanted | Self::AlreadyAble)
+    }
+}
+
 impl SpellError {
     /// The key of its sentence in `content/text`.
     pub fn key(self) -> &'static str {

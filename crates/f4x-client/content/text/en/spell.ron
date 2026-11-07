@@ -58,4 +58,6 @@
     "spell.special": "Special",
     "spell.choose_unwarded": "Choose one of your cities that is not warded against every realm",
     "spell.no_valid_target": "No valid target there",
+    // Asked before a lasting spell is cast on a target that has its effect already.
+    "spell.cast_anyway": "{spell} would do nothing there: the target has its effect already.  Cast it anyway?",
 }

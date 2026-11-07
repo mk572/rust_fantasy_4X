@@ -18,6 +18,7 @@ mod battle_info;
 mod battle_screen;
 mod bigbook;
 mod built_popup;
+mod cast_anyway;
 mod chancellor;
 mod city_list_screen;
 mod city_screen;

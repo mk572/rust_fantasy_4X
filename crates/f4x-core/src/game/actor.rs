@@ -15,6 +15,7 @@ impl Game {
             |units: &[hecs::Entity]| units.first().and_then(|&u| self.units().unit_owner(u));
         let city = |c: hecs::Entity| self.economy().city_owner(c);
         match command {
+            Command::Anyway(inner) => self.command_actor(inner),
             Command::EndTurn
             | Command::StartRound
             | Command::EndRound

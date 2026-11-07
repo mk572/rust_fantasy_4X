@@ -220,3 +220,56 @@ fn an_instant_spell_is_never_refused_for_stacking() {
     let u = unit(&mut g, 107 /* high_men_cavalry */);
     assert_eq!(aim(&g, u, 125 /* healing */), Ok(()));
 }
+
+#[test]
+fn a_spell_whose_effects_the_unit_has_already_is_pointless_but_may_be_confirmed() {
+    let mut g = world();
+    let u = unit(&mut g, 107 /* high_men_cavalry */);
+    enchant(&mut g, u, 165 /* black_sleep: holds the unit */);
+    // Confusion also holds the unit, so it would add nothing.
+    let by_enemy =
+        |g: &Game| g.check_target(P1, spell(g, 46 /* confusion */), Some(Target::Unit(u)));
+    assert_eq!(by_enemy(&g), Err(MagicError::AlreadyEnchanted));
+    assert!(MagicError::AlreadyEnchanted.is_pointless());
+    g.confirmed = true;
+    assert_eq!(by_enemy(&g), Ok(()));
+}
+
+#[test]
+fn a_confirmation_does_not_lift_a_refusal_that_is_more_than_pointless() {
+    let mut g = world();
+    let u = unit(&mut g, 107 /* high_men_cavalry */);
+    enchant(&mut g, u, 24 /* iron_skin */);
+    g.confirmed = true;
+    assert_eq!(
+        aim(&g, u, 7 /* stone_skin */),
+        Err(MagicError::NotCumulative)
+    );
+}
+
+#[test]
+fn only_the_confirmed_command_goes_through() {
+    let mut g = world();
+    let u = unit(&mut g, 107 /* high_men_cavalry */);
+    enchant(&mut g, u, 4 /* giant_strength */);
+    let cast = Command::CastSpell {
+        player: P0,
+        spell: spell(&g, 4),
+        target: Some(Target::Unit(u)),
+        extra: 0,
+    };
+    // The check the command runs first, with and without the confirmation.
+    assert_eq!(
+        g.check_target(P0, spell(&g, 4), Some(Target::Unit(u)))
+            .err()
+            .filter(|e| e.is_pointless()),
+        Some(MagicError::AlreadyEnchanted)
+    );
+    let events = g.apply(Command::Anyway(Box::new(cast)));
+    assert!(!g.confirmed, "the confirmation lasts for one command");
+    // Whatever else it meets (no such spell known), it is not the pointless-cast refusal.
+    assert!(!events.iter().any(|e| matches!(
+        e,
+        crate::game::Event::Rejected(crate::game::Rejection::Magic(MagicError::AlreadyEnchanted))
+    )));
+}

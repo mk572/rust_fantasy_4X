@@ -85,6 +85,8 @@ pub(crate) struct BattleUi {
     aiming: Option<Aiming>,
     /// Animate Dead or Raise Dead chosen: the list of the fallen to pick from.
     fallen_list: Option<SpellId>,
+    /// A cast the game refused because it would do nothing, waiting for the player to confirm it.
+    confirm_cast: Option<BattleCommand>,
     /// The fallen unit ticked in that list, until OK casts the spell on it.
     fallen_pick: Option<usize>,
     /// The Auto button is on: the computer plays the human's side too, until the battle ends
@@ -768,6 +770,11 @@ impl App {
 
     /// Send one order to the battle and tell what came of it.
     fn battle_order(&mut self, ui: &mut BattleUi, order: BattleCommand) {
+        self.battle_order_as(ui, order, false);
+    }
+
+    /// `battle_order`, after the player confirmed a cast that would do nothing when `confirmed`.
+    fn battle_order_as(&mut self, ui: &mut BattleUi, order: BattleCommand, confirmed: bool) {
         let before = self.game.battle().cloned();
         ui.cast_target = match (&order, &before) {
             (BattleCommand::Cast { aim, .. } | BattleCommand::UnitCast { aim, .. }, Some(b)) => {
@@ -779,7 +786,12 @@ impl App {
             }
             _ => None,
         };
-        let events = self.game.apply(Command::Battle(order));
+        let command = Command::Battle(order.clone());
+        let events = self.game.apply(if confirmed {
+            Command::Anyway(Box::new(command))
+        } else {
+            command
+        });
         self.record_combat_results(&events);
         // A summoned creature has a name too.
         if let Some(b) = self.game.battle() {
@@ -822,6 +834,12 @@ impl App {
                     });
                     ui.log.push(line.clone());
                     self.log.push(line);
+                }
+                Event::Rejected(f4x_core::game::Rejection::Battle(
+                    f4x_core::battle::BattleError::Spell(why),
+                )) if why.is_pointless() && !confirmed => {
+                    // The player is asked, not told.
+                    ui.confirm_cast = Some(order.clone());
                 }
                 Event::Rejected(why) => {
                     let line = self.text(why.key());
@@ -1215,6 +1233,9 @@ impl App {
         hovered: Option<Pos>,
         input: &Input,
     ) {
+        if ui.confirm_cast.is_some() {
+            return;
+        }
         if ui.aiming.is_some() || ui.spell_list || ui.fallen_list.is_some() {
             return self.spell_input(ui, battle, hovered, input);
         }
@@ -1998,6 +2019,31 @@ impl App {
         }
         if let Some(spell) = ui.fallen_list.filter(|_| my_turn) {
             self.draw_fallen_list(ui, battle, spell, input);
+        }
+        if let Some(order) = ui.confirm_cast.clone().filter(|_| my_turn) {
+            self.draw_cast_anyway(ui, order, input);
+        }
+    }
+
+    /// The question before a cast that would do nothing: Yes sends it again, confirmed.
+    fn draw_cast_anyway(&mut self, ui: &mut BattleUi, order: BattleCommand, input: &Input) {
+        let (BattleCommand::Cast { spell, .. } | BattleCommand::UnitCast { spell, .. }) = order
+        else {
+            ui.confirm_cast = None;
+            return;
+        };
+        let name = self
+            .names
+            .spell(self.game.content().rules.spells.get(spell).num)
+            .to_string();
+        let text = self.text_with("spell.cast_anyway", &Args::new().text("spell", &name));
+        match self.confirmation_box(&Layout::new(), &text, input) {
+            Some(true) => {
+                ui.confirm_cast = None;
+                self.battle_order_as(ui, order, true);
+            }
+            Some(false) => ui.confirm_cast = None,
+            None => {}
         }
     }
 

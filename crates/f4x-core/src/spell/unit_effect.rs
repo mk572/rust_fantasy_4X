@@ -71,6 +71,16 @@ impl UnitEffects {
         set
     }
 
+    /// Whether the set has no effect.
+    pub fn is_empty(self) -> bool {
+        self.0 == 0
+    }
+
+    /// Whether every effect of `other` is in this set.
+    pub fn covers(self, other: UnitEffects) -> bool {
+        self.0 & other.0 == other.0
+    }
+
     pub fn insert(&mut self, effect: UnitEffect) {
         self.0 |= effect.bit();
     }

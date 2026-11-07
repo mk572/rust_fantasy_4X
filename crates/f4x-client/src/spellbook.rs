@@ -489,7 +489,12 @@ impl App {
                 target: Some(target),
             }
         };
-        let events = self.game.apply(cmd);
+        let events = self.game.apply(cmd.clone());
+        if Self::refused_as_pointless(&events) {
+            // Nothing is shown of the refusal: the player is asked instead.
+            self.ask_cast_anyway(cmd, t.spell, Some(t));
+            return;
+        }
         let rejected = events
             .iter()
             .any(|e| matches!(e, f4x_core::game::Event::Rejected(_)));
