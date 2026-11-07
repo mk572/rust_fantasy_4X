@@ -56,6 +56,15 @@ pub const GAME_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// makes older files unreadable; leave it when they still load.
 pub const OLDEST_COMPATIBLE_VERSION: &str = "0.0.2";
 
+/// The conversions that bring a save of an older game version up to the current layout of its
+/// numbers: `(first game version that writes the new form, conversion)`, oldest first. A save whose
+/// game version is below an entry's has the conversion applied when it is read, in order. Add an
+/// entry in the change that alters what a number in a save means (a unit of an amount, an id
+/// scheme), and bump the workspace version to that release in the same change. 0.0.5 moved the
+/// amounts counted in halves to `HalfInt`, which writes the same raw half count the older versions
+/// wrote, so it needs no conversion.
+const UPGRADES: &[(&str, fn(&mut Snapshot))] = &[];
+
 /// `"0.0.4"` as numbers, to compare versions (`"0.0.10"` is newer than `"0.0.9"`).
 fn version_parts(version: &str) -> Option<Vec<u32>> {
     version.split('.').map(|p| p.parse().ok()).collect()
@@ -1054,7 +1063,20 @@ impl Snapshot {
 
     pub fn from_text(text: &str) -> Result<Self, LoadError> {
         check_snapshot_text(text)?;
-        ron::from_str(text).map_err(|e| LoadError::Parse(e.to_string()))
+        let mut snapshot: Self =
+            ron::from_str(text).map_err(|e| LoadError::Parse(e.to_string()))?;
+        snapshot.upgrade();
+        Ok(snapshot)
+    }
+
+    /// Apply the [`UPGRADES`] newer than the game version that wrote this snapshot.
+    fn upgrade(&mut self) {
+        let written = version_parts(&self.game_version);
+        for (from, convert) in UPGRADES {
+            if written < version_parts(from) {
+                convert(self);
+            }
+        }
     }
 
     /// Rebuild the game, resolving every id against `content`.
