@@ -1,6 +1,6 @@
 //! The question before the turn ends when the reserves cannot pay the upkeep: which lasting
 //! spells and summoned creatures, which troops, ships and heroes to give up.
-//! Without an answer the turn change lets go of the newest. A second page appears when released
+//! Without an answer the turn change lets go of the items with the highest upkeep. A second page appears when released
 //! heroes bring more items home than the armory holds: which to disband for mana.
 
 use crate::font::{rgb, Ink, Style};
@@ -733,6 +733,7 @@ mod tests {
             Ok(UpkeepLine {
                 kind: UpkeepKind::Global(spell),
                 mana,
+                cost: 0,
             })
         };
         Ok(Shortfall {
@@ -788,11 +789,14 @@ mod tests {
         let (text, enough) = prompt.status(texts);
         assert!(!enough);
         assert_eq!(
-            text, "Short by 15 mana: the newest go.",
+            text, "Short by 15 mana: the costliest upkeep goes.",
             "20 freed, 25 in the reserve, 60 owed"
         );
         prompt.toggle(Line::Mana(0));
-        assert_eq!(prompt.status(texts).0, "Short by 5 mana: the newest go.");
+        assert_eq!(
+            prompt.status(texts).0,
+            "Short by 5 mana: the costliest upkeep goes."
+        );
         prompt.toggle(Line::Mana(2));
         assert!(prompt.status(texts).1);
         prompt.toggle(Line::Header("upkeep.mana"));

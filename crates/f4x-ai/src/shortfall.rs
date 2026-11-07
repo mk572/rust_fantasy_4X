@@ -1,12 +1,16 @@
 //! Running short of mana, gold or food: the AI chooses what to give up as a
 //! player does, through `ReleaseUpkeep` and `ReleaseTroops`, instead of leaving it to the turn
-//! change. The rules are deliberately plain and fixed, so the scripted AI is deterministic:
-//! mana: the newest spells and summons go (what the turn change would do); gold: first sell
-//! buildings that do the AI no good, then let go of the cheapest units, ships with passengers and
-//! heroes last; food: the cheapest units that eat.
+//! end. The choice is the AI's own (the game's default is only a fallback), and plain and fixed,
+//! so the scripted AI is deterministic: what costs the most of the missing resource goes first
+//! and, among equals, what is cheapest to replace, then the newest; ships with passengers and
+//! heroes last. Mana: spells and summons; gold: first sell buildings that do the AI no good,
+//! then let go of units; food: units that eat.
 
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::player::shortfall::TreasuryShortfall;
+use f4x_core::player::upkeep::Shortfall;
+use f4x_core::spell::cast::UpkeepKind;
+use std::cmp::Reverse;
 
 use crate::Ai;
 
@@ -26,7 +30,7 @@ const SELL_ORDER: &[&str] = &[
 pub fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     if let Some(short) = game.upkeep_shortfall(me) {
-        let items = short.default_release();
+        let items = choose_upkeep(&short);
         ai.send(game, Command::ReleaseUpkeep { player: me, items }, events);
     }
     sell_for_gold(ai, game, events);
@@ -90,16 +94,44 @@ fn next_sale(
     None
 }
 
-/// The units to let go: cheap ones first, ships carrying passengers and heroes last. Food is
-/// settled first, and a unit let go for food no longer counts for gold.
-fn choose_troops(short: &TreasuryShortfall) -> Vec<hecs::Entity> {
-    let mut order: Vec<usize> = (0..short.troops.len()).collect();
+/// The spells and summons to give up: the highest mana upkeep first, then the cheapest to
+/// replace, then the newest, until the reserve covers the rest.
+fn choose_upkeep(short: &Shortfall) -> Vec<UpkeepKind> {
+    let mut order: Vec<usize> = (0..short.lines.len()).collect();
     order.sort_by_key(|&i| {
-        let t = &short.troops[i];
-        (t.hero, t.ship && t.aboard > 0, t.cost, std::cmp::Reverse(i))
+        let line = &short.lines[i];
+        (Reverse(line.mana), line.cost, Reverse(i))
     });
+    let mut owed = short.owed;
+    let mut items = Vec::new();
+    for i in order {
+        if owed <= short.reserve {
+            break;
+        }
+        items.push(short.lines[i].kind);
+        owed -= short.lines[i].mana;
+    }
+    items
+}
+
+/// The units to let go: those with the highest upkeep in the missing resource first, then the
+/// cheapest to make, then the newest; ships carrying passengers and heroes last. Food is settled
+/// first, and a unit let go for food no longer counts for gold.
+fn choose_troops(short: &TreasuryShortfall) -> Vec<hecs::Entity> {
     let mut released: Vec<hecs::Entity> = Vec::new();
     for want_food in [true, false] {
+        let mut order: Vec<usize> = (0..short.troops.len()).collect();
+        order.sort_by_key(|&i| {
+            let t = &short.troops[i];
+            let upkeep = if want_food { t.food } else { t.gold };
+            (
+                t.hero,
+                t.ship && t.aboard > 0,
+                Reverse(upkeep),
+                t.cost,
+                Reverse(i),
+            )
+        });
         for &i in &order {
             let (food, gold) = short.missing(&released);
             let need = if want_food { food } else { gold };

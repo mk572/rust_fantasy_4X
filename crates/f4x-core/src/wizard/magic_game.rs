@@ -180,10 +180,25 @@ impl Game {
 
     // ---- turn change -------------------------------------------------------------
 
-    /// One wizard's magic at the end of their turn: income, research, upkeep, casting (the
-    /// original does each step for all wizards in turn; the turn is now the player's own). The
-    /// temporary effects, global spells and experience that used to start here are the
-    /// round's (`turn.rs`).
+    /// The research that finished at the last turn end is learned and the next spell is chosen,
+    /// at the start of the wizard's turn (`collect_power` added the points at the end).
+    pub(crate) fn process_research(&mut self, player: PlayerId) -> Vec<Event> {
+        let mut events = Vec::new();
+        if let Some(spell) = self
+            .wizard_mut(player)
+            .and_then(|mut w| w.finish_research())
+        {
+            events.push(Event::SpellLearned { player, spell });
+        }
+        self.refill_research(player);
+        events
+    }
+
+    /// One wizard's magic at the end of their turn: income (mana, research points, skill),
+    /// mana upkeep, casting (the original does each step for all wizards in turn; the turn is
+    /// now the player's own). The research is learned at the next turn's start
+    /// ([`Game::process_research`]); the temporary effects, global spells and experience that
+    /// used to start here are the round's (`turn.rs`).
     pub(crate) fn process_magic(&mut self, player: PlayerId) -> Vec<Event> {
         let mut events = Vec::new();
         // While Time Stop lasts, its wizard has no income and only the others' time is stopped
@@ -193,13 +208,6 @@ impl Game {
             let income = self.income(player);
             self.collect_power(player, &income.split, income.research);
         }
-        if let Some(spell) = self
-            .wizard_mut(player)
-            .and_then(|mut w| w.finish_research())
-        {
-            events.push(Event::SpellLearned { player, spell });
-        }
-        self.refill_research(player);
         events.extend(self.apply_mana_upkeep(player));
         if stopper.is_none_or(|s| s == player) {
             // A spell with nothing to aim at is not paid for; its wizard is asked whether to stop.

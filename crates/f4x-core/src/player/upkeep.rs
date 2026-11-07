@@ -1,6 +1,6 @@
 //! The wizard's choice of what to give up when the mana reserve cannot pay the upkeep.
 //!
-//! The turn change drops the newest items by itself until the reserve covers the rest
+//! The turn end drops the highest upkeep by itself (the cheapest to replace first among equals) until the reserve covers the rest
 //! (`magic::upkeep_plan`). A player who would like to choose asks [`Game::upkeep_shortfall`]
 //! before ending the turn, and answers with `Command::ReleaseUpkeep`: what is released goes
 //! at once, so the turn change finds the reserve enough (or drops only what is still short).
@@ -18,6 +18,8 @@ pub struct UpkeepLine {
     pub kind: UpkeepKind,
     /// What it costs each turn (a Channeler's half already taken).
     pub mana: i32,
+    /// What it takes to replace it (see `UpkeepItem::cost`).
+    pub cost: i32,
 }
 
 /// The upkeep the next turn change cannot pay.
@@ -32,17 +34,19 @@ pub struct Shortfall {
 }
 
 impl Shortfall {
-    /// What the turn change would give up by itself: the newest first until the reserve covers
-    /// the rest.
+    /// What the turn change would give up by itself (`magic::upkeep_release_order`): the
+    /// highest upkeep first, then the cheapest to replace, then the newest, until the reserve
+    /// covers the rest.
     pub fn default_release(&self) -> Vec<UpkeepKind> {
         let mut owed = self.owed;
         let mut out = Vec::new();
-        for line in self.lines.iter().rev() {
+        let entries: Vec<(i32, i32)> = self.lines.iter().map(|l| (l.mana, l.cost)).collect();
+        for i in crate::wizard::magic::upkeep_release_order(&entries) {
             if owed <= self.reserve {
                 break;
             }
-            out.push(line.kind);
-            owed -= line.mana;
+            out.push(self.lines[i].kind);
+            owed -= self.lines[i].mana;
         }
         out
     }
@@ -70,6 +74,7 @@ impl Game {
             .map(|i| UpkeepLine {
                 kind: i.kind,
                 mana: i.mana * percent / 100,
+                cost: i.cost,
             })
             .collect();
         Some(Shortfall {

@@ -11,6 +11,8 @@ fn troop(id: hecs::Entity, food: i32, gold: i32) -> Troop {
         food: food * 2, // whole food in the call, half food in the troop
         gold,
         noble_hero: false,
+        cost: 0,
+        last: false,
     }
 }
 
@@ -50,7 +52,7 @@ fn fame_cannot_make_the_upkeep_negative() {
 }
 
 #[test]
-fn an_army_that_eats_too_much_loses_its_newest_units() {
+fn an_army_that_eats_too_much_loses_its_newest_units_when_all_are_alike() {
     let e = ids(3);
     let troops = [troop(e[0], 1, 0), troop(e[1], 1, 0), troop(e[2], 1, 0)];
     let t = Budget {
@@ -100,6 +102,8 @@ fn halves_of_food_are_added_before_they_are_rounded_up() {
         food: 1,
         gold: 0,
         noble_hero: false,
+        cost: 0,
+        last: false,
     };
     let one = Budget::compute(&[], &[half(e[0])], 0);
     let two = Budget::compute(&[], &[half(e[0]), half(e[1])], 0);
@@ -108,4 +112,37 @@ fn halves_of_food_are_added_before_they_are_rounded_up() {
         (one.food_upkeep, two.food_upkeep, three.food_upkeep),
         (1, 1, 2)
     );
+}
+
+#[test]
+fn the_highest_upkeep_goes_first_then_the_cheapest_to_make_then_the_newest() {
+    let e = ids(4);
+    let mut troops = [
+        troop(e[0], 0, 2),
+        troop(e[1], 0, 5),
+        troop(e[2], 0, 5),
+        troop(e[3], 0, 2),
+    ];
+    troops[1].cost = 90;
+    troops[2].cost = 40;
+    let order: Vec<_> = release_order(&troops, |u| u.gold)
+        .into_iter()
+        .map(|i| troops[i].id)
+        .collect();
+    // Upkeep 5 first (the cheaper to make, e[2], before e[1]), then upkeep 2, newest first.
+    assert_eq!(order, vec![e[2], e[1], e[3], e[0]]);
+}
+
+#[test]
+fn heroes_and_loaded_ships_are_let_go_last() {
+    let e = ids(3);
+    let mut troops = [troop(e[0], 0, 9), troop(e[1], 0, 2), troop(e[2], 0, 3)];
+    troops[0].last = true;
+    let t = Budget {
+        unit_upkeep: 14,
+        ..Budget::default()
+    };
+    // 10 gold does not cover 14: the highest upkeep that is not last (e[2], then e[1]) goes first.
+    let s = settle(&t, 10, 0, &troops);
+    assert_eq!(s.disbanded, vec![e[2], e[1]]);
 }

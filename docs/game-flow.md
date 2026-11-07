@@ -36,16 +36,18 @@ draw, log, animate from events and queries
   run the command log still reproduces a game from its seed; commands carry entity ids, so a
   log cannot be replayed across a load (the loaded entities have new ids).
 
-There are no per-player turns inside the core: all players issue commands as they like, and
-`EndTurn` then processes everyone at once. A hot-seat or AI layer decides who acts when.
-Commands do not carry an acting player, so **ownership is not checked**: the caller is
-trusted. (Needed before any networked play.)
+The core has per-player lifecycle phases (section 4) but does not decide who acts when:
+`f4x-master` runs the rounds and seats and checks a command against the active player
+(`Game::command_actor`). A command called directly on the core does not carry an acting
+player, so **ownership is not checked** there: the caller is trusted. (Needed before any
+networked play.)
 
 ## 2. Commands and their events
 
 | Command | What it does | Events on success | Typical rejections |
 |---|---|---|---|
-| `EndTurn` | Runs the turn (section 4) | `TurnStarted`, then everything the turn produced | none |
+| `StartRound`, `StartPlayerTurn`, `EndPlayerTurn`, `EndRound` | The lifecycle phases (section 4) | `TurnStarted` (round start), then everything the phase produced | none |
+| `EndTurn` | All four phases for every player (compatibility, section 4) | as the phases | none |
 | `CreateUnit { owner, pos, unit }` | Makes a unit with full moves and health; explores around it | `UnitCreated` | none (not validated: for scenario setup and summoning) |
 | `MoveStack { units, to }` | One step of a stack to an adjacent tile | `UnitsMoved`, or `AttackRequested` if hostile | `Move(...)` |
 | `GoTo { units, to }` | Plans a route and starts walking it at once | `UnitsMoved`... (as far as moves allow), or `AttackRequested` | `Move(Impassable)` if there is no route |
@@ -123,74 +125,70 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 
 ## 4. The turn
 
-There is no generic turn-start callback or event listener. `EndTurn` is an explicit orchestration
-method in `game/mod.rs`; it calls `process_turn` in `turn.rs`, and then performs the remaining
-post-turn steps. The order below follows those methods.
+A game runs in **rounds**; in each round every player takes one **turn**, in a fixed order (seat
+order, the human first, the neutral seat last: independent cities and monsters). The core
+offers four lifecycle phases, recorded `Command`s like any other, and `f4x-master` runs them in
+order and asks each seat (human, AI, neutrals) to act in between (`docs/turn-structure.md` has
+the design and the cadence table, section 7.1):
 
-### 4.1 Before the main turn pipeline: `Game::end_turn`
+| Phase | Command | What it does |
+|---|---|---|
+| Round start | `StartRound` | `Game.turn` advances, `TurnStarted`, world events (`process_events`), threats (`process_threats`) |
+| Turn start | `StartPlayerTurn { player }` | what changes the land and the people, then the player's units become ready (4.1) |
+| Turn end | `EndPlayerTurn { player }` | the player's income, bills and production (4.2) |
+| Round end | `EndRound` | durations and world-wide processes, once (4.3) |
 
-1. Close raze windows and reopen city sales.
-2. Process land corruption that is due before the turn counter advances.
-3. Increment `Game.turn`.
-4. Process stasis and refill each unit's movement allowance (units in stasis, and units not
-   owned by the Time Stop caster, receive zero moves). Clear completed standby state.
-5. Emit `Event::TurnStarted { turn }`.
-6. Call `process_turn` and append its events.
+`Command::EndTurn` stays as a composition for tests and tools: `EndPlayerTurn` for every player,
+`EndRound`, `StartRound`, `StartPlayerTurn` for every player.
 
-`TurnStarted` is an output notification in the returned event list. No rules are subscribed
-to it, and it does not dispatch `Trigger::OnTurnStart`.
+The order follows the original's turn change, which is why income, bills and production are the
+turn **end** (a defender finished now defends against the rivals' turns, and a shortage costs its
+units before the rivals can attack) and growth is the next turn **start**.
 
-### 4.2 Main pipeline: `turn.rs::process_turn`
+### 4.1 `Game::start_player_turn(player)`
 
-1. **Farmers and treasury.** Cities are sorted by creation serial. For each inhabited city,
-   raise farmers to the minimum needed to feed its citizens. Then settle each player in player
-   id order; the player under Time Stop is skipped. Food and gold upkeep are paid against the
-   cities as they stand, before growth.
-2. **Random events.** Call `process_events`. If the `random_events` game setting is on, it
-   may draw and play a new event; it also advances/twiddles ongoing event state. This is the
-   world-event system, not a rules `Trigger`, and it may produce event notifications for the caller.
-3. **Cities, in creation order.** Outposts run their growth/shrink step and may become cities
-   or be destroyed. Inhabited cities check production validity, refresh autobuild, compute the
-   city economy once, apply production (possibly completing a building or unit), then apply
-   population growth. Pestilence is applied after the growth result. Events record production
-   completion/blocking/impossibility and population changes.
-4. **Timed effects.** `tick_temp_effects` counts down temporary effects and removes expired
-   ones.
-5. **Global enchantments and vision.** `process_globals` applies the once-per-turn global
-   enchantment work (for example Herb Mastery healing) and refreshes spell/city vision.
-6. **World enchantments.** `process_world_enchantments` runs the per-turn effects of Great
-   Wasting, Armageddon and Meteor Storm.
-7. **World and unit maintenance.** Cool volcanoes, fade corruption, and process unit experience.
-8. **Wizard magic.** `process_magic` handles power income, research completion/refill, mana
-   upkeep, casting progress and resolution of finished spells.
-9. **Other explicit turn systems.** Apply Gaia's Blessing, heal wounded units, process Chaos
-   Rifts, process threats, and determine hero/merchant offers.
+1. Reopen the player's city sales; process stasis.
+2. Except in the first round: learn the research that finished and choose the next spell
+   (`process_research`); Gaia's Blessing and Chaos Rift (terrain and buildings change before
+   food is counted); outposts, population growth and pestilence of the player's cities
+   (`grow_city`); unit experience and healing.
+3. Refill each unit's moves (units in stasis, and units not owned by the Time Stop caster,
+   receive zero); clear completed standby. A unit finished at the last turn end moves now.
+4. Roll the player's offers; purify work; marooned ships sail and stranded units drown; road
+   work; follow standing orders in unit creation order.
 
-The ordering is significant: upkeep is settled before city growth; random events run before
-cities change; production and growth use the same pre-change city economy; and magic runs after
-the global/world enchantment and experience steps.
+### 4.2 `Game::end_player_turn(player)`
 
-### 4.3 After the main pipeline: remaining `Game::end_turn` work
+1. Close the player's raze windows; land corruption spreads under units that stood still (it
+   needs the moves the turn left unspent).
+2. Raise farmers to the minimum needed to feed each inhabited city.
+3. Settle the treasury (section 5): gold and food income, then food and gold upkeep. A wizard
+   under Time Stop is skipped.
+4. `process_magic`: mana income, research points, mana upkeep, casting progress and the
+   resolution of a finished spell.
+5. Production: each city checks that its item is possible, refreshes autobuild and applies its
+   production (a building or unit may complete).
 
-After `process_turn` returns, `end_turn`:
+The monsters' owner has units only and takes no part in 2 to 5.
 
-1. Records history.
-2. Processes diplomacy timers and related turn changes.
-3. Processes purifying work.
-4. Lets marooned ships sail to shore and drowns units still stranded.
-5. Advances road-building work.
-6. Follows standing orders, in unit creation order.
+### 4.3 `Game::end_round()`
+
+Temporary effects count down; global enchantments (Herb Mastery healing, vision) and world
+enchantments (Great Wasting, Armageddon, Meteor Storm) run; volcanoes cool and corruption fades;
+history is recorded; diplomacy timers advance. These run once per round however many players
+there are.
 
 Combat is not automatically invoked by the turn pipeline when movement encounters a hostile
 tile: movement emits `AttackRequested`, and the caller/client must handle that request.
 Likewise, `Event` values are returned to the caller for presentation or further orchestration;
 they are not callbacks into the rules engine.
+
 ## 5. The treasury
 
-`Game::treasury(player)` previews what the next `EndTurn` will do; the turn applies the same
+`Game::treasury(player)` previews what the next turn end will do; the turn end applies the same
 numbers.
 
-**Income**, from the player's cities as they stand before step 4 changes them:
+**Income**, from the player's cities as they stand at the turn end, before production changes them:
 - gold of each city (taxes, trade, mines, percentage buildings) minus its building upkeep;
 - plus ten gold per noble hero (none exist yet);
 - plus **spare food sold at two for one**: each city's food beyond what its citizens eat,
@@ -198,14 +196,15 @@ numbers.
 
 **Then upkeep:**
 - **Food.** Each normal unit eats one food. If the army needs more than the cities have
-  spare, units that eat are disbanded, newest first, until it fits.
+  spare, units that eat are disbanded until it fits: the highest food first, then the cheapest
+  to make, then the newest; heroes and loaded ships last.
 - **Gold.** Normal units and heroes cost their gold upkeep (a noble hero costs none), reduced
   by the player's fame, never below zero. Gold cannot go below zero: if the upkeep exceeds the
-  treasury (income already added), units that cost gold are disbanded newest first until it
-  fits, then the upkeep is paid.
+  treasury (income already added), units that cost gold are disbanded until it fits, in the same
+  order by gold upkeep, then the upkeep is paid.
 - Disbanded units are removed and one `UnitsDisbanded { player, units }` is emitted.
 
-Mana and research are not handled here yet. `balance_farmers(player)` is a helper, used by
+Mana and research are handled by `process_magic` (section 4.2). `balance_farmers(player)` is a helper, used by
 the client at game start, that sets farmers so the cities also feed the army.
 
 ## 6. Healing

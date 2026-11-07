@@ -531,7 +531,9 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
   anything with `Transport`, and the mana version (`WIZ_MatchManaUpkeep`) picks a random kind of
   asset and only the summons part is written.
 - Here the human is asked before ending the turn (`upkeep_prompt.rs`): one list of the spells and
-  summons that cost mana and of the troops that cost gold or food, the default (the newest) marked.
+  summons that cost mana and of the troops that cost gold or food, the default marked: the highest upkeep in the missing resource, then the cheapest to make, then
+  the newest (heroes and loaded ships last), for gold, food and mana alike, where the original
+  takes the newest (and, for mana, only summons: its enchantment branches are stubs).
   The AI follows the same rules and answers through the same commands (`ReleaseUpkeep`,
   `ReleaseTroops`; `f4x-ai/src/shortfall.rs`: sell dispensable buildings, then let go of the
   cheapest units, loaded ships and heroes last). Independent cities pay upkeep like everyone and

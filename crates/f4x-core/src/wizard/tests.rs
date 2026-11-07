@@ -557,7 +557,7 @@ fn eight_spells_are_on_offer_for_research_lowest_rarity_first() -> TestResult {
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Research>()
         .remaining = 0;
-    let events = g.process_magic_all();
+    let events = g.process_research_all();
     assert!(events
         .iter()
         .any(|e| matches!(e, crate::game::Event::SpellLearned { spell, .. } if *spell == pick)));

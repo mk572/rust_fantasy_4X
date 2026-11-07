@@ -132,17 +132,42 @@ work runs once per round; the order of players is fixed (seat order, the human f
 core keeps `Game.turn` as the round counter; `Command::EndTurn` stays as a compatibility
 composition of the four phases for tests and tools (all players, in order).
 
-**Revision (7 November 2026): the economy moves to the turn start.** A player's economy
-(magic, Gaia's Blessing and Chaos Rift, farmers, treasury, cities, experience, healing) runs at
-the start of their own turn so they act on the state they will see, and a unit built is ready
-to move at once. The order inside the start phase matters: stasis, then **magic** (a spell that
-finishes this turn counts), **Gaia's Blessing and Chaos Rift** (they change terrain and
-buildings), then min farmers, treasury, cities, experience and healing, then the moves refill
-(new units get their moves), offers, workers, orders. The first round has no economy (the game
-begins with the first turn), so the number of economy ticks per turn stays as before. The end
-phase keeps only what closes out the turn: raze windows and land corruption (which needs the
-moves the turn left unspent). In the table below, the rows marked `start_player_turn(p)` for
-these steps are the revised ones.
+**Revision (7 November 2026, replaces the table's cadence for the steps below).** The original's
+turn change (`NEXTTURN.c`) is: gold income, mana income and research and casting, upkeep (food,
+gold, mana), then per city growth and production. What a unit or building needs to defend must
+exist before the rivals act, and a shortage must cost its units before the rivals act. So the
+**income, the bills and the production are the player's turn end**, and what *changes the land and
+the people* is the next turn start:
+
+| Turn end (`end_player_turn`) | Turn start (`start_player_turn`) |
+|---|---|
+| raze windows, land corruption (needs the unspent moves) | reopen sales, stasis |
+| minimum farmers | research learned, next spell chosen (`process_research`) |
+| `settle_treasury`: gold and food income, then food and gold upkeep; a shortage releases units now | Gaia's Blessing, Chaos Rift (terrain and buildings change before food is counted) |
+| `process_magic`: mana income, research points, mana upkeep, casting (a summon or ward finished now defends) | outposts, population growth, pestilence (`grow_city`) |
+| city production: units and buildings finish, so they defend (`produce_city`) | experience, healing |
+| | moves refill (units finished at the end move now), offers, workers, orders |
+
+The first round skips the start-of-turn work (the game begins with the first turn), and the end
+work runs from the first turn on, so the number of ticks stays what it was. The research points
+arrive with the mana income at the end; learning the spell is the start's, because it has nothing
+to do with defence and the player sees it, and picks the next one, when they begin to act. Mana
+upkeep stays before casting, so the shortage preview is exact.
+
+**Shortages (decided 7 November 2026).** Every wizard pays, as today. The original drops the
+newest unit (it walks the unit table from the end) and only for the human, and for mana only the
+summons (the enchantment branches are stubs); ours releases the items that cost most of the
+missing resource, since those are the likely cause of the shortage:
+- *Default release, for gold, food and mana alike:* the **highest upkeep first** in the resource
+  that is short (gold upkeep for gold, food for food, mana for mana; summons and lasting spells
+  rank together for mana), until the books balance. Ties: the **lowest production cost first**
+  (the cheapest to replace; a spell's cost is its casting mana), then the newest. Heroes and loaded
+  ships stay last. The rule is `finance::release_order` and `magic::upkeep_release_order`; it
+  pre-marks the human's dialog and is the game's fallback.
+- *The AI's choice sits in `f4x-ai`* (`shortfall.rs`): it applies the same rule itself and
+  releases through `ReleaseTroops` and `ReleaseUpkeep` before it ends its turn; the game's
+  default is only the fallback for a wizard who did not choose (the human who closes the dialog,
+  a script).
 
 Phases (core operations, orchestrated by `f4x-master`): `start_round`, `start_player_turn(p)`,
 `end_player_turn(p)`, `end_round`.
@@ -156,15 +181,15 @@ Phases (core operations, orchestrated by `f4x-master`): `start_round`, `start_pl
 | `process_stasis` | player | `start_player_turn(p)` | `p`'s units, before the moves refill |
 | moves refill, `Standby::Done` cleared | player | `start_player_turn(p)` | Time Stop: units of others get 0 |
 | `TurnStarted` event | round | `start_round` | once per round |
-| min farmers | player | `start_player_turn(p)` | `p`'s cities |
-| `settle_treasury` | player | `start_player_turn(p)` | skipped for the Time Stop wizard as today |
+| min farmers | player | `end_player_turn(p)` | `p`'s cities |
+| `settle_treasury` | player | `end_player_turn(p)` | skipped for the Time Stop wizard as today |
 | `process_events` (world events) | round | `start_round` | before any player acts (turn-structure section 4) |
-| outposts, production, growth, pestilence | player | `start_player_turn(p)` | `p`'s cities |
+| outposts, production, growth, pestilence | player | production: `end_player_turn(p)`; outposts, growth, pestilence: `start_player_turn(p)` | `p`'s cities |
 | `tick_temp_effects`, `process_globals` | round | `end_round` | durations must not be multiplied by player count |
 | `process_world_enchantments` | round | `end_round` | |
 | `cool_volcanoes`, `fade_corruption` | round | `end_round` | |
 | `process_experience` | player | `start_player_turn(p)` | `p`'s units (already takes an owner filter) |
-| `process_magic` | player | `start_player_turn(p)` | power, research, upkeep, casting of `p` |
+| `process_magic` | player | `end_player_turn(p)` | mana income, research points, mana upkeep, casting of `p`; `process_research` (the learning) at `start_player_turn(p)` |
 | `process_gaias_blessing` | player | `start_player_turn(p)` | `p`'s cities |
 | `heal_units` | player | `start_player_turn(p)` | `p`'s units |
 | `process_chaos_rifts` | player | `start_player_turn(p)` | `p`'s cities hit what stands on them |

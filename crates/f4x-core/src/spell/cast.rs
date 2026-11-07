@@ -32,6 +32,9 @@ pub enum UpkeepKind {
 pub(crate) struct UpkeepItem {
     pub kind: UpkeepKind,
     pub mana: i32,
+    /// What it takes to replace it: the spell's mana to cast, the unit's production cost (of
+    /// two items that cost the same upkeep, the cheaper to replace goes first).
+    pub cost: i32,
 }
 
 /// The real world, as the effect executor sees it.
@@ -1034,7 +1037,11 @@ impl Game {
                         continue;
                     }
                 };
-                items.push(UpkeepItem { kind, mana });
+                items.push(UpkeepItem {
+                    kind,
+                    mana,
+                    cost: spells.get(s).cost as i32,
+                });
             }
         }
         if only_time_stop {
@@ -1060,6 +1067,7 @@ impl Game {
                 items.push(UpkeepItem {
                     kind: UpkeepKind::Unit(unit),
                     mana,
+                    cost: self.units().unit_def(unit).map_or(0, |d| d.cost as i32),
                 });
             }
         }

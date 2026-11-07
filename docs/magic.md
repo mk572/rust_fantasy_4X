@@ -134,9 +134,12 @@ home; battle spells are cast in battles (`combat.md` section 8).
 > upkeep is one query over them, and so is giving them up (task 325).
 
 Each turn the wizard pays mana for lasting spells they cast (global, city, unit) and for units
-with mana upkeep. If the reserve cannot cover it, things are given up newest-last until it can:
-mana-upkeep units first, then unit, city and global spells (`EnchantmentLapsed`,
-`UnitsDisbanded`). This is the deterministic default, and what the AI gets.
+with mana upkeep. If the reserve cannot cover it, things are given up until it can: the highest mana upkeep first
+(summoned units and lasting spells ranked together), then the cheapest to replace (a unit's
+production cost, a spell's casting mana), then the newest (`EnchantmentLapsed`,
+`UnitsDisbanded`). This is the deterministic default (`magic::upkeep_release_order`); the AI
+applies the same rule itself (`f4x-ai/src/shortfall.rs`). The upkeep is paid at the turn end,
+after the mana income and before casting.
 
 **The human's choice (task 62).** Before the turn ends, the client asks `Game::upkeep_shortfall(player)`:
 the reserve plus this turn's mana income against the upkeep (`player/upkeep.rs`). If it is short, a prompt

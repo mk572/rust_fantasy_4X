@@ -17,7 +17,7 @@
     "upkeep.short_gold": "{n} gold",
     "upkeep.food_warning": "Some units do not have enough food and will die unless you allocate more farmers in a city.  Do you wish to allow them to die?",
     "upkeep.enough": "Enough: the rest is paid.",
-    "upkeep.short_by": "Short by {missing}: the newest go.",
+    "upkeep.short_by": "Short by {missing}: the costliest upkeep goes.",
     "upkeep.reserves_short": "Reserves cannot pay everything.",
     "upkeep.click_to_mark": "Click to mark who goes.",
     "upkeep.more_below": "More below",

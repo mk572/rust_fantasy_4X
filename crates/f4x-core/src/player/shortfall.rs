@@ -1,8 +1,9 @@
 //! Gold and food that run short: the preview a player (human or AI) asks for before
 //! ending the turn, and the command that lets chosen units go.
 //!
-//! The turn change settles the treasury by itself (`finance::settle`: food first, newest first,
-//! then gold). A player who would rather choose asks [`Game::treasury_shortfall`] and answers
+//! The turn end settles the treasury by itself (`finance::settle`: food first, then gold; the
+//! highest upkeep goes first, then the cheapest to make, then the newest; heroes and loaded
+//! ships last). A player who would rather choose asks [`Game::treasury_shortfall`] and answers
 //! with `Command::ReleaseTroops`; whatever is released goes at once, so the turn change finds
 //! the books balanced or lets go only of what is still missing. Units released for food no
 //! longer count for gold. A hero who leaves goes back to the roster and can be hired again, and
@@ -47,7 +48,7 @@ pub struct TreasuryShortfall {
     pub gold: i32,
     /// Fame pays this much of the troops' gold.
     pub fame: i32,
-    /// The troops, oldest first; the turn change lets go from the end.
+    /// The troops, oldest first; the turn end lets go in the order of `finance::release_order`.
     pub troops: Vec<TroopLine>,
     /// What the turn change would let go by itself.
     pub default_release: Vec<hecs::Entity>,

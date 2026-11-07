@@ -47,6 +47,10 @@ pub struct Troop {
     pub gold: i32,
     /// A noble hero brings in gold instead of costing it.
     pub noble_hero: bool,
+    /// What it cost to make (of two units that cost the same upkeep, the cheaper goes first).
+    pub cost: u32,
+    /// A hero, or a ship with passengers aboard: the last to be let go.
+    pub last: bool,
 }
 
 impl Budget {
@@ -79,7 +83,7 @@ impl Budget {
 /// The outcome of a turn change for one player's gold and army.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Settlement {
-    /// Units let go, the newest first.
+    /// Units let go, in the order they went (`release_order`).
     pub disbanded: Vec<hecs::Entity>,
     /// How many of the first `disbanded` went for lack of food; the rest, for lack of gold.
     pub for_food: usize,
@@ -92,14 +96,32 @@ pub fn gold_after_income(t: &Budget, gold: i32) -> i32 {
     (gold + t.city_gold - t.building_upkeep + t.noble_gold + t.food_gold).max(0)
 }
 
+/// The order in which units are let go for one kind of upkeep (`upkeep`: the food or the gold a
+/// unit costs): the highest upkeep first, since those are the likely cause of the shortage, then
+/// the cheapest to make, then the newest; heroes and loaded ships last. Indexes into `troops`.
+pub fn release_order(troops: &[Troop], upkeep: impl Fn(&Troop) -> i32) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..troops.len()).collect();
+    order.sort_by_key(|&i| {
+        let t = &troops[i];
+        (
+            t.last,
+            std::cmp::Reverse(upkeep(t)),
+            t.cost,
+            std::cmp::Reverse(i),
+        )
+    });
+    order
+}
+
 /// Income, food and gold upkeep: the income is added, an army that eats more than the cities
-/// grow is disbanded newest first, then more units go (newest first) until the gold covers the
-/// upkeep of those left.
+/// grow is disbanded in `release_order` by food, then more units go in `release_order` by gold
+/// until the gold covers the upkeep of those left.
 pub fn settle(t: &Budget, gold: i32, fame: i32, troops: &[Troop]) -> Settlement {
     let gold = gold_after_income(t, gold);
     let mut disbanded = Vec::new();
     let mut eating: i32 = troops.iter().map(|u| u.food).sum();
-    for unit in troops.iter().rev() {
+    for &i in &release_order(troops, |u| u.food) {
+        let unit = &troops[i];
         if halves_to_food(eating) <= t.food_surplus {
             break;
         }
@@ -118,7 +140,8 @@ pub fn settle(t: &Budget, gold: i32, fame: i32, troops: &[Troop]) -> Settlement 
         (total - fame).max(0)
     };
     let mut upkeep = upkeep_without(&disbanded);
-    for unit in troops.iter().rev() {
+    for &i in &release_order(troops, |u| u.gold) {
+        let unit = &troops[i];
         if upkeep <= gold {
             break;
         }
@@ -219,6 +242,9 @@ impl Game {
                 gold: units.unit_gold_upkeep(id),
                 noble_hero: units.unit_has_ability(id, Ability::new(96))
                     && units.unit_def(id).is_some_and(|d| d.kind == UnitKind::Hero),
+                cost: units.unit_def(id).map_or(0, |d| d.cost),
+                last: units.hero_kind(id).is_some()
+                    || (self.economy().is_ship(id) && !self.economy().passengers_of(id).is_empty()),
             })
             .collect()
     }

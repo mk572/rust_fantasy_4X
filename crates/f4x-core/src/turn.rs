@@ -34,15 +34,17 @@ impl Game {
         events
     }
 
-    /// The start of one player's turn: the player's economy runs first (spells cast, terrain
-    /// changed, treasury, cities, magic, healing), so they act on the state they will see; then
-    /// moves are refilled, offers rolled, the work of their units carried on and their standing
-    /// orders followed. The first round has no economy: the game begins with the first turn.
+    /// The start of one player's turn: what changes the land and the people runs first (the
+    /// research that finished, Gaia's Blessing and Chaos Rift, outposts, growth, pestilence,
+    /// experience, healing), so they act on the state they will see; then moves are refilled
+    /// (a unit finished at the last turn end moves now), offers rolled, the work of their units
+    /// carried on and their standing orders followed. The first round has none of it: the game
+    /// begins with the first turn.
     pub fn start_player_turn(&mut self, player: PlayerId) -> Vec<Event> {
         self.reopen_sales(player);
         let mut events = self.process_stasis(player);
         if self.turn > 1 {
-            events.extend(self.run_economy(player));
+            events.extend(self.run_growth(player));
         }
         let stopper = self.time_stopper();
         let mut units: Vec<_> = self
@@ -81,31 +83,44 @@ impl Game {
         events
     }
 
-    /// The player's economy, in the order that lets what changes food, production and buildings
-    /// act before they are counted: magic first (income, research, upkeep, the spell that
-    /// finishes), then what spells do to the land and the cities (Gaia's Blessing, Chaos Rift),
-    /// then farmers, treasury, cities, and the units' experience and healing.
-    fn run_economy(&mut self, player: PlayerId) -> Vec<Event> {
+    /// The start-of-turn changes to the land and the people, in the order that lets what
+    /// changes food and buildings act before they are counted: the research that finished,
+    /// what spells do to the land and the cities (Gaia's Blessing, Chaos Rift), then outposts,
+    /// growth and pestilence, and the units' experience and healing.
+    fn run_growth(&mut self, player: PlayerId) -> Vec<Event> {
         // The monsters' owner has units only: no cities, no treasury, no magic.
         if player == crate::player::MONSTERS {
             self.process_experience(player);
             self.heal_units(player);
             return Vec::new();
         }
-        let mut events = self.process_magic(player);
+        let mut events = self.process_research(player);
         events.extend(self.process_gaias_blessing(player));
         events.extend(self.process_chaos_rifts(player));
-        let mut cities: Vec<_> = self
-            .economy()
-            .cities()
-            .into_iter()
-            .map(|(e, ..)| e)
-            .filter(|&e| self.economy().city_owner(e) == Some(player))
-            .collect();
-        self.sort_by_serial(&mut cities);
+        for city in self.player_cities(player) {
+            events.extend(self.grow_city(city));
+        }
+        self.process_experience(player);
+        self.heal_units(player);
+        events
+    }
 
+    /// The end of one player's turn: income, bills and production, as the original's turn
+    /// change does them, so a defender finished now defends against the rivals' turns and a
+    /// shortage costs its units now. Raze windows shut; land corruption spreads under units
+    /// that stood still (it needs the moves the turn left unspent, which the next start
+    /// refills); farmers are kept on the farms; the treasury settles (gold and food income,
+    /// upkeep); the wizard's magic runs (mana income, research points, mana upkeep, casting);
+    /// the cities build.
+    pub fn end_player_turn(&mut self, player: PlayerId) -> Vec<Event> {
+        self.close_raze_windows(player);
+        let mut events = self.process_land_corruption(player);
+        // The monsters' owner has units only: no cities, no treasury, no magic.
+        if player == crate::player::MONSTERS {
+            return events;
+        }
         // Keep enough hands on the farms to feed everyone.
-        for &city in &cities {
+        for city in self.player_cities(player) {
             if self.world.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
                 continue;
             }
@@ -115,31 +130,29 @@ impl Game {
                 let _ = self.world.insert_one(city, Farmers(min));
             }
         }
-
-        // Upkeep is paid on the cities as they stand, before they grow, as in the original: a
-        // city that grows this turn makes its new mouths felt next turn, when the player can
-        // still put them on the farms. The wizard whose Time Stop lasts pays no gold and eats
-        // no food, only the spell's mana.
+        // The wizard whose Time Stop lasts pays no gold and eats no food, only the spell's mana.
         if self.time_stopper() != Some(player) {
             events.extend(self.settle_treasury(player));
         }
-        // `settle_treasury` may release units and sell off nothing else, but a city can be lost.
-        cities.retain(|&c| self.economy().city_owner(c) == Some(player));
-
-        for &city in &cities {
-            events.extend(self.process_city(city));
+        events.extend(self.process_magic(player));
+        // `settle_treasury` may release units and a city can be lost: build in what is left.
+        for city in self.player_cities(player) {
+            events.extend(self.produce_city(city));
         }
-        self.process_experience(player);
-        self.heal_units(player);
         events
     }
 
-    /// The end of one player's turn: what closes out the turn they played. Raze windows shut and
-    /// land corruption spreads under units that stood still (it needs the moves the turn left
-    /// unspent, which the next start refills).
-    pub fn end_player_turn(&mut self, player: PlayerId) -> Vec<Event> {
-        self.close_raze_windows(player);
-        self.process_land_corruption(player)
+    /// The player's cities in a fixed order.
+    fn player_cities(&self, player: PlayerId) -> Vec<hecs::Entity> {
+        let mut cities: Vec<_> = self
+            .economy()
+            .cities()
+            .into_iter()
+            .map(|(e, ..)| e)
+            .filter(|&e| self.economy().city_owner(e) == Some(player))
+            .collect();
+        self.sort_by_serial(&mut cities);
+        cities
     }
 
     /// Round end, once per round after the last player: durations and world-wide processes run
@@ -157,9 +170,31 @@ impl Game {
         events
     }
 
-    /// One city's turn: an outpost grows or is lost, the city builds, grows, and suffers from
-    /// pestilence.
-    fn process_city(&mut self, city: hecs::Entity) -> Vec<Event> {
+    /// One city's building at the end of the turn: what it makes is finished (or the player is
+    /// told it cannot be).
+    fn produce_city(&mut self, city: hecs::Entity) -> Vec<Event> {
+        let mut events = Vec::new();
+        if self.world.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
+            return events;
+        }
+        if let Some(item) = self.production_impossible(city) {
+            events.push(Event::ProductionImpossible { city, item });
+        }
+        self.autobuild_refresh(city);
+        let Some(eco) = self.economy().city_economy(city) else {
+            return events;
+        };
+        if let Some(item) = self.production_blocked(city, eco.production) {
+            events.push(Event::ProductionBlocked { city, item });
+        } else if let Some(item) = self.apply_production(city, eco.production) {
+            events.push(Event::ProductionCompleted { city, item });
+        }
+        events
+    }
+
+    /// One city's change at the start of the turn: an outpost grows or is lost, a city grows,
+    /// and suffers from pestilence.
+    fn grow_city(&mut self, city: hecs::Entity) -> Vec<Event> {
         let mut events = Vec::new();
         let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);
         if figures == 0 {
@@ -178,18 +213,9 @@ impl Game {
             }
             return events;
         }
-        if let Some(item) = self.production_impossible(city) {
-            events.push(Event::ProductionImpossible { city, item });
-        }
-        self.autobuild_refresh(city);
         let Some(eco) = self.economy().city_economy(city) else {
             return events;
         };
-        if let Some(item) = self.production_blocked(city, eco.production) {
-            events.push(Event::ProductionBlocked { city, item });
-        } else if let Some(item) = self.apply_production(city, eco.production) {
-            events.push(Event::ProductionCompleted { city, item });
-        }
         let (before, mut after) = self.apply_growth(city, eco.growth_tens);
         // Pestilence: each citizen has a tenth of a chance to die, but the last one is spared
         // (the original kills one when the city has more people than a roll of 1 to 10).
@@ -243,6 +269,14 @@ impl Game {
         let mut events = Vec::new();
         for p in self.turn_players() {
             events.extend(self.process_gaias_blessing(p));
+        }
+        events
+    }
+
+    pub(crate) fn process_research_all(&mut self) -> Vec<Event> {
+        let mut events = Vec::new();
+        for p in self.turn_players() {
+            events.extend(self.process_research(p));
         }
         events
     }

@@ -171,22 +171,34 @@ pub(crate) fn pick_spells(
     out
 }
 
-/// What to do about the mana upkeep: the items to give up (newest first) so that the reserve
-/// can pay the rest, and what is then owed. A Channeler's items count half (`percent` 50).
+/// The order in which the mana upkeep is given up, as indexes into `entries` (each the mana it
+/// costs and what it takes to replace it, oldest first): the highest upkeep first, since those
+/// are the likely cause of the shortage, then the cheapest to replace, then the newest.
+pub fn upkeep_release_order(entries: &[(i32, i32)]) -> Vec<usize> {
+    let mut order: Vec<usize> = (0..entries.len()).collect();
+    order.sort_by_key(|&i| {
+        let (mana, cost) = entries[i];
+        (std::cmp::Reverse(mana), cost, std::cmp::Reverse(i))
+    });
+    order
+}
+
+/// What to do about the mana upkeep: the items to give up (`upkeep_release_order`) so that the
+/// reserve can pay the rest, and what is then owed. A Channeler's items count half (`percent` 50).
 pub(crate) fn upkeep_plan(
     items: &[UpkeepItem],
     percent: i32,
     reserve: i32,
 ) -> (Vec<UpkeepItem>, i32) {
     let mut owed: i32 = items.iter().map(|i| i.mana).sum::<i32>() * percent / 100;
-    let mut rest = items.to_vec();
+    let entries: Vec<(i32, i32)> = items.iter().map(|i| (i.mana, i.cost)).collect();
     let mut dropped = Vec::new();
-    while owed > reserve {
-        let Some(item) = rest.pop() else {
+    for i in upkeep_release_order(&entries) {
+        if owed <= reserve {
             break;
-        };
-        owed -= item.mana * percent / 100;
-        dropped.push(item);
+        }
+        owed -= items[i].mana * percent / 100;
+        dropped.push(items[i]);
     }
     (dropped, owed)
 }
@@ -220,6 +232,7 @@ mod tests {
         UpkeepItem {
             kind: UpkeepKind::Global(some_spell()),
             mana,
+            cost: 0,
         }
     }
 
@@ -254,12 +267,12 @@ mod tests {
     }
 
     #[test]
-    fn upkeep_is_paid_from_the_reserve_and_the_newest_items_go_first() {
+    fn upkeep_is_paid_from_the_reserve_and_the_dearest_items_go_first() {
         let items = [item(5), item(10), item(20)];
         let (dropped, owed) = upkeep_plan(&items, 100, 100);
         assert!(dropped.is_empty());
         assert_eq!(owed, 35);
-        // 35 owed against 20: drop the newest (20) and 15 is left, within 20.
+        // 35 owed against 20: drop the dearest (20) and 15 is left, within 20.
         let (dropped, owed) = upkeep_plan(&items, 100, 20);
         assert_eq!(dropped, [item(20)]);
         assert_eq!(owed, 15);
@@ -268,6 +281,19 @@ mod tests {
         assert_eq!(dropped, [item(20), item(10), item(5)]);
         assert_eq!(owed, 0);
         assert_eq!(upkeep_plan(&[], 100, 0), (Vec::new(), 0));
+    }
+
+    #[test]
+    fn equal_upkeep_goes_cheapest_to_replace_first_then_newest() {
+        let with_cost = |mana, cost| UpkeepItem { cost, ..item(mana) };
+        let items = [with_cost(10, 50), with_cost(10, 30), with_cost(10, 30)];
+        assert_eq!(
+            upkeep_release_order(&[(10, 50), (10, 30), (10, 30)]),
+            [2, 1, 0]
+        );
+        let (dropped, owed) = upkeep_plan(&items, 100, 20);
+        assert_eq!(dropped, [items[2]], "the newest of the cheapest");
+        assert_eq!(owed, 20);
     }
 
     #[test]

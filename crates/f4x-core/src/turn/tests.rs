@@ -1949,7 +1949,7 @@ fn only_the_round_start_advances_the_round_counter() {
 }
 
 #[test]
-fn a_player_turn_start_pays_only_that_players_upkeep() -> TestResult {
+fn a_player_turn_end_pays_only_that_players_upkeep() -> TestResult {
     let mut g = world();
     let rival = PlayerId(1);
     found(&mut g, at(10, 6), 7 /* high_elf */, 4);
@@ -1968,15 +1968,42 @@ fn a_player_turn_start_pays_only_that_players_upkeep() -> TestResult {
         g.treasury_mut(P0).ok_or("no treasury")?.gold,
         g.treasury_mut(rival).ok_or("no treasury")?.gold,
     );
-    // The first round has no economy: the game begins with the first turn.
-    g.turn = 1;
-    g.start_player_turn(rival);
-    assert_eq!(g.treasury_mut(rival).ok_or("no treasury")?.gold, theirs);
-    g.turn = 2;
-    g.start_player_turn(rival);
+    // The bills are the turn end's, from the first turn on.
+    g.end_player_turn(rival);
     assert_eq!(g.treasury_mut(P0).ok_or("no treasury")?.gold, mine);
     assert_ne!(g.treasury_mut(rival).ok_or("no treasury")?.gold, theirs);
     assert_eq!(g.economy().city_owner(city), Some(rival));
+    Ok(())
+}
+
+#[test]
+fn a_player_turn_start_grows_only_that_players_cities_and_not_in_the_first_round() -> TestResult {
+    let mut g = world();
+    let rival = PlayerId(1);
+    found(&mut g, at(10, 6), 7 /* high_elf */, 4);
+    let race = race(&g, 7);
+    g.apply(Command::FoundCity {
+        owner: rival,
+        pos: at(16, 6),
+        name: "Rival Town".into(),
+        race,
+        population: 4,
+    });
+    let city = g.economy().city_at(at(16, 6)).ok_or("no rival city")?;
+    let tens = |g: &Game| {
+        g.world
+            .get::<&crate::city::economy::Population>(city)
+            .map(|p| p.tens)
+    };
+    let before = tens(&g)?;
+    g.turn = 1;
+    g.start_player_turn(rival);
+    assert_eq!(tens(&g)?, before, "the first round has no growth");
+    g.turn = 2;
+    g.start_player_turn(P0);
+    assert_eq!(tens(&g)?, before, "another player's start leaves the city");
+    g.start_player_turn(rival);
+    assert_ne!(tens(&g)?, before, "its owner's start grows it");
     Ok(())
 }
 
