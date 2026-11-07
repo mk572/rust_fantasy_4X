@@ -123,7 +123,7 @@ fn choose_troops(short: &TreasuryShortfall) -> Vec<hecs::Entity> {
         let mut order: Vec<usize> = (0..short.troops.len()).collect();
         order.sort_by_key(|&i| {
             let t = &short.troops[i];
-            let upkeep = if want_food { t.food } else { t.gold };
+            let upkeep = if want_food { t.food.raw() } else { t.gold };
             (
                 t.hero,
                 t.ship && t.aboard > 0,
@@ -139,7 +139,11 @@ fn choose_troops(short: &TreasuryShortfall) -> Vec<hecs::Entity> {
                 break;
             }
             let t = &short.troops[i];
-            let helps = if want_food { t.food > 0 } else { t.gold > 0 };
+            let helps = if want_food {
+                t.food.raw() > 0
+            } else {
+                t.gold > 0
+            };
             if helps && !released.contains(&t.unit) {
                 released.push(t.unit);
             }
@@ -228,7 +232,7 @@ mod tests {
         let line = |unit, cost, hero, ship, aboard| TroopLine {
             unit,
             gold: 1,
-            food: 0,
+            food: f4x_def::half_int::HalfInt::ZERO,
             hero,
             cost,
             ship,

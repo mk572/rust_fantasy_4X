@@ -5,6 +5,7 @@ use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
 use crate::rules::RealmId;
+use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 
 use crate::game::Command;
@@ -561,7 +562,7 @@ fn stream_of_life_ends_unrest_and_heals_the_units_in_the_city() -> TestResult {
 #[test]
 fn every_unit_eats_what_its_row_in_the_unit_table_says() {
     let mut g = world();
-    let ids: Vec<(u16, u32)> = g
+    let ids: Vec<(u16, HalfInt)> = g
         .content
         .rules
         .units
@@ -569,7 +570,7 @@ fn every_unit_eats_what_its_row_in_the_unit_table_says() {
         .iter()
         .map(|d| (d.num, d.upkeep.food))
         .collect();
-    let mut eating = 0;
+    let mut eating = HalfInt::ZERO;
     for (id, food) in ids {
         let def = g
             .content
@@ -578,17 +579,13 @@ fn every_unit_eats_what_its_row_in_the_unit_table_says() {
             .id_numbered(id)
             .expect("a listed unit has an id");
         let unit = g.spawn_unit(P0, at(10, 6), def);
-        assert_eq!(g.units().unit_food_halves(unit), food as i32, "{id}");
-        assert_eq!(
-            g.units().unit_food_upkeep(unit),
-            (food as i32 + 1) / 2,
-            "{id}"
-        );
-        eating += food as i32;
+        assert_eq!(g.units().unit_food(unit), food, "{id}");
+        assert_eq!(g.units().unit_food_upkeep(unit), food.ceil(), "{id}");
+        eating += food;
     }
-    assert!(eating > 0, "some unit eats");
+    assert!(eating > HalfInt::ZERO, "some unit eats");
     let all = g.units().player_units(P0);
-    assert_eq!(g.units().food_of(&all), (eating + 1) / 2);
+    assert_eq!(g.units().food_of(&all), eating.ceil());
 }
 
 #[test]

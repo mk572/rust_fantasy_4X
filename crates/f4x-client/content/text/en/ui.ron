@@ -55,4 +55,7 @@
     "ui.gold_unit": "GP",
     "ui.mana_unit": "MP",
     "ui.power_unit": "PP",
+    // An amount counted in halves: 3 is "3", a half alone "½", three and a half "3½".
+    "ui.amount_half": "½",
+    "ui.amount_whole_and_half": "{n}½",
 }

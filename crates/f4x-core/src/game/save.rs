@@ -63,7 +63,10 @@ pub const OLDEST_COMPATIBLE_VERSION: &str = "0.0.2";
 /// scheme), and bump the workspace version to that release in the same change. 0.0.5 moved the
 /// amounts counted in halves to `HalfInt`, which writes the same raw half count the older versions
 /// wrote, so it needs no conversion.
-const UPGRADES: &[(&str, fn(&mut Snapshot))] = &[];
+const UPGRADES: &[Upgrade] = &[];
+
+/// A conversion of a snapshot written before a game version.
+type Upgrade = (&'static str, fn(&mut Snapshot));
 
 /// `"0.0.4"` as numbers, to compare versions (`"0.0.10"` is newer than `"0.0.9"`).
 fn version_parts(version: &str) -> Option<Vec<u32>> {

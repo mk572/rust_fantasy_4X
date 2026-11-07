@@ -289,7 +289,7 @@ fn a_unit_let_go_for_food_is_not_counted_for_gold() {
     let line = |unit, gold, food| TroopLine {
         unit,
         gold,
-        food: food * 2, // whole food in the call, half food in the line
+        food: HalfInt::from_int(food), // whole food in the call
         hero: false,
         cost: 0,
         ship: false,

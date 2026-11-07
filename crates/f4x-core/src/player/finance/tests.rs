@@ -8,7 +8,7 @@ fn ids(n: usize) -> Vec<hecs::Entity> {
 fn troop(id: hecs::Entity, food: i32, gold: i32) -> Troop {
     Troop {
         id,
-        food: food * 2, // whole food in the call, half food in the troop
+        food: HalfInt::from_int(food), // whole food in the call
         gold,
         noble_hero: false,
         cost: 0,
@@ -99,7 +99,7 @@ fn halves_of_food_are_added_before_they_are_rounded_up() {
     let e = ids(3);
     let half = |id| Troop {
         id,
-        food: 1,
+        food: HalfInt::from_raw(1),
         gold: 0,
         noble_hero: false,
         cost: 0,

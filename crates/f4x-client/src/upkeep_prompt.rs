@@ -328,7 +328,9 @@ impl UpkeepPrompt {
                 } else if l.ship && l.aboard > 0 {
                     label.push_str(&count("upkeep.ship_note", l.aboard as i32));
                 }
-                let price = Args::new().count("gold", l.gold).count("food", l.food);
+                let price = Args::new()
+                    .count("gold", l.gold)
+                    .text("food", texts.half_amount(l.food));
                 (label, texts.get("upkeep.price_gold_food", &price))
             }
             Line::Item(i) => {
@@ -771,6 +773,15 @@ mod tests {
         assert_eq!(prompt.lines()[prompt.cursor], Line::Mana(0));
         assert!(prompt.marked(Line::Mana(2)) && !prompt.marked(Line::Mana(0)));
         Ok(())
+    }
+
+    #[test]
+    fn a_troop_that_eats_a_half_food_shows_the_half_glyph() {
+        use f4x_def::half_int::HalfInt;
+        let texts = shipped::texts();
+        assert_eq!(texts.half_amount(HalfInt::from_int(2)), "2");
+        assert_eq!(texts.half_amount(HalfInt::from_raw(1)), "\u{bd}");
+        assert_eq!(texts.half_amount(HalfInt::from_raw(5)), "2\u{bd}");
     }
 
     #[test]

@@ -393,6 +393,16 @@ impl Texts {
     }
 
     /// The message with the values put in. A key nobody wrote prints as the key.
+    /// An amount counted in halves as text: `3`, `½` or `3½`.
+    pub fn half_amount(&self, amount: f4x_def::half_int::HalfInt) -> String {
+        let whole = amount.floor();
+        match (amount.is_whole(), whole) {
+            (true, _) => whole.to_string(),
+            (false, 0) => self.get("ui.amount_half", &Args::new()),
+            (false, _) => self.get("ui.amount_whole_and_half", &Args::new().count("n", whole)),
+        }
+    }
+
     pub fn get(&self, key: &str, args: &Args) -> String {
         let joined;
         let args = if args.0.iter().any(|(_, a)| matches!(a, Arg::List(_))) {

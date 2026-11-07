@@ -11,7 +11,7 @@ use crate::game::{Event, Game};
 use crate::player::{PlayerId, Tax};
 use crate::rules::Ability;
 use crate::rules::UnitKind;
-use crate::unit::halves_to_food;
+use f4x_def::half_int::HalfInt;
 
 /// A player's projected gold and food for the coming turn change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -42,8 +42,8 @@ pub struct CityYield {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Troop {
     pub id: hecs::Entity,
-    /// The food it eats, in half food (the unit table's `upkeep.food`).
-    pub food: i32,
+    /// The food it eats (the unit table's `upkeep.food`).
+    pub food: HalfInt,
     pub gold: i32,
     /// A noble hero brings in gold instead of costing it.
     pub noble_hero: bool,
@@ -72,7 +72,7 @@ impl Budget {
             t.food_surplus += excess;
         }
         t.noble_gold = 10 * troops.iter().filter(|u| u.noble_hero).count() as i32;
-        t.food_upkeep = halves_to_food(troops.iter().map(|u| u.food).sum());
+        t.food_upkeep = troops.iter().map(|u| u.food).sum::<HalfInt>().ceil();
         // Spare food is sold at two for one gold once the army has eaten.
         t.food_gold = (sold_food_gold - t.food_upkeep / 2).max(0);
         t.unit_upkeep = (troops.iter().map(|u| u.gold).sum::<i32>() - fame).max(0);
@@ -99,7 +99,7 @@ pub fn gold_after_income(t: &Budget, gold: i32) -> i32 {
 /// The order in which units are let go for one kind of upkeep (`upkeep`: the food or the gold a
 /// unit costs): the highest upkeep first, since those are the likely cause of the shortage, then
 /// the cheapest to make, then the newest; heroes and loaded ships last. Indexes into `troops`.
-pub fn release_order(troops: &[Troop], upkeep: impl Fn(&Troop) -> i32) -> Vec<usize> {
+pub fn release_order<K: Ord>(troops: &[Troop], upkeep: impl Fn(&Troop) -> K) -> Vec<usize> {
     let mut order: Vec<usize> = (0..troops.len()).collect();
     order.sort_by_key(|&i| {
         let t = &troops[i];
@@ -119,13 +119,13 @@ pub fn release_order(troops: &[Troop], upkeep: impl Fn(&Troop) -> i32) -> Vec<us
 pub fn settle(t: &Budget, gold: i32, fame: i32, troops: &[Troop]) -> Settlement {
     let gold = gold_after_income(t, gold);
     let mut disbanded = Vec::new();
-    let mut eating: i32 = troops.iter().map(|u| u.food).sum();
+    let mut eating: HalfInt = troops.iter().map(|u| u.food).sum();
     for &i in &release_order(troops, |u| u.food) {
         let unit = &troops[i];
-        if halves_to_food(eating) <= t.food_surplus {
+        if eating.ceil() <= t.food_surplus {
             break;
         }
-        if unit.food > 0 {
+        if unit.food > HalfInt::ZERO {
             eating -= unit.food;
             disbanded.push(unit.id);
         }
@@ -238,7 +238,7 @@ impl Game {
             .into_iter()
             .map(|id| Troop {
                 id,
-                food: units.unit_food_halves(id),
+                food: units.unit_food(id),
                 gold: units.unit_gold_upkeep(id),
                 noble_hero: units.unit_has_ability(id, Ability::new(96))
                     && units.unit_def(id).is_some_and(|d| d.kind == UnitKind::Hero),

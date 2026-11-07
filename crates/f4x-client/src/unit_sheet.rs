@@ -772,7 +772,7 @@ impl App {
             upkeep: Some([
                 def.upkeep.gold as i32,
                 def.upkeep.mana as i32,
-                f4x_core::unit::halves_to_food(def.upkeep.food as i32),
+                def.upkeep.food.ceil(),
             ]),
             damage: None,
             melee: Row::stat(melee_icon(0), stat(Stat::Melee), base(Stat::Melee)),

@@ -10,6 +10,7 @@ use super::ids::Id;
 use super::registry::{Def, Registry};
 use super::stats::Stat;
 use super::{Ability, BuildingId, RealmId};
+use crate::half_int::HalfInt;
 use crate::map::TerrainClass;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,9 +100,9 @@ pub enum MovementType {
 pub struct Upkeep {
     #[serde(default)]
     pub gold: u32,
-    /// In half food, like moves: 2 is one food a turn, 1 is half a food, 0 eats nothing.
+    /// Food a turn, written in half food like moves: 2 is one food, 1 is half a food, 0 eats nothing.
     #[serde(default)]
-    pub food: u32,
+    pub food: HalfInt,
     #[serde(default)]
     pub mana: u32,
 }
