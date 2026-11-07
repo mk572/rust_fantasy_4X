@@ -9,6 +9,19 @@ use crate::rules::exec::Target;
 use crate::spell::target_error::TargetError;
 use crate::unit::Hurt;
 
+/// The hook of Word of Recall and Recall Hero. Its argument says whom the spell takes: `anyone`
+/// (any unit of the wizard) or `hero`. Overland only `anyone` is cast; in a battle both are.
+pub const RECALL: &str = "recall";
+pub const RECALL_ANYONE: &str = "anyone";
+pub const RECALL_HERO: &str = "hero";
+/// The hook of Plane Shift.
+pub const PLANE_SHIFT: &str = "plane_shift";
+/// The hook of the spells that move a building of the wizard to a city: the argument is the
+/// building, `fortress` or `summoning_circle`.
+pub const MOVE_BUILDING: &str = "move_building";
+pub const MOVE_FORTRESS: &str = "fortress";
+pub const MOVE_CIRCLE: &str = "summoning_circle";
+
 /// The block Earth Lore reveals, in tiles: the original's map window.
 const LORE_WIDTH: u32 = 12;
 const LORE_HEIGHT: u32 = 10;
@@ -165,19 +178,12 @@ impl Game {
     }
 
     /// Run a unit-target special hook. Returns whether the hook was one of these.
-    pub(crate) fn run_unit_special(
-        &mut self,
-        spell: crate::rules::SpellId,
-        caster: crate::player::PlayerId,
-        who: Target,
-    ) -> bool {
+    pub(crate) fn run_unit_special(&mut self, spell: crate::rules::SpellId, who: Target) -> bool {
         let Target::Unit(unit) = who else {
             return false;
         };
         match spell.num() {
             19 /* natures_cures */ => self.natures_cures(unit),
-            47 /* word_of_recall */ => self.word_of_recall(caster, unit),
-            132 /* plane_shift */ => self.plane_shift(caster, unit),
             _ => return false,
         }
         true

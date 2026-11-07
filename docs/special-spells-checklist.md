@@ -50,17 +50,17 @@ Recall is shared by battle and overland.
 
 Proposed hook or primitive: **recall (args anyone, hero)**
 
-- [ ] 47 `word_of_recall`
-- [ ] 205 `recall_hero`
+- [x] 47 `word_of_recall`
+- [x] 205 `recall_hero`
 
 Proposed hook or primitive: **move_building (args fortress, summoning_circle)**
 
-- [ ] 28 `move_fortress`
-- [ ] 203 `summoning_circle`
+- [x] 28 `move_fortress`
+- [x] 203 `summoning_circle`
 
 Proposed hook or primitive: **plane_shift**
 
-- [ ] 132 `plane_shift`
+- [x] 132 `plane_shift`
 
 ## D. Heroes and the dead
 

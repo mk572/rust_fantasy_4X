@@ -105,6 +105,23 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
         args: &crate::battle::spell::BattleEffect::NAMES,
         several: false,
     },
+    Hook {
+        name: crate::spell::special::RECALL,
+        args: &[
+            crate::spell::special::RECALL_ANYONE,
+            crate::spell::special::RECALL_HERO,
+        ],
+        several: false,
+    },
+    plain(crate::spell::special::PLANE_SHIFT),
+    Hook {
+        name: crate::spell::special::MOVE_BUILDING,
+        args: &[
+            crate::spell::special::MOVE_FORTRESS,
+            crate::spell::special::MOVE_CIRCLE,
+        ],
+        several: false,
+    },
     plain(crate::battle::field::DISINTEGRATE),
     Hook {
         name: WALL,
@@ -116,11 +133,9 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
 /// The spells that have code of their own in Rust (`Effect::Special`), by number: the
 /// number is the only link between the spell and its code. A `Special` effect on a spell
 /// not in this list fails [`problems`].
-pub const SPECIAL_SPELLS: [u16; 30] = [
+pub const SPECIAL_SPELLS: [u16; 25] = [
     19,  // natures_cures
     26,  // earthquake
-    28,  // move_fortress
-    47,  // word_of_recall
     58,  // spell_blast
     61,  // disjunction_true
     68,  // stasis
@@ -130,7 +145,6 @@ pub const SPECIAL_SPELLS: [u16; 30] = [
     89,  // warp_creature
     93,  // chaos_channels
     119, // call_the_void
-    132, // plane_shift
     133, // resurrection
     142, // incarnation
     171, // drain_power
@@ -140,8 +154,6 @@ pub const SPECIAL_SPELLS: [u16; 30] = [
     187, // black_wind
     191, // cruel_unminding
     199, // death_wish
-    203, // summoning_circle
-    205, // recall_hero
     208, // summon_hero
     210, // disjunction
     212, // summon_champion

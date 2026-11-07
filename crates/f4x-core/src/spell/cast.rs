@@ -425,6 +425,33 @@ impl EffectHost for GameHost<'_> {
             let events = self.game.complete_crafting(ctx.owner);
             self.events.extend(events);
         }
+        if hook == crate::spell::special::RECALL
+            && args
+                .iter()
+                .any(|a| a == crate::spell::special::RECALL_ANYONE)
+        {
+            if let Target::Unit(unit) = who {
+                self.game.word_of_recall(ctx.owner, unit);
+            }
+        }
+        if hook == crate::spell::special::PLANE_SHIFT {
+            if let Target::Unit(unit) = who {
+                self.game.plane_shift(ctx.owner, unit);
+            }
+        }
+        if hook == crate::spell::special::MOVE_BUILDING {
+            if let Target::City(city) = who {
+                let result = if args
+                    .iter()
+                    .any(|a| a == crate::spell::special::MOVE_FORTRESS)
+                {
+                    self.game.move_fortress(ctx.owner, city)
+                } else {
+                    self.game.move_summoning_circle(ctx.owner, city)
+                };
+                self.building_moved(result);
+            }
+        }
         if hook == crate::hook::WALL && args.iter().any(|a| a == "stone") {
             if let Target::City(city) = who {
                 let events = self.game.wall_of_stone(city);
@@ -465,18 +492,27 @@ impl EffectHost for GameHost<'_> {
             self.events.extend(events);
             return;
         }
-        if self.game.run_unit_special(spell, ctx.owner, who) {
+        if self.game.run_unit_special(spell, who) {
             return;
         }
         let Target::City(city) = who else {
             return;
         };
-        let result = match spell.num() {
-            28 /* move_fortress */ => self.game.move_fortress(ctx.owner, city),
-            203 /* summoning_circle */ => self.game.move_summoning_circle(ctx.owner, city),
-            214 /* spell_of_return */ => self.game.return_to_fortress(ctx.owner, city),
-            _ => return,
-        };
+        if spell.num() == 214
+        /* spell_of_return */
+        {
+            let result = self.game.return_to_fortress(ctx.owner, city);
+            self.building_moved(result);
+        }
+    }
+}
+
+impl GameHost<'_> {
+    /// Report what moving a building did: its events, or the rejection.
+    fn building_moved(
+        &mut self,
+        result: Result<Vec<Event>, crate::wizard::fortress::FortressError>,
+    ) {
         match result {
             Ok(events) => self.events.extend(events),
             Err(e) => self
@@ -561,7 +597,15 @@ impl Game {
             return Ok(());
         }
         // Move Fortress, Summoning Circle and Return to Fortress.
-        if [28, 203, 214].contains(&spell.num()) {
+        let building = self
+            .content
+            .rules
+            .spells
+            .get(spell)
+            .hook_args(crate::spell::special::MOVE_BUILDING)
+            .and_then(|a| a.first())
+            .map(String::as_str);
+        if building.is_some() || spell.num() == 214 {
             let w = self.wizard(player).ok_or(MagicError::UnknownPlayer)?;
             let Some(Target::City(c)) = target else {
                 return Err(MagicError::NeedsTarget);
@@ -570,14 +614,16 @@ impl Game {
                 return Err(MagicError::Target(TargetError::NotYourCity));
             }
             let here = self.world.get::<&Position>(c).ok().map(|x| *x);
-            let refused = match spell.num() {
-                214 /* spell_of_return */ => (!w.is_banished()).then_some(TargetError::NotBanished),
-                28 /* move_fortress */ => match w.fortress() {
+            let refused = match building {
+                None /* spell_of_return */ => {
+                    (!w.is_banished()).then_some(TargetError::NotBanished)
+                }
+                Some(crate::spell::special::MOVE_FORTRESS) => match w.fortress() {
                     None => Some(TargetError::NoFortress),
                     Some(f) if Some(f) == here => Some(TargetError::FortressHere),
                     Some(_) => None,
                 },
-                _ => (here == w.summon_at()).then_some(TargetError::CircleHere),
+                Some(_) => (here == w.summon_at()).then_some(TargetError::CircleHere),
             };
             return refused.map_or(Ok(()), |e| Err(MagicError::Target(e)));
         }
@@ -642,9 +688,10 @@ impl Game {
             Some(Target::Unit(t)) if t == u && mine(self.units().unit_owner(u)) => Ok(()),
             _ => Err(MagicError::Target(TargetError::NotYourUnit)),
         };
-        if spell == crate::rules::SpellId::new(47)
-        /* word_of_recall */
-        {
+        if self.content.rules.spells.get(spell).has_hook_arg(
+            crate::spell::special::RECALL,
+            crate::spell::special::RECALL_ANYONE,
+        ) {
             return match target {
                 Some(Target::Unit(u)) => {
                     own_unit(u)?;
@@ -656,8 +703,12 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if spell == crate::rules::SpellId::new(132)
-        /* plane_shift */
+        if self
+            .content
+            .rules
+            .spells
+            .get(spell)
+            .has_hook(crate::spell::special::PLANE_SHIFT)
         {
             return match target {
                 Some(Target::Unit(u)) => {

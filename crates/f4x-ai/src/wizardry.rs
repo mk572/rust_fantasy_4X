@@ -158,9 +158,10 @@ pub fn kind(def: &SpellDef) -> Kind {
     {
         return Kind::Mutate;
     }
-    if def.num == 47
-    /* word_of_recall */
-    {
+    if def.has_hook_arg(
+        f4x_core::spell::special::RECALL,
+        f4x_core::spell::special::RECALL_ANYONE,
+    ) {
         return Kind::Recall;
     }
     if def.num == 68
@@ -193,7 +194,6 @@ pub fn kind(def: &SpellDef) -> Kind {
         Effect::Modify { value, .. } => *value >= 0,
         Effect::GrantAbility(_) => true,
         Effect::Custom { name, .. } => name == "city_effect" || name == "wall",
-        Effect::Special => def.num == 3, // wall_of_stone
         _ => false,
     };
     match def.target {

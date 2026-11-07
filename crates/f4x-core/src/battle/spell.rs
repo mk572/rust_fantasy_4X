@@ -346,6 +346,17 @@ impl Game {
             Effect::Custom { name, .. } if name == BATTLE_EFFECT => {
                 BattleEffect::of(def).map(BattleEffect::kind)
             }
+            Effect::Custom { name, args } if name == crate::spell::special::RECALL => {
+                match args.first().map(String::as_str) {
+                    Some(crate::spell::special::RECALL_ANYONE) => {
+                        Some(Kind::Recall { anyone: true })
+                    }
+                    Some(crate::spell::special::RECALL_HERO) => {
+                        Some(Kind::Recall { anyone: false })
+                    }
+                    _ => None,
+                }
+            }
             Effect::Custom { name, args } if name == crate::hook::WALL => {
                 match args.first().map(String::as_str) {
                     Some("stone") => Some(Kind::CityWall(CityWall::Stone)),
@@ -355,8 +366,6 @@ impl Game {
                 }
             }
             Effect::Special => match spell.num() {
-                205 /* recall_hero */ => Some(Kind::Recall { anyone: false }),
-                47 /* word_of_recall */ => Some(Kind::Recall { anyone: true }),
                 93 /* chaos_channels */ => Some(Kind::Channel),
                 89 /* warp_creature */ => Some(Kind::Warp {
                     save: def.save.clone(),
