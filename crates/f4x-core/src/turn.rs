@@ -93,6 +93,13 @@ impl Game {
             self.heal_units(player);
             return Vec::new();
         }
+        // While Time Stop lasts nothing grows, nothing is learned and the land does not change
+        // (the wiki's article on Time Stop); the units of the wizard who keeps it heal as ever.
+        if self.time_stopper().is_some() {
+            self.process_experience(player);
+            self.heal_units(player);
+            return Vec::new();
+        }
         let mut events = self.process_research(player);
         events.extend(self.process_gaias_blessing(player));
         events.extend(self.process_chaos_rifts(player));
@@ -116,6 +123,12 @@ impl Game {
         if player == crate::player::MONSTERS {
             return events;
         }
+        // While another wizard keeps Time Stop going, this wizard's turn does not happen: no
+        // income, no upkeep, no mana, no production.
+        let stopper = self.time_stopper();
+        if stopper.is_some_and(|keeper| keeper != player) {
+            return events;
+        }
         // Keep enough hands on the farms to feed everyone.
         for city in self.player_cities(player) {
             if self.world.get::<&Population>(city).map_or(0, |p| p.figures) == 0 {
@@ -132,9 +145,12 @@ impl Game {
             events.extend(self.settle_treasury(player));
         }
         events.extend(self.process_magic(player));
-        // `settle_treasury` may release units and a city can be lost: build in what is left.
-        for city in self.player_cities(player) {
-            events.extend(self.produce_city(city));
+        // `settle_treasury` may release units and a city can be lost: build in what is left. The
+        // wizard who keeps Time Stop builds nothing until it ends.
+        if stopper.is_none() {
+            for city in self.player_cities(player) {
+                events.extend(self.produce_city(city));
+            }
         }
         events
     }

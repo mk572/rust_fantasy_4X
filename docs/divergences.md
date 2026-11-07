@@ -495,10 +495,16 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
   the other wizards' casting makes no progress, and the keeper has no income and pays no gold, food or
   other mana, only the spell's 200 mana a turn (ReMoM's `NEXTTURN.c`; its note says the manual says
   150). When the keeper cannot pay, the spell ends.
-- The others' cities still grow and produce, and their gold and food are still counted, as in the
-  original. Founding a city is refused to the other wizards (`SETTLE.c`; 24 October 2026) and the
-  AI's armies, settlers and ships wait. Production and casting orders are not refused: they change
-  nothing during the stop (the original skips the human's whole turn instead). The help's "combat part" does not exist in the original's code and is not done.
+- **Changed 7 November 2026, after the Master of Magic wiki's article on Time Stop** (`reference/Time Stop ... .html`):
+  the others' turns do not happen at all while it lasts (no income, no upkeep, no production, no growth,
+  no research learned, no land spells), and nothing is produced, grown or learned for the keeper either:
+  towns make no gold, food, production or research and no building or unit is finished until the spell
+  ends; the keeper's units heal and move as ever, and only the 200 mana of the spell is paid. (Earlier
+  we kept ReMoM's reading that the others' cities still grow and produce, which the wiki contradicts.)
+  Founding a city is refused to the other wizards (`SETTLE.c`; 24 October 2026) and the AI's armies,
+  settlers and ships wait. Production and casting orders are not refused: they change nothing during
+  the stop (the original skips the human's whole turn instead). The neutral monsters are spawned as ever
+  but cannot move. The help's "combat part" does not exist in the original's code and is not done.
 
 ## 19. Magic Vortex (spell 105)
 

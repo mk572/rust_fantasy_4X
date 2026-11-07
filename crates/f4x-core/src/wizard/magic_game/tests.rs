@@ -30,17 +30,6 @@ fn spell(g: &Game, id: u16) -> SpellId {
         .expect("id_of succeeds")
 }
 
-/// The real spells `ids`, which are cast in battle, made castable on the map too (and, as for
-/// the spells the game offers in both places, five times as dear there).
-fn on_the_map(g: &mut Game, ids: &[&str]) {
-    let mut defs = g.content.rules.spells.defs().to_vec();
-    for d in defs.iter_mut().filter(|d| ids.contains(&d.id.as_str())) {
-        d.contexts.push(crate::rules::CastContext::Overland);
-        d.overland_x5 = true;
-    }
-    g.content.rules.spells = crate::rules::Registry::new(defs);
-}
-
 /// 24x14 grassland, one wizard with 2 life books and 100 mana.
 fn world() -> Game {
     let c = shipped();
@@ -320,7 +309,6 @@ fn mana_income_fills_the_reserve() -> TestResult {
 #[test]
 fn an_affordable_spell_takes_effect_at_once() -> TestResult {
     let mut g = world();
-    on_the_map(&mut g, &["healing"]);
     let spear = g
         .content
         .rules
@@ -328,36 +316,42 @@ fn an_affordable_spell_takes_effect_at_once() -> TestResult {
         .id_numbered(95)
         .ok_or("high_elf_spearmen is not in the content")?;
     let unit = g.spawn_unit(P0, at(3, 3), spear);
-    g.world.insert_one(unit, crate::unit::Hurt(3))?;
-    let mend = spell(&g, 125 /* healing */);
+    // Bless, a spell of the unit that is cast on the map at five times its battle cost.
+    let bless = spell(&g, 121 /* bless */);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
-        .insert(mend);
+        .insert(bless);
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 100;
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.mana = 1000;
-    let cost = g.casting_cost(P0, mend, false);
+    let cost = g.casting_cost(P0, bless, false);
+    assert!(
+        cost > 0 && cost <= 100,
+        "the test needs an affordable spell: {cost}"
+    );
     let mana = g.player(P0).ok_or("player is missing")?.treasury().mana;
     // A spell with a target needs one.
-    assert_eq!(g.start_cast(P0, mend, None), Err(MagicError::NeedsTarget));
+    assert_eq!(g.start_cast(P0, bless, None), Err(MagicError::NeedsTarget));
     let events = g.apply(Command::CastSpell {
         extra: 0,
         player: P0,
-        spell: mend,
+        spell: bless,
         target: Some(Target::Unit(unit)),
     });
     assert!(events.contains(&Event::SpellCast {
         player: P0,
-        spell: mend
+        spell: bless
     }));
-    assert_eq!(
-        g.units().unit_hits(unit).0,
-        g.units().unit_hits(unit).1,
-        "healed"
+    assert!(
+        g.units()
+            .unit_enchantments(unit)
+            .iter()
+            .any(|&(s, _)| s == bless),
+        "blessed"
     );
     assert_eq!(
         g.player(P0).ok_or("player is missing")?.treasury().mana,
@@ -374,7 +368,6 @@ fn an_affordable_spell_takes_effect_at_once() -> TestResult {
 #[test]
 fn spells_need_a_known_spell_and_a_valid_target() -> TestResult {
     let mut g = world();
-    on_the_map(&mut g, &["healing", "fire_bolt"]);
     let spear = g
         .content
         .rules
@@ -384,36 +377,34 @@ fn spells_need_a_known_spell_and_a_valid_target() -> TestResult {
     let mine = g.spawn_unit(P0, at(3, 3), spear);
     g.add_player(PlayerId(1), "");
     let theirs = g.spawn_unit(PlayerId(1), at(4, 3), spear);
-    let (mend, zap) = (spell(&g, 125 /* healing */), spell(&g, 83 /* fire_bolt */));
+    let city = found(&mut g, at(10, 6), 4);
+    // Bless is for the caster's own units, Famine for the cities of others.
+    let (bless, famine) = (spell(&g, 121 /* bless */), spell(&g, 189 /* famine */));
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 50;
     assert_eq!(
-        g.start_cast(P0, mend, Some(Target::Unit(mine))),
+        g.start_cast(P0, famine, Some(Target::City(city))),
         Err(MagicError::NotAvailable),
-        "not known yet"
+        "not known yet (a wizard of life books has Bless from the start)"
     );
     g.wizard_mut(P0)
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
-        .extend([mend, zap]);
+        .extend([bless, famine]);
     assert_eq!(
-        g.check_target(P0, mend, Some(Target::Unit(theirs))),
+        g.check_target(P0, bless, Some(Target::Unit(theirs))),
         Err(MagicError::Target(TargetError::NotYourUnit)),
-        "healing is for your own units"
+        "bless is for your own units"
     );
-    assert_eq!(g.check_target(P0, zap, Some(Target::Unit(theirs))), Ok(()));
+    assert_eq!(g.check_target(P0, bless, Some(Target::Unit(mine))), Ok(()));
     assert_eq!(
-        g.check_target(P0, zap, Some(Target::Unit(mine))),
-        Err(MagicError::Target(TargetError::NotEnemyUnit))
+        g.check_target(P0, famine, Some(Target::City(city))),
+        Err(MagicError::Target(TargetError::NotEnemyCity)),
+        "famine is for the cities of others"
     );
-    // Five damage kills a spear-sized unit with that few hit points or hurts it.
-    g.start_cast(P0, zap, Some(Target::Unit(theirs)))
-        .map_err(|e| format!("{e:?}"))?;
-    let (left, max) = g.units().unit_hits(theirs);
-    assert!(left < max || !g.world.contains(theirs));
     Ok(())
 }
 

@@ -271,7 +271,6 @@ pub(crate) mod tests {
     use crate::game::testutil::{num, shipped};
     use crate::game::Command;
     use crate::map::Grid;
-    use crate::rules::{Registry, UnitKind};
     use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
@@ -291,16 +290,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn world_seeded(seed: u64) -> Game {
-        let mut c = shipped();
-        let mut units = c.rules.units.defs().to_vec();
-        for u in units.iter_mut() {
-            if u.id == "magic_spirit" {
-                u.abilities.push(crate::rules::Ability::new(42));
-                u.kind = UnitKind::Summoned;
-                u.realm = Some(crate::game::testutil::realm_ref(5 /* arcane */));
-            }
-        }
-        c.rules.units = Registry::new_sorted(units);
+        let c = shipped();
         let grass = c
             .terrains
             .id_numbered(num::terrain::GRASSLAND)

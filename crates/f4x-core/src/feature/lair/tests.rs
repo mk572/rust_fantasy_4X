@@ -8,7 +8,6 @@ use crate::rules::RealmId;
 use f4x_def::testdir::TestResult;
 
 use crate::game::Command;
-use crate::rules::Registry;
 
 const P0: PlayerId = PlayerId(0);
 
@@ -493,33 +492,17 @@ fn beating_the_guards_clears_the_site_pays_out_and_moves_in() -> TestResult {
         num::feature::MONSTER_LAIR,
         vec![(165, 1)], /* skeletons */
     );
-    // Make the guard feeble and the attackers strong.
-    let mut units = g.content.rules.units.defs().to_vec();
-    for u in &mut units {
-        match u.id.as_str() {
-            "skeletons" => {
-                u.stats.insert(Stat::Melee, 0);
-                u.stats.insert(Stat::Defense, 0);
-                u.stats.insert(Stat::MaxHp, 1);
-                u.stats.insert(Stat::Figures, 1);
-            }
-            "high_men_cavalry" => {
-                u.stats.insert(Stat::Melee, 10);
-                u.stats.insert(Stat::Defense, 10);
-            }
-            _ => {}
-        }
-    }
-    g.content.rules.units = Registry::new_sorted(units);
+    // A full stack of strong units against one skeleton.
     let walker = g
         .content
         .rules
         .units
-        .id_numbered(107)
-        .ok_or("high_men_cavalry is not in the content")?;
-    let w = g.spawn_unit(P0, at(4, 5), walker);
+        .id_numbered(113)
+        .ok_or("high_men_paladins is not in the content")?;
+    let stack: Vec<_> = (0..9).map(|_| g.spawn_unit(P0, at(4, 5), walker)).collect();
+    let w = stack[0];
     let events = g.apply(Command::EnterSite {
-        units: vec![w],
+        units: stack,
         to: at(5, 5),
     });
     assert!(matches!(events[0], Event::BattleStarted { defender, .. } if defender == MONSTERS));
@@ -663,14 +646,9 @@ fn zombie_mastery_takes_any_normal_dead_but_not_the_destroyed() -> TestResult {
         5,
         5,
         num::feature::MONSTER_LAIR,
-        vec![(165 /* skeletons */, 2)],
+        vec![(104 /* high_men_spearmen */, 2)],
     );
-    // Make the guards normal units, and give the winner Zombie Mastery.
-    let mut units = g.content.rules.units.defs().to_vec();
-    for d in units.iter_mut().filter(|d| d.id == "skeletons") {
-        d.kind = crate::rules::UnitKind::Normal;
-    }
-    g.content.rules.units = Registry::new_sorted(units);
+    // Give the winner Zombie Mastery.
     let zm = g
         .content
         .rules

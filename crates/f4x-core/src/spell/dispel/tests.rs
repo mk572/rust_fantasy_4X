@@ -7,7 +7,6 @@ use f4x_def::testdir::TestResult;
 
 use crate::feature::node::Node;
 use crate::game::Command;
-use crate::rules::Registry;
 use crate::wizard::magic::Retort;
 use rand::SeedableRng;
 
@@ -26,23 +25,9 @@ fn rng() -> rand_pcg::Pcg64Mcg {
     rand_pcg::Pcg64Mcg::seed_from_u64(5)
 }
 
-/// Two wizards (lots of mana and skill) and grassland, with the game's real spells. Disenchant
-/// Area and Disjunction are made overwhelming (a strength and a cost of 5000, which no enchantment
-/// resists) so that what they clear does not depend on luck.
+/// Two wizards (lots of mana and skill) and grassland, with the game's real spells.
 fn world() -> Game {
-    use crate::rules::effects::Effect;
-    let mut c = shipped();
-    let mut defs = c.rules.spells.defs().to_vec();
-    for d in defs.iter_mut().filter(|d| d.id == "disenchant_area") {
-        d.effects[0].effect = Effect::Custom {
-            name: crate::spell::dispel::COUNTER_EFFECT.into(),
-            args: vec!["dispel".into(), "5000".into()],
-        };
-    }
-    for d in defs.iter_mut().filter(|d| d.id == "disjunction") {
-        d.cost = 5000;
-    }
-    c.rules.spells = Registry::new(defs);
+    let c = shipped();
     let grass = c
         .terrains
         .id_numbered(num::terrain::GRASSLAND)
@@ -80,18 +65,47 @@ fn global(g: &Game, player: PlayerId, spell: SpellId) -> Target {
 }
 
 fn cast(g: &mut Game, spell: u16, target: Target) -> Vec<Event> {
+    cast_with(g, spell, target, 0)
+}
+
+fn cast_with(g: &mut Game, spell: u16, target: Target, extra: i32) -> Vec<Event> {
+    cast_as(g, P0, spell, target, extra)
+}
+
+fn cast_as(g: &mut Game, who: PlayerId, spell: u16, target: Target, extra: i32) -> Vec<Event> {
     let s = sp(g, spell);
-    g.wizard_mut(P0)
+    g.wizard_mut(who)
         .expect("value succeeds")
         .get_mut::<crate::wizard::sheet::KnownSpells>()
         .known
         .insert(s);
     g.apply(Command::CastSpell {
-        extra: 0,
-        player: P0,
+        extra,
+        player: who,
         spell: s,
         target: Some(target),
     })
+}
+
+/// A dispel is a roll, so a test that needs it to succeed casts again (the wizards have mana to
+/// spare) until `done`, and gets every event of the casts. A cast that finds nothing to dispel is
+/// refused, so a test that is done never casts again.
+fn cast_until(
+    g: &mut Game,
+    who: PlayerId,
+    spell: u16,
+    target: impl Fn(&Game) -> Target,
+    done: impl Fn(&Game) -> bool,
+) -> Vec<Event> {
+    let mut all = Vec::new();
+    for _ in 0..200 {
+        if done(g) {
+            return all;
+        }
+        let aim = target(g);
+        all.extend(cast_as(g, who, spell, aim, 0));
+    }
+    all
 }
 
 #[test]
@@ -270,40 +284,46 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
         },
         Some(PlayerId(0)),
     );
-    let events = cast(
+    let node = g.economy().nodes()[0].entity;
+    let events = cast_until(
         &mut g,
+        P0,
         204, /* disenchant_area */
-        Target::Tile(at(6, 6)),
+        |_| Target::Tile(at(6, 6)),
+        |g| !g.world.get::<&Node>(node).is_ok_and(|n| n.warped),
     );
-    assert!(
-        events.contains(&Event::Dispelled {
-            player: P0,
-            removed: 1
-        }),
+    let removed: u32 = events
+        .iter()
+        .map(|e| match e {
+            Event::Dispelled { removed, .. } => *removed as u32,
+            _ => 0,
+        })
+        .sum();
+    assert_eq!(
+        removed, 1,
         "only the warp on the caster's own node goes, their own enchantments stay: {events:?}"
     );
-    let node = g.economy().nodes()[0].entity;
     g.world.get::<&mut Node>(node)?.warped = true;
     // The same cast by the other wizard takes it all.
-    let da = sp(&g, 204 /* disenchant_area */);
-    g.wizard_mut(P1)
-        .ok_or("wizard_mut is missing")?
-        .get_mut::<crate::wizard::sheet::KnownSpells>()
-        .known
-        .insert(da);
-    let events = g.apply(Command::CastSpell {
-        extra: 0,
-        player: P1,
-        spell: sp(&g, 204 /* disenchant_area */),
-        target: Some(Target::Tile(at(6, 6))),
-    });
-    assert!(
-        events.contains(&Event::Dispelled {
-            player: P1,
-            removed: 3
-        }),
-        "{events:?}"
+    let events = cast_until(
+        &mut g,
+        P1,
+        204, /* disenchant_area */
+        |_| Target::Tile(at(6, 6)),
+        |g| {
+            !g.world.get::<&Node>(node).is_ok_and(|n| n.warped)
+                && g.units().unit_enchantments(unit).is_empty()
+                && g.city_enchantments(city).is_empty()
+        },
     );
+    let removed: u32 = events
+        .iter()
+        .map(|e| match e {
+            Event::Dispelled { removed, .. } => *removed as u32,
+            _ => 0,
+        })
+        .sum();
+    assert_eq!(removed, 3, "{events:?}");
     assert!(!g.node_at(at(6, 6)).ok_or("node_at is missing")?.warped);
     let left = g.units().unit_enchantments(elsewhere).len();
     assert_eq!(left, 1, "another square is left alone");
@@ -316,7 +336,13 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() -> TestResult {
     let aura = sp(&g, 59 /* aura_of_majesty */);
     g.attach_enchantment(Target::Player(P1), aura, P1);
     let held = global(&g, P1, aura);
-    let events = cast(&mut g, 76 /* spell_binding */, held);
+    let events = cast_until(
+        &mut g,
+        P0,
+        76, /* spell_binding */
+        |g| global(g, P1, aura),
+        |g| g.wizard(P0).is_some_and(|w| w.has_global(aura)),
+    );
     assert!(
         events.contains(&Event::GlobalSpellTaken {
             player: P0,
@@ -328,19 +354,13 @@ fn disjunction_ends_and_spell_binding_steals_an_enemy_global() -> TestResult {
     assert!(g.wizard(P0).ok_or("wizard is missing")?.has_global(aura));
     assert!(!g.wizard(P1).ok_or("wizard is missing")?.has_global(aura));
     // Now P1 ends it with Disjunction.
-    let stolen = global(&g, P0, aura);
-    let dj = sp(&g, 210 /* disjunction */);
-    g.wizard_mut(P1)
-        .ok_or("wizard_mut is missing")?
-        .get_mut::<crate::wizard::sheet::KnownSpells>()
-        .known
-        .insert(dj);
-    let events = g.apply(Command::CastSpell {
-        extra: 0,
-        player: P1,
-        spell: sp(&g, 210 /* disjunction */),
-        target: Some(stolen),
-    });
+    let events = cast_until(
+        &mut g,
+        P1,
+        210, /* disjunction */
+        |g| global(g, P0, aura),
+        |g| g.wizard(P0).is_some_and(|w| w.global().is_empty()),
+    );
     assert!(
         events.contains(&Event::GlobalSpellRemoved {
             player: P1,

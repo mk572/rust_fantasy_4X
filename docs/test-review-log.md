@@ -186,3 +186,29 @@ Core needs no text, so no core test should read one. Until now every test conten
 | `wizard::magic::every_magic_error_has_its_own_sentence_key...` | no text, only the keys | stays |
 
 New: `game::setup::a_game_is_dealt_its_names_from_the_bundle_and_falls_back_to_ids_without_one`; `f4x-client` `names::the_shipped_name_lists_make_the_bundle_a_new_game_takes` checks the client's lists (every race has city names, every hero five names, four rival lists of ten).
+
+## Tests that built their own rules (tasks 461 and 484 item 1, 7 November 2026)
+
+About 45 tests in 13 files replaced a registry or edited a definition. Each was read, and each edit is now one of these:
+
+| what the edit was for | now |
+|---|---|
+| Nothing (the shipped content already had the property): `battle` `casting_game` and a units copy, the galley made Fantastic, Chaos Rift's upkeep set to 10, the Meld ability on the Magic Spirit, the Warship's Transport, cavalry made Normal | the edit is deleted |
+| A unit with an ability the test needs (Casts Healing, Summon Demon, Regeneration, Purify, the three immunities, Invisibility and illusion immunity, Lucky) | a shipped unit that has it: `high_men_priests`, `demon_lord`, `troll_spearmen`, `high_men_paladins`/`skeletons`/`fire_elemental`, `dark_elf_nightblades`/`skeletons`, `halfling_swordsmen` (the Lucky test compares with the unit's own stats) |
+| A "fantastic creature of chaos", a Normal unit made Summoned | the Hydra (163) |
+| Units that must not die of upkeep over 60 turns (Stasis, Time Stop): upkeep zeroed, kind Fantastic | heroes, which eat no food, and `fund()` gives the wizards the gold each turn |
+| A weak guard and a strong attacker (lair) | a full stack of nine paladins against one skeleton; zombie mastery on a lair of Normal spearmen |
+| Dispel strength made 5000 (Disenchant Area, Disjunction) | the cast is repeated until it works (`cast_until`); Extra mana is capped at the spell's cost and cannot make it certain |
+| Nightshade: a duplicate Nightshade feature and Famine's dispel difficulty tuned | the shipped feature; Evil Presence (difficulty 100) and Chaos Rift (300) give the rates; the fizzle test rolls on until one fizzles |
+| Healing and Fire Bolt made castable on the map (`on_the_map`) | Bless (own unit) and Famine (enemy city), which are overland spells; no overland spell aims at an enemy unit |
+| A very rare foe (cost 600), a hero made of cavalry | the Great Drake and the Hydra (summoned, 900 and 650); the dwarf hero at levels by experience |
+| One prefab item so the taken list shows plainly | the item on offer is read back from the offer |
+| **Kept**: the validator tests in `hook.rs`; the save naming a unit the content lacks; the console fallback names with no ready-made wizards; the seven AI wizard tests whose ready-made wizards have compositions the shipped set lacks (opposed realms, three Myrran, five books of two realms) | listed in `rust_coding_rules.md` |
+
+Not counted: tests that set a game setting or a config value (`g.settings.rules.melee_vs_fliers`, `max_tile`, `settlers_cost_citizen`, `rules.config.tax_unrest_percent`, `max_city_size`); those are not rule sets.
+
+Findings on the way: Time Stop did not stop the keeper's production or the others' turns (fixed after the wiki, `divergences.md` 18); the very-rare-foe rule needed a fantastic unit of 600 mana, and no shipped unit costs that much except the summoned ones; Land Corruption turned out to be a defunct ability of the original (removed).
+
+## Pairs between `wizard/magic.rs`, `wizard/magic_income/tests.rs` and `wizard/magic_game/tests.rs` (task 484 item 2)
+
+Read side by side. The power split and the Channeler's half upkeep are tested twice: on a `Fake` income view (numbers in, numbers out, no cities) and in `magic_game` on a real game with a city, a temple and a library. They share an intent but not a subject: the first checks the arithmetic of `income()`, the second that the game feeds it the right numbers (city yield, buildings, treasury, the spell staying when the reserve pays). A bug in either place fails only its own test. They stay. `magic.rs` holds the pure functions (`upkeep_plan`, skill steps) and has no twin.

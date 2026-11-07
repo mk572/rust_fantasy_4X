@@ -7,7 +7,6 @@ use f4x_def::testdir::TestResult;
 
 use crate::game::Command;
 use crate::rules::exec::Target;
-use crate::rules::{Registry, UnitKind};
 use rand::SeedableRng;
 
 const P0: PlayerId = PlayerId(0);
@@ -22,23 +21,10 @@ fn at(x: u32, y: u32) -> Position {
     }
 }
 
-/// Three wizards on grassland; "high_men_cavalry" is a normal unit, "high_men_spearmen" a fantastic creature of chaos,
-/// "high_elf_pegasai" flies and "magic_spirit" has no body.
+/// Three wizards on grassland; "high_men_cavalry" is a normal unit, "hydra" a fantastic creature of chaos,
+/// "high_elf_pegasai" flies and "magic_spirit" is a summoned spirit of the arcane realm.
 fn world() -> Game {
-    let mut c = shipped();
-    let mut units = c.rules.units.defs().to_vec();
-    for u in units.iter_mut() {
-        match u.id.as_str() {
-            "high_men_cavalry" => u.kind = UnitKind::Normal,
-            "high_elf_pegasai" | "magic_spirit" => u.kind = UnitKind::Normal,
-            "high_men_spearmen" => {
-                u.kind = UnitKind::Summoned;
-                u.realm = Some(crate::game::testutil::realm_ref(2 /* chaos */));
-            }
-            _ => {}
-        }
-    }
-    c.rules.units = Registry::new_sorted(units);
+    let c = shipped();
     let grass = c
         .terrains
         .id_numbered(num::terrain::GRASSLAND)
@@ -76,6 +62,16 @@ fn unit(g: &mut Game, owner: PlayerId, id: u16, pos: Position) -> hecs::Entity {
         .id_numbered(id)
         .expect("id_of succeeds");
     g.spawn_unit(owner, pos, def)
+}
+
+/// Enough gold for the troops of `players` for many turns, so that no unit is released for
+/// want of pay while the test goes on. Mana is left as it is.
+fn fund(g: &mut Game, players: &[crate::player::PlayerId]) {
+    for &p in players {
+        if let Some(t) = g.treasury_mut(p) {
+            t.gold = t.gold.max(10_000);
+        }
+    }
 }
 
 fn cast(g: &mut Game, spell: u16, target: Option<Target>) -> Vec<Event> {
@@ -235,10 +231,10 @@ fn subversion_sours_the_others_on_the_target_and_ends_their_peace() {
 fn great_unsummoning_banishes_fantastic_creatures_of_every_wizard() {
     let mut g = world();
     let mine: Vec<_> = (0..40)
-        .map(|i| unit(&mut g, P0, 104 /* high_men_spearmen */, at(i % 20, 1)))
+        .map(|i| unit(&mut g, P0, 163 /* hydra */, at(i % 20, 1)))
         .collect();
     let theirs: Vec<_> = (0..40)
-        .map(|i| unit(&mut g, P1, 104 /* high_men_spearmen */, at(i % 20, 2)))
+        .map(|i| unit(&mut g, P1, 163 /* hydra */, at(i % 20, 2)))
         .collect();
     let men = unit(&mut g, P1, 107 /* high_men_cavalry */, at(3, 3));
     let events = cast(&mut g, 75 /* great_unsummoning */, None);
@@ -268,7 +264,7 @@ fn death_wish_spares_the_casters_units_and_the_fantastic() {
     let enemy: Vec<_> = (0..30)
         .map(|i| unit(&mut g, P1, 107 /* high_men_cavalry */, at(i % 20, 2)))
         .collect();
-    let summoned = unit(&mut g, P1, 104 /* high_men_spearmen */, at(1, 5));
+    let summoned = unit(&mut g, P1, 163 /* hydra */, at(1, 5));
     cast(&mut g, 199 /* death_wish */, None);
     assert!(own.iter().all(|&u| g.world.contains(u)));
     assert!(g.world.contains(summoned));
@@ -455,7 +451,7 @@ fn lycanthropy_makes_a_normal_unit_a_werewolf_and_forgets_its_experience() -> Te
 #[test]
 fn lycanthropy_refuses_fantastic_creatures_undead_and_other_wizards_units() {
     let mut g = world();
-    let summoned = unit(&mut g, P0, 104 /* high_men_spearmen */, at(1, 1));
+    let summoned = unit(&mut g, P0, 163 /* hydra */, at(1, 1));
     let events = cast(
         &mut g,
         173, /* lycanthropy */
@@ -545,33 +541,22 @@ fn a_storm_hits_every_unit_on_the_square_and_only_that_square() {
 #[test]
 fn magic_immunity_stops_a_storm_and_each_storm_has_its_own_element() {
     let mut g = world();
-    let mut defs = g.content.rules.units.defs().to_vec();
-    for (id, ability) in [
-        (
-            107, /* high_men_cavalry */
-            40,  /* magic_immunity */
-        ),
-        (103 /* high_elf_pegasai */, 10 /* cold_immunity */),
-        (154 /* magic_spirit */, 21 /* fire_immunity */),
-    ] {
-        defs.iter_mut()
-            .filter(|d| d.num == id)
-            .for_each(|d| d.abilities.push(crate::game::testutil::ability(ability)));
-    }
-    g.content.rules.units = Registry::new_sorted(defs);
     for (storm, safe, hurt) in [
         (
             25, /* ice_storm */
             [
-                107, /* high_men_cavalry */
-                103, /* high_elf_pegasai */
+                113, /* high_men_paladins: magic immunity */
+                165, /* skeletons: cold immunity */
             ],
-            154, /* magic_spirit */
+            107, /* high_men_cavalry */
         ),
         (
             107, /* fire_storm */
-            [107 /* high_men_cavalry */, 154 /* magic_spirit */],
-            103, /* high_elf_pegasai */
+            [
+                113, /* high_men_paladins: magic immunity */
+                158, /* fire_elemental: fire immunity */
+            ],
+            107, /* high_men_cavalry */
         ),
     ] {
         let square = at(6, 6);
@@ -1124,7 +1109,7 @@ fn chaos_channels_gives_one_mutation_once_and_makes_a_creature_of_chaos() {
 #[test]
 fn chaos_channels_refuses_fantastic_units_and_never_gives_a_flier_wings() {
     let mut g = world();
-    let beast = unit(&mut g, P0, 104 /* high_men_spearmen */, at(3, 3));
+    let beast = unit(&mut g, P0, 163 /* hydra */, at(3, 3));
     let events = cast(
         &mut g,
         93, /* chaos_channels */
@@ -1160,19 +1145,28 @@ fn doom_mastery_mutates_new_units_of_its_wizard_only() {
 fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_break_free(
 ) -> TestResult {
     let mut g = world();
-    // No upkeep and no food, so that nobody is lost while the turns go by.
-    let mut defs = g.content.rules.units.defs().to_vec();
-    for d in defs.iter_mut() {
-        d.upkeep = Default::default();
-        d.kind = UnitKind::Fantastic;
-        d.stats.insert(crate::rules::Stat::Resistance, 12);
-    }
-    g.content.rules.units = Registry::new_sorted(defs);
     let enemies: Vec<_> = (0..6)
-        .map(|_| unit(&mut g, P1, 107 /* high_men_cavalry */, at(8, 8)))
+        .map(|_| {
+            unit(
+                &mut g,
+                P1,
+                0, /* dwarf: a hero eats no food, so gold keeps the troops */
+                at(8, 8),
+            )
+        })
         .collect();
-    let mine = unit(&mut g, P0, 107 /* high_men_cavalry */, at(8, 8));
-    let other = unit(&mut g, P1, 107 /* high_men_cavalry */, at(9, 8));
+    let mine = unit(
+        &mut g,
+        P0,
+        0, /* dwarf: a hero eats no food, so gold keeps the troops */
+        at(8, 8),
+    );
+    let other = unit(
+        &mut g,
+        P1,
+        0, /* dwarf: a hero eats no food, so gold keeps the troops */
+        at(9, 8),
+    );
     let events = cast(&mut g, 68 /* stasis */, Some(Target::Tile(at(8, 8))));
     assert!(
         !events.iter().any(|e| matches!(e, Event::Rejected(_))),
@@ -1181,6 +1175,7 @@ fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_
     assert!(enemies.iter().all(|&u| g.unit_in_stasis(u)));
     assert!(!g.unit_in_stasis(mine) && !g.unit_in_stasis(other));
     // The first turn change: held whatever they roll, and with no moves.
+    fund(&mut g, &[P0, P1]);
     g.apply(Command::EndTurn);
     assert!(enemies.iter().all(|&u| g.unit_in_stasis(u)));
     assert!(enemies.iter().all(|&u| g.units().unit_moves_left(u) == 0));
@@ -1189,6 +1184,7 @@ fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_
     assert!(g.units().unit_moves_left(mine) > 0);
     // Later they break free one by one, and move again.
     for _ in 0..60 {
+        fund(&mut g, &[P0, P1]);
         g.apply(Command::EndTurn);
     }
     assert!(
@@ -1201,7 +1197,12 @@ fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 99_999;
-    let held = unit(&mut g, P1, 107 /* high_men_cavalry */, at(12, 8));
+    let held = unit(
+        &mut g,
+        P1,
+        0, /* dwarf: a hero eats no food, so gold keeps the troops */
+        at(12, 8),
+    );
     cast(&mut g, 68 /* stasis */, Some(Target::Tile(at(12, 8))));
     assert!(g.unit_in_stasis(held));
     let again = cast(&mut g, 68 /* stasis */, Some(Target::Tile(at(12, 8))));
@@ -1215,14 +1216,18 @@ fn stasis_holds_enemy_units_on_the_square_for_a_turn_and_then_lets_them_roll_to_
 #[test]
 fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() -> TestResult {
     let mut g = world();
-    let mut defs = g.content.rules.units.defs().to_vec();
-    for d in defs.iter_mut() {
-        d.upkeep = Default::default();
-        d.kind = UnitKind::Fantastic;
-    }
-    g.content.rules.units = Registry::new_sorted(defs);
-    let mine = unit(&mut g, P0, 107 /* high_men_cavalry */, at(3, 3));
-    let theirs = unit(&mut g, P1, 107 /* high_men_cavalry */, at(4, 3));
+    let mine = unit(
+        &mut g,
+        P0,
+        0, /* dwarf: a hero eats no food, so gold keeps the troops */
+        at(3, 3),
+    );
+    let theirs = unit(
+        &mut g,
+        P1,
+        0, /* dwarf: a hero eats no food, so gold keeps the troops */
+        at(4, 3),
+    );
     keep(&mut g, P0, 80 /* time_stop */);
     g.attach_enchantment(Target::Player(P0), sp(&g, 80 /* time_stop */), P0);
     // Another global enchantment of the wizard's costs nothing now.
@@ -1232,6 +1237,7 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() -> Te
         .ok_or("wizard_mut is missing")?
         .get_mut::<crate::wizard::sheet::Skill>()
         .left = 5;
+    fund(&mut g, &[P1]);
     g.apply(Command::EndTurn);
     assert!(g.units().unit_moves_left(mine) > 0);
     assert_eq!(
@@ -1251,13 +1257,16 @@ fn time_stop_freezes_everyone_but_its_wizard_who_pays_only_for_the_spell() -> Te
     );
     assert!(g.time_stopper() == Some(P0));
     // Out of mana, the spell is lost and time runs again.
+    fund(&mut g, &[P1]);
     g.apply(Command::EndTurn);
     assert_eq!(
         g.player(P0).ok_or("player is missing")?.treasury().mana,
         100
     );
+    fund(&mut g, &[P1]);
     g.apply(Command::EndTurn);
     assert_eq!(g.time_stopper(), None, "it could not be paid for");
+    fund(&mut g, &[P1]);
     g.apply(Command::EndTurn);
     assert!(g.units().unit_moves_left(theirs) > 0);
     Ok(())

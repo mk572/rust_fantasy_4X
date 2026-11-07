@@ -315,7 +315,6 @@ mod tests {
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::RealmId;
-    use crate::rules::{Registry, UnitKind};
     use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
@@ -330,18 +329,7 @@ mod tests {
     }
 
     fn world() -> Game {
-        let mut c = shipped();
-        let mut units = c.rules.units.defs().to_vec();
-        for u in units.iter_mut() {
-            match u.id.as_str() {
-                "high_men_cavalry" => u.kind = UnitKind::Normal,
-                "high_men_spearmen" => {
-                    u.realm = Some(crate::game::testutil::realm_ref(2 /* chaos */))
-                }
-                _ => {}
-            }
-        }
-        c.rules.units = Registry::new_sorted(units);
+        let c = shipped();
         let grass = c
             .terrains
             .id_numbered(num::terrain::GRASSLAND)
@@ -494,8 +482,8 @@ mod tests {
             .content
             .rules
             .units
-            .id_numbered(104)
-            .ok_or("high_men_spearmen is not in the content")?;
+            .id_numbered(163)
+            .ok_or("hydra is not in the content")?;
         let normal = g.spawn_unit(P0, at(5, 5), walker);
         let chaos = g.spawn_unit(P0, at(6, 5), slow);
         let rival = g.spawn_unit(P1, at(9, 5), walker);

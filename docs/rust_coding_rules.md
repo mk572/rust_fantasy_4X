@@ -108,8 +108,15 @@ wrong reason.
 - **A test never builds its own rule set.** Do not copy a registry (`defs().to_vec()`), edit a
   definition and put it back with `Registry::new(..)`, and do not assign `content.rules.x = ..`: pick the
   unit, spell or setting of the shipped content that has the property the test needs, or fix the shipped
-  content if its rules are wrong. A test of the content validator may break a copy on purpose. (Task 461
-  lists the tests that still do.)
+  content if its rules are wrong. A test of the content validator may break a copy on purpose, and so may a test of a
+  function that takes the registry as its input and needs a case the shipped content lacks. These are
+  the tests that still do, each with its reason (`docs/test-review-log.md`, tasks 461 and 484):
+  `hook.rs` (validator), `game/save/tests.rs` (a save naming a unit the content lacks),
+  `wizard/ai/tests.rs` (ready-made wizards with a composition the shipped ones lack: opposed realms,
+  a set of Myrran ones) and `f4x-console` (no ready-made wizards, so the fallback names show).
+  Where a result depends on a roll, cast or fight again until it happens (`cast_until`) or give the
+  caster the means, rather than raising a number in the rules. Tests that only set a game setting or a
+  config value (`g.settings.rules.x`, `rules.config.x`) are not rule sets.
 - Build only situations the game can reach (a unit always has a real player as owner; see
   `ecs-structure.md` section 3.3). A situation the game cannot create belongs in a test only to check
   error handling (a rejected command, a refused save).

@@ -213,16 +213,7 @@ mod tests {
 
     #[test]
     fn invisible_units_hide_from_everyone_but_those_who_see_through_illusions() -> TestResult {
-        let mut c = shipped();
-        let mut units = c.rules.units.defs().to_vec();
-        for u in units.iter_mut() {
-            match u.id.as_str() {
-                "magic_spirit" => u.abilities.push(Ability::new(33)),
-                "wind_mage" => u.abilities.push(Ability::new(31)),
-                _ => {}
-            }
-        }
-        c.rules.units = crate::rules::Registry::new_sorted(units);
+        let c = shipped();
         let grass = c
             .terrains
             .id_numbered(num::terrain::GRASSLAND)
@@ -245,7 +236,11 @@ mod tests {
                 .id_numbered(n)
                 .expect("id_of succeeds")
         };
-        let (spirit, mage) = (id(&g, 154 /* magic_spirit */), id(&g, 15 /* wind_mage */));
+        // The nightblades are invisible, the skeletons see through illusions.
+        let (spirit, mage) = (
+            id(&g, 63 /* dark_elf_nightblades */),
+            id(&g, 165 /* skeletons */),
+        );
         let ghost = g.spawn_unit(PlayerId(0), at(5), spirit);
         assert!(
             g.economy().unit_visible_to(ghost, PlayerId(0)),

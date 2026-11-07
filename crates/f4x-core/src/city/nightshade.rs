@@ -93,12 +93,10 @@ impl Game {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::feature::def::{CityBonus, FeatureDef, FeatureKind, Features};
     use crate::game::testutil::{num, shipped};
     use crate::game::Command;
     use crate::map::Position;
     use crate::map::{Grid, Map, Plane};
-    use crate::rules::{Registry, SpellTarget};
     use f4x_def::testdir::TestResult;
 
     const P0: PlayerId = PlayerId(0);
@@ -112,32 +110,11 @@ mod tests {
         }
     }
 
-    /// P0's city at (10, 6) of 4 people; a spell "famine" that curses enemy cities with the
-    /// given dispel difficulty; nightshade on the squares listed.
-    fn world(plants: &[(u32, u32)], difficulty: u32) -> (Game, hecs::Entity, SpellId) {
-        let mut c = shipped();
-        let mut defs = c.features.defs().to_vec();
-        defs.push(FeatureDef {
-            num: defs.len() as u16 + 1,
-            id: "nightshade".into(),
-            kind: FeatureKind::Mineral,
-            realm: None,
-            holy: false,
-            reward: None,
-            transmute: None,
-            city: CityBonus::default(),
-            spawn: vec![],
-        });
-        c.features = Features::new(defs);
-        let mut spells = c.rules.spells.defs().to_vec();
-        for s in &mut spells {
-            if s.id == "famine" {
-                s.target = SpellTarget::EnemyCity;
-                s.dispel_difficulty = difficulty;
-                s.cost = difficulty;
-            }
-        }
-        c.rules.spells = Registry::new(spells);
+    /// P0's city at (10, 6) of 4 people; nightshade on the squares listed; the shipped enemy-city
+    /// spell numbered `spell_num` (Evil Presence 183 has a dispel difficulty of 100, Chaos Rift
+    /// 110 of 300).
+    fn world(plants: &[(u32, u32)], spell_num: u16) -> (Game, hecs::Entity, SpellId) {
+        let c = shipped();
         let grass = c
             .terrains
             .id_numbered(num::terrain::GRASSLAND)
@@ -168,7 +145,7 @@ mod tests {
             .content
             .rules
             .spells
-            .id_numbered(189)
+            .id_numbered(spell_num)
             .expect("id_of succeeds");
         (game, city, spell)
     }
@@ -189,7 +166,7 @@ mod tests {
 
     #[test]
     fn plants_count_only_for_a_city_with_a_building_that_allows_them() {
-        let (mut g, city, _) = world(&[(10, 8), (11, 6), (20, 12)], 10);
+        let (mut g, city, _) = world(&[(10, 8), (11, 6), (20, 12)], 110);
         assert_eq!(g.nightshade_count(city), 0, "no temple or shrine yet");
         build(&mut g, city, 23 /* temple */);
         assert_eq!(
@@ -201,7 +178,7 @@ mod tests {
 
     #[test]
     fn an_outpost_counts_no_plants() -> TestResult {
-        let (mut g, city, _) = world(&[(10, 8)], 10);
+        let (mut g, city, _) = world(&[(10, 8)], 110);
         build(&mut g, city, 23 /* temple */);
         g.world.insert_one(
             city,
@@ -215,14 +192,16 @@ mod tests {
     }
 
     #[test]
-    fn with_no_difficulty_one_plant_always_turns_an_enemy_spell_away() {
-        let (mut g, city, spell) = world(&[(10, 8)], 0);
+    fn a_plant_turns_some_enemy_spells_away_but_never_the_owners() {
+        // Evil Presence, difficulty 100: a hundred dispel strength per plant is half the rolls.
+        let (mut g, city, spell) = world(&[(10, 8)], 183);
         build(&mut g, city, 23 /* temple */);
-        for _ in 0..20 {
-            assert!(g.nightshade_fizzles(P1, spell, city));
-        }
+        let fizzled = (0..400)
+            .filter(|_| g.nightshade_fizzles(P1, spell, city))
+            .count();
+        assert!((140..260).contains(&fizzled), "one plant: {fizzled} of 400");
         assert!(
-            !g.nightshade_fizzles(P0, spell, city),
+            (0..400).all(|_| !g.nightshade_fizzles(P0, spell, city)),
             "the owner's own spells are not resisted"
         );
     }
@@ -232,7 +211,7 @@ mod tests {
         // A hundred dispel strength per plant against difficulty 300: 25% for one plant,
         // 40% for two.
         let rate = |plants: &[(u32, u32)]| {
-            let (mut g, city, spell) = world(plants, 300);
+            let (mut g, city, spell) = world(plants, 110 /* chaos_rift: difficulty 300 */);
             build(&mut g, city, 23 /* temple */);
             (0..2000)
                 .filter(|_| g.nightshade_fizzles(P1, spell, city))
@@ -246,13 +225,19 @@ mod tests {
 
     #[test]
     fn a_fizzled_spell_puts_nothing_on_the_city() {
-        let (mut g, city, spell) = world(&[(10, 8)], 0);
-        build(&mut g, city, 23 /* temple */);
-        let events = g.resolve_cast(P1, spell, Some(crate::rules::exec::Target::City(city)));
-        assert!(matches!(
-            events.as_slice(),
-            [crate::game::Event::SpellFizzled { .. }]
-        ));
-        assert!(g.city_enchantments(city).is_empty());
+        // The dice decide each cast; roll on until one fizzles, and look at what it left.
+        for tries in 0..200 {
+            let (mut g, city, spell) = world(&[(10, 8)], 183);
+            build(&mut g, city, 23 /* temple */);
+            for _ in 0..tries {
+                g.nightshade_fizzles(P1, spell, city);
+            }
+            let events = g.resolve_cast(P1, spell, Some(crate::rules::exec::Target::City(city)));
+            if matches!(events.as_slice(), [crate::game::Event::SpellFizzled { .. }]) {
+                assert!(g.city_enchantments(city).is_empty());
+                return;
+            }
+        }
+        panic!("no cast fizzled in 200 tries");
     }
 }

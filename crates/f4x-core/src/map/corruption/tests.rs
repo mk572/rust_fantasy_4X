@@ -4,7 +4,6 @@ use crate::game::Command;
 use crate::map::{Grid, Map, Plane};
 use crate::rules::exec::Target;
 use crate::rules::RealmId;
-use crate::rules::Registry;
 use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
@@ -19,15 +18,7 @@ fn at(x: u32, y: u32) -> Position {
 }
 
 fn world() -> Game {
-    let mut c = shipped();
-    let mut units = c.rules.units.defs().to_vec();
-    for u in units.iter_mut() {
-        match u.id.as_str() {
-            "high_men_cavalry" => u.abilities.push(Ability::new(54)),
-            _ => {}
-        }
-    }
-    c.rules.units = Registry::new_sorted(units);
+    let c = shipped();
     let grass = c
         .terrains
         .id_numbered(num::terrain::GRASSLAND)
@@ -175,8 +166,8 @@ fn purifiers_clean_a_square_in_three_turns_and_moving_cancels() -> TestResult {
         .content
         .rules
         .units
-        .id_numbered(107)
-        .ok_or("high_men_cavalry is not in the content")?;
+        .id_numbered(108)
+        .ok_or("high_men_priests is not in the content")?;
     let slow = g
         .content
         .rules
@@ -283,8 +274,8 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() -> TestResult {
         .content
         .rules
         .units
-        .id_numbered(107)
-        .ok_or("high_men_cavalry is not in the content")?;
+        .id_numbered(108)
+        .ok_or("high_men_priests is not in the content")?;
     let u = g.spawn_unit(P0, at(7, 8), walker);
     assert_eq!(g.economy().tower_owner(at(8, 8)), None);
     g.move_stack(&[u], at(8, 8)).map_err(|e| format!("{e:?}"))?;

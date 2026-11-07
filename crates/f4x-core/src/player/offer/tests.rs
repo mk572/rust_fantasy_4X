@@ -3,7 +3,6 @@ use f4x_def::testdir::TestResult;
 
 use crate::hero::game::tests::{at, world as hero_world, P0, P1};
 use crate::item::armory::Placed;
-use crate::rules::Registry;
 
 /// The hero world with a fortress for both wizards, one human, the game's real races and units, a
 /// prefab item and a plain power for the merchant.
@@ -358,28 +357,16 @@ fn the_price_is_tested_after_the_charismatic_discount() -> TestResult {
 #[test]
 fn a_rejected_or_lapsed_item_can_be_offered_again() -> TestResult {
     let mut g = world();
-    // One prefab item only, so the taken list shows plainly.
-    let mut items = g.content.rules.items.defs().to_vec();
-    items.clear();
-    items.push(crate::rules::ItemDef {
-        num: 0,
-        id: "only".into(),
-        slot: crate::rules::ItemSlot::Weapon,
-        kind: crate::rules::ItemKind::Sword,
-        cost: 10,
-        effects: Vec::new(),
-        spell_skill: 0,
-        spell_save: 0,
-        powers: Vec::new(),
-        charges: None,
-        flag: false,
-    });
-    g.content.rules.items = Registry::new(items);
     let i = roll_until(
         &mut g,
         |o| matches!(o, Offer::Item { item, .. } if item.prefab.is_some()),
     );
-    assert_eq!(g.prefab_taken, vec![crate::rules::ItemId::new(0)]);
+    // The taken list holds the prefab item on offer, and only that.
+    let offered = match &g.offers(P0)[i] {
+        Offer::Item { item, .. } => item.prefab.ok_or("the offer is not a prefab item")?,
+        _ => return Err("not an item offer".into()),
+    };
+    assert_eq!(g.prefab_taken, vec![offered]);
     g.reject_offer(P0, i).map_err(|e| format!("{e:?}"))?;
     assert!(g.prefab_taken.is_empty());
     // An unanswered one lapses at the next turn change.

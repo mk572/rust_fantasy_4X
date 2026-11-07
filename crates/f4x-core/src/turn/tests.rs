@@ -1410,19 +1410,12 @@ fn regenerating_units_mend_completely_each_turn() -> TestResult {
     let mut g = world();
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     farm_all(&mut g, city);
-    let mut units = g.content.rules.units.defs().to_vec();
-    for u in units.iter_mut() {
-        if u.id == "high_elf_spearmen" {
-            u.abilities.push(crate::rules::Ability::new(55));
-        }
-    }
-    g.content.rules.units = crate::rules::Registry::new_sorted(units);
     let spear = g
         .content
         .rules
         .units
-        .id_numbered(95)
-        .ok_or("high_elf_spearmen is not in the content")?;
+        .id_numbered(147)
+        .ok_or("troll_spearmen is not in the content")?;
     let troll = g.spawn_unit(P0, at(14, 3), spear);
     g.world.insert_one(troll, Hurt(5))?;
     g.apply(Command::EndTurn);
@@ -2037,4 +2030,75 @@ fn the_old_end_turn_is_the_four_phases_for_every_player() {
     }
     assert_eq!(a.turn, b.turn);
     assert_eq!(a.next_u64(), b.next_u64(), "the same random draws");
+}
+
+/// Two wizards with a city each; the first may keep Time Stop (200 mana a turn).
+fn two_cities(time_stop: bool) -> Result<(Game, hecs::Entity, hecs::Entity), String> {
+    let mut g = world();
+    for p in [P0, PlayerId(1)] {
+        let t = g.treasury_mut(p).ok_or("no treasury")?;
+        (t.gold, t.mana) = (500, 1000);
+    }
+    let mine = found(&mut g, at(10, 6), 7 /* high_elf */, 6);
+    let race = race(&g, 7 /* high_elf */);
+    g.apply(Command::FoundCity {
+        owner: PlayerId(1),
+        pos: at(16, 6),
+        name: "Theirs".into(),
+        race,
+        population: 6,
+    });
+    let theirs = g.economy().city_at(at(16, 6)).ok_or("no city")?;
+    if time_stop {
+        let spell = g
+            .content
+            .rules
+            .spells
+            .id_numbered(80)
+            .ok_or("time_stop is not in the content")?;
+        g.add_global(P0, spell);
+    }
+    Ok((g, mine, theirs))
+}
+
+#[test]
+fn time_stop_halts_production_growth_and_income_for_everyone_but_the_spells_own_mana() -> TestResult
+{
+    let (mut free, mine, theirs) = two_cities(false)?;
+    let (mut stopped, my_city, their_city) = two_cities(true)?;
+    for _ in 0..3 {
+        free.apply(Command::EndTurn);
+        stopped.apply(Command::EndTurn);
+    }
+    let state = |g: &Game, city, player| -> Result<(u32, u32, i32, i32), String> {
+        let progress = g
+            .world
+            .get::<&Production>(city)
+            .map_err(|e| e.to_string())?
+            .progress;
+        let figures = g
+            .world
+            .get::<&Population>(city)
+            .map_err(|e| e.to_string())?
+            .figures;
+        let t = g.player(player).ok_or("no player")?.treasury();
+        Ok((progress, figures, t.gold, t.mana))
+    };
+    // Without it the cities build and the treasuries move.
+    let (progress, _, gold, _) = state(&free, mine, P0)?;
+    assert!(progress > 0 || gold != 500, "the control game moves");
+    assert_ne!(state(&free, theirs, PlayerId(1))?.2, 500);
+    // With it, nothing is built, grown or earned; the rival's turns do not happen at all, and
+    // its wizard pays no upkeep either.
+    let mine = state(&stopped, my_city, P0)?;
+    assert_eq!(
+        (mine.0, mine.2),
+        (0, 500),
+        "the keeper builds and earns nothing: {mine:?}"
+    );
+    assert_eq!(mine.3, 1000 - 3 * 200, "only the spell is paid for");
+    let theirs = state(&stopped, their_city, PlayerId(1))?;
+    assert_eq!((theirs.0, theirs.2, theirs.3), (0, 500, 1000), "{theirs:?}");
+    assert_eq!(theirs.1, 6, "no growth");
+    Ok(())
 }

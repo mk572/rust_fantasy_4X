@@ -398,7 +398,6 @@ mod tests {
     use crate::game::Command;
     use crate::map::{Grid, Map, Plane};
     use crate::rules::RealmId;
-    use crate::rules::Registry;
     use crate::unit::movement::{Entry, MoveError};
     use crate::unit::MovesLeft;
     use f4x_def::testdir::TestResult;
@@ -416,14 +415,7 @@ mod tests {
 
     /// 14x8: row 4 is grass x0-4, sea x5-9, grass x10-13; everything else grass.
     fn world() -> Game {
-        let mut c = shipped();
-        let mut units = c.rules.units.defs().to_vec();
-        for u in units.iter_mut() {
-            if u.id == "warship" {
-                u.stats.insert(Stat::Transport, 2);
-            }
-        }
-        c.rules.units = Registry::new_sorted(units);
+        let c = shipped();
         let (grass, ocean) = (
             c.terrains
                 .id_numbered(num::terrain::GRASSLAND)
@@ -501,7 +493,7 @@ mod tests {
     #[test]
     fn a_unit_boards_a_waiting_ship_and_rides_with_it() -> TestResult {
         let mut g = world();
-        let boat = unit(&mut g, 38 /* warship */, at(5, 4));
+        let boat = unit(&mut g, 35 /* trireme */, at(5, 4));
         let w = unit(&mut g, 107 /* high_men_cavalry */, at(4, 4));
         assert_eq!(g.move_stack(&[w], at(5, 4)), Ok(Entry::Free));
         assert_eq!(g.economy().carrier_of(w), Some(boat));
@@ -540,7 +532,7 @@ mod tests {
     #[test]
     fn a_ship_holds_only_so_many() -> TestResult {
         let mut g = world();
-        let boat = unit(&mut g, 38 /* warship */, at(5, 4));
+        let boat = unit(&mut g, 35 /* trireme */, at(5, 4));
         let three: Vec<_> = (0..3)
             .map(|_| unit(&mut g, 107 /* high_men_cavalry */, at(4, 4)))
             .collect();
@@ -594,7 +586,7 @@ mod tests {
             "grassland costs a whole move"
         );
         // The ship stays; its place is free again.
-        assert_eq!(g.economy().ship_room(boat), 2);
+        assert_eq!(g.economy().ship_room(boat), 3, "the warship holds three");
         Ok(())
     }
 
@@ -608,7 +600,7 @@ mod tests {
             race: None,
             population: 3,
         });
-        let boat = unit(&mut g, 38 /* warship */, at(9, 4));
+        let boat = unit(&mut g, 35 /* trireme */, at(9, 4));
         let w = unit(&mut g, 107 /* high_men_cavalry */, at(10, 4));
         g.move_stack(&[w], at(9, 4)).map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.economy().carrier_of(w), Some(boat));
@@ -622,7 +614,7 @@ mod tests {
     #[test]
     fn at_sea_the_ships_are_decks_and_their_passengers_fight_on_them() -> TestResult {
         let mut g = world();
-        let boat = unit(&mut g, 38 /* warship */, at(5, 4));
+        let boat = unit(&mut g, 35 /* trireme */, at(5, 4));
         let walker = unit(&mut g, 107 /* high_men_cavalry */, at(4, 4));
         g.move_stack(&[walker], at(5, 4))
             .map_err(|e| format!("{e:?}"))?;
@@ -632,8 +624,8 @@ mod tests {
                 .content
                 .rules
                 .units
-                .id_numbered(38)
-                .ok_or("warship is not in the content")?;
+                .id_numbered(35)
+                .ok_or("trireme is not in the content")?;
             g.spawn_unit(P1, at(6, 4), u)
         };
         g.start_battle(&[attacker_boat], &[boat, walker])
@@ -687,8 +679,8 @@ mod tests {
                 .content
                 .rules
                 .units
-                .id_numbered(38)
-                .ok_or("warship is not in the content")?;
+                .id_numbered(35)
+                .ok_or("trireme is not in the content")?;
             g.spawn_unit(P1, at(6, 4), u)
         };
         let mut defenders = vec![island];
@@ -715,7 +707,7 @@ mod tests {
     #[test]
     fn land_units_without_a_ship_drown() -> TestResult {
         let mut g = world();
-        let boat = unit(&mut g, 38 /* warship */, at(5, 4));
+        let boat = unit(&mut g, 35 /* trireme */, at(5, 4));
         let w = unit(&mut g, 107 /* high_men_cavalry */, at(4, 4));
         g.move_stack(&[w], at(5, 4)).map_err(|e| format!("{e:?}"))?;
         // Open sea: no shore beside the square.
@@ -743,7 +735,7 @@ mod tests {
         assert!(g.world.get::<&crate::unit::Unit>(w).is_err());
         // Fliers and ships are never in danger.
         let flier = unit(&mut g, 103 /* high_elf_pegasai */, at(6, 4));
-        let other = unit(&mut g, 38 /* warship */, at(7, 4));
+        let other = unit(&mut g, 35 /* trireme */, at(7, 4));
         assert!(g.drown_stranded(None).is_empty());
         assert!(
             g.units().unit_position(flier).is_some() && g.units().unit_position(other).is_some()
@@ -757,7 +749,7 @@ mod tests {
         let mut ashore = 0;
         let runs = 30;
         for _ in 0..runs {
-            let boat = unit(&mut g, 38 /* warship */, at(5, 4));
+            let boat = unit(&mut g, 35 /* trireme */, at(5, 4));
             let w = unit(&mut g, 107 /* high_men_cavalry */, at(4, 4));
             g.move_stack(&[w], at(5, 4)).map_err(|e| format!("{e:?}"))?;
             g.despawn_with_spells(boat);
@@ -775,7 +767,7 @@ mod tests {
     #[test]
     fn who_is_aboard_survives_a_save() -> TestResult {
         let mut g = world();
-        let boat = unit(&mut g, 38 /* warship */, at(5, 4));
+        let boat = unit(&mut g, 35 /* trireme */, at(5, 4));
         let w = unit(&mut g, 107 /* high_men_cavalry */, at(4, 4));
         g.move_stack(&[w], at(5, 4)).map_err(|e| format!("{e:?}"))?;
         let content = g.content.clone();

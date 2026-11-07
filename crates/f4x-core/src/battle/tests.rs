@@ -3980,50 +3980,23 @@ fn regenerating_units_heal_a_hit_as_their_sides_turn_begins() -> TestResult {
     Ok(())
 }
 
-fn game_with_abilities(unit_id: u16, abilities: &[u16]) -> Game {
-    let mut g = game();
-    let mut units = g.content.rules.units.defs().to_vec();
-    for u in units.iter_mut().filter(|u| u.num == unit_id) {
-        u.kind = crate::rules::UnitKind::Normal;
-        u.abilities
-            .extend(crate::game::testutil::abilities(abilities));
-    }
-    g.content.rules.units = crate::rules::Registry::new_sorted(units);
-    g
-}
-
 #[test]
 fn luck_adds_one_to_hit_to_block_and_resistance_in_battle() -> TestResult {
-    let mut g = game_with_abilities(107 /* high_men_cavalry */, &[39 /* lucky */]);
-    let walker = g
+    use crate::rules::Stat;
+    let mut g = game();
+    // The halfling swordsmen are Lucky.
+    let lucky_kind = g
         .content
         .rules
         .units
-        .id_numbered(107)
-        .ok_or("high_men_cavalry is not in the content")?;
-    let a = g.spawn_unit(A, at(4, 4), walker);
-    let d = g.spawn_unit(D, at(5, 4), walker);
-    let plain = {
-        let mut other = game();
-        let w = other
-            .content
-            .rules
-            .units
-            .id_numbered(107)
-            .ok_or("high_men_cavalry is not in the content")?;
-        let u = other.spawn_unit(A, at(4, 4), w);
-        let d = other.spawn_unit(D, at(5, 4), w);
-        other.apply(Command::BeginBattle {
-            attackers: vec![u],
-            defenders: vec![d],
-        });
-        other
-            .battle()
-            .ok_or("battle is missing")?
-            .unit(0)
-            .ok_or("unit is missing")?
-            .clone()
-    };
+        .id_numbered(90)
+        .ok_or("halfling_swordsmen is not in the content")?;
+    let a = g.spawn_unit(A, at(4, 4), lucky_kind);
+    let d = g.spawn_unit(D, at(5, 4), lucky_kind);
+    let (to_hit, resistance) = (
+        g.units().unit_stat(a, Stat::ToHit),
+        g.units().unit_stat(a, Stat::Resistance),
+    );
     g.apply(Command::BeginBattle {
         attackers: vec![a],
         defenders: vec![d],
@@ -4033,9 +4006,9 @@ fn luck_adds_one_to_hit_to_block_and_resistance_in_battle() -> TestResult {
         .ok_or("battle is missing")?
         .unit(0)
         .ok_or("unit is missing")?;
-    assert_eq!(lucky.to_hit, plain.to_hit + 1);
-    assert_eq!(lucky.to_block, plain.to_block + 1);
-    assert_eq!(lucky.resistance, plain.resistance + 1);
+    assert_eq!(lucky.to_hit, to_hit + 1);
+    assert_eq!(lucky.to_block, 1);
+    assert_eq!(lucky.resistance, resistance + 1);
     Ok(())
 }
 
@@ -4062,7 +4035,7 @@ fn finish_with_dead(
 
 #[test]
 fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won() -> TestResult {
-    let mut g = game_with_abilities(107 /* high_men_cavalry */, &[]);
+    let mut g = game();
     let walker = g
         .content
         .rules
@@ -4105,7 +4078,7 @@ fn a_regenerating_unit_is_healed_after_the_fight_and_comes_back_if_its_side_won(
 
 #[test]
 fn a_regenerating_unit_that_loses_stays_dead() -> TestResult {
-    let mut g = game_with_abilities(107 /* high_men_cavalry */, &[]);
+    let mut g = game();
     let walker = g
         .content
         .rules
@@ -4127,7 +4100,7 @@ fn a_regenerating_unit_that_loses_stays_dead() -> TestResult {
 
 #[test]
 fn the_winners_survivors_gain_experience_and_fame_for_four_kills() -> TestResult {
-    let mut g = game_with_abilities(107 /* high_men_cavalry */, &[]);
+    let mut g = game();
     let walker = g
         .content
         .rules
@@ -4153,7 +4126,7 @@ fn the_winners_survivors_gain_experience_and_fame_for_four_kills() -> TestResult
 
 #[test]
 fn fewer_than_four_kills_give_experience_but_no_fame() -> TestResult {
-    let mut g = game_with_abilities(107 /* high_men_cavalry */, &[]);
+    let mut g = game();
     let walker = g
         .content
         .rules
@@ -5421,7 +5394,7 @@ fn the_player_names_who_fights_and_the_others_stay_out_with_their_moves() -> Tes
 
 #[test]
 fn monsters_that_win_get_no_experience_and_the_loser_loses_no_fame() -> TestResult {
-    let mut g = game_with_abilities(107 /* high_men_cavalry */, &[]);
+    let mut g = game();
     let walker = g
         .content
         .rules
