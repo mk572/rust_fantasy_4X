@@ -410,27 +410,18 @@ was re-forked from `f4x-ai` (`scripts/fork_ai.py`) so it has the same `controlle
 *Done 7 November 2026:* the master state is saved (`Game::flow`, `Master::checkpoints`, `Master::from_game`); the client autosaves at the start of every round. *Open:* the soak's own snapshots should be game saves, the AI's memory is not saved, `game-flow.md` still describes the old end-turn,
 a client test for a defence mid-round, and a soak to check the balance of the per-player economy.
 
-**479. The crates below the client know no display text.** Tests of interface text sit in the client,
-and nothing below it needs to know what the client calls a building, unit or spell. Done (task 467):
-the rules carry numbers and the readable alias `id` only, the display names are the client's
-(`crates/f4x-client/content/text/<lang>/name/*.ron`, by number), and nothing outside the client looks
-a definition up by its alias (`Registry` has no name lookup; the console and the client's own tables
-match an alias themselves). Still open: core holds `Texts` and the message keys (about 220 uses
-outside the client, `Content.texts`, `Item::display_name`, `MadeName::compose`), and the loader still
-reads the client's text folder (`CLIENT_FOLDER`, `Content.texts`; core's test content and the data
-tests find it as `../crates/f4x-client/content` beside `content/`). Aim: core and the game events
-carry message keys and values (no wording); the client owns `Texts`, the name tables and the
-composition of names and messages (`MadeName`, plurals, gender); the console, the tools and the AI
-print ids (or load the client's text explicitly). Steps: (1) per-game names: the names of cities,
-heroes and rival wizards are plain strings in the game state and the saves (the human renames cities
-anyway; a save need not read in another language). The client reads its name lists and hands them to
-`new_game` as a plain bundle (cities per race number, heroes per hero unit number, rivals per slot);
-core draws with the seed and stores the strings. Fallbacks when no list is given: a hero takes the
-unit's `id`, a city `<race id>_city_00`, `_01`, and so on, a rival `rival_1`, `rival_2`; move
-`content/city_names.ron` and the hero and rival name lists to the client; (2) move `Texts` and the
-composition code to the client; (3) drop `CLIENT_FOLDER`, `Content.texts` and the client folder from
-core's test content and the data tests. Saves keep their numbers. Do not break the text/code
-agreement tests (`crates/f4x-client/tests/it/text.rs`): they scan every crate's sources for keys.
+**479. The crates below the client know no display text.** Aim: core and the game events carry message keys and values (no wording); the client owns `Texts`, the name tables and the composition of names and messages (`MadeName`, plurals, gender); the console, the tools and the AI print ids (or load the client's text explicitly). Do not break the text/code agreement tests (`crates/f4x-client/tests/it/text.rs`): they scan every crate's sources for keys. Saves keep their numbers.
+
+**DONE**
+- Task 467: the rules carry numbers and the readable alias `id` only; the display names are the client's (`crates/f4x-client/content/text/<lang>/name/*.ron`, by number).
+- Nothing outside the client looks a definition up by its alias (`Registry` has no name lookup; the console and the client's own tables match an alias themselves).
+- Tests of interface text sit in the client.
+- `Texts` now lives in `f4x-def` (`text.rs`), no longer in core (task 481).
+
+**TODO** (checked 7 November 2026)
+1. Per-game names: the names of cities, heroes and rival wizards are plain strings in the game state and the saves. The client reads its name lists and hands them to `new_game` as a plain bundle (cities per race number, heroes per hero unit number, rivals per slot); core draws with the seed and stores the strings. Fallbacks when no list is given: a hero takes the unit's `id`, a city `<race id>_city_00`, `_01`, and so on, a rival `rival_1`, `rival_2`. Move `content/city_names.ron` (still in the shipped content, merged into `RaceDef.city_names` by the loader) and the hero and rival name lists to the client.
+2. Move `Texts` and the composition code to the client. Open: core still calls `content.texts` in `world_event/game.rs`, `game/setup.rs` and a few more (17 uses outside the client by a quick count of `.texts`; the older figure of about 220 message-key uses was not recounted), `Content.texts` exists, and `MadeName::compose` is in `item/crafting.rs`.
+3. Drop `CLIENT_FOLDER` (still in `f4x-def/src/load/mod.rs`), `Content.texts` and the client folder from core's test content and the data tests (they find it as `../crates/f4x-client/content` beside `content/`).
 
 **483. Review the constants in code.** Raised by the user, 6 November 2026, during the `f4x-def` work (task 481). Numbers and lists that are fixed in the Rust source and never change during play are definitions in all but place. Go through `f4x-core` (and the other crates below the client) and list them: the map generator's defaults (`GenParams`: towers, nodes, sites, `REFERENCE_AREA`), the limits (`MAX_TILE_LIMIT`, `MAX_STACK`, `MAX_SIDE_UNITS`, `MAX_OPPONENTS`, `PICKS`), the hero constants (`CHARMED_RESISTANCE`, the `by_tier` fractions, the ability numbers in `HeroAbilities`), and the like. For each, decide: it stays in code (a true invariant of the rules engine, or a technical limit), it moves into a content file (a rule of the game that a mod might change), or it becomes a setting in `rules_settings.ron` (a choice the player or the difficulty level makes). Done when the list is in this file or `docs/`, with the decision for each, and the ones that move are moved (one task each if they are many).
 
@@ -442,10 +433,10 @@ agreement tests (`crates/f4x-client/tests/it/text.rs`): they scan every crate's 
 - Tests on the flat settings: `GameSettings::flat()` is gone; a bare `Game::new` starts from the Average level (7 November 2026).
 - `f4x-ai-ref` has no loader of its own to fix: it is gitignored and `scripts/fork_ai.py` forks it from `f4x-ai` when needed.
 - `game/setting.rs` has no tests left; the settings tests live in `f4x-def`.
+- Tests in core whose subject is in `f4x-def`: of the 140 the classifier marks "move", one tested content only and moved to `f4x-def`; the other 139 test core code and stay (`docs/test-review-log.md`).
 
 **TODO**
 1. About 45 tests still replace a registry or a rule (`battle/tests.rs` 13, `spell/wizard/tests.rs` 8, `feature/lair/tests.rs` 5, `turn/tests.rs`, `city/nightshade.rs`, `spell/dispel`, `spell/city`, `wizard/fortress`, `unit/transport`, `map/vision.rs`, `hook.rs` and others; task 461 has the method).
-2. Tests in core whose subject is now in `f4x-def`: `scripts/classify_core_tests.py` still marks 140 tests in 29 files as "move" (largest: `battle/tests.rs` 34, `turn/tests.rs` 14, `city/autobuild/tests.rs` 13, `wizard/ai/tests.rs` 9). Check which really test `f4x-def` code, and move those; the rest stay.
-3. Duplicate-by-intent pairs between `wizard/magic.rs` and `wizard/magic_income/tests.rs`.
+2. Duplicate-by-intent pairs between `wizard/magic.rs` and `wizard/magic_income/tests.rs`.
 
 **485. Smaller save files.** Raised by the user, 7 November 2026, after measuring what a save holds. A save is a pretty-printed RON snapshot of the current state (no replay or command history), about 370 KB at round 50 and 440 KB at round 300 of a 2-AI game. Share of one such save (`soak-out/seed15-new-all/t0300.f4x`, 439 KB): `fog` 127 KB (29%), `map` 115 KB (26%), `features` 69 KB (16%), `units` 56 KB (13%), `heroes` 30 KB (7%), `cities` 17 KB, `players` 14 KB, everything else about 5 KB. So the board is the weight, not history. Ideas to weigh: (1) store the fog and the map tiles as run-length or packed strings instead of one RON value per square; (2) compress the file (gzip or zstd) and keep the `// f4x save` header line readable; (3) drop `PrettyConfig` for the autosave (the round-start autosave and the soak snapshots do not need to be read by hand); (4) `heroes` and `features` look large for what they say, check what repeats. Keep: old saves still load (`SAVE_VERSION`, `#[serde(default)]`), the checksum line, and `soak-diff` being able to compare two snapshots. Not urgent: the AI state to be added to saves is about 2 KB per game.

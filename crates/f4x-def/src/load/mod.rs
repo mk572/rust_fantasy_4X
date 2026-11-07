@@ -749,4 +749,83 @@ mod tests {
         assert!(err.to_string().contains("0 rows"), "{err}");
         Ok(())
     }
+
+    #[test]
+    fn each_retort_constant_is_the_number_of_its_row_in_the_content() {
+        let rules = &real_content().rules;
+        let named = [
+            (
+                crate::settings::Retort::new(0), /* alchemy */
+                "alchemy",
+            ),
+            (
+                crate::settings::Retort::new(1), /* warlord */
+                "warlord",
+            ),
+            (
+                crate::settings::Retort::new(2), /* chaos_mastery */
+                "chaos_mastery",
+            ),
+            (
+                crate::settings::Retort::new(3), /* nature_mastery */
+                "nature_mastery",
+            ),
+            (
+                crate::settings::Retort::new(4), /* sorcery_mastery */
+                "sorcery_mastery",
+            ),
+            (
+                crate::settings::Retort::new(5), /* infernal_power */
+                "infernal_power",
+            ),
+            (
+                crate::settings::Retort::new(6), /* divine_power */
+                "divine_power",
+            ),
+            (
+                crate::settings::Retort::new(7), /* sage_master */
+                "sage_master",
+            ),
+            (
+                crate::settings::Retort::new(8), /* channeler */
+                "channeler",
+            ),
+            (crate::settings::Retort::new(9) /* myrran */, "myrran"),
+            (
+                crate::settings::Retort::new(10), /* archmage */
+                "archmage",
+            ),
+            (
+                crate::settings::Retort::new(11), /* mana_focusing */
+                "mana_focusing",
+            ),
+            (
+                crate::settings::Retort::new(12), /* node_mastery */
+                "node_mastery",
+            ),
+            (crate::settings::Retort::new(13) /* famous */, "famous"),
+            (
+                crate::settings::Retort::new(14), /* runemaster */
+                "runemaster",
+            ),
+            (
+                crate::settings::Retort::new(15), /* conjurer */
+                "conjurer",
+            ),
+            (
+                crate::settings::Retort::new(16), /* charismatic */
+                "charismatic",
+            ),
+            (
+                crate::settings::Retort::new(17), /* artificer */
+                "artificer",
+            ),
+        ];
+        assert_eq!(named.len(), rules.retorts.len(), "a constant for each row");
+        for (id, alias) in named {
+            assert_eq!(rules.retorts.get(id).id, alias, "number {}", id.num());
+            let by_alias = rules.retorts.iter().find(|(_, d)| d.id == alias);
+            assert_eq!(by_alias.map(|(found, _)| found), Some(id), "{alias}");
+        }
+    }
 }

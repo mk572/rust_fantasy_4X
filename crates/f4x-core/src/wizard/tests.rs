@@ -821,34 +821,3 @@ fn from_hard_on_a_computer_wizard_may_research_an_uncommon_summoning_spell() -> 
     }
     Ok(())
 }
-
-#[test]
-fn each_retort_constant_is_the_number_of_its_row_in_the_content() {
-    let rules = &shipped().rules;
-    let named = [
-        (Retort::new(0) /* alchemy */, "alchemy"),
-        (Retort::new(1) /* warlord */, "warlord"),
-        (Retort::new(2) /* chaos_mastery */, "chaos_mastery"),
-        (Retort::new(3) /* nature_mastery */, "nature_mastery"),
-        (Retort::new(4) /* sorcery_mastery */, "sorcery_mastery"),
-        (Retort::new(5) /* infernal_power */, "infernal_power"),
-        (Retort::new(6) /* divine_power */, "divine_power"),
-        (Retort::new(7) /* sage_master */, "sage_master"),
-        (Retort::new(8) /* channeler */, "channeler"),
-        (Retort::new(9) /* myrran */, "myrran"),
-        (Retort::new(10) /* archmage */, "archmage"),
-        (Retort::new(11) /* mana_focusing */, "mana_focusing"),
-        (Retort::new(12) /* node_mastery */, "node_mastery"),
-        (Retort::new(13) /* famous */, "famous"),
-        (Retort::new(14) /* runemaster */, "runemaster"),
-        (Retort::new(15) /* conjurer */, "conjurer"),
-        (Retort::new(16) /* charismatic */, "charismatic"),
-        (Retort::new(17) /* artificer */, "artificer"),
-    ];
-    assert_eq!(named.len(), rules.retorts.len(), "a constant for each row");
-    for (id, alias) in named {
-        assert_eq!(rules.retorts.get(id).id, alias, "number {}", id.num());
-        let by_alias = rules.retorts.iter().find(|(_, d)| d.id == alias);
-        assert_eq!(by_alias.map(|(found, _)| found), Some(id), "{alias}");
-    }
-}

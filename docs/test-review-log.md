@@ -167,3 +167,7 @@ Not looked at: `tests.rs` is one file of 3400 lines for the whole crate; splitti
 Not done: two clippy notes in `xmi-play` (`chunks_exact` with a constant size, which `as_chunks` replaces) in code that already worked; `console_cmd` and `cache` have no test, and `cache`'s fingerprint could be tested with a `TestDir`.
 
 **The review order is finished** (f4x-ai, f4x-core first pass, f4x-data, f4x-client, f4x-console, f4x-tools, xmi-play), except `f4x-ai-ref` (frozen) and `f4x-learn` (a separate experiment).
+
+## Second pass (task 484), item 2: tests in core whose subject is in `f4x-def`
+
+`scripts/classify_core_tests.py` marks 140 tests "move", but that label means "could be an integration test in `f4x-core/tests/it`", not "tests `f4x-def` code". Read one by one, 139 of them test code that lives in `f4x-core` (battle, autobuild, lair, mapgen, armory, retort and objective functions, turn phases, wizard creation), so they stay. One tested the content only: `each_retort_constant_is_the_number_of_its_row_in_the_content`; it moved to `f4x-def` (`load::tests`, 7 November 2026).
