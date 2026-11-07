@@ -659,7 +659,7 @@ the placement step puts `sorcery_node`, `nature_node` or `chaos_node` terrain un
 (`crates/f4x-def/content/terrain.ron`). Food, production and movement are the original's (`Square_Food_x2`,
 `Square_Production_Bonus`, `TERRSTAT.LBX`): sorcery 4 / 0 / 1, nature 5 / 3 / 2, chaos 0 / 5 / 3.
 
-- **Nature node food is 5** (decided by the user, 23 October 2026): the original's in-game
+- **Nature node food is 5 in the original's half-food units, 2.5 food in `terrain.ron`** (decided by the user, 23 October 2026): the original's in-game
   `Square_Food_x2` gives 5, while its new-game code (`MAPGEN.c`, also marked there as a bug) gives 4.
   Until task 338 ours gave 4 (`B16`).
 - **A river is cleared under a node**, since the original's node replaces the river tile.

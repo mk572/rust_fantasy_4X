@@ -426,7 +426,7 @@ impl<'a> Economy<'a> {
         let Some(def) = grid.get(x, y).and_then(|t| self.content.terrains.get(t)) else {
             return 0;
         };
-        let food = i32::from(def.food);
+        let food = def.food.raw();
         if def.class == TerrainClass::Ocean {
             let land = |dx: i32, dy: i32| {
                 grid.get(x + dx, y + dy)

@@ -1,6 +1,7 @@
 //! The map's vocabulary and the terrain table: the planes, the numbers of terrains and features,
 //! the terrain classes and the terrain definitions.
 
+use crate::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, strum::EnumIter)]
@@ -101,8 +102,8 @@ pub struct TerrainDef {
     pub walkable: bool,
     pub can_found_city: bool,
     pub move_cost: u8,
-    /// Food a city gets from the tile, in half-food units (3 = one and a half food).
-    pub food: u8,
+    /// Food a city gets from the tile (1.5 = one and a half food).
+    pub food: HalfInt,
     /// Percent added to a city's production per worked tile of this terrain.
     #[serde(default)]
     pub production_percent: i32,
