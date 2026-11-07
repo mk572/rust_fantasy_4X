@@ -1,4 +1,4 @@
-# Checklist: the 50 `Effect::Special` spells (task 482)
+# Checklist: the 50 `Effect::Special` spells and the enchantment lookups (task 482)
 
 Target (decided by the user, 7 November 2026): spells use the default effect engine as far as they can;
 what they cannot do goes through a hook, a tag (with arguments) that is part of the spell's definition,
@@ -156,6 +156,15 @@ Proposed hook or primitive: **battlefield**. Task 486's follow-up already gave t
 - [ ] 167 `life_drain`
 - [ ] 26 `earthquake`
 - [ ] 119 `call_the_void`
+
+## J. Enchantments read by spell number (not Special spells)
+
+Added 7 November 2026, decided by the user. Not one of the 50 `Special` spells: the spells below already use the default engine or a bare marker tag, but the engine finds what they do by their number (about 195 `SpellId::new(<number>)` literals in non-test code; not yet sorted by scope). Each scope gets a hook with arguments, as `battlefield` and `gate` did: an enum with a `NAMES` table in core, `hook::problems` checks the arguments, the lookup asks for the effect (`has_global(player, GlobalEffect::Crusade)`), and every number literal for that scope goes. A spell may list several arguments. Unit enchantments that are only stat changes or granted abilities stay data and need no tag; a "spell with no rules" read by name may be better as a primitive, decided per spell.
+
+- [x] J1 `global_effect` (done 7 November 2026: `GlobalEffect` in `spell/global_enchantment.rs`, `has_global_effect` / `any_global_effect` / `held_global_effect`; a hook may list several arguments (`Hook.several`); the 24 spells: nature_awareness, herb_mastery, natures_wrath, wind_mastery, aura_of_majesty, suppress_magic, time_stop, meteor_storm, great_wasting, chaos_surge, doom_mastery, armageddon, just_cause, planar_seal, holy_arms, life_force, tranquility, crusade, charm_of_life, zombie_mastery, eternal_night, evil_omens, detect_magic, awareness); about 30 `has_global` sites in core, AI and client
+- [ ] J2 `city_effect`: rename `city_flag` (5 spells: gaias_blessing, flying_fortress, chaos_rift, evil_presence, cloud_of_shadow), give it arguments, and fold `wall` in (`economy.rs`, `growth.rs`, `spell/city.rs`)
+- [ ] J3 `unit_effect`: heroism, Bless, Righteousness, the resistance spells, Spell Lock and the like (`battle/game.rs`, `battle/spell.rs`, `battle/attack.rs`, `unit/mod.rs`); decide per spell tag or primitive
+- [ ] J4 the rest of the `SpellId::new(<number>)` literals (`cast.rs`, `crafting.rs`, `hero.rs`, `dispel.rs`, `settings.rs` and others), sorted by what they are
 
 ## Last
 

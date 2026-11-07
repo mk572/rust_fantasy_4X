@@ -18,7 +18,6 @@ pub mod transport;
 pub mod undead;
 
 use crate::rules::Ability;
-use crate::rules::SpellId;
 use hecs::World;
 
 use crate::game::serial::Serial;
@@ -107,10 +106,15 @@ impl<'a> UnitView<'a> {
         crate::wizard::entity::find(self.world, player)
     }
 
-    /// Does `player` keep the global spell with this id going?
-    pub(crate) fn has_global(&self, player: PlayerId, id: SpellId) -> bool {
-        self.wizard(player)
-            .is_some_and(|m| crate::spell::global_enchantment::magic_has_global(&m, id))
+    /// Does `player` keep a global spell with this effect going?
+    pub(crate) fn has_global_effect(
+        &self,
+        player: PlayerId,
+        effect: crate::spell::global_enchantment::GlobalEffect,
+    ) -> bool {
+        self.wizard(player).is_some_and(|m| {
+            crate::spell::global_enchantment::magic_has_effect(&m, &self.content.rules, effect)
+        })
     }
 
     /// A wizard's fame as the rules count it: what they have earned, what their Legendary heroes
@@ -132,7 +136,10 @@ impl<'a> UnitView<'a> {
             .sum();
         earned
             + legendary
-            + if self.has_global(player, SpellId::new(127) /* just_cause */) {
+            + if self.has_global_effect(
+                player,
+                crate::spell::global_enchantment::GlobalEffect::JustCause,
+            ) {
                 crate::spell::global_enchantment::JUST_CAUSE_FAME
             } else {
                 0
@@ -159,21 +166,20 @@ impl<'a> UnitView<'a> {
             .map(|(e, _)| e)
     }
 
-    /// Does any wizard keep the global spell with this id going?
-    pub(crate) fn any_global(&self, id: u16) -> bool {
-        self.content
-            .rules
-            .spells
-            .id_numbered(id)
-            .is_some_and(|def| {
-                crate::spell::instance::Spells::new(self.world)
-                    .has(crate::spell::instance::SpellTarget::Global, def)
-            })
+    /// Does any wizard keep a global spell with this effect going?
+    pub(crate) fn any_global_effect(
+        &self,
+        effect: crate::spell::global_enchantment::GlobalEffect,
+    ) -> bool {
+        let spells = crate::spell::instance::Spells::new(self.world);
+        self.content.rules.spells.iter().any(|(id, def)| {
+            effect.is_in(def) && spells.has(crate::spell::instance::SpellTarget::Global, id)
+        })
     }
 
     /// Planar Seal closes every junction between the planes while anyone keeps it up.
     pub fn planar_seal_active(&self) -> bool {
-        self.any_global(135 /* planar_seal */)
+        self.any_global_effect(crate::spell::global_enchantment::GlobalEffect::PlanarSeal)
     }
 
     /// An entity's creation number (entities without one sort first, by id).
@@ -280,7 +286,10 @@ impl<'a> UnitView<'a> {
             });
             if normal
                 && !self.unit_is_undead(unit)
-                && self.has_global(owner, SpellId::new(158) /* crusade */)
+                && self.has_global_effect(
+                    owner,
+                    crate::spell::global_enchantment::GlobalEffect::Crusade,
+                )
             {
                 level += 1;
             }
@@ -399,10 +408,15 @@ impl<'a> UnitView<'a> {
         // half as far. Nothing stacks.
         if self.is_ship_or_flier(unit) {
             if let Some(owner) = self.unit_owner(unit) {
-                if self.has_global(owner, SpellId::new(57) /* wind_mastery */) {
+                if self.has_global_effect(
+                    owner,
+                    crate::spell::global_enchantment::GlobalEffect::WindMastery,
+                ) {
                     return moves * 3 / 2;
                 }
-                if self.any_global(57 /* wind_mastery */) {
+                if self
+                    .any_global_effect(crate::spell::global_enchantment::GlobalEffect::WindMastery)
+                {
                     return moves / 2;
                 }
             }

@@ -13,6 +13,7 @@
 
 use crate::rules::Ability;
 use crate::rules::SpellId;
+use crate::spell::global_enchantment::GlobalEffect;
 use std::collections::{HashSet, VecDeque};
 
 use hecs::World;
@@ -256,15 +257,21 @@ impl<'a> Economy<'a> {
             let (mut power, mut pacify) = (0, 0);
             // While another wizard keeps Armageddon going, the city has two more rebels' worth of
             // unrest (the buildings still calm it, as in the community patch).
-            let others_keep = |spell: SpellId| {
+            let others_keep = |effect: GlobalEffect| {
                 crate::player::ids(self.world)
                     .into_iter()
                     .filter(|&id| Some(id) != owner)
                     .filter_map(|id| self.wizard(id))
-                    .any(|w| crate::spell::global_enchantment::magic_has_global(&w, spell))
+                    .any(|w| {
+                        crate::spell::global_enchantment::magic_has_effect(
+                            &w,
+                            &self.content.rules,
+                            effect,
+                        )
+                    })
             };
-            let armageddon = others_keep(SpellId::new(120) /* armageddon */);
-            let wasting = !armageddon && others_keep(SpellId::new(114) /* great_wasting */);
+            let armageddon = others_keep(GlobalEffect::Armageddon);
+            let wasting = !armageddon && others_keep(GlobalEffect::GreatWasting);
             for &b in &buildings.0 {
                 let def = rules.buildings.get(b);
                 let mut found = passive_modifiers(&def.effects, Source::Building(b));
@@ -525,9 +532,10 @@ impl<'a> Economy<'a> {
     /// volcano's, outside the cities' own mana.
     pub fn blight_power(&self, owner: PlayerId) -> i32 {
         let kept = self.wizard(owner).is_some_and(|m| {
-            crate::spell::global_enchantment::magic_has_global(
+            crate::spell::global_enchantment::magic_has_effect(
                 &m,
-                SpellId::new(114), /* great_wasting */
+                &self.content.rules,
+                GlobalEffect::GreatWasting,
             )
         });
         let Some(map) = self.map.filter(|_| kept) else {
@@ -575,9 +583,10 @@ impl<'a> Economy<'a> {
         // A wizard who keeps Great Wasting going is proof against the blight: their corrupted
         // squares still yield and add no unrest (and add power, see `blight_power`).
         let blight_proof = self.wizard(owner).is_some_and(|m| {
-            crate::spell::global_enchantment::magic_has_global(
+            crate::spell::global_enchantment::magic_has_effect(
                 &m,
-                SpellId::new(114), /* great_wasting */
+                &self.content.rules,
+                GlobalEffect::GreatWasting,
             )
         });
         let gaia = self.city_has_enchantment(city, SpellId::new(29) /* gaias_blessing */);
@@ -684,9 +693,10 @@ impl<'a> Economy<'a> {
         }
         // Just Cause calms every city of its wizard by one.
         if self.wizard(owner).is_some_and(|m| {
-            crate::spell::global_enchantment::magic_has_global(
+            crate::spell::global_enchantment::magic_has_effect(
                 &m,
-                SpellId::new(127), /* just_cause */
+                &self.content.rules,
+                GlobalEffect::JustCause,
             )
         }) {
             pacify += 1;

@@ -248,10 +248,10 @@ impl<'a> Economy<'a> {
     /// Does a spell of `player` show them the units on a square? Nature Awareness shows the
     /// whole world; Nature's Eye widens the sight of its city, and the units in it show.
     fn spell_shows_units(&self, at: Position, player: PlayerId) -> bool {
-        if self
-            .units()
-            .has_global(player, SpellId::new(34) /* nature_awareness */)
-        {
+        if self.units().has_global_effect(
+            player,
+            crate::spell::global_enchantment::GlobalEffect::NatureAwareness,
+        ) {
             return true;
         }
         let Some(map) = self.map else {

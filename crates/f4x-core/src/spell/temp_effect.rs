@@ -234,10 +234,9 @@ impl<'a> UnitView<'a> {
                     && (d.movement == crate::rules::MovementType::Sailing
                         || d.abilities.contains(&Ability::new(70))))
         }) || self.unit_weapon_quality(unit) > 0
-            || (self
-                .unit_owner(unit)
-                .is_some_and(|o| self.has_global(o, SpellId::new(154) /* holy_arms */))
-                && !self.unit_is_undead(unit))
+            || (self.unit_owner(unit).is_some_and(|o| {
+                self.has_global_effect(o, crate::spell::global_enchantment::GlobalEffect::HolyArms)
+            }) && !self.unit_is_undead(unit))
             || self
                 .unit_abilities(unit)
                 .iter()

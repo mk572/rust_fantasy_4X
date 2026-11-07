@@ -8,7 +8,7 @@ use crate::game::Game;
 use crate::player::PlayerId;
 use crate::rules::effects::{Effect, Trigger};
 use crate::rules::exec::{eval, Facts};
-use crate::rules::{Modifier, Source, SpellId, Stat};
+use crate::rules::{Modifier, Source, SpellDef, SpellId, Stat};
 use crate::spell::instance::SpellTarget;
 use crate::unit::{Hurt, UnitView};
 use crate::wizard::magic::MagicError;
@@ -21,6 +21,123 @@ pub(crate) fn magic_has_global(wizard: &crate::wizard::entity::Wizard<'_>, id: S
 /// The hook global spells carry when the engine reads them from the wizard's spells instead of
 /// running anything when they are cast.
 pub const GLOBAL_EFFECT: &str = "global_effect";
+
+/// The effects the engine reads from a wizard's global spells: the arguments of the
+/// `global_effect` hook (`Custom(name: "global_effect", args: ["crusade"])`). A spell carries the
+/// effects it has; the code asks for the effect, never for a spell number, so a mod can put an
+/// effect on another spell.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GlobalEffect {
+    NatureAwareness,
+    HerbMastery,
+    NaturesWrath,
+    WindMastery,
+    AuraOfMajesty,
+    SuppressMagic,
+    TimeStop,
+    MeteorStorm,
+    GreatWasting,
+    ChaosSurge,
+    DoomMastery,
+    Armageddon,
+    JustCause,
+    PlanarSeal,
+    HolyArms,
+    LifeForce,
+    Tranquility,
+    Crusade,
+    CharmOfLife,
+    ZombieMastery,
+    EternalNight,
+    EvilOmens,
+    DetectMagic,
+    Awareness,
+}
+
+impl GlobalEffect {
+    /// The hook arguments, in the enum's order.
+    pub const NAMES: [&'static str; 24] = [
+        "nature_awareness",
+        "herb_mastery",
+        "natures_wrath",
+        "wind_mastery",
+        "aura_of_majesty",
+        "suppress_magic",
+        "time_stop",
+        "meteor_storm",
+        "great_wasting",
+        "chaos_surge",
+        "doom_mastery",
+        "armageddon",
+        "just_cause",
+        "planar_seal",
+        "holy_arms",
+        "life_force",
+        "tranquility",
+        "crusade",
+        "charm_of_life",
+        "zombie_mastery",
+        "eternal_night",
+        "evil_omens",
+        "detect_magic",
+        "awareness",
+    ];
+
+    const ALL: [GlobalEffect; 24] = [
+        GlobalEffect::NatureAwareness,
+        GlobalEffect::HerbMastery,
+        GlobalEffect::NaturesWrath,
+        GlobalEffect::WindMastery,
+        GlobalEffect::AuraOfMajesty,
+        GlobalEffect::SuppressMagic,
+        GlobalEffect::TimeStop,
+        GlobalEffect::MeteorStorm,
+        GlobalEffect::GreatWasting,
+        GlobalEffect::ChaosSurge,
+        GlobalEffect::DoomMastery,
+        GlobalEffect::Armageddon,
+        GlobalEffect::JustCause,
+        GlobalEffect::PlanarSeal,
+        GlobalEffect::HolyArms,
+        GlobalEffect::LifeForce,
+        GlobalEffect::Tranquility,
+        GlobalEffect::Crusade,
+        GlobalEffect::CharmOfLife,
+        GlobalEffect::ZombieMastery,
+        GlobalEffect::EternalNight,
+        GlobalEffect::EvilOmens,
+        GlobalEffect::DetectMagic,
+        GlobalEffect::Awareness,
+    ];
+
+    /// The hook argument for this effect.
+    pub fn name(self) -> &'static str {
+        Self::NAMES[self as usize]
+    }
+
+    /// The effect a hook argument names.
+    pub fn named(name: &str) -> Option<GlobalEffect> {
+        Self::NAMES
+            .iter()
+            .position(|n| *n == name)
+            .map(|i| Self::ALL[i])
+    }
+
+    /// Whether the spell carries this effect.
+    pub fn is_in(self, def: &SpellDef) -> bool {
+        def.hook_args(GLOBAL_EFFECT)
+            .is_some_and(|a| a.iter().any(|x| x == self.name()))
+    }
+}
+
+/// Does this wizard keep a global spell with this effect going?
+pub(crate) fn magic_has_effect(
+    wizard: &crate::wizard::entity::Wizard<'_>,
+    rules: &crate::rules::Rules,
+    effect: GlobalEffect,
+) -> bool {
+    wizard.any_global(|s| effect.is_in(rules.spells.get(s)))
+}
 
 /// The fame Just Cause adds while it lasts.
 pub(crate) const JUST_CAUSE_FAME: i32 = 10;
@@ -66,6 +183,28 @@ impl Game {
             .is_some_and(|m| magic_has_global(&m, id))
     }
 
+    /// Does `player` keep a global spell with this effect going?
+    pub fn has_global_effect(&self, player: PlayerId, effect: GlobalEffect) -> bool {
+        self.wizard(player)
+            .is_some_and(|m| magic_has_effect(&m, &self.content.rules, effect))
+    }
+
+    /// Does any wizard keep a global spell with this effect going?
+    pub fn any_global_effect(&self, effect: GlobalEffect) -> bool {
+        self.held_global_effect(effect).is_some()
+    }
+
+    /// The spell that gives the effect, if some wizard keeps it going.
+    pub fn held_global_effect(&self, effect: GlobalEffect) -> Option<SpellId> {
+        let spells = self.spells();
+        self.player_ids()
+            .into_iter()
+            .filter_map(|p| self.wizard(p).map(|w| w.entity()))
+            .flat_map(|w| spells.globals_of(w))
+            .filter_map(|i| spells.def(i))
+            .find(|&s| effect.is_in(self.content.rules.spells.get(s)))
+    }
+
     /// The instance of `spell` that `player` keeps going on the whole world: what Disjunction
     /// and Spell Binding take as their target.
     pub fn global_instance(&self, player: PlayerId, spell: SpellId) -> Option<hecs::Entity> {
@@ -91,7 +230,7 @@ impl Game {
     pub fn time_stopper(&self) -> Option<PlayerId> {
         self.player_ids()
             .into_iter()
-            .find(|&p| self.has_global(p, SpellId::new(80) /* time_stop */))
+            .find(|&p| self.has_global_effect(p, GlobalEffect::TimeStop))
     }
 
     /// Does any wizard keep the global spell with this id going?
@@ -110,13 +249,13 @@ impl Game {
     /// Is anyone's Evil Omens, the caster's own included, making life and nature spells
     /// dearer?
     pub(crate) fn evil_omens_active(&self) -> bool {
-        self.units().any_global(198 /* evil_omens */)
+        self.units().any_global_effect(GlobalEffect::EvilOmens)
     }
 
     /// The spell each other wizard is casting, as far as `viewer`'s Detect Magic shows it.
     /// Empty without the spell.
     pub fn detect_magic_view(&self, viewer: PlayerId) -> Vec<(PlayerId, SpellId)> {
-        if !self.has_global(viewer, SpellId::new(206) /* detect_magic */) {
+        if !self.has_global_effect(viewer, GlobalEffect::DetectMagic) {
             return Vec::new();
         }
         self.player_ids()
@@ -132,7 +271,7 @@ impl Game {
             return;
         };
         let (w, h) = (map.width(), map.height());
-        if self.has_global(player, SpellId::new(34) /* nature_awareness */) {
+        if self.has_global_effect(player, GlobalEffect::NatureAwareness) {
             for plane in crate::map::Plane::ALL {
                 // One square large enough to cover the whole plane.
                 let at = crate::map::Position {
@@ -147,7 +286,7 @@ impl Game {
                     self.settings.basic.diagonal_extra_cost,
                 );
             }
-        } else if self.has_global(player, SpellId::new(209) /* awareness */) {
+        } else if self.has_global_effect(player, GlobalEffect::Awareness) {
             let cities: Vec<_> = self
                 .economy()
                 .cities()
@@ -169,7 +308,7 @@ impl Game {
     pub(crate) fn process_globals(&mut self) {
         let ids: Vec<PlayerId> = crate::player::ids(&self.world);
         for player in ids {
-            if self.has_global(player, SpellId::new(38) /* herb_mastery */) {
+            if self.has_global_effect(player, GlobalEffect::HerbMastery) {
                 for unit in self.units().player_units(player) {
                     if !self.units().unit_is_death(unit) {
                         let _ = self.world.insert_one(unit, Hurt(0));

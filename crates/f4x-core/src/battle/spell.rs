@@ -445,7 +445,10 @@ impl Game {
             });
             // On corrupted ground a wizard who keeps Great Wasting going pays no range penalty.
             if self.is_corrupted(site)
-                && self.has_global(player, SpellId::new(114) /* great_wasting */)
+                && self.has_global_effect(
+                    player,
+                    crate::spell::global_enchantment::GlobalEffect::GreatWasting,
+                )
             {
                 range = range.min(10);
             }

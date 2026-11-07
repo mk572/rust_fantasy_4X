@@ -197,10 +197,22 @@ impl Game {
             Some((
                 name,
                 WizardSpells {
-                    crusade: self.has_global(p, SpellId::new(158) /* crusade */),
-                    holy_arms: self.has_global(p, SpellId::new(154) /* holy_arms */),
-                    charm_of_life: self.has_global(p, SpellId::new(160) /* charm_of_life */),
-                    zombie_mastery: self.has_global(p, SpellId::new(188) /* zombie_mastery */),
+                    crusade: self.has_global_effect(
+                        p,
+                        crate::spell::global_enchantment::GlobalEffect::Crusade,
+                    ),
+                    holy_arms: self.has_global_effect(
+                        p,
+                        crate::spell::global_enchantment::GlobalEffect::HolyArms,
+                    ),
+                    charm_of_life: self.has_global_effect(
+                        p,
+                        crate::spell::global_enchantment::GlobalEffect::CharmOfLife,
+                    ),
+                    zombie_mastery: self.has_global_effect(
+                        p,
+                        crate::spell::global_enchantment::GlobalEffect::ZombieMastery,
+                    ),
                 },
             ))
         };
@@ -217,9 +229,12 @@ impl Game {
             node_aura: battle.node_aura,
             cloud_of_shadow: on_city(SpellId::new(185) /* cloud_of_shadow */),
             heavenly_light: on_city(SpellId::new(139) /* heavenly_light */),
-            chaos_surge: self.any_global(SpellId::new(116) /* chaos_surge */),
-            eternal_night: self.any_global(SpellId::new(197) /* eternal_night */),
-            evil_omens: self.any_global(SpellId::new(198) /* evil_omens */),
+            chaos_surge: self
+                .any_global_effect(crate::spell::global_enchantment::GlobalEffect::ChaosSurge),
+            eternal_night: self
+                .any_global_effect(crate::spell::global_enchantment::GlobalEffect::EternalNight),
+            evil_omens: self
+                .any_global_effect(crate::spell::global_enchantment::GlobalEffect::EvilOmens),
             opponent: wizard(opponent),
             viewer: wizard(viewer),
         }))

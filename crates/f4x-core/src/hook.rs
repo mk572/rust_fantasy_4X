@@ -7,18 +7,23 @@
 use crate::rules::effects::{Effect, EffectRule};
 use crate::rules::Rules;
 
-/// A hook the Rust code implements: its name and the argument it takes. `args` empty means the
-/// hook takes none; otherwise it takes exactly one, one of these.
+/// A hook the Rust code implements: its name and the arguments it takes. `args` empty means the
+/// hook takes none; otherwise it takes one of these, or, with `several`, one or more.
 pub struct Hook {
     pub name: &'static str,
     pub args: &'static [&'static str],
+    pub several: bool,
 }
 
 /// The name of the hook of the city walls, and its arguments.
 pub const WALL: &str = "wall";
 
 const fn plain(name: &'static str) -> Hook {
-    Hook { name, args: &[] }
+    Hook {
+        name,
+        args: &[],
+        several: false,
+    }
 }
 
 /// The `Effect::Custom` hooks implemented in Rust, shared by several spells. A `Custom` effect
@@ -28,7 +33,6 @@ const fn plain(name: &'static str) -> Hook {
 /// number of uses is the to-do list for new effect primitives.
 pub const CUSTOM_HOOKS: &[Hook] = &[
     plain("unimplemented"),
-    plain(crate::spell::global_enchantment::GLOBAL_EFFECT),
     plain(crate::item::crafting::CRAFT_ITEM),
     Hook {
         name: crate::city::gate::GATE,
@@ -36,17 +40,25 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
             crate::city::gate::EARTH_GATE,
             crate::city::gate::ASTRAL_GATE,
         ],
+        several: false,
     },
     plain(crate::unit::HEROISM),
     plain(crate::spell::city::CITY_FLAG),
     Hook {
         name: crate::battle::field::BATTLEFIELD,
         args: &crate::battle::field::Field::NAMES,
+        several: false,
+    },
+    Hook {
+        name: crate::spell::global_enchantment::GLOBAL_EFFECT,
+        args: &crate::spell::global_enchantment::GlobalEffect::NAMES,
+        several: true,
     },
     plain(crate::battle::field::DISINTEGRATE),
     Hook {
         name: WALL,
         args: &["fire", "darkness"],
+        several: false,
     },
 ];
 
@@ -165,7 +177,9 @@ pub fn problems(rules: &Rules) -> Vec<String> {
                 let ok = if hook.args.is_empty() {
                     args.is_empty()
                 } else {
-                    matches!(&args[..], [a] if hook.args.contains(&a.as_str()))
+                    (hook.several || args.len() == 1)
+                        && !args.is_empty()
+                        && args.iter().all(|a| hook.args.contains(&a.as_str()))
                 };
                 if !ok {
                     p.push(format!(
@@ -211,6 +225,31 @@ mod tests {
         let c = shipped();
         let p = problems(&c.rules);
         assert!(p.is_empty(), "{p:?}");
+    }
+
+    #[test]
+    fn every_global_and_field_effect_is_given_by_a_shipped_spell() {
+        use crate::battle::field::Field;
+        use crate::spell::global_enchantment::GlobalEffect;
+        let c = shipped();
+        for name in GlobalEffect::NAMES {
+            let e = GlobalEffect::named(name).expect("a listed name");
+            assert!(
+                c.rules.spells.defs().iter().any(|d| e.is_in(d)),
+                "no spell gives the global effect {name}"
+            );
+        }
+        for name in Field::NAMES {
+            let f = Field::named(name).expect("a listed name");
+            assert!(
+                c.rules
+                    .spells
+                    .defs()
+                    .iter()
+                    .any(|d| Field::of(d) == Some(f)),
+                "no spell gives the battle field {name}"
+            );
+        }
     }
 
     #[test]

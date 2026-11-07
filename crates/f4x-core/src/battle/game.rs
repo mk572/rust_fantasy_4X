@@ -673,12 +673,10 @@ impl Game {
             }
         }
         // Eternal Night covers every fight in Darkness, except at a city with Heavenly Light.
-        if let Some(night) = self.content.rules.spells.id_numbered(197)
-        /* eternal_night */
+        if let Some(night) =
+            self.held_global_effect(crate::spell::global_enchantment::GlobalEffect::EternalNight)
         {
-            if self.any_global(SpellId::new(197) /* eternal_night */)
-                && !has(SpellId::new(139) /* heavenly_light */)
-            {
+            if !has(SpellId::new(139) /* heavenly_light */) {
                 battle.raise_field(Side::Defender, Field::Darkness, night);
             }
         }
@@ -1063,9 +1061,9 @@ impl Game {
         let kind = self.units().unit_def(entity).map(|d| d.kind);
         let zombies = u.fate() != super::Fate::Gone
             && kind == Some(UnitKind::Normal)
-            && self.has_global(
+            && self.has_global_effect(
                 battle.player_of(winner),
-                SpellId::new(188), /* zombie_mastery */
+                crate::spell::global_enchantment::GlobalEffect::ZombieMastery,
             );
         zombies
             || (winner != u.side

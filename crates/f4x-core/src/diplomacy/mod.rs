@@ -589,10 +589,10 @@ impl Diplomacy {
     fn contact_sweep(&mut self, ctx: &mut DiplomacyCtx<'_>) {
         let wizards = wizards(ctx.view);
         for &player in &wizards {
-            if ctx
-                .view
-                .has_global(player, SpellId::new(34) /* nature_awareness */)
-            {
+            if ctx.view.has_global_effect(
+                player,
+                crate::spell::global_enchantment::GlobalEffect::NatureAwareness,
+            ) {
                 for &other in &wizards {
                     self.make_contact(ctx, player, other);
                 }

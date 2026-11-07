@@ -4,7 +4,6 @@
 //!
 //! Tests: in spell/wizard/tests.rs.
 
-use crate::rules::SpellId;
 use rand::SeedableRng;
 
 use crate::battle::immunity::{AttackNature, Immunities, Realm};
@@ -45,13 +44,22 @@ impl Game {
         let mut events = Vec::new();
         let players: Vec<PlayerId> = crate::player::ids(&self.world);
         for player in players {
-            if self.has_global(player, SpellId::new(114) /* great_wasting */) {
+            if self.has_global_effect(
+                player,
+                crate::spell::global_enchantment::GlobalEffect::GreatWasting,
+            ) {
                 events.extend(self.great_wasting(player));
             }
-            if self.has_global(player, SpellId::new(120) /* armageddon */) {
+            if self.has_global_effect(
+                player,
+                crate::spell::global_enchantment::GlobalEffect::Armageddon,
+            ) {
                 events.extend(self.armageddon(player));
             }
-            if self.has_global(player, SpellId::new(113) /* meteor_storm */) {
+            if self.has_global_effect(
+                player,
+                crate::spell::global_enchantment::GlobalEffect::MeteorStorm,
+            ) {
                 events.extend(self.meteor_storm(player));
             }
         }
@@ -281,11 +289,13 @@ impl Game {
         {
             return Vec::new();
         }
-        if !self
-            .player_ids()
-            .into_iter()
-            .any(|p| p != caster && self.has_global(p, SpellId::new(40) /* natures_wrath */))
-        {
+        if !self.player_ids().into_iter().any(|p| {
+            p != caster
+                && self.has_global_effect(
+                    p,
+                    crate::spell::global_enchantment::GlobalEffect::NaturesWrath,
+                )
+        }) {
             return Vec::new();
         }
         let Some(wrath) = self.content.rules.spells.id_numbered(40)

@@ -7,7 +7,7 @@ use crate::preferences::Pref;
 use crate::view::{App, HUMAN};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
-use f4x_def::rules::SpellId;
+use f4x_core::spell::global_enchantment::GlobalEffect;
 
 impl App {
     /// `at` is the square the spell lands on when it must be explored; `contact` asks for contact
@@ -21,7 +21,7 @@ impl App {
         self.prefs.get(Pref::EnemySpells)
             && self
                 .game
-                .has_global(HUMAN, SpellId::new(206) /* detect_magic */)
+                .has_global_effect(HUMAN, GlobalEffect::DetectMagic)
             && at.is_none_or(|pos| self.game.is_explored(HUMAN, pos))
             && (!contact || self.game.have_met(HUMAN, caster))
     }
@@ -35,9 +35,7 @@ mod tests {
     fn a_rivals_spell_stays_unseen_without_detect_magic() {
         let app = App::for_test();
         assert!(app.prefs.get(Pref::EnemySpells));
-        assert!(!app
-            .game
-            .has_global(HUMAN, SpellId::new(206) /* detect_magic */));
+        assert!(!app.game.has_global_effect(HUMAN, GlobalEffect::DetectMagic));
         assert!(!app.rival_spell_seen(PlayerId(1), None, false));
         assert!(!app.rival_spell_seen(PlayerId(1), None, true));
     }
