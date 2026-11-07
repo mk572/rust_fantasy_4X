@@ -219,7 +219,7 @@ impl Game {
         let rules = &self.content.rules;
         let mut out = Vec::new();
         for r in rules.races.defs() {
-            if r.city_names.is_empty() || r.myrror != (plane == Plane::Myrror) || r.num == 7
+            if r.myrror != (plane == Plane::Myrror) || r.num == 7
             /* high_elf */
             {
                 continue;
@@ -238,18 +238,26 @@ impl Game {
     }
 
     fn unused_city_name(&self, race: RaceId) -> String {
-        let def = self.content.rules.races.get(race);
         let used: Vec<String> = self
             .economy()
             .cities()
             .into_iter()
             .map(|(_, c, _)| c.name.clone())
             .collect();
-        def.city_names
-            .iter()
+        // The race's list in order, the first name nobody has; past its end, a numbered name.
+        let def = self.content.rules.races.get(race);
+        let listed = self.names.cities.get(&def.num);
+        listed
+            .into_iter()
+            .flatten()
             .find(|n| !used.contains(n))
             .cloned()
-            .unwrap_or_else(|| format!("{} {}", def.id, used.len() + 1))
+            .unwrap_or_else(|| {
+                (used.len()..)
+                    .map(|i| format!("{}_city_{i:02}", def.id))
+                    .find(|n| !used.contains(n))
+                    .unwrap_or_default()
+            })
     }
 
     /// Place a plane's neutral cities. Returns how many were made.

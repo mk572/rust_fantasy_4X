@@ -48,6 +48,10 @@ pub struct Game {
     pub turn: u32,
     pub(crate) map: Option<map::Map>,
     pub(crate) content: content::Content,
+    /// The name lists the game draws city, hero and rival names from (`NameBundle`). They are not
+    /// saved: the names drawn are in the state, and whoever loads a game hands the lists in again
+    /// with [`Game::set_names`] (without them a new city is `<race id>_city_00`, and so on).
+    pub(crate) names: f4x_def::names::NameBundle,
     /// The one neutral player that owns the monsters (`player::MONSTERS`); it has no
     /// data, so it is in no list of players.
     pub(crate) monsters: hecs::Entity,
@@ -103,6 +107,7 @@ impl Game {
             turn: 1,
             map: None,
             content: content::Content::default(),
+            names: Default::default(),
             player_index: std::collections::HashMap::new(),
             fog: map::fog::Fog::default(),
             next_serial: 1,

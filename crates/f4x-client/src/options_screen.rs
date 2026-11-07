@@ -3,8 +3,8 @@
 
 use crate::input::Input;
 use crate::page::Page;
+use crate::text::{Args, Texts};
 use f4x_core::game::setting::SettingsDef;
-use f4x_def::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::font::Ink;

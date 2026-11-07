@@ -55,8 +55,11 @@ fn rolled_heroes_follow_init_heroes() -> TestResult {
     let mut distinct = std::collections::BTreeSet::new();
     for seed in 0..200 {
         // The game's heroes are rolled once from its stream, not once for each wizard.
-        let roster = roll(&mut GameRng::new(seed), rules);
-        assert_eq!(roster, roll(&mut GameRng::new(seed), rules));
+        let roster = roll(&mut GameRng::new(seed), rules, &Default::default());
+        assert_eq!(
+            roster,
+            roll(&mut GameRng::new(seed), rules, &Default::default())
+        );
         assert_eq!(roster.len(), 35);
         for (r, t) in roster.iter().zip(&rules.hero_templates) {
             let fixed = HeroAbilities::from_ids(&t.abilities);

@@ -5,11 +5,11 @@ use crate::font::{rgb, Effect, Style};
 use crate::frame::Disabled;
 use crate::input::Input;
 use crate::page::Page;
+use crate::text::Args;
 use crate::ui;
 use f4x_core::city::production::ProductionItem;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::art::{TILE_H, TILE_W};

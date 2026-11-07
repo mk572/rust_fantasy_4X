@@ -7,12 +7,12 @@
 
 use crate::create_screen::CreateState;
 use crate::input::Input;
+use crate::text::{Args, Texts};
 use crate::ui;
 use f4x_core::wizard::magic::Retort;
 use f4x_core::wizard::{all_retorts, retort_available, retort_cost, MAX_RETORTS};
 use f4x_def::content::Content;
 use f4x_def::rules::{Rarity, RealmId};
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::create_screen::Step;
@@ -44,10 +44,10 @@ fn realm_colour(realm: RealmId) -> u8 {
 pub(crate) fn prerequisite_text(
     names: &crate::names::Names,
     content: &Content,
+    texts: &Texts,
     retort: Retort,
 ) -> String {
     use f4x_def::rules::RetortNeed;
-    let texts = &content.texts;
     let picks = |n: u8| texts.get("picks.n_picks", &Args::new().count("n", n));
     content
         .rules
@@ -174,7 +174,7 @@ impl CreateState {
             self.build.retorts.remove(&r);
             let args = Args::new().text("retort", app.retort_name(r)).text(
                 "needs",
-                prerequisite_text(&app.names, app.game.content(), r),
+                prerequisite_text(&app.names, app.game.content(), &app.texts, r),
             );
             self.warn = Some(app.text_with("picks.to_select", &args));
         }
@@ -194,7 +194,7 @@ impl CreateState {
         } else if !retort_available(&app.game.content().rules, retort, &self.build.books) {
             let args = Args::new().text("retort", app.retort_name(retort)).text(
                 "needs",
-                prerequisite_text(&app.names, app.game.content(), retort),
+                prerequisite_text(&app.names, app.game.content(), &app.texts, retort),
             );
             Some(app.text_with("picks.to_select", &args))
         } else if cost > left {
@@ -516,6 +516,7 @@ mod tests {
             prerequisite_text(
                 crate::test_app::shipped::names(),
                 content,
+                crate::test_app::shipped::texts(),
                 Retort::new(2) /* chaos_mastery */
             ),
             "4 picks in Chaos Magic"
@@ -524,6 +525,7 @@ mod tests {
             prerequisite_text(
                 crate::test_app::shipped::names(),
                 content,
+                crate::test_app::shipped::texts(),
                 Retort::new(7) /* sage_master */
             ),
             "1 pick in any 2 Realms of Magic"
@@ -531,12 +533,14 @@ mod tests {
         assert!(prerequisite_text(
             crate::test_app::shipped::names(),
             content,
+            crate::test_app::shipped::texts(),
             Retort::new(12) /* node_mastery */
         )
         .contains("1 pick in Sorcery Magic"));
         assert!(prerequisite_text(
             crate::test_app::shipped::names(),
             content,
+            crate::test_app::shipped::texts(),
             Retort::new(0) /* alchemy */
         )
         .is_empty());

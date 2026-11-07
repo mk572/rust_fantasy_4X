@@ -125,8 +125,7 @@ fn city_name(view: &PlayerView, unit: hecs::Entity) -> String {
     view.unit_def(unit)
         .and_then(|d| d.race.as_ref())
         .copied()
-        .map(|r| view.content().rules.races.get(r))
-        .and_then(|r| r.city_names.get(used % r.city_names.len().max(1)).cloned())
+        .map(|r| view.city_name_for(r, used))
         .unwrap_or_else(|| format!("Outpost {}", used + 1))
 }
 
@@ -327,7 +326,7 @@ mod tests {
     }
 
     #[test]
-    fn the_new_city_is_named_from_the_races_list() -> TestResult {
+    fn the_new_city_is_named_after_its_race_when_the_game_has_no_name_list() -> TestResult {
         let (g, units) = island_with_settlers(1);
         let view = PlayerView::new(&g, P0);
         let race = view
@@ -339,7 +338,7 @@ mod tests {
         let used = view.my_cities().len();
         assert_eq!(
             city_name(&view, units[0]),
-            race.city_names[used % race.city_names.len()]
+            format!("{}_city_{used:02}", race.id)
         );
         Ok(())
     }

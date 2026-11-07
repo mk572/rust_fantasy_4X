@@ -16,6 +16,4 @@ pub struct Content {
     /// Difficulty levels, the map and land sizes and the defaults of the new-game choices
     /// (`rules_settings.ron`).
     pub settings: crate::settings::SettingsDef,
-    /// Every player-facing message, in the language the content was loaded with.
-    pub texts: crate::text::Texts,
 }

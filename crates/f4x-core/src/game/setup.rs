@@ -55,7 +55,7 @@ pub struct NewGame {
     pub gender: f4x_def::text::Gender,
     pub books: BTreeMap<RealmId, u8>,
     pub retorts: BTreeSet<Retort>,
-    /// Player 0's race number; the default is the first race with city names.
+    /// Player 0's race number; the default is the first race.
     pub race: Option<u16>,
     /// A finished wizard for player 0 (name, books, retorts, spells, banner); it wins over
     /// `preset`, `name`, `books` and `retorts`.
@@ -63,6 +63,9 @@ pub struct NewGame {
     /// The settings the game is played with: difficulty, the number of opponents (2 to 5
     /// wizards play in all, the first is player 0), land size, node strength and the rest.
     pub settings: GameSettings,
+    /// The name lists for the cities, heroes and rival wizards (the client's; empty gives
+    /// `<race id>_city_00`, the unit's alias and `rival_1`).
+    pub names: f4x_def::names::NameBundle,
 }
 
 impl NewGame {
@@ -112,14 +115,13 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     let mut game = Game::new(spec.seed);
     game.settings = settings;
     game.content = content.clone();
+    game.names = spec.names.clone();
     game.set_generated(map);
     for k in 0..wizards {
+        // A stand-in until the wizard's own name replaces it.
         let name = match (k, spec.all_ai) {
-            (0, false) => content.texts.get("setup.you", &f4x_def::text::Args::new()),
-            _ => content.texts.get(
-                "setup.wizard_number",
-                &f4x_def::text::Args::new().count("n", k as i32 + 1),
-            ),
+            (0, false) => "player".to_string(),
+            _ => format!("wizard_{}", k + 1),
         };
         game.add_player(PlayerId(k), name);
     }
@@ -185,8 +187,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                 made.get_or_insert_with(|| {
                     let computers = usize::from(wizards) - usize::from(!spec.all_ai);
                     let first = usize::from(!spec.all_ai);
-                    let plain =
-                        |i: usize| plain_computer_build(&game.content, spec.seed, first + i);
+                    let plain = |i: usize| plain_computer_build(&spec.names, spec.seed, first + i);
                     let plain: Vec<WizardBuild> = (0..computers).map(plain).collect();
                     let human_myrran = !spec.all_ai && builds.first().is_some_and(myrran_build);
                     crate::wizard::ai::make(
@@ -215,7 +216,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                     taken.push(id);
                     b
                 }
-                None => plain_computer_build(&game.content, spec.seed, k),
+                None => plain_computer_build(&spec.names, spec.seed, k),
             }
         };
         builds.push(build);
@@ -283,7 +284,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     let mut races: Vec<u16> = Vec::new();
     for k in 0..wizards as usize {
         let myrran = is_myrran(&game, PlayerId(k as u8));
-        let on_plane = |r: &&crate::rules::RaceDef| !r.city_names.is_empty() && r.myrror == myrran;
+        let on_plane = |r: &&crate::rules::RaceDef| r.myrror == myrran;
         let id = match spec.race.as_ref().filter(|_| k == 0) {
             Some(want) => {
                 let ok = race_defs.iter().filter(on_plane).any(|r| r.num == *want);
@@ -339,7 +340,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
 
 /// The plain build of computer wizard `k` when no ready-made wizard is free: a chaos and death
 /// wizard or a life and nature one, with a name from the lists.
-fn plain_computer_build(content: &Content, seed: u64, k: usize) -> WizardBuild {
+fn plain_computer_build(names: &f4x_def::names::NameBundle, seed: u64, k: usize) -> WizardBuild {
     let (books, retort): (&[(RealmId, u8)], Retort) = if k % 2 == 1 {
         (
             &[
@@ -357,7 +358,7 @@ fn plain_computer_build(content: &Content, seed: u64, k: usize) -> WizardBuild {
             Retort::new(16), /* charismatic */
         )
     };
-    let (name, gender) = fallback_name(content, seed, k);
+    let (name, gender) = fallback_name(names, seed, k);
     WizardBuild {
         name,
         gender,
@@ -370,17 +371,21 @@ fn plain_computer_build(content: &Content, seed: u64, k: usize) -> WizardBuild {
     }
 }
 
-/// A name for rival `k` when no ready-made wizards are loaded: one of the ten in that slot's list
-/// (`content/text/en/name/rival.ron`), picked from the seed without touching the game's random stream.
-/// Empty if there is no list, which leaves the plain "Wizard N".
-fn fallback_name(content: &Content, seed: u64, k: usize) -> (String, f4x_def::text::Gender) {
-    let lists = &content.rules.wizard_names;
-    let Some(list) = lists.get(k.saturating_sub(1).min(lists.len().saturating_sub(1))) else {
-        return Default::default();
+/// A name for rival `k` when no ready-made wizards are loaded: one of those in that slot's list
+/// of the bundle, picked from the seed without touching the game's random stream. With no list,
+/// `rival_k`.
+fn fallback_name(
+    names: &f4x_def::names::NameBundle,
+    seed: u64,
+    k: usize,
+) -> (String, f4x_def::text::Gender) {
+    let lists = &names.rivals;
+    let Some(list) = lists
+        .get(k.saturating_sub(1).min(lists.len().saturating_sub(1)))
+        .filter(|l| !l.is_empty())
+    else {
+        return (format!("rival_{k}"), Default::default());
     };
-    if list.is_empty() {
-        return Default::default();
-    }
     // splitmix64 of the seed and the slot.
     let mut z = seed
         .wrapping_add((k as u64 + 1).wrapping_mul(0x9E37_79B9_7F4A_7C15))
@@ -448,17 +453,12 @@ fn start_player(
     site: Option<Position>,
 ) -> Result<(), String> {
     let rules = &game.content.rules;
-    let rules_texts = &game.content.texts;
     let race_def = rules
         .races
         .by_num(race)
         .ok_or_else(|| format!("no race {race}"))?;
     let race_id = rules.races.id_numbered(race_def.num);
-    let name = race_def
-        .city_names
-        .first()
-        .cloned()
-        .unwrap_or_else(|| rules_texts.get("setup.capital", &f4x_def::text::Args::new()));
+    let name = game.names.city(race_def.num, &race_def.id, 0);
     let army = race_def.start_army.clone();
     let buildings: Vec<_> = CAPITAL_BUILDINGS.to_vec();
     let plane = if is_myrran(game, player) {
@@ -562,6 +562,41 @@ mod tests {
     }
 
     #[test]
+    fn a_game_is_dealt_its_names_from_the_bundle_and_falls_back_to_ids_without_one() -> TestResult {
+        let content = shipped();
+        let capital_race = |g: &Game| {
+            g.economy()
+                .cities()
+                .into_iter()
+                .find(|(_, c, _)| c.owner == PlayerId(0))
+                .map(|(_, c, _)| c.name.clone())
+        };
+        let bare = new_game(&content, &spec(3, 2))?;
+        let race_id = |g: &Game| {
+            g.wizard(PlayerId(0))
+                .and_then(|w| w.capital_race())
+                .map(|r| g.content().rules.races.get(r).id.clone())
+        };
+        let id = race_id(&bare).ok_or("no capital race")?;
+        assert_eq!(capital_race(&bare), Some(format!("{id}_city_00")));
+        assert_eq!(bare.units().hero_type_name(0).as_deref(), Some("dwarf"));
+        // The same game with name lists for every race and the dwarf hero.
+        let mut named = spec(3, 2);
+        for race in content.rules.races.defs() {
+            named
+                .names
+                .cities
+                .insert(race.num, vec![format!("Town of {}", race.id)]);
+        }
+        named.names.heroes.insert(0, vec!["Brax".into()]);
+        let g = new_game(&content, &named)?;
+        assert_eq!(capital_race(&g), Some(format!("Town of {id}")));
+        assert_eq!(g.units().hero_type_name(0).as_deref(), Some("Brax"));
+        assert_eq!(g.names().heroes[&0], ["Brax"]);
+        Ok(())
+    }
+
+    #[test]
     fn a_retort_is_found_by_name_whatever_the_case_and_punctuation() {
         let rules = &shipped().rules;
         assert_eq!(
@@ -604,27 +639,34 @@ mod tests {
 
     #[test]
     fn the_rivals_names_come_from_the_seed_and_the_slot_and_are_not_empty() {
-        let c = shipped();
-        let name = |seed, k| fallback_name(&c, seed, k).0;
+        let list = |tag: &str| -> Vec<(String, f4x_def::text::Gender)> {
+            (0..10)
+                .map(|i| (format!("{tag}{i}"), Default::default()))
+                .collect()
+        };
+        let names = f4x_def::names::NameBundle {
+            rivals: vec![list("a"), list("b"), list("c"), list("d")],
+            ..Default::default()
+        };
+        let name = |seed, k| fallback_name(&names, seed, k).0;
         assert_eq!(name(5, 1), name(5, 1));
         assert!(!name(5, 1).is_empty());
         let distinct: std::collections::BTreeSet<_> = (0..40).map(|s| name(s, 1)).collect();
         assert!(distinct.len() > 1, "the seed picks among the ten");
-        assert_ne!(
-            (0..10).map(|k| name(3, k)).collect::<Vec<_>>(),
-            vec![name(3, 1); 10],
-            "other slots have other lists"
+        assert!(name(3, 1).starts_with('a') && name(3, 2).starts_with('b'));
+        assert!(
+            name(3, 9).starts_with('d'),
+            "the last list serves the later slots"
         );
-        let mut none = c.clone();
-        none.rules.wizard_names.clear();
-        assert_eq!(fallback_name(&none, 5, 1), Default::default());
+        // No lists: the slot's number.
+        let none = f4x_def::names::NameBundle::default();
+        assert_eq!(fallback_name(&none, 5, 2).0, "rival_2");
     }
 
     #[test]
     fn the_plain_computer_wizards_alternate_between_two_builds() {
-        let c = shipped();
-        let one = plain_computer_build(&c, 4, 1);
-        let two = plain_computer_build(&c, 4, 2);
+        let one = plain_computer_build(&Default::default(), 4, 1);
+        let two = plain_computer_build(&Default::default(), 4, 2);
         assert!(
             one.books.contains_key(&RealmId::new(2) /* chaos */)
                 && one.retorts.contains(&Retort::new(1) /* warlord */)
@@ -634,7 +676,10 @@ mod tests {
                 && two.retorts.contains(&Retort::new(16) /* charismatic */)
         );
         assert!(one.preset && two.preset);
-        assert_eq!(plain_computer_build(&c, 4, 3).books, one.books);
+        assert_eq!(
+            plain_computer_build(&Default::default(), 4, 3).books,
+            one.books
+        );
     }
 
     #[test]

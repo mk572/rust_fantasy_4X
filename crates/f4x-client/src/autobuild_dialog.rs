@@ -2,10 +2,10 @@
 //! city screen. Left-click a row for the next value, right-click for the previous one.
 
 use crate::input::Input;
+use crate::text::{Args, Texts};
 use crate::ui;
 use f4x_core::city::autobuild::{BuildPlan, Focus, Mix};
 use f4x_core::game::Command;
-use f4x_def::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::city_screen::{CityPage, Layout};

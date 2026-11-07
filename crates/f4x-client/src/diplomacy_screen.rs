@@ -12,12 +12,12 @@ use crate::audio::{diplomacy_entry, Track};
 use crate::font::Style;
 use crate::input::Input;
 use crate::page::Page;
+use crate::text::Args;
 use crate::ui;
 use f4x_core::diplomacy::{relation_level, ProposalKind, Stage, Treaty};
 use f4x_core::game::{Command, Event};
 use f4x_core::player::PlayerId;
 use f4x_def::rules::{RealmId, SpellId};
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::diplomacy_text as say;

@@ -6,9 +6,9 @@
 
 use crate::font::{rgb, Effect, Style};
 use crate::input::Input;
+use crate::text::Args;
 use f4x_core::player::PlayerId;
 use f4x_def::rules::SpellId;
-use f4x_def::text::Args;
 use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 

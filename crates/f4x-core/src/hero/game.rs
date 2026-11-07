@@ -182,7 +182,7 @@ impl Game {
     /// made, after everything else is placed, so the map and the starting cities of a seed stay
     /// as they were.
     pub(crate) fn init_heroes(&mut self) {
-        for hero in kind::roll(&mut self.rng, &self.content.rules) {
+        for hero in kind::roll(&mut self.rng, &self.content.rules, &self.names) {
             self.make_hero(hero, HeroState::Free, 0);
         }
     }
@@ -434,8 +434,8 @@ pub(crate) mod tests {
             .map(|h| g.units().hero_kind(h).expect("hero_kind succeeds"))
             .collect();
         assert_eq!(kinds, (0..35).collect::<Vec<_>>());
-        // The first of the five names the client's text gives the Dwarf hero.
-        assert_eq!(g.units().hero_type_name(0).as_deref(), Some("Brax"));
+        // With no name list a hero is called by its unit's alias.
+        assert_eq!(g.units().hero_type_name(0).as_deref(), Some("dwarf"));
         assert!((0..35).all(|k| state(&g, k) == HeroState::Free));
         for p in [P0, P1, PlayerId(9)] {
             assert!(g.units().heroes(p).is_empty());
@@ -453,7 +453,10 @@ pub(crate) mod tests {
             .spawn_hero(P0, at(1, 1), dervish)
             .map_err(|e| format!("{e:?}"))?;
         let hero: Hero = (*g.world.get::<&Hero>(h)?).clone();
-        assert_eq!(hero.name, "B'Shan");
+        assert_eq!(
+            hero.name, "dervish",
+            "with no name list a hero is called by its alias"
+        );
         assert_eq!(hero.abilities.might, Tier::None);
         assert!(hero.spells.is_empty());
         assert_eq!(g.units().hero_kind(h), Some(dervish));

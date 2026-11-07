@@ -7,12 +7,12 @@ use crate::action_button_art::Action;
 use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
+use crate::text::Args;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
 use f4x_core::unit::Standby;
 use f4x_def::rules::Ability;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::{FrameClick, Layout};

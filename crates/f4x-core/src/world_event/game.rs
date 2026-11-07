@@ -20,7 +20,7 @@ use crate::game::{Event, Game};
 use crate::rules::UnitKind;
 use crate::world_event::{
     donation, fires, flat_end, pick_victim, pirates_take, victim_weights, world_end, EventKind,
-    EventNotice, Voice, CITY_SIZE_KEYS, ORES,
+    EventNotice, Voice, ORES,
 };
 
 /// A mineral square an event works on: the city whose area holds it, the square and the mineral.
@@ -246,7 +246,7 @@ impl Game {
         let rules = &self.content;
         let ores: Vec<_> = ORES
             .iter()
-            .filter_map(|&(num, _)| rules.features.id_numbered(num))
+            .filter_map(|&num| rules.features.id_numbered(num))
             .collect();
         let mut found: Vec<Candidate> = Vec::new();
         for city in self.cities_with_people(|o| o == owner) {
@@ -420,12 +420,7 @@ impl Game {
                     map.plane_mut(d.at.plane)
                         .set_mineral(d.at.x, d.at.y, feature);
                 }
-                notice.ore = ORES
-                    .iter()
-                    .find(|&&(num, _)| num == d.ore.0)
-                    .map_or(String::new(), |(_, key)| {
-                        self.content.texts.get(key, &f4x_def::text::Args::new())
-                    });
+                notice.ore = ORES.contains(&d.ore.0).then_some(d.ore.0);
                 notice.city = Some(d.city);
             }
             EventKind::PopulationBoom => {
@@ -488,10 +483,7 @@ impl Game {
             notice.city = Some(c);
             notice.city_name = self.city_name(c).unwrap_or_default();
             let people = self.world.get::<&Population>(c).map_or(0, |p| p.figures);
-            notice.city_size = self.content.texts.get(
-                CITY_SIZE_KEYS[city_size_class(people) as usize],
-                &f4x_def::text::Args::new(),
-            );
+            notice.city_size = city_size_class(people);
         }
         out.push(Event::RandomEvent(notice));
     }

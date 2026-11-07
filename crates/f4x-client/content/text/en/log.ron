@@ -1,7 +1,6 @@
 // The lines of the message log under the map, one for each event the player is told about.
 // One key is in one file only (docs/text.md).
 {
-    "log.city_number": "City {n}",
     "log.founded": "Founded {city}",
     "log.a_rival": "a rival",
     "log.a_hero": "A hero",

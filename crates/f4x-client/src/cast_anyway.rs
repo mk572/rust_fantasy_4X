@@ -6,9 +6,9 @@ use crate::frame::Layout;
 use crate::input::Input;
 use crate::modal::{keep, kind, Modal};
 use crate::spellbook::Targeting;
+use crate::text::Args;
 use crate::view::App;
 use f4x_core::game::{Command, Event, Rejection};
-use f4x_def::text::Args;
 
 /// The spell cast on a target that has its effect: the command waits for the answer.
 pub(crate) struct CastAnyway {

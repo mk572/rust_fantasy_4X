@@ -6,11 +6,11 @@
 
 use crate::font::Style;
 use crate::input::Input;
+use crate::text::{Args, Texts};
 use f4x_core::city::FoundCityError;
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::map::Position;
 use f4x_def::feature::FeatureKind;
-use f4x_def::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::action_button_art::Action;

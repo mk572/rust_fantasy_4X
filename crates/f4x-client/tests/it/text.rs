@@ -30,7 +30,7 @@ fn written() -> Result<Vec<Area>, Box<dyn Error>> {
     files.sort();
     let mut areas = Vec::new();
     for path in &files {
-        let entries: std::collections::BTreeMap<String, f4x_def::text::Entry> =
+        let entries: std::collections::BTreeMap<String, ron::Value> =
             ron::from_str(&std::fs::read_to_string(path)?)?;
         let area = path
             .file_stem()
@@ -131,7 +131,9 @@ fn every_key_that_is_written_is_used() -> TestResult {
 /// Files of the client whose literals are not messages: the command line, the picture files, the
 /// developer console, the key-name table, the check of the asset tables (start-up errors about
 /// content files, for the developer).
-const EXEMPT_FILES: [&str; 9] = [
+const EXEMPT_FILES: [&str; 11] = [
+    "text.rs",
+    "tests.rs",
     "main.rs",
     "art.rs",
     "console_screen.rs",

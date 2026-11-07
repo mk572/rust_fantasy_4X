@@ -9,7 +9,7 @@ use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
-use f4x_def::text::Args;
+use crate::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;

@@ -14,11 +14,11 @@ use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::panel_button_art::Panel;
+use crate::text::Args;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::player::{PlayerId, NEUTRAL_BANNER};
 use f4x_def::rules::SpellId;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;

@@ -384,7 +384,11 @@ fn a_depletion_removes_a_mineral_and_a_find_adds_one() -> TestResult {
             .mineral(find.at.x as i32, find.at.y as i32),
         Some(find.ore)
     );
-    assert!(!told[0].ore.is_empty(), "the message names the mineral");
+    assert_eq!(
+        told[0].ore,
+        Some(find.ore.0),
+        "the notice names the mineral"
+    );
     let lost = g
         .find_deposit(P0, false, &mut rng)
         .expect("a mineral to lose");

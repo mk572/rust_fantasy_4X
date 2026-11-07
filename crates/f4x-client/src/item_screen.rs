@@ -13,12 +13,12 @@ use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::panel_button_art::Panel;
+use crate::text::Args;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::item::armory::{ItemError, ItemSpot, Spot, TRANSFER_MANA, VAULT_SLOTS};
 use f4x_core::item::Item;
 use f4x_def::rules::SlotKind;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -130,7 +130,7 @@ impl App {
             (my - lay.origin.y) / lay.scale - 5.0,
         );
         self.draw_pic(lay, "items", self.art.item_icon(item), 0, x, y);
-        let name = self.names.item_name(item, self.game.content());
+        let name = self.names.item_name(item, &self.texts);
         self.draw_styled(view, &Style::shadowed(1), &name, x + 20.0, y + 4.0);
     }
 

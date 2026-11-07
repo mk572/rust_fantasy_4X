@@ -9,9 +9,9 @@ use crate::font::{Ink, Style};
 use crate::input::Input;
 use crate::newgame_button_art::Board;
 use crate::page::Page;
+use crate::text::Args;
 use crate::ui;
 use f4x_def::rules::RealmId;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::create_screen::{CreateState, Step};

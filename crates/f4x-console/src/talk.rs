@@ -61,6 +61,13 @@ pub const TABLE: &[CommandDef] = &[
     },
 ];
 
+/// How a relation reads on the console: the id of its band (`hate`, `neutral`, ...), the part of
+/// the text key after `relation.`.
+pub fn relation_word(relation: i32) -> &'static str {
+    let key = relation_key(relation);
+    key.strip_prefix("relation.").unwrap_or(key)
+}
+
 pub fn treaty_word(t: Treaty) -> &'static str {
     match t {
         Treaty::None => "no treaty",
@@ -122,10 +129,7 @@ fn diplomacy(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ctx.say(format!(
             "{} {name}: {} ({rel}), {}",
             w.0,
-            ctx.game
-                .content()
-                .texts
-                .get(relation_key(rel), &f4x_def::text::Args::new()),
+            relation_word(rel),
             treaty_word(ctx.game.treaty(me, w))
         ));
         if a.get(0).is_some() {

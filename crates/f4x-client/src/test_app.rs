@@ -5,9 +5,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+use crate::text::Texts;
 use f4x_core::game::setting::SettingsDef;
 use f4x_def::content::Content;
-use f4x_def::text::Texts;
 
 use f4x_extract::spell_art::SpellArt;
 use f4x_extract::unit_art::UnitArt;
@@ -31,7 +31,7 @@ pub(crate) mod shipped {
     pub(crate) fn texts() -> &'static Texts {
         static CELL: OnceLock<Texts> = OnceLock::new();
         CELL.get_or_init(|| {
-            f4x_def::load::load_texts(&[Path::new(CLIENT_CONTENT)], "en")
+            crate::text::load_texts(&[Path::new(CLIENT_CONTENT)], "en")
                 .expect("the shipped texts load")
         })
     }
@@ -102,10 +102,14 @@ impl App {
             shipped::wizard_art().clone(),
             shipped::icon_art().clone(),
         );
-        let mut app = App::new(shipped::content().clone(), art, 1)
-            .expect("a new game starts on the shipped content");
-        app.names = shipped::names().clone();
-        app
+        App::new(
+            shipped::content().clone(),
+            shipped::names().clone(),
+            shipped::texts().clone(),
+            art,
+            1,
+        )
+        .expect("a new game starts on the shipped content")
     }
 }
 

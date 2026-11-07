@@ -188,8 +188,7 @@ fn outpost(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             .unit_def(unit)
             .and_then(|d| d.race.as_ref())
             .copied()
-            .map(|r| ctx.game.content().rules.races.get(r))
-            .and_then(|r| r.city_names.get(used % r.city_names.len().max(1)).cloned())
+            .map(|r| ctx.game.city_name_for(r, used))
             .unwrap_or_else(|| format!("Outpost {}", used + 1))
     };
     ctx.apply(Command::SettleOutpost { unit, name })

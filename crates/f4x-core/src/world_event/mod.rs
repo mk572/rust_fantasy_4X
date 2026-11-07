@@ -448,16 +448,16 @@ pub struct EventNotice {
     /// The wizard it fell on; none for a world event.
     pub player: Option<PlayerId>,
     pub player_name: String,
-    /// The city it fell on, with its name and size class.
+    /// The city it fell on, with its name and size class (0 outpost to 5 capital).
     pub city: Option<hecs::Entity>,
     pub city_name: String,
-    pub city_size: String,
+    pub city_size: u32,
     /// Gold (piracy, donation).
     pub number: i32,
     /// The item of a gift; the client names it.
     pub item: Option<crate::item::Item>,
-    /// The mineral of a depletion or a find, as the message words it ("n iron", " coal").
-    pub ore: String,
+    /// The mineral of a depletion or a find (a feature number; the client words it).
+    pub ore: Option<u16>,
     pub lost_units: u32,
     pub lost_population: u32,
     pub lost_buildings: u32,
@@ -472,10 +472,10 @@ impl EventNotice {
             player_name: String::new(),
             city: None,
             city_name: String::new(),
-            city_size: String::new(),
+            city_size: 0,
             number: 0,
             item: None,
-            ore: String::new(),
+            ore: None,
             lost_units: 0,
             lost_population: 0,
             lost_buildings: 0,
@@ -483,31 +483,20 @@ impl EventNotice {
     }
 }
 
-/// The keys of the names of the city size classes, outpost to capital (`_city_size_names`).
 /// Marriage and the Great Meteor wait for this turn.
 pub const BIG_EVENTS_FROM_TURN: u32 = 150;
 
-pub const CITY_SIZE_KEYS: [&str; 6] = [
-    "city.size_outpost",
-    "city.size_hamlet",
-    "city.size_village",
-    "city.size_town",
-    "city.size_city",
-    "city.size_capital",
-];
-
-/// The minerals an event can put on the map: the feature number and the key of the word for it,
-/// what follows the article in "a{ore} deposit".
-pub const ORES: [(u16, &str); 9] = [
-    (11 /* iron_ore */, "event.ore_iron_ore"),
-    (5 /* coal */, "event.ore_coal"),
-    (19 /* silver_ore */, "event.ore_silver_ore"),
-    (10 /* gold_ore */, "event.ore_gold_ore"),
-    (9 /* gem */, "event.ore_gem"),
-    (12 /* mithril_ore */, "event.ore_mithril_ore"),
-    (2 /* adamantium_ore */, "event.ore_adamantium_ore"),
-    (17 /* quork_crystal */, "event.ore_quork_crystal"),
-    (6 /* crysx_crystal */, "event.ore_crysx_crystal"),
+/// The minerals an event can put on the map, by feature number.
+pub const ORES: [u16; 9] = [
+    11, // iron_ore
+    5,  // coal
+    19, // silver_ore
+    10, // gold_ore
+    9,  // gem
+    12, // mithril_ore
+    2,  // adamantium_ore
+    17, // quork_crystal
+    6,  // crysx_crystal
 ];
 
 #[cfg(test)]

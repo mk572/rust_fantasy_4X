@@ -5,8 +5,8 @@
 
 use std::path::Path;
 
+use crate::text::{Args, Texts};
 use f4x_core::world_event::EventNotice;
-use f4x_def::text::{Args, Texts};
 
 /// One line of `EVENTMSG.LBX`, as the importer writes it to `event_texts.ron`: the event, its
 /// voice (the line within the event's seven) and the text with `{city}`, `{size}`, `{player}`,
@@ -30,6 +30,30 @@ pub fn load(dir: &Path) -> Result<Vec<EventText>, String> {
     ron::from_str(&text).map_err(|e| format!("event_texts.ron: {e}"))
 }
 
+/// The keys of the names of the city size classes, outpost to capital.
+const CITY_SIZE_KEYS: [&str; 6] = [
+    "city.size_outpost",
+    "city.size_hamlet",
+    "city.size_village",
+    "city.size_town",
+    "city.size_city",
+    "city.size_capital",
+];
+
+/// The minerals an event can put on the map: the feature number and the key of the word for it,
+/// what follows the article in "a{ore} deposit".
+const ORE_KEYS: [(u16, &str); 9] = [
+    (11 /* iron_ore */, "event.ore_iron_ore"),
+    (5 /* coal */, "event.ore_coal"),
+    (19 /* silver_ore */, "event.ore_silver_ore"),
+    (10 /* gold_ore */, "event.ore_gold_ore"),
+    (9 /* gem */, "event.ore_gem"),
+    (12 /* mithril_ore */, "event.ore_mithril_ore"),
+    (2 /* adamantium_ore */, "event.ore_adamantium_ore"),
+    (17 /* quork_crystal */, "event.ore_quork_crystal"),
+    (6 /* crysx_crystal */, "event.ore_crysx_crystal"),
+];
+
 /// The message of a notice, if the lines have one for it; `item` is the name of the gift.
 pub fn compose(
     lines: &[EventText],
@@ -51,10 +75,22 @@ pub fn compose(
     Some(
         line.text
             .replace("{city}", &notice.city_name)
-            .replace("{size}", &notice.city_size)
+            .replace(
+                "{size}",
+                &words.get(
+                    CITY_SIZE_KEYS[notice.city_size.min(5) as usize],
+                    &Args::new(),
+                ),
+            )
             .replace("{player}", &notice.player_name)
             .replace("{number}", &notice.number.to_string())
-            .replace("{ore}", &notice.ore)
+            .replace(
+                "{ore}",
+                &notice
+                    .ore
+                    .and_then(|num| ORE_KEYS.iter().find(|&&(n, _)| n == num))
+                    .map_or(String::new(), |&(_, key)| words.get(key, &Args::new())),
+            )
             .replace("{item}", item)
             .replace("{units}", &count(notice.lost_units, "event.number"))
             .replace("{people}", &count(notice.lost_population, "event.thousand"))
@@ -72,7 +108,7 @@ mod tests {
 
     /// The words the messages are filled with, as `content/text/en/event.ron` has them.
     fn words() -> Texts {
-        let entries: std::collections::HashMap<String, f4x_def::text::Entry> = ron::from_str(
+        let entries: std::collections::HashMap<String, crate::text::Entry> = ron::from_str(
             r#"{
                 "event.none": "no",
                 "event.number": "{n}",

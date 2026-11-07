@@ -8,11 +8,11 @@
 use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
+use crate::text::{Args, Texts};
 use f4x_core::feature::lair::Loot;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
 use f4x_def::rules::RealmId;
-use f4x_def::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::audio::{music, Track};
@@ -217,7 +217,7 @@ impl App {
             )
         });
         let text = found_text(
-            &self.game.content().texts,
+            &self.texts,
             site,
             first.as_ref().map(|(name, f)| (name.as_str(), *f)),
         );
@@ -239,7 +239,7 @@ impl App {
         let kind = site_type(site.0);
         if !guarded {
             self.modals.enqueue(SiteNotice::Found {
-                text: found_text(&self.game.content().texts, kind, None),
+                text: found_text(&self.texts, kind, None),
                 site: kind,
             });
         }
@@ -252,7 +252,7 @@ impl App {
         let books: Vec<String> = loot.books.iter().map(|&r| self.realm_alias(r)).collect();
         let kinds: Vec<_> = loot.items.iter().map(|i| i.kind).collect();
         let text = treasure_text(
-            &self.game.content().texts,
+            &self.texts,
             loot,
             spell.as_deref(),
             &books,
@@ -287,7 +287,7 @@ impl App {
                     )
                 });
                 let text = found_text(
-                    &self.game.content().texts,
+                    &self.texts,
                     site,
                     first.as_ref().map(|(n, f)| (n.as_str(), *f)),
                 );
@@ -299,7 +299,7 @@ impl App {
                 });
             }
             "found" => self.modals.enqueue(SiteNotice::Found {
-                text: found_text(&self.game.content().texts, site, None),
+                text: found_text(&self.texts, site, None),
                 site,
             }),
             _ => {

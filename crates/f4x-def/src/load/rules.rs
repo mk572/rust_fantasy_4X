@@ -28,98 +28,12 @@ fn parse<T: serde::de::DeserializeOwned>(dirs: &[&Path], name: &str) -> Result<T
     ron::from_str(&read(dirs, name)?).map_err(|e| ContentError::Parse(format!("{name}: {e}")))
 }
 
-/// The race's city names, kept apart from the race table so a local file can replace them.
-#[derive(serde::Deserialize)]
-struct CityNames {
-    race: String,
-    names: Vec<String>,
-}
-
-/// Fill in `city_names` from `city_names.ron`, if any directory has it. A race the file does
-/// not mention keeps the names in the race table.
-fn apply_city_names(dirs: &[&Path], races: &mut [RaceDef]) -> Result<(), ContentError> {
-    if find(dirs, "city_names.ron").is_none() {
-        return Ok(());
-    }
-    let lists = parse::<Vec<CityNames>>(dirs, "city_names.ron")?;
-    for list in lists {
-        let Some(race) = races.iter_mut().find(|r| r.id == list.race) else {
-            return Err(ContentError::Invalid(vec![format!(
-                "city_names.ron names unknown race {:?}",
-                list.race
-            )]));
-        };
-        race.city_names = list.names;
-    }
-    Ok(())
-}
-
-/// Fill in each hero template's `names` from `text/<lang>/name/hero.ron` (by the hero unit's
-/// number, five names for each; `lang` over the fallback language). A hero without names, and
-/// names for a number that is no hero, are problems.
-fn apply_hero_names(
-    (dirs, lang): (&[&Path], &str),
-    templates: &mut [HeroTemplate],
-    problems: &mut Vec<String>,
-) -> Result<(), ContentError> {
-    let names = name_table::<Vec<String>>(dirs, lang, "hero")?;
-    for t in templates.iter_mut() {
-        match names.get(&t.unit.num()) {
-            Some(list) => t.names = list.clone(),
-            None => problems.push(format!(
-                "hero {} has no names in text/{lang}/name/hero.ron",
-                t.unit.num()
-            )),
-        }
-    }
-    let known: std::collections::BTreeSet<u16> = templates.iter().map(|t| t.unit.num()).collect();
-    for n in names.keys().filter(|n| !known.contains(n)) {
-        problems.push(format!(
-            "text/{lang}/name/hero.ron names the unknown hero {n}"
-        ));
-    }
-    Ok(())
-}
-
-/// The names of one table in `lang`, by definition number: `text/<lang>/name/<file>.ron` of the
-/// first directory that has it, over the same file of the fallback language.
-fn name_table<V: serde::de::DeserializeOwned>(
-    dirs: &[&Path],
-    lang: &str,
-    file: &str,
-) -> Result<std::collections::BTreeMap<u16, V>, ContentError> {
-    let mut all = std::collections::BTreeMap::new();
-    for l in [crate::text::FALLBACK_LANGUAGE, lang] {
-        let name = format!("text/{l}/name/{file}.ron");
-        if find(dirs, &name).is_some() {
-            all.extend(parse::<std::collections::BTreeMap<u16, V>>(dirs, &name)?);
-        }
-    }
-    Ok(all)
-}
-
-/// The names for rival wizards: `text/<lang>/name/rival.ron` of the first directory that has
-/// it, else the fallback language's (one list for each rival slot).
-fn rival_names(
-    dirs: &[&Path],
-    lang: &str,
-) -> Result<Vec<Vec<(String, crate::text::Gender)>>, ContentError> {
-    let own = format!("text/{lang}/name/rival.ron");
-    let name = if find(dirs, &own).is_some() {
-        own
-    } else {
-        format!("text/{}/name/rival.ron", crate::text::FALLBACK_LANGUAGE)
-    };
-    parse(dirs, &name)
-}
-
 /// Load and validate every rules file. Each file comes from the first of `dirs` that has it,
 /// so a local directory can replace single files of the committed one.
-pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rules, ContentError> {
+pub fn load_rules(dirs: &[&Path], features: &Features) -> Result<Rules, ContentError> {
     let dir = dirs;
-    let mut races = parse::<Vec<RaceDef>>(dir, "races.ron")?;
-    apply_city_names(dir, &mut races)?;
-    let mut hero_templates = if find(dir, "heroes.ron").is_some() {
+    let races = parse::<Vec<RaceDef>>(dir, "races.ron")?;
+    let hero_templates = if find(dir, "heroes.ron").is_some() {
         parse::<Vec<HeroTemplate>>(dir, "heroes.ron")?
     } else {
         Vec::new()
@@ -137,9 +51,7 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
     let spells = parse::<Vec<SpellDef>>(dir, "spells.ron")?;
     let items = parse::<Vec<ItemDef>>(dir, "items.ron")?;
     let item_powers = parse::<Vec<ItemPowerDef>>(dir, "item_powers.ron")?;
-    let mut problems = Vec::new();
-    let at = (dir, lang);
-    apply_hero_names(at, &mut hero_templates, &mut problems)?;
+    let problems = Vec::new();
     let level_paths = parse::<Vec<LevelPathDef>>(dir, "level_paths.ron")?;
     if !problems.is_empty() {
         return Err(ContentError::Invalid(problems));
@@ -162,14 +74,12 @@ pub fn load_rules(dirs: &[&Path], lang: &str, features: &Features) -> Result<Rul
         retorts: Registry::new(retorts),
         // The starting records of the hero types, also optional.
         hero_templates,
-        // Fallback names for rival wizards, also optional.
         // The lair rules, also optional: a rule set without the file uses the original's.
         lairs: if find(dir, "lairs.ron").is_some() {
             parse::<crate::rules::lair::LairRules>(dir, "lairs.ron")?
         } else {
             crate::rules::lair::LairRules::default()
         },
-        wizard_names: rival_names(dir, lang)?,
     };
     let problems = validate_rules(&rules, features);
     if problems.is_empty() {
@@ -904,7 +814,7 @@ mod tests {
         let dir = crate::load::testutil::content_dir();
         let features =
             crate::load::parse_features(&std::fs::read_to_string(dir.join("features.ron"))?)?;
-        let rules = load_rules(&[dir.as_path(), &client_dir()], "en", &features)?;
+        let rules = load_rules(&[dir.as_path()], &features)?;
         let wizards = rules.wizards.defs();
         assert_eq!(wizards.len(), 14);
         let lo_pan = wizards
@@ -917,10 +827,6 @@ mod tests {
 
     fn content_dir() -> std::path::PathBuf {
         crate::load::testutil::content_dir()
-    }
-
-    fn client_dir() -> std::path::PathBuf {
-        crate::load::testutil::client_dir()
     }
 
     fn features() -> Features {
@@ -968,7 +874,6 @@ mod tests {
             level_paths: Registry::new(level_paths),
             wizards: Registry::new(wizards),
             hero_templates,
-            wizard_names: Vec::new(),
             lairs: shipped("lairs.ron", edits),
         }
     }
@@ -1055,7 +960,7 @@ mod tests {
     #[test]
     fn shipped_rules_are_valid() -> TestResult {
         assert_eq!(problems(&[]), Vec::<String>::new());
-        let rules = load_rules(&[&content_dir(), &client_dir()], "en", &features())?;
+        let rules = load_rules(&[&content_dir()], &features())?;
         for realm in 0..=4 {
             assert!(rules.realms.by_num(realm).is_some(), "{realm}");
         }
@@ -1070,7 +975,7 @@ mod tests {
 
     #[test]
     fn typed_ids_round_trip() -> TestResult {
-        let rules = load_rules(&[&content_dir(), &client_dir()], "en", &features())?;
+        let rules = load_rules(&[&content_dir()], &features())?;
         let id = rules.units.id_numbered(39).ok_or("the value is missing")?;
         assert_eq!(rules.units.get(id).id, "barbarian_spearmen");
         assert!(rules.units.by_num(9999).is_none());
@@ -1127,7 +1032,6 @@ mod tests {
             abilities: vec![crate::rules::Ability::new(85 /* might */)],
             casting_skill: 0,
             spells: Vec::new(),
-            names: Vec::new(),
             gender: Default::default(),
         };
         // A hero without a template, once there are templates at all.
@@ -1254,7 +1158,7 @@ mod tests {
                 })
                 .sum()
         };
-        let rules = load_rules(&[&content_dir(), &client_dir()], "en", &features())?;
+        let rules = load_rules(&[&content_dir()], &features())?;
         let unit = rules.units.by_num(39).ok_or("the value is missing")?;
         let path = rules
             .level_paths
@@ -1282,40 +1186,6 @@ mod tests {
                 + added(&level.effects, Stat::Defense)
                 + added(&spell.effects, Stat::Defense)
         );
-        Ok(())
-    }
-
-    #[test]
-    fn city_names_come_from_the_first_directory_that_has_the_file() -> TestResult {
-        let over = crate::testdir::TestDir::new("names");
-        std::fs::write(
-            over.join("city_names.ron"),
-            r#"[(race: "barbarian", names: ["Alpha", "Beta"])]"#,
-        )?;
-        let features = features();
-        let shipped = load_rules(&[&content_dir(), &client_dir()], "en", &features)?;
-        let rules = load_rules(&[&over, &content_dir(), &client_dir()], "en", &features)?;
-        let barbarian = rules.races.by_num(0).ok_or("the value is missing")?;
-        assert_eq!(barbarian.city_names, ["Alpha", "Beta"]);
-        // The file is read whole from the first directory: the shipped table has names for
-        // another race, the overriding one has none.
-        assert!(!shipped
-            .races
-            .by_num(1)
-            .ok_or("the value is missing")?
-            .city_names
-            .is_empty());
-        assert!(rules
-            .races
-            .by_num(1)
-            .ok_or("the value is missing")?
-            .city_names
-            .is_empty());
-        std::fs::write(
-            over.join("city_names.ron"),
-            r#"[(race: "nobody", names: ["X"])]"#,
-        )?;
-        assert!(load_rules(&[&over, &content_dir(), &client_dir()], "en", &features).is_err());
         Ok(())
     }
 }

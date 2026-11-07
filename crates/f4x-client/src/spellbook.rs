@@ -9,11 +9,11 @@ use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::page_turn::{Book, BookTurn};
+use crate::text::Args;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::rules::exec::Target;
 use f4x_def::rules::{CastContext, RealmId, SpellId, SpellTarget};
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;

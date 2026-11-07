@@ -36,9 +36,6 @@ pub struct RaceDef {
     /// Applied to every city of the race.
     #[serde(default)]
     pub effects: Vec<EffectRule>,
-    /// Names handed to new cities, in order.
-    #[serde(default)]
-    pub city_names: Vec<String>,
     /// Food each farmer grows.
     #[serde(default = "two")]
     pub farmer_food: u8,
@@ -215,10 +212,6 @@ pub struct HeroTemplate {
     pub casting_skill: u32,
     /// The innate spells (ids in `spells.ron`), at most four.
     pub spells: Vec<Id<SpellDef>>,
-    /// The hero's name in each wizard's game, by the wizard's number (the original's
-    /// `NAMES.LBX`, from `text/<lang>/name/hero.ron`).
-    #[serde(default)]
-    pub names: Vec<String>,
     /// For the messages that name the hero (`docs/text.md`).
     #[serde(default)]
     pub gender: crate::text::Gender,
@@ -805,8 +798,6 @@ pub struct Rules {
     pub retorts: Registry<RetortDef>,
     /// The starting record of each hero type, in the order of the hero units (optional).
     pub hero_templates: Vec<HeroTemplate>,
-    /// Names for rival wizards when no ready-made wizards are loaded: a list for each rival slot.
-    pub wizard_names: Vec<Vec<(String, crate::text::Gender)>>,
     /// The guard and treasure rules of the sites (`lairs.ron`).
     pub lairs: super::lair::LairRules,
 }

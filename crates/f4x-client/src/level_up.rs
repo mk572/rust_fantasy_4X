@@ -7,7 +7,7 @@
 use crate::font::{Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
-use f4x_def::text::Args;
+use crate::text::Args;
 use macroquad::prelude::*;
 
 use crate::audio::{music, Track};

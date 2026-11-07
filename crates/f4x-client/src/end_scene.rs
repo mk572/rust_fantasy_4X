@@ -10,8 +10,9 @@
 use crate::font::{rgb, Effect, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
+use crate::text::Args;
 use f4x_core::player::PlayerId;
-use f4x_def::text::{Args, Gender};
+use f4x_def::text::Gender;
 use macroquad::prelude::*;
 
 use crate::audio::Track;

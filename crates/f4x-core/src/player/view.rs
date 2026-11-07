@@ -60,6 +60,11 @@ impl<'a> PlayerView<'a> {
     }
 
     /// Has the game ended?
+    /// The name of the `index`th city of a race (see [`Game::city_name_for`]).
+    pub fn city_name_for(&self, race: crate::rules::RaceId, index: usize) -> String {
+        self.game.city_name_for(race, index)
+    }
+
     pub fn game_over(&self) -> bool {
         self.game.game_over.is_some()
     }

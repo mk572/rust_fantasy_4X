@@ -89,11 +89,9 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 472 | Medium | Magic | Spell research against the wiki and ReMoM: found books add no researchable spells, 13-book limit, book test for conquest and exchange, Spell of Mastery cost, arcane rarity labels |
 | 473 | Low | Audio | Denoise the original speech sound files (the intro's spoken lines and any other voice clips) |
 | 474 | Low | AI | AI heroes and items: lairs, experience, Resurrection, hiring, item trade and crafting (split from 367) |
-| 475 | Medium | Core | Split turn advancement into explicit `game::end_turn()` and `game::start_turn()` phases |
 | 476 | Medium | Client | Cache queried game information and refresh it only after relevant state changes |
 | 477 | Medium | Housekeeping | Add `f4x-master` for player turns and round orchestration |
 | 478 | Low | Housekeeping | Make `f4x-ai-ref` a local-only snapshot: ignored by git, behind a `reference` feature of `f4x-tools` |
-| 479 | Medium | Meta | The crates below the client know no display text: names and messages leave core, data and the AI for the client |
 | 483 | Medium | Meta | Review the constants in code: which should move to content or to a settings file |
 | 484 | Medium | Tests | Test review, second pass: tests that edit the rules, tests on the flat settings, wrong crate layer |
 | 485 | Low | Core | Smaller save files: the fog and map grids, compression |
@@ -372,9 +370,7 @@ Each item that is changed gets a test on the shipped rules and a line in `docs/m
 - **TODO items:** cast Enchant Item and Create Artifact when the mana allows; give each item to the hero that uses it best; trade items; scrap what no hero can use.
 *Needs:* nothing. Part of the umbrella task 371.
 
-**475. Split the turn transition into end-turn and start-turn phases.** Refactor the current `game::end_turn()` so that the work before advancing the turn counter stays in `game::end_turn()`, and the work after advancing the counter moves into a new `game::start_turn()`. Keep the existing execution order and behaviour unchanged: this is a lifecycle-clarity refactor, not a redesign of the turn pipeline. `end_turn()` should finish the outgoing turn; `start_turn()` should own the incoming-turn work, including the counter advancement and the processing that follows it. Update callers and tests as needed, and document the boundary between the two phases. Check that turn-start notifications and all existing turn processing still happen exactly once.
-
-Asked for by the user, 3 November 2026. **476. Cache queried game information in the client.** The client should keep the
+**476. Cache queried game information in the client.** The client should keep the
 results of game queries it needs for drawing and enabling controls, and refresh them only
 when a relevant change to game state makes them stale. Define which state changes invalidate
 which cached information (for example, unit movement invalidates position-, path- and
@@ -407,21 +403,17 @@ table is in `turn-structure.md` 7.1), `f4x-master` runs seats in order with a ne
 (a human seat that waits for End Turn; rivals wait while an attack on the human is fought) run on it.
 The economy now runs at the start of the player's own turn (7 November 2026, see 7.1), and `f4x-ai-ref`
 was re-forked from `f4x-ai` (`scripts/fork_ai.py`) so it has the same `controller.rs` and `play_round`.
-*Done 7 November 2026:* the master state is saved (`Game::flow`, `Master::checkpoints`, `Master::from_game`); the client autosaves at the start of every round. *Open:* the soak's own snapshots should be game saves, the AI's memory is not saved, `game-flow.md` still describes the old end-turn,
-a client test for a defence mid-round, and a soak to check the balance of the per-player economy.
 
-**479. The crates below the client know no display text.** Aim: core and the game events carry message keys and values (no wording); the client owns `Texts`, the name tables and the composition of names and messages (`MadeName`, plurals, gender); the console, the tools and the AI print ids (or load the client's text explicitly). Do not break the text/code agreement tests (`crates/f4x-client/tests/it/text.rs`): they scan every crate's sources for keys. Saves keep their numbers.
+**DONE** (checked 7 November 2026)
+- Stages 1 to 4: the four phases in core, `f4x-master` with its seats, `AiSeat` and `NeutralSeat`, the console, the tools' round player and the client on the master.
+- The master state is saved (`Game::flow`, `Master::checkpoints`, `Master::from_game`); the client autosaves at the start of every round.
+- The soak's snapshots are game saves (`Game::snapshot`), and `soak --from SAVE` goes on from one.
+- The AIs' plans are saved with the game (`Ai::remember`, `Ai::recall`; `ai-design.md` says what is not kept: the garrison memory does not exist yet).
+- `game-flow.md` describes the rounds, the four phases and `EndTurn` as their composition.
 
-**DONE**
-- Task 467: the rules carry numbers and the readable alias `id` only; the display names are the client's (`crates/f4x-client/content/text/<lang>/name/*.ron`, by number).
-- Nothing outside the client looks a definition up by its alias (`Registry` has no name lookup; the console and the client's own tables match an alias themselves).
-- Tests of interface text sit in the client.
-- `Texts` now lives in `f4x-def` (`text.rs`), no longer in core (task 481).
-
-**TODO** (checked 7 November 2026)
-1. Per-game names: the names of cities, heroes and rival wizards are plain strings in the game state and the saves. The client reads its name lists and hands them to `new_game` as a plain bundle (cities per race number, heroes per hero unit number, rivals per slot); core draws with the seed and stores the strings. Fallbacks when no list is given: a hero takes the unit's `id`, a city `<race id>_city_00`, `_01`, and so on, a rival `rival_1`, `rival_2`. Move `content/city_names.ron` (still in the shipped content, merged into `RaceDef.city_names` by the loader) and the hero and rival name lists to the client.
-2. Move `Texts` and the composition code to the client. Open: core still calls `content.texts` in `world_event/game.rs`, `game/setup.rs` and a few more (17 uses outside the client by a quick count of `.texts`; the older figure of about 220 message-key uses was not recounted), `Content.texts` exists, and `MadeName::compose` is in `item/crafting.rs`.
-3. Drop `CLIENT_FOLDER` (still in `f4x-def/src/load/mod.rs`), `Content.texts` and the client folder from core's test content and the data tests (they find it as `../crates/f4x-client/content` beside `content/`).
+**TODO**
+1. A client test for a defence in the middle of a round (a rival attacks the human while the master waits; `App::next_defence`).
+2. A soak to check the balance of the per-player economy (the economy now runs at the start of each player's own turn).
 
 **483. Review the constants in code.** Raised by the user, 6 November 2026, during the `f4x-def` work (task 481). Numbers and lists that are fixed in the Rust source and never change during play are definitions in all but place. Go through `f4x-core` (and the other crates below the client) and list them: the map generator's defaults (`GenParams`: towers, nodes, sites, `REFERENCE_AREA`), the limits (`MAX_TILE_LIMIT`, `MAX_STACK`, `MAX_SIDE_UNITS`, `MAX_OPPONENTS`, `PICKS`), the hero constants (`CHARMED_RESISTANCE`, the `by_tier` fractions, the ability numbers in `HeroAbilities`), and the like. For each, decide: it stays in code (a true invariant of the rules engine, or a technical limit), it moves into a content file (a rule of the game that a mod might change), or it becomes a setting in `rules_settings.ron` (a choice the player or the difficulty level makes). Done when the list is in this file or `docs/`, with the decision for each, and the ones that move are moved (one task each if they are many).
 

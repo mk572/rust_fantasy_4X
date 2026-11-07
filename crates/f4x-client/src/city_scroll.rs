@@ -11,11 +11,11 @@ use crate::frame::Layout;
 use crate::input::Input;
 use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
+use crate::text::Args;
 use crate::view::{App, HUMAN};
 use f4x_core::map::Position;
 use f4x_core::player::PlayerId;
 use f4x_def::rules::{RealmId, SpellId, SpellTarget};
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 /// Where the scroll goes, and the cityscape inside it.

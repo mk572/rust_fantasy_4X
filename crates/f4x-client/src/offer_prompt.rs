@@ -10,9 +10,9 @@
 
 use crate::font::{rgb, Style};
 use crate::input::Input;
+use crate::text::Args;
 use f4x_core::game::Command;
 use f4x_core::player::offer::Offer;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;
@@ -268,7 +268,7 @@ impl App {
             let r = lay.rect((x, y, 312.0, 161.0));
             draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.1, 0.07, 0.04, 0.96));
         }
-        let name = self.names.item_name(item, self.game.content());
+        let name = self.names.item_name(item, &self.texts);
         let text = self.text_with(key, &Args::new().text("item", &name).count("price", price));
         let mut at = y + 9.0;
         for line in self.bm_wrap(4, &text, 182.0) {
@@ -414,7 +414,7 @@ impl App {
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         self.draw_pic(lay, "itemisc", 25, 0, x, y);
         self.draw_pic(lay, "items", self.art.item_icon(item), 0, x + 9.0, y + 6.0);
-        let name = self.names.item_name(item, self.game.content());
+        let name = self.names.item_name(item, &self.texts);
         self.draw_styled(view, &Style::set(4, 4), &name, x + 31.0, y + 12.0);
         let rules = self.game.content().rules.clone();
         let b = item.bonus;

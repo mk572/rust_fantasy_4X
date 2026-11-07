@@ -5,8 +5,8 @@
 use crate::font::{Effect, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
+use crate::text::Args;
 use f4x_core::battle::info::{BattleInfo, InfoItem};
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::view::App;

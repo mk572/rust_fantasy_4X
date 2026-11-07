@@ -59,7 +59,11 @@ Debug output of the console and test messages are not player-facing and stay in 
   in order, then the bonus levels). `hero.ron` holds
   the five names of each hero by the hero unit's `num` (the first is the hero's name in the first
   wizard's game) and `rival.ron` the lists of names for the rival wizards (a name and its gender, one
-  list for each rival slot); both are required.
+  list for each rival slot); `city.ron` holds a race's city names by the race's `num`, in the
+  order they are handed out. The client reads these three (`Names::bundle`) and hands them to
+  `new_game` as a `NameBundle` (`f4x_def::names`); the game draws the names with its seed and
+  stores plain strings. With no list the game uses ids: `<race id>_city_00`, the hero unit's `id`,
+  `rival_1`.
 - Text the core builds as game data is on keys when a language must order or inflect it: the
   default name of a made item is kept as parts (`Item.made`: kind, bonus, suffix) and put together
   by `Item::display_name` from `item.name_*`, `item.type_*` and `item.suffix_*`; the words that fill

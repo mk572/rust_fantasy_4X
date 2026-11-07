@@ -108,7 +108,7 @@ design does to keep it as clean as it can be:
 ### 3.4 Dependencies that a player cannot be asked to have
 
 - **Python and ReMoM: not needed by the player.** `import_mom.py` stays a developer script. What the
-  game reads from `content-local/` is only three small files (`city_names.ron`, `diplomsg.ron`,
+  game reads from `content-local/` is only three small files (`text/en/name/city.ron`, `diplomsg.ron`,
   `event_texts.ron`; the loaders are in `f4x-def/src/load`), and all three come from
   the original's LBX files alone:
   - `CITYNAME.LBX` gives the names per race in race-table order. The script takes the race list from
@@ -267,7 +267,7 @@ Ordered so that each step is useful on its own. These are proposals, not tasks y
    First, because everything for Windows depends on it.
 2. **Data folder** (3.5): the client and `f4x-tools` find the per-user folder, with `--data` and the
    current relative paths as the fallback. No change to tests.
-3. **The three local text files in Rust** (`city_names`, `diplomsg`, `event_texts`; 3.4), reading the
+3. **The three local text files in Rust** (`text/en/name/city.ron`, `diplomsg`, `event_texts`; 3.4), reading the
    original's LBX and the committed `content/races.ron`, with no Python and no ReMoM. The script stays
    for development; a test on the author's copy (not in CI) compares the two outputs byte for byte.
 4. **Audio encoding without `oggenc`** (3.4), by spike.

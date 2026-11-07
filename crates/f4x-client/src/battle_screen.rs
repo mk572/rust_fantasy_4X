@@ -16,6 +16,7 @@ use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
 use crate::spellbook::BookUi;
+use crate::text::{Args, Texts};
 use f4x_ai::battle::order::next_command;
 use f4x_core::battle::map::{distance, BattleMap, Pos, Wall, GRID_H, GRID_W};
 use f4x_core::battle::{
@@ -25,7 +26,6 @@ use f4x_core::game::{Command, Event};
 use f4x_core::map::Plane;
 use f4x_def::rules::defs::SpellTarget;
 use f4x_def::rules::SpellId;
-use f4x_def::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::art::FigureEffect;
@@ -818,8 +818,7 @@ impl App {
                             .spell(self.game.content().rules.spells.get(id).num)
                             .to_string()
                     };
-                    if let Some(line) = describe(&self.game.content().texts, &names, &spell_name, e)
-                    {
+                    if let Some(line) = describe(&self.texts, &names, &spell_name, e) {
                         ui.log.push(line);
                     }
                     if let Some(b) = &before {

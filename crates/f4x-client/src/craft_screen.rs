@@ -10,6 +10,7 @@ use crate::font::{rgb, Effect, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
+use crate::text::Args;
 use crate::ui;
 use f4x_core::game::{Command, Event};
 use f4x_core::item::crafting::{
@@ -19,7 +20,6 @@ use f4x_core::item::crafting::{
 use f4x_def::rules::ItemPowerId;
 use f4x_def::rules::SpellId;
 use f4x_def::rules::{CastContext, ItemKind, ItemPowerDef};
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::craft_art::TAB_KEYS;
@@ -264,7 +264,7 @@ impl App {
         }
         self.names.made_name(
             &made_name(&ui.design, &self.game.content().rules),
-            self.game.content(),
+            &self.texts,
         )
     }
 
@@ -275,10 +275,8 @@ impl App {
         let default = {
             let mut bare = ui.design.clone();
             bare.name.clear();
-            self.names.made_name(
-                &made_name(&bare, &self.game.content().rules),
-                self.game.content(),
-            )
+            self.names
+                .made_name(&made_name(&bare, &self.game.content().rules), &self.texts)
         };
         if ui.design.name == default || ui.design.name.trim().is_empty() {
             ui.design.name.clear();

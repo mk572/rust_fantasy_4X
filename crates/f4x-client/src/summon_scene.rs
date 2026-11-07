@@ -11,6 +11,7 @@ use crate::frame::Layout;
 use crate::input::Input;
 use crate::modal::{keep, kind, Modal};
 use crate::preferences::Pref;
+use crate::text::Args;
 use crate::view::{App, HUMAN};
 use f4x_core::item::crafting::CRAFT_ITEM;
 use f4x_core::player::PlayerId;
@@ -18,7 +19,7 @@ use f4x_core::spell::hero::{HeroSummon, SUMMON_HERO};
 use f4x_def::rules::effects::Effect;
 use f4x_def::rules::SpellDef;
 use f4x_def::rules::{Rarity, SpellId, UnitId};
-use f4x_def::text::{Args, Gender};
+use f4x_def::text::Gender;
 use macroquad::prelude::*;
 
 /// Where the frame goes (`start_x`, `start_y`).

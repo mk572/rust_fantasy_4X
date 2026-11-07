@@ -11,10 +11,10 @@
 use crate::event_message::compose;
 use crate::font::Style;
 use crate::input::Input;
+use crate::text::Args;
 use f4x_core::game::DispelSite;
 use f4x_core::world_event::EventKind;
 use f4x_def::rules::RealmId;
-use f4x_def::text::Args;
 use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 
@@ -158,12 +158,7 @@ impl App {
         input: &Input,
     ) -> Option<EventBox> {
         let gift = self.gift_name(&notice);
-        let text = compose(
-            &self.event_texts,
-            &self.game.content().texts,
-            &notice,
-            &gift,
-        )?;
+        let text = compose(&self.event_texts, &self.texts, &notice, &gift)?;
         let lay = Layout::new();
         let number = notice.kind.number() as usize - 1;
         let closed = self.notify2_box(

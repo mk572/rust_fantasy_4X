@@ -6,8 +6,8 @@
 //! `raise_command`; the drawing is left to the screenshots.
 
 use crate::input::Input;
+use crate::text::Args;
 use f4x_core::game::Command;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::modal::{keep, Modal};

@@ -6,11 +6,11 @@
 use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
+use crate::text::{Args, Texts};
 use f4x_core::game::Command;
 use f4x_core::player::shortfall::{ItemOverflow, TreasuryShortfall};
 use f4x_core::player::upkeep::Shortfall;
 use f4x_core::spell::cast::UpkeepKind;
-use f4x_def::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::frame::{Align, Layout};
@@ -309,7 +309,7 @@ impl UpkeepPrompt {
 
     /// What the line says, and its price on the right.
     fn text(&self, app: &App, line: Line) -> (String, String) {
-        let texts = &app.game.content().texts;
+        let texts = &app.texts;
         let count = |key: &str, n: i32| texts.get(key, &Args::new().count("n", n));
         match line {
             Line::Mana(i) => {
@@ -336,7 +336,7 @@ impl UpkeepPrompt {
                     return (String::new(), String::new());
                 };
                 (
-                    app.names.item_name(&l.item, app.game.content()),
+                    app.names.item_name(&l.item, &app.texts),
                     count("upkeep.price_item", l.mana),
                 )
             }
@@ -673,7 +673,7 @@ impl App {
                 Align::Right,
             );
         }
-        let (status, fine) = prompt.status(&self.game.content().texts);
+        let (status, fine) = prompt.status(&self.texts);
         let ok_colour = if fine { light } else { red };
         say(
             self,

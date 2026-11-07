@@ -3,9 +3,9 @@
 //! situation and mood. A wizard's mood is the relation level (0 hate to 10 harmony); `salt`
 //! picks among the lines of one situation and varies from wizard to wizard.
 
+use crate::text::{Args, Texts};
 use f4x_core::diplomacy::ProposalKind;
 use f4x_core::wizard::objective::Personality;
-use f4x_def::text::{Args, Texts};
 
 /// One line of the original's talk (`Get_Diplomacy_Statement`) for `situation`: a variant picked
 /// by `salt`, with the `{placeholders}` filled from `values`. The original draws one of the

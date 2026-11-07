@@ -3183,11 +3183,24 @@ fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() -> TestResult
     let mut content = content().clone();
     // The fallback is for a rule set with no ready-made wizards.
     content.rules.wizards = f4x_def::rules::Registry::new(Vec::new());
+    // The lists a client would hand over: four slots of ten names.
+    let lists: Vec<Vec<(String, f4x_def::text::Gender)>> = (0..4)
+        .map(|slot| {
+            (0..10)
+                .map(|i| (format!("slot{slot}_{i}"), Default::default()))
+                .collect()
+        })
+        .collect();
+    let bundle = f4x_def::names::NameBundle {
+        rivals: lists.clone(),
+        ..Default::default()
+    };
     let names = |seed: u64| -> Vec<String> {
         let g = new_game(
             &content,
             &NewGame {
                 seed,
+                names: bundle.clone(),
                 ..NewGame::with_wizards(5)
             },
         )
@@ -3200,13 +3213,10 @@ fn rivals_without_ready_made_wizards_draw_a_name_from_their_list() -> TestResult
             .map(|id| g.player(id).expect("the player exists").name())
             .collect()
     };
-    let lists = &content.rules.wizard_names;
-    assert_eq!(lists.len(), 4);
-    assert!(lists.iter().all(|l| l.len() == 10));
     for seed in 0..20 {
         let got = names(seed);
         assert_eq!(got.len(), 4);
-        for (name, list) in got.iter().zip(lists) {
+        for (name, list) in got.iter().zip(&lists) {
             assert!(
                 list.iter().any(|(n, _)| n == name),
                 "{name} is not in its slot's list"

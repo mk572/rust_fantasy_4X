@@ -8,9 +8,9 @@ use crate::font::{rgb, Effect, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use crate::page::Page;
+use crate::text::Args;
 use crate::ui;
 use f4x_core::wizard::astrology::HISTORY_TURNS;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;

@@ -10,6 +10,7 @@ pub mod help;
 pub mod hero;
 pub mod load;
 pub mod map;
+pub mod names;
 pub mod rules;
 pub mod settings;
 #[cfg(any(test, feature = "testutil"))]

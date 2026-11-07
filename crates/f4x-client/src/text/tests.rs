@@ -1,5 +1,5 @@
 use super::*;
-use crate::testdir::TestResult;
+use f4x_def::testdir::TestResult;
 
 fn texts(src: &str) -> Texts {
     let entries: HashMap<String, Entry> = ron::from_str(src).expect("from_str succeeds");

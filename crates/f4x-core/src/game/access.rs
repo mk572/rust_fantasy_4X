@@ -154,6 +154,22 @@ impl Game {
         self.content = content;
     }
 
+    /// Hand the game its name lists (a loaded game has none until this is called).
+    pub fn set_names(&mut self, names: f4x_def::names::NameBundle) {
+        self.names = names;
+    }
+
+    /// The name lists the game draws from.
+    pub fn names(&self) -> &f4x_def::names::NameBundle {
+        &self.names
+    }
+
+    /// The name of the `index`th city of a race (from 0): its list, or `<race id>_city_NN`.
+    pub fn city_name_for(&self, race: crate::rules::RaceId, index: usize) -> String {
+        let def = self.content.rules.races.get(race);
+        self.names.city(def.num, &def.id, index)
+    }
+
     /// Replace the map. The features on the old one go with it.
     pub fn set_map(&mut self, map: Map) {
         self.map = Some(map);

@@ -230,59 +230,6 @@ pub fn load_diplomacy_lines(dir: &Path) -> Result<HashMap<u16, Vec<String>>, Con
     Ok(rows.into_iter().map(|r| (r.situation, r.lines)).collect())
 }
 
-/// One language's messages: every `*.ron` file of `text/<lang>/` in each directory. A key may be
-/// in one file only; a directory earlier in `dirs` wins over a later one for a key both have.
-fn load_language(
-    dirs: &[&Path],
-    lang: &str,
-) -> Result<HashMap<String, crate::text::Entry>, ContentError> {
-    let mut all = HashMap::new();
-    for dir in dirs.iter().rev() {
-        let folder = dir.join("text").join(lang);
-        let Ok(files) = std::fs::read_dir(&folder) else {
-            continue;
-        };
-        let mut paths: Vec<_> = files
-            .filter_map(|f| f.ok().map(|f| f.path()))
-            .filter(|p| p.extension().is_some_and(|e| e == "ron"))
-            .collect();
-        paths.sort();
-        let mut here: HashMap<String, crate::text::Entry> = HashMap::new();
-        let mut problems = Vec::new();
-        for path in paths {
-            let src = std::fs::read_to_string(&path)
-                .map_err(|e| ContentError::Io(format!("{}: {e}", path.display())))?;
-            let entries: HashMap<String, crate::text::Entry> = ron::from_str(&src)
-                .map_err(|e| ContentError::Parse(format!("{}: {e}", path.display())))?;
-            for (key, entry) in entries {
-                if here.insert(key.clone(), entry).is_some() {
-                    problems.push(format!(
-                        "{}: the key {key} is in two files",
-                        folder.display()
-                    ));
-                }
-            }
-        }
-        if !problems.is_empty() {
-            return Err(ContentError::Invalid(problems));
-        }
-        all.extend(here);
-    }
-    Ok(all)
-}
-
-/// The messages in `lang`, with those of the fallback language behind them.
-pub fn load_texts(dirs: &[&Path], lang: &str) -> Result<crate::text::Texts, ContentError> {
-    use crate::text::{Texts, FALLBACK_LANGUAGE};
-    let fallback = load_language(dirs, FALLBACK_LANGUAGE)?;
-    let entries = if lang == FALLBACK_LANGUAGE {
-        HashMap::new()
-    } else {
-        load_language(dirs, lang)?
-    };
-    Ok(Texts::new(lang, entries, FALLBACK_LANGUAGE, fallback))
-}
-
 /// Load and validate all content files from a content directory.
 pub fn load_content(dir: &Path) -> Result<Content, ContentError> {
     load_content_layers(&[dir])
@@ -291,23 +238,6 @@ pub fn load_content(dir: &Path) -> Result<Content, ContentError> {
 /// Like [`load_content`], with several directories: each file is read from the first one that
 /// has it (the game puts its local directory before the committed `content/`).
 pub fn load_content_layers(dirs: &[&Path]) -> Result<Content, ContentError> {
-    load_content_in(dirs, crate::text::FALLBACK_LANGUAGE)
-}
-
-/// Where the client's own folder lies, from the repository's `content/` folder.
-const CLIENT_FOLDER: &str = "../crates/f4x-client/content";
-
-/// Like [`load_content_layers`], with the names and messages in `language` (a folder of
-/// `content/text/`; the client picks it in its own settings).
-pub fn load_content_in(dirs: &[&Path], language: &str) -> Result<Content, ContentError> {
-    // The names and messages are the client's files (`crates/f4x-client/content/text/`); the
-    // rules folder is searched first, then the client's folder next to it in the repository.
-    let client = dirs.last().map(|d| d.join(CLIENT_FOLDER));
-    let mut layered: Vec<&Path> = dirs.to_vec();
-    if let Some(client) = client.as_deref().filter(|c| c.exists()) {
-        layered.push(client);
-    }
-    let dirs = layered.as_slice();
     let read = |name: &str| {
         let path = dirs
             .iter()
@@ -320,17 +250,15 @@ pub fn load_content_in(dirs: &[&Path], language: &str) -> Result<Content, Conten
     let terrains = parse_terrains(&read("terrain.ron")?)?;
     let features = parse_features(&read("features.ron")?)?;
     let settings = load_settings(dirs)?;
-    let rules = rules::load_rules(dirs, language, &features)?;
+    let rules = rules::load_rules(dirs, &features)?;
     if dirs.iter().any(|d| d.join("rules_settings.ron").exists()) {
         check_spell_library(&settings.spell_library, &rules)?;
     }
-    let texts = load_texts(dirs, language)?;
     Ok(Content {
         terrains,
         features,
         rules,
         settings,
-        texts,
     })
 }
 
@@ -503,30 +431,6 @@ mod tests {
             (3, PickType::Any)
         );
         assert_eq!(t(34 /* chosen */).spells.len(), 4);
-        Ok(())
-    }
-
-    #[test]
-    fn every_hero_has_names_in_the_text_folder() -> TestResult {
-        let committed = super::testutil::content_dir();
-        let c = load_content_layers(&[&committed])?;
-        for t in &c.rules.hero_templates {
-            assert_eq!(t.names.len(), 5, "hero {}", t.unit.num());
-        }
-        let dwarf = c
-            .rules
-            .hero_templates
-            .iter()
-            .find(|t| t.unit.num() == 0 /* dwarf */);
-        assert_eq!(dwarf.map(|t| t.names[0].as_str()), Some("Brax"));
-        // A layer can replace the file; a number that is no hero is a load error.
-        let over = crate::testdir::TestDir::new("hero-names");
-        std::fs::create_dir_all(over.join("text/en/name"))?;
-        std::fs::write(
-            over.join("text/en/name/hero.ron"),
-            r#"{ 9999: ["Nobody"] }"#,
-        )?;
-        assert!(load_content_layers(&[&over, &committed]).is_err());
         Ok(())
     }
 

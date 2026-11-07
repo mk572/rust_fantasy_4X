@@ -8,10 +8,10 @@ use crate::input::Input;
 use crate::modal::{keep, kind, priority, Modal};
 use crate::page::Page;
 use crate::page_turn::{Book, BookTurn};
+use crate::text::Args;
 use crate::ui;
 use f4x_core::game::Command;
 use f4x_def::rules::SpellId;
-use f4x_def::text::Args;
 use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 

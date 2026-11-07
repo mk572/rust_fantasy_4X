@@ -7,6 +7,7 @@ use crate::game::rng::GameRng;
 use crate::hero::{Hero, HeroAbilities, HeroState, Tier};
 use crate::rules::Ability;
 use crate::rules::{HeroTemplate, PickType, Rules, UnitId};
+use f4x_def::names::NameBundle;
 
 /// The hero types before the champions, and the champions after them (`Pick_Random_Hero`):
 /// Torin the Chosen is the last type and only Incarnation summons him.
@@ -72,16 +73,22 @@ pub fn hire_cost(cost: i32, level: usize, percent: i32) -> i32 {
 /// wizard: a hero is one individual that any wizard may hire): the template's fixed abilities, then the template's picks, one
 /// `Random(14)` draw at a time. The draws are made in the original's order (hero type by hero
 /// type), so a seed gives the same result whatever else the game rolls.
-pub fn roll(rng: &mut GameRng, rules: &Rules) -> Vec<Hero> {
+pub fn roll(rng: &mut GameRng, rules: &Rules, names: &NameBundle) -> Vec<Hero> {
     rules
         .hero_templates
         .iter()
         .enumerate()
-        .map(|(kind, t)| roll_one(rng, rules, kind, t))
+        .map(|(kind, t)| roll_one(rng, rules, names, kind, t))
         .collect()
 }
 
-fn roll_one(rng: &mut GameRng, rules: &Rules, kind: usize, t: &HeroTemplate) -> Hero {
+fn roll_one(
+    rng: &mut GameRng,
+    rules: &Rules,
+    names: &NameBundle,
+    kind: usize,
+    t: &HeroTemplate,
+) -> Hero {
     let def = Some(rules.units.get(t.unit));
     let has = |ability: Ability| def.is_some_and(|d| d.abilities.contains(&ability));
     let mut abilities = HeroAbilities::from_ids(&t.abilities);
@@ -175,11 +182,8 @@ fn roll_one(rng: &mut GameRng, rules: &Rules, kind: usize, t: &HeroTemplate) -> 
     }
     // The original gives a hero a name for each of the five wizards' games; there is one hero
     // here, so it has the first.
-    let name = t
-        .names
-        .first()
-        .cloned()
-        .unwrap_or_else(|| rules.units.get(t.unit).id.clone());
+    let unit = rules.units.get(t.unit);
+    let name = names.hero(unit.num, &unit.id);
     Hero {
         kind,
         name,

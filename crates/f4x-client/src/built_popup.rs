@@ -7,8 +7,8 @@
 //! Tests: none, because it only draws and needs a window.
 
 use crate::input::Input;
+use crate::text::Args;
 use f4x_def::rules::BuildingId;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::audio::{music, Track};

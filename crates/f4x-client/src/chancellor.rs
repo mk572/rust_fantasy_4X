@@ -7,10 +7,10 @@
 use crate::font::{Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
+use crate::text::Args;
 use f4x_core::game::{Event, LossCause};
 use f4x_core::world_event::EventKind;
 use f4x_def::rules::SpellTarget;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;

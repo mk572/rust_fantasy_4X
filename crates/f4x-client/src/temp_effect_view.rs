@@ -1,9 +1,9 @@
 //! What the unit sheet and the city screen say about temporary effects
 //! (`temp_effect.rs` in the core holds them): each line names the change and how long it lasts.
 
+use crate::text::Args;
 use f4x_core::spell::temp_effect::{TempEffect, TempKind};
 use f4x_def::rules::{ModOp, Stat};
-use f4x_def::text::Args;
 
 use crate::view::App;
 

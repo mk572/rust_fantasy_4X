@@ -6,11 +6,11 @@
 //! `USW_Build_Effect_List`). The numbers in the tables below are picture indexes into the
 //! original's `special.lbx` (and `special2.lbx` from 111 on), not art.
 
+use crate::text::{Args, Texts};
 use f4x_core::battle::{Battle, BattleUnit, RangedKind};
 use f4x_def::rules::Ability;
 use f4x_def::rules::SpellId;
 use f4x_def::rules::{MovementType, Stat, UnitKind};
-use f4x_def::text::{Args, Texts};
 
 use crate::view::App;
 

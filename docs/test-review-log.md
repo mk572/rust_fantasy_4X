@@ -171,3 +171,18 @@ Not done: two clippy notes in `xmi-play` (`chunks_exact` with a constant size, w
 ## Second pass (task 484), item 2: tests in core whose subject is in `f4x-def`
 
 `scripts/classify_core_tests.py` marks 140 tests "move", but that label means "could be an integration test in `f4x-core/tests/it`", not "tests `f4x-def` code". Read one by one, 139 of them test code that lives in `f4x-core` (battle, autobuild, lair, mapgen, armory, retort and objective functions, turn phases, wizard creation), so they stay. One tested the content only: `each_retort_constant_is_the_number_of_its_row_in_the_content`; it moved to `f4x-def` (`load::tests`, 7 November 2026).
+
+## Core tests that read the client's text (task 479, 7 November 2026)
+
+Core needs no text, so no core test should read one. Until now every test content loaded the client's `text/` folder (`CLIENT_FOLDER`), so a test could quietly depend on a name or a message. The folder is no longer loaded below the client (`Content` has no `texts`), and the tests that relied on it were found by running core without it and by reading every use of `texts`, a name literal or a message key:
+
+| test | what it read | now |
+|---|---|---|
+| `hero::game::a_hired_hero_carries_its_record` | the hero name "B'Shan" (client `hero.ron`) | asserts the alias `dervish`, which is what a hero is called with no name list |
+| `hero::game::the_game_has_one_hero_of_each_type_...` | "Brax" | asserts `dwarf` |
+| `world_event::game` (new minerals test) | `notice.ore` was a worded string | the notice carries the feature number; the test asserts it |
+| `game::setup` rival names | the shipped rival lists | a bundle built in the test; no list gives `rival_N` |
+| console `rivals_without_ready_made_wizards...` | the shipped rival lists | the same bundle, handed in through `NewGame::names` |
+| `wizard::magic::every_magic_error_has_its_own_sentence_key...` | no text, only the keys | stays |
+
+New: `game::setup::a_game_is_dealt_its_names_from_the_bundle_and_falls_back_to_ids_without_one`; `f4x-client` `names::the_shipped_name_lists_make_the_bundle_a_new_game_takes` checks the client's lists (every race has city names, every hero five names, four rival lists of ten).

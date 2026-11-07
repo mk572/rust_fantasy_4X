@@ -7,8 +7,8 @@
 use crate::font::{rgb, Style};
 use crate::input::Input;
 use crate::page::Page;
+use crate::text::{Args, Texts};
 use f4x_core::game::endgame::EndKind;
-use f4x_def::text::{Args, Texts};
 use macroquad::prelude::*;
 
 use crate::frame::Layout;

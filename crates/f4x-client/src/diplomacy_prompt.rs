@@ -3,10 +3,10 @@
 //! box over the map until it is answered; one that is left lapses when the turn ends.
 
 use crate::input::Input;
+use crate::text::Args;
 use f4x_core::diplomacy::{DiplomacyCommand, Proposal, ProposalKind};
 use f4x_core::game::Command;
 use f4x_core::player::view::PlayerView;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::modal::{keep, kind, Modal};

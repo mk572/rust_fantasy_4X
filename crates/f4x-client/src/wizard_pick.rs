@@ -112,7 +112,7 @@ impl Modal for WizardPick {
             .to_string();
         let title = app.text_with(
             "spell.pick_wizard",
-            &f4x_def::text::Args::new().text("spell", &name),
+            &crate::text::Args::new().text("spell", &name),
         );
         app.draw_styled(
             view,

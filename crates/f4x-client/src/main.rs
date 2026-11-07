@@ -95,6 +95,7 @@ mod temp_effect_view;
 mod terrain_pick;
 #[cfg(test)]
 mod test_app;
+mod text;
 mod turn_seats;
 mod ui;
 mod unit_list_screen;
@@ -613,16 +614,21 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    let content = match f4x_def::load::load_content_in(
-        &[&options.content, Path::new("content")],
-        &settings.language,
-    ) {
-        Ok(c) => c,
+    let content =
+        match f4x_def::load::load_content_layers(&[&options.content, Path::new("content")]) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!(
+                    "could not load content from {}: {e}",
+                    options.content.display()
+                );
+                std::process::exit(1);
+            }
+        };
+    let texts = match text::load_texts(&layers, &settings.language) {
+        Ok(t) => t,
         Err(e) => {
-            eprintln!(
-                "could not load content from {}: {e}",
-                options.content.display()
-            );
+            eprintln!("could not load the messages: {e}");
             std::process::exit(1);
         }
     };
@@ -636,6 +642,8 @@ async fn main() {
     };
     let mut app = match App::new(
         content,
+        tables.names,
+        texts,
         art::Art::load(
             options.assets,
             tables.spells,
@@ -659,7 +667,6 @@ async fn main() {
         }
     };
     app.help = help;
-    app.names = tables.names;
     match hotkeys::Hotkeys::load(&[&options.content, Path::new("saves")]) {
         Ok(keys) => app.hotkeys = keys,
         Err(e) => eprintln!("{e}; the shipped keys are used"),

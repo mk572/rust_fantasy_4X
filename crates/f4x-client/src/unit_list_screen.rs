@@ -8,8 +8,8 @@ use crate::font::{rgb, Effect, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use crate::modal::{keep, Modal};
+use crate::text::Args;
 use f4x_core::map::Position;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 use crate::frame::Layout;

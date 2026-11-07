@@ -5,12 +5,12 @@ use f4x_def::rules::{Ability, RealmId};
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::text::Args;
 use f4x_core::game::setup::{self, NewGame};
 use f4x_core::map::mapgen::GenParams;
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_def::content::Content;
-use f4x_def::text::Args;
 
 use crate::font::Style;
 use crate::input::Input;
@@ -215,6 +215,8 @@ pub struct App {
     pub(crate) hotkeys: crate::hotkeys::Hotkeys,
     /// What the interface calls the things of the rules, by number (`text/<language>/name/`).
     pub(crate) names: crate::names::Names,
+    /// Every player-facing message, in the language chosen in the client settings.
+    pub(crate) texts: crate::text::Texts,
     /// The text console's state (backquote key).
     pub(crate) console: crate::console_screen::ConsoleUi,
     /// The scroll that tells how a battle went, once it is over.
@@ -304,8 +306,8 @@ impl App {
     }
 
     /// All the messages, for the code that picks among several.
-    pub(crate) fn texts(&self) -> &f4x_def::text::Texts {
-        &self.game.content().texts
+    pub(crate) fn texts(&self) -> &crate::text::Texts {
+        &self.texts
     }
 
     /// A message without values (`content/text/`).
@@ -315,22 +317,21 @@ impl App {
 
     /// A message with its values put in.
     pub(crate) fn text_with(&self, key: &str, args: &Args) -> String {
-        self.game.content().texts.get(key, args)
+        self.texts.get(key, args)
     }
 
-    pub fn new(content: Content, art: Art, seed: u64) -> Result<Self, String> {
+    pub fn new(
+        content: Content,
+        names: crate::names::Names,
+        texts: crate::text::Texts,
+        art: Art,
+        seed: u64,
+    ) -> Result<Self, String> {
         let params = GenParams::default();
-        // Start as the first race that has city names, else the first race.
-        let race = content
-            .rules
-            .races
-            .defs()
-            .iter()
-            .position(|r| !r.city_names.is_empty())
-            .unwrap_or(0);
+        let race = 0;
         let options = OptionsState::from_settings(&content.settings);
         let prefs = crate::preferences::Preferences::default();
-        let game = Self::new_game(seed, &options, &content, None, race, true)?;
+        let game = Self::new_game(seed, &options, &content, &names.bundle(), None, race, true)?;
         let mut app = Self {
             game,
             art,
@@ -393,7 +394,8 @@ impl App {
             menu: Default::default(),
             help_ui: Default::default(),
             hotkeys: Default::default(),
-            names: Default::default(),
+            names,
+            texts,
             console: Default::default(),
             combat_results: None,
             battle_site: None,
@@ -409,6 +411,7 @@ impl App {
         seed: u64,
         options: &OptionsState,
         content: &Content,
+        names: &f4x_def::names::NameBundle,
         human: Option<(&WizardBuild, Option<usize>)>,
         race: usize,
         random_events: bool,
@@ -442,6 +445,7 @@ impl App {
                 s.events.random_events &= random_events;
                 s
             },
+            names: names.clone(),
             ..NewGame::default()
         };
         setup::new_game(content, &spec)
@@ -506,10 +510,7 @@ impl App {
     fn next_city_name(&self) -> String {
         let race = &self.game.content().rules.races.defs()[self.race];
         let used = self.game.economy().cities().len();
-        race.city_names
-            .get(used % race.city_names.len().max(1))
-            .cloned()
-            .unwrap_or_else(|| self.text_with("log.city_number", &Args::new().count("n", used + 1)))
+        self.game.names().city(race.num, &race.id, used)
     }
 
     /// Turn events into log lines; returns whether a city was founded.
@@ -596,7 +597,7 @@ impl App {
                     let gift = self.gift_name(&notice);
                     let line = crate::event_message::compose(
                         &self.event_texts,
-                        &self.game.content().texts,
+                        &self.texts,
                         &notice,
                         &gift,
                     );
@@ -1082,9 +1083,10 @@ impl App {
 
     /// The name of the gift of an event notice, if it has one.
     pub(crate) fn gift_name(&self, notice: &f4x_core::world_event::EventNotice) -> String {
-        notice.item.as_ref().map_or_else(String::new, |i| {
-            self.names.item_name(i, self.game.content())
-        })
+        notice
+            .item
+            .as_ref()
+            .map_or_else(String::new, |i| self.names.item_name(i, &self.texts))
     }
 
     pub(crate) fn item_name(&self, item: f4x_core::city::production::ProductionItem) -> String {
@@ -1146,6 +1148,7 @@ impl App {
             self.race = r.num() as usize;
         }
         self.game = game;
+        self.game.set_names(self.names.bundle());
         self.game.ensure_human(HUMAN);
         self.game.set_undo(true);
         self.ais = self.rival_wizards();
@@ -1457,6 +1460,7 @@ impl App {
             seed,
             &self.options,
             &content,
+            &self.names.bundle(),
             self.human_build.as_ref().map(|b| (b, self.human_preset)),
             self.race,
             self.prefs.get(crate::preferences::Pref::RandomEvents),
@@ -2804,7 +2808,7 @@ mod tests {
         let app = App::for_test();
         let race = &app.game.content().rules.races.defs()[app.race];
         let used = app.game.economy().cities().len();
-        let names = &race.city_names;
+        let names = &app.game.names().cities[&race.num];
         assert!(!names.is_empty());
         assert_eq!(app.next_city_name(), names[used % names.len()]);
     }

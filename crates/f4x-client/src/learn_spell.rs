@@ -7,8 +7,8 @@
 //! realm of the familiar is `strongest`; the drawing is left to the screenshots.
 
 use crate::input::Input;
+use crate::text::Args;
 use f4x_def::rules::{RealmId, SpellId};
-use f4x_def::text::Args;
 use f4x_extract::spell_art::Role;
 use macroquad::prelude::*;
 

@@ -6,8 +6,9 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use f4x_def::names::NameBundle;
 use f4x_def::rules::Rules;
-use f4x_def::text::FALLBACK_LANGUAGE;
+use f4x_def::text::{Gender, FALLBACK_LANGUAGE};
 use serde::de::DeserializeOwned;
 
 type Table<V> = BTreeMap<u16, V>;
@@ -29,6 +30,12 @@ pub struct Names {
     feature: Table<String>,
     /// The levels of a level path in order, then its bonus levels.
     level_path: Table<Vec<String>>,
+    /// The city names of a race, in the order they are handed out.
+    city: Table<Vec<String>>,
+    /// The names of a hero unit; the first is the name the hero takes.
+    hero: Table<Vec<String>>,
+    /// The rival wizards' names, one list for each slot (a list of the table is a slot).
+    rival: Vec<Vec<(String, Gender)>>,
 }
 
 /// The table `text/<lang>/name/<file>.ron` of the first of `dirs` that has it, over the same
@@ -49,6 +56,21 @@ fn table<V: DeserializeOwned>(dirs: &[&Path], lang: &str, file: &str) -> Result<
     Ok(all)
 }
 
+/// The rival wizards' lists: `text/<lang>/name/rival.ron` of the first directory that has it,
+/// else the fallback language's.
+fn rival_lists(dirs: &[&Path], lang: &str) -> Result<Vec<Vec<(String, Gender)>>, String> {
+    for l in [lang, FALLBACK_LANGUAGE] {
+        let rel = format!("text/{l}/name/rival.ron");
+        let Some(path) = dirs.iter().map(|d| d.join(&rel)).find(|p| p.exists()) else {
+            continue;
+        };
+        let text =
+            std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        return ron::from_str(&text).map_err(|e| format!("{}: {e}", path.display()));
+    }
+    Ok(Vec::new())
+}
+
 impl Names {
     /// The names in `lang`, from the first of `dirs` that has each table.
     pub fn load(dirs: &[&Path], lang: &str) -> Result<Self, String> {
@@ -66,7 +88,19 @@ impl Names {
             terrain: table(dirs, lang, "terrain")?,
             feature: table(dirs, lang, "feature")?,
             level_path: table(dirs, lang, "level_path")?,
+            city: table(dirs, lang, "city")?,
+            hero: table(dirs, lang, "hero")?,
+            rival: rival_lists(dirs, lang)?,
         })
+    }
+
+    /// The name lists a new game draws from (`f4x_core::game::setup::NewGame::names`).
+    pub fn bundle(&self) -> NameBundle {
+        NameBundle {
+            cities: self.city.clone(),
+            heroes: self.hero.clone(),
+            rivals: self.rival.clone(),
+        }
     }
 }
 
@@ -216,6 +250,18 @@ impl Names {
             rules.level_paths.defs().iter().map(|d| d.num).collect(),
             self.level_path.keys().copied().collect(),
         );
+        check(
+            "race (city names)",
+            "city",
+            rules.races.defs().iter().map(|d| d.num).collect(),
+            self.city.keys().copied().collect(),
+        );
+        check(
+            "hero",
+            "hero",
+            rules.hero_templates.iter().map(|t| t.unit.num()).collect(),
+            self.hero.keys().copied().collect(),
+        );
         for path in rules.level_paths.defs() {
             let named = self.level_path.get(&path.num).map_or(0, Vec::len);
             if named != path.level_count() {
@@ -230,20 +276,19 @@ impl Names {
     }
 }
 
+use crate::text::{Args, Texts};
 use f4x_core::item::crafting::{MadeName, Suffix};
 use f4x_core::item::Item;
-use f4x_def::content::Content;
-use f4x_def::text::Args;
 
 impl Names {
     /// What an item is called: the name it was given, the name of the prefab item it is a copy
     /// of, or the default name made from its parts.
-    pub fn item_name(&self, item: &Item, content: &Content) -> String {
+    pub fn item_name(&self, item: &Item, texts: &Texts) -> String {
         if !item.name.is_empty() {
             return item.name.clone();
         }
         if let Some(made) = &item.made {
-            return self.made_name(made, content);
+            return self.made_name(made, texts);
         }
         item.prefab
             .map_or_else(String::new, |id| self.item(id.num()).to_string())
@@ -251,8 +296,7 @@ impl Names {
 
     /// The default name of an item made without one, in the language of the texts, at most
     /// thirty letters (the original's buffer).
-    pub fn made_name(&self, made: &MadeName, content: &Content) -> String {
-        let texts = &content.texts;
+    pub fn made_name(&self, made: &MadeName, texts: &Texts) -> String {
         let kind = texts.get(made.kind.key(), &Args::new());
         let mut name = match made.bonus {
             Some(n) => texts.get(
@@ -321,16 +365,41 @@ mod tests {
     }
 
     #[test]
+    fn the_shipped_name_lists_make_the_bundle_a_new_game_takes() -> TestResult {
+        let names = Names::load(&[Path::new(crate::test_app::CLIENT_CONTENT)], "en")?;
+        let content = crate::test_app::shipped::content();
+        let bundle = names.bundle();
+        for race in content.rules.races.defs() {
+            let list = bundle.cities.get(&race.num);
+            assert!(list.is_some_and(|l| l.len() >= 10), "race {}", race.id);
+        }
+        for t in &content.rules.hero_templates {
+            assert_eq!(
+                bundle.heroes[&t.unit.num()].len(),
+                5,
+                "hero {}",
+                t.unit.num()
+            );
+        }
+        assert_eq!(bundle.hero(0, "dwarf"), "Brax");
+        assert_eq!(bundle.rivals.len(), 4);
+        assert!(bundle.rivals.iter().all(|l| l.len() == 10));
+        assert!(names.problems(&content.rules).is_empty());
+        Ok(())
+    }
+
+    #[test]
     fn an_item_is_called_by_its_given_name_its_prefab_name_or_its_parts() {
         use crate::test_app::shipped;
         let content = shipped::content();
         let names = shipped::names();
+        let texts = shipped::texts();
         let def = &content.rules.items.defs()[0];
         let mut item = Item::from_def(def);
-        assert_eq!(names.item_name(&item, content), names.item(def.num));
-        assert!(!names.item_name(&item, content).is_empty());
+        assert_eq!(names.item_name(&item, texts), names.item(def.num));
+        assert!(!names.item_name(&item, texts).is_empty());
         item.name = "Rex's Blade".into();
-        assert_eq!(names.item_name(&item, content), "Rex's Blade");
+        assert_eq!(names.item_name(&item, texts), "Rex's Blade");
         // A power and a spell name their suffix in the words of the text.
         item.name.clear();
         item.prefab = None;
@@ -339,6 +408,6 @@ mod tests {
             bonus: Some(3),
             suffix: Some(Suffix::Wizardry),
         });
-        assert_eq!(names.item_name(&item, content), "+3 Sword of Wizardry");
+        assert_eq!(names.item_name(&item, texts), "+3 Sword of Wizardry");
     }
 }

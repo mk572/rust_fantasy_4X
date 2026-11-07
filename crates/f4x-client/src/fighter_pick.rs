@@ -10,10 +10,10 @@
 use crate::font::Style;
 use crate::frame::Layout;
 use crate::input::Input;
+use crate::text::Args;
 use crate::ui;
 use crate::unit_sheet::special_picture;
 use crate::view::App;
-use f4x_def::text::Args;
 use macroquad::prelude::*;
 
 /// The panel on the original's 320 by 200 screen.
