@@ -21,7 +21,7 @@ ReMoM source) unless noted. For where wizard state sits in the game, see
 | Field | Meaning |
 |---|---|
 | `books` | spell books per realm id (1 to 10) |
-| `retorts` | special abilities, a registry (`content/retorts.ron`, `RetortDef`: number, alias, cost, book needs): Alchemy, Warlord, the three masteries, Channeler, Archmage, Artificer, Conjurer, Sage Master, Myrran, Divine/Infernal Power, Famous, Runemaster, Charismatic, Mana Focusing, Node Mastery |
+| `retorts` | special abilities, a registry (`crates/f4x-def/content/retorts.ron`, `RetortDef`: number, alias, cost, book needs): Alchemy, Warlord, the three masteries, Channeler, Archmage, Artificer, Conjurer, Sage Master, Myrran, Divine/Infernal Power, Famous, Runemaster, Charismatic, Mana Focusing, Node Mastery |
 | `skill_points` | invested casting skill; the skill itself is derived (below) |
 | `mana_pct`, `research_pct`, `skill_pct` | how power is split (sum 100; starts 33/34/33) |
 | `known`, `researchable` | spell sets (disjoint) |
@@ -212,7 +212,7 @@ The screens follow the original's (`magic_screen.rs`, `spellbook.rs`, `bigbook.r
   original's battle list too, but stays overland-only here until their battle effects exist
   (task 159).
 - Starting known spells follow the original's rules (section 13): the tables are in
-  `content/rules_settings.ron`, `spell_library`.
+  `crates/f4x-def/content/rules_settings.ron`, `spell_library`.
 
 ## 12. Fortress, summoning circle, banishment
 
@@ -272,7 +272,7 @@ mana of a defeat without banishment. See also tasks 70 and 82.
 > (tasks 311 and 312). The pick rules stay in `wizard/mod.rs`; `WizardBuild` fills the wizard's
 > components. The computer wizards are built the same way (`wizard/ai.rs`).
 
-`wizard/mod.rs` holds the pick rules and `Game::create_wizard`; `content/wizards.ron` lists the
+`wizard/mod.rs` holds the pick rules and `Game::create_wizard`; `crates/f4x-def/content/wizards.ron` lists the
 ready-made wizards' books and retorts (game rules, committed); their names are in `content/text/en/name/wizard.ron` and their help text is the topic named by `help` in
 `crates/f4x-client/content/text/en/help/help.ron` (ours). Eleven picks buy books (one each) and
 retorts (one; two for Warlord, Channeler, Divine Power, Famous, Infernal Power; three for
@@ -282,7 +282,7 @@ books lets the wizard choose `n - 1` common spells at the start (more are filled
 chooses two uncommon and one rare (`WizardBuild::spell_choices_of`).
 
 The original's rule (`Init_Computer_Players_Spell_Library`, `Newgame_Screen_5`, `Init_Magic_Personalities_Objectives`
-in ReMoM), which the game follows, with every number in `content/rules_settings.ron` under `spell_library`
+in ReMoM), which the game follows, with every number in `crates/f4x-def/content/rules_settings.ron` under `spell_library`
 (three tables by the number of books in a realm, 0 to 11, so a mod can change them):
 - **Known** (`known`): 0 and 1 books nothing; 2 to 10 books the first `books - 1` commons (the human chooses
   them on the custom screen, `chosen`; presets, the computer wizards and anyone who does not choose get the

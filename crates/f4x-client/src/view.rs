@@ -531,6 +531,15 @@ impl App {
                     self.audio.effect(key);
                 }
             }
+            if let Event::PlaneShifted {
+                player,
+                from,
+                to,
+                units,
+            } = &event
+            {
+                self.announce_plane_shift(*player, *from, *to, units.clone());
+            }
             if let Event::SpellCastAt { player, spell, at } = &event {
                 self.announce_city_spell(*player, *spell, *at);
                 self.announce_square_spell(*player, *spell, *at);
@@ -2544,7 +2553,13 @@ impl App {
     /// One stack as one icon: its top unit (a selected one first) on the background of the
     /// owner's banner, the count when several stand together, and the blinking frame of the
     /// selection.
-    fn draw_stack_icon(&mut self, at: Vec2, t: Vec2, units: &[hecs::Entity], blink: bool) {
+    pub(crate) fn draw_stack_icon(
+        &mut self,
+        at: Vec2,
+        t: Vec2,
+        units: &[hecs::Entity],
+        blink: bool,
+    ) {
         let top = units
             .iter()
             .copied()

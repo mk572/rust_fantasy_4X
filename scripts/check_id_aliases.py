@@ -2,8 +2,8 @@
 """Check that the alias written beside a number in the Rust code is the alias of that number.
 
 The code writes content by number (`BuildingId::new(35) /* city_walls */`, `Ability::new(28), // flying`).
-The comment is the only help for a reader, so it must not drift from `content/buildings.ron` and
-`content/abilities.ron`. A comment is checked when it is `/* alias */` right after the number, or a
+The comment is the only help for a reader, so it must not drift from `crates/f4x-def/content/buildings.ron` and
+`crates/f4x-def/content/abilities.ron`. A comment is checked when it is `/* alias */` right after the number, or a
 `//` comment whose first word is an alias of some other number (so a free-text comment is left alone).
 Exit status 1 and a list when one is wrong.
 """
@@ -34,7 +34,7 @@ KINDS = {
 
 
 def aliases(file):
-    text = (ROOT / "content" / file).read_text()
+    text = (ROOT / "crates/f4x-def/content" / file).read_text()
     # `num: 3, id: "x"` or `id: "x", num: 3` (features and terrain write the id first).
     found = {int(n): a for n, a in re.findall(r'num: (\d+), id: "(\w+)"', text)}
     found.update({int(n): a for a, n in re.findall(r'id: "(\w+)", num: (\d+)', text)})

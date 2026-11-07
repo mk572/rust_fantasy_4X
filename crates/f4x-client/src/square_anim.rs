@@ -56,14 +56,17 @@ impl App {
         started: Option<f64>,
     ) -> Option<SquareAnim> {
         let def = self.game.content().rules.spells.get(spell);
-        // The summons, city spells and global enchantments have scenes of their own.
-        if !matches!(
-            def.target,
-            SpellTarget::OwnUnit
-                | SpellTarget::EnemyUnit
-                | SpellTarget::AnyUnit
-                | SpellTarget::Tile
-        ) || crate::summon_scene::summoned_by(def).is_some()
+        // The summons, city spells and global enchantments have scenes of their own, and Plane
+        // Shift its fade (`plane_shift_anim`).
+        if def.has_hook(f4x_core::spell::special::PLANE_SHIFT)
+            || !matches!(
+                def.target,
+                SpellTarget::OwnUnit
+                    | SpellTarget::EnemyUnit
+                    | SpellTarget::AnyUnit
+                    | SpellTarget::Tile
+            )
+            || crate::summon_scene::summoned_by(def).is_some()
         {
             return None;
         }

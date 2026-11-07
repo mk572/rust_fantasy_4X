@@ -389,7 +389,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--remom", type=Path, default=DEFAULT_REMOM)
     parser.add_argument("--out", type=Path, default=REPO / "content-local",
                         help="local-only output (city names, event texts, report)")
-    parser.add_argument("--rules-out", type=Path, default=REPO / "content",
+    parser.add_argument("--rules-out", type=Path, default=REPO / "crates/f4x-def/content",
                         help="committed rules data (races, units, buildings, spells, ...)")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")

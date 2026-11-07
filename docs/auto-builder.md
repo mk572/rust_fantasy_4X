@@ -124,7 +124,7 @@ offense, **Exp** exploration, **Gold** gold.
 | ship_yard | 0 | 0 | 0 | 0 | 0 | 2 | 0 |
 | maritime_guild | 0 | 0 | 0 | 0 | 0 | 3 | 1 |
 
-A test keeps the table in step with `content/buildings.ron`: every building must have a row.
+A test keeps the table in step with `crates/f4x-def/content/buildings.ron`: every building must have a row.
 
 ## 6. Settlers
 

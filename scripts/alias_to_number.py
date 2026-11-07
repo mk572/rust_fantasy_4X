@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Rewrites `<registry>.id_of("alias")` and `<registry>.by_name("alias")` in Rust files to the
-number the alias stands for in `content/*.ron` (`id_numbered(N)`, `by_num(N)`), so code and
+number the alias stands for in `crates/f4x-def/content/*.ron` (`id_numbered(N)`, `by_num(N)`), so code and
 tests refer to a definition by its number (task 467). Only a string literal is rewritten; a
 call with a variable is listed. `--dry-run` writes nothing.
 """
@@ -15,7 +15,7 @@ FILES = {
 }
 
 def table(name):
-    text = (ROOT / "content" / f"{name}.ron").read_text()
+    text = (ROOT / "crates/f4x-def/content" / f"{name}.ron").read_text()
     out = {}
     for m in re.finditer(r'\(\s*(?:num:\s*(\d+),\s*id:\s*"([^"]+)"|id:\s*"([^"]+)",\s*num:\s*(\d+))', text):
         num = m.group(1) or m.group(4)

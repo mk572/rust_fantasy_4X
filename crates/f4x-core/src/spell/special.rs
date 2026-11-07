@@ -167,17 +167,26 @@ impl Game {
             .ok_or(TargetError::CannotStandThere)
     }
 
-    pub(crate) fn plane_shift(&mut self, caster: crate::player::PlayerId, unit: hecs::Entity) {
-        let Some(from) = self.units().unit_position(unit) else {
-            return;
-        };
-        let Ok(to) = self.plane_shift_destination(unit) else {
-            return;
-        };
-        for u in self.units().units_at(from) {
+    /// Moves the whole stack `unit` stands in to the other plane; the event names the stack and
+    /// the two squares. `None` when it cannot go.
+    pub(crate) fn plane_shift(
+        &mut self,
+        caster: crate::player::PlayerId,
+        unit: hecs::Entity,
+    ) -> Option<crate::game::Event> {
+        let from = self.units().unit_position(unit)?;
+        let to = self.plane_shift_destination(unit).ok()?;
+        let units = self.units().units_at(from);
+        for &u in &units {
             let _ = self.world.insert_one(u, to);
         }
         self.explore(caster, to, crate::map::fog::sight_for(1));
+        Some(crate::game::Event::PlaneShifted {
+            player: caster,
+            from,
+            to,
+            units,
+        })
     }
 }
 
@@ -381,6 +390,21 @@ mod tests {
         assert!(!rejected(&events), "{events:?}");
         assert_eq!(g.units().unit_position(a), Some(over));
         assert_eq!(g.units().unit_position(b), Some(over));
+        // The event names the stack and both squares, for the client's transition.
+        let shifted = events.iter().find_map(|e| match e {
+            crate::game::Event::PlaneShifted {
+                from, to, units, ..
+            } => Some((*from, *to, units.clone())),
+            _ => None,
+        });
+        let (from, to, mut units) = shifted.ok_or("no PlaneShifted event")?;
+        units.sort();
+        assert_eq!((from, to), (here, over));
+        assert_eq!(units, {
+            let mut both = vec![a, b];
+            both.sort();
+            both
+        });
         // Back again is refused while the Planar Seal is up.
         let other = PlayerId(1);
         g.add_player(other, "X");

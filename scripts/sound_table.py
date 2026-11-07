@@ -5,7 +5,7 @@ Reads the spell table (`SPELLDAT.LBX`, byte 30 of a record: the cast sound, posi
 entry and negative a `NEWSOUND.LBX` entry, and byte 32: the music of a global enchantment) from the
 author's own copy of the game, and the units' sound bytes (high nibble the move sound, low nibble the
 melee sound) from the ReMoM clone (`NEXTTURN.c`, which sets them at start-up). Ids come from the
-committed `content/spells.ron` and `content/units.ron`. What plays when is `docs/sound.md`.
+committed `crates/f4x-def/content/spells.ron` and `crates/f4x-def/content/units.ron`. What plays when is `docs/sound.md`.
 
 Usage:
     python3 -I scripts/sound_table.py [--game DIR] [--remom DIR] [--out FILE]
@@ -63,8 +63,8 @@ def main(argv):
     ap.add_argument("--out", type=Path, default=REPO / "crates/f4x-client/content/sound.ron", help="file to write")
     args = ap.parse_args(argv)
 
-    spell_ids = ids_of(REPO / "content/spells.ron")
-    unit_ids = ids_of(REPO / "content/units.ron")
+    spell_ids = ids_of(REPO / "crates/f4x-def/content/spells.ron")
+    unit_ids = ids_of(REPO / "crates/f4x-def/content/units.ron")
 
     entry = read_lbx(args.game / "SPELLDAT.LBX")[0]
     count, size = struct.unpack_from("<HH", entry, 0)

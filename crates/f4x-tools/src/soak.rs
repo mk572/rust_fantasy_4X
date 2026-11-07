@@ -74,7 +74,7 @@ impl Options {
             dir: if Path::new("content-local").exists() {
                 "content-local".into()
             } else {
-                "content".into()
+                f4x_def::SHIPPED_CONTENT.into()
             },
             snapshots_every: None,
             out: None,
@@ -148,7 +148,7 @@ impl Options {
     }
 
     pub fn load_content(&self) -> Result<Content, String> {
-        f4x_def::load::load_content_layers(&[&self.dir, Path::new("content")])
+        f4x_def::load::load_content_layers(&[&self.dir, Path::new(f4x_def::SHIPPED_CONTENT)])
             .map_err(|e| e.to_string())
     }
 }

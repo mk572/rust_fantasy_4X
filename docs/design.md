@@ -13,7 +13,7 @@ Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer),
   5. **Code parity.** Matching what the original's code does.
 
   So the original's code behaviour is followed when it gives better play, logic or balance, and not otherwise: a quirk or bug of the original is copied only if the result is better for one of the first three. Where a higher priority and the original disagree, we depart, and record it in [`divergences.md`](divergences.md). Where we are unsure, we follow the original until we know better.
-- Don't copy anything protected by IP into the repository: its art, music and sound, help text (and other prose), and code. The repository is CC0 and says so. Those exist only in gitignored local folders (see section 9 and `local-assets.md`). The game's *rules* (names, costs, stats, effects and numbers of races, units, buildings, spells, items and the global rule values) are not treated as protected and are committed in `content/`, as the importer makes them.
+- Don't copy anything protected by IP into the repository: its art, music and sound, help text (and other prose), and code. The repository is CC0 and says so. Those exist only in gitignored local folders (see section 9 and `local-assets.md`). The game's *rules* (names, costs, stats, effects and numbers of races, units, buildings, spells, items and the global rule values) are not treated as protected and are committed in `crates/f4x-def/content/`, as the importer makes them.
 - Targets are Mac and Linux, with low-res pixel graphics scaled by integer factors.
 - The simulation is deterministic: the same seed plus the same command log gives the same game. That gives replays, regression tests, and an optional path to multiplayer.
 
@@ -25,7 +25,7 @@ crates/f4x-ai/      AI players, depends on f4x-core only (empty so far)
 crates/f4x-console/ the text console: every action as a line of text (`console.md`)
 crates/f4x-client/  rendering, input, UI (macroquad)
 crates/f4x-tools/   validator, map preview, original-art extractor
-content/            shipped, original sample data (terrain, features, a small rules set)
+crates/f4x-def/content/  shipped, original sample data (terrain, features, a small rules set)
 scripts/            import_mom.py (original rules data -> content, help text -> content-local), list_ogbugs.py
 docs/               design and reference documents
 ```
@@ -96,7 +96,7 @@ apart. Layers, rules, generation and differences from the original are in
 - Definitions refer to each other by string id in files; loading turns them into typed ids into registries, so the simulation never meets a dangling reference.
 - Abilities and spell effects are composed from a small set of effect primitives and conditions (modify stat, grant ability, damage, heal, summon, change terrain, enchant, dispel, custom hook). Stats are a closed enum; content cannot invent stats.
 - A rule the engine cannot express yet uses the `unimplemented` custom hook. Imported content uses it for 134 of 214 spells; the count of uses is the to-do list for new primitives.
-- Two content directories, layered: `content/` (the game's rules data, imported from the original's rules and committed) and `content-local/` (help text and preset wizards from the author's own copy; the client reads it first, then `content/` for every file it lacks). The loader's tests read `content/` alone (never `content-local/`), so they run on the data the game has.
+- Two content directories, layered: `crates/f4x-def/content/` (the game's rules data, imported from the original's rules and committed) and `content-local/` (help text and preset wizards from the author's own copy; the client reads it first, then `crates/f4x-def/content/` for every file it lacks). The loader's tests read `crates/f4x-def/content/` alone (never `content-local/`), so they run on the data the game has.
 - New content needs no recompilation, which is mod-friendly.
 
 ## 6. Game flow and systems
@@ -140,15 +140,15 @@ Not started. Intended design:
 - Audio is not started; the catalogue of what plays when is `sound.md` (crate and music source are open decisions there).
 
 ### Placeholder art and original data (local only)
-- The original game's art, music, help text and code are copyrighted and have never been released under a free licence, so they are never committed or distributed with this project. Its rules data (races, units, buildings, spells, items, abilities, realms, level paths and rule values) is committed in `content/`.
-- For development, art is extracted locally from the author's own purchased copy (Steam "Master of Magic Classic") by `f4x-extract art` into `assets-local/art`. Rules data is imported by `scripts/import_mom.py` into `content/` (committed), and the help text into `content-local/`. The original game files and the ReMoM reverse-engineering clone live in `reference/` inside the project directory, which is gitignored (and so is `*.lbx`, as a second safeguard).
+- The original game's art, music, help text and code are copyrighted and have never been released under a free licence, so they are never committed or distributed with this project. Its rules data (races, units, buildings, spells, items, abilities, realms, level paths and rule values) is committed in `crates/f4x-def/content/`.
+- For development, art is extracted locally from the author's own purchased copy (Steam "Master of Magic Classic") by `f4x-extract art` into `assets-local/art`. Rules data is imported by `scripts/import_mom.py` into `crates/f4x-def/content/` (committed), and the help text into `content-local/`. The original game files and the ReMoM reverse-engineering clone live in `reference/` inside the project directory, which is gitignored (and so is `*.lbx`, as a second safeguard).
 - The client loads local art if present and falls back to flat colours otherwise, so the game runs and CI passes without it.
-- Before any public release, all placeholders must be replaced with original art or art under a free licence. Treat anything in `assets-local/` and `content-local/` as temporary. The rules data in `content/` stays: it is ours to change.
+- Before any public release, all placeholders must be replaced with original art or art under a free licence. Treat anything in `assets-local/` and `content-local/` as temporary. The rules data in `crates/f4x-def/content/` stays: it is ours to change.
 
 ## 10. Cross-cutting
 - **Determinism:** seeded RNG (`rand_pcg`) behind `Game::roll`; entity iteration in logic is sorted by creation number (`Serial`), never by `hecs` id; no floats in rules; integer maths with a fixed order in the stats engine.
 - **Save/load:** done. A save is a text snapshot (RON) of the whole game with content referenced by name, a version number and load-time checks; autosave runs each turn. Details in [`game-flow.md`](game-flow.md) section 8.
-- **Testing:** unit tests build small synthetic content (`testutil`) for units, buildings and terrain, but use the game's real spells and realms (`content/spells.ron`, `content/realms.ron`, read by `testutil::real_spells`), so a test casts the spell the game does; a test that needs a number the real spell does not have changes the real spell in place and says so. Shipped data is validated in `f4x-def`. Planned: golden-seed scenario tests, property tests for pathfinding and combat, AI-vs-AI soak runs.
+- **Testing:** unit tests build small synthetic content (`testutil`) for units, buildings and terrain, but use the game's real spells and realms (`crates/f4x-def/content/spells.ron`, `crates/f4x-def/content/realms.ron`, read by `testutil::real_spells`), so a test casts the spell the game does; a test that needs a number the real spell does not have changes the real spell in place and says so. Shipped data is validated in `f4x-def`. Planned: golden-seed scenario tests, property tests for pathfinding and combat, AI-vs-AI soak runs.
 - **Where tests live:** unit tests stay in the file they test as a child module (`#[cfg(test)] mod tests`), so they can reach private items and are left out of release builds. When a file's test module goes over 250 lines (the size of the test module alone; the file's total size does not matter), the tests move to their own file next to it, still as a child module: `#[cfg(test)] mod tests;` in `foo.rs` and the tests in `foo/tests.rs` (`tests.rs` beside `mod.rs` or `lib.rs`). Tests that use only the public API go in the crate's `tests/` directory. Do not make items `pub` just to test them from another file.
 - **Performance:** not a concern except pathfinding and AI, which can be budgeted per turn.
 - **Lint and format:** `cargo fmt`, `cargo clippy -D warnings` in CI.

@@ -2,7 +2,7 @@
 """Write the original's spell table (`SPELLDAT.LBX`, entry 0) as a TSV the tests read.
 
 One row per spell after the empty record 0, in the original's order (the order of
-`content/spells.ron`): name, casting category (`type`: 0 is a summoning), realm (0 nature, 1 sorcery,
+`crates/f4x-def/content/spells.ron`): name, casting category (`type`: 0 is a summoning), realm (0 nature, 1 sorcery,
 2 chaos, 3 life, 4 death, 5 arcane), casting cost, research cost, and the first parameter (the unit
 a summoning creates). `crates/f4x-def/src/original/tests.rs` (and `f4x-core`: `spell/original_content.rs`, `wizard/original_content.rs`) compares the content with it.
 Needs the author's copy of the game; the output is numbers and names, so it is committed.

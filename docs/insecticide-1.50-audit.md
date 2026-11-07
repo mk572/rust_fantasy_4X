@@ -224,7 +224,7 @@ The dense IW720 cluster deserves its own boundary tests. It covers casting-cost 
 
 The immunity fixes likewise argue for explicit attack/spell natures rather than broad labels. Weapon Immunity must distinguish melee weapons, thrown attacks, missiles and boulders; Wraith Form must not accidentally block unrelated spell realms; Death Immunity must be checked by Terror and undead-raising effects where specified.
 
-Relevant code: [spell/dispel.rs](../crates/f4x-core/src/spell/dispel.rs), [battle/immunity.rs](../crates/f4x-core/src/battle/immunity.rs), [battle/spell.rs](../crates/f4x-core/src/battle/spell.rs), [content/spells.ron](../content/spells.ron).
+Relevant code: [spell/dispel.rs](../crates/f4x-core/src/spell/dispel.rs), [battle/immunity.rs](../crates/f4x-core/src/battle/immunity.rs), [battle/spell.rs](../crates/f4x-core/src/battle/spell.rs), [crates/f4x-def/content/spells.ron](../content/spells.ron).
 
 ## Highest-value follow-ups
 

@@ -168,7 +168,7 @@ Decided October 2026, `wizard_screen.rs`.
 The original has two pairs of items that share a name. They are different items with different
 costs and bonuses, so the game keeps both and tells them apart:
 
-| Original name | Items in `content/items.ron` | What differs |
+| Original name | Items in `crates/f4x-def/content/items.ron` | What differs |
 |---|---|---|
 | White Lightning | `white_lightning_i`, `white_lightning_ii` | I: a sword, 2200 gold, +3 to hit and +2 defence. II: a wand, 1450 gold, +1 attack, spell skill 5, spell save 2. |
 | The Resistor | `the_resistor_i`, `the_resistor_ii` | I: an axe, 950 gold, +5 attack. II: a shield, 1900 gold, +3 defence, 4 half-moves and +6 resistance. |
@@ -177,7 +177,7 @@ The numbering follows the original's table order. The original shows the plain n
 places, so a player cannot tell them apart there; in ours the names carry I and II.
 
 Two other points about the item data that are not departures but are easy to mistake for bugs:
-movement bonuses of items are stored in half-moves (`HalfMoves`, the original's own unit: the data file holds whole moves and the original doubles them when it makes the item, so the values in `content/items.ron` are doubled; task 49 corrected them), and
+movement bonuses of items are stored in half-moves (`HalfMoves`, the original's own unit: the data file holds whole moves and the original doubles them when it makes the item, so the values in `crates/f4x-def/content/items.ron` are doubled; task 49 corrected them), and
 to-hit bonuses are in pluses (1 to 3), the same as the units' to hit everywhere in the content.
 The power table's "+6 Defense" row stores 5 in its bonus byte while its name says 6; we import 6.
 
@@ -213,7 +213,7 @@ Where the item rules differ from the original's code or are read from ReMoM with
 - **The item keeps its full value.** Artificer and the books lower the mana of the cast, as in the
   original, but the made item is worth (to the anvil, to merchants) the full cost.
 - **Default names** are cut at 30 characters; the original blanks a long one.
-- **Item movement** in `content/items.ron` was whole moves under the name of half-moves until
+- **Item movement** in `crates/f4x-def/content/items.ron` was whole moves under the name of half-moves until
   task 49 doubled it.
 
 ### Random and prefab items (tasks 244 and 262): original bugs fixed
@@ -527,7 +527,7 @@ Decided 16 October 2026, from ReMoM's `AdvsrScr.c`, `Surveyor.c`, `REPORT.c`, `S
 
 ## 21. Lo Pan's starting books
 
-The original's Lo Pan has five sorcery and five chaos books and the Channeler retort, twelve picks. Ours has four sorcery books (`content/wizards.ron`), eleven picks, as the other presets.
+The original's Lo Pan has five sorcery and five chaos books and the Channeler retort, twelve picks. Ours has four sorcery books (`crates/f4x-def/content/wizards.ron`), eleven picks, as the other presets.
 
 ## 22. When mana, gold or food run short (tasks 62 and 292)
 
@@ -656,7 +656,7 @@ are left on the land. Mountains, hills and squares with a node or other site are
 In the original a magic node is two things: the base terrain of its square (`tt_SorceryNode`,
 `tt_NatureNode`, `tt_ChaosNode`) and the node record. Ours has both too: the node is a feature and
 the placement step puts `sorcery_node`, `nature_node` or `chaos_node` terrain under it
-(`content/terrain.ron`). Food, production and movement are the original's (`Square_Food_x2`,
+(`crates/f4x-def/content/terrain.ron`). Food, production and movement are the original's (`Square_Food_x2`,
 `Square_Production_Bonus`, `TERRSTAT.LBX`): sorcery 4 / 0 / 1, nature 5 / 3 / 2, chaos 0 / 5 / 3.
 
 - **Nature node food is 5** (decided by the user, 23 October 2026): the original's in-game
@@ -746,7 +746,7 @@ immunity** protects against Terror. The other differences listed there are kept 
   2026): spearmen and swordsmen of every race cost half the food and half the gold. Upkeep is whole
   numbers for each unit, so about every second basic troop (the ones with an odd serial number, the
   order units are made in) costs nothing and the others pay in full. The unit sheet shows the
-  unit's own figure, so a free one shows none. `half_upkeep` in `content/rules_settings.ron`
+  unit's own figure, so a free one shows none. `half_upkeep` in `crates/f4x-def/content/rules_settings.ron`
   (`enabled: true` turns it on; since 30 October 2026 it is off, so the AI learns on the original's rules; `units` names the troops).
 - **No limit on the number of units** (decided by the user, 24 October 2026, task 144): the
   original's unit table holds `MAX_UNIT_COUNT` entries, so production stops and says "Maximum number

@@ -1,9 +1,9 @@
-//! The rules of a guarded site's guards and hoard as data (`content/lairs.ron`): which realm
+//! The rules of a guarded site's guards and hoard as data (`crates/f4x-def/content/lairs.ron`): which realm
 //! guards which kind of site, the budget of each, how the budget buys guards and how the rest
 //! fills the hoard. The unit list is not here: the guards come from `units.ron`.
 //!
 //! The defaults are the original's values (ReMoM `Create_Lair`, `Lair_Make_Guardians`,
-//! `Generate_Lairs`; differences in `docs/lairs.md`), and `content/lairs.ron` repeats them; a
+//! `Generate_Lairs`; differences in `docs/lairs.md`), and `crates/f4x-def/content/lairs.ron` repeats them; a
 //! test keeps the two equal.
 //!
 //! Tests: in feature/lair/tests.rs.

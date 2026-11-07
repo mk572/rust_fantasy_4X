@@ -295,7 +295,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
     let removed: u32 = events
         .iter()
         .map(|e| match e {
-            Event::Dispelled { removed, .. } => *removed as u32,
+            Event::Dispelled { removed, .. } => *removed,
             _ => 0,
         })
         .sum();
@@ -319,7 +319,7 @@ fn disenchant_area_clears_a_city_its_units_and_a_warped_node() -> TestResult {
     let removed: u32 = events
         .iter()
         .map(|e| match e {
-            Event::Dispelled { removed, .. } => *removed as u32,
+            Event::Dispelled { removed, .. } => *removed,
             _ => 0,
         })
         .sum();

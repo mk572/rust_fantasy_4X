@@ -298,7 +298,8 @@ impl EffectHost for GameHost<'_> {
         }
         if hook == crate::spell::special::PLANE_SHIFT {
             if let Target::Unit(unit) = who {
-                self.game.plane_shift(ctx.owner, unit);
+                let shifted = self.game.plane_shift(ctx.owner, unit);
+                self.events.extend(shifted);
             }
         }
         if hook == crate::spell::special::MOVE_BUILDING {

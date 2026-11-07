@@ -7,7 +7,7 @@ What it does:
   * A change in a f4x-core module runs that module's tests and the tests of the modules that
     mention it (`crate::module` in their source), not the other core modules.
   * The slow tests (SLOW below, seconds each in a debug build) run only when their area changed.
-  * Content (`content/`), `Cargo.toml` and `Cargo.lock` run everything; docs and scripts alone run
+  * Content (`crates/f4x-def/content/`), `Cargo.toml` and `Cargo.lock` run everything; docs and scripts alone run
     only the checks that read them (version and method-count tests).
   * `--all` is the whole `cargo test --workspace` plus the slow tests: run it before a commit.
 The module graph of f4x-core is tightly connected (game, rules, map, unit, wizard, player and city
@@ -43,7 +43,7 @@ SLOW = {
     ],
 }
 
-EVERYTHING = ("content/", "Cargo.toml", "Cargo.lock", "content-local/")
+EVERYTHING = ("crates/f4x-def/content/", "Cargo.toml", "Cargo.lock", "content-local/")
 DOC_CHECKS = ("docs/", "README.md", "CLAUDE.md")
 
 

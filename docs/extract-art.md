@@ -85,7 +85,7 @@ and names only). A labelled single entry is `<label>_FF.png` (`main_screen/butto
 anything else `<lbx>_NNN_FF.png`. Shared pictures (the grey gems, the OK button of Load and
 Settings, `items`, `wizards`, `cityscap`) stay in `art/`. A picture two screens use lives with its main screen. To move more, add rows and run
 `f4x-extract art` again: it writes the picture in its new place and deletes the old copy in `art/`.
-Unit art is filed by the unit's id from `content/units.ron` (its `art` and hero `portrait`;
+Unit art is filed by the unit's id from `crates/f4x-def/content/units.ron` (its `art` and hero `portrait`;
 unit type numbers: `unit_type_number`), so the extractor must run from the project directory.
 Spell art is filed by the table `crates/f4x-client/content/spell_art.ron` (spell id to `(lbx, entry, role)`): a picture
 of one spell goes to `art/spells/<spell id>/<lbx>_NNN_FF.png`, one that several spells use or that
@@ -298,8 +298,8 @@ it, and place the picture where the draw call puts it on the 320 by 200 screen.
    from the picture (`Add_Hidden_Field` in ReMoM), which is why the menu rows are wider than their
    words.
 4. **Object art in the game's data:** the rules data carries only a reference, for units
-   `art: Some(("units1", 5))` in `content/units.ron` (file, entry); `units1` entry `n` is unit type
-   `n` and `units2` entry `n` is type `120 + n` (`unit_type_number`). Nothing else in `content/`
+   `art: Some(("units1", 5))` in `crates/f4x-def/content/units.ron` (file, entry); `units1` entry `n` is unit type
+   `n` and `units2` entry `n` is type `120 + n` (`unit_type_number`). Nothing else in `crates/f4x-def/content/`
    names art; the rest is looked up by id or by the original's own numbering (below).
 5. **Always allow the picture to be missing.** Every draw returns `None` or `false` without the
    art; give it a fallback.
@@ -340,7 +340,7 @@ The table is a guide. For anything with an index not listed here read the loader
 
 - **Sound and music** are not pictures: `f4x-extract audio` writes them to `assets-local/audio` (task 362,
   `local-assets.md`, `sound.md`).
-- **Data tables, read by `scripts/import_mom.py` into `content/` (names and numbers):**
+- **Data tables, read by `scripts/import_mom.py` into `crates/f4x-def/content/` (names and numbers):**
   `SPELLDAT`, `BUILDDAT`, `ITEMDATA`, `TERRSTAT`, and `HELP`/`HLPENTRY` and `CITYNAME` into
   `content-local/` (they are IP).
 - **Data and text not read yet:** `HERODATA`, `ITEMPOW`, `LISTDAT`, `DESC`, `BUILDESC`,

@@ -195,6 +195,14 @@ pub enum Event {
         spell: rules::SpellId,
         at: map::Position,
     },
+    /// A Plane Shift took the stack `units` from the square `from` to the same square `to` on the
+    /// other plane (the client fades the one into the other).
+    PlaneShifted {
+        player: player::PlayerId,
+        from: map::Position,
+        to: map::Position,
+        units: Vec<hecs::Entity>,
+    },
     /// Follows [`Event::SpellCast`] when the spell was aimed at another wizard (Spell Blast, Drain
     /// Power, Cruel Unminding, Subversion): the client plays its picture on that wizard's portrait.
     SpellCastOnWizard {

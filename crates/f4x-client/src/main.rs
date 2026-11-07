@@ -73,6 +73,7 @@ mod outpost_screen;
 mod page;
 mod page_turn;
 mod panel_button_art;
+mod plane_shift_anim;
 mod plank_button_art;
 mod pointer;
 mod preferences;
@@ -282,7 +283,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
         content: if Path::new("content-local").exists() {
             "content-local".into()
         } else {
-            "content".into()
+            f4x_def::SHIPPED_CONTENT.into()
         },
         assets: "assets-local/art".into(),
         audio: "assets-local/audio".into(),
@@ -614,17 +615,19 @@ async fn main() {
             std::process::exit(1);
         }
     };
-    let content =
-        match f4x_def::load::load_content_layers(&[&options.content, Path::new("content")]) {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!(
-                    "could not load content from {}: {e}",
-                    options.content.display()
-                );
-                std::process::exit(1);
-            }
-        };
+    let content = match f4x_def::load::load_content_layers(&[
+        &options.content,
+        Path::new(f4x_def::SHIPPED_CONTENT),
+    ]) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!(
+                "could not load content from {}: {e}",
+                options.content.display()
+            );
+            std::process::exit(1);
+        }
+    };
     let texts = match text::load_texts(&layers, &settings.language) {
         Ok(t) => t,
         Err(e) => {

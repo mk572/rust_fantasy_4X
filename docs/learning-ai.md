@@ -666,7 +666,7 @@ battles the advice is dropped more often and the warm start is short.
   The framework is **Burn 0.22, licensed MIT or Apache-2.0** (checked in the crate's `Cargo.toml`;
   the licences of the rest of its dependency tree have not been audited, and should be before a
   release that bundles a trained network). Checkpoints are not committed.
-- Training uses the rules in `content/`, which are committed and carry no art, so a network
+- Training uses the rules in `crates/f4x-def/content/`, which are committed and carry no art, so a network
   holds no protected material; if training ever uses `content-local/`, keep its networks local.
 - Continuing to learn **during normal play** (adjusting weights after real games) is possible
   with the same code, off by default and saved per player; it needs the in-game save format to

@@ -38,10 +38,9 @@ pub mod num {
     }
 }
 
-/// The shipped `content/rules_settings.ron`, for tests that play a difficulty level.
+/// The shipped `crates/f4x-def/content/rules_settings.ron`, for tests that play a difficulty level.
 pub fn settings() -> crate::game::setting::SettingsDef {
-    ron::from_str(include_str!("../../../../content/rules_settings.ron"))
-        .expect("rules_settings.ron parses")
+    f4x_def::testdir::shipped().settings.clone()
 }
 
 /// The game's own `content/` folder, loaded by the real loader (`f4x_def::testdir::shipped`), as

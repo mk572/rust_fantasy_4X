@@ -15,7 +15,7 @@ use crate::player::PlayerId;
 use crate::rules::SpellId;
 use crate::wizard::entity::PlayerLink;
 
-/// Which spell this is: its definition in `content/spells.ron`.
+/// Which spell this is: its definition in `crates/f4x-def/content/spells.ron`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpellCast {
     pub def: SpellId,

@@ -126,7 +126,7 @@ impl App {
             spell,
             city,
             music: Track::piece(GOOD_MUSIC[realm_slot(Some(def.realm))] + bad),
-            shakes: f4x_core::spell::wizard::CityStrike::Earthquake.is_in(&def),
+            shakes: f4x_core::spell::wizard::CityStrike::Earthquake.is_in(def),
             appears: appearing_building(&def.id),
             started,
         })

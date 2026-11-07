@@ -90,11 +90,8 @@ impl Game {
         }
         let options = self.mutations_for(unit);
         let pick = options[rng.roll(options.len() as u32) as usize - 1];
-        let Some(channels) =
-            crate::spell::unit_effect::UnitEffect::ChaosChannels.spell_in(&self.content.rules)
-        else {
-            return None;
-        };
+        let channels =
+            crate::spell::unit_effect::UnitEffect::ChaosChannels.spell_in(&self.content.rules)?;
         let source = Source::Spell(channels);
         let who = crate::rules::exec::Target::Unit(unit);
         match pick {

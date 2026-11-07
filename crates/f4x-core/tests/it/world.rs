@@ -5,7 +5,7 @@ use f4x_core::map::{Grid, Map, Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_def::content::Content;
 
-/// The number of grassland in `content/terrain.ron`.
+/// The number of grassland in `crates/f4x-def/content/terrain.ron`.
 const GRASSLAND: u16 = 4;
 
 pub const P0: PlayerId = PlayerId(0);

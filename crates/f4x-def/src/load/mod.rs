@@ -331,7 +331,7 @@ mod tests {
 
     fn shipped() -> String {
         let path = super::testutil::content_dir().join("terrain.ron");
-        std::fs::read_to_string(path).expect("content/terrain.ron exists")
+        std::fs::read_to_string(path).expect("crates/f4x-def/content/terrain.ron exists")
     }
 
     /// The game's own `content/` folder (the files tests of the rules data read).

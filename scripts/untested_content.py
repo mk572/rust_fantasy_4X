@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """List the content ids (spells, units, buildings, abilities, ...) that no test names.
 
-For each `content/*.ron` file that has a list of rows with `id: "..."`, it looks for the id as a
+For each `crates/f4x-def/content/*.ron` file that has a list of rows with `id: "..."`, it looks for the id as a
 quoted string in the test code of the workspace: whole files named `tests.rs` or `*_tests.rs` or under a `tests/`
 folder, and the part of any other source file from its `#[cfg(test)]` on. An id that is only
 named in the content or in ordinary code is untested here. A loop over the whole content covers
@@ -63,7 +63,7 @@ def main() -> int:
         return 2
     print(f"{'file':<12} {'ids':>5} {'untested':>9}")
     for name in args.only or FILES:
-        path = root / "content" / f"{name}.ron"
+        path = root / "crates" / "f4x-def" / "content" / f"{name}.ron"
         if not path.exists():
             continue
         ids = ids_of(path)

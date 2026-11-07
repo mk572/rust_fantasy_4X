@@ -15,8 +15,8 @@ fn main() -> Result<(), String> {
         .ok_or("usage: make_bank OUT.ron [count] [first_seed]")?;
     let count: usize = args.next().and_then(|s| s.parse().ok()).unwrap_or(3000);
     let first: u64 = args.next().and_then(|s| s.parse().ok()).unwrap_or(500_000);
-    let content =
-        f4x_def::load::load_content_layers(&[Path::new("content")]).map_err(|e| e.to_string())?;
+    let content = f4x_def::load::load_content_layers(&[Path::new(f4x_def::SHIPPED_CONTENT)])
+        .map_err(|e| e.to_string())?;
     let next = AtomicUsize::new(0);
     let found = Mutex::new(Bank::default());
     let want = count / 3;

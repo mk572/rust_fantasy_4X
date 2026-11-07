@@ -18,7 +18,7 @@ const SOURCES: [&str; 6] = [
     "crates/f4x-ai-ref/src",
     "crates/f4x-tools/src",
     "Cargo.lock",
-    "content",
+    "crates/f4x-def/content",
 ];
 
 fn hash_path(path: &Path, hasher: &mut DefaultHasher) {

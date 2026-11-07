@@ -70,8 +70,9 @@ fn main() -> ExitCode {
 
 /// The content in `dir` (default `content`), over the committed `content/` for any file it lacks.
 fn content(dir: Option<&String>) -> Result<Content, String> {
-    let dir = dir.map_or_else(|| PathBuf::from("content"), PathBuf::from);
-    f4x_def::load::load_content_layers(&[&dir, Path::new("content")]).map_err(|e| e.to_string())
+    let dir = dir.map_or_else(|| PathBuf::from(f4x_def::SHIPPED_CONTENT), PathBuf::from);
+    f4x_def::load::load_content_layers(&[&dir, Path::new(f4x_def::SHIPPED_CONTENT)])
+        .map_err(|e| e.to_string())
 }
 
 fn validate(dir: Option<&String>) -> Result<(), String> {

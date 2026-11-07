@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add the original's item picture number to every row of content/items.ron.
+"""Add the original's item picture number to every row of crates/f4x-def/content/items.ron.
 
 Reads ITEMDATA.LBX (250 records of 56 bytes after a 4-byte header; the picture number of
 ITEMS.LBX is the byte at offset 30 of a record) and writes `icon: N` after `cost: N` on each
@@ -13,7 +13,7 @@ import struct
 import sys
 
 DEFAULT_LBX = "reference/mom-classic/Master of Magic Official Release/ITEMDATA.LBX"
-DEFAULT_RON = "content/items.ron"
+DEFAULT_RON = "crates/f4x-def/content/items.ron"
 
 
 def read_icons(path):
@@ -35,7 +35,7 @@ def read_icons(path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--lbx", default=DEFAULT_LBX, help="path of ITEMDATA.LBX")
-    ap.add_argument("--ron", default=DEFAULT_RON, help="path of content/items.ron")
+    ap.add_argument("--ron", default=DEFAULT_RON, help="path of crates/f4x-def/content/items.ron")
     ap.add_argument("--dry-run", action="store_true", help="report, change nothing")
     args = ap.parse_args()
 

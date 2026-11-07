@@ -30,7 +30,7 @@ INTERNAL = re.compile(
 def shipped_ids():
     ids = set()
     for name in ("units", "spells", "buildings", "races", "items"):
-        text = (ROOT / "content" / f"{name}.ron").read_text()
+        text = (ROOT / "crates/f4x-def/content" / f"{name}.ron").read_text()
         ids |= set(re.findall(r'\bid:\s*"([a-z0-9_]+)"', text))
     return ids
 

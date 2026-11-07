@@ -5,7 +5,7 @@ game state, see [`ecs-structure.md`](ecs-structure.md); for what a city does wit
 it works, see the city economy in [`design.md`](design.md) §6.
 
 Code: `crates/f4x-core/src/{map,content,mapgen,featuregen,nodes,lairs,roads,terraform,corruption,fog,vision,city}.rs`; client drawing in `crates/f4x-client/src/{terrain_pick,map_draw}.rs`. Sprites: [`map-sprites.md`](map-sprites.md); guards and treasure: [`lairs.md`](lairs.md).
-Data: `content/terrain.ron`, `content/features.ron`.
+Data: `crates/f4x-def/content/terrain.ron`, `crates/f4x-def/content/features.ron`.
 
 ## 1. Space
 

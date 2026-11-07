@@ -16,7 +16,7 @@ use f4x_extract::wizard_art::WizardArt;
 use crate::art::Art;
 use crate::view::App;
 
-pub(crate) const CONTENT: &str = "../../content";
+pub(crate) const CONTENT: &str = "../f4x-def/content";
 /// The client's own tables (`crates/f4x-client/content`).
 pub(crate) const CLIENT_CONTENT: &str = "content";
 

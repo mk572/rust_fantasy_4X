@@ -1,7 +1,7 @@
 # Overland spell animations
 
 What the original plays when a spell is cast on the main map, spell by spell, for task 306. The numbers are ReMoM's
-spell indexes (`spl_*` in `Spellbook.h`, 1 to 214). Only spells with an overland cast are listed (`content/spells.ron`);
+spell indexes (`spl_*` in `Spellbook.h`, 1 to 214). Only spells with an overland cast are listed (`crates/f4x-def/content/spells.ron`);
 the battle animations are done (`spell_fx.rs`, `battle_screen/spell_anim.rs`). Sources: `OverSpel.c`
 (`Cast_Spell_Overland_Do`), `SBookScr.c` (`Spell_Animation_Load_Graphics`, `Spell_Animation_Screen__WIP`),
 `Spells129.c` to `Spells132.c` (the special casts) and `Spells137.c` (the summon, city and global animations).

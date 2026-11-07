@@ -254,7 +254,7 @@ Enchantments (lasting spells) are the same def with a duration and optional per-
 - **Item** defs grant modifiers and abilities to the carrier, same machinery as buildings.
 
 ### Global rules config
-Tunable numbers that are not content live in one file, `content/rules.ron`: to-hit and damage formulas, growth rates, unrest thresholds, minimum city distance, spell casting limits. One place to balance from.
+Tunable numbers that are not content live in one file, `crates/f4x-def/content/rules.ron`: to-hit and damage formulas, growth rates, unrest thresholds, minimum city distance, spell casting limits. One place to balance from.
 
 ## 5. Systems built on the framework
 
@@ -273,7 +273,7 @@ f4x-core/src/rules/      defs.rs      definition types + typed ids
                          effects.rs   Condition, Target, Effect, execute()
 f4x-core/src/systems/    economy.rs, spells.rs, combat.rs, city/production.rs
 f4x-def/src/load/        RON loading, cross-reference validation
-content/                 races.ron, units.ron, buildings.ron, abilities.ron,
+crates/f4x-def/content/  races.ron, units.ron, buildings.ron, abilities.ron,
                          realms.ron, spells.ron, items.ron, rules.ron
 ```
 `f4x-tools validate` checks the whole set: unknown ids, requirement cycles, spells with no effects, units unavailable to every race, and similar.

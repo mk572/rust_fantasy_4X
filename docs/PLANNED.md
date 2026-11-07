@@ -90,13 +90,13 @@ note: AI cost grows with wizard count, so measure turn time first (T65).
 patch (its files are in `reference/mom-classic/Master of Magic Community Patch/`) and of the
 Caster of Magic expansion: list every changed number, ability, building, unit, spell and item;
 decide per change whether it becomes the default, a rule-set option or a mod (see 5); and add
-the new items, units and spells to `content/` through `scripts/import_mom.py` where they
+the new items, units and spells to `crates/f4x-def/content/` through `scripts/import_mom.py` where they
 come from original rules data, or write them by hand. Details of the
 expansion are not yet gathered here, so the first step is a survey document in `docs/` listing
 what exists, before any code. The importer's conflict rules (`help-vs-implementation-conflicts.md`)
 apply: patch behaviour that fixes a marked bug wins; anything else is an option.
 
-**5. Modding support.** The rules are already data (`content/*.ron`, validated by
+**5. Modding support.** The rules are already data (`crates/f4x-def/content/*.ron`, validated by
 `f4x-tools validate`). Make this a supported feature: load a stack of content directories
 (base, then mods in order, later ones override or extend by id); a mod manifest with name,
 version and dependencies; validation that reports conflicts by id; a list of the engine hooks
@@ -356,7 +356,7 @@ buildings. Never kill a city's last citizen. Balance with item 24.
 
 **28. More useful buildings.** Many buildings are only prerequisites for others (Builder's Hall,
 Barracks, Smithy, Stables, Sawmill and so on). Give most of them a tangible benefit of their own,
-stated in `content/buildings.ron` as ordinary effects so no new engine code is needed where the
+stated in `crates/f4x-def/content/buildings.ron` as ordinary effects so no new engine code is needed where the
 rules framework already has the stat. Examples to start from: the Barracks gives each unit
 stationed in the city experience every turn; the Builder's Hall lowers the cost of buildings in
 the city; the Smithy and the Stables improve the new units built there (a higher weapon quality
@@ -381,7 +381,7 @@ builds them for the benefit and not only for the next building, and an option or
 **29. Reduced upkeep costs.** Basic units cost more to keep than they are worth early on, which
 slows the opening and punishes wide armies. Lower the upkeep of the basic units (spearmen,
 swordsmen, bowmen, and their equivalents of each race) by a stated amount, and make Settlers cost
-nothing to keep, gold and food. Both are data in `content/units.ron` (`upkeep`), so the change is
+nothing to keep, gold and food. Both are data in `crates/f4x-def/content/units.ron` (`upkeep`), so the change is
 a rule set: a table of the old and new upkeep per unit, a decision about which units count as
 basic (the tier-1 units a city can build with no prerequisite beyond a barracks), whether the food
 cost stays (a settler that eats nothing is a rule change in `player/finance.rs` if Normal units always eat
@@ -392,7 +392,7 @@ cost something. Hero and fantastic creature upkeep stay as they are.
 
 **30. More interesting strategies for underplayed or underpowered races.** Some races have little
 reason to be picked or little to do with their strengths. Give each weak race a distinct way to
-play, as a few effects in `content/races.ron` and their buildings and units, never a flat bonus.
+play, as a few effects in `crates/f4x-def/content/races.ron` and their buildings and units, never a flat bonus.
 Examples: Barbarians get better outposts (faster outpost growth, a larger area, a free early
 building) and better Triremes (more moves, more passengers or a cheaper Trireme), pushing them to
 settle islands; Gnolls get research from victories in battle (a few research points per enemy
@@ -435,7 +435,7 @@ Needs: the attitude score and its rules in the core (a `NeutralDiplomacy` module
 
 - **Mana.** A neutral city makes its own mana by the normal rules (buildings, population, nodes in its land, the same `magic_income` sums a wizard's cities feed), keeps it in its own reserve, and pays the standard price for every spell. No distance rules: it casts anywhere it needs to, at the standard cost.
 - **Learning.** A city never forgets a spell, also when it shrinks. When it gains a population it learns a new spell only if its population is then higher than the number of spells it knows, so it never knows more spells than its population has reached (a city that shrinks and regrows learns nothing until it passes the old count).
-- **Spell lists.** Each race has a list of 20 spells the city picks from, in a data file (`content/`, one list per race, in the rules framework's spell ids), chosen to suit the race (a first pass from the races' realms and the retorts they favour). The pick is a random one: a d20 roll on the list from the game's seeded generator (so it is repeatable from the seed); if the spell rolled is already known, the city goes down the list to the next one it does not know, starting again at 1 after 20; a city that knows all 20 learns nothing more. Spells need no research and no books. A smarter pick (weighted by what the race favours) can come later.
+- **Spell lists.** Each race has a list of 20 spells the city picks from, in a data file (`crates/f4x-def/content/`, one list per race, in the rules framework's spell ids), chosen to suit the race (a first pass from the races' realms and the retorts they favour). The pick is a random one: a d20 roll on the list from the game's seeded generator (so it is repeatable from the seed); if the spell rolled is already known, the city goes down the list to the next one it does not know, starting again at 1 after 20; a city that knows all 20 learns nothing more. Spells need no research and no books. A smarter pick (weighted by what the race favours) can come later.
 - **Casting strength.** Needs a formula, since a wizard's strength comes from casting skill and a city has none. A start: the casting skill of a city is its population plus a share of its mana income, capped by a number per size, and it decides which spells it can afford in one go and the strength of the ones that scale (Fireball, Dispel Magic's strength, resistance modifiers in battle). Decide the shape and write it into `magic.md`.
 - **Use.** In battle the city casts as the defender (and as the attacker when a raider sallies out, task 154) with the combat AI's spell rules for a wizard, within the city's mana and the battle's casting limits; overland, a first version casts only what helps its own cities and defence (wards, Wall of Fire, healing, summons for the garrison). The AI wizards' answer to a city that casts: they weigh the risk in the attack decision.
 - **Interaction with deals (item 31).** This item makes it possible to learn spells from neutral cities: a city can teach a spell it knows, for a gift, for its liking of the wizard, or as the price of a deal (a wizard learns it under the normal limits for learning spells: the books, the realm and rarity rules and the spells it already knows). Tribute in mana, and spells given as a gift, work on the city's reserve. The offers themselves belong to item 31, which comes first.
@@ -455,7 +455,7 @@ Needs: the data (20 spells for each of the 14 races), a `Magic`-like record for 
 
 **Also decided:** neutral cities set a goal at the start of the game and pursue it (grow, explore, gain access to nodes, explore lairs, build defences, and so on; the list under Goals above), and change it when it is met or the situation changes. There is no growth ceiling for neutral cities beyond the rules that apply to everyone. A city may break its own pact (for instance when it cannot afford the upkeep). The owner's AI picks the evicted army's goal as described under the pacts.
 
-**Also decided:** there is no grace period at the start. A wizard who starts next to an aggressive neutral neighbour has to deal with it. The starting goal is set by race and then adjusted to the situation: for example High Men build towards military buildings, Barbarians go out to attack for loot, and the others have their own leanings (a table by race in `content/`, like the races' other data); the goal is reconsidered when it is met, when the city is threatened, or when its surroundings change (a node or lair nearby, a wizard's outpost close, a trade partner). The `neutral_activity` setting still scales how aggressive they are by difficulty, but there is no number of quiet turns.
+**Also decided:** there is no grace period at the start. A wizard who starts next to an aggressive neutral neighbour has to deal with it. The starting goal is set by race and then adjusted to the situation: for example High Men build towards military buildings, Barbarians go out to attack for loot, and the others have their own leanings (a table by race in `crates/f4x-def/content/`, like the races' other data); the goal is reconsidered when it is met, when the city is threatened, or when its surroundings change (a node or lair nearby, a wizard's outpost close, a trade partner). The `neutral_activity` setting still scales how aggressive they are by difficulty, but there is no number of quiet turns.
 
 **Still to decide:** each race's starting goal and the rules that adjust it (the table), and how often the goal is reconsidered (every turn, every few turns, or on events only).
 
@@ -472,7 +472,7 @@ Needs: the data (20 spells for each of the 14 races), a `Magic`-like record for 
 
 **Progress 30 October 2026 (core, AI and the pick screen are done):** `max_tile` is a rule setting (9 to 20, default 20; `Game::max_tile()`, `Economy::max_tile`, `PlayerView::max_tile`; `unit::MAX_TILE_LIMIT` is only its ceiling). Any number of units may move together; only a battle side is limited to nine (`MAX_STACK`). When more than nine could fight, the human gets the **pick screen** (`fighter_pick.rs`: a scrollable list, strongest first, with picture, name, attack, defence and ability icons and a check box each, the preset's nine ticked): as the attacker (the units not ticked stay where they are with their moves; Cancel calls the attack off), as the defender (the ones not ticked sit the fight out) and before an assault on a site (`SitePick`). `start_battle` takes the units named and trims more than nine to `Game::fighter_preset` (heroes first, then combat units by cost, then experience); defenders of a square holding more than nine who are not named are benched (`ActiveBattle::benched`, saved), flee if the defence loses (`bench_flees`) and stay if it wins. Unrest counts at most nine garrison units, the AI counts the strongest nine of an enemy stack (`view::fighting_strength`), keeps its landing port at `max_tile - 1` and still sends nine at a time. The unit window shows nine units at a time; Page Down (`next_page`) shows the next nine. **Still open:** the AI never chooses, the preset does; a screen for the setting (the advanced screen of task 47); a page marker in the unit window; the help text. **Scrolling done:** the city screen's garrison list scrolls by a row (wheel or the two arrows in its heading), the army list continues a crowded square on the next row, and the enemy unit list scrolls (wheel, arrow and page keys; eight rows). Screenshots: `--shot F --pick-box`, `--shot F --unit-list`, `--shot F --city --crowd`.  Needs: the two limits in the core with tests (`unit/movement.rs`, `city/gate.rs`, `spell/special.rs`, `unit/transport.rs`, `city/neutral.rs`, `feature/lair.rs`, the raise-dead room), the defender choice (a command `ChooseDefenders` carrying the units, with the preset when the defender does not answer), the battle start using the chosen nine, the pick screen and the larger lists in the client, the AI's rules, the help text, and a save check (the old limit of nine is already satisfied). Do `large-stacks.md` section 2's list of places built for nine first for what still depends on nine.
 
-**35. Palette-swap wizards.** Variants of the 14 ready-made wizards: the same portrait with changed colours (hair, skin, robes, eyes) and a different set of books and retorts, so the player and the AI have more starting wizards to choose from. A list of new wizards in `content/wizards.ron` (id, a variant name, books, retorts, the base wizard and the palette change), shown in the new-game wizard pick and used by the AI's wizard draw.
+**35. Palette-swap wizards.** Variants of the 14 ready-made wizards: the same portrait with changed colours (hair, skin, robes, eyes) and a different set of books and retorts, so the player and the AI have more starting wizards to choose from. A list of new wizards in `crates/f4x-def/content/wizards.ron` (id, a variant name, books, retorts, the base wizard and the palette change), shown in the new-game wizard pick and used by the AI's wizard draw.
 
 - **Portraits.** The portraits are the original's art and so local-only (`docs/local-assets.md`), and a recoloured portrait is derived from it. The variants are made from the player's own copy. The recoloured portraits are committed (decided 17 October 2026), like the Myrror river pictures, as a documented exception in `docs/local-assets.md` (add the entry when they are made). The original portraits stay local-only. Recolour the base portrait once by index remapping (the portraits are 256-colour pictures: remap the palette entries that hold the hair, skin or cloth to new colours; a per-variant table of `(index range → new colour)` in the data), and generate the result once and keep it as files in the repository (as the Myrror river pictures are, under `crates/f4x-client/assets/`), so the variants show without the local art. Because the originals are not committed, the generator needs the player's own copy to run; the committed files are the output. A variant's portrait is there without the local art; the base wizards' portraits are not.
 - **Variants.** For each of the 14 wizards one or more variants with a new name and description. A variant changes the portrait colours and starts with other books and retorts than its base (a different realm mix, or a different retort), within the pick rules the custom wizard follows (`wizard/mod.rs`: the same budget of picks, the same limits). Examples to write: a dark-haired Merlin who is a chaos and life wizard rather than life and nature; a red-robed Raven. Decide the number per wizard (one to three) and who writes the lists (a first set by hand, balanced with item 24's soak runs).
@@ -517,7 +517,7 @@ first (requested 18 October 2026).
   the mod makes it one. The cost of the other two-pick retorts (Warlord, Divine Power, Famous,
   Infernal Power) stays. Move the pick prices into data (`rules.ron` or the retort table) so the
   creation screen, the custom-wizard checks and the AI's wizard builder all read them.
-- **Lo Pan's fifth sorcery book.** `content/wizards.ron` gives Lo Pan four sorcery books, one fewer
+- **Lo Pan's fifth sorcery book.** `crates/f4x-def/content/wizards.ron` gives Lo Pan four sorcery books, one fewer
   than the original, so that he fits the eleven picks (divergence 21). With the Channeler at one
   pick, five sorcery, five chaos and Channeler come to eleven picks again, so the mod gives him the
   original's five sorcery books with no other change. Without the mod he stays as now.
@@ -565,11 +565,11 @@ which builds on art that holds up at the new sizes.
 magic nodes for sorcery, nature and chaos only, and a wizard cannot hold life and death books at once. Both are
 options of the game setup (`docs/game-settings.md`), off by default so the base game stays as it is.
 - **Life nodes and death nodes**, built like the other three: a node is a terrain feature entity (`feature/`, `Node`
-  with its realm; `content/features.ron`) on a base terrain of its own (`TerrainClass` gains `LifeNode` and
+  with its realm; `crates/f4x-def/content/features.ron`) on a base terrain of its own (`TerrainClass` gains `LifeNode` and
   `DeathNode` beside `SorceryNode`, `NatureNode` and `ChaosNode`, with food, production and movement values in
-  `content/terrain.ron`; the nature node counts as forest and the chaos node as mountains, so decide what a life
+  `crates/f4x-def/content/terrain.ron`; the nature node counts as forest and the chaos node as mountains, so decide what a life
   node and a death node count as, if anything). Parts:
-  - **Placement and guards:** map generation places them with the node budget (`content/lairs.ron`, the node
+  - **Placement and guards:** map generation places them with the node budget (`crates/f4x-def/content/lairs.ron`, the node
     budget formula of `docs/lairs.md`), the realm picked among five instead of three; the guards of a node follow its
     realm, so a life node is held by life-realm creatures and a death node by death-realm ones (as the original does
     for the other realms); a new realm's guard table is data.

@@ -20,8 +20,8 @@ fn main() -> Result<(), String> {
     let bank_path = args
         .next()
         .unwrap_or_else(|| "models-local/bank.ron".into());
-    let content =
-        f4x_def::load::load_content_layers(&[Path::new("content")]).map_err(|e| e.to_string())?;
+    let content = f4x_def::load::load_content_layers(&[Path::new(f4x_def::SHIPPED_CONTENT)])
+        .map_err(|e| e.to_string())?;
     let spec = ObsSpec::new(&content);
     let bank = Bank::from_text(&std::fs::read_to_string(&bank_path).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;

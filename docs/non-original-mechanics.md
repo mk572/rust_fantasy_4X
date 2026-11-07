@@ -12,7 +12,7 @@ Deliberate departures from a rule the original *has* (a different number, a diff
 
 - The first paragraph of every module of `f4x-core/src` was read (about 100 files), and the schema of
   the rules (`rules/defs.rs`: race, unit, building, spell, item, power, level, config fields) and the
-  `Custom(..)` and `Special` effects of `content/spells.ron` (99; all are spells of the original).
+  `Custom(..)` and `Special` effects of `crates/f4x-def/content/spells.ron` (99; all are spells of the original).
 - A claim "the original has no such thing" was checked in ReMoM (`~/projects/ReMoM/MoM/src`) by a search
   for the original's own name of the thing; where the search found nothing but I did not read the whole
   code around it, the row says so.
@@ -54,7 +54,7 @@ history screens (`wizard/astrology.rs`, `Record_History`), the wizards' personal
 ## Left for the next pass
 
 - The `Effect` variants of `rules/effects.rs` against what the 214 spells, the abilities and the buildings
-  actually use: a variant no row of `content/` names is dead code (`scripts/untested_content.py` does not
+  actually use: a variant no row of `crates/f4x-def/content/` names is dead code (`scripts/untested_content.py` does not
   list effects).
 - `UnitDef.requires`, `BuildingDef.shape` and `coastal`, `ItemDef.flag` and `charges`, `RulesConfig.racial_unrest`:
   the shape of the field was read, the original's counterpart was not.

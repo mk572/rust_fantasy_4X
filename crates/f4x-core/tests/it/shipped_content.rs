@@ -7,11 +7,11 @@ use f4x_def::content::Content;
 use f4x_def::feature::FeatureKind;
 use f4x_def::load::*;
 use f4x_def::testdir::TestResult;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// The game's own `content/` folder.
 fn content_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content")
+    f4x_def::testdir::shipped_dir()
 }
 
 /// The game's own `content/` folder, loaded.

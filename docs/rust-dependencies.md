@@ -60,7 +60,7 @@ program, see `docs/installer-design.md`.)
 | of which `MUSIC.LBX` (116 songs as XMI, MIDI-like notes) | 0.6 MB | |
 | of which `SOUNDFX.LBX` | 2.8 MB | |
 | Our client binary | 12.7 MB | code, plus about 2.7 MB of font atlases and 0.24 MB of river pictures compiled in. Code per crate: not measured yet, task 470 (`cargo-bloat` is installed) |
-| `content/` | 0.8 MB | rules and text, committed |
+| `crates/f4x-def/content/` | 0.8 MB | rules and text, committed |
 | `assets-local/audio/music` | 135.7 MB | **116 songs rendered to OGG** (the 0.6 MB of XMI beside them are the sources) |
 | `assets-local/audio/soundfx` and others | 2 MB | |
 | `assets-local/screens` | 37.8 MB | 6,056 PNG files (shown as 53 MB by `du`) |

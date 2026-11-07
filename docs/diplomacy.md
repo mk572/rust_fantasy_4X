@@ -392,7 +392,7 @@ proposal lapses as refused.
 **9.5 Messages.** The original's dialogue (`DIPLOMSG.LBX`) is original text; load it from
 `content-local` only. The open-source game needs its own default lines per message kind
 (greeting by personality, accept, refuse, counter, threat, war, peace offer, tribute thanks,
-get-off-my-lawn warning, breaking a treaty) in `content/`.
+get-off-my-lawn warning, breaking a treaty) in `crates/f4x-def/content/`.
 
 ## 10. Original quirks and how this game treats them
 

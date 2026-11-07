@@ -72,7 +72,7 @@ fn fight(game: &mut Game, tally: &mut Tally) {
 
 fn main() {
     let mut seeds = 12u64;
-    let mut dir = String::from("content");
+    let mut dir = String::from(f4x_def::SHIPPED_CONTENT);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -90,7 +90,7 @@ fn main() {
     }
     let content = f4x_def::load::load_content_layers(&[
         std::path::Path::new(&dir),
-        std::path::Path::new("content"),
+        std::path::Path::new(f4x_def::SHIPPED_CONTENT),
     ])
     .expect("content loads");
     let classes = [

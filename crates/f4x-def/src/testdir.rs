@@ -10,13 +10,19 @@ use std::sync::atomic::{AtomicU32, Ordering};
 /// What a test returns when it uses `?` instead of `unwrap`: the error is the failure message.
 pub type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-/// The game's own `content/` folder, loaded by the real loader (checks, names and messages
+/// The game's own content folder (`crates/f4x-def/content`), for a test that loads it in layers or
+/// reads a file of it.
+pub fn shipped_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("content")
+}
+
+/// The game's own content folder, loaded by the real loader (checks, names and messages
 /// included), once per test process. Every test in the workspace gets its content here; a test
 /// that needs its own copy (a `Game` owns its content) clones it.
 pub fn shipped() -> &'static crate::content::Content {
     static SHIPPED: std::sync::OnceLock<crate::content::Content> = std::sync::OnceLock::new();
     SHIPPED.get_or_init(|| {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../content");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("content");
         crate::load::load_content(&dir).expect("the shipped content loads")
     })
 }

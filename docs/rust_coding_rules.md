@@ -36,7 +36,7 @@ For example, unit stats and abilities, buildings, spells, terrain etc. are all p
 The rules engine is split over two crates:
 
 - **f4x-def** holds the types of the rules (`UnitDef`, `SpellDef`, `Effect`, `Stat`, the registries,
-  the terrain and feature definitions, `Content`) and loads the files in `content/` (`.ron`),
+  the terrain and feature definitions, `Content`) and loads the files in `crates/f4x-def/content/` (`.ron`),
   validates them and builds the types from them (`f4x_def::load::load_content`). Core still
   offers `rules`, `map` and `feature` paths for the parts it shares with them.
 - **f4x-core, `rules/exec.rs`** applies the effects.
@@ -100,7 +100,7 @@ change that finds it. `docs/test-review-log.md` lists the files checked.
 ### Test on the actual game data and rules
 
 **Always test on the shipped game data and the real rules, never on fixtures.** A test loads the content
-the game ships with (`f4x_def::load::load_content`, the `content/` folder) and runs the real engine, so that
+the game ships with (`f4x_def::load::load_content`, the `crates/f4x-def/content/` folder) and runs the real engine, so that
 it behaves as close to actual gameplay as possible. Hand-built content, a second copy of a rule in the
 test environment, or an empty `Content::default()` lets the test drift from the game and pass for the
 wrong reason.
@@ -121,7 +121,7 @@ wrong reason.
   `ecs-structure.md` section 3.3). A situation the game cannot create belongs in a test only to check
   error handling (a rejected command, a refused save).
 - Look units, spells, buildings and races up by name in the shipped content; do not invent stats.
-  Terrains and map features are called by their number (`num` in `content/`), as a save does, through
+  Terrains and map features are called by their number (`num` in `crates/f4x-def/content/`), as a save does, through
   the constants in `game::testutil::num` (`num::terrain::GRASSLAND`, `num::feature::TOWER`). The
   number is the single source of truth; the constant's name is only a note for the reader (the
   display name may change or be translated), and no test checks it against the content. Do not pick a spell, unit or other row by its position in the
@@ -132,7 +132,7 @@ wrong reason.
 - A test whose subject needs content (spells, units) must fail when the content is missing. An empty
   registry that makes the test skip its assertions is a bug.
 - A unit test inside `f4x-core/src/` calls `game::testutil::shipped()`, which is
-  `f4x_def::load::load_content` on the `content/` folder (the same loader and checks as the game),
+  `f4x_def::load::load_content` on the `crates/f4x-def/content/` folder (the same loader and checks as the game),
   run once per test process. The integration tests in `f4x-core/tests/it/` use
   `f4x_def::load::load_content` itself (`tests/it/world.rs`).
   Do not hand-build units, spells, buildings or terrains in either.
@@ -226,7 +226,7 @@ UI testing requires the client.
 Click-flow tests (no window, no screenshot) are unit tests in the client crate. The seams:
 `App::for_test()` (`test_app.rs`: the shipped content and a new game, no art), `Input::key(..)` and
 `Input::click(..)` build one frame by hand, `frame::window_size()` gives tests a fixed window, and
-`App::modals` shows which prompts are open. `test_app::shipped` holds the parsed `content/` (content, texts,
+`App::modals` shows which prompts are open. `test_app::shipped` holds the parsed `crates/f4x-def/content/` (content, texts,
 settings, spell art) once per test run; a test does not call `f4x_def::load::load_*` itself. Anything that draws needs a window, so put the part that
 decides (what a key answers, whether a notice closes, which events open a prompt) in a function
 that takes `&Input` and returns the new state (`resign_answer`, `Input::dismisses`), draw after it,

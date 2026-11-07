@@ -2,7 +2,7 @@
 
 Nothing protected by IP may be committed or shared (the repo is CC0): the original's art, music
 and sound, help text and other prose, and code. The game's rules data (names, costs, stats,
-effects and numbers) is not in that class and is committed in `content/`. The two outputs below
+effects and numbers) is not in that class and is committed in `crates/f4x-def/content/`. The two outputs below
 are the local-only ones; both are gitignored and the game runs without them (flat colours, and the help of `crates/f4x-client/content/text/en/help/help.ron` only).
 
 ## Where the originals live
@@ -46,14 +46,14 @@ The client plays them (`crates/f4x-client/src/audio.rs`, macroquad's audio): `--
 plays nothing, `--hear soundfx:2` plays one sound and quits (a check that a file decodes). Without the folder the
 game is silent. Which entry a spell or unit plays is `crates/f4x-client/content/sound.ron` (`scripts/sound_table.py`).
 
-## Rules data: `content/` (committed)
+## Rules data: `crates/f4x-def/content/` (committed)
 
 ```
 python3 -I scripts/import_mom.py [--game DIR] [--remom DIR]
 cargo run -p f4x-tools -- validate content
 ```
 
-Writes the game's rules to `content/`: races, units, buildings, abilities,
+Writes the game's rules to `crates/f4x-def/content/`: races, units, buildings, abilities,
 spells, items, realms, level paths and `rules.ron`, from the original `.lbx` files and the
 unit/race tables of a local ReMoM clone. These are names and numbers, not IP-protected prose,
 so they are committed (`terrain.ron` and `features.ron` there are hand-written). Rerun the
@@ -65,23 +65,23 @@ upkeep values are estimated (see the report).
 ## Help text: `content-local/` (gitignored)
 
 The city names are IP too: `crates/f4x-client/content/text/en/name/city.ron` holds invented names in each race's style (20 a race, by the race's number), and the same run writes the original's to `content-local/text/en/name/city.ron`, which replaces that table when present. The run also writes the original help (`help.ron`: 807 topics; `help_screens.ron`: which screen
-areas open which topic), (the preset wizards' descriptions are no longer imported: they are our own help topics, named by `help` in `wizards.ron`; the random events' messages in `event_texts.ron`, from `EVENTMSG.LBX`; the building descriptions of `BUILDESC.LBX` in `building_texts.ron`, which the game does not show (it has its own in `content/text/en/building.ron`); the wizards' lines of `DIPLOMSG.LBX` in `diplomsg.ron`, which the client uses when present (`diplomacy_text.rs`) and falls back to its own otherwise but the importer compares with our building effects, each difference a `[check]` line in the report; their books and retorts are in the committed `content/wizards.ron`) and
+areas open which topic), (the preset wizards' descriptions are no longer imported: they are our own help topics, named by `help` in `wizards.ron`; the random events' messages in `event_texts.ron`, from `EVENTMSG.LBX`; the building descriptions of `BUILDESC.LBX` in `building_texts.ron`, which the game does not show (it has its own in `content/text/en/building.ron`); the wizards' lines of `DIPLOMSG.LBX` in `diplomsg.ron`, which the client uses when present (`diplomacy_text.rs`) and falls back to its own otherwise but the importer compares with our building effects, each difference a `[check]` line in the report; their books and retorts are in the committed `crates/f4x-def/content/wizards.ron`) and
 `IMPORT_REPORT.txt` (everything it could not map) to `content-local/`. Old runs also wrote the
 rules files there; the importer now removes those stale copies.
 
-The client and `f4x-tools` read `content-local/` first and `content/` for every file it lacks
+The client and `f4x-tools` read `content-local/` first and `crates/f4x-def/content/` for every file it lacks
 (`f4x_def::load::load_content_layers`), so the game runs without any local files, only without help
 or preset wizards. The importer also cross-checks costs, upkeep and race build bans against the
 help text (`[check]` lines in the report). What the help describes that is not implemented yet
 is in `docs/archive/mechanics-gaps.md`.
 
-The data loader's tests read `content/` alone (never `content-local/`); there is no separate
+The data loader's tests read `crates/f4x-def/content/` alone (never `content-local/`); there is no separate
 test rule set, so a test cannot pass on data the game no longer has.
 
 ## Local Mac app
 
 `scripts/make_app.sh [--open]` builds `target/Fantasy4X.app`: the release client plus copies of
-`content/`, `content-local/` and `assets-local/art` and `screens`. A launcher script links them into
+`crates/f4x-def/content/`, `content-local/` and `assets-local/art` and `screens`. A launcher script links them into
 `~/Library/Application Support/Fantasy4X/` and runs the game from there, so saves land in
 `~/Library/Application Support/Fantasy4X/saves/`. It contains the local-only original art and
 text: for play on this machine, not for sharing. No icon, signing or universal binary yet (task 81).

@@ -429,7 +429,7 @@ fn a_channeler_pays_half_the_spell_maintenance() -> TestResult {
     Ok(())
 }
 
-/// The numbers of three lasting spells that cost 10 mana a turn (`content/spells.ron`).
+/// The numbers of three lasting spells that cost 10 mana a turn (`crates/f4x-def/content/spells.ron`).
 const LIFE_FORCE: u16 = 156;
 const TRANQUILITY: u16 = 157;
 const CRUSADE: u16 = 158;

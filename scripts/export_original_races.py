@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Write the original's race table (ReMoM `_race_type_table`, 14 rows) as a TSV the tests read.
 
-One row per race in the original's order (the order of `content/races.ron`): name, the buildings the
+One row per race in the original's order (the order of `crates/f4x-def/content/races.ron`): name, the buildings the
 race cannot build (record numbers of `BUILDDAT.LBX`, space separated), the outpost growth rate,
 the growth modifier (tens of percent) and the house type. `crates/f4x-def/src/original/tests.rs` (and `f4x-core`: `spell/original_content.rs`, `wizard/original_content.rs`)
 compares every race of the content with it. Needs the ReMoM clone; the output is numbers, so it is committed.

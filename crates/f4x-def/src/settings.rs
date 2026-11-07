@@ -3,7 +3,7 @@
 //! (`docs/game-settings.md`).
 //!
 //! The figures of the difficulty levels and the defaults of the settings screens are
-//! data, `content/rules_settings.ron` ([`SettingsDef`]); only the default game (the Average level, read from that file) and the
+//! data, `crates/f4x-def/content/rules_settings.ron` ([`SettingsDef`]); only the default game (the Average level, read from that file) and the
 //! fallback [`BasicSettings::default`] for content without that file are in the code.
 
 use serde::{Deserialize, Serialize};
@@ -375,7 +375,7 @@ pub struct GameSettings {
     pub scoring: ScoreSettings,
 }
 
-/// One difficulty level of `content/rules_settings.ron`: what choosing it fills in.
+/// One difficulty level of `crates/f4x-def/content/rules_settings.ron`: what choosing it fills in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LevelDef {
     pub wizards: WizardSettings,
@@ -441,7 +441,7 @@ impl Default for HalfUpkeep {
     }
 }
 
-/// `content/rules_settings.ron`: the difficulty levels, the defaults of the new-game choices, the
+/// `crates/f4x-def/content/rules_settings.ron`: the difficulty levels, the defaults of the new-game choices, the
 /// map and land sizes and the spell library. A file without it (the test content) leaves `levels`
 /// empty, and a game then plays the default game.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -956,16 +956,15 @@ impl GameSettings {
 #[cfg(test)]
 mod tests;
 
-/// The game as the shipped rules play it: the Average level of `content/rules_settings.ron`
+/// The game as the shipped rules play it: the Average level of `crates/f4x-def/content/rules_settings.ron`
 /// (read at build time, so there is one set of figures). A game made for play picks its level in
 /// `game::setup::new_game`; a bare `Game::new` and a `NewGame::default()` start from this.
 impl Default for GameSettings {
     fn default() -> Self {
         static AVERAGE: std::sync::OnceLock<GameSettings> = std::sync::OnceLock::new();
         *AVERAGE.get_or_init(|| {
-            let def: SettingsDef =
-                ron::from_str(include_str!("../../../content/rules_settings.ron"))
-                    .expect("content/rules_settings.ron parses");
+            let def: SettingsDef = ron::from_str(include_str!("../content/rules_settings.ron"))
+                .expect("crates/f4x-def/content/rules_settings.ron parses");
             GameSettings::for_difficulty(&def, 2)
         })
     }

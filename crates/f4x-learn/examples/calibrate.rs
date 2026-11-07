@@ -11,7 +11,8 @@ fn main() {
         .nth(1)
         .and_then(|s| s.parse().ok())
         .unwrap_or(300);
-    let content = f4x_def::load::load_content_layers(&[Path::new("content")]).expect("content/");
+    let content = f4x_def::load::load_content_layers(&[Path::new(f4x_def::SHIPPED_CONTENT)])
+        .expect("content/");
     let mut rows: Vec<(String, bool, usize, usize, bool, bool)> = Vec::new();
     for seed in 0..n {
         let s = generate(&content, seed);

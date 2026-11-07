@@ -831,7 +831,7 @@ mod tests {
 
     fn features() -> Features {
         let src = std::fs::read_to_string(content_dir().join("features.ron"))
-            .expect("content/features.ron exists");
+            .expect("crates/f4x-def/content/features.ron exists");
         crate::load::parse_features(&src).expect("the shipped features parse")
     }
 

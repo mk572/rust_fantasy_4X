@@ -268,7 +268,7 @@ The map keeps the per-tile layers: terrain, roads, rivers, lakes, corruption. Ev
 that has identity and state is an entity.
 
 - **Only active features are entities**: those something happens on when a unit enters the square
-  (a fight, treasure, a claim). Kinds (`FeatureKind` in `content/features.ron`): encounter sites,
+  (a fight, treasure, a claim). Kinds (`FeatureKind` in `crates/f4x-def/content/features.ron`): encounter sites,
   towers, nodes; and volcanoes, made and cooled by spells. **Minerals are passive and stay a map
   layer** (a feature id per square in `Grid`), like roads and corruption: they have no state and
   no entity. A spell that adds or removes one (Transmute, Change Terrain) edits the layer.

@@ -32,7 +32,8 @@ mod tests {
     use std::path::Path;
 
     fn content() -> f4x_def::content::Content {
-        f4x_def::load::load_content_layers(&[Path::new("../../content")]).expect("content/ loads")
+        f4x_def::load::load_content_layers(&[Path::new("../f4x-def/content")])
+            .expect("content/ loads")
     }
 
     /// Play a scenario to the end with random commands for both sides.
@@ -344,7 +345,8 @@ mod agent_tests {
 
     #[test]
     fn a_random_agent_playing_by_the_masks_is_never_refused() {
-        let content = f4x_def::load::load_content_layers(&[Path::new("../../content")]).unwrap();
+        let content =
+            f4x_def::load::load_content_layers(&[Path::new("../f4x-def/content")]).unwrap();
         let spec = ObsSpec::new(&content);
         let brief = Brief {
             may_flee: true,
@@ -406,7 +408,8 @@ mod brain_tests {
     /// the game through the core's hook and every command it gives is accepted.
     #[test]
     fn a_checkpoint_plays_battles_through_the_core_hook() {
-        let content = f4x_def::load::load_content_layers(&[Path::new("../../content")]).unwrap();
+        let content =
+            f4x_def::load::load_content_layers(&[Path::new("../f4x-def/content")]).unwrap();
         let spec = obs::ObsSpec::new(&content);
         let dir = f4x_def::testdir::TestDir::new("learn-test");
         let file = dir.join("net");
@@ -439,7 +442,8 @@ mod brain_tests {
     /// what it reads is refused with a reason, not a panic.
     #[test]
     fn a_checkpoint_for_other_rules_is_refused_with_a_reason() {
-        let content = f4x_def::load::load_content_layers(&[Path::new("../../content")]).unwrap();
+        let content =
+            f4x_def::load::load_content_layers(&[Path::new("../f4x-def/content")]).unwrap();
         let spec = obs::ObsSpec::new(&content);
         let dir = f4x_def::testdir::TestDir::new("learn-shape");
         let file = dir.join("net");

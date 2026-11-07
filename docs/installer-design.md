@@ -112,7 +112,7 @@ design does to keep it as clean as it can be:
   `event_texts.ron`; the loaders are in `f4x-def/src/load`), and all three come from
   the original's LBX files alone:
   - `CITYNAME.LBX` gives the names per race in race-table order. The script takes the race list from
-    ReMoM's `RACETYPE.c`; the Rust import takes it from the committed `content/races.ron`, whose `num`
+    ReMoM's `RACETYPE.c`; the Rust import takes it from the committed `crates/f4x-def/content/races.ron`, whose `num`
     is the same race number.
   - `DIPLOMSG.LBX` and `EVENTMSG.LBX` are read by the script without ReMoM.
   - The help screens (`crates/f4x-client/content/help_screens.ron`) are committed and edited by hand;
@@ -134,7 +134,7 @@ design does to keep it as clean as it can be:
 links the data folder and starts the game from there. That does not carry over to Windows and Linux.
 Needed: a **data folder per user**, found by the program itself:
 
-| OS | Data folder (saves, imported art and text, rendered music) | Read-only game files (`content/`, the binary) |
+| OS | Data folder (saves, imported art and text, rendered music) | Read-only game files (`crates/f4x-def/content/`, the binary) |
 |---|---|---|
 | macOS | `~/Library/Application Support/Fantasy4X/` | inside the `.app` |
 | Windows | `%APPDATA%\Fantasy4X\` (or `%LOCALAPPDATA%`) | next to the `.exe` |
@@ -268,7 +268,7 @@ Ordered so that each step is useful on its own. These are proposals, not tasks y
 2. **Data folder** (3.5): the client and `f4x-tools` find the per-user folder, with `--data` and the
    current relative paths as the fallback. No change to tests.
 3. **The three local text files in Rust** (`text/en/name/city.ron`, `diplomsg`, `event_texts`; 3.4), reading the
-   original's LBX and the committed `content/races.ron`, with no Python and no ReMoM. The script stays
+   original's LBX and the committed `crates/f4x-def/content/races.ron`, with no Python and no ReMoM. The script stays
    for development; a test on the author's copy (not in CI) compares the two outputs byte for byte.
 4. **Audio encoding without `oggenc`** (3.4), by spike.
 5. **`f4x-import` library**, then **`f4x-setup`** (6.2), with tests that run the unattended path on a
@@ -291,7 +291,7 @@ When the author accepts the design, tasks 81 and 176 are replaced by this list. 
 | 1 | Players compile (A) or download a prebuilt game (B)? | B. A stays as the developer path and for platforms without a prebuilt |
 | 2 | Is the ROM download from archive.org acceptable, and which item? | The author decides and supplies the URL and the two SHA-256 values; the dialog and the "I have them" path are in the design either way |
 | 3 | Which versions of the original are supported? | Steam first (verified); GOG when the author has checked the file names and hashes |
-| 4 | The ReMoM inputs of the importer (3.4) | Decided by the user, 2 November 2026: `import_mom.py` is for development only. The player path needs neither Python nor ReMoM; the Rust import uses the committed `content/races.ron` |
+| 4 | The ReMoM inputs of the importer (3.4) | Decided by the user, 2 November 2026: `import_mom.py` is for development only. The player path needs neither Python nor ReMoM; the Rust import uses the committed `crates/f4x-def/content/races.ron` |
 | 5 | Sound encoder (3.4)? | A Rust binding with libvorbis compiled in, after the spike; `oggenc` shipped beside it as fallback |
 | 6 | Keep the embedded river pictures for a public release (3.1)? | Move them to the local extraction, so the binary is clean |
 | 7 | Sign and notarise the macOS app? Windows certificate? | Not at first; document the warnings. Decide when the first public release is near |

@@ -567,8 +567,8 @@ fn main() -> Result<(), String> {
     }
     let entries_file = entries_file.ok_or("--entries FILE is required")?;
     std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
-    let content =
-        f4x_def::load::load_content_layers(&[Path::new("content")]).map_err(|e| e.to_string())?;
+    let content = f4x_def::load::load_content_layers(&[Path::new(f4x_def::SHIPPED_CONTENT)])
+        .map_err(|e| e.to_string())?;
     let spec = ObsSpec::new(&content);
     let device = Device::flex();
     let entries = load_entries(&entries_file, &spec, &device)?;
