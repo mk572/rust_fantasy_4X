@@ -69,8 +69,8 @@ The client's summon scene matches 208 and 212 by number.
 Proposed hook or primitive: **raise (args to decide)**
 
 - [ ] 133 `resurrection`
-- [ ] 137 `raise_dead`
-- [ ] 195 `animate_dead`
+- [x] 137 `raise_dead`
+- [x] 195 `animate_dead`
 
 Proposed hook or primitive: **summon_hero / summon_champion / incarnation (to decide: one tag with args or three)**
 
@@ -94,7 +94,7 @@ Proposed hook or primitive: **spell_blast**
 
 Proposed hook or primitive: **counter_magic**
 
-- [ ] 48 `counter_magic`
+- [x] 48 `counter_magic`
 
 ## F. Map tiles
 
@@ -141,17 +141,19 @@ Proposed hook or primitive: **unit_change (args to decide)**
 
 ## I. Battle field effects
 
+Partly done 7 November 2026: the instant battle spells became one hook, `Custom(name: "battle_effect", args: [...])`, with `BattleEffect` in `battle/spell.rs` (counter_magic, call_chaos, animate, raise, warp_wood, earth_to_mud, cracks_call, vortex, disrupt, life_drain); not `battlefield`, which is for lasting enchantments. Left for their groups because overland code also matches their number: wall_of_stone, recall, chaos_channels, warp_creature. Earthquake and call_the_void are overland. `f4x-learn` `NOT_TRAINED` matches `Effect::Special` and its test `wizards_of_one_or_two_realms_fit_the_spell_slots` fails until the harness is reworked (user: skip for now).
+
 Joins the 14 spells that already use `battlefield`.
 
 Proposed hook or primitive: **battlefield**. Task 486's follow-up already gave the 14 existing spells an argument (`Custom(name: "battlefield", args: ["true_light"])`, the names in `Field::NAMES`); a new field effect adds a `Field` variant and its name.
 
-- [ ] 1 `earth_to_mud`
-- [ ] 11 `cracks_call`
-- [ ] 81 `warp_wood`
-- [ ] 82 `disrupt`
-- [ ] 115 `call_chaos`
-- [ ] 105 `magic_vortex`
-- [ ] 167 `life_drain`
+- [x] 1 `earth_to_mud`
+- [x] 11 `cracks_call`
+- [x] 81 `warp_wood`
+- [x] 82 `disrupt`
+- [x] 115 `call_chaos`
+- [x] 105 `magic_vortex`
+- [x] 167 `life_drain`
 - [ ] 26 `earthquake`
 - [ ] 119 `call_the_void`
 

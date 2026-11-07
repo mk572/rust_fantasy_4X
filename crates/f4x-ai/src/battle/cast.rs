@@ -18,6 +18,7 @@
 use super::order::{self as ai, worth};
 use f4x_core::battle::casting::SpellAim;
 use f4x_core::battle::map::{self, Pos};
+use f4x_core::battle::spell::BattleEffect;
 use f4x_core::battle::{Battle, BattleCommand, BattleUnit, Side};
 use f4x_core::game::Game;
 use f4x_core::rules::effects::{Effect, EffectRule, TargetSel};
@@ -157,16 +158,17 @@ fn cast_value(
         _ => None,
     };
     let mut total = 0.0;
+    let own = BattleEffect::of(def);
     for rule in &def.effects {
         total += match &rule.effect {
-            Effect::Special if def.num == 115 /* call_chaos */ => enemies
+            Effect::Custom { .. } if own == Some(BattleEffect::CallChaos) => enemies
                 .iter()
                 .map(|u| {
                     (CHAOS_DAMAGE.min(u.hit_points().max(1) as f32) / u.hit_points().max(1) as f32)
                         * worth(u)
                 })
                 .sum(),
-            Effect::Special if def.num == 105 /* magic_vortex */ => match aim {
+            Effect::Custom { .. } if own == Some(BattleEffect::Vortex) => match aim {
                 SpellAim::Tile(cell) => vortex_reach_value(cell, friends, enemies),
                 _ => 0.0,
             },

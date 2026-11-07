@@ -178,6 +178,47 @@ pub struct LegalCast {
     pub most_mana: u32,
 }
 
+/// The hook of the battle spells that act in a way of their own.
+pub const BATTLE_EFFECT: &str = "battle_effect";
+
+crate::hook::effect_enum! {
+    /// What a spell with the `battle_effect` hook does in a battle: the argument of the hook
+    /// (`Custom(name: "battle_effect", args: ["earth_to_mud"])`).
+    pub enum BattleEffect in BATTLE_EFFECT;
+    CounterMagic = "counter_magic",
+    CallChaos = "call_chaos",
+    Animate = "animate",
+    Raise = "raise",
+    WarpWood = "warp_wood",
+    EarthToMud = "earth_to_mud",
+    CracksCall = "cracks_call",
+    Vortex = "vortex",
+    Disrupt = "disrupt",
+    LifeDrain = "life_drain",
+}
+
+impl BattleEffect {
+    /// The effect a spell's definition gives, if it has the hook.
+    pub fn of(def: &SpellDef) -> Option<BattleEffect> {
+        BattleEffect::named(def.hook_args(BATTLE_EFFECT)?.first()?)
+    }
+
+    fn kind(self) -> Kind {
+        match self {
+            BattleEffect::CounterMagic => Kind::CounterMagic,
+            BattleEffect::CallChaos => Kind::CallChaos,
+            BattleEffect::Animate => Kind::Animate,
+            BattleEffect::Raise => Kind::Raise,
+            BattleEffect::WarpWood => Kind::WarpWood,
+            BattleEffect::EarthToMud => Kind::EarthToMud,
+            BattleEffect::CracksCall => Kind::CracksCall,
+            BattleEffect::Vortex => Kind::Vortex,
+            BattleEffect::Disrupt => Kind::Disrupt,
+            BattleEffect::LifeDrain => Kind::LifeDrain,
+        }
+    }
+}
+
 /// Creatures a spell may only be thrown at, by realm: Star Fires burns chaos and death
 /// creatures and nothing else.
 fn only_against(spell: SpellId) -> Option<&'static [Realm]> {
@@ -302,6 +343,9 @@ impl Game {
                 all: all_enemies,
             }),
             Effect::Custom { name, .. } if name == BATTLEFIELD => Field::of(def).map(Kind::Field),
+            Effect::Custom { name, .. } if name == BATTLE_EFFECT => {
+                BattleEffect::of(def).map(BattleEffect::kind)
+            }
             Effect::Custom { name, args } if name == crate::hook::WALL => {
                 match args.first().map(String::as_str) {
                     Some("fire") => Some(Kind::CityWall(CityWall::Fire)),
@@ -310,19 +354,9 @@ impl Game {
                 }
             }
             Effect::Special => match spell.num() {
-                48 /* counter_magic */ => Some(Kind::CounterMagic),
-                115 /* call_chaos */ => Some(Kind::CallChaos),
-                195 /* animate_dead */ => Some(Kind::Animate),
-                137 /* raise_dead */ => Some(Kind::Raise),
-                81 /* warp_wood */ => Some(Kind::WarpWood),
                 205 /* recall_hero */ => Some(Kind::Recall { anyone: false }),
                 47 /* word_of_recall */ => Some(Kind::Recall { anyone: true }),
-                1 /* earth_to_mud */ => Some(Kind::EarthToMud),
-                11 /* cracks_call */ => Some(Kind::CracksCall),
-                105 /* magic_vortex */ => Some(Kind::Vortex),
-                82 /* disrupt */ => Some(Kind::Disrupt),
                 3 /* wall_of_stone */ => Some(Kind::CityWall(CityWall::Stone)),
-                167 /* life_drain */ => Some(Kind::LifeDrain),
                 93 /* chaos_channels */ => Some(Kind::Channel),
                 89 /* warp_creature */ => Some(Kind::Warp {
                     save: def.save.clone(),

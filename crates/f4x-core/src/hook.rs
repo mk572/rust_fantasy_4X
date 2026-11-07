@@ -100,6 +100,11 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
         args: &crate::spell::global_enchantment::GlobalEffect::NAMES,
         several: true,
     },
+    Hook {
+        name: crate::battle::spell::BATTLE_EFFECT,
+        args: &crate::battle::spell::BattleEffect::NAMES,
+        several: false,
+    },
     plain(crate::battle::field::DISINTEGRATE),
     Hook {
         name: WALL,
@@ -111,15 +116,12 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
 /// The spells that have code of their own in Rust (`Effect::Special`), by number: the
 /// number is the only link between the spell and its code. A `Special` effect on a spell
 /// not in this list fails [`problems`].
-pub const SPECIAL_SPELLS: [u16; 42] = [
-    1,   // earth_to_mud
+pub const SPECIAL_SPELLS: [u16; 32] = [
     3,   // wall_of_stone
-    11,  // cracks_call
     19,  // natures_cures
     26,  // earthquake
     28,  // move_fortress
     47,  // word_of_recall
-    48,  // counter_magic
     58,  // spell_blast
     61,  // disjunction_true
     68,  // stasis
@@ -127,25 +129,18 @@ pub const SPECIAL_SPELLS: [u16; 42] = [
     73,  // creature_binding
     75,  // great_unsummoning
     76,  // spell_binding
-    81,  // warp_wood
-    82,  // disrupt
     89,  // warp_creature
     93,  // chaos_channels
-    105, // magic_vortex
-    115, // call_chaos
     119, // call_the_void
     132, // plane_shift
     133, // resurrection
-    137, // raise_dead
     142, // incarnation
-    167, // life_drain
     171, // drain_power
     172, // possession
     173, // lycanthropy
     177, // subversion
     187, // black_wind
     191, // cruel_unminding
-    195, // animate_dead
     199, // death_wish
     203, // summoning_circle
     205, // recall_hero
@@ -289,6 +284,17 @@ mod tests {
             assert!(
                 c.rules.spells.defs().iter().any(|d| e.is_in(d)),
                 "no spell gives the terrain effect {name}"
+            );
+        }
+        for name in crate::battle::spell::BattleEffect::NAMES {
+            let e = crate::battle::spell::BattleEffect::named(name).expect("a listed name");
+            assert!(
+                c.rules
+                    .spells
+                    .defs()
+                    .iter()
+                    .any(|d| crate::battle::spell::BattleEffect::of(d) == Some(e)),
+                "no spell gives the battle effect {name}"
             );
         }
         for name in Field::NAMES {
