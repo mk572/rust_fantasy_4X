@@ -637,7 +637,7 @@ impl App {
             upkeep: Some([
                 units.unit_gold_upkeep(unit),
                 def.upkeep.mana as i32,
-                units.unit_food_upkeep(unit),
+                units.unit_food(unit).ceil(),
             ]),
             damage: None,
             melee: Row::stat(

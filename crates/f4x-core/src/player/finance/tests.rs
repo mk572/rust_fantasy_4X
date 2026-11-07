@@ -1,4 +1,5 @@
 use super::*;
+use f4x_def::half_int::HalfInt;
 
 fn ids(n: usize) -> Vec<hecs::Entity> {
     let mut world = hecs::World::new();
@@ -20,7 +21,7 @@ fn city(gold: i32, upkeep: i32, food: i32, figures: i32) -> CityYield {
     CityYield {
         gold,
         gold_upkeep: upkeep,
-        food,
+        food: HalfInt::from_int(food),
         figures,
     }
 }
@@ -36,8 +37,8 @@ fn the_treasury_adds_cities_and_sells_spare_food() {
     assert_eq!(t.city_gold, 16);
     assert_eq!(t.building_upkeep, 3);
     assert_eq!(t.noble_gold, 10);
-    assert_eq!(t.food_surplus, 8);
-    assert_eq!(t.food_upkeep, 2);
+    assert_eq!(t.food_surplus, HalfInt::from_int(8));
+    assert_eq!(t.food_upkeep, HalfInt::from_int(2));
     // 4 gold from 8 spare food, less half the army's food (1).
     assert_eq!(t.food_gold, 3);
     assert_eq!(t.unit_upkeep, 6, "7 gold of troops, 1 paid by fame");
@@ -56,8 +57,8 @@ fn an_army_that_eats_too_much_loses_its_newest_units_when_all_are_alike() {
     let e = ids(3);
     let troops = [troop(e[0], 1, 0), troop(e[1], 1, 0), troop(e[2], 1, 0)];
     let t = Budget {
-        food_surplus: 1,
-        food_upkeep: 3,
+        food_surplus: HalfInt::from_int(1),
+        food_upkeep: HalfInt::from_int(3),
         ..Budget::default()
     };
     let s = settle(&t, 0, 0, &troops);
@@ -95,7 +96,7 @@ fn units_that_cost_nothing_are_never_let_go() {
 }
 
 #[test]
-fn halves_of_food_are_added_before_they_are_rounded_up() {
+fn halves_of_food_are_added_exactly() {
     let e = ids(3);
     let half = |id| Troop {
         id,
@@ -110,7 +111,11 @@ fn halves_of_food_are_added_before_they_are_rounded_up() {
     let three = Budget::compute(&[], &[half(e[0]), half(e[1]), half(e[2])], 0);
     assert_eq!(
         (one.food_upkeep, two.food_upkeep, three.food_upkeep),
-        (1, 1, 2)
+        (
+            HalfInt::from_raw(1),
+            HalfInt::from_int(1),
+            HalfInt::from_raw(3)
+        )
     );
 }
 
@@ -145,4 +150,20 @@ fn heroes_and_loaded_ships_are_let_go_last() {
     // 10 gold does not cover 14: the highest upkeep that is not last (e[2], then e[1]) goes first.
     let s = settle(&t, 10, 0, &troops);
     assert_eq!(s.disbanded, vec![e[2], e[1]]);
+}
+
+#[test]
+fn a_half_food_in_a_city_or_an_army_is_kept() {
+    let e = ids(1);
+    let half = Troop {
+        food: HalfInt::from_raw(1),
+        ..troop(e[0], 0, 0)
+    };
+    // A city makes 4.5 food for 3 citizens: 1.5 spare; the army eats a half.
+    let mut city = city(0, 0, 0, 3);
+    city.food = HalfInt::from_raw(9);
+    let t = Budget::compute(&[city], &[half], 0);
+    assert_eq!(t.food_surplus, HalfInt::from_raw(3));
+    assert_eq!(t.food_upkeep, HalfInt::from_raw(1));
+    assert_eq!(t.food_surplus - t.food_upkeep, HalfInt::from_int(1));
 }

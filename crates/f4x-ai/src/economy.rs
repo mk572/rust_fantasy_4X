@@ -5,6 +5,7 @@ use f4x_core::city::production::ProductionItem;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
+use f4x_def::half_int::HalfInt;
 use f4x_def::rules::Ability;
 
 use crate::view::{garrison_wanted, is_fighter};
@@ -168,7 +169,7 @@ fn colonist_item(
         && !waiting
         && !broke
         && size >= 3
-        && spare_food(view) >= 0)
+        && spare_food(view) >= HalfInt::ZERO)
         .then(|| settler_item(view, city))
         .flatten()
 }
@@ -201,7 +202,7 @@ fn plan_for(
         .count();
     let gold = view.treasury().gold;
     let net = view.budget().net_gold() + (gold / 100).max(0);
-    let treasury_ok = net >= 1 && spare_food(view) >= 1;
+    let treasury_ok = net >= 1 && spare_food(view) >= HalfInt::from_int(1);
     let fighters = view
         .my_units()
         .into_iter()
@@ -250,7 +251,7 @@ fn plan_for(
     let settlers = expanding
         && size >= 3
         && !broke
-        && spare_food(view) >= 0
+        && spare_food(view) >= HalfInt::ZERO
         && settler_item(view, city).is_some();
     if settlers {
         *settlers_planned += 1;
@@ -267,7 +268,7 @@ fn plan_for(
 }
 
 /// Spare food after feeding the citizens and the army.
-fn spare_food(view: &PlayerView) -> i32 {
+fn spare_food(view: &PlayerView) -> HalfInt {
     let upkeep = view.food_of(&view.my_units());
     view.budget().food_surplus - upkeep
 }

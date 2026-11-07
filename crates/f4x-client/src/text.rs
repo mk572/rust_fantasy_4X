@@ -395,6 +395,9 @@ impl Texts {
     /// The message with the values put in. A key nobody wrote prints as the key.
     /// An amount counted in halves as text: `3`, `½` or `3½`.
     pub fn half_amount(&self, amount: f4x_def::half_int::HalfInt) -> String {
+        if amount < f4x_def::half_int::HalfInt::ZERO {
+            return format!("-{}", self.half_amount(-amount));
+        }
         let whole = amount.floor();
         match (amount.is_whole(), whole) {
             (true, _) => whole.to_string(),

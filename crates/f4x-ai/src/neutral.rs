@@ -562,7 +562,8 @@ fn production(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             let wanted = GARRISON_PER_FOUR * (economy.figures as usize / 4).max(1) + party;
             let treasury = view.budget();
-            let affordable = treasury.net_gold() >= 1 && treasury.food_surplus >= 1;
+            let affordable = treasury.net_gold() >= 1
+                && treasury.food_surplus >= f4x_def::half_int::HalfInt::from_int(1);
             let mix = if soldiers < wanted && affordable {
                 Mix::Units
             } else {

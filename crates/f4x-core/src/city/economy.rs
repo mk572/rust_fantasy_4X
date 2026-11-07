@@ -14,6 +14,7 @@
 use crate::rules::Ability;
 use crate::spell::city::CityEffect;
 use crate::spell::global_enchantment::GlobalEffect;
+use f4x_def::half_int::HalfInt;
 use std::collections::{HashSet, VecDeque};
 
 use hecs::World;
@@ -63,7 +64,7 @@ pub struct CityEconomy {
     pub rebels: u32,
     /// Largest population the surroundings and buildings feed.
     pub max_size: u32,
-    pub food: i32,
+    pub food: HalfInt,
     pub production: i32,
     pub gold: i32,
     pub gold_upkeep: i32,
@@ -495,7 +496,7 @@ impl<'a> Economy<'a> {
             return 0;
         };
         let grid = map.plane(at.plane);
-        let (mut food_x2, mut wild_food) = (0i32, 0i32);
+        let (mut food_x2, mut wild_food) = (0i32, HalfInt::ZERO);
         for (p, shared) in self.city_area(at) {
             let food = self.square_food(grid, p.x as i32, p.y as i32) * 2;
             food_x2 += if shared { food / 2 } else { food };
@@ -503,10 +504,15 @@ impl<'a> Economy<'a> {
                 .mineral(p.x as i32, p.y as i32)
                 .and_then(|f| self.content.features.get(f))
             {
-                wild_food += if shared { f.city.food / 2 } else { f.city.food };
+                wild_food += HalfInt::from_raw(if shared {
+                    f.city.food.raw() / 2
+                } else {
+                    f.city.food.raw()
+                });
             }
         }
-        ((food_x2 / 4 + wild_food).max(0) as u32).min(self.content.rules.config.max_city_size)
+        ((HalfInt::from_raw(food_x2 / 2) + wild_food).floor().max(0) as u32)
+            .min(self.content.rules.config.max_city_size)
     }
 
     /// Citizens needed on farms so the city feeds itself (all of them if it cannot).
@@ -515,7 +521,7 @@ impl<'a> Economy<'a> {
         (0..=figures)
             .find(|&f| {
                 self.city_economy_with(city, f)
-                    .is_some_and(|e| e.food >= figures as i32)
+                    .is_some_and(|e| e.food >= HalfInt::from_int(figures as i32))
             })
             .unwrap_or(figures)
     }
@@ -591,7 +597,8 @@ impl<'a> Economy<'a> {
         let gaia = self.city_has_effect(city, CityEffect::GaiasBlessing);
         let mut blighted = 0i32;
         let (mut terrain_food_x2, mut production_percent) = (0i32, 0i32);
-        let (mut wild_food, mut mine_gold, mut mine_mana, mut cost_reduction) = (0, 0, 0, 0);
+        let (mut mine_gold, mut mine_mana, mut cost_reduction) = (0, 0, 0);
+        let mut wild_food = HalfInt::ZERO;
         for &(p, shared) in &area {
             if grid
                 .get(p.x as i32, p.y as i32)
@@ -640,7 +647,11 @@ impl<'a> Economy<'a> {
                 };
                 mine_gold += scale(b.gold, (3, 2));
                 mine_mana += scale(b.mana, (3, 2));
-                wild_food += if shared { b.food / 2 } else { b.food };
+                wild_food += HalfInt::from_raw(if shared {
+                    b.food.raw() / 2
+                } else {
+                    b.food.raw()
+                });
                 let mut cut = b.unit_cost_percent * if miners { 2 } else { 1 };
                 if dwarf {
                     cut *= 2;
@@ -654,7 +665,9 @@ impl<'a> Economy<'a> {
         if self.city_has_effect(city, CityEffect::GaiasBlessing) {
             terrain_food_x2 = terrain_food_x2 * 3 / 2;
         }
-        let terrain_food = terrain_food_x2 / 4;
+        // The land's food in quarters of a food to start with (a tile's halves doubled), so a
+        // shared tile's half stays exact: 18 is 4.5 food.
+        let terrain_food = HalfInt::from_raw(terrain_food_x2 / 2);
 
         // Rebels.
         let tax_rate = crate::player::component::<crate::player::Tax>(self.world, owner)
@@ -732,21 +745,24 @@ impl<'a> Economy<'a> {
         // Food.
         let farmer_rate = i32::from(race.map_or(2, |r| r.farmer_food));
         let farmer_rate = compute(Stat::FarmerFood, farmer_rate, &mods);
-        let mut food = compute(Stat::CityFood, farmers as i32 * farmer_rate, &mods);
+        let mut food =
+            HalfInt::from_int(compute(Stat::CityFood, farmers as i32 * farmer_rate, &mods));
         if food > terrain_food {
-            food = terrain_food + (food - terrain_food) / 2;
+            food = terrain_food + HalfInt::from_raw((food - terrain_food).raw() / 2);
         }
         let flat = compute(Stat::CityFoodFlat, 0, &mods);
-        food += flat + wild_food;
+        food += HalfInt::from_int(flat) + wild_food;
         // The city feeds as many as its land, farm work and buildings allow.
         let famine = self.city_has_effect(city, CityEffect::Famine);
         let pre_cap_adds = compute(Stat::CityFood, 0, &mods);
         let mut max_size = terrain_food;
         if famine {
-            max_size /= 2;
+            max_size = HalfInt::from_raw(max_size.raw() / 2);
         }
-        let max_size = ((max_size + pre_cap_adds + flat + wild_food).max(0) as u32)
-            .min(rules.config.max_city_size);
+        let max_size = (max_size + HalfInt::from_int(pre_cap_adds + flat) + wild_food)
+            .floor()
+            .max(0) as u32;
+        let max_size = max_size.min(rules.config.max_city_size);
 
         // Production.
         let per_worker_x2 = i32::from(race.map_or(4, |r| r.worker_production_x2));
@@ -851,7 +867,7 @@ impl<'a> Economy<'a> {
             workers,
             rebels,
             max_size,
-            food: of(bonus.food, food),
+            food: HalfInt::from_raw(of(bonus.food, food.raw())),
             production: of(bonus.production, production),
             gold: of(bonus.gold, gold),
             gold_upkeep: of(bonus.maintenance, gold_upkeep),
@@ -948,7 +964,7 @@ impl Game {
 fn growth_rate(
     max_city_size: u32,
     figures: u32,
-    food: i32,
+    food: HalfInt,
     max_size: u32,
     mods: &[Modifier],
     housing_percent: i32,
@@ -959,8 +975,10 @@ fn growth_rate(
     if max_size == 0 {
         return -(figures as i32);
     }
-    if food < figures as i32 {
-        return (food - figures as i32) * 5;
+    let eaten = HalfInt::from_int(figures as i32);
+    if food < eaten {
+        // Five people (tens: 50) starve for each missing food.
+        return (food - eaten).raw() * 5 / 2;
     }
     if figures == max_size {
         return 0;
@@ -986,7 +1004,16 @@ mod growth_tests {
     }
 
     fn rate(figures: u32, food: i32, max_size: u32) -> i32 {
-        growth_rate(cap(), figures, food, max_size, &[], 0)
+        growth_rate(cap(), figures, HalfInt::from_int(food), max_size, &[], 0)
+    }
+
+    #[test]
+    fn a_missing_half_food_starves_half_as_fast_as_a_missing_food() {
+        // Tens of people (a tenth of a person each): 5 for each food short, so 2 for a half food short.
+        let rate = growth_rate(cap(), 4, HalfInt::from_raw(7), 10, &[], 0);
+        assert_eq!(rate, -2);
+        let none = growth_rate(cap(), 4, HalfInt::from_int(3), 10, &[], 0);
+        assert_eq!(none, -5);
     }
 
     #[test]
@@ -1063,7 +1090,10 @@ mod handle_tests {
         let fed = eco
             .city_economy_with(city, farmers)
             .ok_or("city_economy_with is missing")?;
-        assert!(fed.food >= 4, "the minimum farmers feed the city");
+        assert!(
+            fed.food >= HalfInt::from_int(4),
+            "the minimum farmers feed the city"
+        );
         assert_eq!(eco.city_owner(city), Some(PlayerId(0)));
         assert_eq!(eco.cities().len(), 1);
         assert!(eco.has_cities_on(Plane::Arcanus));
@@ -1121,9 +1151,9 @@ mod handle_tests {
         let after = Economy::new(&world, Some(&map), &content)
             .city_economy(city)
             .ok_or("city_economy is missing")?;
-        assert!(before.food > 0 && before.production > 0 && before.gold > 0);
+        assert!(before.food > HalfInt::ZERO && before.production > 0 && before.gold > 0);
         assert!(before.growth_tens > 0, "a growing city: {before:?}");
-        assert_eq!(after.food, before.food * 2);
+        assert_eq!(after.food, HalfInt::from_raw(before.food.raw() * 2));
         assert_eq!(after.production, before.production * 3 / 2);
         assert_eq!(after.gold, before.gold * 2);
         assert_eq!(after.research, before.research * 3 / 2);

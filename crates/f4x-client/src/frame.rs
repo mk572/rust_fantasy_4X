@@ -303,10 +303,11 @@ impl App {
     /// One income figure in the summary column (`Main_Screen_Draw_Summary_Window`): the number
     /// right-aligned at 273, the word at 278, in the outlined narrow font, colour set 4 (dark gold); a loss pulses
     /// red with the palette cycle.
-    fn income_text(&mut self, view: (f32, f32, f32), value: i32, label: &str, y: f32) {
-        let colour = (value < 0).then(|| crate::cycle::MAIN.colour(get_time()));
+    fn income_text(&mut self, view: (f32, f32, f32), number: String, label: &str, y: f32) {
+        let colour = number
+            .starts_with('-')
+            .then(|| crate::cycle::MAIN.colour(get_time()));
         let black = Color::new(0.0, 0.0, 0.0, 1.0);
-        let number = value.to_string();
         let (ox, oy, s) = view;
         for (text, x, align) in [
             (number.as_str(), 273.0, Align::Right),
@@ -342,9 +343,12 @@ impl App {
         let (px, py) = spot::PANELS;
         self.draw_pic(lay, "main", 34, 0, px, py);
         for (k, (value, label)) in [
-            (t.net_gold(), self.text("ui.gold")),
-            (t.food_surplus - t.food_upkeep, self.text("ui.food")),
-            (net_mana, self.text("ui.mana")),
+            (t.net_gold().to_string(), self.text("ui.gold")),
+            (
+                self.texts.half_amount(t.food_surplus - t.food_upkeep),
+                self.text("ui.food"),
+            ),
+            (net_mana.to_string(), self.text("ui.mana")),
         ]
         .into_iter()
         .enumerate()

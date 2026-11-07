@@ -141,7 +141,7 @@ fn a_grassland_city_can_grow_to_the_size_cap() -> TestResult {
         .ok_or("city_economy is missing")?;
     // 21 tiles x 3 half-food = 31 people fed, capped at 25.
     assert_eq!(eco.max_size, 25);
-    assert!(eco.food >= 3);
+    assert!(eco.food >= HalfInt::from_int(3));
     Ok(())
 }
 
@@ -156,7 +156,7 @@ fn farmers_and_workers_share_the_citizens() -> TestResult {
         .city_economy_with(city, 2)
         .ok_or("city_economy_with is missing")?;
     assert_eq!((eco.farmers, eco.workers, eco.rebels), (2, 2, 0));
-    assert_eq!(eco.food, 4);
+    assert_eq!(eco.food, HalfInt::from_int(4));
     // 2 workers x 2 production + 2 farmers x half, rounded: (2*4 + 2 + 1)/2 = 5
     assert_eq!(eco.production, 5);
     // Dwarves work harder (3 each) but farm 2 food; under a High Elf capital one of the four is a
@@ -326,10 +326,14 @@ fn the_animists_guild_adds_food_for_every_farmer() -> TestResult {
     };
     let (two, four) = (food(&g, 2), food(&g, 4));
     add_real_building(&mut g, city, 10 /* animists_guild */);
-    assert_eq!(food(&g, 2), two + 2, "one more for each of two farmers");
+    assert_eq!(
+        food(&g, 2),
+        two + HalfInt::from_int(2),
+        "one more for each of two farmers"
+    );
     assert_eq!(
         food(&g, 4),
-        four + 4,
+        four + HalfInt::from_int(4),
         "and for each of four, not a flat bonus"
     );
     Ok(())
@@ -580,12 +584,12 @@ fn every_unit_eats_what_its_row_in_the_unit_table_says() {
             .expect("a listed unit has an id");
         let unit = g.spawn_unit(P0, at(10, 6), def);
         assert_eq!(g.units().unit_food(unit), food, "{id}");
-        assert_eq!(g.units().unit_food_upkeep(unit), food.ceil(), "{id}");
+        assert_eq!(g.units().unit_food(unit), food, "{id}");
         eating += food;
     }
     assert!(eating > HalfInt::ZERO, "some unit eats");
     let all = g.units().player_units(P0);
-    assert_eq!(g.units().food_of(&all), eating.ceil());
+    assert_eq!(g.units().food_of(&all), eating);
 }
 
 #[test]
@@ -607,8 +611,8 @@ fn undead_units_are_not_healed_eat_nothing_and_are_death_creatures() -> TestResu
     let hurt = |u| g.world.get::<&Hurt>(u).expect("value succeeds").0;
     assert!(hurt(living) < 5, "the living heal");
     assert_eq!(hurt(raised), 5, "the undead do not");
-    assert_eq!(g.units().unit_food_upkeep(living), 1);
-    assert_eq!(g.units().unit_food_upkeep(raised), 0);
+    assert_eq!(g.units().unit_food(living), HalfInt::from_int(1));
+    assert_eq!(g.units().unit_food(raised), HalfInt::ZERO);
     assert_eq!(g.units().unit_gold_upkeep(raised), 0);
     assert_eq!(
         g.units().unit_realm(raised),
@@ -1308,7 +1312,7 @@ fn spare_food_is_sold_for_gold() -> TestResult {
         .economy()
         .city_economy(city)
         .ok_or("city_economy is missing")?;
-    assert_eq!(eco.food, 6);
+    assert_eq!(eco.food, HalfInt::from_int(6));
     let before = g.player(P0).ok_or("player is missing")?.treasury().gold;
     g.apply(Command::EndTurn);
     // 6 food - 4 citizens = 2 spare, sold at two for one: +1, plus 4 tax.
@@ -1519,7 +1523,7 @@ fn balancing_farmers_feeds_the_army() -> TestResult {
     g.balance_farmers(P0);
     let t = g.budget(P0);
     assert!(t.food_surplus >= t.food_upkeep, "{t:?}");
-    assert_eq!(t.food_upkeep, 3);
+    assert_eq!(t.food_upkeep, HalfInt::from_int(3));
     // High elves farm 2 food each: 6 citizens and 3 soldiers need 9 food, so five farmers.
     let farmers = g.world.get::<&Farmers>(city)?.0;
     assert_eq!(

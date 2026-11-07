@@ -374,8 +374,11 @@ impl UpkeepPrompt {
         }
         if let Some(t) = &self.troops {
             let (food, gold) = t.missing(&self.released_units());
-            if food > 0 {
-                missing.push(texts.get("upkeep.short_food", &Args::new().count("n", food)));
+            if food > f4x_def::half_int::HalfInt::ZERO {
+                missing.push(texts.get(
+                    "upkeep.short_food",
+                    &Args::new().text("n", texts.half_amount(food)),
+                ));
             }
             if gold > 0 {
                 missing.push(texts.get("upkeep.short_gold", &Args::new().count("n", gold)));
@@ -396,7 +399,7 @@ impl App {
         let starving = self
             .game
             .treasury_shortfall(HUMAN)
-            .is_some_and(|t| t.missing(&[]).0 > 0);
+            .is_some_and(|t| t.missing(&[]).0 > f4x_def::half_int::HalfInt::ZERO);
         if starving && !self.modals.has(FOOD_WARNING) {
             self.modals.open(FoodWarning);
         } else {

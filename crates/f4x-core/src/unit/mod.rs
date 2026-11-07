@@ -512,19 +512,9 @@ impl<'a> UnitView<'a> {
         self.unit_def(unit).map_or(HalfInt::ZERO, |d| d.upkeep.food)
     }
 
-    /// Food one unit eats per turn, whole food (a half food counts as one). To add up an army use
-    /// [`UnitView::food_of`], which adds the halves first.
-    pub fn unit_food_upkeep(&self, unit: hecs::Entity) -> i32 {
-        self.unit_food(unit).ceil()
-    }
-
-    /// Food these units eat together per turn: the halves are added, then rounded up to whole food.
-    pub fn food_of(&self, units: &[hecs::Entity]) -> i32 {
-        units
-            .iter()
-            .map(|&u| self.unit_food(u))
-            .sum::<HalfInt>()
-            .ceil()
+    /// Food these units eat together per turn.
+    pub fn food_of(&self, units: &[hecs::Entity]) -> HalfInt {
+        units.iter().map(|&u| self.unit_food(u)).sum()
     }
 
     /// Whether the owner pays nothing for the unit (see [`Unpaid`]).
@@ -693,7 +683,7 @@ mod tests {
         let costs = |content: &Content| {
             let units = UnitView::new(&world, content);
             made.iter()
-                .map(|&u| (units.unit_gold_upkeep(u), units.unit_food_upkeep(u)))
+                .map(|&u| (units.unit_gold_upkeep(u), units.unit_food(u).ceil()))
                 .collect::<Vec<_>>()
         };
         // Off: every unit pays in full.

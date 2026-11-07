@@ -335,12 +335,13 @@ impl<'a> PlayerView<'a> {
         self.game.economy().passengers_of(ship)
     }
 
-    pub fn unit_food_upkeep(&self, unit: hecs::Entity) -> i32 {
-        self.game.units().unit_food_upkeep(unit)
+    /// The food a unit eats per turn.
+    pub fn unit_food(&self, unit: hecs::Entity) -> f4x_def::half_int::HalfInt {
+        self.game.units().unit_food(unit)
     }
 
-    /// The food these units eat together (halves added, then rounded up).
-    pub fn food_of(&self, units: &[hecs::Entity]) -> i32 {
+    /// The food these units eat together per turn.
+    pub fn food_of(&self, units: &[hecs::Entity]) -> f4x_def::half_int::HalfInt {
         self.game.units().food_of(units)
     }
 

@@ -4,6 +4,7 @@ use crate::hero::game::tests::{at, world, P0};
 use crate::item::ItemBonus;
 use crate::map::{Grid, Map};
 use crate::rules::ItemKind;
+use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 
 use crate::unit::MovesLeft;
@@ -40,8 +41,8 @@ fn the_wizard_sees_the_shortfall_and_picks_who_goes() -> TestResult {
         vec![b],
         "the turn change lets the newest go"
     );
-    assert_eq!(short.missing(&[]), (0, 2));
-    assert_eq!(short.missing(&[a]), (0, 0));
+    assert_eq!(short.missing(&[]), (HalfInt::ZERO, 2));
+    assert_eq!(short.missing(&[a]), (HalfInt::ZERO, 0));
     assert!(short.troops.iter().all(|l| l.hero && l.gold == 2));
     // The wizard keeps the newest and gives up the first; its item comes home.
     g.give_item(P0, item("Sword", 100));
@@ -296,16 +297,16 @@ fn a_unit_let_go_for_food_is_not_counted_for_gold() {
         aboard: 0,
     };
     let short = TreasuryShortfall {
-        food_upkeep: 2,
-        food_surplus: 1,
+        food_upkeep: HalfInt::from_int(2),
+        food_surplus: HalfInt::from_int(1),
         gold: 1,
         fame: 0,
         troops: vec![line(a, 1, 1), line(b, 1, 1)],
         default_release: vec![b],
     };
-    assert_eq!(short.missing(&[]), (1, 1));
+    assert_eq!(short.missing(&[]), (HalfInt::from_int(1), 1));
     // One unit lets go of a mouth and of a gold coin at once: both books balance.
-    assert_eq!(short.missing(&[b]), (0, 0));
+    assert_eq!(short.missing(&[b]), (HalfInt::ZERO, 0));
 }
 
 #[test]

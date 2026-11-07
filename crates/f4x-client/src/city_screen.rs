@@ -484,6 +484,16 @@ impl App {
 
     /// `count` small icons of `entry` from `backgrnd.lbx` (tens as bigger ones), starting at
     /// `(x, y)`; returns the x after the last icon.
+    /// A food amount with its sign: `+2`, `-1½`, `+0`.
+    fn signed_amount(&self, amount: f4x_def::half_int::HalfInt) -> String {
+        let shown = self.texts.half_amount(amount);
+        if shown.starts_with('-') {
+            shown
+        } else {
+            format!("+{shown}")
+        }
+    }
+
     fn icon_row(
         &mut self,
         lay: Layout,
@@ -529,8 +539,8 @@ impl App {
             (
                 40usize,
                 34usize,
-                eco.food,
-                format!("{:+}", eco.food - figures),
+                eco.food.floor(),
+                self.signed_amount(eco.food - f4x_def::half_int::HalfInt::from_int(figures)),
             ),
             (41, 35, eco.production, String::new()),
             (42, 36, eco.gold, format!("{net_gold:+}")),

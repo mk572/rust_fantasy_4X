@@ -68,7 +68,7 @@ impl App {
         let units = self.game.units();
         let rules = &self.game.content().rules;
         let mut out = [0; 3];
-        out[2] = units.food_of(&units.player_units(HUMAN));
+        out[2] = units.food_of(&units.player_units(HUMAN)).ceil();
         for u in units.player_units(HUMAN) {
             out[0] += units.unit_gold_upkeep(u);
             if let Some(def) = units.unit_def(u) {

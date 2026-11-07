@@ -289,10 +289,11 @@ impl App {
         }
         if let Some(t) = self.game.treasury_shortfall(HUMAN) {
             let (food, gold) = t.missing(&[]);
-            if food > 0 {
-                lines.push(
-                    self.text_with("chancellor.forecast_food", &Args::new().count("n", food)),
-                );
+            if food > f4x_def::half_int::HalfInt::ZERO {
+                lines.push(self.text_with(
+                    "chancellor.forecast_food",
+                    &Args::new().text("n", self.texts.half_amount(food)),
+                ));
             }
             if gold > 0 {
                 lines.push(

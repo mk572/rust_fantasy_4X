@@ -57,7 +57,7 @@ fn facts(c: &f4x_def::content::Content, race: u16) -> CityFacts {
     CityFacts {
         figures: 5,
         max_size: 12,
-        food: 3,
+        food: f4x_def::half_int::HalfInt::from_int(3),
         net_gold: 10,
         defenders: 2,
         possible,

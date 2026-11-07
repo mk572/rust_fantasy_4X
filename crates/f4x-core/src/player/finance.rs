@@ -24,8 +24,8 @@ pub struct Budget {
     pub food_gold: i32,
     /// Gold paid for troops, after fame.
     pub unit_upkeep: i32,
-    pub food_surplus: i32,
-    pub food_upkeep: i32,
+    pub food_surplus: HalfInt,
+    pub food_upkeep: HalfInt,
 }
 
 /// What one city adds to the treasury.
@@ -33,7 +33,7 @@ pub struct Budget {
 pub struct CityYield {
     pub gold: i32,
     pub gold_upkeep: i32,
-    pub food: i32,
+    pub food: HalfInt,
     /// Citizens, who eat one food each.
     pub figures: i32,
 }
@@ -67,14 +67,15 @@ impl Budget {
         for city in cities {
             t.city_gold += city.gold;
             t.building_upkeep += city.gold_upkeep;
-            let excess = (city.food - city.figures).max(0);
-            sold_food_gold += excess / 2;
+            let excess = (city.food - HalfInt::from_int(city.figures)).max(HalfInt::ZERO);
+            // Two food for a gold, a city at a time: the odd food is not sold.
+            sold_food_gold += excess.raw() / 4;
             t.food_surplus += excess;
         }
         t.noble_gold = 10 * troops.iter().filter(|u| u.noble_hero).count() as i32;
-        t.food_upkeep = troops.iter().map(|u| u.food).sum::<HalfInt>().ceil();
+        t.food_upkeep = troops.iter().map(|u| u.food).sum();
         // Spare food is sold at two for one gold once the army has eaten.
-        t.food_gold = (sold_food_gold - t.food_upkeep / 2).max(0);
+        t.food_gold = (sold_food_gold - t.food_upkeep.raw() / 4).max(0);
         t.unit_upkeep = (troops.iter().map(|u| u.gold).sum::<i32>() - fame).max(0);
         t
     }
@@ -122,7 +123,7 @@ pub fn settle(t: &Budget, gold: i32, fame: i32, troops: &[Troop]) -> Settlement 
     let mut eating: HalfInt = troops.iter().map(|u| u.food).sum();
     for &i in &release_order(troops, |u| u.food) {
         let unit = &troops[i];
-        if eating.ceil() <= t.food_surplus {
+        if eating <= t.food_surplus {
             break;
         }
         if unit.food > HalfInt::ZERO {
@@ -221,7 +222,7 @@ impl Game {
                     let more = self.economy().city_economy_with(c, farmers + 1)?;
                     Some((more.food - now.food, c, farmers))
                 })
-                .filter(|(gain, ..)| *gain > 0)
+                .filter(|(gain, ..)| *gain > HalfInt::ZERO)
                 .max_by_key(|(gain, c, _)| (*gain, std::cmp::Reverse(self.serial_of(*c))));
             let Some((_, city, farmers)) = best else {
                 break;

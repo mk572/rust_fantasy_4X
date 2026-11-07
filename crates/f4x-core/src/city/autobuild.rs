@@ -9,6 +9,7 @@
 //! Tests: in city/autobuild/tests.rs.
 
 use crate::rules::Ability;
+use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
 use crate::city::production::ProductionItem;
@@ -290,7 +291,7 @@ pub struct CityFacts {
     pub figures: u32,
     /// The largest population the land and the buildings feed.
     pub max_size: u32,
-    pub food: i32,
+    pub food: HalfInt,
     pub rebels: u32,
     /// The treasury's net gold per turn.
     pub net_gold: i32,
@@ -402,7 +403,7 @@ fn worth(content: &Content, plan: &BuildPlan, f: &CityFacts, b: BuildingId, dept
 fn building_score(content: &Content, plan: &BuildPlan, f: &CityFacts, b: BuildingId) -> f32 {
     let def = content.rules.buildings.get(b);
     let mut need = 1.0;
-    if adds_food(content, b) && (f.food <= 0 || f.figures + 1 >= f.max_size) {
+    if adds_food(content, b) && (f.food <= HalfInt::ZERO || f.figures + 1 >= f.max_size) {
         need = 2.0;
     }
     if lowers_unrest(content, b) && f.rebels > 0 {

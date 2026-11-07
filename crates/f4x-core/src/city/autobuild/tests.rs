@@ -1,5 +1,6 @@
 use super::*;
 use crate::game::testutil::{num, shipped};
+use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 
 fn building(c: &Content, id: u16) -> BuildingId {
@@ -31,7 +32,7 @@ fn facts(c: &Content) -> CityFacts {
     CityFacts {
         figures: 4,
         max_size: 12,
-        food: 4,
+        food: HalfInt::from_int(4),
         net_gold: 20,
         defenders: 2,
         buildable: possible.iter().copied().filter(|&b| free(b)).collect(),
@@ -264,9 +265,9 @@ fn hunger_and_a_full_city_favour_food_buildings() {
     };
     let granary = building(&c, 29 /* granary */);
     let calm = building_score(&c, &p, &f, granary);
-    f.food = 0;
+    f.food = HalfInt::ZERO;
     assert!((building_score(&c, &p, &f, granary) - 2.0 * calm).abs() < 1e-6);
-    f.food = 4;
+    f.food = HalfInt::from_int(4);
     f.figures = 11;
     assert!((building_score(&c, &p, &f, granary) - 2.0 * calm).abs() < 1e-6);
 }

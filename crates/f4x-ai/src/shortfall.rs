@@ -134,8 +134,12 @@ fn choose_troops(short: &TreasuryShortfall) -> Vec<hecs::Entity> {
         });
         for &i in &order {
             let (food, gold) = short.missing(&released);
-            let need = if want_food { food } else { gold };
-            if need == 0 {
+            let missing = if want_food {
+                food > f4x_def::half_int::HalfInt::ZERO
+            } else {
+                gold > 0
+            };
+            if !missing {
                 break;
             }
             let t = &short.troops[i];
@@ -239,8 +243,8 @@ mod tests {
             aboard,
         };
         let short = TreasuryShortfall {
-            food_upkeep: 0,
-            food_surplus: 0,
+            food_upkeep: f4x_def::half_int::HalfInt::ZERO,
+            food_surplus: f4x_def::half_int::HalfInt::ZERO,
             gold: 1,
             fame: 0,
             troops: vec![

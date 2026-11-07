@@ -42,8 +42,8 @@ pub struct TroopLine {
 /// The gold and food the next turn change cannot pay for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreasuryShortfall {
-    pub food_upkeep: i32,
-    pub food_surplus: i32,
+    pub food_upkeep: HalfInt,
+    pub food_surplus: HalfInt,
     /// The gold on hand once the turn's income and the buildings' upkeep are counted.
     pub gold: i32,
     /// Fame pays this much of the troops' gold.
@@ -57,19 +57,15 @@ pub struct TreasuryShortfall {
 impl TreasuryShortfall {
     /// The food and the gold still missing if `released` go. A unit let go for food does not cost
     /// gold either.
-    pub fn missing(&self, released: &[hecs::Entity]) -> (i32, i32) {
+    pub fn missing(&self, released: &[hecs::Entity]) -> (HalfInt, i32) {
         let gone = |l: &&TroopLine| released.contains(&l.unit);
-        // The halves are added before they are rounded, so a half food freed may free nothing.
-        let eating = |keep: &dyn Fn(&TroopLine) -> bool| -> i32 {
-            self.troops
-                .iter()
-                .filter(|l| keep(l))
-                .map(|l| l.food)
-                .sum::<HalfInt>()
-                .ceil()
-        };
-        let freed_food = eating(&|_| true) - eating(&|l| !released.contains(&l.unit));
-        let food = (self.food_upkeep - freed_food - self.food_surplus).max(0);
+        let freed_food: HalfInt = self
+            .troops
+            .iter()
+            .filter(|l| released.contains(&l.unit))
+            .map(|l| l.food)
+            .sum();
+        let food = (self.food_upkeep - freed_food - self.food_surplus).max(HalfInt::ZERO);
         let gold_upkeep: i32 = self
             .troops
             .iter()
@@ -137,7 +133,7 @@ impl Game {
             troops: lines,
             default_release: settle(&t, gold, fame, &troops).disbanded,
         };
-        (short.missing(&[]) != (0, 0)).then_some(short)
+        (short.missing(&[]) != (HalfInt::ZERO, 0)).then_some(short)
     }
 
     fn hero_slot_items(&self, hero: hecs::Entity) -> Vec<(usize, Item)> {
@@ -227,7 +223,8 @@ impl Game {
             }
         }
         let before = self.treasury_shortfall(player).map(|s| s.missing(&[]));
-        let (food_short, gold_short) = before.map_or((false, false), |(f, g)| (f > 0, g > 0));
+        let (food_short, gold_short) =
+            before.map_or((false, false), |(f, g)| (f > HalfInt::ZERO, g > 0));
         let mut events = Vec::new();
         if food_short {
             events.push(Event::Shortage {
@@ -255,7 +252,7 @@ impl Game {
             }
         }
         for &u in &chosen {
-            let food = self.units().unit_food_upkeep(u) > 0;
+            let food = self.units().unit_food(u) > HalfInt::ZERO;
             let cause = if food_short && food {
                 LossCause::Food
             } else {

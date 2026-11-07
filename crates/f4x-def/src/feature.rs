@@ -3,6 +3,7 @@
 //!
 //! Tests: none, because it only declares the feature definitions; `load` loads and validates them.
 
+use crate::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
 use crate::map::{FeatureId, Plane, TerrainClass};
@@ -37,8 +38,8 @@ pub struct SpawnRule {
 pub struct CityBonus {
     pub gold: i32,
     pub mana: i32,
-    /// Whole food (wild game); not affected by mining.
-    pub food: i32,
+    /// Food (wild game); not affected by mining.
+    pub food: HalfInt,
     /// Percent off the cost of military units built in the city (stacks up to a limit).
     pub unit_cost_percent: i32,
     /// Added to the chance an outpost grows each turn.
