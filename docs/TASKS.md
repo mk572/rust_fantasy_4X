@@ -39,7 +39,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 380 | Low | Map | Check the original generator's port against real maps of the original |
 | 386 | Low | Client | Magic screen: scroll the enemy wizard portraits |
 | 388 | Low | Magic | Spell Images |
-| 408 | Medium | Core | Find tests that pass without asserting |
 | 409 | Medium | Core | Walk the areas task 407 did not cover and add their non-original mechanics to the table |
 | 411 | Medium | Core | Floating Island as a plain summoning, as in the original |
 | 415 | Medium | Console | Bring the console cheat (override) commands back for building test scenarios |
@@ -224,8 +223,6 @@ the drawing changes. *Needs:* nothing.
 **386. Magic screen: scroll the enemy wizard portraits.** The Magic screen shows four rivals' gems and portraits only (`take(4)`), so with more than five wizards (ten colours are playable, task 381) the others cannot be reached. Let the player scroll through the enemy wizard portraits (arrows or the mouse wheel, in the original's style where it has one, else our own), so that every rival can be selected for diplomacy and its details. Split from task 381, 25 October 2026.
 
 **388. Spell Images** Each spell has an image to be shown in Detect Magic etc., but they're not fully found and imported.
-
-**408. Find tests that pass without asserting.** Part (3) of the old task 302, what the first part (the registry refusing a repeated id, the scout test) did not cover. Grep the test code for guarded `if let` and `match` that skip the assertion on `None`, loops over a list that may be empty, and `for` over a registry filtered to nothing; make each assert that it ran (`expect`, a count check) or delete it.
 
 **409. Walk the areas task 407 did not cover and add their non-original mechanics to the table.** Part (5) of the old task 302, narrowed on 7 November 2026: marking every test (about 1900) with the rule of the original it protects is dropped, as it costs much and protects little. What stays: read the areas `docs/non-original-mechanics.md` lists under "Not covered" (the inside of `battle/`, `unit/movement`, `map/mapgen`, the `Effect` variants of `rules/effects.rs`, the settings of `game/setting.rs`), with their tests, and add a row for each mechanic, field or rule the original does not have. Report the new rows before deleting anything; a removal the user decides on becomes a task of its own, with the tests that protect only that mechanic.
 
