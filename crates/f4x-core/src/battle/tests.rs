@@ -730,7 +730,7 @@ fn flee_with(difficulty: u8, n: usize, held: &[SpellId]) -> (Game, Vec<hecs::Ent
             .filter(|u| u.side == Side::Attacker)
             .nth(i)
             .expect("value succeeds");
-        unit.enchantments.push(*enchantment);
+        unit.put_enchantment(*enchantment);
     }
     g.apply(Command::Battle(BattleCommand::Flee));
     (g, att)
@@ -1786,7 +1786,7 @@ mod casting {
         assert!(strike(unit_with(&[]), Realm::Chaos).is_some());
         assert!(strike(unit_with(&[40 /* magic_immunity */]), Realm::Chaos).is_none());
         let mut blessed = unit_with(&[]);
-        blessed.enchantments.push(SpellId::new(144));
+        blessed.put_enchantment(SpellId::new(144));
         assert!(strike(blessed.clone(), Realm::Death).is_none());
         assert!(
             strike(blessed, Realm::Nature).is_some(),
@@ -1808,6 +1808,7 @@ mod casting {
             0,
             spell,
             A,
+            crate::spell::unit_effect::UnitEffects::NONE,
             &[
                 m(Stat::Moves, ModOp::Percent, 100),
                 m(Stat::Melee, ModOp::Add, 1),
@@ -2136,7 +2137,7 @@ mod fields {
         let mut fantastic = of(Side::Attacker, Some(Realm::Nature), (4, 5));
         fantastic.ranged_kind = RangedKind::Missile;
         let mut blade = of(Side::Attacker, None, (5, 5));
-        blade.enchantments.push(SpellId::new(94));
+        blade.put_enchantment(SpellId::new(94));
         let mut b = Battle::new(
             A,
             D,
@@ -2224,7 +2225,9 @@ mod fields {
     /// A lasting spell put on a unit the way the casting does it.
     fn put_on(b: &mut Battle, unit: usize, spell: SpellId, mods: &[Modifier], grants: &[u16]) {
         let grants = crate::game::testutil::abilities(grants);
-        b.enchant_unit(unit, spell, A, mods, &grants);
+        let rules = crate::game::testutil::shipped().rules;
+        let effects = crate::spell::unit_effect::UnitEffects::of(rules.spells.get(spell));
+        b.enchant_unit(unit, spell, A, effects, mods, &grants);
     }
 
     #[test]
@@ -2315,7 +2318,7 @@ mod fields {
             ],
             1,
         );
-        b.units[1].enchantments.push(SpellId::new(73));
+        b.units[1].put_enchantment(SpellId::new(73));
         b.change_sides(1, Side::Attacker);
         b.units[2].status = Status::Dead;
         b.check_winner();
@@ -2393,7 +2396,7 @@ mod fields {
         b.units[1].resistance = 0;
         b.units[1].figures_start = 4;
         b.units[1].figures = 4;
-        b.units[1].enchantments.push(SpellId::new(181));
+        b.units[1].put_enchantment(SpellId::new(181));
         b.raise_field(Side::Attacker, Field::Wrack, spell());
         end_turns(&mut b, 4);
         assert!(b.units[1].hit_points() < b.units[1].max_hit_points());

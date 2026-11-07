@@ -2065,6 +2065,7 @@ fn a_dispel_takes_a_spell_cast_in_the_battle_off_an_enemy_unit() {
             enemy,
             strength,
             rival,
+            f4x_core::spell::unit_effect::UnitEffects::NONE,
             &[m(f4x_def::rules::stats::Stat::Melee, 1)],
             &[],
         );

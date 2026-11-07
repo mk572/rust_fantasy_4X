@@ -90,7 +90,12 @@ impl Game {
         }
         let options = self.mutations_for(unit);
         let pick = options[rng.roll(options.len() as u32) as usize - 1];
-        let source = Source::Spell(crate::rules::SpellId::new(93) /* chaos_channels */);
+        let Some(channels) =
+            crate::spell::unit_effect::UnitEffect::ChaosChannels.spell_in(&self.content.rules)
+        else {
+            return None;
+        };
+        let source = Source::Spell(channels);
         let who = crate::rules::exec::Target::Unit(unit);
         match pick {
             Mutation::Armor => self.add_temp_modifier(

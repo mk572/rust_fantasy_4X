@@ -18,6 +18,7 @@
 //! Tests: in battle/attack/tests.rs.
 
 use crate::rules::SpellId;
+use crate::spell::unit_effect::UnitEffect;
 use rand::{Rng, RngCore};
 
 use super::immunity::{
@@ -82,6 +83,7 @@ pub struct DefenderState {
     /// special attacks.
     pub resistance: i32,
     pub enchantments: Vec<SpellId>,
+    pub effects: crate::spell::unit_effect::UnitEffects,
     /// The realm of the creature, for dispel evil (chaos and death creatures); the undead.
     pub realm: Option<Realm>,
     pub undead: bool,
@@ -99,6 +101,19 @@ pub struct DefenderState {
     pub lucky: bool,
 }
 
+#[cfg(test)]
+impl DefenderState {
+    /// For tests: put a lasting spell on the defender, with what the shipped rules say it does.
+    pub(crate) fn put_enchantment(&mut self, spell: SpellId) {
+        let rules = crate::game::testutil::shipped().rules;
+        self.enchantments.push(spell);
+        self.effects
+            .union(crate::spell::unit_effect::UnitEffects::of(
+                rules.spells.get(spell),
+            ));
+    }
+}
+
 impl DefenderState {
     /// The defence it rolls before immunities against an attack of this `mode`.
     fn defense_against(&self, mode: Mode) -> i32 {
@@ -112,21 +127,20 @@ impl DefenderState {
 
     /// Under Black Sleep: every blow against it does its full strength.
     fn asleep(&self) -> bool {
-        self.enchantments
-            .contains(&SpellId::new(165) /* black_sleep */)
+        self.effects.contains(UnitEffect::BlackSleep)
     }
 
     /// The defence it rolls against one of `attacker`'s attacks: its own, the bonuses its
     /// lasting spells give against the attack's realm, then what its immunities make of it.
     /// Righteousness turns a ranged chaos or death attack away outright.
     fn defense_versus(&self, attacker: &Combatant) -> i32 {
-        let ids = &self.enchantments;
+        let ids = self.effects;
         let (realm, mode) = (attacker.nature.realm, attacker.mode);
         if righteous_ward(realm, mode, ids) {
             return IMMUNE_DEFENSE;
         }
         // Berserk: no defence at all, whatever else the unit has (immunities still count).
-        let defense = if ids.contains(&SpellId::new(179) /* berserk */) {
+        let defense = if ids.contains(UnitEffect::Berserk) {
             0
         } else {
             self.defense_against(mode) + defense_bonus(realm, mode, ids)
@@ -136,9 +150,7 @@ impl DefenderState {
 
     /// The blows one roll of `defense` stops: Invulnerability stops two more.
     fn blocks(&self, defense: i32, eldritch: bool, rng: &mut dyn RngCore) -> i32 {
-        let invulnerable = self
-            .enchantments
-            .contains(&SpellId::new(143) /* invulnerability */);
+        let invulnerable = self.effects.contains(UnitEffect::Invulnerability);
         roll_successes(defense, self.to_block - i32::from(eldritch), rng)
             + if invulnerable {
                 INVULNERABILITY_BLOCK
@@ -164,7 +176,7 @@ impl DefenderState {
         rng: &mut dyn RngCore,
     ) -> i32 {
         let resistance =
-            effective_resistance(self.resistance, &self.immunities, realm, &self.enchantments);
+            effective_resistance(self.resistance, &self.immunities, realm, self.effects);
         resistance_failure(resistance, modifier, rng)
     }
 

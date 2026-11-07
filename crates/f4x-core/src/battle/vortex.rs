@@ -17,7 +17,6 @@ use super::map::{self, Pos};
 use super::{Battle, BattleError, BattleEvent, Side};
 use crate::rules::effects::DamageTraits;
 use crate::rules::Ability;
-use crate::rules::SpellId;
 
 /// The most vortices on one battlefield.
 pub const MAX_VORTICES: usize = 10;
@@ -140,7 +139,9 @@ impl Battle {
             if cell == to {
                 let u = &self.units[id];
                 if !u.has(Ability::new(40))
-                    && !u.has_enchantment(SpellId::new(144) /* righteousness */)
+                    && !u
+                        .effects
+                        .contains(crate::spell::unit_effect::UnitEffect::Righteousness)
                 {
                     let mut state = u.defender_state();
                     let lost = unblockable(&mut state, CRUSH_DAMAGE);

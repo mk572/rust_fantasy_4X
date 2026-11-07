@@ -266,12 +266,11 @@ impl<'a> UnitView<'a> {
     /// The unit's resistance against a spell or attack of `realm`: its own, plus what magic
     /// immunity and its lasting spells add against that realm (`battle::immunity`).
     pub fn unit_resistance_against(&self, unit: hecs::Entity, realm: Option<Realm>) -> i32 {
-        let ids = self.unit_enchantment_ids(unit);
         effective_resistance(
             self.unit_stat(unit, Stat::Resistance),
             &Immunities::of(&self.unit_abilities(unit)),
             realm,
-            &ids,
+            self.unit_effects(unit),
         )
     }
 
@@ -280,9 +279,19 @@ impl<'a> UnitView<'a> {
     pub fn unit_protected_from(&self, unit: hecs::Entity, realm: Option<Realm>) -> bool {
         matches!(realm, Some(Realm::Chaos | Realm::Death))
             && self
-                .unit_enchantment_ids(unit)
-                .iter()
-                .any(|&i| i == SpellId::new(144) /* righteousness */)
+                .unit_effects(unit)
+                .contains(crate::spell::unit_effect::UnitEffect::Righteousness)
+    }
+
+    /// What the lasting spells on the unit do (the `unit_effect` hook).
+    pub fn unit_effects(&self, unit: hecs::Entity) -> crate::spell::unit_effect::UnitEffects {
+        let mut set = crate::spell::unit_effect::UnitEffects::NONE;
+        for spell in self.unit_enchantment_ids(unit) {
+            set.union(crate::spell::unit_effect::UnitEffects::of(
+                self.content.rules.spells.get(spell),
+            ));
+        }
+        set
     }
 
     /// The passive modifiers of every ability the unit has now.

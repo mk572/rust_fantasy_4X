@@ -5,7 +5,6 @@
 use crate::map::{Plane, Position};
 
 use crate::game::{Event, Game};
-use crate::rules::exec::Target;
 use crate::spell::target_error::TargetError;
 use crate::unit::Hurt;
 
@@ -176,18 +175,6 @@ impl Game {
         }
         self.explore(caster, to, crate::map::fog::sight_for(1));
     }
-
-    /// Run a unit-target special hook. Returns whether the hook was one of these.
-    pub(crate) fn run_unit_special(&mut self, spell: crate::rules::SpellId, who: Target) -> bool {
-        let Target::Unit(unit) = who else {
-            return false;
-        };
-        match spell.num() {
-            19 /* natures_cures */ => self.natures_cures(unit),
-            _ => return false,
-        }
-        true
-    }
 }
 
 #[cfg(test)]
@@ -198,6 +185,7 @@ mod tests {
     use crate::game::Command;
     use crate::map::{Grid, Map};
     use crate::player::PlayerId;
+    use crate::rules::exec::Target;
     use crate::rules::RealmId;
     use f4x_def::testdir::TestResult;
 

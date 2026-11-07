@@ -13,5 +13,6 @@ pub mod stacking;
 pub mod target_error;
 pub mod temp_effect;
 pub mod terraform;
+pub mod unit_effect;
 pub mod wizard;
 pub mod world;

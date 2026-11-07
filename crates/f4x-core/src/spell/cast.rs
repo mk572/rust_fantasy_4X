@@ -75,26 +75,6 @@ impl GameHost<'_> {
                     count,
                 }]
             }
-            (187 /* black_wind */, Target::Unit(unit)) => {
-                if self.game.black_wind_unit(unit, &mut self.rng) {
-                    self.slain += 1;
-                }
-                Vec::new()
-            }
-            (173 /* lycanthropy */, Target::Unit(unit)) => match self.game.lycanthropy(unit) {
-                Some((from, to)) => vec![Event::UnitTransformed { unit, from, to }],
-                None => Vec::new(),
-            },
-            (93 /* chaos_channels */, Target::Unit(unit)) => {
-                match self.game.mutate(unit, &mut self.rng) {
-                    Some(mutation) => vec![Event::UnitMutated { unit, mutation }],
-                    None => Vec::new(),
-                }
-            }
-            (68 /* stasis */, Target::Unit(unit)) => {
-                self.game.put_in_stasis(unit, player);
-                Vec::new()
-            }
             (26 /* earthquake */, Target::City(city)) => vec![self.game.earthquake(city, &mut self.rng)],
             (119 /* call_the_void */, Target::City(city)) => {
                 let (units_lost, buildings_lost, population_lost) =
@@ -109,11 +89,7 @@ impl GameHost<'_> {
             }
             (
                 26 // earthquake
-                | 187 // black_wind
-                | 173 // lycanthropy
-                | 119 // call_the_void
-                | 93 // chaos_channels
-                | 68, // stasis
+                | 119, // call_the_void
                 _,
             ) => Vec::new(),
             _ => return None,
@@ -419,6 +395,14 @@ impl EffectHost for GameHost<'_> {
                 self.building_moved(result);
             }
         }
+        if hook == crate::spell::unit_effect::UNIT_EFFECT {
+            for effect in args
+                .iter()
+                .filter_map(|a| crate::spell::unit_effect::UnitEffect::named(a))
+            {
+                self.unit_effect(effect, who, ctx.owner);
+            }
+        }
         if hook == crate::spell::wizard::WIZARD_EFFECT {
             if let (Some(effect), Target::Player(victim)) = (
                 args.first()
@@ -468,9 +452,6 @@ impl EffectHost for GameHost<'_> {
             self.events.extend(events);
             return;
         }
-        if self.game.run_unit_special(spell, who) {
-            return;
-        }
         let Target::City(city) = who else {
             return;
         };
@@ -484,6 +465,42 @@ impl EffectHost for GameHost<'_> {
 }
 
 impl GameHost<'_> {
+    /// What a spell with the `unit_effect` hook does to the unit it is aimed at. The effects that
+    /// are only read from a lasting spell do nothing here.
+    fn unit_effect(
+        &mut self,
+        effect: crate::spell::unit_effect::UnitEffect,
+        who: Target,
+        player: PlayerId,
+    ) {
+        use crate::spell::unit_effect::UnitEffect as U;
+        let Target::Unit(unit) = who else {
+            return;
+        };
+        match effect {
+            U::NaturesCures => self.game.natures_cures(unit),
+            U::BlackWind => {
+                if self.game.black_wind_unit(unit, &mut self.rng) {
+                    self.slain += 1;
+                }
+            }
+            U::Lycanthropy => {
+                if let Some((from, to)) = self.game.lycanthropy(unit) {
+                    self.events.push(Event::UnitTransformed { unit, from, to });
+                }
+            }
+            U::ChaosChannels => {
+                if let Some(mutation) = self.game.mutate(unit, &mut self.rng) {
+                    self.events.push(Event::UnitMutated { unit, mutation });
+                }
+            }
+            U::Stasis => {
+                self.game.put_in_stasis(unit, player);
+            }
+            _ => {}
+        }
+    }
+
     /// What a spell with the `wizard_effect` hook does to `victim`. Subversion is carried out
     /// after the cast.
     fn wizard_effect(
@@ -737,9 +754,9 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if spell == crate::rules::SpellId::new(93)
-        /* chaos_channels */
-        {
+        let unit_effect =
+            crate::spell::unit_effect::UnitEffect::of(self.content.rules.spells.get(spell));
+        if unit_effect == Some(crate::spell::unit_effect::UnitEffect::ChaosChannels) {
             return match target {
                 Some(Target::Unit(u)) => {
                     own_unit(u)?;
@@ -749,9 +766,7 @@ impl Game {
                 None => Err(MagicError::NeedsTarget),
             };
         }
-        if spell == crate::rules::SpellId::new(173)
-        /* lycanthropy */
-        {
+        if unit_effect == Some(crate::spell::unit_effect::UnitEffect::Lycanthropy) {
             return match target {
                 Some(Target::Unit(u)) => {
                     own_unit(u)?;
@@ -780,7 +795,7 @@ impl Game {
                 Some(Target::Tile(at)) => {
                     let enemy_there = self.units().units_at(at).iter().any(|&u| {
                         !mine(self.units().unit_owner(u))
-                            && !(spell == crate::rules::SpellId::new(68) /* stasis */
+                            && !(unit_effect == Some(crate::spell::unit_effect::UnitEffect::Stasis)
                                 && self.unit_in_stasis(u))
                     });
                     if enemy_there {

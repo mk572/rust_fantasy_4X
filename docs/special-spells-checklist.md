@@ -127,17 +127,17 @@ Proposed hook or primitive: **global kill: extend `Slay` to the whole map, or a 
 
 Least certain group: Black Wind and Nature's Cures may be `Slay` and `Heal` on a stack; Possession, Creature Binding and Subversion change ownership.
 
-Proposed hook or primitive: **unit_change (args to decide)**
+Done 7 November 2026 (the user asked for J3's `unit_effect` to cover this group): no separate `unit_change` hook. The eight spells carry `Custom(name: "unit_effect", args: [...])` with the effects NaturesCures, Lycanthropy, ChaosChannels, BlackWind, Stasis, WarpCreature, Possession, CreatureBinding (`UnitEffect` in `spell/unit_effect.rs`). Subversion went to `wizard_effect`.
 
-- [ ] 173 `lycanthropy`
-- [ ] 93 `chaos_channels`
-- [ ] 187 `black_wind`
-- [ ] 68 `stasis`
-- [ ] 89 `warp_creature`
-- [ ] 172 `possession`
-- [ ] 73 `creature_binding`
+- [x] 173 `lycanthropy`
+- [x] 93 `chaos_channels`
+- [x] 187 `black_wind`
+- [x] 68 `stasis`
+- [x] 89 `warp_creature`
+- [x] 172 `possession`
+- [x] 73 `creature_binding`
 - [x] 177 `subversion`
-- [ ] 19 `natures_cures`
+- [x] 19 `natures_cures`
 
 ## I. Battle field effects
 
@@ -163,7 +163,7 @@ Added 7 November 2026, decided by the user. Not one of the 50 `Special` spells: 
 
 - [x] J1 `global_effect` (done 7 November 2026: `GlobalEffect` in `spell/global_enchantment.rs`, `has_global_effect` / `any_global_effect` / `held_global_effect`; a hook may list several arguments (`Hook.several`); the 24 spells: nature_awareness, herb_mastery, natures_wrath, wind_mastery, aura_of_majesty, suppress_magic, time_stop, meteor_storm, great_wasting, chaos_surge, doom_mastery, armageddon, just_cause, planar_seal, holy_arms, life_force, tranquility, crusade, charm_of_life, zombie_mastery, eternal_night, evil_omens, detect_magic, awareness); about 30 `has_global` sites in core and client
 - [x] J2 `city_effect` (done 7 November 2026): `city_flag` renamed and given arguments; `CityEffect` (12 effects: gaias_blessing, stream_of_life, pestilence, famine, chaos_rift, evil_presence, consecration, natures_eye, dark_rituals, heavenly_light, cloud_of_shadow, flying_fortress) in `spell/city.rs`, `city_has_effect`, `held_city_effect`; the walls stay on the `wall` hook (`city_has_wall`). Left: Spell Ward (72), a `Special` spell, in group B; the client's cityscape art keyed on spell numbers (`city_screen.rs`, `outpost_screen.rs`) is J4
-- [ ] J3 `unit_effect`: heroism, Bless, Righteousness, the resistance spells, Spell Lock and the like (`battle/game.rs`, `battle/spell.rs`, `battle/attack.rs`, `unit/mod.rs`); decide per spell tag or primitive
+- [x] J3 `unit_effect` (done 7 November 2026, covers group H too): `UnitEffect` (20 effects) and `UnitEffects`, a bit set kept on `BattleUnit.effects` and `DefenderState.effects` beside the enchantment ids, so the battle asks without the rules; `Battle::enchant_unit` and `rebuild_unit` take the effects; overland `UnitView::unit_effects`; `UnitEffect::spell_in(rules)` names the spell for code that must. Read from lasting spells: resist_elements, elemental_armor, resist_magic, spell_lock, bless, righteousness, black_channels, berserk, invulnerability, black_sleep, web, and `holds` (Black Sleep, Confusion, Web: a unit that fled stays held). Cleared the number matches in `battle/{immunity,attack,casting,vortex,mod,game,spell}.rs`, `battle/spell/unit_cast.rs`, `unit/{undead,mutation}.rs`, `spell/{temp_effect,cast}.rs` and the AI's `wizardry.rs`. Left for J4: heroism keeps its own `heroism` hook; `battle_screen.rs` and `unit_sheet.rs` key their icon tables on spell numbers; Stasis still pushes `SpellId::new(165)` as the sleep id in `battle/game.rs`
 - [ ] J4 the rest of the `SpellId::new(<number>)` literals (`cast.rs`, `crafting.rs`, `hero.rs`, `dispel.rs`, `settings.rs` and others), sorted by what they are
 
 ## Last

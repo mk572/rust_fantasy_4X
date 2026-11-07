@@ -201,6 +201,10 @@ pub struct BattleUnit {
     pub prayermaster: i32,
     /// The ids of its lasting spells, which add to resistance against some realms.
     pub enchantments: Vec<SpellId>,
+    /// What those spells do (the `unit_effect` hook), kept beside the ids so the battle can ask
+    /// without the rules.
+    #[serde(default)]
+    pub effects: crate::spell::unit_effect::UnitEffects,
     /// Which of Warp Creature's three curses the unit has.
     #[serde(default)]
     pub warp: Option<WarpKind>,
@@ -275,6 +279,19 @@ fn dangling() -> hecs::Entity {
     hecs::Entity::DANGLING
 }
 
+#[cfg(test)]
+impl BattleUnit {
+    /// For tests: put a lasting spell on the unit, with what the shipped rules say it does.
+    pub(crate) fn put_enchantment(&mut self, spell: SpellId) {
+        let rules = crate::game::testutil::shipped().rules;
+        self.enchantments.push(spell);
+        self.effects
+            .union(crate::spell::unit_effect::UnitEffects::of(
+                rules.spells.get(spell),
+            ));
+    }
+}
+
 impl BattleUnit {
     /// A plain unit for tests and simple scenarios: one dice per melee point, no specials.
     pub fn simple(side: Side, figures: u32, hits: i32, melee: i32, defense: i32) -> Self {
@@ -316,6 +333,7 @@ impl BattleUnit {
             leadership: 0,
             prayermaster: 0,
             enchantments: Vec::new(),
+            effects: Default::default(),
             warp: None,
             realm: None,
             undead: false,
@@ -449,6 +467,7 @@ impl BattleUnit {
             immunities: Immunities::of(&self.abilities),
             resistance: self.resistance,
             enchantments: self.enchantments.clone(),
+            effects: self.effects,
             realm: self.realm,
             undead: self.undead,
             figures_max: self.figures_start,
@@ -1113,8 +1132,8 @@ impl Battle {
                 // A creature still under Creature Binding is destroyed (Possession only lasts).
                 if u.is_active()
                     && u.bound_from.is_some()
-                    && u.enchantments
-                        .contains(&SpellId::new(73) /* creature_binding */)
+                    && u.effects
+                        .contains(crate::spell::unit_effect::UnitEffect::CreatureBinding)
                 {
                     u.figures = 0;
                     u.status = Status::Dead;

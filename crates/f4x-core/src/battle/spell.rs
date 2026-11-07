@@ -35,6 +35,7 @@ use crate::rules::effects::{Condition, DamageTraits, Effect, SlayOnly, TargetSel
 use crate::rules::stats::{ModOp, Modifier, Source, Stat};
 use crate::rules::{SpellId, UnitId};
 use crate::spell::target_error::TargetError;
+use crate::spell::unit_effect::{UnitEffect, UnitEffects, UNIT_EFFECT};
 
 mod unit_cast;
 pub use unit_cast::{SpellSource, UnitSpell};
@@ -253,9 +254,12 @@ impl Game {
             return None;
         }
         if let [r] = def.effects.as_slice() {
-            // Creature Binding (73) or Possession (172).
-            let bind = matches!(r.effect, Effect::Special) && spell.num() == 73;
-            if bind || matches!(r.effect, Effect::Special) && spell.num() == 172 {
+            // Creature Binding or Possession.
+            let own = UnitEffect::of(def).filter(
+                |_| matches!(&r.effect, Effect::Custom { name, .. } if name == UNIT_EFFECT),
+            );
+            let bind = own == Some(UnitEffect::CreatureBinding);
+            if bind || own == Some(UnitEffect::Possession) {
                 return Some(Kind::Turn {
                     bind,
                     save: def.save.clone(),
@@ -281,6 +285,8 @@ impl Game {
                     }
                     // Heroism's tag: the level it gives is read where the unit's level is.
                     Effect::Custom { name, .. } if name == crate::unit::HEROISM => {}
+                    // What the engine reads from the spell by its effect.
+                    Effect::Custom { name, .. } if name == UNIT_EFFECT => {}
                     _ => return None,
                 }
             }
@@ -346,6 +352,13 @@ impl Game {
             Effect::Custom { name, .. } if name == BATTLE_EFFECT => {
                 BattleEffect::of(def).map(BattleEffect::kind)
             }
+            Effect::Custom { name, .. } if name == UNIT_EFFECT => match UnitEffect::of(def) {
+                Some(UnitEffect::ChaosChannels) => Some(Kind::Channel),
+                Some(UnitEffect::WarpCreature) => Some(Kind::Warp {
+                    save: def.save.clone(),
+                }),
+                _ => None,
+            },
             Effect::Custom { name, args } if name == crate::spell::special::RECALL => {
                 match args.first().map(String::as_str) {
                     Some(crate::spell::special::RECALL_ANYONE) => {
@@ -366,10 +379,6 @@ impl Game {
                 }
             }
             Effect::Special => match spell.num() {
-                93 /* chaos_channels */ => Some(Kind::Channel),
-                89 /* warp_creature */ => Some(Kind::Warp {
-                    save: def.save.clone(),
-                }),
                 _ => None,
             },
             _ => None,
@@ -880,7 +889,7 @@ impl Game {
                 }
                 // Warp Wood needs a missile unit; it and Warp Creature take normal units only,
                 // and a unit is warped once.
-                if spell == SpellId::new(5) /* web */ && u.has(Ability::new(49)) {
+                if UnitEffect::Web.is_in(def) && u.has(Ability::new(49)) {
                     return Err(SpellError::Target(TargetError::NonCorporeal));
                 }
                 if matches!(kind, Kind::WarpWood | Kind::Warp { .. }) && u.is_fantastic() {
@@ -1352,7 +1361,7 @@ impl Game {
                     }
                 }
                 if bind {
-                    battle.enchant_unit(target, spell, player, &[], &[]);
+                    battle.enchant_unit(target, spell, player, UnitEffects::of(def), &[], &[]);
                 }
                 battle.change_sides(target, side);
                 vec![BattleEvent::SpellEnchanted {
@@ -1399,7 +1408,7 @@ impl Game {
                         return vec![BattleEvent::SpellResisted { unit: target }];
                     }
                 }
-                battle.enchant_unit(target, spell, player, &mods, &grants);
+                battle.enchant_unit(target, spell, player, UnitEffects::of(def), &mods, &grants);
                 vec![BattleEvent::SpellEnchanted {
                     unit: target,
                     spell,
@@ -1435,9 +1444,7 @@ impl Game {
                 let mut events = Vec::new();
                 for t in targets {
                     // Spell Lock keeps a unit from the spells that sever or burn it.
-                    let locked = battle.units[t]
-                        .enchantments
-                        .contains(&SpellId::new(54) /* spell_lock */);
+                    let locked = battle.units[t].effects.contains(UnitEffect::SpellLock);
                     if !slay_allows(only, &battle.units[t]) || locked {
                         continue;
                     }
@@ -1521,7 +1528,14 @@ impl Game {
             2 => WarpKind::Defense,
             _ => WarpKind::Resistance,
         };
-        battle.enchant_unit(target, spell, player, &warp_mods(kind, spell), &[]);
+        battle.enchant_unit(
+            target,
+            spell,
+            player,
+            UnitEffects::of(def),
+            &warp_mods(kind, spell),
+            &[],
+        );
         battle.units[target].warp = Some(kind);
         vec![BattleEvent::SpellEnchanted {
             unit: target,
@@ -1552,7 +1566,9 @@ impl Game {
                 if channelable && self.channel_battle_unit(t) {
                     events.push(BattleEvent::SpellEnchanted {
                         unit: t,
-                        spell: SpellId::new(93), /* chaos_channels */
+                        spell: UnitEffect::ChaosChannels
+                            .spell_in(&self.content.rules)
+                            .unwrap_or(SpellId::new(0)),
                     });
                 }
                 continue;
@@ -1741,12 +1757,13 @@ impl Game {
         if let Some(active) = self.battle.as_mut() {
             let warped = kept
                 .iter()
-                .any(|&(s, _)| s == SpellId::new(89) /* warp_creature */);
+                .any(|&(s, _)| UnitEffect::WarpCreature.is_in(self.content.rules.spells.get(s)));
             active.battle.rebuild_unit(target, base, kept, &lasting);
             active.battle.units[target].warp = unit.warp.filter(|_| warped);
-            let binding = SpellId::new(73) /* creature_binding */;
-            if unit.enchantments.contains(&binding)
-                && !lasting.iter().any(|(id, _, _)| *id == binding)
+            if unit.effects.contains(UnitEffect::CreatureBinding)
+                && !lasting
+                    .iter()
+                    .any(|(_, effects, ..)| effects.contains(UnitEffect::CreatureBinding))
             {
                 active.battle.return_unit(target);
             }
@@ -1763,16 +1780,25 @@ impl Game {
         kept: &[(SpellId, PlayerId)],
         base: &super::BattleUnit,
         target: usize,
-    ) -> Vec<(SpellId, Vec<Modifier>, Vec<Ability>)> {
+    ) -> Vec<(SpellId, UnitEffects, Vec<Modifier>, Vec<Ability>)> {
         let lasting: Vec<_> = kept
             .iter()
             .filter_map(|&(s, _)| {
                 let def = self.content.rules.spells.get(s);
                 match self.battle_kind(s, def)? {
-                    Kind::Enchant { mods, grants, .. } => Some((s, mods, grants)),
-                    Kind::Turn { bind: true, .. } => Some((s, Vec::new(), Vec::new())),
+                    Kind::Enchant { mods, grants, .. } => {
+                        Some((s, UnitEffects::of(def), mods, grants))
+                    }
+                    Kind::Turn { bind: true, .. } => {
+                        Some((s, UnitEffects::of(def), Vec::new(), Vec::new()))
+                    }
                     // The warp it got is kept among the unit's enchantment ids.
-                    Kind::Warp { .. } => Some((s, warp_mods(unit.warp?, s), Vec::new())),
+                    Kind::Warp { .. } => Some((
+                        s,
+                        UnitEffects::of(def),
+                        warp_mods(unit.warp?, s),
+                        Vec::new(),
+                    )),
                     _ => None,
                 }
             })
@@ -1782,10 +1808,10 @@ impl Game {
         present.extend(lasting.iter().map(|(id, ..)| *id));
         let lasting: Vec<_> = lasting
             .into_iter()
-            .map(|(id, mut mods, grants)| {
+            .map(|(id, effects, mut mods, grants)| {
                 mods.extend(self.superseded_bonuses(id, &present));
                 mods.extend(self.battle_bonuses_by_name(id, target));
-                (id, mods, grants)
+                (id, effects, mods, grants)
             })
             .collect();
         lasting

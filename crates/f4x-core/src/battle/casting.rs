@@ -9,6 +9,7 @@
 //! Tests: in battle/tests.rs.
 
 use crate::rules::Ability;
+use crate::spell::unit_effect::{UnitEffect, UnitEffects};
 use rand::RngCore;
 
 use super::attack::{kill_figure, spell_attack, unblockable, Combatant, Damage, Mode, Volley};
@@ -33,9 +34,7 @@ pub(crate) fn damage_unit_with_spell(
     rng: &mut dyn RngCore,
 ) -> Option<Damage> {
     let mut state = unit.defender_state();
-    let protected = state
-        .enchantments
-        .contains(&SpellId::new(144) /* righteousness */)
+    let protected = state.effects.contains(UnitEffect::Righteousness)
         && matches!(nature.realm, Some(Realm::Chaos | Realm::Death));
     if state.immunities.magic || protected {
         return None;
@@ -316,7 +315,7 @@ impl Battle {
                 state.resistance,
                 &state.immunities,
                 Some(realm),
-                &state.enchantments,
+                state.effects,
             );
             if res + modifier < limit {
                 let all = state.hit_points();
@@ -414,6 +413,7 @@ impl Battle {
         target: usize,
         spell: SpellId,
         caster: PlayerId,
+        effects: UnitEffects,
         mods: &[Modifier],
         grants: &[Ability],
     ) {
@@ -426,13 +426,12 @@ impl Battle {
             unit.base = Some(Box::new(base));
         }
         // Sleep ends the unit's turn.
-        if spell == SpellId::new(165)
-        /* black_sleep */
-        {
+        if effects.contains(UnitEffect::BlackSleep) {
             unit.attacked = true;
         }
         unit.combat_spells.push((spell, caster));
         unit.enchantments.push(spell);
+        unit.effects.union(effects);
         unit.apply_lasting(mods, grants);
     }
 
@@ -444,15 +443,17 @@ impl Battle {
         target: usize,
         base: BattleUnit,
         kept: Vec<(SpellId, PlayerId)>,
-        lasting: &[(SpellId, Vec<Modifier>, Vec<Ability>)],
+        lasting: &[(SpellId, UnitEffects, Vec<Modifier>, Vec<Ability>)],
     ) {
         let unit = &mut self.units[target];
         unit.restore_stats_from(&base);
         unit.field = Default::default();
         unit.base = Some(Box::new(base));
         unit.combat_spells = kept;
-        for (id, mods, grants) in lasting {
+        unit.effects = Default::default();
+        for (id, effects, mods, grants) in lasting {
             unit.enchantments.push(*id);
+            unit.effects.union(*effects);
             unit.apply_lasting(mods, grants);
         }
         if unit.combat_spells.is_empty() {
@@ -545,6 +546,7 @@ impl BattleUnit {
         self.magical_weapon = base.magical_weapon;
         self.special_level = base.special_level;
         self.enchantments = base.enchantments.clone();
+        self.effects = base.effects;
         self.abilities = base.abilities.clone();
         self.ranged_kind = base.ranged_kind;
     }

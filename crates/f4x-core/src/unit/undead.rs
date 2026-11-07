@@ -24,7 +24,6 @@
 
 use crate::game::Game;
 use crate::rules::Ability;
-use crate::rules::SpellId;
 use crate::unit::{Unit, UnitView};
 use hecs::World;
 
@@ -51,8 +50,8 @@ impl UnitView<'_> {
 
     /// Whether the Black Channels spell is on the unit.
     pub fn unit_is_black_channeled(&self, unit: hecs::Entity) -> bool {
-        crate::spell::instance::Spells::new(self.world)
-            .unit_has(unit, SpellId::new(175) /* black_channels */)
+        self.unit_effects(unit)
+            .contains(crate::spell::unit_effect::UnitEffect::BlackChannels)
     }
 
     /// Undead in the sense of the help: made undead or black channeled. Such a unit fights as

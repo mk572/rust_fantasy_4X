@@ -1,8 +1,19 @@
 use super::*;
 use crate::rules::SpellId;
+use crate::spell::unit_effect::UnitEffects;
 use rand::SeedableRng;
 
 use crate::game::testutil::abilities;
+
+/// What the shipped rules say the spells do (the `unit_effect` hook).
+fn fx(spells: &[SpellId]) -> UnitEffects {
+    let rules = crate::game::testutil::shipped().rules;
+    let mut set = UnitEffects::NONE;
+    for &s in spells {
+        set.union(UnitEffects::of(rules.spells.get(s)));
+    }
+    set
+}
 
 fn unit(names: &[u16]) -> Immunities {
     Immunities::of(&abilities(names))
@@ -219,7 +230,7 @@ fn resistance_adds_up_by_realm() {
     let none = unit(&[]);
     let wise = unit(&[40 /* magic_immunity */]);
     let r = |imm: &Immunities, realm, enchants: &[SpellId]| {
-        effective_resistance(5, imm, Some(realm), enchants)
+        effective_resistance(5, imm, Some(realm), fx(enchants))
     };
     assert_eq!(r(&none, Realm::Chaos, &[]), 5);
     assert_eq!(r(&wise, Realm::Sorcery, &[]), 35);
@@ -286,7 +297,7 @@ fn resistance_adds_up_by_realm() {
     );
     // No realm, no bonus: a plain weapon is not resisted.
     assert_eq!(
-        effective_resistance(5, &wise, None, &[SpellId::new(41) /* resist_magic */]),
+        effective_resistance(5, &wise, None, fx(&[SpellId::new(41) /* resist_magic */])),
         5
     );
 }
@@ -367,7 +378,7 @@ fn armor_piercing_halves_the_defense_before_immunities_set_their_floor() {
 #[test]
 fn enchantments_add_defense_against_the_realms_they_guard() {
     let ranged = Mode::Ranged;
-    let d = |realm, mode, names: &[SpellId]| defense_bonus(Some(realm), mode, names);
+    let d = |realm, mode, names: &[SpellId]| defense_bonus(Some(realm), mode, fx(names));
     assert_eq!(
         d(
             Realm::Chaos,
@@ -418,10 +429,10 @@ fn enchantments_add_defense_against_the_realms_they_guard() {
         defense_bonus(
             None,
             ranged,
-            &[
+            fx(&[
                 SpellId::new(121), /* bless */
                 SpellId::new(21)   /* elemental_armor */
-            ]
+            ])
         ),
         0
     );
@@ -429,8 +440,13 @@ fn enchantments_add_defense_against_the_realms_they_guard() {
 
 #[test]
 fn righteousness_turns_ranged_chaos_and_death_away() {
-    let r =
-        |realm, mode| righteous_ward(Some(realm), mode, &[SpellId::new(144) /* righteousness */]);
+    let r = |realm, mode| {
+        righteous_ward(
+            Some(realm),
+            mode,
+            fx(&[SpellId::new(144) /* righteousness */]),
+        )
+    };
     assert!(r(Realm::Chaos, Mode::Ranged));
     assert!(r(Realm::Death, Mode::Ranged));
     assert!(!r(Realm::Nature, Mode::Ranged));
@@ -438,6 +454,6 @@ fn righteousness_turns_ranged_chaos_and_death_away() {
     assert!(!righteous_ward(
         Some(Realm::Chaos),
         Mode::Ranged,
-        &[SpellId::new(121) /* bless */]
+        fx(&[SpellId::new(121) /* bless */])
     ));
 }

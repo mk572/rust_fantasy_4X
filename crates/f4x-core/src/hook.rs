@@ -127,6 +127,11 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
         args: &crate::spell::wizard::WizardEffect::NAMES,
         several: false,
     },
+    Hook {
+        name: crate::spell::unit_effect::UNIT_EFFECT,
+        args: &crate::spell::unit_effect::UnitEffect::NAMES,
+        several: true,
+    },
     plain(crate::battle::field::DISINTEGRATE),
     Hook {
         name: WALL,
@@ -138,22 +143,14 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
 /// The spells that have code of their own in Rust (`Effect::Special`), by number: the
 /// number is the only link between the spell and its code. A `Special` effect on a spell
 /// not in this list fails [`problems`].
-pub const SPECIAL_SPELLS: [u16; 21] = [
-    19,  // natures_cures
+pub const SPECIAL_SPELLS: [u16; 13] = [
     26,  // earthquake
     61,  // disjunction_true
-    68,  // stasis
-    73,  // creature_binding
     75,  // great_unsummoning
     76,  // spell_binding
-    89,  // warp_creature
-    93,  // chaos_channels
     119, // call_the_void
     133, // resurrection
     142, // incarnation
-    172, // possession
-    173, // lycanthropy
-    187, // black_wind
     199, // death_wish
     208, // summon_hero
     210, // disjunction

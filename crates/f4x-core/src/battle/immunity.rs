@@ -22,7 +22,8 @@
 //!
 //! Tests: in battle/immunity/tests.rs.
 
-use crate::rules::{Ability, SpellId};
+use crate::rules::Ability;
+use crate::spell::unit_effect::{UnitEffect, UnitEffects};
 use rand::{Rng, RngCore};
 
 use super::attack::Mode;
@@ -274,7 +275,7 @@ pub fn effective_defense(
 }
 
 /// A unit's resistance against a spell or attack of `realm`: its own, and 30 more with magic
-/// immunity against any realm. `enchantments` are the ids of its lasting spells; each adds to
+/// immunity against any realm. `effects` are what its lasting spells do; each adds to
 /// resistance against particular realms:
 /// - Righteousness +30 against chaos and death, Bless +3 against chaos and death;
 /// - Elemental Armor +10, or else Resist Elements +3, against chaos and nature;
@@ -283,10 +284,10 @@ pub fn effective_resistance(
     resistance: i32,
     unit: &Immunities,
     realm: Option<Realm>,
-    enchantments: &[SpellId],
+    effects: UnitEffects,
 ) -> i32 {
     let mut out = resistance;
-    let has = |num: u16| enchantments.contains(&SpellId::new(num));
+    let has = |e: UnitEffect| effects.contains(e);
     let Some(realm) = realm else {
         return out;
     };
@@ -295,20 +296,20 @@ pub fn effective_resistance(
     }
     let dark = matches!(realm, Realm::Chaos | Realm::Death);
     let elemental = matches!(realm, Realm::Chaos | Realm::Nature);
-    if dark && has(144 /* righteousness */) {
+    if dark && has(UnitEffect::Righteousness) {
         out += 30;
     }
     if elemental {
-        if has(21 /* elemental_armor */) {
+        if has(UnitEffect::ElementalArmor) {
             out += 10;
-        } else if has(2 /* resist_elements */) {
+        } else if has(UnitEffect::ResistElements) {
             out += 3;
         }
     }
-    if dark && has(121 /* bless */) {
+    if dark && has(UnitEffect::Bless) {
         out += 3;
     }
-    if has(41 /* resist_magic */) {
+    if has(UnitEffect::ResistMagic) {
         out += 5;
     }
     out
@@ -317,27 +318,27 @@ pub fn effective_resistance(
 /// The defence a unit's lasting spells add against an attack of `realm` (`Battle_Unit_Defense_Special`):
 /// Elemental Armor +10, or else Resist Elements +3, against ranged chaos and nature; Bless +3
 /// against chaos and death.
-pub fn defense_bonus(realm: Option<Realm>, mode: Mode, enchantments: &[SpellId]) -> i32 {
-    let has = |num: u16| enchantments.contains(&SpellId::new(num));
+pub fn defense_bonus(realm: Option<Realm>, mode: Mode, effects: UnitEffects) -> i32 {
+    let has = |e: UnitEffect| effects.contains(e);
     let mut out = 0;
     if matches!(realm, Some(Realm::Chaos | Realm::Nature)) && mode != Mode::Melee {
-        if has(21 /* elemental_armor */) {
+        if has(UnitEffect::ElementalArmor) {
             out += 10;
-        } else if has(2 /* resist_elements */) {
+        } else if has(UnitEffect::ResistElements) {
             out += 3;
         }
     }
-    if matches!(realm, Some(Realm::Chaos | Realm::Death)) && has(121 /* bless */) {
+    if matches!(realm, Some(Realm::Chaos | Realm::Death)) && has(UnitEffect::Bless) {
         out += 3;
     }
     out
 }
 
 /// Righteousness: a ranged attack of chaos or death cannot touch the unit.
-pub fn righteous_ward(realm: Option<Realm>, mode: Mode, enchantments: &[SpellId]) -> bool {
+pub fn righteous_ward(realm: Option<Realm>, mode: Mode, effects: UnitEffects) -> bool {
     matches!(realm, Some(Realm::Chaos | Realm::Death))
         && mode != Mode::Melee
-        && enchantments.contains(&SpellId::new(144) /* righteousness */)
+        && effects.contains(UnitEffect::Righteousness)
 }
 
 /// The defence an unbeatable ward or immunity gives.

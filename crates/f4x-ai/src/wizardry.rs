@@ -9,6 +9,7 @@ use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::rules::exec::Target;
+use f4x_core::spell::unit_effect::UnitEffect;
 use f4x_def::rules::effects::Effect;
 use f4x_def::rules::{CastContext, Duration, RealmId, SpellDef, SpellId, SpellTarget};
 
@@ -81,17 +82,6 @@ const WRATH_REALMS: &[RealmId] = &[
     RealmId::new(2), /* chaos */
 ];
 
-/// Lasting spells on a unit whose effect the rules read by the spell's number, so their
-/// `effects` are empty: the wards against a realm, and Bless. All of them help the unit they sit
-/// on. (Heroism carries its own `heroism` tag and counts too.)
-const READ_BY_NUM_BUFFS: &[u16] = &[
-    121, // bless
-    144, // righteousness
-    41,  // resist_magic
-    2,   // resist_elements
-    21,  // elemental_armor
-];
-
 /// Unexplored squares a block must hold to be worth Earth Lore.
 const EXPLORE_FLOOR: u32 = 70;
 /// Share of a stack's hit points (percent) that must be gone to be worth Nature's Cures.
@@ -148,15 +138,10 @@ pub fn kind(def: &SpellDef) -> Kind {
     if f4x_core::spell::terraform::TerrainEffect::EarthLore.is_in(def) {
         return Kind::Explore;
     }
-    if def.num == 19
-    /* natures_cures */
-    {
-        return Kind::Cure;
-    }
-    if def.num == 93
-    /* chaos_channels */
-    {
-        return Kind::Mutate;
+    match UnitEffect::of(def) {
+        Some(UnitEffect::NaturesCures) => return Kind::Cure,
+        Some(UnitEffect::ChaosChannels) => return Kind::Mutate,
+        _ => {}
     }
     if def.has_hook_arg(
         f4x_core::spell::special::RECALL,
@@ -164,15 +149,12 @@ pub fn kind(def: &SpellDef) -> Kind {
     ) {
         return Kind::Recall;
     }
-    if def.num == 68
-    /* stasis */
-    {
+    if UnitEffect::of(def) == Some(UnitEffect::Stasis) {
         return Kind::Stasis;
     }
     if def.target == SpellTarget::OwnUnit
         && def.duration == Duration::Permanent
-        && (has_hook(def, "heroism")
-            || (def.effects.is_empty() && READ_BY_NUM_BUFFS.contains(&def.num)))
+        && has_hook(def, "heroism")
     {
         return Kind::UnitBuff;
     }
@@ -193,16 +175,20 @@ pub fn kind(def: &SpellDef) -> Kind {
     let helps = |r: &f4x_def::rules::effects::EffectRule| match &r.effect {
         Effect::Modify { value, .. } => *value >= 0,
         Effect::GrantAbility(_) => true,
+        // Spell Lock is read by the battle AI, not worth a cast of its own.
+        Effect::Custom { name, args } if name == "unit_effect" => {
+            !args.iter().any(|a| a == "spell_lock")
+        }
         Effect::Custom { name, .. } => name == "city_effect" || name == "wall",
         _ => false,
     };
     match def.target {
         SpellTarget::OwnUnit
             if def.duration != Duration::Instant
-                && def
-                    .effects
-                    .iter()
-                    .all(|r| !matches!(r.effect, Effect::Custom { .. } | Effect::Special))
+                && def.effects.iter().all(|r| {
+                    !matches!(&r.effect, Effect::Custom { name, .. } if name != "unit_effect")
+                        && !matches!(r.effect, Effect::Special)
+                })
                 && def.effects.iter().all(helps) =>
         {
             Kind::UnitBuff

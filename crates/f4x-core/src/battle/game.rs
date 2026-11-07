@@ -346,6 +346,14 @@ impl Game {
                 }
                 list
             },
+            effects: {
+                let mut effects = self.units().unit_effects(unit);
+                if self.unit_in_stasis(unit) {
+                    effects.insert(crate::spell::unit_effect::UnitEffect::BlackSleep);
+                    effects.insert(crate::spell::unit_effect::UnitEffect::Holds);
+                }
+                effects
+            },
             realm: self.units().unit_realm(unit).and_then(Realm::of),
             undead: self.units().unit_counts_as_undead(unit),
             abilities: abilities.clone(),
@@ -1126,11 +1134,6 @@ impl Game {
         // asleep, confused or webbed are always lost, and on Intro and Easy the player whose
         // turn it is (the attacker: a battle starts on its mover's turn) loses nothing else
         // (`Combat.c`).
-        const HELD: [SpellId; 3] = [
-            SpellId::new(165), /* black_sleep */
-            SpellId::new(46),  /* confusion */
-            SpellId::new(5),   /* web */
-        ];
         // Heroes taken off the field by Recall Hero are at the summoning circle now.
         for u in battle.units.iter().filter(|u| u.status == Status::Recalled) {
             let to = self.summon_point(battle.player_of(u.side));
@@ -1144,7 +1147,9 @@ impl Game {
                 .iter()
                 .filter(|u| u.side == side && u.status == Status::Fled)
                 .filter_map(|u| {
-                    let held = u.enchantments.iter().any(|e| HELD.contains(e));
+                    let held = u
+                        .effects
+                        .contains(crate::spell::unit_effect::UnitEffect::Holds);
                     source_of(u).map(|e| (e, held))
                 })
                 .collect();
