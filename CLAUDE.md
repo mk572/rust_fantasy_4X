@@ -39,7 +39,7 @@ Refer to `docs/ecs-structure.md`
   `item`, `UnitView`), also in the other crates. Plural stays for `Vec` fields, registries and `.ron`
   files (`Rules.units`, `units.ron`).
   
-- **Player-facing text is never hardcoded**: it is a key in `content/text/en/*.ron` (`docs/text.md`),
+- **Player-facing text is never hardcoded**: it is a key in `crates/f4x-client/content/text/en/*.ron` (`docs/text.md`),
   with count, plural and gender forms. A new message adds its key there in the same change. The goal is to support localization.
 
 - **Project lessons** (non-obvious findings of the rework) are in `docs/KNOWLEDGE.md`; add to it when you
