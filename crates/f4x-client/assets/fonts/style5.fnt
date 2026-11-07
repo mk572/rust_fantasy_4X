@@ -1,7 +1,7 @@
 info face="FONTS.LBX style 5" size=16
 common lineHeight=17 base=16 scaleW=1104 scaleH=144 pages=1 packed=0
 page id=0 file="style5.png"
-chars count=280
+chars count=281
 char id=32 x=0 y=0 width=3 height=16 xoffset=0 yoffset=0 xadvance=4 page=0 chnl=15
 char id=33 x=23 y=0 width=1 height=16 xoffset=0 yoffset=0 xadvance=2 page=0 chnl=15
 char id=34 x=46 y=0 width=1 height=16 xoffset=0 yoffset=0 xadvance=2 page=0 chnl=15
@@ -282,3 +282,4 @@ char id=8222 x=828 y=120 width=3 height=16 xoffset=0 yoffset=0 xadvance=4 page=0
 char id=8211 x=851 y=120 width=9 height=16 xoffset=0 yoffset=0 xadvance=10 page=0 chnl=15
 char id=8212 x=874 y=120 width=13 height=16 xoffset=0 yoffset=0 xadvance=14 page=0 chnl=15
 char id=8230 x=897 y=120 width=14 height=16 xoffset=0 yoffset=0 xadvance=15 page=0 chnl=15
+char id=189 x=920 y=120 width=11 height=11 xoffset=0 yoffset=0 xadvance=12 page=0 chnl=15

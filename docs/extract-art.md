@@ -201,7 +201,7 @@ pick the same palette the game had loaded when it showed a picture, or the colou
   letter with no room grows upward and is drawn above the line, `yoffset` < 0; a mark below grows downward; the
   2-pixel marks of the 16 px style are 2 pixels per pixel), the tick of Czech and Slovak ď ť ľ, the strokes of
   ł Ł ø Ø đ Đ Ð, the ligatures æ œ Æ Œ, the dotless ı, ¿ ¡, « », typographic quotes „ “ ” ‚ ‘ ’, the dashes – —
-  and the ellipsis …, and the eszett ß: a straight stem on the left, an upper half-circle and a slightly larger lower
+  and the ellipsis …, the fraction ½ (`scripts/font_add_half.py`, a rough raster to fix by hand), and the eszett ß: a straight stem on the left, an upper half-circle and a slightly larger lower
   one, the lower bowl's bar left unjoined to the stem at the bottom. That covers French, Spanish, Portuguese,
   Italian, German, Dutch, Danish, Norwegian, Swedish, Finnish, Czech, Slovak, Polish, Hungarian, Romanian, Croatian
   and Turkish; not drawn: Icelandic þ ð, the capital ẞ, ĳ and the Greek and Cyrillic scripts (see the free fonts in
