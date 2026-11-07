@@ -497,8 +497,7 @@ impl App {
     fn icon_row(
         &mut self,
         lay: Layout,
-        small: usize,
-        big: usize,
+        (small, big): (usize, usize),
         count: i32,
         half: bool,
         x: f32,
@@ -557,9 +556,9 @@ impl App {
         let ink = Color::new(0.12, 0.1, 0.08, 1.0);
         for (i, (small, big, count, half, note)) in rows.into_iter().enumerate() {
             let y = 54.0 + i as f32 * 8.6;
-            let mut end = self.icon_row(lay, small, big, count, half, 8.0, y);
+            let mut end = self.icon_row(lay, (small, big), count, half, 8.0, y);
             if i == 2 && eco.gold_upkeep > 0 {
-                end = self.icon_row(lay, 73, 73, eco.gold_upkeep, false, end + 6.0, y);
+                end = self.icon_row(lay, (73, 73), eco.gold_upkeep, false, end + 6.0, y);
             }
             let _ = end;
             if !note.is_empty() {

@@ -276,7 +276,7 @@ impl Game {
                 }
                 match &r.effect {
                     Effect::Modify { stat, op, value } => {
-                        mods.push(Modifier::new(*stat, *op, *value, Source::Spell(spell)));
+                        mods.push(Modifier::amount(*stat, *op, *value, Source::Spell(spell)));
                     }
                     Effect::GrantAbility(a) => {
                         grants.push(*a);
@@ -988,10 +988,10 @@ impl Game {
                     (r.when, &r.condition, &r.effect)
                 {
                     if *op == ModOp::Add {
-                        out.push(Modifier::new(
+                        out.push(Modifier::amount(
                             *stat,
                             ModOp::Add,
-                            -value,
+                            -*value,
                             Source::Spell(other),
                         ));
                     }

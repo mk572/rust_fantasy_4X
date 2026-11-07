@@ -299,7 +299,8 @@ fn rule_value(
             // A blessing on the strongest of ours is worth a share of its strength; a curse on
             // an enemy likewise. The sign of the change says which it is; a stat set to nothing
             // (a web holds a unit still) is a curse.
-            let good = *value >= 0 && !(*op == ModOp::Set && *value == 0);
+            let zero = f4x_def::half_int::HalfInt::ZERO;
+            let good = *value >= zero && !(*op == ModOp::Set && *value == zero);
             on.iter()
                 .filter(|u| ours(u) == good)
                 .map(|u| 0.25 * worth(u))

@@ -9,6 +9,7 @@ use strum::EnumIter;
 use super::defs::{AbilityDef, BuildingDef, RaceDef, SpellDef};
 use super::effects::{Condition, Effect, EffectRule, Trigger};
 use super::ids::Id;
+use crate::half_int::HalfInt;
 
 /// Every numeric attribute the rules know about. Fixed in code: content files
 /// may use these but not invent new ones.
@@ -162,12 +163,19 @@ pub enum Source {
 pub struct Modifier {
     pub stat: Stat,
     pub op: ModOp,
-    pub value: i32,
+    /// The amount: whole for every stat but the ones counted in halves (food), where it may be
+    /// 0.5. A percent is a whole number.
+    pub value: HalfInt,
     pub source: Source,
 }
 
 impl Modifier {
     pub fn new(stat: Stat, op: ModOp, value: i32, source: Source) -> Self {
+        Self::amount(stat, op, HalfInt::from_int(value), source)
+    }
+
+    /// A modifier of an amount that may be a half.
+    pub fn amount(stat: Stat, op: ModOp, value: HalfInt, source: Source) -> Self {
         Self {
             stat,
             op,
@@ -191,11 +199,12 @@ pub fn compute(stat: Stat, base: i32, mods: &[Modifier]) -> i32 {
             .map(|m| m.value)
     };
     let base = match (stat, of(ModOp::Min).max()) {
-        (Stat::Moves, Some(min)) => base.max(min),
+        (Stat::Moves, Some(min)) => base.max(min.floor()),
         _ => base,
     };
-    let adds: i64 = of(ModOp::Add).map(i64::from).sum();
-    let percent: i64 = of(ModOp::Percent).map(i64::from).sum();
+    // A stat counted in whole numbers has whole modifiers (the loader checks the content).
+    let adds: i64 = of(ModOp::Add).map(|v| i64::from(v.floor())).sum();
+    let percent: i64 = of(ModOp::Percent).map(|v| i64::from(v.floor())).sum();
     let mut v = (base as i64 + adds) * (100 + percent).max(0) / 100;
     // `/` truncates toward zero; the doc promises floor, so fix up negatives.
     if (base as i64 + adds) * (100 + percent).max(0) % 100 < 0 {
@@ -203,6 +212,37 @@ pub fn compute(stat: Stat, base: i32, mods: &[Modifier]) -> i32 {
     }
     let mut v = v.clamp(i32::MIN as i64, i32::MAX as i64) as i32;
     if let (Some(min), false) = (of(ModOp::Min).max(), stat == Stat::Moves) {
+        v = v.max(min.floor());
+    }
+    if let Some(max) = of(ModOp::Max).min() {
+        v = v.min(max.floor());
+    }
+    if let Some(set) = of(ModOp::Set).min() {
+        v = set.floor();
+    }
+    match stat.floor() {
+        Some(floor) => v.max(floor),
+        None => v,
+    }
+}
+
+/// [`compute`] for a stat that is counted in halves (the food stats): the same order, with the
+/// base and the result as [`HalfInt`] and the percent rounded down to a half.
+pub fn compute_half(stat: Stat, base: HalfInt, mods: &[Modifier]) -> HalfInt {
+    let of = |op: ModOp| {
+        mods.iter()
+            .filter(move |m| m.stat == stat && m.op == op)
+            .map(|m| m.value)
+    };
+    let adds: i64 = of(ModOp::Add).map(|v| i64::from(v.raw())).sum();
+    let percent: i64 = of(ModOp::Percent).map(|v| i64::from(v.floor())).sum();
+    let halves = (i64::from(base.raw()) + adds) * (100 + percent).max(0);
+    let mut v = HalfInt::from_raw(
+        halves
+            .div_euclid(100)
+            .clamp(i32::MIN as i64, i32::MAX as i64) as i32,
+    );
+    if let Some(min) = of(ModOp::Min).max() {
         v = v.max(min);
     }
     if let Some(max) = of(ModOp::Max).min() {
@@ -212,7 +252,7 @@ pub fn compute(stat: Stat, base: i32, mods: &[Modifier]) -> i32 {
         v = set;
     }
     match stat.floor() {
-        Some(floor) => v.max(floor),
+        Some(floor) => v.max(HalfInt::from_int(floor)),
         None => v,
     }
 }
@@ -225,7 +265,7 @@ pub fn passive_modifiers(effects: &[EffectRule], source: Source) -> Vec<Modifier
         .iter()
         .filter(|r| r.when == Trigger::Passive && r.condition == Condition::Always)
         .filter_map(|r| match r.effect {
-            Effect::Modify { stat, op, value } => Some(Modifier::new(stat, op, value, source)),
+            Effect::Modify { stat, op, value } => Some(Modifier::amount(stat, op, value, source)),
             _ => None,
         })
         .collect()

@@ -721,7 +721,7 @@ impl App {
                         value,
                     } = rule.effect
                     {
-                        *stats.entry(stat).or_insert(0) += value;
+                        *stats.entry(stat).or_insert(0) += value.floor();
                     }
                 }
             }

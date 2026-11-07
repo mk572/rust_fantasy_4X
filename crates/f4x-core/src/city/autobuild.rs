@@ -337,7 +337,7 @@ fn is_transport(d: &crate::rules::UnitDef) -> bool {
     !is_combat(d) && !is_settler(d) && !is_engineer(d)
 }
 
-fn effect_values(content: &Content, b: BuildingId, wanted: &[Stat]) -> Vec<(Stat, ModOp, i32)> {
+fn effect_values(content: &Content, b: BuildingId, wanted: &[Stat]) -> Vec<(Stat, ModOp, HalfInt)> {
     content
         .rules
         .buildings
@@ -358,19 +358,19 @@ fn adds_food(content: &Content, b: BuildingId) -> bool {
         &[Stat::CityFood, Stat::CityFoodFlat, Stat::FarmerFood],
     )
     .iter()
-    .any(|&(_, _, v)| v > 0)
+    .any(|&(_, _, v)| v > HalfInt::ZERO)
 }
 
 fn lowers_unrest(content: &Content, b: BuildingId) -> bool {
     effect_values(content, b, &[Stat::CityUnrest])
         .iter()
-        .any(|&(_, _, v)| v < 0)
+        .any(|&(_, _, v)| v < HalfInt::ZERO)
 }
 
 fn adds_gold(content: &Content, b: BuildingId) -> bool {
     effect_values(content, b, &[Stat::CityGold])
         .iter()
-        .any(|&(_, _, v)| v > 0)
+        .any(|&(_, _, v)| v > HalfInt::ZERO)
 }
 
 // ---- scoring buildings ---------------------------------------------------------------------

@@ -63,19 +63,17 @@ impl Budget {
     /// which pays part of the troops' gold.
     pub fn compute(cities: &[CityYield], troops: &[Troop], fame: i32) -> Budget {
         let mut t = Budget::default();
-        let mut sold_food_gold = 0;
         for city in cities {
             t.city_gold += city.gold;
             t.building_upkeep += city.gold_upkeep;
             let excess = (city.food - HalfInt::from_int(city.figures)).max(HalfInt::ZERO);
-            // Two food for a gold, a city at a time: the odd food is not sold.
-            sold_food_gold += excess.raw() / 4;
             t.food_surplus += excess;
         }
         t.noble_gold = 10 * troops.iter().filter(|u| u.noble_hero).count() as i32;
         t.food_upkeep = troops.iter().map(|u| u.food).sum();
-        // Spare food is sold at two for one gold once the army has eaten.
-        t.food_gold = (sold_food_gold - t.food_upkeep.raw() / 4).max(0);
+        // The empire's spare food is sold at two for one gold once the army has eaten: the original
+        // rounded each city and the army down on their own, here only the total is rounded.
+        t.food_gold = ((t.food_surplus - t.food_upkeep).raw() / 4).max(0);
         t.unit_upkeep = (troops.iter().map(|u| u.gold).sum::<i32>() - fame).max(0);
         t
     }

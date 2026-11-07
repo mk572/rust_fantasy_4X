@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::half_int::HalfInt;
 use crate::rules::stats::{ModOp, Modifier, Source, Stat};
 use crate::rules::Ability;
 
@@ -231,7 +232,7 @@ impl HeroAbilities {
         if magic_ranged {
             out.push(add(Stat::Ranged, arcane_power(self.arcane_power, level)));
         }
-        out.retain(|m| m.value != 0);
+        out.retain(|m| m.value != HalfInt::ZERO);
         out
     }
 }

@@ -29,13 +29,19 @@ fn arcane_power_needs_a_magic_attack() {
     ]);
     let find = |mods: &[Modifier], stat| mods.iter().find(|m| m.stat == stat).map(|m| m.value);
     assert_eq!(find(&a.modifiers(1, false), Stat::Ranged), None);
-    assert_eq!(find(&a.modifiers(1, true), Stat::Ranged), Some(2));
-    assert_eq!(find(&a.modifiers(1, true), Stat::Melee), Some(3));
+    assert_eq!(
+        find(&a.modifiers(1, true), Stat::Ranged),
+        Some(HalfInt::from_int(2))
+    );
+    assert_eq!(
+        find(&a.modifiers(1, true), Stat::Melee),
+        Some(HalfInt::from_int(3))
+    );
     assert_eq!(find(&a.modifiers(1, true), Stat::Defense), None);
     let charmed = HeroAbilities::from_ids(&[Ability::new(95) /* charmed */]);
     assert_eq!(
         find(&charmed.modifiers(1, false), Stat::Resistance),
-        Some(30)
+        Some(HalfInt::from_int(30))
     );
 }
 

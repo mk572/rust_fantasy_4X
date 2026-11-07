@@ -91,11 +91,11 @@ impl Item {
             } = rule.effect
             {
                 match stat {
-                    Stat::Melee => bonus.attack += value,
-                    Stat::ToHit => bonus.to_hit += value,
-                    Stat::Defense => bonus.defense += value,
-                    Stat::HalfMoves => bonus.moves += value,
-                    Stat::Resistance => bonus.resistance += value,
+                    Stat::Melee => bonus.attack += value.floor(),
+                    Stat::ToHit => bonus.to_hit += value.floor(),
+                    Stat::Defense => bonus.defense += value.floor(),
+                    Stat::HalfMoves => bonus.moves += value.floor(),
+                    Stat::Resistance => bonus.resistance += value.floor(),
                     _ => {}
                 }
             }
@@ -414,7 +414,7 @@ mod tests {
     fn total(mods: &[Modifier], stat: Stat) -> i32 {
         mods.iter()
             .filter(|m| m.stat == stat)
-            .map(|m| m.value)
+            .map(|m| m.value.floor())
             .sum()
     }
 

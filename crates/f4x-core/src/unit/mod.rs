@@ -312,9 +312,9 @@ impl<'a> UnitView<'a> {
                 let had = before
                     .iter()
                     .find(|b| b.stat == m.stat)
-                    .map_or(0, |b| b.value);
+                    .map_or(HalfInt::ZERO, |b| b.value);
                 if m.value != had {
-                    mods.push(Modifier::new(m.stat, m.op, m.value - had, m.source));
+                    mods.push(Modifier::amount(m.stat, m.op, m.value - had, m.source));
                 }
             }
         }

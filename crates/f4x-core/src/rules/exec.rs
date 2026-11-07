@@ -196,7 +196,7 @@ fn run_effect(
 ) {
     match effect {
         Effect::Modify { stat, op, value } => {
-            host.add_modifier(who, Modifier::new(*stat, *op, *value, ctx.source));
+            host.add_modifier(who, Modifier::amount(*stat, *op, *value, ctx.source));
             out.push(Outcome::Modified { who, stat: *stat });
         }
         Effect::GrantAbility(ability) => {
@@ -285,7 +285,7 @@ pub fn add(stat: Stat, value: i32) -> Effect {
     Effect::Modify {
         stat,
         op: ModOp::Add,
-        value,
+        value: f4x_def::half_int::HalfInt::from_int(value),
     }
 }
 

@@ -7,7 +7,7 @@
 //! for display or interoperability.
 use std::fmt;
 use std::iter::Sum;
-use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Mul, Neg, Sub, SubAssign};
 
 /// A signed fixed-point value whose smallest step is 0.5.
 ///
@@ -29,7 +29,7 @@ impl HalfInt {
 
     /// Creates a value from a whole number.
     pub const fn from_int(value: i32) -> Self {
-        Self(value * 2)
+        Self(value.saturating_mul(2))
     }
 
     /// Returns the doubled integer representation.
@@ -50,6 +50,11 @@ impl HalfInt {
     /// The value rounded up to a whole number (towards positive infinity): 1.5 is 2.
     pub const fn ceil(self) -> i32 {
         (self.0 + 1).div_euclid(2)
+    }
+
+    /// The value without its sign.
+    pub const fn abs(self) -> Self {
+        Self(self.0.abs())
     }
 
     /// Converts this value to a floating-point number, e.g. for display.
@@ -82,6 +87,14 @@ impl Neg for HalfInt {
     }
 }
 
+impl Mul<i32> for HalfInt {
+    type Output = Self;
+
+    fn mul(self, rhs: i32) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
 impl AddAssign for HalfInt {
     fn add_assign(&mut self, rhs: Self) {
         self.0 += rhs.0;
@@ -103,7 +116,11 @@ impl Sum for HalfInt {
 /// Shows whole values as `3` and halves as `3.5`.
 impl fmt::Display for HalfInt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let sign = if self.0 < 0 { "-" } else { "" };
+        let sign = match (self.0 < 0, f.sign_plus()) {
+            (true, _) => "-",
+            (false, true) => "+",
+            (false, false) => "",
+        };
         let abs = self.0.unsigned_abs();
         if abs.is_multiple_of(2) {
             write!(f, "{sign}{}", abs / 2)
@@ -197,6 +214,8 @@ mod tests {
         assert_eq!(v.to_string(), "1.5");
         assert_eq!(HalfInt::from_raw(-3).to_string(), "-1.5");
         assert_eq!(HalfInt::from_int(4).to_string(), "4");
+        assert_eq!(format!("{:+}", HalfInt::from_raw(3)), "+1.5");
+        assert_eq!(format!("{:+}", HalfInt::from_raw(-3)), "-1.5");
     }
 
     #[test]

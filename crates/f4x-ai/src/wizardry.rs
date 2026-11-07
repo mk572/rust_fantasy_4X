@@ -171,7 +171,7 @@ pub fn kind(def: &SpellDef) -> Kind {
         return Kind::Disenchant;
     }
     let helps = |r: &f4x_def::rules::effects::EffectRule| match &r.effect {
-        Effect::Modify { value, .. } => *value >= 0,
+        Effect::Modify { value, .. } => *value >= f4x_def::half_int::HalfInt::ZERO,
         Effect::GrantAbility(_) => true,
         // Spell Lock is read by the battle AI, not worth a cast of its own.
         Effect::Custom { name, args } if name == "unit_effect" => {

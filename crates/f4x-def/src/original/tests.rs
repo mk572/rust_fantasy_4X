@@ -249,7 +249,7 @@ fn every_prefab_item_has_the_originals_type_cost_bonuses_and_powers() {
                         stat,
                         op: ModOp::Add,
                         value,
-                    } if stat == s => i64::from(value),
+                    } if stat == s => i64::from(value.floor()),
                     _ => 0,
                 })
                 .sum()
@@ -338,7 +338,7 @@ fn every_race_has_the_originals_growth_houses_forbidden_buildings_and_units() {
                     stat: Stat::CityGrowth,
                     op: ModOp::Add,
                     value,
-                } => Some(*value),
+                } => Some(value.floor()),
                 _ => None,
             })
             .sum();

@@ -243,7 +243,11 @@ fn modify_is_tagged_with_the_source() {
     let m = h.unit(a).mods[0];
     assert_eq!(
         (m.stat, m.value, m.source),
-        (Stat::Melee, 2, Source::Level(2))
+        (
+            Stat::Melee,
+            f4x_def::half_int::HalfInt::from_int(2),
+            Source::Level(2)
+        )
     );
 }
 

@@ -17,7 +17,11 @@ use hecs::World;
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TempKind {
-    Modifier { stat: Stat, op: ModOp, value: i32 },
+    Modifier {
+        stat: Stat,
+        op: ModOp,
+        value: f4x_def::half_int::HalfInt,
+    },
     Grant(Ability),
     Remove(Ability),
 }
@@ -114,7 +118,7 @@ impl<'a> UnitView<'a> {
             .iter()
             .filter_map(|t| match t.kind {
                 TempKind::Modifier { stat, op, value } => {
-                    Some(Modifier::new(stat, op, value, Source::Other))
+                    Some(Modifier::amount(stat, op, value, Source::Other))
                 }
                 _ => None,
             })
@@ -433,11 +437,9 @@ mod tests {
         g.add_temp_modifier(Target::City(city), plus(Stat::CityGold, 4), Some(3));
         g.grant_temp_ability(Target::City(city), Ability::new(24), None);
         assert_eq!(g.units().temp_effects(city).len(), 1);
-        assert!(g
-            .economy()
-            .city_modifiers(city)
-            .iter()
-            .any(|m| m.stat == Stat::CityGold && m.value == 4));
+        assert!(g.economy().city_modifiers(city).iter().any(
+            |m| m.stat == Stat::CityGold && m.value == f4x_def::half_int::HalfInt::from_int(4)
+        ));
     }
 
     #[test]

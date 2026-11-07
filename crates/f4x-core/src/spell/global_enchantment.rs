@@ -288,7 +288,7 @@ impl UnitView<'_> {
                     continue;
                 }
                 if let Effect::Modify { stat, op, value } = rule.effect {
-                    mods.push(Modifier::new(stat, op, value, Source::Spell(spell)));
+                    mods.push(Modifier::amount(stat, op, value, Source::Spell(spell)));
                 }
             }
             if sdef.id == "charm_of_life" {

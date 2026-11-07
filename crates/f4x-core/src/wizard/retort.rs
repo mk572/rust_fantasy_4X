@@ -38,7 +38,7 @@ fn modifiers(rules: &Rules, retorts: &BTreeSet<Retort>, def: &SpellDef) -> Vec<M
         for rule in row.effects.iter().filter(|r| r.when == Trigger::Passive) {
             if let Effect::Modify { stat, op, value } = rule.effect {
                 if eval(&rule.condition, &facts) {
-                    out.push(Modifier::new(stat, op, value, Source::Retort(retort)));
+                    out.push(Modifier::amount(stat, op, value, Source::Retort(retort)));
                 }
             }
         }
@@ -65,7 +65,7 @@ pub fn stat_with(
                 .filter(|rule| eval(&rule.condition, facts))
                 .filter_map(move |rule| match rule.effect {
                     Effect::Modify { stat, op, value } => {
-                        Some(Modifier::new(stat, op, value, Source::Retort(r)))
+                        Some(Modifier::amount(stat, op, value, Source::Retort(r)))
                     }
                     _ => None,
                 })

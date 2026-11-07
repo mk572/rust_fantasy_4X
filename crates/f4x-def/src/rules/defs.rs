@@ -38,8 +38,8 @@ pub struct RaceDef {
     #[serde(default)]
     pub effects: Vec<EffectRule>,
     /// Food each farmer grows.
-    #[serde(default = "two")]
-    pub farmer_food: u8,
+    #[serde(default = "two_food")]
+    pub farmer_food: HalfInt,
     /// Production per worker, in half-units (4 = two).
     #[serde(default = "four")]
     pub worker_production_x2: u8,
@@ -66,8 +66,8 @@ pub struct RaceDef {
 fn yes() -> bool {
     true
 }
-fn two() -> u8 {
-    2
+fn two_food() -> HalfInt {
+    HalfInt::from_int(2)
 }
 fn four() -> u8 {
     4

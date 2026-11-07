@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use super::ids::Id;
 use super::stats::{ModOp, Stat};
 use super::{AbilityDef, RealmDef};
+use crate::half_int::HalfInt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Condition {
@@ -96,7 +97,7 @@ pub enum Effect {
     Modify {
         stat: Stat,
         op: ModOp,
-        value: i32,
+        value: HalfInt,
     },
     GrantAbility(Id<AbilityDef>),
     /// `resistible`: the target gets a resistance check, against `realm` with `resist_modifier`

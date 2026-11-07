@@ -336,7 +336,7 @@ mod tests {
                     stat: s,
                     op: ModOp::Add,
                     value,
-                } if s == stat => value,
+                } if s == stat => value.floor(),
                 _ => 0,
             })
             .sum()
@@ -520,7 +520,9 @@ mod tests {
                 {
                     seen += 1;
                     assert!(
-                        (2..=8).contains(&value) && value % 2 == 0,
+                        (2..=8).contains(&value.floor())
+                            && value.is_whole()
+                            && value.floor() % 2 == 0,
                         "{} has {value} half-moves",
                         item.id
                     );

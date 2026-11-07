@@ -25,7 +25,7 @@ use crate::map::{Map, Plane, Position};
 use crate::player::{Owner, PlayerId};
 use f4x_def::content::Content;
 
-use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
+use crate::rules::stats::{compute, compute_half, passive_modifiers, Modifier, Source};
 use crate::rules::{RaceDef, RealmId, Stat};
 use crate::spell::city::RELIGIOUS;
 use crate::unit::UnitView;
@@ -284,8 +284,8 @@ impl<'a> Economy<'a> {
                 if RELIGIOUS.contains(&def.id.as_str()) {
                     for m in &found {
                         match m.stat {
-                            Stat::CityMana => power += m.value,
-                            Stat::CityUnrest => pacify -= m.value,
+                            Stat::CityMana => power += m.value.floor(),
+                            Stat::CityUnrest => pacify -= m.value.floor(),
                             _ => {}
                         }
                     }
@@ -743,25 +743,22 @@ impl<'a> Economy<'a> {
         let workers = figures - farmers - rebels;
 
         // Food.
-        let farmer_rate = i32::from(race.map_or(2, |r| r.farmer_food));
-        let farmer_rate = compute(Stat::FarmerFood, farmer_rate, &mods);
-        let mut food =
-            HalfInt::from_int(compute(Stat::CityFood, farmers as i32 * farmer_rate, &mods));
+        let farmer_rate = race.map_or(HalfInt::from_int(2), |r| r.farmer_food);
+        let farmer_rate = compute_half(Stat::FarmerFood, farmer_rate, &mods);
+        let mut food = compute_half(Stat::CityFood, farmer_rate * farmers as i32, &mods);
         if food > terrain_food {
             food = terrain_food + HalfInt::from_raw((food - terrain_food).raw() / 2);
         }
-        let flat = compute(Stat::CityFoodFlat, 0, &mods);
-        food += HalfInt::from_int(flat) + wild_food;
+        let flat = compute_half(Stat::CityFoodFlat, HalfInt::ZERO, &mods);
+        food += flat + wild_food;
         // The city feeds as many as its land, farm work and buildings allow.
         let famine = self.city_has_effect(city, CityEffect::Famine);
-        let pre_cap_adds = compute(Stat::CityFood, 0, &mods);
+        let pre_cap_adds = compute_half(Stat::CityFood, HalfInt::ZERO, &mods);
         let mut max_size = terrain_food;
         if famine {
             max_size = HalfInt::from_raw(max_size.raw() / 2);
         }
-        let max_size = (max_size + HalfInt::from_int(pre_cap_adds + flat) + wild_food)
-            .floor()
-            .max(0) as u32;
+        let max_size = (max_size + pre_cap_adds + flat + wild_food).floor().max(0) as u32;
         let max_size = max_size.min(rules.config.max_city_size);
 
         // Production.

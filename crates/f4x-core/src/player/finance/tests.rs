@@ -167,3 +167,19 @@ fn a_half_food_in_a_city_or_an_army_is_kept() {
     assert_eq!(t.food_upkeep, HalfInt::from_raw(1));
     assert_eq!(t.food_surplus - t.food_upkeep, HalfInt::from_int(1));
 }
+
+#[test]
+fn spare_food_is_sold_from_the_empires_total_not_a_city_at_a_time() {
+    let e = ids(1);
+    // Two cities each with 1.5 food spare, an army that eats a half: 2.5 spare, 1 gold.
+    let mut a = city(0, 0, 0, 3);
+    a.food = HalfInt::from_raw(9);
+    let mut b = a;
+    b.food = HalfInt::from_raw(9);
+    let half = Troop {
+        food: HalfInt::from_raw(1),
+        ..troop(e[0], 0, 0)
+    };
+    let t = Budget::compute(&[a, b], &[half], 0);
+    assert_eq!(t.food_gold, 1);
+}
