@@ -70,8 +70,15 @@ impl App {
 
     /// For screenshots: the picker for Subversion with the wizards met.
     pub(crate) fn open_test_wizard_pick(&mut self) {
-        let Some(spell) = self.game.content().rules.spells.id_numbered(177)
-        /* subversion */
+        let Some(spell) = self
+            .game
+            .content()
+            .rules
+            .spells
+            .defs()
+            .iter()
+            .find(|d| f4x_core::spell::wizard::WizardEffect::Subversion.is_in(d))
+            .and_then(|d| self.game.content().rules.spells.id_numbered(d.num))
         else {
             return;
         };

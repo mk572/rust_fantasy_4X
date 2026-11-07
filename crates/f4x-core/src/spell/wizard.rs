@@ -16,6 +16,19 @@ use crate::rules::UnitKind;
 use crate::spell::target_error::TargetError;
 use crate::wizard::magic::{base_casting_skill, skill_points_for};
 
+/// The hook of the spells aimed straight at an opponent wizard.
+pub const WIZARD_EFFECT: &str = "wizard_effect";
+
+crate::hook::effect_enum! {
+    /// What a spell with the `wizard_effect` hook does to the wizard it is aimed at: the argument
+    /// of the hook (`Custom(name: "wizard_effect", args: ["drain_power"])`).
+    pub enum WizardEffect in WIZARD_EFFECT;
+    DrainPower = "drain_power",
+    CruelUnminding = "cruel_unminding",
+    SpellBlast = "spell_blast",
+    Subversion = "subversion",
+}
+
 /// The unit Lycanthropy turns a normal unit into.
 const WEREWOLVES: crate::rules::UnitId = crate::rules::UnitId::new(168) /* werewolves */;
 /// Black Wind's resistance check is at this penalty.

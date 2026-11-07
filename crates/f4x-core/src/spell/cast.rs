@@ -59,22 +59,6 @@ impl GameHost<'_> {
     fn wizard_hook(&mut self, spell: SpellId, who: Target, ctx: &Context) -> Option<Vec<Event>> {
         let player = ctx.owner;
         Some(match (spell.num(), who) {
-            (171 /* drain_power */, Target::Player(victim)) => {
-                let amount = self.game.drain_power(victim, &mut self.rng);
-                vec![Event::PowerDrained {
-                    player,
-                    victim,
-                    amount,
-                }]
-            }
-            (191 /* cruel_unminding */, Target::Player(victim)) => {
-                let amount = self.game.cruel_unminding(victim, &mut self.rng);
-                vec![Event::SkillDestroyed {
-                    player,
-                    victim,
-                    amount,
-                }]
-            }
             (75 /* great_unsummoning */, _) => {
                 let count = self.game.great_unsummoning(&mut self.rng);
                 vec![Event::UnitsSlain {
@@ -124,10 +108,7 @@ impl GameHost<'_> {
                 }]
             }
             (
-                171 // drain_power
-                | 191 // cruel_unminding
-                | 26 // earthquake
-                | 177 // subversion
+                26 // earthquake
                 | 187 // black_wind
                 | 173 // lycanthropy
                 | 119 // call_the_void
@@ -148,20 +129,6 @@ impl GameHost<'_> {
             210 /* disjunction */ => (1, false),
             61 /* disjunction_true */ => (3, false),
             76 /* spell_binding */ => (1, true),
-            58 /* spell_blast */ => {
-                let Target::Player(victim) = who else {
-                    return Some(Vec::new());
-                };
-                return Some(match self.game.spell_blast(by, victim) {
-                    Some((spell, mana)) => vec![Event::SpellBlasted {
-                        player: by,
-                        victim,
-                        spell,
-                        mana,
-                    }],
-                    None => Vec::new(),
-                });
-            }
             _ => return None,
         };
         let Target::Spell(instance) = who else {
@@ -452,6 +419,15 @@ impl EffectHost for GameHost<'_> {
                 self.building_moved(result);
             }
         }
+        if hook == crate::spell::wizard::WIZARD_EFFECT {
+            if let (Some(effect), Target::Player(victim)) = (
+                args.first()
+                    .and_then(|a| crate::spell::wizard::WizardEffect::named(a)),
+                who,
+            ) {
+                self.wizard_effect(effect, victim, ctx.owner);
+            }
+        }
         if hook == crate::hook::WALL && args.iter().any(|a| a == "stone") {
             if let Target::City(city) = who {
                 let events = self.game.wall_of_stone(city);
@@ -508,6 +484,46 @@ impl EffectHost for GameHost<'_> {
 }
 
 impl GameHost<'_> {
+    /// What a spell with the `wizard_effect` hook does to `victim`. Subversion is carried out
+    /// after the cast.
+    fn wizard_effect(
+        &mut self,
+        effect: crate::spell::wizard::WizardEffect,
+        victim: PlayerId,
+        player: PlayerId,
+    ) {
+        use crate::spell::wizard::WizardEffect as W;
+        let events = match effect {
+            W::DrainPower => {
+                let amount = self.game.drain_power(victim, &mut self.rng);
+                vec![Event::PowerDrained {
+                    player,
+                    victim,
+                    amount,
+                }]
+            }
+            W::CruelUnminding => {
+                let amount = self.game.cruel_unminding(victim, &mut self.rng);
+                vec![Event::SkillDestroyed {
+                    player,
+                    victim,
+                    amount,
+                }]
+            }
+            W::SpellBlast => match self.game.spell_blast(player, victim) {
+                Some((spell, mana)) => vec![Event::SpellBlasted {
+                    player,
+                    victim,
+                    spell,
+                    mana,
+                }],
+                None => Vec::new(),
+            },
+            W::Subversion => Vec::new(),
+        };
+        self.events.extend(events);
+    }
+
     /// Report what moving a building did: its events, or the rejection.
     fn building_moved(
         &mut self,
@@ -800,15 +816,15 @@ impl Game {
                     .then_some(TargetError::NotEnemyCity)
             }
             (SpellTarget::EnemyWizard, Some(Target::Player(p))) => {
+                let blast = crate::spell::wizard::WizardEffect::SpellBlast
+                    .is_in(self.content.rules.spells.get(spell));
                 if p == player || self.player(p).is_some_and(|p| p.is_defeated()) {
                     Some(TargetError::NotEnemyWizard)
-                } else if spell == crate::rules::SpellId::new(58) /* spell_blast */
-                    && self.mana_spent_casting(p).is_none()
-                {
+                } else if blast && self.mana_spent_casting(p).is_none() {
                     Some(TargetError::NotCasting)
                 } else if !self.have_met(player, p) {
                     Some(TargetError::NoContact)
-                } else if spell == crate::rules::SpellId::new(58) /* spell_blast */
+                } else if blast
                     && self.player(player).is_some_and(|me| {
                         me.treasury().mana < self.mana_spent_casting(p).unwrap_or(0)
                     })
@@ -987,8 +1003,8 @@ impl Game {
         };
         self.cast_relations(player, spell, victim);
         if let Some(Target::Player(wizard)) = target {
-            if spell == crate::rules::SpellId::new(177)
-            /* subversion */
+            if crate::spell::wizard::WizardEffect::Subversion
+                .is_in(self.content.rules.spells.get(spell))
             {
                 self.subvert(wizard);
             }

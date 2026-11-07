@@ -122,6 +122,11 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
         ],
         several: false,
     },
+    Hook {
+        name: crate::spell::wizard::WIZARD_EFFECT,
+        args: &crate::spell::wizard::WizardEffect::NAMES,
+        several: false,
+    },
     plain(crate::battle::field::DISINTEGRATE),
     Hook {
         name: WALL,
@@ -133,10 +138,9 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
 /// The spells that have code of their own in Rust (`Effect::Special`), by number: the
 /// number is the only link between the spell and its code. A `Special` effect on a spell
 /// not in this list fails [`problems`].
-pub const SPECIAL_SPELLS: [u16; 25] = [
+pub const SPECIAL_SPELLS: [u16; 21] = [
     19,  // natures_cures
     26,  // earthquake
-    58,  // spell_blast
     61,  // disjunction_true
     68,  // stasis
     73,  // creature_binding
@@ -147,12 +151,9 @@ pub const SPECIAL_SPELLS: [u16; 25] = [
     119, // call_the_void
     133, // resurrection
     142, // incarnation
-    171, // drain_power
     172, // possession
     173, // lycanthropy
-    177, // subversion
     187, // black_wind
-    191, // cruel_unminding
     199, // death_wish
     208, // summon_hero
     210, // disjunction
@@ -305,6 +306,13 @@ mod tests {
                     .iter()
                     .any(|d| crate::battle::spell::BattleEffect::of(d) == Some(e)),
                 "no spell gives the battle effect {name}"
+            );
+        }
+        for name in crate::spell::wizard::WizardEffect::NAMES {
+            let e = crate::spell::wizard::WizardEffect::named(name).expect("a listed name");
+            assert!(
+                c.rules.spells.defs().iter().any(|d| e.is_in(d)),
+                "no spell gives the wizard effect {name}"
             );
         }
         for name in Field::NAMES {

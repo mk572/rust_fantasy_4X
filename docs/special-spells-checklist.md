@@ -90,7 +90,7 @@ Proposed hook or primitive: **dispel (args to decide: factor, steal)**
 
 Proposed hook or primitive: **spell_blast**
 
-- [ ] 58 `spell_blast`
+- [x] 58 `spell_blast`
 
 Proposed hook or primitive: **counter_magic**
 
@@ -115,8 +115,8 @@ Great Unsummoning and Death Wish.
 
 Proposed hook or primitive: **wizard_drain (args power, skill) or a new primitive**
 
-- [ ] 171 `drain_power`
-- [ ] 191 `cruel_unminding`
+- [x] 171 `drain_power`
+- [x] 191 `cruel_unminding`
 
 Proposed hook or primitive: **global kill: extend `Slay` to the whole map, or a hook**
 
@@ -136,7 +136,7 @@ Proposed hook or primitive: **unit_change (args to decide)**
 - [ ] 89 `warp_creature`
 - [ ] 172 `possession`
 - [ ] 73 `creature_binding`
-- [ ] 177 `subversion`
+- [x] 177 `subversion`
 - [ ] 19 `natures_cures`
 
 ## I. Battle field effects

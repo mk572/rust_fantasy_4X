@@ -215,7 +215,9 @@ pub fn kind(def: &SpellDef) -> Kind {
         SpellTarget::None if GOOD_GLOBALS.contains(&def.id.as_str()) => Kind::GlobalBuff,
         SpellTarget::None if WORLD_SPELLS.contains(&def.id.as_str()) => Kind::WorldSpell,
         SpellTarget::EnemyCity => Kind::CityCurse,
-        SpellTarget::EnemyWizard if def.num == 58 /* spell_blast */ => {
+        SpellTarget::EnemyWizard
+            if f4x_core::spell::wizard::WizardEffect::SpellBlast.is_in(def) =>
+        {
             Kind::Blast
         }
         SpellTarget::EnemyWizard => Kind::WizardCurse,
