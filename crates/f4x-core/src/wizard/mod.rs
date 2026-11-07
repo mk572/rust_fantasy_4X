@@ -214,31 +214,30 @@ impl Game {
 
     /// A ready-made wizard from the rules as a build.
     pub fn preset_build(&self, num: u16) -> Option<WizardBuild> {
-        let place = self
-            .content
-            .rules
-            .wizards
-            .defs()
-            .iter()
-            .position(|w| w.num == num)?;
-        let def = &self.content.rules.wizards.defs()[place];
-        let retorts = def.retorts.iter().copied().collect();
-        Some(WizardBuild {
-            name: String::new(),
-            gender: def.gender,
-            books: def.books.iter().copied().collect(),
-            retorts,
-            spells: Vec::new(),
-            banner: None,
-            portrait: u8::try_from(place)
-                .ok()
-                .filter(|&p| p < crate::player::PORTRAITS),
-            preset: true,
-        })
+        preset_build_of(self.content.rules.wizards.defs(), num)
     }
 }
 
 #[cfg(test)]
 mod original_content;
+/// The ready-made wizard `num` of a list of them, as a build. The portrait is its place in the list.
+pub(crate) fn preset_build_of(defs: &[crate::rules::WizardDef], num: u16) -> Option<WizardBuild> {
+    let place = defs.iter().position(|w| w.num == num)?;
+    let def = &defs[place];
+    let retorts = def.retorts.iter().copied().collect();
+    Some(WizardBuild {
+        name: String::new(),
+        gender: def.gender,
+        books: def.books.iter().copied().collect(),
+        retorts,
+        spells: Vec::new(),
+        banner: None,
+        portrait: u8::try_from(place)
+            .ok()
+            .filter(|&p| p < crate::player::PORTRAITS),
+        preset: true,
+    })
+}
+
 #[cfg(test)]
 mod tests;

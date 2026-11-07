@@ -190,8 +190,10 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                     let plain = |i: usize| plain_computer_build(&spec.names, spec.seed, first + i);
                     let plain: Vec<WizardBuild> = (0..computers).map(plain).collect();
                     let human_myrran = !spec.all_ai && builds.first().is_some_and(myrran_build);
+                    let presets = game.content.rules.wizards.defs().to_vec();
                     crate::wizard::ai::make(
                         &mut game,
+                        &presets,
                         &settings,
                         &mut taken,
                         computers,

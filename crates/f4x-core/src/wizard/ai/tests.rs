@@ -3,7 +3,7 @@ use crate::game::setting::AiWizardSettings;
 use crate::game::testutil::{realm, shipped};
 use crate::rules::RealmId;
 use crate::rules::Rules;
-use crate::rules::{Registry, WizardDef};
+use crate::rules::WizardDef;
 use std::collections::BTreeSet;
 
 const SEEDS: std::ops::Range<u64> = 1..60;
@@ -66,13 +66,6 @@ fn wizard_def(num: u16, id: &str, books: &[(RealmId, u8)], retorts: &[Retort]) -
         books: books.to_vec(),
         retorts: retorts.to_vec(),
     }
-}
-
-/// A game with the given ready-made wizards and the settings the AI wizard rules read.
-fn game_with(seed: u64, defs: Vec<WizardDef>) -> Game {
-    let mut g = new_game(seed);
-    g.content.rules.wizards = Registry::new(defs);
-    g
 }
 
 fn settings(opponents: u8, picks: u8) -> GameSettings {
@@ -317,9 +310,9 @@ fn the_ready_made_wizards_are_drawn_once_each() {
         wizard_def(3, "c", &[(RealmId::new(2 /* chaos */), 5)], &[]),
     ];
     for seed in SEEDS {
-        let mut g = game_with(seed, defs.clone());
+        let mut g = new_game(seed);
         let mut taken = vec![1 /* a */];
-        let builds = make(&mut g, &settings(2, 5), &mut taken, 2, false, &plain);
+        let builds = make(&mut g, &defs, &settings(2, 5), &mut taken, 2, false, &plain);
         assert_eq!(builds.len(), 2);
         assert!(builds.iter().all(|b| b.preset));
         let set: BTreeSet<&u16> = taken.iter().collect();
@@ -332,10 +325,11 @@ fn the_ready_made_wizards_are_drawn_once_each() {
 
 #[test]
 fn without_ready_made_wizards_the_fallback_builds_them() {
-    let mut g = game_with(4, Vec::new());
+    let mut g = new_game(4);
+    let defs: Vec<WizardDef> = Vec::new();
     let mut taken = Vec::new();
     // The human wizard is the Myrran one the planes lack, so nothing is changed.
-    let builds = make(&mut g, &settings(2, 5), &mut taken, 2, true, &plain);
+    let builds = make(&mut g, &defs, &settings(2, 5), &mut taken, 2, true, &plain);
     assert_eq!(builds.len(), 2);
     assert!(taken.is_empty());
     for b in &builds {
@@ -358,11 +352,11 @@ fn the_same_seed_draws_the_same_wizards() {
         })
         .collect();
     let run = |seed| {
-        let mut g = game_with(seed, defs.clone());
+        let mut g = new_game(seed);
         let mut s = settings(4, PICKS);
         s.ai.wizards.consolidate_percent = 50;
         s.ai.wizards.erasure_dice = (2, 3);
-        make(&mut g, &s, &mut Vec::new(), 4, false, &plain)
+        make(&mut g, &defs, &s, &mut Vec::new(), 4, false, &plain)
     };
     assert_eq!(run(11), run(11));
     assert_ne!(run(11), run(12));
@@ -371,21 +365,19 @@ fn the_same_seed_draws_the_same_wizards() {
 #[test]
 fn opposed_realms_are_merged_into_one() {
     for seed in SEEDS {
-        let mut g = game_with(
-            seed,
-            vec![wizard_def(
-                1,
-                "a",
-                &[
-                    (RealmId::new(3 /* life */), 3),
-                    (RealmId::new(2 /* chaos */), 2),
-                ],
-                &[],
-            )],
-        );
+        let mut g = new_game(seed);
+        let defs = vec![wizard_def(
+            1,
+            "a",
+            &[
+                (RealmId::new(3 /* life */), 3),
+                (RealmId::new(2 /* chaos */), 2),
+            ],
+            &[],
+        )];
         let mut s = settings(1, 5);
         s.ai.wizards.consolidate_percent = 100;
-        let builds = make(&mut g, &s, &mut Vec::new(), 1, false, &plain);
+        let builds = make(&mut g, &defs, &s, &mut Vec::new(), 1, false, &plain);
         let b = &builds[0];
         // Five picks are spent, so the refill adds nothing.
         assert_eq!(b.books.len(), 1, "seed {seed}: {b:?}");
@@ -396,19 +388,25 @@ fn opposed_realms_are_merged_into_one() {
 #[test]
 fn no_merge_happens_at_zero_percent() {
     for seed in SEEDS {
-        let mut g = game_with(
-            seed,
-            vec![wizard_def(
-                1,
-                "a",
-                &[
-                    (RealmId::new(3 /* life */), 3),
-                    (RealmId::new(2 /* chaos */), 2),
-                ],
-                &[],
-            )],
+        let mut g = new_game(seed);
+        let defs = vec![wizard_def(
+            1,
+            "a",
+            &[
+                (RealmId::new(3 /* life */), 3),
+                (RealmId::new(2 /* chaos */), 2),
+            ],
+            &[],
+        )];
+        let builds = make(
+            &mut g,
+            &defs,
+            &settings(1, 5),
+            &mut Vec::new(),
+            1,
+            false,
+            &plain,
         );
-        let builds = make(&mut g, &settings(1, 5), &mut Vec::new(), 1, false, &plain);
         assert_eq!(builds[0].books.len(), 2, "seed {seed}");
     }
 }
@@ -430,11 +428,12 @@ fn the_erasure_dice_take_books_but_never_the_last_of_a_realm() {
     let mut lost_books = false;
     let mut lost_retorts = false;
     for seed in SEEDS {
-        let mut g = game_with(seed, vec![def.clone()]);
+        let mut g = new_game(seed);
+        let defs = vec![def.clone()];
         // No picks to fill up, so the refill adds nothing back.
         let mut s = settings(1, 0);
         s.ai.wizards.erasure_dice = (3, 6);
-        let builds = make(&mut g, &s, &mut Vec::new(), 1, false, &plain);
+        let builds = make(&mut g, &defs, &s, &mut Vec::new(), 1, false, &plain);
         let b = &builds[0];
         assert!(
             books(b, realm(3 /* life */)) >= 1 && books(b, realm(3 /* life */)) <= 4,
@@ -475,10 +474,10 @@ fn the_myrran_rule_keeps_the_share_within_the_planes() {
         ));
     }
     for seed in SEEDS {
-        let mut g = game_with(seed, defs.clone());
+        let mut g = new_game(seed);
         let mut s = settings(3, PICKS);
         s.ai.wizards.myrran_rule = true;
-        let builds = make(&mut g, &s, &mut Vec::new(), 3, false, &plain);
+        let builds = make(&mut g, &defs, &s, &mut Vec::new(), 3, false, &plain);
         let (least, most) = myrran_range(4);
         let n = builds.iter().filter(|b| myrran(b)).count();
         // The human is not Myrran, so only the three computer wizards count.

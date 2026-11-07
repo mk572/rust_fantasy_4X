@@ -16,7 +16,8 @@ use crate::game::Game;
 use crate::rules::{RealmId, Rules};
 use crate::wizard::magic::Retort;
 use crate::wizard::{
-    all_retorts, retort_available, retort_cost, WizardBuild, MAX_BOOKS, MAX_RETORTS,
+    all_retorts, preset_build_of, retort_available, retort_cost, WizardBuild, MAX_BOOKS,
+    MAX_RETORTS,
 };
 
 const NATURE: RealmId = RealmId::new(0) /* nature */;
@@ -128,6 +129,7 @@ pub(crate) fn balance_planes(
 /// same changes.
 pub(crate) fn make(
     game: &mut Game,
+    presets: &[crate::rules::WizardDef],
     settings: &GameSettings,
     taken: &mut Vec<u16>,
     count: usize,
@@ -136,16 +138,9 @@ pub(crate) fn make(
 ) -> Vec<WizardBuild> {
     let rules = settings.ai.wizards;
     let picks = settings.wizards.picks.ai;
-    let ids: Vec<u16> = game
-        .content
-        .rules
-        .wizards
-        .defs()
-        .iter()
-        .map(|w| w.num)
-        .collect();
-    let myran = |game: &Game, id: u16| {
-        game.preset_build(id)
+    let ids: Vec<u16> = presets.iter().map(|w| w.num).collect();
+    let myran = |id: u16| {
+        preset_build_of(presets, id)
             .is_some_and(|b| b.retorts.contains(&Retort::new(9) /* myrran */))
     };
 
@@ -158,14 +153,14 @@ pub(crate) fn make(
         let free: Vec<&u16> = ids
             .iter()
             .filter(|id| !taken.contains(id))
-            .filter(|id| !(rules.myrran_rule && myrrans >= most && myran(game, **id)))
+            .filter(|id| !(rules.myrran_rule && myrrans >= most && myran(**id)))
             .collect();
         if free.is_empty() {
             builds.push(fallback(i));
             continue;
         }
         let id = *free[game.roll(free.len() as u32) as usize - 1];
-        let Some(build) = game.preset_build(id) else {
+        let Some(build) = preset_build_of(presets, id) else {
             builds.push(fallback(i));
             continue;
         };

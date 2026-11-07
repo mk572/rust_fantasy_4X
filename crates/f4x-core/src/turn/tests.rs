@@ -20,10 +20,19 @@ fn at(x: u32, y: u32) -> Position {
     }
 }
 
-/// For the tests that count the gold of trade: taxes up to rate 2 cause no unrest, so no citizen
-/// turns rebel and the sums stay simple. (The game's own table has 20% unrest at rate 2.)
-fn calm_taxes(g: &mut Game) {
-    g.content.rules.config.tax_unrest_percent = vec![0, 0, 0, 30, 45, 60, 75];
+/// Six spearmen in the city at `pos`: every two troops calm one rebel, so the sums of the tests
+/// that count the gold of trade do not lose citizens to the unrest of the tax rate.
+fn garrison(g: &mut Game, pos: Position) -> TestResult {
+    let spear = g
+        .content
+        .rules
+        .units
+        .id_numbered(95)
+        .ok_or("high_elf_spearmen is not in the content")?;
+    for _ in 0..6 {
+        g.spawn_unit(P0, pos, spear);
+    }
+    Ok(())
 }
 
 /// 24x14 grassland with the sea at x=0. One player with 500 gold, tax rate 2.
@@ -169,7 +178,6 @@ fn farmers_and_workers_share_the_citizens() -> TestResult {
 #[test]
 fn gold_comes_from_taxes_and_the_sea_and_markets() -> TestResult {
     let mut g = world();
-    calm_taxes(&mut g);
     let inland = found(&mut g, at(10, 6), 7 /* high_elf */, 4);
     // 4 citizens x tax rate 2 / 2 = 4 gold.
     assert_eq!(
@@ -190,6 +198,7 @@ fn gold_comes_from_taxes_and_the_sea_and_markets() -> TestResult {
     );
     // A coastal city (sea at x=0) gets +10% trade; 10 gold base needs more citizens.
     let coastal = found(&mut g, at(1, 6), 7 /* high_elf */, 10);
+    garrison(&mut g, at(1, 6))?;
     assert_eq!(
         g.economy()
             .city_economy(coastal)
@@ -198,15 +207,15 @@ fn gold_comes_from_taxes_and_the_sea_and_markets() -> TestResult {
         11,
         "10 * 1.10"
     );
-    // Dwarves double the tax, but under a High Elf capital the racial unrest (3, so 30%) makes
-    // one of the four a rebel.
+    // Dwarves double the tax, but under a High Elf capital the racial unrest (3, so 30%) and the
+    // tax rate's 20% make two of the four rebels, and the two who pay give 2 gold, doubled.
     let dwarf = found(&mut g, at(18, 6), 4 /* dwarven */, 4);
     assert_eq!(
         g.economy()
             .city_economy(dwarf)
             .ok_or("city_economy is missing")?
             .gold,
-        6
+        4
     );
     Ok(())
 }
@@ -214,8 +223,8 @@ fn gold_comes_from_taxes_and_the_sea_and_markets() -> TestResult {
 #[test]
 fn a_lake_counts_as_a_shore_for_trade() -> TestResult {
     let mut g = world();
-    calm_taxes(&mut g);
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 10);
+    garrison(&mut g, at(10, 6))?;
     assert_eq!(
         g.economy()
             .city_economy(city)
@@ -249,8 +258,8 @@ fn a_lake_counts_as_a_shore_for_trade() -> TestResult {
 #[test]
 fn rivers_pay_twenty_percent_and_river_mouths_thirty() -> TestResult {
     let mut g = world();
-    calm_taxes(&mut g);
     let city = found(&mut g, at(10, 6), 7 /* high_elf */, 10);
+    garrison(&mut g, at(10, 6))?;
     assert_eq!(
         g.economy()
             .city_economy(city)
@@ -272,6 +281,7 @@ fn rivers_pay_twenty_percent_and_river_mouths_thirty() -> TestResult {
         "river"
     );
     let mouth = found(&mut g, at(1, 6), 7 /* high_elf */, 10);
+    garrison(&mut g, at(1, 6))?;
     g.map
         .as_mut()
         .ok_or("as_mut is missing")?
