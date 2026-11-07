@@ -38,7 +38,7 @@ Joins the walls of fire and darkness (spells 87 and 178), which task 486 already
 
 Proposed hook or primitive: **wall (args stone, fire, darkness)**
 
-- [ ] 3 `wall_of_stone`
+- [x] 3 `wall_of_stone` (done 7 November 2026: `Custom(name: "wall", args: ["stone"])`; `SpellDef::has_hook_arg`)
 
 Proposed hook or primitive: **spell_ward**
 

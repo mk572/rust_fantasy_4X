@@ -108,7 +108,7 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
     plain(crate::battle::field::DISINTEGRATE),
     Hook {
         name: WALL,
-        args: &["fire", "darkness"],
+        args: &["stone", "fire", "darkness"],
         several: false,
     },
 ];
@@ -116,8 +116,7 @@ pub const CUSTOM_HOOKS: &[Hook] = &[
 /// The spells that have code of their own in Rust (`Effect::Special`), by number: the
 /// number is the only link between the spell and its code. A `Special` effect on a spell
 /// not in this list fails [`problems`].
-pub const SPECIAL_SPELLS: [u16; 32] = [
-    3,   // wall_of_stone
+pub const SPECIAL_SPELLS: [u16; 31] = [
     19,  // natures_cures
     26,  // earthquake
     28,  // move_fortress

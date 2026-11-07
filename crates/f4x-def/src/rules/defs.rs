@@ -762,6 +762,12 @@ impl SpellDef {
     }
 
     /// The arguments the spell gives the named `Custom` hook, if it runs it.
+    /// Whether the spell carries `hook` with `arg` among its arguments.
+    pub fn has_hook_arg(&self, hook: &str, arg: &str) -> bool {
+        self.hook_args(hook)
+            .is_some_and(|a| a.iter().any(|x| x == arg))
+    }
+
     pub fn hook_args(&self, hook: &str) -> Option<&[String]> {
         self.effects.iter().find_map(|r| {
             r.effect

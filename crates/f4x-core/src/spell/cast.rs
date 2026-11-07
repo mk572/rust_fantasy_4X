@@ -425,6 +425,12 @@ impl EffectHost for GameHost<'_> {
             let events = self.game.complete_crafting(ctx.owner);
             self.events.extend(events);
         }
+        if hook == crate::hook::WALL && args.iter().any(|a| a == "stone") {
+            if let Target::City(city) = who {
+                let events = self.game.wall_of_stone(city);
+                self.events.extend(events);
+            }
+        }
         if hook == crate::spell::terraform::TERRAIN_EFFECT {
             if let (Some(effect), Target::Tile(at)) = (
                 args.first()
@@ -465,13 +471,6 @@ impl EffectHost for GameHost<'_> {
         let Target::City(city) = who else {
             return;
         };
-        if spell.num() == 3
-        /* wall_of_stone */
-        {
-            let events = self.game.wall_of_stone(city);
-            self.events.extend(events);
-            return;
-        }
         let result = match spell.num() {
             28 /* move_fortress */ => self.game.move_fortress(ctx.owner, city),
             203 /* summoning_circle */ => self.game.move_summoning_circle(ctx.owner, city),
@@ -603,8 +602,12 @@ impl Game {
                 }
             }
         }
-        if spell == crate::rules::SpellId::new(3)
-        /* wall_of_stone */
+        if self
+            .content
+            .rules
+            .spells
+            .get(spell)
+            .has_hook_arg(crate::hook::WALL, "stone")
         {
             return match target {
                 Some(Target::City(c)) => {
