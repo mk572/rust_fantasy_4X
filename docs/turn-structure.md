@@ -132,6 +132,18 @@ work runs once per round; the order of players is fixed (seat order, the human f
 core keeps `Game.turn` as the round counter; `Command::EndTurn` stays as a compatibility
 composition of the four phases for tests and tools (all players, in order).
 
+**Revision (7 November 2026): the economy moves to the turn start.** A player's economy
+(magic, Gaia's Blessing and Chaos Rift, farmers, treasury, cities, experience, healing) runs at
+the start of their own turn so they act on the state they will see, and a unit built is ready
+to move at once. The order inside the start phase matters: stasis, then **magic** (a spell that
+finishes this turn counts), **Gaia's Blessing and Chaos Rift** (they change terrain and
+buildings), then min farmers, treasury, cities, experience and healing, then the moves refill
+(new units get their moves), offers, workers, orders. The first round has no economy (the game
+begins with the first turn), so the number of economy ticks per turn stays as before. The end
+phase keeps only what closes out the turn: raze windows and land corruption (which needs the
+moves the turn left unspent). In the table below, the rows marked `start_player_turn(p)` for
+these steps are the revised ones.
+
 Phases (core operations, orchestrated by `f4x-master`): `start_round`, `start_player_turn(p)`,
 `end_player_turn(p)`, `end_round`.
 
@@ -144,18 +156,18 @@ Phases (core operations, orchestrated by `f4x-master`): `start_round`, `start_pl
 | `process_stasis` | player | `start_player_turn(p)` | `p`'s units, before the moves refill |
 | moves refill, `Standby::Done` cleared | player | `start_player_turn(p)` | Time Stop: units of others get 0 |
 | `TurnStarted` event | round | `start_round` | once per round |
-| min farmers | player | `end_player_turn(p)` | `p`'s cities |
-| `settle_treasury` | player | `end_player_turn(p)` | skipped for the Time Stop wizard as today |
+| min farmers | player | `start_player_turn(p)` | `p`'s cities |
+| `settle_treasury` | player | `start_player_turn(p)` | skipped for the Time Stop wizard as today |
 | `process_events` (world events) | round | `start_round` | before any player acts (turn-structure section 4) |
-| outposts, production, growth, pestilence | player | `end_player_turn(p)` | `p`'s cities |
+| outposts, production, growth, pestilence | player | `start_player_turn(p)` | `p`'s cities |
 | `tick_temp_effects`, `process_globals` | round | `end_round` | durations must not be multiplied by player count |
 | `process_world_enchantments` | round | `end_round` | |
 | `cool_volcanoes`, `fade_corruption` | round | `end_round` | |
-| `process_experience` | player | `end_player_turn(p)` | `p`'s units (already takes an owner filter) |
-| `process_magic` | player | `end_player_turn(p)` | power, research, upkeep, casting of `p` |
-| `process_gaias_blessing` | player | `end_player_turn(p)` | `p`'s cities |
-| `heal_units` | player | `end_player_turn(p)` | `p`'s units |
-| `process_chaos_rifts` | player | `end_player_turn(p)` | `p`'s cities hit what stands on them |
+| `process_experience` | player | `start_player_turn(p)` | `p`'s units (already takes an owner filter) |
+| `process_magic` | player | `start_player_turn(p)` | power, research, upkeep, casting of `p` |
+| `process_gaias_blessing` | player | `start_player_turn(p)` | `p`'s cities |
+| `heal_units` | player | `start_player_turn(p)` | `p`'s units |
+| `process_chaos_rifts` | player | `start_player_turn(p)` | `p`'s cities hit what stands on them |
 | `process_threats` (raiders, monsters) | round | `start_round` | the clocks tick once |
 | `determine_offers` | player | `start_player_turn(p)` | offers lapse and are rolled for `p` |
 | `record_history` | round | `end_round` | |

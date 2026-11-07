@@ -1949,7 +1949,7 @@ fn only_the_round_start_advances_the_round_counter() {
 }
 
 #[test]
-fn a_player_turn_end_pays_only_that_players_upkeep() -> TestResult {
+fn a_player_turn_start_pays_only_that_players_upkeep() -> TestResult {
     let mut g = world();
     let rival = PlayerId(1);
     found(&mut g, at(10, 6), 7 /* high_elf */, 4);
@@ -1968,7 +1968,12 @@ fn a_player_turn_end_pays_only_that_players_upkeep() -> TestResult {
         g.treasury_mut(P0).ok_or("no treasury")?.gold,
         g.treasury_mut(rival).ok_or("no treasury")?.gold,
     );
-    g.end_player_turn(rival);
+    // The first round has no economy: the game begins with the first turn.
+    g.turn = 1;
+    g.start_player_turn(rival);
+    assert_eq!(g.treasury_mut(rival).ok_or("no treasury")?.gold, theirs);
+    g.turn = 2;
+    g.start_player_turn(rival);
     assert_eq!(g.treasury_mut(P0).ok_or("no treasury")?.gold, mine);
     assert_ne!(g.treasury_mut(rival).ok_or("no treasury")?.gold, theirs);
     assert_eq!(g.economy().city_owner(city), Some(rival));

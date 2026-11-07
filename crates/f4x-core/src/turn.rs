@@ -34,12 +34,16 @@ impl Game {
         events
     }
 
-    /// The start of one player's turn: what makes their units and cities ready to act (moves
-    /// refilled, offers rolled, the work of their units carried on, their standing orders
-    /// followed).
+    /// The start of one player's turn: the player's economy runs first (spells cast, terrain
+    /// changed, treasury, cities, magic, healing), so they act on the state they will see; then
+    /// moves are refilled, offers rolled, the work of their units carried on and their standing
+    /// orders followed. The first round has no economy: the game begins with the first turn.
     pub fn start_player_turn(&mut self, player: PlayerId) -> Vec<Event> {
         self.reopen_sales(player);
         let mut events = self.process_stasis(player);
+        if self.turn > 1 {
+            events.extend(self.run_economy(player));
+        }
         let stopper = self.time_stopper();
         let mut units: Vec<_> = self
             .units()
@@ -77,16 +81,20 @@ impl Game {
         events
     }
 
-    /// The end of one player's turn: their cities, treasury, magic, units' experience and healing.
-    pub fn end_player_turn(&mut self, player: PlayerId) -> Vec<Event> {
-        self.close_raze_windows(player);
-        let mut events = self.process_land_corruption(player);
+    /// The player's economy, in the order that lets what changes food, production and buildings
+    /// act before they are counted: magic first (income, research, upkeep, the spell that
+    /// finishes), then what spells do to the land and the cities (Gaia's Blessing, Chaos Rift),
+    /// then farmers, treasury, cities, and the units' experience and healing.
+    fn run_economy(&mut self, player: PlayerId) -> Vec<Event> {
         // The monsters' owner has units only: no cities, no treasury, no magic.
         if player == crate::player::MONSTERS {
             self.process_experience(player);
             self.heal_units(player);
-            return events;
+            return Vec::new();
         }
+        let mut events = self.process_magic(player);
+        events.extend(self.process_gaias_blessing(player));
+        events.extend(self.process_chaos_rifts(player));
         let mut cities: Vec<_> = self
             .economy()
             .cities()
@@ -122,11 +130,16 @@ impl Game {
             events.extend(self.process_city(city));
         }
         self.process_experience(player);
-        events.extend(self.process_magic(player));
-        events.extend(self.process_gaias_blessing(player));
         self.heal_units(player);
-        events.extend(self.process_chaos_rifts(player));
         events
+    }
+
+    /// The end of one player's turn: what closes out the turn they played. Raze windows shut and
+    /// land corruption spreads under units that stood still (it needs the moves the turn left
+    /// unspent, which the next start refills).
+    pub fn end_player_turn(&mut self, player: PlayerId) -> Vec<Event> {
+        self.close_raze_windows(player);
+        self.process_land_corruption(player)
     }
 
     /// Round end, once per round after the last player: durations and world-wide processes run
