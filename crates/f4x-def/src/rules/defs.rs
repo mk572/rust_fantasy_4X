@@ -100,7 +100,7 @@ pub enum MovementType {
 pub struct Upkeep {
     #[serde(default)]
     pub gold: u32,
-    /// Food a turn, written in half food like moves: 2 is one food, 1 is half a food, 0 eats nothing.
+    /// Food a turn: 1 is one food, 0.5 half a food, 1.5 one and a half, 0 eats nothing.
     #[serde(default)]
     pub food: HalfInt,
     #[serde(default)]

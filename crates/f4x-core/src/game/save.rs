@@ -60,9 +60,10 @@ pub const OLDEST_COMPATIBLE_VERSION: &str = "0.0.2";
 /// numbers: `(first game version that writes the new form, conversion)`, oldest first. A save whose
 /// game version is below an entry's has the conversion applied when it is read, in order. Add an
 /// entry in the change that alters what a number in a save means (a unit of an amount, an id
-/// scheme), and bump the workspace version to that release in the same change. 0.0.5 moved the
-/// amounts counted in halves to `HalfInt`, which writes the same raw half count the older versions
-/// wrote, so it needs no conversion.
+/// scheme), and bump the workspace version to that release in the same change. `HalfInt` writes the
+/// amount (`1.5`), not the doubled count the older versions wrote for the amounts they counted in
+/// halves, so the entry that moves a saved amount to `HalfInt` doubles it back to the new form.
+/// No saved amount is a `HalfInt` yet (unit food comes from the unit table), so the list is empty.
 const UPGRADES: &[Upgrade] = &[];
 
 /// A conversion of a snapshot written before a game version.

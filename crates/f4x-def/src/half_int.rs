@@ -1,7 +1,7 @@
 //! Exact fixed-point values with a resolution of one half.
 //!
 //! HalfInt stores twice the represented value in an i32: raw value 7
-//! represents 3.5. This avoids floating-point rounding for game values
+//! represents 3.5. In a file it is the amount itself: `1`, `0.5`, `1.5`. This avoids floating-point rounding for game values
 //! that are always whole numbers or halves. Arithmetic is supported for
 //! addition, subtraction, and negation; convert to f32 only when needed
 //! for display or interoperability.
@@ -13,20 +13,7 @@ use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 ///
 /// The inner integer is twice the represented value. Use from_int for whole
 /// numbers and from_raw for an already-scaled value.
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    serde::Serialize,
-    serde::Deserialize,
-)]
-#[serde(transparent)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HalfInt(i32);
 
 impl HalfInt {
@@ -126,6 +113,48 @@ impl fmt::Display for HalfInt {
     }
 }
 
+/// Written and read as the amount itself, not the doubled count: `1` is one, `1.5` is one and a
+/// half, `0.5` a half. A number that is not a multiple of 0.5 is an error.
+impl serde::Serialize for HalfInt {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if self.is_whole() {
+            serializer.serialize_i32(self.0 / 2)
+        } else {
+            serializer.serialize_f64(f64::from(self.0) / 2.0)
+        }
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for HalfInt {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Amount;
+        impl serde::de::Visitor<'_> for Amount {
+            type Value = HalfInt;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a whole number or a number ending in .5")
+            }
+
+            fn visit_i64<E: serde::de::Error>(self, v: i64) -> Result<HalfInt, E> {
+                self.visit_f64(v as f64)
+            }
+
+            fn visit_u64<E: serde::de::Error>(self, v: u64) -> Result<HalfInt, E> {
+                self.visit_f64(v as f64)
+            }
+
+            fn visit_f64<E: serde::de::Error>(self, v: f64) -> Result<HalfInt, E> {
+                let doubled = v * 2.0;
+                if doubled.fract() != 0.0 || doubled.abs() > f64::from(i32::MAX) {
+                    return Err(E::custom(format!("{v} is not a whole or a half number")));
+                }
+                Ok(HalfInt(doubled as i32))
+            }
+        }
+        deserializer.deserialize_any(Amount)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::HalfInt;
@@ -171,8 +200,21 @@ mod tests {
     }
 
     #[test]
-    fn is_saved_as_the_raw_number() {
-        assert_eq!(ron::to_string(&HalfInt::from_raw(7)).unwrap(), "7");
-        assert_eq!(ron::from_str::<HalfInt>("7").unwrap(), HalfInt::from_raw(7));
+    fn is_written_and_read_as_the_amount() {
+        assert_eq!(ron::to_string(&HalfInt::from_int(1)).unwrap(), "1");
+        assert_eq!(ron::to_string(&HalfInt::from_raw(3)).unwrap(), "1.5");
+        for (text, raw) in [
+            ("1", 2),
+            ("0.5", 1),
+            ("1.5", 3),
+            ("0", 0),
+            ("2.0", 4),
+            ("-1.5", -3),
+        ] {
+            assert_eq!(ron::from_str::<HalfInt>(text).unwrap().raw(), raw, "{text}");
+        }
+        for text in ["0.3", "1.25", "\"1\""] {
+            assert!(ron::from_str::<HalfInt>(text).is_err(), "{text}");
+        }
     }
 }
