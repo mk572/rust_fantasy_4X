@@ -79,9 +79,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 460 | Medium | Housekeeping | Review what needs to be shipped in the executable and what does not |
 | 461 | Medium | Tests | Tests must not build their own rule sets: replace the hand-edited rules in existing tests with the shipped content |
 | 462 | Low | Core | Converter for version 3 saves (spells, items and powers written as names) to version 4 (numbers) |
-| 465 | Low | Client | Curse enchantments and their icons: Warp Creature lasts in the original (three parts), Whirlwind and Mind Twist are dead slots, Black Sleep has no battle icon as in the original |
-| 466 | Medium | Housekeeping | New `f4x-save` crate: the save format and reading and writing save files (stage C of `docs/archive/crate-layout-plan.md`) |
-| 467 | High | Housekeeping | Art, sound and animation code and data out of `f4x-core` and `f4x-data` into `f4x-client`; first step of the crate resort (stage 0 of `docs/archive/crate-layout-plan.md`) |
 | 468 | Medium | Text | Finish the multilingual wiring (language choice in the main menu and the rest), then an automated German translation of the game text as the test |
 | 469 | Low | Text | CJK support (Japanese first): a runtime vector font, at the 4x display setting only |
 | 470 | Low | Housekeeping | Review the size of the client executable with `cargo-bloat`; trim what is cheap |
@@ -90,7 +87,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 473 | Low | Audio | Denoise the original speech sound files (the intro's spoken lines and any other voice clips) |
 | 474 | Low | AI | AI heroes and items: lairs, experience, Resurrection, hiring, item trade and crafting (split from 367) |
 | 476 | Medium | Client | Cache queried game information and refresh it only after relevant state changes |
-| 477 | Medium | Housekeeping | Add `f4x-master` for player turns and round orchestration |
 | 478 | Low | Housekeeping | Make `f4x-ai-ref` a local-only snapshot: ignored by git, behind a `reference` feature of `f4x-tools` |
 | 483 | Medium | Meta | Review the constants in code: which should move to content or to a settings file |
 | 484 | Medium | Tests | Test review, second pass: tests that edit the rules, tests on the flat settings, wrong crate layer |
@@ -327,19 +323,6 @@ No action: the hit-points row shows one figure's hit points, and the original do
 
 **462. Converter for version 3 saves.** `SAVE_VERSION` 4 writes spells (enchantments of units, cities and wizards, a hero's spells, an item's charges), item powers, prefab items and the diplomacy memory by number; version 3 wrote their alias strings, so a version 3 save is refused with the version message. The user asked for a converter (2 November 2026): read the version 3 text as a RON value, turn each alias field into its number with the content's registries (the fields are listed in the version 4 change of `save.rs`; `tests/regression/*.save` are the only version 3 files in the repository and were rebuilt instead), and run the ordinary loader on the result. Do it when a player's save from before the change has to be kept; until then the pre-release saves are not supported.
 
-**465. Curse enchantments and their icons.** Found while doing task 463 (2 November 2026), from reading our tables and spell definitions, then checked against ReMoM (`MoM/src/Combat.c`, `Combat.h`, `UnitView.c`, `COMBINIT.c`). The permanent curses on an enemy unit in battle are Web, Confusion, Vertigo, Mind Storm, Shatter, Weakness and Black Sleep. What ReMoM says, and what is left:
-
-1. **Black Sleep has no picture over the unit's square on the battle map, as in the original.** Its icon in the unit sheet's list (114) is there; the map shows only the greyed figure, because the original has no curse overlay for it. We tried a still copy of the sheet icon over the square (2 November 2026) and took it out again. Nothing to do unless an overlay is wanted.
-2. **Whirlwind and Mind Twist: dead in the original too.** The effect bits `bue_Whirlwind` (0x4) and `bue_Mind_Twist` (0x400) exist, but no spell in ReMoM sets either (no spell by those names; `LOADER.h` calls them `UU_Whirlwind` and `UU_Mind_Twist`, unused). The unit sheet table `USW_Combat_FX` gives bit 0x400 the Mana Leak help and picture 0x79 (121), so 0x400 is really Mana Leak and "Mind Twist" is a left-over name (`COMBINIT.c` still applies -1 to hit and -1 resistance for it). So our `curse_icon` slots 18 and 22 (spell number 0) are the same dead slots; there are no slots for them any more (the table names the picture of each spell); nothing left to do unless a spell for them is wanted.
-3. **Warp Creature lasts in the original and is `Instant` here.** It sets three bits, attack (0x80), defense (0x100) and resistance (0x200), which stay on the unit, reddens the figure (`bufe_Warp_Creature`) and shows in the unit sheet as three entries with pictures 0x7A, 0x7B and 0x7C (122, 123, 124) and the help topics `HLP_WARP_CREATURE_Atk/Def/Res`. Ours has `duration: Instant` and `Special`, one icon (122) and the red-figure effect in the battle screen. Find how our Warp Creature is stored (if it is, as it must be, on the unit) and whether the three parts show; make the sheet list the three with their own pictures if the rules keep them apart.
-4. **Two icon tables (done 2 November 2026).** `enchantment_icon` and `curse_icon` are one table now, `ENCHANTMENT_ART` in `unit_sheet.rs`, keyed by spell number. That found a bug: the old table was keyed by the alias `invisibility`, but the spell's id is misspelled `invisiblity` in `spells.ron`, so Invisibility never had its unit-sheet icon; fixed by the number. The misspelling is fixed too (id, name, help title and sound entry; the original's own name stays in `tests/original/spells.tsv`, which the spell test maps).
-
-Every curse has an icon in the unit sheet and no two share a picture number. Related: 422, 463. Asked for by the user, 2 November 2026.
-
-**466. New `f4x-save` crate.** Stage C of `docs/archive/crate-layout-plan.md`: move the snapshot types and the format (`game/save.rs`, `battle/save.rs`, `game/serial.rs`) and the file code (`game/save/file.rs`, moved from `f4x-data` by task 467) into a crate above `f4x-core`; `SAVE_VERSION` and the saves in `tests/regression` do not change. Start by measuring which private fields and `pub(crate)` restore methods of `Game` the save code uses and decide the interface (the plan suggests `Game::to_parts` / `from_parts`). Needs 455, 456 and 458 first. Asked for by the user, 2 November 2026.
-
-**467. Art out of core.** Stage 0 of `docs/archive/crate-layout-plan.md`, done before tasks 455, 456, 458 and 466. All code and data about art assets (pictures, icons, portraits, sounds, animations, fonts) belongs to `f4x-client`, not to `f4x-core` or `f4x-data`. Start by measuring what is there (the plan lists the known places: `UnitDef.art`, `HeroDef.portrait`, item icons, `Portrait`/`PORTRAITS`, `battle/info.rs` icons, `f4x-data` `sound.rs` and `spell_art.rs`) and sort it into "only the client reads it" and "core logic reads it" before moving anything. Saves and `SAVE_VERSION` do not change. Tasks 455, 456, 458 and 466 need this first. Asked for by the user, 2 November 2026.
-
 **468. Multilingual wiring and a German test translation.** `docs/text.md` already has the language in `client_settings.ron` (`language: "en"`, `en` as the fallback) and the text loader reads `content/text/<lang>/`, but nothing lets the player choose it and the wiring is not complete. (1) **Find the gaps.** List what still ties the game to English: the language is only read at start; screens, tooltips and the console that build text without a key; the names tables (`name/*.ron`, task 358); the original's text in `content-local/` (help, event texts, city names), which has no other language; plural and gender forms for a language with other rules than English. Write the list into `docs/text.md`. (2) **Language choice.** A "Language" entry in the main menu (and in the settings screen if there is one) lists the folders found under `content/text/` (and `content-local/text/`) by their own names, takes effect at once or after a restart (decide, write it down), and is saved in `client_settings.ron`. Texts, names and the font follow the choice. (3) **German.** Write a tool or script that translates `content/text/en/**` into `content/text/de/**` automatically (keeping keys, placeholders like `{name}` and the count/plural/gender forms intact; German has gender and the plural rule `one` and `other`), log it in `docs/scripts.md`, and check the result: a test that every key and every placeholder of `en` exists in `de`, and a screenshot of each main screen in German to find text that does not fit. The translation is machine made and only a test of the wiring; mark it so in `content/text/de/` and do not ship it as finished. Fix every screen where German exposes hardcoded text or overflow, or add it as a task. Tests use the shipped rules and text, as always.
 
 *Needs:* task 359 first (buttons and pictures with text baked in must become plain pictures plus font text, or the buttons stay English). The fonts are not a blocker: `f4x-extract art` already adds ä, ö, ü, ß and the other European letters to bitmap styles 0 to 5 (`accent.rs`, `docs/extract-art.md` section 5); check by eye that they look right in German. The client has not yet been tested with characters past ASCII 127: test in the client that text with ä, ö, ü, ß (and the other glyphs past 127) is drawn correctly, that `Art::text_width`, wrapping and centring count them right (UTF-8 is more than one byte per character), and that every style the screens use has them. Styles 6 and 7 (runes) are not used for German text. Task 358 (names in the rules files) is the same job for the names and can share this. Asked for by the user, 2 November 2026.
@@ -378,42 +361,6 @@ visibility-dependent data; city or economy changes invalidate the affected city 
 data). Reuse cached values across frames; do not solve this by caching everything forever or
 by assuming every query has the same cost. Keep the core queries available for on-demand use,
 and make invalidation explicit and testable so the client never displays stale information.
-
-**477. Add `f4x-master` for player turns and round orchestration.** Create a crate
-between `f4x-core` and `f4x-client`, depending on core but not on the client or a concrete
-AI crate. It owns the round counter, deterministic player order, active player and lifecycle
-phase, and invokes each eligible human or AI player controller in sequence. Define a
-controller interface in the master crate; AI crates implement it, while the client provides
-a resumable, non-blocking human controller. Keep simulation rules and state-changing game
-operations in `f4x-core`; the master orchestrates when they run.
-
-Follow [turn-structure.md](turn-structure.md) for the lifecycle and cadence rules. Process
-world events at the **start** of each round, before any player takes a turn. After all
-eligible players have acted, run only the operations explicitly assigned to round end.
-Classify the existing turn pipeline into player-turn, round-start and round-end work; do
-not run the entire existing pipeline once per player. Handle eliminated/inactive players,
-validate commands against the active player, and persist enough master state to resume
-saves deterministically without repeating or skipping a player or boundary phase. Update
-the client, AI, console, save/load and tests to use the same lifecycle.
-
-*Progress (6 November 2026):* stages 1 to 4 done. Core has the four phases as recorded commands
-(`StartRound`, `StartPlayerTurn`, `EndPlayerTurn`, `EndRound`; `EndTurn` composes them; the cadence
-table is in `turn-structure.md` 7.1), `f4x-master` runs seats in order with a neutral seat last,
-`f4x-ai` has `AiSeat` and `NeutralSeat`, and the console, the tools' round player and the client
-(a human seat that waits for End Turn; rivals wait while an attack on the human is fought) run on it.
-The economy now runs per player: income, bills and production at the player's turn end, growth and healing at the next turn start (7 November 2026, see 7.1), and `f4x-ai-ref`
-was re-forked from `f4x-ai` (`scripts/fork_ai.py`) so it has the same `controller.rs` and `play_round`.
-
-**DONE** (checked 7 November 2026)
-- Stages 1 to 4: the four phases in core, `f4x-master` with its seats, `AiSeat` and `NeutralSeat`, the console, the tools' round player and the client on the master.
-- The master state is saved (`Game::flow`, `Master::checkpoints`, `Master::from_game`); the client autosaves at the start of every round.
-- The soak's snapshots are game saves (`Game::snapshot`), and `soak --from SAVE` goes on from one.
-- The AIs' plans are saved with the game (`Ai::remember`, `Ai::recall`; `ai-design.md` says what is not kept: the garrison memory does not exist yet).
-- `game-flow.md` describes the rounds, the four phases and `EndTurn` as their composition.
-
-**TODO**
-1. A client test for a defence in the middle of a round (a rival attacks the human while the master waits; `App::next_defence`).
-2. A soak to check the balance of the per-player economy: income, upkeep, mana and production now run at each player's own turn end, growth, research learned and healing at the next turn start (`turn-structure.md` 7.1), so the players no longer settle their treasuries at one moment.
 
 **483. Review the constants in code.** Raised by the user, 6 November 2026, during the `f4x-def` work (task 481). Numbers and lists that are fixed in the Rust source and never change during play are definitions in all but place. Go through `f4x-core` (and the other crates below the client) and list them: the map generator's defaults (`GenParams`: towers, nodes, sites, `REFERENCE_AREA`), the limits (`MAX_TILE_LIMIT`, `MAX_STACK`, `MAX_SIDE_UNITS`, `MAX_OPPONENTS`, `PICKS`), the hero constants (`CHARMED_RESISTANCE`, the `by_tier` fractions, the ability numbers in `HeroAbilities`), and the like. For each, decide: it stays in code (a true invariant of the rules engine, or a technical limit), it moves into a content file (a rule of the game that a mod might change), or it becomes a setting in `rules_settings.ron` (a choice the player or the difficulty level makes). Done when the list is in this file or `docs/`, with the decision for each, and the ones that move are moved (one task each if they are many).
 

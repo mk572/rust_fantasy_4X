@@ -1366,7 +1366,7 @@ impl App {
     }
 
     /// The next attack on the human that is still real (a unit may have died to an earlier one).
-    fn next_defence(&mut self) -> Option<crate::attack_prompt::PendingAttack> {
+    pub(crate) fn next_defence(&mut self) -> Option<crate::attack_prompt::PendingAttack> {
         while let Some(attack) = self.defences.pop_front() {
             let alive = |u: &hecs::Entity| self.game.units().unit_owner(*u).is_some();
             let mine = attack

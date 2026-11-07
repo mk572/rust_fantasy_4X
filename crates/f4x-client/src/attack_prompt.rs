@@ -542,4 +542,52 @@ mod tests {
         assert_eq!(line, "2 of your units attack 1 monster unit.");
         Ok(())
     }
+
+    #[test]
+    fn a_rivals_attack_is_asked_in_the_middle_of_the_round_and_the_round_goes_on_after_it(
+    ) -> TestResult {
+        let mut app = App::for_test();
+        let round = app.game.turn;
+        let pending = attack(&app, PlayerId(1), true)?;
+        // A rival has attacked while the master waited: the turn is half way through.
+        app.defences.push_back(pending.clone());
+        app.turn_events = Some(Vec::new());
+        app.resume_turn();
+        assert!(app.modals.has(kind::ATTACK), "the attack is asked at once");
+        assert!(app.turn_events.is_some(), "the round waits for the answer");
+        assert_eq!(app.game.turn, round, "the round has not ended");
+
+        // The player leaves it to the computer: the fight runs and the box goes.
+        app.modals.remove(kind::ATTACK);
+        let _ = app.game.apply(Command::AutoResolve {
+            mana_budget: None,
+            attackers: pending.attackers,
+            defenders: pending.defenders,
+        });
+        app.resume_turn();
+        assert!(!app.modals.has(kind::ATTACK));
+        assert!(app.defences.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn an_attack_whose_unit_died_to_an_earlier_one_is_not_asked() -> TestResult {
+        let mut app = App::for_test();
+        let first = attack(&app, PlayerId(1), true)?;
+        let mut stale = first.clone();
+        // A defender that is no longer the human's.
+        let rival_unit = *app
+            .game
+            .units()
+            .player_units(PlayerId(1))
+            .first()
+            .ok_or("no rival unit")?;
+        stale.defenders = vec![rival_unit];
+        app.defences.push_back(stale);
+        app.defences.push_back(first.clone());
+        let next = app.next_defence().ok_or("the real attack is lost")?;
+        assert_eq!(next.defenders, first.defenders);
+        assert!(app.next_defence().is_none());
+        Ok(())
+    }
 }

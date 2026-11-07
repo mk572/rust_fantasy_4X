@@ -390,7 +390,11 @@ original task numbers. Newest work is merged in ascending order by number.
 | 459 | Core | Remove the "flat" difficulty setting that exists only for testing; tests use real game rules settings (done) |
 | 463 | Client | (done) Client tables keyed by alias: the city screen's enchantment table and the battle screen's unit-enchantment list refer to spells by number |
 | 464 | Tests | ~~`id_of("...")` literals in tests: refer to content by number with the alias as a comment~~ (done) |
+| 465 | Client | Curse enchantments and their icons (done): checked 7 November 2026, nothing to add |
+| 466 | Housekeeping | New `f4x-save` crate: the save format and reading and writing save files (stage C of `docs/archive/crate-layout-plan.md`) (done) (NOT implemented, on purpose) |
+| 467 | Housekeeping | Art, sound and animation code and data out of `f4x-core` and `f4x-data` into `f4x-client`; first step of the crate resort (done) |
 | 475 | Core | ~~Split turn advancement into explicit end-turn and start-turn phases~~ (done, as four phases in task 477) |
+| 477 | Housekeeping | Add `f4x-master` for player turns and round orchestration (done) |
 | 479 | Meta | ~~The crates below the client know no display text: names and messages leave core, data and the AI for the client~~ (done) |
 | 480 | Core | ~~Features by number: a lair's site, the ore and transmute lists and the site rewards stop using aliases~~ (done) |
 | 481 | Meta | New crate `f4x-def`: all static definitions and their loaders; `f4x-core` depends on it, `f4x-data` goes away (done) |
@@ -606,7 +610,55 @@ from the original). *Needs:* nothing.
 
 **464. `id_of("...")` literals in tests (done).** Many tests find content with `id_of("alias")` or `by_name("alias")` (`f4x-ai`, `f4x-client`, `f4x-core` and `f4x-data` tests, and the `testworld.rs` helpers). Content is referred to by number everywhere else (task 418), so turn them into `SpellId::new(n) /* alias */`, `UnitId::new(n) /* alias */` and so on, as in the code under test. Keep a name lookup where the test is about the lookup itself (`Registry` tests, the content validator, the console's name parser). `scripts/check_id_aliases.py` checks that every alias comment matches its number; extend it if the new places need it. `f4x-ai-ref` is a frozen copy of the AI; change it only as far as it needs to keep compiling. Asked for by the user, 2 November 2026.
 
+**465. Curse enchantments and their icons (done).** Found while doing task 463 (2 November 2026), from reading our tables and spell definitions, then checked against ReMoM (`MoM/src/Combat.c`, `Combat.h`, `UnitView.c`, `COMBINIT.c`). The permanent curses on an enemy unit in battle are Web, Confusion, Vertigo, Mind Storm, Shatter, Weakness and Black Sleep. What ReMoM says, and what is left:
+
+1. **Black Sleep has no picture over the unit's square on the battle map, as in the original.** Its icon in the unit sheet's list (114) is there; the map shows only the greyed figure, because the original has no curse overlay for it. We tried a still copy of the sheet icon over the square (2 November 2026) and took it out again. Nothing to do unless an overlay is wanted.
+2. **Whirlwind and Mind Twist: dead in the original too.** The effect bits `bue_Whirlwind` (0x4) and `bue_Mind_Twist` (0x400) exist, but no spell in ReMoM sets either (no spell by those names; `LOADER.h` calls them `UU_Whirlwind` and `UU_Mind_Twist`, unused). The unit sheet table `USW_Combat_FX` gives bit 0x400 the Mana Leak help and picture 0x79 (121), so 0x400 is really Mana Leak and "Mind Twist" is a left-over name (`COMBINIT.c` still applies -1 to hit and -1 resistance for it). So our `curse_icon` slots 18 and 22 (spell number 0) are the same dead slots; there are no slots for them any more (the table names the picture of each spell); nothing left to do unless a spell for them is wanted.
+3. **Warp Creature lasts in the original and is `Instant` here.** It sets three bits, attack (0x80), defense (0x100) and resistance (0x200), which stay on the unit, reddens the figure (`bufe_Warp_Creature`) and shows in the unit sheet as three entries with pictures 0x7A, 0x7B and 0x7C (122, 123, 124) and the help topics `HLP_WARP_CREATURE_Atk/Def/Res`. Ours has `duration: Instant` and `Special`, one icon (122) and the red-figure effect in the battle screen. Find how our Warp Creature is stored (if it is, as it must be, on the unit) and whether the three parts show; make the sheet list the three with their own pictures if the rules keep them apart.
+4. **Two icon tables (done 2 November 2026).** `enchantment_icon` and `curse_icon` are one table now, `ENCHANTMENT_ART` in `unit_sheet.rs`, keyed by spell number. That found a bug: the old table was keyed by the alias `invisibility`, but the spell's id is misspelled `invisiblity` in `spells.ron`, so Invisibility never had its unit-sheet icon; fixed by the number. The misspelling is fixed too (id, name, help title and sound entry; the original's own name stays in `tests/original/spells.tsv`, which the spell test maps).
+
+Every curse has an icon in the unit sheet and no two share a picture number. Related: 422, 463. Asked for by the user, 2 November 2026.
+
+**466. New `f4x-save` crate (done) (NOT implemented, on purpose).** Stage C of `docs/archive/crate-layout-plan.md`: move the snapshot types and the format (`game/save.rs`, `battle/save.rs`, `game/serial.rs`) and the file code (`game/save/file.rs`, moved from `f4x-data` by task 467) into a crate above `f4x-core`; `SAVE_VERSION` and the saves in `tests/regression` do not change. Start by measuring which private fields and `pub(crate)` restore methods of `Game` the save code uses and decide the interface (the plan suggests `Game::to_parts` / `from_parts`). Needs 455, 456 and 458 first. Asked for by the user, 2 November 2026. *Closed 7 November 2026 without being implemented, on purpose: the user chose neither crate-layout plan as written (`docs/archive/crate-layout-plan.md`); save and load stay in `f4x-core` (`game/save.rs`, `game/save/file.rs`), and no `f4x-save` crate is made.*
+
+**467. Art out of core (done).** Stage 0 of `docs/archive/crate-layout-plan.md`, done before tasks 455, 456, 458 and 466. All code and data about art assets (pictures, icons, portraits, sounds, animations, fonts) belongs to `f4x-client`, not to `f4x-core` or `f4x-data`. Start by measuring what is there (the plan lists the known places: `UnitDef.art`, `HeroDef.portrait`, item icons, `Portrait`/`PORTRAITS`, `battle/info.rs` icons, `f4x-data` `sound.rs` and `spell_art.rs`) and sort it into "only the client reads it" and "core logic reads it" before moving anything. Saves and `SAVE_VERSION` do not change. Tasks 455, 456, 458 and 466 need this first. Asked for by the user, 2 November 2026. Checked 7 November 2026: no art, sound or animation data or code is left in `f4x-core` or `f4x-def` (`f4x-data` is gone, `UnitDef.art` and the icon tables are the client's); the only trace is the portrait *number* a wizard has (`PORTRAITS`), which is a saved choice of the game, not art.
+
 **475. Split the turn transition into end-turn and start-turn phases (done).** Done 7 November 2026 as part of task 477: the transition is four phases in `turn.rs` (`end_player_turn`, `end_round`, `start_round`, `start_player_turn`), with the boundary described in `docs/turn-structure.md` section 7; `Game::end_turn` stays only as their composition for tests and tools. Refactor the current `game::end_turn()` so that the work before advancing the turn counter stays in `game::end_turn()`, and the work after advancing the counter moves into a new `game::start_turn()`. Keep the existing execution order and behaviour unchanged: this is a lifecycle-clarity refactor, not a redesign of the turn pipeline. `end_turn()` should finish the outgoing turn; `start_turn()` should own the incoming-turn work, including the counter advancement and the processing that follows it. Update callers and tests as needed, and document the boundary between the two phases. Check that turn-start notifications and all existing turn processing still happen exactly once.
+
+**477. Add `f4x-master` for player turns and round orchestration (done).** Create a crate
+between `f4x-core` and `f4x-client`, depending on core but not on the client or a concrete
+AI crate. It owns the round counter, deterministic player order, active player and lifecycle
+phase, and invokes each eligible human or AI player controller in sequence. Define a
+controller interface in the master crate; AI crates implement it, while the client provides
+a resumable, non-blocking human controller. Keep simulation rules and state-changing game
+operations in `f4x-core`; the master orchestrates when they run.
+
+Follow [turn-structure.md](turn-structure.md) for the lifecycle and cadence rules. Process
+world events at the **start** of each round, before any player takes a turn. After all
+eligible players have acted, run only the operations explicitly assigned to round end.
+Classify the existing turn pipeline into player-turn, round-start and round-end work; do
+not run the entire existing pipeline once per player. Handle eliminated/inactive players,
+validate commands against the active player, and persist enough master state to resume
+saves deterministically without repeating or skipping a player or boundary phase. Update
+the client, AI, console, save/load and tests to use the same lifecycle.
+
+*Progress (6 November 2026):* stages 1 to 4 done. Core has the four phases as recorded commands
+(`StartRound`, `StartPlayerTurn`, `EndPlayerTurn`, `EndRound`; `EndTurn` composes them; the cadence
+table is in `turn-structure.md` 7.1), `f4x-master` runs seats in order with a neutral seat last,
+`f4x-ai` has `AiSeat` and `NeutralSeat`, and the console, the tools' round player and the client
+(a human seat that waits for End Turn; rivals wait while an attack on the human is fought) run on it.
+The economy now runs per player: income, bills and production at the player's turn end, growth and healing at the next turn start (7 November 2026, see 7.1), and `f4x-ai-ref`
+was re-forked from `f4x-ai` (`scripts/fork_ai.py`) so it has the same `controller.rs` and `play_round`.
+
+**DONE** (checked 7 November 2026)
+- Stages 1 to 4: the four phases in core, `f4x-master` with its seats, `AiSeat` and `NeutralSeat`, the console, the tools' round player and the client on the master.
+- The master state is saved (`Game::flow`, `Master::checkpoints`, `Master::from_game`); the client autosaves at the start of every round.
+- The soak's snapshots are game saves (`Game::snapshot`), and `soak --from SAVE` goes on from one.
+- The AIs' plans are saved with the game (`Ai::remember`, `Ai::recall`; `ai-design.md` says what is not kept: the garrison memory does not exist yet).
+- `game-flow.md` describes the rounds, the four phases and `EndTurn` as their composition.
+
+- A client test for a defence in the middle of a round (`attack_prompt.rs`: a queued rival attack opens the box and holds the round, the round goes on after the fight; an attack whose unit has died is skipped by `App::next_defence`).
+- A soak of the per-player economy (7 November 2026, `f4x-tools soak --seeds 1..8 --turns 200 --players 3`): no game crashed and no treasury fell into debt or collapsed; most wizards stay at 40 to 130 gold from round 50 to round 200 with unit counts that grow, so the split income at turn end / growth at the next turn start leaves no player ahead for being seated first. A few AIs with one to three cities keep a large treasury (seed 5 p0 750g, seed 7 p2 344g); that is the AI not spending, not the economy, and is left as it is.
 
 **478. Make `f4x-ai-ref` a local-only snapshot (done).** *Done 7 November 2026:* the crate is outside the workspace (`exclude`), `f4x-tools` has an optional `reference` feature, `fork_ai.py` writes a standalone package with a `build.rs` that honours the `STALE` marker, and `scripts/ai_battle.py` forks a stale reference again before a battle.  The crate is untracked and in `.gitignore`; its dependency line is added to `f4x-tools` by `ai_battle.py` for the build only (a missing path dependency would break every fresh clone); `scripts/ai_snapshot.py` has `begin`/`end`. The reference AI is a frozen copy of `f4x-ai` that
 `f4x-tools versus` and `soak` play the current AI against; it is only ever used for local
