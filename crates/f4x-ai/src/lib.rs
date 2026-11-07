@@ -53,7 +53,7 @@ pub struct Refusal {
 }
 
 /// One computer-played wizard.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Ai {
     pub player: PlayerId,
     /// Where each settler is heading to found a city.
@@ -116,13 +116,17 @@ pub struct Ai {
     war_on: Option<PlayerId>,
     /// The wizard this one went to war on by temper (`diplomacy::quarrel`).
     quarrel: Option<PlayerId>,
+    #[serde(skip)]
     record_refusals: bool,
+    #[serde(skip)]
     refusals: RefCell<Vec<Refusal>>,
     /// The units out on a raid of a tower, node or encounter site (`site.rs`).
     raiders: Vec<Serial>,
     /// Players who fight their own defence (a human): an attack on them is kept for
     /// [`Ai::take_attacks`] instead of being resolved.
+    #[serde(skip)]
     defended_by: Vec<PlayerId>,
+    #[serde(skip)]
     attacks: Vec<Attack>,
 }
 
@@ -134,6 +138,17 @@ pub struct Attack {
 }
 
 impl Ai {
+    /// The AI's plans as text (RON on one line), to be kept in a save.
+    pub fn to_text(&self) -> Result<String, ron::Error> {
+        ron::ser::to_string(self)
+    }
+
+    /// An AI from the text `to_text` wrote.
+    pub fn from_text(text: &str) -> Result<Self, ron::error::SpannedError> {
+        battle::install();
+        ron::de::from_str(text)
+    }
+
     pub fn new(player: PlayerId) -> Self {
         battle::install();
         Self {

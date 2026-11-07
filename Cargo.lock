@@ -2599,6 +2599,8 @@ dependencies = [
  "f4x-def",
  "f4x-master",
  "hecs",
+ "ron",
+ "serde",
 ]
 
 [[package]]

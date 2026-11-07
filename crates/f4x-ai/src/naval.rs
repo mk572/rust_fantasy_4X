@@ -21,7 +21,7 @@ const LANDING_EDGE: f32 = 1.2;
 const WAIT_TURNS: u32 = 25;
 
 /// Where a landing goes, and where it starts from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Plan {
     /// The enemy city.
     pub target: Position,
@@ -34,7 +34,7 @@ pub struct Plan {
 }
 
 /// A ship on a voyage and the units it carries.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Ferry {
     pub ship: Serial,
     /// The units aboard; empty once they have landed.

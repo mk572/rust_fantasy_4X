@@ -29,7 +29,7 @@ const RETRY_TURNS: u32 = 20;
 
 /// Where a settler goes by sea: the port it sails from, the sea square where the ship waits and
 /// the land square beside it where the settler steps ashore.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Colony {
     pub port: Position,
     pub sea: Position,
