@@ -941,7 +941,14 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             .filter(|&(k, cost, _)| k != Kind::Other && cost > 0)
             .collect();
         let traits = crate::objective::traits(&view);
-        options.sort_by_key(|&(k, cost, s)| (cast_rank(k, &traits), std::cmp::Reverse(cost), s));
+        // The intents in the order the wizard's objective ranks them; within an intent the helper's
+        // rating puts the best spell first.
+        let rated: std::collections::HashMap<SpellId, i64> = options
+            .iter()
+            .map(|&(k, _, s)| (s, (crate::spellhelper::rate(&view, s, k) * 1000.0) as i64))
+            .collect();
+        options
+            .sort_by_key(|&(k, _cost, s)| (cast_rank(k, &traits), std::cmp::Reverse(rated[&s]), s));
         let mut found = None;
         // Saving up for a summon the pool cannot pay yet: the cheap lasting spells wait, or they
         // take the mana (and then the income, as upkeep) every turn and no summon is ever begun.

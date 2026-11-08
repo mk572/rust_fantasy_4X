@@ -29,6 +29,7 @@ mod raze;
 mod scout;
 mod shortfall;
 mod site;
+mod spellhelper;
 #[cfg(test)]
 mod testworld;
 mod view;
