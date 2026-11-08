@@ -97,3 +97,16 @@ literal that is compared with it, and run the tests rather than trusting the com
 moves, an item's movement bonus, a battle unit's moves) uses `#[serde(with = "f4x_def::half_int::raw")]`,
 which keeps the old number, so no `save::UPGRADES` entry or version bump is needed. Use `UPGRADES` only
 when the saved number itself must change.
+
+- **A computer wizard's vision is counted once per turn and patched** (task 428, `map/vision.rs`). `Ai::play_turn`
+  calls `Game::keep_vision`; `PlayerView::sees` then reads a `VisionGrid` of counts (how many units and cities see
+  each square) instead of counting it for each new view. `Game::execute` calls `vision_after` with the command's
+  `VisionEffect`: `None` for the commands that cannot touch a unit, a city or a spell (orders, production, farmers,
+  taxes, research, Alchemy, diplomacy, refusing an offer, cancelling a cast), `Walk` for `MoveStack` and `GoTo`
+  (the units whose square changed are lifted off the old square and put on the new one; the counts of the rest stay),
+  `Recount` for every other command, and for any command whose events are not all harmless (`with_events`: a walk
+  may raise only `UnitsMoved`, `AttackRequested`, `SiteEncounter` or a refusal). A new command is a `Recount` until it
+  is named. Anything that changes the game outside `Game::apply` during the turn breaks this; the AI's only such
+  calls (`balance_farmers`, `set_plans`) cannot change what is seen. `F4X_CHECK_VISION=1 f4x-tools soak ...` counts
+  afresh after every command and panics when the kept grid differs (the test of the cache; slow).
+

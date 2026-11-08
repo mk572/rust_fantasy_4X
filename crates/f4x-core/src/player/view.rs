@@ -400,6 +400,9 @@ impl<'a> PlayerView<'a> {
 
     /// Does the player see the square now?
     pub fn sees(&self, at: Position) -> bool {
+        if let Some(sees) = self.game.cached_sees(self.me, at) {
+            return sees;
+        }
         let seen = self.seen[at.plane.index()]
             .get_or_init(|| self.game.economy().visibility(self.me, at.plane));
         let width = self.game.map().map_or(0, |m| m.width());

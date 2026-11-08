@@ -281,6 +281,15 @@ impl Ai {
 
     /// Play this wizard's turn; returns the events the AI's own commands caused.
     pub fn play_turn(&mut self, game: &mut Game) -> Vec<Event> {
+        // Every change in the game during the turn is a command this wizard sends, so what it
+        // sees is counted once and patched (`Game::keep_vision`).
+        game.keep_vision(self.player);
+        let events = self.play_kept(game);
+        game.drop_vision();
+        events
+    }
+
+    fn play_kept(&mut self, game: &mut Game) -> Vec<Event> {
         let mut events = Vec::new();
         {
             let view = PlayerView::new(game, self.player);

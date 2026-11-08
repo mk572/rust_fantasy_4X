@@ -59,6 +59,8 @@ pub struct Game {
     /// The player entity of each [`player::PlayerId`].
     pub(crate) player_index: std::collections::HashMap<player::PlayerId, hecs::Entity>,
     pub(crate) fog: map::fog::Fog,
+    /// The vision of the computer wizard that is playing, kept for its turn (`map::vision`).
+    pub(crate) vision: std::cell::RefCell<map::vision::VisionCache>,
     pub(crate) next_serial: u64,
     /// The seeded generator all randomness comes from; it counts its draws (see `game/rng.rs`).
     pub(crate) rng: game::rng::GameRng,
@@ -111,6 +113,7 @@ impl Game {
             names: Default::default(),
             player_index: std::collections::HashMap::new(),
             fog: map::fog::Fog::default(),
+            vision: Default::default(),
             next_serial: 1,
             rng: game::rng::GameRng::new(seed),
             // The Average level of the shipped rules; a game made for play gets its level from
@@ -417,10 +420,12 @@ impl Game {
     }
 
     fn execute(&mut self, cmd: Command) -> Vec<Event> {
+        let vision = map::vision::VisionEffect::of(&cmd);
         let mut events = self.execute_command(cmd);
         // What hooks in battles, spells and the turn raised between wizards comes last.
         events.extend(self.drain_diplomacy_events());
         events.extend(self.drain_item_awards());
+        self.vision_after(vision, &events);
         events
     }
 
