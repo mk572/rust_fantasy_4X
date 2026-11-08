@@ -1392,7 +1392,8 @@ fn lycanthropy_keeps_damage_enchantments_weapons_and_moves() -> TestResult {
     g.world.insert_one(u, crate::unit::Hurt(6))?;
     g.world
         .insert_one(u, crate::unit::WeaponQuality(crate::unit::WEAPON_MITHRIL))?;
-    g.world.insert_one(u, crate::unit::MovesLeft(3))?;
+    g.world
+        .insert_one(u, crate::unit::MovesLeft(HalfInt::from_raw(3)))?;
     let events = cast(&mut g, 173 /* lycanthropy */, Some(Target::Unit(u)));
     assert!(
         events
@@ -1406,7 +1407,7 @@ fn lycanthropy_keeps_damage_enchantments_weapons_and_moves() -> TestResult {
         g.units().unit_weapon_quality(u),
         crate::unit::WEAPON_MITHRIL
     );
-    assert_eq!(g.units().unit_moves_left(u), 3);
+    assert_eq!(g.units().unit_moves_left(u), HalfInt::from_raw(3));
     let eldritch = g
         .content
         .rules

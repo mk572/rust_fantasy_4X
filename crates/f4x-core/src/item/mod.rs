@@ -22,6 +22,7 @@ pub mod make;
 use crate::rules::Ability;
 use crate::rules::ItemId;
 use crate::rules::ItemPowerId;
+use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
 use crate::battle::game::ranged_kind_of;
@@ -35,15 +36,16 @@ use crate::rules::{ItemDef, ItemKind, ItemPowerDef, ModOp, Rules, SlotKind, Spel
 use crate::unit::UnitView;
 use hecs::World;
 
-/// The plain bonuses of an item (the original's record: attack, to hit, defence, movement in
-/// half-moves, resistance, spell skill and spell save).
+/// The plain bonuses of an item (the original's record: attack, to hit, defence, movement,
+/// resistance, spell skill and spell save).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ItemBonus {
     pub attack: i32,
     pub to_hit: i32,
     pub defense: i32,
-    /// In half-moves.
-    pub moves: i32,
+    /// Whole moves. Saved as half-moves, the form older saves have.
+    #[serde(with = "f4x_def::half_int::raw")]
+    pub moves: HalfInt,
     pub resistance: i32,
     pub spell_skill: i32,
     /// The size of the resistance penalty put on what the hero's spells hit.
@@ -94,7 +96,7 @@ impl Item {
                     Stat::Melee => bonus.attack += value.floor(),
                     Stat::ToHit => bonus.to_hit += value.floor(),
                     Stat::Defense => bonus.defense += value.floor(),
-                    Stat::HalfMoves => bonus.moves += value.floor(),
+                    Stat::Moves => bonus.moves += value,
                     Stat::Resistance => bonus.resistance += value.floor(),
                     _ => {}
                 }
@@ -243,7 +245,7 @@ pub fn modifiers(item: &Item, slot: u8, abilities: &[Ability], has_ranged: bool)
     let b = &item.bonus;
     add(Stat::Defense, b.defense);
     add(Stat::Resistance, b.resistance);
-    add(Stat::HalfMoves, b.moves);
+    add(Stat::Moves, b.moves.floor());
     let flaming = if item.has_power(ItemPowerId::new(33) /* flaming */) {
         3
     } else {
@@ -505,11 +507,11 @@ mod tests {
         let mut mail = item(ItemKind::Chainmail);
         mail.bonus.defense = 3;
         mail.bonus.resistance = 2;
-        mail.bonus.moves = 2;
+        mail.bonus.moves = HalfInt::from_int(1);
         let mods = modifiers(&mail, 1, &[], false);
         assert_eq!(total(&mods, Stat::Defense), 3);
         assert_eq!(total(&mods, Stat::Resistance), 2);
-        assert_eq!(total(&mods, Stat::HalfMoves), 2);
+        assert_eq!(total(&mods, Stat::Moves), 1);
         assert!(mods.iter().all(|m| m.source == Source::Item(1)));
     }
 

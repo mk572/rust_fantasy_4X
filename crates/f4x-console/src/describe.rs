@@ -676,7 +676,7 @@ pub fn magic_item(game: &Game, item: &f4x_core::item::Item) -> String {
         ("attack", b.attack),
         ("to hit", b.to_hit),
         ("defense", b.defense),
-        ("half-moves", b.moves),
+        ("moves", b.moves.floor()),
         ("resistance", b.resistance),
         ("spell skill", b.spell_skill),
         ("spell save", b.spell_save),

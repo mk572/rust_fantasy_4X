@@ -439,7 +439,9 @@ pub struct UnitSave {
     pub xp: u32,
     /// Weapon quality (`unit::WeaponQuality`).
     pub weapon: u8,
-    pub moves: u32,
+    /// The moves left, saved as half-moves, the form older saves have.
+    #[serde(with = "f4x_def::half_int::raw")]
+    pub moves: HalfInt,
     pub order: Option<Order>,
     /// Road work in progress.
     pub road_work: Option<crate::map::road::RoadWork>,

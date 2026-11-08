@@ -27,6 +27,7 @@ mod tests;
 use crate::rules::Ability;
 use crate::{battle, city, diplomacy, game, item, map, player, threat, unit, wizard, world_event};
 use f4x_def::content;
+use f4x_def::half_int::HalfInt;
 use rand::RngCore;
 
 pub use command::Command;
@@ -868,14 +869,14 @@ impl Game {
         if owner == player::MONSTERS {
             if let Some(city) = self.economy().city_at(to) {
                 for &u in units {
-                    let _ = self.world.insert_one(u, unit::MovesLeft(0));
+                    let _ = self.world.insert_one(u, unit::MovesLeft(HalfInt::ZERO));
                 }
                 return self.rampage_city(city, 0, units);
             }
         }
         for &u in units {
             let _ = self.world.insert_one(u, to);
-            let _ = self.world.insert_one(u, unit::MovesLeft(0));
+            let _ = self.world.insert_one(u, unit::MovesLeft(HalfInt::ZERO));
         }
         self.explore(owner, to, map::fog::sight_for(2));
         let mut events = vec![Event::UnitsMoved {

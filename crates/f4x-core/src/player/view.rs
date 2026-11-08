@@ -317,7 +317,7 @@ impl<'a> PlayerView<'a> {
     }
 
     /// Movement points the unit has left this turn.
-    pub fn unit_moves_left(&self, unit: hecs::Entity) -> u32 {
+    pub fn unit_moves_left(&self, unit: hecs::Entity) -> HalfInt {
         self.game.units().unit_moves_left(unit)
     }
 

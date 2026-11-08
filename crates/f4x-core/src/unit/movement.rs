@@ -1,6 +1,6 @@
 //! Overland movement: what a step costs each unit, moving stacks, shifting planes.
 //!
-//! Costs are in half-moves. A unit with moves left may always take a step, even when
+//! Costs are in moves, a road step half a move. A unit with moves left may always take a step, even when
 //! the step costs more than it has left (it just ends with none).
 //!
 //! Tests: in unit/movement/tests.rs.
@@ -14,6 +14,7 @@ use crate::rules::Ability;
 use crate::game::Game;
 use crate::rules::MovementType;
 use crate::unit::{MovesLeft, Unit};
+use f4x_def::half_int::HalfInt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MoveError {
@@ -70,7 +71,9 @@ pub enum Entry {
     Site(hecs::Entity),
 }
 
-const FULL_MOVE: u32 = 2;
+pub(crate) const FULL_MOVE: HalfInt = HalfInt::from_int(1);
+/// What a step along a road costs.
+const ROAD_MOVE: HalfInt = HalfInt::from_raw(1);
 
 pub(crate) fn adjacent(width: u32, a: Position, b: Position) -> bool {
     if a.plane != b.plane || a == b {
@@ -115,16 +118,16 @@ impl Economy<'_> {
         }
     }
 
-    /// Cost in half-moves for `unit` to step from `from` to the adjacent `to`, with the
+    /// Cost for `unit` to step from `from` to the adjacent `to`, with the
     /// abilities its stack shares. With the setting `diagonal_extra_cost` (which also sets how far units see) a diagonal step costs
-    /// one and a half times a straight one (3 half-moves on open ground), rounded up.
+    /// one and a half times a straight one (1.5 moves on open ground), rounded up.
     pub fn step_cost(
         &self,
         unit: hecs::Entity,
         from: Position,
         to: Position,
         traits: StackTraits,
-    ) -> Result<u32, MoveError> {
+    ) -> Result<HalfInt, MoveError> {
         self.step_cost_with(&self.step_profile(unit)?, from, to, traits)
     }
 
@@ -152,8 +155,8 @@ impl Economy<'_> {
         from: Position,
         to: Position,
         traits: StackTraits,
-    ) -> Option<u32> {
-        let mut worst = 0;
+    ) -> Option<HalfInt> {
+        let mut worst = HalfInt::ZERO;
         for p in profiles {
             worst = worst.max(self.step_cost_with(p, from, to, traits).ok()?);
         }
@@ -167,10 +170,10 @@ impl Economy<'_> {
         from: Position,
         to: Position,
         traits: StackTraits,
-    ) -> Result<u32, MoveError> {
+    ) -> Result<HalfInt, MoveError> {
         let straight = self.straight_step_cost(profile, from, to, traits)?;
         Ok(if self.diagonal_extra && from.x != to.x && from.y != to.y {
-            (straight * 3).div_ceil(2)
+            HalfInt::from_raw((straight.raw() * 3 + 1) / 2)
         } else {
             straight
         })
@@ -182,7 +185,7 @@ impl Economy<'_> {
         from: Position,
         to: Position,
         traits: StackTraits,
-    ) -> Result<u32, MoveError> {
+    ) -> Result<HalfInt, MoveError> {
         let stack_flies = traits.flies;
         let map = self.map.ok_or(MoveError::NoMap)?;
         let grid = map.plane(to.plane);
@@ -203,7 +206,7 @@ impl Economy<'_> {
         let is_water = terrain.class == TerrainClass::Ocean;
 
         if has(Ability::new(49)) && !is_water {
-            return Ok(1);
+            return Ok(ROAD_MOVE);
         }
         if stack_flies
             || def.movement == MovementType::Flying
@@ -229,7 +232,7 @@ impl Economy<'_> {
         if is_water {
             // Land units ride a ship in their stack for nothing, or board one at the target.
             if traits.sea_lift {
-                return Ok(0);
+                return Ok(HalfInt::ZERO);
             }
             let owner = self.units().unit_owner(unit);
             return if owner.is_some_and(|o| self.ship_room_at(to, o)) {
@@ -241,7 +244,7 @@ impl Economy<'_> {
         if !terrain.walkable {
             return Err(MoveError::Impassable);
         }
-        let mut cost = u32::from(terrain.move_cost).max(1) * FULL_MOVE;
+        let mut cost = HalfInt::from_int(i32::from(terrain.move_cost).max(1));
         let from_road = map.plane(from.plane).has_road(from.x as i32, from.y as i32);
         if from_road && grid.has_road(to.x as i32, to.y as i32) {
             // Roads halve the cost; enchanted roads (all roads on Myrror) make it nothing.
@@ -251,10 +254,14 @@ impl Economy<'_> {
                         .plane(p.plane)
                         .has_enchanted_road(p.x as i32, p.y as i32)
             };
-            cost = if magic(from) && magic(to) { 0 } else { 1 };
+            cost = if magic(from) && magic(to) {
+                HalfInt::ZERO
+            } else {
+                ROAD_MOVE
+            };
         }
         if has(Ability::new(50)) || traits.pathfinding {
-            cost = cost.min(1);
+            cost = cost.min(ROAD_MOVE);
         }
         if (has(Ability::new(25)) || traits.forester) && terrain.class.is_forest() {
             cost = cost.min(FULL_MOVE);
@@ -343,7 +350,7 @@ impl Economy<'_> {
         &self,
         units: &[hecs::Entity],
         to: Position,
-    ) -> Result<(Vec<u32>, Entry), MoveError> {
+    ) -> Result<(Vec<HalfInt>, Entry), MoveError> {
         let (from, owner) = self.check_stack(units)?;
         let map = self.map.ok_or(MoveError::NoMap)?;
         if !adjacent(map.width(), from, to) {
@@ -363,7 +370,7 @@ impl Economy<'_> {
                 if boards {
                     boarding += 1;
                 }
-                costs.push(0);
+                costs.push(HalfInt::ZERO);
                 continue;
             }
             // A stack with a Wind Walker moves as far as the Wind Walker can.

@@ -1,11 +1,11 @@
 //! The tactical map of a battle: a 21 by 22 grid of squares, of which the original plays on the
 //! 200 of its screen's band.
 //!
-//! Units move in eight directions. Open ground costs one move (two half-moves), rough ground
+//! Units move in eight directions. Open ground costs one move, rough ground
 //! two moves, a road half a move, trees and rocks add half a move each (to four at most),
 //! squares outside the band and a lair's structure cannot be entered, and flying units pay
-//! one move everywhere and cross everything but those. Ships sail the ocean and rivers (two
-//! half-moves a square) and swimmers take the cheaper of the two ways. The ground comes from
+//! one move everywhere and cross everything but those. Ships sail the ocean and rivers (one
+//! move a square) and swimmers take the cheaper of the two ways. The ground comes from
 //! [`layout`], the port of the original's field generator.
 //!
 //! Tests: in battle/map/tests.rs.
@@ -17,20 +17,22 @@ use crate::map::terrain::TerrainClass;
 
 pub mod layout;
 
+use f4x_def::half_int::HalfInt;
 use layout::{Layout, Look, Set, Spec};
 use rand::Rng;
 
-/// Half-moves to jump the square of water between two ships' decks: two moves.
-pub const JUMP_COST: u32 = 4;
+/// Moves to jump the square of water between two ships' decks.
+pub const JUMP_COST: HalfInt = HalfInt::from_int(2);
 pub const GRID_W: i32 = 21;
 pub const GRID_H: i32 = 22;
 
-/// Half-moves to enter an open square.
-pub const OPEN_COST: u32 = 2;
-/// Half-moves to enter rough ground.
-pub const ROUGH_COST: u32 = 4;
-/// Half-moves to enter mud (Earth to Mud): the original's 12, which is more than any unit has.
-pub const MUD_COST: u32 = 12;
+/// Moves to enter an open square.
+pub const OPEN_COST: HalfInt = HalfInt::from_int(1);
+/// Moves to enter rough ground.
+pub const ROUGH_COST: HalfInt = HalfInt::from_int(2);
+/// Moves to enter mud (Earth to Mud): the original's 12 half-moves, which is more than any unit
+/// has.
+pub const MUD_COST: HalfInt = HalfInt::from_int(6);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Cell {
@@ -115,7 +117,8 @@ impl Mover {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct BattleMap {
     cells: Vec<Cell>,
-    /// Half-moves to enter each square on foot (`layout::INF` for none).
+    /// Half-moves (the raw count of a [`HalfInt`]) to enter each square on foot (`layout::INF`
+    /// for none).
     costs: Vec<u8>,
     /// Half-moves to enter each square by ship (`layout::INF` for none).
     sail: Vec<u8>,
@@ -139,7 +142,7 @@ impl BattleMap {
     pub fn open() -> Self {
         Self {
             cells: vec![Cell::Open; (GRID_W * GRID_H) as usize],
-            costs: vec![OPEN_COST as u8; (GRID_W * GRID_H) as usize],
+            costs: vec![OPEN_COST.raw() as u8; (GRID_W * GRID_H) as usize],
             sail: vec![layout::INF; (GRID_W * GRID_H) as usize],
             look: None,
             walls: None,
@@ -301,7 +304,7 @@ impl BattleMap {
                     _ if layout.is_void(cgx, cgy) => Cell::Void,
                     // Ocean: walkers cannot enter it, ships and fliers can.
                     layout::INF => Cell::Blocked,
-                    c if c > OPEN_COST as u8 => Cell::Rough,
+                    c if c > OPEN_COST.raw() as u8 => Cell::Rough,
                     _ => Cell::Open,
                 };
             }
@@ -344,28 +347,28 @@ impl BattleMap {
             let i = Self::index(pos);
             self.cells[i] = cell;
             self.costs[i] = match cell {
-                Cell::Open => OPEN_COST as u8,
-                Cell::Rough => ROUGH_COST as u8,
+                Cell::Open => OPEN_COST.raw() as u8,
+                Cell::Rough => ROUGH_COST.raw() as u8,
                 Cell::Blocked | Cell::Void => layout::INF,
             };
             self.sail[i] = layout::INF;
         }
     }
 
-    /// Half-moves to enter `pos`, or `None` if the unit cannot. (The walls of a city are not
+    /// Moves to enter `pos`, or `None` if the unit cannot. (The walls of a city are not
     /// counted: see [`BattleMap::reachable_as`].)
-    pub fn enter_cost(&self, pos: Pos, flying: bool) -> Option<u32> {
+    pub fn enter_cost(&self, pos: Pos, flying: bool) -> Option<HalfInt> {
         match (self.get(pos)?, flying) {
             (Cell::Void, _) => None,
             (_, true) => Some(OPEN_COST),
             (Cell::Blocked, false) => None,
-            _ => Some(u32::from(self.costs[Self::index(pos)])),
+            _ => Some(HalfInt::from_raw(i32::from(self.costs[Self::index(pos)]))),
         }
     }
 
-    /// Half-moves for `mover` to enter `pos`, or `None` if it cannot: fliers pay two anywhere
+    /// Moves for `mover` to enter `pos`, or `None` if it cannot: fliers pay one anywhere
     /// they can go, ships the sailing cost, swimmers the lesser of that and the walking one.
-    pub fn enter_cost_as(&self, pos: Pos, mover: Mover) -> Option<u32> {
+    pub fn enter_cost_as(&self, pos: Pos, mover: Mover) -> Option<HalfInt> {
         let cell = self.get(pos)?;
         if cell == Cell::Void {
             return None;
@@ -382,7 +385,7 @@ impl BattleMap {
         } else {
             walk
         };
-        (cost != layout::INF).then_some(u32::from(cost))
+        (cost != layout::INF).then_some(HalfInt::from_raw(i32::from(cost)))
     }
 
     /// Whether the walls of the city shut `pos` to a unit that starts its move `inside` the
@@ -454,15 +457,15 @@ impl BattleMap {
         false
     }
 
-    /// Squares reachable from `from` with `points` half-moves, with the cheapest cost and the
+    /// Squares reachable from `from` with `points` moves, with the cheapest cost and the
     /// square each was reached from. `occupied` squares cannot be entered.
     pub fn reachable(
         &self,
         from: Pos,
-        points: u32,
+        points: HalfInt,
         flying: bool,
         occupied: &dyn Fn(Pos) -> bool,
-    ) -> HashMap<Pos, (u32, Pos)> {
+    ) -> HashMap<Pos, (HalfInt, Pos)> {
         let mover = Mover {
             flying,
             through_walls: flying,
@@ -475,15 +478,15 @@ impl BattleMap {
     pub fn reachable_as(
         &self,
         from: Pos,
-        points: u32,
+        points: HalfInt,
         mover: Mover,
         occupied: &dyn Fn(Pos) -> bool,
-    ) -> HashMap<Pos, (u32, Pos)> {
+    ) -> HashMap<Pos, (HalfInt, Pos)> {
         let inside = in_city_area(from);
-        let mut best: HashMap<Pos, (u32, Pos)> = HashMap::new();
+        let mut best: HashMap<Pos, (HalfInt, Pos)> = HashMap::new();
         let mut queue = BinaryHeap::new();
-        best.insert(from, (0, from));
-        queue.push(Reverse((0u32, from)));
+        best.insert(from, (HalfInt::ZERO, from));
+        queue.push(Reverse((HalfInt::ZERO, from)));
         while let Some(Reverse((cost, at))) = queue.pop() {
             if best.get(&at).is_some_and(|&(c, _)| c < cost) {
                 continue;

@@ -14,6 +14,7 @@ use f4x_core::battle::map::{distance, in_city_area, Pos};
 use f4x_core::battle::{Battle, BattleCommand, BattleUnit, RangedKind, Side};
 use f4x_core::game::setting::MeleeVsFliers;
 use f4x_core::rules::Ability;
+use f4x_def::half_int::HalfInt;
 
 /// The nearest active enemy the unit's side can see (lowest id on ties).
 fn closest_enemy<'a>(battle: &'a Battle, unit: &BattleUnit) -> Option<&'a BattleUnit> {
@@ -34,7 +35,9 @@ fn can_shoot(unit: &BattleUnit) -> bool {
 fn route(battle: &Battle, unit: &BattleUnit, to: Pos) -> Vec<Pos> {
     let reach = battle
         .map
-        .reachable_as(unit.cell, 10_000, unit.mover(), &|_| false);
+        .reachable_as(unit.cell, HalfInt::from_int(5_000), unit.mover(), &|_| {
+            false
+        });
     let mut path = Vec::new();
     let mut at = to;
     while at != unit.cell {
@@ -125,7 +128,7 @@ pub fn baseline_command(battle: &Battle) -> BattleCommand {
                 }
             } else {
                 let here = distance(unit.cell, enemy.cell);
-                let best: Option<(Pos, u32)> = battle
+                let best: Option<(Pos, HalfInt)> = battle
                     .reachable(unit.id)
                     .into_iter()
                     .min_by_key(|&(p, cost)| (distance(p, enemy.cell), cost, p));

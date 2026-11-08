@@ -25,9 +25,6 @@ pub enum Stat {
     MaxHp,
     Figures,
     Moves,
-    /// Half-moves added to the movement allowance (items: the original gives them in half-moves).
-    /// Counts only while the unit has a whole move, so a spell that stops a unit stops it for good.
-    HalfMoves,
     Sight,
     /// Pluses added to the to-hit chance, ten percentage points each (may be negative).
     ToHit,

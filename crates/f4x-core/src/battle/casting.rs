@@ -10,6 +10,7 @@
 
 use crate::rules::Ability;
 use crate::spell::unit_effect::{UnitEffect, UnitEffects};
+use f4x_def::half_int::HalfInt;
 use rand::RngCore;
 
 use super::attack::{kill_figure, spell_attack, unblockable, Combatant, Damage, Mode, Volley};
@@ -410,7 +411,7 @@ impl Battle {
         }
         u.bound_from.get_or_insert(u.side);
         u.side = to;
-        u.moves_left = 0;
+        u.moves_left = HalfInt::ZERO;
         u.attacked = true;
     }
 
@@ -419,7 +420,7 @@ impl Battle {
         let u = &mut self.units[target];
         if let Some(owner) = u.bound_from.take() {
             u.side = owner;
-            u.moves_left = 0;
+            u.moves_left = HalfInt::ZERO;
             u.attacked = true;
         }
     }
@@ -513,9 +514,13 @@ impl BattleUnit {
         self.to_hit = comp(Stat::ToHit, self.to_hit);
         self.hits = comp(Stat::MaxHp, self.hits).max(1);
         let old = self.moves;
-        // Moves are whole moves in the spell data and half-moves here; an odd half-move stays.
-        let whole = comp(Stat::Moves, (self.moves / 2) as i32).max(0) as u32;
-        self.moves = if whole == 0 { 0 } else { whole * 2 + old % 2 };
+        // The spell data has whole moves; a half move the unit has stays.
+        let whole = comp(Stat::Moves, old.floor()).max(0);
+        self.moves = if whole == 0 {
+            HalfInt::ZERO
+        } else {
+            HalfInt::from_int(whole) + HalfInt::from_raw(old.raw() % 2)
+        };
         if self.moves >= old {
             self.moves_left += self.moves - old;
         } else {

@@ -9,6 +9,7 @@
 use crate::city::economy::{Farmers, Population};
 use crate::game::{Event, Game};
 use crate::player::PlayerId;
+use f4x_def::half_int::HalfInt;
 use rand::SeedableRng;
 
 impl Game {
@@ -56,7 +57,7 @@ impl Game {
         for unit in units {
             // A unit in stasis cannot move, nor can any unit but the Time Stop wizard's.
             let moves = if self.unit_in_stasis(unit) || stopper.is_some_and(|s| s != player) {
-                0
+                HalfInt::ZERO
             } else {
                 self.units().unit_max_moves(unit)
             };

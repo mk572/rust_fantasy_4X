@@ -18,7 +18,6 @@ fn stat_key(stat: Stat) -> &'static str {
         Stat::MaxHp => "temp.stat_max_hp",
         Stat::Figures => "temp.stat_figures",
         Stat::Moves => "temp.stat_moves",
-        Stat::HalfMoves => "temp.stat_half_moves",
         Stat::Sight => "temp.stat_sight",
         Stat::ToHit => "temp.stat_to_hit",
         Stat::MeleeToHit => "temp.stat_melee_to_hit",

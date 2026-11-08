@@ -1,5 +1,5 @@
 // The item power table from the original (`ITEMPOW.LBX`), kept by hand. A power is a plain
-// bonus (`bonus`; movement in half-moves, spell save as the size of the penalty) or a special power with the
+// bonus (`bonus`; movement in whole moves, spell save as the size of the penalty) or a special power with the
 // `realm` and number of `books` a wizard needs to add it. `group`: one power of a group per
 // item. `cost` is the mana to add it. A special power puts a lasting spell on the carrier (`spell`, an id of `spells.ron`), gives a special attack ability (`attack`), or is one of the few the code handles by its id (`items::OTHER_POWERS`).
 // `num` is the original's power number (its row in ITEMPOW.LBX); `id` is the alias for human editing.

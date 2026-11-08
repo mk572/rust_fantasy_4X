@@ -57,7 +57,7 @@ fn units_walk_within_their_moves_and_not_through_others() -> TestResult {
     );
     // Two moves: four half-moves, so two squares.
     let reach = b.reachable(0);
-    assert_eq!(reach.get(&(5, 11)), Some(&4));
+    assert_eq!(reach.get(&(5, 11)), Some(&HalfInt::from_int(2)));
     assert!(!reach.contains_key(&(5, 10)), "occupied");
     assert!(!reach.contains_key(&(6, 10)));
     let events = b
@@ -966,7 +966,7 @@ fn teleporting_and_merging_units_go_anywhere_free_for_one_move() -> TestResult {
         let reach = b.reachable(0);
         assert_eq!(
             reach.get(&(15, 3)),
-            Some(&2),
+            Some(&HalfInt::from_int(1)),
             "{ability}: far away, one move"
         );
         assert!(!reach.contains_key(&(10, 10)), "not into rock");
@@ -982,7 +982,7 @@ fn teleporting_and_merging_units_go_anywhere_free_for_one_move() -> TestResult {
         assert_eq!(b.unit(0).ok_or("unit is missing")?.cell, (16, 10));
         assert_eq!(
             b.unit(0).ok_or("unit is missing")?.moves_left,
-            2,
+            HalfInt::from_int(1),
             "one of two moves used"
         );
         // It may teleport again with what is left, and then has nothing left.
@@ -1848,7 +1848,7 @@ mod casting {
         // Two hit points a figure, three figures: five points heal the lot.
         assert_eq!(b.spell_heal(0, 5), 5);
         assert_eq!(b.units[0].figures, 3);
-        b.units[0].moves_left = 0;
+        b.units[0].moves_left = HalfInt::ZERO;
         let fresh = BattleUnit::simple(Side::Attacker, 1, 5, 2, 0);
         let id = b.add_summoned(Side::Attacker, fresh, (4, 5));
         assert_eq!(id, 2);
@@ -2175,7 +2175,11 @@ mod fields {
         let moves = b.units[1].moves;
         end_turns(&mut b, 1);
         assert_eq!(b.active, Side::Defender);
-        assert_eq!(b.units[1].moves_left, moves - 2, "one whole move less");
+        assert_eq!(
+            b.units[1].moves_left,
+            moves - HalfInt::from_int(1),
+            "one whole move less"
+        );
         // Fliers and the non-corporeal are not held.
         for ability in [24 /* flying */, 49 /* non_corporeal */] {
             let mut free = of(Side::Defender, None, (17, 5));
@@ -3257,7 +3261,7 @@ fn cast_unit(
         .id_numbered(spell)
         .expect("id_of succeeds");
     // The unit may cast again in the next test step.
-    g.battle.as_mut().expect("as_mut succeeds").battle.units[0].moves_left = 4;
+    g.battle.as_mut().expect("as_mut succeeds").battle.units[0].moves_left = HalfInt::from_int(2);
     g.battle_command(BattleCommand::UnitCast {
         unit: 0,
         spell,
@@ -3291,20 +3295,24 @@ fn earth_to_mud_makes_open_ground_in_five_by_five_cost_a_walker_all_its_moves() 
     }
     // A walker pays all it has to enter; a flier or a bodiless unit does not notice.
     let none = |_: Pos| false;
-    let walk = map.reachable_as((6, 11), 8, Mover::walker(), &none);
+    let walk = map.reachable_as((6, 11), HalfInt::from_int(4), Mover::walker(), &none);
     assert_eq!(
         walk[&(7, 11)].0,
         OPEN_COST,
         "the square before the mud costs the usual"
     );
-    let into = map.reachable_as((7, 11), 8, Mover::walker(), &none);
-    assert!(into[&(8, 11)].0 >= 8, "{:?}", into[&(8, 11)]);
+    let into = map.reachable_as((7, 11), HalfInt::from_int(4), Mover::walker(), &none);
+    assert!(
+        into[&(8, 11)].0 >= HalfInt::from_int(4),
+        "{:?}",
+        into[&(8, 11)]
+    );
     let ghost = Mover {
         ignores_mud: true,
         ..Mover::walker()
     };
     assert_eq!(
-        map.reachable_as((7, 11), 8, ghost, &none)[&(8, 11)].0,
+        map.reachable_as((7, 11), HalfInt::from_int(4), ghost, &none)[&(8, 11)].0,
         OPEN_COST
     );
     let flier = Mover {
@@ -3313,7 +3321,7 @@ fn earth_to_mud_makes_open_ground_in_five_by_five_cost_a_walker_all_its_moves() 
         ..Mover::default()
     };
     assert_eq!(
-        map.reachable_as((7, 11), 8, flier, &none)[&(8, 11)].0,
+        map.reachable_as((7, 11), HalfInt::from_int(4), flier, &none)[&(8, 11)].0,
         OPEN_COST
     );
     Ok(())
@@ -3503,7 +3511,8 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() -> Te
         Err(BattleError::NotYours)
     );
     for turn in 0..3 {
-        g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0].moves_left = 2;
+        g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0].moves_left =
+            HalfInt::from_int(1);
         let before = g.battle().ok_or("battle is missing")?.units.len();
         let events = g
             .battle_command(BattleCommand::SummonDemon { unit: 0 })
@@ -3529,7 +3538,7 @@ fn a_unit_with_creature_summoning_calls_three_demons_a_battle_one_a_turn() -> Te
             Err(BattleError::NoMovesLeft)
         );
     }
-    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0].moves_left = 2;
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[0].moves_left = HalfInt::from_int(1);
     assert_eq!(
         g.battle_command(BattleCommand::SummonDemon { unit: 0 }),
         Err(BattleError::Spell(SpellError::NotKnown)),
@@ -3672,11 +3681,11 @@ fn a_wall_of_darkness_stops_shots_into_the_city_unless_the_shooter_sees_through(
 fn a_flying_fortress_shuts_the_city_to_walkers_and_its_walkers_in() {
     let map = city_map().with_flying_fortress();
     let mut walker_out = crowd(Side::Attacker, (10, 11));
-    walker_out.moves = 20;
+    walker_out.moves = HalfInt::from_int(10);
     let mut flier = walker_out.clone();
     flier.flies = true;
     let mut walker_in = crowd(Side::Defender, (13, 11));
-    walker_in.moves = 20;
+    walker_in.moves = HalfInt::from_int(10);
     let mut flier_in = walker_in.clone();
     flier_in.flies = true;
     let b = Battle::new(
@@ -3686,10 +3695,12 @@ fn a_flying_fortress_shuts_the_city_to_walkers_and_its_walkers_in() {
         vec![walker_out, flier, walker_in, flier_in],
         5,
     );
-    let area =
-        |reach: &std::collections::HashMap<Pos, u32>| reach.keys().any(|&p| map::in_city_area(p));
-    let ring =
-        |reach: &std::collections::HashMap<Pos, u32>| reach.keys().any(|&p| map::in_city_ring(p));
+    let area = |reach: &std::collections::HashMap<Pos, HalfInt>| {
+        reach.keys().any(|&p| map::in_city_area(p))
+    };
+    let ring = |reach: &std::collections::HashMap<Pos, HalfInt>| {
+        reach.keys().any(|&p| map::in_city_ring(p))
+    };
     // A walker outside reaches the ring but not the city; a flier gets in.
     let (out, fly) = (b.reachable(0), b.reachable(1));
     assert!(ring(&out) && !area(&out));

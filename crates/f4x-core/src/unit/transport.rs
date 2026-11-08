@@ -13,6 +13,7 @@ use crate::map::Position;
 use crate::player::{PlayerId, MONSTERS};
 use crate::rules::Ability;
 use crate::rules::{MovementType, Stat};
+use f4x_def::half_int::HalfInt;
 
 use crate::game::{Event, Game};
 
@@ -259,7 +260,7 @@ impl Game {
                 let cost = self
                     .economy()
                     .step_cost(ship, at, next, traits)
-                    .unwrap_or(2);
+                    .unwrap_or(HalfInt::from_int(1));
                 if cost > left {
                     break;
                 }
@@ -467,19 +468,31 @@ mod tests {
         let scout = unit(&mut g, 103 /* high_elf_pegasai */, at(4, 4));
         let walker = unit(&mut g, 107 /* high_men_cavalry */, at(4, 3));
         let max = |g: &Game, u| g.units().unit_max_moves(u);
-        assert_eq!((max(&g, boat), max(&g, scout)), (8, 6));
+        assert_eq!(
+            (max(&g, boat), max(&g, scout)),
+            (HalfInt::from_int(4), HalfInt::from_int(3))
+        );
         // The owner's Wind Mastery: half as far again, for ships and fliers only.
         g.add_global(P0, wm);
-        assert_eq!((max(&g, boat), max(&g, scout)), (12, 9));
-        assert_eq!(max(&g, walker), 4);
+        assert_eq!(
+            (max(&g, boat), max(&g, scout)),
+            (HalfInt::from_int(6), HalfInt::from_raw(9))
+        );
+        assert_eq!(max(&g, walker), 2);
         // A rival's: halved for the wizard without it.
         g.clear_globals(P0);
         g.add_global(P1, wm);
-        assert_eq!((max(&g, boat), max(&g, scout)), (4, 3));
-        assert_eq!(max(&g, walker), 4);
+        assert_eq!(
+            (max(&g, boat), max(&g, scout)),
+            (HalfInt::from_int(2), HalfInt::from_raw(3))
+        );
+        assert_eq!(max(&g, walker), 2);
         // Both have it: both get the bonus, nothing stacks.
         g.add_global(P0, wm);
-        assert_eq!((max(&g, boat), max(&g, scout)), (12, 9));
+        assert_eq!(
+            (max(&g, boat), max(&g, scout)),
+            (HalfInt::from_int(6), HalfInt::from_raw(9))
+        );
         Ok(())
     }
 
@@ -570,12 +583,12 @@ mod tests {
             .map_err(|e| format!("{e:?}"))?;
         g.move_stack(&[boat], at(8, 4))
             .map_err(|e| format!("{e:?}"))?;
-        let _ = g.world.insert_one(boat, MovesLeft(8));
+        let _ = g.world.insert_one(boat, MovesLeft(HalfInt::from_int(4)));
         g.move_stack(&[boat], at(9, 4))
             .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.units().unit_position(w), Some(at(9, 4)));
         // Stepping ashore is an ordinary move.
-        let _ = g.world.insert_one(w, MovesLeft(2));
+        let _ = g.world.insert_one(w, MovesLeft(HalfInt::from_int(1)));
         g.move_stack(&[w], at(10, 4))
             .map_err(|e| format!("{e:?}"))?;
         assert_eq!(g.economy().carrier_of(w), None, "no longer aboard");
@@ -640,7 +653,10 @@ mod tests {
             assert_eq!(u.sails, u.moves == 0, "a ship does not sail off its deck");
         }
         let on_foot = b.units.iter().find(|u| !u.sails).ok_or("find is missing")?;
-        assert_eq!(b.map.enter_cost(on_foot.cell, false), Some(2));
+        assert_eq!(
+            b.map.enter_cost(on_foot.cell, false),
+            Some(HalfInt::from_int(1))
+        );
         // The water between and round the decks is closed to a walker.
         assert_eq!(b.map.enter_cost((10, 10), false), None);
         // The attackers win and the defenders are all dead, the passenger with its ship.

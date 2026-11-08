@@ -2028,8 +2028,10 @@ fn a_player_turn_start_refills_only_that_players_moves() -> TestResult {
     let dwarf = g.content.rules.units.id_numbered(0).ok_or("no dwarf")?;
     let mine = g.spawn_unit(P0, at(1, 1), dwarf);
     let theirs = g.spawn_unit(rival, at(3, 3), dwarf);
-    g.world.insert_one(mine, crate::unit::MovesLeft(0))?;
-    g.world.insert_one(theirs, crate::unit::MovesLeft(0))?;
+    g.world
+        .insert_one(mine, crate::unit::MovesLeft(HalfInt::from_int(0)))?;
+    g.world
+        .insert_one(theirs, crate::unit::MovesLeft(HalfInt::from_int(0)))?;
     g.start_player_turn(rival);
     assert_eq!(g.units().unit_moves_left(mine), 0);
     assert!(g.units().unit_moves_left(theirs) > 0);

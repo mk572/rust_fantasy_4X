@@ -35,7 +35,6 @@ Content may use these stats but cannot define new ones.
 | | `MaxHp` | Maximum hit points. |
 | | `Figures` | Number of figures in a unit. |
 | | `Moves` | Movement allowance in whole moves. |
-| | `HalfMoves` | Additional half-moves; items express movement bonuses in half-moves. |
 | | `Sight` | Unit sight range. |
 | | `ToHit` | General to-hit bonus; each point is ten percentage points and may be negative. |
 | | `MeleeToHit` | To-hit bonus applied only to melee attacks. |

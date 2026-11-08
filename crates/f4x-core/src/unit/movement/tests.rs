@@ -53,7 +53,7 @@ fn unit(game: &mut Game, owner: PlayerId, name: u16, pos: Position) -> hecs::Ent
     game.spawn_unit(owner, pos, id)
 }
 
-fn cost(game: &Game, u: hecs::Entity, from: Position, to: Position) -> Result<u32, MoveError> {
+fn cost(game: &Game, u: hecs::Entity, from: Position, to: Position) -> Result<HalfInt, MoveError> {
     game.economy()
         .step_cost(u, from, to, StackTraits::default())
 }
@@ -62,9 +62,21 @@ fn cost(game: &Game, u: hecs::Entity, from: Position, to: Position) -> Result<u3
 fn terrain_costs_for_a_walker() {
     let mut g = world();
     let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 2));
-    assert_eq!(cost(&g, w, at(1, 2), at(1, 1)), Ok(2), "grass is one move");
-    assert_eq!(cost(&g, w, at(1, 2), at(2, 2)), Ok(4), "forest is two");
-    assert_eq!(cost(&g, w, at(3, 2), at(4, 2)), Ok(8), "mountains are four");
+    assert_eq!(
+        cost(&g, w, at(1, 2), at(1, 1)),
+        Ok(HalfInt::from_int(1)),
+        "grass is one move"
+    );
+    assert_eq!(
+        cost(&g, w, at(1, 2), at(2, 2)),
+        Ok(HalfInt::from_int(2)),
+        "forest is two"
+    );
+    assert_eq!(
+        cost(&g, w, at(3, 2), at(4, 2)),
+        Ok(HalfInt::from_int(4)),
+        "mountains are four"
+    );
     assert_eq!(
         cost(&g, w, at(6, 2), at(7, 2)),
         Err(MoveError::Impassable),
@@ -78,16 +90,28 @@ fn a_diagonal_step_costs_one_and_a_half_times_a_straight_one_when_the_setting_sa
     let walker = unit(&mut g, P0, 107 /* high_men_cavalry */, at(5, 4));
     assert_eq!(
         cost(&g, walker, at(5, 4), at(6, 3)),
-        Ok(2),
+        Ok(HalfInt::from_int(1)),
         "the same by default"
     );
     g.settings.basic.diagonal_extra_cost = true;
-    assert_eq!(cost(&g, walker, at(5, 4), at(6, 4)), Ok(2));
-    assert_eq!(cost(&g, walker, at(5, 4), at(6, 3)), Ok(3));
+    assert_eq!(
+        cost(&g, walker, at(5, 4), at(6, 4)),
+        Ok(HalfInt::from_int(1))
+    );
+    assert_eq!(
+        cost(&g, walker, at(5, 4), at(6, 3)),
+        Ok(HalfInt::from_raw(3))
+    );
     // Forest costs 2 moves = 4 half-moves, diagonally 6.
-    assert_eq!(cost(&g, walker, at(3, 1), at(2, 2)), Ok(6));
+    assert_eq!(
+        cost(&g, walker, at(3, 1), at(2, 2)),
+        Ok(HalfInt::from_int(3))
+    );
     // Across the sideways wrap too.
-    assert_eq!(cost(&g, walker, at(0, 4), at(11, 3)), Ok(3));
+    assert_eq!(
+        cost(&g, walker, at(0, 4), at(11, 3)),
+        Ok(HalfInt::from_raw(3))
+    );
 }
 
 #[test]
@@ -96,25 +120,25 @@ fn abilities_change_costs() {
     let ranger = unit(&mut g, P0, 16 /* ranger */, at(1, 2));
     assert_eq!(
         cost(&g, ranger, at(1, 2), at(2, 2)),
-        Ok(2),
+        Ok(HalfInt::from_int(1)),
         "forester: forest costs one"
     );
     assert_eq!(
         cost(&g, ranger, at(3, 2), at(4, 2)),
-        Ok(2),
+        Ok(HalfInt::from_int(1)),
         "mountaineer: mountains cost one"
     );
     let pf = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 2));
     g.grant_temp_ability(crate::rules::exec::Target::Unit(pf), Ability::new(50), None);
     assert_eq!(
         cost(&g, pf, at(3, 2), at(4, 2)),
-        Ok(1),
+        Ok(HalfInt::from_raw(1)),
         "pathfinding: half a move anywhere"
     );
     let ghost = unit(&mut g, P0, 154 /* magic_spirit */, at(1, 2));
     assert_eq!(
         cost(&g, ghost, at(3, 2), at(4, 2)),
-        Ok(1),
+        Ok(HalfInt::from_raw(1)),
         "non-corporeal: half a move on land"
     );
     assert_eq!(
@@ -125,12 +149,12 @@ fn abilities_change_costs() {
     let scout = unit(&mut g, P0, 103 /* high_elf_pegasai */, at(1, 2));
     assert_eq!(
         cost(&g, scout, at(6, 2), at(7, 2)),
-        Ok(2),
+        Ok(HalfInt::from_int(1)),
         "flying: one move over water"
     );
     assert_eq!(
         cost(&g, scout, at(3, 2), at(4, 2)),
-        Ok(2),
+        Ok(HalfInt::from_int(1)),
         "and over mountains"
     );
 }
@@ -139,7 +163,7 @@ fn abilities_change_costs() {
 fn boats_stay_on_water() {
     let mut g = world();
     let boat = unit(&mut g, P0, 38 /* warship */, at(7, 2));
-    assert_eq!(cost(&g, boat, at(7, 2), at(8, 2)), Ok(2));
+    assert_eq!(cost(&g, boat, at(7, 2), at(8, 2)), Ok(HalfInt::from_int(1)));
     assert_eq!(
         cost(&g, boat, at(8, 2), at(9, 2)),
         Err(MoveError::Impassable)
@@ -153,8 +177,12 @@ fn roads_halve_the_cost_between_road_tiles() -> TestResult {
     let map = g.map.as_mut().ok_or("as_mut is missing")?;
     map.plane_mut(Plane::Arcanus).set_road(0, 3, true);
     map.plane_mut(Plane::Arcanus).set_road(1, 3, true);
-    assert_eq!(cost(&g, w, at(0, 3), at(1, 3)), Ok(1));
-    assert_eq!(cost(&g, w, at(1, 3), at(2, 3)), Ok(2), "road ends");
+    assert_eq!(cost(&g, w, at(0, 3), at(1, 3)), Ok(HalfInt::from_raw(1)));
+    assert_eq!(
+        cost(&g, w, at(1, 3), at(2, 3)),
+        Ok(HalfInt::from_int(1)),
+        "road ends"
+    );
     Ok(())
 }
 
@@ -162,15 +190,11 @@ fn roads_halve_the_cost_between_road_tiles() -> TestResult {
 fn moving_spends_moves_and_explores() {
     let mut g = world();
     let w = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 2));
-    assert_eq!(g.units().unit_moves_left(w), 4);
+    assert_eq!(g.units().unit_moves_left(w), 2);
     let before = g.fog.explored_count(P0, Plane::Arcanus);
     assert_eq!(g.move_stack(&[w], at(2, 2)), Ok(Entry::Free));
     assert_eq!(g.units().unit_position(w), Some(at(2, 2)));
-    assert_eq!(
-        g.units().unit_moves_left(w),
-        0,
-        "forest used all four half-moves"
-    );
+    assert_eq!(g.units().unit_moves_left(w), 0, "forest used both moves");
     assert!(g.fog.explored_count(P0, Plane::Arcanus) > before);
     assert_eq!(g.move_stack(&[w], at(2, 1)), Err(MoveError::NoMovesLeft));
 }
@@ -179,7 +203,7 @@ fn moving_spends_moves_and_explores() {
 fn a_unit_may_always_take_a_step_it_cannot_fully_afford() {
     let mut g = world();
     let slow = unit(&mut g, P0, 104 /* high_men_spearmen */, at(3, 2));
-    assert_eq!(g.units().unit_moves_left(slow), 2);
+    assert_eq!(g.units().unit_moves_left(slow), 1);
     assert_eq!(
         g.move_stack(&[slow], at(4, 2)),
         Ok(Entry::Free),
@@ -235,7 +259,7 @@ fn enemies_block_and_ask_for_a_fight() {
         Some(at(1, 1)),
         "nobody moved"
     );
-    assert_eq!(g.units().unit_moves_left(mine), 4, "and nothing was spent");
+    assert_eq!(g.units().unit_moves_left(mine), 2, "and nothing was spent");
 }
 
 #[test]
@@ -282,8 +306,8 @@ fn a_stack_with_a_wind_walker_moves_as_far_as_the_wind_walker_can() {
     let mage = unit(&mut g, P0, 15 /* wind_mage */, at(5, 4));
     let walker = unit(&mut g, P0, 107 /* high_men_cavalry */, at(5, 4));
     // The Wind Walker has three moves (the spell's Min), the walker only the one it was given.
-    let _ = g.world.insert_one(mage, MovesLeft(6));
-    let _ = g.world.insert_one(walker, MovesLeft(2));
+    let _ = g.world.insert_one(mage, MovesLeft(HalfInt::from_int(3)));
+    let _ = g.world.insert_one(walker, MovesLeft(HalfInt::from_int(1)));
     for x in [6, 7, 8] {
         assert_eq!(g.move_stack(&[mage, walker], at(x, 4)), Ok(Entry::Free));
     }
@@ -337,7 +361,7 @@ fn shifting_planes_needs_a_tower_or_planar_travel() -> TestResult {
         ..at(1, 4)
     };
     assert_eq!(g.shift_plane(&[on_tower]), Ok(myrror));
-    assert_eq!(g.units().unit_moves_left(on_tower), 2, "costs one move");
+    assert_eq!(g.units().unit_moves_left(on_tower), 1, "costs one move");
     assert_eq!(
         g.shift_plane(&[off_tower]),
         Err(MoveError::CannotShiftPlane)
@@ -449,7 +473,7 @@ fn goto_orders_continue_over_turns() -> TestResult {
         .iter()
         .filter(|e| matches!(e, Event::UnitsMoved { .. }))
         .count();
-    assert_eq!(moved, 2, "two grass tiles with four half-moves");
+    assert_eq!(moved, 2, "two grass tiles with two moves");
     assert_eq!(
         g.units()
             .unit_position(w)
@@ -484,9 +508,9 @@ fn end_turn_refills_moves() -> TestResult {
     g.treasury_mut(P0).ok_or("treasury_mut is missing")?.gold =
         f4x_def::half_int::HalfInt::from_int(1000);
     let w = unit(&mut g, P0, 0 /* dwarf */, at(1, 1));
-    g.world.insert_one(w, MovesLeft(0))?;
+    g.world.insert_one(w, MovesLeft(HalfInt::from_int(0)))?;
     g.apply(Command::EndTurn);
-    assert_eq!(g.units().unit_moves_left(w), 4);
+    assert_eq!(g.units().unit_moves_left(w), 2);
     Ok(())
 }
 
@@ -543,7 +567,7 @@ fn a_pathfinder_gives_the_whole_stack_road_speed() -> TestResult {
         .economy()
         .step_cost(alone, at(1, 2), at(2, 2), StackTraits::default())
         .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(plain, 4, "forest costs two moves");
+    assert_eq!(plain, 2, "forest costs two moves");
     let guide = g.spawn_unit(player, at(1, 2), walker);
     g.grant_temp_ability(
         crate::rules::exec::Target::Unit(guide),
@@ -554,7 +578,7 @@ fn a_pathfinder_gives_the_whole_stack_road_speed() -> TestResult {
     assert!(traits.pathfinding);
     assert_eq!(
         g.economy().step_cost(alone, at(1, 2), at(2, 2), traits),
-        Ok(1)
+        Ok(HalfInt::from_raw(1))
     );
     // The ability only counts for the stack it is in.
     assert_eq!(
@@ -564,7 +588,7 @@ fn a_pathfinder_gives_the_whole_stack_road_speed() -> TestResult {
             at(2, 2),
             g.economy().stack_traits(&[alone])
         ),
-        Ok(4)
+        Ok(HalfInt::from_int(2))
     );
     Ok(())
 }
@@ -607,13 +631,13 @@ fn a_step_is_planned_from_a_hand_made_world_without_a_game() -> TestResult {
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         (costs, entry),
-        (vec![4], Entry::Free),
+        (vec![HalfInt::from_int(2)], Entry::Free),
         "a forest costs two moves"
     );
     let (costs, _) = economy
         .plan_step(&[unit], at(1, 2))
         .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(costs, vec![2], "grassland costs one");
+    assert_eq!(costs, vec![HalfInt::from_int(1)], "grassland costs one");
     assert_eq!(
         economy.plan_step(&[unit], at(5, 2)),
         Err(MoveError::NotAdjacent)
@@ -701,11 +725,11 @@ fn a_path_takes_as_many_turns_as_the_moves_it_costs() -> TestResult {
     let one = g.path_turns(&[w], &straight[..1]);
     assert_eq!(one, 0, "the first step is paid for by this turn's moves");
     let long = g.path_turns(&[w], &straight);
-    let step = 2; // a grassland step, in half moves
-    let expected = (straight.len() as u32 * step).saturating_sub(1) / allowance;
+    let step = 2; // a grassland step, in half moves (raw)
+    let expected = (straight.len() as u32 * step).saturating_sub(1) / allowance.raw() as u32;
     assert_eq!(long, expected, "allowance {allowance}");
     // With no moves left the first step waits for next turn.
-    let _ = g.world.insert_one(w, MovesLeft(0));
+    let _ = g.world.insert_one(w, MovesLeft(HalfInt::from_int(0)));
     assert_eq!(g.path_turns(&[w], &straight[..1]), 1);
     Ok(())
 }

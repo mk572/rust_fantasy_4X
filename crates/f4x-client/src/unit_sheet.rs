@@ -864,7 +864,7 @@ impl App {
             banner: self.banner_index(owner),
             figures: u.figures,
             water: matches!(def.movement, MovementType::Sailing | MovementType::Swimming),
-            moves: u.moves / 2,
+            moves: u.moves.floor().max(0) as u32,
             move_icon: if u.flies {
                 12
             } else {

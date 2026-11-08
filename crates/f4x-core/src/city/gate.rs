@@ -20,6 +20,7 @@ use crate::map::Position;
 use crate::player::PlayerId;
 use crate::unit::movement::MoveError;
 use crate::unit::MovesLeft;
+use f4x_def::half_int::HalfInt;
 
 /// The hook of the gate spells: the effect is read from the city's enchantments, so casting
 /// does nothing beyond enchanting the city. A spell carries the hook in `spells.ron`, with the
@@ -29,7 +30,7 @@ pub const EARTH_GATE: &str = "earth";
 pub const ASTRAL_GATE: &str = "astral";
 
 /// One full move in half-moves.
-const FULL_MOVE: u32 = 2;
+const FULL_MOVE: HalfInt = HalfInt::from_int(1);
 
 impl Game {
     /// Whether the stack could teleport through Earth Gates to the city at `to`.

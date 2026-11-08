@@ -279,7 +279,7 @@ fn only_the_wizards_own_units_can_be_released() -> TestResult {
     assert!(g.release_troops(P0, &[theirs], &[]).is_err());
     assert!(g.world.contains(theirs));
     assert!(g.release_troops(P0, &[], &[ItemSpot::Vault(0)]).is_err());
-    let _ = MovesLeft(0);
+    let _ = MovesLeft(HalfInt::from_int(0));
     Ok(())
 }
 

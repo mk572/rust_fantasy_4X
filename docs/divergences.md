@@ -177,7 +177,7 @@ The numbering follows the original's table order. The original shows the plain n
 places, so a player cannot tell them apart there; in ours the names carry I and II.
 
 Two other points about the item data that are not departures but are easy to mistake for bugs:
-movement bonuses of items are stored in half-moves (`HalfMoves`, the original's own unit: the data file holds whole moves and the original doubles them when it makes the item, so the values in `crates/f4x-def/content/items.ron` are doubled; task 49 corrected them), and
+movement bonuses of items are whole moves (`Moves`, as the original's data file holds them; the movement left of a unit and the cost of a step are `HalfInt`s, and a save keeps them as half-moves), and
 to-hit bonuses are in pluses (1 to 3), the same as the units' to hit everywhere in the content.
 The power table's "+6 Defense" row stores 5 in its bonus byte while its name says 6; we import 6.
 

@@ -5,6 +5,7 @@ use f4x_core::map::{Plane, Position};
 use f4x_core::player::PlayerId;
 use f4x_core::rules::exec::Target;
 use f4x_core::unit::movement::MoveError;
+use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 
 use crate::world::{at, flat_game, shipped, P0, P1};
@@ -54,11 +55,7 @@ fn an_earth_gate_teleports_between_two_gate_cities_for_one_move() -> TestResult 
         "{events:?}"
     );
     assert_eq!(g.units().unit_position(w), Some(b));
-    assert_eq!(
-        g.units().unit_moves_left(w),
-        before - 2,
-        "costs one move (two half-moves)"
-    );
+    assert_eq!(g.units().unit_moves_left(w), before - 1, "costs one move");
     Ok(())
 }
 
@@ -111,7 +108,7 @@ fn a_gate_needs_moves_and_room() -> TestResult {
     city(&mut g, P0, a, Some((37 /* earth_gate */, P0)))?;
     city(&mut g, P0, b, Some((37 /* earth_gate */, P0)))?;
     let w = walker(&mut g, P0, a)?;
-    g.scenario_set_moves_left(w, 0);
+    g.scenario_set_moves_left(w, HalfInt::from_int(0));
     assert_eq!(g.can_use_earth_gate(&[w], b), Err(MoveError::NoMovesLeft));
     let w2 = walker(&mut g, P0, a)?;
     for _ in 0..g.max_tile() {

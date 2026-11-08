@@ -505,7 +505,7 @@ mod tests {
     }
 
     #[test]
-    fn item_movement_is_in_half_moves_whole_moves_doubled() -> TestResult {
+    fn item_movement_is_in_whole_moves() -> TestResult {
         use crate::rules::effects::Effect;
         use crate::rules::{ModOp, Stat};
         let c = load_content(&super::testutil::content_dir())?;
@@ -513,17 +513,15 @@ mod tests {
         for item in c.rules.items.defs() {
             for rule in &item.effects {
                 if let Effect::Modify {
-                    stat: Stat::HalfMoves,
+                    stat: Stat::Moves,
                     op: ModOp::Add,
                     value,
                 } = rule.effect
                 {
                     seen += 1;
                     assert!(
-                        (2..=8).contains(&value.floor())
-                            && value.is_whole()
-                            && value.floor() % 2 == 0,
-                        "{} has {value} half-moves",
+                        (1..=4).contains(&value.floor()) && value.is_whole(),
+                        "{} has {value} moves",
                         item.id
                     );
                 }

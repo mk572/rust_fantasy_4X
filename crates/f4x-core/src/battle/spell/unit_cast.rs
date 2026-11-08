@@ -15,6 +15,7 @@
 use super::*;
 use crate::battle::{BattleUnit, UnitCasting};
 use crate::rules::Ability;
+use f4x_def::half_int::HalfInt;
 
 /// Where a unit's cast comes from, which decides what it uses up.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -295,7 +296,7 @@ impl Game {
         };
         let u = &mut active.battle.units[unit];
         u.casting.demons -= 1;
-        u.moves_left = 0;
+        u.moves_left = HalfInt::ZERO;
         u.attacked = true;
         let id = active.battle.add_summoned(side, copy, cell);
         Ok(vec![Event::Battle(BattleEvent::Summoned { unit: id })])
@@ -316,7 +317,7 @@ impl Game {
 
         // Pay: the unit's mana, a charge or the ability, and its turn.
         let u = &mut battle.units[unit];
-        u.moves_left = 0;
+        u.moves_left = HalfInt::ZERO;
         u.attacked = true;
         u.revealed = true;
         let spell_save = u.casting.spell_save;

@@ -423,7 +423,7 @@ impl App {
             (b.attack, "stat.attack"),
             (b.to_hit, "stat.to_hit"),
             (b.defense, "stat.defense"),
-            (b.moves / 2, "stat.movement"),
+            (b.moves.floor(), "stat.movement"),
             (b.resistance, "stat.resistance"),
             (b.spell_skill, "stat.spell_skill"),
         ] {

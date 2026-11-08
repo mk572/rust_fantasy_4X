@@ -62,9 +62,9 @@ pub const WEAPON_MAGIC: u8 = 1;
 pub const WEAPON_MITHRIL: u8 = 2;
 pub const WEAPON_ADAMANTIUM: u8 = 3;
 
-/// Movement left this turn, in half-moves (a terrain cost of 1 is 2 half-moves).
+/// Movement left this turn (a half move is 0.5).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct MovesLeft(pub u32);
+pub struct MovesLeft(pub HalfInt);
 
 /// A standing order carried out at the start of each turn.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -397,13 +397,9 @@ impl<'a> UnitView<'a> {
         compute(stat, base, &self.unit_modifiers(unit))
     }
 
-    /// Full movement allowance in half-moves.
-    pub fn unit_max_moves(&self, unit: hecs::Entity) -> u32 {
-        let whole = self.unit_stat(unit, Stat::Moves).max(0) as u32;
-        if whole == 0 {
-            return 0;
-        }
-        let moves = whole * 2 + self.unit_stat(unit, Stat::HalfMoves).max(0) as u32;
+    /// Full movement allowance.
+    pub fn unit_max_moves(&self, unit: hecs::Entity) -> HalfInt {
+        let moves = HalfInt::from_int(self.unit_stat(unit, Stat::Moves).max(0));
         // Wind Mastery (our rule, not the original's): ships and fliers of a wizard who keeps it
         // go half as far again; those of a wizard without it, while anyone else keeps it, go
         // half as far. Nothing stacks.
@@ -413,12 +409,12 @@ impl<'a> UnitView<'a> {
                     owner,
                     crate::spell::global_enchantment::GlobalEffect::WindMastery,
                 ) {
-                    return moves * 3 / 2;
+                    return HalfInt::from_raw(moves.raw() * 3 / 2);
                 }
                 if self
                     .any_global_effect(crate::spell::global_enchantment::GlobalEffect::WindMastery)
                 {
-                    return moves / 2;
+                    return HalfInt::from_raw(moves.raw() / 2);
                 }
             }
         }
@@ -434,8 +430,10 @@ impl<'a> UnitView<'a> {
             || self.unit_has_ability(unit, Ability::new(24))
     }
 
-    pub fn unit_moves_left(&self, unit: hecs::Entity) -> u32 {
-        self.world.get::<&MovesLeft>(unit).map_or(0, |m| m.0)
+    pub fn unit_moves_left(&self, unit: hecs::Entity) -> HalfInt {
+        self.world
+            .get::<&MovesLeft>(unit)
+            .map_or(HalfInt::ZERO, |m| m.0)
     }
 
     /// How far the unit sees on the map, in half-squares like movement (`map::fog::in_sight`):
@@ -635,7 +633,7 @@ mod tests {
     };
 
     #[test]
-    fn a_units_allowance_is_two_half_moves_for_each_move() -> TestResult {
+    fn a_units_allowance_is_its_moves() -> TestResult {
         let content = shipped();
         let mut world = World::new();
         let owner = world.spawn(crate::player::bundle(PlayerId(0)));
@@ -644,8 +642,8 @@ mod tests {
             let e = spawn(&mut world, &content, Serial(n), owner, AT, def);
             UnitView::new(&world, &content).unit_max_moves(e)
         };
-        assert_eq!(max(104 /* high_men_spearmen */, 1), 2);
-        assert_eq!(max(107 /* high_men_cavalry */, 2), 4);
+        assert_eq!(max(104 /* high_men_spearmen */, 1), 1);
+        assert_eq!(max(107 /* high_men_cavalry */, 2), 2);
         Ok(())
     }
 
@@ -708,8 +706,8 @@ mod tests {
         let units = UnitView::new(&world, &content);
         assert_eq!(units.unit_owner(e), Some(PlayerId(0)));
         assert_eq!(units.unit_position(e), Some(AT));
-        assert_eq!(units.unit_max_moves(e), 2, "one move is two half-moves");
-        assert_eq!(units.unit_moves_left(e), 2);
+        assert_eq!(units.unit_max_moves(e), 1);
+        assert_eq!(units.unit_moves_left(e), 1);
         let (left, max) = units.unit_hits(e);
         assert!(max > 0 && left == max);
         assert_eq!(units.unit_level(e), 0);

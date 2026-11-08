@@ -8,6 +8,7 @@
 
 use crate::rules::ItemPowerId;
 use crate::rules::SpellId;
+use f4x_def::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
 use crate::item::{Item, ItemBonus};
@@ -257,7 +258,7 @@ pub fn available_powers<'a>(
 }
 
 /// The item the design makes (`Create_Item_Record`): bonuses from the plain powers (a movement
-/// power in whole moves, kept as half-moves), the special powers as they are, chain mail one
+/// power in whole moves), the special powers as they are, chain mail one
 /// more defence and plate mail two. The value is the full [`cost`].
 pub fn build(design: &ItemDesign, rules: &Rules) -> Item {
     let mut bonus = ItemBonus::default();
@@ -270,7 +271,7 @@ pub fn build(design: &ItemDesign, rules: &Rules) -> Item {
             Some((PowerBonus::Attack, v)) => bonus.attack = v,
             Some((PowerBonus::ToHit, v)) => bonus.to_hit = v,
             Some((PowerBonus::Defense, v)) => bonus.defense = v,
-            Some((PowerBonus::Moves, v)) => bonus.moves = v * 2,
+            Some((PowerBonus::Moves, v)) => bonus.moves = HalfInt::from_int(v),
             Some((PowerBonus::Resistance, v)) => bonus.resistance = v,
             Some((PowerBonus::SpellSkill, v)) => bonus.spell_skill = v,
             Some((PowerBonus::SpellSave, v)) => bonus.spell_save = v,
@@ -860,7 +861,7 @@ mod tests {
                 suffix: Some(Suffix::Special(ItemPowerId::new(33) /* flaming */)),
             })
         );
-        // Chain mail gains a defence of its own, and a movement power is whole moves in half-moves.
+        // Chain mail gains a defence of its own, and a movement power is whole moves.
         let mail = build(
             &design(
                 ItemKind::Chainmail,
@@ -869,7 +870,7 @@ mod tests {
             rules,
         );
         assert_eq!(mail.bonus.defense, 3);
-        assert_eq!(mail.bonus.moves, 4);
+        assert_eq!(mail.bonus.moves, 2);
         assert_eq!(
             mail.made,
             Some(MadeName {

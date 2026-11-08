@@ -17,6 +17,7 @@
 //! Tests: in battle/tests.rs.
 
 use crate::rules::Ability;
+use f4x_def::half_int::HalfInt;
 use rand::{Rng, RngCore};
 
 use super::attack::{unblockable, Damage};
@@ -484,7 +485,7 @@ impl Battle {
                 let rng: &mut dyn RngCore = &mut self.rng;
                 if state.resistance_failure(Some(Realm::Death), 1, rng) > 0 {
                     let u = &mut self.units[id];
-                    u.moves_left = 0;
+                    u.moves_left = HalfInt::ZERO;
                     u.attacked = true;
                     events.push(BattleEvent::Terrified { unit: id });
                 }
@@ -493,7 +494,7 @@ impl Battle {
             // which takes the move from every unit, is taken to be a bug.
             if entangle && !self.units[id].flies && !self.units[id].has(Ability::new(49)) {
                 let u = &mut self.units[id];
-                u.moves_left = u.moves_left.saturating_sub(2);
+                u.moves_left = u.moves_left.saturating_sub(crate::battle::map::OPEN_COST);
             }
             events.extend(self.regenerate(id));
             if self.units[id]
@@ -548,7 +549,7 @@ impl Battle {
             }
         }
         let u = &mut self.units[id];
-        u.moves_left = 0;
+        u.moves_left = HalfInt::ZERO;
         u.attacked = true;
         u.seized = act == Confusion::Seized;
         Some(BattleEvent::Confused { unit: id, act })

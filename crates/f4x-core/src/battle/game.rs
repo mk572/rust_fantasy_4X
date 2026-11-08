@@ -10,6 +10,7 @@ use crate::rules::Ability;
 use crate::rules::SpellId;
 use crate::rules::{MovementType, Stat, UnitId};
 use crate::unit::Hurt;
+use f4x_def::half_int::HalfInt;
 
 use super::field::Field;
 use super::immunity::Realm;
@@ -597,8 +598,8 @@ impl Game {
                     continue;
                 };
                 bus[si].cell = cells[0];
-                bus[si].moves = 0;
-                bus[si].moves_left = 0;
+                bus[si].moves = HalfInt::ZERO;
+                bus[si].moves_left = HalfInt::ZERO;
                 placed[si] = true;
                 taken.push(cells[0]);
                 let centre = (
@@ -1104,7 +1105,9 @@ impl Game {
             let _ = self.world.remove_one::<Hurt>(unit);
             let _ = self.world.remove_one::<crate::unit::Order>(unit);
             self.set_owner(unit, player);
-            let _ = self.world.insert(unit, (pos, crate::unit::MovesLeft(0)));
+            let _ = self
+                .world
+                .insert(unit, (pos, crate::unit::MovesLeft(HalfInt::ZERO)));
             raised += 1;
         }
         if raised > 0 {

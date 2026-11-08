@@ -2,12 +2,14 @@
 //!
 //! Tests: in unit/movement/tests.rs (`paths_go_around_water_...`, `a_square_has_eight_neighbours_...`, `a_walker_reaches_...`, `a_path_takes_as_many_turns_...`).
 
+use f4x_def::half_int::HalfInt;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 use std::hash::{BuildHasherDefault, Hasher};
 
 use crate::game::Game;
 use crate::map::Position;
+use crate::unit::movement::FULL_MOVE;
 
 /// A cheap hasher for the search's own tables, which are looked up for every square the search
 /// looks at (the default one is built to resist attacks, which these tables do not face) and
@@ -66,9 +68,10 @@ pub(crate) fn neighbours(game: &Game, p: Position) -> Vec<Position> {
     out
 }
 
-fn estimate(width: u32, a: Position, b: Position) -> u32 {
+/// The least a walk between two squares costs: half a move for each square (a road step).
+fn estimate(width: u32, a: Position, b: Position) -> HalfInt {
     let dx = a.x.abs_diff(b.x);
-    dx.min(width - dx).max(a.y.abs_diff(b.y))
+    HalfInt::from_raw(dx.min(width - dx).max(a.y.abs_diff(b.y)) as i32)
 }
 
 impl Game {
@@ -88,7 +91,7 @@ impl Game {
         let room = economy.ship_room_squares(owner);
         let economy = economy.with_ship_room(owner, &room);
         let profiles = economy.step_profiles(units)?;
-        let step_cost = |from: Position, next: Position| -> Option<u32> {
+        let step_cost = |from: Position, next: Position| -> Option<HalfInt> {
             economy.stack_step_cost(&profiles, from, next, flies)
         };
         // Which squares stop the walk (hostile units or city, a guarded site), worked out once
@@ -103,13 +106,13 @@ impl Game {
             })
         };
 
-        let mut best: SquareMap<u32> = SquareMap::default();
+        let mut best: SquareMap<HalfInt> = SquareMap::default();
         let mut came: SquareMap<Position> = SquareMap::default();
         let mut open = BinaryHeap::new();
-        best.insert(start, 0);
+        best.insert(start, HalfInt::ZERO);
         open.push(Reverse((
             estimate(width, start, to),
-            0u32,
+            HalfInt::ZERO,
             start.x,
             start.y,
         )));
@@ -132,7 +135,7 @@ impl Game {
                 path.reverse();
                 return Some(path);
             }
-            if cost > *best.get(&here).unwrap_or(&u32::MAX) {
+            if cost > *best.get(&here).unwrap_or(&HalfInt::MAX) {
                 continue;
             }
             for next in neighbours(self, here) {
@@ -145,7 +148,7 @@ impl Game {
                     continue;
                 };
                 let total = cost + step;
-                if total < *best.get(&next).unwrap_or(&u32::MAX) {
+                if total < *best.get(&next).unwrap_or(&HalfInt::MAX) {
                     best.insert(next, total);
                     came.insert(next, here);
                     open.push(Reverse((
@@ -181,7 +184,7 @@ impl Game {
         let Some(profiles) = economy.step_profiles(units) else {
             return seen;
         };
-        let step_cost = |from: Position, next: Position| -> Option<u32> {
+        let step_cost = |from: Position, next: Position| -> Option<HalfInt> {
             economy.stack_step_cost(&profiles, from, next, flies)
         };
         // Which squares stop the walk, worked out once for every square the search looks at.
@@ -194,17 +197,17 @@ impl Game {
                         && economy.lair_at(next).is_some_and(|l| !l.guards.is_empty()))
             })
         };
-        let mut best: SquareMap<u32> = SquareMap::default();
+        let mut best: SquareMap<HalfInt> = SquareMap::default();
         let mut open = BinaryHeap::new();
-        best.insert(start, 0);
-        open.push(Reverse((0u32, start.x, start.y)));
+        best.insert(start, HalfInt::ZERO);
+        open.push(Reverse((HalfInt::ZERO, start.x, start.y)));
         while let Some(Reverse((cost, x, y))) = open.pop() {
             let here = Position {
                 plane: start.plane,
                 x,
                 y,
             };
-            if cost > *best.get(&here).unwrap_or(&u32::MAX) {
+            if cost > *best.get(&here).unwrap_or(&HalfInt::MAX) {
                 continue;
             }
             seen.insert(here);
@@ -216,7 +219,7 @@ impl Game {
                     continue;
                 };
                 let total = cost + step;
-                if total < *best.get(&next).unwrap_or(&u32::MAX) {
+                if total < *best.get(&next).unwrap_or(&HalfInt::MAX) {
                     best.insert(next, total);
                     open.push(Reverse((total, next.x, next.y)));
                 }
@@ -252,13 +255,13 @@ impl Game {
             .iter()
             .map(|&u| self.units().unit_max_moves(u))
             .min()
-            .unwrap_or(2)
-            .max(1);
+            .unwrap_or(FULL_MOVE)
+            .max(HalfInt::from_raw(1));
         let mut left = movers
             .iter()
             .map(|&u| self.units().unit_moves_left(u))
             .min()
-            .unwrap_or(0);
+            .unwrap_or(HalfInt::ZERO);
         let mut turns = 0;
         for &next in path {
             if left == 0 {
@@ -269,7 +272,7 @@ impl Game {
                 .iter()
                 .filter_map(|&u| self.economy().step_cost(u, at, next, flies).ok())
                 .max()
-                .unwrap_or(2);
+                .unwrap_or(FULL_MOVE);
             left = left.saturating_sub(cost);
             at = next;
         }

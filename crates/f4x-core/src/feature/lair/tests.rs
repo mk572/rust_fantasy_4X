@@ -328,7 +328,7 @@ fn a_stack_is_stopped_by_a_guarded_site_and_nothing_moves() -> TestResult {
         }]
     );
     assert_eq!(g.units().unit_position(w), Some(at(4, 5)));
-    assert_eq!(g.units().unit_moves_left(w), 4, "no moves spent");
+    assert_eq!(g.units().unit_moves_left(w), 2, "no moves spent");
     Ok(())
 }
 

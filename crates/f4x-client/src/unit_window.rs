@@ -12,6 +12,7 @@ use crate::ui;
 use f4x_core::game::Command;
 use f4x_core::map::Position;
 use f4x_core::unit::Standby;
+use f4x_def::half_int::HalfInt;
 use f4x_def::rules::Ability;
 use macroquad::prelude::*;
 
@@ -260,11 +261,11 @@ impl App {
             .iter()
             .map(|&u| self.game.units().unit_moves_left(u))
             .min()
-            .unwrap_or(0);
+            .unwrap_or(HalfInt::ZERO);
         if moves > 0 {
-            let args = Args::new().count("n", moves / 2);
+            let args = Args::new().count("n", moves.floor());
             let text = self.text_with(
-                if moves % 2 == 1 {
+                if !moves.is_whole() {
                     "unit.moves_half"
                 } else {
                     "unit.moves_whole"
@@ -409,7 +410,7 @@ mod tests {
         let mut app = App::for_test();
         assert!(!app.all_units_moved());
         for u in app.game.units().player_units(HUMAN) {
-            app.game.scenario_set_moves_left(u, 0);
+            app.game.scenario_set_moves_left(u, HalfInt::from_int(0));
         }
         assert!(app.all_units_moved());
     }

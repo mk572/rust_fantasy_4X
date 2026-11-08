@@ -260,8 +260,7 @@ fn every_prefab_item_has_the_originals_type_cost_bonuses_and_powers() {
             ("attack", bonus(Stat::Melee), number(row, "attack")),
             ("to_hit", bonus(Stat::ToHit), number(row, "to_hit")),
             ("defense", bonus(Stat::Defense), number(row, "defense")),
-            // The file stores whole moves; the content counts half-moves.
-            ("moves", bonus(Stat::HalfMoves), 2 * number(row, "moves")),
+            ("moves", bonus(Stat::Moves), number(row, "moves")),
             ("resist", bonus(Stat::Resistance), number(row, "resist")),
             (
                 "spell_skill",

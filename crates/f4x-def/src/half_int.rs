@@ -20,6 +20,9 @@ impl HalfInt {
     /// The value zero.
     pub const ZERO: Self = Self(0);
 
+    /// The largest value (the "not reached yet" of a search).
+    pub const MAX: Self = Self(i32::MAX);
+
     /// Creates a value from an integer that has already been doubled.
     ///
     /// For example, raw value 7 represents 3.5.
@@ -60,6 +63,27 @@ impl HalfInt {
     /// Converts this value to a floating-point number, e.g. for display.
     pub fn as_f32(self) -> f32 {
         self.0 as f32 / 2.0
+    }
+
+    /// The difference, or zero when `other` is the larger (what is left of a stock that cannot
+    /// go below nothing, such as the moves of a unit).
+    pub fn saturating_sub(self, other: Self) -> Self {
+        Self(self.0.saturating_sub(other.0).max(0))
+    }
+}
+
+/// Serde adapter (`#[serde(with = "f4x_def::half_int::raw")]`) that writes a [`HalfInt`] as its
+/// doubled count, the form of an amount a save kept in halves before `HalfInt` existed: the
+/// moves of a unit are saved in half-moves, so saves of older versions still load.
+pub mod raw {
+    use super::HalfInt;
+
+    pub fn serialize<S: serde::Serializer>(value: &HalfInt, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_i32(value.raw())
+    }
+
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(d: D) -> Result<HalfInt, D::Error> {
+        <i32 as serde::Deserialize>::deserialize(d).map(HalfInt::from_raw)
     }
 }
 

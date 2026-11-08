@@ -13,6 +13,7 @@ use crate::city::economy::{Buildings, CityRace, Farmers, Population};
 use crate::map::{Map, Position};
 use crate::player::PlayerId;
 use f4x_def::content::Content;
+use f4x_def::half_int::HalfInt;
 
 use crate::game::Game;
 use crate::rules::{BuildingId, RaceId, SpellId};
@@ -258,11 +259,9 @@ impl Game {
         self.spawn_city(owner, pos, name.into(), race, figures)
     }
 
-    /// Set the moves a unit has left, in half-moves.
-    pub fn scenario_set_moves_left(&mut self, unit: hecs::Entity, half_moves: u32) {
-        let _ = self
-            .world
-            .insert_one(unit, crate::unit::MovesLeft(half_moves));
+    /// Set the moves a unit has left.
+    pub fn scenario_set_moves_left(&mut self, unit: hecs::Entity, moves: HalfInt) {
+        let _ = self.world.insert_one(unit, crate::unit::MovesLeft(moves));
     }
 
     /// Remove a unit from the game.
@@ -385,10 +384,10 @@ mod tests {
         let unit = g.spawn_unit(P0, at(3, 3), soldier);
         g.scenario_set_experience(unit, 130);
         g.scenario_set_hurt(unit, 3);
-        g.scenario_set_moves_left(unit, 1);
+        g.scenario_set_moves_left(unit, HalfInt::from_raw(1));
         assert_eq!(g.component::<Experience>(unit).map(|x| x.0), Some(130));
         assert_eq!(g.component::<Hurt>(unit).map(|h| h.0), Some(3));
-        assert_eq!(g.units().unit_moves_left(unit), 1);
+        assert_eq!(g.units().unit_moves_left(unit), HalfInt::from_raw(1));
         assert!(g.entity_exists(unit));
         let count = g.entity_count();
         g.scenario_remove_unit(unit);
@@ -407,12 +406,12 @@ mod tests {
             .id_numbered(107)
             .ok_or("no cavalry")?;
         let unit = g.spawn_unit(P0, at(3, 3), soldier);
-        g.scenario_set_moves_left(unit, 2);
+        g.scenario_set_moves_left(unit, HalfInt::from_int(1));
         assert!(g.unit_is_idle(unit));
         assert!(!g.unit_has_order(unit) && !g.unit_building_road(unit));
-        g.scenario_set_moves_left(unit, 0);
+        g.scenario_set_moves_left(unit, HalfInt::from_int(0));
         assert!(!g.unit_is_idle(unit), "no moves left");
-        g.scenario_set_moves_left(unit, 2);
+        g.scenario_set_moves_left(unit, HalfInt::from_int(1));
         let _ = g.world.insert_one(unit, Order::GoTo(vec![at(4, 3)]));
         assert!(g.unit_has_order(unit));
         assert!(!g.unit_is_idle(unit), "it is walking a path");

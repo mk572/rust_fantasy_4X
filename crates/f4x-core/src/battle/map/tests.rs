@@ -1,4 +1,5 @@
 use super::*;
+use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 use rand::SeedableRng;
 use rand_pcg::Pcg64Mcg;
@@ -22,11 +23,11 @@ fn walkers_pay_by_ground_and_flyers_pay_one_move_everywhere() {
     let mut m = BattleMap::open();
     m.set((5, 5), Cell::Rough);
     m.set((6, 5), Cell::Blocked);
-    assert_eq!(m.enter_cost((4, 5), false), Some(2));
-    assert_eq!(m.enter_cost((5, 5), false), Some(4));
+    assert_eq!(m.enter_cost((4, 5), false), Some(HalfInt::from_int(1)));
+    assert_eq!(m.enter_cost((5, 5), false), Some(HalfInt::from_int(2)));
     assert_eq!(m.enter_cost((6, 5), false), None);
-    assert_eq!(m.enter_cost((5, 5), true), Some(2));
-    assert_eq!(m.enter_cost((6, 5), true), Some(2));
+    assert_eq!(m.enter_cost((5, 5), true), Some(HalfInt::from_int(1)));
+    assert_eq!(m.enter_cost((6, 5), true), Some(HalfInt::from_int(1)));
     assert_eq!(m.enter_cost((-1, 5), true), None, "nobody leaves the map");
 }
 
@@ -34,25 +35,25 @@ fn walkers_pay_by_ground_and_flyers_pay_one_move_everywhere() {
 fn reach_follows_move_points_diagonals_and_obstacles() {
     let mut m = BattleMap::open();
     // Two moves = four half-moves: two squares in any direction, diagonals included.
-    let r = m.reachable((10, 10), 4, false, &none);
-    assert_eq!(r.get(&(12, 12)).map(|c| c.0), Some(4));
+    let r = m.reachable((10, 10), HalfInt::from_int(2), false, &none);
+    assert_eq!(r.get(&(12, 12)).map(|c| c.0), Some(HalfInt::from_int(2)));
     assert!(!r.contains_key(&(13, 10)));
     // A wall of rocks forces a detour (or stops the unit).
     for y in 8..=12 {
         m.set((11, y), Cell::Blocked);
     }
-    let r = m.reachable((10, 10), 4, false, &none);
+    let r = m.reachable((10, 10), HalfInt::from_int(2), false, &none);
     assert!(
         !r.contains_key(&(12, 10)),
         "cannot cross the rocks in two moves"
     );
     // Flyers pass over them.
-    let r = m.reachable((10, 10), 4, true, &none);
+    let r = m.reachable((10, 10), HalfInt::from_int(2), true, &none);
     assert!(r.contains_key(&(12, 10)));
     // Occupied squares block the way.
     let m = BattleMap::open();
     let blocked = |p: Pos| p == (11, 10);
-    let r = m.reachable((10, 10), 2, false, &blocked);
+    let r = m.reachable((10, 10), HalfInt::from_int(1), false, &blocked);
     assert!(!r.contains_key(&(11, 10)));
     assert!(r.contains_key(&(11, 11)));
     assert!(r.contains_key(&(9, 10)));
@@ -63,8 +64,8 @@ fn rough_ground_costs_double_and_a_last_move_may_overrun() {
     let mut m = BattleMap::open();
     m.set((11, 10), Cell::Rough);
     // One move (two half-moves) is enough to step into rough ground, ending at zero.
-    let r = m.reachable((10, 10), 2, false, &none);
-    assert_eq!(r.get(&(11, 10)).map(|c| c.0), Some(4));
+    let r = m.reachable((10, 10), HalfInt::from_int(1), false, &none);
+    assert_eq!(r.get(&(11, 10)).map(|c| c.0), Some(HalfInt::from_int(2)));
     // But nothing lies beyond it.
     assert!(!r.contains_key(&(12, 10)));
 }
@@ -182,7 +183,7 @@ fn a_city_has_twelve_wall_sites_round_four_inner_squares() {
 #[test]
 fn walkers_outside_cannot_enter_a_wall_except_by_the_gate() {
     let m = walled();
-    let r = m.reachable_as((10, 12), 20, walker(), &none);
+    let r = m.reachable_as((10, 12), HalfInt::from_int(10), walker(), &none);
     // The gate is open, and from it the inside.
     assert!(r.contains_key(&GATE));
     assert!(r.contains_key(&(13, 12)), "inside, by the gate");
@@ -202,12 +203,12 @@ fn a_broken_wall_can_be_walked_over() {
     assert!(!m.is_breached());
     let to = (12, 11);
     assert!(!m
-        .reachable_as((11, 11), 4, walker(), &none)
+        .reachable_as((11, 11), HalfInt::from_int(2), walker(), &none)
         .contains_key(&to));
     m.break_wall(to);
     assert!(m.is_breached());
     assert!(m
-        .reachable_as((11, 11), 4, walker(), &none)
+        .reachable_as((11, 11), HalfInt::from_int(2), walker(), &none)
         .contains_key(&to));
     // Breaking a wall that is not there does nothing.
     m.break_wall((13, 11));
@@ -218,7 +219,7 @@ fn a_broken_wall_can_be_walked_over() {
 #[test]
 fn fliers_pass_the_wall_but_nobody_enters_a_corner_tower() {
     let m = walled();
-    let r = m.reachable_as((10, 11), 6, flier(), &none);
+    let r = m.reachable_as((10, 11), HalfInt::from_int(3), flier(), &none);
     assert!(r.contains_key(&(12, 11)), "over the wall");
     assert!(r.contains_key(&(13, 11)));
     assert!(
@@ -230,14 +231,14 @@ fn fliers_pass_the_wall_but_nobody_enters_a_corner_tower() {
         through_walls: true,
         ..Mover::default()
     };
-    let r = m.reachable_as((10, 11), 6, teleporter, &none);
+    let r = m.reachable_as((10, 11), HalfInt::from_int(3), teleporter, &none);
     assert!(r.contains_key(&(12, 11)));
     assert!(!r.contains_key(&(12, 10)));
     // A broken tower can be entered.
     let mut m = m;
     m.break_wall((12, 10));
     assert!(m
-        .reachable_as((10, 10), 4, walker(), &none)
+        .reachable_as((10, 10), HalfInt::from_int(2), walker(), &none)
         .contains_key(&(12, 10)));
 }
 
@@ -245,7 +246,7 @@ fn fliers_pass_the_wall_but_nobody_enters_a_corner_tower() {
 fn a_unit_inside_can_only_leave_by_the_gate() {
     let m = walled();
     // Standing at the gate, it may go out; from the inside it may not step through a wall.
-    let inside = m.reachable_as((13, 12), 20, walker(), &none);
+    let inside = m.reachable_as((13, 12), HalfInt::from_int(10), walker(), &none);
     assert!(inside.contains_key(&(11, 12)), "out of the gate");
     assert!(inside.contains_key(&(10, 12)));
     // The squares beside the wall's outside are shut to it, except in front of the gate.
@@ -255,13 +256,13 @@ fn a_unit_inside_can_only_leave_by_the_gate() {
         "the far side is walled off"
     );
     // Standing on the wall at the side it can walk the wall but not step off it.
-    let on_wall = m.reachable_as((14, 10), 4, walker(), &none);
+    let on_wall = m.reachable_as((14, 10), HalfInt::from_int(2), walker(), &none);
     assert!(on_wall.contains_key(&(13, 10)));
     assert!(!on_wall.contains_key(&(14, 9)));
     // With a breach it can leave there.
     let mut m = m;
     m.break_wall((14, 10));
-    let on_wall = m.reachable_as((14, 11), 4, walker(), &none);
+    let on_wall = m.reachable_as((14, 11), HalfInt::from_int(2), walker(), &none);
     assert!(on_wall.contains_key(&(14, 9)), "out through the breach");
     assert!(
         !on_wall.contains_key(&(13, 9)),
@@ -307,8 +308,11 @@ fn ships_sail_the_ocean_swimmers_take_either_way_and_walkers_stay_ashore() {
         ..Mover::default()
     };
     let cell = (10, 10);
-    assert_eq!(ocean.enter_cost_as(cell, ship), Some(2));
-    assert_eq!(ocean.enter_cost_as(cell, swimmer), Some(2));
+    assert_eq!(ocean.enter_cost_as(cell, ship), Some(HalfInt::from_int(1)));
+    assert_eq!(
+        ocean.enter_cost_as(cell, swimmer),
+        Some(HalfInt::from_int(1))
+    );
     assert_eq!(ocean.enter_cost_as(cell, walker()), None);
     assert_eq!(ocean.enter_cost_as(cell, flier()), Some(OPEN_COST));
     assert_eq!(ocean.enter_cost_as((20, 0), flier()), None);
@@ -320,9 +324,14 @@ fn ships_sail_the_ocean_swimmers_take_either_way_and_walkers_stay_ashore() {
     assert_eq!(land.enter_cost_as(cell, ship), None);
     assert!(land.enter_cost_as(cell, swimmer).is_some());
     // A ship can cross the ocean from edge to edge.
-    let reach = ocean.reachable_as((14, 10), 20, ship, &|_| false);
+    let reach = ocean.reachable_as((14, 10), HalfInt::from_int(10), ship, &|_| false);
     assert!(reach.len() > 30);
-    assert!(ocean.reachable_as((14, 10), 20, walker(), &|_| false).len() == 1);
+    assert!(
+        ocean
+            .reachable_as((14, 10), HalfInt::from_int(10), walker(), &|_| false)
+            .len()
+            == 1
+    );
 }
 
 #[test]
@@ -366,18 +375,26 @@ fn a_walker_jumps_the_water_between_two_decks_for_two_moves() -> TestResult {
     assert_eq!(m.enter_cost(gap, false), None);
     // With the jump's two moves, it is reachable; with one move left it still is (any move
     // left lets a unit take a step); with none it is not.
-    let reach = m.reachable(from, 4, false, &none);
+    let reach = m.reachable(from, HalfInt::from_int(2), false, &none);
     assert_eq!(reach.get(&to).map(|c| c.0), Some(JUMP_COST));
-    assert!(m.reachable(from, 1, false, &none).contains_key(&to));
-    assert!(!m.reachable(from, 0, false, &none).contains_key(&to));
+    assert!(m
+        .reachable(from, HalfInt::from_raw(1), false, &none)
+        .contains_key(&to));
+    assert!(!m
+        .reachable(from, HalfInt::from_int(0), false, &none)
+        .contains_key(&to));
     // The gap itself cannot be stood in, and a ship cannot jump.
     assert!(!reach.contains_key(&gap));
     let ship = Mover {
         sails: true,
         ..Mover::default()
     };
-    assert!(!m.reachable_as(from, 4, ship, &none).contains_key(&to));
+    assert!(!m
+        .reachable_as(from, HalfInt::from_int(2), ship, &none)
+        .contains_key(&to));
     // A unit that flies crosses the water, as it always does.
-    assert!(m.reachable(from, 4, true, &none).contains_key(&gap));
+    assert!(m
+        .reachable(from, HalfInt::from_int(2), true, &none)
+        .contains_key(&gap));
     Ok(())
 }

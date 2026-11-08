@@ -2,6 +2,7 @@ use super::*;
 use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane};
 use crate::player::PlayerId;
+use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 
 use crate::game::Command;
@@ -179,7 +180,7 @@ fn engineers_work_along_a_path() {
         path: vec![at(5, 5), at(6, 5), at(7, 5)],
     });
     for _ in 0..4 {
-        let _ = g.world.insert_one(e, MovesLeft(4));
+        let _ = g.world.insert_one(e, MovesLeft(HalfInt::from_int(2)));
         g.process_road_work_all();
     }
     for x in 5..=7 {
@@ -237,17 +238,17 @@ fn enchanted_roads_and_myrror_roads_are_free() -> TestResult {
     let events = g.enchant_roads(at(6, 6));
     assert!(!events.is_empty());
     let boot = engineer(&mut g, 107 /* high_men_cavalry */, at(5, 5));
-    let _ = g.world.insert_one(boot, MovesLeft(2));
+    let _ = g.world.insert_one(boot, MovesLeft(HalfInt::from_int(1)));
     g.move_stack(&[boot], at(6, 5))
         .map_err(|e| format!("{e:?}"))?;
     assert_eq!(
         g.units().unit_moves_left(boot),
-        2,
+        1,
         "an enchanted road costs nothing"
     );
     g.move_stack(&[boot], at(7, 5))
         .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(g.units().unit_moves_left(boot), 2);
+    assert_eq!(g.units().unit_moves_left(boot), 1);
     // Plain roads cost half a move; Myrror's are enchanted already.
     let plain = engineer(&mut g, 107 /* high_men_cavalry */, at(10, 8));
     {
@@ -259,10 +260,10 @@ fn enchanted_roads_and_myrror_roads_are_free() -> TestResult {
         grid.set_road(10, 8, true);
         grid.set_road(11, 8, true);
     }
-    let _ = g.world.insert_one(plain, MovesLeft(2));
+    let _ = g.world.insert_one(plain, MovesLeft(HalfInt::from_int(1)));
     g.move_stack(&[plain], at(11, 8))
         .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(g.units().unit_moves_left(plain), 1);
+    assert_eq!(g.units().unit_moves_left(plain), HalfInt::from_raw(1));
     let on_myrror = Position {
         plane: Plane::Myrror,
         x: 10,
@@ -278,10 +279,10 @@ fn enchanted_roads_and_myrror_roads_are_free() -> TestResult {
         grid.set_road(10, 8, true);
         grid.set_road(11, 8, true);
     }
-    let _ = g.world.insert_one(m, MovesLeft(2));
+    let _ = g.world.insert_one(m, MovesLeft(HalfInt::from_int(1)));
     g.move_stack(&[m], Position { x: 11, ..on_myrror })
         .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(g.units().unit_moves_left(m), 2);
+    assert_eq!(g.units().unit_moves_left(m), 1);
     Ok(())
 }
 

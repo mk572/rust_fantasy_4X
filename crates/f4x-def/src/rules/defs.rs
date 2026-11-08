@@ -490,7 +490,7 @@ pub struct ItemDef {
     /// The original's item type; it fixes the slot (see [`ItemKind::slot`]).
     pub kind: ItemKind,
     pub cost: u32,
-    /// The plain bonuses: attack, to hit, defence, movement (in half-moves), resistance.
+    /// The plain bonuses: attack, to hit, defence, movement, resistance.
     pub effects: Vec<EffectRule>,
     /// Added to the hero's mana in battle.
     #[serde(default)]
@@ -574,7 +574,7 @@ pub struct ItemPowerDef {
     pub realm: Option<Id<RealmDef>>,
     #[serde(default)]
     pub books: u32,
-    /// Plain bonuses: what it adds (movement in half-moves; spell save is the size of the penalty).
+    /// Plain bonuses: what it adds (movement in whole moves; spell save is the size of the penalty).
     #[serde(default)]
     pub bonus: Option<(PowerBonus, i32)>,
     /// The lasting spell (an id of `spells.ron`) the power puts on the hero that carries the item.

@@ -297,7 +297,10 @@ mod tests {
         // Put the walker at the edge of the known world and step into the unknown.
         let u = walker(&g, s);
         let _ = g.world.insert_one(u, at(16, 5));
-        let _ = g.world.insert_one(u, crate::unit::MovesLeft(4));
+        let _ = g.world.insert_one(
+            u,
+            crate::unit::MovesLeft(f4x_def::half_int::HalfInt::from_int(2)),
+        );
         g.set_undo(true);
         step(&mut g, s, at(17, 5));
         assert!(g.can_undo(), "this step showed nothing new yet");
@@ -306,7 +309,10 @@ mod tests {
         let _ = g.world.insert_one(walker(&g, s), at(19, 5));
         // Beyond the explored radius: x = 22 wraps to 2, which is known, so use a fresh fog.
         g.fog = crate::map::fog::Fog::new(20, 10);
-        let _ = g.world.insert_one(walker(&g, s), crate::unit::MovesLeft(4));
+        let _ = g.world.insert_one(
+            walker(&g, s),
+            crate::unit::MovesLeft(f4x_def::half_int::HalfInt::from_int(2)),
+        );
         step(&mut g, s, at(18, 5));
         assert!(
             !g.can_undo(),

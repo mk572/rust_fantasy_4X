@@ -29,6 +29,7 @@ use crate::game::rng::GameRng;
 use crate::game::serial::Serial;
 use crate::game::setting::MeleeVsFliers;
 use crate::rules::Ability;
+use f4x_def::half_int::HalfInt;
 use rand::RngCore;
 
 use crate::map::Position;
@@ -165,9 +166,11 @@ pub struct BattleUnit {
     pub figures: u32,
     /// Damage on the front figure.
     pub front_damage: i32,
-    /// Half-moves per turn and left this turn.
-    pub moves: u32,
-    pub moves_left: u32,
+    /// Moves per turn and left this turn. Saved as half-moves, the form older saves have.
+    #[serde(with = "f4x_def::half_int::raw")]
+    pub moves: HalfInt,
+    #[serde(with = "f4x_def::half_int::raw")]
+    pub moves_left: HalfInt,
     /// Shots left. A spell caster with a magical ranged attack shoots with its mana instead
     /// (`SHOT_MANA` a shot): its shots are what its mana pays for.
     pub ammo: i32,
@@ -314,8 +317,8 @@ impl BattleUnit {
             figures_start: figures,
             figures,
             front_damage: 0,
-            moves: 2 * OPEN_COST,
-            moves_left: 2 * OPEN_COST,
+            moves: OPEN_COST * 2,
+            moves_left: OPEN_COST * 2,
             ammo: 0,
             mana: 0,
             hero_caster: false,
@@ -1027,8 +1030,8 @@ impl Battle {
         self.units.iter().find(|u| u.is_active() && u.cell == cell)
     }
 
-    /// Squares the unit could walk to now, with the half-moves each costs.
-    pub fn reachable(&self, unit: usize) -> std::collections::HashMap<Pos, u32> {
+    /// Squares the unit could walk to now, with the moves each costs.
+    pub fn reachable(&self, unit: usize) -> std::collections::HashMap<Pos, HalfInt> {
         let Some(u) = self.units.get(unit).filter(|u| u.is_active()) else {
             return Default::default();
         };
@@ -1047,7 +1050,7 @@ impl Battle {
     /// Where a teleporting or merging unit can appear: every free square that is not blocked,
     /// each for one move (`Move_Battle_Unit`: no path is walked; the original takes two half-moves,
     /// or whatever is left if that is less).
-    fn instant_squares(&self, unit: usize) -> std::collections::HashMap<Pos, u32> {
+    fn instant_squares(&self, unit: usize) -> std::collections::HashMap<Pos, HalfInt> {
         let cell = self.units[unit].cell;
         let mut squares = std::collections::HashMap::new();
         for y in 0..crate::battle::map::GRID_H {
@@ -1192,7 +1195,7 @@ impl Battle {
         if ranged {
             u.spend_shot();
         } else {
-            u.moves_left = 0;
+            u.moves_left = HalfInt::ZERO;
         }
         vec![BattleEvent::WallAttacked {
             unit,
@@ -1469,7 +1472,7 @@ impl Battle {
             }
             BattleCommand::Done { unit } => {
                 self.check_unit(unit)?;
-                self.units[unit].moves_left = 0;
+                self.units[unit].moves_left = HalfInt::ZERO;
                 self.units[unit].attacked = true;
             }
             BattleCommand::MoveVortex { index, to } => {
@@ -1557,7 +1560,7 @@ impl Battle {
         self.units[def].heal_kinds(out.taken.healed);
         self.units[att].used_attack();
         self.units[att].revealed = true;
-        self.units[att].moves_left = 0;
+        self.units[att].moves_left = HalfInt::ZERO;
         for (id, mana_lost) in [(def, out.dealt.mana_lost), (att, out.taken.mana_lost)] {
             events.extend(self.power_drained(id, mana_lost));
         }

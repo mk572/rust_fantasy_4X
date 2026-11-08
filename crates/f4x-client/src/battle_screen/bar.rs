@@ -107,15 +107,6 @@ fn range_text(tenths: i32) -> String {
     }
 }
 
-/// Moves in whole and half steps.
-fn moves_text(half_moves: u32) -> String {
-    if half_moves % 2 == 1 {
-        format!("{}.5", half_moves / 2)
-    } else {
-        (half_moves / 2).to_string()
-    }
-}
-
 impl App {
     /// The window pixels per original pixel and the screen position of the grid's native origin,
     /// with the original's map window at the top left of the 320 by 200 screen.
@@ -441,7 +432,7 @@ impl App {
         self.bar_text(
             view,
             0,
-            &moves_text(u.moves_left),
+            &self.texts.half_amount(u.moves_left),
             (126.0, 188.0),
             Align::Right,
         );
@@ -523,7 +514,7 @@ impl App {
         }
         text(
             self,
-            &moves_text(u.moves_left),
+            &self.texts.half_amount(u.moves_left),
             (x + 9.0, y + 24.0),
             Align::Right,
         );
@@ -583,13 +574,5 @@ mod tests {
         assert_eq!(range_text(10), "1x");
         assert_eq!(range_text(15), "1.5x");
         assert_eq!(range_text(20), "2x");
-    }
-
-    #[test]
-    fn moves_are_written_in_whole_and_half_steps() {
-        assert_eq!(moves_text(0), "0");
-        assert_eq!(moves_text(1), "0.5");
-        assert_eq!(moves_text(4), "2");
-        assert_eq!(moves_text(5), "2.5");
     }
 }
