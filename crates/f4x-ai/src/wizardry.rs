@@ -22,6 +22,8 @@ pub enum Kind {
     /// Finishing it wins the game.
     Mastery,
     Summon,
+    /// Summon Hero, Summon Champion and Incarnation: a hero joins at the summoning circle.
+    SummonHero,
     /// A lasting spell that makes one of the wizard's units better.
     UnitBuff,
     /// A lasting spell that makes one of the wizard's cities better.
@@ -133,6 +135,16 @@ pub fn kind(def: &SpellDef) -> Kind {
     {
         return Kind::Summon;
     }
+    if matches!(
+        f4x_core::spell::hero::HeroSummon::of(def),
+        Some(
+            f4x_core::spell::hero::HeroSummon::Hero
+                | f4x_core::spell::hero::HeroSummon::Champion
+                | f4x_core::spell::hero::HeroSummon::Torin
+        )
+    ) {
+        return Kind::SummonHero;
+    }
     if f4x_core::spell::terraform::TerrainEffect::EarthLore.is_in(def) {
         return Kind::Explore;
     }
@@ -216,6 +228,7 @@ fn priority(k: Kind) -> u8 {
         Kind::Explore => 1,
         Kind::Cure => 2,
         Kind::Summon => 3,
+        Kind::SummonHero => 3,
         Kind::UnitBuff => 4,
         Kind::CityBuff => 5,
         Kind::GlobalBuff => 6,
@@ -239,7 +252,7 @@ fn priority(k: Kind) -> u8 {
 fn cast_rank(k: Kind, traits: &crate::objective::Traits) -> i32 {
     use crate::objective::Like;
     let like = match k {
-        Kind::Summon => Some(Like::Summon),
+        Kind::Summon | Kind::SummonHero => Some(Like::Summon),
         Kind::UnitBuff => Some(Like::UnitBuff),
         Kind::CityBuff => Some(Like::CityBuff),
         Kind::GlobalBuff => Some(Like::GlobalBuff),
@@ -871,6 +884,9 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         // The square the creatures appear on may be full.
                         && view.can_aim(spell, None)
                 }
+                // There is no cap on heroes: only the supply of heroes (`can_aim` is refused
+                // when none is left to send) and the mana limit it.
+                Kind::SummonHero => now && room && view.can_aim(spell, None),
                 Kind::UnitBuff => {
                     now && room && fighters >= 3 && upkeep_ok(&view, def) && target.is_some()
                 }
@@ -1059,6 +1075,40 @@ mod tests {
             .is_some()
             || events.iter().any(|e| matches!(e, Event::HeroJoined { .. }));
         assert!(started, "{events:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_that_knows_summon_hero_casts_it_whatever_the_number_of_its_heroes() -> TestResult {
+        let summon_hero = f4x_def::rules::SpellId::new(208) /* summon_hero */;
+        for hired in [0, 6] {
+            let mut g = fresh_game()?;
+            let ai = Ai::new(P1);
+            treasury(&mut g, P1)?.gold = f4x_def::half_int::HalfInt::from_int(50_000);
+            treasury(&mut g, P1)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
+            g.wizard_mut(P1)
+                .ok_or("player 1 is a wizard")?
+                .set_split(20, 40, 40)
+                .map_err(|e| format!("{e:?}"))?;
+            g.cheat_learn_spell(P1, summon_hero);
+            for k in 0..hired {
+                g.hire_hero(P1, k)
+                    .map_err(|e| format!("hiring hero {k}: {e:?}"))?;
+            }
+            let heroes = |g: &Game| PlayerView::new(g, P1).my_heroes().len();
+            let before = heroes(&g);
+            let mut events = Vec::new();
+            cast(&ai, &mut g, &mut events);
+            let begun = g
+                .wizard(P1)
+                .ok_or("player 1 is a wizard")?
+                .casting()
+                .is_some_and(|c| c.spell == summon_hero);
+            assert!(
+                begun || heroes(&g) > before,
+                "with {hired} heroes a hero is summoned or the spell begun: {events:?}"
+            );
+        }
         Ok(())
     }
 
