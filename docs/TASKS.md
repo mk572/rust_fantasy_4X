@@ -248,7 +248,16 @@ the drawing changes. *Needs:* nothing.
 
 **441. Doom Bolt, Star Fires and Warp Lightning on an overland stack: decide.** The original lets these three hit an enemy stack on the main map (the note of task 306); ours has them as battle spells only. Decide whether to add the overland cast (target an enemy stack within sight; the damage and who defends are the open rules; check `Cast_Spell_Overland` in ReMoM), write the decision in `docs/divergences.md`, and if yes, give it the square animation of task 306. *Needs:* a decision by the owner.
 
-**442. Unit statistics window: the hero's item help and level, the production sheet, the battle sheet.** **Progress 8 November 2026:** (a) is done (a right-click on a hero's item line shows the item card, a click goes to the item screen; `SheetUi::item_line_at` in `unit_screen.rs`), and in (b) the hero's level title and the lasting spells the items grant are lines of the list (`overland_sheet`; test `a_heros_sheet_names_its_level_and_keeps_the_item_cards`); left in (b): the sheet of a battle unit and of an offered hero show no portrait. Left from task 377: (b) the item powers as lines of the list (`USW_Item_UEs`) and the hero's level title (`USW_HeroLevels`: Hero, Myrmidon, Captain, ... Demi-God); the sheet of a battle unit and an offered hero show no portrait yet; (c) the production screen's sheet: the cost, and the upkeep of a unit not yet built; (d) split off as task 497; (e) the battle's sheet is a snapshot on a plain background, and the original draws it over the field. *Needs:* nothing.
+**442. Unit statistics window: the hero's item help and level, the production sheet, the battle sheet.** Left over from task 377; status 8 November 2026, checked against the code.
+- **Done:**
+  - (a) A right-click on a hero's item line shows the item card, a click goes to the item screen (`SheetUi::item_line_at` in `unit_screen.rs`).
+  - (b) The hero's level title and the lasting spells its items put on it (`USW_Item_UEs`) are lines of the list (`overland_sheet`, `hero_view` in `unit_sheet.rs`; test `a_heros_sheet_names_its_level_and_keeps_the_item_cards`).
+  - (c) The production screen shows the unit's sheet (`offer_sheet`, `draw_production_sheet`) with the cost beside it (`production.cost`) and the upkeep of a unit not yet built. Not checked on screen since task 377: look at it once with a screenshot and close the point, or list what is missing.
+- **To do:**
+  - (b) The sheet of a battle unit (`battle_sheet`) and of an offered hero (`offer_sheet`) show no portrait for a hero.
+  - (e) The battle's sheet is a snapshot on a plain background; the original draws it over the field.
+  - (d) The expanding-box opening is split off as task 497.
+*Needs:* nothing.
 1. The turn-off question and the Dismiss question use the original's `Confirmation_Box` art. (`--sheet N --sheet-spell ID [--sheet-ask]` puts a spell on the unit and opens the question for a screenshot.)
 2. Heroes: the portrait, the items row and item powers, the hero abilities (tasks 218 to 221 and 47), and Dismiss for heroes (task 48).
 3. The sheet from the Army list and the item screen (tasks 138 and 142 do not exist yet), the production screen's version (cost, and upkeep for a unit not yet built), and the original's expanding-box opening.
