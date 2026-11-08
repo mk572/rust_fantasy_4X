@@ -107,10 +107,10 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     // Units on a ship's errand or a raid on a site are not the army's to command.
     let mut ferrying: Vec<Serial> = ai
-        .ferry
-        .as_ref()
-        .map(|f| f.group.clone())
-        .unwrap_or_default();
+        .ferries
+        .iter()
+        .flat_map(|f| f.group.iter().copied())
+        .collect();
     ferrying.extend(ai.raiders.iter().copied());
     let own_cities: Vec<Position> = PlayerView::new(game, me)
         .my_cities()
@@ -297,9 +297,25 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 ai.unreachable_since = game.turn;
             }
         }
+        // Nothing to walk to: a rival's city on the other plane, by an open tower.
+        if ai.campaign.is_none() {
+            if let Some((tower, city)) = planar_target(
+                &view,
+                capital,
+                &ai.unreachable,
+                &ai.city_memory,
+                race::enemy(ai, &view),
+            ) {
+                ai.campaign = Some(city);
+                ai.crossing = Some(tower);
+            }
+        }
         // A landing in preparation is the campaign.
         if let Some(plan) = ai.naval {
             ai.campaign = Some(plan.target);
+        }
+        if ai.campaign.is_none_or(|c| c.plane == capital.plane) {
+            ai.crossing = None;
         }
     }
     let Some(target) = ai.campaign else {
@@ -328,6 +344,14 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .naval
             .filter(|p| p.target == target)
             .map_or(rally, |p| p.port);
+        // Across the plane the army gathers at the far side of the tower.
+        let rally = match ai.crossing {
+            Some(tower) if target.plane != tower.plane => Position {
+                plane: target.plane,
+                ..tower
+            },
+            _ => rally,
+        };
         let expected = expected_defence(&view, &ai.city_memory, game.turn, target);
         let (at_rally, elsewhere): (Vec<_>, Vec<_>) = free
             .iter()
@@ -348,7 +372,31 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     } else {
         usize::MAX
     };
+    let mut at_tower: Vec<hecs::Entity> = Vec::new();
     for u in &elsewhere {
+        if let Some(tower) = ai.crossing.filter(|t| t.plane != rally.plane) {
+            let (here, ordered, reach) = {
+                let view = PlayerView::new(game, me);
+                (
+                    view.unit_position(*u),
+                    view.unit_has_order(*u),
+                    view.can_reach(&[*u], tower),
+                )
+            };
+            if here == Some(tower) {
+                at_tower.push(*u);
+            } else if !ordered && reach && here.is_some_and(|p| p.plane == tower.plane) {
+                ai.send(
+                    game,
+                    Command::GoTo {
+                        units: vec![*u],
+                        to: tower,
+                    },
+                    events,
+                );
+            }
+            continue;
+        }
         // A gate is quicker than the road: an Earth Gate city sends its troops to the rally
         // city when that has one too, and an Astral Gate city sends those on the wrong plane
         // across (the original's AI does the second, `AIMOVE.c`).
@@ -391,6 +439,20 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 Command::GoTo {
                     units: vec![*u],
                     to: rally,
+                },
+                events,
+            );
+        }
+    }
+    // The troops at the tower cross in stacks of nine.
+    for chunk in at_tower.chunks(f4x_core::unit::MAX_STACK) {
+        if chunk.len() >= MIN_CROSSING.min(elsewhere.len())
+            && PlayerView::new(game, me).can_shift_plane(chunk)
+        {
+            ai.send(
+                game,
+                Command::ShiftPlane {
+                    units: chunk.to_vec(),
                 },
                 events,
             );
@@ -579,6 +641,41 @@ pub(crate) fn force_wanted(
 ) -> usize {
     let needed = expected_defence(view, memory, turn, target) * attack_ratio() + 1.0;
     ((needed / average_strength(view).max(1.0)).ceil() as usize).clamp(3, MAX_FORCE)
+}
+
+/// The fewest troops that cross a plane together.
+const MIN_CROSSING: usize = 3;
+
+/// A tower the wizard has cleared, on the plane of its capital, that its troops can walk to.
+fn open_tower(view: &PlayerView, capital: Position) -> Option<Position> {
+    let walker = view
+        .garrison(capital)
+        .into_iter()
+        .find(|&u| is_fighter(view, u))?;
+    view.towers()
+        .into_iter()
+        .filter(|&(p, intact)| !intact && p.plane == capital.plane && view.can_reach(&[walker], p))
+        .map(|(p, _)| p)
+        .min_by_key(|&p| (distance(view, capital, p), p.y, p.x))
+}
+
+/// A rival's city on the other plane worth crossing for, and the open tower to cross by.
+fn planar_target(
+    view: &PlayerView,
+    capital: Position,
+    skip: &[Position],
+    memory: &HashMap<Position, (f32, u32)>,
+    focus: Option<PlayerId>,
+) -> Option<(Position, Position)> {
+    let tower = open_tower(view, capital)?;
+    // The far side of the tower must be seen, or the army would cross blind.
+    let far = view
+        .towers()
+        .into_iter()
+        .map(|(p, _)| p)
+        .find(|p| p.plane != tower.plane && (p.x, p.y) == (tower.x, tower.y))?;
+    let city = best_enemy_city(view, far, skip, memory, focus)?;
+    Some((tower, city))
 }
 
 /// The enemy city worth marching on: near, and lightly held as far as the AI knows. Each average
@@ -869,5 +966,58 @@ mod tests {
             wanted(&none)
         );
         assert!(wanted(&strong) <= MAX_FORCE);
+    }
+
+    #[test]
+    fn an_army_with_nothing_to_walk_to_crosses_by_an_open_tower_to_a_city_on_the_other_plane(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        use crate::testworld::spawn_tower;
+        use f4x_core::map::Plane;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let tower = at(8, 6);
+        spawn_tower(&mut g, tower, false)?;
+        let on_myrror = |p: Position| Position {
+            plane: Plane::Myrror,
+            ..p
+        };
+        let far_city = on_myrror(at(28, 7));
+        g.apply(Command::FoundCity {
+            owner: P1,
+            pos: far_city,
+            name: "Farport".into(),
+            race: None,
+            population: 3,
+        });
+        for p in [tower, on_myrror(tower), far_city, at(28, 6)] {
+            g.explore(P0, p, HalfInt::from_raw(3));
+        }
+        let troops = spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            104, /* spearmen */
+            6,
+        );
+        let mut ai = Ai::new(P0);
+        let mut events = Vec::new();
+        army(&mut ai, &mut g, &mut events);
+        assert_eq!(ai.crossing, Some(tower), "{events:?}");
+        assert_eq!(ai.campaign, Some(far_city));
+        assert!(
+            troops
+                .iter()
+                .any(|&u| PlayerView::new(&g, P0).unit_has_order(u)),
+            "the troops walk to the tower"
+        );
+        // Standing on the tower they cross.
+        let party = spawn(&mut g, P0, tower, 104 /* spearmen */, 4);
+        army(&mut ai, &mut g, &mut events);
+        assert!(
+            party
+                .iter()
+                .any(|&u| g.units().unit_position(u).map(|p| p.plane) == Some(Plane::Myrror)),
+            "{events:?}"
+        );
+        Ok(())
     }
 }

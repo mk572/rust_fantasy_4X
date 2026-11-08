@@ -8,6 +8,7 @@ use f4x_core::player::view::PlayerView;
 use f4x_def::half_int::HalfInt;
 use f4x_def::rules::Ability;
 
+use crate::expand;
 use crate::view::{garrison_wanted, is_fighter};
 use crate::Ai;
 
@@ -32,6 +33,51 @@ pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     let rate = chosen.or(best.map(|(_, r)| r)).unwrap_or(1);
     ai.send(game, Command::SetTaxRate { player: me, rate }, events);
+}
+
+/// How many ships the wizard wants. A landing on a big army needs a fleet: one ship per twelve
+/// fighters beyond the first, at most [`MAX_SHIPS`].
+fn ships_wanted(ai: &Ai, view: &PlayerView) -> usize {
+    let base = crate::knob("SHIPS", 1.0) as usize;
+    if ai.naval.is_none() || ai.colony.is_some() {
+        return base;
+    }
+    let fighters = view
+        .my_units()
+        .into_iter()
+        .filter(|&u| is_fighter(view, u))
+        .count();
+    (base + fighters / 12).min(MAX_SHIPS)
+}
+
+/// The most ships a landing builds.
+const MAX_SHIPS: usize = 4;
+
+/// How a wizard should grow: whether the land has room for another city, and how wide it leans
+/// (`phase::width`).
+#[derive(Clone, Copy)]
+struct Growth {
+    room: bool,
+    wide: f32,
+}
+
+/// Gold from which the cities build units to spend it on, tall or not.
+const RICH_GOLD: i32 = 1500;
+
+/// Below this the wizard builds up (tall); above [`WIDE_ABOVE`] it spreads out (wide).
+const TALL_BELOW: f32 = 0.35;
+const WIDE_ABOVE: f32 = 0.65;
+
+/// Settlers a wizard that has all the cities it wanted keeps going while the land has room: more
+/// the wider it leans, none when it builds up.
+fn more_settlers(wide: f32) -> usize {
+    if wide <= TALL_BELOW {
+        0
+    } else if wide >= WIDE_ABOVE {
+        3
+    } else {
+        2
+    }
 }
 
 /// How far a rival's city counts as near, for the focus of a city's plan.
@@ -59,6 +105,8 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let planned = settlers_alive(&view) + in_production;
         (mine, planned)
     };
+    let room = expand::room_for_city(&PlayerView::new(game, me));
+    let wide = crate::phase::width(&PlayerView::new(game, me));
     let war_force = ai.campaign.map(|target| {
         let view = PlayerView::new(game, me);
         crate::military::force_wanted(&view, &ai.city_memory, game.turn, target)
@@ -116,7 +164,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                             || view.unit_stat(u, f4x_def::rules::Stat::Transport) >= needed
                     })
                     .count()
-                    < crate::knob("SHIPS", 1.0) as usize
+                    < ships_wanted(ai, &view)
             })
             .or_else(|| colonist_item(ai, &view, city, pos, broke));
             (
@@ -128,6 +176,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     ai.threatened.contains(&pos),
                     war_force,
                     &mut settlers_planned,
+                    Growth { room, wide },
                 ),
                 port_item,
             )
@@ -200,7 +249,9 @@ fn plan_for(
     threatened: bool,
     war_force: Option<usize>,
     settlers_planned: &mut usize,
+    growth: Growth,
 ) -> BuildPlan {
+    let Growth { room, wide } = growth;
     let size = view.city_economy(city).map_or(0, |e| e.figures);
     let garrison = view
         .garrison(pos)
@@ -231,14 +282,17 @@ fn plan_for(
     });
     let strike = (strike as i32 + temper).max(1) as usize;
     let army_short = (fighters < home_guard + strike && treasury_ok) || threatened;
-    let expanding =
-        all + *settlers_planned < crate::knob("CITIES", traits.cities_wanted as f32) as usize;
+    // A wizard settles up to the number its objective wants at once, and after that for as long as
+    // there is ground for a city (two settlers at a time): nothing in this game punishes size.
+    let expanding = all + *settlers_planned
+        < crate::knob("CITIES", traits.cities_wanted as f32) as usize
+        || (room && *settlers_planned < more_settlers(wide));
     let rival_near = view.known_cities().into_iter().any(|(_, o, p)| {
         view.is_rival_wizard(o) && view.distance(pos, p).is_some_and(|d| d <= RIVAL_RANGE)
     });
     let (primary, secondary) = if rival_near {
         (Focus::Offense, Some(Focus::Defense))
-    } else if expanding {
+    } else if (expanding && wide > TALL_BELOW) || wide >= WIDE_ABOVE {
         traits.expanding
     } else {
         match traits.variety {
@@ -253,6 +307,12 @@ fn plan_for(
         Mix::Buildings
     } else if army_short {
         Mix::Units
+    } else if gold >= RICH_GOLD {
+        // Gold with nothing to buy: the cities make units, which it can buy.
+        Mix::Units
+    } else if wide <= TALL_BELOW && garrison >= 1 {
+        // A tall wizard builds up its cities and keeps the army it has.
+        Mix::Buildings
     } else if broke && garrison >= 1 {
         Mix::Buildings
     } else {

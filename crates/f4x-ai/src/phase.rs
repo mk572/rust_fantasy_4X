@@ -47,6 +47,109 @@ pub fn phase(view: &PlayerView) -> Phase {
     }
 }
 
+/// Races whose strength is in the field (wide), and those whose strength is in building and
+/// magic (tall). A starting point to tune; the rest are neutral.
+const WIDE_RACES: &[&str] = &[
+    "orc",
+    "barbarian",
+    "troll",
+    "gnoll",
+    "beastmen",
+    "draconian",
+];
+const TALL_RACES: &[&str] = &["high_elf", "dark_elf", "halfling", "dwarven", "nomad"];
+/// Retorts that favour spreading out (heroes, armies, summons) and building up (research, mana,
+/// gold, items).
+const WIDE_RETORTS: &[&str] = &["warlord", "famous", "charismatic", "conjurer"];
+const TALL_RETORTS: &[&str] = &[
+    "sage_master",
+    "alchemy",
+    "channeler",
+    "mana_focusing",
+    "archmage",
+    "node_mastery",
+    "runemaster",
+    "artificer",
+];
+
+/// How the wizard should grow: 0 is all tall (buildings, research, housing, magic), 1 is all wide
+/// (settlers, armies, ships, conquest). It follows the wizard's race, retorts and books, the
+/// phase of the game and the situation: room to settle, and neighbours stronger or weaker than
+/// the wizard.
+pub fn width(view: &PlayerView) -> f32 {
+    let mut w: f32 = 0.5;
+    if let Some(m) = view.wizard() {
+        let rules = &view.content().rules;
+        if let Some(race) = m.capital_race() {
+            let id = rules.races.get(race).id.as_str();
+            if WIDE_RACES.contains(&id) {
+                w += 0.1;
+            } else if TALL_RACES.contains(&id) {
+                w -= 0.1;
+            }
+        }
+        for retort in m.retorts() {
+            let id = rules.retorts.get(retort).id.as_str();
+            if WIDE_RETORTS.contains(&id) {
+                w += 0.08;
+            } else if TALL_RETORTS.contains(&id) {
+                w -= 0.08;
+            }
+        }
+        // The wizard's temper and aim: the aggressive and the militarist and expansionist go
+        // wide, the peaceful, theurgist and perfectionist build up.
+        use f4x_core::wizard::objective::{Objective, Personality};
+        w += match m.personality() {
+            Personality::Maniacal | Personality::Ruthless => 0.12,
+            Personality::Aggressive => 0.08,
+            Personality::Chaotic => 0.0,
+            Personality::Lawful => -0.04,
+            Personality::Peaceful => -0.1,
+        };
+        w += match m.objective() {
+            Some(Objective::Militarist) | Some(Objective::Expansionist) => 0.1,
+            Some(Objective::Theurgist) | Some(Objective::Perfectionist) => -0.1,
+            Some(Objective::Pragmatist) | None => 0.0,
+        };
+        // Chaos and death books favour the fighter, the others the builder.
+        let books = |n: u16| m.books_in(f4x_def::rules::RealmId::new(n));
+        w += 0.03 * (books(2) + books(4)) as f32;
+        w -= 0.02 * (books(0) + books(1) + books(3)) as f32;
+    }
+    w += match phase(view) {
+        Phase::Build => 0.2,
+        Phase::Secure => 0.0,
+        Phase::Win if mastery_under_way(view) => -0.2,
+        Phase::Win => 0.1,
+    };
+    w += if crate::expand::room_for_city(view) {
+        0.2
+    } else {
+        -0.2
+    };
+    // Neighbours: more cities than the wizard hold it back, fewer invite it out.
+    let mine = view.my_cities().len() as f32;
+    let theirs: Vec<f32> = view
+        .rivals_at_war()
+        .into_iter()
+        .map(|p| {
+            view.known_cities()
+                .iter()
+                .filter(|&&(_, o, _)| o == p)
+                .count() as f32
+        })
+        .filter(|&n| n > 0.0)
+        .collect();
+    if let Some(strongest) = theirs.iter().copied().reduce(f32::max) {
+        if strongest > mine * 1.5 {
+            w -= 0.1;
+        } else if strongest * 1.5 < mine {
+            w += 0.1;
+        }
+    }
+    w.clamp(0.0, 1.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -56,6 +159,33 @@ mod tests {
     fn a_new_wizard_with_one_city_is_building_up() -> Result<(), Box<dyn std::error::Error>> {
         let g = fresh_game()?;
         assert_eq!(phase(&PlayerView::new(&g, P1)), Phase::Build);
+        Ok(())
+    }
+
+    #[test]
+    fn a_new_wizard_with_room_to_settle_leans_wide() -> Result<(), Box<dyn std::error::Error>> {
+        let g = fresh_game()?;
+        let w = width(&PlayerView::new(&g, P1));
+        assert!(w > 0.5, "build phase and room: {w}");
+        assert!((0.0..=1.0).contains(&w));
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_about_to_win_with_the_spell_of_mastery_leans_tall(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let mut g = fresh_game()?;
+        let before = width(&PlayerView::new(&g, P1));
+        let mastery = g
+            .content()
+            .rules
+            .spells
+            .iter()
+            .find(|(_, d)| kind(d) == Kind::Mastery)
+            .map(|(id, _)| id)
+            .ok_or("a spell of mastery")?;
+        g.cheat_learn_spell(P1, mastery);
+        assert!(width(&PlayerView::new(&g, P1)) < before);
         Ok(())
     }
 

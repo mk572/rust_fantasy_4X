@@ -14,6 +14,32 @@ const SEARCH_RADIUS: i32 = 9;
 /// Sites keep this far apart from each other and from cities.
 const SPACING: u32 = 4;
 
+/// Is there ground near one of the wizard's cities where a city could still be founded? There is
+/// no cost to growing in this game, so a wizard keeps settling until the land is full.
+pub(crate) fn room_for_city(view: &PlayerView) -> bool {
+    let cities: Vec<Position> = view
+        .my_cities()
+        .into_iter()
+        .map(|(_, p)| p)
+        .chain(view.known_cities().into_iter().map(|(_, _, p)| p))
+        .collect();
+    view.my_cities().into_iter().any(|(_, from)| {
+        (-SEARCH_RADIUS..=SEARCH_RADIUS).any(|dy| {
+            (-SEARCH_RADIUS..=SEARCH_RADIUS).any(|dx| {
+                view.shift(from, dx, dy).is_some_and(|p| {
+                    p.y >= 1
+                        && view.can_found_city(p)
+                        && !view.has_lair(p)
+                        && !view.in_node(p)
+                        && !cities
+                            .iter()
+                            .any(|&t| distance(view, t, p).is_some_and(|d| d < SPACING))
+                })
+            })
+        })
+    })
+}
+
 pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let mine: Vec<hecs::Entity> = {
@@ -206,6 +232,12 @@ mod tests {
     use f4x_def::half_int::HalfInt;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    #[test]
+    fn a_wizard_on_a_roomy_island_has_room_for_another_city() {
+        let (g, _) = island_with_settlers(0);
+        assert!(room_for_city(&PlayerView::new(&g, P0)));
+    }
 
     /// The west island, explored by its wizard, with `count` settlers standing in the capital.
     fn island_with_settlers(count: usize) -> (Game, Vec<hecs::Entity>) {

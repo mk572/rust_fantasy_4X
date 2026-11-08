@@ -200,16 +200,17 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     if ai.colony.is_none() && game.turn >= ai.colony_retry {
         let view = PlayerView::new(game, me);
         let wanted = crate::objective::traits(&view).cities_wanted;
-        let chosen = (view.my_cities().len() < wanted && ai.ferry.is_none())
-            .then(|| port_city(&view))
-            .flatten()
-            .and_then(|port| {
-                let cities = cities_seen(&view);
-                closed(&view, &cities, port)
-                    .then(|| choose(&view, &cities, port, &ai.colony_bad))
-                    .flatten()
-                    .map(|(sea, land)| Colony { port, sea, land })
-            });
+        let chosen = ((view.my_cities().len() < wanted || !crate::expand::room_for_city(&view))
+            && ai.ferries.is_empty())
+        .then(|| port_city(&view))
+        .flatten()
+        .and_then(|port| {
+            let cities = cities_seen(&view);
+            closed(&view, &cities, port)
+                .then(|| choose(&view, &cities, port, &ai.colony_bad))
+                .flatten()
+                .map(|(sea, land)| Colony { port, sea, land })
+        });
         ai.colony = chosen;
         if chosen.is_none() {
             ai.colony_retry = game.turn + RETRY_TURNS;
@@ -251,7 +252,7 @@ fn release_scouts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// With the ship and a settler in the port, sail.
 fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
     let me = ai.player;
-    let ferrying = ai.ferry.as_ref().map(|f| f.ship);
+    let ferrying: Vec<Serial> = ai.ferries.iter().map(|f| f.ship).collect();
     let (ship, settler, strays) = {
         let view = PlayerView::new(game, me);
         let mut ships: Vec<hecs::Entity> = view
@@ -259,7 +260,7 @@ fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
             .into_iter()
             .filter(|&u| is_ship(&view, u))
             .filter(|&u| !ai.scouts.contains(&view.serial_of(u)))
-            .filter(|&u| Some(view.serial_of(u)) != ferrying && !view.unit_has_order(u))
+            .filter(|&u| !ferrying.contains(&view.serial_of(u)) && !view.unit_has_order(u))
             .collect();
         view.sort_by_serial(&mut ships);
         let (here, strays): (Vec<_>, Vec<_>) = ships

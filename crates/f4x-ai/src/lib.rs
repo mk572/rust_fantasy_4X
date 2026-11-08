@@ -85,7 +85,9 @@ pub struct Ai {
     /// The landing the AI is working towards when the enemy lives on another land mass, the ship
     /// on a voyage, and ports or targets that did not work out.
     naval: Option<naval::Plan>,
-    ferry: Option<naval::Ferry>,
+    /// The ships on a voyage with a landing, each with the units it carries.
+    #[serde(default)]
+    ferries: Vec<naval::Ferry>,
     naval_bad: Vec<Position>,
     /// Turns a loaded ship has waited for a stronger landing party.
     naval_wait: u32,
@@ -98,6 +100,9 @@ pub struct Ai {
     sea_party: Vec<Serial>,
     /// The scout on its way to an open tower, to change plane (`scout.rs`).
     planar: Option<Serial>,
+    /// The open tower an army crosses by to reach a rival's city on the other plane (`military.rs`).
+    #[serde(default)]
+    crossing: Option<Position>,
     /// Settlers by sea (`colony.rs`): the voyage planned, the ship and settler on it and the turn
     /// they set out, landings that failed, and the turn the search is made again.
     colony: Option<colony::Colony>,
@@ -201,7 +206,7 @@ impl Ai {
             march_started: 0,
             march_target: None,
             naval: None,
-            ferry: None,
+            ferries: Vec::new(),
             naval_bad: Vec::new(),
             naval_wait: 0,
             sea_port: None,
@@ -209,6 +214,7 @@ impl Ai {
             sea_done: false,
             sea_party: Vec::new(),
             planar: None,
+            crossing: None,
             colony: None,
             colonists: None,
             colony_since: 0,
@@ -264,7 +270,8 @@ impl Ai {
     /// The landing the AI is preparing against a city on another land mass, as (target, port),
     /// and whether a ship is on a voyage.
     pub fn landing(&self) -> Option<(Position, Position, bool)> {
-        self.naval.map(|p| (p.target, p.port, self.ferry.is_some()))
+        self.naval
+            .map(|p| (p.target, p.port, !self.ferries.is_empty()))
     }
 
     /// Whether scouting by land is over: nothing the AI can walk to shows anything new.

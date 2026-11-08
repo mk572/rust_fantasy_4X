@@ -298,7 +298,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             let port = view.city_at(plan.port).and_then(|c| view.city_owner(c)) == Some(me);
             if !enemy || !port {
                 ai.naval = None;
-                ai.ferry = None;
+                ai.ferries.clear();
             }
         }
         if ai.naval.is_none() && ai.campaign.is_none() {
@@ -307,6 +307,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     sea_scout(ai, game);
     let Some(plan) = ai.naval else {
+        ai.ferries.clear();
         return;
     };
     // The only ship is carrying settlers (`colony.rs`): a landing waits for it.
@@ -330,26 +331,46 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         ai.sea_party.clear();
         ai.send(game, Command::ClearOrders { units: scouting }, events);
     }
-    let (ships, ship_here, serial_ship) = {
-        let view = PlayerView::new(game, me);
-        let ships = my_ships(&view);
-        let ship_here = ships
-            .iter()
-            .copied()
-            .find(|&s| view.unit_position(s) == Some(plan.port));
-        let serial_ship = ai
-            .ferry
-            .as_ref()
-            .and_then(|f| ships.iter().copied().find(|&s| view.serial_of(s) == f.ship));
-        (ships, ship_here, serial_ship)
-    };
+    let ships = my_ships(&PlayerView::new(game, me));
     if ships.is_empty() {
         return;
     }
-    match (ai.ferry.clone(), serial_ship) {
-        (None, _) => load_and_sail(ai, game, plan, ship_here, events),
-        (Some(_), None) => ai.ferry = None,
-        (Some(ferry), Some(ship)) => voyage(ai, game, plan, ferry, ship, events),
+    // The ships on a voyage carry on; one that was lost drops out.
+    for ferry in ai.ferries.clone() {
+        let ship = {
+            let view = PlayerView::new(game, me);
+            ships
+                .iter()
+                .copied()
+                .find(|&s| view.serial_of(s) == ferry.ship)
+        };
+        match ship {
+            Some(ship) => voyage(ai, game, plan, ferry, ship, events),
+            None => ai.ferries.retain(|f| f.ship != ferry.ship),
+        }
+    }
+    // Every ship waiting in the port loads and sails, one after the other.
+    let ready: Vec<hecs::Entity> = {
+        let view = PlayerView::new(game, me);
+        ships
+            .iter()
+            .copied()
+            .filter(|&s| view.unit_position(s) == Some(plan.port))
+            .filter(|&s| !ai.ferries.iter().any(|f| f.ship == view.serial_of(s)))
+            .collect()
+    };
+    if ready.is_empty() {
+        // A ship that is somewhere else goes back to the port.
+        if ai.ferries.len() < ships.len() {
+            load_and_sail(ai, game, plan, None, events);
+        }
+        return;
+    }
+    for ship in ready {
+        if ai.naval.is_none() {
+            return;
+        }
+        load_and_sail(ai, game, plan, Some(ship), events);
     }
 }
 
@@ -430,13 +451,19 @@ fn load_and_sail(
         }
         return;
     };
-    let (group, capacity) = {
+    let (group, capacity, waiting) = {
         let view = PlayerView::new(game, me);
         let capacity = view.unit_stat(ship, Stat::Transport).max(0) as usize;
         let mut here: Vec<hecs::Entity> = view
             .garrison(plan.port)
             .into_iter()
             .filter(|&u| is_fighter(&view, u) && !ai.scouts.contains(&view.serial_of(u)))
+            // Those aboard another ship are that ship's.
+            .filter(|&u| {
+                !ai.ferries
+                    .iter()
+                    .any(|f| f.ship != view.serial_of(ship) && f.group.contains(&view.serial_of(u)))
+            })
             .collect();
         view.sort_by_serial(&mut here);
         // The city keeps its own garrison. Those still aboard from an earlier voyage sail first:
@@ -445,9 +472,12 @@ fn load_and_sail(
         let aboard = view.passengers_of(ship);
         let (mut group, rest): (Vec<_>, Vec<_>) = here.iter().partition(|u| aboard.contains(u));
         group.extend(rest.into_iter().skip(keep));
+        // Everyone waiting for a ship counts for the landing: the fleet sails one ship after
+        // the other and the soldiers gather ashore.
+        let waiting = crate::view::stack_strength(&view, &group);
         group.truncate(capacity);
         let group: Vec<hecs::Entity> = group;
-        (group, capacity)
+        (group, capacity, waiting)
     };
     if group.len() < MIN_LOAD.min(capacity) {
         return;
@@ -459,7 +489,7 @@ fn load_and_sail(
     // Strong enough for the garrison it will meet, or tired of waiting.
     {
         let view = PlayerView::new(game, me);
-        let strength = crate::view::stack_strength(&view, &group);
+        let strength = waiting;
         let expected = if is_tower(&view, plan.target) {
             crate::site::expected(&view, plan.target)
         } else {
@@ -502,7 +532,7 @@ fn load_and_sail(
         },
         events,
     ) {
-        ai.ferry = Some(Ferry {
+        ai.ferries.push(Ferry {
             ship: ship_serial,
             group: serials,
         });
@@ -567,7 +597,7 @@ fn voyage(
         (view.unit_position(ship), !view.unit_has_order(ship), group)
     };
     let Some(at) = at else {
-        ai.ferry = None;
+        ai.ferries.retain(|f| f.ship != ferry.ship);
         return;
     };
     if !ferry.group.is_empty() {
@@ -583,7 +613,7 @@ fn voyage(
         if aboard == 0 && !group.is_empty() {
             ai.naval_bad.push(plan.target);
             ai.naval = None;
-            ai.ferry = None;
+            ai.ferries.clear();
             return;
         }
         // Those still ashore where the ship left them stay out of the landing: a stack walks as
@@ -637,7 +667,7 @@ fn voyage(
             if is_tower(&PlayerView::new(game, me), plan.target) {
                 ai.raiders.extend(ferry.group.iter().copied());
             }
-            if let Some(f) = ai.ferry.as_mut() {
+            if let Some(f) = ai.ferries.iter_mut().find(|f| f.ship == ferry.ship) {
                 f.group.clear();
             }
         } else if idle {
@@ -657,7 +687,7 @@ fn voyage(
     }
     // Empty ship: home again, and the voyage is over when it is in port.
     if at == plan.port {
-        ai.ferry = None;
+        ai.ferries.retain(|f| f.ship != ferry.ship);
     } else if idle {
         make_room(ai, game, plan.port, events);
         ai.send(
@@ -927,12 +957,12 @@ mod tests {
         for _ in 0..30 {
             g.balance_farmers(P0);
             run(&mut ai, &mut g, &mut Vec::new());
-            if ai.ferry.is_some() {
+            if !ai.ferries.is_empty() {
                 break;
             }
             g.apply(Command::EndTurn);
         }
-        let ferry = ai.ferry.as_ref().ok_or("the landing sailed")?;
+        let ferry = ai.ferries.first().ok_or("the landing sailed")?;
         let view = PlayerView::new(&g, P0);
         for p in aboard {
             assert!(ferry.group.contains(&view.serial_of(p)));
@@ -1065,10 +1095,10 @@ mod tests {
         };
         let mut ai = Ai::new(P0);
         ai.naval = Some(plan);
-        ai.ferry = Some(ferry.clone());
+        ai.ferries = vec![ferry.clone()];
         voyage(&mut ai, &mut g, plan, ferry, ship, &mut Vec::new());
         assert_eq!(ai.naval, None);
-        assert!(ai.ferry.is_none());
+        assert!(ai.ferries.is_empty());
         assert!(ai.naval_bad.contains(&enemy()));
     }
 
@@ -1088,7 +1118,7 @@ mod tests {
             group: vec![view.serial_of(left), view.serial_of(aboard)],
         };
         ai.naval = Some(plan);
-        ai.ferry = Some(ferry.clone());
+        ai.ferries = vec![ferry.clone()];
         voyage(&mut ai, &mut g, plan, ferry, ship, &mut Vec::new());
         let view = PlayerView::new(&g, P0);
         assert_ne!(
@@ -1113,7 +1143,7 @@ mod tests {
         ai.naval_wait = WAIT_TURNS;
         run(&mut ai, &mut g, &mut Vec::new());
         let view = PlayerView::new(&g, P0);
-        assert!(ai.ferry.is_some(), "the trireme sailed");
+        assert!(!ai.ferries.is_empty(), "the trireme sailed");
         assert!(view.unit_has_order(ship));
         let sailing = army.iter().filter(|&&u| view.unit_has_order(u)).count();
         assert_eq!(sailing, 2, "a trireme carries two");

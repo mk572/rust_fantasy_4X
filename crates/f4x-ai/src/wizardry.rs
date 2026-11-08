@@ -291,15 +291,49 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 /// into mana (Alchemy), which pays for more spells, crafting and moving items.
 const GOLD_KEPT: i32 = 1000;
 
-/// A wizard rich in gold and short of mana turns the surplus gold into mana.
+/// The mana the wizard could put to use now: what its dearest summon it can aim costs with the
+/// margin the casting rule asks for (zero when it has none to cast).
+fn mana_wanted(view: &PlayerView) -> i32 {
+    let Some(magic) = view.wizard() else {
+        return 0;
+    };
+    magic
+        .known()
+        .iter()
+        .copied()
+        .filter(|&s| matches!(kind(view.spell(s)), Kind::Summon | Kind::SummonHero))
+        .filter(|&s| view.can_aim(s, None))
+        .map(|s| view.casting_cost(s) * 3 / 2)
+        .max()
+        .unwrap_or(0)
+}
+
+/// A wizard rich in gold and short of the mana for a summon it could cast turns just enough of the
+/// surplus gold into mana for it (Alchemy returns a percent of what is put in). Mana it has no use
+/// for is not bought.
 fn alchemy(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
-    let gold = PlayerView::new(game, ai.player).treasury().gold.floor();
-    if gold > GOLD_KEPT {
+    let gold = {
+        let view = PlayerView::new(game, ai.player);
+        let Some(w) = view.wizard() else {
+            return;
+        };
+        let short = mana_wanted(&view) - view.treasury().mana.floor();
+        let spare = view.treasury().gold.floor() - GOLD_KEPT;
+        let percent = w
+            .stat(
+                &view.content().rules,
+                f4x_def::rules::Stat::AlchemyPercent,
+                50,
+            )
+            .max(1);
+        (short * 100 / percent).min(spare)
+    };
+    if gold > 0 {
         ai.send(
             game,
             Command::Alchemy {
                 player: ai.player,
-                amount: gold - GOLD_KEPT,
+                amount: gold,
                 gold_to_mana: true,
             },
             events,
@@ -1028,17 +1062,51 @@ mod tests {
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
-    #[test]
-    fn a_wizard_with_much_gold_turns_the_surplus_into_mana() -> TestResult {
+    /// A wizard of the fresh game that knows the dearest summon the rules have, with the given
+    /// gold and mana.
+    fn summoner(gold: i32, mana: i32) -> Result<(Game, i32), Box<dyn std::error::Error>> {
         let mut g = fresh_game()?;
-        let ai = Ai::new(P1);
+        let summon = g
+            .content()
+            .rules
+            .spells
+            .iter()
+            .filter(|(_, d)| kind(d) == Kind::Summon)
+            .map(|(id, _)| id)
+            .next()
+            .ok_or("a summon")?;
+        g.cheat_learn_spell(P1, summon);
         let t = g.treasury_mut(P1).ok_or("a treasury")?;
-        t.gold = HalfInt::from_int(5_000);
-        let mana = t.mana.floor();
-        alchemy(&ai, &mut g, &mut Vec::new());
+        t.gold = HalfInt::from_int(gold);
+        t.mana = HalfInt::from_int(mana);
+        let wanted = mana_wanted(&PlayerView::new(&g, P1));
+        Ok((g, wanted))
+    }
+
+    #[test]
+    fn a_wizard_with_much_gold_buys_the_mana_for_its_summon_and_no_more() -> TestResult {
+        let (mut g, wanted) = summoner(50_000, 0)?;
+        assert!(wanted > 0, "the summon can be aimed");
+        alchemy(&Ai::new(P1), &mut g, &mut Vec::new());
         let t = g.treasury_mut(P1).ok_or("a treasury")?;
-        assert_eq!(t.gold.floor(), GOLD_KEPT);
-        assert!(t.mana.floor() > mana, "the gold became mana");
+        assert!(
+            t.mana.floor() >= wanted,
+            "mana {} for {wanted}",
+            t.mana.floor()
+        );
+        assert!(t.mana.floor() < wanted + 3, "no more than the summon needs");
+        assert!(t.gold.floor() > 40_000, "most of the gold is kept");
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_with_enough_mana_buys_none() -> TestResult {
+        let (mut g, wanted) = summoner(50_000, 5_000)?;
+        assert!(wanted < 5_000);
+        alchemy(&Ai::new(P1), &mut g, &mut Vec::new());
+        let t = g.treasury_mut(P1).ok_or("a treasury")?;
+        assert_eq!(t.gold.floor(), 50_000);
+        assert_eq!(t.mana.floor(), 5_000);
         Ok(())
     }
 
