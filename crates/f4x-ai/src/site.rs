@@ -10,7 +10,9 @@ use f4x_core::player::view::PlayerView;
 
 use crate::military::average_strength;
 use crate::neutral::{around, assault, guard_strength, march, strike};
-use crate::view::{distance, fighting_strength, garrison_wanted, is_fighter, stack_strength};
+use crate::view::{
+    distance, fighting_strength, garrison_wanted, is_fighter, stack_strength, unit_strength,
+};
 use crate::Ai;
 
 /// Squares from a city (or from a party in the field) within which a site is looked for.
@@ -204,6 +206,62 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
 }
 
+/// An army with no enemy city to march on goes raiding: each stack of the soldiers it has in
+/// the field (or spare in a city) that is strong enough clears the nearest site, tower or
+/// neutral city. A tower cleared opens the way to the other plane. The raids are not capped:
+/// these soldiers have nothing else to do. Returns whether any party left.
+pub fn deploy(
+    ai: &mut Ai,
+    game: &mut Game,
+    free: &[hecs::Entity],
+    events: &mut Vec<Event>,
+) -> bool {
+    let me = ai.player;
+    let mut by_square: Vec<(Position, Vec<hecs::Entity>)> = Vec::new();
+    {
+        let view = PlayerView::new(game, me);
+        for &u in free {
+            if ai.raiders.contains(&view.serial_of(u)) || ai.scouts.contains(&view.serial_of(u)) {
+                continue;
+            }
+            let Some(p) = view.unit_position(u) else {
+                continue;
+            };
+            match by_square.iter_mut().find(|(q, _)| *q == p) {
+                Some((_, list)) => list.push(u),
+                None => by_square.push((p, vec![u])),
+            }
+        }
+    }
+    by_square.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
+    let mut left = false;
+    for (pos, mut units) in by_square {
+        // The best nine first: a battle holds nine a side, and the hardest sites need the best.
+        {
+            let view = PlayerView::new(game, me);
+            units.sort_by(|&a, &b| unit_strength(&view, b).total_cmp(&unit_strength(&view, a)));
+        }
+        for party in units.chunks(f4x_core::unit::MAX_STACK) {
+            if party.len() < SITE_PARTY {
+                continue;
+            }
+            let sites = {
+                let view = PlayerView::new(game, me);
+                sites_near(&view, pos, stack_strength(&view, party))
+            };
+            for site in sites {
+                if march(ai, game, party, site, events) {
+                    let view = PlayerView::new(game, me);
+                    ai.raiders.extend(party.iter().map(|&u| view.serial_of(u)));
+                    left = true;
+                    break;
+                }
+            }
+        }
+    }
+    left
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -338,6 +396,20 @@ mod tests {
         );
         assert!(ai.raiders.is_empty(), "{:?}", ai.raiders);
         assert!(all_home(&g));
+        Ok(())
+    }
+
+    #[test]
+    fn an_army_in_the_field_with_nothing_to_march_on_raids_the_nearest_tower() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        spawn(&mut g, P0, at(11, 6), 113 /* high_men_paladins */, 6);
+        spawn_tower(&mut g, at(8, 6), true)?;
+        g.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        let free: Vec<hecs::Entity> = g.units().player_units(P0);
+        let mut events = Vec::new();
+        assert!(deploy(&mut ai, &mut g, &free, &mut events), "{events:?}");
+        assert_eq!(ai.raiders.len(), 6);
         Ok(())
     }
 }

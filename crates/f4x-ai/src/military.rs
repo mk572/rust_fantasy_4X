@@ -319,6 +319,9 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
     }
     let Some(target) = ai.campaign else {
+        // Nothing to march on: the army raids the sites and towers, which also opens the way to
+        // the other plane.
+        crate::site::deploy(ai, game, &free, events);
         return;
     };
 
