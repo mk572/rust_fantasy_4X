@@ -101,3 +101,11 @@ These are observations, not yet investigated unless noted.
 3 wizards, seeds 21 to 26, 1000 turns: seed 25 had 969 refused orders and took 161 s (now 3 and 135 s); seed 24 p2 had 1 city, 13 triremes and
 1625 gold (now it keeps one trireme and spends its gold). The other 3-player seeds had no winner either, except seed 26 (Spell of Mastery,
 turn 712, now 800).
+
+## Casting change versus the previous AI (8 November 2026)
+
+`soak-versus`, 4 wizards, seeds 21 to 26, 700 turns, reference = commit 954e0da1 (no saving for summons, net mana margin 2), new = saving for
+summons the pool cannot pay yet plus a net mana income of about 12 a turn from the secure phase on (`wizardry.rs`, `SAVING_TURNS`, knob
+`NETMANA`). Mixed games, per wizard (reference / new): spells cast 60.8 / 73.4, heroes joined 3.1 / 5.2, items made 0.6 / 4.8, cities captured 5.3 /
+6.5, cities lost 6.5 / 5.0, units at the end 113 / 150, score 491 / 519. Nobody won a mixed game in 700 turns. A plain 4-wizard soak, seeds 21 to
+28, 1000 turns: 5 of 8 won (4 by Spell of Mastery, at turns 541 to 896).

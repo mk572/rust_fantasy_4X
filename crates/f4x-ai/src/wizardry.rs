@@ -99,6 +99,8 @@ const RECALL_DISTANCE: u32 = 8;
 const RECALL_PERCENT: u32 = 50;
 /// Squares from a city within which an enemy stack is worth a Stasis.
 const STASIS_RADIUS: i32 = 3;
+/// Turns of net mana income within which a summon that cannot be paid yet is saved for.
+const SAVING_TURNS: i32 = 15;
 /// Mana kept in the reserve before the AI starts a global enchantment (the original's gate).
 const GLOBAL_RESERVE: i32 = 200;
 
@@ -402,18 +404,22 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let mut chosen = SPLITS[SPLITS.len() - 1];
     // Later in the game mana is for casting: the split starts further down the list. A wizard
     // that races for the Spell of Mastery keeps its research.
-    let by_phase = {
+    let (by_phase, late) = {
         let view = PlayerView::new(game, me);
         let researching_mastery = view
             .wizard()
             .and_then(|m| m.researching())
             .is_some_and(|s| kind(view.spell(s)) == Kind::Mastery);
-        match crate::phase::phase(&view) {
+        let phase = crate::phase::phase(&view);
+        // From the secure phase on the income must leave mana for casting; the wizard that
+        // researches the Spell of Mastery keeps its research.
+        let late = phase != crate::phase::Phase::Build && !researching_mastery;
+        let shift = match phase {
             _ if researching_mastery || view.treasury().mana > 300 => 0,
             crate::phase::Phase::Build => 0,
-            crate::phase::Phase::Secure => crate::knob("PSHIFT", 0.0) as usize,
-            crate::phase::Phase::Win => crate::knob("PSHIFT", 0.0) as usize,
-        }
+            _ => crate::knob("PSHIFT", 0.0) as usize,
+        };
+        (shift, late)
     };
     for candidate in SPLITS.iter().copied().skip(traits.split_shift + by_phase) {
         game.apply(set_split(me, candidate));
@@ -424,6 +430,8 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let reserve = view.treasury().mana;
         let margin = if reserve > 400 || traits.lean_mana {
             0
+        } else if by_phase > 0 || late {
+            crate::knob("NETMANA", 12.0) as i32
         } else {
             2
         };
@@ -901,8 +909,27 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let traits = crate::objective::traits(&view);
         options.sort_by_key(|&(k, cost, s)| (cast_rank(k, &traits), std::cmp::Reverse(cost), s));
         let mut found = None;
+        // Saving up for a summon the pool cannot pay yet: the cheap lasting spells wait, or they
+        // take the mana (and then the income, as upkeep) every turn and no summon is ever begun.
+        let net = (income.split.mana - income.mana_upkeep).floor();
+        let mut saving = false;
         for (k, cost, spell) in options {
             let def = view.spell(spell);
+            if saving
+                && matches!(
+                    k,
+                    Kind::UnitBuff
+                        | Kind::CityBuff
+                        | Kind::GlobalBuff
+                        | Kind::Mutate
+                        | Kind::CityCurse
+                        | Kind::WizardCurse
+                        | Kind::Disjunction
+                        | Kind::WorldSpell
+                )
+            {
+                continue;
+            }
             // Paid for from the reserve, over as many turns as the casting skill needs, with
             // a third of the mana left over for the upkeep. The Spell of Mastery goes on until it
             // is paid whatever the reserve.
@@ -954,6 +981,16 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 }
                 Kind::Other => false,
             };
+            if !wanted
+                && matches!(k, Kind::Summon | Kind::SummonHero)
+                && cost * 3 / 2 > mana
+                && cost * 3 / 2 <= mana + SAVING_TURNS * net.max(0)
+                && room
+                && view.can_aim(spell, None)
+                && (k == Kind::SummonHero || fighters < 12 + 2 * view.my_cities().len())
+            {
+                saving = true;
+            }
             // The original's check: not more than fifty turns of what the AI can put towards it.
             let per_turn = mana / 10 + income.split.mana.floor();
             if wanted
