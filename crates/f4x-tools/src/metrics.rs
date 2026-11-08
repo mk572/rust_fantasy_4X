@@ -191,6 +191,12 @@ pub struct Tally {
     /// How often each spell was cast by anyone, by the spell's id.
     #[serde(default)]
     casts: BTreeMap<String, u32>,
+    /// Per wizard (by player number): the mana spent over the game (net of what Alchemy added),
+    /// and the pool after the last round.
+    #[serde(default)]
+    mana_spent: Vec<i64>,
+    #[serde(default)]
+    mana_left: Vec<i64>,
 }
 
 impl Tally {
@@ -206,7 +212,10 @@ impl Tally {
             ships_at_start: vec![0; count + 1],
             landed_on: vec![BTreeSet::new(); count + 1],
             casts: BTreeMap::new(),
+            mana_spent: vec![0; count + 1],
+            mana_left: vec![0; count + 1],
         };
+        tally.mana_left = tally.mana_now(game);
         tally.ships_at_start = tally.ships_now(game);
         tally
     }
@@ -224,6 +233,42 @@ impl Tally {
                 .count() as u32;
         }
         ships
+    }
+
+    /// The mana pool of each player, by slot.
+    fn mana_now(&self, game: &Game) -> Vec<i64> {
+        let mut mana = vec![0; self.players.len()];
+        for p in game.player_ids() {
+            if game.wizard(p).is_some() {
+                let slot = usize::from(p.0).min(mana.len() - 1);
+                mana[slot] = game.player(p).map_or(0, |q| q.treasury().mana.floor()) as i64;
+            }
+        }
+        mana
+    }
+
+    /// Note the mana of every wizard after a round: what it spent is the pool before, plus the
+    /// income the turn change paid, less the pool now.
+    pub fn sample_mana(&mut self, game: &Game) {
+        let now = self.mana_now(game);
+        for p in game.player_ids() {
+            if game.wizard(p).is_none() {
+                continue;
+            }
+            let slot = usize::from(p.0).min(now.len() - 1);
+            let income = game.income(p);
+            let paid = (income.split.mana - income.mana_upkeep).floor() as i64;
+            let before = self.mana_left.get(slot).copied().unwrap_or(0);
+            if let Some(spent) = self.mana_spent.get_mut(slot) {
+                *spent += (before + paid - now[slot]).max(0);
+            }
+        }
+        self.mana_left = now;
+    }
+
+    /// The mana each wizard spent over the game and holds now, by player number.
+    pub fn mana(&self) -> (&[i64], &[i64]) {
+        (&self.mana_spent, &self.mana_left)
     }
 
     /// How often each spell was cast, by the spell's id; a spell never cast is not in it.

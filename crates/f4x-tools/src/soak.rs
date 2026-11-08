@@ -346,6 +346,7 @@ pub fn game(
             tally.record(&game, Some(*player), events);
         }
         tally.record(&game, None, &rest);
+        tally.sample_mana(&game);
         watch.observe(&game);
         if game.in_battle() {
             open_rounds += 1;
@@ -425,6 +426,7 @@ pub fn game(
         total.diplomacy_started,
         total.refused_orders,
     );
+    println!("{tag}: mana {}", mana_line(&game, &tally));
     if opts.casts {
         println!("{tag}: casts: {}", casts_line(tally.casts()));
     }
@@ -586,6 +588,25 @@ fn city_lines(game: &Game) {
             seen_by.join(" ")
         );
     }
+}
+
+/// Mana spent over the game and left at the end, per wizard, e.g. `p0 spent 5200 left 80`.
+fn mana_line(game: &Game, tally: &Tally) -> String {
+    let (spent, left) = tally.mana();
+    game.player_ids()
+        .into_iter()
+        .filter(|&p| game.wizard(p).is_some())
+        .map(|p| {
+            let k = usize::from(p.0);
+            format!(
+                "p{} spent {} left {}",
+                p.0,
+                spent.get(k).copied().unwrap_or(0),
+                left.get(k).copied().unwrap_or(0)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Objective and temper, cities, units and gold of each wizard, e.g. `p0[Mil/Agg] 5c(1o)/14u/80g` (`o`: outposts, counted in the cities).
