@@ -925,11 +925,16 @@ impl App {
                 Event::UnitMutated { .. } => Some(self.text("log.unit_mutated")),
                 Event::WorldSpellStruck {
                     spell,
+                    victim,
                     units_lost,
                     buildings_lost,
                     population_lost,
-                    ..
                 } => {
+                    if let Some(victim) = victim {
+                        if self.game.content().rules.spells.get(spell).id == "natures_wrath" {
+                            self.announce_wrath(victim);
+                        }
+                    }
                     let args = self
                         .spell_arg(Args::new(), spell)
                         .count("units", units_lost)

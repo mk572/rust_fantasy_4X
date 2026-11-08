@@ -26,6 +26,8 @@
     "spell.global_keys": "Up/Down and Enter, or click; Esc: cancel",
     "spell.you_completed": "You have completed casting...",
     "spell.rival_cast": "{wizard} has cast...",
+    "spell.wrath_strikes_you": "Nature's Wrath strikes you",
+    "spell.wrath_strikes": "Nature's Wrath strikes {wizard}",
     "spell.city_scroll_title": "{size} of {city}",
     "spell.you_cast": "You cast {spell}",
     "spell.rival_casts": "{wizard} casts {spell}",

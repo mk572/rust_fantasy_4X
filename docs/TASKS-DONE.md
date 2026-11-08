@@ -340,6 +340,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 361 | AI | The AI makes diplomacy proposals, to the human and to each other (done) |
 | 362 | Tools | `extract-audio`: the original's effects as OGG and its music as XMI (done) |
 | 363 | Tools | (done) Render the original's XMI music as the Roland MT-32 played it, with `mt32-rs` and the user's ROMs |
+| 364 | Client | The scenes with music that the client lacks: the summon scene, the city-spell scroll and the Force of Nature scene (done) |
 | 366 | AI | Objectives, step 3: building weights by category and casting as weighted categories (done) |
 | 368 | Diplomacy | Human-only branches in the diplomacy rules: decide each (move to the AI or keep as a rule) (done) |
 | 372 | Map | (done) Decide the overland terrain move costs: the original's hills 3, swamp 3, mountains 4, or ours (2, 2, 3) |
@@ -509,6 +510,20 @@ The opening movie (task 85, done) plays without its song: `music/112_intro.xmi` 
 with it in `Draw_Logos`; wire it when this task can play XMI.
 
 *Needs:* 362 (done), the ROMs from the author.
+
+**364. Scenes with their own music. (done)** **Done 8 November 2026:** (3) is Nature's Wrath striking a wizard (`Call_Forth_The_Force_Of_Nature`, called from `OverSpel.c` after a death or chaos cast while another wizard keeps Nature's Wrath going; music entry 27): `wrath_scene.rs`, `--wrath [--global-by N] [--global-at SECONDS]`, shown from `Event::WorldSpellStruck` of `natures_wrath`. **Progress 30 October 2026:** (1) the summon scene and (2) the city-spell scroll are built with their music (`summon_scene.rs`, `city_scroll.rs`; the summon music follows the spell's rarity); only (3) the Force of Nature scene is left. Was: Three scenes of the original that the client does not have, each with the music
+`sound.md` section 3.3 lists (the audio layer of tasks 76 and 97 is built; each scene only names its track and cast
+sound in `audio.rs`): (1) the **summon scene** (`Summon_Animation`, `Spells137.c`; the `SPELLSCR` summon background of the
+unit's race, 46 + race, the caster's figure and the flame frame `cmbtfx` 22, the music of the unit's rarity, 0 weak to 3
+mighty: `Weak/Avg/Powerful/Mighty_Summon`, entries 13 to 16), shown when a summoning spell completes, for the human's casts and
+for a rival's with Summoning Events on; the rarity comes from the spell's rarity or the unit's cost, decide and
+write it in `sound.md`. (2) The **city-spell scroll** (`Cast_Spell_City_Enchantment_Animation_1` and `_2`; `SPELLSCR` 73
+with the city's cityscape, "You cast X" or "<wizard> casts X", with the realm's good or bad piece, entries 0 to 11:
+`Good_<Realm>` 0 to 5, `Bad_<Realm>` 6 to 11, bad for a curse), shown for the city spells with City Spell Events on.
+(3) The **Force of Nature scene** (`Spells129.c`, music entry 27): no spell of that name is in `spells.ron`, so find
+which spell or effect the original plays it for in ReMoM and whether we have it; if it is Nature's Wrath or an
+effect we do not have, say so in `sound.md` and drop the scene. Each scene follows the Spell Animations and the
+matching Events preferences, and plays its piece through `Track::piece`.
 
 **366. Objectives, step 3. (done).** The original weights the buildings of a city by category and objective
 (`AIBUILD.c`) and casts overland spells as weighted categories (`AIDUDES.c`); here the plan of a city

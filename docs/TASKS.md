@@ -28,7 +28,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 304 | Low | AI | Neutral city AI: goals and objectives, and units that move |
 | 351 | Low | Text | Research the `MESSAGE.LBX` lines of task 348 that are not traced: 8, 10, 18, 19, 20, 45, 46, 61 |
 | 359 | Low | Client | Replace pictures with text baked in by text-free pictures plus font text, for localization |
-| 364 | Low | Client | The scenes with music that the client lacks: the summon scene, the city-spell scroll and the Force of Nature scene |
 | 365 | Low | Client | Crossfade the music between tracks (ours; the original cuts) |
 | 367 | Low | AI | Overland spells the AI never casts: what is left is research by what the enemy casts |
 | 369 | Low | AI | The AI hardly fights and stops expanding (wars that end, marches, the city target) |
@@ -140,20 +139,6 @@ headings and the names on cards (not yet listed or checked), the table of step 1
 decision of step 4 (the bitmap fonts hold only ASCII; needed for 468 and 469).
 
 *Needs:* nothing for 1 to 3; 358 is the same job for the names in the rules files and can share the fonts of step 4.
-
-**364. Scenes with their own music.** **Progress 30 October 2026:** (1) the summon scene and (2) the city-spell scroll are built with their music (`summon_scene.rs`, `city_scroll.rs`; the summon music follows the spell's rarity); only (3) the Force of Nature scene is left. Was: Three scenes of the original that the client does not have, each with the music
-`sound.md` section 3.3 lists (the audio layer of tasks 76 and 97 is built; each scene only names its track and cast
-sound in `audio.rs`): (1) the **summon scene** (`Summon_Animation`, `Spells137.c`; the `SPELLSCR` summon background of the
-unit's race, 46 + race, the caster's figure and the flame frame `cmbtfx` 22, the music of the unit's rarity, 0 weak to 3
-mighty: `Weak/Avg/Powerful/Mighty_Summon`, entries 13 to 16), shown when a summoning spell completes, for the human's casts and
-for a rival's with Summoning Events on; the rarity comes from the spell's rarity or the unit's cost, decide and
-write it in `sound.md`. (2) The **city-spell scroll** (`Cast_Spell_City_Enchantment_Animation_1` and `_2`; `SPELLSCR` 73
-with the city's cityscape, "You cast X" or "<wizard> casts X", with the realm's good or bad piece, entries 0 to 11:
-`Good_<Realm>` 0 to 5, `Bad_<Realm>` 6 to 11, bad for a curse), shown for the city spells with City Spell Events on.
-(3) The **Force of Nature scene** (`Spells129.c`, music entry 27): no spell of that name is in `spells.ron`, so find
-which spell or effect the original plays it for in ReMoM and whether we have it; if it is Nature's Wrath or an
-effect we do not have, say so in `sound.md` and drop the scene. Each scene follows the Spell Animations and the
-matching Events preferences, and plays its piece through `Track::piece`.
 
 **365. Crossfade the music.** Ours; the original stops all sound and starts the next piece. Fade the old track out and
 the new one in over about a second when the music changes (a screen, a battle, a short piece and back to the

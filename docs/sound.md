@@ -29,7 +29,7 @@ Also wired: volume sliders for the music and the effects at the bottom of the Se
 event piece; the scream (`SOUNDFX` 34 for a feminine wizard, 35 otherwise, by the wizard's gender in `wizards.ron`) when a
 wizard is defeated or banished; the vortex's round (`SOUNDFX` 7).
 
-Not wired: the summon scene, the city-spell scroll and the Force of Nature scene (task 364), crossfading (365, ours),
+Not wired: crossfading (365, ours),
 the teleport and tunnel sounds (137), the scream inside the conquest scene (360; for now it plays when the notice
 arrives), the intro (85), and the warning click. The overland map has no unit-move sound in the original either.
 
@@ -122,7 +122,7 @@ tracks, so the choice must fall back to a general pair (`Combat_1/2`, `Bkrgnd_*`
 | `Spell_Failure` (17) | The "your spell was countered" box (Spell Blast, Disjunction, Suppress Magic) | `Fizzle_Notification` | the fizzle box, `SpellFizzled`, `SpellBlasted` |
 | `SoM_Started` (12) | Spell of Mastery is cast (the swirl, the announcement) | `Cast_Spell_Of_Mastery` | task 287 |
 | `LOSE_By_Magic` (111) | The Spell of Mastery of another wizard completes and you lose | `Spell_Of_Mastery_Lose` | `game_over_screen.rs` |
-| `Force_of_Nature` (27) | Casting Force of Nature (its own scene) | `Spells129.c` | |
+| `Force_of_Nature` (27) | Nature's Wrath striking a wizard who cast a death or chaos spell (`Call_Forth_The_Force_Of_Nature`, `Spells129.c`; there is no spell of that name, the entry is named after the function) | `Call_Forth_The_Force_Of_Nature` | `wrath_scene.rs`, `--wrath` |
 | `WIN_Military` (109) / `LOSE_Military` (110) | The conquest scene (the last enemy wizard falls) and the win/lose animations | `Conquest_Animation`, `Win_Animation`, `Lose_Animation` | `game_over_screen.rs`, task 360 |
 | `WIN_By_Magic` (69) | Exists, no caller in ReMoM (the win by Spell of Mastery) | | game over |
 | `Upkeep_Warning` (18) | Exists, no caller in ReMoM | | `upkeep_prompt.rs` |

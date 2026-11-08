@@ -160,6 +160,8 @@ pub(crate) mod music {
     pub const LOSE_MILITARY: u16 = 110;
     pub const LOSE_BY_MAGIC: u16 = 111;
     pub const EVENT_BAD: u16 = 114;
+    /// Nature's Wrath striking a wizard (`Force_of_Nature`).
+    pub const FORCE_OF_NATURE: u16 = 27;
 }
 
 /// Seconds-long summing of `Poll::Pending` is never needed: the loaders do not wait on anything.

@@ -777,7 +777,7 @@ Ours reads all six. Enemy Moves centres the map on a rival's step and slides it 
 Spells hides a rival's global-spell mirror and spell sound, Auto Unit Information hides the battle's hover
 window (the right-click sheet stays), and Overland Spell Events turns the global-spell mirror off
 for every wizard, as its help reads. City Spell Events and Summoning Events turn off the city-spell scroll (`city_scroll.rs`) and the summon scene
-(`summon_scene.rs`). A rival's summon needs Enemy Spells, Detect Magic and contact; its spell on a unit, a square or a city
+(`summon_scene.rs`). Overland Spell Events and, for a rival, Enemy Spells turn off the scene of Nature's Wrath striking a wizard (`wrath_scene.rs`; the original plays it every time, whoever sees it). The scene shakes only the mirror frame and the text for the first 16 stages, not the whole screen. A rival's summon needs Enemy Spells, Detect Magic and contact; its spell on a unit, a square or a city
 needs Enemy Spells, Detect Magic and the square explored (a cast on the human's own city is always shown),
 as in the original (`spell_sight.rs`). The global-spell mirror needs Enemy Spells only: the original tests nothing there. Decided 30 October 2026.
 
