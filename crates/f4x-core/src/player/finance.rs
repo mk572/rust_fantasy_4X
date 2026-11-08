@@ -205,8 +205,16 @@ impl Game {
         let units = self.units();
         let upkeep = units.food_of(&units.player_units(player));
         // Each extra farmer yields food beyond what he eats; add them where it pays most.
+        // The surplus is the sum of what each city grows beyond its citizens' needs
+        // (`Budget::compute`), and only the city that gets a farmer changes: keep each one's.
+        let excess_of = |g: &Game, c: hecs::Entity| {
+            g.economy().city_economy(c).map_or(HalfInt::ZERO, |eco| {
+                (eco.food - HalfInt::from_int(eco.figures as i32)).max(HalfInt::ZERO)
+            })
+        };
+        let mut excess: Vec<HalfInt> = mine.iter().map(|&c| excess_of(self, c)).collect();
         loop {
-            let surplus = self.budget(player).food_surplus;
+            let surplus: HalfInt = excess.iter().copied().sum();
             if surplus >= upkeep {
                 break;
             }
@@ -229,6 +237,9 @@ impl Game {
                 break;
             };
             let _ = self.world.insert_one(city, Farmers(farmers + 1));
+            if let Some(i) = mine.iter().position(|&c| c == city) {
+                excess[i] = excess_of(self, city);
+            }
         }
     }
 

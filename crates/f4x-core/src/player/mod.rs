@@ -194,13 +194,28 @@ pub fn bundle(id: PlayerId) -> (PlayerId, Treasury, Tax, Bonus, History, Offers)
     )
 }
 
-/// The player entity with this id (a scan; `Game` keeps an index for the same question).
+/// The player entity with this id. The world has no index of its own (`Game` keeps one), so this
+/// remembers the last answer per id on the thread and checks it against the world: an entity that
+/// still carries the id is the player (an id is made once), anything else is a scan. A wrong or
+/// stale memory costs a scan, never a wrong answer.
 pub fn find_entity(world: &hecs::World, id: PlayerId) -> Option<hecs::Entity> {
-    world
+    thread_local! {
+        static SEEN: std::cell::RefCell<std::collections::HashMap<PlayerId, hecs::Entity>> =
+            std::cell::RefCell::new(std::collections::HashMap::new());
+    }
+    let seen = SEEN.with(|s| s.borrow().get(&id).copied());
+    if let Some(e) = seen.filter(|&e| world.get::<&PlayerId>(e).is_ok_and(|p| *p == id)) {
+        return Some(e);
+    }
+    let found = world
         .query::<&PlayerId>()
         .iter()
         .find(|(_, &p)| p == id)
-        .map(|(e, _)| e)
+        .map(|(e, _)| e);
+    if let Some(e) = found {
+        SEEN.with(|s| s.borrow_mut().insert(id, e));
+    }
+    found
 }
 
 /// A component of the player with this id.

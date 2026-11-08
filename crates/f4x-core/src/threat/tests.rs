@@ -310,6 +310,43 @@ fn roaming_monsters_settle_in_a_cleared_node_nobody_holds() -> TestResult {
 }
 
 #[test]
+fn a_stack_that_settles_on_the_way_does_not_walk_on() -> TestResult {
+    let mut g = world(0);
+    g.put_lair(
+        at(14, 8),
+        num::feature::SORCERY_NODE,
+        Lair {
+            intact: false,
+            guards: Vec::new(),
+            gold: 0,
+            mana: 0,
+            items: Vec::new(),
+            prisoner: false,
+            special: 0,
+            fought_by: vec![P0],
+        },
+    );
+    let ghoul = g
+        .content
+        .rules
+        .units
+        .id_numbered(166)
+        .ok_or("ghouls is not in the content")?;
+    let unit = g.spawn_unit(MONSTERS, at(14, 7), ghoul);
+    g.world
+        .insert_one(unit, crate::unit::Order::GoTo(vec![at(14, 8), at(14, 9)]))?;
+    let events = g.follow_orders(&[unit]);
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, Event::MonstersSettled { count: 1, .. })),
+        "{events:?}"
+    );
+    assert!(g.units().player_units(MONSTERS).is_empty());
+    Ok(())
+}
+
+#[test]
 fn a_node_a_wizard_holds_is_not_taken() -> TestResult {
     let mut g = world(0);
     let node = crate::feature::node::Node {

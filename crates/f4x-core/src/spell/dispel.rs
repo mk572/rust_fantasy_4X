@@ -102,20 +102,16 @@ impl Game {
     /// How many land units would drown if `spell` were turned off on `unit`: the question the
     /// sheet asks before it warns the wizard. Nothing is changed.
     pub fn drowned_if_off(&mut self, unit: hecs::Entity, spell: SpellId) -> usize {
-        // The spell is taken off for a moment: its instances point at no unit (the battlefield).
+        // The spell is taken off for a moment: the unit's list of instances goes without it.
         let held: Vec<hecs::Entity> = self
             .spells()
             .on(SpellTarget::Unit(unit))
             .into_iter()
             .filter(|&i| self.spells().def(i) == Some(spell))
             .collect();
-        for &i in &held {
-            let _ = self.world.insert_one(i, SpellTarget::Battlefield);
-        }
+        crate::spell::instance::set_listed(&mut self.world, unit, &held, false);
         let lost = self.economy().stranded().len();
-        for &i in &held {
-            let _ = self.world.insert_one(i, SpellTarget::Unit(unit));
-        }
+        crate::spell::instance::set_listed(&mut self.world, unit, &held, true);
         lost
     }
 

@@ -804,7 +804,11 @@ impl Game {
                 .map(|o| (*o).clone())
                 .expect("grouped by order");
             while let Some(&next) = path.first() {
-                let from = self.units().unit_position(group[0]).expect("on map");
+                // A stack that settled in a vacant lair on the last step is gone from the map.
+                let Some(from) = self.units().unit_position(group[0]) else {
+                    path.clear();
+                    break;
+                };
                 match self.move_stack(&group, next) {
                     Ok(unit::movement::Entry::Free) => {
                         path.remove(0);
