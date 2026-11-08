@@ -552,7 +552,7 @@ impl App {
         let abilities = units.unit_abilities(unit);
         let stasis_held = game.unit_in_stasis(unit);
         let stat = |s: Stat| units.unit_stat(unit, s);
-        let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
+        let base = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor());
         let hp = stat(Stat::MaxHp).max(1);
         let (cur, _) = units.unit_hits(unit);
         let cur = cur as i32;
@@ -605,7 +605,7 @@ impl App {
             ammo: stat(Stat::Ammo),
             to_hit: stat(Stat::ToHit),
             construction: stat(Stat::Construction) > 0,
-            scouting: (stat(Stat::Sight).max(1) - 1) / 2,
+            scouting: units.unit_sight(unit).floor().max(0),
             mana,
             undead: units.unit_is_undead(unit),
             transport: stat(Stat::Transport),
@@ -721,7 +721,9 @@ impl App {
                         value,
                     } = rule.effect
                     {
-                        *stats.entry(stat).or_insert(0) += value.floor();
+                        *stats
+                            .entry(stat)
+                            .or_insert(f4x_def::half_int::HalfInt::ZERO) += value;
                     }
                 }
             }
@@ -729,8 +731,8 @@ impl App {
                 level_line = Some((self.names.level(path.num, level), l.xp, level));
             }
         }
-        let stat = |s: Stat| stats.get(&s).copied().unwrap_or(0);
-        let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
+        let stat = |s: Stat| stats.get(&s).map_or(0, |v| v.floor());
+        let base = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor());
         let abilities = &def.abilities;
         let ability_name = |id: Ability| {
             self.names
@@ -752,7 +754,7 @@ impl App {
             ammo: stat(Stat::Ammo),
             to_hit: stat(Stat::ToHit),
             construction: stat(Stat::Construction) > 0,
-            scouting: (stat(Stat::Sight).max(1) - 1) / 2,
+            scouting: stats.get(&Stat::Sight).map_or(0, |v| v.floor().max(0)),
             mana,
             // No unit definition lists "undead" among its abilities: an offered unit is never undead.
             undead: false,
@@ -815,7 +817,7 @@ impl App {
         let u: &BattleUnit = battle.unit(id)?;
         let content = self.game.content();
         let def = content.rules.units.get(u.unit_id?);
-        let base = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
+        let base = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor());
         let ability_name = |id: Ability| {
             self.names
                 .ability(content.rules.abilities.get(id).num)

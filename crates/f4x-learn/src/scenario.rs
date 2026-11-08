@@ -85,7 +85,7 @@ fn rough_strength(content: &Content, unit: u16) -> f32 {
         return 0.0;
     };
     let d = rules.units.get(id);
-    let s = |stat| d.stats.get(&stat).copied().unwrap_or(0).max(0) as f32;
+    let s = |stat| d.stats.get(&stat).map_or(0, |v| v.floor()).max(0) as f32;
     let figures = s(Stat::Figures).max(1.0);
     let attack = s(Stat::Melee) + 0.7 * s(Stat::Ranged);
     figures * (attack + 1.0) * (s(Stat::MaxHp).max(1.0) + s(Stat::Defense) * 0.6) / 4.0
@@ -101,8 +101,8 @@ fn fighters(content: &Content) -> Vec<u16> {
         .filter(|(_, d)| d.kind != UnitKind::Hero)
         .filter(|(_, d)| !matches!(d.movement, MovementType::Sailing))
         .filter(|(_, d)| {
-            d.stats.get(&Stat::Melee).copied().unwrap_or(0) > 0
-                || d.stats.get(&Stat::Ranged).copied().unwrap_or(0) > 0
+            d.stats.get(&Stat::Melee).map_or(0, |v| v.floor()) > 0
+                || d.stats.get(&Stat::Ranged).map_or(0, |v| v.floor()) > 0
         })
         .map(|(_, d)| d.num)
         .collect()

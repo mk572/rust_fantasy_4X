@@ -123,7 +123,7 @@ fn a_settings_file_is_checked_for_its_level_count_and_ranges() {
     let mut def = settings();
     def.new_game.opponents = 3;
     def.max_opponents = 2;
-    def.levels[0].world.start_reveal_radius = Radius(f32::NAN);
+    def.levels[0].world.start_reveal_radius = crate::half_int::HalfInt::from_int(11);
     def.levels[1].events.pressure_percent = 0;
     assert_eq!(def.validate().len(), 3, "{:?}", def.validate());
     let mut def = settings();

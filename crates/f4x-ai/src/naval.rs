@@ -739,6 +739,7 @@ mod tests {
         at, build, game, spawn, spawn_tower, COAST_CITY, ENEMY_CITY, INLAND_CITY, P0, P1,
     };
     use f4x_core::map::terrain::TerrainClass;
+    use f4x_def::half_int::HalfInt;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -1014,14 +1015,14 @@ mod tests {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let tower = at(33, 9);
         spawn_tower(&mut g, tower, true)?;
-        g.explore(P0, tower, 5);
+        g.explore(P0, tower, HalfInt::from_raw(5));
         let ai = Ai::new(P0);
         let plan = choose_plan(&ai, &PlayerView::new(&g, P0)).ok_or("a plan for the tower")?;
         assert_eq!(plan.target, tower);
         assert_eq!(plan.port, port());
         // Once its ground across is explored, it is not worth the trip.
         for plane in f4x_core::map::Plane::all() {
-            g.explore(P0, Position { plane, ..tower }, 5);
+            g.explore(P0, Position { plane, ..tower }, HalfInt::from_raw(5));
         }
         g.reveal_map(P0);
         assert_eq!(choose_plan(&ai, &PlayerView::new(&g, P0)), None);

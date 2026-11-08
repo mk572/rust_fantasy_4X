@@ -244,7 +244,7 @@ impl Game {
         // Cities explore what their sight reaches (an Oracle or Nature's Eye widens it).
         let cities: Vec<_> = self.economy().cities().into_iter().collect();
         for (entity, city, at) in cities {
-            let sight = self.economy().city_sight(entity).max(0) as u32;
+            let sight = self.economy().city_sight(entity);
             self.fog.explore(
                 city.owner,
                 at,
@@ -292,7 +292,7 @@ impl UnitView<'_> {
                 }
             }
             if sdef.id == "charm_of_life" {
-                let hp = def.stats.get(&Stat::MaxHp).copied().unwrap_or(0);
+                let hp = def.stats.get(&Stat::MaxHp).map_or(0, |v| v.floor());
                 if hp > 0 {
                     mods.push(Modifier::new(
                         Stat::MaxHp,

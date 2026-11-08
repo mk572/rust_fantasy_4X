@@ -27,7 +27,7 @@ use crate::player::{Owner, PlayerId};
 use f4x_def::content::Content;
 
 use crate::game::{Event, Game};
-use crate::rules::stats::{compute, passive_modifiers, Modifier, Source};
+use crate::rules::stats::{compute, compute_half, passive_modifiers, Modifier, Source};
 use crate::rules::{LevelPathDef, Stat, UnitDef, UnitId, UnitKind};
 
 /// Marks an entity as a unit of this definition.
@@ -342,7 +342,7 @@ impl<'a> UnitView<'a> {
                         .into_iter()
                         .filter(|m| {
                             !matches!(m.stat, Stat::Melee | Stat::Ranged)
-                                || def.stats.get(&m.stat).copied().unwrap_or(0) > 0
+                                || def.stats.get(&m.stat).map_or(0, |v| v.floor()) > 0
                         }),
                 );
             }
@@ -392,7 +392,7 @@ impl<'a> UnitView<'a> {
     pub fn unit_stat(&self, unit: hecs::Entity, stat: Stat) -> i32 {
         let base = self
             .unit_def(unit)
-            .and_then(|d| d.stats.get(&stat).copied())
+            .and_then(|d| d.stats.get(&stat).map(|v| v.floor()))
             .unwrap_or(0);
         compute(stat, base, &self.unit_modifiers(unit))
     }
@@ -436,18 +436,23 @@ impl<'a> UnitView<'a> {
             .map_or(HalfInt::ZERO, |m| m.0)
     }
 
-    /// How far the unit sees on the map, in half-squares like movement (`map::fog::in_sight`):
-    /// its `Sight` stat, at least 5 (the original's scouting level 2) for a flier or a Wind
-    /// Walker (`Update_Scouted_And_Contacted`).
-    pub fn unit_sight(&self, unit: hecs::Entity) -> i32 {
-        let sight = self.unit_stat(unit, Stat::Sight).max(3);
+    /// How far the unit sees on the map, in squares (`map::fog::in_sight`): its `Sight` stat, at
+    /// least 2.5 (the original's scouting level 2) for a flier or a Wind Walker
+    /// (`Update_Scouted_And_Contacted`).
+    pub fn unit_sight(&self, unit: hecs::Entity) -> HalfInt {
+        let base = self
+            .unit_def(unit)
+            .and_then(|d| d.stats.get(&Stat::Sight).copied())
+            .unwrap_or(HalfInt::ZERO);
+        let sight = compute_half(Stat::Sight, base, &self.unit_modifiers(unit))
+            .max(crate::map::fog::sight_for(1));
         let flies = self
             .unit_def(unit)
             .is_some_and(|d| d.movement == crate::rules::MovementType::Flying)
             || self.unit_has_ability(unit, Ability::new(24))
             || self.unit_has_ability(unit, Ability::new(74));
         if flies {
-            sight.max(5)
+            sight.max(crate::map::fog::sight_for(2))
         } else {
             sight
         }
@@ -592,7 +597,7 @@ impl Game {
             .player_entity(owner)
             .expect("a unit is spawned for a player that exists");
         let e = spawn(&mut self.world, &self.content, serial, player, pos, unit);
-        let sight = self.units().unit_sight(e) as u32;
+        let sight = self.units().unit_sight(e);
         if !self.is_neutral_player(owner) {
             self.explore(owner, pos, sight);
         }

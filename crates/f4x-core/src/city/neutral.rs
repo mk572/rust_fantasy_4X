@@ -494,8 +494,7 @@ impl Game {
             let shoots = def
                 .stats
                 .get(&crate::rules::Stat::Ranged)
-                .copied()
-                .unwrap_or(0)
+                .map_or(0, |v| v.floor())
                 > 0
                 && !def.abilities.contains(&Ability::new(69));
             if shoots {

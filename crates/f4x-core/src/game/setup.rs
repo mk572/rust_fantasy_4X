@@ -327,7 +327,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     for k in 0..wizards {
         let site = rolled.clone().flatten().map(|v| v[k as usize]);
         start_player(&mut game, PlayerId(k), wizards, races[k as usize], site)?;
-        reveal_start(&mut game, PlayerId(k), settings.world.start_reveal_radius.0);
+        reveal_start(&mut game, PlayerId(k), settings.world.start_reveal_radius);
     }
     // Independent cities on both planes, once the wizards' fortresses are down.
     for plane in [Plane::Arcanus, Plane::Myrror] {
@@ -430,12 +430,12 @@ const CAPITAL_FARMERS: u32 = 3;
 
 /// A wizard's first view of the world: only the land within `radius` of their fortress (what
 /// founding the capital and creating its army revealed is replaced).
-fn reveal_start(game: &mut Game, player: PlayerId, radius: f32) {
+fn reveal_start(game: &mut Game, player: PlayerId, radius: HalfInt) {
     let Some(fortress) = game.wizard(player).and_then(|w| w.fortress()) else {
         return;
     };
     game.fog.forget(player);
-    game.fog.explore_within(
+    game.fog.explore(
         player,
         fortress,
         radius,

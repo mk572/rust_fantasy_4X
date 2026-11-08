@@ -10,6 +10,7 @@ use f4x_core::game::serial::Serial;
 use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::{Plane, Position};
 use f4x_core::player::view::PlayerView;
+use f4x_def::half_int::HalfInt;
 use f4x_def::rules::Ability;
 use f4x_def::rules::Stat;
 
@@ -47,7 +48,7 @@ fn across(at: Position) -> Position {
 
 /// Whether the ground across a tower is still unexplored, so that crossing it shows something.
 pub(crate) fn worth_crossing(view: &PlayerView, tower: Position) -> bool {
-    unexplored_near(view, across(tower), 3) > 0
+    unexplored_near(view, across(tower), HalfInt::from_raw(3)) > 0
 }
 
 /// Make sure the wizard has enough scouts and send them out.
@@ -404,7 +405,7 @@ pub(crate) fn best_target(
 ) -> Option<Position> {
     let reachable = view.reachable(&[unit]);
     // A unit shows the squares within its sight of where it stands, and no more.
-    let look = view.unit_stat(unit, Stat::Sight).max(3);
+    let look = view.unit_sight(unit);
     let mut best: Option<(f32, Position)> = None;
     for &p in &reachable {
         if p == from
@@ -433,10 +434,10 @@ pub(crate) fn best_target(
     best.map(|(_, p)| p)
 }
 
-/// How many squares within the sight `look` (half-squares) of `at` the wizard has not explored.
-fn unexplored_near(view: &PlayerView, at: Position, look: i32) -> u32 {
+/// How many squares within the sight `look` of `at` the wizard has not explored.
+fn unexplored_near(view: &PlayerView, at: Position, look: HalfInt) -> u32 {
     let mut n = 0;
-    let reach = f4x_core::map::fog::squares_seen(look as u32) as i32;
+    let reach = f4x_core::map::fog::squares_seen(look) as i32;
     for dy in -reach..=reach {
         for dx in (-reach..=reach)
             .filter(|&dx| f4x_core::map::fog::in_sight(dx, dy, look, view.diagonal_extra_cost()))
@@ -477,15 +478,15 @@ mod tests {
         let far = at(4, 4);
         let view = PlayerView::new(&g, P0);
         assert_eq!(
-            unexplored_near(&view, far, 5),
+            unexplored_near(&view, far, HalfInt::from_raw(5)),
             25,
-            "all 25 squares of a look of 5 half-squares unseen"
+            "all 25 squares of a look of 2.5 squares unseen"
         );
         // The city's own surroundings are known.
-        assert_eq!(unexplored_near(&view, city(), 1), 0);
+        assert_eq!(unexplored_near(&view, city(), HalfInt::from_raw(1)), 0);
         g.reveal_map(P0);
         let view = PlayerView::new(&g, P0);
-        assert_eq!(unexplored_near(&view, far, 5), 0);
+        assert_eq!(unexplored_near(&view, far, HalfInt::from_raw(5)), 0);
     }
 
     #[test]
@@ -497,7 +498,7 @@ mod tests {
             best_target(&view, walker, city(), &[]).ok_or("there is something to explore")?;
         assert_ne!(target, city());
         assert!(view.reachable(&[walker]).contains(&target));
-        assert!(unexplored_near(&view, target, 3) > 0);
+        assert!(unexplored_near(&view, target, HalfInt::from_raw(3)) > 0);
         // The same choice every time.
         assert_eq!(best_target(&view, walker, city(), &[]), Some(target));
         Ok(())
@@ -620,7 +621,7 @@ mod tests {
         let sea = at(27, 9);
         let boat = spawn(&mut g, P0, sea, 36 /* galley */, 1)[0];
         let walker = spawn(&mut g, P0, sea, 104 /* high_men_spearmen */, 1)[0];
-        g.explore(P0, sea, 3);
+        g.explore(P0, sea, HalfInt::from_raw(3));
         let view = PlayerView::new(&g, P0);
         let mut ai = Ai::new(P0);
         ai.sea_party = vec![view.serial_of(walker)];
@@ -638,7 +639,7 @@ mod tests {
         let sea = at(11, 8);
         let boat = spawn(&mut g, P0, sea, 36 /* galley */, 1)[0];
         let walker = spawn(&mut g, P0, sea, 104 /* high_men_spearmen */, 1)[0];
-        g.explore(P0, sea, 3);
+        g.explore(P0, sea, HalfInt::from_raw(3));
         let view = PlayerView::new(&g, P0);
         let mut ai = Ai::new(P0);
         ai.sea_party = vec![view.serial_of(walker)];
@@ -653,7 +654,7 @@ mod tests {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let tower = at(8, 6);
         spawn_tower(&mut g, tower, false)?;
-        g.explore(P0, tower, 3);
+        g.explore(P0, tower, HalfInt::from_raw(3));
         spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
         scout(&mut ai, &mut g, &mut Vec::new());
@@ -682,7 +683,7 @@ mod tests {
     fn a_guarded_tower_is_not_a_way_across() -> TestResult {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         spawn_tower(&mut g, at(8, 6), true)?;
-        g.explore(P0, at(8, 6), 3);
+        g.explore(P0, at(8, 6), HalfInt::from_raw(3));
         spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
         let mut ai = Ai::new(P0);
         scout(&mut ai, &mut g, &mut Vec::new());

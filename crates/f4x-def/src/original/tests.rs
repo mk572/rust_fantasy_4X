@@ -38,7 +38,7 @@ fn every_unit_has_the_originals_numbers() {
         if row["ranged"] > 0 && row["ammo"] == 0 {
             row.insert("ammo".into(), 1);
         }
-        let stat = |s: Stat| def.stats.get(&s).copied().unwrap_or(0);
+        let stat = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor());
         let ours = [
             ("melee", stat(Stat::Melee)),
             ("ranged", stat(Stat::Ranged)),
@@ -52,9 +52,9 @@ fn every_unit_has_the_originals_numbers() {
             // Gold, or mana for a summoned creature; the food of a normal unit is a rule of its own.
             ("upkeep", def.upkeep.gold.floor() + def.upkeep.mana as i32),
             ("hits", stat(Stat::MaxHp)),
-            // The original's scouting range in squares around the unit; ours counts the unit's own
-            // square and a ring per point (`2 * range + 1`).
-            ("sight", (stat(Stat::Sight) - 1) / 2),
+            // The original's scouting range in squares around the unit; ours is that and a half
+            // (`range + 0.5`).
+            ("sight", stat(Stat::Sight)),
             ("transport", stat(Stat::Transport)),
             ("figures", stat(Stat::Figures)),
         ];

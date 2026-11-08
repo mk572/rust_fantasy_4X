@@ -750,6 +750,7 @@ fn march_landed(
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
+    use f4x_def::half_int::HalfInt;
 
     /// West's six swordsmen stand next to one of East's spearmen, away from every city.
     fn field() -> (Game, Vec<hecs::Entity>) {
@@ -768,7 +769,7 @@ mod tests {
             crate::testworld::ENEMY_CITY.0,
             crate::testworld::ENEMY_CITY.1,
         );
-        g.explore(P0, east, 3);
+        g.explore(P0, east, HalfInt::from_raw(3));
         let here = at(COAST_CITY.0, COAST_CITY.1);
         let pick =
             |g: &Game| best_enemy_city(&PlayerView::new(g, P0), here, &[], &HashMap::new(), None);

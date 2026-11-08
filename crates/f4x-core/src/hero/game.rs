@@ -242,7 +242,7 @@ impl Game {
         let moves = self.units().unit_max_moves(entity);
         let _ = self.world.insert_one(entity, MovesLeft(moves));
         let _ = self.world.insert_one(entity, HeroState::Serving);
-        let sight = self.units().unit_sight(entity) as u32;
+        let sight = self.units().unit_sight(entity);
         self.explore(player, pos, sight);
         // Nobody else is offered this hero now.
         for (_, offers) in self.world.query::<&mut crate::player::Offers>().iter() {

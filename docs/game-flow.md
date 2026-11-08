@@ -104,11 +104,11 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
   travel. The destination (same x, y on the other plane) must be enterable by every unit,
   free of hostile units, and have room. It costs one full move.
 - **Exploration.** After each move the owner explores around the new tile as far as the unit
-  sees. `Sight` is counted in half-squares like movement (a step along a row or column costs 2,
-  a diagonal step 3 with the setting `diagonal_extra_cost` and 2 without it, the same setting as
-  movement; a square is in sight when its cost is at most the sight): sight 3 is the tile and the
-  eight round it, sight 5 a 5 by 5 block, without its corners when a diagonal step costs extra (the
-  original's scouting levels 1 and 2). A unit has at least 3, a flier or wind walker at least 5; a city 5.
+  sees. `Sight` is a distance in squares counted like movement (a step along a row or column costs 1,
+  a diagonal step 1.5 with the setting `diagonal_extra_cost` and 1 without it, the same setting as
+  movement; a square is in sight when its cost is at most the sight): sight 1.5 is the tile and the
+  eight round it, sight 2.5 a 5 by 5 block, without its corners when a diagonal step costs extra (the
+  original's scouting levels 1 and 2). A unit has at least 1.5, a flier or wind walker at least 2.5; a city 2.5.
   The border of the known land is drawn on its outermost tiles. Every player, the AI's too,
   has an exploration of their own, and starts with what their capital sees, since a new city explores when it is founded.
 

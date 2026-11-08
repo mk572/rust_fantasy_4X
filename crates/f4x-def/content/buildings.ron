@@ -16,7 +16,7 @@
     (num: 15, id: "sawmill", help: Some(2315), cost: 100, upkeep_gold: 2, races: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13], effects: [(effect: Modify(stat: CityProduction, op: Percent, value: 25))]),
     (num: 16, id: "library", help: Some(2316), cost: 60, shape: 1, upkeep_gold: 1, requires: [32], effects: [(effect: Modify(stat: CityResearch, op: Add, value: 2))]),
     (num: 17, id: "sages_guild", help: Some(2317), cost: 120, upkeep_gold: 2, requires: [16], races: [0, 1, 2, 3, 4, 6, 7, 8, 11, 12], effects: [(effect: Modify(stat: CityResearch, op: Add, value: 3))]),
-    (num: 18, id: "oracle", help: Some(2318), cost: 500, upkeep_gold: 4, requires: [24, 20], effects: [(effect: Modify(stat: CityUnrest, op: Add, value: -2)), (effect: Modify(stat: CitySight, op: Min, value: 9))]),
+    (num: 18, id: "oracle", help: Some(2318), cost: 500, upkeep_gold: 4, requires: [24, 20], effects: [(effect: Modify(stat: CityUnrest, op: Add, value: -2)), (effect: Modify(stat: CitySight, op: Min, value: 4.5))]),
     (num: 19, id: "alchemists_guild", help: Some(2319), cost: 250, upkeep_gold: 3, requires: [17]),
     (num: 20, id: "university", help: Some(2320), cost: 300, shape: 1, upkeep_gold: 3, requires: [17], races: [1, 2, 3, 5, 7, 8, 9, 10, 11, 12, 13], replaces: Some(16), effects: [(effect: Modify(stat: CityResearch, op: Add, value: 5))]),
     (num: 21, id: "wizards_guild", help: Some(2321), cost: 1000, upkeep_gold: 5, requires: [19, 20], races: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13], replaces: Some(19), effects: [(effect: Modify(stat: CityResearch, op: Add, value: 8)), (effect: Modify(stat: CityMana, op: Add, value: 3))]),
@@ -33,5 +33,5 @@
     (num: 32, id: "builders_hall", help: Some(2332), cost: 60, shape: 2, upkeep_gold: 1),
     (num: 33, id: "mechanicians_guild", help: Some(2333), cost: 600, upkeep_gold: 5, requires: [34, 20], races: [0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], effects: [(effect: Modify(stat: CityProduction, op: Percent, value: 50))]),
     (num: 34, id: "miners_guild", help: Some(2334), cost: 300, upkeep_gold: 3, requires: [32], races: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12], effects: [(effect: Modify(stat: CityProduction, op: Percent, value: 50))]),
-    (num: 35, id: "city_walls", help: Some(2335), cost: 150, upkeep_gold: 2, requires: [32], effects: [(effect: Modify(stat: CitySight, op: Min, value: 7))]),
+    (num: 35, id: "city_walls", help: Some(2335), cost: 150, upkeep_gold: 2, requires: [32], effects: [(effect: Modify(stat: CitySight, op: Min, value: 3.5))]),
 ]

@@ -210,7 +210,10 @@ impl App {
         let site = site_type(lair.site.0);
         let first = lair.guards.first().map(|&(id, _)| {
             let unit = self.game.content().rules.units.get(id);
-            let figures = unit.stats.get(&f4x_def::rules::Stat::Figures).copied();
+            let figures = unit
+                .stats
+                .get(&f4x_def::rules::Stat::Figures)
+                .map(|v| v.floor());
             (
                 self.names.unit(unit.num).to_string(),
                 figures.unwrap_or(1) as u32,

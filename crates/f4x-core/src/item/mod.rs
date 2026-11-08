@@ -371,7 +371,7 @@ impl<'a> ItemView<'a> {
         let abilities = units.unit_abilities(unit);
         let has_ranged = units
             .unit_def(unit)
-            .is_some_and(|d| d.stats.get(&Stat::Ranged).copied().unwrap_or(0) > 0);
+            .is_some_and(|d| d.stats.get(&Stat::Ranged).map_or(0, |v| v.floor()) > 0);
         items
             .iter()
             .flat_map(|(slot, item)| modifiers(item, *slot, &abilities, has_ranged))

@@ -6,6 +6,7 @@
 //! data, `crates/f4x-def/content/rules_settings.ron` ([`SettingsDef`]); only the default game (the Average level, read from that file) and the
 //! fallback [`BasicSettings::default`] for content without that file are in the code.
 
+use crate::half_int::HalfInt;
 use serde::{Deserialize, Serialize};
 
 use crate::rules::{Id, RealmId, RetortDef, SpellId};
@@ -272,19 +273,12 @@ pub struct WorldSettings {
     pub monsters_enabled: bool,
     /// How big a party is, as a percent of the troops in the city (the original's `d / 6`).
     pub raider_percent: u16,
-    /// How far each wizard sees around their capital when the game starts.
-    pub start_reveal_radius: Radius,
+    /// How far each wizard sees around their capital when the game starts, in squares: a step
+    /// along a row or column counts 1, a diagonal step 1.5 (1 without `diagonal_extra_cost`;
+    /// `map::fog::in_sight`), so 2.5 is a 5 by 5 block, without its corners when a diagonal step
+    /// costs extra.
+    pub start_reveal_radius: HalfInt,
 }
-
-/// A distance in squares on the map: a step along a row or column counts 1, a diagonal step 1.5
-/// (1 without `diagonal_extra_cost`; `map::fog::in_radius`), so 2.5 is a 5 by 5 block, without its
-/// corners when a diagonal step costs extra. Always a plain number
-/// (`validate` refuses the rest), which makes `Eq` sound.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct Radius(pub f32);
-
-impl Eq for Radius {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuleSettings {
@@ -883,9 +877,9 @@ impl GameSettings {
             self.world.raider_percent <= 300,
             format!("raiders {}% is over 300", self.world.raider_percent),
         );
-        let radius = self.world.start_reveal_radius.0;
+        let radius = self.world.start_reveal_radius;
         check(
-            radius.is_finite() && (0.0..=10.0).contains(&radius),
+            (HalfInt::ZERO..=HalfInt::from_int(10)).contains(&radius),
             format!("start reveal radius {radius} is not 0 to 10"),
         );
         check(
@@ -941,12 +935,10 @@ impl GameSettings {
         self.world.lair_treasure_percent = self.world.lair_treasure_percent.min(500);
         self.world.neutral_city_size_bonus = self.world.neutral_city_size_bonus.min(6);
         self.world.raider_percent = self.world.raider_percent.min(300);
-        let radius = self.world.start_reveal_radius.0;
-        self.world.start_reveal_radius = Radius(if radius.is_finite() {
-            radius.clamp(0.0, 10.0)
-        } else {
-            2.5
-        });
+        self.world.start_reveal_radius = self
+            .world
+            .start_reveal_radius
+            .clamp(HalfInt::ZERO, HalfInt::from_int(10));
         self.events.pressure_percent = self.events.pressure_percent.clamp(10, 200);
         self.scoring.score_percent = self.scoring.score_percent.clamp(10, 500);
         self

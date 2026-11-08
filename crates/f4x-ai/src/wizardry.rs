@@ -934,6 +934,7 @@ mod tests {
     use f4x_core::diplomacy::DiplomacyCommand;
     use f4x_core::player::{PlayerId, Treasury};
     use f4x_core::wizard::objective::Objective;
+    use f4x_def::half_int::HalfInt;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -1155,7 +1156,7 @@ mod tests {
             .map_err(|e| format!("{e:?}"))?;
         let ai = Ai::new(P0);
         let enemy_city = at(ENEMY_CITY.0, ENEMY_CITY.1);
-        g.explore(P0, enemy_city, 3);
+        g.explore(P0, enemy_city, HalfInt::from_raw(3));
         let enemy = g
             .economy()
             .city_at(enemy_city)

@@ -289,7 +289,7 @@ fn rule_value(
             unit: id, count, ..
         } => {
             let d = game.content().rules.units.get(*id);
-            let stat = |s: Stat| d.stats.get(&s).copied().unwrap_or(0) as f32;
+            let stat = |s: Stat| d.stats.get(&s).map_or(0, |v| v.floor()) as f32;
             let attack = stat(Stat::Melee).max(stat(Stat::Ranged));
             let hp = stat(Stat::MaxHp).max(1.0) * stat(Stat::Figures).max(1.0);
             // Fresh units fight at once but are an extra target: three quarters of their worth.

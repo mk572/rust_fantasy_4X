@@ -1,5 +1,6 @@
 //! Loading and cross-reference validation of the rules definitions.
 
+use crate::half_int::HalfInt;
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
@@ -435,11 +436,11 @@ fn check_units(r: &Rules, p: &mut Vec<String>) {
             }
         }
         for (stat, &v) in &u.stats {
-            if !(0..=99).contains(&v) {
+            if !(HalfInt::ZERO..=HalfInt::from_int(99)).contains(&v) {
                 p.push(format!("{who}: {stat:?} = {v} is outside 0..=99"));
             }
         }
-        let stat = |s: Stat| u.stats.get(&s).copied().unwrap_or(0);
+        let stat = |s: Stat| u.stats.get(&s).map_or(0, |v| v.floor());
         for s in [Stat::MaxHp, Stat::Figures, Stat::Moves] {
             if stat(s) < 1 {
                 p.push(format!("{who}: {s:?} must be at least 1"));
@@ -1026,7 +1027,7 @@ mod tests {
             // ranged unit without ammo
             let spearmen = find(&mut l.units, "barbarian_spearmen", |u| &u.id);
             spearmen.stats.remove(&Stat::Ammo);
-            spearmen.stats.insert(Stat::Figures, 0);
+            spearmen.stats.insert(Stat::Figures, HalfInt::ZERO);
         });
         assert!(has(&p, "needs hero data"), "{p:?}");
         assert!(has(&p, "Summoned and needs a realm"), "{p:?}");
@@ -1123,8 +1124,8 @@ mod tests {
         let mods = passive_modifiers(&level.effects, Source::Level(2));
         for stat in [Stat::Melee, Stat::Defense, Stat::Resistance] {
             assert_eq!(
-                compute(stat, unit.stats[&stat], &mods),
-                unit.stats[&stat] + added(&level.effects, stat),
+                compute(stat, unit.stats[&stat].floor(), &mods),
+                unit.stats[&stat].floor() + added(&level.effects, stat),
                 "{stat:?}"
             );
         }
@@ -1136,8 +1137,8 @@ mod tests {
         let mut all = mods.clone();
         all.extend(passive_modifiers(&spell.effects, Source::Spell(id)));
         assert_eq!(
-            compute(Stat::Defense, unit.stats[&Stat::Defense], &all),
-            unit.stats[&Stat::Defense]
+            compute(Stat::Defense, unit.stats[&Stat::Defense].floor(), &all),
+            unit.stats[&Stat::Defense].floor()
                 + added(&level.effects, Stat::Defense)
                 + added(&spell.effects, Stat::Defense)
         );

@@ -680,7 +680,10 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() -> TestResult
         .id_numbered(12)
         .expect("the shipped content has it");
     assert!(g.cheat_learn_spell(HUMAN, eye));
-    assert_eq!(g.economy().city_sight(city), 5);
+    assert_eq!(
+        g.economy().city_sight(city),
+        f4x_def::half_int::HalfInt::from_raw(5)
+    );
     // A rival's plain unit four squares away and an invisible one three squares away, and a
     // plain one five squares away.
     let home = g.city_position(city).expect("the city is on the map");
@@ -729,7 +732,10 @@ fn nature_s_eye_reveals_visible_units_four_squares_from_the_city() -> TestResult
         });
     }
     assert!(g.city_enchantments(city).iter().any(|&(s, _)| s == eye));
-    assert_eq!(g.economy().city_sight(city), 9);
+    assert_eq!(
+        g.economy().city_sight(city),
+        f4x_def::half_int::HalfInt::from_raw(9)
+    );
     assert!(sees(&g, near), "the eye reveals what is four squares away");
     assert!(!sees(&g, ghost), "an invisible unit stays hidden");
     assert!(!sees(&g, far), "five squares is still out of sight");
@@ -3402,12 +3408,13 @@ fn a_neutral_city_whose_garrison_is_gone_trains_a_new_one() {
 
 #[test]
 fn the_start_gives_the_settings_mana_and_reveals_only_the_start_radius() -> TestResult {
-    use f4x_core::game::setting::{Radius, Split};
+    use f4x_core::game::setting::Split;
+    use f4x_def::half_int::HalfInt;
     let known = |radius: f32, mana: i32, diagonal_extra: bool| {
         let mut spec = NewGame::with_wizards(2);
         spec.seed = 5;
         spec.settings.basic.diagonal_extra_cost = diagonal_extra;
-        spec.settings.world.start_reveal_radius = Radius(radius);
+        spec.settings.world.start_reveal_radius = HalfInt::from_raw((radius * 2.0) as i32);
         spec.settings.wizards.starting_mana = Split { human: mana, ai: 7 };
         let g = new_game(content(), &spec).expect("the spec starts a game");
         let human = g.human().expect("the game has a human");

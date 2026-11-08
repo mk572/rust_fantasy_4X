@@ -91,7 +91,7 @@ pub(crate) fn candidates(content: &Content, realm: RealmId) -> Vec<(UnitId, i32)
         .filter(|d| {
             d.kind == UnitKind::Summoned
                 && d.realm == Some(realm)
-                && d.stats.get(&Stat::Transport).copied().unwrap_or(0) == 0
+                && d.stats.get(&Stat::Transport).map_or(0, |v| v.floor()) == 0
         })
         .map(|d| (UnitId::new(d.num), d.cost as i32))
         .collect()

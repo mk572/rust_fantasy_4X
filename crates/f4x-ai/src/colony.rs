@@ -392,6 +392,7 @@ fn give_up(ai: &mut Ai, colony: Colony) {
 mod tests {
     use super::*;
     use crate::testworld::{at, build, game, spawn, COAST_CITY, ENEMY_CITY, P0};
+    use f4x_def::half_int::HalfInt;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -418,9 +419,9 @@ mod tests {
     #[test]
     fn a_site_on_the_wizards_own_island_means_no_voyage() {
         let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.explore(P0, port(), 24);
+        g.explore(P0, port(), HalfInt::from_int(12));
         for x in [16, 22, 26, 30] {
-            g.explore(P0, at(x, 6), 6);
+            g.explore(P0, at(x, 6), HalfInt::from_int(3));
         }
         let view = PlayerView::new(&g, P0);
         let cities = cities_seen(&view);
@@ -431,11 +432,11 @@ mod tests {
     #[test]
     fn the_nearest_free_island_is_found_from_a_full_one() -> TestResult {
         let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.explore(P0, port(), 24);
+        g.explore(P0, port(), HalfInt::from_int(12));
         for x in [16, 22, 26, 30] {
-            g.explore(P0, at(x, 6), 6);
+            g.explore(P0, at(x, 6), HalfInt::from_int(3));
         }
-        g.explore(P0, at(ENEMY_CITY.0 + 4, ENEMY_CITY.1), 6);
+        g.explore(P0, at(ENEMY_CITY.0 + 4, ENEMY_CITY.1), HalfInt::from_int(3));
         // Fill the west island with cities, spaced as the AI spaces them.
         fill_west(&mut g);
         let view = PlayerView::new(&g, P0);
@@ -458,11 +459,11 @@ mod tests {
                 13, /* ship_yard */
             ],
         );
-        g.explore(P0, port(), 24);
+        g.explore(P0, port(), HalfInt::from_int(12));
         for x in [16, 22, 26, 30] {
-            g.explore(P0, at(x, 6), 6);
+            g.explore(P0, at(x, 6), HalfInt::from_int(3));
         }
-        g.explore(P0, at(ENEMY_CITY.0 + 4, ENEMY_CITY.1), 7);
+        g.explore(P0, at(ENEMY_CITY.0 + 4, ENEMY_CITY.1), HalfInt::from_raw(7));
         fill_west(&mut g);
         // An expansionist wants ten cities.
         g.wizard_mut(P0)

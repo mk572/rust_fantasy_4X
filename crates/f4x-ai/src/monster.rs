@@ -190,6 +190,7 @@ mod tests {
     use crate::testworld::{at, game, spawn, COAST_CITY, INLAND_CITY, P0};
     use f4x_core::feature::entity::Placement;
     use f4x_core::feature::lair::Lair;
+    use f4x_def::half_int::HalfInt;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -201,7 +202,7 @@ mod tests {
 
     /// The monsters know the land round `p`, as they would after walking there.
     fn know(g: &mut Game, p: Position) {
-        g.explore(MONSTERS, p, 8);
+        g.explore(MONSTERS, p, HalfInt::from_int(4));
     }
 
     #[test]
@@ -342,7 +343,7 @@ mod tests {
     fn monsters_that_know_nothing_go_scouting() {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let units = spawn(&mut g, MONSTERS, at(5, 5), 174 /* zombies */, 2);
-        g.explore(MONSTERS, at(5, 5), 3);
+        g.explore(MONSTERS, at(5, 5), HalfInt::from_raw(3));
         end_turn(&mut g);
         let (events, _) = roam(&mut g, &[]);
         assert!(

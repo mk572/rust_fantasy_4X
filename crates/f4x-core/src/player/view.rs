@@ -316,6 +316,11 @@ impl<'a> PlayerView<'a> {
         self.game.units().unit_stat(unit, stat)
     }
 
+    /// How far the unit sees, in squares.
+    pub fn unit_sight(&self, unit: hecs::Entity) -> HalfInt {
+        self.game.units().unit_sight(unit)
+    }
+
     /// Movement points the unit has left this turn.
     pub fn unit_moves_left(&self, unit: hecs::Entity) -> HalfInt {
         self.game.units().unit_moves_left(unit)
@@ -663,7 +668,7 @@ mod tests {
         );
         drop(view);
         // Once the player has explored the square it knows the city; seeing it is another thing.
-        g.explore(ME, at(20, 10), 5);
+        g.explore(ME, at(20, 10), HalfInt::from_raw(5));
         let view = PlayerView::new(&g, ME);
         assert!(view
             .known_cities()

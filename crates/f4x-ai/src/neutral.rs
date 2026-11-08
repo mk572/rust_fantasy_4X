@@ -87,7 +87,7 @@ pub(crate) fn guard_strength(view: &PlayerView, site: Position) -> Option<f32> {
             .iter()
             .map(|(id, n)| {
                 let def = rules.units.get(*id);
-                let stat = |s: Stat| def.stats.get(&s).copied().unwrap_or(0).max(0) as f32;
+                let stat = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor()).max(0) as f32;
                 let attack = stat(Stat::Melee).max(stat(Stat::Ranged));
                 let hits = stat(Stat::MaxHp) * stat(Stat::Figures).max(1.0);
                 (attack * 1.5 + stat(Stat::Defense) + 1.0) * hits * *n as f32
@@ -601,6 +601,7 @@ mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, spawn_site, COAST_CITY, P0};
     use f4x_core::player::PlayerId;
+    use f4x_def::half_int::HalfInt;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -757,7 +758,7 @@ mod tests {
             .city_at(at(COAST_CITY.0, COAST_CITY.1))
             .ok_or("the wizard has a city")?;
         // The wizard's city has no defenders; the free town knows the land round it.
-        g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), 8);
+        g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), HalfInt::from_int(4));
         for _ in 0..15 {
             play_neutrals(&mut g);
             g.apply(Command::EndTurn);
@@ -776,7 +777,7 @@ mod tests {
             .economy()
             .city_at(at(COAST_CITY.0, COAST_CITY.1))
             .ok_or("the wizard has a city")?;
-        g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), 8);
+        g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), HalfInt::from_int(4));
         turns(&mut g, 10);
         assert_eq!(g.economy().city_owner(target), Some(P0));
         Ok(())
@@ -792,7 +793,7 @@ mod tests {
             104, /* high_men_spearmen */
             1,
         );
-        g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), 8);
+        g.explore(TOWN, at(COAST_CITY.0, COAST_CITY.1), HalfInt::from_int(4));
         let mut kept = Vec::new();
         for _ in 0..15 {
             let (_, attacks) = play_neutrals_for(&mut g, &[P0]);

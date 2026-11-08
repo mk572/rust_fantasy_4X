@@ -328,8 +328,8 @@ fn fliers_and_wind_walkers_see_two_squares_at_least() {
     let mut g = world();
     let mage = unit(&mut g, P0, 15 /* wind_mage */, at(5, 4));
     let walker = unit(&mut g, P0, 107 /* high_men_cavalry */, at(5, 4));
-    assert_eq!(g.units().unit_sight(walker), 3);
-    assert_eq!(g.units().unit_sight(mage), 5);
+    assert_eq!(g.units().unit_sight(walker), HalfInt::from_raw(3));
+    assert_eq!(g.units().unit_sight(mage), HalfInt::from_raw(5));
 }
 
 #[test]

@@ -185,8 +185,8 @@ impl Game {
         city::check_site(&self.economy(), pos, existing)
     }
 
-    /// Let `player` see the tiles within `sight` (half-squares) of `at`.
-    pub fn explore(&mut self, player: player::PlayerId, at: map::Position, sight: u32) {
+    /// Let `player` see the tiles within `sight` (squares) of `at`.
+    pub fn explore(&mut self, player: player::PlayerId, at: map::Position, sight: HalfInt) {
         if let (Some(map), true) = (self.map.as_ref(), self.fog.is_empty()) {
             self.fog = map::fog::Fog::new(map.width(), map.height());
         }

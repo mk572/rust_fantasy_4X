@@ -515,7 +515,7 @@ impl Game {
             let left = self.units().unit_moves_left(u).saturating_sub(cost);
             let _ = self.world.insert_one(u, MovesLeft(left));
             let _ = self.world.insert_one(u, to);
-            let sight = self.units().unit_sight(u) as u32;
+            let sight = self.units().unit_sight(u);
             self.explore(owner, to, sight);
         }
         // The Wind Walker's allowance is the whole stack's: the others have what it has left.
@@ -565,7 +565,7 @@ impl Game {
             let left = self.units().unit_moves_left(u).saturating_sub(FULL_MOVE);
             let _ = self.world.insert_one(u, MovesLeft(left));
             let _ = self.world.insert_one(u, to);
-            let sight = self.units().unit_sight(u) as u32;
+            let sight = self.units().unit_sight(u);
             self.explore(owner, to, sight);
         }
         Ok(to)

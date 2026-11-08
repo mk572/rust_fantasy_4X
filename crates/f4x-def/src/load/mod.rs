@@ -558,7 +558,7 @@ mod tests {
         assert!(s
             .levels
             .iter()
-            .all(|l| l.world.start_reveal_radius.0 == 2.5));
+            .all(|l| l.world.start_reveal_radius == crate::half_int::HalfInt::from_raw(5)));
         assert!(s.levels.iter().all(|l| l.wizards.starting_mana.human == 0));
     }
 

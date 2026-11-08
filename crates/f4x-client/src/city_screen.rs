@@ -1516,8 +1516,7 @@ impl App {
                 let figures = def
                     .stats
                     .get(&f4x_def::rules::Stat::Figures)
-                    .copied()
-                    .unwrap_or(1);
+                    .map_or(1, |v| v.floor());
                 let banner = self.banner_index(HUMAN.0);
                 self.draw_figures(
                     &crate::frame::Layout::new(),

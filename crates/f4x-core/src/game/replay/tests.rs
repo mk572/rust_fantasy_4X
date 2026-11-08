@@ -2,6 +2,7 @@ use super::*;
 use crate::game::testutil::{num, shipped};
 use crate::map::{Grid, Map, Plane, Position};
 use crate::player::PlayerId;
+use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
@@ -35,7 +36,7 @@ fn world() -> (Game, Serial) {
     g.treasury_mut(P0).expect("treasury_mut succeeds").gold =
         f4x_def::half_int::HalfInt::from_int(1000);
     let u = g.spawn_unit(P0, at(5, 5), walker);
-    g.fog.explore(P0, at(10, 5), 25, false);
+    g.fog.explore(P0, at(10, 5), HalfInt::from_raw(25), false);
     let serial = g.serial_of(u);
     (g, serial)
 }

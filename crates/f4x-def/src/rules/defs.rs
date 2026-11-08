@@ -236,7 +236,7 @@ pub struct UnitDef {
     pub cost: u32,
     #[serde(default)]
     pub upkeep: Upkeep,
-    pub stats: BTreeMap<Stat, i32>,
+    pub stats: BTreeMap<Stat, HalfInt>,
     pub movement: MovementType,
     #[serde(default)]
     pub abilities: Vec<Ability>,

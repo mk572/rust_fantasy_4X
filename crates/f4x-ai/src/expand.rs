@@ -203,13 +203,14 @@ fn choose_site(
 mod tests {
     use super::*;
     use crate::testworld::{at, game, spawn, COAST_CITY, P0};
+    use f4x_def::half_int::HalfInt;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
     /// The west island, explored by its wizard, with `count` settlers standing in the capital.
     fn island_with_settlers(count: usize) -> (Game, Vec<hecs::Entity>) {
         let mut g = game(COAST_CITY, 8 /* high_men */);
-        g.explore(P0, at(7, 6), 8);
+        g.explore(P0, at(7, 6), HalfInt::from_int(4));
         let units = spawn(
             &mut g,
             P0,

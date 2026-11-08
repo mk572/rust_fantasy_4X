@@ -100,7 +100,7 @@ fn the_shipped_ships_sail_and_carry_as_the_help_says() -> TestResult {
         assert_eq!(def.movement, MovementType::Sailing, "{id} sails");
         assert_eq!(
             def.stats.get(&Stat::Transport),
-            Some(&carries),
+            Some(&f4x_def::half_int::HalfInt::from_int(carries)),
             "{id} carries"
         );
     }

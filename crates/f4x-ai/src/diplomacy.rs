@@ -732,6 +732,7 @@ mod tests {
     use f4x_core::diplomacy::{DiplomacyEvent, ProposalKind};
     use f4x_core::player::PlayerId;
     use f4x_core::wizard::objective::{Objective, Personality};
+    use f4x_def::half_int::HalfInt;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
 
@@ -794,7 +795,7 @@ mod tests {
             population: 5,
         });
         g.make_contact(P0, P1);
-        g.explore(P0, at(ENEMY_CITY.0, ENEMY_CITY.1), 3);
+        g.explore(P0, at(ENEMY_CITY.0, ENEMY_CITY.1), HalfInt::from_raw(3));
         let mut w = g.wizard_mut(P0).ok_or("the west wizard exists")?;
         w.put(Some(objective));
         w.put(Some(temper));
@@ -875,7 +876,7 @@ mod tests {
         g.explore(
             crate::testworld::P0,
             at(ENEMY_CITY.0 + 4, ENEMY_CITY.1 + 3),
-            3,
+            HalfInt::from_raw(3),
         );
         assert!(!declares_war(&mut g, 400));
         Ok(())

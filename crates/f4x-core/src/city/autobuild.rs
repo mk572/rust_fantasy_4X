@@ -317,7 +317,7 @@ pub struct CityFacts {
 }
 
 fn stat(d: &crate::rules::UnitDef, s: Stat) -> f32 {
-    d.stats.get(&s).copied().unwrap_or(0) as f32
+    d.stats.get(&s).map_or(0.0, |v| v.as_f32())
 }
 
 fn is_settler(d: &crate::rules::UnitDef) -> bool {
@@ -451,7 +451,7 @@ fn raw_profiles(d: &crate::rules::UnitDef) -> [f32; 3] {
         matches!(d.movement, MovementType::Flying) || d.abilities.contains(&Ability::new(24));
     let sailing = matches!(d.movement, MovementType::Sailing);
     let exploration = moves
-        + (stat(d, Stat::Sight) - 1.0) * 0.25
+        + (stat(d, Stat::Sight) * 2.0 - 1.0) * 0.25
         + if flying { 2.0 } else { 0.0 }
         + if sailing { 1.5 } else { 0.0 }
         + stat(d, Stat::Transport) * 0.3

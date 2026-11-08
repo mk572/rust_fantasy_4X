@@ -149,7 +149,7 @@ impl Game {
         for (kind, count) in guards {
             for _ in 0..count {
                 let unit = self.spawn_unit(MONSTERS, to, kind);
-                let sight = self.units().unit_sight(unit) as u32;
+                let sight = self.units().unit_sight(unit);
                 self.explore(MONSTERS, to, sight);
                 evicted += 1;
             }

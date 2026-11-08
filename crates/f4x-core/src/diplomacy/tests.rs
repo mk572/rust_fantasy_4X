@@ -146,9 +146,9 @@ fn a_wizard_whose_city_is_seen_is_met() -> TestResult {
     let mut g = world();
     city(&mut g, P1, at(10, 10));
     assert!(!g.have_met(P0, P1));
-    g.explore(P0, at(6, 10), 5);
+    g.explore(P0, at(6, 10), HalfInt::from_raw(5));
     assert!(!g.have_met(P0, P1), "out of sight");
-    g.explore(P0, at(8, 10), 5);
+    g.explore(P0, at(8, 10), HalfInt::from_raw(5));
     assert!(g.have_met(P0, P1));
     assert!(g.have_met(P1, P0));
     assert_eq!(

@@ -199,7 +199,7 @@ Determines which units and buildings a city can produce and its baseline economy
 ```
 (id: "spearman", name: "Spearman", race: Some("highborn"), kind: Normal,   // Normal | Hero | Summoned | Fantastic
  cost: 40, upkeep: 1,
- stats: { Melee: 3, Defense: 3, Resistance: 4, MaxHp: 1, Figures: 6, Moves: 2, Sight: 1 },
+ stats: { Melee: 3, Defense: 3, Resistance: 4, MaxHp: 1, Figures: 6, Moves: 2, Sight: 1.5 },
  movement: Walking,                 // Walking | Flying | Swimming | ... (interacts with terrain `walkable`/`move_cost`)
  abilities: ["first_strike"], requires: ["barracks"],
  level_path: "standard_xp")
