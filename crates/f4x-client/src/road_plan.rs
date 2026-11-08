@@ -75,6 +75,16 @@ impl App {
                 .any(|at| ui::hit(button_rect(&lay, at), true, input).hovered())
     }
 
+    /// A developer aid for screenshots (`--road`): the first stack plans a road three squares east.
+    pub fn open_test_road(&mut self) {
+        self.select_first_stack();
+        self.start_road_plan();
+        if let Some(mut to) = self.road_plan.as_ref().map(|p| p.start) {
+            to.x += 3;
+            self.road_plan_click(to);
+        }
+    }
+
     /// A map click in the mode: plan the road to that square.
     pub(crate) fn road_plan_click(&mut self, pos: Position) {
         let Some(plan) = self.road_plan.as_mut() else {

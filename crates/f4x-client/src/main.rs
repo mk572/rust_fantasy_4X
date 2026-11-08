@@ -233,6 +233,7 @@ struct Options {
     hall_demo: bool,
     credits: bool,
     warn_box: bool,
+    road: bool,
     craft: Option<f4x_core::item::crafting::Craft>,
     /// With `--shot`, run the human out of gold and mana and open the upkeep prompt.
     upkeep: bool,
@@ -369,6 +370,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
         hall_demo: false,
         credits: false,
         warn_box: false,
+        road: false,
         craft: None,
         offer: None,
         event: None,
@@ -450,6 +452,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Options, String> {
             "--hall-demo" => o.hall_demo = true,
             "--credits" => o.credits = true,
             "--warn-box" => o.warn_box = true,
+            "--road" => o.road = true,
             "--craft" => {
                 o.craft = Some(match value("--craft")?.as_str() {
                     "enchant" => f4x_core::item::crafting::Craft::EnchantItem,
@@ -811,6 +814,9 @@ async fn main() {
     }
     if options.hall {
         app.open_hall_of_fame();
+    }
+    if options.road {
+        app.open_test_road();
     }
     if options.warn_box {
         app.open_test_warning();
