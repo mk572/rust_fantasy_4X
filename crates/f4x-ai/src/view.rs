@@ -113,6 +113,15 @@ pub fn garrison_wanted(view: &PlayerView, at: Position) -> usize {
     }
 }
 
+/// In the endgame the weakest soldiers of a city come first, so that the garrison (the first
+/// `garrison_wanted`) is the spearmen, and the strong ones (heroes, high-tier and veteran units,
+/// summoned creatures) are the ones free to attack and raid. Earlier the order is left alone.
+pub fn weakest_first(view: &PlayerView, units: &mut [hecs::Entity]) {
+    if crate::phase::phase(view) == crate::phase::Phase::Win {
+        units.sort_by(|&a, &b| unit_strength(view, a).total_cmp(&unit_strength(view, b)));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -201,6 +210,27 @@ mod tests {
         assert!(view.reachable(&[walker]).contains(&to));
         g.reveal_map(P0);
         assert_eq!(nearest_unexplored(&PlayerView::new(&g, P0), walker), None);
+        Ok(())
+    }
+
+    #[test]
+    fn in_the_endgame_the_weakest_stand_first_and_so_garrison_the_city() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let paladin = spawn(&mut g, P0, city(), 113 /* high_men_paladins */, 1)[0];
+        let spear = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 1)[0];
+        let order = |g: &f4x_core::game::Game| {
+            let view = PlayerView::new(g, P0);
+            let mut units = vec![paladin, spear];
+            weakest_first(&view, &mut units);
+            units
+        };
+        assert_eq!(order(&g), vec![paladin, spear], "early: left alone");
+        g.turn = 1_000;
+        assert_eq!(
+            order(&g),
+            vec![spear, paladin],
+            "late: the spearman holds the city"
+        );
         Ok(())
     }
 }

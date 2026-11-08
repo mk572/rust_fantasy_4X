@@ -184,6 +184,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .into_iter()
                 .filter(|&u| is_fighter(&view, u) && !ai.scouts.contains(&view.serial_of(u)))
                 .collect();
+            crate::view::weakest_first(&view, &mut fighters);
             fighters.sort_by_key(|u| heroes.contains(u));
             let spare: Vec<hecs::Entity> = fighters
                 .into_iter()

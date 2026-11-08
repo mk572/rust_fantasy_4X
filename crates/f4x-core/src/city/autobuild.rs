@@ -157,6 +157,10 @@ pub struct BuildPlan {
     /// for this; the dialog does not offer it).
     #[serde(default)]
     pub eager_settlers: bool,
+    /// Prefer the high-tier units: a unit's worth counts for more against its cost (the AI's
+    /// endgame, when the army is a few strong units and not many cheap ones).
+    #[serde(default)]
+    pub elite_units: bool,
 }
 
 impl Default for BuildPlan {
@@ -169,6 +173,7 @@ impl Default for BuildPlan {
             min_settler_pop: 4,
             event_prompt: false,
             eager_settlers: false,
+            elite_units: false,
         }
     }
 }
@@ -529,7 +534,17 @@ fn ranked_units(
             let d = content.rules.units.get(u);
             let p = raw_profiles(d);
             let fit = off_weight * p[0] / best[0] + def * p[1] / best[1] + exp * p[2] / best[2];
-            (u, fit / (d.cost.max(1) as f32).sqrt())
+            // Value for the cost: the square root of the cost, or, for an elite army, a tenth
+            // power only, so the dear units win.
+            let cost = d.cost.max(1) as f32;
+            (
+                u,
+                fit / if plan.elite_units {
+                    cost.powf(0.1)
+                } else {
+                    cost.sqrt()
+                },
+            )
         })
         .filter(|&(_, s)| s > 0.0)
         .collect();

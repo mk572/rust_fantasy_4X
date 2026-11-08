@@ -336,6 +336,7 @@ fn plan_for(
         min_settler_pop: 3,
         event_prompt: false,
         eager_settlers: true,
+        elite_units: crate::phase::phase(view) == crate::phase::Phase::Win,
     }
 }
 

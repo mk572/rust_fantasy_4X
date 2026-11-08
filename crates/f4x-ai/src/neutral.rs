@@ -577,6 +577,7 @@ fn production(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 min_settler_pop: 3,
                 event_prompt: false,
                 eager_settlers: false,
+                elite_units: false,
             };
             (barracks, plan)
         };

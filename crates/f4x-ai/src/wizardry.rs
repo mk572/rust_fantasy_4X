@@ -54,6 +54,9 @@ pub enum Kind {
     Mutate,
     /// Word of Recall: takes a hurt stack far from home back to the summoning circle.
     Recall,
+    /// Plane Shift: carries the whole stack on a square to the other plane (the army's way
+    /// across when no tower is open).
+    PlaneShift,
     /// Everything else: not cast by the AI yet.
     Other,
 }
@@ -161,6 +164,9 @@ pub fn kind(def: &SpellDef) -> Kind {
     ) {
         return Kind::Recall;
     }
+    if def.has_hook(f4x_core::spell::special::PLANE_SHIFT) {
+        return Kind::PlaneShift;
+    }
     if UnitEffect::of(def) == Some(UnitEffect::Stasis) {
         return Kind::Stasis;
     }
@@ -244,6 +250,7 @@ fn priority(k: Kind) -> u8 {
         Kind::Stasis => 2,
         Kind::Mutate => 4,
         Kind::Recall => 2,
+        Kind::PlaneShift => 2,
         Kind::Other => 9,
     }
 }
@@ -701,6 +708,58 @@ fn pick_target(view: &PlayerView, spell: SpellId) -> Option<Target> {
     }
 }
 
+/// The fewest fighters beyond the garrison that Plane Shift is cast for.
+const MIN_SHIFT: usize = 6;
+
+/// The Plane Shift spell the wizard knows, if any.
+pub(crate) fn plane_shift_spell(view: &PlayerView) -> Option<SpellId> {
+    view.wizard()?
+        .known()
+        .iter()
+        .copied()
+        .find(|&s| kind(view.spell(s)) == Kind::PlaneShift)
+}
+
+/// The own city the army can cross from: Plane Shift would put its stack on a free square the
+/// units can stand on (the square on the other plane may be sea). The fortress first.
+pub(crate) fn shift_gather(view: &PlayerView) -> Option<Position> {
+    let spell = plane_shift_spell(view)?;
+    let fortress = view.fortress();
+    let mut cities = view.my_cities();
+    cities.sort_by_key(|&(c, p)| (Some(p) != fortress, view.serial_of(c)));
+    cities.into_iter().map(|(_, p)| p).find(|&p| {
+        view.garrison(p)
+            .into_iter()
+            .find(|&u| is_fighter(view, u))
+            .is_some_and(|u| view.can_aim(spell, Some(Target::Unit(u))))
+    })
+}
+
+/// The unit to cast Plane Shift on: the army is gathered in the city it crosses from
+/// (`Ai::crossing`), with the garrison and at least [`MIN_SHIFT`] fighters over, and its campaign
+/// is on the other plane. The whole stack goes, so the strongest unit is named.
+fn shift_target(ai: &Ai, view: &PlayerView, spell: SpellId) -> Option<Target> {
+    let gather = ai.crossing?;
+    let campaign = ai.campaign?;
+    if campaign.plane == gather.plane || view.city_at(gather).is_none() {
+        return None;
+    }
+    let fighters: Vec<hecs::Entity> = view
+        .garrison(gather)
+        .into_iter()
+        .filter(|&u| is_fighter(view, u))
+        .collect();
+    if fighters.len() < crate::view::garrison_wanted(view, gather) + MIN_SHIFT {
+        return None;
+    }
+    fighters
+        .into_iter()
+        .map(|u| (unit_strength(view, u), u))
+        .max_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, u)| Target::Unit(u))
+        .filter(|&t| view.can_aim(spell, Some(t)))
+}
+
 /// The square of the strongest enemy stack within `STASIS_RADIUS` of an own city that is stronger
 /// than what holds the city.
 fn threat_square(view: &PlayerView) -> Option<Position> {
@@ -979,7 +1038,11 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             // already takes more than half of what the power makes (the split then leaves research
             // starved).
             let room = magic.power_split().mana <= 55;
-            let target = pick_target(&view, spell);
+            let target = if k == Kind::PlaneShift {
+                shift_target(ai, &view, spell)
+            } else {
+                pick_target(&view, spell)
+            };
             let wanted = match k {
                 Kind::Mastery => true,
                 // Summoned creatures cost upkeep mana: only while the army is thin.
@@ -1007,6 +1070,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 | Kind::Cure
                 | Kind::Disenchant
                 | Kind::Recall
+                | Kind::PlaneShift
                 | Kind::Blast
                 | Kind::Stasis => now && target.is_some(),
                 // Blows at an enemy at war, from mana the AI can spare.
@@ -1202,7 +1266,7 @@ mod tests {
             (58 /* spell_blast */, Kind::Blast),
             (68 /* stasis */, Kind::Stasis),
             (18 /* transmute */, Kind::Other),
-            (132 /* plane_shift */, Kind::Other),
+            (132 /* plane_shift */, Kind::PlaneShift),
         ];
         for (id, expected) in cases {
             assert_eq!(kind_of(id)?, expected, "{id}");

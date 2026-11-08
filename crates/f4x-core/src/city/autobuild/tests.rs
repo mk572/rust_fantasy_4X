@@ -500,3 +500,24 @@ fn a_plan_survives_a_save_and_the_command_starts_an_idle_city() -> TestResult {
     assert!(g.autobuild_of(city).is_none());
     Ok(())
 }
+
+#[test]
+fn an_elite_plan_ranks_the_dearer_units_higher_than_a_plain_one() {
+    let c = shipped();
+    let f = facts(&c);
+    let rank_of = |elite: bool, id: &str| {
+        let p = BuildPlan {
+            mix: Mix::Units,
+            primary: Focus::Offense,
+            elite_units: elite,
+            ..BuildPlan::default()
+        };
+        ranked_units(&c, &p, &f, false)
+            .iter()
+            .position(|&(u, _)| c.rules.units.get(u).id == id)
+    };
+    // Pegasai cost the most of the five; with the plan elite they rank no lower.
+    let plain = rank_of(false, "high_elf_pegasai");
+    let elite = rank_of(true, "high_elf_pegasai");
+    assert!(elite <= plain, "{elite:?} against {plain:?}");
+}

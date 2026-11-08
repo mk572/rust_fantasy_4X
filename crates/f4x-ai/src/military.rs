@@ -233,6 +233,10 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             } else {
                 0
             };
+            let mut units = units;
+            if skip > 0 {
+                crate::view::weakest_first(&view, &mut units);
+            }
             free.extend(
                 units
                     .into_iter()
@@ -308,6 +312,35 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ) {
                 ai.campaign = Some(city);
                 ai.crossing = Some(tower);
+            }
+        }
+        // No tower to cross by: a wizard that knows Plane Shift carries the army over from the
+        // capital, to a rival's city on the other plane.
+        let gather = ai
+            .campaign
+            .is_none()
+            .then(|| crate::wizardry::shift_gather(&view))
+            .flatten();
+        if let Some(gather) = gather {
+            let other = match gather.plane {
+                f4x_core::map::Plane::Arcanus => f4x_core::map::Plane::Myrror,
+                f4x_core::map::Plane::Myrror => f4x_core::map::Plane::Arcanus,
+            };
+            let far = Position {
+                plane: other,
+                ..gather
+            };
+            if let Some(city) = best_enemy_city(
+                &view,
+                far,
+                &ai.unreachable,
+                &ai.city_memory,
+                race::enemy(ai, &view),
+            )
+            .filter(|c| c.plane == other)
+            {
+                ai.campaign = Some(city);
+                ai.crossing = Some(gather);
             }
         }
         // A landing in preparation is the campaign.
@@ -1021,6 +1054,60 @@ mod tests {
                 .any(|&u| g.units().unit_position(u).map(|p| p.plane) == Some(Plane::Myrror)),
             "{events:?}"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_with_plane_shift_carries_the_army_to_a_city_on_the_other_plane(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        use f4x_core::map::Plane;
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let far_city = Position {
+            plane: Plane::Myrror,
+            ..at(28, 7)
+        };
+        g.apply(Command::FoundCity {
+            owner: P1,
+            pos: far_city,
+            name: "Farport".into(),
+            race: None,
+            population: 3,
+        });
+        g.explore(P0, far_city, HalfInt::from_raw(3));
+        g.cheat_learn_spell(P0, f4x_def::rules::SpellId::new(132) /* plane_shift */);
+        g.treasury_mut(P0).ok_or("a treasury")?.mana = HalfInt::from_int(5_000);
+        g.wizard_mut(P0)
+            .ok_or("a wizard")?
+            .get_mut::<f4x_core::wizard::sheet::Skill>()
+            .left = 500;
+        let troops = spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            104, /* spearmen */
+            12,
+        );
+        let mut ai = Ai::new(P0);
+        let mut events = Vec::new();
+        army(&mut ai, &mut g, &mut events);
+        assert_eq!(ai.campaign, Some(far_city), "{events:?}");
+        assert_eq!(ai.crossing, Some(at(COAST_CITY.0, COAST_CITY.1)));
+        // The spell is paid for over some turns.
+        for _ in 0..30 {
+            crate::wizardry::run(&mut ai, &mut g, &mut events);
+            if events
+                .iter()
+                .any(|e| matches!(e, f4x_core::game::Event::PlaneShifted { .. }))
+            {
+                break;
+            }
+            g.apply(Command::EndTurn);
+        }
+        let shifted = troops
+            .iter()
+            .filter(|&&u| g.units().unit_position(u).map(|p| p.plane) == Some(Plane::Myrror))
+            .count();
+        assert!(shifted >= 6, "{shifted} crossed: {events:?}");
         Ok(())
     }
 }

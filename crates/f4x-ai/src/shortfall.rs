@@ -131,11 +131,18 @@ fn choose_troops(short: &TreasuryShortfall) -> Vec<hecs::Entity> {
             } else {
                 t.gold.raw()
             };
+            // The least worth for what it costs to keep goes first: a spearman before a dragon,
+            // whatever the dragon's upkeep. Units that do not cost the resource are not let go.
+            let worth_per_upkeep = if upkeep > 0 {
+                t.cost.saturating_mul(100) / upkeep as u32
+            } else {
+                u32::MAX
+            };
             (
                 t.hero,
                 t.ship && t.aboard > 0,
+                worth_per_upkeep,
                 Reverse(upkeep),
-                t.cost,
                 Reverse(i),
             )
         });
