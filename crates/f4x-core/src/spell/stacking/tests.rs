@@ -325,3 +325,26 @@ fn undead_are_not_normal_units() {
         None
     );
 }
+
+#[test]
+fn chaos_channels_takes_a_hero_but_not_a_creature() {
+    let mut g = world();
+    let hero = unit(&mut g, 0 /* dwarf */);
+    let bears = unit(&mut g, 179 /* war_bears */);
+    assert_eq!(aim(&g, hero, 93 /* chaos_channels */), Ok(()));
+    assert_eq!(
+        aim(&g, bears, 93 /* chaos_channels */),
+        Err(MagicError::Target(TargetError::NotNormalUnit))
+    );
+}
+
+#[test]
+fn resist_elements_gives_way_to_wraith_form() {
+    let mut g = world();
+    let u = unit(&mut g, 107 /* high_men_cavalry */);
+    enchant(&mut g, u, 181 /* wraith_form */);
+    assert_eq!(
+        aim(&g, u, 2 /* resist_elements */),
+        Err(MagicError::NotCumulative)
+    );
+}

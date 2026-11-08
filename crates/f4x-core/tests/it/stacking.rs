@@ -26,7 +26,8 @@ fn the_names_in_not_with_and_already_able_exist() {
 }
 
 /// The pairs and the nine spells the original refuses (`OverSpel.c`, `SBookScr.c`); Resist Magic
-/// with Magic Immunity is the third pair its message names.
+/// with Magic Immunity is the third pair its message names, and Resist Elements also gives way to
+/// Wraith Form.
 #[test]
 fn the_original_refusals_are_in_the_data() {
     let c = content();
@@ -36,13 +37,16 @@ fn the_original_refusals_are_in_the_data() {
             .get(c.rules.spells.id_numbered(id).expect("the spell exists"))
     };
     for (id, rival) in [
-        (7 /* stone_skin */, 24 /* iron_skin */),
-        (2 /* resist_elements */, 21 /* elemental_armor */),
-        (41 /* resist_magic */, 69 /* magic_immunity */),
-        (124 /* holy_weapon */, 154 /* holy_arms */),
+        (7 /* stone_skin */, &[24 /* iron_skin */][..]),
+        (
+            2, /* resist_elements */
+            &[21 /* elemental_armor */, 181 /* wraith_form */][..],
+        ),
+        (41 /* resist_magic */, &[69 /* magic_immunity */][..]),
+        (124 /* holy_weapon */, &[154 /* holy_arms */][..]),
     ] {
         let refused: Vec<u16> = spell(id).not_with.iter().map(|s| s.num()).collect();
-        assert_eq!(refused, [rival], "{id}");
+        assert_eq!(refused, rival, "{id}");
     }
     for (id, ability) in [
         (99 /* immolation */, 32 /* immolation */),

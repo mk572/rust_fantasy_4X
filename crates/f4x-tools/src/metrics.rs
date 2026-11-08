@@ -282,6 +282,12 @@ impl Tally {
                         m.cities_lost += 1;
                     }
                 }
+                // The taker razes the city it has just won: it is gone from the taker's count.
+                Event::CityRazed { player, .. } => {
+                    if let Some(m) = self.at(*player) {
+                        m.cities_lost += 1;
+                    }
+                }
                 Event::BattleEnded { winner, loser } => {
                     if let Some(m) = self.at(*winner) {
                         m.battles_won += 1;

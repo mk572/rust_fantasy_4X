@@ -48,11 +48,11 @@ impl UnitView<'_> {
 }
 
 impl Game {
-    /// Chaos Channels works on a normal unit that is not undead and not mutated yet.
+    /// Chaos Channels works on a normal unit or a hero that is not undead and not mutated yet.
     pub fn check_mutate(&self, unit: hecs::Entity) -> Result<(), TargetError> {
         let units = self.units();
         let def = units.unit_def(unit).ok_or(TargetError::WrongTarget)?;
-        if def.kind != UnitKind::Normal {
+        if !matches!(def.kind, UnitKind::Normal | UnitKind::Hero) {
             return Err(TargetError::NotNormalUnit);
         }
         if units.unit_counts_as_undead(unit) {

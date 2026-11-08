@@ -847,15 +847,12 @@ impl Game {
                     return Err(SpellError::Target(TargetError::Deathly));
                 }
                 if let Kind::Turn { bind, .. } = kind {
-                    // Binding takes fantastic creatures, Possession normal units, not heroes.
+                    // Binding takes fantastic creatures, Possession normal units and heroes.
                     if *bind && !u.is_fantastic() {
                         return Err(SpellError::Target(TargetError::CannotBind));
                     }
                     if !*bind && u.is_fantastic() {
                         return Err(SpellError::Target(TargetError::NotNormalUnit));
-                    }
-                    if !*bind && self.battle_unit_is_hero(u) {
-                        return Err(SpellError::Target(TargetError::Hero));
                     }
                     if u.bound_from.is_some() {
                         return Err(SpellError::Target(TargetError::AlreadyBound));
@@ -889,6 +886,18 @@ impl Game {
                 {
                     return Err(SpellError::Target(TargetError::Deathly));
                 }
+                // A curse the target is immune to is refused before it costs anything
+                // (`Combat_Spell_Target_Screen`: Sorcery against illusion immunity, Death against
+                // death immunity), as are the abilities the spell's data names.
+                if let Some(save) = &def.save {
+                    let realm = Realm::of(def.realm);
+                    let immune = save.immune.iter().any(|&a| u.has(a))
+                        || (realm == Some(Realm::Sorcery) && u.has(Ability::new(31)))
+                        || (realm == Some(Realm::Death) && u.has(Ability::new(16)));
+                    if immune {
+                        return Err(SpellError::Target(TargetError::NotAffected));
+                    }
+                }
                 if matches!(kind, Kind::Enchant { .. }) {
                     // A unit made in the battle has no source: a conjured creature.
                     let source = u
@@ -908,14 +917,10 @@ impl Game {
                     }
                     self.check_stacking_in_battle(battle.player_of(side), spell, def, u)?;
                 }
-                // Warp Wood needs a missile unit; it and Warp Creature take normal units only,
-                // and a unit is warped once.
                 if UnitEffect::Web.is_in(def) && u.has(Ability::new(49)) {
                     return Err(SpellError::Target(TargetError::NonCorporeal));
                 }
-                if matches!(kind, Kind::WarpWood | Kind::Warp { .. }) && u.is_fantastic() {
-                    return Err(SpellError::Target(TargetError::NotNormalUnit));
-                }
+                // Warp Wood needs a missile unit, whatever its kind, and a unit is warped once.
                 if matches!(kind, Kind::WarpWood)
                     && (u.ranged_kind != RangedKind::Missile || u.ammo <= 0)
                 {

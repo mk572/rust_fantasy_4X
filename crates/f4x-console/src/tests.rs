@@ -2479,15 +2479,22 @@ fn a_curse_can_be_resisted_and_banish_only_touches_fantastic_creatures() {
         pass_turn(&mut g);
     }
     assert!(weakened, "an unresisting unit is weakened soon enough");
-    // Mind Storm: no save, but illusion immunity stops it.
+    // Mind Storm: no save, and illusion immunity refuses it before it costs mana.
     let other = battle_units_of(&g, Side::Defender)[1];
     g.battle.as_mut().expect("the value is there").battle.units[other]
         .abilities
         .push(Ability::new(31));
     pass_turn(&mut g);
+    let mana = g
+        .player(f4x_core::player::PlayerId(0))
+        .map(|p| p.treasury().mana);
     let r = cast(&mut g, &format!("bcast mind storm unit:{other}"));
-    assert!(r.ok, "{}", r.text());
-    assert!(r.text().contains("takes no harm"), "{}", r.text());
+    assert!(!r.ok, "{}", r.text());
+    assert_eq!(
+        g.player(f4x_core::player::PlayerId(0))
+            .map(|p| p.treasury().mana),
+        mana
+    );
 }
 
 #[test]

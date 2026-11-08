@@ -5479,3 +5479,63 @@ fn the_legal_unit_casts_are_the_castable_spells_with_the_units_they_can_hit() ->
     assert_eq!(cast.aims, [SpellAim::Unit(1)], "only the enemy unit");
     Ok(())
 }
+
+#[test]
+fn a_curse_the_target_is_immune_to_is_refused_before_it_costs_mana() -> TestResult {
+    let mut g = hook_game(46 /* confusion */);
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1]
+        .abilities
+        .push(crate::game::testutil::ability(
+            31, /* illusion_immunity */
+        ));
+    let refused = cast_unit(&mut g, 46 /* confusion */, SpellAim::Unit(1), 10);
+    assert_eq!(
+        refused,
+        Err(BattleError::Spell(SpellError::Target(
+            TargetError::NotAffected
+        )))
+    );
+    Ok(())
+}
+
+#[test]
+fn warp_wood_asks_for_a_missile_attack_and_not_for_a_kind_of_unit() -> TestResult {
+    let mut g = hook_game(81 /* warp_wood */);
+    {
+        let u = &mut g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1];
+        u.realm = Some(Realm::Nature);
+        u.ranged_kind = crate::battle::RangedKind::Missile;
+        u.ammo = 4;
+    }
+    let fantastic = cast_unit(&mut g, 81 /* warp_wood */, SpellAim::Unit(1), 10);
+    assert!(
+        fantastic.is_ok(),
+        "a fantastic archer can be warped: {fantastic:?}"
+    );
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1].ammo = 0;
+    let empty = cast_unit(&mut g, 81 /* warp_wood */, SpellAim::Unit(1), 10);
+    assert_eq!(
+        empty,
+        Err(BattleError::Spell(SpellError::Target(
+            TargetError::NeedsMissile
+        )))
+    );
+    Ok(())
+}
+
+#[test]
+fn warp_creature_takes_any_unit_that_is_not_warped_already() -> TestResult {
+    let mut g = hook_game(89 /* warp_creature */);
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1].realm = Some(Realm::Nature);
+    let fantastic = cast_unit(&mut g, 89 /* warp_creature */, SpellAim::Unit(1), 10);
+    assert!(
+        !matches!(
+            fantastic,
+            Err(BattleError::Spell(SpellError::Target(
+                TargetError::NotNormalUnit
+            )))
+        ),
+        "{fantastic:?}"
+    );
+    Ok(())
+}
