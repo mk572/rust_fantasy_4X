@@ -919,6 +919,7 @@ async fn main() {
         app.open_test_sheet(n, options.sheet_spell.as_deref(), options.sheet_ask);
     }
     if let Some((x, y)) = options.survey_at {
+        app.start_surveyor();
         app.survey_probe = if x == u32::MAX {
             app.game.economy().cities().first().map(|c| c.2)
         } else {
