@@ -819,6 +819,20 @@ impl App {
         }
     }
 
+    /// The portrait of a hero type for a sheet that does not belong to an overland unit; `name`
+    /// is the hero's own name when one is known, else empty. `None` for any other unit.
+    pub(crate) fn hero_portrait_view(
+        &self,
+        def: &f4x_def::rules::UnitDef,
+        name: &str,
+    ) -> Option<HeroView> {
+        def.hero.as_ref()?;
+        Some(HeroView {
+            portrait: self.art.hero_portrait(&def.id)?,
+            name: name.to_string(),
+        })
+    }
+
     /// The race prefix of a race-specific unit's name ("High Elf" in "High Elf Magicians"):
     /// units of a race show it, creatures and heroes do not.
     fn sheet_race(&self, def: &f4x_def::rules::UnitDef) -> Option<String> {
@@ -904,7 +918,7 @@ impl App {
             hurt: u.front_damage,
             specials,
             can_dismiss: false,
-            hero: None,
+            hero: self.hero_portrait_view(def, ""),
         })
     }
 }
@@ -1142,6 +1156,26 @@ mod tests {
             sheet.specials.iter().all(|s| s.card.is_none()),
             "empty slots have no card"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_hero_type_gets_a_portrait_on_the_sheets_of_offers_and_battles() -> Result<(), String> {
+        let app = crate::view::App::for_test();
+        let rules = app.game.content().rules.clone();
+        let template = rules.hero_templates.get(0).ok_or("no hero type")?;
+        let def = rules.units.get(template.unit);
+        let view = app
+            .hero_portrait_view(def, "Rolf")
+            .ok_or("a hero type has a portrait")?;
+        assert_eq!(view.name, "Rolf");
+        let plain = rules
+            .units
+            .iter()
+            .find(|(_, d)| d.hero.is_none())
+            .map(|(_, d)| d)
+            .ok_or("no plain unit")?;
+        assert!(app.hero_portrait_view(plain, "").is_none());
         Ok(())
     }
 }

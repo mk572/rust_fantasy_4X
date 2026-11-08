@@ -136,7 +136,7 @@ pub fn fx_for(art: &SpellArt, id: &str, realm: &str, summons: bool, field: bool)
         "fireball" => bolt(Bolt::Fireball),
         "ice_bolt" => bolt(Bolt::Ice),
         "doom_bolt" => bolt(Bolt::Doom),
-        "lightning_bolt" => Some(SpellFx::Lightning),
+        "lightning_bolt" | "warp_lightning" => Some(SpellFx::Lightning),
         "cracks_call" => own
             .clone()
             .map(|(lbx, entry)| SpellFx::Ground { lbx, entry }),

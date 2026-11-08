@@ -5539,3 +5539,52 @@ fn warp_creature_takes_any_unit_that_is_not_warped_already() -> TestResult {
     );
     Ok(())
 }
+
+#[test]
+fn the_three_combat_bolts_follow_the_wiki() {
+    use f4x_def::rules::effects::Effect;
+    let c = crate::game::testutil::shipped();
+    let spell = |num: u16| {
+        c.rules
+            .spells
+            .get(c.rules.spells.id_numbered(num).expect("shipped"))
+    };
+    let damage = |num: u16| {
+        spell(num)
+            .effects
+            .iter()
+            .find_map(|r| match &r.effect {
+                Effect::Damage {
+                    amount,
+                    resistible,
+                    traits,
+                    ..
+                } => Some((*amount, *resistible, *traits)),
+                _ => None,
+            })
+            .expect("a damage effect")
+    };
+    // (number, cost, research cost, strength): the wiki's figures.
+    for (num, cost, research, strength) in [
+        (104 /* doom_bolt */, 40, 1_120, 10),
+        (122 /* star_fires */, 5, 40, 15),
+        (101 /* warp_lightning */, 35, 880, 10),
+    ] {
+        let def = spell(num);
+        assert_eq!((def.cost, def.research_cost), (cost, research), "{num}");
+        assert_eq!(
+            def.contexts,
+            vec![f4x_def::rules::CastContext::Battle],
+            "{num}: combat only"
+        );
+        let (amount, resistible, _) = damage(num);
+        assert_eq!(amount, strength, "{num}");
+        assert!(!resistible, "{num}: defence rolls, no resistance roll");
+    }
+    assert!(damage(104).2.ignores_defense, "doom bolt: no defence");
+    let (_, _, lightning) = damage(101);
+    assert!(
+        lightning.armor_piercing && lightning.decaying,
+        "ten weaker bolts, half defence"
+    );
+}

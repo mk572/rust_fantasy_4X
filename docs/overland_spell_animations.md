@@ -16,7 +16,7 @@ the battle animations are done (`spell_fx.rs`, `battle_screen/spell_anim.rs`). S
 - **Global enchantments are done** (`global_spell.rs`, `Art::masked_picture`): the rows below marked as global spell animations are wired, for every wizard's cast, with the off path.
 - **Music.** Summon, city and global animations start their own music (task 76); wire the animation first and the music with it later.
 - **Already in the client** and not repeated here: the plain spell notice boxes (`event_popup.rs`), the dispel and fizzle boxes, the learn-spell animation (`learn_spell.rs`).
-- **Not overland:** Doom Bolt, Star Fires and Warp Lightning are battle-only in our content (the original also lets them hit an enemy stack overland).
+- **Not overland:** Doom Bolt, Star Fires and Warp Lightning are combat spells only, as the wiki pages in `reference/` say ("It may only be cast during combat"); task 441 closed on that (`divergences.md`).
 
 ## The table
 

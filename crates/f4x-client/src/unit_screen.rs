@@ -264,9 +264,14 @@ impl App {
         if let (Some(hero), false) = (&sheet.hero, production) {
             self.draw_pic(lay, "portrait", hero.portrait, 0, px + 9.0, py + 7.0);
             self.draw_pic(lay, "unitview", 33, 0, px + 8.0, py + 6.0);
-            self.draw_styled(view, &Style::unit_view(4), &hero.name, name_x, py + 6.0);
             let kind = self.text_with("unit.the", &Args::new().text("type", &sheet.name));
-            self.draw_styled(view, &Style::unit_view(4), &kind, name_x, py + 17.0);
+            if hero.name.is_empty() {
+                // A hero whose own name is not known here (a unit in a battle): its kind only.
+                self.draw_styled(view, &Style::unit_view(4), &kind, name_x, py + 11.0);
+            } else {
+                self.draw_styled(view, &Style::unit_view(4), &hero.name, name_x, py + 6.0);
+                self.draw_styled(view, &Style::unit_view(4), &kind, name_x, py + 17.0);
+            }
         } else {
             if sheet.water {
                 self.draw_pic(lay, "unitview", 34, 0, px + ox + 6.0, py + 18.0);

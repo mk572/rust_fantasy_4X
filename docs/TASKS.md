@@ -54,7 +54,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 438 | Medium | AI | Battle AI: kiting and not stepping into a worse fight (follow-up to 232) |
 | 439 | Low | Client | Summon scene: the race colours of the frame and the creature |
 | 440 | Medium | Map | Connect small-island cities to the main landmass with `extend_islands`, at least 4 workable land tiles |
-| 441 | Low | Core | Doom Bolt, Star Fires and Warp Lightning on an overland stack: decide |
 | 442 | Low | Client | Unit statistics window: the hero's item help and level, the production sheet, the battle sheet |
 | 443 | Medium | Client | Help box drawn on the original's scroll picture |
 | 445 | Low | Meta | Speed check from scratch: the leads task 382 left unmeasured, the client's turn change and frame, memory |
@@ -246,15 +245,13 @@ the drawing changes. *Needs:* nothing.
 
 **440. Connect small-island cities to the land.** Use `extend_islands` (`map/mapgen/original.rs`, the original's `Extend_Islands`) in the map creation tool (`f4x-tools`) and the generator so that every city on a small island, a player's start city and a neutral one, ends up joined to the landmass and has at least 4 workable land tiles (inside its work radius). Steps: (1) find the cities whose island is under that many land tiles or cut off from the main landmass; (2) grow the island towards the nearest landmass with `extend_islands`, without covering a lair, tower or node, and join it by a land bridge; (3) re-check the count of workable land tiles and extend again until it is 4 or more. Tests: a seed whose start city sits on a one-tile island gets a connected island of 4 or more tiles; no city stays isolated on any of seeds 1 to 10. A change of the map changes the seeds' games once; say so and regenerate the soak baseline.
 
-**441. Doom Bolt, Star Fires and Warp Lightning on an overland stack: decide.** The original lets these three hit an enemy stack on the main map (the note of task 306); ours has them as battle spells only. Decide whether to add the overland cast (target an enemy stack within sight; the damage and who defends are the open rules; check `Cast_Spell_Overland` in ReMoM), write the decision in `docs/divergences.md`, and if yes, give it the square animation of task 306. *Needs:* a decision by the owner.
-
 **442. Unit statistics window: the hero's item help and level, the production sheet, the battle sheet.** Left over from task 377; status 8 November 2026, checked against the code.
 - **Done:**
   - (a) A right-click on a hero's item line shows the item card, a click goes to the item screen (`SheetUi::item_line_at` in `unit_screen.rs`).
   - (b) The hero's level title and the lasting spells its items put on it (`USW_Item_UEs`) are lines of the list (`overland_sheet`, `hero_view` in `unit_sheet.rs`; test `a_heros_sheet_names_its_level_and_keeps_the_item_cards`).
+  - (b, rest) The sheet of an offered hero (name typed so far) and of a hero in a battle (its kind only, the battle does not carry the hero's own name) show the portrait (`hero_portrait_view`; test `a_hero_type_gets_a_portrait_on_the_sheets_of_offers_and_battles`).
   - (c) The production screen shows the unit's sheet (`offer_sheet`, `draw_production_sheet`) with the cost beside it (`production.cost`) and the upkeep of a unit not yet built. Not checked on screen since task 377: look at it once with a screenshot and close the point, or list what is missing.
 - **To do:**
-  - (b) The sheet of a battle unit (`battle_sheet`) and of an offered hero (`offer_sheet`) show no portrait for a hero.
   - (e) The battle's sheet is a snapshot on a plain background; the original draws it over the field.
   - (d) The expanding-box opening is split off as task 497.
 *Needs:* nothing.

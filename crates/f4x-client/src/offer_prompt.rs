@@ -331,6 +331,9 @@ impl App {
             if let (true, Some(upkeep)) = (noble, sheet.upkeep.as_mut()) {
                 upkeep.gold = f4x_def::half_int::HalfInt::ZERO;
             }
+            if hero_kind.is_some() {
+                sheet.hero = self.hero_portrait_view(def, &self.offer_ui.name);
+            }
             debug_assert_eq!(sheet.source, Source::Offer);
             let mut panel = std::mem::take(&mut self.offer_ui.panel);
             self.draw_sheet_panel(lay, &sheet, (wx, wy), true, &mut panel, input);
