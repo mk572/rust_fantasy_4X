@@ -337,6 +337,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | 355 | (done) Lair | Guard and treasure tables as `.ron` data (`content/lairs.ron`), checked against the original |
 | 356 | (done) AI | The wizards' AI assaults towers, nodes and encounter sites and uses what it wins |
 | 357 | Client | Site discovery: the music and the colour slide of the node pictures (done) |
+| 359 | Client | Replace pictures with text baked in by text-free pictures plus font text, for localization (done) |
 | 361 | AI | The AI makes diplomacy proposals, to the human and to each other (done) |
 | 362 | Tools | `extract-audio`: the original's effects as OGG and its music as XMI (done) |
 | 363 | Tools | (done) Render the original's XMI music as the Roland MT-32 played it, with `mt32-rs` and the user's ROMs |
@@ -500,6 +501,39 @@ finds a site and slides the colours of a node's picture (`docs/lairs.md`, "Missi
 `content/text/en/site.ron`.
 
 **358. Names in the rules files per language (done).** The names in `units.ron`, `spells.ron`, `buildings.ron`, `races.ron`, `realms.ron`, `abilities.ron` and `item_powers.ron` are shown as they are (`Item::display_name` and the screens read `def.name`). Decide and build how a language gets its own: a table of names by id in `content/text/<lang>/` that the display sites read first (falling back to the file's name), or a copy of each file per language. Then every place that prints a `def.name` goes through it, and the plural of a race (the original keeps it apart) needs its own form. Done: the names are tables by number in `content/text/<lang>/name/` and the loader puts them on the definitions (commit `3ab6c61`); done 1 November 2026: the rules that matched a unit by its English name now match by id (`half_upkeep.units` in `settings.ron` are ids without the race, and the starting army in `setup.rs`), and the land and map sizes of `settings.ron` have an `id` with their words in `options.ron`.
+
+**359. Pictures with text baked in become plain pictures plus font text. (done)** **Closed 9 November 2026:** the buttons are done (every baked-text button is a text-free picture with its label drawn by the font engine from a text key; checklist and method in `docs/archive/button-text-checklist.md`, originals no longer used in `assets-unused/`). The method (steps 1 to 5: find, make plain, draw the words, fonts, check) stays as it was written below; what is left, the screens whose headings and names are still in the pictures, is task 511, which points here for the method. Was: Many of the original's pictures carry
+words in the bitmap itself: button faces ("Done", "Patrol", "Buy", "OK"), screen titles and headings, the labels on the
+magic, city, army, diplomacy and load screens, and the unit and spell names on cards. The client draws these as they
+are, so a language other than English would still show English words on them (and the original's font cannot draw
+every script). Make every such picture text-free and draw its words from `crates/f4x-client/content/text/<lang>/` in a font, as the rest
+of the player text already is (`docs/text.md`):
+1. **Find them.** List the pictures that contain text, per screen: start from `crates/f4x-tools/screens.tsv` and the
+   labelled files in `assets-local/art` (`main_screen/button_done_00.png` and the like), look at each, and write the
+   list (file, screen, the words, where the client draws it) into a table in `docs/extract-art.md`. Say which of them
+   the original itself draws as text over a plain picture (those need nothing) and which are baked.
+2. **Make them plain.** For each baked picture, a text-free version: a tool in `f4x-tools` that blanks the text area
+   of the extracted picture (the plain button face, banner or plaque), or a redraw where a blank cannot be cut out.
+   The extractor writes the plain version; the baked one is not used by the client any more. Log the tool in
+   `docs/scripts.md` with `--help` as the project rules say.
+3. **Draw the words.** The client draws the text on the plain picture, centred in the area the old words filled, with
+   a key in `crates/f4x-client/content/text/en/*.ron` for each (count, plural and gender forms where the language needs them). Button
+   labels shrink or wrap to fit; a test fails when a key is missing, as for other text.
+4. **Fonts.** The original's bitmap fonts (`FONTS.LBX`, `docs/extract-art.md` section 5) hold only ASCII 32 to 127.
+   Decide and build the font the localized text uses: a vector font loaded by the client (a file in `assets/` with
+   its licence noted) for languages with accents or other scripts, and the bitmap font kept for English where it
+   keeps the look. A language names its font in `crates/f4x-client/content/text/<lang>/`'s settings.
+5. **Check.** A screenshot of each changed screen in English matches the old look closely (position and size of the
+   words); a second language, even a test one with long words, shows no overflow.
+
+*Progress (6 November 2026):* all the buttons are done, steps 2 and 3 for them: every baked-text button is a text-free picture
+in `crates/f4x-client/assets/button/` with its label drawn by the font engine from a text key (checklist and method in
+`docs/archive/button-text-checklist.md`; 16 of 17 items ticked, the last is the race-screen Back/OK shadow, which waits for a check in
+the live game). Originals no longer used moved to `assets-unused/` (`docs/extract-art.md`). *Still open:* the screen titles,
+headings and the names on cards (not yet listed or checked), the table of step 1 in `docs/extract-art.md`, and the font
+decision of step 4 (the bitmap fonts hold only ASCII; needed for 468 and 469).
+
+*Needs:* nothing for 1 to 3; 358 is the same job for the names in the rules files and can share the fonts of step 4.
 
 **360. Remaining Conquest, banishment and defeat scenes (client) (done).** Done 1 November 2026: the scene a rival’s Spell of Mastery brings (`Kind::MasteryLost`, `--scene mastery_lost`), before the defeat. Done 1 November 2026: the zap for a wizard banished or defeated by another wizard, which the original does not show (its early return): our own addition, the same scene with the conqueror's pictures (`--scene conquest_by_wizard`, keys `end.conquers` and `end.conquers_fortress`). Closed 1 November 2026 without a hand check in a real game: the scenes were checked by `--scene` screenshots.
 of the scenes in a real game (the shots were taken from `--scene`).
