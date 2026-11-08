@@ -1101,6 +1101,26 @@ mod tests {
     }
 
     #[test]
+    fn a_trireme_sails_with_the_two_fighters_it_can_carry() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let ship = spawn(&mut g, P0, port(), 35 /* trireme */, 1)[0];
+        // One stays as the garrison, two go.
+        let army = spawn(&mut g, P0, port(), 104 /* high_men_spearmen */, 3);
+        let mut ai = Ai::new(P0);
+        ai.unreachable.push(enemy());
+        // Tired of waiting for a stronger party: it sails with what it has.
+        ai.naval_wait = WAIT_TURNS;
+        run(&mut ai, &mut g, &mut Vec::new());
+        let view = PlayerView::new(&g, P0);
+        assert!(ai.ferry.is_some(), "the trireme sailed");
+        assert!(view.unit_has_order(ship));
+        let sailing = army.iter().filter(|&&u| view.unit_has_order(u)).count();
+        assert_eq!(sailing, 2, "a trireme carries two");
+        Ok(())
+    }
+
+    #[test]
     fn an_idle_ship_scouts_once_no_rival_is_known_and_the_land_is_explored() {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let ship = spawn(&mut g, P0, port(), 36 /* galley */, 1)[0];

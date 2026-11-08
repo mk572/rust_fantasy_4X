@@ -94,33 +94,31 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             // The port of a landing builds the ship (and what the ship needs) when there is none.
             let port_item = (port == Some(pos)
                 && !broke
-                && !matches!(current, Some(ProductionItem::Building(_)))
-                && view
-                    .my_units()
+                && !matches!(current, Some(ProductionItem::Building(_))))
+            .then(|| {
+                crate::naval::port_item(&view, city, ai.naval.is_some() && ai.colony.is_none())
+            })
+            .flatten()
+            // Without a ship yard the best the port can build is a trireme, which takes two:
+            // enough for a settler and a guard, so it counts as the ship; otherwise a landing
+            // wants a ship that carries a landing party.
+            .filter(|&item| {
+                let needed = if crate::naval::is_trireme(&view, item) {
+                    1
+                } else {
+                    crate::naval::MIN_LOAD as i32
+                };
+                view.my_units()
                     .iter()
                     .filter(|&&u| crate::view::is_ship(&view, u))
-                    // A landing wants a ship that carries a landing party.
                     .filter(|&&u| {
                         (ai.naval.is_none() || ai.colony.is_some())
-                            || view.unit_stat(u, f4x_def::rules::Stat::Transport)
-                                >= crate::naval::MIN_LOAD as i32
+                            || view.unit_stat(u, f4x_def::rules::Stat::Transport) >= needed
                     })
                     .count()
-                    < crate::knob("SHIPS", 1.0) as usize)
-                .then(|| {
-                    crate::naval::port_item(&view, city, ai.naval.is_some() && ai.colony.is_none())
-                })
-                .flatten()
-                // A port that can only build triremes (too small for a landing party) builds
-                // one for want of anything better, not one after another.
-                .filter(|&item| {
-                    !crate::naval::is_trireme(&view, item)
-                        || !view
-                            .my_units()
-                            .iter()
-                            .any(|&u| crate::view::is_ship(&view, u))
-                })
-                .or_else(|| colonist_item(ai, &view, city, pos, broke));
+                    < crate::knob("SHIPS", 1.0) as usize
+            })
+            .or_else(|| colonist_item(ai, &view, city, pos, broke));
             (
                 plan_for(
                     &view,
@@ -376,6 +374,48 @@ mod tests {
         assert_eq!(g.autobuild_of(city), Some(again));
         // The city is building something now (the plan took over from housing).
         assert!(g.economy().city_production(city).item.is_some());
+        Ok(())
+    }
+
+    #[test]
+    fn a_port_that_can_only_build_triremes_builds_one_and_counts_it_as_its_ship() -> TestResult {
+        use crate::testworld::{at, build, spawn, ENEMY_CITY};
+        let enemy = at(ENEMY_CITY.0, ENEMY_CITY.1);
+        let builds_trireme = |g: &Game| -> Result<bool, &'static str> {
+            let item = g.economy().city_production(capital(g)?).item;
+            let rules = &g.content().rules;
+            Ok(matches!(item, Some(ProductionItem::Unit(u))
+                if rules.units.get(u).id == "trireme"))
+        };
+        // Beastmen have no Ship Yard: the Ship Wrights Guild is the end of their ships.
+        let mut g = game(COAST_CITY, 1 /* beastmen */);
+        build(
+            &mut g,
+            at(COAST_CITY.0, COAST_CITY.1),
+            &[12 /* ship_wrights_guild */],
+        );
+        g.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        ai.unreachable.push(enemy);
+        crate::naval::run(&mut ai, &mut g, &mut Vec::new());
+        assert!(ai.naval.is_some(), "a landing is planned");
+        cities(&mut ai, &mut g, &mut Vec::new());
+        assert!(
+            builds_trireme(&g)?,
+            "no ship yet: the port builds the trireme"
+        );
+        // With the trireme there, the port goes back to its usual builds.
+        spawn(
+            &mut g,
+            P0,
+            at(COAST_CITY.0, COAST_CITY.1),
+            35, /* trireme */
+            1,
+        );
+        let city = capital(&g)?;
+        let _ = g.set_production(city, ProductionItem::Housing);
+        cities(&mut ai, &mut g, &mut Vec::new());
+        assert!(!builds_trireme(&g)?, "one trireme is the ship");
         Ok(())
     }
 
