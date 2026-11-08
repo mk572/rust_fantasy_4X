@@ -866,7 +866,7 @@ impl App {
                 (spell, self.names.spell(s.num).to_string(), false, s.help)
             })
             .collect();
-        let specials = specials(&SpecialsInput {
+        let mut specials = specials(&SpecialsInput {
             level: None,
             abilities: &u.abilities,
             stasis_held: false,
@@ -886,6 +886,11 @@ impl App {
             texts: self.texts(),
             enchantments,
         });
+        // A hero's three item slots head the list, as on the overland sheet; the portrait and
+        // the name come from the battle unit, which kept the name when the battle began.
+        if let Some(unit) = self.game.battle_unit_source(id) {
+            let _ = self.hero_view(unit, &mut specials);
+        }
         let owner = battle.player_of(u.side).0;
         let art = self.art.unit_entry(&def.id);
         Some(Sheet {
@@ -1206,6 +1211,12 @@ mod tests {
             .battle_sheet_over(&battle, id)
             .ok_or("the hero has no battle sheet")?;
         assert!(over.over && !over.closed);
+        let items = over.sheet.specials.iter().filter(|l| l.item.is_some());
+        assert_eq!(
+            items.count(),
+            3,
+            "the item slots head the list, as overland"
+        );
         let view = over.sheet.hero.ok_or("a hero sheet has a portrait")?;
         assert_eq!(view.name, name);
         Ok(())
