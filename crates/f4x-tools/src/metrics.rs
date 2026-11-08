@@ -51,11 +51,18 @@ pub struct Metrics {
     pub wizards_landed: u32,
     /// The turn of the wizard's first landing (summed over wizards, see `first_landing`).
     pub first_landing_turns: u32,
+    /// Land units that changed plane (a tower, a gate or Plane Shift).
+    pub plane_crossings: u32,
+    /// Plane Shift casts that carried a stack over.
+    pub plane_shifts: u32,
+    /// Sites cleared of their guards or taken empty, and of those, towers of wisdom.
+    pub sites_cleared: u32,
+    pub towers_cleared: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 23] {
+    pub fn rows(&self) -> [(&'static str, u32); 27] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -80,6 +87,10 @@ impl Metrics {
             ("troops landed", self.troops_landed),
             ("cities by sea", self.cities_by_sea),
             ("wizards landed", self.wizards_landed),
+            ("plane crossings", self.plane_crossings),
+            ("plane shifts", self.plane_shifts),
+            ("sites cleared", self.sites_cleared),
+            ("towers cleared", self.towers_cleared),
         ]
     }
 
@@ -151,6 +162,10 @@ impl AddAssign for Metrics {
             cities_by_sea,
             wizards_landed,
             first_landing_turns,
+            plane_crossings,
+            plane_shifts,
+            sites_cleared,
+            towers_cleared,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -175,6 +190,10 @@ impl AddAssign for Metrics {
         self.troops_landed += troops_landed;
         self.cities_by_sea += cities_by_sea;
         self.wizards_landed += wizards_landed;
+        self.plane_crossings += plane_crossings;
+        self.plane_shifts += plane_shifts;
+        self.sites_cleared += sites_cleared;
+        self.towers_cleared += towers_cleared;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -353,6 +372,27 @@ impl Tally {
                                 u32::from(is_ship(game.content().rules.units.get(*unit)));
                         }
                         ProductionItem::TradeGoods | ProductionItem::Housing => {}
+                    }
+                }
+                Event::PlaneShifted { player, units, .. } => self.bump(*player, |m| {
+                    m.plane_shifts += 1;
+                    m.plane_crossings += units.len() as u32;
+                }),
+                Event::SiteCleared { player, site, .. } => {
+                    let tower = game
+                        .content()
+                        .features
+                        .get(*site)
+                        .is_some_and(|f| f.kind == f4x_def::feature::FeatureKind::Tower);
+                    self.bump(*player, |m| {
+                        m.sites_cleared += 1;
+                        m.towers_cleared += u32::from(tower);
+                    })
+                }
+                Event::UnitsMoved { units, from, to } if from.plane != to.plane => {
+                    let own = units.first().and_then(|&u| game.units().unit_owner(u));
+                    if let Some(p) = own {
+                        self.bump(p, |m| m.plane_crossings += units.len() as u32);
                     }
                 }
                 Event::UnitsMoved { units, from, to } => {

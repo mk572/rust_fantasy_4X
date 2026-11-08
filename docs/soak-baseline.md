@@ -93,7 +93,7 @@ These are observations, not yet investigated unless noted.
   4p seed 24 (153), 5p seed 22 (91), 4p seed 25 (64).
 - **A small player kept alive** with one city (3p seed 24 p2, 2p seed 23 p0) never recovers or is never finished.
 - **Spell of Mastery wins** are 10 of 17 wins and come late (turns 679 to 951); in the 2-player games the Conquest wins come earlier.
-- Task 532 (spell research priorities) and tasks 474, 435, 527 and 488 should change the Spell of Mastery turns, the gold hoards and the
+- Task 499 (spell research priorities) and tasks 474, 435, 495 and 488 should change the Spell of Mastery turns, the gold hoards and the
   stalled 3-player games; compare these tables after each.
 
 ## Older numbers (before the landing and trireme fixes)

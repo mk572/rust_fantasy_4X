@@ -427,7 +427,7 @@ in section 8.1.
 | 2 | 226 | Spell of Mastery in the engine: data, research list, cost (7.1, 7.2) | done |
 | 3 | 227 | Research choice and power split (5.3) | done |
 | 4 | 228 | Casting beyond summons; the win spell cast (5.3, 7.3) | done (task 228) |
-| 5 | 228 | The special spells in the AI (Earth Lore, Word of Recall, Nature's Cures...) | done, except Transmute (task 434) and Plane Shift (task 527) |
+| 5 | 228 | The special spells in the AI (Earth Lore, Word of Recall, Nature's Cures...) | done, except Transmute (task 434) and Plane Shift (task 495) |
 | 6 | 229 | War: target value, memory of garrisons, defence (5.2, 5.4) | partly: unreachable targets, committed marches, strike force; no garrison memory yet |
 | 7 | 229 | Stack strength shared with the battle AI | not done (`worth` and `expected_damage` exist in `f4x-ai/src/battle/order.rs`) |
 | 8 | 230 | Ships and other land masses | not done |
@@ -519,7 +519,7 @@ unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/
 - **Memory of enemy garrisons** and a **threat map** (section 5.2): a city out of sight is
   guessed at three average units.
 - **The special spells in the AI** (step 5): Earth Lore, Word of Recall and Nature's Cures are
-  cast; Transmute waits for task 434, Plane Shift for task 527.
+  cast; Transmute waits for task 434, Plane Shift for task 495.
 - **Sallying out and fleeing** (6.4), **a shared strength function** (step 7): `worth` and
   `expected_damage` in `f4x-ai/src/battle/order.rs` are the pieces.
 - **Heroes and items** (`heroes-items-design.md`) once they exist.

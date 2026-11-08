@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use crate::contestant::{self, Contestant, Version};
 use crate::metrics::{add_casts, casts_line, never_cast, Standing, Tally};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -53,6 +53,11 @@ pub struct Options {
     /// Go on from this saved game (a snapshot of an earlier soak, or any save) instead of
     /// starting a new one: one game, with the save's seed and its AIs' plans.
     pub from: Option<PathBuf>,
+    /// Map size, land share, node strength and difficulty (none: the game's defaults).
+    pub map: Option<(u16, u16)>,
+    pub land: Option<u8>,
+    pub magic: Option<u8>,
+    pub difficulty: Option<u8>,
 }
 
 impl Options {
@@ -77,6 +82,10 @@ impl Options {
             jobs: None,
             no_cache: false,
             from: None,
+            map: None,
+            land: None,
+            magic: None,
+            difficulty: None,
         };
         let mut it = args.iter();
         while let Some(a) = it.next() {
@@ -115,6 +124,23 @@ impl Options {
                 "--jobs" => o.jobs = Some(value("--jobs")?.parse().map_err(|_| "bad jobs")?),
                 "--no-cache" => o.no_cache = true,
                 "--from" => o.from = Some(value("--from")?.into()),
+                "--map" => {
+                    let v = value("--map")?;
+                    let (w, h) = v.split_once('x').ok_or("--map takes WIDTHxHEIGHT")?;
+                    o.map = Some((
+                        w.parse().map_err(|_| "bad map width")?,
+                        h.parse().map_err(|_| "bad map height")?,
+                    ));
+                }
+                "--land" => o.land = Some(value("--land")?.parse().map_err(|_| "bad land")?),
+                "--magic" => o.magic = Some(value("--magic")?.parse().map_err(|_| "bad magic")?),
+                "--difficulty" => {
+                    o.difficulty = Some(
+                        value("--difficulty")?
+                            .parse()
+                            .map_err(|_| "bad difficulty")?,
+                    )
+                }
                 other => return Err(format!("unknown option {other:?}\n{usage}")),
             }
         }
@@ -273,14 +299,30 @@ pub fn game(
             }
             game
         }
-        None => new_game(
-            content,
-            &NewGame {
+        None => {
+            let mut spec = NewGame {
                 seed,
                 all_ai: true,
                 ..NewGame::with_wizards(players)
-            },
-        )?,
+            };
+            if let Some(level) = opts.difficulty {
+                let opponents = spec.settings.basic.opponents;
+                spec.settings =
+                    f4x_def::settings::GameSettings::for_difficulty(&content.settings, level);
+                spec.settings.basic.opponents = opponents;
+            }
+            let basic = &mut spec.settings.basic;
+            if let Some((w, h)) = opts.map {
+                (basic.map_width, basic.map_height) = (w, h);
+            }
+            if let Some(land) = opts.land {
+                basic.land_percent = land;
+            }
+            if let Some(magic) = opts.magic {
+                basic.magic_strength = magic;
+            }
+            new_game(content, &spec)?
+        }
     };
     game.set_undo(false);
     // A game that was loaded has its own seed: the one asked for here is only the default range.

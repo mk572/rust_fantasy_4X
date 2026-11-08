@@ -1,4 +1,4 @@
-//! Where the wizard stands in the game, which the other choices follow (task 535): the power
+//! Where the wizard stands in the game, which the other choices follow (task 502): the power
 //! split, how many soldiers go raiding, how bold the armies are. It is read from what the wizard
 //! can see, never from a counter, and it can go back (a lost war that costs cities).
 
