@@ -559,13 +559,13 @@ pub(crate) fn expected_defence(
     turn: u32,
     at: Position,
 ) -> f32 {
-    let guess = crate::knob("GUESS", GUESS_DEFENDERS) * average_strength(view);
     if view.sees(at) {
         return fighting_strength(view, &view.hostile_at(at).unwrap_or_default()) * 1.3;
     }
     match memory.get(&at) {
         Some(&(s, seen)) if turn.saturating_sub(seen) <= MEMORY_TURNS => s * 1.3,
-        _ => guess,
+        // A guess of a few average units: only now is the average worked out.
+        _ => crate::knob("GUESS", GUESS_DEFENDERS) * average_strength(view),
     }
 }
 

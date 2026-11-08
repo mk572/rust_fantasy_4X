@@ -113,17 +113,20 @@ impl Economy<'_> {
     /// search that asks about many squares.
     pub fn ship_room_squares(&self, owner: PlayerId) -> std::collections::HashSet<Position> {
         let units = self.units();
+        let Some(me) = crate::player::find_entity(self.world, owner) else {
+            return std::collections::HashSet::new();
+        };
         self.world
-            .query::<(&crate::unit::Unit, &Position)>()
+            .query::<(&crate::unit::Unit, &Position, &crate::player::Owner)>()
             .iter()
-            .filter(|&(u, _)| {
-                units.unit_owner(u) == Some(owner)
+            .filter(|&(u, (_, _, o))| {
+                o.0 == me
                     && units
                         .unit_def(u)
                         .is_some_and(|d| d.movement == MovementType::Sailing)
                     && self.ship_room(u) > 0
             })
-            .map(|(_, (_, p))| *p)
+            .map(|(_, (_, p, _))| *p)
             .collect()
     }
 

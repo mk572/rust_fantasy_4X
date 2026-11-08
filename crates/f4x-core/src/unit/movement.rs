@@ -306,13 +306,25 @@ impl Economy<'_> {
     /// Every square where [`Self::hostile_at`] would find something for `mover`: one pass over the
     /// units and cities, for a search that asks about many squares.
     pub fn hostile_squares(&self, mover: PlayerId) -> std::collections::HashSet<Position> {
-        let mut out: std::collections::HashSet<Position> = self
-            .world
-            .query::<(&Unit, &Position)>()
-            .iter()
-            .filter(|(e, _)| self.units().unit_owner(*e).is_some_and(|o| o != mover))
-            .map(|(_, (_, p))| *p)
-            .collect();
+        // A player's id belongs to one player entity, so units can be told apart by their owner
+        // entity without looking each id up.
+        let mine = crate::player::find_entity(self.world, mover);
+        let mut out: std::collections::HashSet<Position> = match mine {
+            Some(me) => self
+                .world
+                .query::<(&Unit, &Position, &crate::player::Owner)>()
+                .iter()
+                .filter(|(_, (_, _, o))| o.0 != me)
+                .map(|(_, (_, p, _))| *p)
+                .collect(),
+            None => self
+                .world
+                .query::<(&Unit, &Position)>()
+                .iter()
+                .filter(|(e, _)| self.units().unit_owner(*e).is_some_and(|o| o != mover))
+                .map(|(_, (_, p))| *p)
+                .collect(),
+        };
         for (city, _, at) in self.cities() {
             if self.city_owner(city).is_some_and(|o| o != mover) {
                 out.insert(at);

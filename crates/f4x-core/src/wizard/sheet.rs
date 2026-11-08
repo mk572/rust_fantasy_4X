@@ -111,7 +111,10 @@ pub(crate) fn bundle() -> (
 impl<'a> Wizard<'a> {
     /// `base` changed by what the wizard's retorts say about `stat` (`retorts.ron`).
     pub fn stat(&self, rules: &crate::rules::Rules, stat: crate::rules::Stat, base: i32) -> i32 {
-        crate::wizard::retort::stat(rules, &self.retorts(), stat, base)
+        match self.component::<Retorts>() {
+            Some(r) => crate::wizard::retort::stat(rules, &r.0, stat, base),
+            None => crate::wizard::retort::stat(rules, &BTreeSet::new(), stat, base),
+        }
     }
 
     pub fn has(&self, retort: Retort) -> bool {

@@ -68,14 +68,9 @@ pub struct Extra(pub i32);
 #[derive(Debug, Clone)]
 struct Enchanted(Vec<hecs::Entity>);
 
-/// On a wizard that keeps a spell going on the whole world: the same quick look for the globals.
-#[derive(Debug, Clone, Copy)]
-struct KeepsGlobal;
-
-/// Does the entity carry the marker? A missing entity answers yes, so the query decides.
-fn marked<M: hecs::Component>(world: &hecs::World, entity: hecs::Entity) -> bool {
-    world.satisfies::<&M>(entity).unwrap_or(true)
-}
+/// On a wizard that keeps a spell going on the whole world: the same list for the globals.
+#[derive(Debug, Clone)]
+struct KeepsGlobal(Vec<hecs::Entity>);
 
 /// A new instance in `world`, with the markers that go with it.
 pub(crate) fn spawn_instance(
@@ -85,10 +80,19 @@ pub(crate) fn spawn_instance(
     target: SpellTarget,
     serial: Serial,
 ) -> hecs::Entity {
-    if target == SpellTarget::Global {
-        let _ = world.insert_one(caster, KeepsGlobal);
-    }
     let instance = world.spawn((SpellCast { def }, Caster(caster), target, serial));
+    if target == SpellTarget::Global {
+        let listed = match world.get::<&mut KeepsGlobal>(caster) {
+            Ok(mut list) => {
+                list.0.push(instance);
+                true
+            }
+            Err(_) => false,
+        };
+        if !listed {
+            let _ = world.insert_one(caster, KeepsGlobal(vec![instance]));
+        }
+    }
     if let Some(e) = target.entity() {
         let listed = match world.get::<&mut Enchanted>(e) {
             Ok(mut list) => {
@@ -109,13 +113,14 @@ fn despawn_instance(world: &mut hecs::World, instance: hecs::Entity) {
     let target = world.get::<&SpellTarget>(instance).ok().map(|t| *t);
     let caster = world.get::<&Caster>(instance).ok().map(|c| c.0);
     let _ = world.despawn(instance);
-    let spells = Spells::new(world);
-    let lone_global = match (target, caster) {
-        (Some(SpellTarget::Global), Some(c)) => spells.globals_of(c).is_empty().then_some(c),
-        _ => None,
-    };
-    if let Some(c) = lone_global {
-        let _ = world.remove_one::<KeepsGlobal>(c);
+    if let (Some(SpellTarget::Global), Some(c)) = (target, caster) {
+        let emptied = world.get::<&mut KeepsGlobal>(c).is_ok_and(|mut list| {
+            list.0.retain(|&i| i != instance);
+            list.0.is_empty()
+        });
+        if emptied {
+            let _ = world.remove_one::<KeepsGlobal>(c);
+        }
     }
     if let Some(e) = target.and_then(SpellTarget::entity) {
         let emptied = world.get::<&mut Enchanted>(e).is_ok_and(|mut list| {
@@ -231,21 +236,26 @@ impl<'a> Spells<'a> {
 
     /// The lasting spells a wizard keeps going on the whole world, oldest first.
     pub fn globals_of(&self, caster: hecs::Entity) -> Vec<hecs::Entity> {
-        if !marked::<KeepsGlobal>(self.world, caster) {
+        let Ok(list) = self.world.get::<&KeepsGlobal>(caster) else {
             return Vec::new();
-        }
-        self.matching(|_, c, t| c == caster && t == SpellTarget::Global)
+        };
+        let mut found: Vec<(Serial, hecs::Entity)> = list
+            .0
+            .iter()
+            .filter_map(|&i| Some((*self.world.get::<&Serial>(i).ok()?, i)))
+            .collect();
+        found.sort();
+        found.into_iter().map(|(_, e)| e).collect()
     }
 
     /// Does the wizard keep a global spell going for which `wanted` holds? (No list built, no sort.)
     pub fn any_global_of(&self, caster: hecs::Entity, wanted: impl Fn(SpellId) -> bool) -> bool {
-        if !marked::<KeepsGlobal>(self.world, caster) {
+        let Ok(list) = self.world.get::<&KeepsGlobal>(caster) else {
             return false;
-        }
-        self.world
-            .query::<(&SpellCast, &Caster, &SpellTarget)>()
+        };
+        list.0
             .iter()
-            .any(|(_, (cast, c, t))| c.0 == caster && *t == SpellTarget::Global && wanted(cast.def))
+            .any(|&i| self.world.get::<&SpellCast>(i).is_ok_and(|c| wanted(c.def)))
     }
 
     /// The instances of one spell, oldest first.

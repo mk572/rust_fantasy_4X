@@ -286,11 +286,11 @@ impl<'a> UnitView<'a> {
                 )
             });
             if normal
-                && !self.unit_is_undead(unit)
                 && self.has_global_effect(
                     owner,
                     crate::spell::global_enchantment::GlobalEffect::Crusade,
                 )
+                && !self.unit_is_undead(unit)
             {
                 level += 1;
             }
