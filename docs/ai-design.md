@@ -585,6 +585,8 @@ numbers are from `f4x-tools soak` on the shipped content, release build.
 
 ### 12.2 Baseline (seeds 1 to 8, two wizards, 300 turns; 4 wizards seeds 1 to 4)
 
+The current baseline (2 to 5 wizards, seeds 21 to 28, 1000 turns, per-seed results) is in `docs/soak-baseline.md`.
+
 | Run | Games won | Battles per game | Cities taken | Wars declared | Refused orders |
 |---|---|---|---|---|---|
 | 2 wizards, 8 seeds | 1 of 8 (conquest, turn 118) | 9 to 76 | 0 to 4 | 0 to 1 | 0 to 4 |
