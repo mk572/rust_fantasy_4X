@@ -9,14 +9,16 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 
 use crate::military::average_strength;
-use crate::neutral::{around, assault, guard_strength, march};
-use crate::view::{distance, garrison_wanted, is_fighter, stack_strength};
+use crate::neutral::{around, assault, guard_strength, march, strike};
+use crate::view::{distance, fighting_strength, garrison_wanted, is_fighter, stack_strength};
 use crate::Ai;
 
 /// Squares from a city (or from a party in the field) within which a site is looked for.
 const SITE_RANGE: i32 = 10;
 /// Squares within which a party looks for a tower: it is the way to the other plane.
 const TOWER_RANGE: u32 = 30;
+/// Most soldiers out on raids at once.
+const MAX_RAIDERS: usize = 2 * f4x_core::unit::MAX_STACK;
 /// The fewest spare soldiers that make a party.
 const SITE_PARTY: usize = 3;
 /// What an unknown site's guards are guessed to be worth, in average soldiers of this wizard.
@@ -32,6 +34,21 @@ pub(crate) fn expected(view: &PlayerView, site: Position) -> f32 {
     guard_strength(view, site).unwrap_or_else(|| GUESS_GUARDS * average_strength(view))
 }
 
+/// Is there a city of the neutral cities (no wizard's) on the square?
+fn neutral_city(view: &PlayerView, p: Position) -> bool {
+    view.known_cities()
+        .iter()
+        .any(|&(_, owner, q)| q == p && !view.is_rival_wizard(owner))
+}
+
+/// What a neutral city's defenders are worth (a city is stronger than the same men outside).
+fn city_defence(view: &PlayerView, p: Position) -> f32 {
+    match view.hostile_at(p) {
+        Some(defenders) => fighting_strength(view, &defenders) * 1.3,
+        None => 2.0 * GUESS_GUARDS * average_strength(view),
+    }
+}
+
 /// The explored, intact sites within [`SITE_RANGE`] of `from` (towers within [`TOWER_RANGE`]) that a party of `strength` should
 /// take, nearest first.
 fn sites_near(view: &PlayerView, from: Position, strength: f32) -> Vec<Position> {
@@ -44,6 +61,15 @@ fn sites_near(view: &PlayerView, from: Position, strength: f32) -> Vec<Position>
                     found.push(p);
                 }
             }
+        }
+    }
+    for (_, owner, p) in view.known_cities() {
+        if !view.is_rival_wizard(owner)
+            && distance(view, from, p).is_some_and(|d| d <= SITE_RANGE as u32)
+            && strength >= city_defence(view, p) * edge()
+            && !found.contains(&p)
+        {
+            found.push(p);
         }
     }
     for (p, intact) in view.towers() {
@@ -91,22 +117,34 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         if game.game_over.is_some() {
             return;
         }
-        let (next_to, target, home) = {
+        let (next_to, city_next, target, home) = {
             let view = PlayerView::new(game, me);
             let strength = stack_strength(&view, &units);
             let next_to = around(&view, pos)
                 .into_iter()
                 .find(|&p| view.has_lair(p) && strength >= expected(&view, p) * edge());
+            let city_next = around(&view, pos)
+                .into_iter()
+                .find(|&p| neutral_city(&view, p) && strength >= city_defence(&view, p) * edge());
             let target = sites_near(&view, pos, strength).into_iter().next();
             let home = view
                 .my_cities()
                 .into_iter()
                 .map(|(_, p)| p)
                 .min_by_key(|&p| (distance(&view, pos, p), p.y, p.x));
-            (next_to, target, home)
+            (next_to, city_next, target, home)
         };
         if let Some(site) = next_to {
             assault(ai, game, &units, site, events);
+        } else if let Some(city) = city_next {
+            let defenders = PlayerView::new(game, me)
+                .hostile_at(city)
+                .unwrap_or_default();
+            if defenders.is_empty() {
+                ai.send(game, Command::MoveStack { units, to: city }, events);
+            } else {
+                strike(ai, game, units, defenders, events);
+            }
         } else if let Some(site) = target {
             march(ai, game, &units, site, events);
         } else if let Some(home) = home {
@@ -124,7 +162,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     // A new party leaves a city with soldiers to spare, one raid at a time and never while the
     // army marches (its campaign comes first).
-    if !ai.raiders.is_empty() || !ai.marching.is_empty() {
+    if ai.raiders.len() >= MAX_RAIDERS || !ai.marching.is_empty() {
         return;
     }
     let cities = {
@@ -136,10 +174,17 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     for (_, pos) in cities {
         let (party, sites) = {
             let view = PlayerView::new(game, me);
-            let spare: Vec<hecs::Entity> = view
+            // Heroes go last in the order, so the garrison is the soldiers and the heroes are the
+            // spare ones: they lead the raids, level up and bring the loot's items home.
+            let heroes = view.my_heroes();
+            let mut fighters: Vec<hecs::Entity> = view
                 .garrison(pos)
                 .into_iter()
                 .filter(|&u| is_fighter(&view, u) && !ai.scouts.contains(&view.serial_of(u)))
+                .collect();
+            fighters.sort_by_key(|u| heroes.contains(u));
+            let spare: Vec<hecs::Entity> = fighters
+                .into_iter()
                 .skip(garrison_wanted(&view, pos))
                 .take(f4x_core::unit::MAX_STACK)
                 .collect();

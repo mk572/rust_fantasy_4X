@@ -246,7 +246,12 @@ fn plan_for(
             _ => traits.settled,
         }
     };
-    let mix = if army_short {
+    // A city whose square is full cannot finish a unit: the progress just piles up and the gold
+    // has nothing to buy. It builds buildings until the army has made room.
+    let full = view.garrison(pos).len() >= f4x_core::unit::MAX_STACK;
+    let mix = if full {
+        Mix::Buildings
+    } else if army_short {
         Mix::Units
     } else if broke && garrison >= 1 {
         Mix::Buildings

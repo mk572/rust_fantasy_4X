@@ -276,12 +276,33 @@ fn cast_rank(k: Kind, traits: &crate::objective::Traits) -> i32 {
 /// Everything the wizard does with its magic in a turn.
 pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     fund_return(ai, game, events);
+    alchemy(ai, game, events);
     stop_aimless(ai, game, events);
     resolve_paid(ai, game, events);
     split(ai, game, events);
     research(ai, game, events);
     cast(ai, game, events);
     crate::craft::run(ai, game, events);
+}
+
+/// Gold a wizard keeps; what is above it, once the cities have bought what they can, is turned
+/// into mana (Alchemy), which pays for more spells, crafting and moving items.
+const GOLD_KEPT: i32 = 1000;
+
+/// A wizard rich in gold and short of mana turns the surplus gold into mana.
+fn alchemy(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
+    let gold = PlayerView::new(game, ai.player).treasury().gold.floor();
+    if gold > GOLD_KEPT {
+        ai.send(
+            game,
+            Command::Alchemy {
+                player: ai.player,
+                amount: gold - GOLD_KEPT,
+                gold_to_mana: true,
+            },
+            events,
+        );
+    }
 }
 
 /// A banished wizard pays the Spell of Return from its mana reserve and has no income. When the
@@ -954,6 +975,30 @@ mod tests {
     use f4x_def::half_int::HalfInt;
 
     type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    #[test]
+    fn a_wizard_with_much_gold_turns_the_surplus_into_mana() -> TestResult {
+        let mut g = fresh_game()?;
+        let ai = Ai::new(P1);
+        let t = g.treasury_mut(P1).ok_or("a treasury")?;
+        t.gold = HalfInt::from_int(5_000);
+        let mana = t.mana.floor();
+        alchemy(&ai, &mut g, &mut Vec::new());
+        let t = g.treasury_mut(P1).ok_or("a treasury")?;
+        assert_eq!(t.gold.floor(), GOLD_KEPT);
+        assert!(t.mana.floor() > mana, "the gold became mana");
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_with_little_gold_keeps_it() -> TestResult {
+        let mut g = fresh_game()?;
+        let ai = Ai::new(P1);
+        g.treasury_mut(P1).ok_or("a treasury")?.gold = HalfInt::from_int(900);
+        alchemy(&ai, &mut g, &mut Vec::new());
+        assert_eq!(g.treasury_mut(P1).ok_or("a treasury")?.gold.floor(), 900);
+        Ok(())
+    }
 
     fn spell(id: u16) -> Result<SpellId, String> {
         shipped()

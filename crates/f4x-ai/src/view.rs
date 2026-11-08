@@ -89,12 +89,27 @@ pub fn nearest_unexplored(view: &PlayerView, unit: hecs::Entity) -> Option<Posit
     None
 }
 
-/// Fighters a city keeps at home: the fortress city holds two, every other city one.
+/// Squares within which a city of a wizard at war counts as near.
+const BORDER_RANGE: u32 = 12;
+
+/// Fighters a city keeps at home. A full garrison is for a city at war with an enemy city near,
+/// or one that matters (the fortress); every other city keeps one, the fortress two. The rest
+/// of the soldiers are free to scout, relieve, and take sites and neutral cities.
 pub fn garrison_wanted(view: &PlayerView, at: Position) -> usize {
-    if view.fortress() == Some(at) {
-        2
-    } else {
-        1
+    let fortress = view.fortress() == Some(at);
+    let base = if fortress { 2 } else { 1 };
+    let enemies = view.rivals_at_war();
+    if enemies.is_empty() {
+        return base;
+    }
+    let near = view.known_cities().into_iter().any(|(_, owner, p)| {
+        enemies.contains(&owner) && view.distance(at, p).is_some_and(|d| d <= BORDER_RANGE)
+    });
+    match (near, fortress) {
+        (true, true) => 6,
+        (true, false) => 4,
+        (false, true) => 3,
+        (false, false) => base,
     }
 }
 
