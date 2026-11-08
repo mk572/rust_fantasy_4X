@@ -77,6 +77,8 @@ pub(crate) struct Special {
     pub help: Option<u16>,
     /// The line is one of a hero's item slots, drawn with this picture instead of `icon`.
     pub item: Option<ItemIcon>,
+    /// The item this line is, for its card (a right-click) and the item screen (a click).
+    pub card: Option<f4x_core::item::Item>,
 }
 
 /// What a unit costs each turn.
@@ -359,6 +361,7 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         removable: false,
         help: None,
         item: None,
+        card: None,
     };
     if let Some((name, xp, level)) = input.level {
         let args = Args::new().text("name", name).count("xp", xp);
@@ -442,6 +445,7 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
             removable: *removable,
             help: *help,
             item: None,
+            card: None,
         });
     }
     out
@@ -566,7 +570,10 @@ impl App {
         let ranged = stat(Stat::Ranged);
         let level_path = def.level_path.map(|p| content.rules.level_paths.get(p));
         let level = level_path
-            .filter(|_| def.kind == UnitKind::Normal && !game.units().unit_is_undead(unit))
+            .filter(|_| {
+                matches!(def.kind, UnitKind::Normal | UnitKind::Hero)
+                    && !game.units().unit_is_undead(unit)
+            })
             .and_then(|p| {
                 let i = units.unit_level(unit);
                 p.level(i)
@@ -578,15 +585,24 @@ impl App {
                 .to_string()
         };
         let ability_help = |id: Ability| content.rules.abilities.get(id).help;
-        let enchantments = units
-            .unit_enchantments(unit)
+        // The lasting spells the unit's items put on it come after its own (`USW_Item_UEs`); they
+        // go with the item and cannot be turned off.
+        let from_items = game
+            .items()
+            .spells(unit)
             .into_iter()
+            .map(|spell| (spell, crate::view::HUMAN));
+        let own = units.unit_enchantments(unit);
+        let enchantments = own
+            .iter()
+            .copied()
+            .chain(from_items.filter(|(s, _)| !own.iter().any(|(o, _)| o == s)))
             .map(|(spell, caster)| {
                 let def = content.rules.spells.get(spell);
                 (
                     spell,
                     self.names.spell(def.num).to_string(),
-                    caster == crate::view::HUMAN,
+                    caster == crate::view::HUMAN && own.iter().any(|(o, _)| *o == spell),
                     def.help,
                 )
             })
@@ -625,6 +641,7 @@ impl App {
                     removable: false,
                     help: None,
                     item: None,
+                    card: None,
                 }),
         );
         let hero = self.hero_view(unit, &mut specials);
@@ -689,6 +706,7 @@ impl App {
                     Some(i) => ItemIcon::Held(self.art.item_icon(i)),
                     None => ItemIcon::Empty(crate::item_screen::slot_icon(kind)),
                 }),
+                card: item.clone(),
             });
         specials.splice(0..0, lines);
         Some(HeroView {
@@ -1093,5 +1111,37 @@ mod tests {
         assert_eq!(ranged_icon(&[Ability::new(20)]), 7);
         assert_eq!(ranged_icon(&[Ability::new(57)]), 6);
         assert_eq!(ranged_icon(&[Ability::new(29)]), 1);
+    }
+
+    #[test]
+    fn a_heros_sheet_names_its_level_and_keeps_the_item_cards() -> Result<(), String> {
+        let mut app = crate::view::App::for_test();
+        app.select_first_stack();
+        let at = app
+            .game
+            .units()
+            .unit_position(app.selection[0])
+            .ok_or("the stack has no position")?;
+        let hero = app
+            .game
+            .spawn_hero(crate::view::HUMAN, at, 0)
+            .map_err(|e| format!("{e:?}"))?;
+        let sheet = app.overland_sheet(hero).ok_or("the hero has no sheet")?;
+        assert!(sheet.hero.is_some());
+        let items = sheet.specials.iter().filter(|s| s.item.is_some()).count();
+        assert_eq!(items, 3, "the three item slots head the list");
+        assert!(
+            sheet
+                .specials
+                .iter()
+                .any(|s| s.item.is_none() && s.name.starts_with("Hero")),
+            "the level title is a line: {:?}",
+            names(&sheet.specials)
+        );
+        assert!(
+            sheet.specials.iter().all(|s| s.card.is_none()),
+            "empty slots have no card"
+        );
+        Ok(())
     }
 }

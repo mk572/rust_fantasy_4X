@@ -60,6 +60,8 @@ pub(crate) struct SheetPanel {
     pub confirm: bool,
     /// A lasting spell of the viewer's was clicked and waits for a yes.
     pub turn_off: Option<TurnOff>,
+    /// The card of an item line that was right-clicked, until a click or a key closes it.
+    pub card: Option<f4x_core::item::Item>,
 }
 
 /// The unit sheet screen.
@@ -741,6 +743,28 @@ impl Page for SheetUi {
         } else if input.key_pressed(KeyCode::Enter) {
             leave = true;
         }
+        // An item's card, up until a click or a key; and a click on an item line goes to the
+        // item screen (`uv_item_desc_fields`), a right-click shows the card.
+        if let Some(item) = self.panel.card.clone() {
+            app.draw_item_card(&lay, &item, 50.0, 60.0);
+            if input.dismisses() {
+                self.panel.card = None;
+            }
+            return;
+        }
+        if !was_confirming && !was_turning_off && !self.panel.confirm {
+            if let Some(item) = self.item_line_at(&lay, input) {
+                if input.mouse_pressed(MouseButton::Right) {
+                    self.panel.card = Some(item);
+                    return;
+                }
+                if input.mouse_pressed(MouseButton::Left) && !in_battle {
+                    self.close_sheet(app);
+                    app.open_item_screen();
+                    return;
+                }
+            }
+        }
         if was_confirming {
             self.dismiss_confirmation(app, &lay, &sheet, input);
             return;
@@ -760,6 +784,37 @@ impl Page for SheetUi {
         if leave {
             self.close_sheet(app);
         }
+    }
+}
+
+impl SheetUi {
+    /// The line of the open sheet under the mouse, if it is one of the item lines.
+    fn item_line_at(&self, lay: &Layout, input: &Input) -> Option<f4x_core::item::Item> {
+        let sheet = &self.sheet;
+        let (px, py) = if matches!(sheet.source, Source::Battle(_)) {
+            BATTLE_AT
+        } else {
+            MAP_AT
+        };
+        let first = self.panel.first.min(sheet.specials.len().saturating_sub(1));
+        let shown = page_len(first, sheet.specials.len(), sheet.hero.is_some());
+        sheet
+            .specials
+            .iter()
+            .skip(first)
+            .take(shown)
+            .enumerate()
+            .find(|(i, special)| {
+                let (col, row) = (i / 4, i % 4);
+                let area = (
+                    px + 7.0 + 107.0 * col as f32,
+                    py + 107.0 + 17.0 * row as f32,
+                    105.0,
+                    17.0,
+                );
+                special.card.is_some() && ui::hit(lay.rect(area), true, input).hovered()
+            })
+            .and_then(|(_, special)| special.card.clone())
     }
 }
 
