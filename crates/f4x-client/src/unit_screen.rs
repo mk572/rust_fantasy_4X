@@ -134,7 +134,8 @@ impl App {
     pub fn open_test_sheet(&mut self, n: usize, spell: Option<&str>, ask: bool) {
         if self.game.battle().is_some() {
             // In a battle the sheet lies over the fight, as it does for a player.
-            self.set_test_effects(&format!("sheet-{n}"));
+            let kind = ["sheet", &n.to_string()].join("-");
+            self.set_test_effects(&kind);
             return;
         }
         if self.selection.is_empty() {
