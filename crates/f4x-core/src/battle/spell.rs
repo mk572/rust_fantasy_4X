@@ -166,6 +166,15 @@ pub struct BattleSpell {
     pub castable: bool,
 }
 
+/// What a damage spell would do to a unit (see `Game::preview_spell_damage`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DamageOdds {
+    /// Hit points taken on average.
+    pub mean: f32,
+    /// The share of tries in which the unit is destroyed.
+    pub kill_chance: f32,
+}
+
 /// A spell the wizard may cast now, with where it may be aimed and how much mana may go in.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LegalCast {
@@ -1158,6 +1167,51 @@ impl Game {
             } => Some((strength, immune, realm, traits)),
             _ => None,
         }
+    }
+
+    /// What a damage spell would do to one unit of the battle, tried on copies of the unit with
+    /// the game's own damage code (defence, immunities, realm, area or chain): the average hit
+    /// points taken and the share of the tries that destroy the unit. `extra_mana` is mana beyond
+    /// the cost, for a spell that turns it into strength. `None` if the spell does not damage, or
+    /// the unit is immune to it.
+    pub fn preview_spell_damage(
+        &self,
+        spell: SpellId,
+        target: usize,
+        extra_mana: u32,
+    ) -> Option<DamageOdds> {
+        const TRIES: u32 = 24;
+        let (strength, immune, realm, traits) = self.damage_of(spell)?;
+        let unit = self.battle()?.unit(target)?;
+        if immune.iter().any(|&a| unit.has(a)) {
+            return None;
+        }
+        let extra = extra_mana
+            .checked_div(traits.mana_per_point)
+            .map_or(0, |points| points as i32);
+        let nature = AttackNature {
+            stopped_by: Immunities::of(&immune),
+            realm,
+            armor_piercing: false,
+        };
+        let (mut points, mut kills) = (0.0, 0);
+        for seed in 0..TRIES {
+            let mut copy = unit.clone();
+            let mut rng = Pcg64Mcg::seed_from_u64(u64::from(seed) + 1);
+            let dealt = super::casting::damage_unit_with_spell(
+                &mut copy,
+                strength + extra,
+                &traits,
+                nature,
+                &mut rng,
+            )?;
+            points += dealt.points as f32;
+            kills += u32::from(copy.figures == 0);
+        }
+        Some(DamageOdds {
+            mean: points / TRIES as f32,
+            kill_chance: kills as f32 / TRIES as f32,
+        })
     }
 
     /// Hit units with a damage spell; each gets its own events.

@@ -61,9 +61,14 @@ fn bolt_scenario(content: &Content, mana: i32) -> f4x_learn::scenario::BattleSce
         odds: Odds::Even,
         ground: Ground::Field,
         attackers: vec![unit(6 /* orc_warrior */)],
+        // One of them is hurt: a bolt of the ten mana the wizard can spend is worth casting at a
+        // wounded unit (the odds of its killing it are tried on copies), not at a fresh one.
         defenders: vec![
             unit(105 /* high_men_swordsmen */),
-            unit(6 /* orc_warrior */),
+            UnitPick {
+                hurt: 8,
+                ..unit(6 /* orc_warrior */)
+            },
         ],
         attacker_wizard: Some(WizardSpec {
             spells: vec![83 /* fire_bolt */],
