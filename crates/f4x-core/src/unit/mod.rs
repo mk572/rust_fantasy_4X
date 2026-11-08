@@ -10,6 +10,7 @@
 
 pub mod experience;
 pub(crate) mod healing;
+pub(crate) mod kept;
 pub mod movement;
 pub mod mutation;
 pub mod pathing;
@@ -222,7 +223,7 @@ impl<'a> UnitView<'a> {
     }
 
     pub fn unit_has_ability(&self, unit: hecs::Entity, ability: Ability) -> bool {
-        self.unit_def(unit).is_some() && self.unit_abilities(unit).contains(&ability)
+        self.unit_def(unit).is_some() && self.abilities_shared(unit).contains(&ability)
     }
 
     pub(crate) fn unit_level_path(&self, unit: hecs::Entity) -> Option<&'a LevelPathDef> {
@@ -352,6 +353,27 @@ impl<'a> UnitView<'a> {
 
     /// Every modifier currently affecting the unit: its abilities and level effects.
     pub fn unit_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
+        self.modifiers_shared(unit).as_ref().clone()
+    }
+
+    /// [`Self::unit_modifiers`], shared: kept for a computer wizard's turn (see `unit::kept`).
+    pub(crate) fn modifiers_shared(&self, unit: hecs::Entity) -> std::rc::Rc<Vec<Modifier>> {
+        if let Some(kept) = kept::modifiers(self.world, unit) {
+            if kept::checking() {
+                assert_eq!(
+                    *kept,
+                    self.compute_modifiers(unit),
+                    "kept modifiers of {unit:?}"
+                );
+            }
+            return kept;
+        }
+        let mods = std::rc::Rc::new(self.compute_modifiers(unit));
+        kept::keep_modifiers(self.world, unit, &mods);
+        mods
+    }
+
+    fn compute_modifiers(&self, unit: hecs::Entity) -> Vec<Modifier> {
         let rules = &self.content.rules;
         if self.unit_def(unit).is_none() {
             return Vec::new();
@@ -394,7 +416,7 @@ impl<'a> UnitView<'a> {
             .unit_def(unit)
             .and_then(|d| d.stats.get(&stat).map(|v| v.floor()))
             .unwrap_or(0);
-        compute(stat, base, &self.unit_modifiers(unit))
+        compute(stat, base, &self.modifiers_shared(unit))
     }
 
     /// Full movement allowance.
@@ -444,7 +466,7 @@ impl<'a> UnitView<'a> {
             .unit_def(unit)
             .and_then(|d| d.stats.get(&Stat::Sight).copied())
             .unwrap_or(HalfInt::ZERO);
-        let sight = compute_half(Stat::Sight, base, &self.unit_modifiers(unit))
+        let sight = compute_half(Stat::Sight, base, &self.modifiers_shared(unit))
             .max(crate::map::fog::sight_for(1));
         let flies = self
             .unit_def(unit)
@@ -736,6 +758,62 @@ mod tests {
         let units = UnitView::new(&world, &content);
         assert_eq!(units.all_units(), vec![first, second]);
         assert_eq!(units.units_at(AT), vec![first, second]);
+        Ok(())
+    }
+
+    #[test]
+    fn kept_stats_follow_the_game_until_a_command_may_have_changed_them() -> TestResult {
+        use crate::game::testutil::shipped;
+        use crate::map::{Grid, Map, Plane};
+        let c = shipped();
+        let grass = c
+            .terrains
+            .id_numbered(crate::game::testutil::num::terrain::GRASSLAND)
+            .ok_or("grassland is not in the content")?;
+        let mut g = crate::game::Game::new(1);
+        g.add_player(PlayerId(0), "");
+        g.content = c;
+        g.map = Some(Map::new(Grid::new(10, 8, grass), Grid::new(10, 8, grass)));
+        let spear = g
+            .content
+            .rules
+            .units
+            .id_numbered(95)
+            .ok_or("high_elf_spearmen is not in the content")?;
+        let at = crate::map::Position {
+            plane: Plane::Arcanus,
+            x: 3,
+            y: 3,
+        };
+        let unit = g.spawn_unit(PlayerId(0), at, spear);
+        let strength = g
+            .content
+            .rules
+            .spells
+            .id_numbered(4)
+            .ok_or("giant_strength is not in the content")?;
+        g.keep_for_turn(PlayerId(0));
+        let before = g.units().unit_stat(unit, Stat::Melee);
+        // A change the kept answer is not told of (nothing but a command tells it) is not seen,
+        g.attach_enchantment(
+            crate::rules::exec::Target::Unit(unit),
+            strength,
+            PlayerId(0),
+        );
+        assert_eq!(g.units().unit_stat(unit, Stat::Melee), before);
+        // and one that is: a command that is not harmless empties it.
+        g.apply(crate::game::Command::SetStandby {
+            units: vec![unit],
+            standby: None,
+        });
+        assert_eq!(g.units().unit_stat(unit, Stat::Melee), before, "harmless");
+        g.apply(crate::game::Command::DismissUnit {
+            unit: hecs::Entity::DANGLING,
+        });
+        assert_eq!(g.units().unit_stat(unit, Stat::Melee), before + 1);
+        // Not kept any more: always worked out.
+        g.drop_kept();
+        assert_eq!(g.units().unit_stat(unit, Stat::Melee), before + 1);
         Ok(())
     }
 }

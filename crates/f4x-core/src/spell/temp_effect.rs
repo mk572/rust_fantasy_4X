@@ -167,6 +167,27 @@ impl<'a> UnitView<'a> {
     /// Guardian Wind), plus temporary grants, minus temporary removals. Temporary effects apply
     /// in the order they were added, so a later grant restores what an earlier removal took.
     pub fn unit_abilities(&self, unit: hecs::Entity) -> Vec<Ability> {
+        self.abilities_shared(unit).as_ref().clone()
+    }
+
+    /// [`Self::unit_abilities`], shared: kept for a computer wizard's turn (see `unit::kept`).
+    pub(crate) fn abilities_shared(&self, unit: hecs::Entity) -> std::rc::Rc<Vec<Ability>> {
+        if let Some(kept) = crate::unit::kept::abilities(self.world, unit) {
+            if crate::unit::kept::checking() {
+                assert_eq!(
+                    *kept,
+                    self.compute_abilities(unit),
+                    "kept abilities of {unit:?}"
+                );
+            }
+            return kept;
+        }
+        let list = std::rc::Rc::new(self.compute_abilities(unit));
+        crate::unit::kept::keep_abilities(self.world, unit, &list);
+        list
+    }
+
+    fn compute_abilities(&self, unit: hecs::Entity) -> Vec<Ability> {
         let mut out = self
             .unit_def(unit)
             .map(|d| d.abilities.clone())

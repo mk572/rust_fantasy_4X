@@ -248,7 +248,7 @@ impl VisionEffect {
 /// and over, each wanting what the player sees; counting it afresh for each is a tenth of a whole
 /// game. Between two of the wizard's commands nothing else changes the game, so the count is kept,
 /// patched after a command that only moved units ([`VisionEffect::Walk`]), and dropped after any
-/// other that is not harmless ([`VisionEffect`]). Off unless [`Game::keep_vision`] is called.
+/// other that is not harmless ([`VisionEffect`]). Off unless [`Game::keep_for_turn`] is called.
 #[derive(Default)]
 pub(crate) struct VisionCache {
     player: Option<PlayerId>,
@@ -256,17 +256,20 @@ pub(crate) struct VisionCache {
 }
 
 impl crate::game::Game {
-    /// Keep the vision of `player` from now until [`Game::drop_vision`]: for the length of its
-    /// turn, in which every change of the game is a command it sends.
-    pub fn keep_vision(&self, player: PlayerId) {
+    /// Keep what `player` sees, and what its units' stats are made of (`unit::kept`), from now
+    /// until [`Game::drop_kept`]: for the length of a computer wizard's turn, in which every
+    /// change of the game is a command it sends.
+    pub fn keep_for_turn(&self, player: PlayerId) {
+        crate::unit::kept::arm(&self.world);
         *self.vision.borrow_mut() = VisionCache {
             player: Some(player),
             grid: None,
         };
     }
 
-    /// Stop keeping the vision.
-    pub fn drop_vision(&self) {
+    /// Stop keeping.
+    pub fn drop_kept(&self) {
+        crate::unit::kept::disarm();
         *self.vision.borrow_mut() = VisionCache::default();
     }
 
@@ -285,6 +288,10 @@ impl crate::game::Game {
     /// Bring the kept vision up to date after a command.
     pub(crate) fn vision_after(&mut self, effect: VisionEffect, events: &[crate::game::Event]) {
         let effect = effect.with_events(events);
+        // A walk or a harmless command leaves what a unit's stats are made of as it was.
+        if effect == VisionEffect::Recount {
+            crate::unit::kept::clear();
+        }
         let (Some(player), Some(mut grid)) = ({
             let mut cache = self.vision.borrow_mut();
             (cache.player, cache.grid.take())
@@ -602,7 +609,7 @@ mod tests {
     fn a_kept_vision_follows_a_walking_unit() -> TestResult {
         let (mut g, unit) = kept_game()?;
         let me = PlayerId(0);
-        g.keep_vision(me);
+        g.keep_for_turn(me);
         assert_eq!(g.cached_sees(me, at(4, 4)), Some(true));
         assert_eq!(g.cached_sees(me, at(7, 4)), Some(false));
         let events = g.apply(crate::game::Command::MoveStack {
@@ -631,7 +638,7 @@ mod tests {
     fn a_kept_vision_counts_again_when_a_unit_comes() -> TestResult {
         let (mut g, unit) = kept_game()?;
         let me = PlayerId(0);
-        g.keep_vision(me);
+        g.keep_for_turn(me);
         assert_eq!(g.cached_sees(me, at(10, 1)), Some(false));
         let kind = g.units().unit_kind_id(unit).ok_or("the unit has no kind")?;
         g.apply(crate::game::Command::CreateUnit {
@@ -642,7 +649,7 @@ mod tests {
         assert_eq!(g.cached_sees(me, at(10, 1)), Some(true));
         // Another player's view is not served from it, and it is gone when dropped.
         assert_eq!(g.cached_sees(PlayerId(1), at(10, 1)), None);
-        g.drop_vision();
+        g.drop_kept();
         assert_eq!(g.cached_sees(me, at(10, 1)), None);
         Ok(())
     }

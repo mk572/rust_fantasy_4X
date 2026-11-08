@@ -99,7 +99,7 @@ which keeps the old number, so no `save::UPGRADES` entry or version bump is need
 when the saved number itself must change.
 
 - **A computer wizard's vision is counted once per turn and patched** (task 428, `map/vision.rs`). `Ai::play_turn`
-  calls `Game::keep_vision`; `PlayerView::sees` then reads a `VisionGrid` of counts (how many units and cities see
+  calls `Game::keep_for_turn`; `PlayerView::sees` then reads a `VisionGrid` of counts (how many units and cities see
   each square) instead of counting it for each new view. `Game::execute` calls `vision_after` with the command's
   `VisionEffect`: `None` for the commands that cannot touch a unit, a city or a spell (orders, production, farmers,
   taxes, research, Alchemy, diplomacy, refusing an offer, cancelling a cast), `Walk` for `MoveStack` and `GoTo`
@@ -109,4 +109,11 @@ when the saved number itself must change.
   is named. Anything that changes the game outside `Game::apply` during the turn breaks this; the AI's only such
   calls (`balance_farmers`, `set_plans`) cannot change what is seen. `F4X_CHECK_VISION=1 f4x-tools soak ...` counts
   afresh after every command and panics when the kept grid differs (the test of the cache; slow).
+- **A unit's modifiers and abilities are kept for the same turn** (task 428, `unit/kept.rs`). `Game::keep_for_turn`
+  arms a thread-local cache for that game's world only; `UnitView::modifiers_shared` and `abilities_shared` fill it
+  and `unit_stat`, `unit_sight` and `unit_has_ability` read it. `Game::execute` empties it after every command that
+  `VisionEffect` calls a recount, as it patches the vision; a walk and the harmless commands leave it, because
+  nothing in a unit's modifiers or abilities depends on where it stands. A command that changes what a unit is made
+  of must therefore be a `Recount` (the default). `F4X_CHECK_UNITS=1` works every kept answer out again and panics
+  on a difference.
 
