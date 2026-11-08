@@ -74,6 +74,11 @@ pub(crate) struct SheetUi {
     /// The units of the square the sheet was opened from, for the arrows to step through
     /// (empty: a sheet of one unit).
     pub group: Vec<hecs::Entity>,
+    /// Drawn over another screen (a battle), which stays visible around it, instead of being
+    /// a screen of its own.
+    pub over: bool,
+    /// The sheet was closed (what an overlay is asked about; a screen goes `back`).
+    pub closed: bool,
 }
 
 /// Which of the sheet's panels is drawn.
@@ -116,6 +121,18 @@ impl App {
         if let Some(sheet) = self.battle_sheet(battle, id) {
             self.show_sheet(sheet, Vec::new(), None);
         }
+    }
+
+    /// The sheet of a unit in the battle as an overlay: the battle stays on screen around it.
+    pub(crate) fn battle_sheet_over(&self, battle: &Battle, id: usize) -> Option<SheetUi> {
+        Some(SheetUi {
+            sheet: self.battle_sheet(battle, id)?,
+            back: Screen::Battle,
+            panel: SheetPanel::default(),
+            group: Vec::new(),
+            over: true,
+            closed: false,
+        })
     }
 
     /// For the screenshot check: open the sheet of unit `n` of the starting stack, or of the
@@ -191,6 +208,8 @@ impl App {
                 ..Default::default()
             },
             group,
+            over: false,
+            closed: false,
         };
         self.open_page(Screen::UnitSheet, ui);
     }
@@ -597,7 +616,10 @@ impl SheetUi {
     }
 
     fn close_sheet(&mut self, app: &mut App) {
-        app.screen = self.back;
+        self.closed = true;
+        if !self.over {
+            app.screen = self.back;
+        }
     }
 
     /// Ask whether to dismiss the unit (the original's confirmation box); Yes sends the
@@ -696,7 +718,9 @@ impl Page for SheetUi {
         let sheet = self.sheet.clone();
         let in_battle = matches!(sheet.source, Source::Battle(_));
         let (px, py) = if in_battle { BATTLE_AT } else { MAP_AT };
-        clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        if !self.over {
+            clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
+        }
         let lay = Layout::new();
 
         // A box that opens this frame waits for the next, so its own click does not answer it.

@@ -343,6 +343,8 @@ original task numbers. Newest work is merged in ascending order by number.
 | 364 | Client | The scenes with music that the client lacks: the summon scene, the city-spell scroll and the Force of Nature scene (done) |
 | 366 | AI | Objectives, step 3: building weights by category and casting as weighted categories (done) |
 | 368 | Diplomacy | Human-only branches in the diplomacy rules: decide each (move to the AI or keep as a rule) (done) |
+| 369 | AI | The AI hardly fights and stops expanding (wars that end, marches, the city target) (done) |
+| 371 | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak (done) |
 | 372 | Map | (done) Decide the overland terrain move costs: the original's hills 3, swamp 3, mountains 4, or ours (2, 2, 3) |
 | 374 | Map | Neutral cities reach only about 40% of the target: find out why (done) |
 | 375 | Client | Wire the five Settings switches that do nothing yet (done) |
@@ -541,6 +543,30 @@ takes only a focus pair (`objective.rs`) and `wizardry::cast` tries kinds in a f
 keep as a rule of the game with a reason (the human has no feelings to track; a UI hint), move it to the AI
 (the AI's mood towards a big human army is the AI's), or make it apply to every pair of wizards. Record in
 `diplomacy.md` and `divergences.md`. *Needs:* nothing.
+
+**369. The AI hardly fights and stops expanding. (done)** **Closed 9 November 2026:** wars, peace offers, settlers by sea, the city target and the outposts are done (soak of 8 November: 10 to 13 cities per wizard against 5 to 6 before, armies of 120 to 250 units). What was left is split off: the gold in the treasury and the march thresholds are task 506, gathering far from the target is task 436, a stack that suits the target is task 437. Was: The outpost rate was a bug (10 tens to a city, not 100, fixed 24 October 2026; re-run the soak first). After task 361 *Status 31 October 2026:* **settlers by sea** (`colony.rs`: a closed island sends a settler by ship to free land; wizards with two cities or fewer in the 10-seed soak went from 7, 13 and 14 (2, 3, 4 wizards) to 5, 9 and 8), **wars** (any wizard goes for a neighbour with half its cities; the armies go for the wizard at war), **a ship in port lets old passengers step off** (a landing was refused for 200 turns in seed 8), wars end by peace offers more often (peace patience for every attacker, task 368). Open: the gold in the treasury, the march thresholds, gathering far from the target.
+(proposals): the march thresholds in `military.rs`, wars that end (peace offers, a war lasting longer than
+its reason), the city target by objective once land is free, settlers by sea, using the gold (50 to 100
+in the treasury while units are short). Measure with the soak (`ai-design.md` 12.2); tune the diplomacy numbers of `diplomacy.md` section 8 there too (treaties formed, wars started, who wins). *Needs:* 361.
+
+**371. The AI plays to win. (done)** **Closed 9 November 2026:** 28 of 32 soak games end in a win (17 of 32 at the baseline), 23 of them by the Spell of Mastery. The parts that remain open have their own tasks: sally and weighing a lair 370, the planar war 435 and 505, magic cast 367, items and heroes 504, the game phases 502, unspent gold and conquest with three or more wizards 506. Was: The umbrella over tasks 361, 366, 367, 369, 370 and 474 and planned item 21: today *Status 31 October 2026:* soak of 10 seeds at 300 turns, two wizards: games won 2 of 10 at the start of the day, 4 of 10 after the changes of this day (3 and 4 wizards: 0 of 10 still); cities taken 24, 23, 55 (2, 3, 4 wizards) became 33, 24, 56. The parts done are listed under 229, 232, 368, 369 and 370; the parts open are the heroes and items (474), gold, the sally, and the seeds that never meet (planar war, task 435).
+a two-wizard game of 300 turns ends in a win once in eight (`ai-design.md` section 12.2), wizards stop at 5
+to 7 cities, the treasury and the mana sit unspent and wars are rare. The aim is games that end, by
+conquest or by the Spell of Mastery, because the AI goes for it. The parts, each a function of what the AI
+sees (design.md section 8), each with a test and a soak line:
+- **Wars and fights** (369, 361): march when ahead and at a measured edge, keep a war going until it is
+  won or ended by an offer, attack the weakest neighbour first, take lairs and nodes for their treasure,
+  defend what is worth defending (370).
+- **Expansion** (369, planned 21): settle until the land is full, outposts grow (the original's rate since the 24 October 2026 fix; Housing does nothing in one),
+  settlers by sea and to the other plane, found cities on good ground first (food, minerals, nodes).
+- **Magic cast** (367, 366): spend the mana each turn (the reserve should not climb past a few turns of
+  upkeep), cast curses and attacks on enemy cities and stacks, protect the own cities, keep a spell in
+  the making at all times, use the nodes; research toward the Spell of Mastery once the army is safe.
+- **Item crafting** (474): Enchant Item and Create Artifact when the mana allows, items to the hero that
+  uses them best, scrap what no hero can use.
+- **Heroes** (474): hire every hero offered that the gold allows, cast Summon Hero and Summon Champion,
+  raise the dead, give them the best items, send them to lairs and into battles they win, level them.
+- **Gold** (369): spend it (buy production, hire, buy items) instead of holding 50 to 100.
 
 **375. Wire the Settings switches that do nothing yet. (done)** **Done 31 October 2026:** all six switches work (tasks 269 to 271, 276 to 278), and right-clicking any row of the Settings screen opens its help (`settings_screen::help_topic`: the original's topics, and 807 Play Intro, 808 Left Click Moves Units, 809 Dim Behind Boxes in `content/help.ron`). The original's area table is not used on that screen: its rows sit elsewhere than ours (it has Show Node Owners and Movement Animations, we do not, and its areas for Expanding Help and Left Click were one row off). Was: City Spell Events, Overland Spell Events,
 Summoning Events, Auto Unit Information and Enemy Moves are stored

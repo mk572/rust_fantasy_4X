@@ -50,6 +50,8 @@ const AI_DELAY: f32 = 0.3;
 /// What the screen remembers between frames.
 #[derive(Default)]
 pub(crate) struct BattleUi {
+    /// A unit's statistics sheet over the fight (right-click on a unit) until it is closed.
+    sheet: Option<crate::unit_screen::SheetUi>,
     /// The combat spell book: its pages are laid out again every frame, the spread and the page
     /// turn stay.
     book: BookUi,
@@ -1172,6 +1174,15 @@ impl App {
                 .map(|u| self.battle_unit_name(u))
                 .collect();
         }
+        // A unit's sheet over the fight: the field stays as it is and takes no clicks.
+        if let Some(mut sheet) = ui.sheet.take() {
+            self.draw_battle(ui, &battle, false, None, &Input::default());
+            crate::page::Page::frame(&mut sheet, self, input);
+            if !sheet.closed {
+                ui.sheet = Some(sheet);
+            }
+            return;
+        }
         // A box over the fight (a dispel's notices) stops it until it is clicked away.
         if self.under_modal {
             self.draw_battle(ui, &battle, false, None, input);
@@ -1264,7 +1275,7 @@ impl App {
             // A right-click on a unit opens its statistics sheet.
             if let Some(u) = hovered.and_then(|cell| Self::seen_unit_at(battle, cell)) {
                 let id = u.id;
-                self.open_battle_sheet(battle, id);
+                ui.sheet = self.battle_sheet_over(battle, id);
                 return;
             }
         }

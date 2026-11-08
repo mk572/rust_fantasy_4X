@@ -206,6 +206,14 @@ impl Game {
         self.battle.as_ref().map(|b| &b.battle)
     }
 
+    /// The overland unit battle unit `id` was copied from (`None` for a unit made in the fight,
+    /// such as a summon).
+    pub fn battle_unit_source(&self, id: usize) -> Option<hecs::Entity> {
+        let active = self.battle.as_ref()?;
+        let index = active.battle.unit(id)?.source?;
+        active.sources.get(index).copied()
+    }
+
     /// Copy an overland unit into battle form.
     /// What a unit can cast in a battle on its own: a hero's innate spells, the charges of its
     /// items' spells and its spell save, and the spells its abilities cast (once a battle).
@@ -321,6 +329,7 @@ impl Game {
             ammo,
             mana,
             hero_caster: hero_mana > 0,
+            hero_name: hero.as_ref().map(|h| h.name.clone()).unwrap_or_default(),
             casting: self.unit_casting(unit, &abilities),
             ranged_kind,
             flies,

@@ -179,6 +179,9 @@ pub struct BattleUnit {
     pub mana: i32,
     /// A hero with casting skill: its spell shots are paid for with its mana too.
     pub hero_caster: bool,
+    /// A hero's own name, looked up when the battle starts and kept (empty for any other unit).
+    #[serde(default)]
+    pub hero_name: String,
     /// What the unit can cast on its own (a hero's spells and items, a caster's abilities).
     pub casting: UnitCasting,
     pub ranged_kind: RangedKind,
@@ -322,6 +325,7 @@ impl BattleUnit {
             ammo: 0,
             mana: 0,
             hero_caster: false,
+            hero_name: String::new(),
             casting: UnitCasting::default(),
             ranged_kind: RangedKind::None,
             flies: false,

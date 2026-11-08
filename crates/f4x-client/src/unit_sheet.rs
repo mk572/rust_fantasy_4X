@@ -918,7 +918,7 @@ impl App {
             hurt: u.front_damage,
             specials,
             can_dismiss: false,
-            hero: self.hero_portrait_view(def, ""),
+            hero: self.hero_portrait_view(def, &u.hero_name),
         })
     }
 }
@@ -1176,6 +1176,38 @@ mod tests {
             .map(|(_, d)| d)
             .ok_or("no plain unit")?;
         assert!(app.hero_portrait_view(plain, "").is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn a_hero_in_a_battle_shows_its_own_name_and_the_sheet_is_an_overlay() -> Result<(), String> {
+        let mut app = crate::view::App::for_test();
+        app.select_first_stack();
+        let at = app
+            .game
+            .units()
+            .unit_position(app.selection[0])
+            .ok_or("the stack has no position")?;
+        let hero = app
+            .game
+            .spawn_hero(crate::view::HUMAN, at, 0)
+            .map_err(|e| format!("{e:?}"))?;
+        let name = app.game.units().hero_name(hero).ok_or("no hero name")?;
+        app.open_test_battle();
+        // Renaming afterwards changes nothing in the battle: the name was stored at the start.
+        let battle = app.game.battle().cloned().ok_or("no battle")?;
+        let id = battle
+            .units
+            .iter()
+            .map(|u| u.id)
+            .find(|&id| app.game.battle_unit_source(id) == Some(hero))
+            .ok_or("the hero is not in the battle")?;
+        let over = app
+            .battle_sheet_over(&battle, id)
+            .ok_or("the hero has no battle sheet")?;
+        assert!(over.over && !over.closed);
+        let view = over.sheet.hero.ok_or("a hero sheet has a portrait")?;
+        assert_eq!(view.name, name);
         Ok(())
     }
 }

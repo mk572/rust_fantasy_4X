@@ -531,7 +531,13 @@ impl<'a> PlayerView<'a> {
 
     /// Could the stack change plane where it stands?
     pub fn can_shift_plane(&self, units: &[hecs::Entity]) -> bool {
-        self.game.economy().can_shift_plane(units).is_ok()
+        // The game refuses a crossing into a square held by an enemy (a tower's guards on the
+        // other plane) or one without room, so this asks the same.
+        let Ok(to) = self.game.economy().can_shift_plane(units) else {
+            return false;
+        };
+        self.game.economy().hostile_at(to, self.me).is_none()
+            && self.game.units().units_at(to).len() + units.len() <= self.game.max_tile()
     }
 
     /// The explored stands nobody holds: a lair without guards, or a cleared node or tower with

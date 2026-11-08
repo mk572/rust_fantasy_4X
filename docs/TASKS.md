@@ -30,9 +30,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 359 | Low | Client | Replace pictures with text baked in by text-free pictures plus font text, for localization |
 | 365 | Low | Client | Crossfade the music between tracks (ours; the original cuts) |
 | 367 | Low | AI | Overland spells the AI never casts: what is left is research by what the enemy casts |
-| 369 | Low | AI | The AI hardly fights and stops expanding (wars that end, marches, the city target) |
 | 370 | Low | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
-| 371 | Low | AI | The AI plays to win: more wars, cities, casting, items and heroes, measured by the soak |
 | 373 | Low | Battle | Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
 | 379 | Low | Meta | Settings: races banned for computer wizards and independent cities, by difficulty |
 | 380 | Low | Map | Check the original generator's port against real maps of the original |
@@ -86,6 +84,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 503 | Medium | Client | Custom rules screen for a new game: presets (v1.31, v1.6 community patch, fully customized), reached by a "Custom" button on the new game settings screen; the map size and the map generator move there |
 | 504 | Low | AI | AI items: a better choice of item to buy, the hero that uses an item best, trading and scrapping (split from 474) |
 | 505 | Low | AI | Leave a lost fight with Plane Shift (split from 495) |
+| 506 | Medium | AI | AI: unspent gold, march thresholds and conquest in games with three or more wizards (split from 369 and 371) |
 
 ## Descriptions
 
@@ -162,34 +161,10 @@ and research by what the enemy casts. Heroes: keep them out of lair fights they 
 their experience, raise them with Resurrection; items: trade and craft. Each as a function of what the
 AI sees; each gets a test and a soak line. *Needs:* nothing.
 
-**369. The AI hardly fights and stops expanding.** The outpost rate was a bug (10 tens to a city, not 100, fixed 24 October 2026; re-run the soak first). After task 361 *Status 31 October 2026:* **settlers by sea** (`colony.rs`: a closed island sends a settler by ship to free land; wizards with two cities or fewer in the 10-seed soak went from 7, 13 and 14 (2, 3, 4 wizards) to 5, 9 and 8), **wars** (any wizard goes for a neighbour with half its cities; the armies go for the wizard at war), **a ship in port lets old passengers step off** (a landing was refused for 200 turns in seed 8), wars end by peace offers more often (peace patience for every attacker, task 368). Open: the gold in the treasury, the march thresholds, gathering far from the target.
-(proposals): the march thresholds in `military.rs`, wars that end (peace offers, a war lasting longer than
-its reason), the city target by objective once land is free, settlers by sea, using the gold (50 to 100
-in the treasury while units are short). Measure with the soak (`ai-design.md` 12.2); tune the diplomacy numbers of `diplomacy.md` section 8 there too (treaties formed, wars started, who wins). *Needs:* 361.
-
 **370. Battle AI: retreat, sally, weigh a lair.** The battle AI never flees, does not sally from a walled *Status 31 October 2026:* the retreat is done (see 232); the sally and the guess of a lair's guards are open.
 city, and `site.rs` attacks sites by a strength guess. Add a retreat when a fight is lost, a sally when the
 attacker is weak at the gate, and a better guess of a lair's guards (what the wizard has seen of them).
 Check with `examples/situations.rs` and the mirror test. *Needs:* nothing.
-
-**371. The AI plays to win.** The umbrella over tasks 361, 366, 367, 369, 370 and 474 and planned item 21: today *Status 31 October 2026:* soak of 10 seeds at 300 turns, two wizards: games won 2 of 10 at the start of the day, 4 of 10 after the changes of this day (3 and 4 wizards: 0 of 10 still); cities taken 24, 23, 55 (2, 3, 4 wizards) became 33, 24, 56. The parts done are listed under 229, 232, 368, 369 and 370; the parts open are the heroes and items (474), gold, the sally, and the seeds that never meet (planar war, task 435).
-a two-wizard game of 300 turns ends in a win once in eight (`ai-design.md` section 12.2), wizards stop at 5
-to 7 cities, the treasury and the mana sit unspent and wars are rare. The aim is games that end, by
-conquest or by the Spell of Mastery, because the AI goes for it. The parts, each a function of what the AI
-sees (design.md section 8), each with a test and a soak line:
-- **Wars and fights** (369, 361): march when ahead and at a measured edge, keep a war going until it is
-  won or ended by an offer, attack the weakest neighbour first, take lairs and nodes for their treasure,
-  defend what is worth defending (370).
-- **Expansion** (369, planned 21): settle until the land is full, outposts grow (the original's rate since the 24 October 2026 fix; Housing does nothing in one),
-  settlers by sea and to the other plane, found cities on good ground first (food, minerals, nodes).
-- **Magic cast** (367, 366): spend the mana each turn (the reserve should not climb past a few turns of
-  upkeep), cast curses and attacks on enemy cities and stacks, protect the own cities, keep a spell in
-  the making at all times, use the nodes; research toward the Spell of Mastery once the army is safe.
-- **Item crafting** (474): Enchant Item and Create Artifact when the mana allows, items to the hero that
-  uses them best, scrap what no hero can use.
-- **Heroes** (474): hire every hero offered that the gold allows, cast Summon Hero and Summon Champion,
-  raise the dead, give them the best items, send them to lairs and into battles they win, level them.
-- **Gold** (369): spend it (buy production, hire, buy items) instead of holding 50 to 100.
 
 **373. Ship graphics for sea battles.** Task 233 draws each ship's deck as plain brown diamonds
 (`battle_ground.rs`, `SHIP_DECK`) with the deck shapes from `ship_shape` (pointed ends; trireme 3 by 7,
@@ -249,7 +224,7 @@ the drawing changes. *Needs:* nothing.
 - **Done:**
   - (a) A right-click on a hero's item line shows the item card, a click goes to the item screen (`SheetUi::item_line_at` in `unit_screen.rs`).
   - (b) The hero's level title and the lasting spells its items put on it (`USW_Item_UEs`) are lines of the list (`overland_sheet`, `hero_view` in `unit_sheet.rs`; test `a_heros_sheet_names_its_level_and_keeps_the_item_cards`).
-  - (b, rest) The sheet of an offered hero (name typed so far) and of a hero in a battle (its kind only, the battle does not carry the hero's own name) show the portrait (`hero_portrait_view`; test `a_hero_type_gets_a_portrait_on_the_sheets_of_offers_and_battles`).
+  - (b, rest) The sheet of an offered hero (name typed so far) and of a hero in a battle (its own name, found through `Game::battle_unit_source`) show the portrait (`hero_portrait_view`; test `a_hero_type_gets_a_portrait_on_the_sheets_of_offers_and_battles`).
   - (c) The production screen shows the unit's sheet (`offer_sheet`, `draw_production_sheet`) with the cost beside it (`production.cost`) and the upkeep of a unit not yet built. Not checked on screen since task 377: look at it once with a screenshot and close the point, or list what is missing.
 - **To do:**
   - (e) The battle's sheet is a snapshot on a plain background; the original draws it over the field.
@@ -352,3 +327,5 @@ and make invalidation explicit and testable so the client never displays stale i
 **504. AI items: choice, user, trade and scrap.** Split from task 474 on 8 November 2026. The AI buys the merchant's item (`offer.rs`) but takes the first that fits; make it choose the item that is worth most to its heroes (by the powers and the hero's trade). When an item is in the armory, give it to the hero that uses it best (a bow to an archer, a staff to a caster) and move it when another hero would use it better. Trade items with other wizards when diplomacy allows, and scrap items no hero can use for mana. Each part gets a test and a soak line (`items made`, `items sold` exist in the soak report). *Needs:* nothing.
 
 **505. Leave a lost fight with Plane Shift.** Split from task 495 on 8 November 2026. A wizard that knows Plane Shift and has a stack that stands to lose a fight (a field stack with a stronger enemy stack next to it, or a city about to fall whose garrison is worth more than the city) casts it on the stack to save it, when the other plane's square is free. Test: a weak stack next to a strong enemy stack on Arcanus is on Myrror after the cast. *Needs:* nothing.
+
+**506. AI: unspent gold, march thresholds and conquest in games with three or more wizards.** Split from tasks 369 and 371 on 9 November 2026. (1) **Gold:** `soak-versus` of 8 November still shows 6,000 to 8,000 gold per wizard at the end (the note in `soak-baseline.md` that hoards stay under 1,700 may hold for the plain soak only; check both), so `spend_gold` finds nothing to buy or is blocked; find out which and spend it (production, hirelings, items, a gold sink for tall wizards as in 502). (2) **March thresholds** in `military.rs`: the edge at which a stack marches, measured against the battles won and lost per wizard in the soak. (3) **Conquest with three or more wizards:** 23 of the 28 wins are by the Spell of Mastery and the 3p and 5p games have no conquest wins; find why the armies do not finish a rival (`scripts/soak_variety.sh` has the games for it). Measure each with `soak-versus` and the variety soaks. *Needs:* nothing.
