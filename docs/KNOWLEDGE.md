@@ -82,3 +82,18 @@ On the spell picks screen the books of a realm are drawn over the realm's title 
 "ife", "Nature" as "ture"). The original does the same: it is intended, not a bug. Do not move the
 books or the titles to avoid it.
 
+
+## A bare integer beside a HalfInt compiles and means whole units
+
+`HalfInt` compares with and adds an `i32` as whole units (`PartialEq<i32>`), so a test that held a count
+of half-moves (`assert_eq!(moves_left, 4)`) still compiles after the conversion and fails only when it
+runs (4 is now four moves, not two). After converting an amount that was counted in halves, halve every
+literal that is compared with it, and run the tests rather than trusting the compiler. A compile error
+("expected `HalfInt`, found integer") is the easy case; the silent one is the comparison.
+
+## Saved numbers keep their meaning unless a conversion says otherwise
+
+`HalfInt` is written as the amount (`1.5`). A field that older saves held as a raw half count (a unit's
+moves, an item's movement bonus, a battle unit's moves) uses `#[serde(with = "f4x_def::half_int::raw")]`,
+which keeps the old number, so no `save::UPGRADES` entry or version bump is needed. Use `UPGRADES` only
+when the saved number itself must change.

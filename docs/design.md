@@ -105,7 +105,7 @@ them and returns `Event`s (refusals are events, not panics). Read-only queries t
 and are used freely by the client. A turn is `EndTurn`: refill moves, process cities (outposts
 grow, production completes, population changes), settle each player's treasury (income, spare
 food sold, upkeep, disbanding the unpaid), heal the wounded, then continue standing orders.
-Movement is counted in half-moves, stacks hold nine, and moving onto hostile units emits
+Movement is counted in moves with halves (`HalfInt`; a road step costs 0.5), stacks hold nine, and moving onto hostile units emits
 `AttackRequested` for the not-yet-built combat layer. Production, buying and selling, the
 treasury and healing rules are all written out in [`game-flow.md`](game-flow.md).
 
@@ -164,7 +164,7 @@ Rules and data
 - Number scale, magic structure (five realms plus arcane, spell books from picks, per-realm research), heroes and items from day one, and "deviation only after parity" are as in `rules-framework.md` section 8.
 - Stats are a closed enum in code; modifiers are `Add`, `Percent`, `Min`, `Max`, `Set`, applied in a fixed order.
 - Rate-style quantities have their own stats: growth in people per turn (`CityGrowth`), food after the farmland cap (`CityFoodFlat`), food per farmer, starting experience, unrest percent. Percentages that act on a base use `Percent`.
-- Half-units are explicit where the original uses them (half-moves, half-food per terrain tile, half-production per worker).
+- Half-units are explicit where the original uses them: every amount counted in halves is a `HalfInt` (food, production, gold, mana, moves, sight; `crates/f4x-def/src/half_int.rs`), written in files as the amount (`1`, `0.5`, `1.5`) and shown with the ½ glyph. A bare `i32` beside a `HalfInt` means whole units. The one finer count is the land's food of a city, kept in quarters inside `Economy` because a shared tile gives half of a half.
 - Population is kept in citizens (1000 people each) plus tens of people; growth is in tens. Surplus tens carry over instead of being discarded.
 
 Resolving differences between sources (full list in `help-vs-implementation-conflicts.md`)
@@ -176,6 +176,8 @@ Resolving differences between sources (full list in `help-vs-implementation-conf
 Economy and movement
 - City spacing is four squares; a city works 21 tiles; shared tiles are halved.
 - Gold is an amount in halves everywhere (`HalfInt`): a citizen's tax is half a gold per tax rate step, the miners' 3/2 and the trade goods' half gold per production point are kept, building and unit upkeep (with the AI difficulty percent) are exact, and the treasury holds halves; the screens show `12½`. Spare food is sold for gold at two for one after units eat, from the empire's total; units that cannot be fed or paid are disbanded. What a unit eats is the `upkeep.food` of its row in `units.ron`, **as an amount** (1 is one food, 0.5 half a food, 1.5 one and a half; every normal unit has 1, heroes and summoned creatures 0, as in the original). An army's halves are added first and the total is rounded up, so three units of half a food eat 2 food; the undead, the unpaid and the free half of a basic troop under `half_upkeep` eat nothing.
+- Production (a city's yield, the progress on its item and the buy cost) and mana (a wizard's power base, the mana share, the stock and the upkeep) are `HalfInt`s too: a mine's mana and a worker's half production are kept, and a half point of mana left in the stock stays. The power base splits into the mana share (in halves), the skill share (whole points; skill and mana trade one for one when a spell is paid) and the rest to research (rounded down); a spell's upkeep percent (Channeler 50) gives halves; the fortress prize takes the exact half of the loser's mana. The AI decides on the whole part (`floor`).
+- Movement is a `HalfInt` of moves: a unit's moves left, a step's cost (grass 1, forest 2, a road 0.5, a diagonal step 1.5 under `diagonal_extra_cost`), Wind Mastery's x1.5 and the battle's moves and square costs. Items give whole `Moves`. Saves keep the half-move count they always had. Sight is a `HalfInt` of squares: a unit sees 1.5 (the tile and the eight round it), 2.5 for a flier or a Wind Walker, a city 2.5 (3.5 with walls, 4.5 with an Oracle or Nature's Eye); `Sight` in `units.ron` is the amount.
 - A finished building drops the city back to building housing; a finished unit repeats.
 - Buildings a newer building replaces keep their effects and requirement value but cost no upkeep.
 - A unit with any movement left may always take a step.
