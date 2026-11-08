@@ -400,7 +400,22 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     }
     let traits = crate::objective::traits(&PlayerView::new(game, me));
     let mut chosen = SPLITS[SPLITS.len() - 1];
-    for candidate in SPLITS.iter().copied().skip(traits.split_shift) {
+    // Later in the game mana is for casting: the split starts further down the list. A wizard
+    // that races for the Spell of Mastery keeps its research.
+    let by_phase = {
+        let view = PlayerView::new(game, me);
+        let researching_mastery = view
+            .wizard()
+            .and_then(|m| m.researching())
+            .is_some_and(|s| kind(view.spell(s)) == Kind::Mastery);
+        match crate::phase::phase(&view) {
+            _ if researching_mastery || view.treasury().mana > 300 => 0,
+            crate::phase::Phase::Build => 0,
+            crate::phase::Phase::Secure => crate::knob("PSHIFT", 0.0) as usize,
+            crate::phase::Phase::Win => crate::knob("PSHIFT", 0.0) as usize,
+        }
+    };
+    for candidate in SPLITS.iter().copied().skip(traits.split_shift + by_phase) {
         game.apply(set_split(me, candidate));
         let view = PlayerView::new(game, me);
         let income = view.income();
