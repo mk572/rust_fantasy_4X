@@ -94,6 +94,12 @@ pub fn port_item(view: &PlayerView, city: hecs::Entity, big: bool) -> Option<Pro
     building(12 /* ship_wrights_guild */).filter(|&i| view.can_build(city, i).is_ok())
 }
 
+/// Whether the item is the trireme.
+pub(crate) fn is_trireme(view: &PlayerView, item: ProductionItem) -> bool {
+    matches!(item, ProductionItem::Unit(u)
+        if view.content().rules.units.id_numbered(35 /* trireme */) == Some(u))
+}
+
 /// The turn the game is at (for the age of what the AI remembers).
 fn view_turn(view: &PlayerView) -> u32 {
     view.turn()
@@ -551,7 +557,7 @@ fn voyage(
     events: &mut Vec<Event>,
 ) {
     let me = ai.player;
-    let (at, idle, group) = {
+    let (at, idle, mut group) = {
         let view = PlayerView::new(game, me);
         let group: Vec<hecs::Entity> = view
             .my_units()
@@ -580,6 +586,17 @@ fn voyage(
             ai.ferry = None;
             return;
         }
+        // Those still ashore where the ship left them stay out of the landing: a stack walks as
+        // one from its first unit's square, so one left behind makes every order impossible.
+        let on_board = {
+            let view = PlayerView::new(game, me);
+            group
+                .iter()
+                .copied()
+                .filter(|&u| view.unit_position(u) == Some(at))
+                .collect::<Vec<_>>()
+        };
+        group = on_board;
         if at == plan.sea {
             // Step ashore: onto the planned square, else any land square next to both the ship and
             // the city.
@@ -1053,6 +1070,34 @@ mod tests {
         assert_eq!(ai.naval, None);
         assert!(ai.ferry.is_none());
         assert!(ai.naval_bad.contains(&enemy()));
+    }
+
+    #[test]
+    fn a_landing_goes_ahead_without_the_soldiers_left_behind() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.reveal_map(P0);
+        let mut ai = Ai::new(P0);
+        ai.unreachable.push(enemy());
+        let plan = choose_plan(&ai, &PlayerView::new(&g, P0)).ok_or("a plan")?;
+        let ship = spawn(&mut g, P0, plan.sea, 36 /* galley */, 1)[0];
+        let left = spawn(&mut g, P0, port(), 104 /* high_men_spearmen */, 1)[0];
+        let aboard = spawn(&mut g, P0, plan.sea, 104 /* high_men_spearmen */, 1)[0];
+        let view = PlayerView::new(&g, P0);
+        let ferry = Ferry {
+            ship: view.serial_of(ship),
+            group: vec![view.serial_of(left), view.serial_of(aboard)],
+        };
+        ai.naval = Some(plan);
+        ai.ferry = Some(ferry.clone());
+        voyage(&mut ai, &mut g, plan, ferry, ship, &mut Vec::new());
+        let view = PlayerView::new(&g, P0);
+        assert_ne!(
+            view.unit_position(aboard),
+            Some(plan.sea),
+            "the soldier aboard stepped ashore"
+        );
+        assert_eq!(view.unit_position(left), Some(port()));
+        Ok(())
     }
 
     #[test]

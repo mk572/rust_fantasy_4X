@@ -111,6 +111,15 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     crate::naval::port_item(&view, city, ai.naval.is_some() && ai.colony.is_none())
                 })
                 .flatten()
+                // A port that can only build triremes (too small for a landing party) builds
+                // one for want of anything better, not one after another.
+                .filter(|&item| {
+                    !crate::naval::is_trireme(&view, item)
+                        || !view
+                            .my_units()
+                            .iter()
+                            .any(|&u| crate::view::is_ship(&view, u))
+                })
                 .or_else(|| colonist_item(ai, &view, city, pos, broke));
             (
                 plan_for(
