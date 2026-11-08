@@ -109,3 +109,21 @@ summons the pool cannot pay yet plus a net mana income of about 12 a turn from t
 `NETMANA`). Mixed games, per wizard (reference / new): spells cast 60.8 / 73.4, heroes joined 3.1 / 5.2, items made 0.6 / 4.8, cities captured 5.3 /
 6.5, cities lost 6.5 / 5.0, units at the end 113 / 150, score 491 / 519. Nobody won a mixed game in 700 turns. A plain 4-wizard soak, seeds 21 to
 28, 1000 turns: 5 of 8 won (4 by Spell of Mastery, at turns 541 to 896).
+
+## After the gold, casting, fleet, expansion, wide/tall and planar changes (8 November 2026)
+
+Same command (`max_tile: 20`, seeds 21..28, 1000 turns, `--jobs 6`), code at the commit "wide/tall slider, no cap on cities ... planar crossing".
+
+| Players | Won (of 8) | By Conquest | By Spell of Mastery | Turns of the wins | Baseline won |
+|---|---|---|---|---|---|
+| 2 | 7 | 4 | 3 | 87 to 823 | 5 |
+| 3 | 6 | 0 | 6 | 513 to 958 | 1 |
+| 4 | 7 | 1 | 6 | 215 to 873 | 5 |
+| 5 | 8 | 0 | 8 | 486 to 933 | 6 |
+| **All** | **28 of 32** | 5 | 23 | | **17 of 32** |
+
+Not won: 2p seed 25; 3p seeds 21 and 25; 4p seed 21. Conquest wins nearly vanished with more players: the games end by the Spell of Mastery
+(23 of 28). Larger armies (units per wizard 120 to 250), 10 to 13 cities per wizard and gold hoards under 1700 in `soak-versus`
+(reference: 5 to 6 cities, 6000 gold). Still to do: conquest in games with three or more wizards, the planar war has no soak evidence yet
+(no mention of crossings in the reports), and the sea and plane armies need counting in the soak reports.
+
