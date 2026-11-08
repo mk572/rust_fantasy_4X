@@ -8,14 +8,21 @@ outside the workspace and is never repaired when a change breaks it. Before the 
 script forks it again from the live AI (`scripts/fork_ai.py`) if it is marked stale
 (`crates/f4x-ai-ref/STALE`), or if it no longer builds; then it builds `f4x-tools` with the
 `reference` feature (adding the reference to the `f4x-tools` manifest for the build, then
-restoring the manifest and `Cargo.lock`) and runs it. A fork makes the reference equal to the live AI, so a battle
+restoring the manifest and `Cargo.lock`) and runs it through `scripts/cool_run.sh` (low priority,
+paused while the Mac is under thermal pressure; `AI_BATTLE_NO_COOL=1` runs it plainly) with four games at
+once unless `--jobs` says otherwise. A fork makes the reference equal to the live AI, so a battle
 right after one compares the AI with itself: freeze the AI before editing it (task 478).
 """
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+COOL_RUN = ROOT / "scripts" / "cool_run.sh"
+# Games played at once unless --jobs is given: the machine has ten cores and heats up (docs/learning-ai.md
+# section 3 keeps long runs to four).
+DEFAULT_JOBS = "4"
 REFERENCE = ROOT / "crates" / "f4x-ai-ref"
 FORK = ROOT / "scripts" / "fork_ai.py"
 MANIFEST = ROOT / "crates" / "f4x-tools" / "Cargo.toml"
@@ -58,7 +65,12 @@ def main() -> int:
     if built.returncode:
         return built.returncode
     binary = ROOT / "target" / "release" / "f4x-tools"
-    return subprocess.run([str(binary), *args], cwd=ROOT).returncode
+    if "--jobs" not in args:
+        args = [*args, "--jobs", DEFAULT_JOBS]
+    # Like every long run: at low priority, paused while the Mac is hot (scripts/cool_run.sh).
+    # AI_BATTLE_NO_COOL=1 runs it plainly.
+    cool = [] if os.environ.get("AI_BATTLE_NO_COOL") else [str(COOL_RUN)]
+    return subprocess.run([*cool, str(binary), *args], cwd=ROOT).returncode
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ For long-term goals, see `docs/PLANNED.md`
 - **Test:** `cargo test --workspace --lib --bins --tests` (skips the examples and doctests, which only cost build time; skips the slow AI behaviour tests and never runs soaks; run those only when asked: `cargo test -p f4x-ai --test it behaviour -- --ignored`, `cargo test -p f4x-learn --test it mirror -- --ignored`, `f4x-tools soak`). The integration tests of a crate are one binary, `tests/it/main.rs` with a `mod` per file, so a crate links one test program, not one per file.
 - **Test with nextest:** `cargo nextest run --workspace` runs every test as its own process in parallel (1451 tests in 3.6 s; the slow ones are skipped as above; nextest does not run doctests).
 - **Test what changed:** `python3 scripts/test_changed.py` while working (`--dry-run` shows the plan); `cargo test --workspace` before a commit.
+- **Soaks and other long runs** go through `scripts/cool_run.sh COMMAND...` (low priority, paused while the Mac is hot, `docs/learning-ai.md` section 3) with at most 4 jobs: `scripts/cool_run.sh target/release/f4x-tools soak --jobs 4 ...`. `scripts/ai_battle.py` does it by itself.
 - **Lint/format:** `cargo fmt --all` and `cargo clippy --workspace --tests`
 - **Scripts:** `scripts/` (table in `docs/scripts.md`)
 
