@@ -901,6 +901,29 @@ impl Game {
                 counter,
             }];
         }
+        // Plane Shift is checked again when it comes to it: the square it leads to can have
+        // been taken since the spell was chosen. Then it fails and its mana comes back.
+        if let (true, Some(Target::Unit(unit))) = (
+            self.content
+                .rules
+                .spells
+                .get(spell)
+                .has_hook(crate::spell::special::PLANE_SHIFT),
+            target,
+        ) {
+            if let Err(reason) = self.plane_shift_destination(unit) {
+                let refunded = self.casting_cost_with_extra(player, spell, extra);
+                if let Some(t) = self.treasury_mut(player) {
+                    t.mana += refunded;
+                }
+                return vec![Event::SpellFailed {
+                    player,
+                    spell,
+                    reason,
+                    refunded,
+                }];
+            }
+        }
         if let Some(city) = self.ward_turns_away(player, spell, target) {
             return vec![Event::SpellFizzled {
                 player,

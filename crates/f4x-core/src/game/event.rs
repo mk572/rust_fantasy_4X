@@ -305,6 +305,14 @@ pub enum Event {
         by: player::PlayerId,
         counter: rules::SpellId,
     },
+    /// The spell could not take effect when it came to it (Plane Shift into a square an enemy
+    /// has taken since): `refunded` mana is back in the reserve.
+    SpellFailed {
+        player: player::PlayerId,
+        spell: rules::SpellId,
+        reason: crate::spell::target_error::TargetError,
+        refunded: i32,
+    },
     /// A spell aimed at a city was turned away by the city's nightshade.
     SpellFizzled {
         player: player::PlayerId,

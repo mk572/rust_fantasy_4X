@@ -345,6 +345,16 @@ pub fn event(game: &Game, e: &Event) -> String {
             player(game, *by),
             spell(game, *counter)
         ),
+        Event::SpellFailed {
+            player: p,
+            spell: s,
+            reason,
+            refunded,
+        } => format!(
+            "{}'s {} fails ({reason:?}); {refunded} mana returned",
+            player(game, *p),
+            spell(game, *s)
+        ),
         Event::NoTargetForCast { spell: s, .. } => {
             format!(
                 "There are no targets for {}: it is not paid for until there is one (`cancelcast` stops it)",

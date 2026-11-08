@@ -581,7 +581,10 @@ impl App {
     /// After the test battle has begun: the walls of fire and darkness round the city, and
     /// mud over the middle of the field.
     pub fn set_test_effects(&mut self, kind: &str) {
-        if kind.starts_with("fx-") || matches!(kind, "spell-book" | "shot") {
+        if kind.starts_with("fx-")
+            || kind.starts_with("sheet-")
+            || matches!(kind, "spell-book" | "shot")
+        {
             self.with_page(|page, app| page.test_effect(app, kind));
             return;
         }
@@ -727,6 +730,19 @@ impl App {
         if let Some(anim) = self.spell_animation(ui, &battle, spell, Ok(Side::Attacker)) {
             ui.shown = Some(battle);
             ui.playing = Some((anim, 0.0));
+        }
+    }
+
+    /// For screenshots: a hero joins the human's first stack, to be in the test battle.
+    pub fn add_test_hero(&mut self) {
+        self.select_first_stack();
+        let Some(&first) = self.selection.first() else {
+            return;
+        };
+        if let Some(at) = self.game.units().unit_position(first) {
+            if let Err(e) = self.game.spawn_hero(HUMAN, at, 0) {
+                eprintln!("cannot bring in a hero: {e:?}");
+            }
         }
     }
 
@@ -2421,6 +2437,12 @@ impl Page for BattleUi {
             };
             if let Some(num) = num {
                 app.test_spell_fx(self, num);
+            }
+            return;
+        }
+        if let Some(id) = kind.strip_prefix("sheet-").and_then(|n| n.parse().ok()) {
+            if let Some(battle) = app.game.battle().cloned() {
+                self.sheet = app.battle_sheet_over(&battle, id);
             }
             return;
         }

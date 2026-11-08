@@ -869,6 +869,18 @@ impl App {
                     let args = args.text("counter", self.text(key));
                     Some(self.text_with("log.suppressed", &args))
                 }
+                Event::SpellFailed {
+                    spell,
+                    reason,
+                    refunded,
+                    ..
+                } => {
+                    let args = self
+                        .spell_arg(Args::new(), spell)
+                        .text("reason", self.text(reason.key()))
+                        .count("mana", refunded as u32);
+                    Some(self.text_with("log.spell_failed", &args))
+                }
                 Event::PowerDrained { victim, amount, .. } => {
                     let args = self
                         .wizard_arg(Args::new(), "wizard", victim)

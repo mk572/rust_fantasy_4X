@@ -116,13 +116,6 @@ impl App {
         }
     }
 
-    /// Open the sheet of a unit in the battle.
-    pub(crate) fn open_battle_sheet(&mut self, battle: &Battle, id: usize) {
-        if let Some(sheet) = self.battle_sheet(battle, id) {
-            self.show_sheet(sheet, Vec::new(), None);
-        }
-    }
-
     /// The sheet of a unit in the battle as an overlay: the battle stays on screen around it.
     pub(crate) fn battle_sheet_over(&self, battle: &Battle, id: usize) -> Option<SheetUi> {
         Some(SheetUi {
@@ -139,8 +132,9 @@ impl App {
     /// test battle when one is on. `spell` is put on the unit first (cast by you), and `ask`
     /// clicks its line so the question to turn it off is open.
     pub fn open_test_sheet(&mut self, n: usize, spell: Option<&str>, ask: bool) {
-        if let Some(battle) = self.game.battle().cloned() {
-            self.open_battle_sheet(&battle, n);
+        if self.game.battle().is_some() {
+            // In a battle the sheet lies over the fight, as it does for a player.
+            self.set_test_effects(&format!("sheet-{n}"));
             return;
         }
         if self.selection.is_empty() {

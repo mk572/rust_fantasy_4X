@@ -1,5 +1,7 @@
 # Help topics that conflict with the game: checklist
 
+**Closed 9 November 2026 (task 453), not worked through:** the original's help has proved highly unreliable, so it is not a guide and this list is kept only as a record. The game's rules and help texts follow the wiki pages in `reference/`.
+
 The original's help text (topic numbers are those of `HELP.LBX`; the text is local only) says things the
 game does not do. The game's own help (`crates/f4x-client/content/text/en/help/help.ron`, written by us) must say what the game does,
 so each topic below is resolved when its own text is written and matches the code. Tick the box then,

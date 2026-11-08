@@ -428,6 +428,47 @@ mod tests {
     }
 
     #[test]
+    fn a_plane_shift_that_fails_when_it_comes_to_it_returns_its_mana_and_says_why() -> TestResult {
+        let mut g = world();
+        let here = at(Plane::Arcanus, 4, 4);
+        let a = walker(&mut g, here);
+        // An enemy holds the square on the other plane by the time the spell resolves.
+        let other = PlayerId(1);
+        g.add_player(other, "X");
+        let id = g
+            .content
+            .rules
+            .units
+            .id_numbered(107)
+            .ok_or("no unit 107")?;
+        g.spawn_unit(other, at(Plane::Myrror, 4, 4), id);
+        let spell = g
+            .content
+            .rules
+            .spells
+            .id_numbered(132 /* plane_shift */)
+            .ok_or("no plane_shift")?;
+        let before = g.player(P0).ok_or("no player")?.treasury().mana;
+        let paid = g.casting_cost_with_extra(P0, spell, 0);
+        g.treasury_mut(P0).ok_or("no treasury")?.mana -= paid;
+        let events = g.resolve_cast(P0, spell, Some(Target::Unit(a)));
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                Event::SpellFailed {
+                    reason: crate::spell::target_error::TargetError::EnemyOnOtherPlane,
+                    refunded,
+                    ..
+                } if *refunded == paid
+            )),
+            "{events:?}"
+        );
+        assert_eq!(g.player(P0).ok_or("no player")?.treasury().mana, before);
+        assert_eq!(g.units().unit_position(a), Some(here), "the stack stays");
+        Ok(())
+    }
+
+    #[test]
     fn floating_island_is_raised_on_the_aimed_water_square_and_refused_on_land() -> TestResult {
         let mut g = world();
         let ocean = g

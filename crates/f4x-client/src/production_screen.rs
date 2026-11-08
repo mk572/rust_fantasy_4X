@@ -47,12 +47,19 @@ pub(crate) struct ProductionUi {
 
 impl App {
     /// The first city's screen with the production menu open (the `--choose` screenshot).
-    pub(crate) fn open_test_production(&mut self) {
+    pub(crate) fn open_test_production(&mut self, unit: bool) {
         let Screen::City(city) = self.screen else {
             return;
         };
         let mut page = CityPage::new(city);
         self.open_production(&mut page);
+        if unit {
+            // For screenshots: the first unit of the list is the one picked.
+            let (_, units) = self.production_columns(city);
+            if let Some(first) = units.into_iter().next() {
+                page.prod.selected = Some(first);
+            }
+        }
         self.open_page(Screen::City(city), page);
     }
 
