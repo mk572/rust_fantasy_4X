@@ -12,6 +12,7 @@
 pub mod battle;
 mod colony;
 mod controller;
+mod craft;
 mod diplomacy;
 mod economy;
 mod expand;

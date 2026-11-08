@@ -281,6 +281,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     split(ai, game, events);
     research(ai, game, events);
     cast(ai, game, events);
+    crate::craft::run(ai, game, events);
 }
 
 /// A banished wizard pays the Spell of Return from its mana reserve and has no income. When the
