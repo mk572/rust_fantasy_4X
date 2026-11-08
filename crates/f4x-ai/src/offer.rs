@@ -9,19 +9,27 @@ use f4x_core::player::view::PlayerView;
 
 use crate::Ai;
 
-/// Put the items in the vault and on the award list on the heroes at the fortress that have a
-/// free slot for them (moving an item to a hero elsewhere costs mana, so those wait). The one worth
-/// most of those that fit is taken.
+/// Mana the wizard must hold to send an item to a hero away from the fortress.
+const FAR_RESERVE: i32 = 120;
+
+/// Put the items in the vault and on the award list on the heroes that have a free slot for
+/// them. Moving an item to a hero away from the fortress costs mana (the item screen's 20), which
+/// the wizard pays when it has [`FAR_RESERVE`] to spare. The one worth most of those that fit is
+/// taken.
 pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let (heroes, fortress) = {
         let view = PlayerView::new(game, ai.player);
         (view.my_heroes(), view.fortress())
     };
     for hero in heroes {
+        let mut far = false;
         let free = {
             let view = PlayerView::new(game, ai.player);
             if view.unit_position(hero) != fortress {
-                continue;
+                far = true;
+                if view.treasury().mana.floor() < FAR_RESERVE {
+                    continue;
+                }
             }
             view.hero_free_slots(hero)
         };
@@ -53,7 +61,7 @@ pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                         player: ai.player,
                         from,
                         to: ItemSpot::Hero(hero, slot),
-                        pay: false,
+                        pay: far,
                     },
                     events,
                 );
@@ -270,6 +278,36 @@ mod tests {
             }
         }
         assert!(equipped, "the hero never got an item");
+        Ok(())
+    }
+
+    #[test]
+    fn a_hero_away_from_the_fortress_gets_the_item_when_the_mana_pays_the_move() -> TestResult {
+        let mut g = game()?;
+        let ai = Ai::new(P1);
+        set_gold(&mut g, P1, 100_000)?;
+        let hero = g.hire_hero(P1, 1).map_err(|e| format!("{e:?}"))?;
+        let fortress = PlayerView::new(&g, P1).fortress().ok_or("a fortress")?;
+        let away = crate::testworld::at(fortress.x + 3, fortress.y);
+        g.cheat_move_unit(hero, away);
+        let item = sword(&g)?;
+        g.give_item(P1, item);
+        let mana = |g: &mut Game, m: i32| -> TestResult {
+            g.treasury_mut(P1).ok_or("a treasury")?.mana = f4x_def::half_int::HalfInt::from_int(m);
+            Ok(())
+        };
+        mana(&mut g, FAR_RESERVE - 1)?;
+        equip(&ai, &mut g, &mut Vec::new());
+        assert!(
+            g.items().carried(hero).is_empty(),
+            "too little mana: it waits"
+        );
+        mana(&mut g, FAR_RESERVE + 100)?;
+        equip(&ai, &mut g, &mut Vec::new());
+        assert!(
+            !g.items().carried(hero).is_empty(),
+            "the far hero takes the item"
+        );
         Ok(())
     }
 
