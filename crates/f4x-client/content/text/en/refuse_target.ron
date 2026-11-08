@@ -43,6 +43,7 @@
     "refuse_target.other_plane_full": "There is not enough room on the other plane for all the units.",
     "refuse_target.cannot_stand_there": "Some of the units in this group cannot enter that terrain on the other plane.",
     "refuse_target.not_normal_unit": "Only normal units can be chosen for that spell.",
+    "refuse_target.not_normal_or_hero": "Only normal units and heroes can be chosen for that spell.",
     "refuse_target.hero": "Heroes cannot be chosen for that spell.",
     "refuse_target.summoned": "Summoned units cannot be chosen for that spell.",
     "refuse_target.undead": "Undead units cannot be chosen for that spell.",

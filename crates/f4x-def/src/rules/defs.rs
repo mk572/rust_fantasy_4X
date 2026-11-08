@@ -427,6 +427,19 @@ pub enum Duration {
     Permanent,
 }
 
+/// Which units a spell on a unit may be aimed at, beyond its side (`SpellDef::unit_only`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnitOnly {
+    /// Any unit.
+    #[default]
+    Any,
+    /// A normal unit or a hero, not a fantastic creature and not undead (the original's
+    /// "Unit Enchantment, Normal Only" spells: Heroism, Holy Armor, Holy Weapon, Eldritch Weapon,
+    /// Flame Blade). A unit that is several things at once, as Torin is a hero and a Life
+    /// creature, is a valid target when any one of them is.
+    NormalOrHero,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SpellDef {
     /// The original's spell number (`SPELLDAT.LBX` record), the id the game passes around.
@@ -467,6 +480,9 @@ pub struct SpellDef {
     /// unit that has one (a unit that flies by nature cannot be given Wind Walking).
     #[serde(default)]
     pub already_able: Vec<Id<AbilityDef>>,
+    /// The kinds of unit the spell may be aimed at.
+    #[serde(default)]
+    pub unit_only: UnitOnly,
     pub effects: Vec<EffectRule>,
 }
 

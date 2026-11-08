@@ -890,6 +890,22 @@ impl Game {
                     return Err(SpellError::Target(TargetError::Deathly));
                 }
                 if matches!(kind, Kind::Enchant { .. }) {
+                    // A unit made in the battle has no source: a conjured creature.
+                    let source = u
+                        .source
+                        .and_then(|i| self.battle_source(i))
+                        .and_then(|e| self.units().unit_def(e).map(|d| (e, d.kind)));
+                    let (unit_kind, undead) = match source {
+                        Some((e, k)) => (k, self.units().unit_counts_as_undead(e)),
+                        None => (crate::rules::UnitKind::Summoned, false),
+                    };
+                    if let Some(why) = crate::spell::stacking::unit_only_refusal(
+                        def.unit_only,
+                        unit_kind,
+                        undead || u.undead,
+                    ) {
+                        return Err(SpellError::Target(why));
+                    }
                     self.check_stacking_in_battle(battle.player_of(side), spell, def, u)?;
                 }
                 // Warp Wood needs a missile unit; it and Warp Creature take normal units only,

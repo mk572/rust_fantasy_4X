@@ -273,3 +273,55 @@ fn only_the_confirmed_command_goes_through() {
         crate::game::Event::Rejected(crate::game::Rejection::Magic(MagicError::AlreadyEnchanted))
     )));
 }
+
+#[test]
+fn the_normal_unit_spells_take_a_normal_unit_or_a_hero_and_not_a_creature() {
+    let mut g = world();
+    let normal = unit(&mut g, 107 /* high_men_cavalry */);
+    let hero = unit(&mut g, 0 /* dwarf */);
+    let bears = unit(&mut g, 179 /* war_bears */);
+    for spell in [
+        86,  /* eldritch_weapon */
+        94,  /* flame_blade */
+        124, /* holy_weapon */
+        126, /* holy_armor */
+        130, /* heroism */
+    ] {
+        assert_eq!(
+            aim(&g, normal, spell),
+            Ok(()),
+            "spell {spell} on a normal unit"
+        );
+        assert_eq!(aim(&g, hero, spell), Ok(()), "spell {spell} on a hero");
+        assert_eq!(
+            aim(&g, bears, spell),
+            Err(MagicError::Target(TargetError::NotNormalOrHero)),
+            "spell {spell} on a creature"
+        );
+    }
+    // The others still take a creature.
+    assert_eq!(aim(&g, bears, 4 /* giant_strength */), Ok(()));
+}
+
+#[test]
+fn torin_is_a_hero_and_a_life_creature_and_takes_the_spell_when_either_passes() {
+    let mut g = world();
+    let torin = unit(&mut g, 34 /* chosen */);
+    let def = g.units().unit_def(torin).expect("Torin has a definition");
+    assert!(def.realm.is_some(), "Torin is a creature of a realm");
+    assert_eq!(def.kind, crate::rules::UnitKind::Hero);
+    assert_eq!(aim(&g, torin, 126 /* holy_armor */), Ok(()));
+    assert_eq!(aim(&g, torin, 130 /* heroism */), Ok(()));
+}
+
+#[test]
+fn undead_are_not_normal_units() {
+    assert_eq!(
+        unit_only_refusal(UnitOnly::NormalOrHero, UnitKind::Normal, true),
+        Some(TargetError::NotNormalOrHero)
+    );
+    assert_eq!(
+        unit_only_refusal(UnitOnly::Any, UnitKind::Fantastic, true),
+        None
+    );
+}

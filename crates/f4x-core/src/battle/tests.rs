@@ -1944,6 +1944,29 @@ mod fields {
     }
 
     #[test]
+    fn torin_is_a_life_creature_to_light_and_darkness() -> TestResult {
+        let mut g = super::game();
+        let chosen = g
+            .content
+            .rules
+            .units
+            .id_numbered(34)
+            .ok_or("the chosen is not in the content")?;
+        let torin = g.spawn_unit(super::A, super::at(4, 4), chosen);
+        let mut unit = g
+            .battle_unit_from(torin, Side::Attacker, 0)
+            .ok_or("battle_unit_from is missing")?;
+        assert_eq!(unit.realm, Some(Realm::Life));
+        unit.cell = (3, 5).into();
+        let plain = unit.clone();
+        let mut b = pair(unit, of(Side::Defender, Some(Realm::Death), (17, 5)));
+        b.raise_field(Side::Defender, Field::Darkness, spell());
+        assert_eq!(b.units[0].defense, plain.defense - 1);
+        assert_eq!(b.units[0].resistance, plain.resistance - 1);
+        Ok(())
+    }
+
+    #[test]
     fn holy_bonus_and_resistance_to_all_help_the_whole_side_and_do_not_add_up() {
         let mut b = pair(
             of(Side::Attacker, None, (3, 5)),

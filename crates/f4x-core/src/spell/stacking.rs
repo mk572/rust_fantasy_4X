@@ -7,7 +7,8 @@
 use crate::game::Game;
 use crate::rules::exec::Target;
 use crate::rules::{AbilityId, SpellDef};
-use crate::rules::{Duration, SpellId, SpellTarget};
+use crate::rules::{Duration, SpellId, SpellTarget, UnitKind, UnitOnly};
+use crate::spell::target_error::TargetError;
 use crate::spell::unit_effect::UnitEffects;
 use crate::wizard::magic::MagicError;
 
@@ -69,6 +70,23 @@ pub(crate) fn stacking_refusal(
     None
 }
 
+/// Whether a unit of this kind may take a spell that is for `only`. A unit is a valid target when
+/// any one thing it is passes: a hero passes as a hero though it is also a creature of a realm.
+/// Undead pass as neither.
+pub(crate) fn unit_only_refusal(
+    only: UnitOnly,
+    kind: UnitKind,
+    undead: bool,
+) -> Option<TargetError> {
+    match only {
+        UnitOnly::Any => None,
+        UnitOnly::NormalOrHero => {
+            let passes = !undead && matches!(kind, UnitKind::Normal | UnitKind::Hero);
+            (!passes).then_some(TargetError::NotNormalOrHero)
+        }
+    }
+}
+
 impl Game {
     /// Whether `spell`, a lasting one, may be put on `target` by `player`.
     pub(crate) fn check_stacking(
@@ -78,6 +96,16 @@ impl Game {
         target: Option<Target>,
     ) -> Result<(), MagicError> {
         let def = self.content.rules.spells.get(spell);
+        if let Some(Target::Unit(u)) = target {
+            let units = self.units();
+            if let Some(kind) = units.unit_def(u).map(|d| d.kind) {
+                if let Some(why) =
+                    unit_only_refusal(def.unit_only, kind, units.unit_counts_as_undead(u))
+                {
+                    return Err(MagicError::Target(why));
+                }
+            }
+        }
         if def.duration == Duration::Instant {
             return Ok(());
         }
