@@ -17,8 +17,7 @@ use crate::player::MONSTERS;
 use crate::rules::{RealmId, UnitId};
 use crate::unit::{Unit, MAX_STACK};
 use f4x_def::half_int::HalfInt;
-
-use super::MONSTER_FIRST_TURN;
+use f4x_def::settings::MONSTER_START_TURN;
 
 /// The realm that keeps its monsters at home.
 const LIFE: RealmId = RealmId::new(3) /* life */;
@@ -35,6 +34,16 @@ impl Game {
     fn guard_realm_of(&self, guards: &[(UnitId, u32)]) -> Option<RealmId> {
         let rules = &self.content.rules;
         rules.units.get(guards.first()?.0).realm
+    }
+
+    /// The turn from which monsters leave their lairs: the setting on Average and harder, the
+    /// original's 50 on Intro and Easy (patch 1.40 sets 40 only above Easy).
+    pub(crate) fn monster_first_turn(&self) -> u32 {
+        if self.difficulty() >= 2 {
+            u32::from(self.settings.world.monster_start_turn)
+        } else {
+            u32::from(MONSTER_START_TURN)
+        }
     }
 
     /// Run the monsters' clock and, when it runs out, let a stack take over a random lair.
@@ -55,7 +64,7 @@ impl Game {
             return Vec::new();
         }
         self.threat.monster_clock = 0;
-        if self.turn < MONSTER_FIRST_TURN {
+        if self.turn < self.monster_first_turn() {
             return Vec::new();
         }
         // A lair on a landmass where a player has a city.

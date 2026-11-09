@@ -21,6 +21,7 @@ pub(crate) const DIFFICULTIES: &[&str] = &[
     "options.average",
     "options.hard",
     "options.impossible",
+    "options.extreme",
 ];
 /// The names on the original's options buttons.
 const OPTION_DIFFICULTIES: &[&str] = &[
@@ -29,6 +30,7 @@ const OPTION_DIFFICULTIES: &[&str] = &[
     "options.normal",
     "options.hard",
     "options.impossible",
+    "options.extreme",
 ];
 const OPPONENT_NAMES: &[&str] = &[
     "options.one",
@@ -74,7 +76,7 @@ impl OptionsState {
             .min_by_key(|&i| settings.land_sizes[i].land_percent.abs_diff(b.land_percent))
             .unwrap_or(0);
         Self {
-            difficulty: b.difficulty.min(4),
+            difficulty: b.difficulty.min(f4x_def::settings::MAX_DIFFICULTY),
             opponents: b.opponents.clamp(1, settings.max_opponents),
             land: land as u8,
             magic: b.magic_strength.min(2),
@@ -118,7 +120,10 @@ impl OptionsState {
         settings: &SettingsDef,
     ) {
         self.preset = preset;
-        self.difficulty = custom.basic.difficulty.min(4);
+        self.difficulty = custom
+            .basic
+            .difficulty
+            .min(f4x_def::settings::MAX_DIFFICULTY);
         let b = custom.basic;
         let nearest = OptionsState::from_settings(&SettingsDef {
             new_game: b,
@@ -138,6 +143,12 @@ impl OptionsState {
         if difficulty_changed {
             self.custom = None;
             self.preset = Default::default();
+            // Extreme plays the v1.6 rules.
+            if self.difficulty == f4x_def::settings::EXTREME {
+                let base = self.settings(settings);
+                self.preset = crate::custom_screen::Preset::V160;
+                self.custom = Some(self.preset.applied(base, settings));
+            }
         } else if let Some(custom) = self.custom {
             let mut fresh = self.clone();
             fresh.custom = None;
@@ -204,7 +215,9 @@ impl Page for OptionsPage {
             &settings.land_sizes[usize::from(o.land).min(sizes as usize - 1)].id,
         ));
         let labels = [
-            app.text(OPTION_DIFFICULTIES[usize::from(o.difficulty).min(4)]),
+            app.text(
+                OPTION_DIFFICULTIES[usize::from(o.difficulty).min(OPTION_DIFFICULTIES.len() - 1)],
+            ),
             app.text(OPPONENT_NAMES[usize::from(o.opponents.clamp(1, most)) - 1]),
             land,
             app.text(MAGIC_LEVELS[usize::from(o.magic).min(2)]),
@@ -506,6 +519,19 @@ mod tests {
         assert_eq!(o.opponents, 1);
         assert_eq!(o.land_percent(settings), f4x_core::game::setup::LAND_LARGE);
         assert_eq!(DIFFICULTIES[usize::from(o.difficulty)], "options.average");
+    }
+
+    #[test]
+    fn extreme_on_the_options_step_plays_the_v16_rules() {
+        let settings = shipped_settings();
+        let mut o = OptionsState::from_settings(settings);
+        o.difficulty = f4x_def::settings::EXTREME;
+        o.changed_here(true, settings);
+        assert_eq!(o.preset, crate::custom_screen::Preset::V160);
+        assert_eq!(o.settings(settings).rules.galley_capacity, 8);
+        o.difficulty = 3;
+        o.changed_here(true, settings);
+        assert_eq!(o.settings(settings).rules.galley_capacity, 5);
     }
 
     #[test]

@@ -6,6 +6,7 @@
 pub use f4x_def::settings::*;
 
 use crate::player::PlayerId;
+use f4x_def::half_int::HalfInt;
 
 impl crate::game::Game {
     /// Copy the settings that the rules read from the content (half upkeep, the arcane spell
@@ -15,6 +16,17 @@ impl crate::game::Game {
         let rules = self.settings.rules;
         self.content.settings.half_upkeep.enabled = rules.half_upkeep;
         self.content.settings.spell_library.arcane_candidate_cap = rules.arcane_candidate_cap;
+        for (num, capacity) in [
+            (TRIREME_UNIT, rules.trireme_capacity),
+            (GALLEY_UNIT, rules.galley_capacity),
+        ] {
+            if let Some(unit) = self.content.rules.units.by_num_mut(num) {
+                unit.stats.insert(
+                    crate::rules::Stat::Transport,
+                    HalfInt::from_int(i32::from(capacity)),
+                );
+            }
+        }
     }
 
     /// Give each computer wizard its difficulty bonuses from the settings (a human wizard and

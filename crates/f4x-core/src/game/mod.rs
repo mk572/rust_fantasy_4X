@@ -176,7 +176,7 @@ impl Game {
     ) -> Result<Self, map::mapgen::GenError> {
         let mut game = Self::new(seed);
         game.settings.basic.magic_strength = params.magic_strength.min(2);
-        game.settings.basic.difficulty = params.difficulty.min(4);
+        game.settings.basic.difficulty = params.difficulty.min(f4x_def::settings::MAX_DIFFICULTY);
         game.content = content.clone();
         game.set_generated(map::mapgen::generate(seed, params, content)?);
         Ok(game)

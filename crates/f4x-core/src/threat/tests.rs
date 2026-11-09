@@ -218,7 +218,7 @@ fn life_lairs_keep_their_guards() {
 #[test]
 fn nothing_comes_before_the_first_monster_turn_and_the_clock_starts_again() {
     let mut g = world(0);
-    g.turn = MONSTER_FIRST_TURN - 1;
+    g.turn = g.monster_first_turn() - 1;
     g.put_lair(
         at(14, 8),
         num::feature::MONSTER_LAIR,

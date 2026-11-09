@@ -532,13 +532,14 @@ mod tests {
     }
 
     #[test]
-    fn shipped_settings_have_five_levels_with_the_originals_figures() {
+    fn shipped_settings_have_six_levels_the_first_five_with_the_originals_figures() {
         let c = real_content();
         let s = &c.settings;
-        assert_eq!(s.levels.len(), 5);
+        assert_eq!(s.levels.len(), 6);
         let gold: Vec<_> = s
             .levels
             .iter()
+            .take(5)
             .map(|l| l.wizards.starting_gold.human)
             .collect();
         assert_eq!(gold, [125, 100, 75, 50, 25]);
@@ -554,7 +555,7 @@ mod tests {
             .collect();
         assert_eq!(sizes, [("small", 15), ("medium", 20), ("large", 30)]);
         let pressure: Vec<_> = s.levels.iter().map(|l| l.events.pressure_percent).collect();
-        assert_eq!(pressure, [50, 66, 75, 80, 100]);
+        assert_eq!(pressure, [50, 66, 75, 80, 100, 100]);
         assert!(s
             .levels
             .iter()

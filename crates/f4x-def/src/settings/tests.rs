@@ -61,7 +61,7 @@ fn the_levels_carry_the_originals_figures() {
         );
         assert!(at(d).world.raiders_enabled && at(d).world.monsters_enabled);
     }
-    for d in 0..=4 {
+    for d in 0..=5 {
         assert!(
             at(d).is_level(&settings()) && at(d).validate().is_empty(),
             "level {d}"
@@ -136,12 +136,14 @@ fn a_settings_file_is_checked_for_its_level_count_and_ranges() {
 
 #[test]
 fn every_level_is_a_valid_record_and_out_of_range_values_are_named() {
-    for level in 0..=4 {
+    for level in 0..=5 {
         let s = at(level);
         assert_eq!(s.basic.difficulty, level);
         assert!(s.validate().is_empty());
     }
-    assert_eq!(at(9).basic.difficulty, 4);
+    assert_eq!(at(9).basic.difficulty, 5);
+    // Extreme has Impossible's figures until the patch's own are filled in (task 530).
+    assert_eq!(at(5).ai, at(4).ai);
     let mut s = at(2);
     s.basic.difficulty = 7;
     s.basic.opponents = 0;
@@ -160,6 +162,50 @@ fn every_level_is_a_valid_record_and_out_of_range_values_are_named() {
             fixed.basic.land_percent,
             fixed.basic.magic_strength
         ),
-        (4, 1, 99, 2)
+        (5, 1, 99, 2)
     );
+}
+
+#[test]
+fn v131_has_the_originals_ships_and_monster_turn_and_v160_has_eight_carrying_ships() {
+    let def = settings();
+    let work = at(2);
+    let v131 = RuleSet::V131.applied(work, &def);
+    assert_eq!(
+        (v131.rules.trireme_capacity, v131.rules.galley_capacity),
+        (2, 5)
+    );
+    assert_eq!(v131.world.monster_start_turn, 50);
+    let v160 = RuleSet::V160.applied(work, &def);
+    assert_eq!(
+        (v160.rules.trireme_capacity, v160.rules.galley_capacity),
+        (8, 8)
+    );
+    assert!(v160.validate().is_empty(), "{:?}", v160.validate());
+    // The shipped units hold the originals' numbers for the default.
+    let content = shipped();
+    let carries = |num| {
+        content
+            .rules
+            .units
+            .by_num(num)
+            .map(|u| u.stats[&crate::rules::Stat::Transport])
+    };
+    assert_eq!(carries(TRIREME_UNIT), Some(HalfInt::from_int(2)));
+    assert_eq!(carries(GALLEY_UNIT), Some(HalfInt::from_int(5)));
+}
+
+#[test]
+fn ship_capacity_and_monster_turn_are_kept_in_range() {
+    let mut s = at(2);
+    s.rules.trireme_capacity = 1;
+    s.rules.galley_capacity = 9;
+    s.world.monster_start_turn = 20;
+    assert_eq!(s.validate().len(), 3, "{:?}", s.validate());
+    let fixed = s.normalised();
+    assert_eq!(
+        (fixed.rules.trireme_capacity, fixed.rules.galley_capacity),
+        (2, 8)
+    );
+    assert_eq!(fixed.world.monster_start_turn, 30);
 }

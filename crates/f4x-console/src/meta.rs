@@ -507,6 +507,7 @@ const DIFFICULTY: &[(&str, u8)] = &[
     ("average", 2),
     ("hard", 3),
     ("impossible", 4),
+    ("extreme", 5),
 ];
 const MAGIC: &[(&str, u8)] = &[("weak", 0), ("normal", 1), ("powerful", 2)];
 

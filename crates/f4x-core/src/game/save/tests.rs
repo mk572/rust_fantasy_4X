@@ -513,6 +513,8 @@ fn every_setting_survives_a_save() -> TestResult {
     s.rules.max_tile = 12;
     s.rules.half_upkeep = !s.rules.half_upkeep;
     s.rules.arcane_candidate_cap = 4;
+    s.rules.trireme_capacity = 8;
+    s.rules.galley_capacity = 7;
     s.events.random_events = !s.events.random_events;
     s.events.pressure_percent = 77;
     s.events.frequency = EventFrequency::Double;
@@ -523,7 +525,7 @@ fn every_setting_survives_a_save() -> TestResult {
         g.settings.validate()
     );
     let text = g.snapshot().to_text()?;
-    let back = Snapshot::from_text(&text)?.restore(Default::default())?;
+    let back = Snapshot::from_text(&text)?.restore(crate::game::testutil::shipped())?;
     assert_eq!(back.settings(), g.settings());
     assert_ne!(g.settings, before);
     // The rules read half upkeep and the arcane cap from the content: the loaded game has them.
@@ -532,6 +534,15 @@ fn every_setting_survives_a_save() -> TestResult {
         back.content().settings.spell_library.arcane_candidate_cap,
         4
     );
+    let capacity = |num| {
+        back.content()
+            .rules
+            .units
+            .by_num(num)
+            .map(|u| u.stats[&crate::rules::Stat::Transport])
+    };
+    assert_eq!(capacity(35), Some(f4x_def::half_int::HalfInt::from_int(8)));
+    assert_eq!(capacity(36), Some(f4x_def::half_int::HalfInt::from_int(7)));
     Ok(())
 }
 
@@ -540,7 +551,7 @@ fn a_save_with_out_of_range_settings_is_brought_into_range() -> TestResult {
     let mut snap = Game::new(5).snapshot();
     snap.settings.basic.difficulty = 9;
     let back = snap.restore(Default::default())?;
-    assert_eq!(back.settings().basic.difficulty, 4);
+    assert_eq!(back.settings().basic.difficulty, 5);
     Ok(())
 }
 

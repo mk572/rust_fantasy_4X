@@ -323,6 +323,28 @@ fn a_stack_with_a_wind_walker_moves_as_far_as_the_wind_walker_can() {
     );
 }
 
+/// Insecticide IW017: the stack's allowance is the Wind Walker's whichever unit has more, so a
+/// swift unit with more moves left cannot take the stack further and nothing is left to select.
+#[test]
+fn a_swifter_unit_does_not_take_a_wind_walking_stack_further() {
+    let mut g = world();
+    let mage = unit(&mut g, P0, 15 /* wind_mage */, at(5, 4));
+    let swift = unit(&mut g, P0, 107 /* high_men_cavalry */, at(5, 4));
+    let _ = g.world.insert_one(mage, MovesLeft(HalfInt::from_int(1)));
+    let _ = g.world.insert_one(swift, MovesLeft(HalfInt::from_int(3)));
+    assert_eq!(g.move_stack(&[mage, swift], at(6, 4)), Ok(Entry::Free));
+    assert_eq!(g.units().unit_moves_left(mage), 0);
+    assert_eq!(
+        g.units().unit_moves_left(swift),
+        0,
+        "the stack shows one allowance, the Wind Walker's"
+    );
+    assert_eq!(
+        g.move_stack(&[mage, swift], at(7, 4)),
+        Err(MoveError::NoMovesLeft)
+    );
+}
+
 #[test]
 fn fliers_and_wind_walkers_see_two_squares_at_least() {
     let mut g = world();

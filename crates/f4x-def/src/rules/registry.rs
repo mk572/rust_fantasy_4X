@@ -103,6 +103,13 @@ impl<T: Def> Registry<T> {
         self.try_get(Id::new(num))
     }
 
+    /// The definition numbered `num`, to change. For a game that applies its settings to its own
+    /// copy of the content (a ship's capacity); the numbers and ids must stay as they are.
+    pub fn by_num_mut(&mut self, num: u16) -> Option<&mut T> {
+        let row = self.row(Id::new(num))?;
+        self.defs.get_mut(row)
+    }
+
     fn row(&self, id: Id<T>) -> Option<usize> {
         match self.rows.get(id.num() as usize) {
             Some(&r) if r != NO_ROW => Some(r as usize),

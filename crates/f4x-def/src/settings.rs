@@ -59,7 +59,7 @@ pub const DEFAULT_MAGIC_STRENGTH: u8 = 1;
 /// The original's options step: difficulty, opponents, land size and magic power.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BasicSettings {
-    /// 0 intro, 1 easy, 2 average, 3 hard, 4 impossible.
+    /// 0 intro, 1 easy, 2 average, 3 hard, 4 impossible, 5 extreme.
     #[serde(default = "default_difficulty")]
     pub difficulty: u8,
     /// Computer wizards, 1 to [`MAX_OPPONENTS`]. `setup::new_game` sets it from the number of wizards it makes.
@@ -273,6 +273,10 @@ pub struct WorldSettings {
     pub monsters_enabled: bool,
     /// How big a party is, as a percent of the troops in the city (the original's `d / 6`).
     pub raider_percent: u16,
+    /// The turn from which monsters leave their lairs on Average and harder: 30, 40 or 50 (the
+    /// original: 50; patch 1.40 sets 40). Intro and Easy stay at 50.
+    #[serde(default = "default_monster_start")]
+    pub monster_start_turn: u8,
     /// How far each wizard sees around their capital when the game starts, in squares: a step
     /// along a row or column counts 1, a diagonal step 1.5 (1 without `diagonal_extra_cost`;
     /// `map::fog::in_sight`), so 2.5 is a 5 by 5 block, without its corners when a diagonal step
@@ -304,6 +308,41 @@ pub struct RuleSettings {
     /// content's choice; it is saved with the game.
     #[serde(default)]
     pub arcane_candidate_cap: u8,
+    /// How many land units a Trireme carries, from the original's 2 up to `MAX_SHIP_CAPACITY`
+    /// (patch 1.40 sets 8). Copied into the game's own content as the unit's Transport stat.
+    #[serde(default = "default_trireme")]
+    pub trireme_capacity: u8,
+    /// How many land units a Galley carries, from the original's 5 up to `MAX_SHIP_CAPACITY`
+    /// (patch 1.40 sets 8).
+    #[serde(default = "default_galley")]
+    pub galley_capacity: u8,
+}
+
+/// The original's Trireme capacity, and the unit number of the Trireme.
+pub const TRIREME_CAPACITY: u8 = 2;
+/// The original's Galley capacity.
+pub const GALLEY_CAPACITY: u8 = 5;
+/// The most a Trireme or Galley may carry.
+pub const MAX_SHIP_CAPACITY: u8 = 8;
+/// The unit numbers (`units.ron`) of the Trireme and the Galley.
+pub const TRIREME_UNIT: u16 = 35;
+pub const GALLEY_UNIT: u16 = 36;
+
+/// The original's first turn for monsters leaving their lairs.
+pub const MONSTER_START_TURN: u8 = 50;
+/// The earliest turn a game may be set to start the monsters.
+pub const MONSTER_START_EARLIEST: u8 = 30;
+
+fn default_monster_start() -> u8 {
+    MONSTER_START_TURN
+}
+
+fn default_trireme() -> u8 {
+    TRIREME_CAPACITY
+}
+
+fn default_galley() -> u8 {
+    GALLEY_CAPACITY
 }
 
 fn default_max_tile() -> usize {
@@ -419,15 +458,27 @@ impl RuleSet {
         };
         match self {
             RuleSet::V131 => base,
-            // The patch's changes are not defined yet: until they are, it plays as 1.31.
-            RuleSet::V160 => base,
+            // The patch's changes, as far as they are defined (task 530, from IW018 on still to
+            // check): ships carry eight (IW003).
+            RuleSet::V160 => GameSettings {
+                rules: RuleSettings {
+                    trireme_capacity: MAX_SHIP_CAPACITY,
+                    galley_capacity: MAX_SHIP_CAPACITY,
+                    ..base.rules
+                },
+                ..base
+            },
             RuleSet::Custom => work,
         }
     }
 }
 
-/// How many difficulty levels the file has (Intro to Impossible).
-pub const LEVELS: usize = 5;
+/// How many difficulty levels the file has (Intro to Extreme).
+pub const LEVELS: usize = 6;
+/// The last level: Extreme (patch 1.40 adds it). Choosing it plays the v1.6 rule set.
+pub const MAX_DIFFICULTY: u8 = 5;
+/// The level that plays the v1.6 rule set when chosen.
+pub const EXTREME: u8 = 5;
 
 /// One land size on the new-game options step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -498,7 +549,7 @@ pub struct SettingsDef {
     pub land_sizes: Vec<LandSize>,
     /// The map sizes the options step offers, smallest first.
     pub map_sizes: Vec<MapSize>,
-    /// Intro, Easy, Average, Hard, Impossible; empty or exactly [`LEVELS`].
+    /// Intro, Easy, Average, Hard, Impossible, Extreme; empty or exactly [`LEVELS`].
     pub levels: Vec<LevelDef>,
     /// The spells a new wizard knows and may research (the original's spell library set-up).
     pub spell_library: SpellLibraryDef,
@@ -690,9 +741,9 @@ impl Default for SettingsDef {
 }
 
 impl SettingsDef {
-    /// The level `difficulty` (above Impossible counts as Impossible), if the file has levels.
+    /// The level `difficulty` (above Extreme counts as Extreme), if the file has levels.
     pub fn level(&self, difficulty: u8) -> Option<&LevelDef> {
-        self.levels.get(usize::from(difficulty.min(4)))
+        self.levels.get(usize::from(difficulty.min(MAX_DIFFICULTY)))
     }
 
     /// Every problem with the file, in words (empty when it is fine): the number of levels, and
@@ -769,7 +820,7 @@ impl GameSettings {
     /// The settings of a difficulty level: the file's figures for it, with the other basic
     /// choices at their defaults. Without levels in the file it is the default game.
     pub fn for_difficulty(def: &SettingsDef, difficulty: u8) -> Self {
-        let d = difficulty.min(4);
+        let d = difficulty.min(MAX_DIFFICULTY);
         let Some(level) = def.level(d) else {
             let mut game = Self {
                 basic: BasicSettings {
@@ -828,8 +879,8 @@ impl GameSettings {
             }
         };
         check(
-            b.difficulty <= 4,
-            format!("difficulty {} is not 0 to 4", b.difficulty),
+            b.difficulty <= MAX_DIFFICULTY,
+            format!("difficulty {} is not 0 to {MAX_DIFFICULTY}", b.difficulty),
         );
         check(
             (1..=MAX_OPPONENTS).contains(&b.opponents),
@@ -943,6 +994,27 @@ impl GameSettings {
             ),
         );
         check(
+            (MONSTER_START_EARLIEST..=MONSTER_START_TURN).contains(&self.world.monster_start_turn),
+            format!(
+                "monster start turn {} is not {MONSTER_START_EARLIEST} to {MONSTER_START_TURN}",
+                self.world.monster_start_turn
+            ),
+        );
+        check(
+            (TRIREME_CAPACITY..=MAX_SHIP_CAPACITY).contains(&self.rules.trireme_capacity),
+            format!(
+                "trireme capacity {} is not {TRIREME_CAPACITY} to {MAX_SHIP_CAPACITY}",
+                self.rules.trireme_capacity
+            ),
+        );
+        check(
+            (GALLEY_CAPACITY..=MAX_SHIP_CAPACITY).contains(&self.rules.galley_capacity),
+            format!(
+                "galley capacity {} is not {GALLEY_CAPACITY} to {MAX_SHIP_CAPACITY}",
+                self.rules.galley_capacity
+            ),
+        );
+        check(
             (10..=200).contains(&self.events.pressure_percent),
             format!(
                 "event pressure {}% is not 10 to 200",
@@ -959,7 +1031,7 @@ impl GameSettings {
     /// The record with every value brought into range (what a load does).
     pub fn normalised(mut self) -> Self {
         let b = &mut self.basic;
-        b.difficulty = b.difficulty.min(4);
+        b.difficulty = b.difficulty.min(MAX_DIFFICULTY);
         b.opponents = b.opponents.clamp(1, MAX_OPPONENTS);
         b.land_percent = b.land_percent.clamp(1, 99);
         b.magic_strength = b.magic_strength.min(2);
@@ -1000,6 +1072,18 @@ impl GameSettings {
             .start_reveal_radius
             .clamp(HalfInt::ZERO, HalfInt::from_int(10));
         self.rules.arcane_candidate_cap = self.rules.arcane_candidate_cap.min(20);
+        self.world.monster_start_turn = self
+            .world
+            .monster_start_turn
+            .clamp(MONSTER_START_EARLIEST, MONSTER_START_TURN);
+        self.rules.trireme_capacity = self
+            .rules
+            .trireme_capacity
+            .clamp(TRIREME_CAPACITY, MAX_SHIP_CAPACITY);
+        self.rules.galley_capacity = self
+            .rules
+            .galley_capacity
+            .clamp(GALLEY_CAPACITY, MAX_SHIP_CAPACITY);
         self.events.pressure_percent = self.events.pressure_percent.clamp(10, 200);
         self.scoring.score_percent = self.scoring.score_percent.clamp(10, 500);
         self

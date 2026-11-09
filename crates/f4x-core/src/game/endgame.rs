@@ -75,13 +75,13 @@ impl Score {
 }
 
 /// The original's difficulty scaling of the final score: Intro halves it, Easy takes three
-/// quarters, Normal leaves it, Hard doubles and Impossible triples it (levels 0 to 4).
+/// quarters, Normal leaves it, Hard doubles and Impossible triples it (levels 0 to 4; Extreme, 5, triples it too).
 pub fn scale_for_difficulty(score: i32, level: u8) -> i32 {
     match level {
         0 => score / 2,
         1 => score * 3 / 4,
         3 => score * 2,
-        4 => score * 3,
+        4 | 5 => score * 3,
         _ => score,
     }
 }

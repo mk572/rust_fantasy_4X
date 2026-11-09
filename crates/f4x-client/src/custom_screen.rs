@@ -369,6 +369,17 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.world.raider_percent.into(),
             |s, v| s.world.raider_percent = v as u16,
         ),
+        num(
+            "custom.monster_start",
+            (
+                f4x_def::settings::MONSTER_START_EARLIEST.into(),
+                f4x_def::settings::MONSTER_START_TURN.into(),
+                10,
+            ),
+            "",
+            |s| s.world.monster_start_turn.into(),
+            |s, v| s.world.monster_start_turn = v as u8,
+        ),
         flag(
             "custom.monsters",
             |s| s.world.monsters_enabled.into(),
@@ -428,6 +439,28 @@ pub(crate) fn rows() -> Vec<Row> {
             "",
             |s| s.rules.arcane_candidate_cap.into(),
             |s, v| s.rules.arcane_candidate_cap = v as u8,
+        ),
+        num(
+            "custom.trireme_capacity",
+            (
+                f4x_def::settings::TRIREME_CAPACITY.into(),
+                f4x_def::settings::MAX_SHIP_CAPACITY.into(),
+                1,
+            ),
+            "",
+            |s| s.rules.trireme_capacity.into(),
+            |s, v| s.rules.trireme_capacity = v as u8,
+        ),
+        num(
+            "custom.galley_capacity",
+            (
+                f4x_def::settings::GALLEY_CAPACITY.into(),
+                f4x_def::settings::MAX_SHIP_CAPACITY.into(),
+                1,
+            ),
+            "",
+            |s| s.rules.galley_capacity.into(),
+            |s, v| s.rules.galley_capacity = v as u8,
         ),
         Heading("custom.h_events"),
         flag(
@@ -507,7 +540,10 @@ pub(crate) fn value_text(texts: &Texts, field: &Field, v: i32) -> String {
 /// (the heading's value is empty): the difficulty first, then every row of [`rows`].
 pub(crate) fn lines(texts: &Texts, s: &GameSettings, def: &SettingsDef) -> Vec<(String, String)> {
     let word = |key: &str| texts.get(key, &Args::new());
-    let level = word(crate::options_screen::DIFFICULTIES[usize::from(s.basic.difficulty.min(4))]);
+    let level = word(
+        crate::options_screen::DIFFICULTIES
+            [usize::from(s.basic.difficulty.min(f4x_def::settings::MAX_DIFFICULTY))],
+    );
     let custom = if s.is_level(def) {
         String::new()
     } else {
@@ -743,14 +779,16 @@ impl CustomPage {
     /// Choose a rule set, and a difficulty with it when given: the rows take the set's values
     /// under that level, those that changed are green, and the set becomes what red compares
     /// with. A level is the base of a rule set, so a difficulty chosen with Fully customized
-    /// goes to v1.31.
+    /// goes to v1.31, except Extreme, which plays v1.6.
     fn choose(&mut self, preset: Preset, difficulty: Option<u8>, def: &SettingsDef) {
         let before = self.work;
         let mut start = before;
         let mut preset = preset;
         if let Some(level) = difficulty {
             start.basic.difficulty = level;
-            if preset == Preset::Custom {
+            if level == f4x_def::settings::EXTREME {
+                preset = Preset::V160;
+            } else if preset == Preset::Custom {
                 preset = Preset::V131;
             }
         }
@@ -803,8 +841,12 @@ impl CustomPage {
                     "{} {}",
                     app.text("options.difficulty"),
                     app.text(
-                        crate::options_screen::DIFFICULTIES
-                            [usize::from(self.work.basic.difficulty.min(4))]
+                        crate::options_screen::DIFFICULTIES[usize::from(
+                            self.work
+                                .basic
+                                .difficulty
+                                .min(f4x_def::settings::MAX_DIFFICULTY)
+                        )]
                     )
                 ),
             ),
@@ -1033,6 +1075,24 @@ mod tests {
         assert_eq!(mark_of(&p, "custom.half_upkeep"), Mark::Green);
         assert_eq!(mark_of(&p, "custom.score"), Mark::None);
         assert_eq!(p.work.wizards.starting_gold.human, 75);
+    }
+
+    #[test]
+    fn choosing_extreme_plays_the_v16_rules_and_shows_the_ships_in_green() {
+        let def = crate::test_app::shipped::settings();
+        let mut p = page(def);
+        p.choose(Preset::V131, Some(f4x_def::settings::EXTREME), def);
+        assert_eq!(p.preset, Preset::V160);
+        assert_eq!(p.work.basic.difficulty, f4x_def::settings::EXTREME);
+        assert_eq!(
+            (p.work.rules.trireme_capacity, p.work.rules.galley_capacity),
+            (8, 8)
+        );
+        assert_eq!(mark_of(&p, "custom.trireme_capacity"), Mark::Green);
+        // A lower level under v1.6 keeps the v1.6 rules.
+        p.choose(Preset::V160, Some(2), def);
+        assert_eq!(p.preset, Preset::V160);
+        assert_eq!(p.work.rules.galley_capacity, 8);
     }
 
     #[test]
