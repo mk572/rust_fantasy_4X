@@ -106,6 +106,20 @@ impl App {
             }
             _ => None,
         });
+        // The undead that rose are shown before the result, as the original does.
+        if ended.is_some() {
+            for e in events {
+                if let Event::UndeadRaised {
+                    player,
+                    units,
+                    zombies,
+                    creator,
+                } = e
+                {
+                    self.announce_undead(*player, *units, *zombies, *creator);
+                }
+            }
+        }
         let looted = events.iter().find_map(|e| match e {
             Event::CityLooted {
                 city,

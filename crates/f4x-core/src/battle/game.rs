@@ -964,6 +964,7 @@ impl Game {
         // Units drained to death on the losing side join the winner as undead, in a fight at a
         // lair as on the map.
         let mut drained = Vec::new();
+        let mut zombified = std::collections::HashSet::new();
         for u in &battle.units {
             let Some(entity) = u.source.and_then(|i| sources.get(i).copied()) else {
                 continue;
@@ -987,6 +988,9 @@ impl Game {
             } else if u.status == Status::Dead {
                 if self.is_raised_by(&battle, u, entity) {
                     drained.push(entity);
+                    if self.is_zombified(&battle, u, entity) {
+                        zombified.insert(entity);
+                    }
                 } else {
                     // Disintegrate and the other spells that destroy leave a hero gone for good,
                     // with its items; a slain one's items go to the winner.
@@ -1034,10 +1038,10 @@ impl Game {
                 }
             }
             events.extend(self.overland_aftermath(&battle, &sources));
-            events.extend(self.raise_drained(&battle, drained));
+            events.extend(self.raise_drained(&battle, drained, &zombified, &sources));
         } else {
             // They stand on the site when the winner's survivors move in.
-            events.extend(self.raise_drained(&battle, drained));
+            events.extend(self.raise_drained(&battle, drained, &zombified, &sources));
         }
         if let Some(index) = lair {
             let attackers: Vec<hecs::Entity> = battle
@@ -1061,31 +1065,64 @@ impl Game {
         events
     }
 
+    /// Whether the winner's Zombie Mastery turns this dead unit into a zombie: any normal unit
+    /// that fell on either side but was not destroyed.
+    fn is_zombified(&self, battle: &Battle, u: &BattleUnit, entity: hecs::Entity) -> bool {
+        use crate::rules::UnitKind;
+        let Some(winner) = battle.winner else {
+            return false;
+        };
+        u.fate() != super::Fate::Gone
+            && self.units().unit_def(entity).map(|d| d.kind) == Some(UnitKind::Normal)
+            && self.has_global_effect(
+                battle.player_of(winner),
+                crate::spell::global_enchantment::GlobalEffect::ZombieMastery,
+            )
+    }
+
     /// Whether the winner takes this dead unit as an undead one: the loser's, drained to death
-    /// (life steal, a creator of undead), not a creature of the Death realm and not a hero; or,
-    /// with the winner's Zombie Mastery, any normal unit that fell on either side but was not
-    /// destroyed.
+    /// (life steal, a creator of undead), not a creature of the Death realm and not a hero; or
+    /// a zombie ([`Self::is_zombified`]).
     fn is_raised_by(&self, battle: &Battle, u: &BattleUnit, entity: hecs::Entity) -> bool {
         use crate::rules::UnitKind;
         let Some(winner) = battle.winner else {
             return false;
         };
         let kind = self.units().unit_def(entity).map(|d| d.kind);
-        let zombies = u.fate() != super::Fate::Gone
-            && kind == Some(UnitKind::Normal)
-            && self.has_global_effect(
-                battle.player_of(winner),
-                crate::spell::global_enchantment::GlobalEffect::ZombieMastery,
-            );
-        zombies
+        self.is_zombified(battle, u, entity)
             || (winner != u.side
                 && u.fate() == super::Fate::Drained
                 && u.realm != Some(Realm::Death)
                 && kind.is_some_and(|k| k != UnitKind::Hero))
     }
 
+    /// The winner's unit that made the undead: one with Life Steal or Create Undead, the
+    /// costliest of them (the original takes the highest upkeep).
+    fn undead_creator(&self, battle: &Battle, sources: &[hecs::Entity]) -> Option<UnitId> {
+        let winner = battle.winner?;
+        battle
+            .units
+            .iter()
+            .filter(|u| u.side == winner)
+            .filter(|u| {
+                let special = u.special_attacks();
+                special.life_steal || special.create_undead
+            })
+            .filter_map(|u| u.source.and_then(|i| sources.get(i).copied()))
+            .filter_map(|e| Some((e, self.units().unit_def(e)?.cost)))
+            .max_by_key(|&(_, cost)| cost)
+            .and_then(|(e, _)| Some(self.world.get::<&crate::unit::Unit>(e).ok()?.0))
+    }
+
     /// Put the drained dead on the winner's square as undead units, as many as it has room for.
-    fn raise_drained(&mut self, battle: &Battle, mut dead: Vec<hecs::Entity>) -> Vec<Event> {
+    fn raise_drained(
+        &mut self,
+        battle: &Battle,
+        mut dead: Vec<hecs::Entity>,
+        zombified: &std::collections::HashSet<hecs::Entity>,
+        sources: &[hecs::Entity],
+    ) -> Vec<Event> {
+        let creator = self.undead_creator(battle, sources);
         let winner = battle.winner.map(|side| (side, battle.player_of(side)));
         let heir = winner.map(|(_, player)| player);
         let (Some((side, player)), Some(pos)) = (winner, battle.site) else {
@@ -1103,7 +1140,7 @@ impl Game {
             .max_tile()
             .saturating_sub(self.units().units_at(pos).len());
         let mut room = side_room.min(tile_room);
-        let mut raised = 0;
+        let (mut raised, mut zombies) = (0, 0);
         for unit in dead {
             if room == 0 {
                 self.remove_unit_to(unit, crate::hero::Fate::Slain, heir);
@@ -1117,16 +1154,30 @@ impl Game {
             let _ = self
                 .world
                 .insert(unit, (pos, crate::unit::MovesLeft(HalfInt::ZERO)));
-            raised += 1;
+            if zombified.contains(&unit) {
+                zombies += 1;
+            } else {
+                raised += 1;
+            }
+        }
+        let mut events = Vec::new();
+        if zombies > 0 {
+            events.push(Event::UndeadRaised {
+                player,
+                units: zombies,
+                zombies: true,
+                creator: None,
+            });
         }
         if raised > 0 {
-            vec![Event::UndeadRaised {
+            events.push(Event::UndeadRaised {
                 player,
                 units: raised,
-            }]
-        } else {
-            Vec::new()
+                zombies: false,
+                creator,
+            });
         }
+        events
     }
 
     /// What a battle on the overland map leaves behind: units that fled lose some of their

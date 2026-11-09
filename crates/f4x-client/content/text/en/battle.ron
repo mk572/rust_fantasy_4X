@@ -55,6 +55,19 @@
     "battle.fled_losses": (count: "n",
         one: "1 unit is lost on the flight",
         other: "{n} units are lost on the flight"),
+    // The undead rising after a battle (`undead_scene.rs`).
+    "battle.zombies_raised": (count: "n",
+        one: "1 unit has been transformed into zombies.",
+        other: "{n} units have been transformed into zombies."),
+    "battle.undead_for_you": (count: "n",
+        one: "1 unit rises from the dead to serve you.",
+        other: "{n} units rise from the dead to serve you."),
+    "battle.undead_for_creator": (count: "n",
+        one: "1 unit rises from the dead to serve its creator.",
+        other: "{n} units rise from the dead to serve their creator."),
+    "battle.undead_for_wizard": (count: "n",
+        one: "1 unit rises from the dead to serve {wizard}.",
+        other: "{n} units rise from the dead to serve {wizard}."),
     "battle.recalled": "{unit} is recalled to the summoning circle",
 
     // The spell book and the aim bar.

@@ -635,7 +635,7 @@ fn a_guard_drained_to_death_joins_the_victors_as_undead() -> TestResult {
     let events = g.apply(Command::Battle(BattleCommand::EndTurn));
     assert!(events
         .iter()
-        .any(|e| matches!(e, Event::UndeadRaised { player, units: 1 } if *player == P0)));
+        .any(|e| matches!(e, Event::UndeadRaised { player, units: 1, .. } if *player == P0)));
     assert_eq!(g.units().unit_owner(drained.1), Some(P0));
     assert!(g.units().unit_is_undead(drained.1));
     assert_eq!(g.units().unit_position(drained.1), Some(at(5, 5)));
@@ -745,7 +745,7 @@ fn an_attacker_drained_to_death_by_the_guards_stays_as_a_neutral_undead_unit() -
     let events = g.apply(Command::Battle(BattleCommand::EndTurn));
     assert!(events
         .iter()
-        .any(|e| matches!(e, Event::UndeadRaised { player, units: 1 } if *player == MONSTERS)));
+        .any(|e| matches!(e, Event::UndeadRaised { player, units: 1, .. } if *player == MONSTERS)));
     // The drained unit stays on the site for the monsters; the guard made for the fight and
     // the other attacker are gone.
     assert!(g.world.contains(w) && !g.world.contains(bystander));

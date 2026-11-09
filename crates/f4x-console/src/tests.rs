@@ -3076,7 +3076,7 @@ fn the_units_drained_to_death_join_the_winner_as_undead() {
     let r = g.apply(f4x_core::game::Command::Battle(BattleCommand::EndTurn));
     assert!(
         r.iter().any(
-            |e| matches!(e, f4x_core::game::Event::UndeadRaised { player, units: 1 } if *player == rival)
+            |e| matches!(e, f4x_core::game::Event::UndeadRaised { player, units: 1, zombies: false, .. } if *player == rival)
         ),
         "{r:?}"
     );

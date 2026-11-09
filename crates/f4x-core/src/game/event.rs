@@ -396,10 +396,14 @@ pub enum Event {
         player: player::PlayerId,
         units: u32,
     },
-    /// Units drained to death in a battle rose again as undead for the winner.
+    /// Units that fell in a battle rose again as undead for the winner: turned to zombies by
+    /// Zombie Mastery (`zombies`), or drained to death (then `creator` is the winner's unit with
+    /// Life Steal or Create Undead that dearest to keep, as the original's scene shows it).
     UndeadRaised {
         player: player::PlayerId,
         units: u32,
+        zombies: bool,
+        creator: Option<rules::UnitId>,
     },
     /// What a won battle gave the winner: experience for each of its surviving units, and fame.
     BattleSpoils {
