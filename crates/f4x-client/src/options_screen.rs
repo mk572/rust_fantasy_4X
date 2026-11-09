@@ -173,8 +173,8 @@ impl App {
 /// under them. Positions are the original's.
 pub(crate) struct OptionsPage;
 
-/// Where the Custom button is, at the bottom of the left panel (the original's pixels).
-const CUSTOM_AT: (f32, f32) = (50.0, 174.0);
+/// Where the Custom button is, in the dark square under the picture, above the gargoyles (the original's pixels).
+const CUSTOM_AT: (f32, f32) = (50.0, 139.0);
 
 impl Page for OptionsPage {
     fn frame(&mut self, app: &mut App, input: &Input) {
@@ -253,9 +253,9 @@ impl Page for OptionsPage {
         }
         if app.options.custom.is_some() {
             let text = app.text("custom.active");
-            app.draw_styled(view, &ng_ink(3, 201).center(), &text, 82.0, 163.0);
+            app.draw_styled(view, &ng_ink(3, 201).center(), &text, 82.0, 156.0);
         }
-        let custom = app.board_button(&lay, "custom.button", CUSTOM_AT, input);
+        let custom = app.board_button_gold(&lay, "custom.button", CUSTOM_AT, input);
         let ok = app.board_button(&lay, "ui.button_ok", (252.0, 179.0), input);
         let cancel = app.board_button(&lay, "ui.cancel", (171.0, 179.0), input);
         if custom {

@@ -75,6 +75,21 @@ impl App {
         pressed: bool,
         fade: f32,
     ) {
+        self.draw_board_inked(lay, board, key, at, pressed, fade, rgb(60, 42, 34));
+    }
+
+    /// [`draw_board`](Self::draw_board) with the label in `ink`.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn draw_board_inked(
+        &mut self,
+        lay: &Layout,
+        board: Board,
+        key: &str,
+        at: (f32, f32),
+        pressed: bool,
+        fade: f32,
+        ink: Color,
+    ) {
         let tex = texture(board);
         let s = lay.scale;
         let size = vec2(tex.width(), tex.height());
@@ -88,7 +103,6 @@ impl App {
             Color::new(1.0, 1.0, 1.0, fade),
         );
         let shift = if pressed { 1.0 } else { 0.0 };
-        let ink = rgb(60, 42, 34);
         let style = Style::flat(4, Color::new(ink.r, ink.g, ink.b, fade))
             .shadow()
             .edge(Color::from_rgba(142, 113, 89, (128.0 * fade) as u8))
@@ -117,6 +131,20 @@ impl App {
         let held = ui::hit(lay.rect((at.0 - 1.0, at.1 - 1.0, 32.0, 16.0)), true, input).held();
         let fade = if enabled { 1.0 } else { 0.5 };
         self.draw_board(lay, Board::Small, "ui.button_ok", at, held, fade);
+    }
+
+    /// A wide wooden button with a gold label, to stand out; true when clicked.
+    pub(crate) fn board_button_gold(
+        &mut self,
+        lay: &Layout,
+        key: &str,
+        at: (f32, f32),
+        input: &Input,
+    ) -> bool {
+        let state = ui::hit(lay.rect((at.0, at.1, 63.0, 14.0)), true, input);
+        let gold = rgb(255, 196, 64);
+        self.draw_board_inked(lay, Board::Wide, key, at, state.held(), 1.0, gold);
+        state.clicked()
     }
 
     /// A wide wooden button; true when clicked.
