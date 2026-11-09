@@ -710,6 +710,14 @@ capped at 1 on hills and mountains and is the plain terrain's cost everywhere el
 (`unit/movement.rs`). This is a deliberate difference from the original 1.31 (a Mountaineer on
 grassland costs 1 here, 3 there), so a v1.31 rule set keeps it.
 
+**A river square does not slow walking** (checked in `unit/movement.rs` on 10 November 2026; kept by
+the user's decision). In the original a river square is a terrain type of its own (233 to 258) and
+costs 2 to walk, so a river on grassland costs 2 where plain grassland costs 1. Ours keeps the river
+as an overlay on the square's ground, and the walking cost is the ground's own (`terrain.move_cost`,
+with no river term): a river on grassland costs 1. Roads and the Pathfinding, Forester and
+Mountaineer caps work on the ground as before. Only the road-building time has a river term (the
+bridge, section 28). Sailing and swimming on a river are not covered here.
+
 ## 35. Immunity fixes (task 263)
 
 Three places where the original's immunity code is a known bug and the game follows the fix
