@@ -129,8 +129,19 @@ fn screen_palette_entry(stem: &str) -> Option<usize> {
         // `Spell_Of_Mastery_Lose_Load` loads the lab's palette from entry 28 and draws the
         // wizards, spheres and familiars with it.
         "spellose" => Some(28),
+        // The lab's background (entry 19) carries the colours the lab's other pictures are drawn
+        // in: the conquest palette (`Load_Palette(3)`, "WILZAB") is the same but for 17 colours.
+        "wizlab" => Some(19),
         _ => None,
     }
+}
+
+/// Files whose scene loads a whole palette (`Load_Palette`, the table above) and draws every
+/// picture with `FLIC_Draw`, which shows palette entries as they are: the indexes from 232 on are
+/// the scene's own colours (the conquest and lose palettes put a grey ramp there), not the glass
+/// tints of the base palette. The win animation's pictures bring palettes of their own.
+fn scene_palette_is_raw(stem: &str) -> bool {
+    matches!(stem, "conquest" | "splmastr" | "lose")
 }
 
 /// Case-insensitive file lookup, since the game files are upper case on disk.
@@ -654,7 +665,7 @@ pub fn extract(
             }
             for (f, frame) in pic.frames.iter().enumerate() {
                 // A picture that brings its own palette uses the top indexes for colours.
-                let rgba = if pic.palette.is_some() {
+                let rgba = if pic.palette.is_some() || scene_palette_is_raw(&stem) {
                     to_rgba(&frame.pixels, &pal)
                 } else {
                     to_rgba_glass(&frame.pixels, &pal, &glass)
@@ -801,6 +812,18 @@ mod tests {
         assert_eq!(frame[8], vga_to_rgb8(0));
         assert_eq!(frame[11], 255);
         Ok(())
+    }
+
+    #[test]
+    fn scenes_that_load_a_whole_palette_draw_their_pictures_in_it() {
+        for stem in ["conquest", "splmastr", "lose"] {
+            assert!(scene_palette_is_raw(stem), "{stem}");
+        }
+        for stem in ["win", "wizlab", "monster", "spellscr"] {
+            assert!(!scene_palette_is_raw(stem), "{stem}");
+        }
+        // The lab's small pictures take the colours of its background, entry 19.
+        assert_eq!(screen_palette_entry("wizlab"), Some(19));
     }
 
     #[test]
