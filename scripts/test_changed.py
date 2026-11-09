@@ -67,6 +67,19 @@ def crate_graph():
     }
 
 
+def target_flags(crate):
+    """The `cargo test` target flags `crate` accepts: `--lib` fails on a binary-only crate
+    (f4x-client, f4x-tools) and `--bins` on a library-only one (f4x-def, f4x-console)."""
+    meta = json.loads(sh(["cargo", "metadata", "--format-version", "1", "--no-deps"]))
+    kinds = {k for p in meta["packages"] if p["name"] == crate for t in p["targets"] for k in t["kind"]}
+    flags = []
+    if "lib" in kinds:
+        flags.append("--lib")
+    if "bin" in kinds:
+        flags.append("--bins")
+    return flags + ["--tests"]
+
+
 def dependents(graph, crate):
     out, todo = {crate}, [crate]
     while todo:
@@ -162,7 +175,7 @@ def plan(files, run_all, with_slow):
             if with_slow or areas & triggers:
                 continue
             skip += ["--skip", name]
-        cmds.append((crate + (" (slow tests skipped)" if skip else ""), ["cargo", "test", "-p", crate, "--lib", "--bins", "--tests", "--"] + skip))
+        cmds.append((crate + (" (slow tests skipped)" if skip else ""), ["cargo", "test", "-p", crate] + target_flags(crate) + ["--"] + skip))
     return cmds
 
 
