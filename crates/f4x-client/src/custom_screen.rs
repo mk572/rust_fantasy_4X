@@ -14,8 +14,8 @@ use crate::text::{Args, Texts};
 use crate::ui;
 use crate::view::{App, Screen};
 use f4x_core::game::setting::{
-    EventFrequency, GameSettings, MeleeVsFliers, SettingsDef, MAP_HEIGHTS, MAP_WIDTHS,
-    MAX_OPPONENTS, MAX_TILE_LIMIT,
+    BasicSettings, EventFrequency, GameSettings, MeleeVsFliers, SettingsDef, MAP_HEIGHTS,
+    MAP_WIDTHS, MAX_OPPONENTS, MAX_TILE_LIMIT,
 };
 use f4x_def::half_int::HalfInt;
 use macroquad::prelude::*;
@@ -529,7 +529,15 @@ impl App {
             .options
             .custom
             .unwrap_or_else(|| self.options.settings(&self.game.content().settings));
-        self.open_page(Screen::Options, CustomPage { work, top: 0 });
+        self.open_page(
+            Screen::Options,
+            CustomPage {
+                work,
+                preset: self.options.preset,
+                open: None,
+                top: 0,
+            },
+        );
     }
 }
 
@@ -541,10 +549,57 @@ const ROW: f32 = 9.0;
 /// Height of the two boxes: the title, the rows and the buttons under them.
 const BOX_HEIGHT: f32 = 29.0 + COLUMN as f32 * ROW + 8.0 + 12.0 + 14.0;
 
+/// The rule sets the dropdown offers. Picking one fills in its settings; changing any setting
+/// afterwards switches to `Custom`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum Preset {
+    /// The original's last official patch: the game's default rules.
+    #[default]
+    V131,
+    /// The community patch's rule changes.
+    V160,
+    /// Every setting by hand.
+    Custom,
+}
+
+impl Preset {
+    pub(crate) const ALL: [Preset; 3] = [Preset::V131, Preset::V160, Preset::Custom];
+
+    pub(crate) fn key(self) -> &'static str {
+        match self {
+            Preset::V131 => "custom.preset_v131",
+            Preset::V160 => "custom.preset_v160",
+            Preset::Custom => "custom.preset_custom",
+        }
+    }
+
+    /// `work` with this preset's rules: the level's figures for everything but the basic
+    /// choices (the map, the opponents), which stay. `Custom` changes nothing.
+    pub(crate) fn applied(self, work: GameSettings, def: &SettingsDef) -> GameSettings {
+        let level = GameSettings::for_difficulty(def, work.basic.difficulty);
+        let base = GameSettings {
+            basic: BasicSettings {
+                diagonal_extra_cost: level.basic.diagonal_extra_cost,
+                ..work.basic
+            },
+            ..level
+        };
+        match self {
+            Preset::V131 => base,
+            // The patch's changes are not defined yet: until they are, it plays as 1.31.
+            Preset::V160 => base,
+            Preset::Custom => work,
+        }
+    }
+}
+
 /// The working copy of the settings, changed row by row; OK keeps it for the new game, Back
 /// drops it.
 pub(crate) struct CustomPage {
     work: GameSettings,
+    preset: Preset,
+    /// The dropdown whose list is open.
+    open: Option<Menu>,
     top: usize,
 }
 
@@ -597,7 +652,7 @@ impl Page for CustomPage {
                 }
                 Row::Field(f) => {
                     let r = lay.rect((x + 6.0, y - 1.0, bw - 12.0, ROW));
-                    let hover = ui::hit(r, true, input).hovered();
+                    let hover = self.open.is_none() && ui::hit(r, true, input).hovered();
                     if hover {
                         draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.5, 0.38, 0.26, 1.0));
                         if left || right {
@@ -614,7 +669,9 @@ impl Page for CustomPage {
         if let Some((f, back)) = changed {
             let v = stepped(f.kind, (f.get)(&self.work), back);
             (f.set)(&mut self.work, v);
+            self.preset = Preset::Custom;
         }
+        self.dropdown(app, input, &lay, (bw, by));
         let range = app.text_with(
             "custom.range",
             &Args::new()
@@ -629,7 +686,7 @@ impl Page for CustomPage {
             light,
             &range,
             bw + 4.0 + bw / 2.0,
-            by + 10.0,
+            by + 166.0,
             Align::Center,
         );
         let (ok_label, back_label) = (app.text("ui.button_ok"), app.text("options.back"));
@@ -645,10 +702,116 @@ impl Page for CustomPage {
         );
         if ok || input.key_pressed(KeyCode::Enter) {
             let settings = app.game.content().settings.clone();
-            app.options.keep_custom(self.work, &settings);
+            app.options.keep_custom(self.work, self.preset, &settings);
             app.open_options();
         } else if back || input.key_pressed(KeyCode::Escape) {
             app.open_options();
+        }
+    }
+}
+
+/// The two dropdowns at the top of the right box.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Menu {
+    Preset,
+    Difficulty,
+}
+
+impl CustomPage {
+    /// The dropdowns at the top of the right box: the rule set and the difficulty, each showing
+    /// its choice and, when open, its list. Picking a rule set fills in its settings; picking a
+    /// difficulty fills in that level's figures under the chosen rule set.
+    fn dropdown(&mut self, app: &mut App, input: &Input, lay: &Layout, (bw, by): (f32, f32)) {
+        const H: f32 = 11.0;
+        let view = (lay.origin.x, lay.origin.y, lay.scale);
+        let (x, w) = (bw + 4.0 + 9.0, bw - 18.0);
+        let light = Ink::Set(font_ramp::DIALOG_TEXT);
+        let gold = Ink::Set(font_ramp::NOTIFY_TEXT);
+        let clicked = input.mouse_pressed(MouseButton::Left);
+        let draw_item = |app: &mut App, y: f32, text: &str, hover: bool| {
+            let r = lay.rect((x, y, w, H));
+            let fill = if hover {
+                Color::new(0.5, 0.38, 0.26, 1.0)
+            } else {
+                Color::new(0.16, 0.11, 0.09, 1.0)
+            };
+            draw_rectangle(r.x, r.y, r.w, r.h, fill);
+            draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.0, Color::new(0.65, 0.5, 0.35, 1.0));
+            app.stone_text(view, 1, gold, text, x + 4.0, y + 2.0, Align::Left);
+        };
+        let heads = [
+            (
+                Menu::Preset,
+                by + 5.0,
+                format!(
+                    "{} {}",
+                    app.text("custom.preset"),
+                    app.text(self.preset.key())
+                ),
+            ),
+            (
+                Menu::Difficulty,
+                by + 17.0,
+                format!(
+                    "{} {}",
+                    app.text("options.difficulty"),
+                    app.text(
+                        crate::options_screen::DIFFICULTIES
+                            [usize::from(self.work.basic.difficulty.min(4))]
+                    )
+                ),
+            ),
+        ];
+        let mut toggled = None;
+        for (menu, y, text) in &heads {
+            let hover = ui::hit(lay.rect((x, *y, w, H)), true, input).hovered();
+            draw_item(app, *y, text, hover);
+            app.stone_text(view, 1, light, "v", x + w - 8.0, y + 2.0, Align::Left);
+            if hover && clicked {
+                toggled = Some(*menu);
+            }
+        }
+        if let Some(menu) = toggled {
+            self.open = (self.open != Some(menu)).then_some(menu);
+            return;
+        }
+        let Some(open) = self.open else { return };
+        let y = heads.iter().find(|h| h.0 == open).map_or(by, |h| h.1);
+        let items: Vec<String> = match open {
+            Menu::Preset => Preset::ALL.iter().map(|p| app.text(p.key())).collect(),
+            Menu::Difficulty => crate::options_screen::DIFFICULTIES
+                .iter()
+                .map(|k| app.text(k))
+                .collect(),
+        };
+        let mut picked = None;
+        for (i, text) in items.iter().enumerate() {
+            let iy = y + H * (i as f32 + 1.0);
+            let hover = ui::hit(lay.rect((x, iy, w, H)), true, input).hovered();
+            draw_item(app, iy, text, hover);
+            if hover && clicked {
+                picked = Some(i);
+            }
+        }
+        if let Some(i) = picked {
+            let def = app.game.content().settings.clone();
+            match open {
+                Menu::Preset => {
+                    self.preset = Preset::ALL[i];
+                    self.work = self.preset.applied(self.work, &def);
+                }
+                Menu::Difficulty => {
+                    // The level's figures replace every rule, so a hand-made set is gone.
+                    self.work.basic.difficulty = i as u8;
+                    if self.preset == Preset::Custom {
+                        self.preset = Preset::V131;
+                    }
+                    self.work = self.preset.applied(self.work, &def);
+                }
+            }
+            self.open = None;
+        } else if clicked {
+            self.open = None;
         }
     }
 }
@@ -776,5 +939,22 @@ mod tests {
 
     fn lines_first(texts: &Texts, s: &GameSettings, def: &SettingsDef) -> String {
         lines(texts, s, def).remove(0).1
+    }
+
+    #[test]
+    fn a_preset_fills_in_its_rules_and_keeps_the_map() {
+        let def = crate::test_app::shipped::settings();
+        let level = GameSettings::for_difficulty(def, 2);
+        let mut work = level;
+        work.wizards.starting_gold.human = 999;
+        work.rules.half_upkeep = true;
+        work.basic.map_width = 75;
+        work.basic.diagonal_extra_cost = true;
+        let filled = Preset::V131.applied(work, def);
+        assert_eq!(filled.wizards, level.wizards);
+        assert_eq!(filled.rules, level.rules);
+        assert!(!filled.basic.diagonal_extra_cost);
+        assert_eq!(filled.basic.map_width, 75);
+        assert_eq!(Preset::Custom.applied(work, def), work);
     }
 }

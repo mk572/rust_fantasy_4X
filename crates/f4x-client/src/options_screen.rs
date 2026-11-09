@@ -61,6 +61,8 @@ pub(crate) struct OptionsState {
     /// The settings of the Custom screen, when the player kept some: they replace the level's
     /// figures for the new game.
     pub custom: Option<f4x_core::game::setting::GameSettings>,
+    /// The rule set the Custom screen's dropdown shows.
+    pub preset: crate::custom_screen::Preset,
 }
 
 impl OptionsState {
@@ -84,6 +86,7 @@ impl OptionsState {
                 .unwrap_or(0) as u8,
             original_generator: b.original_map_generator,
             custom: None,
+            preset: Default::default(),
         }
     }
 
@@ -108,7 +111,14 @@ impl OptionsState {
     /// Keep the Custom screen's record, and show its basic choices on the options step: the
     /// opponents, the magic power and the generator as they are, the land and the map the
     /// nearest size.
-    pub fn keep_custom(&mut self, custom: GameSettings, settings: &SettingsDef) {
+    pub fn keep_custom(
+        &mut self,
+        custom: GameSettings,
+        preset: crate::custom_screen::Preset,
+        settings: &SettingsDef,
+    ) {
+        self.preset = preset;
+        self.difficulty = custom.basic.difficulty.min(4);
         let b = custom.basic;
         let nearest = OptionsState::from_settings(&SettingsDef {
             new_game: b,
@@ -127,6 +137,7 @@ impl OptionsState {
     pub fn changed_here(&mut self, difficulty_changed: bool, settings: &SettingsDef) {
         if difficulty_changed {
             self.custom = None;
+            self.preset = Default::default();
         } else if let Some(custom) = self.custom {
             let mut fresh = self.clone();
             fresh.custom = None;
@@ -509,11 +520,12 @@ mod tests {
         custom.basic.map_width = 75;
         custom.basic.map_height = 50;
         custom.basic.diagonal_extra_cost = true;
-        o.keep_custom(custom, settings);
+        o.keep_custom(custom, Default::default(), settings);
         let made = o.settings(settings);
         assert_eq!(made, custom);
         // The options step shows what the record says.
         assert_eq!((o.opponents, o.map_size(settings)), (3, (75, 50)));
+        assert_eq!(o.difficulty, 4);
         // A change of opponents on the options step reaches the record and keeps the rest.
         o.opponents = 5;
         o.changed_here(false, settings);
