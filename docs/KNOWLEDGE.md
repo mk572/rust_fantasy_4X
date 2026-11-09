@@ -117,3 +117,17 @@ when the saved number itself must change.
   of must therefore be a `Recount` (the default). `F4X_CHECK_UNITS=1` works every kept answer out again and panics
   on a difference.
 
+
+## `target/debug` grows without bound; the lean profiles and `prune_target.sh` keep it small
+
+Cargo never deletes the test binaries and incremental caches of earlier source states, so after
+weeks of work `target/debug` held 592 GB in 2.8 million files, and slow I/O made rebuilds crawl
+(a 2 minute build that is about 80 seconds cold). `cargo clean --profile dev` is always safe: the
+whole directory rebuilds from source. It is also slow on a huge directory (over an hour for 592 GB),
+and a `du` over it competes with the delete, so do not scan it while it runs.
+
+The dev and test profiles now keep `debug = "line-tables-only"` for the workspace crates and no
+debuginfo for the dependencies (cold build 82 s to 64 s, 2.8 GB to 1.9 GB; panics still show
+file and line). For a debugger with variables use `cargo test --profile debug-full`, which builds
+into `target/debug-full/`. `scripts/prune_target.sh` cleans both when they pass 20 GB; the
+pre-push hook (`--install-hook`, a local file in `.git/hooks`) runs it in the background.

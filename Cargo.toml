@@ -37,8 +37,21 @@ f4x-extract = { path = "crates/f4x-client/extract", default-features = false }
 lto = "thin"
 codegen-units = 1
 
+# Debuginfo is lean by default (faster compiles and links, far smaller target/): line tables for
+# the workspace crates, so panics and backtraces still show file and line, and none for the
+# dependencies. For hunting a bug that needs variables in a debugger, build with the full
+# profile: `cargo test --profile debug-full` (own directory, target/debug-full/).
 [profile.dev]
 opt-level = 1
+debug = "line-tables-only"
 
 [profile.dev.package."*"]
 opt-level = 2
+debug = false
+
+[profile.debug-full]
+inherits = "dev"
+debug = 2
+
+[profile.debug-full.package."*"]
+debug = 2
