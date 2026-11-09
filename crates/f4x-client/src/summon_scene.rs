@@ -46,6 +46,16 @@ const PALETTE_GREY: usize = 61;
 /// of the realm numbers 0 to 4.
 const PALETTE_NATURE: usize = 62;
 
+/// `MONSTER.LBX` 4, the Fire Elemental: in the original's file it is a flat block with the words
+/// "fire elemental" on it, so the scene draws our own picture instead (placeholder art).
+const FIRE_ELEMENTAL_FIGURE: usize = 4;
+const FIRE_ELEMENTAL_PICTURE: &[u8] = include_bytes!("../assets/summoning/fire_elemental.png");
+
+/// The figures the client draws from its own pictures: the file's entry and the PNG.
+fn own_figure(figure: usize) -> Option<(&'static str, &'static [u8])> {
+    (figure == FIRE_ELEMENTAL_FIGURE).then_some(("fire_elemental", FIRE_ELEMENTAL_PICTURE))
+}
+
 /// What stands in the flame.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Summoned {
@@ -240,6 +250,28 @@ impl App {
         }
     }
 
+    /// Draw the figure that rises: `MONSTER.LBX` `figure`, or our own picture where the file has none.
+    fn draw_figure(&mut self, lay: &Layout, figure: usize, x: f32, y: f32) {
+        let Some((key, bytes)) = own_figure(figure) else {
+            self.draw_pic(lay, "monster", figure, 0, x, y);
+            return;
+        };
+        let Some(tex) = self.art.embedded(key, bytes).cloned() else {
+            return;
+        };
+        let at = lay.point(x, y);
+        draw_texture_ex(
+            &tex,
+            at.x,
+            at.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(crate::resolution::logical_size(&tex) * lay.scale),
+                ..Default::default()
+            },
+        );
+    }
+
     /// Draw a picture of the scene in the colours of `palette`, top-left at the original's `(x, y)`.
     fn draw_summon_pic(
         &mut self,
@@ -300,7 +332,7 @@ impl App {
         };
         let figure = scene.figure;
         self.clipped((0.0, 0.0, crate::resolution::DESIGN_W, y + 105.0), |app| {
-            app.draw_pic(&lay, "monster", figure, 0, x + 76.0, rise);
+            app.draw_figure(&lay, figure, x + 76.0, rise);
         });
         let front = self.art.frames("spellscr", 11).max(1);
         self.draw_summon_pic(&lay, 11, stage % front, palette, x + 64.0, y + 80.0);
@@ -390,6 +422,20 @@ mod tests {
             .collect();
         assert!(palettes.iter().all(|p| (61..=66).contains(p)));
         assert!(palettes.len() >= 5, "{palettes:?}");
+    }
+
+    #[test]
+    fn the_fire_elemental_is_drawn_from_our_own_picture_and_nothing_else_is() {
+        let app = App::for_test();
+        let rules = &app.game.content().rules;
+        let spell = rules.spells.by_num(90 /* fire_elemental */).expect("spell");
+        let Some(Summoned::Creature(unit)) = summoned_by(spell) else {
+            panic!("Fire Elemental summons a creature");
+        };
+        let figure = usize::from(unit.num() - 154 /* magic_spirit */);
+        assert_eq!(figure, FIRE_ELEMENTAL_FIGURE);
+        assert!(own_figure(figure).is_some_and(|(_, png)| png.starts_with(b"\x89PNG")));
+        assert!(own_figure(figure + 1).is_none());
     }
 
     #[test]

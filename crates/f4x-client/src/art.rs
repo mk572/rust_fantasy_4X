@@ -724,6 +724,26 @@ impl Art {
         self.textures.get(&key)?.as_ref()
     }
 
+    /// A picture that ships with the client (`assets/`), as a PNG in `bytes`, at the art scale in
+    /// use; `key` names it in the cache.
+    pub fn embedded(&mut self, key: &str, bytes: &'static [u8]) -> Option<&Texture2D> {
+        let path = PathBuf::from(format!("embedded/{key}"));
+        if !self.textures.contains_key(&path) {
+            let tex = Image::from_file_with_format(bytes, Some(ImageFormat::Png))
+                .ok()
+                .map(|img| {
+                    let tex = Texture2D::from_image(&enlarged(
+                        img,
+                        usize::from(crate::resolution::art_scale()),
+                    ));
+                    tex.set_filter(FilterMode::Nearest);
+                    tex
+                });
+            self.textures.insert(path.clone(), tex);
+        }
+        self.textures.get(&path)?.as_ref()
+    }
+
     /// The pixels of a picture that use the cycling palette index (`cycle.rs`), if it has any.
     pub fn cycle_mask(&mut self, lbx: &str, entry: usize, frame: usize) -> Option<&Texture2D> {
         let base = picture_base(&self.placed, lbx, entry, frame);
