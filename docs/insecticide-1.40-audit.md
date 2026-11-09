@@ -365,3 +365,45 @@ These entries describe behavior later reversed, replaced or superseded by a late
 | IM187 | Encounter budgets increased, later reversed | Balance choice; investigate the desired difficulty curve rather than copying the temporary change. | P3 | Design |
 | IM194 | Myrror city roads fixed but all Arcanus towns also receive roads; later fixed | Investigate plane-specific map initialization and terrain/road ownership. | P3 | Investigate |
 | IM195 | Spell of Mastery research discount for 11 same-realm books changed substantially, later reversed | Balance investigation; do not reproduce a reverted economic change by default. | P3 | Design |
+
+## Walk for the v1.6 rule set (10 November 2026, task 530)
+
+The question for each row: does the v1.6 rule set need a **setting** (a rule that differs from v1.31 and that the Community Patch keeps), is it a bug we do not share, or is it outside the rules (UI, our own AI)? The 1.40 notes are in `reference/Insecticide _ Master of Magic Wiki _ Fandom.html`. Important for the whole walk: the Community Patch 1.60 *restored* the 1.31 raider and rampaging-monster generation, put the rest of the unofficial patches' changes into the optional "Revolting Raiders" and "Monsters Gone Wild" features, and reverted several 1.40 changes (the Community Patch page lists them). So a 1.40 change is a v1.6 candidate only if 1.60 keeps it.
+
+### Done (settings built)
+
+| Rows | Verdict |
+|---|---|
+| IW003 ship capacity | `rules.trireme_capacity` (2 to 8) and `rules.galley_capacity` (5 to 8); v1.31 = 2 and 5 (the original's), v1.6 = 8 and 8. |
+| IW005 Extreme | Sixth level, Extreme; choosing it plays the v1.6 rule set. Its figures are a **copy of Impossible's** until the patch's own are read (open question 1). |
+| IW010 monsters on turn 40 | `world.monster_start_turn` (30, 40 or 50, used from Average up; Intro and Easy stay at 50). Both sets default to 50: the Community Patch puts turn 40 into the optional Monsters Gone Wild (open question 2). |
+| IW017 Wind Walking stack | Test added (`a_swifter_unit_does_not_take_a_wind_walking_stack_further`); the stack's allowance is the Wind Walker's whichever unit has more. |
+
+### Outside the rules (no rule-set effect): UI, options, hotkeys, the AI's own heuristics
+
+IW001/007, IW009, IW010 (option removals), IW013, IW014, IW016, IW019/020, IW024, IW060, IW070, IW099, IW165, IW173, IM178 (names), IM193 (UI row). The AI rows (IW006, IW049, IW058/121, IW063, IW065 to IW068, IW086/087, IW092, IW094 to IW096, IW113 to IW126, IW129 to IW131, IW135 to IW167, IM177, IM185, IM197, IM198) describe the original AI's heuristics. Ours is not a port (`design.md` 8), so a rule set cannot copy them. The ones that point at a real gap in *our* AI are in the 1.40 audit's own follow-ups above (route replanning, field dispels, mineral value, tactical spell scoring) and are AI tasks, not rule-set settings.
+
+### Resolved: the bug is not in our game (checked in this pass or earlier)
+
+| Rows | Reason |
+|---|---|
+| IW008 | Item power 56 names spell 123; our text says what it does. |
+| IW041, IW109/110 (reseeded RNG) | Every derived generator is seeded from the game's own stream (`next_u64()`); none from a constant (`grep seed_from_u64`: all sites take the game's stream or a battle seed). |
+| IW059 vortex cap | Ours is the original's ten (`MAX_VORTICES = 10`). |
+| IW054 AI Possession on heroes | The rule allows heroes (`battle/spell.rs`); what the AI picks is the AI's. |
+| IW107, IW111 (memory corruption) | Safe Rust; no unchecked state. |
+| IW045 to IW050, IW056 to IW057, IW061 to IW064, IW073, IW078, IW080/085, IW083, IW102 to IW104, IW127/128/132 | Resolved by the table above and the P2 review. |
+| IW074 | Typed ids, no byte-sized spell index. |
+
+### Open questions (a batch for later)
+
+1. **Extreme's figures.** What does the patch give Extreme (AI bonuses, lair guards, treasure, raiders, score), and does "Impossible shifted to Extreme" in the raider and monster formulae mean Impossible's old row now belongs to Extreme? Today Extreme = Impossible.
+2. **Monsters Gone Wild and Revolting Raiders** (IW002, IW010, IW011): do we build them as the patch's optional features (raider and monster generation variants), and is turn 40 part of Monsters Gone Wild only? Also the rule "on that turn a group always appears, except on Easy, unless no zone is eligible": built or not?
+3. **Ship capacity under v1.6** (IW003): I found no reversal in the Community Patch page; confirm 8 and 8.
+4. **Rows not yet checked in code** (assessed from the table only; each is "does our rule match the original, and does 1.60 keep the patch's change?"):
+   - Economy and display: IW018 (income shown before moving; one `income` function exists, a test that display equals actual is missing), IW098 (Charismatic discount before the affordability check), IW076 (Conjurer upkeep rounding; the later audits make the favourable rounding an option), IW075.
+   - Diplomacy: IW042 (declaring war on a pact partner), IW043 (zero units on the home continent).
+   - Combat and spells: IW044 (Dispel Confusion returns the original owner), IW051/052 (integer widths; several realm bonuses add up), IW077 (Wind Mastery by player and context), IW079 (Cause Fear), IW081 (block bonus), IW082/084 (walled-town +3, siege bonus; the walls test exists, the siege side not read), IW088 to IW090, IW093 (combat movement), IW105/106 (Holy Arms, Possession dispel, Cracks Call on merging units), IW114 (Suppress Magic and Spell of Return), IW123 (Mana Leak conditions).
+   - Treasure and items: IW040, IW041, IW072 (themed treasure; the checklist's "Item Theming" restores spellbook requirements), IW100 (done: `arcane_candidate_cap`).
+   - Map and setup: IM176, IM178/180/186 (Huge land size), IM183/184 (starting town on an encounter zone, placement range), IM188/189/192 (lair realms, monster divisor, neutral garrison), IM194, IW097/IM179 (the Overland Spell Events setting is wired).
+5. **Priority P1 rows** that are code-safety rather than rules (IW043, IW107, IW135) need only a test each; they are in the follow-up list, not the rule set.
