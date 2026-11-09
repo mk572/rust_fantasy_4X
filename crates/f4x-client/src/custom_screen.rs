@@ -4,7 +4,7 @@
 //! running game (`options_screen::GameSettingsPage`), so no setting is missing from one or the
 //! other.
 
-use crate::font::Ink;
+use crate::font::{rgb, Ink};
 use crate::font_ramp;
 use crate::frame::Align;
 use crate::frame::Layout;
@@ -529,11 +529,17 @@ impl App {
             .options
             .custom
             .unwrap_or_else(|| self.options.settings(&self.game.content().settings));
+        let preset = self.options.preset;
+        // A rule set other than Fully customized is what the rows are compared with.
+        let reference =
+            (preset != Preset::Custom).then(|| preset.applied(work, &self.game.content().settings));
         self.open_page(
             Screen::Options,
             CustomPage {
                 work,
-                preset: self.options.preset,
+                preset,
+                reference,
+                green: Vec::new(),
                 open: None,
                 top: 0,
             },
@@ -565,6 +571,12 @@ pub(crate) fn preset_key(preset: Preset) -> &'static str {
 pub(crate) struct CustomPage {
     work: GameSettings,
     preset: Preset,
+    /// What the chosen rule set gives; a row that differs from it is shown red. None for Fully
+    /// customized.
+    reference: Option<GameSettings>,
+    /// The rows that choosing a rule set or a difficulty changed, shown green until the player
+    /// changes them.
+    green: Vec<&'static str>,
     /// The dropdown whose list is open.
     open: Option<Menu>,
     top: usize,
@@ -628,15 +640,20 @@ impl Page for CustomPage {
                     }
                     let label = app.text(f.label);
                     let value = value_text(app.texts(), f, (f.get)(&self.work));
-                    app.stone_text(view, 1, light, &label, x + 9.0, y, Align::Left);
-                    app.stone_text(view, 1, gold, &value, x + bw - 9.0, y, Align::Right);
+                    let (label_ink, value_ink) = match self.mark(f) {
+                        Mark::Green => (Ink::Flat(GREEN), Ink::Flat(GREEN)),
+                        Mark::Red => (Ink::Flat(RED), Ink::Flat(RED)),
+                        Mark::None => (light, gold),
+                    };
+                    app.stone_text(view, 1, label_ink, &label, x + 9.0, y, Align::Left);
+                    app.stone_text(view, 1, value_ink, &value, x + bw - 9.0, y, Align::Right);
                 }
             }
         }
         if let Some((f, back)) = changed {
             let v = stepped(f.kind, (f.get)(&self.work), back);
             (f.set)(&mut self.work, v);
-            self.preset = Preset::Custom;
+            self.green.retain(|&l| l != f.label);
         }
         self.dropdown(app, input, &lay, (bw, by));
         let range = app.text_with(
@@ -684,7 +701,70 @@ enum Menu {
     Difficulty,
 }
 
+/// How a row is marked: green when choosing a rule set or a difficulty changed it, red when it
+/// differs from the chosen rule set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mark {
+    None,
+    Green,
+    Red,
+}
+
+const GREEN: Color = rgb(110, 230, 110);
+const RED: Color = rgb(255, 96, 84);
+
+/// The labels of the rows whose value differs between two records.
+fn differing(a: &GameSettings, b: &GameSettings) -> Vec<&'static str> {
+    rows()
+        .into_iter()
+        .filter_map(|row| match row {
+            Row::Field(f) if (f.get)(a) != (f.get)(b) => Some(f.label),
+            _ => None,
+        })
+        .collect()
+}
+
 impl CustomPage {
+    /// The mark of a row: green while it is what the last choice of a rule set changed, red when
+    /// it differs from the chosen rule set (which stays chosen).
+    fn mark(&self, f: &Field) -> Mark {
+        if self.green.contains(&f.label) {
+            Mark::Green
+        } else if self
+            .reference
+            .is_some_and(|r| (f.get)(&r) != (f.get)(&self.work))
+        {
+            Mark::Red
+        } else {
+            Mark::None
+        }
+    }
+
+    /// Choose a rule set, and a difficulty with it when given: the rows take the set's values
+    /// under that level, those that changed are green, and the set becomes what red compares
+    /// with. A level is the base of a rule set, so a difficulty chosen with Fully customized
+    /// goes to v1.31.
+    fn choose(&mut self, preset: Preset, difficulty: Option<u8>, def: &SettingsDef) {
+        let before = self.work;
+        let mut start = before;
+        let mut preset = preset;
+        if let Some(level) = difficulty {
+            start.basic.difficulty = level;
+            if preset == Preset::Custom {
+                preset = Preset::V131;
+            }
+        }
+        self.preset = preset;
+        self.work = preset.applied(start, def);
+        if preset == Preset::Custom {
+            self.reference = None;
+            self.green.clear();
+        } else {
+            self.reference = Some(self.work);
+            self.green = differing(&before, &self.work);
+        }
+    }
+
     /// The dropdowns at the top of the right box: the rule set and the difficulty, each showing
     /// its choice and, when open, its list. Picking a rule set fills in its settings; picking a
     /// difficulty fills in that level's figures under the chosen rule set.
@@ -766,18 +846,9 @@ impl CustomPage {
         if let Some(i) = picked {
             let def = app.game.content().settings.clone();
             match open {
-                Menu::Preset => {
-                    self.preset = Preset::ALL[i];
-                    self.work = self.preset.applied(self.work, &def);
-                }
-                Menu::Difficulty => {
-                    // The level's figures replace every rule, so a hand-made set is gone.
-                    self.work.basic.difficulty = i as u8;
-                    if self.preset == Preset::Custom {
-                        self.preset = Preset::V131;
-                    }
-                    self.work = self.preset.applied(self.work, &def);
-                }
+                Menu::Preset => self.choose(Preset::ALL[i], None, &def),
+                // The level's figures replace every rule, so a hand-made set is gone.
+                Menu::Difficulty => self.choose(self.preset, Some(i as u8), &def),
             }
             self.open = None;
         } else if clicked {
@@ -926,5 +997,87 @@ mod tests {
         assert!(!filled.basic.diagonal_extra_cost);
         assert_eq!(filled.basic.map_width, 75);
         assert_eq!(Preset::Custom.applied(work, def), work);
+    }
+
+    fn page(def: &SettingsDef) -> CustomPage {
+        let work = GameSettings::for_difficulty(def, 2);
+        CustomPage {
+            work,
+            preset: Preset::V131,
+            reference: Some(work),
+            green: Vec::new(),
+            open: None,
+            top: 0,
+        }
+    }
+
+    fn mark_of(page: &CustomPage, label: &str) -> Mark {
+        let Some(Row::Field(f)) = rows()
+            .into_iter()
+            .find(|r| matches!(r, Row::Field(f) if f.label == label))
+        else {
+            panic!("no row {label}")
+        };
+        page.mark(&f)
+    }
+
+    #[test]
+    fn choosing_a_rule_set_marks_the_rows_it_changed_green() {
+        let def = crate::test_app::shipped::settings();
+        let mut p = page(def);
+        p.work.wizards.starting_gold.human = 300;
+        p.work.rules.half_upkeep = true;
+        p.choose(Preset::V131, None, def);
+        assert_eq!(p.preset, Preset::V131);
+        assert_eq!(mark_of(&p, "custom.gold_you"), Mark::Green);
+        assert_eq!(mark_of(&p, "custom.half_upkeep"), Mark::Green);
+        assert_eq!(mark_of(&p, "custom.score"), Mark::None);
+        assert_eq!(p.work.wizards.starting_gold.human, 75);
+    }
+
+    #[test]
+    fn a_green_row_stays_green_until_the_player_changes_it() {
+        let def = crate::test_app::shipped::settings();
+        let mut p = page(def);
+        p.work.wizards.starting_gold.human = 300;
+        p.choose(Preset::V131, None, def);
+        // Changing the row: no longer green, and red because it now differs from the set.
+        p.green.retain(|&l| l != "custom.gold_you");
+        p.work.wizards.starting_gold.human = 100;
+        assert_eq!(mark_of(&p, "custom.gold_you"), Mark::Red);
+        // Back to the set's own value: no mark.
+        p.work.wizards.starting_gold.human = 75;
+        assert_eq!(mark_of(&p, "custom.gold_you"), Mark::None);
+    }
+
+    #[test]
+    fn a_changed_row_is_red_and_the_rule_set_stays_chosen() {
+        let def = crate::test_app::shipped::settings();
+        let mut p = page(def);
+        p.work.rules.max_tile = 15;
+        assert_eq!(p.preset, Preset::V131);
+        assert_eq!(mark_of(&p, "custom.max_tile"), Mark::Red);
+        assert_eq!(mark_of(&p, "custom.score"), Mark::None);
+    }
+
+    #[test]
+    fn fully_customized_marks_nothing() {
+        let def = crate::test_app::shipped::settings();
+        let mut p = page(def);
+        p.work.rules.max_tile = 15;
+        p.choose(Preset::Custom, None, def);
+        assert_eq!(p.work.rules.max_tile, 15, "nothing is filled in");
+        assert_eq!(mark_of(&p, "custom.max_tile"), Mark::None);
+        assert!(p.green.is_empty());
+    }
+
+    #[test]
+    fn a_new_difficulty_marks_the_rows_the_level_changed() {
+        let def = crate::test_app::shipped::settings();
+        let mut p = page(def);
+        p.choose(Preset::V131, Some(4), def);
+        assert_eq!(p.work.basic.difficulty, 4);
+        assert_eq!(mark_of(&p, "custom.gold_you"), Mark::Green);
+        assert_eq!(mark_of(&p, "custom.max_tile"), Mark::None);
     }
 }
