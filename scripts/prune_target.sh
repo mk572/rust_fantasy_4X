@@ -7,12 +7,12 @@
 #   scripts/prune_target.sh --install-hook             install .git/hooks/pre-push to run it
 #   scripts/prune_target.sh -h | --help                print the usage
 #
-# The default limit is 20 GB: under it nothing is deleted, so a push does not cost a rebuild; use
+# The default limit is 10 GB: under it nothing is deleted, so a push does not cost a rebuild; use
 # `--max-gb 0` to clean on every push. The pre-push hook runs this in the background and never
 # blocks or fails the push (deleting a very large target/ takes a long time).
 set -u
 
-max_gb=20
+max_gb=10
 dry_run=0
 repo=$(cd "$(dirname "$0")/.." && pwd)
 

@@ -129,5 +129,5 @@ and a `du` over it competes with the delete, so do not scan it while it runs.
 The dev and test profiles now keep `debug = "line-tables-only"` for the workspace crates and no
 debuginfo for the dependencies (cold build 82 s to 64 s, 2.8 GB to 1.9 GB; panics still show
 file and line). For a debugger with variables use `cargo test --profile debug-full`, which builds
-into `target/debug-full/`. `scripts/prune_target.sh` cleans both when they pass 20 GB; the
+into `target/debug-full/`. `scripts/prune_target.sh` cleans both when they pass 10 GB; the
 pre-push hook (`--install-hook`, a local file in `.git/hooks`) runs it in the background.
