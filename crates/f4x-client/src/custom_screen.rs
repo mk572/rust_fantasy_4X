@@ -14,8 +14,8 @@ use crate::text::{Args, Texts};
 use crate::ui;
 use crate::view::{App, Screen};
 use f4x_core::game::setting::{
-    BasicSettings, EventFrequency, GameSettings, MeleeVsFliers, SettingsDef, MAP_HEIGHTS,
-    MAP_WIDTHS, MAX_OPPONENTS, MAX_TILE_LIMIT,
+    EventFrequency, GameSettings, MeleeVsFliers, SettingsDef, MAP_HEIGHTS, MAP_WIDTHS,
+    MAX_OPPONENTS, MAX_TILE_LIMIT,
 };
 use f4x_def::half_int::HalfInt;
 use macroquad::prelude::*;
@@ -549,47 +549,14 @@ const ROW: f32 = 9.0;
 /// Height of the two boxes: the title, the rows and the buttons under them.
 const BOX_HEIGHT: f32 = 29.0 + COLUMN as f32 * ROW + 8.0 + 12.0 + 14.0;
 
-/// The rule sets the dropdown offers. Picking one fills in its settings; changing any setting
-/// afterwards switches to `Custom`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) enum Preset {
-    /// The original's last official patch: the game's default rules.
-    #[default]
-    V131,
-    /// The community patch's rule changes.
-    V160,
-    /// Every setting by hand.
-    Custom,
-}
+pub(crate) use f4x_core::game::setting::RuleSet as Preset;
 
-impl Preset {
-    pub(crate) const ALL: [Preset; 3] = [Preset::V131, Preset::V160, Preset::Custom];
-
-    pub(crate) fn key(self) -> &'static str {
-        match self {
-            Preset::V131 => "custom.preset_v131",
-            Preset::V160 => "custom.preset_v160",
-            Preset::Custom => "custom.preset_custom",
-        }
-    }
-
-    /// `work` with this preset's rules: the level's figures for everything but the basic
-    /// choices (the map, the opponents), which stay. `Custom` changes nothing.
-    pub(crate) fn applied(self, work: GameSettings, def: &SettingsDef) -> GameSettings {
-        let level = GameSettings::for_difficulty(def, work.basic.difficulty);
-        let base = GameSettings {
-            basic: BasicSettings {
-                diagonal_extra_cost: level.basic.diagonal_extra_cost,
-                ..work.basic
-            },
-            ..level
-        };
-        match self {
-            Preset::V131 => base,
-            // The patch's changes are not defined yet: until they are, it plays as 1.31.
-            Preset::V160 => base,
-            Preset::Custom => work,
-        }
+/// The text key of a rule set's name.
+pub(crate) fn preset_key(preset: Preset) -> &'static str {
+    match preset {
+        Preset::V131 => "custom.preset_v131",
+        Preset::V160 => "custom.preset_v160",
+        Preset::Custom => "custom.preset_custom",
     }
 }
 
@@ -746,7 +713,7 @@ impl CustomPage {
                 format!(
                     "{} {}",
                     app.text("custom.preset"),
-                    app.text(self.preset.key())
+                    app.text(preset_key(self.preset))
                 ),
             ),
             (
@@ -778,7 +745,10 @@ impl CustomPage {
         let Some(open) = self.open else { return };
         let y = heads.iter().find(|h| h.0 == open).map_or(by, |h| h.1);
         let items: Vec<String> = match open {
-            Menu::Preset => Preset::ALL.iter().map(|p| app.text(p.key())).collect(),
+            Menu::Preset => Preset::ALL
+                .iter()
+                .map(|p| app.text(preset_key(*p)))
+                .collect(),
             Menu::Difficulty => crate::options_screen::DIFFICULTIES
                 .iter()
                 .map(|k| app.text(k))

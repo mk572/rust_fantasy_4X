@@ -102,7 +102,7 @@ fn without_levels_a_difficulty_is_the_default_game_at_that_level() {
 #[test]
 fn the_units_per_square_stay_between_an_army_and_the_ceiling() {
     let mut s = at(2);
-    assert_eq!(s.rules.max_tile, MAX_TILE_LIMIT);
+    assert_eq!(s.rules.max_tile, 12, "v1.31 allows twelve on a square");
     assert!(s.validate().is_empty());
     for bad in [MAX_STACK - 1, MAX_TILE_LIMIT + 1] {
         s.rules.max_tile = bad;

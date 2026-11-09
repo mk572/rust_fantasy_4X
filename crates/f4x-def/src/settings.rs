@@ -389,6 +389,43 @@ pub struct LevelDef {
     pub scoring: ScoreSettings,
 }
 
+/// The rule sets a new game can start from (the Custom screen's dropdown, the soak's `--rules`).
+/// Picking one fills in its settings; `Custom` is every setting by hand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum RuleSet {
+    /// The original's last official patch: the rules as the original and ReMoM have them, which
+    /// `rules_settings.ron` holds for each difficulty level.
+    #[default]
+    V131,
+    /// The community patch's rule changes.
+    V160,
+    /// Every setting by hand.
+    Custom,
+}
+
+impl RuleSet {
+    pub const ALL: [RuleSet; 3] = [RuleSet::V131, RuleSet::V160, RuleSet::Custom];
+
+    /// `work` with this rule set's rules: the difficulty level's figures for everything but the
+    /// basic choices (the map, the opponents), which stay. `Custom` changes nothing.
+    pub fn applied(self, work: GameSettings, def: &SettingsDef) -> GameSettings {
+        let level = GameSettings::for_difficulty(def, work.basic.difficulty);
+        let base = GameSettings {
+            basic: BasicSettings {
+                diagonal_extra_cost: level.basic.diagonal_extra_cost,
+                ..work.basic
+            },
+            ..level
+        };
+        match self {
+            RuleSet::V131 => base,
+            // The patch's changes are not defined yet: until they are, it plays as 1.31.
+            RuleSet::V160 => base,
+            RuleSet::Custom => work,
+        }
+    }
+}
+
 /// How many difficulty levels the file has (Intro to Impossible).
 pub const LEVELS: usize = 5;
 

@@ -135,7 +135,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | world | `lair_treasure_percent` | 0..=500 | from preset | `feature/lair.rs`: `loot * 4 / (d + 1)` |
 | world | `neutral_city_size_bonus` | -2..=6 | from preset | `city/neutral.rs`: `(d + 1) / 3` terms |
 | world | `raider_percent` | 0..=300 | from preset | `threat/raider.rs` (task 376): the party is `troops * raider_percent / 100`, `troops * d / 6` in the original |
-| rules | `max_tile` | `usize`, 9..=20 | 20 | units on one square (`Game::max_tile()`, `Economy::max_tile`; task 34, done 30 October 2026); `unit::MAX_TILE_LIMIT` is only its ceiling and default. No screen yet |
+| rules | `max_tile` | `usize`, 9..=20 | 12 (v1.31; the original's is 9, see `divergences.md` 4) | units on one square (`Game::max_tile()`, `Economy::max_tile`; task 34, done 30 October 2026); `unit::MAX_TILE_LIMIT` is only its ceiling and default. No screen yet |
 | rules | `max_stack` | an army and a battle side, now fixed at nine | 9 | `unit::MAX_STACK` (still a constant: lowering it is stage 3) |
 | rules | `max_city_size` | 5..=40 | 25 | `rules.ron` |
 | rules | `min_city_distance` | 1..=8 | 4 | `rules.ron` |

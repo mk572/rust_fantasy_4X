@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use crate::contestant::{self, Contestant, Version};
 use crate::metrics::{add_casts, casts_line, never_cast, Standing, Tally};
 
-pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4]";
+pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6]";
 
 /// The options `soak` and `soak-versus` share.
 pub struct Options {
@@ -58,6 +58,8 @@ pub struct Options {
     pub land: Option<u8>,
     pub magic: Option<u8>,
     pub difficulty: Option<u8>,
+    /// The rules the games are played with; 1.31, the original's, unless asked otherwise.
+    pub rules: f4x_def::settings::RuleSet,
 }
 
 impl Options {
@@ -86,6 +88,7 @@ impl Options {
             land: None,
             magic: None,
             difficulty: None,
+            rules: Default::default(),
         };
         let mut it = args.iter();
         while let Some(a) = it.next() {
@@ -134,6 +137,15 @@ impl Options {
                 }
                 "--land" => o.land = Some(value("--land")?.parse().map_err(|_| "bad land")?),
                 "--magic" => o.magic = Some(value("--magic")?.parse().map_err(|_| "bad magic")?),
+                "--rules" => {
+                    o.rules = match value("--rules")?.as_str() {
+                        "1.31" => f4x_def::settings::RuleSet::V131,
+                        "1.6" => f4x_def::settings::RuleSet::V160,
+                        other => {
+                            return Err(format!("{other:?} is not a rule set: use 1.31 or 1.6"))
+                        }
+                    }
+                }
                 "--difficulty" => {
                     o.difficulty = Some(
                         value("--difficulty")?
@@ -311,6 +323,7 @@ pub fn game(
                     f4x_def::settings::GameSettings::for_difficulty(&content.settings, level);
                 spec.settings.basic.opponents = opponents;
             }
+            spec.settings = opts.rules.applied(spec.settings, &content.settings);
             let basic = &mut spec.settings.basic;
             if let Some((w, h)) = opts.map {
                 (basic.map_width, basic.map_height) = (w, h);

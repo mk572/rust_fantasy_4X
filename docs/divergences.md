@@ -111,6 +111,7 @@ Decided with task 32; code in `game/setup.rs`, `city/economy.rs` (`site_max_size
 - **A race from the wrong plane is refused** when the player names one (a Myrran wizard needs a
   Myrror race, anyone else an Arcanus one). The original's new-game screen just never offers
   it.
+- **Twelve units on a square in v1.31** (decided by the user, 10 November 2026). The original allows nine. The v1.31 rule set (`rules_settings.ron`, `rules.max_tile: 12`) keeps the usability gain of larger stacks (freed heroes and the like) without changing play much; an army and a battle side stay at nine. The `max_tile` setting runs from 9 to 20.
 - **Upkeep before growth is *not* a departure:** the turn pays upkeep before cities grow, as
   the original does (`game-flow.md` section 4).
 
@@ -616,7 +617,7 @@ Enchant Road is permanent in the original and nothing removes it. Ours is perman
 
 ## 28. Road building time (task 107)
 
-`Turns_To_Build_Road` (`Terrain.c`) gives grassland 3, desert 4, forest, hills and tundra 6, mountains, swamp and volcano 8, a river square 5, and a node 4 (sorcery) or 5 (nature, chaos), because a node is a terrain of its own there. Ours matches on the ordinary ground and keeps a node on top of its ground, so a road on a node takes the ground's time (a sorcery node on hills: 6). Ours adds two turns for a river square's bridge to the time of its ground (grassland 5, as the original; forest 8, where the original's river square is 5). The turns are divided by the stack's construction points with a minimum of one turn, as in the original.
+`Turns_To_Build_Road` (`Terrain.c`) gives grassland 3, desert 4, forest, hills and tundra 6, mountains, swamp and volcano 8, a river square 5, and a node 4 (sorcery) or 5 (nature, chaos). Ours matches on all of these except the river: a node is a terrain of its own here too since task 338 (`terrain.ron`, section 33), and `turns_to_build_road` (`map/road.rs`) gives it the original's 4, 5 and 5 (tested). **The one departure is the river's bridge:** ours adds two turns to the time of the square's ground (grassland with a river 5, as the original; forest with a river 8, mountains 10), where the original gives every river square a flat 5. The turns are divided by the stack's construction points with a minimum of one turn, as in the original. (Corrected 10 November 2026: this section used to say a road on a node took the ground's time, which was true before task 338.)
 
 ## 29. The 100-turn battle limit (task 107)
 
@@ -694,13 +695,20 @@ for the unused mode, walking, Forester, Mountaineer, swimming and sailing (255 i
 
 So hills, swamp and mountains cost one more move in the original than in the game, and a chaos node
 (a mountain) 4. The Forester column makes forests cost 1, the Mountaineer column hills and
-mountains 1 (as ours does), and the Mountaineer column puts 3 on grassland and 2 on forest: a
-slowdown the Community Patch removes, which we do not have. Entry 1 (196 bytes) is the 14 by 14 racial unrest
+mountains 1 (as ours does). Entry 1 (196 bytes) is the 14 by 14 racial unrest
 table (`TBL_Unrest`), which `rules.ron` (`racial_unrest`) already holds, identical (the Klackon's -2 is
 the byte 254); `TERRTYPE.LBX` is the generator's autotile lookup (task 150). **Changed on 24 October 2026**
 (decided by the user, task 372): hills, swamp and mountains and the chaos node now cost the original's 3, 3,
 4 and 4. **Swamp food** is half a food (`food: 1`), which the original's code gets wrong (`Square_Food_x2`
 returns 0, `OGBUG`) and a later patch corrects; ours follows the patch.
+
+**The Mountaineer slowdown is treated as a bug and not copied** (decided by the user, 10 November
+2026; not finally confirmed). In the original's data the Mountaineer column also puts 3 on
+grassland and 2 on forest, so the ability makes other ground harder to enter than it is for anyone
+else. The Community Patch removes this, and we take the patch as the bugfix: a Mountaineer's cost is
+capped at 1 on hills and mountains and is the plain terrain's cost everywhere else
+(`unit/movement.rs`). This is a deliberate difference from the original 1.31 (a Mountaineer on
+grassland costs 1 here, 3 there), so a v1.31 rule set keeps it.
 
 ## 35. Immunity fixes (task 263)
 
