@@ -8,8 +8,8 @@
 #   scripts/prune_target.sh -h | --help                print the usage
 #
 # The default limit is 10 GB: under it nothing is deleted, so a push does not cost a rebuild; use
-# `--max-gb 0` to clean on every push. The pre-push hook runs this in the background and never
-# blocks or fails the push (deleting a very large target/ takes a long time).
+# `--max-gb 0` to clean on every push. The pre-push hook starts this in the background, after
+# the push has finished (git has no post-push hook), and never blocks or fails the push (deleting a very large target/ takes a long time).
 set -u
 
 max_gb=10
@@ -24,7 +24,9 @@ install_hook() {
         echo "error: $hook already exists; add a call to scripts/prune_target.sh to it by hand" >&2
         exit 1
     fi
-    printf '#!/bin/sh\n# Drop an oversized target/debug (scripts/prune_target.sh); never blocks the push.\n"$(git rev-parse --show-toplevel)/scripts/prune_target.sh" >/dev/null 2>&1 &\nexit 0\n' >"$hook"
+    # Git has no post-push hook: the cleanup starts detached and waits for the push (the hook's
+    # parent process) to end before it runs.
+    printf '#!/bin/sh\n# Drop an oversized target/debug (scripts/prune_target.sh) once the push is over; never blocks it.\nroot=$(git rev-parse --show-toplevel); parent=$PPID\n(while kill -0 "$parent" 2>/dev/null; do sleep 1; done; "$root/scripts/prune_target.sh") >/dev/null 2>&1 &\nexit 0\n' >"$hook"
     chmod +x "$hook"
     echo "installed $hook"
 }
