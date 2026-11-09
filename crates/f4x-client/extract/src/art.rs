@@ -547,6 +547,25 @@ fn slide_frame(pixels: &[u8], palette: &[u8], step: u8) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// `SPELLSCR.LBX` entries 61 to 66 are 1x1 pictures that only carry a palette (colours 224 to
+/// 255): grey for an arcane creature, a hero, a champion or an item, then the colours of nature,
+/// sorcery, chaos, life and death. `Summon_Animation_Load` loads the one of the creature's race
+/// type (46 + the type) before it draws the scene.
+const SUMMON_PALETTES: std::ops::RangeInclusive<usize> = 61..=66;
+
+/// The pictures of the summon scene that use the colours from 224 on: the frame (9), the two
+/// flames (10, 11) and the caster's figures (46 to 59). The creature's figure uses none.
+fn summon_recoloured(entry: usize) -> bool {
+    matches!(entry, 9..=11 | 46..=59)
+}
+
+/// `base` (256 six-bit RGB triples) with `colours` written from colour `start` on.
+fn with_colours(base: &[u8], start: usize, colours: &[u8]) -> Vec<u8> {
+    let mut palette = base.to_vec();
+    palette[start * 3..start * 3 + colours.len()].copy_from_slice(colours);
+    palette
+}
+
 pub fn extract(
     game_dir: &Path,
     out_dir: &Path,
@@ -593,6 +612,14 @@ pub fn extract(
         let screen_palette = screen_palette_entry(&stem)
             .and_then(|entry| decode(lbx.entry(entry)))
             .and_then(|pic| pic.palette);
+        // The palettes the summon scene is drawn in, by `SPELLSCR` entry.
+        let summon_palettes: Vec<(usize, (usize, Vec<u8>))> = if stem == "spellscr" {
+            SUMMON_PALETTES
+                .filter_map(|e| Some((e, decode(lbx.entry(e))?.palette?)))
+                .collect()
+        } else {
+            Vec::new()
+        };
         for i in 0..lbx.len() {
             let Some(mut pic) = decode(lbx.entry(i)) else {
                 continue;
@@ -618,10 +645,10 @@ pub fn extract(
                 None => (dir.clone(), format!("{i:03}")),
             };
             fs::create_dir_all(&target).map_err(|e| e.to_string())?;
-            let mut pal = file_palette.clone();
-            if let Some((start, colours)) = &pic.palette {
-                pal[start * 3..start * 3 + colours.len()].copy_from_slice(colours);
-            }
+            let pal = match &pic.palette {
+                Some((start, colours)) => with_colours(&file_palette, *start, colours),
+                None => file_palette.clone(),
+            };
             if stem == "backgrnd" && i == COMBAT_BOTTOM_ENTRY {
                 combat_pal = pal.clone();
             }
@@ -658,6 +685,17 @@ pub fn extract(
                                 let _ = fs::remove_file(&path);
                             }
                         }
+                    }
+                }
+                if summon_recoloured(i) {
+                    for (entry, (start, colours)) in &summon_palettes {
+                        let variant = with_colours(&pal, *start, colours);
+                        write_png(
+                            &target.join(format!("{name}_{f:02}_summon_{entry}.png")),
+                            pic.width,
+                            pic.height,
+                            &to_rgba(&frame.pixels, &variant),
+                        )?;
                     }
                 }
                 if stem.starts_with("figure") || stem.starts_with("units") {
@@ -763,6 +801,17 @@ mod tests {
         assert_eq!(frame[8], vga_to_rgb8(0));
         assert_eq!(frame[11], 255);
         Ok(())
+    }
+
+    #[test]
+    fn a_summon_palette_replaces_only_its_colours() {
+        let base = vec![1u8; 768];
+        let palette = with_colours(&base, 224, &[9, 8, 7, 6, 5, 4]);
+        assert_eq!(&palette[223 * 3..223 * 3 + 3], &[1, 1, 1]);
+        assert_eq!(&palette[224 * 3..224 * 3 + 6], &[9, 8, 7, 6, 5, 4]);
+        assert_eq!(&palette[226 * 3..226 * 3 + 3], &[1, 1, 1]);
+        assert!(summon_recoloured(9) && summon_recoloured(11) && summon_recoloured(59));
+        assert!(!summon_recoloured(12) && !summon_recoloured(60) && !summon_recoloured(8));
     }
 
     #[test]

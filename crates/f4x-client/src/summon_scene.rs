@@ -2,8 +2,9 @@
 //! with the caster's figure behind a flame, the summoned creature rising out of it, and
 //! "<Creature> Summoned" under it. It plays for Summon Hero, Summon Champion and the creature
 //! summons. With Spell Animations off it is 40 stages instead of 130 and the creature does not
-//! rise. The original recolours the frame by the creature's race (`SPELLSCR` 46 + race palette);
-//! ours keeps the one palette.
+//! rise. The frame, the flames and the caster take the colours of the creature's realm
+//! (`Summon_Animation_Load`: the palette of `SPELLSCR` 61 to 66); the creature's own picture uses
+//! none of the recoloured colours.
 
 use crate::audio::Track;
 use crate::font::{rgb, Style};
@@ -39,6 +40,11 @@ const FEMALE_HERO_FIGURE: usize = 44;
 const MALE_HERO_FIGURE: usize = 45;
 /// The sword that rises for Enchant Item and Create Artifact.
 const ITEM_FIGURE: usize = 46;
+/// `SPELLSCR.LBX` 61: the grey palette of an arcane creature, a hero, a champion and an item.
+const PALETTE_GREY: usize = 61;
+/// `SPELLSCR.LBX` 62 to 66: the palettes of nature, sorcery, chaos, life and death, in the order
+/// of the realm numbers 0 to 4.
+const PALETTE_NATURE: usize = 62;
 
 /// What stands in the flame.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +65,8 @@ pub(crate) struct SummonScene {
     figure: usize,
     /// `SPELLSCR.LBX` entry of the caster's figure.
     caster: usize,
+    /// `SPELLSCR.LBX` entry (61 to 66) of the palette the scene is drawn in.
+    palette: usize,
     music: Track,
     /// The words under the figure.
     label: String,
@@ -97,6 +105,15 @@ fn hero_figure(gender: Gender) -> usize {
     match gender {
         Gender::Feminine => FEMALE_HERO_FIGURE,
         Gender::Masculine | Gender::Neuter => MALE_HERO_FIGURE,
+    }
+}
+
+/// The `SPELLSCR.LBX` palette of a creature of the realm numbered `realm` (`Summon_Animation_Load`
+/// adds the creature's race type to 46: nature to death are 16 to 20, arcane 15).
+fn palette_entry(realm: Option<u16>) -> usize {
+    match realm {
+        Some(num @ 0..=4) => PALETTE_NATURE + usize::from(num),
+        _ => PALETTE_GREY,
     }
 }
 
@@ -170,6 +187,16 @@ impl App {
         let rules = &self.game.content().rules;
         let def = rules.spells.get(spell);
         let what = summoned_by(def)?;
+        let palette = match &what {
+            Summoned::Creature(unit) => palette_entry(
+                rules
+                    .units
+                    .get(*unit)
+                    .realm
+                    .map(|realm| rules.realms.get(realm).num),
+            ),
+            Summoned::Hero | Summoned::Champion | Summoned::Item => PALETTE_GREY,
+        };
         let (figure, label) = match &what {
             Summoned::Creature(unit) => {
                 let first = UnitId::new(154) /* magic_spirit */;
@@ -189,6 +216,7 @@ impl App {
             player,
             figure,
             caster: self.art.wizard(slot).summon,
+            palette,
             music: Track::piece(tune(def.rarity)),
             label,
             started,
@@ -212,6 +240,32 @@ impl App {
         }
     }
 
+    /// Draw a picture of the scene in the colours of `palette`, top-left at the original's `(x, y)`.
+    fn draw_summon_pic(
+        &mut self,
+        lay: &Layout,
+        entry: usize,
+        frame: usize,
+        palette: usize,
+        x: f32,
+        y: f32,
+    ) {
+        let Some(tex) = self.art.summon_picture(entry, frame, palette).cloned() else {
+            return;
+        };
+        let at = lay.point(x, y);
+        draw_texture_ex(
+            &tex,
+            at.x,
+            at.y,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(crate::resolution::logical_size(&tex) * lay.scale),
+                ..Default::default()
+            },
+        );
+    }
+
     pub(crate) fn summon_scene_frame(
         &mut self,
         mut scene: SummonScene,
@@ -231,12 +285,13 @@ impl App {
         let lay = Layout::new();
         let view = (lay.origin.x, lay.origin.y, lay.scale);
         let (x, y) = FRAME;
-        self.draw_pic(&lay, "spellscr", 9, 0, x, y);
+        let palette = scene.palette;
+        self.draw_summon_pic(&lay, 9, 0, palette, x, y);
         let caster = scene.caster;
         self.clipped((x + 7.0, y + 8.0, 150.0, 97.0), |app| {
-            app.draw_pic(&lay, "spellscr", caster, 0, x + 8.0, y + 3.0);
+            app.draw_summon_pic(&lay, caster, 0, palette, x + 8.0, y + 3.0);
             let back = app.art.frames("spellscr", 10).max(1);
-            app.draw_pic(&lay, "spellscr", 10, stage % back, x + 55.0, y + 54.0);
+            app.draw_summon_pic(&lay, 10, stage % back, palette, x + 55.0, y + 54.0);
         });
         let rise = if animated && scene.player == HUMAN && stage < RISE {
             y + 110.0 - (stage * 3) as f32
@@ -248,7 +303,7 @@ impl App {
             app.draw_pic(&lay, "monster", figure, 0, x + 76.0, rise);
         });
         let front = self.art.frames("spellscr", 11).max(1);
-        self.draw_pic(&lay, "spellscr", 11, stage % front, x + 64.0, y + 80.0);
+        self.draw_summon_pic(&lay, 11, stage % front, palette, x + 64.0, y + 80.0);
         self.draw_styled(
             view,
             &Style::set(4, 4)
@@ -291,6 +346,50 @@ mod tests {
         assert_eq!(hero_figure(Gender::Feminine), 44);
         assert_eq!(hero_figure(Gender::Masculine), 45);
         assert_eq!(hero_figure(Gender::Neuter), 45);
+    }
+
+    #[test]
+    fn a_summon_takes_the_palette_of_its_realm() {
+        assert_eq!(palette_entry(Some(0)), 62); // nature, green
+        assert_eq!(palette_entry(Some(1)), 63); // sorcery, blue
+        assert_eq!(palette_entry(Some(2)), 64); // chaos, red
+        assert_eq!(palette_entry(Some(3)), 65); // life, white
+        assert_eq!(palette_entry(Some(4)), 66); // death, purple
+        assert_eq!(palette_entry(Some(5)), 61); // arcane, grey
+        assert_eq!(palette_entry(None), 61);
+    }
+
+    #[test]
+    fn the_shipped_creatures_get_the_palette_of_their_realm() {
+        let app = App::for_test();
+        let rules = &app.game.content().rules;
+        let palette_of = |spell: u16| {
+            let def = rules.spells.by_num(spell).expect("spell");
+            let Some(Summoned::Creature(unit)) = summoned_by(def) else {
+                panic!("spell {spell} summons no creature");
+            };
+            palette_entry(
+                rules
+                    .units
+                    .get(unit)
+                    .realm
+                    .map(|realm| rules.realms.get(realm).num),
+            )
+        };
+        assert_eq!(palette_of(6 /* war_bears */), 62);
+        // Every creature summon lands on one of the six palettes, and the book realms differ.
+        let palettes: std::collections::BTreeSet<usize> = rules
+            .spells
+            .iter()
+            .filter_map(|(_, def)| match summoned_by(def) {
+                Some(Summoned::Creature(unit)) => Some(palette_entry(
+                    rules.units.get(unit).realm.map(|r| rules.realms.get(r).num),
+                )),
+                _ => None,
+            })
+            .collect();
+        assert!(palettes.iter().all(|p| (61..=66).contains(p)));
+        assert!(palettes.len() >= 5, "{palettes:?}");
     }
 
     #[test]

@@ -743,6 +743,23 @@ impl Art {
         self.texture(PathBuf::from(format!("{base}_slide_{}.png", step % 8)))
     }
 
+    /// A picture of the summon scene (`spellscr` 9 to 11 and 46 to 59) in the colours of
+    /// `SPELLSCR` palette entry `palette` (61 to 66), as `f4x-extract art` writes them; the plain
+    /// picture when that variant was not extracted.
+    pub fn summon_picture(
+        &mut self,
+        entry: usize,
+        frame: usize,
+        palette: usize,
+    ) -> Option<&Texture2D> {
+        let base = picture_base(&self.placed, "spellscr", entry, frame);
+        let variant = PathBuf::from(format!("{base}_summon_{palette}.png"));
+        if self.texture(variant.clone()).is_some() {
+            return self.texture(variant);
+        }
+        self.picture("spellscr", entry, frame)
+    }
+
     /// How many frames a picture of an `.lbx` file has (those that were extracted).
     pub fn frames(&mut self, lbx: &str, entry: usize) -> usize {
         (0..64)
