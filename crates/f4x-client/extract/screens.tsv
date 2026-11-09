@@ -282,3 +282,10 @@ spellscr	38	38	item_crafting	button_charges_1
 spellscr	39	39	item_crafting	button_charges_2
 spellscr	40	40	item_crafting	button_charges_3
 spellscr	41	41	item_crafting	button_charges_4
+
+# Undead rising after a battle (`Undead_Animation_Load`, SPLMASTR.c; undead_scene.rs): the
+# graveyard, the mist and the two layers of earth. The figure is a MONSTER.LBX picture (art/summoning/).
+cmbtfx	27	27	undead_rising	graveyard
+cmbtfx	29	29	undead_rising	mist
+cmbtfx	30	30	undead_rising	earth_back
+cmbtfx	31	31	undead_rising	earth_front
