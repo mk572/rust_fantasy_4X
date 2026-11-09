@@ -1957,7 +1957,7 @@ mod fields {
             .battle_unit_from(torin, Side::Attacker, 0)
             .ok_or("battle_unit_from is missing")?;
         assert_eq!(unit.realm, Some(Realm::Life));
-        unit.cell = (3, 5).into();
+        unit.cell = (3, 5);
         let plain = unit.clone();
         let mut b = pair(unit, of(Side::Defender, Some(Realm::Death), (17, 5)));
         b.raise_field(Side::Defender, Field::Darkness, spell());

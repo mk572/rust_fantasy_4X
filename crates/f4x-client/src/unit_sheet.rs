@@ -1168,7 +1168,7 @@ mod tests {
     fn a_hero_type_gets_a_portrait_on_the_sheets_of_offers_and_battles() -> Result<(), String> {
         let app = crate::view::App::for_test();
         let rules = app.game.content().rules.clone();
-        let template = rules.hero_templates.get(0).ok_or("no hero type")?;
+        let template = rules.hero_templates.first().ok_or("no hero type")?;
         let def = rules.units.get(template.unit);
         let view = app
             .hero_portrait_view(def, "Rolf")

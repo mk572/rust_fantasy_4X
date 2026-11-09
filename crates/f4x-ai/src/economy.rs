@@ -61,6 +61,15 @@ struct Growth {
     wide: f32,
 }
 
+/// What presses on a city's plan: an empty treasury, a rival close by, and how many fighters the
+/// campaign wants at the front.
+#[derive(Clone, Copy)]
+struct Pressure {
+    broke: bool,
+    threatened: bool,
+    war_force: Option<usize>,
+}
+
 /// Gold from which the cities build units to spend it on, tall or not.
 const RICH_GOLD: i32 = 1500;
 
@@ -172,9 +181,11 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     &view,
                     city,
                     pos,
-                    broke,
-                    ai.threatened.contains(&pos),
-                    war_force,
+                    Pressure {
+                        broke,
+                        threatened: ai.threatened.contains(&pos),
+                        war_force,
+                    },
                     &mut settlers_planned,
                     Growth { room, wide },
                 ),
@@ -245,12 +256,15 @@ fn plan_for(
     view: &PlayerView,
     city: hecs::Entity,
     pos: Position,
-    broke: bool,
-    threatened: bool,
-    war_force: Option<usize>,
+    pressure: Pressure,
     settlers_planned: &mut usize,
     growth: Growth,
 ) -> BuildPlan {
+    let Pressure {
+        broke,
+        threatened,
+        war_force,
+    } = pressure;
     let Growth { room, wide } = growth;
     let size = view.city_economy(city).map_or(0, |e| e.figures);
     let garrison = view
