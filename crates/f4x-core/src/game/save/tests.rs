@@ -1,7 +1,9 @@
 use super::*;
+use crate::game::setting::{AiWizardSettings, EventFrequency, MeleeVsFliers, Split};
 use crate::game::testutil::{num, shipped};
 use crate::game::Command;
 use crate::map::{Grid, Plane};
+use f4x_def::half_int::HalfInt;
 use f4x_def::testdir::TestResult;
 
 const P0: PlayerId = PlayerId(0);
@@ -469,9 +471,67 @@ fn every_setting_survives_a_save() -> TestResult {
         diagonal_extra_cost: true,
         original_map_generator: true,
     };
+    // Every other group away from its default too: a field the save left out would come back
+    // as the default and fail the comparison.
+    let before = g.settings;
+    let s = &mut g.settings;
+    s.wizards.starting_gold = Split {
+        human: 301,
+        ai: 302,
+    };
+    s.wizards.starting_mana = Split { human: 31, ai: 32 };
+    s.wizards.picks = Split { human: 12, ai: 13 };
+    s.ai.growth_percent = 111;
+    s.ai.outpost_growth_percent = 112;
+    s.ai.production_percent = 113;
+    s.ai.gold_percent = 114;
+    s.ai.mana_percent = 115;
+    s.ai.food_percent = 116;
+    s.ai.research_percent = 117;
+    s.ai.maintenance_percent = 118;
+    s.ai.unit_upkeep_percent = 119;
+    s.ai.wizards = AiWizardSettings {
+        randomise: !s.ai.wizards.randomise,
+        consolidate_percent: 41,
+        erasure_dice: (3, 4),
+        myrran_rule: !s.ai.wizards.myrran_rule,
+        guaranteed_summoning_spell: !s.ai.wizards.guaranteed_summoning_spell,
+    };
+    s.world.lair_guard_percent = 91;
+    s.world.lair_treasure_percent = 92;
+    s.world.neutral_city_size_bonus = 3;
+    s.world.raiders_enabled = !s.world.raiders_enabled;
+    s.world.monsters_enabled = !s.world.monsters_enabled;
+    s.world.raider_percent = 93;
+    s.world.start_reveal_radius = HalfInt::from_int(4);
+    s.rules.safe_flee = Split {
+        human: !s.rules.safe_flee.human,
+        ai: !s.rules.safe_flee.ai,
+    };
+    s.rules.settlers_cost_citizen = !s.rules.settlers_cost_citizen;
+    s.rules.melee_vs_fliers = MeleeVsFliers::Half;
+    s.rules.max_tile = 12;
+    s.rules.half_upkeep = !s.rules.half_upkeep;
+    s.rules.arcane_candidate_cap = 4;
+    s.events.random_events = !s.events.random_events;
+    s.events.pressure_percent = 77;
+    s.events.frequency = EventFrequency::Double;
+    s.scoring.score_percent = 250;
+    assert!(
+        g.settings.validate().is_empty(),
+        "{:?}",
+        g.settings.validate()
+    );
     let text = g.snapshot().to_text()?;
     let back = Snapshot::from_text(&text)?.restore(Default::default())?;
     assert_eq!(back.settings(), g.settings());
+    assert_ne!(g.settings, before);
+    // The rules read half upkeep and the arcane cap from the content: the loaded game has them.
+    assert!(back.content().settings.half_upkeep.enabled);
+    assert_eq!(
+        back.content().settings.spell_library.arcane_candidate_cap,
+        4
+    );
     Ok(())
 }
 

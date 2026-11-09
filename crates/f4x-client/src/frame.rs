@@ -72,6 +72,17 @@ impl Layout {
         }
     }
 
+    /// The layout for a screen `width` original pixels wide (and as high as the original's): a
+    /// wider window than the original's 320, for screens the original never had.
+    pub fn with_width(width: f32) -> Self {
+        let (w, h) = window_size();
+        let scale = (w / width).min(h / ORIGINAL_H).max(0.5);
+        Self {
+            scale,
+            origin: vec2((w - width * scale) / 2.0, (h - ORIGINAL_H * scale) / 2.0),
+        }
+    }
+
     /// A rectangle given in the original's pixels, in window pixels.
     pub fn rect(&self, (x, y, w, h): (f32, f32, f32, f32)) -> Rect {
         Rect::new(

@@ -249,6 +249,7 @@ Notes:
   - Settings that took effect at creation (`picks`, `starting_gold`, map size) are saved too, for
     the screens and the hall of fame; only the ones read during play (stack limit, events, Mastery,
     Return, city limits, scoring) have to be right after a load.
+- **The Custom screen and the in-game list** (`custom_screen.rs`, task 503, first version): one table of rows (`custom_screen::rows`) names every gameplay setting of `GameSettings`; the new-game Custom screen edits them (two stone boxes side by side), the in-game Game settings box lists the same rows read-only, and a test checks that the rows reach every field of the record. `half_upkeep` and `arcane_candidate_cap` were content-only; they are now in `RuleSettings` (the content keeps the default for a new game) and are copied into the game's own content at creation and load, so a save keeps them.
 - **Settings are fixed once the game starts.** There is no in-game editing, no console `set`
   command and no cheat for them, so a replay of the same seed and commands stays the same game. The
   exception is a deliberately listed set of **mid-game-safe** fields (none in version 1). A game

@@ -116,6 +116,7 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
     let mut game = Game::new(spec.seed);
     game.settings = settings;
     game.content = content.clone();
+    game.apply_content_settings();
     game.names = spec.names.clone();
     game.set_generated(map);
     for k in 0..wizards {

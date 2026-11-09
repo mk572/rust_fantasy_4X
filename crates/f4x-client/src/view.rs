@@ -425,18 +425,7 @@ impl App {
             build: human.cloned(),
             race: content.rules.races.defs().get(race).map(|r| r.num),
             settings: {
-                let mut s = f4x_core::game::setting::GameSettings::for_difficulty(
-                    &content.settings,
-                    options.difficulty,
-                );
-                s.basic.opponents = options.opponents.clamp(1, content.settings.max_opponents);
-                s.basic.land_percent = options.land_percent(&content.settings);
-                s.basic.magic_strength = options.magic;
-                (s.basic.map_width, s.basic.map_height) = options.map_size(&content.settings);
-                let (towers, cities) = options.map_counts(&content.settings);
-                s.basic.towers = Some(towers);
-                s.basic.neutral_cities = Some(cities);
-                s.basic.original_map_generator = options.original_generator;
+                let mut s = options.settings(&content.settings);
                 // The Random Events preference is the default for a new game; a level that
                 // plays without events (Intro) keeps them off.
                 s.events.random_events &= random_events;

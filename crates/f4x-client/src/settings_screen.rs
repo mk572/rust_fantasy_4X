@@ -198,7 +198,7 @@ impl Page for SettingsPage {
             app.save_preferences();
             app.open_page(
                 Screen::GameSettings,
-                crate::options_screen::GameSettingsPage,
+                crate::options_screen::GameSettingsPage::default(),
             );
             return;
         }
@@ -219,7 +219,7 @@ impl App {
         self.menu.from_menu = from_menu;
         self.open_page(
             Screen::GameSettings,
-            crate::options_screen::GameSettingsPage,
+            crate::options_screen::GameSettingsPage::default(),
         );
     }
 

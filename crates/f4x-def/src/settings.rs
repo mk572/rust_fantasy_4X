@@ -295,6 +295,15 @@ pub struct RuleSettings {
     /// battle side stay at nine; units above that on a defended square are a reserve.
     #[serde(default = "default_max_tile")]
     pub max_tile: usize,
+    /// Half the food and gold upkeep for the basic troops (`SettingsDef::half_upkeep` lists
+    /// them). A new game takes the content's choice; it is saved with the game.
+    #[serde(default)]
+    pub half_upkeep: bool,
+    /// Patch 1.40 of the original: at most this many arcane spells on offer at once while another
+    /// realm has spells to research. 0 is off, as in the original game. A new game takes the
+    /// content's choice; it is saved with the game.
+    #[serde(default)]
+    pub arcane_candidate_cap: u8,
 }
 
 fn default_max_tile() -> usize {
@@ -725,13 +734,16 @@ impl GameSettings {
     pub fn for_difficulty(def: &SettingsDef, difficulty: u8) -> Self {
         let d = difficulty.min(4);
         let Some(level) = def.level(d) else {
-            return Self {
+            let mut game = Self {
                 basic: BasicSettings {
                     difficulty: d,
                     ..def.new_game
                 },
                 ..Self::default()
             };
+            game.rules.half_upkeep = def.half_upkeep.enabled;
+            game.rules.arcane_candidate_cap = def.spell_library.arcane_candidate_cap;
+            return game;
         };
         Self {
             basic: BasicSettings {
@@ -741,7 +753,11 @@ impl GameSettings {
             wizards: level.wizards,
             ai: level.ai,
             world: level.world,
-            rules: level.rules,
+            rules: RuleSettings {
+                half_upkeep: def.half_upkeep.enabled,
+                arcane_candidate_cap: def.spell_library.arcane_candidate_cap,
+                ..level.rules
+            },
             events: level.events,
             scoring: level.scoring,
         }
@@ -883,6 +899,13 @@ impl GameSettings {
             format!("start reveal radius {radius} is not 0 to 10"),
         );
         check(
+            self.rules.arcane_candidate_cap <= 20,
+            format!(
+                "arcane spell cap {} is over 20",
+                self.rules.arcane_candidate_cap
+            ),
+        );
+        check(
             (10..=200).contains(&self.events.pressure_percent),
             format!(
                 "event pressure {}% is not 10 to 200",
@@ -939,6 +962,7 @@ impl GameSettings {
             .world
             .start_reveal_radius
             .clamp(HalfInt::ZERO, HalfInt::from_int(10));
+        self.rules.arcane_candidate_cap = self.rules.arcane_candidate_cap.min(20);
         self.events.pressure_percent = self.events.pressure_percent.clamp(10, 200);
         self.scoring.score_percent = self.scoring.score_percent.clamp(10, 500);
         self

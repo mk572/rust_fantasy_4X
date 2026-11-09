@@ -3,8 +3,8 @@
 
 use crate::input::Input;
 use crate::page::Page;
-use crate::text::{Args, Texts};
-use f4x_core::game::setting::SettingsDef;
+use crate::text::Args;
+use f4x_core::game::setting::{BasicSettings, GameSettings, SettingsDef};
 use macroquad::prelude::*;
 
 use crate::font::Ink;
@@ -58,6 +58,9 @@ pub(crate) struct OptionsState {
     pub map: u8,
     /// Make the land with the original's generator.
     pub original_generator: bool,
+    /// The settings of the Custom screen, when the player kept some: they replace the level's
+    /// figures for the new game.
+    pub custom: Option<f4x_core::game::setting::GameSettings>,
 }
 
 impl OptionsState {
@@ -80,6 +83,61 @@ impl OptionsState {
                 })
                 .unwrap_or(0) as u8,
             original_generator: b.original_map_generator,
+            custom: None,
+        }
+    }
+
+    /// The settings these choices make: the level's figures with the basic choices on top, or
+    /// the Custom screen's record when the player kept one.
+    pub fn settings(&self, settings: &SettingsDef) -> GameSettings {
+        if let Some(custom) = self.custom {
+            return custom;
+        }
+        let mut s = GameSettings::for_difficulty(settings, self.difficulty);
+        s.basic.opponents = self.opponents.clamp(1, settings.max_opponents);
+        s.basic.land_percent = self.land_percent(settings);
+        s.basic.magic_strength = self.magic;
+        (s.basic.map_width, s.basic.map_height) = self.map_size(settings);
+        let (towers, cities) = self.map_counts(settings);
+        s.basic.towers = Some(towers);
+        s.basic.neutral_cities = Some(cities);
+        s.basic.original_map_generator = self.original_generator;
+        s
+    }
+
+    /// Keep the Custom screen's record, and show its basic choices on the options step: the
+    /// opponents, the magic power and the generator as they are, the land and the map the
+    /// nearest size.
+    pub fn keep_custom(&mut self, custom: GameSettings, settings: &SettingsDef) {
+        let b = custom.basic;
+        let nearest = OptionsState::from_settings(&SettingsDef {
+            new_game: b,
+            ..settings.clone()
+        });
+        self.opponents = b.opponents.clamp(1, settings.max_opponents);
+        self.magic = b.magic_strength.min(2);
+        self.original_generator = b.original_map_generator;
+        self.land = nearest.land;
+        self.map = nearest.map;
+        self.custom = Some(custom);
+    }
+
+    /// A change on the options step itself: the Custom record follows the basic choices, except
+    /// a new difficulty, which fills in its figures again and drops the record.
+    pub fn changed_here(&mut self, difficulty_changed: bool, settings: &SettingsDef) {
+        if difficulty_changed {
+            self.custom = None;
+        } else if let Some(custom) = self.custom {
+            let mut fresh = self.clone();
+            fresh.custom = None;
+            let base = fresh.settings(settings);
+            self.custom = Some(GameSettings {
+                basic: BasicSettings {
+                    diagonal_extra_cost: custom.basic.diagonal_extra_cost,
+                    ..base.basic
+                },
+                ..custom
+            });
         }
     }
 
@@ -110,90 +168,13 @@ impl App {
     }
 }
 
-/// What a game was made with, one line each (the Settings screen of a running game).
-pub(crate) fn settings_lines(
-    texts: &Texts,
-    s: &f4x_core::game::setting::GameSettings,
-    def: &f4x_core::game::setting::SettingsDef,
-) -> Vec<String> {
-    let b = &s.basic;
-    let name = |names: &[&str], i: u8| {
-        names
-            .get(usize::from(i))
-            .map_or_else(|| "?".to_string(), |k| texts.get(k, &Args::new()))
-    };
-    let custom = if s.is_level(def) {
-        String::new()
-    } else {
-        texts.get("options.custom", &Args::new())
-    };
-    let mut lines = vec![
-        texts.get(
-            "options.line_difficulty",
-            &Args::new()
-                .text("name", name(DIFFICULTIES, b.difficulty))
-                .text("custom", custom),
-        ),
-        texts.get(
-            "options.line_opponents",
-            &Args::new().count("n", b.opponents),
-        ),
-        texts.get("options.line_land", &Args::new().count("n", b.land_percent)),
-        texts.get(
-            "options.line_map",
-            &Args::new()
-                .count("w", i32::from(b.map_width))
-                .count("h", i32::from(b.map_height))
-                .count("towers", i32::from(b.tower_count()))
-                .count("cities", b.neutral_city_count() as i32),
-        ),
-        texts.get(
-            "options.line_generator",
-            &Args::new().text(
-                "name",
-                texts.get(
-                    if b.original_map_generator {
-                        "options.generator_original"
-                    } else {
-                        "options.generator_custom"
-                    },
-                    &Args::new(),
-                ),
-            ),
-        ),
-        texts.get(
-            "options.line_magic",
-            &Args::new().text("name", name(MAGIC_LEVELS, b.magic_strength)),
-        ),
-        texts.get(
-            "options.line_gold",
-            &Args::new()
-                .count("you", s.wizards.starting_gold.human)
-                .count("ai", s.wizards.starting_gold.ai),
-        ),
-    ];
-    if s.ai.production_percent != 100 || s.ai.gold_percent != 100 {
-        lines.push(
-            texts.get(
-                "options.line_ai_cities",
-                &Args::new()
-                    .count("production", s.ai.production_percent)
-                    .count("gold", s.ai.gold_percent)
-                    .count("research", s.ai.research_percent),
-            ),
-        );
-    }
-    lines.push(texts.get(
-        "options.line_score",
-        &Args::new().count("n", s.scoring.score_percent),
-    ));
-    lines
-}
-
 /// The options step on the original's picture (`Newgame_Screen_0`): four buttons on the
 /// right whose text is the current choice, a click goes on to the next one; OK and Cancel
 /// under them. Positions are the original's.
 pub(crate) struct OptionsPage;
+
+/// Where the Custom button is, at the bottom of the left panel (the original's pixels).
+const CUSTOM_AT: (f32, f32) = (50.0, 174.0);
 
 impl Page for OptionsPage {
     fn frame(&mut self, app: &mut App, input: &Input) {
@@ -249,62 +230,8 @@ impl Page for OptionsPage {
                 changed = Some(i);
             }
         }
-        // The original's picture has four buttons only: the map size and the map generator are
-        // two more rows of text under them, the name on the left as the four have it and the
-        // choice on the right.
-        let (w, h) = o.map_size(&app.game.content().settings);
-        let rows = [
-            (
-                143.0,
-                app.text("options.map_size").to_string(),
-                format!("{w} x {h}"),
-            ),
-            (
-                156.0,
-                app.text("options.generator").to_string(),
-                app.text(if o.original_generator {
-                    "options.generator_original"
-                } else {
-                    "options.generator_custom"
-                })
-                .to_string(),
-            ),
-        ];
-        for (i, (y, name, value)) in rows.into_iter().enumerate() {
-            let hover = ui::hit(lay.rect((166.0, y - 1.0, 150.0, 12.0)), true, input).hovered();
-            let shift = if hover { 1.0 } else { 0.0 };
-            let ink = if hover { 178 } else { 187 };
-            app.draw_styled(view, &ng_ink(3, 31), &name, 168.0, y + 1.0);
-            app.draw_styled(view, &ng_ink(3, 178), &name, 167.0, y);
-            app.draw_styled(
-                view,
-                &ng_ink(3, 31).center(),
-                &value,
-                283.0 + shift,
-                y + 1.0 + shift,
-            );
-            app.draw_styled(
-                view,
-                &ng_ink(3, ink).center(),
-                &value,
-                282.0 + shift,
-                y + shift,
-            );
-            if hover && clicked {
-                changed = Some(4 + i);
-            }
-        }
         // Too little land for each wizard: the game still starts, but the player is told.
-        let crowded = {
-            let (w, h) = o.map_size(&app.game.content().settings);
-            let basic = f4x_core::game::setting::BasicSettings {
-                opponents: o.opponents,
-                map_width: w,
-                map_height: h,
-                ..Default::default()
-            };
-            basic.crowding()
-        };
+        let crowded = { o.settings(&app.game.content().settings).basic.crowding() };
         if let Some(each) = crowded {
             let text = app.text_with("options.crowded", &Args::new().count("n", each));
             for (i, line) in app.bm_wrap(1, &text, 150.0).iter().enumerate() {
@@ -312,19 +239,28 @@ impl Page for OptionsPage {
             }
         }
         let o = &mut app.options;
-        let map_sizes = app.game.content().settings.map_sizes.len() as u8;
+        let picked = changed;
         match changed {
-            Some(4) => o.map = (o.map + 1) % map_sizes,
-            Some(5) => o.original_generator = !o.original_generator,
             Some(0) => o.difficulty = (o.difficulty + 1) % 5,
             Some(1) => o.opponents = o.opponents.clamp(1, most) % most + 1,
             Some(2) => o.land = (o.land + 1) % sizes,
             Some(3) => o.magic = (o.magic + 1) % 3,
             _ => {}
         }
+        if picked.is_some() {
+            let settings = app.game.content().settings.clone();
+            app.options.changed_here(picked == Some(0), &settings);
+        }
+        if app.options.custom.is_some() {
+            let text = app.text("custom.active");
+            app.draw_styled(view, &ng_ink(3, 201).center(), &text, 82.0, 163.0);
+        }
+        let custom = app.board_button(&lay, "custom.button", CUSTOM_AT, input);
         let ok = app.board_button(&lay, "ui.button_ok", (252.0, 179.0), input);
         let cancel = app.board_button(&lay, "ui.cancel", (171.0, 179.0), input);
-        if cancel || input.key_pressed(KeyCode::Escape) {
+        if custom {
+            app.open_custom();
+        } else if cancel || input.key_pressed(KeyCode::Escape) {
             app.open_main_menu();
         } else if ok || input.key_pressed(KeyCode::Enter) {
             app.open_creation();
@@ -335,7 +271,11 @@ impl Page for OptionsPage {
 /// What the game is played with, opened from the Settings screen's Game button.
 /// In a game it shows the settings and changes nothing; from the start menu there is no
 /// game, so it is the options for the next one. Back returns to the Settings screen.
-pub(crate) struct GameSettingsPage;
+#[derive(Default)]
+pub(crate) struct GameSettingsPage {
+    /// The first row in view, when the list is longer than the box.
+    top: usize,
+}
 
 /// The value after (or, going back, before) `current` of `count`, wrapping.
 fn cycled(current: usize, count: usize, back: bool) -> usize {
@@ -364,10 +304,6 @@ impl Page for GameSettingsPage {
                 .land_sizes
                 .get(usize::from(o.land))
                 .map_or(String::new(), |s| app.text(land_key(&s.id)));
-            let map = settings
-                .map_sizes
-                .get(usize::from(o.map))
-                .map_or(String::new(), |s| app.text(map_key(&s.id)));
             items.push((
                 app.text("options.difficulty"),
                 app.text(DIFFICULTIES[usize::from(o.difficulty)]),
@@ -380,38 +316,58 @@ impl Page for GameSettingsPage {
                 app.text(MAGIC_LEVELS[usize::from(o.magic)]),
                 true,
             ));
-            items.push((app.text("options.map_size"), map, true));
-            items.push((
-                app.text("options.generator"),
-                app.text(if o.original_generator {
-                    "options.generator_original"
-                } else {
-                    "options.generator_custom"
-                }),
-                true,
-            ));
             let seed = app.text_with(
                 "options.line_seed",
                 &Args::new().text("seed", app.seed.to_string()),
             );
             items.push((seed, String::new(), false));
         } else {
-            let mut lines = settings_lines(
+            // Every setting the game was made with, read-only; the list scrolls.
+            for (label, value) in crate::custom_screen::lines(
                 app.texts(),
                 app.game.settings(),
                 &app.game.content().settings,
-            );
-            lines.push(app.texts().get(
+            ) {
+                items.push((label, value, false));
+            }
+            let seed = app.text_with(
                 "options.line_seed",
                 &Args::new().text("seed", app.game.seed().to_string()),
-            ));
-            for line in lines {
-                for part in app.bm_wrap(1, &line, bw - 20.0) {
-                    items.push((part, String::new(), false));
-                }
-            }
+            );
+            items.push((seed, String::new(), false));
         }
-        let bh = 29.0 + items.len() as f32 * SETTINGS_ROW + 8.0 + 12.0 + 14.0;
+        let rows_in_view = items.len().min(SETTINGS_VISIBLE);
+        let last = items.len() - rows_in_view;
+        let wheel = input.mouse_wheel().1;
+        if wheel > 0.0 || input.key_pressed(KeyCode::Up) {
+            self.top = self.top.saturating_sub(1);
+        }
+        if wheel < 0.0 || input.key_pressed(KeyCode::Down) {
+            self.top = self.top.saturating_add(1);
+        }
+        if input.key_pressed(KeyCode::PageUp) {
+            self.top = self.top.saturating_sub(SETTINGS_VISIBLE);
+        }
+        if input.key_pressed(KeyCode::PageDown) {
+            self.top = self.top.saturating_add(SETTINGS_VISIBLE);
+        }
+        self.top = self.top.min(last);
+        let total = items.len();
+        let range = app.text_with(
+            "custom.range",
+            &Args::new()
+                .count("from", self.top + 1)
+                .count("to", self.top + rows_in_view)
+                .count("of", total),
+        );
+        let items: Vec<_> = items
+            .into_iter()
+            .enumerate()
+            .skip(self.top)
+            .take(rows_in_view)
+            .collect();
+        let more = if total > rows_in_view { 10.0 } else { 0.0 };
+        let bh = 29.0 + items.len() as f32 * SETTINGS_ROW + 8.0 + 12.0 + 14.0 + more;
         let (bx, by) = (
             ((crate::resolution::DESIGN_W - bw) / 2.0).floor(),
             ((crate::resolution::DESIGN_H - bh) / 2.0).floor(),
@@ -450,8 +406,9 @@ impl Page for GameSettingsPage {
             input.mouse_pressed(MouseButton::Right),
         );
         let mut changed: Option<usize> = None;
-        for (i, (label, value, clickable)) in items.iter().enumerate() {
-            let y = by + 29.0 + i as f32 * SETTINGS_ROW;
+        for (n, (i, (label, value, clickable))) in items.iter().enumerate() {
+            let i = *i;
+            let y = by + 29.0 + n as f32 * SETTINGS_ROW;
             let r = lay.rect((bx + 6.0, y - 1.0, bw - 12.0, SETTINGS_ROW));
             let hover = *clickable && ui::hit(r, true, input).hovered();
             if hover {
@@ -465,10 +422,7 @@ impl Page for GameSettingsPage {
         }
         if let Some(i) = changed {
             let back = right;
-            let (lands, maps) = {
-                let s = &app.game.content().settings;
-                (s.land_sizes.len(), s.map_sizes.len())
-            };
+            let lands = app.game.content().settings.land_sizes.len();
             let most = app.game.content().settings.max_opponents;
             let o = &mut app.options;
             match i {
@@ -481,9 +435,19 @@ impl Page for GameSettingsPage {
                 }
                 2 => o.land = cycled(usize::from(o.land), lands, back) as u8,
                 3 => o.magic = cycled(usize::from(o.magic), MAGIC_LEVELS.len(), back) as u8,
-                4 => o.map = cycled(usize::from(o.map), maps, back) as u8,
-                _ => o.original_generator = !o.original_generator,
+                _ => {}
             }
+        }
+        if total > rows_in_view {
+            app.stone_text(
+                view,
+                1,
+                light,
+                &range,
+                bx + 9.0,
+                by + bh - 34.0,
+                Align::Left,
+            );
         }
         let back_label = app.text("options.back");
         let back = app.red_button_sized(
@@ -502,6 +466,8 @@ impl Page for GameSettingsPage {
 
 /// Row height of the game settings box, in the original's pixels.
 const SETTINGS_ROW: f32 = 10.0;
+/// Rows of the game settings box in view at once; a longer list scrolls.
+const SETTINGS_VISIBLE: usize = 12;
 
 /// The text key of a land size of `rules_settings.ron`, by its id; an id a language has no words for
 /// shows as the id itself.
@@ -510,17 +476,6 @@ fn land_key(id: &str) -> &str {
         "small" => "options.land_small",
         "medium" => "options.land_medium",
         "large" => "options.land_large",
-        other => other,
-    }
-}
-
-/// The text key of a map size of `rules_settings.ron`, by its id.
-fn map_key(id: &str) -> &str {
-    match id {
-        "small" => "options.map_small",
-        "medium" => "options.map_medium",
-        "large" => "options.map_large",
-        "huge" => "options.map_huge",
         other => other,
     }
 }
@@ -543,19 +498,33 @@ mod tests {
     }
 
     #[test]
-    fn a_running_games_settings_read_as_words() {
+    fn the_levels_figures_are_used_until_the_custom_screen_keeps_a_record() {
         let settings = shipped_settings();
-        let level = |d| f4x_core::game::setting::GameSettings::for_difficulty(settings, d);
-        let texts = crate::test_app::shipped::texts();
-        let lines = settings_lines(texts, &level(4), settings);
-        assert_eq!(lines[0], "Difficulty: Impossible");
-        assert!(lines.iter().any(|l| l.contains("25 for you, 150")));
-        assert!(lines.iter().any(|l| l.contains("production 400%")));
-        let mut custom = level(2);
+        let mut o = OptionsState::from_settings(settings);
+        o.difficulty = 4;
+        assert_eq!(o.settings(settings).wizards.starting_gold.human, 25);
+        let mut custom = o.settings(settings);
         custom.wizards.starting_gold.human = 300;
-        assert_eq!(
-            settings_lines(texts, &custom, settings)[0],
-            "Difficulty: Average (custom)"
-        );
+        custom.basic.opponents = 3;
+        custom.basic.map_width = 75;
+        custom.basic.map_height = 50;
+        custom.basic.diagonal_extra_cost = true;
+        o.keep_custom(custom, settings);
+        let made = o.settings(settings);
+        assert_eq!(made, custom);
+        // The options step shows what the record says.
+        assert_eq!((o.opponents, o.map_size(settings)), (3, (75, 50)));
+        // A change of opponents on the options step reaches the record and keeps the rest.
+        o.opponents = 5;
+        o.changed_here(false, settings);
+        let made = o.settings(settings);
+        assert_eq!(made.basic.opponents, 5);
+        assert_eq!(made.wizards.starting_gold.human, 300);
+        assert!(made.basic.diagonal_extra_cost);
+        // A new difficulty fills in its own figures again.
+        o.difficulty = 1;
+        o.changed_here(true, settings);
+        assert!(o.custom.is_none());
+        assert_eq!(o.settings(settings).wizards.starting_gold.human, 100);
     }
 }

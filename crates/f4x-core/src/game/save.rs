@@ -1102,6 +1102,7 @@ impl Snapshot {
         game.content = content;
         game.turn = self.turn;
         game.settings = self.settings.normalised();
+        game.apply_content_settings();
         game.game_over = self.game_over;
         game.override_log = self.override_log;
         game.prefab_taken = self.prefab_taken;

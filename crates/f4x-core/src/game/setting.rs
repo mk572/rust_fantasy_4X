@@ -8,6 +8,15 @@ pub use f4x_def::settings::*;
 use crate::player::PlayerId;
 
 impl crate::game::Game {
+    /// Copy the settings that the rules read from the content (half upkeep, the arcane spell
+    /// cap) into this game's own copy of the content, so a game keeps the choices it was made or
+    /// saved with. Called when a game is made and when one is loaded.
+    pub(crate) fn apply_content_settings(&mut self) {
+        let rules = self.settings.rules;
+        self.content.settings.half_upkeep.enabled = rules.half_upkeep;
+        self.content.settings.spell_library.arcane_candidate_cap = rules.arcane_candidate_cap;
+    }
+
     /// Give each computer wizard its difficulty bonuses from the settings (a human wizard and
     /// the neutral players get none). Called when a game is made and when one is loaded, after
     /// the human is known.
