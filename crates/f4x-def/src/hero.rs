@@ -137,7 +137,7 @@ impl HeroAbilities {
 }
 
 /// The number of a tiered ability's plain form in `abilities.ron`; the doubled form is the next.
-fn tiered_number(name: &str) -> u16 {
+pub fn tiered_number(name: &str) -> u16 {
     match name {
         "leadership" => 75,
         "legendary" => 77,
@@ -202,6 +202,11 @@ pub fn arcane_power(tier: Tier, level: usize) -> i32 {
 /// Resistance to All counts.
 pub fn prayermaster(tier: Tier, level: usize) -> i32 {
     by_tier(tier, level as i32 + 1, (1, 1), (3, 2))
+}
+
+/// Armsmaster: experience points each turn for the other units on the hero's square.
+pub fn armsmaster(tier: Tier, level: usize) -> i32 {
+    by_tier(tier, level as i32 + 1, (2, 1), (3, 1))
 }
 
 /// Legendary: fame for the wizard.

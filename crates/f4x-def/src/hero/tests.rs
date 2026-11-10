@@ -14,6 +14,7 @@ fn the_formulas_follow_the_table() {
     assert_eq!((arcane_power(n, 5), arcane_power(s, 5)), (6, 9));
     assert_eq!((prayermaster(n, 5), prayermaster(s, 5)), (6, 9));
     assert_eq!((legendary(n, 5), legendary(s, 5)), (18, 27));
+    assert_eq!((armsmaster(n, 5), armsmaster(s, 5)), (12, 18));
     // Sage goes by the level itself.
     assert_eq!((sage(n, 5), sage(s, 5)), (15, 22));
     assert_eq!(might(Tier::None, 5), 0);

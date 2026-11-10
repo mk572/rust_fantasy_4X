@@ -26,6 +26,8 @@
     "unit.construction": "Construction",
     "unit.scouting": "Scouting {n}",
     "unit.carries": "Carries {n}",
+    "unit.ability_value": "{name} {n}",
+    "unit.ability_plus": "{name} +{n}",
     "unit.caster": "Caster {n} mp",
     "unit.undead": "Undead",
     "unit.stasis_held": "Held in Stasis",

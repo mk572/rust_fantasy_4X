@@ -31,14 +31,14 @@ pub const SUPER_ARMSMASTER: Ability = Ability::new(82);
 impl UnitView<'_> {
     /// Experience a hero with Armsmaster gives its stack each turn (0 without the ability).
     pub fn armsmaster_xp(&self, hero: hecs::Entity) -> u32 {
-        let per_level = if self.unit_has_ability(hero, SUPER_ARMSMASTER) {
-            3
+        let tier = if self.unit_has_ability(hero, SUPER_ARMSMASTER) {
+            f4x_def::hero::Tier::Super
         } else if self.unit_has_ability(hero, ARMSMASTER) {
-            2
+            f4x_def::hero::Tier::Normal
         } else {
             return 0;
         };
-        (self.unit_level(hero) as u32 + 1) * per_level
+        f4x_def::hero::armsmaster(tier, self.unit_level(hero)) as u32
     }
 
     /// The experience a unit has after `amount` more: only a living normal unit or hero (not

@@ -52,6 +52,8 @@ pub(crate) enum ItemIcon {
     Held(usize),
     /// An empty slot: the picture of the kind of item it takes, an entry of `itemisc.lbx`.
     Empty(usize),
+    /// The picture of an item power, an entry of `itemisc.lbx` too (Merging).
+    Power(usize),
 }
 
 /// What a hero's sheet shows in place of the unit on its diamond.
@@ -113,6 +115,8 @@ pub(crate) struct Sheet {
     pub hits: Row,
     pub hurt: i32,
     pub specials: Vec<Special>,
+    /// The rank and experience line: drawn in the top right corner of the sheet.
+    pub level: Option<Special>,
     pub can_dismiss: bool,
     /// A hero: its portrait and name, and its item slots head the list.
     pub hero: Option<HeroView>,
@@ -239,19 +243,23 @@ const LISTED: &[(Ability, usize)] = &[
     (Ability::new(56), 33),  // resist_all
     (Ability::new(28), 34),  // holy_bonus
     // Attack flags (`USW_ATK_Flags`) and the special ranged attacks (`USW_SR_Attacks`).
-    (Ability::new(1), 28),   // armor_piercing
-    (Ability::new(53), 29),  // poison_touch
-    (Ability::new(35), 30),  // life_steal
-    (Ability::new(30), 116), // illusion_attack
-    (Ability::new(66), 35),  // stoning_touch
-    (Ability::new(17), 142), // dispel_evil
-    (Ability::new(23), 133), // first_strike
-    (Ability::new(69), 130), // thrown
-    (Ability::new(20), 138), // fire_breath
-    (Ability::new(37), 137), // lightning_breath
-    (Ability::new(64), 26),  // stoning_gaze
-    (Ability::new(15), 135), // death_gaze
-    (Ability::new(46), 134), // multi_gaze
+    (Ability::new(1), 28),    // armor_piercing
+    (Ability::new(53), 29),   // poison_touch
+    (Ability::new(35), 30),   // life_steal
+    (Ability::new(101), 31),  // doom_damage (automatic damage)
+    (Ability::new(100), 140), // destruction
+    (Ability::new(30), 116),  // illusion_attack
+    (Ability::new(66), 35),   // stoning_touch
+    (Ability::new(99), 27),   // death_touch
+    (Ability::new(103), 141), // power_drain
+    (Ability::new(17), 142),  // dispel_evil
+    (Ability::new(23), 133),  // first_strike
+    (Ability::new(69), 130),  // thrown
+    (Ability::new(20), 138),  // fire_breath
+    (Ability::new(37), 137),  // lightning_breath
+    (Ability::new(64), 26),   // stoning_gaze
+    (Ability::new(15), 135),  // death_gaze
+    (Ability::new(46), 134),  // multi_gaze
 ];
 
 /// The pictures of the lasting spells on a unit: spell number, the icon of the unit sheet
@@ -326,8 +334,6 @@ pub(crate) fn curse_picture(spells: &[SpellId]) -> Option<usize> {
 
 /// What the abilities list is built from.
 pub(crate) struct SpecialsInput<'a> {
-    /// The level's name, the experience points and the level (0-based), for normal units.
-    pub level: Option<(&'a str, u32, usize)>,
     pub abilities: &'a [Ability],
     /// The unit is held in stasis (a line of its own, not an ability).
     pub stasis_held: bool,
@@ -346,8 +352,98 @@ pub(crate) struct SpecialsInput<'a> {
     /// The help topic of an ability (its `help`).
     pub ability_help: &'a dyn Fn(Ability) -> Option<u16>,
     pub texts: &'a Texts,
+    /// The unit's special level (poison strength, the penalty of its touches and gazes) and its
+    /// ranged strength, which the abilities that have a number show.
+    pub special_level: i32,
+    pub ranged: i32,
+    /// The abilities an item or a spell gave (their touches cost the target's save more).
+    pub granted: &'a [Ability],
+    /// The experience level of a hero (0-based): its abilities are listed, with their values.
+    pub hero_level: Option<usize>,
     /// Lasting spells on the unit: spell, id, name, and whether the viewer may turn it off.
     pub enchantments: Vec<(f4x_def::rules::SpellId, String, bool, Option<u16>)>,
+}
+
+/// The unit's rank and experience ("Veteran (65 ep)") with the picture of its level; the sheet
+/// draws it in the top right corner, not in the list.
+pub(crate) fn level_special(level: Option<(&str, u32, usize)>, texts: &Texts) -> Option<Special> {
+    let (name, xp, level) = level?;
+    let args = Args::new().text("name", name).count("xp", xp);
+    Some(Special {
+        name: texts.get("unit.level", &args),
+        icon: Some(102 + level.min(5)),
+        spell: None,
+        removable: false,
+        help: None,
+        item: None,
+        card: None,
+    })
+}
+
+/// The picture of the Merging item power in `itemisc.lbx`.
+const MERGING_POWER_ICON: usize = 18;
+
+/// A hero's abilities with their values for its level (`f4x_def::hero`): `(ability number of the
+/// plain one, its picture in the original's `special_seg`, the value)`; the doubled ability is the
+/// next number. Lucky, Charmed and Noble have no value.
+fn hero_abilities(input: &SpecialsInput, level: usize, out: &mut Vec<Special>) {
+    use f4x_def::hero::{self, HeroAbilities, Tier};
+    let abilities = HeroAbilities::from_ids(input.abilities);
+    type Value = fn(Tier, usize) -> i32;
+    let tiered: &[(&str, usize, Value)] = &[
+        ("leadership", 43, hero::leadership),
+        ("legendary", 45, hero::legendary),
+        ("blademaster", 47, hero::blademaster),
+        ("armsmaster", 46, hero::armsmaster),
+        ("constitution", 50, hero::constitution),
+        ("might", 52, hero::might),
+        ("arcane_power", 54, hero::arcane_power),
+        ("sage", 61, hero::sage),
+        ("prayermaster", 57, hero::prayermaster),
+        ("agility", 143, hero::agility),
+    ];
+    for &(name, icon, value) in tiered {
+        let Some(tier) = abilities.tier(name).filter(|&t| t != Tier::None) else {
+            continue;
+        };
+        let id = Ability::new(hero::tiered_number(name) + u16::from(tier == Tier::Super));
+        let shown = (input.ability_name)(id);
+        let n = value(tier, level);
+        out.push(Special {
+            name: if n > 0 {
+                input.texts.get(
+                    "unit.ability_plus",
+                    &Args::new().text("name", shown).count("n", n),
+                )
+            } else {
+                shown
+            },
+            icon: Some(icon),
+            help: (input.ability_help)(id),
+            spell: None,
+            removable: false,
+            item: None,
+            card: None,
+        });
+    }
+    for (on, id, icon) in [
+        (abilities.lucky, 39, 58),
+        (abilities.charmed, 95, 59),
+        (abilities.noble, 96, 60),
+    ] {
+        if on {
+            let id = Ability::new(id);
+            out.push(Special {
+                name: (input.ability_name)(id),
+                icon: Some(icon),
+                help: (input.ability_help)(id),
+                spell: None,
+                removable: false,
+                item: None,
+                card: None,
+            });
+        }
+    }
 }
 
 /// The abilities list in the original's order: level, quiver, to hit, construction, the listed
@@ -363,12 +459,8 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         item: None,
         card: None,
     };
-    if let Some((name, xp, level)) = input.level {
-        let args = Args::new().text("name", name).count("xp", xp);
-        out.push(plain(
-            input.texts.get("unit.level", &args),
-            Some(102 + level.min(5)),
-        ));
+    if let Some(level) = input.hero_level {
+        hero_abilities(input, level, &mut out);
     }
     if let Some(name) = quiver_name(input.texts, input.abilities, input.ammo) {
         out.push(plain(name, Some(136)));
@@ -397,8 +489,40 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
         out.push(plain(input.texts.get("unit.carries", &args), None));
     }
     let has = |a: Ability| input.abilities.contains(&a);
+    // Merging, with the picture of the item power (the original shows it before Teleporting).
+    if has(Ability::new(43)) {
+        out.push(Special {
+            help: (input.ability_help)(Ability::new(43)),
+            item: Some(ItemIcon::Power(MERGING_POWER_ICON)),
+            ..plain((input.ability_name)(Ability::new(43)), None)
+        });
+    }
+    // Some abilities show a number: poison strength, the strength of a thrown weapon or a
+    // breath, and what a touch or a gaze takes off the target's save (Life Steal and Death
+    // Touch since 1.50).
+    let special = f4x_core::battle::special::SpecialAttacks::of_unit(
+        input.abilities,
+        input.granted,
+        input.special_level,
+    );
+    let number = |id: Ability| -> Option<i32> {
+        match id.num() {
+            53 => Some(special.poison),
+            69 | 20 | 37 => Some(input.ranged),
+            35 => Some(-(special.penalty + special.life_steal_extra)),
+            99 => Some(-(special.penalty + special.death_extra)),
+            66 => Some(-(special.penalty + special.stoning_extra)),
+            64 | 15 | 46 => Some(-special.penalty),
+            _ => None,
+        }
+        .filter(|&n| n != 0)
+    };
     for &(id, icon) in LISTED {
         if !has(id) {
+            continue;
+        }
+        // A hero's Lucky is one of its hero abilities, listed with them.
+        if id == Ability::new(39) && input.hero_level.is_some() {
             continue;
         }
         // Pathfinding replaces the forester and mountaineer lines it contains.
@@ -406,6 +530,10 @@ pub(crate) fn specials(input: &SpecialsInput) -> Vec<Special> {
             continue;
         }
         let mut name = (input.ability_name)(id);
+        if let Some(n) = number(id) {
+            let args = Args::new().text("name", name).count("n", n);
+            name = input.texts.get("unit.ability_value", &args);
+        }
         if (id == Ability::new(61) || id == Ability::new(62)) && input.mana > 0 {
             name = input
                 .texts
@@ -554,6 +682,7 @@ impl App {
         let def = units.unit_def(unit)?;
         let content = game.content();
         let abilities = units.unit_abilities(unit);
+        let granted = units.unit_granted_abilities(unit);
         let stasis_held = game.unit_in_stasis(unit);
         let stat = |s: Stat| units.unit_stat(unit, s);
         let base = |s: Stat| def.stats.get(&s).map_or(0, |v| v.floor());
@@ -615,7 +744,6 @@ impl App {
             0
         };
         let mut specials = specials(&SpecialsInput {
-            level,
             abilities: &abilities,
             stasis_held,
             ammo: stat(Stat::Ammo),
@@ -629,6 +757,10 @@ impl App {
             ability_help: &ability_help,
             texts: self.texts(),
             enchantments,
+            special_level: stat(Stat::SpecialLevel),
+            ranged: stat(Stat::Ranged),
+            granted: &granted,
+            hero_level: def.hero.is_some().then(|| units.unit_level(unit)),
         });
         // What temporary effects do to the unit, after its own abilities.
         specials.extend(
@@ -680,6 +812,7 @@ impl App {
             },
             hurt: front,
             specials,
+            level: level_special(level, self.texts()),
             can_dismiss: owner == crate::view::HUMAN,
             hero,
         })
@@ -766,7 +899,6 @@ impl App {
             0
         };
         let specials = specials(&SpecialsInput {
-            level: level_line,
             abilities,
             stasis_held: false,
             ammo: stat(Stat::Ammo),
@@ -781,6 +913,10 @@ impl App {
             ability_help: &ability_help,
             texts: self.texts(),
             enchantments: Vec::new(),
+            special_level: stat(Stat::SpecialLevel),
+            ranged: stat(Stat::Ranged),
+            granted: &[],
+            hero_level: None,
         });
         let ranged = stat(Stat::Ranged);
         Sheet {
@@ -814,6 +950,7 @@ impl App {
             },
             hurt: 0,
             specials,
+            level: level_special(level_line, self.texts()),
             can_dismiss: false,
             hero: None,
         }
@@ -867,7 +1004,6 @@ impl App {
             })
             .collect();
         let mut specials = specials(&SpecialsInput {
-            level: None,
             abilities: &u.abilities,
             stasis_held: false,
             ammo: u.ammo,
@@ -885,6 +1021,14 @@ impl App {
             ability_help: &ability_help,
             texts: self.texts(),
             enchantments,
+            special_level: u.special_level,
+            ranged: u.ranged,
+            granted: &u.granted,
+            hero_level: def.hero.is_some().then(|| {
+                self.game
+                    .battle_unit_source(id)
+                    .map_or(0, |e| self.game.units().unit_level(e))
+            }),
         });
         // A hero's three item slots head the list, as on the overland sheet; the portrait and
         // the name come from the battle unit, which kept the name when the battle began.
@@ -922,6 +1066,7 @@ impl App {
             },
             hurt: u.front_damage,
             specials,
+            level: None,
             can_dismiss: false,
             hero: self.hero_portrait_view(def, &u.hero_name),
         })
@@ -1009,7 +1154,6 @@ mod tests {
         let name = |id: Ability| format!("ability {}", id.num());
         let no_help = |_: Ability| None;
         let list = specials(&SpecialsInput {
-            level: Some(("Veteran", 65, 2)),
             abilities: &abilities,
             ammo: 8,
             to_hit: 1,
@@ -1023,18 +1167,20 @@ mod tests {
             stasis_held: false,
             texts: en(),
             enchantments: Vec::new(),
+            special_level: 0,
+            ranged: 0,
+            granted: &[],
+            hero_level: None,
         });
         assert_eq!(
             names(&list),
-            [
-                "Veteran (65 ep)",
-                "Arrows x8",
-                "+1 To Hit",
-                "ability 52",
-                "ability 23"
-            ]
+            ["Arrows x8", "+1 To Hit", "ability 52", "ability 23"]
         );
-        assert_eq!(list[0].icon, Some(104));
+        // The rank is no line of the list: the sheet draws it in its top right corner.
+        let rank = level_special(Some(("Veteran", 65, 2)), en()).expect("a level has a line");
+        assert_eq!(rank.name, "Veteran (65 ep)");
+        assert_eq!(rank.icon, Some(104));
+        assert!(level_special(None, en()).is_none());
     }
 
     #[test]
@@ -1044,7 +1190,6 @@ mod tests {
         let name = |id: Ability| format!("ability {}", id.num());
         let no_help = |_: Ability| None;
         let list = specials(&SpecialsInput {
-            level: None,
             abilities: &abilities,
             ammo: 0,
             to_hit: 0,
@@ -1058,6 +1203,10 @@ mod tests {
             stasis_held: false,
             texts: en(),
             enchantments: Vec::new(),
+            special_level: 0,
+            ranged: 0,
+            granted: &[],
+            hero_level: None,
         });
         assert_eq!(names(&list), ["ability 50"]);
     }
@@ -1069,7 +1218,6 @@ mod tests {
         let name = |id: Ability| format!("ability {}", id.num());
         let no_help = |_: Ability| None;
         let list = specials(&SpecialsInput {
-            level: None,
             abilities: &abilities,
             ammo: 4,
             to_hit: 0,
@@ -1083,8 +1231,160 @@ mod tests {
             stasis_held: false,
             texts: en(),
             enchantments: Vec::new(),
+            special_level: 0,
+            ranged: 0,
+            granted: &[],
+            hero_level: None,
         });
         assert_eq!(names(&list), ["Caster 20 mp"]);
+    }
+
+    #[test]
+    fn life_steal_and_death_touch_show_what_they_take_off_the_save() {
+        let name = |id: Ability| match id.num() {
+            35 => "Life Steal".to_string(),
+            99 => "Death Touch".to_string(),
+            n => format!("ability {n}"),
+        };
+        let no_help = |_: Ability| None;
+        // Life steal, destruction, death touch, power drain and doom damage, in the original's order.
+        let abilities = [
+            Ability::new(103),
+            Ability::new(99),
+            Ability::new(100),
+            Ability::new(101),
+            Ability::new(35),
+        ];
+        // Special level 2; the unit's own life steal costs 2, a death touch an item gave 2 + 3.
+        let granted = [Ability::new(99)];
+        let list = specials(&SpecialsInput {
+            abilities: &abilities,
+            ammo: 0,
+            to_hit: 0,
+            construction: false,
+            scouting: 0,
+            mana: 0,
+            undead: false,
+            transport: 0,
+            ability_name: &name,
+            ability_help: &no_help,
+            stasis_held: false,
+            texts: en(),
+            special_level: 2,
+            ranged: 0,
+            granted: &granted,
+            hero_level: None,
+            enchantments: Vec::new(),
+        });
+        assert_eq!(
+            names(&list),
+            [
+                "Life Steal -2",
+                "ability 101",
+                "ability 100",
+                "Death Touch -5",
+                "ability 103"
+            ]
+        );
+    }
+
+    fn listed(
+        abilities: &[Ability],
+        special_level: i32,
+        ranged: i32,
+        hero: Option<usize>,
+    ) -> Vec<Special> {
+        let name = |id: Ability| format!("ability {}", id.num());
+        let no_help = |_: Ability| None;
+        specials(&SpecialsInput {
+            abilities,
+            ammo: 0,
+            to_hit: 0,
+            construction: false,
+            scouting: 0,
+            mana: 0,
+            undead: false,
+            transport: 0,
+            ability_name: &name,
+            ability_help: &no_help,
+            stasis_held: false,
+            texts: en(),
+            special_level,
+            ranged,
+            granted: &[],
+            hero_level: hero,
+            enchantments: Vec::new(),
+        })
+    }
+
+    #[test]
+    fn a_hero_lists_its_abilities_with_their_values_for_its_level() {
+        // Super Might (86), Leadership (75), Armsmaster (81), Sage (89), Lucky (39), Charmed (95),
+        // Noble (96), at level 2 (the third): x = 3.
+        let abilities = [
+            Ability::new(86),
+            Ability::new(75),
+            Ability::new(81),
+            Ability::new(89),
+            Ability::new(39),
+            Ability::new(95),
+            Ability::new(96),
+        ];
+        let list = listed(&abilities, 0, 0, Some(2));
+        assert_eq!(
+            names(&list),
+            [
+                "ability 75 +1",
+                "ability 81 +6",
+                "ability 86 +4",
+                "ability 89 +6",
+                "ability 39",
+                "ability 95",
+                "ability 96"
+            ]
+        );
+        // Charmed and Noble have the original's pictures, and Lucky is not listed twice.
+        assert_eq!(list[5].icon, Some(59));
+        assert_eq!(list[6].icon, Some(60));
+        // A unit that is no hero lists none of them (they are not its abilities).
+        assert_eq!(listed(&abilities, 0, 0, None).len(), 1, "only Lucky");
+    }
+
+    #[test]
+    fn merging_is_listed_with_the_picture_of_its_item_power() {
+        let list = listed(&[Ability::new(43), Ability::new(68)], 0, 0, None);
+        assert_eq!(names(&list), ["ability 43", "ability 68"]);
+        assert_eq!(list[0].item, Some(ItemIcon::Power(18)));
+    }
+
+    #[test]
+    fn strengths_and_saves_follow_the_name_of_the_ability_that_has_one() {
+        // Poison touch 4, thrown 3, fire breath 5, a stoning gaze -2 and a stoning touch -1.
+        assert_eq!(
+            names(&listed(&[Ability::new(53)], 4, 0, None)),
+            ["ability 53 4"]
+        );
+        assert_eq!(
+            names(&listed(&[Ability::new(69)], 0, 3, None)),
+            ["ability 69 3"]
+        );
+        assert_eq!(
+            names(&listed(&[Ability::new(20)], 0, 5, None)),
+            ["ability 20 5"]
+        );
+        assert_eq!(
+            names(&listed(&[Ability::new(64)], 2, 1, None)),
+            ["ability 64 -2"]
+        );
+        assert_eq!(
+            names(&listed(&[Ability::new(66)], 1, 0, None)),
+            ["ability 66 -1"]
+        );
+        // Nothing to show: a touch with no penalty stays plain.
+        assert_eq!(
+            names(&listed(&[Ability::new(66)], 0, 0, None)),
+            ["ability 66"]
+        );
     }
 
     #[test]
@@ -1092,7 +1392,6 @@ mod tests {
         let name = |id: Ability| format!("ability {}", id.num());
         let no_help = |_: Ability| None;
         let input = |scouting| SpecialsInput {
-            level: None,
             abilities: &[],
             ammo: 0,
             to_hit: 0,
@@ -1105,6 +1404,10 @@ mod tests {
             ability_help: &no_help,
             stasis_held: false,
             texts: en(),
+            special_level: 0,
+            ranged: 0,
+            granted: &[],
+            hero_level: None,
             enchantments: Vec::new(),
         };
         assert!(specials(&input(1)).is_empty());
@@ -1151,15 +1454,44 @@ mod tests {
         assert_eq!(items, 3, "the three item slots head the list");
         assert!(
             sheet
-                .specials
-                .iter()
-                .any(|s| s.item.is_none() && s.name.starts_with("Hero")),
-            "the level title is a line: {:?}",
+                .level
+                .as_ref()
+                .is_some_and(|l| l.name.starts_with("Hero")),
+            "the level title is in the corner: {:?}",
+            sheet.level
+        );
+        assert!(
+            sheet.specials.iter().all(|s| !s.name.starts_with("Hero (")),
+            "and not a line of the list: {:?}",
             names(&sheet.specials)
         );
         assert!(
             sheet.specials.iter().all(|s| s.card.is_none()),
             "empty slots have no card"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_heros_sheet_lists_the_abilities_rolled_for_its_game() -> Result<(), String> {
+        let mut app = crate::view::App::for_test();
+        app.select_first_stack();
+        let at = app
+            .game
+            .units()
+            .unit_position(app.selection[0])
+            .ok_or("the stack has no position")?;
+        // Hero type 0 (Brax) has Constitution as a fixed ability; at level 0 it is worth +1.
+        let hero = app
+            .game
+            .spawn_hero(crate::view::HUMAN, at, 0)
+            .map_err(|e| format!("{e:?}"))?;
+        let sheet = app.overland_sheet(hero).ok_or("the hero has no sheet")?;
+        let all = names(&sheet.specials);
+        assert!(
+            all.iter()
+                .any(|n| n.starts_with("Constitution") && n.ends_with("+1")),
+            "{all:?}"
         );
         Ok(())
     }

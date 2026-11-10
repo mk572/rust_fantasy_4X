@@ -28,26 +28,15 @@ const BATTLE_AT: (f32, f32) = (61.0, 6.0);
 const ROW: i32 = 15;
 const PER_PAGE: usize = 8;
 
-/// A hero's first page shows its three item slots and one more line (the original's four).
-const HERO_FIRST_PAGE: usize = 4;
-
-/// How many lines the page that starts at `first` shows.
-fn page_len(first: usize, total: usize, hero: bool) -> usize {
-    let per = if hero && first == 0 {
-        HERO_FIRST_PAGE
-    } else {
-        PER_PAGE
-    };
-    per.min(total.saturating_sub(first))
+/// How many lines the page that starts at `first` shows: eight, in two columns of four, a hero's
+/// first page too (the original shows only four there, `divergences.md` 41).
+fn page_len(first: usize, total: usize) -> usize {
+    PER_PAGE.min(total.saturating_sub(first))
 }
 
 /// Where the page before the one that starts at `first` starts.
-fn previous_page(first: usize, hero: bool) -> usize {
-    if hero && first <= HERO_FIRST_PAGE {
-        0
-    } else {
-        first.saturating_sub(PER_PAGE)
-    }
+fn previous_page(first: usize) -> usize {
+    first.saturating_sub(PER_PAGE)
 }
 
 /// What the abilities page of a sheet panel remembers, on the sheet screen and where the same
@@ -312,6 +301,23 @@ impl App {
             }
         }
 
+        // The rank's picture in the top right corner, right-aligned, and its text under it.
+        if let Some(level) = &sheet.level {
+            let right = px + ox + if production { 160.0 } else { 210.0 };
+            let top = py + 8.0;
+            let mut below = top;
+            if let Some(icon) = level.icon {
+                let (lbx, entry) = special_picture(icon);
+                let (width, height) = self.art_picture(lbx, entry, 0).map_or((16.0, 16.0), |t| {
+                    let size = crate::resolution::logical_size(&t);
+                    (size.x, size.y)
+                });
+                self.draw_pic(lay, lbx, entry, 0, right - width, top);
+                below += height + 4.0;
+            }
+            self.draw_styled(view, &Style::unit_list().right(), &level.name, right, below);
+        }
+
         // Moves, and upkeep or damage.
         let moves = self.text("unit.moves");
         self.draw_styled(view, &Style::unit_view(1), &moves, name_x, py + moves_y);
@@ -379,10 +385,9 @@ impl App {
 
         // The abilities and spells, a page at a time.
         let total = sheet.specials.len();
-        let hero = sheet.hero.is_some() && !production;
-        let multipage = total > if hero { HERO_FIRST_PAGE } else { PER_PAGE };
+        let multipage = total > PER_PAGE;
         let mut first = panel.first.min(total.saturating_sub(1));
-        let shown = page_len(first, total, hero);
+        let shown = page_len(first, total);
         for (i, special) in sheet.specials.iter().skip(first).take(shown).enumerate() {
             let (col, row) = (i / 4, i % 4);
             let x = px + ox + 8.0 + 107.0 * col as f32;
@@ -393,7 +398,7 @@ impl App {
                     self.draw_pic(lay, "special", 3, 0, x, y);
                     self.draw_pic(lay, "items", item, 0, x - 2.0, y - 2.0);
                 }
-                (Some(ItemIcon::Empty(slot)), _) => {
+                (Some(ItemIcon::Empty(slot) | ItemIcon::Power(slot)), _) => {
                     self.draw_pic(lay, "itemisc", slot, 0, x, y);
                 }
                 (None, Some(icon)) => {
@@ -434,7 +439,7 @@ impl App {
                 input,
             );
             if (up || input.key_pressed(KeyCode::PageUp)) && first > 0 {
-                first = previous_page(first, hero);
+                first = previous_page(first);
             }
             if (down || input.key_pressed(KeyCode::PageDown)) && first + shown < total {
                 first += shown;
@@ -693,7 +698,7 @@ impl Page for SheetUi {
             MAP_AT
         };
         let first = self.panel.first.min(sheet.specials.len().saturating_sub(1));
-        let shown = page_len(first, sheet.specials.len(), sheet.hero.is_some());
+        let shown = page_len(first, sheet.specials.len());
         for (i, special) in sheet.specials.iter().skip(first).take(shown).enumerate() {
             let (col, row) = (i / 4, i % 4);
             let left = px + 7.0 + 107.0 * col as f32;
@@ -821,7 +826,7 @@ impl SheetUi {
             MAP_AT
         };
         let first = self.panel.first.min(sheet.specials.len().saturating_sub(1));
-        let shown = page_len(first, sheet.specials.len(), sheet.hero.is_some());
+        let shown = page_len(first, sheet.specials.len());
         sheet
             .specials
             .iter()
