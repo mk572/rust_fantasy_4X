@@ -139,6 +139,44 @@ The supplied release notes contain many related references. Rows below group ref
 | 738, 740, 741, 742 | Dispel resistance differs by context; neutral combat enchantments and battlefield walls have inconsistent dispel behavior | Use one explicit dispel difficulty/ownership model for overland and combat enchantments, with context only where intended. | P2 | Investigate |
 | 744, 746, 747, 749 | Haste and ranged magical attacks, hero ammunition, First Strike/Doom Gaze ordering, ranged movement cost and ammo display | Attack sequence, ammunition and movement consumption should be derived from attack mode and figure state. | P2 | Investigate |
 
+## Walk (task 457)
+
+The rows are walked in order against our code, with the release notes of the wiki page
+`reference/Unofficial Patch 1.50 ...html` (the numbers there follow the text of each note). Verdicts:
+**not present** (we do not have the bug), **fixed** (we had it and fixed it), **UI gap** (a display
+difference), **difference** (we do it another way).
+
+### Walked on 10 November 2026: 012 to 052
+
+| Rows | Verdict |
+|---|---|
+| 012 Myrror Node placement checks Arcanus land | **Not present.** `feature/place.rs` takes each plane's own grid for its nodes. No test of the land (not worth one, the user decided). |
+| 032 Autosave halfway through end-of-turn | **Not present.** The client saves only when the master stops at `RoundStart`, "the one moment when no seat is half way through its turn" (`view.rs`). |
+| 040 Unit produced in a town holding nine units | **Not present.** `production_blocked` keeps the finished unit waiting with its cost paid; test in `turn/tests.rs`. |
+| 041, 042 Nature Awareness: contact with defeated wizards, Detect Magic | **Not present.** `contact_sweep` goes over `living_wizards()`; Detect Magic is its own global effect and nothing couples the two. |
+| 043 A unit with no moves exhausts the moving units | **Fixed, with a client change.** Nobody was exhausted, but one spent unit in a selection refused the whole move (`NoMovesLeft`). The client now greys out spent units, marks patrolling units with a P, moves only the units that can move (`units_that_can_move`), and shows a yellow ! beside the boot when only part of the stack can go (`unit_window.rs`, `view.rs`, `pointer.rs`). Plane shift and the Earth Gate still take the whole selection. |
+| 044 Planar Seal blocks spell targeting on the other plane | **Not present.** The seal is read in three places only: plane travel (`unit/movement.rs`) and the Plane Shift spell. The wiki page of the spell was checked too: all the rows agree, except that `claim_tower` does not claim a tower while the seal is up (the wiki says towers may still be liberated): **open question**. |
+| 045 Entangle affects non-corporeal units | **Not present.** `battle/field.rs` holds only walkers with a body; test `entangle_costs_a_move_and_terror_can_freeze_the_enemy`. |
+| 047 Gold and mana covered by the books with more than 11 | **Present.** The shelf has no limit; with 12 books and 99999 mana the last book hides the first digit. **Task 533** (Low). |
+| 049 Scouting level shown one too high | **Not present.** The sheet shows the unit's current sight, floored (`unit_sheet.rs`); not compared with the help text. |
+| 050 Summon Demon shows the maximum, not what is left | **Not present.** The battle screen reads `casting.demons`, the demons still to summon. |
+| 051 Unit view shows current immunities and abilities | **Not present.** The sheet reads `unit_abilities` (items and spells included). Checking it found abilities the sheet never listed (below). |
+| 052 Life Steal and Death Touch show the save modifier | **Fixed.** Both show it ("Life Steal -2": the special level, 3 more when an item or spell gave the ability). Death Touch was not listed at all. |
+
+Found on the way, fixed (`unit_sheet.rs`, compared with the original's `UnitView.c`):
+
+- Listed now: Death Touch, Destruction, Doom Damage ("Automatic Damage"), Power Drain, Merging (with the item power's picture), and a hero's abilities (Leadership, Legendary, Blademaster, Armsmaster, Constitution, Might, Arcane Power, Sage, Prayermaster, Agility, with the Super forms, then Lucky, Charmed and Noble) with their value for the hero's level, from `f4x_def::hero`. Heroes got an `armsmaster` formula there; the experience code uses it.
+- Numbers after the name, as in the original: Poison Touch, Thrown, Fire and Lightning Breath show their strength; Stoning Touch, the gazes, Life Steal and Death Touch show their penalty to the save.
+- Not listed, as in the original: Cavalry (a movement flag that does nothing here), Female, Chaos Channeled (its mutations are listed), Eldritch Weapon (a unit enchantment, listed as a spell), Magical Weapon.
+- The rank and experience line moved out of the list to the top right corner of the sheet (picture right-aligned, the text under it), and a hero's list shows eight lines on its first page, in two columns (`divergences.md` 41).
+
+Also settled by the walk (rows further down the table):
+
+- 302 (dispelling Web fails to restore movement type) and 440 (Death Immunity does not protect from Terror): **not present**. A broken or dispelled Web gives flight back (`restore_stats_from`); Terror skips units with Death Immunity (`field.rs`).
+- The Web spell itself was checked against the wiki page, apart from the 1.50 rows: **Web now has 12 hit points**; the unit it holds spends its turn striking them and cannot move or attack meanwhile (it counter-attacks as usual). What it takes off: its melee strength, the better of that and a bow, sling or magical ranged attack with a shot left (the 1.31 bug counted missiles only), a thrown weapon, breath or gaze added, Immolation's fire added. A boulder does not count (a catapult stays held until the Web is dispelled; the user agrees). `docs/combat.md` section 8, tests in `battle/tests.rs`. This is independent of the 1.50 rows (it also covers 1.52.03 rows 784 and 785).
+
+Next: row 053 (Gift of the Gods and item eligibility, item slots, more than six items).
+
 ## P2 code review: first pass
 
 This pass checks the current source architecture against the most consequential 1.50 themes. It is not a claim that every issue in the table has a dedicated regression test.
