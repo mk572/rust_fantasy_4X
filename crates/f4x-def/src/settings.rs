@@ -56,6 +56,25 @@ pub const MAP_HEIGHTS: std::ops::RangeInclusive<u16> = 30..=60;
 /// The node setting a game gets when nothing says otherwise ("Normal").
 pub const DEFAULT_MAGIC_STRENGTH: u8 = 1;
 
+thread_local! {
+    /// The settings a save file falls back on for a setting it does not name; see [`with_fallback`].
+    static FALLBACK: std::cell::Cell<Option<GameSettings>> = const { std::cell::Cell::new(None) };
+}
+
+/// Run `read` (a load of a save file) so that a setting the file does not name takes its value
+/// from `defaults` (the player's default game settings) and not the built-in one.
+pub fn with_fallback<R>(defaults: GameSettings, read: impl FnOnce() -> R) -> R {
+    let before = FALLBACK.with(|f| f.replace(Some(defaults)));
+    let out = read();
+    FALLBACK.with(|f| f.set(before));
+    out
+}
+
+/// What a missing setting becomes: the fallback's value when one is set, else `builtin`.
+fn fallback<T>(get: impl Fn(&GameSettings) -> T, builtin: T) -> T {
+    FALLBACK.with(|f| f.get()).map_or(builtin, |g| get(&g))
+}
+
 /// The original's options step: difficulty, opponents, land size and magic power.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BasicSettings {
@@ -88,12 +107,12 @@ pub struct BasicSettings {
     /// A diagonal step on the overland map costs half as much again as a straight one (3
     /// half-moves on open ground); off, it costs the same (the original's rule). The same goes for
     /// sight: a square seen along a diagonal costs half as much again to see, or no more.
-    #[serde(default)]
+    #[serde(default = "fb_diagonal_extra_cost")]
     pub diagonal_extra_cost: bool,
     /// Make the land with the original's generator (random-walk continents, `NEWG_CreateLands`)
     /// instead of this game's noise-based one. The features, lairs and nodes are placed the same
     /// way either way. Off by default.
-    #[serde(default)]
+    #[serde(default = "fb_original_map_generator")]
     pub original_map_generator: bool,
 }
 
@@ -293,7 +312,7 @@ pub struct RuleSettings {
     #[serde(default = "yes")]
     pub settlers_cost_citizen: bool,
     /// How hard a walking unit hits a flying one in melee.
-    #[serde(default)]
+    #[serde(default = "fb_melee_vs_fliers")]
     pub melee_vs_fliers: MeleeVsFliers,
     /// Most units on one square, from the nine of an army up to `MAX_TILE_LIMIT`. An army and a
     /// battle side stay at nine; units above that on a defended square are a reserve.
@@ -301,12 +320,12 @@ pub struct RuleSettings {
     pub max_tile: usize,
     /// Half the food and gold upkeep for the basic troops (`SettingsDef::half_upkeep` lists
     /// them). A new game takes the content's choice; it is saved with the game.
-    #[serde(default)]
+    #[serde(default = "fb_half_upkeep")]
     pub half_upkeep: bool,
     /// Patch 1.40 of the original: at most this many arcane spells on offer at once while another
     /// realm has spells to research. 0 is off, as in the original game. A new game takes the
     /// content's choice; it is saved with the game.
-    #[serde(default)]
+    #[serde(default = "fb_arcane_candidate_cap")]
     pub arcane_candidate_cap: u8,
     /// How many land units a Trireme carries, from the original's 2 up to `MAX_SHIP_CAPACITY`
     /// (patch 1.40 sets 8). Copied into the game's own content as the unit's Transport stat.
@@ -318,12 +337,25 @@ pub struct RuleSettings {
     pub galley_capacity: u8,
     /// Patch 1.40 (IW082): in a walled city, a unit anywhere inside the walls gets the +3 defence
     /// the wall sections give, not just the +1 of the original, against attackers outside.
-    #[serde(default)]
+    #[serde(default = "fb_walls_cover_city")]
     pub walls_cover_city: bool,
     /// Patch 1.40 (IW114): an enemy's Suppress Magic does not counter the Spell of Return.
-    #[serde(default)]
+    #[serde(default = "fb_suppress_spares_return")]
     pub suppress_spares_return: bool,
+    /// The original's limit on the races of the computer wizards above Normal difficulty: on,
+    /// an AI wizard on Arcanus is Klackon, High Elf, Halfling, High Men or Nomad (`Generate_Home_Cities`);
+    /// off, any Arcanus race. Myrror races are never limited. On in v1.31 and v1.6.
+    #[serde(default = "default_true")]
+    pub limit_ai_races: bool,
 }
+
+fn default_true() -> bool {
+    fallback(|g| g.rules.limit_ai_races, true)
+}
+
+/// The Arcanus races (`races.ron` numbers) a computer wizard may have above Normal difficulty
+/// when `RuleSettings::limit_ai_races` is on: Halfling, High Elf, High Men, Klackon, Nomad.
+pub const LIMITED_AI_RACES: [u16; 5] = [6, 7, 8, 9, 11];
 
 /// The original's Trireme capacity, and the unit number of the Trireme.
 pub const TRIREME_CAPACITY: u8 = 2;
@@ -341,23 +373,55 @@ pub const MONSTER_START_TURN: u8 = 50;
 pub const MONSTER_START_EARLIEST: u8 = 30;
 
 fn default_monster_start() -> u8 {
-    MONSTER_START_TURN
+    fallback(|g| g.world.monster_start_turn, MONSTER_START_TURN)
 }
 
 fn default_trireme() -> u8 {
-    TRIREME_CAPACITY
+    fallback(|g| g.rules.trireme_capacity, TRIREME_CAPACITY)
 }
 
 fn default_galley() -> u8 {
-    GALLEY_CAPACITY
+    fallback(|g| g.rules.galley_capacity, GALLEY_CAPACITY)
 }
 
 fn default_max_tile() -> usize {
-    MAX_TILE_LIMIT
+    fallback(|g| g.rules.max_tile, MAX_TILE_LIMIT)
+}
+
+fn fb_diagonal_extra_cost() -> bool {
+    fallback(|g| g.basic.diagonal_extra_cost, false)
+}
+
+fn fb_original_map_generator() -> bool {
+    fallback(|g| g.basic.original_map_generator, false)
+}
+
+fn fb_melee_vs_fliers() -> MeleeVsFliers {
+    fallback(|g| g.rules.melee_vs_fliers, MeleeVsFliers::default())
+}
+
+fn fb_half_upkeep() -> bool {
+    fallback(|g| g.rules.half_upkeep, false)
+}
+
+fn fb_arcane_candidate_cap() -> u8 {
+    fallback(|g| g.rules.arcane_candidate_cap, 0)
+}
+
+fn fb_walls_cover_city() -> bool {
+    fallback(|g| g.rules.walls_cover_city, false)
+}
+
+fn fb_suppress_spares_return() -> bool {
+    fallback(|g| g.rules.suppress_spares_return, false)
+}
+
+fn fb_frequency() -> EventFrequency {
+    fallback(|g| g.events.frequency, EventFrequency::default())
 }
 
 fn yes() -> bool {
-    true
+    fallback(|g| g.rules.settlers_cost_citizen, true)
 }
 
 /// A walking unit's melee attack against a flying unit (divergence 26). The flier hits back at
@@ -402,7 +466,7 @@ pub struct EventSettings {
     /// of an event in a turn is the pressure over 512 (`world_event::scaled_pressure`). The
     /// original's figure by level: 50, 66, 75, 80, 100.
     pub pressure_percent: u16,
-    #[serde(default)]
+    #[serde(default = "fb_frequency")]
     pub frequency: EventFrequency,
 }
 
@@ -422,6 +486,48 @@ pub struct GameSettings {
     pub rules: RuleSettings,
     pub events: EventSettings,
     pub scoring: ScoreSettings,
+}
+
+/// Where the player's default game settings are kept.
+pub const DEFAULT_GAME_FILE: &str = "saves/default_game.ron";
+
+/// The default game settings: the rule set and the settings every new game starts from, and the
+/// fallback for a setting a save file does not name (`with_fallback`). Without the file they are
+/// `DefaultGame::factory`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DefaultGame {
+    /// The rule set the Custom screen's dropdown shows for them.
+    pub preset: RuleSet,
+    pub settings: GameSettings,
+}
+
+impl DefaultGame {
+    /// The file's record; none when there is no file or it cannot be read.
+    pub fn load(path: &std::path::Path) -> Option<Self> {
+        ron::from_str(&std::fs::read_to_string(path).ok()?).ok()
+    }
+
+    pub fn save(&self, path: &std::path::Path) -> Result<(), String> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        let text = ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default())
+            .map_err(|e| e.to_string())?;
+        std::fs::write(path, text).map_err(|e| e.to_string())
+    }
+
+    /// What they are when nothing was chosen: v1.31 at the content's new-game figures.
+    pub fn factory(def: &SettingsDef) -> Self {
+        let level = GameSettings::for_difficulty(def, def.new_game.difficulty);
+        let work = GameSettings {
+            basic: def.new_game,
+            ..level
+        };
+        Self {
+            preset: RuleSet::V131,
+            settings: RuleSet::V131.applied(work, def),
+        }
+    }
 }
 
 /// One difficulty level of `crates/f4x-def/content/rules_settings.ron`: what choosing it fills in.

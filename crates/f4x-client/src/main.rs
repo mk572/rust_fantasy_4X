@@ -727,6 +727,11 @@ async fn main() {
         }
     }
     app.prefs = preferences::Preferences::load(Path::new(preferences::FILE), app.prefs.clone());
+    if let Some(rec) =
+        f4x_def::settings::DefaultGame::load(Path::new(f4x_def::settings::DEFAULT_GAME_FILE))
+    {
+        app.apply_default_game(rec);
+    }
     resolution::set_art_scale(options.art_scale.unwrap_or(app.prefs.art_scale));
     if let Some(path) = &options.load {
         if let Err(e) = app.load_from(path) {

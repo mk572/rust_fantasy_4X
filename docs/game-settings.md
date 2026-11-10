@@ -143,6 +143,7 @@ Draft of the fields (names are proposals; ranges are enforced by `GameSettings::
 | rules | `settlers_cost_citizen` | bool | on | `city/production.rs`: on (the original), a city needs two citizens to build Settlers (`ProductionError::TooSmall`) and loses one when they are done; off, Settlers cost production only. Renamed on 30 October 2026 from `settlers_free` (inverted: on now means the cost applies) |
 | rules | `walls_cover_city` | bool | off (on in v1.6) | `battle/mod.rs` `city_defense_bonus`: off (the original), a unit hit from outside the city area has +3 defence on a standing wall section and +1 elsewhere in a walled city; on (patch 1.40, IW082), +3 anywhere inside the walls |
 | rules | `suppress_spares_return` | bool | off (on in v1.6) | `spell/dispel.rs` `suppressed_by`: off (the original), an enemy's Suppress Magic can counter the Spell of Return like any spell; on (patch 1.40, IW114), it never does |
+| rules | `limit_ai_races` | bool | on (v1.31 and v1.6) | `game/setup.rs` race pick: on (the original, `Generate_Home_Cities`), above Normal difficulty an Arcanus computer wizard is Halfling, High Elf, High Men, Klackon or Nomad; off, any Arcanus race. Myrror and the human are never limited; independent cities are not affected (task 379) |
 | rules | `melee_vs_fliers` | `zero` / `half` / `full` | zero | `battle/mod.rs` `Battle::fighter`: a unit that does not fly deals no melee damage to a flier (`zero`, the original), half strength rounded up (`half`, a planned mod, what the game did before) or its full strength (`full`, the rule is off); the flier hits back in full, thrown and breath attacks are unchanged. The battle AI's `expected_damage` follows it |
 | victory | `spell_of_mastery` | on / off | on | always on |
 | victory | `spell_of_return` | `Off` / `HumanOnly` / `All` | `All` | always all |
@@ -797,3 +798,7 @@ Still open:
    spells are given in, which I have not checked.
 5. **Which three books** go to a new Myrran AI wizard (4.8): random, weighted by books, keeping at
    least one book, is a proposal.
+
+## Default game settings
+
+The start menu's Settings screen has a "Default Game Settings" button: the Custom screen's list for the settings every new game starts from (`settings::DefaultGame`, kept in `saves/default_game.ron`; without the file they are v1.31 at the content's figures). The options step starts from them, and a difficulty chosen there keeps what the defaults changed from their own level (`custom_screen::on_level`). A save that does not name a setting takes its value from them (`settings::with_fallback`, used by `App::load_from`), not from the built-in value.

@@ -411,6 +411,11 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.rules.suppress_spares_return.into(),
             |s, v| s.rules.suppress_spares_return = v != 0,
         ),
+        flag(
+            "custom.limit_ai_races",
+            |s| s.rules.limit_ai_races.into(),
+            |s, v| s.rules.limit_ai_races = v != 0,
+        ),
         choice(
             "custom.melee_vs_fliers",
             MELEE_WORDS,
@@ -588,6 +593,27 @@ impl App {
                 green: Vec::new(),
                 open: None,
                 top: 0,
+                defaults: false,
+            },
+        );
+    }
+
+    /// The same list for the default game settings (the Settings screen's button): OK keeps
+    /// them for every new game, Back drops the changes.
+    pub fn open_default_game(&mut self) {
+        let (work, preset) = (self.default_game.settings, self.default_game.preset);
+        let reference =
+            (preset != Preset::Custom).then(|| preset.applied(work, &self.game.content().settings));
+        self.open_page(
+            Screen::GameSettings,
+            CustomPage {
+                work,
+                preset,
+                reference,
+                green: Vec::new(),
+                open: None,
+                top: 0,
+                defaults: true,
             },
         );
     }
@@ -626,6 +652,8 @@ pub(crate) struct CustomPage {
     /// The dropdown whose list is open.
     open: Option<Menu>,
     top: usize,
+    /// Editing the default game settings, not the next game's.
+    defaults: bool,
 }
 
 impl Page for CustomPage {
@@ -644,7 +672,14 @@ impl Page for CustomPage {
         app.draw_stone_box(&lay, bw + 4.0, by, BOX_HEIGHT);
         let gold = Ink::Set(font_ramp::NOTIFY_TEXT);
         let light = Ink::Set(font_ramp::DIALOG_TEXT);
-        let (title, hint) = (app.text("custom.title"), app.text("custom.hint"));
+        let (title, hint) = (
+            app.text(if self.defaults {
+                "custom.defaults_title"
+            } else {
+                "custom.title"
+            }),
+            app.text("custom.hint"),
+        );
         app.stone_text(view, 4, gold, &title, bw / 2.0, by + 6.0, Align::Center);
         app.stone_text(view, 1, light, &hint, bw / 2.0, by + 17.0, Align::Center);
         let wheel = input.mouse_wheel().1;
@@ -731,11 +766,30 @@ impl Page for CustomPage {
             input,
         );
         if ok || input.key_pressed(KeyCode::Enter) {
-            let settings = app.game.content().settings.clone();
-            app.options.keep_custom(self.work, self.preset, &settings);
-            app.open_options();
+            if self.defaults {
+                let rec = f4x_def::settings::DefaultGame {
+                    preset: self.preset,
+                    settings: self.work,
+                };
+                if let Err(why) =
+                    rec.save(std::path::Path::new(f4x_def::settings::DEFAULT_GAME_FILE))
+                {
+                    let args = Args::new().text("why", why);
+                    app.log.push(app.text_with("settings.save_failed", &args));
+                }
+                app.apply_default_game(rec);
+                app.open_settings();
+            } else {
+                let settings = app.game.content().settings.clone();
+                app.options.keep_custom(self.work, self.preset, &settings);
+                app.open_options();
+            }
         } else if back || input.key_pressed(KeyCode::Escape) {
-            app.open_options();
+            if self.defaults {
+                app.open_settings();
+            } else {
+                app.open_options();
+            }
         }
     }
 }
@@ -758,6 +812,34 @@ enum Mark {
 
 const GREEN: Color = rgb(110, 230, 110);
 const RED: Color = rgb(255, 96, 84);
+
+/// `fresh` (a new game at some difficulty) with what the default game settings `base` changed
+/// from their own level put on top: a rule switch, a capacity. `fresh`'s basic choices stay.
+pub(crate) fn on_level(
+    base: &f4x_def::settings::DefaultGame,
+    fresh: GameSettings,
+    def: &SettingsDef,
+) -> GameSettings {
+    let own = base.preset.applied(
+        GameSettings::for_difficulty(def, base.settings.basic.difficulty),
+        def,
+    );
+    let mut out = fresh;
+    copy_changed(&mut out, &base.settings, &own);
+    out.basic = fresh.basic;
+    out
+}
+
+/// Copy into `dst` every row of `src` that differs from `base`.
+pub(crate) fn copy_changed(dst: &mut GameSettings, src: &GameSettings, base: &GameSettings) {
+    for row in rows() {
+        if let Row::Field(f) = row {
+            if (f.get)(src) != (f.get)(base) {
+                (f.set)(dst, (f.get)(src));
+            }
+        }
+    }
+}
 
 /// The labels of the rows whose value differs between two records.
 fn differing(a: &GameSettings, b: &GameSettings) -> Vec<&'static str> {
@@ -1058,6 +1140,7 @@ mod tests {
             green: Vec::new(),
             open: None,
             top: 0,
+            defaults: false,
         }
     }
 

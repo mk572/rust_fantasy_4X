@@ -227,6 +227,7 @@ fn v131_has_the_originals_ships_and_monster_turn_and_v160_has_eight_carrying_shi
     assert!(v160.validate().is_empty(), "{:?}", v160.validate());
     assert!(v160.rules.walls_cover_city && v160.rules.suppress_spares_return);
     assert!(!v131.rules.walls_cover_city && !v131.rules.suppress_spares_return);
+    assert!(v160.rules.limit_ai_races && v131.rules.limit_ai_races);
     // The shipped units hold the originals' numbers for the default.
     let content = shipped();
     let carries = |num| {
@@ -253,4 +254,39 @@ fn ship_capacity_and_monster_turn_are_kept_in_range() {
         (2, 8)
     );
     assert_eq!(fixed.world.monster_start_turn, 30);
+}
+
+#[test]
+fn a_setting_a_file_does_not_name_takes_the_fallback_and_else_the_built_in_value() {
+    let def = settings();
+    let full = at(2);
+    let text = ron::to_string(&full).expect("settings serialize");
+    let without = text.replace(",limit_ai_races:true", "");
+    assert!(!without.contains("limit_ai_races"), "{text}");
+    let plain: GameSettings = ron::from_str(&without).expect("parses without the field");
+    assert!(plain.rules.limit_ai_races, "built-in: on");
+    let mut chosen = RuleSet::V160.applied(full, &def);
+    chosen.rules.limit_ai_races = false;
+    chosen.rules.walls_cover_city = true;
+    let loaded: GameSettings = with_fallback(chosen, || ron::from_str(&without)).expect("parses");
+    assert!(!loaded.rules.limit_ai_races, "the fallback's value");
+    let back: GameSettings = ron::from_str(&without).expect("parses");
+    assert!(
+        back.rules.limit_ai_races,
+        "the fallback is gone after the load"
+    );
+}
+
+#[test]
+fn the_default_game_settings_start_as_v131_and_a_file_gives_them_back() {
+    let def = settings();
+    let dir = crate::testdir::TestDir::new("default-game");
+    let path = dir.join("default_game.ron");
+    assert_eq!(DefaultGame::load(&path), None);
+    let mut rec = DefaultGame::factory(&def);
+    assert_eq!(rec.preset, RuleSet::V131);
+    assert!(rec.settings.rules.limit_ai_races);
+    rec.settings.rules.limit_ai_races = false;
+    rec.save(&path).expect("saves");
+    assert_eq!(DefaultGame::load(&path), Some(rec));
 }

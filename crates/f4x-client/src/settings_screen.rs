@@ -193,8 +193,17 @@ impl Page for SettingsPage {
         );
         app.volume_sliders(&lay, view, mouse, input);
         // The game's own settings, which the original keeps on the new-game screen.
+        let defaults_label = app.text("settings.default_game");
+        if app.red_button_sized(&lay, &defaults_label, 148.0, 166.0, 114.0, input) {
+            app.save_preferences();
+            app.open_default_game();
+            return;
+        }
+        // From the start menu the next game's options are the Default Game Settings button's.
         let game_label = app.text("settings.game");
-        if app.red_button_sized(&lay, &game_label, 31.0, 186.0, 60.0, input) {
+        if !app.menu.settings_from_menu
+            && app.red_button_sized(&lay, &game_label, 31.0, 186.0, 60.0, input)
+        {
             app.save_preferences();
             app.open_page(
                 Screen::GameSettings,
@@ -254,6 +263,10 @@ impl App {
 
     fn leave_settings(&mut self) {
         self.save_preferences();
+        if self.menu.settings_from_menu {
+            self.open_main_menu();
+            return;
+        }
         self.show_page(Screen::Slots, |app| {
             app.open_page(Screen::Slots, crate::menu_screen::SlotsPage)
         });

@@ -65,6 +65,9 @@ pub(crate) struct OptionsState {
     pub custom: Option<f4x_core::game::setting::GameSettings>,
     /// The rule set the Custom screen's dropdown shows.
     pub preset: crate::custom_screen::Preset,
+    /// The player's default game settings (Settings screen), which a new difficulty keeps the
+    /// changes of; none until they are read.
+    pub base: Option<f4x_def::settings::DefaultGame>,
 }
 
 impl OptionsState {
@@ -89,6 +92,7 @@ impl OptionsState {
             original_generator: b.original_map_generator,
             custom: None,
             preset: Default::default(),
+            base: None,
         }
     }
 
@@ -143,6 +147,14 @@ impl OptionsState {
         if difficulty_changed {
             self.custom = None;
             self.preset = Default::default();
+            if let Some(base) = self.base {
+                let level = self.settings(settings);
+                let merged = crate::custom_screen::on_level(&base, level, settings);
+                if merged != level {
+                    self.custom = Some(merged);
+                    self.preset = base.preset;
+                }
+            }
         } else if let Some(custom) = self.custom {
             let mut fresh = self.clone();
             fresh.custom = None;
@@ -179,6 +191,19 @@ impl OptionsState {
 }
 
 impl App {
+    /// Make `rec` the default game settings: the next new game starts from them, and so does a
+    /// difficulty chosen on the options step (it keeps what `rec` changed).
+    pub(crate) fn apply_default_game(&mut self, rec: f4x_def::settings::DefaultGame) {
+        let def = self.game.content().settings.clone();
+        self.default_game = rec;
+        let mut o = OptionsState::from_settings(&def);
+        o.base = Some(rec);
+        if rec != f4x_def::settings::DefaultGame::factory(&def) {
+            o.keep_custom(rec.settings, rec.preset, &def);
+        }
+        self.options = o;
+    }
+
     pub fn open_options(&mut self) {
         self.open_page(Screen::Options, OptionsPage);
     }
@@ -565,5 +590,31 @@ mod tests {
         o.changed_here(true, settings);
         assert!(o.custom.is_none());
         assert_eq!(o.settings(settings).wizards.starting_gold.human, 100);
+    }
+
+    #[test]
+    fn default_game_settings_start_a_new_game_and_survive_a_new_difficulty() {
+        use f4x_def::settings::DefaultGame;
+        let settings = shipped_settings();
+        let mut rec = DefaultGame::factory(settings);
+        assert!(rec.settings.rules.limit_ai_races, "on in v1.31");
+        // Untouched defaults change nothing.
+        let mut o = OptionsState::from_settings(settings);
+        o.base = Some(rec);
+        o.difficulty = 3;
+        o.changed_here(true, settings);
+        assert!(o.custom.is_none());
+        // "Limit AI races" off in the defaults: the new game has it off, at any difficulty.
+        rec.settings.rules.limit_ai_races = false;
+        let mut o = OptionsState::from_settings(settings);
+        o.base = Some(rec);
+        o.keep_custom(rec.settings, rec.preset, settings);
+        assert!(!o.settings(settings).rules.limit_ai_races);
+        o.difficulty = 4;
+        o.changed_here(true, settings);
+        let made = o.settings(settings);
+        assert!(!made.rules.limit_ai_races);
+        assert_eq!(made.basic.difficulty, 4, "the level's own figures");
+        assert_eq!(made.ai.production_percent, 300);
     }
 }

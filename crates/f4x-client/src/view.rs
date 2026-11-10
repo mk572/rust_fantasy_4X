@@ -99,6 +99,8 @@ pub struct App {
     params: GenParams,
     /// The new-game options chosen before the wizard is made.
     pub(crate) options: OptionsState,
+    /// The player's default game settings (`default_game.rs`).
+    pub(crate) default_game: f4x_def::settings::DefaultGame,
     /// The player's preferences (the Settings screen), shared by every game.
     pub(crate) prefs: crate::preferences::Preferences,
     /// The sounds and the music (`audio.rs`).
@@ -328,6 +330,7 @@ impl App {
         let params = GenParams::default();
         let race = 0;
         let options = OptionsState::from_settings(&content.settings);
+        let default_game = f4x_def::settings::DefaultGame::factory(&content.settings);
         let prefs = crate::preferences::Preferences::default();
         let game = Self::new_game(seed, &options, &content, &names.bundle(), None, race, true)?;
         let mut app = Self {
@@ -335,6 +338,7 @@ impl App {
             art,
             params,
             options,
+            default_game,
             prefs,
             audio: crate::audio::Audio::silent(),
             hero_levels: Default::default(),
@@ -1152,8 +1156,12 @@ impl App {
     /// Replace the game with the one saved at `path`. On failure the current game is kept.
     pub fn load_from(&mut self, path: &Path) -> Result<(), String> {
         let content = self.game.content().clone();
+        // A setting the save does not name is the player's default (`default_game.rs`).
         let (game, integrity) =
-            f4x_core::game::save::load_game(path, content).map_err(|e| e.to_string())?;
+            f4x_def::settings::with_fallback(self.default_game.settings, || {
+                f4x_core::game::save::load_game(path, content)
+            })
+            .map_err(|e| e.to_string())?;
         // The next new game keeps its own seed; a loaded game does not set it.
         // Keep playing the same race: the human player's capital race.
         if let Some(r) = game.wizard(HUMAN).and_then(|w| w.capital_race()) {

@@ -151,6 +151,9 @@ pub struct MenuState {
     pub from_menu: bool,
     /// A Save onto a filled slot waits for a second click.
     pub confirm_overwrite: bool,
+    /// The Settings screen was opened from the start menu (Back returns there), not from the
+    /// save slots.
+    pub settings_from_menu: bool,
     /// What went wrong, shown at the bottom.
     pub message: String,
 }
@@ -161,6 +164,7 @@ enum Entry {
     Continue,
     Load,
     New,
+    Settings,
     Fame,
     Quit,
     Credits,
@@ -276,7 +280,7 @@ impl Page for MainMenuPage {
             // Continue sits above Load, or takes its place.
             rows.insert(0, Entry::Continue);
         }
-        rows.extend([Entry::New, Entry::Fame, Entry::Quit]);
+        rows.extend([Entry::New, Entry::Settings, Entry::Fame, Entry::Quit]);
 
         // The logo and the picture behind the entries.
         if app.draw_pic(&lay, "mainscrn", 0, 0, 0.0, 0.0).is_some() {
@@ -295,16 +299,14 @@ impl Page for MainMenuPage {
         // The entries: the original puts them 12 pixels apart from y = 141; the words are drawn by
         // the font engine (`start_menu_art.rs`) in the place of the original's `vortex.lbx` pictures.
         let mut chosen = None;
-        let top = if rows.len() >= 5 {
-            141.0
-        } else {
-            141.0 + 12.0 * (5 - rows.len()) as f32
-        };
+        // The last row (Quit) stays where the original has it; the others move up for a new one.
+        let top = 141.0 + 12.0 * (5.0 - rows.len() as f32);
         for (i, &entry) in rows.iter().enumerate() {
             let (label, hotkey) = match entry {
                 Entry::Continue => ("menu.continue", KeyCode::C),
                 Entry::Load => ("menu.load_game", KeyCode::L),
                 Entry::New => ("menu.new_game", KeyCode::N),
+                Entry::Settings => ("menu.settings", KeyCode::S),
                 Entry::Fame => ("menu.hall_of_fame", KeyCode::H),
                 Entry::Quit => ("menu.quit", KeyCode::Q),
                 Entry::Credits => ("menu.credits", KeyCode::R),
@@ -359,6 +361,10 @@ impl Page for MainMenuPage {
             }
             Some(Entry::Load) => app.open_slots(true),
             Some(Entry::New) => app.open_options(),
+            Some(Entry::Settings) => {
+                app.menu.settings_from_menu = true;
+                app.open_settings();
+            }
             Some(Entry::Fame) => app.open_hall_of_fame(),
             Some(Entry::Quit) => app.modals.open(QuitAsk),
             Some(Entry::Credits) => app.open_credits(),
@@ -494,6 +500,7 @@ impl Page for SlotsPage {
         }
 
         if settings {
+            app.menu.settings_from_menu = false;
             app.open_settings();
         } else if load {
             if let Some(n) = selected {
