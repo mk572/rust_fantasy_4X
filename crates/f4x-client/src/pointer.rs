@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::input::Input;
 use macroquad::prelude::*;
 
+use crate::font::{rgb, Effect, Style};
 use crate::frame::Layout;
 use crate::view::{App, Screen};
 
@@ -61,6 +62,31 @@ impl App {
         }
         let image = self.overland_pointer(input);
         self.draw_pointer_image(image, input);
+        if image == BOOT && self.only_part_of_the_stack_moves() {
+            // A yellow exclamation mark beside the boot: some of the selected units stay behind.
+            let lay = Layout::new();
+            let at: Vec2 = input.mouse_position().into();
+            let (x, y) = (
+                (at.x - lay.origin.x) / lay.scale,
+                (at.y - lay.origin.y) / lay.scale,
+            );
+            self.draw_styled(
+                (lay.origin.x, lay.origin.y, lay.scale),
+                &Style::flat(4, rgb(255, 220, 0))
+                    .effect(Effect::Outline)
+                    .edge(rgb(0, 0, 0)),
+                "!",
+                x + 16.0,
+                y,
+            );
+        }
+    }
+
+    /// Whether some of the selected units have no moves left, and so a move would leave them
+    /// behind while the rest go.
+    fn only_part_of_the_stack_moves(&self) -> bool {
+        let able = self.units_that_can_move().len();
+        able > 0 && able < self.selection.len()
     }
 
     fn overland_pointer(&mut self, input: &Input) -> usize {
@@ -79,9 +105,10 @@ impl App {
         let Some(pos) = self.tile_at(input.mouse_position().into()) else {
             return FINGER;
         };
-        let key = (pos, self.selection.clone());
+        // The boot is for the units that can move; the stack moves without the spent ones.
+        let key = (pos, self.units_that_can_move());
         if self.pointer_walk.as_ref().map(|(k, _)| k) != Some(&key) {
-            let walk = self.game.find_path(&self.selection, pos).is_some();
+            let walk = self.game.find_path(&key.1, pos).is_some();
             self.pointer_walk = Some((key, walk));
         }
         match self.pointer_walk {

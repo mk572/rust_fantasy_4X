@@ -2039,7 +2039,7 @@ impl App {
             y: y as u32,
         };
         let events = self.game.apply(Command::MoveStack {
-            units: self.selection.clone(),
+            units: self.units_that_can_move(),
             to,
         });
         self.note(events);
@@ -2252,6 +2252,22 @@ impl App {
         }
     }
 
+    /// The selected units that have moves left: a stack with a spent unit moves without it. If
+    /// none can move the whole selection is returned, so that the game refuses with its reason.
+    pub(crate) fn units_that_can_move(&self) -> Vec<hecs::Entity> {
+        let able: Vec<_> = self
+            .selection
+            .iter()
+            .copied()
+            .filter(|&u| self.game.units().unit_moves_left(u) > 0)
+            .collect();
+        if able.is_empty() {
+            self.selection.clone()
+        } else {
+            able
+        }
+    }
+
     /// Send the selected units to `pos` (the click that moves units is the preference
     /// `Left Click Moves Units`).
     fn go_to(&mut self, pos: Position) {
@@ -2269,7 +2285,7 @@ impl App {
             return;
         }
         let events = self.game.apply(Command::GoTo {
-            units: self.selection.clone(),
+            units: self.units_that_can_move(),
             to: pos,
         });
         self.note(events);

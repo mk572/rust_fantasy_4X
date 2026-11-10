@@ -4,7 +4,7 @@
 //! stack's moves. A click on a picture picks that unit, a right-click opens its sheet.
 
 use crate::action_button_art::Action;
-use crate::font::{rgb, Ink, Style};
+use crate::font::{rgb, Effect, Ink, Style};
 use crate::font_ramp;
 use crate::input::Input;
 use crate::text::Args;
@@ -197,7 +197,8 @@ impl App {
             self.draw_pic(lay, "main", 24 + i, 0, at.0 - 1.0, at.1 - 1.0);
             let selected = self.selection.contains(&unit);
             let patrolling = self.game.units().unit_standby(unit) == Some(Standby::Patrol);
-            let tint = if patrolling {
+            let spent = self.game.units().unit_moves_left(unit) == 0;
+            let tint = if patrolling || spent {
                 Color::new(0.6, 0.6, 0.6, 1.0)
             } else {
                 WHITE
@@ -219,6 +220,18 @@ impl App {
                         .edge(rgb(0x49, 0x41, 0x3C)),
                     mark,
                     at.0 + 2.0,
+                    at.1 + 2.0,
+                );
+            }
+            if patrolling {
+                // A patrolling unit also carries a white P with a black outline.
+                self.draw_styled(
+                    view,
+                    &Style::flat(0, WHITE)
+                        .effect(Effect::Outline)
+                        .edge(rgb(0, 0, 0)),
+                    "P",
+                    at.0 + 14.0,
                     at.1 + 2.0,
                 );
             }
