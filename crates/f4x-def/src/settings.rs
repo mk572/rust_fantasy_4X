@@ -59,7 +59,7 @@ pub const DEFAULT_MAGIC_STRENGTH: u8 = 1;
 /// The original's options step: difficulty, opponents, land size and magic power.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BasicSettings {
-    /// 0 intro, 1 easy, 2 average, 3 hard, 4 impossible, 5 extreme.
+    /// 0 intro, 1 easy, 2 average, 3 hard, 4 extreme, 5 impossible.
     #[serde(default = "default_difficulty")]
     pub difficulty: u8,
     /// Computer wizards, 1 to [`MAX_OPPONENTS`]. `setup::new_game` sets it from the number of wizards it makes.
@@ -316,6 +316,13 @@ pub struct RuleSettings {
     /// (patch 1.40 sets 8).
     #[serde(default = "default_galley")]
     pub galley_capacity: u8,
+    /// Patch 1.40 (IW082): in a walled city, a unit anywhere inside the walls gets the +3 defence
+    /// the wall sections give, not just the +1 of the original, against attackers outside.
+    #[serde(default)]
+    pub walls_cover_city: bool,
+    /// Patch 1.40 (IW114): an enemy's Suppress Magic does not counter the Spell of Return.
+    #[serde(default)]
+    pub suppress_spares_return: bool,
 }
 
 /// The original's Trireme capacity, and the unit number of the Trireme.
@@ -464,6 +471,8 @@ impl RuleSet {
                 rules: RuleSettings {
                     trireme_capacity: MAX_SHIP_CAPACITY,
                     galley_capacity: MAX_SHIP_CAPACITY,
+                    walls_cover_city: true,
+                    suppress_spares_return: true,
                     ..base.rules
                 },
                 ..base
@@ -473,12 +482,13 @@ impl RuleSet {
     }
 }
 
-/// How many difficulty levels the file has (Intro to Extreme).
+/// How many difficulty levels the file has: Intro, Easy, Average, Hard, Extreme, Impossible.
 pub const LEVELS: usize = 6;
-/// The last level: Extreme (patch 1.40 adds it). Choosing it plays the v1.6 rule set.
+/// The last level, Impossible.
 pub const MAX_DIFFICULTY: u8 = 5;
-/// The level that plays the v1.6 rule set when chosen.
-pub const EXTREME: u8 = 5;
+/// Extreme (patch 1.40), a level between Hard and Impossible. It is a level like any other:
+/// choosing it changes no rule set.
+pub const EXTREME: u8 = 4;
 
 /// One land size on the new-game options step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -549,7 +559,7 @@ pub struct SettingsDef {
     pub land_sizes: Vec<LandSize>,
     /// The map sizes the options step offers, smallest first.
     pub map_sizes: Vec<MapSize>,
-    /// Intro, Easy, Average, Hard, Impossible, Extreme; empty or exactly [`LEVELS`].
+    /// Intro, Easy, Average, Hard, Extreme, Impossible; empty or exactly [`LEVELS`].
     pub levels: Vec<LevelDef>,
     /// The spells a new wizard knows and may research (the original's spell library set-up).
     pub spell_library: SpellLibraryDef,
@@ -741,7 +751,7 @@ impl Default for SettingsDef {
 }
 
 impl SettingsDef {
-    /// The level `difficulty` (above Extreme counts as Extreme), if the file has levels.
+    /// The level `difficulty` (above Impossible counts as Impossible), if the file has levels.
     pub fn level(&self, difficulty: u8) -> Option<&LevelDef> {
         self.levels.get(usize::from(difficulty.min(MAX_DIFFICULTY)))
     }

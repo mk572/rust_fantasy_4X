@@ -23,8 +23,12 @@ fn the_new_game_choices_default_to_an_average_game() {
 
 #[test]
 fn the_levels_carry_the_originals_figures() {
-    let gold: Vec<(i32, i32)> = (0..5)
-        .map(|d| {
+    // The original's five levels are 0 to 3 and Impossible, which sits at 5 since Extreme (4) was
+    // put between Hard and Impossible.
+    const ORIGINAL: [(u8, u8); 5] = [(0, 0), (1, 1), (2, 2), (3, 3), (5, 4)];
+    let gold: Vec<(i32, i32)> = ORIGINAL
+        .iter()
+        .map(|&(d, _)| {
             (
                 at(d).wizards.starting_gold.human,
                 at(d).wizards.starting_gold.ai,
@@ -35,31 +39,34 @@ fn the_levels_carry_the_originals_figures() {
         gold,
         [(125, 150), (100, 150), (75, 150), (50, 150), (25, 150)]
     );
-    let picks: Vec<u8> = (0..5).map(|d| at(d).wizards.picks.ai).collect();
+    let picks: Vec<u8> = ORIGINAL
+        .iter()
+        .map(|&(d, _)| at(d).wizards.picks.ai)
+        .collect();
     assert_eq!(picks, [11, 11, 11, 13, 15]);
-    assert_eq!(at(4).ai.production_percent, 400);
+    assert_eq!(at(5).ai.production_percent, 400);
     assert_eq!(at(3).ai.research_percent, 110);
-    assert_eq!(at(4).ai.maintenance_percent, 30);
-    assert_eq!(at(4).ai.unit_upkeep_percent, 50);
+    assert_eq!(at(5).ai.maintenance_percent, 30);
+    assert_eq!(at(5).ai.unit_upkeep_percent, 50);
     assert_eq!(at(3).ai.wizards.erasure_dice, (2, 3));
     assert_eq!(at(2).scoring.score_percent, 100);
-    assert_eq!(at(4).scoring.score_percent, 300);
+    assert_eq!(at(5).scoring.score_percent, 300);
     assert!(!at(0).events.random_events && at(1).events.random_events);
     assert!(at(1).rules.safe_flee.human && !at(2).rules.safe_flee.ai);
     // The lair figures are the old formulas: `(d + 1) / 4` of the guards, `4 / (d + 1)` of
-    // the treasure (none at Impossible).
-    for d in 0..=4u8 {
-        assert_eq!(at(d).world.lair_guard_percent, (u16::from(d) + 1) * 25);
+    // the treasure (none at Impossible), d being the original's level.
+    for (level, d) in ORIGINAL {
+        assert_eq!(at(level).world.lair_guard_percent, (u16::from(d) + 1) * 25);
     }
     assert_eq!(at(0).world.lair_treasure_percent, 400);
     assert_eq!(at(3).world.lair_treasure_percent, 100);
     // The raiders are `troops * d / 6` of the original.
-    for d in 0..=4u8 {
+    for (level, d) in ORIGINAL {
         assert_eq!(
-            at(d).world.raider_percent,
+            at(level).world.raider_percent,
             [0, 17, 33, 50, 67][usize::from(d)]
         );
-        assert!(at(d).world.raiders_enabled && at(d).world.monsters_enabled);
+        assert!(at(level).world.raiders_enabled && at(level).world.monsters_enabled);
     }
     for d in 0..=5 {
         assert!(
@@ -142,8 +149,44 @@ fn every_level_is_a_valid_record_and_out_of_range_values_are_named() {
         assert!(s.validate().is_empty());
     }
     assert_eq!(at(9).basic.difficulty, 5);
-    // Extreme has Impossible's figures until the patch's own are filled in (task 530).
-    assert_eq!(at(5).ai, at(4).ai);
+    // Extreme (4): the patch's AI bonuses, the other figures between Hard and Impossible.
+    let (hard, extreme, impossible) = (at(3), at(EXTREME), at(5));
+    assert_eq!(
+        (
+            extreme.ai.growth_percent,
+            extreme.ai.production_percent,
+            extreme.ai.gold_percent,
+            extreme.ai.food_percent,
+            extreme.ai.research_percent,
+            extreme.ai.maintenance_percent,
+            extreme.ai.unit_upkeep_percent,
+        ),
+        (300, 300, 300, 300, 130, 40, 60)
+    );
+    assert_eq!(
+        (
+            extreme.wizards.starting_gold.human,
+            extreme.wizards.picks.ai,
+            extreme.ai.wizards.erasure_dice,
+            extreme.world.lair_guard_percent,
+            extreme.world.raider_percent,
+            extreme.events.pressure_percent,
+            extreme.scoring.score_percent,
+        ),
+        (40, 14, (2, 4), 110, 60, 90, 250)
+    );
+    // Strictly between Hard and Impossible wherever those two differ.
+    let between = |h: i32, e: i32, i: i32| (h.min(i)..=h.max(i)).contains(&e);
+    assert!(between(
+        hard.ai.production_percent.into(),
+        extreme.ai.production_percent.into(),
+        impossible.ai.production_percent.into()
+    ));
+    assert!(between(
+        hard.scoring.score_percent.into(),
+        extreme.scoring.score_percent.into(),
+        impossible.scoring.score_percent.into()
+    ));
     let mut s = at(2);
     s.basic.difficulty = 7;
     s.basic.opponents = 0;
@@ -182,6 +225,8 @@ fn v131_has_the_originals_ships_and_monster_turn_and_v160_has_eight_carrying_shi
         (8, 8)
     );
     assert!(v160.validate().is_empty(), "{:?}", v160.validate());
+    assert!(v160.rules.walls_cover_city && v160.rules.suppress_spares_return);
+    assert!(!v131.rules.walls_cover_city && !v131.rules.suppress_spares_return);
     // The shipped units hold the originals' numbers for the default.
     let content = shipped();
     let carries = |num| {

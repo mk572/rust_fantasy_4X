@@ -480,6 +480,22 @@ fn spell_blast_fails_when_the_caster_cannot_match_the_mana() -> TestResult {
 }
 
 #[test]
+fn suppress_magic_spares_the_spell_of_return_only_when_the_rule_says_so() {
+    let mut g = world();
+    let suppress = sp(&g, 79 /* suppress_magic */);
+    g.attach_enchantment(Target::Player(P1), suppress, P1);
+    let back = sp(&g, 214 /* spell_of_return */);
+    let stopped = |g: &mut Game| {
+        (0..400)
+            .filter(|_| g.suppressed_by(P0, back).is_some())
+            .count()
+    };
+    assert!(stopped(&mut g) > 0, "stopped in v1.31");
+    g.settings.rules.suppress_spares_return = true;
+    assert_eq!(stopped(&mut g), 0, "spared in v1.6");
+}
+
+#[test]
 fn suppress_magic_stops_enemy_spells_with_its_strength_over_the_spells_cost() {
     let mut g = world();
     let suppress = sp(&g, 79 /* suppress_magic */);

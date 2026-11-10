@@ -1559,6 +1559,43 @@ fn walls_add_three_to_the_defense_on_the_wall_and_one_behind_it_against_attacker
 }
 
 #[test]
+fn with_walls_covering_the_city_a_unit_behind_the_wall_gets_three_not_one() {
+    // An attacker outside the city area, a target on the wall ring (12, 11) and one behind it.
+    let mut b = siege(
+        vec![
+            BattleUnit::simple(Side::Attacker, 6, 2, 4, 0).at((10, 11)),
+            BattleUnit::simple(Side::Defender, 60, 30, 0, 0).at((12, 11)),
+            BattleUnit::simple(Side::Defender, 60, 30, 0, 0).at((13, 11)),
+        ],
+        true,
+        1,
+    );
+    assert_eq!(
+        (b.city_defense_bonus(1, 0), b.city_defense_bonus(2, 0)),
+        (3, 1)
+    );
+    b.walls_cover_city = true;
+    assert_eq!(
+        (b.city_defense_bonus(1, 0), b.city_defense_bonus(2, 0)),
+        (3, 3)
+    );
+    // Still nothing against an attacker inside, or without walls.
+    b.units[0].cell = (14, 11);
+    assert_eq!(b.city_defense_bonus(2, 0), 0);
+    let open = siege(
+        vec![
+            BattleUnit::simple(Side::Attacker, 6, 2, 4, 0).at((10, 11)),
+            BattleUnit::simple(Side::Defender, 60, 30, 0, 0).at((13, 11)),
+        ],
+        false,
+        1,
+    );
+    let mut open = open;
+    open.walls_cover_city = true;
+    assert_eq!(open.city_defense_bonus(1, 0), 0);
+}
+
+#[test]
 fn attackers_inside_the_city_hurt_it_each_turn() -> TestResult {
     let mut b = siege(
         vec![
@@ -3376,6 +3413,36 @@ fn disrupt_destroys_one_wall_section_and_only_where_a_wall_stands() -> TestResul
         again,
         Err(BattleError::Spell(SpellError::Target(TargetError::NoWall)))
     );
+    Ok(())
+}
+
+#[test]
+fn cracks_call_never_swallows_a_merging_unit() -> TestResult {
+    let mut g = hook_game(11 /* cracks_call */);
+    let enemy_cell = g
+        .battle()
+        .ok_or("battle is missing")?
+        .unit(1)
+        .ok_or("unit is missing")?
+        .cell;
+    g.battle.as_mut().ok_or("as_mut is missing")?.battle.units[1]
+        .abilities
+        .push(Ability::new(43) /* merging */);
+    for _ in 0..30 {
+        cast_unit(
+            &mut g,
+            11, /* cracks_call */
+            SpellAim::Tile(enemy_cell),
+            0,
+        )
+        .map_err(|e| format!("{e:?}"))?;
+        assert!(g
+            .battle()
+            .ok_or("battle is missing")?
+            .unit(1)
+            .ok_or("unit is missing")?
+            .is_active());
+    }
     Ok(())
 }
 
@@ -5587,4 +5654,181 @@ fn the_three_combat_bolts_follow_the_wiki() {
         lightning.armor_piercing && lightning.decaying,
         "ten weaker bolts, half defence"
     );
+}
+
+/// Insecticide IW107/IW108: Raise Dead and Animate Dead. A hero knowing both spells and two
+/// cavalry of its army fight one defender; the second cavalry (battle unit 2) is the one that
+/// falls. Returns the game and the cavalry's overland unit.
+fn necromancy_battle() -> Result<(Game, hecs::Entity), String> {
+    let mut g = game();
+    let hero = hero_unit(&mut g, &[137 /* raise_dead */, 195 /* animate_dead */], 4);
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_numbered(107)
+        .ok_or("high_men_cavalry is not in the content")?;
+    let cavalry = g.spawn_unit(A, at(4, 4), walker);
+    let foe = g.spawn_unit(D, at(5, 4), walker);
+    g.apply(Command::BeginBattle {
+        attackers: vec![hero, cavalry],
+        defenders: vec![foe],
+    });
+    assert!(g.in_battle());
+    let b = &mut g.battle.as_mut().ok_or("no battle")?.battle;
+    b.units[0].mana = 1000;
+    Ok((g, cavalry))
+}
+
+/// Kill the second attacker (the cavalry) in the way `kind` says and return its battle id.
+fn fallen_cavalry(g: &mut Game, kind: Fate) -> Result<usize, String> {
+    let b = &mut g.battle.as_mut().ok_or("no battle")?.battle;
+    let id = b
+        .units
+        .iter()
+        .position(|u| u.side == Side::Attacker && u.id != 0)
+        .ok_or("no second attacker")?;
+    let u = &mut b.units[id];
+    u.status = Status::Dead;
+    u.figures = 0;
+    u.damage_kinds = match kind {
+        Fate::Slain => [5, 0, 0],
+        Fate::Drained => [0, 5, 0],
+        Fate::Gone => [0, 0, 5],
+    };
+    Ok(id)
+}
+
+fn necromancy_events(events: &[Event]) -> Vec<&BattleEvent> {
+    events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Battle(b) => Some(b),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn raise_dead_brings_a_fallen_soldier_back_with_half_its_figures_on_its_own_side() -> TestResult {
+    let (mut g, cavalry) = necromancy_battle()?;
+    let dead = fallen_cavalry(&mut g, Fate::Slain)?;
+    // A lasting spell it carried is gone with its death.
+    g.battle.as_mut().ok_or("no battle")?.battle.units[dead]
+        .enchantments
+        .push(SpellId::new(0));
+    let start = g.battle().ok_or("no battle")?.units[dead].figures_start;
+    let events = cast_unit(&mut g, 137 /* raise_dead */, SpellAim::Unit(dead), 0)
+        .map_err(|e| format!("{e:?}"))?;
+    assert!(necromancy_events(&events)
+        .iter()
+        .any(|e| matches!(e, BattleEvent::Raised { unit } if *unit == dead)));
+    let u = g.battle().ok_or("no battle")?.unit(dead).ok_or("no unit")?;
+    assert!(u.is_active());
+    assert_eq!(
+        u.side,
+        Side::Attacker,
+        "it fights for the wizard that raised it"
+    );
+    assert_eq!(u.figures, start.div_ceil(2).max(1));
+    assert!(!u.undead);
+    assert!(u.enchantments.is_empty());
+    assert_eq!(
+        g.units().unit_owner(cavalry),
+        Some(A),
+        "the owner is the same"
+    );
+    Ok(())
+}
+
+#[test]
+fn animate_dead_raises_a_fallen_soldier_as_undead_at_full_strength() -> TestResult {
+    let (mut g, cavalry) = necromancy_battle()?;
+    let dead = fallen_cavalry(&mut g, Fate::Slain)?;
+    let start = g.battle().ok_or("no battle")?.units[dead].figures_start;
+    let events = cast_unit(&mut g, 195 /* animate_dead */, SpellAim::Unit(dead), 0)
+        .map_err(|e| format!("{e:?}"))?;
+    assert!(necromancy_events(&events)
+        .iter()
+        .any(|e| matches!(e, BattleEvent::Raised { unit } if *unit == dead)));
+    let u = g.battle().ok_or("no battle")?.unit(dead).ok_or("no unit")?;
+    assert!(u.is_active() && u.undead);
+    assert_eq!(u.side, Side::Attacker);
+    assert_eq!(u.figures, start, "an animated unit has all its figures");
+    assert_eq!(
+        g.units().unit_owner(cavalry),
+        Some(A),
+        "the caster owns the undead"
+    );
+    assert!(
+        g.units().unit_is_undead(cavalry),
+        "overland it is undead for good"
+    );
+    Ok(())
+}
+
+#[test]
+fn the_dead_that_cannot_be_raised_are_refused_without_spending_anything() -> TestResult {
+    // A living unit, a unit destroyed outright, and an enemy's dead are no targets of either.
+    let (mut g, _) = necromancy_battle()?;
+    let alive = g
+        .battle()
+        .ok_or("no battle")?
+        .units
+        .iter()
+        .position(|u| u.side == Side::Attacker && u.id != 0)
+        .ok_or("no second attacker")?;
+    let gone = fallen_cavalry(&mut g, Fate::Gone)?;
+    assert_eq!(gone, alive);
+    for spell in [137 /* raise_dead */, 195 /* animate_dead */] {
+        let refused = cast_unit(&mut g, spell, SpellAim::Unit(gone), 0);
+        assert!(refused.is_err(), "spell {spell}: destroyed outright");
+    }
+    // The enemy's fallen unit is not ours to raise.
+    let foe = g
+        .battle()
+        .ok_or("no battle")?
+        .units
+        .iter()
+        .position(|u| u.side == Side::Defender)
+        .ok_or("no defender")?;
+    {
+        let u = &mut g.battle.as_mut().ok_or("no battle")?.battle.units[foe];
+        u.status = Status::Dead;
+        u.figures = 0;
+    }
+    for spell in [137 /* raise_dead */, 195 /* animate_dead */] {
+        let refused = cast_unit(&mut g, spell, SpellAim::Unit(foe), 0);
+        assert!(refused.is_err(), "spell {spell}: the enemy's dead");
+    }
+    // Nothing came back to life.
+    let b = g.battle().ok_or("no battle")?;
+    assert!(!b.unit(gone).ok_or("no unit")?.is_active());
+    assert!(!b.unit(foe).ok_or("no unit")?.is_active());
+    Ok(())
+}
+
+#[test]
+fn neither_spell_takes_a_unit_that_is_still_alive() -> TestResult {
+    let (mut g, _) = necromancy_battle()?;
+    let living = g
+        .battle()
+        .ok_or("no battle")?
+        .units
+        .iter()
+        .position(|u| u.side == Side::Attacker && u.id != 0)
+        .ok_or("no second attacker")?;
+    for spell in [137 /* raise_dead */, 195 /* animate_dead */] {
+        assert!(
+            cast_unit(&mut g, spell, SpellAim::Unit(living), 0).is_err(),
+            "spell {spell}"
+        );
+    }
+    assert!(g
+        .battle()
+        .ok_or("no battle")?
+        .unit(living)
+        .ok_or("no unit")?
+        .is_active());
+    Ok(())
 }

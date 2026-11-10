@@ -1358,10 +1358,11 @@ impl Game {
                 let battle = &mut active.battle;
                 let mut events = vec![BattleEvent::FissureOpened { cell }];
                 // A walker or crawler over the fissure falls in one time in four, whatever its
-                // defence; fliers and the bodiless stand clear.
+                // defence; fliers, the bodiless and merging units (which pass through the ground)
+                // stand clear.
                 let over = battle
                     .unit_at(cell)
-                    .filter(|u| !u.flies && !u.has(Ability::new(49)))
+                    .filter(|u| !u.flies && !u.has(Ability::new(49)) && !u.has(Ability::new(43)))
                     .map(|u| u.id);
                 if let Some(id) = over {
                     if battle.roll(4) == 1 {

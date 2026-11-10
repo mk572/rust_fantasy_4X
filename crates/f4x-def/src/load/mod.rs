@@ -539,11 +539,11 @@ mod tests {
         let gold: Vec<_> = s
             .levels
             .iter()
-            .take(5)
             .map(|l| l.wizards.starting_gold.human)
             .collect();
-        assert_eq!(gold, [125, 100, 75, 50, 25]);
-        assert_eq!(s.levels[4].ai.production_percent, 400);
+        assert_eq!(gold, [125, 100, 75, 50, 40, 25]);
+        assert_eq!(s.levels[4].ai.production_percent, 300, "Extreme");
+        assert_eq!(s.levels[5].ai.production_percent, 400, "Impossible");
         assert!(s.levels[1].rules.safe_flee.human && !s.levels[2].rules.safe_flee.human);
         assert!(!s.levels[0].events.random_events && s.levels[1].events.random_events);
         assert_eq!(s.new_game.difficulty, 2);
@@ -553,9 +553,12 @@ mod tests {
             .iter()
             .map(|l| (l.id.as_str(), l.land_percent))
             .collect();
-        assert_eq!(sizes, [("small", 15), ("medium", 20), ("large", 30)]);
+        assert_eq!(
+            sizes,
+            [("small", 15), ("medium", 20), ("large", 30), ("huge", 40)]
+        );
         let pressure: Vec<_> = s.levels.iter().map(|l| l.events.pressure_percent).collect();
-        assert_eq!(pressure, [50, 66, 75, 80, 100, 100]);
+        assert_eq!(pressure, [50, 66, 75, 80, 90, 100]);
         assert!(s
             .levels
             .iter()

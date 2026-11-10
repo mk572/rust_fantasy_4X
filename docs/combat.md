@@ -157,7 +157,7 @@ to roll against each attack (`attack::process_attack`).
   | Weapon immunity gives 50 against thrown, boulders and missiles (Insecticide, reverted by patch 637) | 10, the original's |
   | Create undead is stopped by magic immunity and not by death immunity (patch 496, 498) | **kept as the original** (`attack.rs`); the help has no word on it |
   | Entangle holds non-corporeal units (the original; patch 045 removed it, the Community Patch put it back) | not on them (the help says so, `field.rs`) |
-  | Merging gives no immunity to Cracks Call (patch IW106 adds it) | none, as the original |
+  | Merging gives no immunity to Cracks Call (patch IW106 adds it) | **fixed 10 November 2026**: a merging unit passes through the ground and never falls into the fissure (`battle/spell.rs`); a bug fix, no setting |
   | Invulnerability cannot be dispelled in combat (patch 261, 444) | it can, like any other unit spell |
 
   The help says Magic Immunity raises the defence to 50 against magic *melee* attacks too (topics 468 and

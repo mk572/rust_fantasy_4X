@@ -416,6 +416,9 @@ impl Game {
         caster: PlayerId,
         spell: SpellId,
     ) -> Option<(PlayerId, SpellId)> {
+        if self.settings.rules.suppress_spares_return && spell == SpellId::new(214) {
+            return None; // spell_of_return (patch IW114)
+        }
         let realm = self.content.rules.spells.get(spell).realm.num();
         let guards: Vec<SpellId> = [
             SpellId::new(79),  /* suppress_magic */

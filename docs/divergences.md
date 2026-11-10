@@ -375,7 +375,8 @@ the original's ways. Kept there; listed so this file is a complete index.
 - **Earth to Mud** follows the original's 12 half-moves to enter (the help says "all its movement
   points"), and turns open ground only, where the original tests the terrain group (grass and dirt).
 - **Cracks Call** works on the one square aimed at (as `Apply_Cracks_Call` does); the help's
-  "fissure" suggests more.
+  "fissure" suggests more. It never swallows a unit with Merging (patch IW106; the original lets
+  it, a logic error: such a unit moves through the ground). Fixed for every rule set, no setting.
 - **Heroes' skill at the fortress** (`Player_Hero_Casting_Skill`): half a hero's mana for each
   hero on the fortress square, added to the skill that pays for a spell over turns, for that turn
   only. The spell book's displayed limit in the original includes it; the limit for casting at once
@@ -842,6 +843,13 @@ Rules of `events.md` where the original's code, its manual and our game part way
 - **When a lasting event ends.** The manual says 5 percent a turn for all of them. The original's code does that for Plague and Population Boom only (after turn 3) and gives the six world events a chance that rises with their age (`d20 <= turns run - 2`). The game follows the code (`flat_end`, `world_end`), as it plays; the help text is the part that is wrong.
 - **Depletion and New Minerals.** ReMoM stubs both and the original's are said to be bugged, so we use our own rule: a square in the area of one of the victim's cities, and for New Minerals a mineral by the spawn weights of the square's terrain (`find_deposit`).
 - **Plague.** No unrest: the +2 unrest belongs to the Pestilence spell only, as in the code.
+
+## 40. Army strength in diplomacy is the whole empire's (task 530)
+
+- **The original** compares two wizards by the value (unit cost) of **their units on the second wizard's home continent**, i.e. the landmass of his fortress, on that plane only (`Invader_Army_Strength_Comparison` in `DIPLOMAC.c`, "invasion strength" against "defense strength"). It feeds the AI's rating of a threat, the human's threat screen and the AI's "superiority war" roll (one turn in twenty). A wizard with no units there is rated as having none, even with a large army elsewhere. The Insecticide notes (IW043) describe the bugs this code had: the roles were swapped, and it crashed when the AI had no units on its home continent. Patch 1.50 replaced the fix.
+- **Ours** sums the unit cost of **all** of a wizard's units, wherever they are (`diplomacy::army_strength`). The threat rating (`threat_modifier` in `f4x-ai/src/diplomacy.rs`) and the AI's reaction to a grown human army (`diplomacy_growth`) use that sum. Every division is guarded (`theirs > 0`, `mine > 0`), so a wizard without units cannot crash it.
+- **Why we keep it:** the rating is the AI's own judgement (the AI is not a port, `design.md` section 8) and the sum of an army is what the player can see and reason about; an army that sits across the sea does not make a wizard look weak. No rule set changes it. If the home-continent measure is wanted later, only `army_strength`'s two arguments change.
+- **The superiority war** of the original (`G_DIPL_SuperiorityWar`, rolled with the same measure) has no counterpart here: our AI decides on war by its own rules (`need_for_war` in `f4x-ai/src/diplomacy.rs`).
 
 ## Unit enchantments for normal units (tasks 433 and 452)
 

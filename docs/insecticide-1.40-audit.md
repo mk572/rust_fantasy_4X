@@ -375,7 +375,7 @@ The question for each row: does the v1.6 rule set need a **setting** (a rule tha
 | Rows | Verdict |
 |---|---|
 | IW003 ship capacity | `rules.trireme_capacity` (2 to 8) and `rules.galley_capacity` (5 to 8); v1.31 = 2 and 5 (the original's), v1.6 = 8 and 8. |
-| IW005 Extreme | Sixth level, Extreme; choosing it plays the v1.6 rule set. Its figures are a **copy of Impossible's** until the patch's own are read (open question 1). |
+| IW005 Extreme | Sixth level, Extreme, between Hard and Impossible (user decision, 10 November 2026): a level like any other, tied to no rule set. Its AI bonuses are the patch's (300% growth, outposts, production, gold, mana and food; research 130; maintenance 40); the other figures sit between Hard and Impossible, chosen with the user (open question 1 is answered). |
 | IW010 monsters on turn 40 | `world.monster_start_turn` (30, 40 or 50, used from Average up; Intro and Easy stay at 50). Both sets default to 50: the Community Patch puts turn 40 into the optional Monsters Gone Wild (open question 2). |
 | IW017 Wind Walking stack | Test added (`a_swifter_unit_does_not_take_a_wind_walking_stack_further`); the stack's allowance is the Wind Walker's whichever unit has more. |
 
@@ -395,15 +395,95 @@ IW001/007, IW009, IW010 (option removals), IW013, IW014, IW016, IW019/020, IW024
 | IW045 to IW050, IW056 to IW057, IW061 to IW064, IW073, IW078, IW080/085, IW083, IW102 to IW104, IW127/128/132 | Resolved by the table above and the P2 review. |
 | IW074 | Typed ids, no byte-sized spell index. |
 
-### Open questions (a batch for later)
+### Status of the open questions (closed 10 November 2026)
 
-1. **Extreme's figures.** What does the patch give Extreme (AI bonuses, lair guards, treasure, raiders, score), and does "Impossible shifted to Extreme" in the raider and monster formulae mean Impossible's old row now belongs to Extreme? Today Extreme = Impossible.
-2. **Monsters Gone Wild and Revolting Raiders** (IW002, IW010, IW011): do we build them as the patch's optional features (raider and monster generation variants), and is turn 40 part of Monsters Gone Wild only? Also the rule "on that turn a group always appears, except on Easy, unless no zone is eligible": built or not?
-3. **Ship capacity under v1.6** (IW003): I found no reversal in the Community Patch page; confirm 8 and 8.
-4. **Rows not yet checked in code** (assessed from the table only; each is "does our rule match the original, and does 1.60 keep the patch's change?"):
-   - Economy and display: IW018 (income shown before moving; one `income` function exists, a test that display equals actual is missing), IW098 (Charismatic discount before the affordability check), IW076 (Conjurer upkeep rounding; the later audits make the favourable rounding an option), IW075.
-   - Diplomacy: IW042 (declaring war on a pact partner), IW043 (zero units on the home continent).
-   - Combat and spells: IW044 (Dispel Confusion returns the original owner), IW051/052 (integer widths; several realm bonuses add up), IW077 (Wind Mastery by player and context), IW079 (Cause Fear), IW081 (block bonus), IW082/084 (walled-town +3, siege bonus; the walls test exists, the siege side not read), IW088 to IW090, IW093 (combat movement), IW105/106 (Holy Arms, Possession dispel, Cracks Call on merging units), IW114 (Suppress Magic and Spell of Return), IW123 (Mana Leak conditions).
-   - Treasure and items: IW040, IW041, IW072 (themed treasure; the checklist's "Item Theming" restores spellbook requirements), IW100 (done: `arcane_candidate_cap`).
-   - Map and setup: IM176, IM178/180/186 (Huge land size), IM183/184 (starting town on an encounter zone, placement range), IM188/189/192 (lair realms, monster divisor, neutral garrison), IM194, IW097/IM179 (the Overland Spell Events setting is wired).
-5. **Priority P1 rows** that are code-safety rather than rules (IW043, IW107, IW135) need only a test each; they are in the follow-up list, not the rule set.
+| # | Question | Status |
+|---|---|---|
+| 1 | Extreme's figures | **Settled.** The patch's AI bonuses, the rest between Hard and Impossible (section "Extreme's other figures"). Extreme is a plain level between Hard and Impossible and ties to no rule set. |
+| 2 | Monsters Gone Wild, Revolting Raiders; the "always spawns on the start turn" rule; turn 40 | **Deferred to the 1.60 walk** (user: leave as for 1.4, revise at 1.6). Today: `world.monster_start_turn` (30, 40 or 50, default 50), the forced spawn is not built. |
+| 3 | Ship capacity under v1.6 | **Deferred** (user: leave for now). Today v1.6 sets 8 and 8; each is a free setting from the original's to 8. |
+| 4 | Rows not yet checked in code | **Done** (the three walk sections below). |
+| 5 | The patch's optional encounter-zone and treasure file | **Settled by the rule "1.4 and 1.5 changes that a later patch reverted are not built"**: the Community Patch reverts that generation to v1.31 and makes the old changes an optional file. Not offered. |
+| 6 | Huge land size | **Settled**: Huge, 40 percent (960 squares), in every rule set, on the Land Size button. Its arm length in the original generator stays Large's (see the end of this file). |
+| 7 | Candidate switches from the combat walk | **Settled**: IW082 and IW114 are switches (off in v1.31, on in v1.6); IW106 is a plain fix (no switch). |
+| 8 | P1 rows that are code safety | **Settled**: IW043 no crash possible, IW107 tests added, IW135 left as is. |
+
+What is still open touches **v1.6, not 1.40**: which patch line "Community Patch" means (drake178's, or the 1.40/1.5x line this audit follows); the 1.51 notes on Extreme (the raider multiplier shift and the diplomacy reduction `-(level - 1) x 10%` for negative events, W068DIPL); and the questions 2 and 3 above.
+
+### Walk continued: IW018 to IW043 (10 November 2026, task 530)
+
+| Rows | Verdict |
+|---|---|
+| IW018 income display | The screen and the turn change both read `Game::budget`, so they cannot differ. Test added (`the_income_shown_is_the_gold_the_turn_change_pays`), also after a unit is hired. The shown figure does not predict units disbanded for lack of food, as in the original. |
+| IW098 Charismatic | Hero, mercenary and merchant prices come from one function (`hero_hire_price`, `mercenary_price`, `item_price`) that both checks and charges, so the discount is always applied before the affordability check. Tests exist for the hero price. |
+| IW076 Conjurer rounding | No setting needed. Costs are half-steps (`HalfInt`), so a rounding that differs from the original's is acceptable (user decision). The patch's optional favourable rounding is dropped from the list. |
+| IW075 AI upkeep discount | The difficulty cut is applied once per unit on its base gold (`unit_gold_upkeep`), then fame is subtracted from the total. No stacking. |
+| IW042 AI war on a pact partner | `declare_war` breaks the treaties of the pair first. The AI's willingness to declare war on someone it has a pact with is the AI's heuristic (ours is not a port). Not a rule-set setting. |
+| IW043 diplomacy with no units on the home continent | Ours measures army strength as the total cost of all units (`army_strength`), not per continent, and every ratio is guarded by `theirs > 0`. No crash is possible. The original's per-continent measure is now recorded as `divergences.md` section 40. |
+
+### Walk continued: combat and spell rows (10 November 2026, task 530)
+
+| Rows | Verdict |
+|---|---|
+| IW044 Dispel Confusion | A seized unit keeps the side it belongs to (`turned_from`) and goes back at the next turn change whatever happens to the enchantment; a bound one keeps `bound_from`. Ownership is remembered, never toggled. No bug. |
+| IW051/052 integer widths, several realm bonuses | Defender casting values are `i32`; retort and book bonuses are summed modifiers (`cost_cut`, `research_bonus`), not one overwritten value. Auto-resolve runs the ordinary battle. No bug. |
+| IW077 Wind Mastery context | Our own rule (`divergences.md` section 16), applied by one function (`unit_max_moves`) both overland and in battle, so the 1.40 discrepancy cannot occur. |
+| IW079 Cause Fear | `feared_figures(attacker, defender)` frightens the opposing side's figures, in both directions; tests exist. No bug. |
+| IW081 block bonus | `to_block` is read only by the defender's `blocks`; it never enters the attacker's To Hit. No bug. |
+| IW084 strategic combat siege bonuses | Auto-resolve is an ordinary battle; there is no separate +3 or +2 siege bonus. Not applicable. |
+| IW088, IW089, IW093 | Nothing in our battle moves recalled units, a battle does not touch a defender's overland moves, and a unit's combat moves are `moves` with no random extra. No bug. |
+| IW090 Chaos Channeled experience | A mutation is a mark on a normal unit, and `xp_after` goes by kind, so mutated units gain experience. Already the 1.40 rule. |
+| IW105 Holy Arms, Possession | Holy Arms is a global effect with no code in the dispel path, so it cannot shield a Holy Weapon enchantment. A wizard cannot dispel their own enchantments, so "dispel Possession to keep the unit" has no case; the bound unit simply stays for the battle. Invulnerability: divergence already recorded. |
+| IW123, IW120 (Mana Leak, AI casting) | The AI's own heuristics. Not a rule set matter. |
+
+**Candidates for the v1.6 rule set.** These are 1.40 changes that the Community Patch does not reverse, and that differ from what we do now (the v1.31 behaviour). Each would be a switch, off in v1.31 and on in v1.6:
+
+1. **IW106 Merging units are immune to Cracks Call.** Today a merging unit over the fissure can fall in (`combat.md` table: "none, as the original").
+2. **IW114 Suppress Magic does not counter the Spell of Return.** Today `suppressed_by` counters every spell, including Return.
+3. **IW082 Units on the central tiles of a walled town get +3 as though there were intact walls.** Today it is +3 on a standing wall section and +1 elsewhere in the city (`city_defense_bonus`). I do not know exactly which squares the patch calls "central" (probably those inside the walls between the wall sections); needs the wiki's City Walls article or the patch's own notes before building.
+
+### Walk continued: treasure, items, map and setup rows (10 November 2026, task 530)
+
+What the Community Patch page says about these (the patch page lists changes against 1.40): **encounter zone and treasure generation is reverted to its v1.31 state**, the Insecticide and Unofficial Patch 1.50 changes to it being combined into one *optional* file (zone budgets much higher, a fixed monster-to-treasure ratio of 100% on Arcanus and 125% on Myrror, and the rest of IM187). So the 1.40 changes to treasure and zones are not part of v1.6 unless that optional is chosen.
+
+| Rows | Verdict |
+|---|---|
+| IM176 Lo Pan | Already four sorcery books (`wizards.ron`, `divergences.md`). Nothing to do. |
+| IM188 colored lairs | Ours is the intended ratio, not the botched 1.31 one: death 2, chaos 2, nature 1 in five (`lairs.ron` `wild_realms`, `lairs.md`). The Community Patch has the same fix (778). Nothing to do. |
+| IM187, IM189, IM192, IW040, IW041, IW072 (budgets, secondary monster divisor, neutral garrison, AI treasure items, treasure value limits, no theming to the recipient) | Reverted or optional in the Community Patch (IM192 explicitly reversed, the others in the optional file). The v1.6 rule set therefore keeps ours as v1.31. If the optional file is wanted later it is a separate switch group; see open question 5. |
+| IM183, IM184 starting town placement | Obsoleted by the patch's own map settings ("Capital Pop Priority"). Our map generator is our own (`map-layers.md`), so these are generator settings, not rules. Not a rule set matter. |
+| IM194 Myrror roads | Our roads come from our generator; a test for enchanted roads on every capital tile is not needed for the rules. |
+| IM178, IM180, IM186 **Huge land size** | The Community Patch says these cannot be switched off any more, so **Huge land size is part of v1.6**. Candidate setting: a fourth `land_sizes` entry. Its land share is not known to me (open question 6). The Magic settings "2.0x" and "2.5x" (IM181) are optional in the patch, not part of v1.6. |
+
+### Decisions of 10 November 2026 on the candidates
+
+- **Not bothered with:** 1.40 and 1.50 changes that a later patch reversed.
+- **Built:** IW082 as `rules.walls_cover_city` (off in v1.31, on in v1.6) and IW114 as `rules.suppress_spares_return` (off in v1.31, on in v1.6); both are rows of the Custom screen. For IW082 I read "the central tiles" as every square inside the walls (the squares that get +1 today), which is an interpretation: the wiki does not say more.
+- **IW106 (Cracks Call and merging units):** fixed for every rule set, no setting (user decision: bugs of the original are fixed, not switched). Merging units never fall into the fissure.
+- **Huge land size:** left out until its figure is known (follow-up).
+
+### Huge land size: what is known (10 November 2026, from the user's decoding of the patch files)
+
+- The patch (`IM186`, marked obsolete; the live file `M003FEAT.TXT`, "Extending land size options to 5") makes the land-size menu **five** options named **Tiny, Small, Fair, Large, Huge** (option maximum 3 → 4). 1.31 has three: 360, 480 and 720 land squares of 2400 (`MAPGEN.c`, ours 15, 20 and 30 percent).
+- **Huge** is probably **960 squares (40 percent)** by `IM186`; the combined later patch may use **800** (33 percent). Not settled.
+- The figures of **Tiny, Small and Fair** are not known, so we cannot say whether Small and Medium keep their 1.31 numbers under new names.
+- The land-growing stretch lengths ("tiles per continent") change from 5, 10, 20 (plus `Random(10)`) to 7, 20, 30; a fourth value goes from 35 to 20, and which option it belongs to is not clear. Our map generator is our own (`map-layers.md`), so these only matter if we copy the original's generator (`map/mapgen/original.rs`).
+- Caveats: the numbers come from decoding patch bytes against 1.31's code and are not checked against a patched game; both files are obsolete "for continuity"; and it is unconfirmed that this patch line is the "Community Patch" of v1.6.
+
+**Not built.** Follow-up: settle Huge's share (960 or 800 squares) and the names and figures of the other four, then add land sizes to the data (`land_sizes` in `rules_settings.ron`, the text keys `options.land_<id>`, and the options screen's list).
+
+### Tests added for IW107/IW108 (10 November 2026)
+
+`battle/tests.rs`: `raise_dead_brings_a_fallen_soldier_back_with_half_its_figures_on_its_own_side`, `animate_dead_raises_a_fallen_soldier_as_undead_at_full_strength`, `the_dead_that_cannot_be_raised_are_refused_without_spending_anything` (destroyed outright, the enemy's dead) and `neither_spell_takes_a_unit_that_is_still_alive`. They check the side, figures, undead mark, cleared enchantments and the owner (IW108) of the raised unit. Breaking either spell makes them fail. The IW135 test (power shares add up) is still to do.
+
+### Extreme and IW135, decided 10 November 2026
+
+- **Extreme** is a level between Hard (3) and Impossible (now 5), at index 4. It plays whatever rule set is chosen; nothing ties it to v1.6. The Custom screen's difficulty list and the options step offer it in that place, and choosing it fills in its figures like any level. Rules that count in levels (`Game::difficulty()`) read the level number as it is, a six-step scale with Impossible, 5, the highest and Extreme the second highest (user decision), so Impossible's raider and monster clocks, temper and AI-to-AI diplomacy tempo run one step above the original's. A game saved before this change with difficulty 4 now reads as Extreme (the sixth level existed for one day only).
+- **IW135** (the AI over-allocating Power by 10%): `split_power` gives the remainder to research, so the shares can never total more than 100%. No change, no test.
+
+**Extreme's other figures** (agreed 10 November 2026; midpoints of Hard and Impossible, rounded): your starting gold 40, AI picks 14, AI units' upkeep 60%, erasure dice (2, 4), lair guards 110%, raiders 60%, event pressure 90%, score 250%. Equal in Hard and Impossible, so equal here: AI gold 150, merge chance 20%, the Myrran rule, the guaranteed summoning spell, lair treasure 100%, neutral city bonus 1, reveal radius 2.5, safe flee off.
+
+**Huge land size, decided 10 November 2026:** a fourth land size, **Huge, 40 percent (960 of 2400 squares)**, offered on the options step as one more value of the Land Size button, in every rule set. The patch's other four names (Tiny, Small, Fair, Large) and the changed stretch lengths of the original's generator are not taken: our three sizes keep their names and figures (15, 20, 30), and the original generator treats Huge like Large (`arm_steps`).
+
+**Huge land size and the original generator (measured, 10 November 2026).** The original sets land target and arm length separately per size (`MAPGEN.c`: 360, 480, 720 squares; arms `5 + Random(10)`, `10 + Random(10)`, `20 + Random(10)`); ours (`original.rs`, `arm_steps`) picks the arm length from the land share by bands, so Huge (40) gets Large's. Over 30 seeds on Arcanus with the original generator: at 20 percent 7.5 continents of ten tiles or more and the biggest holds 35 percent of the land; at 30 percent 4.5 and 64 percent; at 40 percent 3.3 and 81 percent. So Huge on the original generator is mostly one big continent; longer arms (the patch's 30) would fuse it further, shorter ones would break it up. **Decision (user): leave it.** The default noise generator is not affected: its land share is an elevation cut.
+

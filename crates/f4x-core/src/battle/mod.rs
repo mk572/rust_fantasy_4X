@@ -939,6 +939,9 @@ pub struct Battle {
     /// How hard a walker hits a flier in melee (`RuleSettings::melee_vs_fliers`).
     #[serde(default)]
     pub melee_vs_fliers: MeleeVsFliers,
+    /// Everyone inside a walled city gets the wall's +3 defence (`RuleSettings::walls_cover_city`).
+    #[serde(default)]
+    pub walls_cover_city: bool,
     rng: GameRng,
 }
 
@@ -1004,6 +1007,7 @@ impl Battle {
             save_penalty: 0,
             spell_caster: None,
             melee_vs_fliers: MeleeVsFliers::default(),
+            walls_cover_city: false,
             rng: GameRng::new(seed),
         };
         let _ = b.begin_side_turn();
@@ -1216,13 +1220,14 @@ impl Battle {
 
     /// The defence a unit being hit gains from the city's walls: against attacks from outside
     /// the city area, +3 on a standing wall and +1 elsewhere in the city (the original's
-    /// `Battle_Unit_Process_Attack`). Only a city with walls gives it.
+    /// `Battle_Unit_Process_Attack`), or +3 everywhere inside with `walls_cover_city`. Only a
+    /// city with walls gives it.
     fn city_defense_bonus(&self, hit: usize, from: usize) -> i32 {
         let (hit, from) = (&self.units[hit], &self.units[from]);
         if !self.map.is_walled() || !in_city_area(hit.cell) || in_city_area(from.cell) {
             return 0;
         }
-        if self.map.has_wall(hit.cell) {
+        if self.walls_cover_city || self.map.has_wall(hit.cell) {
             3
         } else {
             1

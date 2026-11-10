@@ -2131,3 +2131,31 @@ fn time_stop_halts_production_growth_and_income_for_everyone_but_the_spells_own_
     assert_eq!(theirs.1, 6, "no growth");
     Ok(())
 }
+
+/// IW018 of the Insecticide notes: the income the screen shows must be what the turn change
+/// pays, also straight after the player changed something (here a unit hired outside the city).
+#[test]
+fn the_income_shown_is_the_gold_the_turn_change_pays() -> TestResult {
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 12);
+    add_building(&mut g, city, 26 /* marketplace */);
+    garrison(&mut g, at(10, 6))?;
+    farm_all(&mut g, city);
+    let spear = g
+        .content
+        .rules
+        .units
+        .id_numbered(95)
+        .ok_or("high_elf_spearmen is not in the content")?;
+    for hired_outside in [false, true] {
+        if hired_outside {
+            g.spawn_unit(P0, at(14, 6), spear);
+        }
+        let shown = g.budget(P0).net_gold();
+        let before = g.treasury_mut(P0).ok_or("no treasury")?.gold;
+        g.settle_treasury(P0);
+        let after = g.treasury_mut(P0).ok_or("no treasury")?.gold;
+        assert_eq!(after - before, shown, "outside unit hired: {hired_outside}");
+    }
+    Ok(())
+}

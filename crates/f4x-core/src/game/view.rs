@@ -25,7 +25,7 @@ pub struct UnitInfo {
 }
 
 impl Game {
-    /// The game's difficulty: 0 intro, 1 easy, 2 normal, 3 hard, 4 impossible.
+    /// The game's difficulty: 0 intro, 1 easy, 2 normal, 3 hard, 4 extreme, 5 impossible.
     pub fn difficulty(&self) -> u8 {
         self.settings.basic.difficulty
     }

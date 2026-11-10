@@ -35,7 +35,7 @@ pub struct GenParams {
     /// Strong and weak random encounter sites, on either plane (the original's 25 and 32).
     pub strong_sites: u32,
     pub weak_sites: u32,
-    /// The game's difficulty, 0 (intro) to 4 (impossible), as `Game::with_generated_map` records
+    /// The game's difficulty, 0 (intro) to 5 (impossible), as `Game::with_generated_map` records
     /// it. The lairs read the two percents below, not this.
     pub difficulty: u8,
     /// Guards of lairs, towers and nodes as a percent of the budget (`world.lair_guard_percent`).

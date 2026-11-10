@@ -38,6 +38,8 @@
         (id: "small", land_percent: 15),
         (id: "medium", land_percent: 20),
         (id: "large", land_percent: 30),
+        // Patch 1.40's fourth size: 960 of the 2400 squares of a 60 by 40 plane.
+        (id: "huge", land_percent: 40),
     ],
 
     // The map sizes of the options step, smallest first: an id and the squares across and down
@@ -52,7 +54,7 @@
         (id: "huge", width: 90, height: 60, towers: 14, neutral_cities: 34),
     ],
 
-    // What each difficulty level fills in, from Intro to Extreme (exactly six). Choosing a
+    // What each difficulty level fills in, from Intro to Impossible (exactly six, Extreme between Hard and Impossible). Choosing a
     // level at the start of a game copies these into the game's settings. Most figures are the
     // original's (`difficulty_modifiers_table` and the map generator). Notes:
     // - `starting_mana`: mana in the treasury at the start.
@@ -213,46 +215,48 @@
             events: (random_events: true, pressure_percent: 80, frequency: Normal),
             scoring: (score_percent: 200),
         ),
-        // 4: Impossible
+        // 4: Extreme (patch 1.40), between Hard and Impossible. The AI's bonuses are the patch's
+        // (growth, outposts, production, gold, mana and food 300, research 130, maintenance 40).
+        // The other figures sit between Hard and Impossible (chosen with the user, 10 November 2026):
+        // the midpoints, rounded; raiders 60.
         (
             wizards: (
-                starting_gold: (human: 25, ai: 150),
+                starting_gold: (human: 40, ai: 150),
                 starting_mana: (human: 0, ai: 0),
-                picks: (human: 11, ai: 15),
+                picks: (human: 11, ai: 14),
             ),
             ai: (
-                growth_percent: 400,
-                outpost_growth_percent: 400,
-                production_percent: 400,
-                gold_percent: 400,
-                mana_percent: 400,
-                food_percent: 400,
-                research_percent: 150,
-                maintenance_percent: 30,
-                unit_upkeep_percent: 50,
+                growth_percent: 300,
+                outpost_growth_percent: 300,
+                production_percent: 300,
+                gold_percent: 300,
+                mana_percent: 300,
+                food_percent: 300,
+                research_percent: 130,
+                maintenance_percent: 40,
+                unit_upkeep_percent: 60,
                 wizards: (
                     randomise: true,
                     consolidate_percent: 20,
-                    erasure_dice: (2, 5),
+                    erasure_dice: (2, 4),
                     myrran_rule: true,
                     guaranteed_summoning_spell: true,   // a common summoning spell of its main realm is known
                 ),
             ),
             world: (
-                lair_guard_percent: 125,
+                lair_guard_percent: 110,
                 lair_treasure_percent: 100,
                 neutral_city_size_bonus: 1,
                 raiders_enabled: true,
                 monsters_enabled: true,
-                raider_percent: 67,
+                raider_percent: 60,
                 start_reveal_radius: 2.5,
             ),
             rules: (safe_flee: (human: false, ai: false), settlers_cost_citizen: true, melee_vs_fliers: zero, max_tile: 12), // settlers_cost_citizen: false = Settlers cost no citizen; melee_vs_fliers: zero (original), half, full; max_tile: units on one square, 12 in v1.31 (the original: 9), 9 to 20 (an army and a battle side stay at nine)
-            events: (random_events: true, pressure_percent: 100, frequency: Normal),
-            scoring: (score_percent: 300),
+            events: (random_events: true, pressure_percent: 90, frequency: Normal),
+            scoring: (score_percent: 250),
         ),
-        // 5: Extreme (patch 1.40). Provisional: the same figures as Impossible until the patch's own are
-        // read from its notes (task 530). Choosing it in a new game plays the v1.6 rule set.
+        // 5: Impossible
         (
             wizards: (
                 starting_gold: (human: 25, ai: 150),

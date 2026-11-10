@@ -146,7 +146,7 @@ const TEMPERS: &[Personality] = &[
 ];
 
 /// How many steps the difficulty slides every AI's temper towards Maniacal: none up to
-/// Normal, one on Hard, two on Impossible. The AI always plays its best; this only makes it
+/// Normal, one on Hard, two on Extreme, three on Impossible. The AI always plays its best; this only makes it
 /// fiercer. Ours, the original has no such thing.
 pub fn aggression_steps(difficulty: u8) -> i32 {
     i32::from(difficulty.saturating_sub(2))

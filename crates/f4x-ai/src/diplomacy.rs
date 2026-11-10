@@ -634,7 +634,7 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     let difficulty = u32::from(game.difficulty());
     for other in others {
-        if game.roll(15 - 2 * difficulty.min(4)) != 1 {
+        if game.roll(15 - 2 * difficulty.min(u32::from(f4x_def::settings::MAX_DIFFICULTY))) != 1 {
             continue;
         }
         let treaty = game.treaty(me, other);

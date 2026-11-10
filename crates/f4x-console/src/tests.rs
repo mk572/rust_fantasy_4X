@@ -455,7 +455,7 @@ fn level_game(level: u8, wizards: u8, seed: u64) -> Game {
 
 #[test]
 fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() -> TestResult {
-    for level in 0..=4u8 {
+    for level in 0..=5u8 {
         let g = level_game(level, 2, 5);
         let human = g.human().expect("the game has a human");
         let ai = g
@@ -465,7 +465,7 @@ fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() -
             .expect("it is there");
         assert_eq!(
             g.player(human).expect("the player exists").treasury().gold,
-            (5 - i32::from(level)) * 25
+            [125, 100, 75, 50, 40, 25][usize::from(level)]
         );
         assert_eq!(
             g.player(ai).expect("the player exists").treasury().gold,
@@ -479,7 +479,7 @@ fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() -
         assert_eq!(percent(human), 100);
         assert_eq!(
             percent(ai),
-            [100, 125, 150, 200, 400][usize::from(level)],
+            [100, 125, 150, 200, 300, 400][usize::from(level)],
             "level {level}"
         );
     }
@@ -489,7 +489,7 @@ fn each_level_gives_its_starting_gold_and_the_computer_wizards_their_bonuses() -
 #[test]
 fn computer_wizards_are_made_to_the_levels_pick_budget() -> TestResult {
     use f4x_core::wizard::{all_retorts, retort_cost};
-    for (level, picks) in [(2u8, 11), (3, 13), (4, 15)] {
+    for (level, picks) in [(2u8, 11), (3, 13), (4, 14), (5, 15)] {
         for seed in [1u64, 2, 3, 4] {
             let g = level_game(level, 3, seed);
             let human = g.human().expect("the game has a human");

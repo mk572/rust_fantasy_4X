@@ -384,7 +384,7 @@ impl Game {
 
     /// One neutral city with its population, buildings and garrison.
     fn make_neutral_city(&mut self, pos: Position, race: RaceId) -> hecs::Entity {
-        let d = u32::from(self.settings.basic.difficulty);
+        let d = u32::from(self.difficulty());
         let bonus = u32::from(self.settings.world.neutral_city_size_bonus);
         let mut population = 1 + bonus + self.roll(4);
         if d > 2 && self.roll(5) == 1 {

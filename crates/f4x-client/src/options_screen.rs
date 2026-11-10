@@ -20,8 +20,8 @@ pub(crate) const DIFFICULTIES: &[&str] = &[
     "options.easy",
     "options.average",
     "options.hard",
-    "options.impossible",
     "options.extreme",
+    "options.impossible",
 ];
 /// The names on the original's options buttons.
 const OPTION_DIFFICULTIES: &[&str] = &[
@@ -29,8 +29,8 @@ const OPTION_DIFFICULTIES: &[&str] = &[
     "options.easy",
     "options.normal",
     "options.hard",
-    "options.impossible",
     "options.extreme",
+    "options.impossible",
 ];
 const OPPONENT_NAMES: &[&str] = &[
     "options.one",
@@ -143,12 +143,6 @@ impl OptionsState {
         if difficulty_changed {
             self.custom = None;
             self.preset = Default::default();
-            // Extreme plays the v1.6 rules.
-            if self.difficulty == f4x_def::settings::EXTREME {
-                let base = self.settings(settings);
-                self.preset = crate::custom_screen::Preset::V160;
-                self.custom = Some(self.preset.applied(base, settings));
-            }
         } else if let Some(custom) = self.custom {
             let mut fresh = self.clone();
             fresh.custom = None;
@@ -500,6 +494,7 @@ fn land_key(id: &str) -> &str {
         "small" => "options.land_small",
         "medium" => "options.land_medium",
         "large" => "options.land_large",
+        "huge" => "options.land_huge",
         other => other,
     }
 }
@@ -522,23 +517,29 @@ mod tests {
     }
 
     #[test]
-    fn extreme_on_the_options_step_plays_the_v16_rules() {
+    fn extreme_is_a_level_between_hard_and_impossible_and_changes_no_rule_set() {
         let settings = shipped_settings();
+        assert_eq!(DIFFICULTIES[3], "options.hard");
+        assert_eq!(
+            DIFFICULTIES[usize::from(f4x_def::settings::EXTREME)],
+            "options.extreme"
+        );
+        assert_eq!(DIFFICULTIES[5], "options.impossible");
         let mut o = OptionsState::from_settings(settings);
         o.difficulty = f4x_def::settings::EXTREME;
         o.changed_here(true, settings);
-        assert_eq!(o.preset, crate::custom_screen::Preset::V160);
-        assert_eq!(o.settings(settings).rules.galley_capacity, 8);
-        o.difficulty = 3;
-        o.changed_here(true, settings);
-        assert_eq!(o.settings(settings).rules.galley_capacity, 5);
+        assert!(o.custom.is_none());
+        assert_eq!(o.preset, Default::default());
+        let made = o.settings(settings);
+        assert_eq!(made.ai.production_percent, 300);
+        assert_eq!(made.rules.galley_capacity, 5, "the v1.31 rules stay");
     }
 
     #[test]
     fn the_levels_figures_are_used_until_the_custom_screen_keeps_a_record() {
         let settings = shipped_settings();
         let mut o = OptionsState::from_settings(settings);
-        o.difficulty = 4;
+        o.difficulty = 5;
         assert_eq!(o.settings(settings).wizards.starting_gold.human, 25);
         let mut custom = o.settings(settings);
         custom.wizards.starting_gold.human = 300;
@@ -551,7 +552,7 @@ mod tests {
         assert_eq!(made, custom);
         // The options step shows what the record says.
         assert_eq!((o.opponents, o.map_size(settings)), (3, (75, 50)));
-        assert_eq!(o.difficulty, 4);
+        assert_eq!(o.difficulty, 5);
         // A change of opponents on the options step reaches the record and keeps the rest.
         o.opponents = 5;
         o.changed_here(false, settings);

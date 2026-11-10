@@ -71,7 +71,7 @@ impl Game {
         let known = guaranteed
             .then(|| library.ai_main_realm_known.get(&realm).copied())
             .flatten();
-        let open = (self.settings.basic.difficulty >= library.ai_main_realm_researchable_from)
+        let open = (self.difficulty() >= library.ai_main_realm_researchable_from)
             .then(|| library.ai_main_realm_researchable.get(&realm).copied())
             .flatten();
         if let Some(open) = open {

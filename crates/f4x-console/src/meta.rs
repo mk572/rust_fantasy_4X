@@ -446,7 +446,7 @@ fn new(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             }
             "difficulty" => {
                 // A level brings the original's figures for it; the other basic choices stay.
-                let level = parse_choice(v, "difficulty", DIFFICULTY, 0, 4)?;
+                let level = parse_choice(v, "difficulty", DIFFICULTY, 0, 5)?;
                 let basic = spec.settings.basic;
                 spec.settings = f4x_core::game::setting::GameSettings::for_difficulty(
                     &ctx.game.content().settings,
@@ -506,8 +506,8 @@ const DIFFICULTY: &[(&str, u8)] = &[
     ("easy", 1),
     ("average", 2),
     ("hard", 3),
-    ("impossible", 4),
-    ("extreme", 5),
+    ("extreme", 4),
+    ("impossible", 5),
 ];
 const MAGIC: &[(&str, u8)] = &[("weak", 0), ("normal", 1), ("powerful", 2)];
 

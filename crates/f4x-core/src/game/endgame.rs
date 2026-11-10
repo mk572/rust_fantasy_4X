@@ -75,13 +75,14 @@ impl Score {
 }
 
 /// The original's difficulty scaling of the final score: Intro halves it, Easy takes three
-/// quarters, Normal leaves it, Hard doubles and Impossible triples it (levels 0 to 4; Extreme, 5, triples it too).
+/// quarters, Normal leaves it, Hard doubles and Impossible triples it; Extreme (level 4) is in between at two and a half times (as `scoring.score_percent` says).
 pub fn scale_for_difficulty(score: i32, level: u8) -> i32 {
     match level {
         0 => score / 2,
         1 => score * 3 / 4,
         3 => score * 2,
-        4 | 5 => score * 3,
+        4 => score * 5 / 2,
+        5 => score * 3,
         _ => score,
     }
 }
@@ -265,7 +266,8 @@ mod tests {
         assert_eq!(scale_for_difficulty(1000, 1), 750);
         assert_eq!(scale_for_difficulty(1000, 2), 1000);
         assert_eq!(scale_for_difficulty(1000, 3), 2000);
-        assert_eq!(scale_for_difficulty(1000, 4), 3000);
+        assert_eq!(scale_for_difficulty(1000, 4), 2500);
+        assert_eq!(scale_for_difficulty(1000, 5), 3000);
     }
 
     #[test]

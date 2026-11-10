@@ -401,6 +401,16 @@ pub(crate) fn rows() -> Vec<Row> {
             |s| s.rules.settlers_cost_citizen.into(),
             |s, v| s.rules.settlers_cost_citizen = v != 0,
         ),
+        flag(
+            "custom.walls_cover_city",
+            |s| s.rules.walls_cover_city.into(),
+            |s, v| s.rules.walls_cover_city = v != 0,
+        ),
+        flag(
+            "custom.suppress_spares_return",
+            |s| s.rules.suppress_spares_return.into(),
+            |s, v| s.rules.suppress_spares_return = v != 0,
+        ),
         choice(
             "custom.melee_vs_fliers",
             MELEE_WORDS,
@@ -779,16 +789,14 @@ impl CustomPage {
     /// Choose a rule set, and a difficulty with it when given: the rows take the set's values
     /// under that level, those that changed are green, and the set becomes what red compares
     /// with. A level is the base of a rule set, so a difficulty chosen with Fully customized
-    /// goes to v1.31, except Extreme, which plays v1.6.
+    /// goes to v1.31.
     fn choose(&mut self, preset: Preset, difficulty: Option<u8>, def: &SettingsDef) {
         let before = self.work;
         let mut start = before;
         let mut preset = preset;
         if let Some(level) = difficulty {
             start.basic.difficulty = level;
-            if level == f4x_def::settings::EXTREME {
-                preset = Preset::V160;
-            } else if preset == Preset::Custom {
+            if preset == Preset::Custom {
                 preset = Preset::V131;
             }
         }
@@ -1006,7 +1014,7 @@ mod tests {
     fn a_running_games_list_has_a_line_for_every_row() {
         let def = crate::test_app::shipped::settings();
         let texts = crate::test_app::shipped::texts();
-        let s = GameSettings::for_difficulty(def, 4);
+        let s = GameSettings::for_difficulty(def, 5);
         let lines = lines(texts, &s, def);
         assert_eq!(lines.len(), rows().len() + 1);
         assert_eq!(lines[0], ("Difficulty".into(), "Impossible".into()));
@@ -1078,19 +1086,17 @@ mod tests {
     }
 
     #[test]
-    fn choosing_extreme_plays_the_v16_rules_and_shows_the_ships_in_green() {
+    fn choosing_extreme_fills_in_its_figures_and_leaves_the_rule_set_alone() {
         let def = crate::test_app::shipped::settings();
         let mut p = page(def);
         p.choose(Preset::V131, Some(f4x_def::settings::EXTREME), def);
-        assert_eq!(p.preset, Preset::V160);
+        assert_eq!(p.preset, Preset::V131);
         assert_eq!(p.work.basic.difficulty, f4x_def::settings::EXTREME);
-        assert_eq!(
-            (p.work.rules.trireme_capacity, p.work.rules.galley_capacity),
-            (8, 8)
-        );
-        assert_eq!(mark_of(&p, "custom.trireme_capacity"), Mark::Green);
-        // A lower level under v1.6 keeps the v1.6 rules.
-        p.choose(Preset::V160, Some(2), def);
+        assert_eq!(p.work.ai.production_percent, 300);
+        assert_eq!(p.work.rules.galley_capacity, 5);
+        assert_eq!(mark_of(&p, "custom.gold_you"), Mark::Green);
+        // Under v1.6 the ships stay at eight.
+        p.choose(Preset::V160, Some(f4x_def::settings::EXTREME), def);
         assert_eq!(p.preset, Preset::V160);
         assert_eq!(p.work.rules.galley_capacity, 8);
     }
@@ -1135,8 +1141,8 @@ mod tests {
     fn a_new_difficulty_marks_the_rows_the_level_changed() {
         let def = crate::test_app::shipped::settings();
         let mut p = page(def);
-        p.choose(Preset::V131, Some(4), def);
-        assert_eq!(p.work.basic.difficulty, 4);
+        p.choose(Preset::V131, Some(5), def);
+        assert_eq!(p.work.basic.difficulty, 5);
         assert_eq!(mark_of(&p, "custom.gold_you"), Mark::Green);
         assert_eq!(mark_of(&p, "custom.max_tile"), Mark::None);
     }
