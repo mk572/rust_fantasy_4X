@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::AddAssign;
 
 use f4x_core::city::production::ProductionItem;
-use f4x_core::diplomacy::{DiplomacyEvent, Proposal};
+use f4x_core::diplomacy::{DiplomacyEvent, Proposal, ProposalKind, Treaty};
 use f4x_core::game::{Event, Game};
 use f4x_core::map::terrain::TerrainClass;
 use f4x_core::player::PlayerId;
@@ -40,6 +40,24 @@ pub struct Metrics {
     pub contacts_made: u32,
     /// Diplomatic actions the player started: proposals, warnings, gifts, broken treaties and wars.
     pub diplomacy_started: u32,
+    /// The kinds of diplomatic action, each counted for the wizard that started it
+    /// (`diplomacy_started` is their total, with the wars declared). The answers are counted for
+    /// the proposer; a treaty joined is counted for both wizards.
+    pub peace_offers: u32,
+    pub pact_offers: u32,
+    pub alliance_offers: u32,
+    pub war_requests: u32,
+    pub alliance_break_requests: u32,
+    pub spell_exchanges: u32,
+    pub threats: u32,
+    pub demands: u32,
+    pub warnings: u32,
+    pub gold_gifts: u32,
+    pub spell_gifts: u32,
+    pub treaties_broken: u32,
+    pub proposals_accepted: u32,
+    pub proposals_refused: u32,
+    pub treaties_joined: u32,
     pub refused_orders: u32,
     pub ships_built: u32,
     pub ships_lost: u32,
@@ -62,7 +80,7 @@ pub struct Metrics {
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 27] {
+    pub fn rows(&self) -> [(&'static str, u32); 42] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -81,6 +99,21 @@ impl Metrics {
             ("wars declared", self.wars_declared),
             ("wizards met", self.contacts_made),
             ("diplomacy started", self.diplomacy_started),
+            ("peace offers", self.peace_offers),
+            ("pact offers", self.pact_offers),
+            ("alliance offers", self.alliance_offers),
+            ("war requests", self.war_requests),
+            ("alliance-break requests", self.alliance_break_requests),
+            ("spell exchanges offered", self.spell_exchanges),
+            ("threats", self.threats),
+            ("tribute demands", self.demands),
+            ("warnings", self.warnings),
+            ("gold gifts", self.gold_gifts),
+            ("spell gifts", self.spell_gifts),
+            ("treaties broken", self.treaties_broken),
+            ("proposals accepted", self.proposals_accepted),
+            ("proposals refused or lapsed", self.proposals_refused),
+            ("pacts and alliances joined", self.treaties_joined),
             ("refused orders", self.refused_orders),
             ("ships built", self.ships_built),
             ("ships lost", self.ships_lost),
@@ -155,6 +188,21 @@ impl AddAssign for Metrics {
             wars_declared,
             contacts_made,
             diplomacy_started,
+            peace_offers,
+            pact_offers,
+            alliance_offers,
+            war_requests,
+            alliance_break_requests,
+            spell_exchanges,
+            threats,
+            demands,
+            warnings,
+            gold_gifts,
+            spell_gifts,
+            treaties_broken,
+            proposals_accepted,
+            proposals_refused,
+            treaties_joined,
             refused_orders,
             ships_built,
             ships_lost,
@@ -184,6 +232,21 @@ impl AddAssign for Metrics {
         self.wars_declared += wars_declared;
         self.contacts_made += contacts_made;
         self.diplomacy_started += diplomacy_started;
+        self.peace_offers += peace_offers;
+        self.pact_offers += pact_offers;
+        self.alliance_offers += alliance_offers;
+        self.war_requests += war_requests;
+        self.alliance_break_requests += alliance_break_requests;
+        self.spell_exchanges += spell_exchanges;
+        self.threats += threats;
+        self.demands += demands;
+        self.warnings += warnings;
+        self.gold_gifts += gold_gifts;
+        self.spell_gifts += spell_gifts;
+        self.treaties_broken += treaties_broken;
+        self.proposals_accepted += proposals_accepted;
+        self.proposals_refused += proposals_refused;
+        self.treaties_joined += treaties_joined;
         self.refused_orders += refused_orders;
         self.ships_built += ships_built;
         self.ships_lost += ships_lost;
@@ -448,13 +511,55 @@ impl Tally {
                     self.bump(*a, |m| m.contacts_made += 1);
                     self.bump(*b, |m| m.contacts_made += 1);
                 }
-                Event::Diplomacy(
-                    DiplomacyEvent::ProposalMade(Proposal { from, .. })
-                    | DiplomacyEvent::Warned { from, .. }
-                    | DiplomacyEvent::GoldGiven { from, .. }
-                    | DiplomacyEvent::SpellGiven { from, .. }
-                    | DiplomacyEvent::TreatyBroken { breaker: from, .. },
-                ) => self.bump(*from, |m| m.diplomacy_started += 1),
+                Event::Diplomacy(DiplomacyEvent::ProposalMade(Proposal { from, kind, .. })) => self
+                    .bump(*from, |m| {
+                        m.diplomacy_started += 1;
+                        match kind {
+                            ProposalKind::Pact => m.pact_offers += 1,
+                            ProposalKind::Alliance => m.alliance_offers += 1,
+                            ProposalKind::Peace => m.peace_offers += 1,
+                            ProposalKind::WarOn(_) => m.war_requests += 1,
+                            ProposalKind::BreakAllianceWith(_) => m.alliance_break_requests += 1,
+                            ProposalKind::Exchange { .. } => m.spell_exchanges += 1,
+                            ProposalKind::Threat => m.threats += 1,
+                            ProposalKind::Demand { .. } => m.demands += 1,
+                        }
+                    }),
+                Event::Diplomacy(DiplomacyEvent::ProposalAnswered {
+                    proposal, accepted, ..
+                }) => self.bump(proposal.from, |m| {
+                    if *accepted {
+                        m.proposals_accepted += 1;
+                    } else {
+                        m.proposals_refused += 1;
+                    }
+                }),
+                Event::Diplomacy(DiplomacyEvent::TreatyChanged { a, b, treaty }) => {
+                    if matches!(treaty, Treaty::Pact | Treaty::Alliance) {
+                        self.bump(*a, |m| m.treaties_joined += 1);
+                        self.bump(*b, |m| m.treaties_joined += 1);
+                    }
+                }
+                Event::Diplomacy(DiplomacyEvent::Warned { from, .. }) => self.bump(*from, |m| {
+                    m.diplomacy_started += 1;
+                    m.warnings += 1;
+                }),
+                Event::Diplomacy(DiplomacyEvent::GoldGiven { from, .. }) => self.bump(*from, |m| {
+                    m.diplomacy_started += 1;
+                    m.gold_gifts += 1;
+                }),
+                Event::Diplomacy(DiplomacyEvent::SpellGiven { from, .. }) => {
+                    self.bump(*from, |m| {
+                        m.diplomacy_started += 1;
+                        m.spell_gifts += 1;
+                    })
+                }
+                Event::Diplomacy(DiplomacyEvent::TreatyBroken { breaker, .. }) => {
+                    self.bump(*breaker, |m| {
+                        m.diplomacy_started += 1;
+                        m.treaties_broken += 1;
+                    })
+                }
                 Event::Rejected(_) => {
                     if let Some(p) = source {
                         self.bump(p, |m| m.refused_orders += 1);
@@ -613,6 +718,102 @@ mod tests {
         );
         assert_eq!(tally.of(a).diplomacy_started, 2);
         assert_eq!(tally.of(b).diplomacy_started, 0);
+        assert_eq!(tally.of(a).warnings, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn each_kind_of_diplomatic_action_has_its_own_count_and_all_add_up_to_the_total() -> TestResult
+    {
+        let game = new_game(
+            shipped(),
+            &NewGame {
+                seed: 1,
+                all_ai: true,
+                ..NewGame::with_wizards(3)
+            },
+        )?;
+        let (a, b, c) = (PlayerId(0), PlayerId(1), PlayerId(2));
+        let offer = |kind| {
+            Event::Diplomacy(DiplomacyEvent::ProposalMade(Proposal {
+                from: a,
+                to: b,
+                kind,
+            }))
+        };
+        let spell = game
+            .content()
+            .rules
+            .spells
+            .iter()
+            .map(|(id, _)| id)
+            .next()
+            .ok_or("no spells")?;
+        let mut tally = Tally::new(&game);
+        tally.record(
+            &game,
+            None,
+            &[
+                offer(ProposalKind::Peace),
+                offer(ProposalKind::Pact),
+                offer(ProposalKind::Alliance),
+                offer(ProposalKind::WarOn(c)),
+                offer(ProposalKind::BreakAllianceWith(c)),
+                offer(ProposalKind::Exchange {
+                    give: spell,
+                    get: spell,
+                }),
+                offer(ProposalKind::Threat),
+                offer(ProposalKind::Demand { gold: 5 }),
+                Event::Diplomacy(DiplomacyEvent::GoldGiven {
+                    from: a,
+                    to: b,
+                    gold: 5,
+                }),
+                Event::Diplomacy(DiplomacyEvent::SpellGiven {
+                    from: a,
+                    to: b,
+                    spell,
+                }),
+                Event::Diplomacy(DiplomacyEvent::TreatyBroken {
+                    breaker: a,
+                    victim: b,
+                    treaty: Treaty::Pact,
+                }),
+                Event::Diplomacy(DiplomacyEvent::ProposalAnswered {
+                    proposal: Proposal {
+                        from: a,
+                        to: b,
+                        kind: ProposalKind::Peace,
+                    },
+                    accepted: true,
+                    lapsed: false,
+                }),
+                Event::Diplomacy(DiplomacyEvent::TreatyChanged {
+                    a,
+                    b,
+                    treaty: Treaty::Pact,
+                }),
+            ],
+        );
+        let m = tally.of(a);
+        let kinds = [
+            m.peace_offers,
+            m.pact_offers,
+            m.alliance_offers,
+            m.war_requests,
+            m.alliance_break_requests,
+            m.spell_exchanges,
+            m.threats,
+            m.demands,
+            m.gold_gifts,
+            m.spell_gifts,
+            m.treaties_broken,
+        ];
+        assert_eq!(kinds, [1; 11]);
+        assert_eq!(m.diplomacy_started, 11);
+        assert_eq!((m.proposals_accepted, m.proposals_refused), (1, 0));
+        assert_eq!((m.treaties_joined, tally.of(b).treaties_joined), (1, 1));
         Ok(())
     }
 

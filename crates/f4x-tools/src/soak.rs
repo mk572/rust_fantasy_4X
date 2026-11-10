@@ -22,7 +22,7 @@ use f4x_def::content::Content;
 use serde::{Deserialize, Serialize};
 
 use crate::contestant::{self, Contestant, Version};
-use crate::metrics::{add_casts, casts_line, never_cast, Standing, Tally};
+use crate::metrics::{add_casts, casts_line, never_cast, Metrics, Standing, Tally};
 
 pub const USAGE: &str = "usage: f4x-tools soak [--seeds FIRST..LAST] [--turns N] [--players 2..5] [--content DIR] [--every N] [--trace TURNS] [--detail] [--events] [--casts] [--grant-mastery TURN] [--battle-ai CHECKPOINT] [--refused-log FILE] [--snapshots-every N] [--out DIR] [--jobs N] [--from SAVE] [--map WxH] [--land PERCENT] [--magic 0..2] [--difficulty 0..4] [--rules 1.31|1.6]";
 
@@ -481,6 +481,7 @@ pub fn game(
         total.diplomacy_started,
         total.refused_orders,
     );
+    println!("{tag}: diplomacy: {}", diplomacy_line(&total));
     println!("{tag}: mana {}", mana_line(&game, &tally));
     if opts.casts {
         println!("{tag}: casts: {}", casts_line(tally.casts()));
@@ -784,6 +785,21 @@ fn grant_mastery_to_all(game: &mut Game) {
         }
     }
 }
+
+/// The kinds of diplomatic action of a game, each with its count (all wizards together).
+fn diplomacy_line(total: &Metrics) -> String {
+    total
+        .rows()
+        .into_iter()
+        .skip_while(|(label, _)| *label != "diplomacy started")
+        .take(DIPLOMACY_ROWS)
+        .map(|(label, n)| format!("{label} {n}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// "diplomacy started" and the counts of each kind that follow it in `Metrics::rows`.
+const DIPLOMACY_ROWS: usize = 16;
 
 #[cfg(test)]
 mod tests {
