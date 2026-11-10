@@ -232,10 +232,19 @@ pub(crate) fn march(
     let spots = {
         let view = PlayerView::new(game, ai.player);
         let from = view.unit_position(units[0]).unwrap_or(site);
-        let mut spots: Vec<Position> = around(&view, site)
+        let open: Vec<Position> = around(&view, site)
             .into_iter()
-            .filter(|&p| view.hostile_at(p).is_none() && !view.has_lair(p))
-            .filter(|&p| p != from && view.can_reach(units, p))
+            .filter(|&p| view.hostile_at(p).is_none() && !view.has_lair(p) && p != from)
+            .collect();
+        // One search that stops at the first square found tells whether any of them can be
+        // reached: when none can (a site across the water) the party does not search once for
+        // each square, each of them over the whole plane.
+        if !view.reaches_any(units, &open) {
+            return false;
+        }
+        let mut spots: Vec<Position> = open
+            .into_iter()
+            .filter(|&p| view.can_reach(units, p))
             .collect();
         spots.sort_by_key(|&p| (distance(&view, from, p), p.y, p.x));
         spots

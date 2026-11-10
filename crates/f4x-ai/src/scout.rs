@@ -363,6 +363,7 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 fn recruit(ai: &Ai, game: &Game, reach: Option<Position>) -> Option<hecs::Entity> {
     let view = PlayerView::new(game, ai.player);
     let mut best: Option<(i32, std::cmp::Reverse<Serial>, hecs::Entity)> = None;
+    let mut reached = crate::view::ReachCache::default();
     for u in view.my_units() {
         if !is_fighter(&view, u)
             || ai.scouts.contains(&view.serial_of(u))
@@ -373,7 +374,7 @@ fn recruit(ai: &Ai, game: &Game, reach: Option<Position>) -> Option<hecs::Entity
         let Some(at) = view.unit_position(u) else {
             continue;
         };
-        if reach.is_some_and(|to| !view.can_reach(&[u], to)) {
+        if reach.is_some_and(|to| !reached.can_reach(&view, &[u], to)) {
             continue;
         }
         // A city keeps one fighter at least: only take from a stack of two or more, or from

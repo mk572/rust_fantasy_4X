@@ -184,7 +184,7 @@ impl Game {
 
     /// Whether a city could be founded at `pos` right now.
     pub fn can_found_city(&self, pos: map::Position) -> Result<(), city::FoundCityError> {
-        let existing = self.economy().cities().into_iter().map(|(_, _, p)| p);
+        let existing = self.economy().city_positions();
         city::check_site(&self.economy(), pos, existing)
     }
 

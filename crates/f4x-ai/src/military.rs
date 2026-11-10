@@ -409,14 +409,23 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         usize::MAX
     };
     let mut at_tower: Vec<hecs::Entity> = Vec::new();
+    // Units of a kind on a square get one path search between them (nothing moves meanwhile:
+    // the orders given here only start a walk).
+    let mut reached = crate::view::ReachCache::default();
     for u in &elsewhere {
         if let Some(tower) = ai.crossing.filter(|t| t.plane != rally.plane) {
             let (here, ordered, reach) = {
                 let view = PlayerView::new(game, me);
+                let here = view.unit_position(*u);
+                let ordered = view.unit_has_order(*u);
+                // Only a unit that is not at the tower, has no order and is on the tower's plane
+                // needs to know whether it can walk there.
+                let asks =
+                    here != Some(tower) && !ordered && here.is_some_and(|p| p.plane == tower.plane);
                 (
-                    view.unit_position(*u),
-                    view.unit_has_order(*u),
-                    view.can_reach(&[*u], tower),
+                    here,
+                    ordered,
+                    asks && reached.can_reach(&view, &[*u], tower),
                 )
             };
             if here == Some(tower) {
@@ -466,7 +475,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 && view
                     .unit_position(*u)
                     .is_some_and(|p| p.plane == rally.plane)
-                && view.can_reach(&[*u], rally)
+                && reached.can_reach(&view, &[*u], rally)
         };
         if comes_home && room > 0 {
             room = room.saturating_sub(1);
@@ -584,6 +593,7 @@ fn relieve(
         let mut sent: Vec<hecs::Entity> = Vec::new();
         {
             let view = PlayerView::new(game, me);
+            let mut reached = crate::view::ReachCache::default();
             let mut candidates: Vec<(u32, hecs::Entity)> = free
                 .iter()
                 .copied()
@@ -592,7 +602,8 @@ fn relieve(
                 .filter_map(|u| {
                     let at = view.unit_position(u)?;
                     let d = distance(&view, at, city)?;
-                    (d > 0 && d <= RELIEF_RANGE && view.can_reach(&[u], city)).then_some((d, u))
+                    (d > 0 && d <= RELIEF_RANGE && reached.can_reach(&view, &[u], city))
+                        .then_some((d, u))
                 })
                 .collect();
             candidates.sort_by_key(|&(d, u)| (d, view.serial_of(u)));
@@ -845,7 +856,7 @@ fn march_landed(
                         open.iter().copied().filter(|&s| s != at).collect();
                     view.reaches_any(&[u], &squares)
                 };
-                match view.reach_signature(u) {
+                match view.reach_signature(&[u]) {
                     Some(key) => *known.entry(key).or_insert_with(|| search(&view)),
                     None => search(&view),
                 }

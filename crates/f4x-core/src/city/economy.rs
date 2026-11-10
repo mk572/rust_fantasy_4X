@@ -202,6 +202,16 @@ impl<'a> Economy<'a> {
         out
     }
 
+    /// Where the cities of every player stand (no names, no owners, no order): for a test of the
+    /// squares round them.
+    pub fn city_positions(&self) -> Vec<Position> {
+        self.world
+            .query::<(&City, &Position)>()
+            .iter()
+            .map(|(_, (_, p))| *p)
+            .collect()
+    }
+
     /// The cities of one player with their positions, oldest first: what `cities` gives for one
     /// owner, without the names and without looking up every city's owner.
     pub fn cities_of(&self, owner: PlayerId) -> Vec<(hecs::Entity, Position)> {

@@ -8,6 +8,26 @@ use f4x_core::player::view::PlayerView;
 use f4x_def::rules::Ability;
 use f4x_def::rules::{MovementType, Stat};
 
+/// The answers of `can_reach` for one stretch of the AI's turn in which nothing moves: stacks that
+/// stand on one square and move alike (the same kinds of unit) get one path search between them,
+/// where a search for each of hundreds of units would cost most of the turn.
+#[derive(Default)]
+pub struct ReachCache(
+    std::collections::HashMap<(f4x_core::unit::pathing::ReachSignature, Position), bool>,
+);
+
+impl ReachCache {
+    pub fn can_reach(&mut self, view: &PlayerView, units: &[hecs::Entity], to: Position) -> bool {
+        match view.reach_signature(units) {
+            Some(key) => *self
+                .0
+                .entry((key, to))
+                .or_insert_with(|| view.can_reach(units, to)),
+            None => view.can_reach(units, to),
+        }
+    }
+}
+
 /// How hard a unit hits and how much it can take, as one number.
 pub fn unit_strength(view: &PlayerView, unit: hecs::Entity) -> f32 {
     let attack = view

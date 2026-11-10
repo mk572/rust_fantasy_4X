@@ -595,13 +595,13 @@ impl<'a> PlayerView<'a> {
         self.game.reaches_any(units, targets)
     }
 
-    /// What decides the squares a unit can walk to: units with an equal signature reach the
+    /// What decides the squares a stack can walk to: stacks with an equal signature reach the
     /// same squares, so a caller can search once for them all.
     pub fn reach_signature(
         &self,
-        unit: hecs::Entity,
+        units: &[hecs::Entity],
     ) -> Option<crate::unit::pathing::ReachSignature> {
-        self.game.reach_signature(unit)
+        self.game.reach_signature(units)
     }
 
     /// A spell's definition (the content is public).

@@ -44,7 +44,7 @@ impl Hasher for SquareHasher {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReachSignature {
     at: Position,
-    profile: (u16, Vec<crate::rules::Ability>),
+    profiles: Vec<(u16, Vec<crate::rules::Ability>)>,
     traits: crate::unit::movement::StackTraits,
 }
 
@@ -185,16 +185,21 @@ impl Game {
         !targets.is_empty() && self.walk(units, targets).1
     }
 
-    /// What decides which squares a single unit can walk to: where it stands, its definition, its
-    /// abilities and what the stack gives it. Two units with one signature (and one owner) reach
-    /// the same squares, so one search serves them both.
-    pub fn reach_signature(&self, unit: hecs::Entity) -> Option<ReachSignature> {
+    /// What decides which squares a stack can walk to: where it stands, the definition and
+    /// abilities of each unit and what the stack gives them. Two stacks with one signature (and
+    /// one owner) reach the same squares and paths, so one search serves them both.
+    pub fn reach_signature(&self, units: &[hecs::Entity]) -> Option<ReachSignature> {
         let economy = self.economy();
-        let profile = economy.step_profile(unit).ok()?;
+        let mut profiles: Vec<_> = economy
+            .step_profiles(units)?
+            .iter()
+            .map(|p| p.signature())
+            .collect();
+        profiles.sort();
         Some(ReachSignature {
-            at: self.units().unit_position(unit)?,
-            profile: profile.signature(),
-            traits: economy.stack_traits(&[unit]),
+            at: self.units().unit_position(*units.first()?)?,
+            profiles,
+            traits: economy.stack_traits(units),
         })
     }
 

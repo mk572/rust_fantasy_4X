@@ -742,8 +742,13 @@ fn a_walker_reaches_the_land_round_the_water_and_a_flier_all_of_it() -> TestResu
     );
     // Two units of a kind on a square share a signature; another kind does not.
     let twin = unit(&mut g, P0, 107 /* high_men_cavalry */, at(5, 2));
-    assert_eq!(g.reach_signature(walker), g.reach_signature(twin));
-    assert_ne!(g.reach_signature(walker), g.reach_signature(flier));
+    assert_eq!(g.reach_signature(&[walker]), g.reach_signature(&[twin]));
+    assert_ne!(g.reach_signature(&[walker]), g.reach_signature(&[flier]));
+    assert_eq!(
+        g.reach_signature(&[walker, flier]),
+        g.reach_signature(&[flier, walker]),
+        "the order of the stack does not matter"
+    );
     Ok(())
 }
 
