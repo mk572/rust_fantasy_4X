@@ -301,7 +301,19 @@ pub fn new_game(content: &Content, spec: &NewGame) -> Result<Game, String> {
                 *want
             }
             None => {
-                let all: Vec<u16> = race_defs.iter().filter(on_plane).map(|r| r.num).collect();
+                // The original's limit: above Normal an Arcanus computer wizard has one of five races.
+                let limited =
+                    settings.rules.limit_ai_races && !myrran && settings.basic.difficulty > 2;
+                let all: Vec<u16> = race_defs
+                    .iter()
+                    .filter(on_plane)
+                    .map(|r| r.num)
+                    .filter(|n| {
+                        !limited
+                            || game.human() == Some(PlayerId(k as u8))
+                            || f4x_def::settings::LIMITED_AI_RACES.contains(n)
+                    })
+                    .collect();
                 let free: Vec<u16> = all.iter().copied().filter(|r| !races.contains(r)).collect();
                 let pool = if free.is_empty() { all } else { free };
                 pool.get((spec.seed as usize + k * 3) % pool.len().max(1))
@@ -597,6 +609,47 @@ mod tests {
         assert_eq!(capital_race(&g), Some(format!("Town of {id}")));
         assert_eq!(g.units().hero_type_name(0).as_deref(), Some("Brax"));
         assert_eq!(g.names().heroes[&0], ["Brax"]);
+        Ok(())
+    }
+
+    #[test]
+    fn above_normal_arcanus_computer_wizards_are_limited_to_five_races_unless_the_switch_is_off(
+    ) -> TestResult {
+        let content = shipped();
+        let arcanus_races = |difficulty: u8, limit: bool| -> Result<Vec<u16>, String> {
+            let mut out = Vec::new();
+            for seed in 0..30 {
+                let mut sp = spec(seed, 5);
+                sp.settings.basic.difficulty = difficulty;
+                sp.settings.rules.limit_ai_races = limit;
+                let g = new_game(&content, &sp)?;
+                for k in 0..5 {
+                    let race = g
+                        .wizard(PlayerId(k))
+                        .and_then(|w| w.capital_race())
+                        .ok_or("no race")?;
+                    let def = g.content().rules.races.get(race);
+                    if !def.myrror {
+                        out.push(def.num);
+                    }
+                }
+            }
+            Ok(out)
+        };
+        let limited = arcanus_races(3, true)?;
+        assert!(!limited.is_empty());
+        assert!(
+            limited
+                .iter()
+                .all(|n| f4x_def::settings::LIMITED_AI_RACES.contains(n)),
+            "{limited:?}"
+        );
+        assert!(arcanus_races(3, false)?
+            .iter()
+            .any(|n| !f4x_def::settings::LIMITED_AI_RACES.contains(n)));
+        assert!(arcanus_races(2, true)?
+            .iter()
+            .any(|n| !f4x_def::settings::LIMITED_AI_RACES.contains(n)));
         Ok(())
     }
 

@@ -31,7 +31,7 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 367 | Low | AI | Overland spells the AI never casts: what is left is research by what the enemy casts |
 | 370 | Low | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
 | 373 | Low | Battle | Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
-| 379 | Low | Meta | Settings: races banned for computer wizards and independent cities, by difficulty |
+| 379 | Low | Meta | Settings: limit AI race picks at higher difficulties (done) |
 | 386 | Low | Client | Magic screen: scroll the enemy wizard portraits |
 | 411 | Medium | Core | Floating Island as a plain summoning, as in the original |
 | 415 | Medium | Console | Bring the console cheat (override) commands back for building test scenarios |
@@ -140,7 +140,7 @@ settle: draw our own pixel art, reproject the pack's tiles to the diamond grid, 
 set (check its licence and credit it in a `CREDITS.md` that is in the repository once art is used). Keep the deck cells as the rules' truth; only
 the drawing changes. *Needs:* nothing.
 
-**379. Settings: races banned for computer wizards and independent cities, by difficulty.** The original gives a computer wizard any of the nine Arcanus races up to Normal and only Klackon, High Elf, Halfling, High Men and Nomad above it (`Generate_Home_Cities`); ours picks any race. Add a setting instead of the fixed rule: in each difficulty level of `content/settings.ron`, a list of race ids that computer wizards may not have (`ai.wizards.banned_races`) and one for the independent cities (`world.neutral_banned_races`). Both lists are empty in the shipped file: they are for players and mods that want the original's rule or their own (the original's list can go in a comment as an example). Where to wire it: the race pick for computer wizards in `game/setup.rs` (the `races` loop) and `Game::neutral_races` in `city/neutral.rs`; if a ban leaves no race for a plane, fall back to the unbanned list and say so in `validate`. Check the ids against the races when the file is read (`game/setting.rs`, `f4x-tools validate`), add the two lists to `docs/game-settings.md` (they replace the `wizards.ai_race_limit` row), and test a game with a ban (no computer wizard and no neutral city of a banned race).
+**379. Settings: limit AI race picks at higher difficulties (done).** Done 10 November 2026 in the simple form: the rule switch `rules.limit_ai_races` (Custom screen row; on in v1.31 and v1.6, `docs/game-settings.md`) gives an Arcanus computer wizard above Normal one of Halfling, High Elf, High Men, Klackon or Nomad as the original's `Generate_Home_Cities` does; off, any race. Per-race ban lists and independent cities were left out.
 
 **386. Magic screen: scroll the enemy wizard portraits.** The Magic screen shows four rivals' gems and portraits only (`take(4)`), so with more than five wizards (ten colours are playable, task 381) the others cannot be reached. Let the player scroll through the enemy wizard portraits (arrows or the mouse wheel, in the original's style where it has one, else our own), so that every rival can be selected for diplomacy and its details. Split from task 381, 25 October 2026.
 
