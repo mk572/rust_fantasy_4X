@@ -491,12 +491,14 @@ impl Economy<'_> {
 
 impl Game {
     /// A stack that ends a move in a tower becomes its owner, and its player sees the tower
-    /// square on both planes (the original's `Units_In_Tower`).
+    /// square on both planes (the original's `Units_In_Tower`). Under a Planar Seal the tower is
+    /// still claimed, but the other plane stays dark (the wiki: towers can still be liberated,
+    /// only plane travel and the view across are lost).
     pub(crate) fn claim_tower(&mut self, units: &[hecs::Entity], at: Position) {
         let Some(owner) = units.first().and_then(|&u| self.units().unit_owner(u)) else {
             return;
         };
-        if !self.economy().is_tower(at) || self.units().planar_seal_active() {
+        if !self.economy().is_tower(at) {
             return;
         }
         if let (Some(tower), Some(player)) = (
@@ -505,7 +507,8 @@ impl Game {
         ) {
             let _ = self.world.insert_one(tower, crate::player::Owner(player));
         }
-        for plane in Plane::all() {
+        let sealed = self.units().planar_seal_active();
+        for plane in Plane::all().filter(|&p| !sealed || p == at.plane) {
             self.fog.explore(
                 owner,
                 Position { plane, ..at },

@@ -286,7 +286,7 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() -> TestResult {
         ..at(8, 8)
     };
     assert!(g.fog.is_explored(P0, other_plane.plane, 8, 8));
-    // A rival takes it over by standing there; the seal stops claims.
+    // A rival takes it over by standing there.
     let rival = g.spawn_unit(P1, at(9, 8), walker);
     let _ = g.world.insert_one(u, at(7, 9));
     g.move_stack(&[rival], at(8, 8))
@@ -299,10 +299,47 @@ fn standing_in_a_tower_claims_it_and_shows_both_planes() -> TestResult {
         .id_numbered(135)
         .ok_or("the seal spell is not in the content")?;
     g.attach_enchantment(Target::Player(P0), seal, P0);
+    // Under the seal the tower is still claimed (the rival has to leave it first).
+    let _ = g.world.insert_one(rival, at(9, 9));
     let third = g.spawn_unit(P0, at(7, 8), walker);
     g.move_stack(&[third], at(8, 8))
         .map_err(|e| format!("{e:?}"))?;
-    assert_eq!(g.economy().tower_owner(at(8, 8)), Some(PlayerId(1)));
+    assert_eq!(g.economy().tower_owner(at(8, 8)), Some(PlayerId(0)));
+    Ok(())
+}
+
+#[test]
+fn a_tower_claimed_under_the_planar_seal_shows_no_other_plane() -> TestResult {
+    let mut g = world();
+    let tower = g
+        .content
+        .features
+        .first_of_kind(crate::feature::def::FeatureKind::Tower)
+        .ok_or("first_of_kind is missing")?;
+    g.spawn_feature(crate::feature::entity::Placement {
+        at: at(8, 8),
+        feature: tower,
+        node: None,
+        lair: None,
+    });
+    let seal = g
+        .content
+        .rules
+        .spells
+        .id_numbered(135)
+        .ok_or("the seal spell is not in the content")?;
+    g.attach_enchantment(Target::Player(P1), seal, P1);
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_numbered(108)
+        .ok_or("high_men_priests is not in the content")?;
+    let u = g.spawn_unit(P0, at(7, 8), walker);
+    g.move_stack(&[u], at(8, 8)).map_err(|e| format!("{e:?}"))?;
+    assert_eq!(g.economy().tower_owner(at(8, 8)), Some(PlayerId(0)));
+    assert!(g.fog.is_explored(P0, Plane::Arcanus, 8, 8));
+    assert!(!g.fog.is_explored(P0, Plane::Myrror, 8, 8));
     Ok(())
 }
 
