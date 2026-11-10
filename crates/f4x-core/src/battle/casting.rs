@@ -437,6 +437,12 @@ impl Battle {
         grants: &[Ability],
     ) {
         let unit = &mut self.units[target];
+        let webbing = effects.contains(UnitEffect::Web);
+        // A web cast again on a unit that has it (its web broken) only closes round it anew.
+        if webbing && unit.enchantments.contains(&spell) {
+            unit.web_closes();
+            return;
+        }
         // The base is the unit without the battlefield spells' changes too.
         unit.take_off_field();
         if unit.base.is_none() {
@@ -452,6 +458,9 @@ impl Battle {
         unit.enchantments.push(spell);
         unit.effects.union(effects);
         unit.apply_lasting(mods, grants);
+        if webbing {
+            unit.web_closes();
+        }
     }
 
     /// Take a unit back to `base` (its numbers from before any combat spell, brought up to date
@@ -477,6 +486,10 @@ impl Battle {
         }
         if unit.combat_spells.is_empty() {
             unit.base = None;
+        }
+        // A dispelled web is gone with its hit points.
+        if !unit.effects.contains(UnitEffect::Web) {
+            unit.web_hits = 0;
         }
     }
 
@@ -504,6 +517,14 @@ impl Battle {
 }
 
 impl BattleUnit {
+    /// A web closes round the unit: whole again, and the unit loses what it had left of its turn.
+    pub(super) fn web_closes(&mut self) {
+        self.web_hits = super::WEB_HITS;
+        self.moves_left = HalfInt::ZERO;
+        self.attacked = true;
+        self.extra_attack = false;
+    }
+
     /// Change the unit's numbers by a lasting spell's modifiers, and give it its abilities.
     pub fn apply_lasting(&mut self, mods: &[Modifier], grants: &[Ability]) {
         let comp = |stat: Stat, base: i32| compute(stat, base, mods);

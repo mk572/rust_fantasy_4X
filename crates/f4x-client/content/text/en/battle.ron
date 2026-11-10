@@ -45,6 +45,8 @@
         one: "{unit} loses 1 figure to the spell",
         other: "{unit} loses {kills} figures to the spell"),
     "battle.terrified": "{unit} cowers in terror",
+    "battle.web_struck": "{unit} tears at the web for {dealt}",
+    "battle.web_broken": "{unit} tears the web apart",
     "battle.confused_idle": "{unit} stands about, confused",
     "battle.confused_wandered": "{unit} wanders off, confused",
     "battle.confused_seized": "{unit} falls under the enemy's orders",

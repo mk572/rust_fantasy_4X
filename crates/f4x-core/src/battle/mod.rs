@@ -250,7 +250,14 @@ pub struct BattleUnit {
     /// Creature Binding or Possession has put it on the other side for the rest of the battle:
     /// the side it really belongs to.
     pub bound_from: Option<Side>,
+    /// The hit points the web that holds the unit has left (`WEB_HITS` when it is cast); at 0 the
+    /// unit is free to act again, though the web's curse (no flight) stays until it is dispelled.
+    #[serde(default)]
+    pub web_hits: i32,
 }
+
+/// The hit points of a web: the unit it holds spends its turn striking at them.
+pub const WEB_HITS: i32 = 12;
 
 /// What a unit casts with its own mana rather than the wizard's skill.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -291,10 +298,11 @@ impl BattleUnit {
     pub(crate) fn put_enchantment(&mut self, spell: SpellId) {
         let rules = crate::game::testutil::shipped().rules;
         self.enchantments.push(spell);
-        self.effects
-            .union(crate::spell::unit_effect::UnitEffects::of(
-                rules.spells.get(spell),
-            ));
+        let effects = crate::spell::unit_effect::UnitEffects::of(rules.spells.get(spell));
+        self.effects.union(effects);
+        if effects.contains(crate::spell::unit_effect::UnitEffect::Web) {
+            self.web_closes();
+        }
     }
 }
 
@@ -358,6 +366,7 @@ impl BattleUnit {
             seized: false,
             turned_from: None,
             bound_from: None,
+            web_hits: 0,
         }
     }
 
@@ -498,6 +507,37 @@ impl BattleUnit {
 
     pub fn has(&self, ability: Ability) -> bool {
         self.abilities.contains(&ability)
+    }
+
+    /// Whether a web still holds the unit: it cannot move or attack until the web is broken.
+    pub fn held_by_web(&self) -> bool {
+        self.web_hits > 0
+            && self
+                .effects
+                .contains(crate::spell::unit_effect::UnitEffect::Web)
+    }
+
+    /// The hit points of the web a unit takes off it in a turn (no attack roll, full damage; the
+    /// web covers each figure, so one figure's strength counts). Its melee strength, and:
+    /// - a bow, a sling or a magical ranged attack with a shot left: the better of that and
+    ///   melee (boulders do not count, they are the same bodily strength as melee);
+    /// - a thrown weapon, a breath or a gaze: its strength on top of melee;
+    /// - Immolation: its fire on top.
+    pub fn web_strength(&self) -> i32 {
+        let mut strength = self.melee.max(0);
+        let shoots = self.ammo > 0
+            && (self.ranged_kind == RangedKind::Magic
+                || self.has(Ability::new(3))
+                || self.has(Ability::new(59)));
+        if shoots {
+            strength = strength.max(self.ranged);
+        } else if self.ranged_kind == RangedKind::Short {
+            strength += self.ranged.max(0);
+        }
+        if self.has(Ability::new(32)) {
+            strength += attack::IMMOLATION_STRENGTH;
+        }
+        strength
     }
 
     /// Whether the unit regenerates: the ability, or the Regeneration spell, which grants it.
@@ -823,6 +863,13 @@ pub enum BattleEvent {
     /// Terror holds the unit back this turn.
     Terrified {
         unit: usize,
+    },
+    /// The unit spent its turn on the web that holds it: `dealt` hit points off it, and whether
+    /// that broke it.
+    WebStruck {
+        unit: usize,
+        dealt: i32,
+        broken: bool,
     },
     /// Confusion decided what the unit does this turn (`Confusion`).
     Confused {

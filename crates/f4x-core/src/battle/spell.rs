@@ -967,6 +967,10 @@ impl Game {
         def: &SpellDef,
         unit: &super::BattleUnit,
     ) -> Result<(), SpellError> {
+        // A web that has been broken may be cast again; the curse that is left changes nothing.
+        if UnitEffect::Web.is_in(def) && !unit.held_by_web() {
+            return Ok(());
+        }
         let carrier = crate::spell::stacking::Carrier {
             has_spell: &|id| unit.enchantments.contains(&id),
             has_ability: &|a| unit.has(a),

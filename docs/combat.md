@@ -461,6 +461,17 @@ It follows the original's `Combat_Cast_Spell` and `Combat_Cast_Apply_Spell_Effec
   spells); Counter Magic's reserve is the mana. The `mana` of the command is the total in the
   spell, from its cost up to what the wizard can afford (`battle_spell_most_mana`); `0` is the
   least. The skill cost is the least cost plus the extra less the realm reductions.
+- **Web** (`BattleUnit::web_hits`, `web_strength`, `field.rs::side_turn_effects`). The web is a lasting
+  spell on one unit with 12 hit points (`WEB_HITS`). It cannot be resisted; Non-Corporeal units
+  are not a target; Counter Magic can stop it. At once the unit loses its moves and its attack, and
+  flight (the `webbed` ability). At the start of each of its side's turns the held unit spends the
+  whole turn striking the web (no roll, full damage; a unit in a web still counter-attacks in melee).
+  What it takes off: its melee strength; a bow, a sling or a magical ranged attack with a shot left
+  counts as the better of that and melee; a thrown weapon, a fire or lightning breath or a gaze
+  (its `Ranged`, 1 for most gazes) is added to melee; Immolation's fire (4) is added too. A boulder
+  does not count. When the web is gone the unit acts from its next turn, but it cannot fly until the web
+  is dispelled (which also ends the hold) or the battle ends. A web cast again on a unit that broke
+  free closes round it anew; a unit that flees held by an unbroken web is always lost.
 - **Damage spells** (`Battle::spell_damage`, `attack::spell_attack`): the spell attacks with its
   strength in dice (hit on 8 or better, as for a blow) against the target's defence, which its
   realm and immunities change as for any ranged magic. They are not resisted. Magic immunity

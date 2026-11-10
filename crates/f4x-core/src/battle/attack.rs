@@ -62,7 +62,7 @@ pub struct Combatant {
 }
 
 /// The strength of the fire attack Immolation adds to a melee blow.
-const IMMOLATION_STRENGTH: i32 = 4;
+pub(crate) const IMMOLATION_STRENGTH: i32 = 4;
 
 /// What a large shield adds to the defence against ranged, thrown and breath attacks.
 pub const LARGE_SHIELD: i32 = 2;

@@ -478,8 +478,8 @@ chance: **50%, or 25% for a hero** (the attacker's branch writes it as a surviva
 Ours (`battle/game.rs::overland_aftermath`) has all three since task 250: the 50% and 25% rolls,
 the sure loss, and the safe flee on Intro and Easy. The safe flee reads `Game::difficulty <= 1`
 and the attacker side (a battle starts on its mover's turn) directly; stage 2 replaces that test
-with the `rules.safe_flee` setting. Web hit points are not modelled yet (task 159), so any Web
-counts as holding the unit.
+with the `rules.safe_flee` setting. A Web holds the unit only while it has hit points
+left (`docs/combat.md` section 8); a broken one no longer does.
 
 Only one place in the code reads `difficulty` outside the generator today (neutral city size,
 `city/neutral.rs`). The `ai` group is new code: city calculation (`city/mod.rs`, `city/economy.rs`,

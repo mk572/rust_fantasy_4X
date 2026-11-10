@@ -560,6 +560,17 @@ fn battle_event(game: &Game, e: &f4x_core::battle::BattleEvent) -> String {
             format!("Unit {unit} is struck for {dealt}, {kills} figures lost")
         }
         B::Terrified { unit } => format!("Unit {unit} cowers in terror"),
+        B::WebStruck {
+            unit,
+            dealt,
+            broken,
+        } => {
+            if *broken {
+                format!("Unit {unit} tears the web apart")
+            } else {
+                format!("Unit {unit} tears at the web for {dealt}")
+            }
+        }
         B::Confused { unit, act } => match act {
             f4x_core::battle::Confusion::Idle => format!("Unit {unit} stands about, confused"),
             f4x_core::battle::Confusion::Wandered => format!("Unit {unit} wanders off, confused"),

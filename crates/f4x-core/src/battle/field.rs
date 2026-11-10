@@ -496,6 +496,20 @@ impl Battle {
                 let u = &mut self.units[id];
                 u.moves_left = u.moves_left.saturating_sub(crate::battle::map::OPEN_COST);
             }
+            // A unit in a web spends its whole turn striking at it.
+            if self.units[id].held_by_web() {
+                let u = &mut self.units[id];
+                let dealt = u.web_strength().min(u.web_hits);
+                u.web_hits -= dealt;
+                u.moves_left = HalfInt::ZERO;
+                u.attacked = true;
+                u.extra_attack = false;
+                events.push(BattleEvent::WebStruck {
+                    unit: id,
+                    dealt,
+                    broken: u.web_hits == 0,
+                });
+            }
             events.extend(self.regenerate(id));
             if self.units[id]
                 .enchantments

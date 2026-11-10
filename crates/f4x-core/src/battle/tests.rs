@@ -2305,15 +2305,16 @@ mod fields {
             &mut b,
             1,
             SpellId::new(5), /* web */
-            &[still],
+            &[],
             &[73 /* webbed */],
         );
         let u = &b.units[1];
-        assert!(!u.flies && u.moves == 0 && u.moves_left == 0);
-        assert!(!u.attacked, "a webbed unit can still fight");
+        assert!(!u.flies && u.moves_left == 0);
+        assert!(u.attacked, "a webbed unit cannot attack");
+        assert_eq!(u.web_hits, WEB_HITS);
         end_turns(&mut b, 1);
         assert_eq!(b.units[1].moves_left, 0);
-        assert!(!b.units[1].attacked);
+        assert!(b.units[1].attacked);
 
         let mut b = pair(
             of(Side::Attacker, None, (3, 5)),
@@ -2333,6 +2334,113 @@ mod fields {
             c,
             BattleCommand::Move { unit: 1, .. } | BattleCommand::Attack { unit: 1, .. }
         )));
+    }
+
+    fn webbed_pair(melee: i32) -> Battle {
+        let mut caught = of(Side::Defender, None, (17, 5));
+        caught.melee = melee;
+        let mut b = pair(of(Side::Attacker, None, (3, 5)), caught);
+        put_on(&mut b, 1, SpellId::new(5) /* web */, &[], &[73]);
+        b
+    }
+
+    #[test]
+    fn a_held_unit_spends_each_turn_tearing_at_the_web_until_it_is_free() {
+        let mut b = webbed_pair(5);
+        // The web has 12 hit points: 5, 5, then the last 2.
+        let events = end_turns(&mut b, 1);
+        assert!(events.contains(&BattleEvent::WebStruck {
+            unit: 1,
+            dealt: 5,
+            broken: false
+        }));
+        assert_eq!(b.units[1].web_hits, 7);
+        assert!(b.units[1].held_by_web() && b.units[1].attacked && b.units[1].moves_left == 0);
+        assert!(b.legal_commands().iter().all(|c| !matches!(
+            c,
+            BattleCommand::Move { unit: 1, .. } | BattleCommand::Attack { unit: 1, .. }
+        )));
+        end_turns(&mut b, 2);
+        assert_eq!(b.units[1].web_hits, 2);
+        let events = end_turns(&mut b, 2);
+        assert!(events.contains(&BattleEvent::WebStruck {
+            unit: 1,
+            dealt: 2,
+            broken: true
+        }));
+        // It spent that turn on the web too; it acts from the next one, and still cannot fly.
+        assert!(!b.units[1].held_by_web() && b.units[1].attacked && b.units[1].moves_left == 0);
+        end_turns(&mut b, 2);
+        let u = &b.units[1];
+        assert!(!u.attacked && u.moves_left == u.moves && u.moves > 0);
+        assert!(u.has(Ability::new(73)) && !u.flies);
+    }
+
+    #[test]
+    fn a_unit_that_cannot_hurt_the_web_stays_held() {
+        let mut b = webbed_pair(0);
+        end_turns(&mut b, 4);
+        assert_eq!(b.units[1].web_hits, WEB_HITS);
+        assert!(b.units[1].held_by_web());
+    }
+
+    #[test]
+    fn a_web_cast_again_on_a_unit_that_broke_free_closes_round_it_anew() {
+        let mut b = webbed_pair(12);
+        end_turns(&mut b, 2);
+        assert_eq!(b.units[1].web_hits, 0);
+        end_turns(&mut b, 2);
+        let rules = crate::game::testutil::shipped().rules;
+        let effects = crate::spell::unit_effect::UnitEffects::of(rules.spells.get(SpellId::new(5)));
+        b.enchant_unit(1, SpellId::new(5), A, effects, &[], &[]);
+        let u = &b.units[1];
+        assert_eq!(u.web_hits, WEB_HITS);
+        assert!(u.attacked && u.moves_left == 0);
+        assert_eq!(
+            u.enchantments
+                .iter()
+                .filter(|&&e| e == SpellId::new(5))
+                .count(),
+            1
+        );
+        assert_eq!(u.combat_spells.len(), 1);
+    }
+
+    #[test]
+    fn what_a_unit_brings_to_the_web_follows_its_attacks() {
+        let strength = |abilities: &[u16], melee: i32, ranged: i32, ammo: i32| {
+            let mut u = of(Side::Defender, None, (17, 5));
+            u.abilities = crate::game::testutil::abilities(abilities);
+            u.ranged_kind = super::game::ranged_kind_of(&u.abilities);
+            u.melee = melee;
+            u.ranged = ranged;
+            u.ammo = ammo;
+            u.web_strength()
+        };
+        assert_eq!(strength(&[], 4, 0, 0), 4, "melee alone");
+        // A bow, a sling or a magical shot is the better of the two, and needs a shot left.
+        assert_eq!(strength(&[3 /* bow */], 1, 3, 4), 3);
+        assert_eq!(strength(&[3], 5, 3, 4), 5);
+        assert_eq!(strength(&[3], 1, 3, 0), 1, "no arrows left");
+        assert_eq!(strength(&[59 /* sling */], 1, 2, 4), 2);
+        assert_eq!(
+            strength(&[60 /* sorcery_bolt */], 1, 6, 4),
+            6,
+            "a magical attack"
+        );
+        assert_eq!(strength(&[22 /* fireball_attack */], 1, 5, 4), 5, "fire");
+        // A boulder is bodily strength like melee: it does not count.
+        assert_eq!(strength(&[57 /* rock_throwing */], 0, 10, 4), 0);
+        // Thrown weapons, breath and gazes add to melee.
+        assert_eq!(strength(&[69 /* thrown */], 3, 2, 1), 5);
+        assert_eq!(strength(&[20 /* fire_breath */], 3, 3, 1), 6);
+        assert_eq!(strength(&[37 /* lightning_breath */], 3, 3, 1), 6);
+        assert_eq!(strength(&[64 /* stoning_gaze */], 8, 1, 1), 9);
+        // Immolation burns the web as well.
+        assert_eq!(
+            strength(&[32 /* immolation */], 3, 0, 0),
+            3 + attack::IMMOLATION_STRENGTH
+        );
     }
 
     #[test]

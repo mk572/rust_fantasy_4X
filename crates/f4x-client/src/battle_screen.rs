@@ -286,6 +286,18 @@ pub(crate) fn describe(
             say("battle.spell_slew", unit(*u).count("kills", *k))
         }
         BattleEvent::Terrified { unit: u } => say("battle.terrified", unit(*u)),
+        BattleEvent::WebStruck {
+            unit: u,
+            dealt,
+            broken,
+        } => say(
+            if *broken {
+                "battle.web_broken"
+            } else {
+                "battle.web_struck"
+            },
+            unit(*u).count("dealt", *dealt),
+        ),
         BattleEvent::Confused { unit: u, act } => say(
             match act {
                 Confusion::Idle => "battle.confused_idle",

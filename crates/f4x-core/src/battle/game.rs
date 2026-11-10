@@ -374,6 +374,7 @@ impl Game {
             seized: false,
             turned_from: None,
             bound_from: None,
+            web_hits: 0,
         })
     }
 
@@ -1205,9 +1206,14 @@ impl Game {
                 .iter()
                 .filter(|u| u.side == side && u.status == Status::Fled)
                 .filter_map(|u| {
+                    // Asleep, confused or in a web that has not been broken.
+                    let webbed = u
+                        .effects
+                        .contains(crate::spell::unit_effect::UnitEffect::Web);
                     let held = u
                         .effects
-                        .contains(crate::spell::unit_effect::UnitEffect::Holds);
+                        .contains(crate::spell::unit_effect::UnitEffect::Holds)
+                        && (!webbed || u.held_by_web());
                     source_of(u).map(|e| (e, held))
                 })
                 .collect();
