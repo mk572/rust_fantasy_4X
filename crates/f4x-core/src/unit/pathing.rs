@@ -40,6 +40,14 @@ impl Hasher for SquareHasher {
     }
 }
 
+/// See [`Game::reach_signature`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ReachSignature {
+    at: Position,
+    profile: (u16, Vec<crate::rules::Ability>),
+    traits: crate::unit::movement::StackTraits,
+}
+
 type SquareMap<V> = HashMap<Position, V, BuildHasherDefault<SquareHasher>>;
 
 pub(crate) fn neighbours(game: &Game, p: Position) -> Vec<Position> {
@@ -167,22 +175,53 @@ impl Game {
     /// `find_path` would find a way to), the start included: one search instead of one per
     /// target. Hostile squares and guarded sites are not entered.
     pub fn reachable_squares(&self, units: &[hecs::Entity]) -> std::collections::HashSet<Position> {
+        self.walk(units, &[]).0
+    }
+
+    /// Whether the stack can walk to any of `targets` (the answer of [`Game::reachable_squares`]
+    /// for them, but the search stops at the first one it reaches; the start does not count
+    /// unless it is among the targets).
+    pub fn reaches_any(&self, units: &[hecs::Entity], targets: &[Position]) -> bool {
+        !targets.is_empty() && self.walk(units, targets).1
+    }
+
+    /// What decides which squares a single unit can walk to: where it stands, its definition, its
+    /// abilities and what the stack gives it. Two units with one signature (and one owner) reach
+    /// the same squares, so one search serves them both.
+    pub fn reach_signature(&self, unit: hecs::Entity) -> Option<ReachSignature> {
+        let economy = self.economy();
+        let profile = economy.step_profile(unit).ok()?;
+        Some(ReachSignature {
+            at: self.units().unit_position(unit)?,
+            profile: profile.signature(),
+            traits: economy.stack_traits(&[unit]),
+        })
+    }
+
+    /// The search of `reachable_squares`: every square it can walk to, and whether one of
+    /// `targets` was among them (it then stops there; with no targets it goes on to the end).
+    fn walk(
+        &self,
+        units: &[hecs::Entity],
+        targets: &[Position],
+    ) -> (std::collections::HashSet<Position>, bool) {
         let mut seen = std::collections::HashSet::new();
+        let mut found = false;
         let (Some(&first), true) = (units.first(), self.map.is_some()) else {
-            return seen;
+            return (seen, found);
         };
         let (Some(start), Some(owner)) = (
             self.units().unit_position(first),
             self.units().unit_owner(first),
         ) else {
-            return seen;
+            return (seen, found);
         };
         let flies = self.economy().stack_traits(units);
         let economy = self.economy();
         let room = economy.ship_room_squares(owner);
         let economy = economy.with_ship_room(owner, &room);
         let Some(profiles) = economy.step_profiles(units) else {
-            return seen;
+            return (seen, found);
         };
         let step_cost = |from: Position, next: Position| -> Option<HalfInt> {
             economy.stack_step_cost(&profiles, from, next, flies)
@@ -211,6 +250,10 @@ impl Game {
                 continue;
             }
             seen.insert(here);
+            if targets.contains(&here) {
+                found = true;
+                break;
+            }
             for next in neighbours(self, here) {
                 if blocked(next) {
                     continue;
@@ -225,7 +268,7 @@ impl Game {
                 }
             }
         }
-        seen
+        (seen, found)
     }
 
     /// Turns the stack needs for `path` at its slowest mover's full allowance. Land units that

@@ -202,6 +202,30 @@ impl<'a> Economy<'a> {
         out
     }
 
+    /// The cities of one player with their positions, oldest first: what `cities` gives for one
+    /// owner, without the names and without looking up every city's owner.
+    pub fn cities_of(&self, owner: PlayerId) -> Vec<(hecs::Entity, Position)> {
+        let Some(player) = self
+            .world
+            .query::<&PlayerId>()
+            .iter()
+            .find(|(_, id)| **id == owner)
+            .map(|(e, _)| e)
+        else {
+            return Vec::new();
+        };
+        let mut out: Vec<_> = self
+            .world
+            .query::<(&City, &Position, &Owner)>()
+            .iter()
+            .filter(|(_, (_, _, o))| o.0 == player)
+            .map(|(e, (_, p, _))| (e, *p))
+            .collect();
+        let units = self.units();
+        out.sort_by_cached_key(|(e, _)| (units.serial_of(*e), e.id()));
+        out
+    }
+
     /// Tiles a city at `at` works, with whether another city works each too.
     pub fn city_area(&self, at: Position) -> Vec<(Position, bool)> {
         let Some(map) = self.map else {

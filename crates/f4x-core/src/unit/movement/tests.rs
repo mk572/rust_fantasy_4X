@@ -718,6 +718,32 @@ fn a_walker_reaches_the_land_round_the_water_and_a_flier_all_of_it() -> TestResu
         }
     }
     assert!(g.find_path(&[walker], at(9, 2)).is_none());
+    // The stopping search gives the answer of the whole one, for every square of the plane.
+    for x in 0..12 {
+        for y in 0..6 {
+            let square = at(x, y);
+            for u in [walker, flier] {
+                assert_eq!(
+                    g.reaches_any(&[u], &[square]),
+                    g.reachable_squares(&[u]).contains(&square),
+                    "{square:?}"
+                );
+            }
+        }
+    }
+    assert!(!g.reaches_any(&[walker], &[]), "no targets, no way");
+    assert!(
+        g.reaches_any(&[walker], &[at(9, 2), at(1, 5)]),
+        "one of two"
+    );
+    assert!(
+        !g.reaches_any(&[walker], &[at(9, 2), at(10, 2)]),
+        "none of two"
+    );
+    // Two units of a kind on a square share a signature; another kind does not.
+    let twin = unit(&mut g, P0, 107 /* high_men_cavalry */, at(5, 2));
+    assert_eq!(g.reach_signature(walker), g.reach_signature(twin));
+    assert_ne!(g.reach_signature(walker), g.reach_signature(flier));
     Ok(())
 }
 

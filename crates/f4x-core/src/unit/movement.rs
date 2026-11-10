@@ -84,7 +84,7 @@ pub(crate) fn adjacent(width: u32, a: Position, b: Position) -> bool {
 }
 
 /// Abilities that one unit shares with everyone stacked with it.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct StackTraits {
     /// A wind-walking unit carries the whole stack through the air.
     pub flies: bool,
@@ -103,6 +103,15 @@ pub struct StepProfile<'a> {
     unit: hecs::Entity,
     def: &'a crate::rules::UnitDef,
     abilities: Vec<Ability>,
+}
+
+impl StepProfile<'_> {
+    /// What the profile's costs depend on: the definition's number and the abilities.
+    pub(crate) fn signature(&self) -> (u16, Vec<Ability>) {
+        let mut abilities = self.abilities.clone();
+        abilities.sort();
+        (self.def.num, abilities)
+    }
 }
 
 impl Economy<'_> {

@@ -386,6 +386,7 @@ pub fn game(
         _ => None,
     };
     let started = Instant::now();
+    let mut last_line = started;
     let mut tally = Tally::new(&game);
     // Rounds that ended with a battle still open (nothing may be: every battle is fought out
     // inside the round), and the first such turn.
@@ -427,11 +428,16 @@ pub fn game(
             }
         }
         if opts.every > 0 && game.turn % opts.every == 0 {
+            // The time since the last line shows where a game slows down.
+            let now = Instant::now();
+            let per_turn = now.duration_since(last_line).as_secs_f32() * 1000.0 / opts.every as f32;
+            last_line = now;
             println!(
-                "{tag} turn {}: {} ({} entities)",
+                "{tag} turn {}: {} ({} entities) [{:.1}s, {per_turn:.0} ms a turn]",
                 game.turn,
                 status(&game),
-                game.entity_count()
+                game.entity_count(),
+                started.elapsed().as_secs_f32(),
             );
             if opts.detail {
                 for line in detail_lines(&game, &ais) {

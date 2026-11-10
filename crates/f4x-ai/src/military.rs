@@ -826,6 +826,9 @@ fn march_landed(
             .collect();
         // One search for each unit finds every square it can walk to, instead of one path
         // search for each square next to the target.
+        // Units of one kind on one square walk to the same places: one search (that stops at the
+        // first square next to the target it finds) serves them all.
+        let mut known: std::collections::HashMap<_, bool> = std::collections::HashMap::new();
         let landed: Vec<hecs::Entity> = free
             .iter()
             .copied()
@@ -837,8 +840,15 @@ fn march_landed(
                 let Some(at) = view.unit_position(u) else {
                     return false;
                 };
-                let reach = view.reachable(&[u]);
-                open.iter().any(|&s| s != at && reach.contains(&s))
+                let search = |view: &PlayerView| {
+                    let squares: Vec<Position> =
+                        open.iter().copied().filter(|&s| s != at).collect();
+                    view.reaches_any(&[u], &squares)
+                };
+                match view.reach_signature(u) {
+                    Some(key) => *known.entry(key).or_insert_with(|| search(&view)),
+                    None => search(&view),
+                }
             })
             .collect();
         let force = stack_strength(&view, &landed);

@@ -190,14 +190,12 @@ impl Game {
     /// and their army, preferring the cities that farm best. Does nothing where there
     /// is not enough land: those cities farm with everyone.
     pub fn balance_farmers(&mut self, player: PlayerId) {
-        let mut mine: Vec<hecs::Entity> = self
+        let mine: Vec<hecs::Entity> = self
             .economy()
-            .cities()
+            .cities_of(player)
             .into_iter()
-            .filter(|(_, c, _)| c.owner == player)
-            .map(|(e, ..)| e)
+            .map(|(e, _)| e)
             .collect();
-        self.sort_by_serial(&mut mine);
         for &city in &mine {
             let min = self.economy().city_min_farmers(city);
             let _ = self.world.insert_one(city, Farmers(min));
@@ -206,40 +204,63 @@ impl Game {
         let upkeep = units.food_of(&units.player_units(player));
         // Each extra farmer yields food beyond what he eats; add them where it pays most.
         // The surplus is the sum of what each city grows beyond its citizens' needs
-        // (`Budget::compute`), and only the city that gets a farmer changes: keep each one's.
-        let excess_of = |g: &Game, c: hecs::Entity| {
-            g.economy().city_economy(c).map_or(HalfInt::ZERO, |eco| {
-                (eco.food - HalfInt::from_int(eco.figures as i32)).max(HalfInt::ZERO)
-            })
+        // (`Budget::compute`). Only the city that gets a farmer changes, so each city's
+        // economy is worked out once for its farmers now and once for one more, and only the
+        // city that took a farmer is worked out again.
+        struct Slot {
+            city: hecs::Entity,
+            farmers: u32,
+            figures: u32,
+            /// The city's food with `farmers`, and with one more (None: no gain to be had).
+            food: Option<HalfInt>,
+            more: Option<HalfInt>,
+            excess: HalfInt,
+        }
+        let judge = |g: &Game, city: hecs::Entity, farmers: u32| -> Slot {
+            let figures = g.world.get::<&Population>(city).map_or(0, |p| p.figures);
+            let now = g.economy().city_economy_with(city, farmers);
+            let more = if farmers < figures {
+                g.economy().city_economy_with(city, farmers + 1)
+            } else {
+                None
+            };
+            Slot {
+                city,
+                farmers,
+                figures,
+                excess: now.as_ref().map_or(HalfInt::ZERO, |eco| {
+                    (eco.food - HalfInt::from_int(eco.figures as i32)).max(HalfInt::ZERO)
+                }),
+                food: now.map(|e| e.food),
+                more: more.map(|e| e.food),
+            }
         };
-        let mut excess: Vec<HalfInt> = mine.iter().map(|&c| excess_of(self, c)).collect();
+        let mut slots: Vec<Slot> = mine
+            .iter()
+            .map(|&c| {
+                let farmers = self.world.get::<&Farmers>(c).map_or(0, |f| f.0);
+                judge(self, c, farmers)
+            })
+            .collect();
         loop {
-            let surplus: HalfInt = excess.iter().copied().sum();
+            let surplus: HalfInt = slots.iter().map(|s| s.excess).sum();
             if surplus >= upkeep {
                 break;
             }
-            let best = mine
+            let best = slots
                 .iter()
-                .copied()
-                .filter_map(|c| {
-                    let farmers = self.world.get::<&Farmers>(c).map_or(0, |f| f.0);
-                    let figures = self.world.get::<&Population>(c).map_or(0, |p| p.figures);
-                    if farmers >= figures {
-                        return None;
-                    }
-                    let now = self.economy().city_economy_with(c, farmers)?;
-                    let more = self.economy().city_economy_with(c, farmers + 1)?;
-                    Some((more.food - now.food, c, farmers))
+                .enumerate()
+                .filter_map(|(i, s)| {
+                    let gain = s.more? - s.food?;
+                    (s.farmers < s.figures && gain > HalfInt::ZERO).then_some((gain, i))
                 })
-                .filter(|(gain, ..)| *gain > HalfInt::ZERO)
-                .max_by_key(|(gain, c, _)| (*gain, std::cmp::Reverse(self.serial_of(*c))));
-            let Some((_, city, farmers)) = best else {
+                .max_by_key(|&(gain, i)| (gain, std::cmp::Reverse(self.serial_of(slots[i].city))));
+            let Some((_, i)) = best else {
                 break;
             };
-            let _ = self.world.insert_one(city, Farmers(farmers + 1));
-            if let Some(i) = mine.iter().position(|&c| c == city) {
-                excess[i] = excess_of(self, city);
-            }
+            let (city, farmers) = (slots[i].city, slots[i].farmers + 1);
+            let _ = self.world.insert_one(city, Farmers(farmers));
+            slots[i] = judge(self, city, farmers);
         }
     }
 
@@ -266,10 +287,9 @@ impl Game {
     pub fn budget(&self, player: PlayerId) -> Budget {
         let cities: Vec<CityYield> = self
             .economy()
-            .cities()
+            .cities_of(player)
             .into_iter()
-            .filter(|(_, c, _)| c.owner == player)
-            .filter_map(|(city, ..)| self.economy().city_economy(city))
+            .filter_map(|(city, _)| self.economy().city_economy(city))
             .map(|eco| CityYield {
                 gold: eco.gold,
                 gold_upkeep: eco.gold_upkeep,

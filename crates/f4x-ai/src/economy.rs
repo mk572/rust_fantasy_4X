@@ -65,7 +65,6 @@ struct Growth {
 /// campaign wants at the front.
 #[derive(Clone, Copy)]
 struct Pressure {
-    broke: bool,
     threatened: bool,
     war_force: Option<usize>,
 }
@@ -120,6 +119,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let view = PlayerView::new(game, me);
         crate::military::force_wanted(&view, &ai.city_memory, game.turn, target)
     });
+    let empire = Empire::of(&PlayerView::new(game, me));
     for (city, pos) in mine {
         let (plan, port_item) = {
             let view = PlayerView::new(game, me);
@@ -147,7 +147,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .map(|p| p.port)
                 .or(ai.sea_port)
                 .or(ai.colony.map(|c| c.port));
-            let broke = broke(&view);
+            let broke = empire.broke();
             // The port of a landing builds the ship (and what the ship needs) when there is none.
             let port_item = (port == Some(pos)
                 && !broke
@@ -175,14 +175,14 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .count()
                     < ships_wanted(ai, &view)
             })
-            .or_else(|| colonist_item(ai, &view, city, pos, broke));
+            .or_else(|| colonist_item(ai, &view, &empire, city, pos));
             (
                 plan_for(
                     &view,
+                    &empire,
                     city,
                     pos,
                     Pressure {
-                        broke,
                         threatened: ai.threatened.contains(&pos),
                         war_force,
                     },
@@ -217,9 +217,9 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 fn colonist_item(
     ai: &Ai,
     view: &PlayerView,
+    empire: &Empire,
     city: hecs::Entity,
     pos: Position,
-    broke: bool,
 ) -> Option<ProductionItem> {
     let waiting = view
         .garrison(pos)
@@ -234,19 +234,62 @@ fn colonist_item(
         && ai.colonists.is_none()
         && ship
         && !waiting
-        && !broke
+        && !empire.broke()
         && size >= 3
-        && spare_food(view) >= HalfInt::ZERO)
+        && empire.spare_food >= HalfInt::ZERO)
         .then(|| settler_item(view, city))
         .flatten()
 }
 
-/// The treasury cannot bear a deficit: net gold (with the gold on hand, spread over a hundred
-/// turns, counted as income) is negative and the gold on hand is low.
-fn broke(view: &PlayerView) -> bool {
-    let gold = view.treasury().gold.floor();
-    let net = view.budget().net_gold() + (gold / 100).max(0);
-    net < 0 && gold < 60
+/// What every city's plan reads of the whole empire, worked out once for the round of cities:
+/// the budget, the army and the rivals do not change from one city to the next (a plan only
+/// sets what a city builds), and each of them costs a pass over all the units or cities.
+struct Empire {
+    /// The gold on hand.
+    gold: i32,
+    /// Net gold with the gold on hand, spread over a hundred turns, counted as income.
+    net: HalfInt,
+    spare_food: HalfInt,
+    fighters: usize,
+    cities: usize,
+    home_guard: usize,
+    traits: crate::objective::Traits,
+    temper: i32,
+    known: Vec<(hecs::Entity, f4x_core::player::PlayerId, Position)>,
+}
+
+impl Empire {
+    fn of(view: &PlayerView) -> Empire {
+        let gold = view.treasury().gold.floor();
+        let budget = view.budget();
+        let upkeep = view.food_of(&view.my_units());
+        let my_cities = view.my_cities();
+        Empire {
+            gold,
+            net: budget.net_gold() + (gold / 100).max(0),
+            spare_food: budget.food_surplus - upkeep,
+            fighters: view
+                .my_units()
+                .into_iter()
+                .filter(|&u| is_fighter(view, u))
+                .count(),
+            cities: my_cities.len(),
+            home_guard: my_cities
+                .iter()
+                .map(|&(_, p)| garrison_wanted(view, p))
+                .sum(),
+            traits: crate::objective::traits(view),
+            temper: view.wizard().map_or(0, |w| {
+                crate::objective::army_bias(w.personality(), view.difficulty())
+            }),
+            known: view.known_cities(),
+        }
+    }
+
+    /// The treasury cannot bear a deficit: net gold is negative and the gold on hand is low.
+    fn broke(&self) -> bool {
+        self.net < 0 && self.gold < 60
+    }
 }
 
 /// The plan of one city: the army comes first while it is short of its target and the
@@ -254,6 +297,7 @@ fn broke(view: &PlayerView) -> bool {
 /// for more cities lets the city build settlers.
 fn plan_for(
     view: &PlayerView,
+    empire: &Empire,
     city: hecs::Entity,
     pos: Position,
     pressure: Pressure,
@@ -261,10 +305,21 @@ fn plan_for(
     growth: Growth,
 ) -> BuildPlan {
     let Pressure {
-        broke,
         threatened,
         war_force,
     } = pressure;
+    let broke = empire.broke();
+    let Empire {
+        gold,
+        net: _,
+        spare_food,
+        fighters,
+        cities: all,
+        home_guard,
+        ref traits,
+        temper,
+        ref known,
+    } = *empire;
     let Growth { room, wide } = growth;
     let size = view.city_economy(city).map_or(0, |e| e.figures);
     let garrison = view
@@ -272,24 +327,7 @@ fn plan_for(
         .into_iter()
         .filter(|&u| is_fighter(view, u))
         .count();
-    let gold = view.treasury().gold.floor();
-    let net = view.budget().net_gold() + (gold / 100).max(0);
-    let treasury_ok = net >= 1 && spare_food(view) >= HalfInt::from_int(1);
-    let fighters = view
-        .my_units()
-        .into_iter()
-        .filter(|&u| is_fighter(view, u))
-        .count();
-    let all = view.my_cities().len();
-    let home_guard: usize = view
-        .my_cities()
-        .iter()
-        .map(|&(_, p)| garrison_wanted(view, p))
-        .sum();
-    let traits = crate::objective::traits(view);
-    let temper = view.wizard().map_or(0, |w| {
-        crate::objective::army_bias(w.personality(), view.difficulty())
-    });
+    let treasury_ok = empire.net >= 1 && spare_food >= HalfInt::from_int(1);
     // The strike force is what the campaign needs, once there is one; before that a few per city.
     let strike = war_force.unwrap_or_else(|| {
         (crate::knob("STRIKE", traits.strike_base as f32) as i32).max(1) as usize + all / 2
@@ -301,7 +339,7 @@ fn plan_for(
     let expanding = all + *settlers_planned
         < crate::knob("CITIES", traits.cities_wanted as f32) as usize
         || (room && *settlers_planned < more_settlers(wide));
-    let rival_near = view.known_cities().into_iter().any(|(_, o, p)| {
+    let rival_near = known.iter().any(|&(_, o, p)| {
         view.is_rival_wizard(o) && view.distance(pos, p).is_some_and(|d| d <= RIVAL_RANGE)
     });
     let (primary, secondary) = if rival_near {
@@ -337,7 +375,7 @@ fn plan_for(
     let settlers = expanding
         && size >= 3
         && !broke
-        && spare_food(view) >= HalfInt::ZERO
+        && spare_food >= HalfInt::ZERO
         && settler_item(view, city).is_some();
     if settlers {
         *settlers_planned += 1;
@@ -352,12 +390,6 @@ fn plan_for(
         eager_settlers: true,
         elite_units: crate::phase::phase(view) == crate::phase::Phase::Win,
     }
-}
-
-/// Spare food after feeding the citizens and the army.
-fn spare_food(view: &PlayerView) -> HalfInt {
-    let upkeep = view.food_of(&view.my_units());
-    view.budget().food_surplus - upkeep
 }
 
 /// Buy what is being built when the treasury has gold to spare, settlers and the first

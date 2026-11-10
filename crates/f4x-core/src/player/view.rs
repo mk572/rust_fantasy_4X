@@ -287,13 +287,7 @@ impl<'a> PlayerView<'a> {
 
     /// The player's cities (outposts too) and where they stand, oldest first.
     pub fn my_cities(&self) -> Vec<(hecs::Entity, Position)> {
-        self.game
-            .economy()
-            .cities()
-            .into_iter()
-            .filter(|(_, c, _)| c.owner == self.me)
-            .map(|(e, _, p)| (e, p))
-            .collect()
+        self.game.economy().cities_of(self.me)
     }
 
     pub fn serial_of(&self, entity: hecs::Entity) -> Serial {
@@ -594,6 +588,20 @@ impl<'a> PlayerView<'a> {
     /// one search, for asking about many squares.
     pub fn reachable(&self, units: &[hecs::Entity]) -> std::collections::HashSet<Position> {
         self.game.reachable_squares(units)
+    }
+
+    /// Whether the stack can walk to any of the squares (one search that stops at the first).
+    pub fn reaches_any(&self, units: &[hecs::Entity], targets: &[Position]) -> bool {
+        self.game.reaches_any(units, targets)
+    }
+
+    /// What decides the squares a unit can walk to: units with an equal signature reach the
+    /// same squares, so a caller can search once for them all.
+    pub fn reach_signature(
+        &self,
+        unit: hecs::Entity,
+    ) -> Option<crate::unit::pathing::ReachSignature> {
+        self.game.reach_signature(unit)
     }
 
     /// A spell's definition (the content is public).
