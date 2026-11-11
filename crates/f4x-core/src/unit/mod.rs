@@ -576,13 +576,23 @@ impl<'a> UnitView<'a> {
 
     /// A player's units, in the order of `all_units`.
     pub fn player_units(&self, player: PlayerId) -> Vec<hecs::Entity> {
-        // Filter first, then sort: the player's few units, not all of them.
+        // Filter first, then sort: the player's few units, not all of them. The owner is
+        // compared as the player entity, found once.
+        let Some(entity) = self
+            .world
+            .query::<&PlayerId>()
+            .iter()
+            .find(|(_, id)| **id == player)
+            .map(|(e, _)| e)
+        else {
+            return Vec::new();
+        };
         let mut out: Vec<_> = self
             .world
-            .query::<&Unit>()
+            .query::<(&Unit, &Owner)>()
             .iter()
+            .filter(|(_, (_, o))| o.0 == entity)
             .map(|(e, _)| e)
-            .filter(|&u| self.unit_owner(u) == Some(player))
             .collect();
         self.sort_by_serial(&mut out);
         out
