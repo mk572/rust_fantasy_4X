@@ -131,6 +131,42 @@ mod tests {
     }
 
     #[test]
+    fn what_a_city_of_a_player_never_met_does_is_no_news() -> Result<(), Box<dyn std::error::Error>>
+    {
+        use f4x_core::city::production::ProductionItem;
+        use f4x_core::game::Event;
+        let mut app = App::for_test();
+        let (mine, theirs, other) = {
+            let cities = app.game.economy().cities();
+            let of = |p| {
+                cities
+                    .iter()
+                    .find(|(_, c, _)| c.owner == p)
+                    .map(|&(e, ..)| e)
+            };
+            let rival = app
+                .game
+                .player_ids()
+                .into_iter()
+                .find(|&p| p != HUMAN && app.game.is_wizard(p))
+                .ok_or("no rival")?;
+            (of(HUMAN), of(rival), rival)
+        };
+        let (mine, theirs) = (
+            mine.ok_or("no city of the human")?,
+            theirs.ok_or("no city")?,
+        );
+        let item = ProductionItem::Housing;
+        let news = |app: &App, city| app.concerns_human(&Event::ProductionCompleted { city, item });
+        assert!(news(&app, mine), "your own city");
+        assert!(!app.game.have_met(HUMAN, other));
+        assert!(!news(&app, theirs), "a player never met");
+        app.game.make_contact(HUMAN, other);
+        assert!(news(&app, theirs), "a player met");
+        Ok(())
+    }
+
+    #[test]
     fn y_closes_the_resign_question_but_the_rules_refuse_while_the_fortress_stands() {
         let mut app = App::for_test();
         assert!(!app.resign_answer(&Input::key(KeyCode::Y)));

@@ -1,6 +1,6 @@
 //! The credits roll of the start menu: the game's name, what it is inspired by, its licence and
 //! the software and art it uses, scrolling up the screen (task 396). The original rolls its
-//! credits when the menu is left alone; here the menu has a Credits entry. A click or Esc
+//! credits when the menu is left alone; the start menu has no entry for it (`--credits` shows it). A click or Esc
 //! leaves, and so does the end of the roll.
 
 use macroquad::prelude::*;

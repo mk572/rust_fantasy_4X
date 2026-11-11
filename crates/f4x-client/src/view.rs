@@ -1405,11 +1405,51 @@ impl App {
 
     /// Whether the human sees this event of a rival's turn: their refusals, the founding of a
     /// city out of sight and the like stay hidden.
-    fn concerns_human(&self, event: &Event) -> bool {
+    pub(crate) fn concerns_human(&self, event: &Event) -> bool {
         match event {
             Event::Rejected(_) | Event::Battle(_) | Event::BattleStarted { .. } => false,
             Event::CityFounded { city, .. } => self.game.economy().city_owner(*city) == Some(HUMAN),
-            _ => true,
+            // What goes on in the affairs of a player never met is not news.
+            _ => self
+                .own_affairs_of(event)
+                .is_none_or(|p| p == HUMAN || self.game.have_met(HUMAN, p)),
+        }
+    }
+
+    /// The player whose own affairs the event is about (a city's production or growth, its army's
+    /// upkeep, its heroes, its fortress), if it is one of those; None for everything that can
+    /// reach someone else (a spell on you, a battle, a capture, the world's events).
+    fn own_affairs_of(&self, event: &Event) -> Option<PlayerId> {
+        let city_owner = |city: &hecs::Entity| self.game.economy().city_owner(*city);
+        match event {
+            Event::ProductionCompleted { city, .. }
+            | Event::ProductionBlocked { city, .. }
+            | Event::ProductionImpossible { city, .. }
+            | Event::ChaosRiftStrikes { city, .. }
+            | Event::CityGrew { city, .. }
+            | Event::CityShrank { city, .. }
+            | Event::BuildingsCollapsed { city, .. }
+            | Event::EarthquakeStruck { city, .. } => city_owner(city),
+            Event::Shortage { player, .. }
+            | Event::HeroLeft { player, .. }
+            | Event::UnitLost { player, .. }
+            | Event::UnitsDisbanded { player, .. }
+            | Event::FortressPlaced { player, .. }
+            | Event::FortressMoved { player, .. }
+            | Event::SummoningCircleMoved { player, .. }
+            | Event::ShipLanded { player, .. }
+            | Event::ItemMade { player, .. }
+            | Event::ItemsAwarded { player, .. }
+            | Event::HeroJoined { player, .. }
+            | Event::HeroSummoned { player, .. }
+            | Event::MercenariesHired { player, .. }
+            | Event::ItemSold { player, .. }
+            | Event::OfferMade { player, .. }
+            | Event::HeroSpellFailed { player, .. }
+            | Event::SpellLearned { player, .. }
+            | Event::EnchantmentLapsed { player, .. }
+            | Event::UnitsDrowned { player, .. } => Some(*player),
+            _ => None,
         }
     }
 
@@ -2523,18 +2563,6 @@ impl App {
             }
             let at = screen_of(pos.x, pos.y);
             crate::map_draw::draw_city(&self.game, &mut self.art, *entity, at.x, at.y, t);
-            let owner = city.owner;
-            if self.game.wizard(owner).and_then(|w| w.fortress()) == Some(*pos) {
-                // A gold star: the wizard's fortress.
-                crate::map_draw::draw_star(
-                    vec2(at.x + t.x * 0.15, at.y + t.y * 0.25),
-                    t.x * 0.17,
-                    GOLD,
-                );
-            }
-            if self.game.wizard(owner).and_then(|w| w.summon_at()) == Some(*pos) {
-                draw_circle_lines(at.x + t.x * 0.85, at.y + t.y * 0.85, t.x * 0.12, 2.0, GOLD);
-            }
             // The name under the city, in the original's small font.
             let k = t.x / TILE_W;
             let name = city.name.clone();

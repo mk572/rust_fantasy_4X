@@ -167,7 +167,6 @@ enum Entry {
     Settings,
     Fame,
     Quit,
-    Credits,
 }
 
 impl App {
@@ -202,64 +201,6 @@ impl App {
         let state = ui::hit(lay.rect((at.0, at.1, width as f32, 13.0)), enabled, input);
         let fade = if enabled { 1.0 } else { 0.4 };
         self.draw_plank(lay, width, key, at, state.held(), fade);
-        state.clicked()
-    }
-
-    /// A button on the 320 by 200 layout: the original's picture (a different frame while the
-    /// mouse is over it) or a plain box. True when clicked.
-    #[allow(clippy::too_many_arguments)]
-    fn menu_button(
-        &mut self,
-        lay: &Layout,
-        rect: (f32, f32, f32, f32),
-        art: Option<(&str, usize, f32, f32)>,
-        label: &str,
-        enabled: bool,
-        hover_frame: bool,
-        hover_shift: bool,
-        input: &Input,
-    ) -> bool {
-        let r = lay.rect(rect);
-        let state = ui::hit(r, enabled, input);
-        let hover = state.hovered();
-        let tint = if enabled {
-            WHITE
-        } else {
-            Color::new(1.0, 1.0, 1.0, 0.4)
-        };
-        let (shift, frame) = (
-            if hover_shift && state.held() {
-                1.0
-            } else {
-                0.0
-            },
-            usize::from(!(hover_frame && hover)),
-        );
-        let drawn = art.and_then(|(lbx, entry, x, y)| {
-            let frames_ok = self.art.picture(lbx, entry, frame).is_some();
-            let frame = if frames_ok { frame } else { 0 };
-            self.draw_pic_tinted(lay, lbx, entry, frame, x + shift, y + shift, tint)
-        });
-        if drawn.is_none() {
-            let base = if !enabled {
-                Color::new(0.2, 0.2, 0.2, 1.0)
-            } else if hover {
-                Color::new(0.45, 0.35, 0.2, 1.0)
-            } else {
-                Color::new(0.3, 0.22, 0.12, 1.0)
-            };
-            draw_rectangle(r.x, r.y, r.w, r.h, base);
-            draw_rectangle_lines(r.x, r.y, r.w, r.h, 1.0, Color::new(0.8, 0.65, 0.3, 1.0));
-            let view = (lay.origin.x, lay.origin.y, lay.scale);
-            let color = if enabled { WHITE } else { GRAY };
-            self.draw_styled(
-                view,
-                &Style::nearest(1, color).align(crate::frame::Align::Center),
-                label,
-                rect.0 + rect.2 / 2.0,
-                rect.1 + 1.5,
-            );
-        }
         state.clicked()
     }
 }
@@ -309,7 +250,6 @@ impl Page for MainMenuPage {
                 Entry::Settings => ("menu.settings", KeyCode::S),
                 Entry::Fame => ("menu.hall_of_fame", KeyCode::H),
                 Entry::Quit => ("menu.quit", KeyCode::Q),
-                Entry::Credits => ("menu.credits", KeyCode::R),
             };
             let y = top + 12.0 * i as f32;
             let state = ui::hit(lay.rect((108.0, y - 2.0, 103.0, 12.0)), true, input);
@@ -317,22 +257,6 @@ impl Page for MainMenuPage {
             if (state.clicked() || input.key_pressed(hotkey)) && chosen.is_none() {
                 chosen = Some(entry);
             }
-        }
-        // The original has no Credits entry (it rolls them when left alone): a small plain
-        // button in the corner, so the picture rows keep the original's places.
-        let credits_label = app.text("menu.credits");
-        let credits = app.menu_button(
-            &lay,
-            (262.0, 187.0, 54.0, 11.0),
-            None,
-            &credits_label,
-            true,
-            true,
-            false,
-            input,
-        );
-        if (credits || input.key_pressed(KeyCode::R)) && chosen.is_none() {
-            chosen = Some(Entry::Credits);
         }
         if input.key_pressed(KeyCode::Escape) {
             chosen = Some(Entry::Quit);
@@ -367,7 +291,6 @@ impl Page for MainMenuPage {
             }
             Some(Entry::Fame) => app.open_hall_of_fame(),
             Some(Entry::Quit) => app.modals.open(QuitAsk),
-            Some(Entry::Credits) => app.open_credits(),
             None => {}
         }
     }
