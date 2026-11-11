@@ -347,6 +347,15 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.bad_scout_targets.clear();
         }
     } else if idle {
+        // A unit that has since ended up where it cannot walk to the tower (another plane, an
+        // island) is let go, so that another is recruited; ordered each turn, the walk would
+        // be refused each turn.
+        if !PlayerView::new(game, me).can_reach(&[unit], tower) {
+            let serial = PlayerView::new(game, me).serial_of(unit);
+            ai.planar = None;
+            ai.scouts.retain(|s| *s != serial);
+            return;
+        }
         ai.send(
             game,
             Command::GoTo {

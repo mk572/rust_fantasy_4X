@@ -423,6 +423,8 @@ const SPLITS: &[(u8, u8, u8)] = &[
     (70, 10, 20),
     (80, 0, 20),
 ];
+/// Turns a mana reserve is meant to last when the income falls short of the upkeep.
+const MANA_HORIZON: i32 = 40;
 /// The split while the Spell of Mastery is being cast: mana pays for it and skill sets how much
 /// can be paid a turn.
 const MASTERY_SPLIT: (u8, u8, u8) = (50, 0, 50);
@@ -476,7 +478,11 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         } else {
             2
         };
-        if income.split.mana - income.mana_upkeep >= margin {
+        // A reserve pays for a small deficit for a long while: a wizard whose upkeep eats the
+        // whole income at every split but the last still keeps some research while the reserve
+        // lasts `MANA_HORIZON` turns, and does not sit at "18 left" for hundreds of turns.
+        let deficit_allowed = f4x_def::half_int::HalfInt::from_int(reserve.floor() / MANA_HORIZON);
+        if income.split.mana - income.mana_upkeep + deficit_allowed >= margin {
             chosen = candidate;
             break;
         }
@@ -1365,6 +1371,55 @@ mod tests {
                 .research)
         };
         assert!(research_share(Objective::Militarist)? < research_share(Objective::Pragmatist)?);
+        Ok(())
+    }
+
+    /// Puts lasting spells with an upkeep on the wizard until its mana income at the split that
+    /// gives mana the most is below the upkeep.
+    fn overburdened(g: &mut Game, player: PlayerId) -> Result<(), Box<dyn std::error::Error>> {
+        let loaded: Vec<_> = g
+            .content()
+            .rules
+            .spells
+            .iter()
+            .filter(|(_, d)| d.upkeep > 0 && d.duration == f4x_def::rules::Duration::Permanent)
+            .filter(|(_, d)| d.target == f4x_def::rules::SpellTarget::None)
+            .map(|(id, _)| id)
+            .collect();
+        g.apply(set_split(player, (80, 0, 20)));
+        for spell in loaded {
+            let income = g.income(player);
+            if income.split.mana < income.mana_upkeep {
+                return Ok(());
+            }
+            g.attach_enchantment(f4x_core::rules::exec::Target::Player(player), spell, player);
+        }
+        let income = g.income(player);
+        if income.split.mana < income.mana_upkeep {
+            Ok(())
+        } else {
+            Err("no upkeep was enough to outrun the income".into())
+        }
+    }
+
+    #[test]
+    fn a_wizard_whose_upkeep_eats_the_income_keeps_researching_while_its_reserve_lasts(
+    ) -> TestResult {
+        let research_share = |mana: i32| -> Result<_, Box<dyn std::error::Error>> {
+            let mut g = game(COAST_CITY, 8 /* high_men */);
+            overburdened(&mut g, P0)?;
+            treasury(&mut g, P0)?.mana = HalfInt::from_int(mana);
+            split(&Ai::new(P0), &mut g, &mut Vec::new());
+            Ok(g.wizard(P0)
+                .ok_or("player 0 is a wizard")?
+                .power_split()
+                .research)
+        };
+        assert_eq!(research_share(0)?, 0, "no reserve: all of it to mana");
+        assert!(
+            research_share(100_000)? > 0,
+            "a reserve for the deficit: research goes on"
+        );
         Ok(())
     }
 

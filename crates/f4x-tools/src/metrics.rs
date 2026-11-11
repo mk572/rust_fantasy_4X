@@ -76,11 +76,13 @@ pub struct Metrics {
     /// Sites cleared of their guards or taken empty, and of those, towers of wisdom.
     pub sites_cleared: u32,
     pub towers_cleared: u32,
+    /// Turns the wizard had a spell to research and its research income was nil.
+    pub research_stalled: u32,
 }
 
 impl Metrics {
     /// Each count with its name, in the order a report shows them.
-    pub fn rows(&self) -> [(&'static str, u32); 42] {
+    pub fn rows(&self) -> [(&'static str, u32); 43] {
         [
             ("cities founded", self.cities_founded),
             ("cities captured", self.cities_captured),
@@ -124,6 +126,7 @@ impl Metrics {
             ("plane shifts", self.plane_shifts),
             ("sites cleared", self.sites_cleared),
             ("towers cleared", self.towers_cleared),
+            ("research stalled turns", self.research_stalled),
         ]
     }
 
@@ -214,6 +217,7 @@ impl AddAssign for Metrics {
             plane_shifts,
             sites_cleared,
             towers_cleared,
+            research_stalled,
         } = other;
         self.cities_founded += cities_founded;
         self.cities_captured += cities_captured;
@@ -257,6 +261,7 @@ impl AddAssign for Metrics {
         self.plane_shifts += plane_shifts;
         self.sites_cleared += sites_cleared;
         self.towers_cleared += towers_cleared;
+        self.research_stalled += research_stalled;
         self.first_landing_turns += first_landing_turns;
     }
 }
@@ -340,6 +345,9 @@ impl Tally {
             let slot = usize::from(p.0).min(now.len() - 1);
             let income = game.income(p);
             let paid = (income.split.mana - income.mana_upkeep).floor() as i64;
+            if game.wizard(p).is_some_and(|w| w.researching().is_some()) && income.research <= 0 {
+                self.bump(p, |m| m.research_stalled += 1);
+            }
             let before = self.mana_left.get(slot).copied().unwrap_or(0);
             if let Some(spent) = self.mana_spent.get_mut(slot) {
                 *spent += (before + paid - now[slot]).max(0);

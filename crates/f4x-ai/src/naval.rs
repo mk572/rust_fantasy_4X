@@ -560,6 +560,8 @@ fn declare_war_on_target(
     };
     match game.treaty(me, owner) {
         Treaty::War => true,
+        // A wizard it has not met cannot be declared war on: the landing goes on.
+        Treaty::None if !game.have_met(me, owner) => true,
         Treaty::None => {
             if ai.send(
                 game,

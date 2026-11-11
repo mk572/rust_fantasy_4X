@@ -319,6 +319,33 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn a_hero_spell_that_would_be_refused_is_not_a_valid_target_either() -> TestResult {
+        let mut g = caster();
+        for number in [208, 212, 142] {
+            // summon_hero, summon_champion, incarnation
+            assert_eq!(
+                g.check_target(P0, SpellId::new(number), None),
+                Ok(()),
+                "{number}"
+            );
+        }
+        g.wizard_mut(P0)
+            .ok_or("wizard_mut is missing")?
+            .put::<crate::wizard::fortress::SummonAt>(None);
+        g.wizard_mut(P0)
+            .ok_or("wizard_mut is missing")?
+            .put::<crate::wizard::fortress::Fortress>(None);
+        for number in [208, 212, 142] {
+            assert_eq!(
+                g.check_target(P0, SpellId::new(number), None),
+                Err(crate::wizard::magic::MagicError::NotAvailable),
+                "no circle to appear in: {number}"
+            );
+        }
+        Ok(())
+    }
+
     /// The summoned hero of the human wizard's cast, waiting to be accepted.
     fn waiting(g: &Game) -> Option<(usize, bool)> {
         g.offers(P0).iter().find_map(|o| match o {

@@ -105,7 +105,18 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 index,
             }
         };
-        ai.send(game, command, events);
+        // An offer it cannot take (no room for the hero at the summoning circle, say) is
+        // declined, and does not wait to be refused again each turn.
+        if !ai.send(game, command, events) && accept {
+            ai.send(
+                game,
+                Command::RejectOffer {
+                    player: ai.player,
+                    index,
+                },
+                events,
+            );
+        }
     }
 }
 

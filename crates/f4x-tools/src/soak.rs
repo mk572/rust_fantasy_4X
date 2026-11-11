@@ -488,6 +488,15 @@ pub fn game(
         total.refused_orders,
     );
     println!("{tag}: diplomacy: {}", diplomacy_line(&total));
+    println!(
+        "{tag}: research stalled turns: {}",
+        game.player_ids()
+            .into_iter()
+            .filter(|&p| game.wizard(p).is_some())
+            .map(|p| format!("p{} {}", p.0, tally.of(p).research_stalled))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
     println!("{tag}: mana {}", mana_line(&game, &tally));
     if opts.casts {
         println!("{tag}: casts: {}", casts_line(tally.casts()));

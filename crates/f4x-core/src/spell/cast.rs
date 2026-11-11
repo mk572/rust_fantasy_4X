@@ -576,6 +576,13 @@ impl Game {
                 _ => Err(MagicError::Target(TargetError::WrongTarget)),
             };
         }
+        // Summon Hero, Summon Champion and Incarnation: no circle to appear in, or nobody left to
+        // bring, is refused here as the cast itself refuses it (`Resurrection` returned above).
+        if crate::spell::hero::HeroSummon::of(self.content.rules.spells.get(spell)).is_some()
+            && self.units().hero_spell_blocked(player, spell).is_some()
+        {
+            return Err(MagicError::NotAvailable);
+        }
         let wanted = self.content.rules.spells.get(spell).target;
         let mine = |o: Option<PlayerId>| o == Some(player);
         let wrong = MagicError::Target(TargetError::WrongTarget);
