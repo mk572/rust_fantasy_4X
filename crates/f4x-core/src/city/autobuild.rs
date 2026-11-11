@@ -713,6 +713,21 @@ impl Game {
             .then(|| AutoBuild::new(BuildPlan::vizier()))
     }
 
+    /// The owner's net gold: worked out afresh, except while the player's cities build, when it
+    /// is kept until something is completed.
+    fn net_gold_of(&self, owner: PlayerId) -> HalfInt {
+        use crate::game::NetGoldMemo;
+        match self.net_gold_memo.get() {
+            NetGoldMemo::Known(p, gold) if p == owner => gold,
+            NetGoldMemo::Off => self.budget(owner).net_gold(),
+            _ => {
+                let gold = self.budget(owner).net_gold();
+                self.net_gold_memo.set(NetGoldMemo::Known(owner, gold));
+                gold
+            }
+        }
+    }
+
     /// The facts about a city that the choice needs. `None` for an outpost (it builds nothing).
     pub fn autobuild_facts(&self, city: hecs::Entity, owner: PlayerId) -> Option<CityFacts> {
         let eco = self.economy();
@@ -785,7 +800,7 @@ impl Game {
             max_size: e.max_size,
             food: e.food,
             rebels: e.rebels,
-            net_gold: self.budget(owner).net_gold(),
+            net_gold: self.net_gold_of(owner),
             defenders,
             rival_near,
             built,

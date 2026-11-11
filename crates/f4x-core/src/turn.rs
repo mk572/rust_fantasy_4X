@@ -149,9 +149,22 @@ impl Game {
         // `settle_treasury` may release units and a city can be lost: build in what is left. The
         // wizard who keeps Time Stop builds nothing until it ends.
         if stopper.is_none() {
+            self.net_gold_memo.set(crate::game::NetGoldMemo::Empty);
             for city in self.player_cities(player) {
-                events.extend(self.produce_city(city));
+                let before = self.economy().city_production(city).item;
+                let done = self.produce_city(city);
+                // A completed item changes the upkeep, and a unit the population; the item
+                // made (coin, say) changes the city's gold.
+                if before != self.economy().city_production(city).item
+                    || done
+                        .iter()
+                        .any(|e| matches!(e, Event::ProductionCompleted { .. }))
+                {
+                    self.net_gold_memo.set(crate::game::NetGoldMemo::Empty);
+                }
+                events.extend(done);
             }
+            self.net_gold_memo.set(crate::game::NetGoldMemo::Off);
         }
         events
     }

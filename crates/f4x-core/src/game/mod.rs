@@ -44,6 +44,15 @@ fn events_or_reject(r: Result<Vec<Event>, wizard::magic::MagicError>) -> Vec<Eve
     r.unwrap_or_else(|e| vec![Event::Rejected(Rejection::Magic(e))])
 }
 
+/// See [`Game::net_gold_memo`].
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) enum NetGoldMemo {
+    #[default]
+    Off,
+    Empty,
+    Known(player::PlayerId, f4x_def::half_int::HalfInt),
+}
+
 pub struct Game {
     pub(crate) world: hecs::World,
     pub turn: u32,
@@ -61,6 +70,10 @@ pub struct Game {
     pub(crate) fog: map::fog::Fog,
     /// The vision of the computer wizard that is playing, kept for its turn (`map::vision`).
     pub(crate) vision: std::cell::RefCell<map::vision::VisionCache>,
+    /// The player's net gold, worked out once while a player's cities build (`turn.rs`), for the
+    /// auto-builder, which asks for it in every city. Cleared when something is completed, since
+    /// that changes the upkeep. `None` outside that pass: nothing is kept.
+    pub(crate) net_gold_memo: std::cell::Cell<NetGoldMemo>,
     pub(crate) next_serial: u64,
     /// The seeded generator all randomness comes from; it counts its draws (see `game/rng.rs`).
     pub(crate) rng: game::rng::GameRng,
@@ -114,6 +127,7 @@ impl Game {
             player_index: std::collections::HashMap::new(),
             fog: map::fog::Fog::default(),
             vision: Default::default(),
+            net_gold_memo: Default::default(),
             next_serial: 1,
             rng: game::rng::GameRng::new(seed),
             // The Average level of the shipped rules; a game made for play gets its level from
