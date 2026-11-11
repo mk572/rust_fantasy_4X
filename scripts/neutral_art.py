@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Install the neutral players' pictures into the local art (task 523).
+"""Install the neutral players' pictures into the client (task 523).
 
-`assets-local/neutral/<race id>/` holds, for each race, `portrait_109x109.png` (the diplomacy
-screen), `gem_41x43.png` (lists and the magic screen) and `hall_30x32.png` (the hall of fame),
-cropped by hand from the new art. This copies them to `assets-local/art/neutral/NNN_FF.png`, where
-NNN is the race's number in `crates/f4x-def/content/races.ron` and FF is 00 (portrait), 01 (gem) or
-02 (hall); the client reads them as the pictures of the `neutral` file (`Art::picture`). Running it
-again changes nothing. A race with no folder is listed and the exit code is 1.
+`assets-local/neutral/<race id>/` holds, for each race, the new art as `original.jpg` and the crops
+made from it by hand: `portrait_109x109.png` (the diplomacy screen), `gem_41x43.png` (lists and
+the magic screen) and `hall_30x32.png` (the hall of fame). This copies the crops to
+`crates/f4x-client/assets/neutral/<race id>/{portrait,gem,hall}.png`, which `neutral_art.rs` embeds
+in the client (the pictures are new art, so they ship with the repository). Running it again
+changes nothing. A race with no folder is listed and the exit code is 1.
 """
 import re
 import shutil
@@ -16,8 +16,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 RACES = ROOT / "crates/f4x-def/content/races.ron"
 SOURCE = ROOT / "assets-local/neutral"
-TARGET = ROOT / "assets-local/art/neutral"
-PICTURES = ["portrait_109x109.png", "gem_41x43.png", "hall_30x32.png"]
+TARGET = ROOT / "crates/f4x-client/assets/neutral"
+PICTURES = {
+    "portrait_109x109.png": "portrait.png",
+    "gem_41x43.png": "gem.png",
+    "hall_30x32.png": "hall.png",
+}
 
 
 def races():
@@ -27,16 +31,15 @@ def races():
 
 
 def main():
-    TARGET.mkdir(parents=True, exist_ok=True)
     missing = []
-    for num, race in races():
+    for _, race in races():
         folder = SOURCE / race
-        files = [folder / name for name in PICTURES]
-        if not all(f.is_file() for f in files):
+        if not all((folder / name).is_file() for name in PICTURES):
             missing.append(race)
             continue
-        for frame, source in enumerate(files):
-            shutil.copyfile(source, TARGET / f"{num:03}_{frame:02}.png")
+        (TARGET / race).mkdir(parents=True, exist_ok=True)
+        for name, installed in PICTURES.items():
+            shutil.copyfile(folder / name, TARGET / race / installed)
     if missing:
         print("no pictures for: " + ", ".join(missing), file=sys.stderr)
         return 1

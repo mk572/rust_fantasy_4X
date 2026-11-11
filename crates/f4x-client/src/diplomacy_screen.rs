@@ -827,12 +827,11 @@ impl Page for DiploUi {
         let frame = (talking / TALK_FRAME) as usize;
         if let Some(race) = app.game.race_of_player(with) {
             // A neutral player has no wizard to move its lips or show a mood: its race's picture
-            // (`scripts/neutral_art.py`) stays in the mirror.
-            app.draw_pic(
+            // (`neutral_art.rs`) stays in the mirror.
+            app.draw_neutral(
                 &lay,
-                "neutral",
-                usize::from(race.num()),
-                0,
+                race.num(),
+                crate::neutral_art::Kind::Portrait,
                 PORTRAIT_AT.0,
                 PORTRAIT_AT.1,
             );

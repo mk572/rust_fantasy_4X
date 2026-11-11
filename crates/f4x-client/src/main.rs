@@ -66,6 +66,7 @@ mod menu_bar_art;
 mod menu_screen;
 mod modal;
 mod names;
+mod neutral_art;
 mod newgame_button_art;
 mod newgame_flow;
 mod newgame_picks;
