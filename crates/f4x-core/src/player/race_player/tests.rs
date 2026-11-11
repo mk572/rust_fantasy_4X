@@ -213,3 +213,38 @@ fn the_power_of_a_race_player_is_paid_into_its_mana_at_the_turn_end() -> TestRes
     );
     Ok(())
 }
+
+#[test]
+fn a_neutral_player_that_defeats_the_last_human_wizard_ends_the_game_as_a_loss() -> TestResult {
+    let mut g = world(7)?;
+    g.set_human(Some(PlayerId(0)));
+    let race = g.race_player(RaceId::new(2));
+    let events = g.defeat(PlayerId(0), race);
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            crate::game::Event::GameOver { winner, .. } if *winner == race
+        )),
+        "{events:?}"
+    );
+    assert!(g.game_over.is_some_and(|o| o.winner != PlayerId(0)));
+    assert!(
+        !g.living_wizards().contains(&race),
+        "a neutral never counts as a survivor"
+    );
+    Ok(())
+}
+
+#[test]
+fn a_neutral_player_never_counts_as_the_last_wizard_standing() -> TestResult {
+    let mut g = world(7)?;
+    let race = g.race_player(RaceId::new(2));
+    // Every wizard but the first falls to the neutral player: the first one wins.
+    let others: Vec<_> = g.living_wizards().into_iter().skip(1).collect();
+    for w in others {
+        g.defeat(w, race);
+    }
+    let over = g.game_over.ok_or("the game is not over")?;
+    assert_eq!(over.winner, PlayerId(0));
+    Ok(())
+}
