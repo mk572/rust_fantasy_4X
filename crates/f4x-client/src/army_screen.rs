@@ -102,7 +102,7 @@ impl App {
     }
 
     /// "Race Name" for a race's unit, the unit's name otherwise.
-    fn army_unit_name(&self, unit: hecs::Entity) -> String {
+    pub(crate) fn army_unit_name(&self, unit: hecs::Entity) -> String {
         let Some(def) = self.game.units().unit_def(unit) else {
             return String::new();
         };

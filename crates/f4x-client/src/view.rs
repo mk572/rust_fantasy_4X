@@ -1262,7 +1262,8 @@ impl App {
     /// the human is fought before the next one plays), the neutrals play, the round ends and the
     /// next begins with the human's turn.
     pub(crate) fn end_turn(&mut self) {
-        if self.turn_events.is_some() {
+        // A square over the limit must be sorted out first: its box opens by itself.
+        if self.turn_events.is_some() || !self.game.crowded_squares(HUMAN).is_empty() {
             return;
         }
         let t = self.game.budget(HUMAN);
@@ -1584,6 +1585,7 @@ impl App {
         }
         self.queue_proposal();
         self.queue_offer();
+        self.queue_crowd();
         if !self.modals.is_empty() && !matches!(self.screen, Screen::Console) {
             return self.modal_frame(input) && !self.quit;
         }

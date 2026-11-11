@@ -8,6 +8,7 @@
 //! is a function over `&mut World` (`spawn`, `experience::gain_xp`, the temporary effects).
 //! `Game` has thin methods that make a handle and ask it (`Game::units`).
 
+pub mod crowding;
 pub mod experience;
 pub(crate) mod healing;
 pub(crate) mod kept;

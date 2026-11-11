@@ -396,7 +396,8 @@ impl Game {
         let count = mercenary_count(self.rng.roll(100) as i32, fame);
         let price = mercenary_price(cost, level, count, percent);
         let at = self.summon_point(player)?;
-        let room = self.units().units_at(at).len() + count as usize <= self.max_tile();
+        let room = self.units().units_at(at).len() + count as usize <= self.max_tile()
+            || self.crowds_allowed(player);
         (HalfInt::from_int(price) <= gold && room).then_some(Offer::Mercenaries {
             unit: id,
             count,
@@ -477,7 +478,9 @@ impl Game {
                 price,
             } => {
                 let at = self.summon_point(player).ok_or(OfferError::NoRoom)?;
-                if self.units().units_at(at).len() + count as usize > self.max_tile() {
+                if self.units().units_at(at).len() + count as usize > self.max_tile()
+                    && !self.crowds_allowed(player)
+                {
                     return Err(OfferError::NoRoom);
                 }
                 let id = self

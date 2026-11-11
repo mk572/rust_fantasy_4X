@@ -538,7 +538,7 @@ impl Game {
             item: item @ ProductionItem::Unit(_),
             production: p,
             at,
-            ..
+            owner,
         }) = self.economy().advance_production(city, production)
         else {
             return None;
@@ -547,7 +547,9 @@ impl Game {
             return None;
         };
         let too_small = self.economy().costs_a_citizen(u) && self.city_population(city).figures < 2;
-        if self.units().units_at(at).len() < self.max_tile() && !too_small {
+        // The human wizard is asked what to do with a full square (`unit/crowding.rs`).
+        let room = self.units().units_at(at).len() < self.max_tile() || self.crowds_allowed(owner);
+        if room && !too_small {
             return None;
         }
         let _ = self.world.insert_one(city, p);

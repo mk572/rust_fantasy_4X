@@ -320,6 +320,31 @@ mod tests {
     }
 
     #[test]
+    fn a_summoning_into_a_full_circle_is_refused_for_a_computer_wizard_and_let_in_for_the_human(
+    ) -> TestResult {
+        let mut g = caster();
+        let war_bears = SpellId::new(6);
+        let unit = g
+            .content()
+            .rules
+            .units
+            .id_numbered(104 /* high_men_spearmen */)
+            .ok_or("a unit")?;
+        for _ in 0..g.max_tile() {
+            g.spawn_unit(P0, at(3, 3), unit);
+        }
+        assert_eq!(
+            g.check_target(P0, war_bears, None),
+            Err(crate::wizard::magic::MagicError::Target(
+                crate::spell::target_error::TargetError::SquareFull
+            ))
+        );
+        g.set_human(Some(P0));
+        assert_eq!(g.check_target(P0, war_bears, None), Ok(()));
+        Ok(())
+    }
+
+    #[test]
     fn a_hero_spell_that_would_be_refused_is_not_a_valid_target_either() -> TestResult {
         let mut g = caster();
         for number in [208, 212, 142] {

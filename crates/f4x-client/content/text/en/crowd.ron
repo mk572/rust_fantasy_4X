@@ -1,0 +1,18 @@
+// Player-facing messages of the box that asks what to do when a square holds more units than it may. One key is in one file only (docs/text.md).
+{
+    "crowd.title": "This square is too full",
+    "crowd.pick": "Choose a unit to move away or disband ({n} too many):",
+    "crowd.cost": "{n} gold",
+    "crowd.move": "Move",
+    "crowd.disband": "Disband",
+    "crowd.where": "Move {name} to which square?",
+    "crowd.back": "Back",
+    "crowd.dir_nw": "NW",
+    "crowd.dir_n": "N",
+    "crowd.dir_ne": "NE",
+    "crowd.dir_w": "W",
+    "crowd.dir_e": "E",
+    "crowd.dir_sw": "SW",
+    "crowd.dir_s": "S",
+    "crowd.dir_se": "SE",
+}
