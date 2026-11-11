@@ -188,6 +188,221 @@ Do not remove or silently change `Economy::visibility(player, plane) -> Vec<bool
 
 If the client later needs a reusable core cache, expose the smallest useful API (for example a retained `VisionGrid` plus `flags()`) rather than adding multiple overlapping methods. Keep client-specific invalidation policy in the client unless core has a clear, general state-change signal.
 
+## Plan B: full fog and vision redesign
+
+This is the alternative if the goal changes from a targeted performance fix to simplifying and unifying the whole fog/vision model. It is deliberately a larger change. Choose **Plan A** (the preceding incremental improvements) or **Plan B**; do not implement both as overlapping systems.
+
+### Design goals
+
+- Use one small, dynamically sized bitset representation for tile flags throughout core.
+- Make the distinction between persistent exploration and transient visibility explicit in the types.
+- Represent each visibility source independently, then combine sources with bitwise OR.
+- Recompute derived visibility at clear synchronization points rather than maintaining several partially overlapping caches and patching rules.
+- Keep client code as a consumer of a stable player-visibility snapshot, not as another visibility calculator.
+- Preserve existing sight rules, save compatibility, and deterministic game behavior.
+
+### Core data model
+
+Introduce a private `TileBits` type in `f4x-core/src/map/`. It owns its bit storage; its caller supplies the map dimensions and plane. Do not make a generic bitset crate or add a dependency for this.
+
+```rust
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TileBits {
+    words: Vec<u64>,
+}
+
+impl TileBits {
+    fn empty(tile_count: usize) -> Self {
+        Self {
+            words: vec![0; tile_count.div_ceil(64)],
+        }
+    }
+
+    fn set(&mut self, index: usize) {
+        self.words[index / 64] |= 1_u64 << (index % 64);
+    }
+
+    fn get(&self, index: usize) -> bool {
+        self.words[index / 64] & (1_u64 << (index % 64)) != 0
+    }
+
+    fn clear(&mut self) {
+        self.words.fill(0);
+    }
+
+    fn union_with(&mut self, other: &Self) {
+        assert_eq!(self.words.len(), other.words.len());
+        for (a, b) in self.words.iter_mut().zip(&other.words) {
+            *a |= *b;
+        }
+    }
+}
+```
+
+The production implementation should keep indexing private and validate map dimensions and coordinates at the `Fog`/`Vision` boundary. It should also mask unused bits in the final word when complementing or counting bits. `width * height` must use checked arithmetic before allocation.
+
+Keep the two planes as separate layers. The bit index is still row-major within a plane:
+
+```rust
+let index = y as usize * width as usize + x as usize;
+let visible = plane_bits.get(index);
+```
+
+Do not bake a fixed map size into the type. Store dimensions once in the owning map/fog/vision object and require matching dimensions before combining bitsets.
+
+Persistent exploration becomes:
+
+```rust
+struct PlayerExploration {
+    explored: [TileBits; 2],
+}
+
+struct Fog {
+    width: u32,
+    height: u32,
+    players: BTreeMap<PlayerId, PlayerExploration>,
+}
+```
+
+Current visibility becomes a separate player-scoped object. The large-redesign option stores one mask per source and a combined mask:
+
+```rust
+struct VisionSource {
+    // Unit, city, or another stable source identity.
+    source: Entity,
+    plane: Plane,
+    tiles: TileBits,
+}
+
+struct PlayerVision {
+    sources: HashMap<Entity, VisionSource>,
+    visible: [TileBits; 2],
+}
+```
+
+The exact source identity and storage can follow the existing ECS conventions. Global effects such as Nature Awareness need an explicit representation (for example an all-visible flag) rather than manufacturing a mask for every tile.
+
+### Source updates and aggregation
+
+When a source is added, moved, removed, or has its sight changed:
+
+1. Recalculate that source's mask from its current position and sight using the existing sight-distance, diagonal-cost, wrapping, and clipping rules.
+2. Replace or remove its entry in the source map.
+3. Rebuild the aggregate visible masks by clearing them and OR-ing all remaining source masks.
+4. Merge current visibility into persistent exploration.
+
+Illustrative aggregation:
+
+```rust
+fn rebuild_visible(&mut self) {
+    for plane in &mut self.visible {
+        plane.clear();
+    }
+
+    for source in self.sources.values() {
+        self.visible[source.plane.index()].union_with(&source.tiles);
+    }
+
+    for plane in 0..2 {
+        self.explored[plane].union_with(&self.visible[plane]);
+    }
+}
+```
+
+This makes overlap behavior obvious: a tile remains visible if any source's mask contains it. Removing one source cannot incorrectly hide a tile still covered by another source.
+
+The trade-off is explicit: the source masks consume more memory, and rebuilding the aggregate costs roughly `source_count × words_per_plane` OR operations. For the current small maps this may be entirely acceptable, but it must be measured with large armies and late-game source counts. If source-mask memory is too high, use the alternative full-rebuild variant below instead of retaining every mask.
+
+**Lower-memory variant:** discard per-source masks and, whenever visibility is dirty, clear the aggregate and stamp every source directly into it. This stores only the aggregate bitsets and source descriptors/positions. It is conceptually simpler and uses less memory, but recalculates all source coverage after any relevant change. Benchmark both variants before choosing.
+
+### Replace the current AI patching model
+
+Under this plan, remove the special movement patch path (`VisionEffect::Walk`) and the per-tile `u16` overlap counters after the replacement is proven correct. Keep a conservative dirty/rebuild signal:
+
+- `None`: the command cannot affect visibility.
+- `Rebuild`: visibility-affecting state may have changed.
+
+Initially, default commands and uncertain events to `Rebuild`. Do not try to recreate the current fine-grained invalidation matrix in the first pass. The source-mask model already makes rebuilding the aggregate relatively cheap and predictable.
+
+The AI can still keep a player-vision snapshot for the duration of its turn. Its lifecycle should be explicit: build at turn start, mark dirty after relevant commands/events, rebuild before the next visibility query, and drop at turn end. Keep a debug mode that compares the cached result with an independently rebuilt result. Only reintroduce movement-only incremental optimization if profiling later proves it necessary.
+
+### Core API
+
+Expose a narrow read-only view for consumers, rather than making each caller reconstruct visibility:
+
+```rust
+pub struct PlayerVisibility<'a> {
+    // Internally references the two aggregate plane masks.
+    // Public methods answer tile visibility and expose iteration as needed.
+}
+
+impl PlayerVisibility<'_> {
+    pub fn sees(&self, at: Position) -> bool;
+}
+```
+
+Keep `Economy::visibility(player, plane) -> Vec<bool>` temporarily as a compatibility/convenience wrapper implemented from the new representation. Migrate internal callers to the read-only view, then decide whether the allocating wrapper remains useful.
+
+Do not expose mutable bitset words to the client. Core owns the rules and visibility state; the client gets queries or a borrowed read-only snapshot.
+
+### Client architecture
+
+Replace the client-specific repeated `Economy::visibility()` calls with one cached human-player visibility snapshot covering both planes.
+
+- `draw_map()`, `draw_units()`, and the Surveyor all read the same snapshot.
+- The snapshot is refreshed only when core reports a relevant change or the client applies a mutation known to affect visibility.
+- New game, load, and turn transitions invalidate it.
+- Camera movement, selection, animation, and unrelated UI state do not invalidate it.
+- Do not copy the bitset into a new `Vec<bool>` per frame. Provide a cheap `sees(Position)` query or iterate the visible tiles directly.
+
+If the client and core share a reliable game-state revision, use a visibility-specific revision rather than a global revision that changes for every game mutation. The client cache is derived data and is never saved.
+
+### Save and migration strategy
+
+Keep the external save representation independent from the new runtime representation:
+
+- Continue writing explored flags as the existing per-player, per-plane packed `Vec<u8>` values in `FogSave`.
+- Convert between `TileBits` and the existing byte representation in one place.
+- Do not save current visibility or source masks; reconstruct them from the loaded world when needed.
+- Do not bump `SAVE_VERSION` unless the serialized `FogSave` shape or meaning actually changes.
+- Retain the existing load validation for dimensions and packed-layer lengths.
+
+This redesign should not be bundled with RON compression, map-save packing changes, or other task 485 work. Those are separate measurements and changes.
+
+### Migration sequence
+
+1. Add `TileBits` with exhaustive unit tests for empty layers, boundaries, lengths not divisible by 64, union, and dimension mismatch.
+2. Convert `Fog` exploration layers to `TileBits`, keeping `FogSave` byte packing and all public fog behavior unchanged.
+3. Implement the new source-mask `PlayerVision` behind the existing visibility query; initially run old and new calculations side by side in tests/debug builds.
+4. Add differential tests for units, cities, overlapping sources, movement, removal, modified sight, both planes, horizontal wrapping, diagonal extra cost, and global effects.
+5. Switch AI turn caching to the new dirty/rebuild lifecycle. Keep the old implementation until soak tests and differential checks pass.
+6. Switch client map drawing and Surveyor queries to the shared read-only player-visibility view; remove the per-frame allocation.
+7. Remove old counters and movement patching only after all callers and tests use the new implementation.
+8. Profile memory and CPU on representative early-, mid-, and late-game saves. Compare source-mask and lower-memory full-rebuild variants; choose the simpler one that meets the performance target.
+9. Run save/load round-trips, deterministic replay/soak comparisons, and `F4X_CHECK_VISION`-equivalent differential checks before deleting the old path.
+
+### Plan B acceptance criteria
+
+- The new and old visibility implementations agree for all differential test scenarios before the old implementation is removed.
+- Overlapping sources remain visible until the final covering source is removed.
+- A move or sight change updates the source mask and aggregate correctly on both the old and new positions.
+- Global visibility effects compose correctly with ordinary sources and can be removed cleanly.
+- Both planes and arbitrary runtime map dimensions work, including dimensions whose tile count is not a multiple of 64.
+- Exploration survives save/load unchanged; current visibility is reconstructed and is not serialized.
+- AI visibility queries do not trigger a rebuild for every repeated read within an unchanged state.
+- Client map drawing and Surveyor queries share one result and allocate no visibility grid per rendered frame.
+- Soak/replay output remains deterministic.
+- Benchmarks document CPU and memory costs against the current implementation.
+
+### Plan B risks and reasons not to choose it
+
+- Per-source masks increase memory use; large maps and many sources make this the main cost to watch.
+- Rebuilding the aggregate after each source change may be more work than the current counter-based movement patch.
+- Replacing a mature AI cache risks subtle stale-visibility bugs if any command/event is misclassified.
+- A unified bitset representation is cleaner, but it is not by itself a guarantee of faster gameplay.
+
+Choose Plan B only if simplifying the overall model and removing incremental bookkeeping is worth a larger migration and its testing burden. If the immediate goal is simply to eliminate repeated client work, Plan A is substantially lower risk.
+
 ## Implementation order
 
 1. **Baseline and correctness tests**
