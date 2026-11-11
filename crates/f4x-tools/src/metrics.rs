@@ -345,7 +345,21 @@ impl Tally {
             let slot = usize::from(p.0).min(now.len() - 1);
             let income = game.income(p);
             let paid = (income.split.mana - income.mana_upkeep).floor() as i64;
-            if game.wizard(p).is_some_and(|w| w.researching().is_some()) && income.research <= 0 {
+            // Casting the Spell of Mastery takes all the power by design (the AI's split is
+            // 50/0/50 then): research does not count as stalled.
+            let mastery = game.wizard(p).is_some_and(|w| {
+                w.casting().is_some_and(|c| {
+                    game.content()
+                        .rules
+                        .spells
+                        .get(c.spell)
+                        .has_hook(f4x_core::spell::special::SPELL_OF_MASTERY)
+                })
+            });
+            if !mastery
+                && game.wizard(p).is_some_and(|w| w.researching().is_some())
+                && income.research <= 0
+            {
                 self.bump(p, |m| m.research_stalled += 1);
             }
             let before = self.mana_left.get(slot).copied().unwrap_or(0);

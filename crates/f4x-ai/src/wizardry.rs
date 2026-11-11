@@ -610,6 +610,29 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
         return;
     }
+    // The Spell of Return: the fortress goes to the biggest city (the game refuses a city that
+    // is not the wizard's). Left unaimed it waited for ever, with no income all the while.
+    if paid.is_some_and(|s| game.spell_has_hook(s, f4x_core::spell::special::SPELL_OF_RETURN)) {
+        let city = {
+            let view = PlayerView::new(game, ai.player);
+            let mut cities = view.my_cities();
+            cities.sort_by_key(|&(c, _)| {
+                (
+                    std::cmp::Reverse(view.city_economy(c).map_or(0, |e| e.figures)),
+                    view.serial_of(c),
+                )
+            });
+            cities.first().map(|&(c, _)| c)
+        };
+        if let Some(city) = city {
+            let command = Command::ResolveCast {
+                player: ai.player,
+                target: Target::City(city),
+            };
+            ai.send(game, command, events);
+        }
+        return;
+    }
     let target = {
         let view = PlayerView::new(game, ai.player);
         let Some(spell) = view.paid_spell() else {
@@ -1491,6 +1514,22 @@ mod tests {
         let gold = t.gold;
         fund_return(&ai, &mut g, &mut Vec::new());
         assert_eq!(g.player(P0).ok_or("player 0 exists")?.treasury().gold, gold);
+        Ok(())
+    }
+
+    #[test]
+    fn a_banished_wizard_that_has_paid_for_the_return_aims_it_at_a_city() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.wizard_mut(P0).ok_or("player 0 is a wizard")?.put(Some(
+            f4x_core::wizard::fortress::Banishment { by: Some(P1) },
+        ));
+        g.scenario_casting(P0, spell(214 /* spell_of_return */)?, 0);
+        assert!(g.wizard(P0).ok_or("a wizard")?.is_banished());
+        resolve_paid(&Ai::new(P0), &mut g, &mut Vec::new());
+        let wizard = g.wizard(P0).ok_or("a wizard")?;
+        assert!(!wizard.is_banished(), "the wizard is home again");
+        assert!(wizard.casting().is_none());
+        assert_eq!(wizard.fortress(), Some(at(COAST_CITY.0, COAST_CITY.1)));
         Ok(())
     }
 
