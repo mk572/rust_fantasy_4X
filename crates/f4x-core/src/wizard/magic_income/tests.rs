@@ -148,3 +148,12 @@ fn a_channeler_pays_half_the_upkeep() {
         .insert(Retort::new(8) /* channeler */);
     assert_eq!(income(&v, P0).mana_upkeep, HalfInt::from_raw(9));
 }
+
+#[test]
+fn the_mana_upkeep_alone_is_the_one_in_the_income() {
+    let mut v = fake();
+    for upkeep in [0, 3, 40] {
+        v.upkeep = upkeep;
+        assert_eq!(mana_upkeep(&v, P0), income(&v, P0).mana_upkeep, "{upkeep}");
+    }
+}

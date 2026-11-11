@@ -110,14 +110,20 @@ impl Game {
                 });
             }
         }
-        for unit in self.units().all_units() {
-            let (Some(owner), Some(pos)) = (
-                self.units().unit_owner(unit),
-                self.units().unit_position(unit),
-            ) else {
-                continue;
-            };
-            if owner != viewer && keep(pos) && self.economy().unit_visible_to(unit, viewer) {
+        // The units in the area first, in a stable order, then the (dearer) test of sight.
+        let mut near: Vec<(hecs::Entity, PlayerId, Position)> = self
+            .units()
+            .unsorted_units()
+            .into_iter()
+            .filter_map(|unit| {
+                let owner = self.units().unit_owner(unit)?;
+                let pos = self.units().unit_position(unit)?;
+                (owner != viewer && keep(pos)).then_some((unit, owner, pos))
+            })
+            .collect();
+        near.sort_by_key(|&(unit, ..)| self.serial_of(unit));
+        for (unit, owner, pos) in near {
+            if self.economy().unit_visible_to(unit, viewer) {
                 out.push(Sighting { owner, pos });
             }
         }

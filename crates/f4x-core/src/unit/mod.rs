@@ -507,6 +507,11 @@ impl<'a> UnitView<'a> {
         out
     }
 
+    /// All units, in no particular order (for callers that filter before they sort).
+    pub fn unsorted_units(&self) -> Vec<hecs::Entity> {
+        self.world.query::<&Unit>().iter().map(|(e, _)| e).collect()
+    }
+
     /// All units, in a stable order.
     pub fn all_units(&self) -> Vec<hecs::Entity> {
         let mut out: Vec<_> = self.world.query::<&Unit>().iter().map(|(e, _)| e).collect();
@@ -571,10 +576,16 @@ impl<'a> UnitView<'a> {
 
     /// A player's units, in the order of `all_units`.
     pub fn player_units(&self, player: PlayerId) -> Vec<hecs::Entity> {
-        self.all_units()
-            .into_iter()
+        // Filter first, then sort: the player's few units, not all of them.
+        let mut out: Vec<_> = self
+            .world
+            .query::<&Unit>()
+            .iter()
+            .map(|(e, _)| e)
             .filter(|&u| self.unit_owner(u) == Some(player))
-            .collect()
+            .collect();
+        self.sort_by_serial(&mut out);
+        out
     }
 
     /// Whether the unit counts towards a city's garrison for keeping order.

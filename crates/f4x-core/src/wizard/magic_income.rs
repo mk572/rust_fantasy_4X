@@ -74,6 +74,14 @@ fn base_from(view: &impl IncomeView, player: PlayerId, city_mana: HalfInt) -> Ha
     .max(HalfInt::ZERO)
 }
 
+/// What the wizard pays in mana each turn, without the rest of the income.
+fn mana_upkeep(view: &impl IncomeView, player: PlayerId) -> HalfInt {
+    let percent = view
+        .wizard(player)
+        .map_or(100, |m| m.upkeep_percent(&view.content().rules));
+    HalfInt::from_raw(view.upkeep_total(player).saturating_mul(2) * percent / 100)
+}
+
 /// Everything the wizard earns (zero power while the Spell of Return is cast or mana is short) and owes, with the cities asked once.
 pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
     let (city_mana, city_research) = view.city_yield(player);
@@ -92,11 +100,7 @@ pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
     let research = view.wizard(player).map_or(split.research.max(0), |m| {
         m.research_income(view.content(), &split)
     });
-    let percent = view
-        .wizard(player)
-        .map_or(100, |m| m.upkeep_percent(&view.content().rules));
-    let mana_upkeep =
-        HalfInt::from_raw(view.upkeep_total(player).saturating_mul(2) * percent / 100);
+    let mana_upkeep = mana_upkeep(view, player);
     Income {
         power_base,
         city_research,
@@ -173,6 +177,12 @@ impl IncomeView for GameIncome<'_> {
 }
 
 impl Game {
+    /// What a wizard owes in mana each turn: `income(player).mana_upkeep`, without working out
+    /// the income (the battle AI asks at every command).
+    pub fn mana_upkeep(&self, player: PlayerId) -> HalfInt {
+        mana_upkeep(&GameIncome(self), player)
+    }
+
     /// What a wizard earns and owes (see [`Income`]).
     pub fn income(&self, player: PlayerId) -> Income {
         income(&GameIncome(self), player)

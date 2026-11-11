@@ -126,7 +126,7 @@ pub fn cast_choice(game: &Game, battle: &Battle) -> Option<BattleCommand> {
     let side = battle.active;
     let player = battle.player_of(side);
     let reserve = game.player(player).map_or(0, |p| p.treasury().mana.floor());
-    let upkeep = game.income(player).mana_upkeep.ceil();
+    let upkeep = game.mana_upkeep(player).ceil();
     let enemies: Vec<&BattleUnit> = battle
         .active_units(side.other())
         .filter(|e| battle.seen_by(side, e.id))
