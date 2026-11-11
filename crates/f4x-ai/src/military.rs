@@ -402,11 +402,16 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     };
     // The port of a landing keeps a slot free: a ship cannot enter a city holding a full tile.
     let naval_rally = ai.naval.is_some_and(|p| p.target == target);
-    let mut room = if naval_rally {
+    // No city is crowded beyond `garrison::city_cap`: there is no defence in more.
+    let mut room = {
         let view = PlayerView::new(game, me);
-        (view.max_tile() - 1).saturating_sub(view.garrison(rally).len())
-    } else {
-        usize::MAX
+        let cap = crate::garrison::city_cap(&view, rally);
+        let limit = if naval_rally {
+            cap.min(view.max_tile() - 1)
+        } else {
+            cap
+        };
+        limit.saturating_sub(view.garrison(rally).len())
     };
     let mut at_tower: Vec<hecs::Entity> = Vec::new();
     // Units of a kind on a square get one path search between them (nothing moves meanwhile:

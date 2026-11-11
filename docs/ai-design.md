@@ -459,6 +459,13 @@ unit tests in `wizardry.rs` and `f4x-ai/src/battle/order.rs`, `crates/f4x-learn/
 
 ### 11.1 Strategic AI
 
+- **No city holds more than nine** (`garrison.rs`, 11 November 2026). More than one stack adds
+  nothing to the defence. Each turn `disperse` sends the strongest of the excess to the nearest
+  city with fewer defenders than `garrison_wanted`, else on a raid (`site::deploy`), else to
+  scouting; the army's rally point takes no more than `city_cap` either. The summoning circle's
+  city also keeps a slot free: before a summoning spell is begun, and while one is being cast,
+  `make_room` walks the weakest fighter out to another city when the square is full (the cast is
+  skipped when none can leave).
 - **Cities built the same unit for ever.** A city that finishes a unit starts the same unit again
   (`city/production.rs`: the item stays, progress goes to zero). The AI only chose production for a
   city that was not building a unit, so the capital made settlers until the wizard held 15 or 25

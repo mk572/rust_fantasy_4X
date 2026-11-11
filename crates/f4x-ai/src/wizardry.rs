@@ -982,6 +982,16 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     if resurrect(ai, game, events) {
         return;
     }
+    // A summoning in the making needs the slot kept free until it is done.
+    let summoning = {
+        let view = PlayerView::new(game, me);
+        view.wizard()
+            .and_then(|m| m.casting())
+            .is_some_and(|c| matches!(kind(view.spell(c.spell)), Kind::Summon | Kind::SummonHero))
+    };
+    if summoning {
+        crate::garrison::make_room(ai, game, events);
+    }
     let choice: Option<(SpellId, Option<Target>)> = {
         let view = PlayerView::new(game, me);
         let Some(magic) = view.wizard() else {
@@ -1056,11 +1066,14 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     now && room
                         && fighters < 12 + 2 * view.my_cities().len()
                         // The square the creatures appear on may be full.
-                        && view.can_aim(spell, None)
+                        && (view.can_aim(spell, None) || crate::garrison::can_make_room(&view))
                 }
                 // There is no cap on heroes: only the supply of heroes (`can_aim` is refused
                 // when none is left to send) and the mana limit it.
-                Kind::SummonHero => now && room && view.can_aim(spell, None),
+                Kind::SummonHero => {
+                    now && room
+                        && (view.can_aim(spell, None) || crate::garrison::can_make_room(&view))
+                }
                 Kind::UnitBuff => {
                     now && room && fighters >= 3 && upkeep_ok(&view, def) && target.is_some()
                 }
@@ -1115,6 +1128,14 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         found
     };
     if let Some((spell, target)) = choice {
+        // A summoning needs a free slot where the creatures appear: a unit walks out first.
+        let summons = matches!(
+            kind(PlayerView::new(game, me).spell(spell)),
+            Kind::Summon | Kind::SummonHero
+        );
+        if summons && !crate::garrison::make_room(ai, game, events) {
+            return;
+        }
         ai.send(
             game,
             Command::CastSpell {

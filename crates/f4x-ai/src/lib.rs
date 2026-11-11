@@ -16,6 +16,7 @@ mod craft;
 mod diplomacy;
 mod economy;
 mod expand;
+mod garrison;
 mod military;
 mod monster;
 mod naval;
@@ -323,6 +324,7 @@ impl Ai {
             .time_stopper()
             .is_some_and(|keeper| keeper != self.player)
         {
+            garrison::disperse(self, game, &mut events);
             expand::settlers(self, game, &mut events);
             scout::scout(self, game, &mut events);
             site::run(self, game, &mut events);
