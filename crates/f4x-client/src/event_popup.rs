@@ -436,7 +436,7 @@ impl App {
             .game
             .player_ids()
             .into_iter()
-            .find(|&id| id != HUMAN && !self.game.is_neutral_player(id));
+            .find(|&id| id != HUMAN && self.game.is_wizard(id));
         if let Some(rival) = rival {
             let text = self.fizzle_text(HUMAN, rival, "Fire Bolt", "spell.suppress_magic");
             self.modals.enqueue(SpellNotice {
@@ -602,7 +602,7 @@ mod tests {
             .game
             .player_ids()
             .into_iter()
-            .find(|&id| id != HUMAN && !app.game.is_neutral_player(id))
+            .find(|&id| id != HUMAN && app.game.is_wizard(id))
             .ok_or("the game has no rival wizard")?;
         let second = f4x_core::player::MONSTERS;
         let by_you = app

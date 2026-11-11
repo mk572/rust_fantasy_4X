@@ -186,7 +186,7 @@ impl Game {
         let size = city_size_class(citizens) as i32;
         let (fame_lost, fame_gained) = fame_change(size);
         let loot = self.economy().conquest_loot(city);
-        let loser_is_wizard = !self.is_neutral_player(loser);
+        let loser_is_wizard = self.is_wizard(loser);
         if loser_is_wizard {
             self.add_fame(loser, -fame_lost);
         }

@@ -233,7 +233,7 @@ fn players(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
         .game
         .player_ids()
         .into_iter()
-        .filter(|id| !ctx.game.is_neutral_player(*id))
+        .filter(|id| ctx.game.is_wizard(*id))
         .map(|id| {
             let state = if ctx.game.player(id).is_some_and(|p| p.is_defeated()) {
                 "defeated"

@@ -212,7 +212,7 @@ impl App {
             .game
             .player_ids()
             .into_iter()
-            .filter(|id| *id != HUMAN && !self.game.is_neutral_player(*id))
+            .filter(|id| *id != HUMAN && self.game.is_wizard(*id))
             .map(|id| {
                 let p = self.game.player(id);
                 (

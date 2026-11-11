@@ -264,11 +264,7 @@ pub fn diff(args: &[String]) -> Result<(), String> {
             .map_err(|e| format!("{}: {e}", path.display()))?;
         println!("{} (turn {}):", path.display(), game.turn);
         println!("  {}", soak::status(&game));
-        for p in game
-            .player_ids()
-            .into_iter()
-            .filter(|&p| !game.is_neutral_player(p))
-        {
+        for p in game.player_ids().into_iter().filter(|&p| game.is_wizard(p)) {
             let line: Vec<String> = Standing::of(&game, p)
                 .rows()
                 .iter()

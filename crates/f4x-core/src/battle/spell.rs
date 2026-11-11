@@ -486,7 +486,7 @@ impl Game {
     pub(super) fn battle_casters(&self, battle: &mut Battle, site: Position) {
         for side in [Side::Attacker, Side::Defender] {
             let player = battle.player_of(side);
-            if self.is_neutral_player(player) {
+            if !self.is_wizard(player) {
                 continue;
             }
             let Some(magic) = self.wizard(player) else {

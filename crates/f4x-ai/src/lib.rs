@@ -9,6 +9,7 @@
 //! Tests: in the modules (each decision has its own file and tests); `tests/it/` has the rules of
 //! the ships and the slow whole-game behaviour tests (ignored by default).
 
+mod assault;
 pub mod battle;
 mod colony;
 mod controller;
@@ -20,7 +21,6 @@ mod garrison;
 mod military;
 mod monster;
 mod naval;
-mod neutral;
 mod objective;
 mod offer;
 mod persist;
@@ -375,7 +375,7 @@ pub fn answer_proposals(game: &mut Game, player: PlayerId) -> Vec<Event> {
     events
 }
 
-pub use neutral::{play_neutrals, play_neutrals_for};
+pub use assault::{play_neutrals, play_neutrals_for};
 pub use offer::answer_resales;
 
 pub use controller::{play_round, AiSeat, NeutralSeat};

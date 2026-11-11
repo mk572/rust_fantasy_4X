@@ -130,7 +130,7 @@ Not everything in these notes was read; the sections that were are named.
 - **Turn pipeline** (`AI_Next_Turn`, read): per wizard, in this order: strategy and hostility,
   target values for cities and stacks, landmass values, war landmass choice, spell selection and
   casting, gold and mana reserves, colony autobuild, evaluation map, orders, cull; then movement
-  (`AI_Execute_Orders`); then the neutral player (colony autobuild, farmers, destinations, movement; ours is `neutral.rs`: farmers, taxes, a Barracks first, then soldiers while the garrison is short and buildings after, never settlers; it never moves),
+  (`AI_Execute_Orders`); then the neutral player (colony autobuild, farmers, destinations, movement; ours is `assault.rs`: farmers, taxes, a Barracks first, then soldiers while the garrison is short and buildings after, never settlers; it never moves),
   then raiders and monsters.
 - **Overland spell choice** (`AI_Spell_Select`, `AI_Select_Spell_Group`, read): eleven category
   weights, one picked by weighted random: nothing, summon, unit enchantment, city enchantment,
@@ -390,7 +390,7 @@ it with `python3 scripts/fork_ai.py --mark-stale`; `ai_battle.py` forks it again
 before the next battle (and does the same when it finds the reference no longer builds). A battle
 right after such a fork compares the AI with itself. Per seed it plays four games with the reference's
 neutral cities and monsters (so the neutrals stay the same whatever the live AI does; fork again
-after a change to `neutral.rs` to test it): reference only, new in the first half of the seats,
+after a change to `assault.rs` to test it): reference only, new in the first half of the seats,
 new in the second half, new only. The report gives per wizard and game the counts of
 `crates/f4x-tools/src/metrics.rs` for the reference, for the new AI and for both in the mixed
 games, who won the mixed games, and the first snapshot (every 50 turns, `soak-out/`) that differs

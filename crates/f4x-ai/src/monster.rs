@@ -11,8 +11,8 @@ use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::{PlayerId, MONSTERS};
 
+use crate::assault::{around, march, strike};
 use crate::military::expected_defence;
-use crate::neutral::{around, march, strike};
 use crate::scout::best_target;
 use crate::view::{distance, stack_strength};
 use crate::{Ai, Attack};

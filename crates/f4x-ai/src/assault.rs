@@ -1,5 +1,6 @@
-//! The independent cities, each its own player (the `Neutral` marker), and the roaming monsters
-//! (`monster.rs`). Farmers, taxes and what a city builds follow the original's
+//! The independent cities, each its own player (the `Neutral` marker; task 522 replaces them by
+//! one player for each race), and the helpers that the roaming monsters (`monster.rs`) and the
+//! sites (`site.rs`) share: marching, striking, assaulting. Farmers, taxes and what a city builds follow the original's
 //! `Player_Colony_Autobuild_NP` (`AIBUILD.c`). A city raids a guarded site within [`RAID_RANGE`]
 //! with a party of [`RAID_PARTY`] beyond its garrison; one that raises such a party is at war (see
 //! [`Game::is_aggressive_player`]) and marches on the lairs and cities near it.

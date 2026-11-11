@@ -45,7 +45,7 @@ impl App {
             .into_iter()
             .filter(|&id| {
                 id != HUMAN
-                    && !self.game.is_neutral_player(id)
+                    && self.game.is_wizard(id)
                     && self.game.have_met(HUMAN, id)
                     && self.game.player(id).is_some_and(|p| !p.is_defeated())
             })

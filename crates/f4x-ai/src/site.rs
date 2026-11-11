@@ -8,8 +8,8 @@ use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 
+use crate::assault::{around, assault, guard_strength, march, strike};
 use crate::military::average_strength;
-use crate::neutral::{around, assault, guard_strength, march, strike};
 use crate::view::{
     distance, fighting_strength, garrison_wanted, is_fighter, stack_strength, unit_strength,
 };
@@ -253,7 +253,7 @@ pub fn deploy(
                 sites_near(&view, pos, stack_strength(&view, party))
             };
             for site in sites {
-                if crate::neutral::march_with(&mut reached, ai, game, party, site, events) {
+                if crate::assault::march_with(&mut reached, ai, game, party, site, events) {
                     let view = PlayerView::new(game, me);
                     ai.raiders.extend(party.iter().map(|&u| view.serial_of(u)));
                     left = true;

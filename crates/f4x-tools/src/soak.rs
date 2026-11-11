@@ -301,7 +301,7 @@ pub fn game(
             let seated = game
                 .player_ids()
                 .into_iter()
-                .filter(|&p| !game.is_neutral_player(p))
+                .filter(|&p| game.is_wizard(p))
                 .count();
             if seated != roster.versions.len() {
                 return Err(format!(
@@ -507,7 +507,7 @@ pub fn game(
     let standing = game
         .player_ids()
         .into_iter()
-        .filter(|&p| !game.is_neutral_player(p))
+        .filter(|&p| game.is_wizard(p))
         .map(|p| (p, Standing::of(&game, p)))
         .collect();
     Ok(GameResult {
@@ -684,7 +684,7 @@ fn mana_line(game: &Game, tally: &Tally) -> String {
 pub(crate) fn status(game: &Game) -> String {
     game.player_ids()
         .into_iter()
-        .filter(|id| !game.is_neutral_player(*id))
+        .filter(|id| game.is_wizard(*id))
         .map(|id| {
             let cities = game
                 .economy()
@@ -731,7 +731,7 @@ fn detail_lines(game: &Game, ais: &[Box<dyn Contestant>]) -> Vec<String> {
     for id in game
         .player_ids()
         .into_iter()
-        .filter(|id| !game.is_neutral_player(*id))
+        .filter(|id| game.is_wizard(*id))
     {
         let Some(m) = game.wizard(id) else {
             continue;
@@ -785,7 +785,7 @@ fn grant_mastery_to_all(game: &mut Game) {
     let ids: Vec<PlayerId> = game
         .player_ids()
         .into_iter()
-        .filter(|id| !game.is_neutral_player(*id))
+        .filter(|id| game.is_wizard(*id))
         .collect();
     for id in ids {
         if let Some(t) = game.treasury_mut(id) {

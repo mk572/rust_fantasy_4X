@@ -189,7 +189,7 @@ impl Game {
             battle.attacker
         };
         let wizard = |p: PlayerId| {
-            if self.is_neutral_player(p) {
+            if !self.is_wizard(p) {
                 return None;
             }
             let name = self.wizard(p)?.name();

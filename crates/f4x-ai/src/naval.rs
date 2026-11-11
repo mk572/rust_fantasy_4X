@@ -195,7 +195,7 @@ fn choose_tower_plan(ai: &Ai, view: &PlayerView, coastal: &[Position]) -> Option
                 .into_iter()
                 .find(|&u| is_fighter(view, u))
                 .is_some_and(|u| {
-                    crate::neutral::around(view, target)
+                    crate::assault::around(view, target)
                         .into_iter()
                         .any(|p| view.hostile_at(p).is_none() && view.can_reach(&[u], p))
                 })

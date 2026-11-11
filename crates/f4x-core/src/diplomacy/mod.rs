@@ -550,7 +550,7 @@ impl Diplomacy {
 
     /// The two wizards meet. Returns whether it was the first time.
     pub fn make_contact(&mut self, ctx: &mut DiplomacyCtx<'_>, a: PlayerId, b: PlayerId) -> bool {
-        if a == b || !ctx.view.is_wizard(a) || !ctx.view.is_wizard(b) {
+        if a == b || !ctx.view.takes_part_in_diplomacy(a) || !ctx.view.takes_part_in_diplomacy(b) {
             return false;
         }
         let pair = self.pair_mut(ctx.view, a, b);
@@ -577,7 +577,7 @@ impl Diplomacy {
         at: crate::map::Position,
         radius: u32,
     ) {
-        if !ctx.view.is_wizard(player) {
+        if !ctx.view.takes_part_in_diplomacy(player) {
             return;
         }
         for other in met_near(ctx.view, player, at, radius) {
@@ -620,8 +620,8 @@ impl Diplomacy {
     ) {
         if value == 0
             || attacker == defender
-            || !ctx.view.is_wizard(attacker)
-            || !ctx.view.is_wizard(defender)
+            || !ctx.view.takes_part_in_diplomacy(attacker)
+            || !ctx.view.takes_part_in_diplomacy(defender)
             || !self.have_met(attacker, defender)
             || ctx.view.human() == Some(defender)
         {
@@ -755,7 +755,7 @@ impl Diplomacy {
         breaker: PlayerId,
         victim: PlayerId,
     ) {
-        if !ctx.view.is_wizard(breaker) || !ctx.view.is_wizard(victim) {
+        if !ctx.view.takes_part_in_diplomacy(breaker) || !ctx.view.takes_part_in_diplomacy(victim) {
             return;
         }
         let treaty = self.treaty(breaker, victim);
@@ -818,7 +818,10 @@ impl Diplomacy {
         attacker: PlayerId,
         defender: PlayerId,
     ) {
-        if attacker == defender || !ctx.view.is_wizard(attacker) || !ctx.view.is_wizard(defender) {
+        if attacker == defender
+            || !ctx.view.takes_part_in_diplomacy(attacker)
+            || !ctx.view.takes_part_in_diplomacy(defender)
+        {
             return;
         }
         // Wizards at war know each other.
@@ -867,7 +870,7 @@ impl Diplomacy {
         to: PlayerId,
         kind: ProposalKind,
     ) -> Result<(), DiplomacyError> {
-        if !view.is_wizard(from) || !view.is_wizard(to) {
+        if !view.takes_part_in_diplomacy(from) || !view.takes_part_in_diplomacy(to) {
             return Err(DiplomacyError::NotWizards);
         }
         if from == to {
@@ -880,7 +883,7 @@ impl Diplomacy {
         let known_third = |third: PlayerId| {
             third != from
                 && third != to
-                && view.is_wizard(third)
+                && view.takes_part_in_diplomacy(third)
                 && self.have_met(from, third)
                 && self.have_met(to, third)
         };
@@ -1116,7 +1119,7 @@ impl Diplomacy {
     }
 
     fn check_gift(&self, view: &Game, from: PlayerId, to: PlayerId) -> Result<(), DiplomacyError> {
-        if !view.is_wizard(from) || !view.is_wizard(to) {
+        if !view.takes_part_in_diplomacy(from) || !view.takes_part_in_diplomacy(to) {
             return Err(DiplomacyError::NotWizards);
         }
         if from == to {
@@ -1233,7 +1236,9 @@ impl Diplomacy {
             .view
             .player_ids()
             .into_iter()
-            .filter(|&w| w != target && ctx.view.is_wizard(w) && ctx.view.human() != Some(w))
+            .filter(|&w| {
+                w != target && ctx.view.takes_part_in_diplomacy(w) && ctx.view.human() != Some(w)
+            })
             .filter(|&w| self.have_met(w, target))
             .collect();
         for w in others {
@@ -1304,7 +1309,9 @@ impl Diplomacy {
         attacker: PlayerId,
         defender: PlayerId,
     ) {
-        if !ctx.view.is_wizard(attacker) || !ctx.view.is_wizard(defender) {
+        if !ctx.view.takes_part_in_diplomacy(attacker)
+            || !ctx.view.takes_part_in_diplomacy(defender)
+        {
             return;
         }
         self.make_contact(ctx, attacker, defender);
@@ -1325,7 +1332,7 @@ impl Diplomacy {
         winner: PlayerId,
         loser: PlayerId,
     ) {
-        if !ctx.view.is_wizard(winner) || !ctx.view.is_wizard(loser) {
+        if !ctx.view.takes_part_in_diplomacy(winner) || !ctx.view.takes_part_in_diplomacy(loser) {
             return;
         }
         self.make_contact(ctx, winner, loser);
@@ -1341,7 +1348,9 @@ impl Diplomacy {
         defender: PlayerId,
         fortress_city: bool,
     ) {
-        if !ctx.view.is_wizard(attacker) || !ctx.view.is_wizard(defender) {
+        if !ctx.view.takes_part_in_diplomacy(attacker)
+            || !ctx.view.takes_part_in_diplomacy(defender)
+        {
             return;
         }
         let value = if fortress_city { -60 } else { -20 };
@@ -1493,7 +1502,9 @@ impl Diplomacy {
             else {
                 continue;
             };
-            if !view.is_wizard(owner) || units.unit_has_ability(unit, Ability::new(12)) {
+            if !view.takes_part_in_diplomacy(owner)
+                || units.unit_has_ability(unit, Ability::new(12))
+            {
                 continue;
             }
             let grid = map.plane(pos.plane);

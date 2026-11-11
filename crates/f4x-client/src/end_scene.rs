@@ -195,7 +195,7 @@ impl App {
                 .game
                 .player_ids()
                 .into_iter()
-                .filter(|&p| p != HUMAN && !self.game.is_neutral_player(p))
+                .filter(|&p| p != HUMAN && self.game.is_wizard(p))
                 .filter_map(|p| self.game.wizard(p))
                 .filter(|w| !w.is_banished())
                 .map(|w| usize::from(w.portrait()))
@@ -237,7 +237,7 @@ impl App {
         // The original shows the zap only when the raiders are on one side of it and returns
         // early for a wizard who banishes or defeats another: our own addition is that scene,
         // with the conquering wizard in the raiders' place.
-        let conqueror = by.filter(|&b| !self.game.is_neutral_player(b));
+        let conqueror = by.filter(|&b| self.game.is_wizard(b));
         let winner = conqueror.and_then(|b| self.game.wizard(b).map(|w| usize::from(w.portrait())));
         let key = match (winner.is_some(), banished) {
             (false, true) => "end.raiders_fortress",
@@ -277,7 +277,7 @@ impl App {
             .game
             .player_ids()
             .into_iter()
-            .find(|&p| p != HUMAN && !self.game.is_neutral_player(p))
+            .find(|&p| p != HUMAN && self.game.is_wizard(p))
             .unwrap_or(HUMAN);
         match name {
             "win" => self.end_scenes.push_back(Scene::new(Kind::Win { wizard })),

@@ -87,7 +87,7 @@ impl App {
         let known = who == HUMAN
             || (self.game.have_met(HUMAN, who)
                 && self.game.has_player(who)
-                && !self.game.is_neutral_player(who));
+                && self.game.is_wizard(who));
         if !known {
             return;
         }

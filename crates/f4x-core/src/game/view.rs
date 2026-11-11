@@ -40,6 +40,14 @@ impl Game {
         self.has_player(id) && !self.is_neutral_player(id)
     }
 
+    /// A player that takes part in diplomacy: it can meet, talk, make treaties and declare war.
+    /// Today those are the wizards; task 522 adds the neutral player of each race, so every
+    /// diplomacy rule asks this and not [`Game::is_wizard`] (the spell parts of diplomacy keep
+    /// asking for the wizard itself).
+    pub fn takes_part_in_diplomacy(&self, id: PlayerId) -> bool {
+        self.is_wizard(id)
+    }
+
     /// Another player's cities and units that `viewer` sees now: on squares it has in sight,
     /// the units only when it can make them out (an invisible one is hidden).
     pub fn foreign_sightings(&self, viewer: PlayerId) -> Vec<Sighting> {
@@ -180,6 +188,9 @@ mod tests {
         assert!(g.is_wizard(P0) && !g.is_wizard(PlayerId(7)));
         assert!(!g.is_wizard(crate::player::MONSTERS) && !g.is_wizard(PlayerId(9)));
         assert_eq!(g.living_wizards(), vec![P0, P1]);
+        // Until the neutral players of task 522, diplomacy is between wizards.
+        assert!(g.takes_part_in_diplomacy(P0) && !g.takes_part_in_diplomacy(PlayerId(7)));
+        assert!(!g.takes_part_in_diplomacy(crate::player::MONSTERS));
         let (spell, id) = g
             .content
             .rules
