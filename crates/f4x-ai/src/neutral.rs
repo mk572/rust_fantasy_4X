@@ -229,6 +229,26 @@ pub(crate) fn march(
     site: Position,
     events: &mut Vec<Event>,
 ) -> bool {
+    march_with(
+        &mut crate::view::ReachCache::default(),
+        ai,
+        game,
+        units,
+        site,
+        events,
+    )
+}
+
+/// [`march`] with answers to "can it walk there" kept by the caller for as long as nothing moves,
+/// for parties that go through the same sites one after the other.
+pub(crate) fn march_with(
+    reached: &mut crate::view::ReachCache,
+    ai: &Ai,
+    game: &mut Game,
+    units: &[hecs::Entity],
+    site: Position,
+    events: &mut Vec<Event>,
+) -> bool {
     let spots = {
         let view = PlayerView::new(game, ai.player);
         let from = view.unit_position(units[0]).unwrap_or(site);
@@ -239,17 +259,19 @@ pub(crate) fn march(
         // One search that stops at the first square found tells whether any of them can be
         // reached: when none can (a site across the water) the party does not search once for
         // each square, each of them over the whole plane.
-        if !view.reaches_any(units, &open) {
+        if !reached.can_reach_round(&view, units, site, &open) {
             return false;
         }
-        let mut spots: Vec<Position> = open
-            .into_iter()
-            .filter(|&p| view.can_reach(units, p))
-            .collect();
+        let mut spots = open;
         spots.sort_by_key(|&p| (distance(&view, from, p), p.y, p.x));
         spots
     };
+    // The nearest square that can be reached, asked one at a time: the first that can is the one
+    // the party is sent to, so the others need no search.
     for spot in spots {
+        if !PlayerView::new(game, ai.player).can_reach(units, spot) {
+            continue;
+        }
         let moved = ai.send(
             game,
             Command::GoTo {

@@ -100,7 +100,8 @@ pub struct StackTraits {
 
 /// A unit's side of a step's cost: see [`Economy::step_profile`].
 pub struct StepProfile<'a> {
-    unit: hecs::Entity,
+    /// The unit's owner, looked up once for the many steps a search costs.
+    owner: Option<PlayerId>,
     def: &'a crate::rules::UnitDef,
     abilities: Vec<Ability>,
 }
@@ -146,7 +147,7 @@ impl Economy<'_> {
     pub fn step_profile(&self, unit: hecs::Entity) -> Result<StepProfile<'_>, MoveError> {
         let def = self.units().unit_def(unit).ok_or(MoveError::BadSelection)?;
         Ok(StepProfile {
-            unit,
+            owner: self.units().unit_owner(unit),
             def,
             abilities: self.units().unit_abilities(unit),
         })
@@ -202,11 +203,12 @@ impl Economy<'_> {
             return Err(MoveError::OffMap);
         }
         let StepProfile {
-            unit,
+            owner,
             def,
             abilities,
+            ..
         } = profile;
-        let unit = *unit;
+        let owner = *owner;
         let terrain = grid
             .get(to.x as i32, to.y as i32)
             .and_then(|t| self.content.terrains.get(t))
@@ -228,7 +230,7 @@ impl Economy<'_> {
             MovementType::Sailing => {
                 let own_city_here = self
                     .city_at(to)
-                    .is_some_and(|c| self.city_owner(c) == self.units().unit_owner(unit));
+                    .is_some_and(|c| self.city_owner(c) == owner);
                 return if is_water || own_city_here {
                     Ok(FULL_MOVE)
                 } else {
@@ -243,7 +245,6 @@ impl Economy<'_> {
             if traits.sea_lift {
                 return Ok(HalfInt::ZERO);
             }
-            let owner = self.units().unit_owner(unit);
             return if owner.is_some_and(|o| self.ship_room_at(to, o)) {
                 Ok(FULL_MOVE)
             } else {
@@ -334,9 +335,14 @@ impl Economy<'_> {
                 .map(|(_, (_, p))| *p)
                 .collect(),
         };
-        for (city, _, at) in self.cities() {
-            if self.city_owner(city).is_some_and(|o| o != mover) {
-                out.insert(at);
+        // The cities of other players, found by the owner's entity like the units above.
+        for (_, (_, at, owner)) in self
+            .world
+            .query::<(&crate::city::City, &Position, &crate::player::Owner)>()
+            .iter()
+        {
+            if mine != Some(owner.0) {
+                out.insert(*at);
             }
         }
         out

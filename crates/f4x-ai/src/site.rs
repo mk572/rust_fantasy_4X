@@ -236,6 +236,8 @@ pub fn deploy(
     }
     by_square.sort_by_key(|(p, _)| (p.plane as u8, p.y, p.x));
     let mut left = false;
+    // Parties of one kind on one square find the same sites out of reach.
+    let mut reached = crate::view::ReachCache::default();
     for (pos, mut units) in by_square {
         // The best nine first: a battle holds nine a side, and the hardest sites need the best.
         {
@@ -251,7 +253,7 @@ pub fn deploy(
                 sites_near(&view, pos, stack_strength(&view, party))
             };
             for site in sites {
-                if march(ai, game, party, site, events) {
+                if crate::neutral::march_with(&mut reached, ai, game, party, site, events) {
                     let view = PlayerView::new(game, me);
                     ai.raiders.extend(party.iter().map(|&u| view.serial_of(u)));
                     left = true;

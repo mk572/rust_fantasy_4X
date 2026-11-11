@@ -12,18 +12,43 @@ use f4x_def::rules::{MovementType, Stat};
 /// stand on one square and move alike (the same kinds of unit) get one path search between them,
 /// where a search for each of hundreds of units would cost most of the turn.
 #[derive(Default)]
-pub struct ReachCache(
-    std::collections::HashMap<(f4x_core::unit::pathing::ReachSignature, Position), bool>,
-);
+pub struct ReachCache {
+    squares: std::collections::HashMap<(f4x_core::unit::pathing::ReachSignature, Position), bool>,
+    /// Whether any square round a site can be reached, by the site.
+    around: std::collections::HashMap<(f4x_core::unit::pathing::ReachSignature, Position), bool>,
+}
 
 impl ReachCache {
+    /// How many searches the cache has made (one for each stack signature and target).
+    #[cfg(test)]
+    pub fn searches(&self) -> usize {
+        self.squares.len() + self.around.len()
+    }
+
     pub fn can_reach(&mut self, view: &PlayerView, units: &[hecs::Entity], to: Position) -> bool {
         match view.reach_signature(units) {
             Some(key) => *self
-                .0
+                .squares
                 .entry((key, to))
                 .or_insert_with(|| view.can_reach(units, to)),
             None => view.can_reach(units, to),
+        }
+    }
+
+    /// Whether the stack can walk to any of `squares`, which are the free squares round `site`.
+    pub fn can_reach_round(
+        &mut self,
+        view: &PlayerView,
+        units: &[hecs::Entity],
+        site: Position,
+        squares: &[Position],
+    ) -> bool {
+        match view.reach_signature(units) {
+            Some(key) => *self
+                .around
+                .entry((key, site))
+                .or_insert_with(|| view.reaches_any(units, squares)),
+            None => view.reaches_any(units, squares),
         }
     }
 }
@@ -195,6 +220,75 @@ mod tests {
         assert!(is_fighter(&view, spear) && !is_ship(&view, spear));
         assert!(is_ship(&view, galley) && !is_fighter(&view, galley));
         assert!(!is_fighter(&view, settlers) && !is_ship(&view, settlers));
+    }
+
+    #[test]
+    fn the_cache_gives_the_answer_of_a_search_for_each_stack_and_keeps_one_per_kind() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let spears = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 3);
+        let galley = spawn(&mut g, P0, city(), 36 /* galley */, 1)[0];
+        let view = PlayerView::new(&g, P0);
+        let mut cache = ReachCache::default();
+        let inland = at(INLAND_CITY.0, INLAND_CITY.1);
+        let squares = [inland, city(), at(0, 0), at(5, 5)];
+        for stack in [&spears[..1], &spears[1..3], &spears[..], &[galley][..]] {
+            for &to in &squares {
+                // Twice: the second answer comes from the cache.
+                for _ in 0..2 {
+                    assert_eq!(
+                        cache.can_reach(&view, stack, to),
+                        view.can_reach(stack, to),
+                        "{to:?}"
+                    );
+                }
+            }
+            assert_eq!(
+                cache.can_reach_round(&view, stack, inland, &squares),
+                view.reaches_any(stack, &squares)
+            );
+        }
+        // Spearmen on one square share a signature; a ship does not share theirs.
+        assert_eq!(
+            view.reach_signature(&spears[..1]),
+            view.reach_signature(&spears[1..2])
+        );
+        assert_ne!(
+            view.reach_signature(&spears[..1]),
+            view.reach_signature(&[galley])
+        );
+    }
+
+    #[test]
+    fn five_hundred_units_on_a_few_squares_cost_a_few_searches() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let squares = [
+            city(),
+            at(INLAND_CITY.0, INLAND_CITY.1),
+            at(2, 2),
+            at(3, 5),
+            at(8, 8),
+        ];
+        let mut all = Vec::new();
+        for &square in &squares {
+            all.extend(spawn(
+                &mut g, P0, square, 104, /* high_men_spearmen */
+                100,
+            ));
+        }
+        assert_eq!(all.len(), 500);
+        let view = PlayerView::new(&g, P0);
+        let mut cache = ReachCache::default();
+        let target = at(6, 3);
+        let reached = all
+            .iter()
+            .filter(|&&u| cache.can_reach(&view, &[u], target))
+            .count();
+        assert!(reached <= 500);
+        assert_eq!(
+            cache.searches(),
+            squares.len(),
+            "one search for each square the units stand on, not one for each unit"
+        );
     }
 
     #[test]
