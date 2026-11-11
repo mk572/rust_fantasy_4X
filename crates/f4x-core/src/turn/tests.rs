@@ -1462,6 +1462,65 @@ fn wild_game_raises_an_outposts_growth_chance_by_its_food_and_its_bonus() -> Tes
 }
 
 #[test]
+fn a_squares_yield_counts_its_mineral_and_the_blight_and_the_city_adds_them_up() -> TestResult {
+    let mut g = world();
+    let city = found(&mut g, at(10, 6), 7 /* high_elf */, 3);
+    let id = |n| g.content.features.id_numbered(n).ok_or("feature missing");
+    let (game, gold_ore, gem) = (
+        id(num::feature::WILD_GAME)?,
+        id(num::feature::GOLD_ORE)?,
+        id(num::feature::GEM)?,
+    );
+    let grid = g.map.as_mut().ok_or("no map")?.plane_mut(Plane::Arcanus);
+    grid.set_mineral(10, 8, Some(game));
+    grid.set_mineral(11, 8, Some(gold_ore));
+    grid.set_mineral(9, 8, Some(gem));
+    let before = g.economy().city_economy(city).ok_or("no economy")?;
+    let eco = g.economy();
+    let ctx = eco.square_ctx(city).ok_or("no ctx")?;
+    let grid = g.map.as_ref().ok_or("no map")?.plane(Plane::Arcanus);
+    let wild = eco.square_yield(grid, 10, 8, false, ctx);
+    assert_eq!(wild.wild_food, HalfInt::from_int(2));
+    assert_eq!(
+        wild.food(),
+        HalfInt::from_int(2) + HalfInt::from_raw(wild.food_x2 / 2)
+    );
+    let gold = eco.square_yield(grid, 11, 8, false, ctx);
+    assert!(gold.gold > HalfInt::ZERO);
+    // Sharing halves everything, the mineral included.
+    let shared = eco.square_yield(grid, 11, 8, true, ctx);
+    assert_eq!(shared.gold.raw(), gold.gold.raw() / 2);
+    // The blight spoils the square: nothing from the land or the mine.
+    g.map
+        .as_mut()
+        .ok_or("no map")?
+        .plane_mut(Plane::Arcanus)
+        .set_corrupted(11, 8, true);
+    let eco = g.economy();
+    let grid = g.map.as_ref().ok_or("no map")?.plane(Plane::Arcanus);
+    let spoiled = eco.square_yield(grid, 11, 8, false, ctx);
+    assert!(spoiled.spoiled);
+    assert_eq!(spoiled.gold, HalfInt::ZERO);
+    assert_eq!(spoiled.food_x2, 0);
+    // A blight-proof owner keeps the square's yield.
+    let proof = eco.square_yield(
+        grid,
+        11,
+        8,
+        false,
+        crate::city::economy::SquareCtx {
+            blight_proof: true,
+            ..ctx
+        },
+    );
+    assert_eq!(proof.gold, gold.gold);
+    // The city's own gold falls by what the spoiled mine gave.
+    let after = g.economy().city_economy(city).ok_or("no economy")?;
+    assert!(after.gold < before.gold);
+    Ok(())
+}
+
+#[test]
 fn difficulty_does_not_change_outpost_growth_for_anyone() {
     let mut g = world();
     let outpost = found(&mut g, at(10, 6), 7 /* high_elf */, 0);

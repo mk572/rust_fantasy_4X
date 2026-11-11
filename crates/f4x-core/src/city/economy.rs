@@ -55,6 +55,55 @@ pub struct Buildings(pub Vec<crate::rules::BuildingId>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CityRace(pub crate::rules::RaceId);
 
+/// What decides a square's yield for one city (see `Economy::square_yield`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SquareCtx {
+    /// Gaia's Blessing doubles forests and nature nodes.
+    pub gaia: bool,
+    /// The owner keeps Great Wasting going: corrupted land still yields.
+    pub blight_proof: bool,
+    /// A miners' guild: mine yields up by half.
+    pub miners: bool,
+    /// A race that mines well: mine yields doubled.
+    pub dwarf: bool,
+}
+
+/// What one square gives a city that works it, from `Economy::square_yield`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct SquareYield {
+    /// The terrain's food in quarters of a food (halves doubled), so a shared square stays exact.
+    pub food_x2: i32,
+    /// The wild game's food, in halves.
+    pub wild_food: HalfInt,
+    /// Percent added to the production.
+    pub production: i32,
+    pub gold: HalfInt,
+    pub mana: HalfInt,
+    /// Percent off the cost of military units.
+    pub cost_reduction: i32,
+    /// The square is corrupted.
+    pub corrupted: bool,
+    /// The square is corrupted and gives nothing.
+    pub spoiled: bool,
+}
+
+impl SquareCtx {
+    /// A site with no city yet: no enchantment, building or race, and the blight spoils the land.
+    pub const SITE: SquareCtx = SquareCtx {
+        gaia: false,
+        blight_proof: false,
+        miners: false,
+        dwarf: false,
+    };
+}
+
+impl SquareYield {
+    /// The food shown for the square: the terrain's and the wild game's.
+    pub fn food(&self) -> HalfInt {
+        HalfInt::from_raw(self.food_x2 / 2) + self.wild_food
+    }
+}
+
 /// Everything a city yields this turn.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CityEconomy {
@@ -503,6 +552,102 @@ impl<'a> Economy<'a> {
         food
     }
 
+    /// What decides a square's yield for one city: the one place the economy and the city
+    /// screen's map both read it from.
+    pub fn square_ctx(&self, city: hecs::Entity) -> Option<SquareCtx> {
+        let owner = self.city_owner(city)?;
+        let race = self
+            .world
+            .get::<&CityRace>(city)
+            .ok()
+            .map(|r| self.content.rules.races.get(r.0));
+        // A wizard who keeps Great Wasting going is proof against the blight: their corrupted
+        // squares still yield and add no unrest (and add power, see `blight_power`).
+        let blight_proof = self.wizard(owner).is_some_and(|m| {
+            crate::spell::global_enchantment::magic_has_effect(
+                &m,
+                &self.content.rules,
+                GlobalEffect::GreatWasting,
+            )
+        });
+        Some(SquareCtx {
+            gaia: self.city_has_effect(city, CityEffect::GaiasBlessing),
+            blight_proof,
+            miners: self.city_has_building(
+                city,
+                crate::rules::BuildingId::new(34), /* miners_guild */
+            ),
+            dwarf: race.is_some_and(|r| r.double_mining),
+        })
+    }
+
+    /// What the square (`x`, `y`) gives a city that works it (`shared` with another city: half),
+    /// with corruption and the mineral counted. The city's totals add these up and the city
+    /// screen's map draws them, so the two cannot differ.
+    pub fn square_yield(
+        &self,
+        grid: &crate::map::Grid,
+        x: i32,
+        y: i32,
+        shared: bool,
+        ctx: SquareCtx,
+    ) -> SquareYield {
+        let mut out = SquareYield::default();
+        if grid
+            .get(x, y)
+            .and_then(|t| self.content.terrains.get(t))
+            .is_none()
+        {
+            return out;
+        }
+        // Corrupted land gives nothing at all.
+        out.corrupted = grid.is_corrupted(x, y);
+        out.spoiled = out.corrupted && !ctx.blight_proof;
+        if out.spoiled {
+            return out;
+        }
+        out.food_x2 = self.square_food(grid, x, y).raw() * 2;
+        out.production = self.square_production(grid, x, y, ctx.gaia);
+        if shared {
+            out.food_x2 /= 2;
+            out.production /= 2;
+        }
+        if let Some(f) = grid
+            .mineral(x, y)
+            .and_then(|f| self.content.features.get(f))
+        {
+            let b = f.city;
+            let scale = |mut v: i32, miners_factor: (i32, i32)| {
+                if ctx.dwarf {
+                    v *= 2;
+                }
+                if ctx.miners {
+                    v = v * miners_factor.0 / miners_factor.1;
+                }
+                if shared {
+                    v /= 2;
+                }
+                v
+            };
+            out.gold = HalfInt::from_raw(scale(b.gold.raw(), (3, 2)));
+            out.mana = HalfInt::from_raw(scale(b.mana.raw(), (3, 2)));
+            out.wild_food = HalfInt::from_raw(if shared {
+                b.food.raw() / 2
+            } else {
+                b.food.raw()
+            });
+            let mut cut = b.unit_cost_percent * if ctx.miners { 2 } else { 1 };
+            if ctx.dwarf {
+                cut *= 2;
+            }
+            if shared {
+                cut /= 2;
+            }
+            out.cost_reduction = cut;
+        }
+        out
+    }
+
     /// What one square adds to the production of a city that works it, in percent (the
     /// original's `Square_Production_Bonus`): the terrain's own, a magic node's square having
     /// its own terrain. A river square adds nothing, being a river and not the land it crosses.
@@ -530,20 +675,12 @@ impl<'a> Economy<'a> {
             return 0;
         };
         let grid = map.plane(at.plane);
+        let ctx = SquareCtx::SITE;
         let (mut food_x2, mut wild_food) = (0i32, HalfInt::ZERO);
         for (p, shared) in self.city_area(at) {
-            let food = self.square_food(grid, p.x as i32, p.y as i32).raw() * 2;
-            food_x2 += if shared { food / 2 } else { food };
-            if let Some(f) = grid
-                .mineral(p.x as i32, p.y as i32)
-                .and_then(|f| self.content.features.get(f))
-            {
-                wild_food += HalfInt::from_raw(if shared {
-                    f.city.food.raw() / 2
-                } else {
-                    f.city.food.raw()
-                });
-            }
+            let sq = self.square_yield(grid, p.x as i32, p.y as i32, shared, ctx);
+            food_x2 += sq.food_x2;
+            wild_food += sq.wild_food;
         }
         ((HalfInt::from_raw(food_x2 / 2) + wild_food).floor().max(0) as u32)
             .min(self.content.rules.config.max_city_size)
@@ -614,88 +751,30 @@ impl<'a> Economy<'a> {
         let farmers = farmers.min(figures);
 
         let has = |b: crate::rules::BuildingId| self.city_has_building(city, b);
-        let miners = has(crate::rules::BuildingId::new(34) /* miners_guild */);
-        let dwarf = race.is_some_and(|r| r.double_mining);
+        let ctx = self.square_ctx(city)?;
+        let SquareCtx {
+            gaia: _,
+            blight_proof,
+            miners: _,
+            dwarf,
+        } = ctx;
 
         // Worked tiles: food, production bonus, mines.
         let area = self.city_area(at);
-        // A wizard who keeps Great Wasting going is proof against the blight: their corrupted
-        // squares still yield and add no unrest (and add power, see `blight_power`).
-        let blight_proof = self.wizard(owner).is_some_and(|m| {
-            crate::spell::global_enchantment::magic_has_effect(
-                &m,
-                &self.content.rules,
-                GlobalEffect::GreatWasting,
-            )
-        });
-        let gaia = self.city_has_effect(city, CityEffect::GaiasBlessing);
         let mut blighted = 0i32;
         let (mut terrain_food_x2, mut production_percent) = (0i32, 0i32);
         let (mut mine_mana, mut cost_reduction) = (HalfInt::ZERO, 0);
         let mut mine_gold = HalfInt::ZERO;
         let mut wild_food = HalfInt::ZERO;
         for &(p, shared) in &area {
-            if grid
-                .get(p.x as i32, p.y as i32)
-                .and_then(|t| self.content.terrains.get(t))
-                .is_none()
-            {
-                continue;
-            }
-            // Corrupted land gives nothing at all.
-            let corrupted = grid.is_corrupted(p.x as i32, p.y as i32);
-            blighted += i32::from(corrupted);
-            let spoiled = corrupted && !blight_proof;
-            let mut food = if spoiled {
-                0
-            } else {
-                self.square_food(grid, p.x as i32, p.y as i32).raw() * 2
-            };
-            let mut prod = if spoiled {
-                0
-            } else {
-                self.square_production(grid, p.x as i32, p.y as i32, gaia)
-            };
-            if shared {
-                food /= 2;
-                prod /= 2;
-            }
-            terrain_food_x2 += food;
-            production_percent += prod;
-            if let Some(f) = grid
-                .mineral(p.x as i32, p.y as i32)
-                .filter(|_| !spoiled)
-                .and_then(|f| self.content.features.get(f))
-            {
-                let b = f.city;
-                let scale = |mut v: i32, miners_factor: (i32, i32)| {
-                    if dwarf {
-                        v *= 2;
-                    }
-                    if miners {
-                        v = v * miners_factor.0 / miners_factor.1;
-                    }
-                    if shared {
-                        v /= 2;
-                    }
-                    v
-                };
-                mine_gold += HalfInt::from_raw(scale(b.gold.raw(), (3, 2)));
-                mine_mana += HalfInt::from_raw(scale(b.mana.raw(), (3, 2)));
-                wild_food += HalfInt::from_raw(if shared {
-                    b.food.raw() / 2
-                } else {
-                    b.food.raw()
-                });
-                let mut cut = b.unit_cost_percent * if miners { 2 } else { 1 };
-                if dwarf {
-                    cut *= 2;
-                }
-                if shared {
-                    cut /= 2;
-                }
-                cost_reduction += cut;
-            }
+            let sq = self.square_yield(grid, p.x as i32, p.y as i32, shared, ctx);
+            blighted += i32::from(sq.corrupted);
+            terrain_food_x2 += sq.food_x2;
+            production_percent += sq.production;
+            mine_gold += sq.gold;
+            mine_mana += sq.mana;
+            wild_food += sq.wild_food;
+            cost_reduction += sq.cost_reduction;
         }
         if self.city_has_effect(city, CityEffect::GaiasBlessing) {
             terrain_food_x2 = terrain_food_x2 * 3 / 2;

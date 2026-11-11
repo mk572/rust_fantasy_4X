@@ -47,26 +47,16 @@ impl Game {
                 survey.unexplored = true;
                 continue;
             }
-            let Some(def) = grid
-                .get(p.x as i32, p.y as i32)
-                .and_then(|t| self.content.terrains.get(t))
-            else {
-                continue;
-            };
-            let spoiled = grid.is_corrupted(p.x as i32, p.y as i32);
-            let half = |v: i32| if shared { v / 2 } else { v };
-            if !spoiled {
-                let food = self.economy().square_food(grid, p.x as i32, p.y as i32);
-                food_x2 += half(food.raw() * 2);
-                survey.production_percent += half(def.production_percent);
-            }
-            if let Some(f) = grid
-                .mineral(p.x as i32, p.y as i32)
-                .filter(|_| !spoiled)
-                .and_then(|f| self.content.features.get(f))
-            {
-                wild_food += HalfInt::from_raw(half(f.city.food.raw()));
-            }
+            let sq = self.economy().square_yield(
+                grid,
+                p.x as i32,
+                p.y as i32,
+                shared,
+                crate::city::economy::SquareCtx::SITE,
+            );
+            food_x2 += sq.food_x2;
+            wild_food += sq.wild_food;
+            survey.production_percent += sq.production;
         }
         survey.max_size = ((HalfInt::from_raw(food_x2 / 2) + wild_food).floor().max(0) as u32)
             .min(self.content.rules.config.max_city_size);

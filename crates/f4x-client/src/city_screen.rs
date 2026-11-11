@@ -1146,10 +1146,6 @@ impl App {
         if ui::hit(map, !self.choosing, input).clicked() {
             page.area_figures = !page.area_figures;
         }
-        let gaia = self
-            .game
-            .economy()
-            .city_has_effect(city, f4x_core::spell::city::CityEffect::GaiasBlessing);
         for dy in -2i32..=2 {
             for dx in -2i32..=2 {
                 let corner = dx.abs() == 2 && dy.abs() == 2;
@@ -1194,32 +1190,56 @@ impl App {
                     self.city_pic(lay, "backgrnd", 0, 0, cx + 7.0, cy + 4.0);
                 }
                 if page.area_figures {
-                    let (food, production) = self.game.map().map_or((HalfInt::ZERO, 0), |m| {
+                    // Everything comes from the economy's own per-square yield, so the map
+                    // shows what the city counts: shared squares halved, corruption, minerals.
+                    let sq = self.game.map().and_then(|m| {
                         let eco = self.game.economy();
-                        let half = |v: i32| if shared { v / 2 } else { v };
-                        let g = m.plane(at.plane);
-                        (
-                            eco.square_food(g, x, y),
-                            half(eco.square_production(g, x, y, gaia)),
-                        )
+                        let ctx = eco.square_ctx(city)?;
+                        Some(eco.square_yield(m.plane(at.plane), x, y, shared, ctx))
                     });
-                    // Food as stacked bread, half a loaf cut across the diagonal; production
-                    // as one hammer for each percent.
-                    // A shared square gives half of it, rounded down to a half.
-                    let food = if shared {
-                        HalfInt::from_raw(food.raw() / 2)
-                    } else {
-                        food
+                    let Some(sq) = sq else {
+                        continue;
                     };
+                    if sq.spoiled {
+                        // Corrupted land gives nothing: tint it and show no figures.
+                        draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.5, 0.0, 0.1, 0.35));
+                        continue;
+                    }
+                    // Food as stacked bread, half a loaf cut across the diagonal; production
+                    // as one hammer for each percent; a mine's gold or mana (never both) as
+                    // a third row, which squeezes the rows closer.
+                    let special = if sq.gold > HalfInt::ZERO {
+                        Some((42, sq.gold))
+                    } else if sq.mana > HalfInt::ZERO {
+                        Some((43, sq.mana))
+                    } else {
+                        None
+                    };
+                    let (food_y, prod_y, special_y) = if special.is_some() {
+                        (0.0, 5.0, 10.0)
+                    } else {
+                        (1.0, 9.0, 0.0)
+                    };
+                    let food = sq.food();
                     self.draw_icon_stack(
                         lay,
                         40,
                         food.floor(),
                         !food.is_whole(),
                         cx + 1.0,
-                        cy + 1.0,
+                        cy + food_y,
                     );
-                    self.draw_icon_stack(lay, 41, production, false, cx + 1.0, cy + 9.0);
+                    self.draw_icon_stack(lay, 41, sq.production, false, cx + 1.0, cy + prod_y);
+                    if let Some((entry, amount)) = special {
+                        self.draw_icon_stack(
+                            lay,
+                            entry,
+                            amount.floor(),
+                            !amount.is_whole(),
+                            cx + 1.0,
+                            cy + special_y,
+                        );
+                    }
                 }
             }
         }
