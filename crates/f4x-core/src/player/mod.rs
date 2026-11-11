@@ -5,6 +5,7 @@
 pub mod entity;
 pub mod finance;
 pub mod offer;
+pub mod race_player;
 pub mod shortfall;
 pub mod upkeep;
 pub mod view;

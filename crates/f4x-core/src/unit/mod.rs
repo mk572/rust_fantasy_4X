@@ -122,7 +122,13 @@ impl<'a> UnitView<'a> {
 
     /// A wizard's fame as the rules count it: what they have earned, what their Legendary heroes
     /// add, and ten more while Just Cause is kept going.
+    ///
+    /// A neutral race player (task 522) has no wizard and earns no fame: it has the average of
+    /// the living wizards' (rounded down), so what it is offered keeps pace with the game.
     pub fn fame(&self, player: PlayerId) -> i32 {
+        if let Some(average) = self.average_wizard_fame(player) {
+            return average;
+        }
         let earned = self.wizard(player).map_or(0, |w| w.fame());
         let legendary: i32 = self
             .hero_units(player)
@@ -147,6 +153,34 @@ impl<'a> UnitView<'a> {
             } else {
                 0
             }
+    }
+
+    /// The average fame of the living wizards, for a player that has no wizard and is the
+    /// neutral player of a race; `None` for anyone else.
+    fn average_wizard_fame(&self, player: PlayerId) -> Option<i32> {
+        use crate::player::race_player::FIRST_RACE_PLAYER;
+        if player == crate::player::MONSTERS
+            || player.0 < FIRST_RACE_PLAYER
+            || self.wizard(player).is_some()
+        {
+            return None;
+        }
+        let wizards: Vec<PlayerId> = crate::player::ids(self.world)
+            .into_iter()
+            .filter(|&p| self.wizard(p).is_some())
+            .filter(|&p| {
+                crate::player::find_entity(self.world, p)
+                    .is_some_and(|e| self.world.get::<&crate::player::Defeat>(e).is_err())
+            })
+            .collect();
+        let count = i32::try_from(wizards.len()).ok().filter(|&n| n > 0)?;
+        Some(
+            wizards
+                .iter()
+                .map(|&w| self.fame(w))
+                .sum::<i32>()
+                .div_euclid(count),
+        )
     }
 
     /// Research points the wizard's Sage heroes add.
@@ -642,7 +676,7 @@ impl Game {
             .expect("a unit is spawned for a player that exists");
         let e = spawn(&mut self.world, &self.content, serial, player, pos, unit);
         let sight = self.units().unit_sight(e);
-        if !self.is_neutral_player(owner) {
+        if owner != crate::player::MONSTERS {
             self.explore(owner, pos, sight);
         }
         e

@@ -1,5 +1,5 @@
 turn 125
-draws 1688
+draws 2154
 cities 12
 units 3
 spells 3
@@ -8,12 +8,12 @@ player 0 cities 1 gold 194 mana 27356
 player 1 cities 1 gold 252 mana 501
 player 100 cities 1 gold 353 mana 0
 player 101 cities 1 gold 200 mana 0
-player 102 cities 1 gold 322 mana 0
+player 102 cities 1 gold 322 mana 10
 player 103 cities 1 gold 921 mana 0
 player 104 cities 1 gold 259 mana 0
 player 105 cities 1 gold 525 mana 0
 player 106 cities 1 gold 695 mana 0
-player 107 cities 1 gold 629 mana 0
-player 108 cities 1 gold 1216 mana 0
+player 107 cities 1 gold 629 mana 120
+player 108 cities 1 gold 1216 mana 100
 player 109 cities 1 gold 721 mana 0
-checksum 494372d1d8403136
+checksum 287e6604b997c522

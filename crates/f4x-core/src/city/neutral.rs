@@ -23,7 +23,6 @@ use crate::city::economy::{Buildings, Farmers};
 use crate::city::production::{Production, ProductionItem};
 use crate::map::terrain::TerrainClass;
 use crate::map::{Plane, Position};
-use crate::player::PlayerId;
 
 use crate::game::Game;
 use crate::rules::{RaceId, UnitKind};
@@ -90,9 +89,6 @@ const STARTING_BUILDINGS: &[(u32, BuildingId)] = &[
     (12, BuildingId::new(22)), // shrine
 ];
 
-/// The first number given to the players of neutral cities, well clear of the wizards.
-const FIRST_CITY_PLAYER: u8 = 100;
-
 /// The original's `Range`: the longer side plus half the shorter, with no wrap-around. Squares
 /// at a range under 4 form a diamond-cornered block, smaller than a square of 7 by 7.
 fn range(width: u32, x1: u32, y1: u32, x2: u32, y2: u32) -> u32 {
@@ -103,16 +99,6 @@ fn range(width: u32, x1: u32, y1: u32, x2: u32, y2: u32) -> u32 {
 }
 
 impl Game {
-    /// A new player for one neutral city, with the lowest number not yet taken.
-    pub(crate) fn new_city_player(&mut self) -> PlayerId {
-        let id = (FIRST_CITY_PLAYER..u8::MAX)
-            .map(PlayerId)
-            .find(|id| !self.has_player(*id))
-            .unwrap_or(PlayerId(u8::MAX - 1));
-        self.add_neutral_player(id);
-        id
-    }
-
     /// Whether a neutral city may stand on `pos`: any city site, clear of the wizards' fortresses
     /// and of nodes, towers and lairs; `strict` asks for more room all round (the row scan).
     fn neutral_site_ok(&self, pos: Position, strict: bool) -> bool {
@@ -391,7 +377,7 @@ impl Game {
             population = bonus + self.roll(10);
         }
         let name = self.unused_city_name(race);
-        let owner = self.new_city_player();
+        let owner = self.race_player(race);
         let city = self.spawn_city(owner, pos, name, Some(race), population);
 
         let rules = &self.content.rules;
@@ -556,7 +542,7 @@ mod tests {
     }
 
     #[test]
-    fn a_new_world_has_independent_cities_each_with_its_own_player_and_a_garrison() -> TestResult {
+    fn a_new_world_has_independent_cities_one_player_for_each_race_and_a_garrison() -> TestResult {
         let g = world(7)?;
         let neutral: Vec<_> = g
             .economy()
@@ -578,7 +564,14 @@ mod tests {
         let mut owners: Vec<_> = neutral.iter().map(|(_, info, _)| info.owner).collect();
         owners.sort();
         owners.dedup();
-        assert_eq!(owners.len(), neutral.len(), "every city is its own player");
+        let mut races: Vec<_> = neutral
+            .iter()
+            .filter_map(|(e, ..)| g.city_race(*e))
+            .map(crate::player::race_player::race_player_id)
+            .collect();
+        races.sort();
+        races.dedup();
+        assert_eq!(owners, races, "the cities of a race are one player");
         assert!(
             !owners.contains(&crate::player::MONSTERS),
             "not the monsters' player"
@@ -618,17 +611,6 @@ mod tests {
         };
         assert_eq!(places(11)?, places(11)?);
         assert_ne!(places(11)?, places(12)?);
-        Ok(())
-    }
-
-    #[test]
-    fn a_new_city_player_takes_the_lowest_number_not_yet_used() -> TestResult {
-        let mut g = world(3)?;
-        let first = g.new_city_player();
-        let second = g.new_city_player();
-        assert!(first.0 >= FIRST_CITY_PLAYER);
-        assert_eq!(second.0, first.0 + 1);
-        assert!(g.is_neutral_player(first) && g.is_neutral_player(second));
         Ok(())
     }
 }

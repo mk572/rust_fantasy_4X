@@ -55,7 +55,7 @@ impl Game {
         let Some(winner) = battle.winner else {
             return out;
         };
-        if self.is_neutral_player(battle.player_of(winner)) {
+        if battle.player_of(winner) == crate::player::MONSTERS {
             return out;
         }
         // The loser's dead units decide both sides' fame: the winner gains, the loser loses, a

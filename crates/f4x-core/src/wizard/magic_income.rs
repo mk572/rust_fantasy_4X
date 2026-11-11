@@ -95,6 +95,12 @@ pub(crate) fn income(view: &impl IncomeView, player: PlayerId) -> Income {
         Some(m) if !casting_return => {
             m.split_power(&view.content().rules, power_base, city_research)
         }
+        // A player without a wizard (a neutral race, task 522) has no research and no skill:
+        // all its power is mana.
+        None if !casting_return => PowerShares {
+            mana: power_base,
+            ..PowerShares::default()
+        },
         _ => PowerShares::default(),
     };
     let research = view.wizard(player).map_or(split.research.max(0), |m| {

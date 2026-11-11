@@ -327,14 +327,16 @@ impl Game {
         offers
     }
 
-    /// Wizards with a standing fortress are offered things; independent cities, banished and
-    /// defeated wizards are not.
+    /// Wizards with a standing fortress are offered things, and so are the neutral players of
+    /// the races (they have a seat); banished and defeated wizards and the monsters are not.
     fn can_be_offered(&self, player: PlayerId) -> bool {
-        !self.is_neutral_player(player)
-            && !self.player(player).is_some_and(|p| p.is_defeated())
-            && self
-                .wizard(player)
-                .is_some_and(|w| !w.is_banished() && w.summon_point().is_some())
+        if self.player(player).is_some_and(|p| p.is_defeated()) {
+            return false;
+        }
+        match self.wizard(player) {
+            Some(w) => !w.is_banished() && w.summon_point().is_some(),
+            None => self.race_of_player(player).is_some() && self.seat_of(player).is_some(),
+        }
     }
 
     /// The percent of the price of a hire or a purchase the wizard pays (`HireCostPercent`).
@@ -579,7 +581,7 @@ impl Game {
         let price = item.anvil_mana();
         self.treasury_mut(player)?.gold += price;
         let shown = item.clone();
-        let plane_of = |g: &Game, p: PlayerId| g.wizard(p)?.summon_point().map(|at| at.plane);
+        let plane_of = |g: &Game, p: PlayerId| g.summon_point(p).map(|at| at.plane);
         let mine = plane_of(self, player);
         let ids: Vec<PlayerId> = crate::player::ids(&self.world);
         let start = ids.iter().position(|&p| p == player).unwrap_or(0);

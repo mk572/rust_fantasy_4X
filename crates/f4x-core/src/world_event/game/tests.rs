@@ -184,7 +184,7 @@ fn a_rebellion_spares_the_fortress_city_and_cities_with_a_hero() {
 #[test]
 fn a_marriage_gives_a_neutral_city_and_its_units_to_the_wizard() -> TestResult {
     let mut g = world();
-    let owner = g.new_city_player();
+    let owner = g.race_player(crate::rules::RaceId::new(7));
     let race = g.content.rules.races.id_numbered(7);
     g.apply(Command::FoundCity {
         owner,

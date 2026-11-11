@@ -903,14 +903,19 @@ fn neutral_cities_play_by_the_ordinary_rules() {
 }
 
 #[test]
-fn every_neutral_city_has_a_player_and_a_treasury_of_its_own() {
+fn every_neutral_city_has_the_player_and_treasury_of_its_race() {
     let mut g = game();
     let cities = neutral_cities(&g);
     let owners: std::collections::BTreeSet<_> = cities
         .iter()
         .filter_map(|(e, _)| g.economy().city_owner(*e))
         .collect();
-    assert_eq!(owners.len(), cities.len(), "one player each");
+    let races: std::collections::BTreeSet<_> = cities
+        .iter()
+        .filter_map(|(e, _)| g.city_race(*e))
+        .map(f4x_core::player::race_player::race_player_id)
+        .collect();
+    assert_eq!(owners, races, "one player for each race");
     for &o in &owners {
         assert!(
             g.is_neutral_player(o) && g.player(o).expect("the player exists").treasury().gold > 0
@@ -975,7 +980,7 @@ fn a_neutral_city_that_cannot_pay_loses_its_garrison() {
 }
 
 #[test]
-fn taking_a_neutral_city_changes_its_owner_and_removes_its_player() {
+fn taking_a_neutral_city_changes_its_owner_and_the_race_player_goes_with_its_last_city() {
     let mut g = game();
     let wizards_before = wizards(&g);
     let (city, _) = neutral_cities(&g)[0];
@@ -985,8 +990,15 @@ fn taking_a_neutral_city_changes_its_owner_and_removes_its_player() {
     assert!(events
         .iter()
         .all(|e| matches!(e, f4x_core::game::Event::CityCaptured { .. })));
-    assert!(!g.has_player(owner), "the city's player goes with it");
-    assert_eq!(g.units().player_units(owner).len(), 0);
+    // The race's player stays while it has a city or a unit, and goes at the round end.
+    assert_eq!(
+        g.has_player(owner),
+        g.economy()
+            .cities()
+            .iter()
+            .any(|(_, c, _)| c.owner == owner)
+            || !g.units().player_units(owner).is_empty()
+    );
     // Even when the last one falls nobody is "defeated".
     for (c, _) in neutral_cities(&g) {
         assert!(g
@@ -995,6 +1007,13 @@ fn taking_a_neutral_city_changes_its_owner_and_removes_its_player() {
             .all(|e| matches!(e, f4x_core::game::Event::CityCaptured { .. })));
     }
     assert!(neutral_cities(&g).is_empty());
+    g.end_round();
+    // (No battle was fought here, so its garrison stays with it, and so does the player.)
+    assert_eq!(
+        g.has_player(owner),
+        !g.units().player_units(owner).is_empty(),
+        "the race player goes when it has no city and no unit"
+    );
     assert_eq!(wizards(&g), wizards_before);
     assert!(g
         .player_ids()

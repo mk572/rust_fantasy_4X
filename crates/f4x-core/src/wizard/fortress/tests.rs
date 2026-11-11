@@ -990,7 +990,7 @@ fn an_independent_city_taken_gives_no_spells() -> TestResult {
     g.init_wizard(P1, &[(RealmId::new(3 /* life */), 2)], &[], None)
         .map_err(|e| format!("{e:?}"))?;
     let town = city(&mut g, P0, at(15, 5));
-    let neutral = g.new_city_player();
+    let neutral = g.race_player(crate::rules::RaceId::new(7));
     g.set_owner(town, neutral);
     let events = g.capture_city(town, P1);
     assert_eq!(spells_taken(&events), None, "{events:?}");

@@ -208,9 +208,30 @@ impl Economy<'_> {
 }
 
 impl Game {
-    /// Where summoned creatures appear.
+    /// Where summoned creatures, hired heroes and mercenaries appear: a wizard's summoning
+    /// circle, else the fortress; a player without a wizard (a neutral race) has its seat, the
+    /// biggest city.
     pub fn summon_point(&self, player: PlayerId) -> Option<Position> {
-        self.wizard(player).and_then(|w| w.summon_point())
+        match self.wizard(player) {
+            Some(w) => w.summon_point(),
+            None => self.seat_of(player),
+        }
+    }
+
+    /// The seat of a player without a wizard: its biggest city by citizens, the one made first
+    /// when they tie. It is the new seat when the old one is lost.
+    pub fn seat_of(&self, player: PlayerId) -> Option<Position> {
+        self.economy()
+            .cities()
+            .into_iter()
+            .filter(|(_, c, _)| c.owner == player)
+            .max_by_key(|&(e, ..)| {
+                (
+                    self.economy().citizens(e),
+                    std::cmp::Reverse(self.serial_of(e)),
+                )
+            })
+            .and_then(|(e, ..)| self.world.get::<&Position>(e).ok().map(|p| *p))
     }
 
     /// Found the wizard's first city and put the fortress and summoning circle in it.
@@ -318,14 +339,7 @@ impl Game {
         }
         if was_fortress {
             events.extend(self.banish(loser, winner));
-        } else if self.is_neutral_player(loser) {
-            // An independent city's player goes with its city: the garrison is gone or
-            // dismissed, and the treasury stays behind.
-            for u in self.units().player_units(loser) {
-                self.remove_unit(u, crate::hero::Fate::Released);
-            }
-            self.remove_player(loser);
-        } else if self.economy().city_count(loser) == 0 {
+        } else if self.is_wizard(loser) && self.economy().city_count(loser) == 0 {
             // The last city fell, and it was not the fortress: the prize is the same
             // (`Resolve_Wizard_Conquest`).
             self.take_fortress_prize(loser, winner);
@@ -457,7 +471,11 @@ impl Game {
         let Some(pos) = self.world.get::<&Position>(city).ok().map(|p| *p) else {
             return;
         };
-        let neutral = self.new_city_player();
+        let race = self
+            .world
+            .get::<&CityRace>(city)
+            .map_or(crate::rules::RaceId::new(0), |r| r.0);
+        let neutral = self.race_player(race);
         let garrison: Vec<_> = self
             .units()
             .units_at(pos)

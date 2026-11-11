@@ -753,7 +753,6 @@ mod tests {
 
     #[test]
     fn a_city_at_war_sends_more_soldiers_against_a_site_than_a_peaceful_one() -> TestResult {
-        // In the second turn the party is out and the site still stands.
         let mut sent = [0, 0];
         for (n, war) in [false, true].into_iter().enumerate() {
             let mut g = raiding_world(
@@ -766,10 +765,14 @@ mod tests {
             if war {
                 g.scenario_set_aggressive(TOWN, true);
             }
-            turns(&mut g, 1);
-            play_neutrals(&mut g);
-            assert!(g.economy().lair_at(at(6, 4)).is_some(), "war={war}");
-            sent[n] = away(&g);
+            // The most soldiers away just after the city has played, in the first turns (the
+            // city sees the site, so the party may clear it quickly, and the hunger of a
+            // marching party costs it soldiers at the turn change).
+            for _ in 0..2 {
+                play_neutrals(&mut g);
+                sent[n] = sent[n].max(away(&g));
+                g.apply(Command::EndTurn);
+            }
         }
         let [peace, war] = sent;
         assert!(

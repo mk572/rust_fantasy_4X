@@ -194,6 +194,7 @@ impl Game {
         self.fade_corruption(&mut cooling);
         self.record_history();
         self.process_diplomacy();
+        self.retire_empty_race_players();
         events
     }
 

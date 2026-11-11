@@ -168,7 +168,7 @@ impl Game {
         }
         let farmers = self.economy().city_min_farmers(city);
         let _ = self.world.insert_one(city, Farmers(farmers));
-        if !self.is_neutral_player(owner) {
+        if owner != crate::player::MONSTERS {
             let sight = self.economy().city_sight(city);
             self.explore(owner, pos, sight);
         }

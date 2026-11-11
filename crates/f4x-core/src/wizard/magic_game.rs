@@ -231,11 +231,10 @@ impl Game {
     /// researched and skill points to casting skill (`WizardMut::take_power`). `split` and
     /// `research` are what the wizard's cities and fortress make, worked out by the game.
     fn collect_power(&mut self, player: PlayerId, split: &PowerShares, research: i32) {
-        let Some(mana) = self
-            .wizard_mut_with_rules(player)
-            .map(|(mut w, rules)| w.take_power(rules, split, research))
-        else {
-            return;
+        // A player without a wizard (a neutral race, task 522) has all its power as mana.
+        let mana = match self.wizard_mut_with_rules(player) {
+            Some((mut w, rules)) => w.take_power(rules, split, research),
+            None => split.mana,
         };
         if let Some(t) = self.treasury_mut(player) {
             t.mana += mana;

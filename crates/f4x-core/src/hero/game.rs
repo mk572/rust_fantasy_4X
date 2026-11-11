@@ -295,7 +295,7 @@ impl Game {
         }
         if let (Fate::Slain, Some(owner)) = (fate, owner) {
             let takes = heir.unwrap_or(owner);
-            if !self.is_neutral_player(takes) {
+            if takes != crate::player::MONSTERS {
                 self.pass_items(unit, takes);
             }
         }
@@ -927,20 +927,24 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_victor_takes_the_items_of_a_hero_that_fell_in_a_battle_unless_it_is_neutral() {
+    fn the_victor_takes_the_items_of_a_hero_that_fell_in_a_battle_unless_it_is_the_monsters() {
         let mut g = world();
         let loser = armed_hero(&mut g, P0);
         g.remove_unit_to(loser, Fate::Slain, Some(P1));
         assert_eq!((in_armory(&g, P0), in_armory(&g, P1)), (0, 1));
-        let neutral = g.new_city_player();
+        let monsters = crate::player::MONSTERS;
         let other = armed_hero(&mut g, P0);
-        g.remove_unit_to(other, Fate::Slain, Some(neutral));
+        g.remove_unit_to(other, Fate::Slain, Some(monsters));
         assert_eq!(
             in_armory(&g, P0) + in_armory(&g, P1),
             1,
-            "a neutral winner takes nothing"
+            "the monsters take nothing"
         );
-        assert_eq!(in_armory(&g, neutral), 0);
+        // A neutral race player takes the items like a wizard.
+        let race = g.race_player(crate::rules::RaceId::new(0));
+        let third = armed_hero(&mut g, P0);
+        g.remove_unit_to(third, Fate::Slain, Some(race));
+        assert_eq!(in_armory(&g, race), 1, "a neutral race takes the items");
         assert_eq!(
             g.items()
                 .count_held(|h| matches!(h, crate::item::entity::HeldBy::Hero(..))),

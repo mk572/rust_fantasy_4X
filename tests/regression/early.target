@@ -1,5 +1,5 @@
 turn 18
-draws 374
+draws 1320
 cities 15
 units 2
 spells 0
@@ -16,7 +16,7 @@ player 106 cities 1 gold 141 mana 0
 player 107 cities 1 gold 115 mana 0
 player 108 cities 1 gold 107.5 mana 0
 player 109 cities 1 gold 180.5 mana 0
-player 110 cities 1 gold 115 mana 0
-player 111 cities 1 gold 156 mana 0
+player 110 cities 1 gold 115 mana 22.5
+player 111 cities 1 gold 156 mana 32.5
 player 112 cities 1 gold 115 mana 0
-checksum 29cb275b3f10d31d
+checksum 833ef887b569871e
