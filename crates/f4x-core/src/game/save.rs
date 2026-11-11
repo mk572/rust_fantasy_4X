@@ -64,8 +64,8 @@ pub const OLDEST_COMPATIBLE_VERSION: &str = "0.0.2";
 /// scheme), and bump the workspace version to that release in the same change. `HalfInt` writes the
 /// amount (`1.5`), not the doubled count the older versions wrote for the amounts they counted in
 /// halves, so the entry that moves a saved amount to `HalfInt` doubles it back to the new form.
-/// No saved amount is a `HalfInt` yet (unit food comes from the unit table), so the list is empty.
-const UPGRADES: &[Upgrade] = &[];
+/// 0.0.6: one neutral player for each race instead of one for each independent city (task 522).
+const UPGRADES: &[Upgrade] = &[("0.0.6", race_player::upgrade)];
 
 /// A conversion of a snapshot written before a game version.
 type Upgrade = (&'static str, fn(&mut Snapshot));
@@ -1815,6 +1815,7 @@ fn restore_fog(f: FogSave, map: Option<&Map>) -> Result<Fog, LoadError> {
 }
 
 pub mod file;
+mod race_player;
 
 pub use file::{load_game, save_game, summarize_save, SaveError, SaveSummary};
 

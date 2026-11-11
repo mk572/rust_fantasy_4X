@@ -1,6 +1,6 @@
 # How game state is stored (and how that differs from the original)
 
-**Version: 0.0.5** (`Cargo.toml`). The entity rework (tasks 307 to 339 in `TASKS.md`) changes the save format, so saves and replays of another version are refused (task 335).
+**Version: 0.0.6** (`Cargo.toml`). The entity rework (tasks 307 to 339 in `TASKS.md`) changes the save format, so saves and replays of another version are refused (task 335).
 
 The original game keeps its world in fixed-size arrays of packed records and refers to
 things by array index. This project keeps it as entities with components, typed ids into
@@ -175,7 +175,7 @@ Two entities, because they answer different questions.
   banner colour, the capital race, spell books, retorts, the spells known and on offer, research,
   casting skill and the split of power between mana, research and skill, fame, personality and objective, and the fortress and summoning circle (a wizard's
   home) with the banishment that follows from losing it.
-- A player may have no wizard. The independent (neutral) cities and the monsters' owner are players
+- A player may have no wizard. The neutral player of each race (all its independent cities, task 522) and the monsters' owner are players
   with `Neutral` and no `WizardLink`. Code that reads a wizard for "every player" (before the rework
   `player.magic`) must handle the missing wizard explicitly.
 - The two refer to each other (`WizardLink`, `PlayerLink`) and are made together by game setup and
@@ -199,10 +199,10 @@ item entities held by the player); **defeat** is the player's, **banishment** th
   independent city's player, or the monsters' player. Nothing is ownerless and nothing has a
   placeholder owner. Tests build only such situations; a test of a situation the game cannot
   create in normal play exists only to test error handling (a rejected command, a refused save).
-- Independent cities' players get ids after the real players, in order of creation. The one player
+- The neutral player of a race has the id `FIRST_RACE_PLAYER` (100) plus the race's number (`player/race_player.rs`: `race_player_id`, `Game::race_of_player`, `race_player`, `seat_of`); it is made when the first city of the race turns neutral and removed at the round end when it has no city and no unit (`retire_empty_race_players`). The one player
   that owns the monsters is made with the game (`Game::monsters`, id `player::MONSTERS`, kept at
   255; the save does not store it, the game makes it). It is an entity with `PlayerId` and `Neutral` like
-  the cities' players but is in no list of players (`Game::has_player` is false for it). Whether a player is
+  the race players but is in no list of players (`Game::has_player` is false for it). Whether a player is
   neutral is the `Neutral` component (`Game::is_neutral_player`), never an id test.
 - `Game::set_owner(thing, player)` hands a unit or city to a player; `units().unit_owner` and
   `economy().city_owner` give the `PlayerId` back, `unit_owner_entity` and `city_owner_entity` the
@@ -309,7 +309,7 @@ The prefabs already made stay a registry on `Game` (`prefab_taken`).
   and the item itself is an entity held as `Offered(player)`, found by its description; buying it
   moves it to the vault, turning it down or letting it lapse despawns it.
 - **A hero's items** pass to the heir by changing `HeldBy` when it is slain, and are despawned with a
-  hero that is gone or whose winner is a neutral player (`remove_unit_to`).
+  hero that is gone or whose winner is the monsters (`remove_unit_to`; a neutral race player takes the items into its vault).
 - **The save** lists the item entities (`Snapshot.items`, in `Serial` order, a hero named by its
   creation number).
 
@@ -323,7 +323,7 @@ The prefabs already made stay a registry on `Game` (`prefab_taken`).
 | City founded | the city | | |
 | City conquered | | | the city, with its new `Owner`; its enchantments as today (`conquest.rs` decides) |
 | City destroyed | | the city; spell instances targeting it | |
-| Neutral city taken or destroyed | | its neutral player once nothing refers to it | its `PlayerId` is not reused |
+| Neutral city taken or destroyed | | its race's neutral player at the round end, once it has no city and no unit (its vault items go with it) | the id is the race's, made again when a city of the race turns neutral |
 | Wizard banished | the Spell of Return, as a cast in progress | the fortress and summoning circle (components of the wizard) | player, wizard, `Banishment`, the wizard's other spell instances |
 | Wizard defeated | | all the spell instances the wizard cast (global, on cities, on units, the cast in progress), as `aftermath` does; the wizard's units; its nodes are freed (`Owner` removed) | player, wizard and `Defeat`; its cities become neutral cities with a neutral player each |
 | Spell cast (lasting) | a spell instance | | |
@@ -336,8 +336,8 @@ The prefabs already made stay a registry on `Game` (`prefab_taken`).
 
 A player that has a wizard, and that wizard, are never despawned during a game: the score, the
 history and the diplomacy log refer to them. The players without a wizard (the monsters' owner and
-the independent cities' players) are the exception: a neutral city's player is despawned once
-nothing refers to it, as the table says, and its `PlayerId` is not reused.
+the neutral players of the races) are the exception: a race's player is despawned once
+it has no city and no unit, as the table says.
 
 ### 3.9 Saving and replaying
 
@@ -351,7 +351,7 @@ nothing refers to it, as the table says, and its `PlayerId` is not reused.
   The map layers (terrain, minerals, roads, rivers, lakes, corruption) and the fog are written as
   before; nodes, lairs, towers and volcanoes are feature entities.
 - A battle in progress is the `battle` field (`battle/save.rs`).
-- **Versions.** The first line of a save is `// f4x save, version 4, game 0.0.5, checksum <hex>`. The
+- **Versions.** The first line of a save is `// f4x save, version 4, game 0.0.6, checksum <hex>`. The
   loader reads the `version` and `game_version` fields before the rest and refuses a file of
   another layout, or a game version outside `OLDEST_COMPATIBLE_VERSION..=GAME_VERSION` (`save.rs`), with a plain message ("saved by 0.0.1, this is 0.0.4 (it reads saves from 0.0.2 to 0.0.3)"); a replay
   is checked the same way, through the snapshot it starts from.

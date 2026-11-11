@@ -852,3 +852,79 @@ fn a_wizard_without_a_player_is_refused() {
         Some(LoadError::Inconsistent(_))
     ));
 }
+
+/// A save from before game version 0.0.6 has one player for each independent city; reading it
+/// gives one player for each race, with their cities, units, treasuries and fog gathered.
+#[test]
+fn an_older_save_with_a_player_for_each_neutral_city_is_read_as_one_player_for_each_race(
+) -> TestResult {
+    use crate::game::setup::{new_game, NewGame};
+    let content = shipped();
+    let game = new_game(
+        &content,
+        &NewGame {
+            seed: 7,
+            all_ai: true,
+            ..Default::default()
+        },
+    )?;
+    let mut old = game.snapshot();
+    // Give every neutral city a player of its own, as the older game did.
+    let races: Vec<_> = old
+        .cities
+        .iter()
+        .filter(|c| old.players.iter().any(|p| p.id == c.owner && p.neutral))
+        .map(|c| c.owner)
+        .collect();
+    assert!(races.len() >= 2, "a new world has several neutral cities");
+    let template = old
+        .players
+        .iter()
+        .find(|p| p.id == races[0])
+        .ok_or("no neutral player")?
+        .clone();
+    old.players.retain(|p| !races.contains(&p.id));
+    let mut city_owner = Vec::new();
+    for (id, c) in (150u8..).zip(old.cities.iter_mut().filter(|c| races.contains(&c.owner))) {
+        let mut p = template.clone();
+        p.id = id;
+        p.gold = HalfInt::from_int(10);
+        old.players.push(p);
+        for u in old.units.iter_mut().filter(|u| u.owner == c.owner) {
+            u.owner = id;
+        }
+        city_owner.push((c.serial, id));
+        c.owner = id;
+    }
+    old.game_version = "0.0.5".into();
+    let text = old.to_text()?;
+
+    let back = Snapshot::from_text(&text)?;
+    let restored = back.clone().restore(content)?;
+    let ids: Vec<_> = restored
+        .player_ids()
+        .into_iter()
+        .filter(|&p| restored.race_of_player(p).is_some())
+        .collect();
+    assert!(!ids.is_empty() && ids.len() < races.len() + 1);
+    for (_, c, _) in restored.economy().cities() {
+        if restored.is_neutral_player(c.owner) {
+            assert!(
+                ids.contains(&c.owner),
+                "{} belongs to a race's player",
+                c.name
+            );
+        }
+    }
+    let gold: HalfInt = ids
+        .iter()
+        .filter_map(|&p| restored.player(p))
+        .map(|p| p.treasury().gold)
+        .fold(HalfInt::ZERO, |a, b| a + b);
+    assert_eq!(
+        gold,
+        HalfInt::from_int(10 * i32::try_from(city_owner.len())?),
+        "the treasuries are added up"
+    );
+    Ok(())
+}

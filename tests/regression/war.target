@@ -1,18 +1,14 @@
 turn 56
-draws 1685
+draws 2284
 cities 11
-units 2
+units 13
 spells 0
 items 0
-player 0 cities 1 gold 100 mana 322.5
-player 1 cities 1 gold 263.5 mana 172.5
-player 100 cities 1 gold 173 mana 0
-player 101 cities 1 gold 163.5 mana 0
-player 102 cities 1 gold 205.5 mana 0
-player 103 cities 1 gold 217.5 mana 0
-player 104 cities 1 gold 246 mana 0
-player 105 cities 1 gold 197.5 mana 0
-player 106 cities 1 gold 145 mana 0
-player 107 cities 1 gold 340 mana 0
-player 108 cities 1 gold 150 mana 0
-checksum 4fec414d113d0bb8
+player 0 cities 1 gold 485.5 mana 277.5
+player 1 cities 1 gold 705 mana 220
+player 101 cities 2 gold 469 mana 312
+player 102 cities 1 gold 178.5 mana 276
+player 105 cities 1 gold 328 mana 0
+player 110 cities 4 gold 617.5 mana 0
+player 112 cities 1 gold 205 mana 0
+checksum 4d68c3a1f1cae47e
