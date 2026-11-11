@@ -18,26 +18,38 @@ pub(crate) fn healing(
     rng: &mut GameRng,
 ) -> Vec<(hecs::Entity, u32)> {
     let all = units.all_units();
+    let hurt_of = |unit: hecs::Entity| units.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
+    // Only the squares with a wounded unit on them can have a healer that matters: the
+    // (costly) test for the ability is made for the units on those squares only.
+    let wounded_at: std::collections::HashSet<crate::map::Position> = all
+        .iter()
+        .filter(|&&u| hurt_of(u) > 0)
+        .filter_map(|&u| units.unit_position(u))
+        .collect();
     let mut healed_by_healer: Vec<hecs::Entity> = Vec::new();
     // Stacks that contain a healer get an extra fifth of their hit points back.
     for &unit in &all {
+        let Some(at) = units.unit_position(unit).filter(|p| wounded_at.contains(p)) else {
+            continue;
+        };
         if units.unit_has_ability(unit, Ability::new(27)) {
-            if let Some(at) = units.unit_position(unit) {
-                for other in units.units_at(at) {
-                    if units.unit_owner(other) == units.unit_owner(unit)
-                        && !healed_by_healer.contains(&other)
-                    {
-                        healed_by_healer.push(other);
-                    }
+            for other in units.units_at(at) {
+                if units.unit_owner(other) == units.unit_owner(unit)
+                    && !healed_by_healer.contains(&other)
+                {
+                    healed_by_healer.push(other);
                 }
             }
         }
     }
     let mut out = Vec::new();
     for unit in all {
-        let hurt = units.world.get::<&Hurt>(unit).map_or(0, |h| h.0);
+        let hurt = hurt_of(unit);
+        if hurt == 0 {
+            continue;
+        }
         let (_, max) = units.unit_hits(unit);
-        if hurt == 0 || units.unit_is_death(unit) {
+        if units.unit_is_death(unit) {
             continue;
         }
         if units.unit_has_ability(unit, Ability::new(55)) {
