@@ -52,7 +52,6 @@ pub(super) fn upgrade(snapshot: &mut Snapshot) {
             Some(into) => {
                 into.gold += p.gold;
                 into.mana += p.mana;
-                into.aggressive |= p.aggressive;
             }
             None => {
                 let mut first = p.clone();

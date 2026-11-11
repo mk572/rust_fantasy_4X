@@ -247,9 +247,6 @@ pub struct PlayerSave {
     pub offers: Vec<crate::player::offer::Offer>,
     pub defeated: bool,
     pub defeated_by: Option<u8>,
-    /// An independent city's player at war (`player::Aggressive`).
-    #[serde(default)]
-    pub aggressive: bool,
 }
 
 /// A wizard entity: what the creation screen makes and what follows from it. Spells are saved by
@@ -809,7 +806,6 @@ impl Game {
                 offers: self.offers(*id),
                 defeated: self.player(*id).is_some_and(|p| p.is_defeated()),
                 defeated_by: self.player(*id).and_then(|p| p.defeated_by()).map(|d| d.0),
-                aggressive: self.is_aggressive_player(*id),
             })
             .collect();
         let wizards = self
@@ -1164,9 +1160,6 @@ impl Snapshot {
                     Offers(p.offers),
                 ),
             );
-            if p.aggressive {
-                let _ = game.world.insert_one(entity, crate::player::Aggressive);
-            }
             if let Some(w) = wizard {
                 let capital_race = w
                     .capital_race

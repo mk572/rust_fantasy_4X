@@ -39,12 +39,12 @@ pub trait Controller {
     /// players). Events are appended to `events`.
     fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status;
 
-    /// What the controller has in mind, as text to keep in a save, with the player it is for
-    /// (a computer player's plans). The master collects these at every checkpoint
+    /// What the controller has in mind, as text to keep in a save, with the player each is for
+    /// (the plans of the computer players it plays). The master collects these at every checkpoint
     /// ([`Master::checkpoints`]) and gives them to the game ([`Game::set_plans`]). The default
     /// is nothing to keep.
-    fn plans(&self) -> Option<(PlayerId, String)> {
-        None
+    fn plans(&self) -> Vec<(PlayerId, String)> {
+        Vec::new()
     }
 }
 
@@ -398,7 +398,7 @@ impl<'a> Master<'a> {
                     let plans: Vec<_> = self
                         .seats
                         .iter()
-                        .filter_map(|s| s.controller.plans())
+                        .flat_map(|s| s.controller.plans())
                         .collect();
                     if !plans.is_empty() {
                         game.set_plans(plans);

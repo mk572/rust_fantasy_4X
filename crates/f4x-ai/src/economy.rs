@@ -357,6 +357,10 @@ fn plan_for(
     let full = view.garrison(pos).len() >= f4x_core::unit::MAX_STACK;
     let mix = if full {
         Mix::Buildings
+    } else if spare_food < HalfInt::from_int(1) && !threatened {
+        // A unit the land cannot feed starves at the turn change: nothing is made but buildings
+        // (a farm, a granary) until there is food to spare.
+        Mix::Buildings
     } else if army_short {
         Mix::Units
     } else if gold >= RICH_GOLD {

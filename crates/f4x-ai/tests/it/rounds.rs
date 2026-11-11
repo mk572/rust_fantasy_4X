@@ -118,8 +118,12 @@ fn the_master_hands_the_ais_plans_to_the_game_at_every_round_start() {
     assert_eq!(progress.stopped, Stopped::RoundStart);
     drop(master);
     let saved: Vec<_> = g.plans().iter().map(|(p, _)| *p).collect();
-    assert_eq!(saved, vec![PlayerId(0), PlayerId(1)]);
+    assert_eq!(&saved[..2], &[PlayerId(0), PlayerId(1)]);
     for ((_, text), ai) in g.plans().iter().zip(&ais) {
         assert_eq!(Some(text.clone()), ai.to_text().ok(), "the AI as it stands");
     }
+    // The neutral players keep plans too, like any AI.
+    let neutral = &saved[2..];
+    assert!(!neutral.is_empty());
+    assert!(neutral.iter().all(|&p| g.race_of_player(p).is_some()));
 }

@@ -80,14 +80,22 @@ impl UnitView<'_> {
     /// circle, or nobody to bring (Incarnation: Torin is already serving or
     /// gone). `Resurrection` is checked against the hero chosen, not here.
     pub fn hero_spell_blocked(&self, player: PlayerId, spell: SpellId) -> Option<HeroError> {
-        let states = self.hero_states();
         if crate::wizard::entity::find(self.world, player)
             .is_none_or(|w| w.summon_point().is_none())
         {
             return Some(HeroError::NoCircle);
         }
+        (!self.hero_to_summon(player, spell)).then_some(HeroError::NotAvailable)
+    }
+
+    /// Is there a hero this hero-bringing spell could find for the player (whatever the circle
+    /// says)? Always so for a spell that does not bring a free hero. A computer wizard asks before
+    /// it plans a summoning, so that it does not cast one every turn when the 35 heroes are all
+    /// serving (the neutral players share them, task 522).
+    pub fn hero_to_summon(&self, player: PlayerId, spell: SpellId) -> bool {
+        let states = self.hero_states();
         let record = |k: usize| states.get(k).copied();
-        let possible = match HeroSummon::of(self.content.rules.spells.get(spell)) {
+        match HeroSummon::of(self.content.rules.spells.get(spell)) {
             Some(HeroSummon::Hero) => self.hero_summonable(player, Class::Hero),
             Some(HeroSummon::Champion) => self.hero_summonable(player, Class::Champion),
             Some(HeroSummon::Torin) => matches!(
@@ -95,8 +103,7 @@ impl UnitView<'_> {
                 Some(HeroState::Free | HeroState::Dead)
             ),
             Some(HeroSummon::Resurrection) | None => true,
-        };
-        (!possible).then_some(HeroError::NotAvailable)
+        }
     }
 }
 
@@ -368,6 +375,40 @@ mod tests {
                 "no circle to appear in: {number}"
             );
         }
+        Ok(())
+    }
+
+    #[test]
+    fn a_wizard_can_tell_that_no_hero_is_left_to_summon() -> TestResult {
+        let mut g = caster();
+        for number in [208, 212] {
+            assert!(
+                g.units().hero_to_summon(P0, SpellId::new(number)),
+                "{number}"
+            );
+        }
+        // Every hero serves (the neutral players share the 35 of them with the wizards).
+        for kind in 0..g.content.rules.hero_templates.len() {
+            let hero = g
+                .units()
+                .hero_entity(kind)
+                .ok_or("hero_entity is missing")?;
+            g.world
+                .insert_one(hero, HeroState::Serving)
+                .map_err(|e| format!("{e:?}"))?;
+        }
+        for number in [208, 212] {
+            assert!(
+                !g.units().hero_to_summon(P0, SpellId::new(number)),
+                "{number}"
+            );
+            assert_eq!(
+                g.check_target(P0, SpellId::new(number), None),
+                Err(crate::wizard::magic::MagicError::NotAvailable)
+            );
+        }
+        // Resurrection and the spells that bring no free hero are not asked about.
+        assert!(g.units().hero_to_summon(P0, SpellId::new(1)));
         Ok(())
     }
 

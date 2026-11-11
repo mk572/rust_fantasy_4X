@@ -825,7 +825,18 @@ impl Page for DiploUi {
         app.draw_pic(&lay, "diplomac", 0, 0, 0.0, 0.0);
         let talking = get_time() - self.talk_since;
         let frame = (talking / TALK_FRAME) as usize;
-        if frame < TALK_FRAMES && self.menu != Menu::Main {
+        if let Some(race) = app.game.race_of_player(with) {
+            // A neutral player has no wizard to move its lips or show a mood: its race's picture
+            // (`scripts/neutral_art.py`) stays in the mirror.
+            app.draw_pic(
+                &lay,
+                "neutral",
+                usize::from(race.num()),
+                0,
+                PORTRAIT_AT.0,
+                PORTRAIT_AT.1,
+            );
+        } else if frame < TALK_FRAMES && self.menu != Menu::Main {
             app.draw_pic(
                 &lay,
                 "diplomac",

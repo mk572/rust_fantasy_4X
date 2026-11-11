@@ -184,6 +184,12 @@ impl<'a> PlayerView<'a> {
         self.game.check_target(self.me, spell, target).is_ok()
     }
 
+    /// Is there a free hero a hero-bringing spell could find for the player? (`true` for any other
+    /// spell.)
+    pub fn hero_to_summon(&self, spell: SpellId) -> bool {
+        self.game.units().hero_to_summon(self.me, spell)
+    }
+
     /// The lasting spells on one of the player's units.
     pub fn unit_enchantments(&self, unit: hecs::Entity) -> Vec<SpellId> {
         self.game

@@ -261,7 +261,7 @@ and learn tests still pass.
 
 Built as `f4x_ai::battle::cast::next_command(&Game)`, which `Game::next_battle_command` calls for every
 wizard that has no learned brain set (the game holds it as a function pointer, `battle::game::set_battle_ai`,
-set by `f4x_ai::battle::install()`, which `Ai::new`, `play_round`, `play_neutrals`, `Console::new` and the client's `main` call) (it is not itself a `BattleBrain` object: it needs no state).
+set by `f4x_ai::battle::install()`, which `Ai::new`, `play_round`, `NeutralSeat`, `Console::new` and the client's `main` call) (it is not itself a `BattleBrain` object: it needs no state).
 It does: (1) if the wizard may cast this turn, choose a cast from `legal_battle_casts` (section
 6.5); (2) otherwise the unit orders of `ai::next_command`. `ai::next_command(&Battle)` stays for
 callers that have no game (the client's auto-battle, the console tests, the learn crate) and is

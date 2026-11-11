@@ -1,13 +1,14 @@
 //! Raiders (`Make_Raiders`, `AIDATA.c`): a neutral city on a landmass with a player's city gets
 //! a raiding party of its own kind of troops. Unlike the original, which takes the troops out
-//! of the garrison, the troops are new and the city pays no upkeep for them, and the city goes
-//! to war: its AI (`f4x_ai::play_neutrals`) sets out to conquer the lairs and cities near it.
+//! of the garrison, the troops are new and the city pays no upkeep for them. They belong to the
+//! neutral player of the city's race, whose AI (`f4x_ai::NeutralSeat`) decides what they do: this is
+//! the neutral players' advantage instead of a difficulty bonus.
 //!
 //! Tests: in threat/tests.rs (the raider tests and `the_party_is_...`, `a_party_on_myrror_...`, `the_raiders_are_as_experienced_...`).
 
 use crate::game::{Event, Game};
 use crate::map::Position;
-use crate::player::{Aggressive, PlayerId, MONSTERS};
+use crate::player::{PlayerId, MONSTERS};
 use crate::rules::Ability;
 use crate::rules::{Stat, UnitId, UnitKind};
 use crate::unit::{Experience, Unit, Unpaid};
@@ -75,9 +76,6 @@ impl Game {
                 let _ = self.world.insert_one(unit, Experience(xp));
             }
             made += 1;
-        }
-        if let Some(e) = self.player_entity(owner) {
-            let _ = self.world.insert_one(e, Aggressive);
         }
         vec![Event::RaidersRaised {
             city,

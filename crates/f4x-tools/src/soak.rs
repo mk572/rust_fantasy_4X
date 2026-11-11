@@ -363,6 +363,13 @@ pub fn game(
         .enumerate()
         .map(|(k, &v)| contestant::make(v, PlayerId(k as u8)))
         .collect();
+    let mut neutrals = contestant::Neutrals::new(roster.neutrals);
+    neutrals.record_refusals(
+        refused_out
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_some(),
+    );
     for ai in &mut ais {
         // A game that was saved carries what its AIs had in mind.
         ai.recall(&game);
@@ -397,7 +404,7 @@ pub fn game(
         if opts.grant_mastery == Some(game.turn) {
             grant_mastery_to_all(&mut game);
         }
-        let (turns, rest) = contestant::play_round(&mut game, &mut ais, roster.neutrals);
+        let (turns, rest) = contestant::play_round(&mut game, &mut ais, &mut neutrals);
         for (player, events) in &turns {
             tally.record(&game, Some(*player), events);
         }
@@ -416,8 +423,12 @@ pub fn game(
             .unwrap_or_else(PoisonError::into_inner)
             .as_mut()
         {
-            for ai in &ais {
-                for r in ai.take_refusals() {
+            let all = ais
+                .iter()
+                .flat_map(|ai| ai.take_refusals())
+                .chain(neutrals.take_refusals());
+            {
+                for r in all {
                     writeln!(
                         out,
                         "{seed}\t{}\t{}\t{}\t{}\t{}",
@@ -451,6 +462,7 @@ pub fn game(
                 let plans: Vec<_> = ais
                     .iter()
                     .filter_map(|ai| Some((ai.player(), ai.plans()?)))
+                    .chain(neutrals.plans())
                     .collect();
                 if !plans.is_empty() {
                     game.set_plans(plans);

@@ -3,7 +3,7 @@
 //! cities (`threat/monster.rs`). The original's `Make_Raiders` and `Make_Monsters` (`AIDATA.c`)
 //! start both from a clock that grows by a random 0 to the difficulty each turn; here the
 //! raiders and the monsters keep one clock each, and what the raised troops and the roaming
-//! monsters do afterwards is the neutral players' AI (`f4x_ai::play_neutrals`).
+//! monsters do afterwards is the neutral players' AI (`f4x_ai::NeutralSeat`).
 //!
 //! Differences from the original are in `docs/divergences.md`.
 //!
@@ -46,28 +46,6 @@ impl Game {
     /// The clocks, for tools.
     pub fn threat(&self) -> Threat {
         self.threat
-    }
-
-    /// Whether the player is an independent city's player at war (see [`crate::player::Aggressive`]).
-    pub fn is_aggressive_player(&self, id: crate::player::PlayerId) -> bool {
-        self.player_entity(id).is_some_and(|e| {
-            self.world
-                .satisfies::<&crate::player::Aggressive>(e)
-                .unwrap_or(false)
-        })
-    }
-
-    /// Put an independent city's player at war or at peace (scenarios and tests; the game puts it
-    /// at war when the city raises raiders).
-    pub fn scenario_set_aggressive(&mut self, id: crate::player::PlayerId, on: bool) {
-        let Some(e) = self.player_entity(id) else {
-            return;
-        };
-        if on {
-            let _ = self.world.insert_one(e, crate::player::Aggressive);
-        } else {
-            let _ = self.world.remove_one::<crate::player::Aggressive>(e);
-        }
     }
 
     /// Make a unit one its owner pays nothing for, or not (scenarios and tests).

@@ -1,4 +1,4 @@
-// f4x save, version 4, game 0.0.6, checksum 5883f1b67297f044
+// f4x save, version 4, game 0.0.6, checksum 796d9e49ae821adb
 (
     version: 4,
     game_version: "0.0.6",
@@ -9444,7 +9444,6 @@
             offers: [],
             defeated: false,
             defeated_by: None,
-            aggressive: false,
         ),
         (
             id: 1,
@@ -9505,7 +9504,6 @@
             ],
             defeated: false,
             defeated_by: None,
-            aggressive: false,
         ),
         (
             id: 101,
@@ -9518,7 +9516,6 @@
             offers: [],
             defeated: false,
             defeated_by: None,
-            aggressive: true,
         ),
         (
             id: 102,
@@ -9531,7 +9528,6 @@
             offers: [],
             defeated: false,
             defeated_by: None,
-            aggressive: false,
         ),
         (
             id: 105,
@@ -9544,7 +9540,6 @@
             offers: [],
             defeated: false,
             defeated_by: None,
-            aggressive: false,
         ),
         (
             id: 110,
@@ -9557,7 +9552,6 @@
             offers: [],
             defeated: false,
             defeated_by: None,
-            aggressive: true,
         ),
         (
             id: 112,
@@ -9570,7 +9564,6 @@
             offers: [],
             defeated: false,
             defeated_by: None,
-            aggressive: false,
         ),
     ],
     wizards: [

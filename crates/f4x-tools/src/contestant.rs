@@ -122,14 +122,55 @@ pub fn make(version: Version, player: PlayerId) -> Box<dyn Contestant> {
     }
 }
 
-/// The independent cities and roaming monsters play their turn, by the given version.
-pub fn play_neutrals(version: Version, game: &mut Game) -> Vec<Event> {
-    match version {
-        Version::New => f4x_ai::play_neutrals(game),
-        #[cfg(feature = "reference")]
-        Version::Reference => f4x_ai_ref::play_neutrals(game),
-        #[cfg(not(feature = "reference"))]
-        Version::Reference => without_reference(),
+/// The neutral players and the roaming monsters, played by one version of the AI. The new AI
+/// keeps one `Ai` for each neutral race player across the rounds, so a game keeps one of these
+/// for as long as it runs (the reference AI plays its own stateless neutrals).
+pub struct Neutrals {
+    version: Version,
+    new: f4x_ai::NeutralSeat,
+}
+
+impl Neutrals {
+    pub fn new(version: Version) -> Self {
+        Self {
+            version,
+            new: f4x_ai::NeutralSeat::default(),
+        }
+    }
+
+    /// Keep the commands the game refuses, as the wizards' AIs do.
+    pub fn record_refusals(&mut self, on: bool) {
+        self.new.record_refusals(on);
+    }
+
+    /// The refused commands since the last call.
+    pub fn take_refusals(&self) -> Vec<Refused> {
+        self.new
+            .take_refusals()
+            .into_iter()
+            .map(|r| Refused {
+                turn: r.turn,
+                player: r.player,
+                source: r.source,
+                command: r.command,
+                reason: r.reason,
+            })
+            .collect()
+    }
+
+    /// What the neutral players have in mind, as text for a save (`Game::set_plans`).
+    pub fn plans(&self) -> Vec<(PlayerId, String)> {
+        self.new.plans()
+    }
+
+    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) {
+        match self.version {
+            Version::New => self.new.play_turn(game, players, events),
+            #[cfg(feature = "reference")]
+            Version::Reference => events.extend(f4x_ai_ref::play_neutrals(game)),
+            #[cfg(not(feature = "reference"))]
+            Version::Reference => without_reference(),
+        }
     }
 }
 
@@ -151,11 +192,11 @@ impl Controller for ContestantSeat<'_> {
 }
 
 /// The neutral seat of one version of the AI.
-struct NeutralSeat(Version);
+struct NeutralSeat<'a>(&'a mut Neutrals);
 
-impl Controller for NeutralSeat {
-    fn play(&mut self, game: &mut Game, _: &[PlayerId], events: &mut Vec<Event>) -> Status {
-        events.extend(play_neutrals(self.0, game));
+impl Controller for NeutralSeat<'_> {
+    fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
+        self.0.play(game, players, events);
         Status::Done
     }
 }
@@ -167,7 +208,7 @@ impl Controller for NeutralSeat {
 pub fn play_round(
     game: &mut Game,
     players: &mut [Box<dyn Contestant>],
-    neutrals: Version,
+    neutrals: &mut Neutrals,
 ) -> (Vec<(PlayerId, Vec<Event>)>, Vec<Event>) {
     let turns = RefCell::new(Vec::new());
     let mut seats: Vec<Seat> = Vec::new();

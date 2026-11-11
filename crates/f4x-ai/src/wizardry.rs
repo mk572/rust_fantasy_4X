@@ -1095,6 +1095,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 // when none is left to send) and the mana limit it.
                 Kind::SummonHero => {
                     now && room
+                        && view.hero_to_summon(spell)
                         && (view.can_aim(spell, None) || crate::garrison::can_make_room(&view))
                 }
                 Kind::UnitBuff => {

@@ -74,8 +74,13 @@ impl Controller for RivalSeat<'_> {
         finished(self.seating, self.defences)
     }
 
-    fn plans(&self) -> Option<(PlayerId, String)> {
-        Some((self.ai.player, self.ai.to_text().ok()?))
+    fn plans(&self) -> Vec<(PlayerId, String)> {
+        self.ai
+            .to_text()
+            .ok()
+            .map(|t| (self.ai.player, t))
+            .into_iter()
+            .collect()
     }
 }
 
@@ -94,5 +99,9 @@ impl Controller for NeutralSeat<'_> {
             self.seating.borrow_mut().played = true;
         }
         finished(self.seating, self.defences)
+    }
+
+    fn plans(&self) -> Vec<(PlayerId, String)> {
+        self.inner.plans()
     }
 }

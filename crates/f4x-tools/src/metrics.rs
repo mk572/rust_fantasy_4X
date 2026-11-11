@@ -687,9 +687,10 @@ mod tests {
             .iter()
             .map(|&p| contestant::make(Version::New, p))
             .collect();
+        let mut neutrals = contestant::Neutrals::new(Version::New);
         let mut tally = Tally::new(&game);
         for _ in 0..40 {
-            let (turns, rest) = contestant::play_round(&mut game, &mut ais, Version::New);
+            let (turns, rest) = contestant::play_round(&mut game, &mut ais, &mut neutrals);
             for (player, events) in &turns {
                 tally.record(&game, Some(*player), events);
             }

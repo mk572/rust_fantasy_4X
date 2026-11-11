@@ -9,6 +9,7 @@
 //! Tests: in the modules (each decision has its own file and tests); `tests/it/` has the rules of
 //! the ships and the slow whole-game behaviour tests (ignored by default).
 
+mod alchemy;
 mod assault;
 pub mod battle;
 mod colony;
@@ -304,7 +305,9 @@ impl Ai {
         let mut events = Vec::new();
         {
             let view = PlayerView::new(game, self.player);
-            if view.game_over() || view.wizard().is_none() || view.is_defeated() {
+            // A player plays when it has a wizard or is the neutral player of a race (task 522).
+            let plays = view.wizard().is_some() || game.race_of_player(self.player).is_some();
+            if view.game_over() || !plays || view.is_defeated() {
                 return events;
             }
         }
@@ -315,6 +318,7 @@ impl Ai {
         offer::equip(self, game, &mut events);
         game.balance_farmers(self.player);
         economy::taxes(self, game, &mut events);
+        alchemy::run(self, game, &mut events);
         race::run(self, game, &mut events);
         diplomacy::mastery_scare(self, game, &mut events);
         wizardry::run(self, game, &mut events);
@@ -341,12 +345,30 @@ impl Ai {
     /// Send a command and keep its events.
     #[track_caller]
     fn send(&self, game: &mut Game, command: Command, events: &mut Vec<Event>) -> bool {
+        self.submit(game, command, events, true)
+    }
+
+    /// Send a command that the game may refuse as the AI expects (it cannot know, say, that a site
+    /// has no guards left): its refusal is not a bug, so the refused-order log does not keep it.
+    #[track_caller]
+    fn probe(&self, game: &mut Game, command: Command, events: &mut Vec<Event>) -> bool {
+        self.submit(game, command, events, false)
+    }
+
+    #[track_caller]
+    fn submit(
+        &self,
+        game: &mut Game,
+        command: Command,
+        events: &mut Vec<Event>,
+        keep_refusal: bool,
+    ) -> bool {
         if game.game_over.is_some() {
             // The other wizard's turn ended the game: nothing more can be ordered.
             return false;
         }
         let at = std::panic::Location::caller();
-        let kept = self.record_refusals.then(|| format!("{command:?}"));
+        let kept = (self.record_refusals && keep_refusal).then(|| format!("{command:?}"));
         let out = game.apply(command);
         let ok = !out.iter().any(|e| matches!(e, Event::Rejected(_)));
         if let Some(command) = kept {
@@ -375,7 +397,6 @@ pub fn answer_proposals(game: &mut Game, player: PlayerId) -> Vec<Event> {
     events
 }
 
-pub use assault::{play_neutrals, play_neutrals_for};
 pub use offer::answer_resales;
 
 pub use controller::{play_round, AiSeat, NeutralSeat};

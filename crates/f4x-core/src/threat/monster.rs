@@ -1,7 +1,7 @@
 //! Monsters (`Make_Monsters`, `AIDATA.c`): now and then a stack of monsters of a lair's realm
 //! settles in that lair, and the monsters that lived there are driven out. The original makes
 //! the new stack walk the land beside the lair; here it takes the lair at once and the evicted
-//! guards roam as the monsters' units (`f4x_ai::play_neutrals`): they look for a stand that
+//! guards roam as the monsters' units (`f4x_ai::NeutralSeat`): they look for a stand that
 //! nobody holds and settle in it, or attack the first city they find. A city that falls to them
 //! is wrecked, and with luck turns into a lair of its own (`Rampage_Combat_City`, `Combat.c`);
 //! the monsters that did it are gone from the map either way, into the ruins or the wilderness.

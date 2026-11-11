@@ -87,8 +87,6 @@ fn the_raider_clock_runs_to_thirty_and_a_city_raises_free_troops_and_goes_to_war
         .collect();
     assert_eq!(free.len(), 2);
     assert!(free.iter().all(|&&u| g.units().unit_gold_upkeep(u) == 0));
-    assert!(g.is_aggressive_player(TOWN));
-    assert!(!g.is_aggressive_player(P0));
 }
 
 #[test]
@@ -97,7 +95,6 @@ fn below_thirty_nothing_happens() {
     g.threat.raider_clock = 0;
     assert!(g.process_threats().is_empty());
     assert!((1..=5).contains(&g.threat.raider_clock));
-    assert!(!g.is_aggressive_player(TOWN));
 }
 
 #[test]
@@ -122,7 +119,6 @@ fn a_neutral_city_alone_on_its_landmass_raises_nobody_and_feeds_the_monsters_clo
     let before = g.threat.monster_clock;
     assert!(g.process_threats().is_empty());
     assert_eq!(g.threat.monster_clock, before + 15);
-    assert!(!g.is_aggressive_player(TOWN));
     Ok(())
 }
 
@@ -491,7 +487,7 @@ fn monsters_that_beat_the_defenders_in_a_battle_rampage_through_the_city() -> Te
 }
 
 #[test]
-fn the_clocks_and_the_marks_survive_a_save() -> TestResult {
+fn the_clocks_and_the_free_troops_survive_a_save() -> TestResult {
     let mut g = world(4);
     g.threat.raider_clock = 29;
     g.process_threats();
@@ -499,7 +495,6 @@ fn the_clocks_and_the_marks_survive_a_save() -> TestResult {
     let text = g.snapshot();
     let back = text.restore(g.content.clone())?;
     assert_eq!(back.threat, g.threat);
-    assert!(back.is_aggressive_player(TOWN));
     let free = back
         .units()
         .player_units(TOWN)
