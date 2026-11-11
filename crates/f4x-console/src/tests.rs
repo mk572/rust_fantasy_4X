@@ -875,9 +875,9 @@ fn neutral_cities_play_by_the_ordinary_rules() {
     for _ in 0..40 {
         f4x_ai::play_round(&mut g, &mut []);
     }
-    assert_eq!(
-        neutral_cities(&g).len(),
-        before.len(),
+    // (The neutral players play like any AI now: they may take or found a city.)
+    assert!(
+        neutral_cities(&g).len() >= before.len(),
         "no neutral city is lost on its own"
     );
     let grew = before.iter().any(|&(e, pop, _)| {
@@ -895,9 +895,12 @@ fn neutral_cities_play_by_the_ordinary_rules() {
     });
     assert!(grew, "a neutral city grew");
     assert!(built, "a neutral city built something");
+    // (The wizards here play no turns, so the neutral players may well beat one: only a neutral
+    // player must not be defeated.)
     assert!(g
         .player_ids()
         .iter()
+        .filter(|&&id| !g.is_wizard(id))
         .all(|id| !g.player(*id).is_some_and(|p| p.is_defeated())));
     let _ = gold;
 }
@@ -1612,8 +1615,14 @@ fn a_taken_city_can_be_razed_until_the_turn_ends() -> TestResult {
         player: PlayerId(2),
         city,
     });
+    // (Taking the city of a neutral player also made contact and war with it: those events wait
+    // in the queue.)
+    let rejected: Vec<_> = events
+        .iter()
+        .filter(|e| !matches!(e, f4x_core::game::Event::Diplomacy(_)))
+        .collect();
     assert!(
-        matches!(events[..], [f4x_core::game::Event::Rejected(_)]),
+        matches!(rejected[..], [f4x_core::game::Event::Rejected(_)]),
         "{events:?}"
     );
     // The taker razes it: the size in fame is lost (the fighting leaves a size that

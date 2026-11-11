@@ -139,9 +139,10 @@ const MASTERY_WAR_BELOW: u32 = 11;
 /// account, whatever the race (`race::run` makes the war that the race itself calls for).
 pub(crate) fn mastery_scare(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
+    // A neutral player has no wizard to banish: only a banished wizard is left out of this.
     if PlayerView::new(game, me)
         .wizard()
-        .is_none_or(|w| w.is_banished())
+        .is_some_and(|w| w.is_banished())
     {
         return;
     }
@@ -182,21 +183,19 @@ pub(crate) fn quarrel(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let (can_quarrel, fights, mine, rivals) = {
         let view = PlayerView::new(game, me);
-        let Some(w) = view.wizard() else {
-            return;
-        };
-        // A banished wizard starts no talk and no war.
-        let can_quarrel = !w.is_banished();
+        // A banished wizard starts no talk and no war. A neutral player has no objective: it picks
+        // no fights of its own, only the war on a rival it is much bigger than (below).
+        let can_quarrel = !view.wizard().is_some_and(|w| w.is_banished());
         let fights = can_quarrel
             && crate::objective::picks_fights(
-                w.objective(),
-                crate::objective::temper(w.personality(), view.difficulty()),
+                view.wizard().and_then(|w| w.objective()),
+                crate::objective::temper(game.personality(me), view.difficulty()),
             );
         let known = view.known_cities();
         let rivals: Vec<(PlayerId, usize)> = game
             .player_ids()
             .into_iter()
-            .filter(|&p| p != me && view.is_rival_wizard(p))
+            .filter(|&p| view.is_diplomat(p))
             .filter(|&p| game.have_met(me, p) && game.treaty(me, p) == Treaty::None)
             // After a war it ends the pair leaves each other alone for a few turns.
             .filter(|&p| {
@@ -264,11 +263,11 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
         let thirds: Vec<PlayerId> = game
             .player_ids()
             .into_iter()
-            .filter(|&p| p != me && p != human && view.is_rival_wizard(p))
+            .filter(|&p| p != human && view.is_diplomat(p))
             .filter(|&p| game.have_met(me, p) && game.have_met(human, p))
             .collect();
         (
-            view.wizard().is_some_and(|w| !w.is_banished()) && !view.is_defeated(),
+            !view.wizard().is_some_and(|w| w.is_banished()) && !view.is_defeated(),
             thirds,
         )
     };
@@ -456,7 +455,7 @@ fn need_for_war(
     let human_wars = game
         .player_ids()
         .into_iter()
-        .filter(|&w| w != human && PlayerView::new(game, me).is_rival_wizard(w))
+        .filter(|&w| w != human && PlayerView::new(game, me).is_diplomat(w))
         .filter(|&w| at_war_with_human(game, w))
         .count() as u32;
     let war = (game.personality(me) == f4x_core::wizard::objective::Personality::Chaotic
@@ -622,12 +621,12 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let human = game.human();
     let others: Vec<PlayerId> = {
         let view = PlayerView::new(game, me);
-        if view.wizard().is_none_or(|w| w.is_banished()) || view.is_defeated() {
+        if view.wizard().is_some_and(|w| w.is_banished()) || view.is_defeated() {
             return;
         }
         game.player_ids()
             .into_iter()
-            .filter(|&p| p != me && Some(p) != human && view.is_rival_wizard(p))
+            .filter(|&p| Some(p) != human && view.is_diplomat(p))
             .filter(|&p| game.have_met(me, p))
             .filter(|&p| game.player(p).is_some_and(|q| !q.is_defeated()))
             .collect()
@@ -690,7 +689,7 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     && game.treaty(other, t) == Treaty::War
                     && game.treaty(me, t) != Treaty::War
                     && game.treaty(me, t) != Treaty::Alliance
-                    && PlayerView::new(game, me).is_rival_wizard(t)
+                    && PlayerView::new(game, me).is_diplomat(t)
                     && game.have_met(me, t)
             });
             if let Some(enemy) = enemy {

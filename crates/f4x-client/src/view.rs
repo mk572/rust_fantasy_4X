@@ -1037,9 +1037,10 @@ impl App {
     /// `args` with the wizard's name, which carries the wizard's gender; a rival the game has no
     /// record of is "a rival".
     pub(crate) fn wizard_arg(&self, args: Args, name: &'static str, player: PlayerId) -> Args {
-        match self.game.wizard(player) {
-            Some(w) => args.named(name, w.name(), w.gender()),
-            None => args.text(name, self.text("log.a_rival")),
+        match (self.game.wizard(player), self.player_name(player)) {
+            (Some(w), _) => args.named(name, w.name(), w.gender()),
+            (None, Some(neutral)) => args.text(name, neutral),
+            (None, None) => args.text(name, self.text("log.a_rival")),
         }
     }
 
@@ -1311,6 +1312,7 @@ impl App {
             for ai in &mut self.ais {
                 events.extend(ai.approach_human(&mut self.game));
             }
+            events.extend(self.neutral_seat.approach_human(&mut self.game));
             self.game.set_undo(undo);
         }
         // What the rivals did out of sight is not shown: only what touches the human.
@@ -2326,7 +2328,16 @@ impl App {
             if self.game.economy().city_owner(city) == Some(HUMAN) {
                 self.open_city_or_outpost(city);
             } else if self.game.is_explored(HUMAN, pos) {
-                self.open_enemy_city(city);
+                // The city of a neutral player met opens a talk with it (task 522); else, or when
+                // there is none to have, the city is looked at.
+                let neutral = self
+                    .game
+                    .economy()
+                    .city_owner(city)
+                    .filter(|&o| self.game.race_of_player(o).is_some());
+                if !neutral.is_some_and(|o| self.try_open_diplomacy(o)) {
+                    self.open_enemy_city(city);
+                }
             }
         } else {
             self.selection.clear();

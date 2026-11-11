@@ -172,9 +172,7 @@ impl App {
                 self.text("unit_list.raiders")
             }
         } else {
-            let name = owner
-                .and_then(|o| self.game.wizard(o))
-                .map_or_else(String::new, |w| w.name());
+            let name = owner.and_then(|o| self.player_name(o)).unwrap_or_default();
             self.text_with("unit_list.units_of", &Args::new().text("owner", name))
         };
         let ink = self.banner_ink(

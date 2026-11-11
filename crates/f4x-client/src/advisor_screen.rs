@@ -343,7 +343,7 @@ impl Page for CartographerPage {
             let (sx, sy) = px(at.x, at.y);
             square(sx + 2.0, sy + 1.0, 1.0, app.art.banner_color(banner));
         }
-        // Cities: a banner-coloured block with a black shadow, brown for independent ones.
+        // Cities: a banner-coloured block with a black shadow (the neutral players' banner is grey).
         let mut hovered = None;
         let mouse: Vec2 = input.mouse_position().into();
         for (_, city, at) in app.game.economy().cities() {
@@ -355,11 +355,7 @@ impl Page for CartographerPage {
                 .game
                 .wizard(city.owner)
                 .map_or(f4x_core::player::NEUTRAL_BANNER, |w| w.banner());
-            let colour = if app.game.is_neutral_player(city.owner) {
-                Color::new(0.5, 0.3, 0.1, 1.0)
-            } else {
-                app.art.banner_color(banner)
-            };
+            let colour = app.art.banner_color(banner);
             square(sx + 1.0, sy + 1.0, 3.0, BLACK);
             square(sx, sy, 3.0, colour);
             if ui::hit(lay.rect((sx, sy, CART_SQUARE, CART_SQUARE)), true, input).hovered() {

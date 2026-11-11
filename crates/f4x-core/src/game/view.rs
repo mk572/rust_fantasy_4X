@@ -41,11 +41,11 @@ impl Game {
     }
 
     /// A player that takes part in diplomacy: it can meet, talk, make treaties and declare war.
-    /// Today those are the wizards; task 522 adds the neutral player of each race, so every
+    /// The wizards and the neutral player of each race (task 522); not the monsters. Every
     /// diplomacy rule asks this and not [`Game::is_wizard`] (the spell parts of diplomacy keep
     /// asking for the wizard itself).
     pub fn takes_part_in_diplomacy(&self, id: PlayerId) -> bool {
-        self.is_wizard(id)
+        self.is_wizard(id) || self.race_of_player(id).is_some()
     }
 
     /// Another player's cities and units that `viewer` sees now: on squares it has in sight,

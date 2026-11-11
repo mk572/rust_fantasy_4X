@@ -2370,9 +2370,7 @@ impl App {
         if player == f4x_core::player::MONSTERS {
             return self.text("battle.monsters");
         }
-        self.game
-            .wizard(player)
-            .map_or_else(|| "?".to_string(), |w| w.name())
+        self.player_name(player).unwrap_or_else(|| "?".to_string())
     }
 }
 

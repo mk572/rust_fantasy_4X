@@ -212,7 +212,7 @@ impl App {
             .game
             .player_ids()
             .into_iter()
-            .filter(|id| *id != HUMAN && self.game.is_wizard(*id))
+            .filter(|id| *id != HUMAN && self.game.takes_part_in_diplomacy(*id))
             .map(|id| {
                 let p = self.game.player(id);
                 (
@@ -281,8 +281,14 @@ impl App {
             if !self.game.have_met(HUMAN, id) {
                 continue;
             }
-            let gem = crate::art::gem_entry(self.art.wizard(portrait).gem, banner)
-                .and_then(|entry| self.draw_pic(lay, "lilwiz", entry, 0, x, 4.0));
+            let gem = match self.game.race_of_player(id) {
+                // A neutral player's gem is its race's picture, not a wizard's in a banner colour.
+                Some(race) => {
+                    self.draw_neutral(lay, race.num(), crate::neutral_art::Kind::Gem, x, 4.0)
+                }
+                None => crate::art::gem_entry(self.art.wizard(portrait).gem, banner)
+                    .and_then(|entry| self.draw_pic(lay, "lilwiz", entry, 0, x, 4.0)),
+            };
             let rel = self.game.relation(HUMAN, id);
             let word = self.text(f4x_core::diplomacy::relation_key(rel));
             self.draw_styled(
@@ -320,7 +326,7 @@ impl App {
             for &other in gems.iter().filter(|&&o| o != id) {
                 if self.game.have_met(HUMAN, other) {
                     let t = self.game.treaty(id, other);
-                    let colour = self.game.wizard(other).map_or(0, |w| w.banner());
+                    let colour = crate::map_draw::banner_of(&self.game, other);
                     show(self, t, colour);
                 }
             }
@@ -328,7 +334,8 @@ impl App {
             if active && over && input.mouse_pressed(MouseButton::Left) {
                 self.open_diplomacy(id);
             }
-            if active && over && input.mouse_pressed(MouseButton::Right) {
+            if active && over && input.mouse_pressed(MouseButton::Right) && self.game.is_wizard(id)
+            {
                 self.open_wizard(id);
             }
         }

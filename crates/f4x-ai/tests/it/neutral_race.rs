@@ -121,3 +121,48 @@ fn the_ai_of_a_neutral_player_goes_with_the_player() {
     assert!(!g.has_player(first), "the empty player is gone");
     assert!(neutral.borrow().plans().iter().all(|(p, _)| *p != first));
 }
+
+#[test]
+fn a_neutral_player_meets_answers_proposals_and_trades_no_spells() {
+    use f4x_core::diplomacy::{DiplomacyCommand, ProposalKind};
+    let mut g = world(7);
+    let neutral = RefCell::new(NeutralSeat::default());
+    play(&mut g, &neutral, 2);
+    let race = *neutral
+        .borrow()
+        .plans()
+        .first()
+        .map(|(p, _)| p)
+        .expect("a neutral AI");
+    assert!(g.takes_part_in_diplomacy(race));
+    assert!(!g.takes_part_in_diplomacy(f4x_core::player::MONSTERS));
+    g.make_contact(PlayerId(0), race);
+    assert!(g.have_met(PlayerId(0), race), "wizards and neutrals meet");
+    let events = g.apply(Command::Diplomacy(DiplomacyCommand::Propose {
+        from: PlayerId(0),
+        to: race,
+        kind: ProposalKind::Pact,
+    }));
+    assert!(
+        !events.iter().any(|e| matches!(e, Event::Rejected(_))),
+        "a neutral player takes a proposal: {events:?}"
+    );
+    let answered = f4x_ai::answer_proposals(&mut g, race);
+    assert!(
+        !answered.iter().any(|e| matches!(e, Event::Rejected(_))),
+        "{answered:?}"
+    );
+    assert!(f4x_core::player::view::PlayerView::new(&g, race)
+        .proposals_to_me()
+        .is_empty());
+    // No spells to trade: a swap is not valid with a neutral player.
+    let swap = g.check_proposal(
+        PlayerId(0),
+        race,
+        ProposalKind::Exchange {
+            give: f4x_core::rules::SpellId::new(1),
+            get: f4x_core::rules::SpellId::new(2),
+        },
+    );
+    assert!(swap.is_err(), "{swap:?}");
+}

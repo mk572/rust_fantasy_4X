@@ -162,9 +162,16 @@ impl Default for DiploUi {
 impl App {
     /// Talk to a wizard met. Does nothing for one not met.
     pub fn open_diplomacy(&mut self, with: PlayerId) {
-        if let Some(ui) = self.start_talk(with) {
-            self.open_page(Screen::Diplomacy, ui);
-        }
+        self.try_open_diplomacy(with);
+    }
+
+    /// Talk to a player met; false when there is no talk (not met, or the human is banished).
+    pub(crate) fn try_open_diplomacy(&mut self, with: PlayerId) -> bool {
+        let Some(ui) = self.start_talk(with) else {
+            return false;
+        };
+        self.open_page(Screen::Diplomacy, ui);
+        true
     }
 
     /// The start of a talk with `with`, who opens it (the greeting the first time).
@@ -290,16 +297,30 @@ impl App {
     }
 
     pub(crate) fn diplo_name(&self, p: PlayerId) -> String {
-        self.game
-            .wizard(p)
-            .map_or_else(|| "?".to_string(), |w| w.name())
+        self.player_name(p).unwrap_or_else(|| "?".to_string())
+    }
+
+    /// How a player is called: a wizard by its name, the neutral player of a race "Neutral
+    /// {race}" with the race in the plural ("Neutral Barbarians"). None for the monsters and for a
+    /// player the game does not have.
+    pub(crate) fn player_name(&self, p: PlayerId) -> Option<String> {
+        if let Some(w) = self.game.wizard(p) {
+            return Some(w.name());
+        }
+        let race = self.game.race_of_player(p)?;
+        let num = self.game.content().rules.races.get(race).num;
+        Some(self.text_with(
+            "diplomacy.neutral_name",
+            &Args::new().text("race", self.names.race_plural(num)),
+        ))
     }
 
     /// The wizards another proposal can be about: met by both of us.
     fn third_wizards(&self, with: PlayerId, war: bool) -> Vec<PlayerId> {
         self.game
-            .wizards()
+            .player_ids()
             .into_iter()
+            .filter(|&t| self.game.takes_part_in_diplomacy(t))
             .filter(|&t| t != HUMAN && t != with)
             .filter(|&t| {
                 let kind = if war {
@@ -467,7 +488,7 @@ impl DiploUi {
                     .game
                     .player(HUMAN)
                     .map_or(0, |p| p.treasury().gold.floor());
-                let rows = vec![
+                let mut rows = vec![
                     row(
                         app.text("diplomacy.propose_treaty"),
                         true,
@@ -490,6 +511,10 @@ impl DiploUi {
                     ),
                     row(app.text("diplomacy.good_bye"), true, Act::Leave),
                 ];
+                // A neutral player has no spells to trade (task 522).
+                if app.game.race_of_player(with).is_some() {
+                    rows.retain(|r| !matches!(r.act, Act::Go(Menu::ExchangeRealm)));
+                }
                 (say::menu_prompt(app.texts()), rows)
             }
             Menu::Propose => {

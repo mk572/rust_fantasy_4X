@@ -88,7 +88,7 @@ impl App {
         // Wizards we have met are known by name; their shortages are news.
         let rival_name = |player: &f4x_core::player::PlayerId| {
             (*player != HUMAN && self.game.have_met(HUMAN, *player))
-                .then(|| self.game.wizard(*player).map(|w| w.name()))
+                .then(|| self.player_name(*player))
                 .flatten()
         };
         let say = |key: &str, args: Args| self.text_with(key, &args);

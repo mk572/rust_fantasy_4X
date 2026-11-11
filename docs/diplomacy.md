@@ -25,6 +25,19 @@ hated spells, break treaties, give gifts) and are tested whenever someone propos
 Each turn the AI wizards decide whether to talk to the human (greeting, warning, demand, war or
 peace), and among themselves they make treaties, trade spells and declare wars.
 
+### Neutral players (a departure from the original)
+
+The neutral player of each race (task 522, `Game::race_player`) takes part in diplomacy like a
+wizard: `Game::takes_part_in_diplomacy` (wizards and race players, not the monsters) is the one
+predicate the rules ask, and `PlayerView::is_diplomat` is the AI's. They meet by sight, hold
+relations and treaties, declare war, make peace, and answer proposals with the same `rate`. The
+differences: they have no spells, so no spell swaps or gifts (the exchange row is not on the
+diplomacy screen, the core refuses the proposal); they have no objective (`quarrel` picks fights
+only on the strength rule) and the temper that a player without a wizard gets by default (`Personality::Chaotic`, as the human counts); a banished
+wizard's early returns do not apply to them; and they greet the human by their race's picture
+(`crates/f4x-client/assets/neutral/`), named "Neutral {race}". The human opens the talk by clicking
+a neutral city of a race met.
+
 ## 2. Data model (per ordered pair unless noted)
 
 From `s_WIZ_DIPL`. `A -> B` means what wizard A holds about wizard B.

@@ -87,10 +87,10 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 521 | Medium | AI | Research stalled for hundreds of turns (one cause fixed: a banished wizard's paid Spell of Return was never aimed; most of the stalls remain) |
 | 530 | Medium | Rules | Implement the 1.6 community patch variant rules: define what v1.6 changes, make each change a setting, and fill the "v1.6 community patch" rule set with them |
 | 533 | Low | Client | Wizard screen: with 12 or more books and a 5-digit mana figure the books cover the mana |
-| 537 | Medium | Rules / Client | 522 step 4: diplomacy with neutral players (gates, clicking a city, name key, no spell trades, grey) |
 | 538 | Medium | Tools | 522 step 5: soak line for the neutrals, cost measurement against task 512, docs |
 | 539 | Medium | AI | Seed 25 (2 players): 58 refused orders in one game (found in the soak after task 535); find their sources and fix them |
 | 540 | Medium | AI / Economy | Seed 23 (3 players): a wizard holds 184,983 gold at turn 750 (soak after task 535); find why the gold is not spent or where it comes from |
+| 541 | Low | AI | Refused moves in the soak: `site.rs:146` `Move(NoMovesLeft)` and `expand.rs:135` `Move(Impassable)`, `military.rs:627` and `:487` `Move(Impassable)` |
 
 ## Descriptions
 
@@ -310,10 +310,10 @@ and make invalidation explicit and testable so the client never displays stale i
 
 *Needs:* nothing.
 
-**537. 522 step 4: diplomacy with neutral players.** Standard rules (decided in 522): they can declare war, make treaties and deals, and first contact is as for any wizard; no spell trades (hidden on the diplomacy screen). (1) The ~15 `is_wizard(a) && is_wizard(b)` gates of `diplomacy/mod.rs` use `takes_part_in_diplomacy` (the spell parts stay on `wizard()`); (2) the AI's diplomacy functions (`quarrel`, `negotiate`, `answer`, `mastery_scare`) return early without a wizard today: let them play for a race player, and `mastery_scare` skips only when a wizard is banished (it is AI decision code, not a game rule); (3) the human opens diplomacy by clicking a neutral city; (4) the player name text key ("Neutral {race}", plural forms checked); (5) one grey on the map and the advisor for all race players; (6) the gem and the hall picture of `neutral_art.rs` where wizards' gems and halls are listed (magic screen, wizard screen, hall of fame, if neutrals belong there); (7) the neutral temper and objective carry no special weights. The diplomacy screen already shows the race portrait. *Needs:* 536.
-
 **538. 522 step 5: soak and docs.** The soak and versus statistics keep wizards for the wins and get a neutral line; measure the turn cost of up to 14 more AI players against task 512 and set a budget; update `design.md`, `divergences.md`, `ai-design.md`, `ecs-structure.md` and `docs/KNOWLEDGE.md`. *Needs:* 537.
 
 **539. Seed 25 refused orders.** The 2-player soak (seeds 21 to 28, 1,000 turns, `scripts/cool_run.sh target/release/f4x-tools soak --seeds 21..28 --players 2 --turns 1000 --every 50 --jobs 4`) run on the commit after task 535 (version 0.0.6) had 58 refused orders in seed 25 (won by player 1, Spell of Mastery, turn 894; the other seeds 0 to 9; the total of the run before was 68 over all seeds, seed 23 46). The soak log has only the count. Replay seed 25 with `--refused-log FILE` (deterministic), group the refusals by source (`file:line`) and reason, and fix the AI that sends them (the refused-orders loops of tasks 516 and 517 were of this kind). Also check whether the neutral race players (task 535) are among the sources. *Needs:* nothing.
 
 **540. Seed 23 extreme gold.** In the 3-player soak (same settings, `--players 3`) on the commit after task 535, seed 23 shows `p0` with 184,983 gold at turn 750 (the other wizards 632 and 197), at 820 ms a turn. Find where the gold comes from (alchemy, trade goods, tribute, the neutral race players' loot or treasuries merged by the new race players, a conquest of rich cities) and why the AI does not spend it (production, hiring, buying items, mercenaries). Check against the earlier run (`run3`, same seed) to see whether it is new. *Needs:* nothing.
+
+**541. Refused moves in the soak.** The 2 and 3 player soaks after task 537 (seeds 21 to 28, `--refused-log`, in the scratchpad `soak/run6`) have no loops any more, but a few orders refused for a reason the AI could know: 38 of `site.rs:146` with `Move(NoMovesLeft)` (the party for a site is sent with units that have no moves left), 18 of `expand.rs:135` with `Move(Impassable)` (settlers sent over a square they cannot cross), 7 of `military.rs:627` and 3 of `military.rs:487`, both `Move(Impassable)`. Filter the units by moves left and the squares by `can_reach` before sending, or test each reason in a small case; then run the soak and check the refused-order log is empty of them. *Needs:* nothing.

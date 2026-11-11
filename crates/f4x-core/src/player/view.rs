@@ -126,6 +126,13 @@ impl<'a> PlayerView<'a> {
         other != self.me && self.game.is_wizard(other)
     }
 
+    /// Is the player another one that takes part in diplomacy: a wizard or the neutral player of a
+    /// race (not the monsters)? A computer player talks to, quarrels with and makes treaties with
+    /// these; what needs the wizard itself (the spells) still asks for it.
+    pub fn is_diplomat(&self, other: PlayerId) -> bool {
+        other != self.me && self.game.takes_part_in_diplomacy(other)
+    }
+
     /// Whether a wizard the player is at war with has a book in one of `realms` (the books of a
     /// wizard are on show in the diplomacy screen).
     pub fn rival_at_war_has_books(&self, realms: &[RealmId]) -> bool {

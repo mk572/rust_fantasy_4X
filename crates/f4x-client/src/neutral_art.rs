@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use crate::frame::Layout;
 use crate::view::App;
 
-/// Which picture of a race. The gem and the hall picture are for the lists (task 537).
+/// Which picture of a race. The hall picture is not drawn anywhere yet.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Kind {
@@ -159,21 +159,28 @@ pub fn texture(race: u16, kind: Kind) -> Option<Texture2D> {
 
 impl App {
     /// Draw a race's neutral picture with its top left at (`x`, `y`) in the original's pixels.
-    pub(crate) fn draw_neutral(&self, lay: &Layout, race: u16, kind: Kind, x: f32, y: f32) {
-        let Some(tex) = texture(race, kind) else {
-            return;
-        };
+    pub(crate) fn draw_neutral(
+        &self,
+        lay: &Layout,
+        race: u16,
+        kind: Kind,
+        x: f32,
+        y: f32,
+    ) -> Option<Rect> {
+        let tex = texture(race, kind)?;
         let at = lay.point(x, y);
+        let size = vec2(tex.width(), tex.height()) * lay.scale;
         draw_texture_ex(
             &tex,
             at.x,
             at.y,
             WHITE,
             DrawTextureParams {
-                dest_size: Some(vec2(tex.width(), tex.height()) * lay.scale),
+                dest_size: Some(size),
                 ..Default::default()
             },
         );
+        Some(Rect::new(at.x, at.y, size.x, size.y))
     }
 }
 
