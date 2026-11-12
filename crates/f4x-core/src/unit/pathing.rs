@@ -22,30 +22,58 @@ pub struct ReachSignature {
 
 type SquareMap<V> = FastMap<Position, V>;
 
-pub(crate) fn neighbours(game: &Game, p: Position) -> Vec<Position> {
-    let Some(map) = game.map.as_ref() else {
-        return Vec::new();
-    };
-    let (w, h) = (map.width() as i32, map.height() as i32);
-    let mut out = Vec::with_capacity(8);
-    for dy in -1i32..=1 {
-        for dx in -1i32..=1 {
-            if dx == 0 && dy == 0 {
+/// The squares round one, row by row from the north west (the map wraps east and west, and
+/// stops at the north and south): what [`neighbours`] lists, without a vector.
+pub(crate) struct Ring {
+    plane: crate::map::Plane,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    /// The next of the nine squares of the block, 0 to 9; the middle one is skipped.
+    next: u8,
+}
+
+impl Iterator for Ring {
+    type Item = Position;
+
+    fn next(&mut self) -> Option<Position> {
+        while self.next < 9 {
+            let (dx, dy) = (i32::from(self.next % 3) - 1, i32::from(self.next / 3) - 1);
+            self.next += 1;
+            let y = self.y + dy;
+            if (dx == 0 && dy == 0) || !(0..self.h).contains(&y) {
                 continue;
             }
-            let y = p.y as i32 + dy;
-            if !(0..h).contains(&y) {
-                continue;
-            }
-            let x = (p.x as i32 + dx).rem_euclid(w);
-            out.push(Position {
-                plane: p.plane,
-                x: x as u32,
+            return Some(Position {
+                plane: self.plane,
+                x: (self.x + dx).rem_euclid(self.w) as u32,
                 y: y as u32,
             });
         }
+        None
     }
-    out
+}
+
+/// The squares next to `p`; none when the game has no map.
+pub(crate) fn ring(game: &Game, p: Position) -> Ring {
+    let (w, h) = game
+        .map
+        .as_ref()
+        .map_or((0, 0), |m| (m.width() as i32, m.height() as i32));
+    Ring {
+        plane: p.plane,
+        x: p.x as i32,
+        y: p.y as i32,
+        w,
+        h,
+        // With no map there is nothing to give.
+        next: if w == 0 { 9 } else { 0 },
+    }
+}
+
+pub(crate) fn neighbours(game: &Game, p: Position) -> Vec<Position> {
+    ring(game, p).collect()
 }
 
 /// The least a walk between two squares costs: half a move for each square (a road step).
@@ -118,7 +146,7 @@ impl Game {
             if cost > *best.get(&here).unwrap_or(&HalfInt::MAX) {
                 continue;
             }
-            for next in neighbours(self, here) {
+            for next in ring(self, here) {
                 // Hostile squares and guarded sites stop the stack: go round unless it is the
                 // destination.
                 if next != to && blocked(next) {
@@ -227,7 +255,7 @@ impl Game {
                 found = true;
                 break;
             }
-            for next in neighbours(self, here) {
+            for next in ring(self, here) {
                 if blocked(next) {
                     continue;
                 }

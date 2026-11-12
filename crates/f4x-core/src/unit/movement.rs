@@ -104,6 +104,33 @@ pub struct StepProfile<'a> {
     owner: Option<PlayerId>,
     def: &'a crate::rules::UnitDef,
     abilities: Vec<Ability>,
+    /// The abilities the costs ask about, looked up once.
+    flags: StepFlags,
+}
+
+/// The abilities a step's cost depends on, read off the unit's list once per search.
+#[derive(Clone, Copy)]
+struct StepFlags {
+    road_walker: bool,
+    flier: bool,
+    water_walker: bool,
+    pathfinder: bool,
+    forester: bool,
+    mountaineer: bool,
+}
+
+impl StepFlags {
+    fn of(abilities: &[Ability]) -> Self {
+        let has = |n: u16| abilities.contains(&Ability::new(n));
+        Self {
+            road_walker: has(49),
+            flier: has(24),
+            water_walker: has(71),
+            pathfinder: has(50),
+            forester: has(25),
+            mountaineer: has(45),
+        }
+    }
 }
 
 impl StepProfile<'_> {
@@ -146,10 +173,12 @@ impl Economy<'_> {
     /// takes it once and calls [`Economy::step_cost_with`].
     pub fn step_profile(&self, unit: hecs::Entity) -> Result<StepProfile<'_>, MoveError> {
         let def = self.units().unit_def(unit).ok_or(MoveError::BadSelection)?;
+        let abilities = self.units().unit_abilities(unit);
         Ok(StepProfile {
             owner: self.units().unit_owner(unit),
             def,
-            abilities: self.units().unit_abilities(unit),
+            flags: StepFlags::of(&abilities),
+            abilities,
         })
     }
 
@@ -203,26 +232,22 @@ impl Economy<'_> {
             return Err(MoveError::OffMap);
         }
         let StepProfile {
-            owner,
-            def,
-            abilities,
-            ..
+            owner, def, flags, ..
         } = profile;
         let owner = *owner;
         let terrain = grid
             .get(to.x as i32, to.y as i32)
             .and_then(|t| self.content.terrains.get(t))
             .ok_or(MoveError::OffMap)?;
-        let has = |a: Ability| abilities.contains(&a);
         let is_water = terrain.class == TerrainClass::Ocean;
 
-        if has(Ability::new(49)) && !is_water {
+        if flags.road_walker && !is_water {
             return Ok(ROAD_MOVE);
         }
         if stack_flies
             || def.movement == MovementType::Flying
-            || has(Ability::new(24))
-            || (is_water && has(Ability::new(71)))
+            || flags.flier
+            || (is_water && flags.water_walker)
         {
             return Ok(FULL_MOVE);
         }
@@ -270,13 +295,13 @@ impl Economy<'_> {
                 ROAD_MOVE
             };
         }
-        if has(Ability::new(50)) || traits.pathfinding {
+        if flags.pathfinder || traits.pathfinding {
             cost = cost.min(ROAD_MOVE);
         }
-        if (has(Ability::new(25)) || traits.forester) && terrain.class.is_forest() {
+        if (flags.forester || traits.forester) && terrain.class.is_forest() {
             cost = cost.min(FULL_MOVE);
         }
-        if (has(Ability::new(45)) || traits.mountaineer)
+        if (flags.mountaineer || traits.mountaineer)
             && (terrain.class == TerrainClass::Hills || terrain.class.is_mountain())
         {
             cost = cost.min(FULL_MOVE);
