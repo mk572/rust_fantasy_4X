@@ -301,6 +301,13 @@ impl Economy<'_> {
 
     /// Hostile units or city on `pos` from the point of view of `mover`.
     pub fn hostile_at(&self, pos: Position, mover: PlayerId) -> Option<Vec<hecs::Entity>> {
+        // While the mover's turn is kept, the squares with something hostile on them are known:
+        // any other square answers at once.
+        if crate::unit::kept::keeping(self.world, mover)
+            && !self.hostile_squares(mover).contains(&pos)
+        {
+            return None;
+        }
         let defenders: Vec<_> = self
             .units()
             .units_at(pos)

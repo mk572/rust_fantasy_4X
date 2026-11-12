@@ -2,6 +2,7 @@
 //! `Economy` handle (world, map, content, players) without a `Game`.
 
 use crate::city::economy::Economy;
+use crate::fast::FastMap;
 use crate::map::{Plane, Position};
 use crate::player::PlayerId;
 use crate::rules::Ability;
@@ -64,7 +65,7 @@ impl Economy<'_> {
             diagonal_extra: self.diagonal_extra,
             all: false,
             counts: [Vec::new(), Vec::new()],
-            sights: std::collections::HashMap::new(),
+            sights: FastMap::default(),
         };
         if self.units().has_global_effect(
             player,
@@ -112,7 +113,7 @@ pub struct VisionGrid {
     all: bool,
     counts: [Vec<u16>; 2],
     /// Each counted unit: where it was put on and with what sight.
-    sights: std::collections::HashMap<hecs::Entity, (Position, HalfInt)>,
+    sights: FastMap<hecs::Entity, (Position, HalfInt)>,
 }
 
 impl VisionGrid {
@@ -155,6 +156,11 @@ impl VisionGrid {
             return vec![true; (self.w * self.h) as usize];
         }
         self.counts[plane.index()].iter().map(|&n| n > 0).collect()
+    }
+
+    /// Where a unit was put on the counts, if it was.
+    pub(crate) fn tracked_at(&self, unit: hecs::Entity) -> Option<Position> {
+        self.sights.get(&unit).map(|&(p, _)| p)
     }
 
     /// The units that were put on the counts.
@@ -302,24 +308,34 @@ impl crate::game::Game {
             VisionEffect::None => true,
             VisionEffect::Recount => false,
             VisionEffect::Walk => {
-                let units = self.units();
-                let now: std::collections::HashMap<hecs::Entity, Option<Position>> = units
-                    .player_units(player)
-                    .into_iter()
-                    .map(|u| (u, units.unit_position(u)))
-                    .collect();
-                let was: std::collections::HashMap<hecs::Entity, Position> =
-                    grid.tracked().collect();
+                // Every unit of the player now, where it stands (no order is needed).
+                let now: FastMap<hecs::Entity, Option<Position>> = match crate::player::find_entity(
+                    &self.world,
+                    player,
+                ) {
+                    Some(me) => self
+                        .world
+                        .query::<(&crate::unit::Unit, &crate::player::Owner, Option<&Position>)>()
+                        .iter()
+                        .filter(|(_, (_, o, _))| o.0 == me)
+                        .map(|(e, (_, _, p))| (e, p.copied()))
+                        .collect(),
+                    None => FastMap::default(),
+                };
                 // A unit that was counted and is no longer one of the player's: the command did
                 // more than walk, so count again.
-                let intact = was.keys().all(|u| now.contains_key(u));
+                let intact = grid.tracked().all(|(u, _)| now.contains_key(&u));
                 if intact {
-                    for (&u, &at) in &now {
-                        if at != was.get(&u).copied() {
-                            grid.lift(u);
-                            if let Some(at) = at {
-                                grid.put(u, at, units.unit_sight(u));
-                            }
+                    let moved: Vec<(hecs::Entity, Option<Position>)> = now
+                        .iter()
+                        .filter(|&(&u, &at)| at != grid.tracked_at(u))
+                        .map(|(&u, &at)| (u, at))
+                        .collect();
+                    let units = self.units();
+                    for (u, at) in moved {
+                        grid.lift(u);
+                        if let Some(at) = at {
+                            grid.put(u, at, units.unit_sight(u));
                         }
                     }
                 }

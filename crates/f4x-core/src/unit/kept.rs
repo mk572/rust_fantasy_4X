@@ -108,6 +108,15 @@ pub(crate) fn keep_abilities(world: &hecs::World, unit: hecs::Entity, list: &Rc<
     });
 }
 
+/// Whether the turn of `player` is the one being kept.
+pub(crate) fn keeping(world: &hecs::World, player: PlayerId) -> bool {
+    KEPT.with(|k| {
+        k.borrow()
+            .as_ref()
+            .is_some_and(|kept| kept.world == address(world) && kept.player == Some(player))
+    })
+}
+
 /// The kept hostile squares of `player`, if it is the player whose turn is kept.
 pub(crate) fn hostile(world: &hecs::World, player: PlayerId) -> Option<Rc<FastSet<Position>>> {
     KEPT.with(|k| {
