@@ -599,7 +599,7 @@ impl<'a> PlayerView<'a> {
 
     /// Every square the stack can walk to from where it stands (see `Game::reachable_squares`):
     /// one search, for asking about many squares.
-    pub fn reachable(&self, units: &[hecs::Entity]) -> std::collections::HashSet<Position> {
+    pub fn reachable(&self, units: &[hecs::Entity]) -> crate::fast::FastSet<Position> {
         self.game.reachable_squares(units)
     }
 

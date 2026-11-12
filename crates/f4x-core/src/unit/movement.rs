@@ -315,11 +315,27 @@ impl Economy<'_> {
 
     /// Every square where [`Self::hostile_at`] would find something for `mover`: one pass over the
     /// units and cities, for a search that asks about many squares.
-    pub fn hostile_squares(&self, mover: PlayerId) -> std::collections::HashSet<Position> {
+    pub fn hostile_squares(&self, mover: PlayerId) -> std::rc::Rc<crate::fast::FastSet<Position>> {
+        if let Some(kept) = crate::unit::kept::hostile(self.world, mover) {
+            if crate::unit::kept::checking() {
+                assert_eq!(
+                    *kept,
+                    self.build_hostile_squares(mover),
+                    "kept hostile squares of {mover:?} are stale"
+                );
+            }
+            return kept;
+        }
+        let set = std::rc::Rc::new(self.build_hostile_squares(mover));
+        crate::unit::kept::keep_hostile(self.world, mover, &set);
+        set
+    }
+
+    fn build_hostile_squares(&self, mover: PlayerId) -> crate::fast::FastSet<Position> {
         // A player's id belongs to one player entity, so units can be told apart by their owner
         // entity without looking each id up.
         let mine = crate::player::find_entity(self.world, mover);
-        let mut out: std::collections::HashSet<Position> = match mine {
+        let mut out: crate::fast::FastSet<Position> = match mine {
             Some(me) => self
                 .world
                 .query::<(&Unit, &Position, &crate::player::Owner)>()

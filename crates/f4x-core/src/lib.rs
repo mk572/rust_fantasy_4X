@@ -8,6 +8,7 @@
 pub mod battle;
 pub mod city;
 pub mod diplomacy;
+pub mod fast;
 pub mod feature;
 pub mod game;
 pub mod hero;

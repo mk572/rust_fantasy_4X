@@ -260,7 +260,7 @@ impl crate::game::Game {
     /// until [`Game::drop_kept`]: for the length of a computer wizard's turn, in which every
     /// change of the game is a command it sends.
     pub fn keep_for_turn(&self, player: PlayerId) {
-        crate::unit::kept::arm(&self.world);
+        crate::unit::kept::arm(&self.world, player);
         *self.vision.borrow_mut() = VisionCache {
             player: Some(player),
             grid: None,

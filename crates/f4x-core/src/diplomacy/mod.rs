@@ -397,7 +397,7 @@ impl Diplomacy {
 /// The wizards `player` meets by looking at the squares within `radius` of `at`: the owners of
 /// the cities and of the units it can make out there, in player order.
 pub fn met_near(view: &Game, player: PlayerId, at: Position, radius: u32) -> Vec<PlayerId> {
-    owners(view.foreign_sightings_near(player, at, radius))
+    view.foreign_owners_near(player, at, radius)
 }
 
 /// The wizards `player` meets by what it sees now: the owners of the cities and of the units it

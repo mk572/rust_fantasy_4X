@@ -158,7 +158,7 @@ pub struct Economy<'a> {
     pub(crate) max_tile: usize,
     /// For a path search: the squares where this player has a ship with a free place, worked
     /// out once, so the search need not look for ships at every sea square.
-    pub(crate) ship_room: Option<(PlayerId, &'a HashSet<Position>)>,
+    pub(crate) ship_room: Option<(PlayerId, &'a crate::fast::FastSet<Position>)>,
 }
 
 impl<'a> Economy<'a> {
@@ -208,7 +208,11 @@ impl<'a> Economy<'a> {
 
     /// The same view with the squares where `owner` has a ship with room (from
     /// [`Economy::ship_room_squares`]; the world must not change while it is used).
-    pub fn with_ship_room(mut self, owner: PlayerId, squares: &'a HashSet<Position>) -> Self {
+    pub fn with_ship_room(
+        mut self,
+        owner: PlayerId,
+        squares: &'a crate::fast::FastSet<Position>,
+    ) -> Self {
         self.ship_room = Some((owner, squares));
         self
     }

@@ -4,41 +4,13 @@
 
 use f4x_def::half_int::HalfInt;
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap};
-use std::hash::{BuildHasherDefault, Hasher};
+use std::collections::BinaryHeap;
+
+use crate::fast::{FastMap, FastSet};
 
 use crate::game::Game;
 use crate::map::Position;
 use crate::unit::movement::FULL_MOVE;
-
-/// A cheap hasher for the search's own tables, which are looked up for every square the search
-/// looks at (the default one is built to resist attacks, which these tables do not face) and
-/// whose order nobody reads.
-#[derive(Default)]
-struct SquareHasher(u64);
-
-impl Hasher for SquareHasher {
-    fn write(&mut self, bytes: &[u8]) {
-        for &b in bytes {
-            self.write_u64(u64::from(b));
-        }
-    }
-    fn write_u64(&mut self, n: u64) {
-        self.0 = (self.0.rotate_left(5) ^ n).wrapping_mul(0x517c_c1b7_2722_0a95);
-    }
-    fn write_u32(&mut self, n: u32) {
-        self.write_u64(u64::from(n));
-    }
-    fn write_u8(&mut self, n: u8) {
-        self.write_u64(u64::from(n));
-    }
-    fn write_isize(&mut self, n: isize) {
-        self.write_u64(n as u64);
-    }
-    fn finish(&self) -> u64 {
-        self.0
-    }
-}
 
 /// See [`Game::reach_signature`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -48,7 +20,7 @@ pub struct ReachSignature {
     traits: crate::unit::movement::StackTraits,
 }
 
-type SquareMap<V> = HashMap<Position, V, BuildHasherDefault<SquareHasher>>;
+type SquareMap<V> = FastMap<Position, V>;
 
 pub(crate) fn neighbours(game: &Game, p: Position) -> Vec<Position> {
     let Some(map) = game.map.as_ref() else {
@@ -174,7 +146,7 @@ impl Game {
     /// Every square on the stack's plane that it can walk to from where it stands (the squares
     /// `find_path` would find a way to), the start included: one search instead of one per
     /// target. Hostile squares and guarded sites are not entered.
-    pub fn reachable_squares(&self, units: &[hecs::Entity]) -> std::collections::HashSet<Position> {
+    pub fn reachable_squares(&self, units: &[hecs::Entity]) -> FastSet<Position> {
         self.walk(units, &[]).0
     }
 
@@ -205,12 +177,8 @@ impl Game {
 
     /// The search of `reachable_squares`: every square it can walk to, and whether one of
     /// `targets` was among them (it then stops there; with no targets it goes on to the end).
-    fn walk(
-        &self,
-        units: &[hecs::Entity],
-        targets: &[Position],
-    ) -> (std::collections::HashSet<Position>, bool) {
-        let mut seen = std::collections::HashSet::new();
+    fn walk(&self, units: &[hecs::Entity], targets: &[Position]) -> (FastSet<Position>, bool) {
+        let mut seen = FastSet::default();
         let mut found = false;
         let (Some(&first), true) = (units.first(), self.map.is_some()) else {
             return (seen, found);

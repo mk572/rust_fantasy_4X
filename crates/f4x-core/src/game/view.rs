@@ -84,6 +84,63 @@ impl Game {
         })
     }
 
+    /// The owners of [`Game::foreign_sightings_near`], once each, in player order: what a move
+    /// asks for to see whom the mover meets. The same answer without building the list of
+    /// sightings, and the test of sight only for an owner not yet found.
+    pub fn foreign_owners_near(
+        &self,
+        viewer: PlayerId,
+        at: Position,
+        radius: u32,
+    ) -> Vec<PlayerId> {
+        let Some(map) = self.map.as_ref() else {
+            return Vec::new();
+        };
+        let grid = map.plane(at.plane);
+        let near = |p: &Position| {
+            p.plane == at.plane && grid.chebyshev((p.x, p.y), (at.x, at.y)) <= radius
+        };
+        let mut met: Vec<PlayerId> = Vec::new();
+        let mut owner_ids: Vec<(hecs::Entity, Option<PlayerId>)> = Vec::new();
+        let mut id_of = |owner: hecs::Entity| -> Option<PlayerId> {
+            match owner_ids.iter().find(|(e, _)| *e == owner) {
+                Some((_, id)) => *id,
+                None => {
+                    let id = crate::player::id_of(&self.world, owner);
+                    owner_ids.push((owner, id));
+                    id
+                }
+            }
+        };
+        for (_, (_, pos, owner)) in self
+            .world
+            .query::<(&crate::city::City, &Position, &crate::player::Owner)>()
+            .iter()
+        {
+            if !near(pos) {
+                continue;
+            }
+            if let Some(id) = id_of(owner.0).filter(|&id| id != viewer && !met.contains(&id)) {
+                met.push(id);
+            }
+        }
+        for (unit, (_, pos, owner)) in self
+            .world
+            .query::<(&crate::unit::Unit, &Position, &crate::player::Owner)>()
+            .iter()
+        {
+            if !near(pos) {
+                continue;
+            }
+            let Some(id) = id_of(owner.0) else { continue };
+            if id != viewer && !met.contains(&id) && self.economy().unit_visible_to(unit, viewer) {
+                met.push(id);
+            }
+        }
+        met.sort();
+        met
+    }
+
     /// The units a player has.
     pub fn units_of(&self, player: PlayerId) -> Vec<UnitInfo> {
         self.units()
@@ -242,6 +299,17 @@ mod tests {
                 pos: at(11, 10)
             }]
         );
+        // The owners alone, as the moves ask for them, are those of the sightings, once each.
+        for radius in [0, 2, 5, 20] {
+            let mut owners: Vec<PlayerId> = g
+                .foreign_sightings_near(P0, at(10, 10), radius)
+                .into_iter()
+                .map(|s| s.owner)
+                .collect();
+            owners.sort();
+            owners.dedup();
+            assert_eq!(g.foreign_owners_near(P0, at(10, 10), radius), owners);
+        }
         // What P0 sees now: its units see around them, so the near one and not the far one.
         let seen = g.foreign_sightings(P0);
         assert_eq!(

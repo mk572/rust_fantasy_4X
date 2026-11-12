@@ -111,10 +111,10 @@ impl Economy<'_> {
 
     /// Every square where `owner` has a ship with a free place: one pass over the units, for a
     /// search that asks about many squares.
-    pub fn ship_room_squares(&self, owner: PlayerId) -> std::collections::HashSet<Position> {
+    pub fn ship_room_squares(&self, owner: PlayerId) -> crate::fast::FastSet<Position> {
         let units = self.units();
         let Some(me) = crate::player::find_entity(self.world, owner) else {
-            return std::collections::HashSet::new();
+            return Default::default();
         };
         self.world
             .query::<(&crate::unit::Unit, &Position, &crate::player::Owner)>()

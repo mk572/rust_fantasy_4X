@@ -12,18 +12,25 @@
 //! unit's modifiers or abilities are made of depends on that). `F4X_CHECK_UNITS=1` works every hit
 //! out again and panics when the kept one differs.
 
+use crate::fast::{FastMap, FastSet};
+use crate::map::Position;
+use crate::player::PlayerId;
 use crate::rules::Ability;
 use f4x_def::rules::stats::Modifier;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(Default)]
 struct Kept {
     /// The address of the world the cache is for.
     world: usize,
-    modifiers: HashMap<hecs::Entity, Rc<Vec<Modifier>>>,
-    abilities: HashMap<hecs::Entity, Rc<Vec<Ability>>>,
+    modifiers: FastMap<hecs::Entity, Rc<Vec<Modifier>>>,
+    abilities: FastMap<hecs::Entity, Rc<Vec<Ability>>>,
+    /// The player whose turn it is, and the squares where something hostile to it stands
+    /// (`Economy::hostile_squares`): its own commands are the only changes, and walking its own
+    /// units does not change them.
+    player: Option<PlayerId>,
+    hostile: Option<Rc<FastSet<Position>>>,
 }
 
 thread_local! {
@@ -35,10 +42,11 @@ fn address(world: &hecs::World) -> usize {
 }
 
 /// Start keeping for this world.
-pub(crate) fn arm(world: &hecs::World) {
+pub(crate) fn arm(world: &hecs::World, player: PlayerId) {
     KEPT.with(|k| {
         *k.borrow_mut() = Some(Kept {
             world: address(world),
+            player: Some(player),
             ..Kept::default()
         })
     });
@@ -55,6 +63,7 @@ pub(crate) fn clear() {
         if let Some(kept) = k.borrow_mut().as_mut() {
             kept.modifiers.clear();
             kept.abilities.clear();
+            kept.hostile = None;
         }
     });
 }
@@ -95,6 +104,30 @@ pub(crate) fn keep_abilities(world: &hecs::World, unit: hecs::Entity, list: &Rc<
             .filter(|kept| kept.world == address(world))
         {
             kept.abilities.insert(unit, list.clone());
+        }
+    });
+}
+
+/// The kept hostile squares of `player`, if it is the player whose turn is kept.
+pub(crate) fn hostile(world: &hecs::World, player: PlayerId) -> Option<Rc<FastSet<Position>>> {
+    KEPT.with(|k| {
+        let k = k.borrow();
+        let kept = k.as_ref().filter(|kept| kept.world == address(world))?;
+        if kept.player != Some(player) {
+            return None;
+        }
+        kept.hostile.clone()
+    })
+}
+
+pub(crate) fn keep_hostile(world: &hecs::World, player: PlayerId, set: &Rc<FastSet<Position>>) {
+    KEPT.with(|k| {
+        if let Some(kept) = k
+            .borrow_mut()
+            .as_mut()
+            .filter(|kept| kept.world == address(world) && kept.player == Some(player))
+        {
+            kept.hostile = Some(set.clone());
         }
     });
 }
