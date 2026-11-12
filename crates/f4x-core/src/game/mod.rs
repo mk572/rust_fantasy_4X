@@ -198,8 +198,10 @@ impl Game {
 
     /// Whether a city could be founded at `pos` right now.
     pub fn can_found_city(&self, pos: map::Position) -> Result<(), city::FoundCityError> {
-        let existing = self.economy().city_positions();
-        city::check_site(&self.economy(), pos, existing)
+        // The cities' squares are read where they stand, in the order `city_positions` gives
+        // them, without a list (the check stops at the first that is in the way).
+        let mut cities = self.world.query::<(&city::City, &map::Position)>();
+        city::check_site(&self.economy(), pos, cities.iter().map(|(_, (_, at))| *at))
     }
 
     /// Let `player` see the tiles within `sight` (squares) of `at`.
