@@ -112,18 +112,15 @@ impl Economy<'_> {
     /// Every square where `owner` has a ship with a free place: one pass over the units, for a
     /// search that asks about many squares.
     pub fn ship_room_squares(&self, owner: PlayerId) -> crate::fast::FastSet<Position> {
-        let units = self.units();
         let Some(me) = crate::player::find_entity(self.world, owner) else {
             return Default::default();
         };
         self.world
             .query::<(&crate::unit::Unit, &Position, &crate::player::Owner)>()
             .iter()
-            .filter(|&(u, (_, _, o))| {
+            .filter(|&(u, (unit, _, o))| {
                 o.0 == me
-                    && units
-                        .unit_def(u)
-                        .is_some_and(|d| d.movement == MovementType::Sailing)
+                    && self.content.rules.units.get(unit.0).movement == MovementType::Sailing
                     && self.ship_room(u) > 0
             })
             .map(|(_, (_, p, _))| *p)

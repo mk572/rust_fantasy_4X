@@ -296,9 +296,8 @@ impl<'a> Economy<'a> {
         };
         let (w, h) = (map.width() as i32, map.height() as i32);
         let others: Vec<Position> = self
-            .cities()
+            .city_positions()
             .into_iter()
-            .map(|(_, _, p)| p)
             .filter(|p| p.plane == at.plane && *p != at)
             .collect();
         let works = |city: Position, x: u32, y: u32| {
