@@ -4,6 +4,7 @@
 # everything crawl.
 #
 #   scripts/cool_run.sh COMMAND [ARGS...]
+#   scripts/cool_run.sh --timing COMMAND [ARGS...]   for timing runs: see below
 #   scripts/cool_run.sh --state          print nominal | fair | serious | critical | unknown
 #   scripts/cool_run.sh -h | --help      print the usage
 #
@@ -15,6 +16,10 @@
 #   * when the state is COOL_PAUSE_AT or worse, the whole command is stopped (SIGSTOP) and only
 #     continued (SIGCONT) once the state is back to nominal, then it rests COOL_REST more seconds;
 #   * a state that cannot be read counts as hot.
+# --timing is the relaxed mode for a short run whose wall time is the result (scripts/perf_guard.py):
+# it waits for a cool Mac before it starts, then runs at normal priority (background QoS is about six
+# times slower, docs/KNOWLEDGE.md) and is never paused (a pause would count in the time). When the
+# state reached COOL_PAUSE_AT or worse during the run it says so on stderr, and the times are suspect.
 # Environment (defaults): COOL_PAUSE_AT=fair  COOL_POLL=15  COOL_REST=60
 # The command should also limit its own threads (the training tasks use at most 4 of the 10 cores).
 set -u
@@ -29,6 +34,8 @@ while the Mac is under thermal pressure, so it never heats the machine into the 
 makes everything crawl.
 
 Options:
+  --timing      relaxed mode for a short timing run: starts only when the Mac is cool, runs at
+                normal priority, is never paused, and warns if the Mac got hot during the run
   --state       print the thermal state (nominal | fair | serious | critical | unknown) and exit
   -h, --help    print this help and exit
 
@@ -46,7 +53,7 @@ USAGE
 }
 case "${1:-}" in
     -h|--help) usage; exit 0 ;;
-    --state|"") ;;
+    --state|--timing|"") ;;
     -*) echo "cool_run: unknown option: $1 (see --help)" >&2; exit 2 ;;
 esac
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -57,6 +64,8 @@ fi
 state() { "$bin" 2>/dev/null || echo unknown; }
 rank() { case "$1" in nominal) echo 0;; fair) echo 1;; serious) echo 2;; critical) echo 3;; *) echo 9;; esac; }
 if [ "${1:-}" = "--state" ]; then state; exit 0; fi
+timing=0
+if [ "${1:-}" = "--timing" ]; then timing=1; shift; fi
 [ $# -ge 1 ] || { echo "cool_run: no command given (see --help)" >&2; exit 2; }
 
 pause_at="$(rank "${COOL_PAUSE_AT:-fair}")"
@@ -66,6 +75,22 @@ log() { echo "cool_run: $(date '+%F %T') $*" >&2; }
 
 # wait before starting, too
 while [ "$(rank "$(state)")" -ge "$pause_at" ]; do log "not cool ($(state)), waiting before start"; sleep "$poll"; done
+
+if [ "$timing" = 1 ]; then
+    # Normal priority, never paused; only note whether the Mac got hot while it ran.
+    "$@" &
+    pid=$!
+    trap 'kill -TERM "$pid" 2>/dev/null; exit 130' INT TERM
+    hot=""
+    while kill -0 "$pid" 2>/dev/null; do
+        st="$(state)"
+        [ "$(rank "$st")" -ge "$pause_at" ] && hot="$st"
+        sleep 1
+    done
+    wait "$pid"; status=$?
+    [ -z "$hot" ] || log "WARNING: thermal state reached $hot during the run; its times are suspect"
+    exit "$status"
+fi
 
 set -m
 taskpolicy -b nice -n 19 "$@" &

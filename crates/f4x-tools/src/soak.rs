@@ -400,11 +400,21 @@ pub fn game(
     let (mut open_rounds, mut first_open) = (0usize, None::<u32>);
     let mut fingerprints = Vec::new();
     let mut watch = EventWatch::default();
+    // The time of each phase since the last `--every` line, in order: one per wizard, the
+    // neutrals, the rest (turn changes, other players' turn ends).
+    let mut phases = vec![std::time::Duration::ZERO; usize::from(players) + 2];
     while game.turn <= opts.turns && game.game_over.is_none() {
         if opts.grant_mastery == Some(game.turn) {
             grant_mastery_to_all(&mut game);
         }
-        let (turns, rest) = contestant::play_round(&mut game, &mut ais, &mut neutrals);
+        let (turns, rest, times) = contestant::play_round_timed(&mut game, &mut ais, &mut neutrals);
+        for (player, d) in &times.players {
+            if let Some(slot) = phases.get_mut(usize::from(player.0)) {
+                *slot += *d;
+            }
+        }
+        phases[usize::from(players)] += times.neutrals;
+        phases[usize::from(players) + 1] += times.rest();
         for (player, events) in &turns {
             tally.record(&game, Some(*player), events);
         }
@@ -450,6 +460,21 @@ pub fn game(
                 game.entity_count(),
                 started.elapsed().as_secs_f32(),
             );
+            let ms = |d: &std::time::Duration| d.as_secs_f32() * 1000.0 / opts.every as f32;
+            let names = (0..players)
+                .map(|k| format!("p{k}"))
+                .chain(["neutrals".to_string(), "rest".to_string()]);
+            println!(
+                "    ms a turn by phase: {}",
+                names
+                    .zip(&phases)
+                    .map(|(n, d)| format!("{n} {:.0}", ms(d)))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+            phases
+                .iter_mut()
+                .for_each(|d| *d = std::time::Duration::ZERO);
             if opts.detail {
                 for line in detail_lines(&game, &ais) {
                     println!("    {line}");

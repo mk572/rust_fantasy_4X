@@ -179,11 +179,17 @@ impl Neutrals {
 struct ContestantSeat<'a> {
     contestant: &'a mut dyn Contestant,
     turns: &'a RefCell<Vec<(PlayerId, Vec<Event>)>>,
+    times: &'a RefCell<RoundTimes>,
 }
 
 impl Controller for ContestantSeat<'_> {
     fn play(&mut self, game: &mut Game, _: &[PlayerId], _: &mut Vec<Event>) -> Status {
+        let started = std::time::Instant::now();
         let events = self.contestant.play_turn(game);
+        self.times
+            .borrow_mut()
+            .players
+            .push((self.contestant.player(), started.elapsed()));
         self.turns
             .borrow_mut()
             .push((self.contestant.player(), events));
@@ -192,11 +198,13 @@ impl Controller for ContestantSeat<'_> {
 }
 
 /// The neutral seat of one version of the AI.
-struct NeutralSeat<'a>(&'a mut Neutrals);
+struct NeutralSeat<'a>(&'a mut Neutrals, &'a RefCell<RoundTimes>);
 
 impl Controller for NeutralSeat<'_> {
     fn play(&mut self, game: &mut Game, players: &[PlayerId], events: &mut Vec<Event>) -> Status {
+        let started = std::time::Instant::now();
         self.0.play(game, players, events);
+        self.1.borrow_mut().neutrals += started.elapsed();
         Status::Done
     }
 }
@@ -204,13 +212,43 @@ impl Controller for NeutralSeat<'_> {
 /// The rest of the current round is played by the master: each contestant in seat order (the
 /// order of `players`), then the neutrals, then the round ends and the next one begins. Returns
 /// the events of each contestant's turn, in order, and then those of the neutrals and the round
-/// boundaries. A wizard without a contestant passes.
-pub fn play_round(
+/// boundaries. A wizard without a contestant passes. Also returns the time each seat took.
+/// The events of each contestant's turn, in seat order.
+pub type PlayerTurns = Vec<(PlayerId, Vec<Event>)>;
+
+/// Where the time of one round went (the soak's `--every` line adds these up).
+#[derive(Debug, Default, Clone)]
+pub struct RoundTimes {
+    /// Each contestant's own turn (its AI step and its battles).
+    pub players: Vec<(PlayerId, std::time::Duration)>,
+    /// The neutral seat's turn.
+    pub neutrals: std::time::Duration,
+    /// The whole round, `run` to `run`.
+    pub total: std::time::Duration,
+}
+
+impl RoundTimes {
+    /// What no seat played: the turn changes, the other players' turn ends, the master itself.
+    pub fn rest(&self) -> std::time::Duration {
+        let seats: std::time::Duration = self
+            .players
+            .iter()
+            .map(|(_, d)| *d)
+            .sum::<std::time::Duration>()
+            + self.neutrals;
+        self.total.saturating_sub(seats)
+    }
+}
+
+/// [`play_round`] with the time each seat took.
+pub fn play_round_timed(
     game: &mut Game,
     players: &mut [Box<dyn Contestant>],
     neutrals: &mut Neutrals,
-) -> (Vec<(PlayerId, Vec<Event>)>, Vec<Event>) {
+) -> (PlayerTurns, Vec<Event>, RoundTimes) {
     let turns = RefCell::new(Vec::new());
+    let times = RefCell::new(RoundTimes::default());
+    let started = std::time::Instant::now();
     let mut seats: Vec<Seat> = Vec::new();
     for p in players.iter_mut() {
         let player = p.player();
@@ -219,10 +257,13 @@ pub fn play_round(
             Box::new(ContestantSeat {
                 contestant: p.as_mut(),
                 turns: &turns,
+                times: &times,
             }),
         ));
     }
-    seats.push(Seat::neutrals(Box::new(NeutralSeat(neutrals))));
+    seats.push(Seat::neutrals(Box::new(NeutralSeat(neutrals, &times))));
     let rest = Master::new(seats).run(game, Until::Rounds(1)).events;
-    (turns.into_inner(), rest)
+    let mut times = times.into_inner();
+    times.total = started.elapsed();
+    (turns.into_inner(), rest, times)
 }

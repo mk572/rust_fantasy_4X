@@ -131,3 +131,13 @@ debuginfo for the dependencies (cold build 82 s to 64 s, 2.8 GB to 1.9 GB; panic
 file and line). For a debugger with variables use `cargo test --profile debug-full`, which builds
 into `target/debug-full/`. `scripts/prune_target.sh` cleans both when they pass 10 GB; the
 pre-push hook (`--install-hook`, a local file in `.git/hooks`) runs it in the background.
+
+## Timing a soak: not through plain `cool_run.sh`
+
+`cool_run.sh` runs under `taskpolicy -b`, which puts the process on the efficiency cores: the same
+5-wizard late-game soak took about 820 ms a turn through it and 130 ms plain. Use it to keep the
+Mac cool on long runs, never to compare times (or with the figures in the tasks). Timing runs
+(`scripts/perf_guard.py`, `soak --every`) go through `cool_run.sh --timing` (normal priority, never paused,
+warns if the Mac got hot) or plain; they are a few seconds long. `soak --every N`
+also prints the milliseconds a turn per phase: each wizard's turn, the neutrals, and the rest
+(turn changes and the other players' turn ends).

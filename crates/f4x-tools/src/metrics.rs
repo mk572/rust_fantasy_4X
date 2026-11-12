@@ -690,7 +690,7 @@ mod tests {
         let mut neutrals = contestant::Neutrals::new(Version::New);
         let mut tally = Tally::new(&game);
         for _ in 0..40 {
-            let (turns, rest) = contestant::play_round(&mut game, &mut ais, &mut neutrals);
+            let (turns, rest, _) = contestant::play_round_timed(&mut game, &mut ais, &mut neutrals);
             for (player, events) in &turns {
                 tally.record(&game, Some(*player), events);
             }
