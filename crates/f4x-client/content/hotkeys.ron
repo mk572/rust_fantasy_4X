@@ -20,7 +20,7 @@
 
     // The screens.
     "magic": ["M"],
-    "diplomacy": ["R"],
+    "diplomacy": ["F11", "R"],
     "spellbook": ["S"],
     "army_list": ["A"],
     "advisors": ["I"],

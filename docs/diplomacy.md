@@ -41,7 +41,7 @@ a neutral city of a race met.
 ### The diplomacy list (task 489)
 
 `diplomacy_list_screen.rs` is the overview: one scrolling list of the contacts met (rival wizards, then
-the neutral races under a heading), key R. Each row shows the relation as the word of `relation_key`
+the neutral races under a heading), keys F11 and R. Each row shows the relation as the word of `relation_key`
 (red up to Restless, yellow up to Relaxed, green above; never the number) and the treaty with the
 human: War, Wizard Pact, Alliance, "Peace" when there is no treaty but the contact has promised not to
 attack (`peace_duration` of the contact towards the human is above 0), else No Treaty. Only contacts

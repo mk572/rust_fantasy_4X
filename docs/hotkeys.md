@@ -26,7 +26,7 @@ the table shows the defaults.
 | S | Spells button (the spell book) | done |
 | A | Armies button (army list) | done (task 138) |
 | M | Magic button | done |
-| R | (none) | **extra**: the Diplomacy list (task 489) |
+| F11, R | (none) | **extra**: the Diplomacy list (task 489) |
 | I | Info button (the advisor menu) | done (also the Info button) |
 | P | Plane button: show the other plane | done (shifts the selected units first, if they can) |
 | (none) | Cities button (no key) | not yet |
