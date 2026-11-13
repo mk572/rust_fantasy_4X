@@ -57,17 +57,20 @@ Decided with task 31; code in `f4x-newgame/src/neutral.rs`, `city/neutral.rs`, `
 - **Weaker starting garrisons because of that.** The garrison is cut at generation to what the
   city can feed and pay for (`make_neutral_city`), so neutral cities hold somewhat fewer units
   than the original's. They keep them for at least 60 turns (tested on two seeds).
-- **Every neutral city is a player of its own** (`Player::neutral`, ids from 100, brown banner,
-  Grand Vizier on, 100 gold) with its own treasury, so its taxes pay its buildings and garrison.
-  The original has one shared neutral owner and no treasury. Asked for as "a treasury for neutral
-  cities"; the choice was one player per city over one shared player.
-- **Run by a simple caretaker, not an AI.** Each turn the city puts enough citizens on farms to
-  feed its garrison (`balance_farmers`) and sets the lowest tax rate that does not lose gold
-  (`balance_taxes`). Nobody else decides for it.
-- **Capturing one removes its player** and any garrison left; it defeats nobody. Neutral players
-  are not wizards (`is_wizard`, `living_wizards`): no magic, fog or victory.
-- **Monsters and lair guards keep the shared owner `unit::NEUTRAL`** (255): they have no
-  treasury and no upkeep to pay.
+- **Every race has one neutral player** (task 522, changed 14 November 2026; it was one player for
+  each city). Ids from 100 plus the race's number (`player/race_player.rs`), all the race's cities on
+  both planes, one treasury that starts with a computer wizard's gold, made when a city of the race
+  turns neutral and removed at the round end when it has no city and no unit. The original has one
+  shared neutral owner and no treasury.
+- **Played by the standard AI, not a caretaker.** The race player runs the same `Ai::play_kept` as a
+  wizard, without the wizard's parts (no spells, research, crafting or spell swaps): it builds,
+  trains, explores, attacks and holds diplomacy by the ordinary commands and rules. The whole power
+  of its cities is mana, which it turns into gold by Alchemy each turn at the standard rate.
+- **They are in diplomacy**: they can talk, make treaties and declare war like a wizard, with no
+  spell trades (`diplomacy.md`). They are not wizards (`is_wizard`, `living_wizards`): no fog of
+  their own beyond exploring, no victory. The monsters are always at war with every neutral player.
+- **Monsters and lair guards keep the shared owner `MONSTERS`** (255, `unit::NEUTRAL`): they have no
+  treasury and no upkeep to pay and are in no list of players.
 - **Not copied:** the neutral cities' extra rules in the original's growth and production code
   (design.md section 8).
 
@@ -605,7 +608,7 @@ The original's Lo Pan has five sorcery and five chaos books and the Channeler re
   (ReMoM marks it an `OGBUG`).
 - **A defeat takes all the spell instances the wizard cast** (the original stores no caster for unit
   enchantments and so cannot end the loser's enchantments on other wizards' units; ours does).
-- A resigned wizard's cities turn neutral, one neutral player each as the independent cities are;
+- A resigned wizard's cities turn neutral and join the neutral player of their race, as the independent cities do;
   garrisoned normal units go with the city, heroes and conjured creatures are dismissed, all other
   units are dismissed, as in the original. The original halves the human's mana twice when they
   resign; ours halves it once.

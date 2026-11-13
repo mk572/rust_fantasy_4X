@@ -24,7 +24,7 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
 
 ## The model
 
-- **A player is not always a wizard.** Independent cities' players and the monsters' player
+- **A player is not always a wizard.** The neutral players of the races (100 plus the race number) and the monsters' player
   (`MONSTERS`, 255) have `Neutral` and no `WizardLink`; the monsters' player is in no player list
   (`Game::has_player` is false). Handles answer for a missing wizard (`banner` is `NEUTRAL_BANNER`,
   `portrait` 0, `treasury` 0/0). Keep a fallback wherever an id might be unknown (console input, a
@@ -133,3 +133,7 @@ Non-obvious findings, one rule up front in bold. General lessons (shell, tools) 
   huge directory; do not `du` it meanwhile. The dev and test profiles keep `debug = "line-tables-only"`
   for workspace crates and none for dependencies; for a debugger use `cargo test --profile debug-full`.
   `scripts/prune_target.sh` cleans both past 10 GB; the pre-push hook (`--install-hook`) runs it.
+- **A tally of per-player counts must have a slot for every player that can appear.** The soak's `Tally`
+  (`f4x-tools/src/metrics.rs`) sized its slots by the players that existed at the start; the neutral race
+  players are made later (when a city of the race turns neutral), so their counts fell into the monsters'
+  slot. It now reserves `FIRST_RACE_PLAYER` plus the number of races.
