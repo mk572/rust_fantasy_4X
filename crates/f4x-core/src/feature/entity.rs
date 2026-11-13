@@ -12,8 +12,6 @@
 //!
 //! Tests: in feature/lair/tests.rs and node.rs.
 
-use std::collections::HashMap;
-
 use hecs::{Entity, World};
 
 use crate::city::economy::Economy;
@@ -37,7 +35,7 @@ pub struct Volcano;
 /// The square-to-entity index of a map. Two indexes are never different: the entities are what
 /// a game is made of and this only finds them, so comparing maps ignores it.
 #[derive(Debug, Clone, Default)]
-pub struct FeatureIndex(HashMap<Position, Entity>);
+pub struct FeatureIndex(crate::fast::FastMap<Position, Entity>);
 
 impl PartialEq for FeatureIndex {
     fn eq(&self, _: &Self) -> bool {

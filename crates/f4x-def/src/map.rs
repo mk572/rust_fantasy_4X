@@ -137,6 +137,11 @@ impl Terrains {
     }
 
     pub fn get(&self, id: TerrainId) -> Option<&TerrainDef> {
+        // The numbers run from 0 without gaps in the shipped content: the slot of the number is
+        // the definition; the search is for a table that has gaps.
+        if let Some(d) = self.defs.get(usize::from(id.0)).filter(|d| d.num == id.0) {
+            return Some(d);
+        }
         self.defs
             .binary_search_by_key(&id.0, |d| d.num)
             .ok()

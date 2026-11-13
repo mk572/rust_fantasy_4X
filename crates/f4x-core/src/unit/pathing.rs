@@ -8,6 +8,7 @@ use std::collections::BinaryHeap;
 
 use crate::fast::FastSet;
 
+use crate::city::economy::Economy;
 use crate::game::Game;
 use crate::map::Position;
 use crate::unit::movement::FULL_MOVE;
@@ -188,7 +189,7 @@ impl Game {
         let economy = self.economy();
         let room = economy.ship_room_squares(owner);
         let economy = economy.with_ship_room(owner, &room);
-        let profiles = economy.step_profiles(units)?;
+        let profiles = Economy::distinct_step_profiles(economy.step_profiles(units)?);
         let step_cost = |from: Position, next: Position| -> Option<HalfInt> {
             economy.stack_step_cost(&profiles, from, next, flies)
         };
@@ -320,6 +321,7 @@ impl Game {
         let Some(profiles) = economy.step_profiles(units) else {
             return (seen, found);
         };
+        let profiles = Economy::distinct_step_profiles(profiles);
         let step_cost = |from: Position, next: Position| -> Option<HalfInt> {
             economy.stack_step_cost(&profiles, from, next, flies)
         };

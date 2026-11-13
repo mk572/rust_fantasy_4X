@@ -109,7 +109,7 @@ pub struct StepProfile<'a> {
 }
 
 /// The abilities a step's cost depends on, read off the unit's list once per search.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct StepFlags {
     road_walker: bool,
     flier: bool,
@@ -187,6 +187,21 @@ impl Economy<'_> {
         units.iter().map(|&u| self.step_profile(u).ok()).collect()
     }
 
+    /// The profiles that can differ in what a step costs: units of one movement kind with the
+    /// same step abilities cost the same, so a stack of twenty spearmen is costed once. The
+    /// stack's cost is the worst of these, as of all of them.
+    pub fn distinct_step_profiles<'p>(profiles: Vec<StepProfile<'p>>) -> Vec<StepProfile<'p>> {
+        let mut out: Vec<StepProfile<'p>> = Vec::new();
+        for p in profiles {
+            if !out.iter().any(|q| {
+                q.owner == p.owner && q.flags == p.flags && q.def.movement == p.def.movement
+            }) {
+                out.push(p);
+            }
+        }
+        out
+    }
+
     /// The cost of a step for the stack: that of its slowest unit; `None` when one cannot take it.
     pub fn stack_step_cost(
         &self,
@@ -253,10 +268,12 @@ impl Economy<'_> {
         }
         match def.movement {
             MovementType::Sailing => {
-                let own_city_here = self
-                    .city_at(to)
-                    .is_some_and(|c| self.city_owner(c) == owner);
-                return if is_water || own_city_here {
+                // The city scan only for a land square: water is open to a ship anyway.
+                return if is_water
+                    || self
+                        .city_at(to)
+                        .is_some_and(|c| self.city_owner(c) == owner)
+                {
                     Ok(FULL_MOVE)
                 } else {
                     Err(MoveError::Impassable)
