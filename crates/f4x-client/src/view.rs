@@ -572,10 +572,18 @@ impl App {
                 }
                 Event::Rejected(why) => Some(self.text(why.key())),
                 // Only the human's own orders are reported: the computer players' are theirs.
-                Event::OrderFailed { player, why, .. } if player == HUMAN => Some(self.text_with(
-                    "log.order_failed",
-                    &Args::new().text("reason", self.text(why.key())),
-                )),
+                // The square the stack stopped on, so that the player knows which one it is.
+                Event::OrderFailed {
+                    player, at, why, ..
+                } if player == HUMAN => Some(
+                    self.text_with(
+                        "log.order_failed",
+                        &Args::new()
+                            .count("x", at.x)
+                            .count("y", at.y)
+                            .text("reason", self.text(why.key())),
+                    ),
+                ),
                 Event::ItemMade { player, .. } => {
                     self.item_pool_pending |= player == HUMAN;
                     None
@@ -2871,6 +2879,30 @@ impl App {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_cancelled_order_of_the_human_says_where_the_stack_stopped() {
+        let mut app = App::for_test();
+        let at = f4x_core::map::Position {
+            plane: f4x_core::map::Plane::Arcanus,
+            x: 12,
+            y: 7,
+        };
+        let order = |player| Event::OrderFailed {
+            player,
+            units: Vec::new(),
+            at,
+            to: at,
+            why: f4x_core::unit::movement::MoveError::StackFull,
+        };
+        app.note(vec![order(HUMAN)]);
+        let line = app.log.last().cloned().unwrap_or_default();
+        assert!(line.starts_with("Orders cancelled at 12, 7,"), "{line}");
+        // A rival's cancelled order is not the human's news.
+        let before = app.log.len();
+        app.note(vec![order(f4x_core::player::PlayerId(1))]);
+        assert_eq!(app.log.len(), before);
+    }
+
     use super::*;
 
     #[test]

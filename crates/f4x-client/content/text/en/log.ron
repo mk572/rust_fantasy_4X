@@ -2,7 +2,7 @@
 // One key is in one file only (docs/text.md).
 {
     "log.founded": "Founded {city}",
-    "log.order_failed": "Orders cancelled, the units stay put: {reason}",
+    "log.order_failed": "Orders cancelled at {x}, {y}, the units stay put: {reason}",
     "log.a_rival": "a rival",
     "log.a_hero": "A hero",
     "log.items_awarded": (count: "lost",
