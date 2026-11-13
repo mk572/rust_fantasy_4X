@@ -26,7 +26,6 @@ use crate::city::production::{Production, ProductionItem};
 use crate::city::City;
 use crate::game::rng::GameRng;
 use crate::game::{Event, Game};
-use crate::map::Position;
 use crate::player::PlayerId;
 use crate::rules::BuildingId;
 use f4x_def::half_int::HalfInt;
