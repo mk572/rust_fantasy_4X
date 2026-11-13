@@ -266,8 +266,11 @@ positions are on the map; creation numbers are unique and below the counter; far
 exceed citizens; the explored area matches the map; a player appears once. Failures are
 `LoadError::{Parse, Version, UnknownId, Inconsistent}` and leave the running game untouched.
 
-**Files.** The text format is RON, about 130 KB for a full 60x40 map, readable and
-diff-able. `save_game` writes to `<file>.tmp` and renames it, so an interrupted save never
+**Files.** The text format is RON, readable and diff-able: about 90 KB for a new game of 3 wizards
+on a 60x40 map, 430 KB at turn 400 of a 5-wizard game. The entities are written one field to a line,
+what is inside a field on the same line, and numbers in a list on one line (`save.rs`, `to_text`); the explored
+flags are one hex string for each player and plane (`Bits`); a unit's fields at their default are left out. Older
+saves with the long form still load. `save_game` writes to `<file>.tmp` and renames it, so an interrupted save never
 damages an existing one. Saves live in `saves/` (gitignored).
 
 **Versions.** `SAVE_VERSION` is bumped when the layout changes incompatibly. Adding optional

@@ -387,7 +387,7 @@ fn contradictory_saves_are_refused() {
     ));
 
     let mut fog = base.clone();
-    fog.fog.players[0].1.pop();
+    fog.fog.players[0].1 .0.pop();
     assert!(matches!(
         fog.restore(content.clone()),
         Err(LoadError::Inconsistent(_))
@@ -920,4 +920,19 @@ fn an_older_save_with_a_player_for_each_neutral_city_is_read_as_one_player_for_e
         "the treasuries are added up"
     );
     Ok(())
+}
+
+#[test]
+fn explored_flags_are_written_as_a_hex_string_and_a_list_of_numbers_still_reads() {
+    use crate::game::save::Bits;
+    let bits = Bits(vec![0, 255, 16, 7]);
+    let text = ron::to_string(&bits).unwrap();
+    assert_eq!(text, "\"00ff1007\"");
+    assert_eq!(ron::from_str::<Bits>(&text).unwrap(), bits);
+    // The old layout: one number for each byte.
+    assert_eq!(ron::from_str::<Bits>("[0, 255, 16, 7]").unwrap(), bits);
+    // Whole bytes only, and only hex digits.
+    assert!(ron::from_str::<Bits>("\"00f\"").is_err());
+    assert!(ron::from_str::<Bits>("\"zz\"").is_err());
+    assert!(ron::from_str::<Bits>("[256]").is_err());
 }

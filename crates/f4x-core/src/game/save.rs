@@ -226,7 +226,53 @@ pub struct PlaneSave {
 pub struct FogSave {
     pub width: u32,
     pub height: u32,
-    pub players: Vec<(u8, Vec<u8>, Vec<u8>)>,
+    pub players: Vec<(u8, Bits, Bits)>,
+}
+
+/// Bytes written as one hex string (`"00ff10"`); a list of numbers, as saves of before wrote
+/// them, still reads.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Bits(pub Vec<u8>);
+
+impl Serialize for Bits {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut text = String::with_capacity(self.0.len() * 2);
+        for b in &self.0 {
+            text.push_str(&format!("{b:02x}"));
+        }
+        s.serialize_str(&text)
+    }
+}
+
+impl<'de> Deserialize<'de> for Bits {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        struct V;
+        impl<'de> serde::de::Visitor<'de> for V {
+            type Value = Bits;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a hex string or a list of bytes")
+            }
+            fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Bits, E> {
+                if !text.len().is_multiple_of(2) || !text.is_ascii() {
+                    return Err(E::custom("a hex string of whole bytes"));
+                }
+                (0..text.len())
+                    .step_by(2)
+                    .map(|i| u8::from_str_radix(&text[i..i + 2], 16))
+                    .collect::<Result<Vec<u8>, _>>()
+                    .map(Bits)
+                    .map_err(E::custom)
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Bits, A::Error> {
+                let mut bytes = Vec::new();
+                while let Some(b) = seq.next_element::<u8>()? {
+                    bytes.push(b);
+                }
+                Ok(Bits(bytes))
+            }
+        }
+        d.deserialize_any(V)
+    }
 }
 
 /// A player entity: what it owns and does. Its wizard, if it has one, is a [`WizardSave`] with
@@ -432,30 +478,48 @@ pub struct UnitSave {
     pub unit: u16,
     pub owner: u8,
     pub pos: Position,
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub hurt: u32,
     pub xp: u32,
     /// Weapon quality (`unit::WeaponQuality`).
+    #[serde(default, skip_serializing_if = "is_zero_u8")]
     pub weapon: u8,
     /// The moves left, saved as half-moves, the form older saves have.
     #[serde(with = "f4x_def::half_int::raw")]
     pub moves: HalfInt,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub order: Option<Order>,
     /// Road work in progress.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub road_work: Option<crate::map::road::RoadWork>,
     /// Creation number of the ship the unit is aboard.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub aboard: Option<u64>,
     /// The unit was made undead (`unit/undead.rs`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub undead: bool,
     /// Done or Patrol (the main screen's buttons).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub standby: Option<crate::unit::Standby>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stasis: Option<crate::unit::stasis::Stasis>,
     /// Temporary modifiers and abilities.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub effects: Vec<crate::spell::temp_effect::TempEffect>,
     /// A ship let go with passengers aboard, sailing for the shore (`transport::Marooned`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub marooned: bool,
     /// The owner pays no upkeep for the unit (`unit::Unpaid`).
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub unpaid: bool,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
+}
+
+fn is_zero_u8(n: &u8) -> bool {
+    *n == 0
 }
 
 fn effects_load(
@@ -783,7 +847,7 @@ impl Game {
             height,
             players: fog_players
                 .into_iter()
-                .map(|(p, layers)| (p.0, pack(&layers[0]), pack(&layers[1])))
+                .map(|(p, layers)| (p.0, Bits(pack(&layers[0])), Bits(pack(&layers[1]))))
                 .collect(),
         };
         let players = self
@@ -1045,9 +1109,13 @@ impl Snapshot {
     /// The snapshot as readable text. The first line names the versions and carries the checksum
     /// of the rest.
     pub fn to_text(&self) -> Result<String, LoadError> {
-        let body =
-            ron::ser::to_string_pretty(self, ron::ser::PrettyConfig::default().depth_limit(8))
-                .map_err(|e| LoadError::Parse(e.to_string()))?;
+        let body = ron::ser::to_string_pretty(
+            self,
+            ron::ser::PrettyConfig::default()
+                .depth_limit(2)
+                .compact_arrays(true),
+        )
+        .map_err(|e| LoadError::Parse(e.to_string()))?;
         let body = format!("{body}\n");
         Ok(format!(
             "// f4x save, version {SAVE_VERSION}, game {GAME_VERSION}, checksum {:016x}\n{body}",
@@ -1788,7 +1856,7 @@ fn restore_fog(f: FogSave, map: Option<&Map>) -> Result<Fog, LoadError> {
     let len = f.width as usize * f.height as usize;
     let mut players = Vec::new();
     for (id, a, m) in f.players {
-        let (Some(a), Some(m)) = (unpack(&a, len), unpack(&m, len)) else {
+        let (Some(a), Some(m)) = (unpack(&a.0, len), unpack(&m.0, len)) else {
             return Err(LoadError::Inconsistent(
                 "an explored layer has the wrong length".into(),
             ));
