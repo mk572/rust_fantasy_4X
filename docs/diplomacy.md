@@ -38,6 +38,17 @@ wizard's early returns do not apply to them; and they greet the human by their r
 (`crates/f4x-client/assets/neutral/`), named "Neutral {race}". The human opens the talk by clicking
 a neutral city of a race met.
 
+### The diplomacy list (task 489)
+
+`diplomacy_list_screen.rs` is the overview: one scrolling list of the contacts met (rival wizards, then
+the neutral races under a heading), key R. Each row shows the relation as the word of `relation_key`
+(red up to Restless, yellow up to Relaxed, green above; never the number) and the treaty with the
+human: War, Wizard Pact, Alliance, "Peace" when there is no treaty but the contact has promised not to
+attack (`peace_duration` of the contact towards the human is above 0), else No Treaty. Only contacts
+met are listed, so it tells no more than the map did; the last line counts the wizards not met. A click
+opens the talk (`diplomacy_screen.rs`), which returns to the list on leaving (`DiploUi::back`; the talk
+opened from the map or the Magic screen returns to Magic as before).
+
 ## 2. Data model (per ordered pair unless noted)
 
 From `s_WIZ_DIPL`. `A -> B` means what wizard A holds about wizard B.

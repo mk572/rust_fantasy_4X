@@ -40,6 +40,8 @@ pub enum Screen {
     Wizard,
     /// Talking to another wizard.
     Diplomacy,
+    /// The list of everyone the human can talk to (`diplomacy_list_screen.rs`).
+    DiplomacyList,
     /// The spell book the wizard casts from.
     Spellbook,
     /// The Apprentice's library: every spell the wizard can learn.
@@ -1715,6 +1717,7 @@ impl App {
             Screen::Items => self.page_frame(input),
             Screen::Craft => self.page_frame(input),
             Screen::Diplomacy => self.page_frame(input),
+            Screen::DiplomacyList => self.page_frame(input),
             Screen::Spellbook => self.page_frame(input),
             Screen::Apprentice => self.page_frame(input),
             Screen::Research => self.page_frame(input),
@@ -2211,6 +2214,9 @@ impl App {
         }
         if self.hotkeys.pressed("magic", input) {
             self.open_magic();
+        }
+        if self.hotkeys.pressed("diplomacy", input) {
+            self.open_diplomacy_list();
         }
         if self.hotkeys.pressed("spellbook", input) {
             self.open_spellbook();

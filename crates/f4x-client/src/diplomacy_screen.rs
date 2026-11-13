@@ -133,6 +133,8 @@ pub(crate) struct DiploUi {
     /// When the room was entered and, once the player has left, when: the room fades in and out.
     pub opened: f64,
     pub leaving: Option<f64>,
+    /// The screen the talk came from, which it goes back to: the Magic screen or the list.
+    pub back: Screen,
 }
 
 /// Seconds the room takes to fade in and out.
@@ -155,6 +157,17 @@ impl Default for DiploUi {
             leave_after: false,
             opened: 0.0,
             leaving: None,
+            back: Screen::Magic,
+        }
+    }
+}
+
+impl DiploUi {
+    /// Leave the talk for the screen it came from.
+    fn leave(&self, app: &mut App) {
+        match self.back {
+            Screen::DiplomacyList => app.show_page(Screen::DiplomacyList, App::open_diplomacy_list),
+            _ => app.show_page(Screen::Magic, App::open_magic),
         }
     }
 }
@@ -167,9 +180,16 @@ impl App {
 
     /// Talk to a player met; false when there is no talk (not met, or the human is banished).
     pub(crate) fn try_open_diplomacy(&mut self, with: PlayerId) -> bool {
-        let Some(ui) = self.start_talk(with) else {
+        self.try_open_diplomacy_from(with, Screen::Magic)
+    }
+
+    /// [`App::try_open_diplomacy`], to go back to `back` (the Magic screen or the Diplomacy list)
+    /// when the talk is over.
+    pub(crate) fn try_open_diplomacy_from(&mut self, with: PlayerId, back: Screen) -> bool {
+        let Some(mut ui) = self.start_talk(with) else {
             return false;
         };
+        ui.back = back;
         self.open_page(Screen::Diplomacy, ui);
         true
     }
@@ -836,7 +856,7 @@ impl Page for DiploUi {
     fn frame(&mut self, app: &mut App, input: &Input) {
         let with = self.with;
         if !app.game.have_met(HUMAN, with) {
-            app.show_page(Screen::Magic, App::open_magic);
+            self.leave(app);
             return;
         }
         clear_background(Color::new(0.03, 0.03, 0.05, 1.0));
@@ -1008,7 +1028,7 @@ impl Page for DiploUi {
             );
         }
         if dark >= 1.0 && self.leaving.is_some() {
-            app.show_page(Screen::Magic, App::open_magic);
+            self.leave(app);
         }
     }
 }

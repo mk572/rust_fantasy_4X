@@ -18,6 +18,7 @@ pub(crate) const ACTIONS: &[&str] = &[
     "undo",
     "console",
     "magic",
+    "diplomacy",
     "spellbook",
     "army_list",
     "advisors",
