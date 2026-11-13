@@ -35,6 +35,10 @@ pub trait Contestant {
     fn take_refusals(&self) -> Vec<Refused>;
     /// The AI's own state for the soak's detail lines: the tail of the player's line.
     fn describe(&self) -> String;
+    /// The plans the AI's time limit has dropped, by kind (task 515); none for a version without it.
+    fn plans_dropped(&self) -> Vec<(&'static str, u32)> {
+        Vec::new()
+    }
     /// What the AI has in mind, as text for a save (`Game::set_plans`); `None` for a version that
     /// cannot write it (a reference forked before plans existed).
     fn plans(&self) -> Option<String> {
@@ -46,7 +50,7 @@ pub trait Contestant {
 }
 
 macro_rules! contestant {
-    ($krate:ident $(, plans $plans:ident)?) => {
+    ($krate:ident $(, plans $plans:ident)? $(, dropped $dropped:ident)?) => {
         impl Contestant for $krate::Ai {
             fn player(&self) -> PlayerId {
                 self.player
@@ -87,6 +91,11 @@ macro_rules! contestant {
                 )
             }
             $(
+                fn plans_dropped(&self) -> Vec<(&'static str, u32)> {
+                    self.$dropped()
+                }
+            )?
+            $(
                 fn plans(&self) -> Option<String> {
                     self.$plans().ok()
                 }
@@ -98,7 +107,7 @@ macro_rules! contestant {
     };
 }
 
-contestant!(f4x_ai, plans to_text);
+contestant!(f4x_ai, plans to_text, dropped plans_dropped);
 #[cfg(feature = "reference")]
 contestant!(f4x_ai_ref, plans to_text);
 

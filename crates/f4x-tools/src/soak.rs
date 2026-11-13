@@ -534,6 +534,28 @@ pub fn game(
             .collect::<Vec<_>>()
             .join(", ")
     );
+    let dropped: Vec<String> = ais
+        .iter()
+        .map(|ai| {
+            let kinds = ai.plans_dropped();
+            let total: u32 = kinds.iter().map(|(_, n)| n).sum();
+            let by_kind = kinds
+                .iter()
+                .filter(|(_, n)| *n > 0)
+                .map(|(k, n)| format!("{k} {n}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            if by_kind.is_empty() {
+                format!("p{} {total}", ai.player().0)
+            } else {
+                format!("p{} {total} ({by_kind})", ai.player().0)
+            }
+        })
+        .collect();
+    println!(
+        "{tag}: plans dropped by the time limit: {}",
+        dropped.join(", ")
+    );
     println!("{tag}: mana {}", mana_line(&game, &tally));
     if opts.casts {
         println!("{tag}: casts: {}", casts_line(tally.casts()));

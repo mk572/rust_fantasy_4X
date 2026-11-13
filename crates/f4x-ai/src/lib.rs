@@ -26,6 +26,7 @@ mod objective;
 mod offer;
 mod persist;
 mod phase;
+mod plan_clock;
 mod race;
 mod raze;
 mod scout;
@@ -139,6 +140,9 @@ pub struct Ai {
     refusals: RefCell<Vec<Refusal>>,
     /// The units out on a raid of a tower, node or encounter site (`site.rs`).
     raiders: Vec<Serial>,
+    /// When each plan began, for the time limit on all of them (`plan_clock.rs`).
+    #[serde(default)]
+    clock: plan_clock::PlanClock,
     /// Players who fight their own defence (a human): an attack on them is kept for
     /// [`Ai::take_attacks`] instead of being resolved.
     #[serde(skip)]
@@ -234,6 +238,7 @@ impl Ai {
             record_refusals: false,
             refusals: RefCell::new(Vec::new()),
             raiders: Vec::new(),
+            clock: plan_clock::PlanClock::default(),
             defended_by: Vec::new(),
             attacks: Vec::new(),
         }
@@ -311,6 +316,7 @@ impl Ai {
                 return events;
             }
         }
+        self.drop_stale_plans(game.turn);
         diplomacy::answer(self, game, &mut events);
         diplomacy::quarrel(self, game, &mut events);
         diplomacy::negotiate(self, game, &mut events);
