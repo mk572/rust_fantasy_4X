@@ -79,7 +79,7 @@ impl Costs {
 }
 
 /// The cost of entering each square, fixed until the map or the walker changes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct PathGrid {
     width: u32,
     height: u32,
@@ -87,12 +87,34 @@ pub struct PathGrid {
     roads: Vec<Road>,
     diagonal_extra: bool,
     /// The connected piece of the squares a walker can enter each square lies in (not counting
-    /// what stops a walk); `NONE` for a blocked square.
-    region: Vec<u32>,
+    /// what stops a walk); `NONE` for a blocked square. Labelled at the first question, as a grid
+    /// that only walks never asks.
+    region: std::cell::OnceCell<Vec<u32>>,
     /// The least and the most one step costs, for the heuristic and the size of the queue.
     min_step: Cost,
     max_step: Cost,
 }
+
+impl PartialEq for PathGrid {
+    /// Equal when the squares cost the same; the labels follow from the costs.
+    fn eq(&self, other: &Self) -> bool {
+        (
+            self.width,
+            self.height,
+            self.diagonal_extra,
+            &self.costs,
+            &self.roads,
+        ) == (
+            other.width,
+            other.height,
+            other.diagonal_extra,
+            &other.costs,
+            &other.roads,
+        )
+    }
+}
+
+impl Eq for PathGrid {}
 
 impl PathGrid {
     /// `costs` and `roads` have one entry per square, row by row. With `diagonal_extra` a
@@ -124,12 +146,11 @@ impl PathGrid {
             costs,
             roads,
             diagonal_extra,
-            region: Vec::new(),
+            region: std::cell::OnceCell::new(),
             min_step: 0,
             max_step: 0,
         };
         grid.measure();
-        grid.label_regions();
         Ok(grid)
     }
 
@@ -184,7 +205,7 @@ impl PathGrid {
     /// The region a square lies in: squares in different regions cannot be walked between, with
     /// nothing in the way. `None` for a square nothing can enter.
     pub fn region(&self, square: Square) -> Option<u32> {
-        let r = self.region[square as usize];
+        let r = self.regions()[square as usize];
         (r != NONE).then_some(r)
     }
 
@@ -266,7 +287,11 @@ impl PathGrid {
         )
     }
 
-    fn label_regions(&mut self) {
+    fn regions(&self) -> &[u32] {
+        self.region.get_or_init(|| self.label_regions())
+    }
+
+    fn label_regions(&self) -> Vec<u32> {
         let mut region = vec![NONE; self.squares()];
         let mut next = 0;
         let mut stack = Vec::new();
@@ -286,7 +311,7 @@ impl PathGrid {
             }
             next += 1;
         }
-        self.region = region;
+        region
     }
 
     /// The squares round `square` (the plane wraps east and west and stops at the north and the

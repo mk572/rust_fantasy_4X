@@ -204,6 +204,9 @@ pub struct Economy<'a> {
     /// For a path search: the squares where this player has a ship with a free place, worked
     /// out once, so the search need not look for ships at every sea square.
     pub(crate) ship_room: Option<(PlayerId, &'a crate::fast::FastSet<Position>)>,
+    /// For a grid: the squares of this player's cities, worked out once (a ship may stand in
+    /// them), so the grid need not scan the cities for each square of land.
+    pub(crate) own_cities: Option<(PlayerId, &'a crate::fast::FastSet<Position>)>,
 }
 
 impl<'a> Economy<'a> {
@@ -217,6 +220,7 @@ impl<'a> Economy<'a> {
             settlers_cost_citizen: true,
             max_tile: crate::unit::MAX_TILE_LIMIT,
             ship_room: None,
+            own_cities: None,
         }
     }
 
@@ -260,6 +264,39 @@ impl<'a> Economy<'a> {
     ) -> Self {
         self.ship_room = Some((owner, squares));
         self
+    }
+
+    /// The squares of the cities `owner` holds.
+    pub fn own_city_squares(&self, owner: PlayerId) -> crate::fast::FastSet<Position> {
+        let mut squares = crate::fast::FastSet::default();
+        for (city, (_, pos)) in self.world.query::<(&City, &Position)>().iter() {
+            if self.city_owner(city) == Some(owner) {
+                squares.insert(*pos);
+            }
+        }
+        squares
+    }
+
+    /// The same view with the squares of `owner`'s cities (from [`Economy::own_city_squares`];
+    /// the world must not change while it is used).
+    pub fn with_own_cities(
+        mut self,
+        owner: PlayerId,
+        squares: &'a crate::fast::FastSet<Position>,
+    ) -> Self {
+        self.own_cities = Some((owner, squares));
+        self
+    }
+
+    /// Whether `owner` holds a city on `pos`.
+    pub(crate) fn city_of_owner_at(&self, pos: Position, owner: Option<PlayerId>) -> bool {
+        if let (Some((o, squares)), Some(owner)) = (self.own_cities, owner) {
+            if o == owner {
+                return squares.contains(&pos);
+            }
+        }
+        self.city_at(pos)
+            .is_some_and(|c| self.city_owner(c) == owner)
     }
 
     /// The same view with the world events that are going on.

@@ -120,7 +120,10 @@ impl Game {
         let traits = self.economy().stack_traits(units);
         let economy = self.economy();
         let room = economy.ship_room_squares(owner);
-        let economy = economy.with_ship_room(owner, &room);
+        let cities = economy.own_city_squares(owner);
+        let economy = economy
+            .with_ship_room(owner, &room)
+            .with_own_cities(owner, &cities);
         let profiles = Economy::distinct_step_profiles(economy.step_profiles(units)?);
         let mut signatures: Vec<_> = profiles.iter().map(|p| p.signature()).collect();
         signatures.sort();
@@ -136,7 +139,11 @@ impl Game {
                 .iter()
                 .map(|p| economy.unit_grid(p, traits, start.plane).ok())
                 .collect::<Option<_>>()?;
-            PathGrid::slowest(&grids.iter().collect::<Vec<_>>()).ok()
+            // One kind of unit: its own grid is the stack's.
+            match <[PathGrid; 1]>::try_from(grids) {
+                Ok([only]) => Some(only),
+                Err(grids) => PathGrid::slowest(&grids.iter().collect::<Vec<_>>()).ok(),
+            }
         };
         if let Some(kept) = crate::unit::kept::grid(&self.world, &key) {
             if kept.room == room {

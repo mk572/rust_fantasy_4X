@@ -315,11 +315,7 @@ impl Economy<'_> {
         match def.movement {
             MovementType::Sailing => {
                 // The city scan only for a land square: water is open to a ship anyway.
-                return if is_water
-                    || self
-                        .city_at(to)
-                        .is_some_and(|c| self.city_owner(c) == owner)
-                {
+                return if is_water || self.city_of_owner_at(to, owner) {
                     Ok(StepEntry::Flat(FULL_MOVE))
                 } else {
                     Err(MoveError::Impassable)
