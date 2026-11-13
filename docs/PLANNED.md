@@ -647,7 +647,7 @@ of `end_scene.rs`. The request that opened this item had more detail after "wind
 
 Note: use macroquad window <https://docs.rs/macroquad/latest/macroquad/window/index.html>
 
-**44. Build queues in the city production screen.** The original builds one thing at a time and the screen
+**44. Build queues in the city production screen.** *(Now task 573 in `TASKS.md`.)* The original builds one thing at a time and the screen
 (`production_screen.rs`, after `Production_Screen`) picks that one. A mod may want a queue: the player lists several
 buildings and units in the order they should be made, and the city works down the list, so a new item starts the turn
 the last one is done and no production is wasted on a turn the player was not looking. To settle when it is built:
