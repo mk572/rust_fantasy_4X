@@ -1,7 +1,7 @@
 # The console
 
 Code: `crates/f4x-console/`. Front ends: the client (backquote key), `f4x-tools console` (headless).
-Planned mod item 15 (`PLANNED.md`); the MCP server (item 17), an AI player and a remote client are
+Task P15 (`TASKS-DONE.md`); the MCP server (item 17), an AI player and a remote client are
 meant to use the same hooks.
 
 The game can be played entirely from text. Every action the client offers has a console
