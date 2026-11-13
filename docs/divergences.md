@@ -122,7 +122,9 @@ Decided October 2026, `spell/special.rs`.
 - **Word of Recall into a full circle.** The original sends the unit anyway and then evicts the
   weakest unit of the stack (`Evict_Weakest_Unit`, lowest upkeep plus level). We make the spell
   unavailable while the summoning circle holds a full stack, so nothing is lost without the
-  player choosing it. Revisit when evicting units has an interface.
+  player choosing it. The check is made when the spell is chosen and again when it resolves (the
+  circle can fill in between); then the spell fails with `SpellFailed` (`NoCircle` or `CircleFull`)
+  and the mana comes back, as for Plane Shift (task 548). Revisit when evicting units has an interface.
 - **Plane Shift's water rules.** The original has its own check (`Cast_Plane_Shift_Check`) for a
   destination square that is water. We use the normal movement rule: the shift is refused if
   any unit of the stack could not stand on the destination square. Not yet compared case by case

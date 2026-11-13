@@ -255,7 +255,10 @@ cities) and, while banished, `Banishment`; a defeated one has no fortress and th
   fortress and circle and its race the capital race (`return_to_fortress`). It cannot be cast any
   other way.
 - **Destroying:** `Game::destroy_city` refuses a fortress city and leaves it with at least one
-  citizen, as in the original.
+  citizen, as in the original, and a city with no owner or no square. A city that must go anyway
+  (a lost outpost, a taken city with no citizens, a city a horde razes) goes through
+  `Game::remove_city`, which keeps the fortress and removes the others, so none stays as a ghost
+  (task 549).
 - Spell targets are now checked before mana is paid.
 
 Defeat is done in `game/endgame.rs` (`aftermath`, task 82) as in the original's `Resolve_Wizard_Conquest`:

@@ -223,7 +223,7 @@ once per game; the wizard's books are not looked at).
 is an entity whose `HeldBy` says where it is (`Hero(unit, slot)`, `Vault(player, slot)`, `Award(player)`,
 `Crafting(player)`, `Offered(player)`), and `Armory` is the read of one wizard's vault and award list from those
 entities (`item/armory.rs`, `item/entity.rs`). `place` puts a new item in the vault, else on the
-award list, else it is lost; the anvil (`scrap_item`) gives mana; `move_item` moves between spots
+award list, else it is lost; the anvil (`scrap_item`) gives mana and the sale (`sell_item`) gold; both check the slot and the wizard before they take the item and answer `Result<_, ItemError>`, so a refusal leaves the item where it was (task 547); `move_item` moves between spots
 with the rules of the item screen. Moving between heroes in different places is refused as in
 `Check_Same_Location` (it costs 20 mana to a far hero); a hero may not be left to drown by taking
 away its Water Walking or Flight (`Check_Wont_Drown`, `Game::drown_stranded`).

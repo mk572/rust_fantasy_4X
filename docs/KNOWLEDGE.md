@@ -175,3 +175,15 @@ temporary build that always works the value out afresh), not the previous commit
 ## A rejected step must be reported, not dropped (task 515)
 
 `follow_orders` ended a standing `GoTo` on any refused step with `path.clear()`, no event: a stack that walked into a square full of its own units waited at its edge for hundreds of turns, and the AI's raiders, marked as busy, never came home. The fault showed only as plans that never ended, in no log. A step's failure is now `Event::OrderFailed` (units, squares, reason), counted by the soak as a refused order and kept in the refused-order log; running out of moves is still silent because the order goes on. The first soak with it showed about 960 refused orders in one game (task 545). When code stops a multi-step order, it returns the reason as an event or error; a silent `clear()` hides the bug for as long as nobody looks at the symptom.
+
+## Check first, change second; a spell is checked again when it resolves (tasks 547 to 549)
+
+`scrap_item` and `sell_item` took the item out of the vault and then looked for the treasury with
+`?`, so a missing treasury destroyed the item for no mana. Any step that can answer `None` or
+`Err` goes before the first change, not after it. Three more from the same audit: a spell that is
+chosen on one turn and resolved later needs its target check at both times (Word of Recall paid
+its mana into a full circle and did nothing, where Plane Shift already had the late check, a
+refund and `SpellFailed`); a caller of a function with two failure causes must not answer both with
+the same fallback (three callers of `destroy_city` despawned the city on any error, which would
+have broken the fortress rule); and a made-up fallback value (an event at square (0, 0)) is worse
+than a refusal. Where a rule decides a city is gone, call `Game::remove_city`, not `destroy_city`.
