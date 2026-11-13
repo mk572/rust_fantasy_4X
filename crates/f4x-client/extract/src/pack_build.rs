@@ -5,7 +5,7 @@
 //! `pack_tree` is the command `f4x-extract pack`. Where a folder's sheets go:
 //! - `art/units/<unit>/` goes to `art/units/<folder>/<unit>.sheet.png`, where the folder is the
 //!   unit's race (`high_elf/`), or `hero/`, `fantastic/` or `ship/` for a unit without one;
-//! - `art/cursors/` keeps its sheet inside, `art/cursors/cursors.sheet.png`;
+//! - `art/cursors/` and `art/items/` keep their sheets inside (`art/cursors/cursors.sheet.png`);
 //! - any other folder `D/` goes to `D.sheet.png`, beside it.
 //!
 //! A folder whose pictures differ much in size gets more sheets (`.sheet2.png`...), so no grid is
@@ -336,8 +336,8 @@ fn sheet_base(dir: &str, units: &BTreeMap<String, String>) -> String {
             return format!("art/spells/{realm}/{spell}");
         }
     }
-    if dir == "art/cursors" {
-        return "art/cursors/cursors".to_string();
+    if dir == "art/cursors" || dir == "art/items" {
+        return format!("{dir}/{}", &dir["art/".len()..]);
     }
     dir.to_string()
 }
@@ -626,6 +626,7 @@ mod tests {
             "art/spells/fireball"
         );
         assert_eq!(sheet_base("art/cursors", &folders), "art/cursors/cursors");
+        assert_eq!(sheet_base("art/items", &folders), "art/items/items");
         assert_eq!(
             sheet_file("art/spells/fireball", 1),
             "art/spells/fireball.sheet2.png"

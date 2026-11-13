@@ -126,6 +126,10 @@ impl Placer {
         }
         // `MONSTER.LBX` holds the pictures the summon scene shows, one for each summoned creature
         // (entry = unit number - the Magic Spirit's), the heroes and the sword.
+        // The item icons and the slot, card and power pictures of the item screens share `art/items/`.
+        if lbx == "itemisc" {
+            return Some(format!("art/items/itemisc_{entry:03}"));
+        }
         if lbx == "monster" {
             return Some(format!("screens/wizlab/summon_figure_{entry:03}"));
         }
@@ -385,6 +389,10 @@ mod tests {
             &[],
             &crate::spell_art::parse_spell_art("(shared: [], spells: {})")?,
             &[],
+        );
+        assert_eq!(
+            p.place("itemisc", 25).as_deref(),
+            Some("art/items/itemisc_025")
         );
         assert_eq!(
             p.place("monster", 10).as_deref(),
