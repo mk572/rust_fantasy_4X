@@ -93,7 +93,7 @@ for run in "${RUNS[@]}"; do
     if [ "$dry" = 1 ]; then echo "${cmd[*]}"; continue; fi
     echo "soak_variety: $name ($players wizards, $map, land $land%, magic $magic, difficulty $difficulty, seeds $seeds, $turns turns)" >&2
     "${cmd[@]}" >"$out/$name.txt" 2>&1 || { echo "soak_variety: $name failed" >&2; failed=1; }
-    games="$(grep -c '^seed [0-9]*:' "$out/$name.txt")"
+    games="$(grep -c '^seed [0-9]*: \(won by\|no winner\)' "$out/$name.txt")"
     won="$(grep -c 'won by' "$out/$name.txt")"
     panics="$(grep -c 'panicked' "$out/$name.txt")"
     defeated="$(grep -o '(defeated)' "$out/$name.txt" | wc -l | tr -d ' ')"
