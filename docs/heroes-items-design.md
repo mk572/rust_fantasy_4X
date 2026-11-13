@@ -185,7 +185,7 @@ pub fn mana_value(item: &Item) -> u32;                                  // cost;
 
 `ItemDef` in the content becomes the same shape (`Item` is its `to_instance`), so a prefab item is a
 copy. The `ItemSlot` list of `HeroDef` is replaced by `HeroKind` and `SlotKind` (done, task 218: mage
-heroes have staff, misc, misc). This answers the open question of `design.md` section 13: **an item is data with
+heroes have staff, misc, misc). This answers the open question of how heroes' item slots are modelled (once in `design.md`): **an item is data with
 bonuses plus a list of power ids; its effects reach the rules through `Source::Item`, so the stat
 engine (`rules/stats.rs`) and the ability list need no special case.**
 

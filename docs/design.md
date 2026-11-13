@@ -19,20 +19,24 @@ Related documents: [`rules-framework.md`](rules-framework.md) (the rules layer),
 
 ## 2. Workspace layout
 ```
-crates/f4x-core/    simulation (reads the definitions of f4x-def), no I/O but save files, no rendering
-crates/f4x-def/     the static definitions, their loaders and cross-reference validation (RON)
-crates/f4x-newgame/ making a new game: map generator, placement of nodes, lairs and neutral cities, the wizards and their start (reads and writes a `Game` through f4x-core's public API)
-crates/f4x-ai/      AI players, depends on f4x-core only (empty so far)
-crates/f4x-console/ the text console: every action as a line of text (`console.md`)
-crates/f4x-client/  rendering, input, UI (macroquad)
-crates/f4x-tools/   validator, map preview, original-art extractor
-crates/f4x-def/content/  shipped, original sample data (terrain, features, a small rules set)
-scripts/            import_mom.py (reader of the original's .lbx files), import_mom_text.py (the original's prose -> content-local, for comparison), list_ogbugs.py
-docs/               design and reference documents
+crates/f4x-def/      the static definitions, their loaders and cross-reference validation (RON); `content/` is the shipped rules data
+crates/f4x-core/     the simulation (reads f4x-def): no I/O but save files, no rendering, never depends on the client
+crates/f4x-newgame/  what runs once per game: map generator, placement of nodes, lairs and neutral cities, the wizards and their start (uses f4x-core's public API)
+crates/f4x-lang/     the words of the game: messages by key, names, name lists (`text.md`)
+crates/f4x-ai/       the AI players: they see what a player sees and answer with `Command`s (`ai-design.md`)
+crates/f4x-master/   the flow of a game: rounds and turns per player (`turn-structure.md`)
+crates/f4x-learn/    the learning environment of the AIs (`learning-ai.md`)
+crates/f4x-console/  the text console: every action as a line of text (`console.md`)
+crates/f4x-client/   rendering, input, UI (macroquad); `extract/` reads the original's art
+crates/f4x-tools/    validator, map preview, soak runner, other tools
+crates/f4x-ai-ref/   a frozen copy of the AI, outside the workspace, for AI battles (`ai-design.md` 8.1a)
+scripts/             helper scripts (table in `scripts.md`)
+docs/                design and reference documents
 ```
-Gitignored, local only: `assets-local/` (extracted art, screenshots), `content-local/` (the help text and the screen-to-topic map imported from the author's own copy of the original game, plus the preset wizards written from them).
+Gitignored, local only: `assets-local/` (extracted art, screenshots), `content-local/` (the help text and the screen-to-topic map imported from the author's own copy of the original game, plus the preset wizards written from them), `reference/` (the original's files and the ReMoM clone).
 
-`f4x-core` must never depend on the client. That keeps it testable and fast to iterate.
+The crate rules (who may depend on whom) are in [`rust_coding_rules.md`](rust_coding_rules.md). `f4x-core` must never depend on the client or on a crate above it; that keeps it testable and fast to iterate.
+
 
 ## 3. ECS choice
 Decided: `hecs` inside `f4x-core`, not a full engine. Only state with identity and varied attributes is an entity; everything else is plain data owned by `Game`. The client renders with macroquad and only reads the core. The details, and how this differs from the original game's fixed arrays, are in [`ecs-structure.md`](ecs-structure.md).
@@ -52,9 +56,8 @@ and applies what the domain returns; it does not hold the rules.
   into its fields.
 - A thin `Game` method that calls the function is fine for the public interface (`Game::apply`,
   queries the client uses); the logic itself is not in it.
-- New code follows this from the start. Existing `impl Game` code moves over in the order
-  of [`architecture-plan.md`](archive/architecture-plan.md) (tasks 177 to 183), one group of methods at a
-  time. The pure parts (`rules/`, `map`, the battle engine) already follow it and are the model.
+- New code follows this from the start. The pure parts (`rules/`, `map`, the battle engine) are the model; older `impl Game` code is moved over a group of methods at a time
+  (the audit and the plan are in [`architecture-plan.md`](archive/architecture-plan.md)).
 
 Why: with every rule a method of one struct, any rule can read or write anything, tests need a
 whole game, and the borrow checker forces `&mut self` everywhere. The audit and the plan are in
@@ -62,21 +65,20 @@ whole game, and the borrow checker forces `&mut self` everywhere. The audit and 
 
 ## 4. Core entities and components
 
-The entity model is written out in [`ecs-structure.md`](ecs-structure.md) section 3 (task 310). In
-short, the entities of the game are:
+The entity model is written out in [`ecs-structure.md`](ecs-structure.md) section 3; that document is the one to keep current. In short, the entities of the game are:
 
-| Entity | Components | Status |
-|---|---|---|
-| **Player** | `PlayerId`, treasury (gold, mana), tax rate, offers, defeat, control (human or AI), link to its wizard; a `Neutral` marker for the independent cities and the monsters | tasks 311, 313, 314, 317 (the `Player` struct is gone; `Armory` and `Roster` are components until tasks 327 and 328) |
-| **Wizard** | what the creation screen makes (name, portrait, banner, capital race, books, retorts) plus known spells, research, casting skill, fame, personality, objective, fortress, summoning circle, banishment | tasks 312, 315, 316. The casting, crafting, raising and global-spell lists stay in a transitional `Magic` component until tasks 319 to 322 |
-| **Unit** | definition id, owner, position, damage, experience, moves, orders, temporary state | exists |
-| **Hero** | a hero's identity (abilities, casting skill, spells, state serving, dead or gone); the unit components while serving | tasks 326 to 328, done: one hero entity of each of the 35 types in the whole game, with a state (free, serving one wizard, dead, gone) |
-| **City** | name, owner, position, population, buildings, race, production | exists |
-| **Spell instance** | spell definition, caster (a wizard), target (global, wizard, city, unit, feature, square, battlefield), duration | tasks 318 to 325, done: global, city and unit enchantments, the cast in progress and battle spells are all spell instances |
-| **Terrain feature** | feature kind, position; node, site (lair) or volcano data; owner | tasks 329 to 332 and 338, done: towers, nodes, encounter sites and volcanoes are entities; minerals stay a map layer |
-| **Item** | kind, name, bonus, powers, charges, prefab, and who holds it | tasks 333, 334, done: one entity for each item, held by a hero, the armory or a lair's hoard |
-| **Definitions** (spells, units, buildings, features, items...) | not entities: typed-id registries loaded from data | |
-| **Battle** | a `Battle` outside the world, with a small world of its own for its spell instances | exists; its spell instances live in a small world of the battle (task 324, done) |
+| Entity | Components |
+|---|---|
+| **Player** | `PlayerId`, treasury (gold, mana), tax rate, offers, defeat, control (human or AI), link to its wizard; a `Neutral` marker for the independent cities and the monsters |
+| **Wizard** | what the creation screen makes (name, portrait, banner, capital race, books, retorts) plus known spells, research, casting skill, fame, personality, objective, fortress, summoning circle, banishment |
+| **Unit** | definition id, owner, position, damage, experience, moves, orders, temporary state |
+| **Hero** | a hero's identity (abilities, casting skill, spells, state: free, serving one wizard, dead, gone); the unit components while serving. One hero entity of each of the 35 types in the whole game |
+| **City** | name, owner, position, population, buildings, race, production |
+| **Spell instance** | spell definition, caster (a wizard), target (global, wizard, city, unit, feature, square, battlefield), duration: global, city and unit enchantments, the cast in progress and battle spells |
+| **Terrain feature** | feature kind, position; node, site (lair) or volcano data; owner: towers, nodes, encounter sites and volcanoes (minerals stay a map layer) |
+| **Item** | kind, name, bonus, powers, charges, prefab, and who holds it (a hero, the armory or a lair's hoard) |
+| **Definitions** (spells, units, buildings, features, items...) | not entities: typed-id registries loaded from data |
+| **Battle** | a `Battle` outside the world, with a small world of its own for its spell instances |
 
 Links between entities are `Entity` values; `PlayerId` identifies a player for what lives outside the
 world (fog, diplomacy, saves, display).
@@ -96,7 +98,7 @@ apart. Layers, rules, generation and differences from the original are in
 - Races, units, buildings, spells, abilities, items, terrain and features are defined in RON files and validated at load time (`f4x-tools validate <dir>`): every reference must resolve, ids are `[a-z0-9_]`, spells must have effects, units need their required stats, and so on.
 - Definitions refer to each other by string id in files; loading turns them into typed ids into registries, so the simulation never meets a dangling reference.
 - Abilities and spell effects are composed from a small set of effect primitives and conditions (modify stat, grant ability, damage, heal, summon, change terrain, enchant, dispel, custom hook). Stats are a closed enum; content cannot invent stats.
-- A rule the engine cannot express yet uses the `unimplemented` custom hook. Imported content uses it for 134 of 214 spells; the count of uses is the to-do list for new primitives.
+- A rule the engine cannot express yet uses the `unimplemented` custom hook (`hook.rs`); no shipped spell uses it now, and a count of uses is the to-do list for new primitives.
 - Two content directories, layered: `crates/f4x-def/content/` (the game's rules data, imported from the original's rules and committed) and `content-local/` (help text and preset wizards from the author's own copy; the client reads it first, then `crates/f4x-def/content/` for every file it lacks). The loader's tests read `crates/f4x-def/content/` alone (never `content-local/`), so they run on the data the game has.
 - New content needs no recompilation, which is mod-friendly.
 
@@ -106,28 +108,18 @@ them and returns `Event`s (refusals are events, not panics). Read-only queries t
 and are used freely by the client. A turn is `EndTurn`: refill moves, process cities (outposts
 grow, production completes, population changes), settle each player's treasury (income, spare
 food sold, upkeep, disbanding the unpaid), heal the wounded, then continue standing orders.
-Movement is counted in moves with halves (`HalfInt`; a road step costs 0.5), stacks hold nine, and moving onto hostile units emits
-`AttackRequested` for the not-yet-built combat layer. Production, buying and selling, the
-treasury and healing rules are all written out in [`game-flow.md`](game-flow.md).
-
-Still to build in the pipeline: enchantment upkeep, research and mana income, random events,
-combat, diplomacy, and victory and score.
+Movement is counted in moves with halves (`HalfInt`; a road step costs 0.5), stacks hold nine, and moving onto hostile units emits `AttackRequested`, which a client turns into `Command::BeginBattle`. Production, buying and selling, the
+treasury and healing rules are all written out in [`game-flow.md`](game-flow.md); the order of a round and of the players' turns is in [`turn-structure.md`](turn-structure.md).
 
 ## 7. Tactical battle module
-Not started. Intended design:
-- Separate battle state seeded from the world: a small grid, unit placement, terrain and walls for sieges.
-- Turn-based with unit initiative, movement points, melee, ranged and spell actions.
-- Uses the same stat and ability components as the world, so there is no translation layer.
-- Auto-resolve runs the same rules through a simple AI, so results stay consistent.
-- Result is a set of events: casualties, XP, loot, and city capture or razing.
+A `Battle` is separate state seeded from the world, played with the same stat and ability components as the world (no translation layer); auto-resolve runs the same rules through the battle AI, and the result is a set of events (casualties, XP, loot, city capture or razing). The rules are in [`combat.md`](combat.md).
 
 ## 8. AI
 - Layered: strategic (what to build, where to expand, when to attack), operational (unit group tasks), and tactical (battle moves).
 - Implement as utility scoring or a behaviour tree over read-only views of the world, outputting `Command`s.
 - Difficulty is the original's: one setting that fills in the bonuses and penalties the original gives each level (the computer wizards' city bonuses, upkeep cut, starting gold and picks, lair strength, score scale; see `game-settings.md`) **and** sets how well the AI plays. Reversed 16 October 2026: the earlier rule was no bonuses at all.
-- Start with a simple expansion-and-defend AI, then add aggression and spell use.
 
-**The AI is being revamped (decided October 2026).** Two rules from now on:
+**Two rules for the AI (decided October 2026).**
 1. **No hard-coded AI decisions in the game rules.** The core holds state, validates commands and applies them. Anything an AI player would *decide* (whether to accept a treaty, what to build, where to attack, how it answers a proposal) lives in `f4x-ai` and reaches the core only as ordinary commands, the same ones a human uses. Diplomacy already works this way (`diplomacy.md` section 9.2). So do the independent cities: each is a player, and their farmers, taxes and builds are decided by `f4x_ai::play_neutrals`, which every host that ends turns calls first (the client, the console's `end`, `play_round`).
 2. **No information advantage for the AI, and no special rules for neutral cities and units.** The AI sees what a human would see and obeys the same commands. Neutral cities (rebels, raiders) and neutral units (monsters, lair guards) use the ordinary rules for growth, production, upkeep, stats and combat, with no bonus or penalty because they are neutral. **Changed 16 October 2026:** the difficulty bonuses and penalties of the *computer wizards* (food, production, gold, mana, research, growth and outpost growth up to 400%, a cut in maintenance and in unit upkeep, extra picks, the starting gold) are now **part of the game settings** (`game-settings.md`): the levels carry the original's figures, the advanced screen can change or switch them off, and a symmetric game (`GameSettings::flat`) stays for tests and the learning AI. We still skip AI-only branches inside rule code other than these, AI knowledge of hidden information, and the original's neutral-city growth halving.
 
@@ -135,10 +127,8 @@ Not started. Intended design:
 
 ## 9. Client and art
 - Rendering and input: **macroquad** (decided). Fixed logical layouts scaled by integer factors where the original's screens are reproduced (the city screen uses the original 320x200 layout).
-- The renderer reads the core's state plus the event stream and never mutates the world directly; it sends commands.
-- Screens today: overworld (scrolling, two planes, fog, units, orders, treasury) and city. Planned: battle, spell book, research, wizard/diplomacy, settings.
+- The renderer reads the core's state plus the event stream and never mutates the world directly; it sends commands. The screens and what is built of them are in `screen_list.md`; the catalogue of what plays when is `sound.md`.
 - `--shot FILE [--city] [--select] [--turns N]` renders one frame to a PNG and exits, so the client can be checked without a person.
-- Audio is not started; the catalogue of what plays when is `sound.md` (crate and music source are open decisions there).
 
 ### Placeholder art and original data (local only)
 - The original game's art, music, help text and code are copyrighted and have never been released under a free licence, so they are never committed or distributed with this project. Its rules data (races, units, buildings, spells, items, abilities, realms, level paths and rule values) is committed in `crates/f4x-def/content/`.
@@ -148,11 +138,10 @@ Not started. Intended design:
 
 ## 10. Cross-cutting
 - **Determinism:** seeded RNG (`rand_pcg`) behind `Game::roll`; entity iteration in logic is sorted by creation number (`Serial`), never by `hecs` id; no floats in rules; integer maths with a fixed order in the stats engine.
-- **Save/load:** done. A save is a text snapshot (RON) of the whole game with content referenced by name, a version number and load-time checks; autosave runs each turn. Details in [`game-flow.md`](game-flow.md) section 8.
-- **Testing:** unit tests build small synthetic content (`testutil`) for units, buildings and terrain, but use the game's real spells and realms (`crates/f4x-def/content/spells.ron`, `crates/f4x-def/content/realms.ron`, read by `testutil::real_spells`), so a test casts the spell the game does; a test that needs a number the real spell does not have changes the real spell in place and says so. Shipped data is validated in `f4x-def`. Planned: golden-seed scenario tests, property tests for pathfinding and combat, AI-vs-AI soak runs.
-- **Where tests live:** unit tests stay in the file they test as a child module (`#[cfg(test)] mod tests`), so they can reach private items and are left out of release builds. When a file's test module goes over 250 lines (the size of the test module alone; the file's total size does not matter), the tests move to their own file next to it, still as a child module: `#[cfg(test)] mod tests;` in `foo.rs` and the tests in `foo/tests.rs` (`tests.rs` beside `mod.rs` or `lib.rs`). Tests that use only the public API go in the crate's `tests/` directory. Do not make items `pub` just to test them from another file.
-- **Performance:** not a concern except pathfinding and AI, which can be budgeted per turn.
-- **Lint and format:** `cargo fmt`, `cargo clippy -D warnings` in CI.
+- **Save/load:** a save is a text snapshot (RON) of the whole game with content referenced by name, a version number and load-time checks; autosave runs each turn. Details in [`game-flow.md`](game-flow.md) section 8.
+- **Replays:** commands name entities, and entity ids change on a load, so the command log writes creation numbers (`Serial`) in their place (`game/replay.rs`).
+- **Testing and where tests live:** [`rust_coding_rules.md`](rust_coding_rules.md) (tests run on the shipped rules and real spells; unit tests sit in the file they test; integration tests in a crate's `tests/it/`).
+- **Lint and format:** `cargo fmt`, `cargo clippy` clean.
 
 ## 11. Decisions made so far
 
@@ -188,68 +177,9 @@ Saving
 
 Client and tooling
 - macroquad for the client; art and data stay local; screenshots go in `assets-local/shots`.
-
-## 12. Implementation order
-
-Each stage should end with something runnable and tested.
-
-1. **Foundation.** Done: workspace, CI, ECS setup, deterministic RNG, command/event framework, save/load.
-2. **Map and data pipeline.** Done: two-plane grid, RON data, procedural map generator, validation tool.
-3. **Minimal client.** Done: macroquad renderer, scrolling, input, placeholder art from the local extractor.
-4. **Units and movement.** Done: unit entities, movement rules, A\*, fog of war, plane switching.
-5. **Cities and economy.** Done: founding, outposts, population, buildings, production queue, buying, gold and food, turn pipeline. *First playable milestone: expand and build.*
-6. **Wizards, mana and spells.** Done (first pass, see [`magic.md`](magic.md)): books and retorts, power split, spell library, research, overland casting through a real effect host over the ECS, enchantments with mana upkeep, magic screen. Open: fortress, nodes, heroes' casting, most retort effects, the many spells still on the `unimplemented` hook.
-7. **Combat.** Under way: the battle model, attack resolution and tactical map are in `f4x-core` (see `combat.md`); immunities, special attacks, sieges, casting, the battle screen, auto-resolve and the battle AI follow. Overland attacks stop at `AttackRequested`, which a client turns into `Command::BeginBattle`.
-8. **Heroes, items and experience.** Unit levelling (experience and level effects exist), equipment, hero hiring.
-9. **AI v1.** Expansion, production and defence, then attacking, then spell use and battle AI.
-10. **Diplomacy, events and victory conditions.**
-11. **Content pass.** Fill out races, units, buildings and spells (the largest effort; imported data is the base), then balance using AI-vs-AI soak runs.
-12. **Polish.** Art and audio pass, UI quality, settings, tutorial, packaging for Mac and Linux, replays and optional multiplayer through the command log.
-
-**Early risk check (passed for steps 1-5):** the command/event design and the world model held up through units, movement and a full economy without rework. Revisit if wizards or combat strain it.
-
-## 13. Open questions
-- Multiplayer: in scope for v1, or only keep the command log compatible? The command log now exists for local play (task 74); the scope question is `PLANNED.md` item 36.
+## 12. Open questions
+- Multiplayer: in scope for v1, or only keep the command log compatible? The scope question is `PLANNED.md` item 36.
 - Final art sourcing: commissioned, generated, or CC0 packs? (Placeholders come from the author's own copy of the original.)
 - Stream of Life and Gaia's Blessing: confirm against the original's assembly (see the conflicts document).
-- How heroes' item slots and powers are modelled in data (section 8 of the rules framework fixes the principle, not the schema): proposed in [`heroes-items-design.md`](heroes-items-design.md).
-- Replays: commands name entities, and entity ids change on a load, so the log writes creation numbers (`Serial`) in their place (`game/replay.rs`, task 74, built for local play: replays and saving a game with its history).
 
-## 14. Later considerations
-
-### A self-learning AI
-Not planned for v1. Assessment from the time of writing, for when it is revisited.
-
-**What already helps:** the engine is deterministic and headless (`Command` in, `Event` out,
-seeded RNG), so a bot can play thousands of games without the client; saves allow branching a
-game from any state; the engine rejects illegal commands, so a bot cannot cheat or crash it.
-
-**What makes it hard:**
-1. Combat does not exist yet (tasks 33-42), and an AI that cannot fight cannot learn to play.
-2. The action space is large (hundreds of commands per turn: moves, production, research, spells
-   with targets, tax) and games run for hundreds of turns, so the reward comes very late. Plain
-   reinforcement learning from scratch struggles with this.
-3. Fog of war and several opponents make the problem noisy.
-4. Learning needs millions of games; a full game on a 60x40 two-plane map is much slower than a
-   board game. Measure the engine's turns per second before committing.
-5. Every rule or content change makes a trained bot partly obsolete, so the content pass should
-   settle first.
-
-**Options, easiest first:**
-
-| Approach | Effort | Result |
-|---|---|---|
-| Scripted AI with weights (expand, build, research, attack) | weeks | acceptable, predictable play, like the original |
-| The same, weights tuned by self-play (evolutionary search over a few dozen parameters) | plus weeks | cheap, robust "self-learning"; most of the benefit |
-| Monte Carlo tree search for tactical battles, on top of the scripted AI | plus weeks | strong battle play; battles are small and self-contained |
-| Neural-network policy trained by self-play (AlphaZero style) | months plus GPU time | possible in principle, a research project for a 4X game |
-
-**Suggested path:**
-1. Finish combat and a scripted AI first (tasks 33-46 and 65-67); it is the baseline and the
-   training opponent.
-2. Build an AI-vs-AI soak runner (also wanted for balancing, planned 24); it is the harness any
-   learning would use.
-3. Tune the scripted AI's weights by self-play.
-4. Consider learning only for the battle AI (task 46), where search or a small model can work.
-
-A fully learned end-to-end bot is realistic only as its own long-term project.
+The plan of the work is `TASKS.md` (open tasks) and `PLANNED.md` (long-term); the self-learning AI is `learning-ai.md`.
