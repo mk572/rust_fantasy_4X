@@ -46,7 +46,6 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 41 | Content | Free sounds: effects for events that have none, and replacements for the original's sound and music |
 | 42 | Map | Mines, lumber camps and hunter's lodges on the map |
 | 43 | Client | Proper windowing support: boxes and screens as windowed layers instead of one shared pane |
-| 44 | Client | Build queues in the city production screen: a list of items a city works down in order |
 | 45 | Client | Start a game from a map seed chosen in the UI |
 | 46 | Tools | Find the use of the unreferenced art files `combat`, `desert`, `tundra`, `cmbtwall` |
 | 47 | Meta | Game settings, stage 3: the advanced screen and the easy custom settings |
@@ -509,20 +508,6 @@ Related: items 6, 10, 11 and 39 (graphics, fonts and resolution), task 289 (help
 of `end_scene.rs`. The request that opened this item had more detail after "windowed layers"; add it here.
 
 Note: use macroquad window <https://docs.rs/macroquad/latest/macroquad/window/index.html>
-
-**44. Build queues in the city production screen.** *(Now task 573 in `TASKS.md`.)* The original builds one thing at a time and the screen
-(`production_screen.rs`, after `Production_Screen`) picks that one. A mod may want a queue: the player lists several
-buildings and units in the order they should be made, and the city works down the list, so a new item starts the turn
-the last one is done and no production is wasted on a turn the player was not looking. To settle when it is built:
-- the screen gets a queue strip (for example under the picked item's panel, or a third column) where a click on an item
-  adds it, the picked one can be moved up and down or taken out, and the first entry is the city's current production;
-- the core keeps the queue per city (saved, and part of the replay), with `Command`s to add, remove and reorder, and an
-  entry that becomes impossible (a building another city's spell destroyed the requirement of, a unit the city can no
-  longer train) is skipped with a message, as the Grand Vizier's choice is;
-- the auto-builder (`docs/auto-builder.md`) fills the queue's end, or only an empty queue, to be decided; the AI uses
-  the queue exactly as a human does (design.md section 8: it follows the same rules);
-- the Producing panel on the city screen shows the queue's next entries, and the cost, turns and Buy keep to the first.
-Related: the production screen (task 116's neighbours), the auto-builder, and the Chancellor's "completed" lines.
 
 **45. Start games from a seed in the UI.** The map seed is a command-line option today (`--seed N`); the Game settings
 screen only shows it (task 148). Let the player type or paste a seed on the new-game settings, so a map can be shared and
