@@ -119,8 +119,52 @@ backgrnd	14	14	city_screen	button_buy_locked
 backgrnd	15	15	city_screen	button_scroll_up
 backgrnd	16	16	city_screen	button_scroll_down
 backgrnd	40	41	city_screen
-backgrnd	43	72	city_screen
-backgrnd	74	95	city_screen
+backgrnd	43	44	city_screen
+# The citizens of each race (`backgrnd` 45 farmers, 59 workers and 74 rebels, plus the race's number),
+# filed by race so each race's three pictures are one sprite pack.
+backgrnd	45	45	city_screen/citizens/barbarian	farmer
+backgrnd	46	46	city_screen/citizens/beastmen	farmer
+backgrnd	47	47	city_screen/citizens/dark_elf	farmer
+backgrnd	48	48	city_screen/citizens/draconian	farmer
+backgrnd	49	49	city_screen/citizens/dwarven	farmer
+backgrnd	50	50	city_screen/citizens/gnoll	farmer
+backgrnd	51	51	city_screen/citizens/halfling	farmer
+backgrnd	52	52	city_screen/citizens/high_elf	farmer
+backgrnd	53	53	city_screen/citizens/high_men	farmer
+backgrnd	54	54	city_screen/citizens/klackon	farmer
+backgrnd	55	55	city_screen/citizens/lizardman	farmer
+backgrnd	56	56	city_screen/citizens/nomad	farmer
+backgrnd	57	57	city_screen/citizens/orc	farmer
+backgrnd	58	58	city_screen/citizens/troll	farmer
+backgrnd	59	59	city_screen/citizens/barbarian	worker
+backgrnd	60	60	city_screen/citizens/beastmen	worker
+backgrnd	61	61	city_screen/citizens/dark_elf	worker
+backgrnd	62	62	city_screen/citizens/draconian	worker
+backgrnd	63	63	city_screen/citizens/dwarven	worker
+backgrnd	64	64	city_screen/citizens/gnoll	worker
+backgrnd	65	65	city_screen/citizens/halfling	worker
+backgrnd	66	66	city_screen/citizens/high_elf	worker
+backgrnd	67	67	city_screen/citizens/high_men	worker
+backgrnd	68	68	city_screen/citizens/klackon	worker
+backgrnd	69	69	city_screen/citizens/lizardman	worker
+backgrnd	70	70	city_screen/citizens/nomad	worker
+backgrnd	71	71	city_screen/citizens/orc	worker
+backgrnd	72	72	city_screen/citizens/troll	worker
+backgrnd	74	74	city_screen/citizens/barbarian	rebel
+backgrnd	75	75	city_screen/citizens/beastmen	rebel
+backgrnd	76	76	city_screen/citizens/dark_elf	rebel
+backgrnd	77	77	city_screen/citizens/draconian	rebel
+backgrnd	78	78	city_screen/citizens/dwarven	rebel
+backgrnd	79	79	city_screen/citizens/gnoll	rebel
+backgrnd	80	80	city_screen/citizens/halfling	rebel
+backgrnd	81	81	city_screen/citizens/high_elf	rebel
+backgrnd	82	82	city_screen/citizens/high_men	rebel
+backgrnd	83	83	city_screen/citizens/klackon	rebel
+backgrnd	84	84	city_screen/citizens/lizardman	rebel
+backgrnd	85	85	city_screen/citizens/nomad	rebel
+backgrnd	86	86	city_screen/citizens/orc	rebel
+backgrnd	87	87	city_screen/citizens/troll	rebel
+backgrnd	88	95	city_screen
 cityscap	0	999	city_screen/cityscape
 unitview	30	30	city_screen	build_button_background
 unitview	31	31	city_screen	left_building_tab

@@ -52,7 +52,9 @@ The PNG's text chunk `f4x-sheet` holds the cell size and each picture's name and
   folder's sheets when a picture of it is first asked for; a picture no sheet has is read from the loose file,
   so a mixed tree works. The names the game asks for do not change.
 
-Not packed: `screens/` (each picture is large already), `art/fonts/`, and `neutral/`, `palette-swap/`, `shots/`
+- the city screen's buildings, `screens/city_screen/cityscape/` (350 pictures), become `cityscape.sheet.png` and its further sheets; the citizens, farmer, worker and rebel of each race (`backgrnd` 45, 59 and 74 plus the race number, filed by `screens.tsv`), become `screens/city_screen/citizens/<race>.sheet.png`, one for each of the 14 races.
+
+Not packed: the other `screens/` (each picture is large already), `art/fonts/`, and `neutral/`, `palette-swap/`, `shots/`
 (working files of scripts and the author, never read by the client).
 
 ```

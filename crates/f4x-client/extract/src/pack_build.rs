@@ -278,11 +278,15 @@ pub struct Report {
     pub bytes_after: u64,
 }
 
-/// Whether a folder is packed: the pictures under `art/` the client reads one at a time. Not the
-/// fonts (read in other ways), the screens (each picture is large already), and not `neutral/`,
-/// `palette-swap/` or `shots/` (working files of scripts and the author, never read by the client).
+/// Whether a folder is packed: the pictures under `art/` the client reads one at a time, and the
+/// city screen's buildings (`screens/city_screen/cityscape`) and its citizens, one pack for each
+/// race (`screens/city_screen/citizens/<race>`). Not the fonts (read in other ways), not the other
+/// screens (each picture is large already), and not `neutral/`, `palette-swap/` or `shots/`
+/// (working files of scripts and the author, never read by the client).
 fn skipped(dir: &str) -> bool {
-    !dir.starts_with("art/") || dir.starts_with("art/fonts")
+    let packed_screen =
+        dir == "screens/city_screen/cityscape" || dir.starts_with("screens/city_screen/citizens/");
+    !(dir.starts_with("art/") && !dir.starts_with("art/fonts") || packed_screen)
 }
 
 /// A sheet file (`x.sheet.png`, `x.sheet2.png`), not a loose picture.
