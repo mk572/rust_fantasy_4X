@@ -230,7 +230,15 @@ impl App {
     /// Put the score in the table kept at `path`; a table that cannot be written is told in the
     /// log (the score is then lost, which the player should know).
     fn keep_score(&mut self, path: &std::path::Path, entry: Entry) {
-        let mut table = hall_of_fame::load(path);
+        // A table that cannot be read is not taken for empty: the score would be written over it.
+        let mut table = match hall_of_fame::load(path) {
+            Ok(table) => table,
+            Err(why) => {
+                let line = self.text_with("end.hall_read_failed", &Args::new().text("why", why));
+                self.log.push(line);
+                return;
+            }
+        };
         if hall_of_fame::insert(&mut table, entry).is_none() {
             return;
         }
@@ -249,13 +257,19 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(unix)]
     fn a_hall_of_fame_that_cannot_be_written_is_told_in_the_log(
     ) -> Result<(), Box<dyn std::error::Error>> {
         let dir = std::env::temp_dir().join(format!("f4x-hall-{}", std::process::id()));
         std::fs::create_dir_all(&dir)?;
-        // A file where the table's folder should be: the write cannot succeed.
+        // A read-only folder: the table is not there (an empty one), and the write cannot
+        // succeed.
         let blocker = dir.join("saves");
-        std::fs::write(&blocker, "not a folder")?;
+        std::fs::create_dir(&blocker)?;
+        std::fs::set_permissions(
+            &blocker,
+            std::os::unix::fs::PermissionsExt::from_mode(0o555),
+        )?;
         let mut app = App::for_test();
         let entry = Entry {
             name: "Merlin".into(),
@@ -268,12 +282,41 @@ mod tests {
             line.starts_with("The Hall of Fame could not be saved"),
             "{line}"
         );
+        std::fs::set_permissions(
+            &blocker,
+            std::os::unix::fs::PermissionsExt::from_mode(0o755),
+        )?;
         // A table that can be written says nothing.
         let ok = dir.join("ok").join("hall_of_fame.txt");
         let before = app.log.len();
         app.keep_score(&ok, entry);
         assert_eq!(app.log.len(), before);
-        assert_eq!(hall_of_fame::load(&ok).len(), 1);
+        assert_eq!(hall_of_fame::load(&ok)?.len(), 1);
+        std::fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
+
+    #[test]
+    fn a_hall_of_fame_that_cannot_be_read_is_not_written_over(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let dir = std::env::temp_dir().join(format!("f4x-hall-read-{}", std::process::id()));
+        std::fs::create_dir_all(&dir)?;
+        // A folder where the file should be: it is there, and it cannot be read.
+        let path = dir.join("hall_of_fame.txt");
+        std::fs::create_dir(&path)?;
+        let mut app = App::for_test();
+        let entry = Entry {
+            name: "Merlin".into(),
+            race: "High Men".into(),
+            score: 100,
+        };
+        app.keep_score(&path, entry);
+        let line = app.log.last().ok_or("nothing was logged")?.to_string();
+        assert!(
+            line.starts_with("The Hall of Fame could not be read"),
+            "{line}"
+        );
+        assert!(path.is_dir(), "the table was written over");
         std::fs::remove_dir_all(&dir)?;
         Ok(())
     }

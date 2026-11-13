@@ -2,6 +2,7 @@
 {
     "hall.title": "Hall Of Fame",
     "hall.master": "Master",
+    "hall.read_failed": "The Hall of Fame could not be read: {why}",
     "hall.rank": "{n})",
     "hall.of_the": "{name} of the {race}",
 }

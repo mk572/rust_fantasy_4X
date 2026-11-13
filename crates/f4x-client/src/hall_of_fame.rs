@@ -38,9 +38,16 @@ pub(crate) struct Entry {
     pub score: i32,
 }
 
-/// The table in the file: one `score<TAB>name<TAB>race` line each, best first.
-pub(crate) fn load(path: &Path) -> Vec<Entry> {
-    let text = std::fs::read_to_string(path).unwrap_or_default();
+/// The table in the file: one `score<TAB>name<TAB>race` line each, best first. A file that is
+/// not there is an empty table (no game has been finished yet); one that is there and cannot be
+/// read is an error with its path, so that the table is not taken for empty and written over. A
+/// damaged line is skipped.
+pub(crate) fn load(path: &Path) -> Result<Vec<Entry>, String> {
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(format!("{}: {e}", path.display())),
+    };
     let mut table: Vec<Entry> = text
         .lines()
         .filter_map(|line| {
@@ -53,7 +60,7 @@ pub(crate) fn load(path: &Path) -> Vec<Entry> {
         .collect();
     table.sort_by_key(|e| std::cmp::Reverse(e.score));
     table.truncate(SCORES);
-    table
+    Ok(table)
 }
 
 pub(crate) fn save(path: &Path, table: &[Entry]) -> std::io::Result<()> {
@@ -109,7 +116,11 @@ impl App {
     /// Show the table; `from_menu` returns to the start menu, otherwise the game has ended and
     /// the start menu follows too (the original goes back to it).
     pub(crate) fn open_hall_of_fame(&mut self) {
-        let table = load(Path::new(FILE));
+        let table = load(Path::new(FILE)).unwrap_or_else(|why| {
+            let line = self.text_with("hall.read_failed", &Args::new().text("why", why));
+            self.log.push(line);
+            Vec::new()
+        });
         self.open_page(Screen::HallOfFame, HallPage { table });
     }
 
@@ -223,7 +234,19 @@ mod tests {
         let mut text = std::fs::read_to_string(&path)?;
         text.push_str("garbage\n");
         std::fs::write(&path, text)?;
-        assert_eq!(load(&path), table);
+        assert_eq!(load(&path)?, table);
+        Ok(())
+    }
+
+    #[test]
+    fn a_missing_file_is_an_empty_table_and_an_unreadable_one_is_an_error(
+    ) -> f4x_def::testdir::TestResult {
+        let dir = f4x_def::testdir::TestDir::new("hof-read");
+        assert!(load(&dir.join("nothing.txt"))?.is_empty());
+        // A folder where the file should be: it is there, and it cannot be read.
+        std::fs::create_dir(dir.join("hall.txt"))?;
+        let why = load(&dir.join("hall.txt")).err().ok_or("read a folder")?;
+        assert!(why.contains("hall.txt"), "{why}");
         Ok(())
     }
 

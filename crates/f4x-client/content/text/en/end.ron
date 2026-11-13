@@ -9,6 +9,7 @@
     "end.mastery_cast": "{winner} has cast the",
     "end.lost_conquest": "You have lost your last city to {winner}.",
     "end.log": "{title} {reason}",
+    "end.hall_read_failed": "The Hall of Fame could not be read, so your score is not entered: {why}",
     "end.hall_save_failed": "The Hall of Fame could not be saved: {why}",
     // The victory speech, a line every fifteen steps of the scene.
     "end.win_1": "Having conquered both the",
