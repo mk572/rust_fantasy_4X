@@ -48,6 +48,9 @@ cp -R crates/f4x-def/content "$app/Contents/Resources/crates/f4x-def/content"
 # The client's own tables and texts (hotkeys, art tables, text/); the game finds them at crates/f4x-client/content.
 mkdir -p "$app/Contents/Resources/crates/f4x-client"
 cp -R crates/f4x-client/content "$app/Contents/Resources/crates/f4x-client/content"
+# The texts of the game (every language); the client finds them at crates/f4x-lang/content.
+mkdir -p "$app/Contents/Resources/crates/f4x-lang"
+cp -R crates/f4x-lang/content "$app/Contents/Resources/crates/f4x-lang/content"
 [ -d content-local ] && cp -R content-local "$app/Contents/Resources/content-local"
 [ -d assets-local/art ] && cp -R assets-local/art "$app/Contents/Resources/assets-local/art"
 [ -f assets-local/index.tsv ] && cp assets-local/index.tsv "$app/Contents/Resources/assets-local/index.tsv"
@@ -65,7 +68,7 @@ rm -rf "$res/assets-local/art/fonts"
 rm -f "$res/content-local/IMPORT_REPORT.txt" "$res/content-local/OGBUG_INDEX.md"
 find "$res" \( -name '*.xmi' -o -name '*.orig' -o -name '.DS_Store' \) -type f -delete
 
-# The game finds crates/f4x-def/content, content-local/, assets-local/, crates/f4x-client/content and saves/ relative to the working
+# The game finds crates/f4x-def/content, content-local/, assets-local/, crates/f4x-client/content, crates/f4x-lang/content and saves/ relative to the working
 # directory, so the launcher runs it from a folder that links to the bundled copies.
 cat > "$app/Contents/MacOS/Fantasy4X" <<'LAUNCH'
 #!/bin/sh
