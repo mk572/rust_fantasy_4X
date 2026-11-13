@@ -55,7 +55,7 @@ pub fn equip(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     .map(|(spot, _)| spot)
             };
             if let Some(from) = from {
-                ai.send(
+                ai.order(
                     game,
                     Command::MoveItem {
                         player: ai.player,
@@ -107,8 +107,8 @@ pub fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         };
         // An offer it cannot take (no room for the hero at the summoning circle, say) is
         // declined, and does not wait to be refused again each turn.
-        if !ai.send(game, command, events) && accept {
-            ai.send(
+        if !ai.send(game, command, events).is_ok() && accept {
+            ai.order(
                 game,
                 Command::RejectOffer {
                     player: ai.player,
@@ -163,7 +163,7 @@ pub fn answer_resales(game: &mut Game) -> Vec<Event> {
             } else {
                 Command::RejectOffer { player, index }
             };
-            ai.send(game, command, &mut events);
+            ai.order(game, command, &mut events);
         }
     }
     events

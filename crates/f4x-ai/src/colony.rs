@@ -246,7 +246,7 @@ fn release_scouts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     ai.scouts.retain(|s| !serials.contains(s));
     ai.sea_party.clear();
     ai.sea_scouting = false;
-    ai.send(game, Command::ClearOrders { units: ships }, events);
+    ai.order(game, Command::ClearOrders { units: ships }, events);
 }
 
 /// With the ship and a settler in the port, sail.
@@ -277,7 +277,7 @@ fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
     };
     // A ship left at sea by an earlier voyage comes home.
     if !strays.is_empty() {
-        ai.send(
+        ai.order(
             game,
             Command::GoTo {
                 units: strays,
@@ -298,14 +298,17 @@ fn load(ai: &mut Ai, game: &mut Game, colony: Colony, events: &mut Vec<Event>) {
         let view = PlayerView::new(game, me);
         (view.serial_of(ship), view.serial_of(settler))
     };
-    if ai.send(
-        game,
-        Command::GoTo {
-            units: vec![ship, settler],
-            to: colony.sea,
-        },
-        events,
-    ) {
+    if ai
+        .send(
+            game,
+            Command::GoTo {
+                units: vec![ship, settler],
+                to: colony.sea,
+            },
+            events,
+        )
+        .is_ok()
+    {
         ai.colonists = Some((ship_serial, settler_serial));
         ai.colony_since = game.turn;
     } else {
@@ -342,14 +345,17 @@ fn sail(
         )
     };
     if settler_at == Some(colony.sea) {
-        if ai.send(
-            game,
-            Command::GoTo {
-                units: vec![settler_e],
-                to: colony.land,
-            },
-            events,
-        ) {
+        if ai
+            .send(
+                game,
+                Command::GoTo {
+                    units: vec![settler_e],
+                    to: colony.land,
+                },
+                events,
+            )
+            .is_ok()
+        {
             ai.colonists = None;
             ai.colony = None;
         } else {
@@ -358,7 +364,7 @@ fn sail(
         return;
     }
     if game.turn.saturating_sub(ai.colony_since) > SAIL_TURNS {
-        ai.send(
+        ai.order(
             game,
             Command::ClearOrders {
                 units: vec![ship_e, settler_e],
@@ -369,14 +375,16 @@ fn sail(
         return;
     }
     if idle
-        && !ai.send(
-            game,
-            Command::GoTo {
-                units: vec![ship_e, settler_e],
-                to: colony.sea,
-            },
-            events,
-        )
+        && !ai
+            .send(
+                game,
+                Command::GoTo {
+                    units: vec![ship_e, settler_e],
+                    to: colony.sea,
+                },
+                events,
+            )
+            .is_ok()
     {
         give_up(ai, colony);
     }

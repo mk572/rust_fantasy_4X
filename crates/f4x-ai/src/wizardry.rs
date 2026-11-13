@@ -336,7 +336,7 @@ fn alchemy(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         (short * 100 / percent).min(spare)
     };
     if gold > 0 {
-        ai.send(
+        ai.order(
             game,
             Command::Alchemy {
                 player: ai.player,
@@ -383,7 +383,7 @@ fn fund_return(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         (short * 100 / percent).min(view.treasury().gold.floor())
     };
     if gold > 0 {
-        ai.send(
+        ai.order(
             game,
             Command::Alchemy {
                 player: me,
@@ -406,7 +406,7 @@ fn stop_aimless(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         return;
     };
     if game.spell_needs_target(ai.player, spell) && !game.spell_has_target(ai.player, spell) {
-        ai.send(game, Command::CancelCast { player: ai.player }, events);
+        ai.order(game, Command::CancelCast { player: ai.player }, events);
     }
 }
 
@@ -440,7 +440,7 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             .is_some_and(|c| kind(view.spell(c.spell)) == Kind::Mastery)
     };
     if casting_mastery {
-        ai.send(game, set_split(me, MASTERY_SPLIT), events);
+        ai.order(game, set_split(me, MASTERY_SPLIT), events);
         return;
     }
     let traits = crate::objective::traits(&PlayerView::new(game, me));
@@ -487,7 +487,7 @@ fn split(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             break;
         }
     }
-    ai.send(game, set_split(me, chosen), events);
+    ai.order(game, set_split(me, chosen), events);
 }
 
 fn set_split(player: f4x_core::player::PlayerId, (mana, research, skill): (u8, u8, u8)) -> Command {
@@ -581,7 +581,7 @@ fn research(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         })
     };
     if let Some(spell) = spell {
-        ai.send(
+        ai.order(
             game,
             Command::SetResearch {
                 player: ai.player,
@@ -606,7 +606,7 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 player: ai.player,
                 target: Target::Hero(kind),
             };
-            ai.send(game, command, events);
+            ai.order(game, command, events);
         }
         return;
     }
@@ -629,7 +629,7 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 player: ai.player,
                 target: Target::City(city),
             };
-            ai.send(game, command, events);
+            ai.order(game, command, events);
         }
         return;
     }
@@ -644,7 +644,7 @@ fn resolve_paid(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         pick_target(&view, spell)
     };
     if let Some(target) = target {
-        ai.send(
+        ai.order(
             game,
             Command::ResolveCast {
                 player: ai.player,
@@ -996,7 +996,7 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
         spell,
         target: Some(Target::Hero(kind)),
     };
-    ai.send(game, command, events);
+    ai.order(game, command, events);
     true
 }
 
@@ -1160,7 +1160,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         if summons && !crate::garrison::make_room(ai, game, events) {
             return;
         }
-        ai.send(
+        ai.order(
             game,
             Command::CastSpell {
                 extra: 0,

@@ -125,7 +125,7 @@ pub fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         design(game, me, craft, slot, budget).map(|d| (craft, d))
     };
     if let Some((craft, design)) = choice {
-        ai.send(
+        ai.order(
             game,
             Command::CraftItem {
                 player: me,

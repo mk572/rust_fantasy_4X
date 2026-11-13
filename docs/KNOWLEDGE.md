@@ -187,3 +187,13 @@ refund and `SpellFailed`); a caller of a function with two failure causes must n
 the same fallback (three callers of `destroy_city` despawned the city on any error, which would
 have broken the fortress rule); and a made-up fallback value (an event at square (0, 0)) is worse
 than a refusal. Where a rule decides a city is gone, call `Game::remove_city`, not `destroy_city`.
+
+## A command can be accepted and still not go (task 555)
+
+`Game::apply(GoTo)` answers with no `Rejected` event when the order is taken, and then the first
+step of the walk can fail at once (`OrderFailed`, a full square). The AI's `send` counted that as
+sent, so a caller never knew its units had stayed put, and 13,888 such orders in 8 soak games came
+from one loop that kept ordering units into a full tower square. `Ai::send` now reports it as
+`SendError::Stopped`, and a caller that sends several units to one square stops at the first
+refusal for want of room. When a soak counts refused orders, look at the sources first: one site
+was two thirds of them.

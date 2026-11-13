@@ -107,13 +107,13 @@ pub(crate) fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             .wizard()
             .is_some_and(|m| m.knows(mastery));
         if casting_other && knows {
-            ai.send(game, Command::CancelCast { player: me }, events);
+            ai.order(game, Command::CancelCast { player: me }, events);
         }
         return;
     }
     ai.war_on = Some(rival);
     if game.treaty(me, rival) != Treaty::War && game.have_met(me, rival) {
-        ai.send(
+        ai.order(
             game,
             Command::Diplomacy(DiplomacyCommand::DeclareWar {
                 player: me,

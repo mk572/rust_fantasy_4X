@@ -175,14 +175,17 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     if walkers.is_empty() {
                         continue;
                     }
-                    if ai.send(
-                        game,
-                        Command::MoveStack {
-                            units: walkers,
-                            to: target,
-                        },
-                        events,
-                    ) {
+                    if ai
+                        .send(
+                            game,
+                            Command::MoveStack {
+                                units: walkers,
+                                to: target,
+                            },
+                            events,
+                        )
+                        .is_ok()
+                    {
                         spent.extend(&units);
                         break;
                     }
@@ -205,7 +208,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                                 defenders,
                             });
                         } else {
-                            ai.send(
+                            ai.order(
                                 game,
                                 Command::AutoResolve {
                                     mana_budget: None,
@@ -414,6 +417,9 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         limit.saturating_sub(view.garrison(rally).len())
     };
     let mut at_tower: Vec<hecs::Entity> = Vec::new();
+    // Set when the tower's square refused a unit for want of room: no other unit is sent this
+    // turn (a full square stays full, and each refusal was one more ignored order).
+    let mut tower_full = false;
     // Units of a kind on a square get one path search between them (nothing moves meanwhile:
     // the orders given here only start a walk).
     let mut reached = crate::view::ReachCache::default();
@@ -435,8 +441,13 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             if here == Some(tower) {
                 at_tower.push(*u);
-            } else if !ordered && reach && here.is_some_and(|p| p.plane == tower.plane) {
-                ai.send(
+            } else if !ordered
+                && reach
+                && !tower_full
+                && at_tower.len() < PlayerView::new(game, me).max_tile()
+                && here.is_some_and(|p| p.plane == tower.plane)
+            {
+                let sent = ai.send(
                     game,
                     Command::GoTo {
                         units: vec![*u],
@@ -444,6 +455,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     },
                     events,
                 );
+                tower_full = sent.is_err_and(|why| why.is_no_room());
             }
             continue;
         }
@@ -454,7 +466,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let here = game.units().unit_position(*u);
         if !ordered {
             if game.can_use_earth_gate(&[*u], rally).is_ok() {
-                ai.send(
+                ai.order(
                     game,
                     Command::EarthGate {
                         units: vec![*u],
@@ -470,7 +482,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         .economy()
                         .has_gate(p, me, f4x_core::city::gate::ASTRAL_GATE)
             }) {
-                ai.send(game, Command::ShiftPlane { units: vec![*u] }, events);
+                ai.order(game, Command::ShiftPlane { units: vec![*u] }, events);
                 continue;
             }
         }
@@ -483,8 +495,8 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 && reached.can_reach(&view, &[*u], rally)
         };
         if comes_home && room > 0 {
-            room = room.saturating_sub(1);
-            ai.send(
+            // The room in the rally square is taken only by a unit that goes.
+            let sent = ai.send(
                 game,
                 Command::GoTo {
                     units: vec![*u],
@@ -492,6 +504,9 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 },
                 events,
             );
+            if sent.is_ok() {
+                room = room.saturating_sub(1);
+            }
         }
     }
     // The troops at the tower cross in stacks of nine.
@@ -499,7 +514,7 @@ pub fn army(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         if chunk.len() >= MIN_CROSSING.min(elsewhere.len())
             && PlayerView::new(game, me).can_shift_plane(chunk)
         {
-            ai.send(
+            ai.order(
                 game,
                 Command::ShiftPlane {
                     units: chunk.to_vec(),
@@ -623,8 +638,14 @@ fn relieve(
         if sent.is_empty() {
             continue;
         }
-        for &u in &sent {
-            ai.send(
+        // A unit whose order was refused is not spent on this city: it stays free for the next.
+        // A city with no room left takes no more of them this turn.
+        let mut full = false;
+        sent.retain(|&u| {
+            if full {
+                return false;
+            }
+            let sent = ai.send(
                 game,
                 Command::GoTo {
                     units: vec![u],
@@ -632,7 +653,9 @@ fn relieve(
                 },
                 events,
             );
-        }
+            full = sent.is_err_and(|why| why.is_no_room());
+            sent.is_ok()
+        });
         free.retain(|u| !sent.contains(u));
     }
     free
@@ -794,14 +817,16 @@ fn march(
             }
             way = true;
         }
-        let sent = ai.send(
-            game,
-            Command::GoTo {
-                units: units.to_vec(),
-                to: spot,
-            },
-            events,
-        );
+        let sent = ai
+            .send(
+                game,
+                Command::GoTo {
+                    units: units.to_vec(),
+                    to: spot,
+                },
+                events,
+            )
+            .is_ok();
         if sent {
             return March::Sent;
         }

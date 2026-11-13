@@ -18,7 +18,7 @@ pub(crate) fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         view.treasury().mana.floor()
     };
     if mana > 0 {
-        ai.send(
+        ai.order(
             game,
             Command::Alchemy {
                 player: ai.player,

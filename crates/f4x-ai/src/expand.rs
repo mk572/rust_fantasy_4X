@@ -77,7 +77,11 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     let view = PlayerView::new(game, me);
                     (view.can_found_city(pos), city_name(&view, unit))
                 };
-                if can_found && ai.send(game, Command::SettleOutpost { unit, name }, events) {
+                if can_found
+                    && ai
+                        .send(game, Command::SettleOutpost { unit, name }, events)
+                        .is_ok()
+                {
                     ai.settler_targets.remove(&serial);
                     continue;
                 }
@@ -87,7 +91,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     // It did not move all turn: the way is blocked. Give this site up.
                     ai.bad_sites.push(target);
                     ai.settler_targets.remove(&serial);
-                    ai.send(game, Command::ClearOrders { units: vec![unit] }, events);
+                    ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
                 } else {
                     ai.settler_last.insert(serial, pos);
                     continue; // still walking
@@ -112,7 +116,7 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                     ai.settler_targets.insert(serial, site);
                 }
                 (None, Some(to)) => {
-                    ai.send(
+                    ai.order(
                         game,
                         Command::GoTo {
                             units: vec![unit],
@@ -129,17 +133,23 @@ pub fn settlers(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         if target == pos {
             // Found it right here (next turn if the settlers just arrived and cannot).
             let name = city_name(&PlayerView::new(game, me), unit);
-            if ai.send(game, Command::SettleOutpost { unit, name }, events) {
+            if ai
+                .send(game, Command::SettleOutpost { unit, name }, events)
+                .is_ok()
+            {
                 ai.settler_targets.remove(&serial);
             }
-        } else if !ai.send(
-            game,
-            Command::GoTo {
-                units: vec![unit],
-                to: target,
-            },
-            events,
-        ) {
+        } else if !ai
+            .send(
+                game,
+                Command::GoTo {
+                    units: vec![unit],
+                    to: target,
+                },
+                events,
+            )
+            .is_ok()
+        {
             ai.settler_targets.remove(&serial);
         }
     }

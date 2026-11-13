@@ -121,7 +121,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 ai.bad_scout_targets.push(t);
             }
             ai.scout_last.remove(&serial);
-            ai.send(game, Command::ClearOrders { units: vec![unit] }, events);
+            ai.order(game, Command::ClearOrders { units: vec![unit] }, events);
         } else if !idle {
             found_any = true;
             continue;
@@ -150,7 +150,7 @@ pub fn scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 if is_sea_scout {
                     units.extend(board(ai, game, unit, pos));
                 }
-                ai.send(game, Command::GoTo { units, to }, events);
+                ai.order(game, Command::GoTo { units, to }, events);
             }
             None => {
                 ai.scout_targets.remove(&serial);
@@ -279,14 +279,17 @@ fn put_ashore(ai: &mut Ai, game: &mut Game, ship_at: Position, events: &mut Vec<
         return false;
     };
     let serial = PlayerView::new(game, me).serial_of(rider);
-    if !ai.send(
-        game,
-        Command::GoTo {
-            units: vec![rider],
-            to: shore,
-        },
-        events,
-    ) {
+    if !ai
+        .send(
+            game,
+            Command::GoTo {
+                units: vec![rider],
+                to: shore,
+            },
+            events,
+        )
+        .is_ok()
+    {
         return false;
     }
     ai.sea_party.retain(|s| *s != serial);
@@ -341,7 +344,11 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         )
     };
     if at == Some(tower) {
-        if shifts && ai.send(game, Command::ShiftPlane { units: vec![unit] }, events) {
+        if shifts
+            && ai
+                .send(game, Command::ShiftPlane { units: vec![unit] }, events)
+                .is_ok()
+        {
             ai.planar = None;
             ai.frontier_closed = false;
             ai.bad_scout_targets.clear();
@@ -356,7 +363,7 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             ai.scouts.retain(|s| *s != serial);
             return;
         }
-        ai.send(
+        ai.order(
             game,
             Command::GoTo {
                 units: vec![unit],

@@ -115,8 +115,7 @@ pub(crate) fn march_with(
         if !PlayerView::new(game, ai.player).can_reach(units, spot) {
             continue;
         }
-        let before = events.len();
-        let moved = ai.send(
+        let sent = ai.send(
             game,
             Command::GoTo {
                 units: units.to_vec(),
@@ -124,14 +123,18 @@ pub(crate) fn march_with(
             },
             events,
         );
-        if moved {
-            return Ok(());
+        // The reason the game gave, for the caller; a square that cannot take the party (full,
+        // no room) is tried with the next one round the site.
+        match sent {
+            Ok(()) => return Ok(()),
+            Err(
+                crate::SendError::Rejected(f4x_core::game::Rejection::Move(why))
+                | crate::SendError::Stopped(why),
+            ) => {
+                refused = Some(why);
+            }
+            Err(_) => {}
         }
-        // The reason the game gave, for the caller.
-        refused = events[before..].iter().find_map(|e| match e {
-            Event::Rejected(f4x_core::game::Rejection::Move(why)) => Some(*why),
-            _ => None,
-        });
     }
     Err(refused.map_or(MarchError::Unreachable, MarchError::Refused))
 }
@@ -157,18 +160,20 @@ pub(crate) fn assault(
     }
     // The guards cannot be seen from outside: a site that has none left refuses, and the stack
     // then walks onto it (below).
-    let sent = ai.probe(
-        game,
-        Command::EnterSite {
-            units: fighters.clone(),
-            to: site,
-        },
-        events,
-    );
+    let sent = ai
+        .probe(
+            game,
+            Command::EnterSite {
+                units: fighters.clone(),
+                to: site,
+            },
+            events,
+        )
+        .is_ok();
     if !sent {
         // A site nobody guards (the guards cannot be seen from outside) is not fought for: the
         // stack walks onto it and takes the treasure.
-        ai.send(
+        ai.order(
             game,
             Command::GoTo {
                 units: fighters,
@@ -183,16 +188,19 @@ pub(crate) fn assault(
         let Some(command) = game.next_battle_command() else {
             break;
         };
-        if !ai.send(game, Command::Battle(command), events) {
+        if !ai.send(game, Command::Battle(command), events).is_ok() {
             break;
         }
     }
     while game.in_battle() {
-        if !ai.send(
-            game,
-            Command::Battle(f4x_core::battle::BattleCommand::Flee),
-            events,
-        ) {
+        if !ai
+            .send(
+                game,
+                Command::Battle(f4x_core::battle::BattleCommand::Flee),
+                events,
+            )
+            .is_ok()
+        {
             break;
         }
     }
@@ -217,7 +225,7 @@ pub(crate) fn strike(
             defenders,
         });
     } else {
-        ai.send(
+        ai.order(
             game,
             Command::AutoResolve {
                 mana_budget: None,

@@ -329,7 +329,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         };
         ai.scouts.retain(|s| !serials.contains(s));
         ai.sea_party.clear();
-        ai.send(game, Command::ClearOrders { units: scouting }, events);
+        ai.order(game, Command::ClearOrders { units: scouting }, events);
     }
     let ships = my_ships(&PlayerView::new(game, me));
     if ships.is_empty() {
@@ -405,6 +405,7 @@ pub(crate) fn unload(
     let Some(shore) = shore.filter(|_| !passengers.is_empty()) else {
         return false;
     };
+    // Whether the passengers were sent: the caller waits for them only if they went.
     ai.send(
         game,
         Command::GoTo {
@@ -412,8 +413,8 @@ pub(crate) fn unload(
             to: shore,
         },
         events,
-    );
-    true
+    )
+    .is_ok()
 }
 
 /// With a ship in port and enough fighters there, sail.
@@ -440,7 +441,7 @@ fn load_and_sail(
                 ai.naval = None;
                 return;
             }
-            ai.send(
+            ai.order(
                 game,
                 Command::GoTo {
                     units: vec![s],
@@ -524,14 +525,17 @@ fn load_and_sail(
             group.iter().map(|&u| view.serial_of(u)).collect::<Vec<_>>(),
         )
     };
-    if ai.send(
-        game,
-        Command::GoTo {
-            units: stack,
-            to: plan.sea,
-        },
-        events,
-    ) {
+    if ai
+        .send(
+            game,
+            Command::GoTo {
+                units: stack,
+                to: plan.sea,
+            },
+            events,
+        )
+        .is_ok()
+    {
         ai.ferries.push(Ferry {
             ship: ship_serial,
             group: serials,
@@ -563,14 +567,17 @@ fn declare_war_on_target(
         // A wizard it has not met cannot be declared war on: the landing goes on.
         Treaty::None if !game.have_met(me, owner) => true,
         Treaty::None => {
-            if ai.send(
-                game,
-                Command::Diplomacy(DiplomacyCommand::DeclareWar {
-                    player: me,
-                    on: owner,
-                }),
-                events,
-            ) {
+            if ai
+                .send(
+                    game,
+                    Command::Diplomacy(DiplomacyCommand::DeclareWar {
+                        player: me,
+                        on: owner,
+                    }),
+                    events,
+                )
+                .is_ok()
+            {
                 ai.quarrel = Some(owner);
             }
             true
@@ -660,6 +667,7 @@ fn voyage(
                         },
                         events,
                     )
+                    .is_ok()
                 });
                 if !landed {
                     return;
@@ -676,7 +684,7 @@ fn voyage(
             // Held up (a blocked path, no moves left): sail on.
             let stack: Vec<hecs::Entity> =
                 std::iter::once(ship).chain(group.iter().copied()).collect();
-            ai.send(
+            ai.order(
                 game,
                 Command::GoTo {
                     units: stack,
@@ -692,7 +700,7 @@ fn voyage(
         ai.ferries.retain(|f| f.ship != ferry.ship);
     } else if idle {
         make_room(ai, game, plan.port, events);
-        ai.send(
+        ai.order(
             game,
             Command::GoTo {
                 units: vec![ship],
@@ -732,7 +740,7 @@ fn make_room(ai: &mut Ai, game: &mut Game, port: Position, events: &mut Vec<Even
         };
         (unit, to)
     };
-    ai.send(
+    ai.order(
         game,
         Command::GoTo {
             units: vec![unit],

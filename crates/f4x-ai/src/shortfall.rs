@@ -32,7 +32,7 @@ pub fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     if let Some(short) = game.upkeep_shortfall(me) {
         let items = choose_upkeep(&short);
-        ai.send(game, Command::ReleaseUpkeep { player: me, items }, events);
+        ai.order(game, Command::ReleaseUpkeep { player: me, items }, events);
     }
     sell_for_gold(ai, game, events);
     let Some(short) = game.treasury_shortfall(me) else {
@@ -43,7 +43,7 @@ pub fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         .item_overflow(me, &units)
         .map(|o| o.default_scrap)
         .unwrap_or_default();
-    ai.send(
+    ai.order(
         game,
         Command::ReleaseTroops {
             player: me,
@@ -67,7 +67,10 @@ fn sell_for_gold(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         let Some((city, building)) = next_sale(game, me) else {
             return;
         };
-        if !ai.send(game, Command::SellBuilding { city, building }, events) {
+        if !ai
+            .send(game, Command::SellBuilding { city, building }, events)
+            .is_ok()
+        {
             return;
         }
     }

@@ -90,14 +90,17 @@ fn act(
         };
         match defence {
             Some((defenders, _)) if defenders.is_empty() => {
-                if ai.send(
-                    game,
-                    Command::MoveStack {
-                        units: units.clone(),
-                        to: n,
-                    },
-                    events,
-                ) {
+                if ai
+                    .send(
+                        game,
+                        Command::MoveStack {
+                            units: units.clone(),
+                            to: n,
+                        },
+                        events,
+                    )
+                    .is_ok()
+                {
                     return;
                 }
             }
@@ -110,14 +113,17 @@ fn act(
     }
     // 2. A stand nobody holds, next to us.
     if let Some(&zone) = neighbours.iter().find(|n| zones.contains(n)) {
-        if ai.send(
-            game,
-            Command::MoveStack {
-                units: units.clone(),
-                to: zone,
-            },
-            events,
-        ) {
+        if ai
+            .send(
+                game,
+                Command::MoveStack {
+                    units: units.clone(),
+                    to: zone,
+                },
+                events,
+            )
+            .is_ok()
+        {
             return;
         }
     }
@@ -167,7 +173,7 @@ fn act(
     };
     match goal {
         Some(Goal::Zone(z)) => {
-            ai.send(game, Command::GoTo { units, to: z }, events);
+            ai.order(game, Command::GoTo { units, to: z }, events);
         }
         Some(Goal::City(c)) => {
             // A band that cannot get to the city stays where it is this turn; the reason is kept
@@ -182,7 +188,7 @@ fn act(
                 best_target(&view, units[0], pos, &[])
             };
             if let Some(to) = target {
-                ai.send(game, Command::GoTo { units, to }, events);
+                ai.order(game, Command::GoTo { units, to }, events);
             }
         }
     }

@@ -124,7 +124,7 @@ pub fn disperse(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         (sent, rest)
     };
     for (unit, to) in sent {
-        ai.send(
+        ai.order(
             game,
             Command::GoTo {
                 units: vec![unit],
@@ -203,16 +203,19 @@ pub fn make_room(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let Some((unit, to)) = plan else {
         return false;
     };
-    ai.send(
-        game,
-        Command::GoTo {
-            units: vec![unit],
-            to,
-        },
-        events,
-    );
+    // A unit that cannot leave has not made room.
+    let left = ai
+        .send(
+            game,
+            Command::GoTo {
+                units: vec![unit],
+                to,
+            },
+            events,
+        )
+        .is_ok();
     let view = PlayerView::new(game, me);
-    view.garrison(at).len() < view.max_tile()
+    left && view.garrison(at).len() < view.max_tile()
 }
 
 #[cfg(test)]

@@ -371,14 +371,32 @@ impl Ai {
 
     /// Send a command and keep its events.
     #[track_caller]
-    fn send(&self, game: &mut Game, command: Command, events: &mut Vec<Event>) -> bool {
+    fn send(
+        &self,
+        game: &mut Game,
+        command: Command,
+        events: &mut Vec<Event>,
+    ) -> Result<(), SendError> {
         self.submit(game, command, events, true)
+    }
+
+    /// Send a command whose refusal changes nothing in the plan: the refusal is in the refused-order
+    /// log (as for [`Ai::send`]), and the next turn's plan starts from where the units really
+    /// are. For a command whose success the caller needs to know, use `send`.
+    #[track_caller]
+    fn order(&self, game: &mut Game, command: Command, events: &mut Vec<Event>) {
+        let _ = self.submit(game, command, events, true);
     }
 
     /// Send a command that the game may refuse as the AI expects (it cannot know, say, that a site
     /// has no guards left): its refusal is not a bug, so the refused-order log does not keep it.
     #[track_caller]
-    fn probe(&self, game: &mut Game, command: Command, events: &mut Vec<Event>) -> bool {
+    fn probe(
+        &self,
+        game: &mut Game,
+        command: Command,
+        events: &mut Vec<Event>,
+    ) -> Result<(), SendError> {
         self.submit(game, command, events, false)
     }
 
@@ -389,15 +407,29 @@ impl Ai {
         command: Command,
         events: &mut Vec<Event>,
         keep_refusal: bool,
-    ) -> bool {
+    ) -> Result<(), SendError> {
         if game.game_over.is_some() {
             // The other wizard's turn ended the game: nothing more can be ordered.
-            return false;
+            return Err(SendError::GameOver);
         }
         let at = std::panic::Location::caller();
         let kept = (self.record_refusals && keep_refusal).then(|| format!("{command:?}"));
         let out = game.apply(command);
-        let ok = !out.iter().any(|e| matches!(e, Event::Rejected(_)));
+        // A refusal first; else an order that was taken and stopped on its first step.
+        let refused = out
+            .iter()
+            .find_map(|e| match e {
+                Event::Rejected(why) => Some(SendError::Rejected(*why)),
+                _ => None,
+            })
+            .or_else(|| {
+                out.iter().find_map(|e| match e {
+                    Event::OrderFailed { player, why, .. } if *player == self.player => {
+                        Some(SendError::Stopped(*why))
+                    }
+                    _ => None,
+                })
+            });
         if let Some(command) = kept {
             for e in &out {
                 // A standing order that stopped on a refused step is a refusal too.
@@ -424,7 +456,33 @@ impl Ai {
             }
         }
         events.extend(out);
-        ok
+        refused.map_or(Ok(()), Err)
+    }
+}
+
+/// Why a command the AI sent did not go through: the game was over already, a rule refused it
+/// (the first refusal of its events), or a standing order was taken and then stopped on a refused
+/// step at once (a full square, no room on the ship): the units stay where they are. The caller decides what that means for its plan: the next
+/// candidate, a failure list, a wait, or [`Ai::note_failure`]; a caller that wants only yes or
+/// no uses `.is_ok()`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SendError {
+    GameOver,
+    Rejected(f4x_core::game::Rejection),
+    Stopped(f4x_core::unit::movement::MoveError),
+}
+
+impl SendError {
+    /// The square the units were sent to has no room for them (a full stack, no room on the
+    /// ship): sending more there this turn only adds refusals.
+    pub(crate) fn is_no_room(self) -> bool {
+        use f4x_core::game::Rejection;
+        use f4x_core::unit::movement::MoveError;
+        matches!(
+            self,
+            Self::Stopped(MoveError::StackFull | MoveError::NoRoom)
+                | Self::Rejected(Rejection::Move(MoveError::StackFull | MoveError::NoRoom))
+        )
     }
 }
 
@@ -446,4 +504,75 @@ pub(crate) fn knob(name: &str, default: f32) -> f32 {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(default)
+}
+
+#[cfg(test)]
+mod send_tests {
+    use super::*;
+    use crate::testworld::{at, game, spawn, COAST_CITY, P0, P1};
+    use f4x_core::unit::movement::MoveError;
+
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    #[test]
+    fn a_command_that_goes_through_is_ok_and_a_refused_one_says_which_rule() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let units = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 1);
+        let mut events = Vec::new();
+        let go = Command::GoTo {
+            units: units.clone(),
+            to: at(5, 9),
+        };
+        assert_eq!(Ai::new(P0).send(&mut g, go.clone(), &mut events), Ok(()));
+        // Another wizard's units are not ours to order.
+        let refused = Ai::new(P1).send(&mut g, go, &mut events);
+        assert!(
+            matches!(refused, Err(SendError::Rejected(_))),
+            "{refused:?}"
+        );
+    }
+
+    #[test]
+    fn an_order_that_stops_on_its_first_step_is_an_error_with_the_reason() -> TestResult {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let units = spawn(&mut g, P0, at(5, 8), 113 /* high_men_paladins */, 1);
+        // The square next to it is full of its own units.
+        spawn(&mut g, P0, at(5, 9), 113, f4x_core::unit::MAX_TILE_LIMIT);
+        let mut events = Vec::new();
+        let sent = Ai::new(P0).send(
+            &mut g,
+            Command::GoTo {
+                units,
+                to: at(5, 9),
+            },
+            &mut events,
+        );
+        assert_eq!(sent, Err(SendError::Stopped(MoveError::StackFull)));
+        Ok(())
+    }
+
+    #[test]
+    fn only_a_full_square_or_ship_counts_as_no_room() {
+        use f4x_core::game::Rejection;
+        assert!(SendError::Stopped(MoveError::StackFull).is_no_room());
+        assert!(SendError::Stopped(MoveError::NoRoom).is_no_room());
+        assert!(SendError::Rejected(Rejection::Move(MoveError::StackFull)).is_no_room());
+        assert!(!SendError::Stopped(MoveError::Impassable).is_no_room());
+        assert!(!SendError::GameOver.is_no_room());
+    }
+
+    #[test]
+    fn nothing_can_be_sent_once_the_game_is_over() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        g.game_over = Some(f4x_core::game::endgame::GameOver {
+            winner: P0,
+            kind: f4x_core::game::endgame::EndKind::SpellOfMastery,
+            turn: 1,
+        });
+        let mut events = Vec::new();
+        assert_eq!(
+            Ai::new(P0).send(&mut g, Command::EndTurn, &mut events),
+            Err(SendError::GameOver)
+        );
+    }
 }

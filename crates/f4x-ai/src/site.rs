@@ -169,7 +169,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .hostile_at(city)
                 .unwrap_or_default();
             if defenders.is_empty() {
-                ai.send(game, Command::MoveStack { units, to: city }, events);
+                ai.order(game, Command::MoveStack { units, to: city }, events);
             } else {
                 strike(ai, game, units, defenders, events);
             }
@@ -188,7 +188,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                         .collect()
                 };
                 if !stay.is_empty() {
-                    ai.send(
+                    ai.order(
                         game,
                         Command::GoTo {
                             units: stay,
@@ -230,7 +230,11 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             // A party that cannot find its way home (cut off by guarded ground or the sea) gives
             // up the raid and is left to the army's rules.
             let reachable = PlayerView::new(game, me).can_reach(&units, home);
-            if !reachable || !ai.send(game, Command::GoTo { units, to: home }, events) {
+            if !reachable
+                || !ai
+                    .send(game, Command::GoTo { units, to: home }, events)
+                    .is_ok()
+            {
                 ai.raiders.retain(|s| !serials.contains(s));
             }
         }

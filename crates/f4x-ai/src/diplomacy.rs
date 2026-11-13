@@ -16,7 +16,7 @@ pub(crate) fn answer(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
     let pending = PlayerView::new(game, ai.player).proposals_to_me();
     for proposal in pending {
         let accept = rate(game, proposal.from, proposal.to, proposal.kind) == Verdict::Accepted;
-        ai.send(
+        ai.order(
             game,
             Command::Diplomacy(DiplomacyCommand::Answer {
                 player: ai.player,
@@ -154,7 +154,7 @@ pub(crate) fn mastery_scare(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
         .collect();
     for rival in casters {
         if game.roll(100) < MASTERY_WAR_BELOW {
-            ai.send(
+            ai.order(
                 game,
                 Command::Diplomacy(DiplomacyCommand::DeclareWar {
                     player: me,
@@ -223,14 +223,17 @@ pub(crate) fn quarrel(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     else {
         return;
     };
-    if ai.send(
-        game,
-        Command::Diplomacy(DiplomacyCommand::DeclareWar {
-            player: me,
-            on: target,
-        }),
-        events,
-    ) {
+    if ai
+        .send(
+            game,
+            Command::Diplomacy(DiplomacyCommand::DeclareWar {
+                player: me,
+                on: target,
+            }),
+            events,
+        )
+        .is_ok()
+    {
         ai.quarrel = Some(target);
     }
 }
@@ -291,6 +294,7 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
             }),
             events,
         )
+        .is_ok()
     };
     match game.treaty(me, human) {
         Treaty::War => {
@@ -301,7 +305,7 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
         }
         treaty => {
             if relation <= WAR_RELATION && treaty == Treaty::None {
-                ai.send(
+                ai.order(
                     game,
                     Command::Diplomacy(DiplomacyCommand::DeclareWar {
                         player: me,
@@ -312,7 +316,7 @@ pub(crate) fn approach_human(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) 
                 return;
             }
             if relation <= BREAK_RELATION && treaty != Treaty::None {
-                ai.send(
+                ai.order(
                     game,
                     Command::Diplomacy(DiplomacyCommand::BreakTreaty {
                         player: me,
@@ -385,7 +389,7 @@ fn quarrel_with_human(
         return false;
     }
     let warn = |game: &mut Game, events: &mut Vec<Event>| {
-        ai.send(
+        ai.order(
             game,
             Command::Diplomacy(DiplomacyCommand::Warn {
                 from: me,
@@ -400,7 +404,7 @@ fn quarrel_with_human(
     }
     let dislike = (-relation).max(0);
     if (game.roll(100) as i32) < dislike - mood / 2 {
-        ai.send(
+        ai.order(
             game,
             Command::Diplomacy(DiplomacyCommand::DeclareWar {
                 player: me,
@@ -409,7 +413,7 @@ fn quarrel_with_human(
             events,
         );
     } else if treaty != Treaty::None {
-        ai.send(
+        ai.order(
             game,
             Command::Diplomacy(DiplomacyCommand::BreakTreaty {
                 player: me,
@@ -467,7 +471,7 @@ fn need_for_war(
             && relation < -30
             && game.roll(15) - 1 <= (-relation / 10) as u32);
     if war {
-        ai.send(
+        ai.order(
             game,
             Command::Diplomacy(DiplomacyCommand::DeclareWar {
                 player: me,
@@ -501,7 +505,7 @@ fn demand(
     }
     let asked = (25 * (2 + game.roll(8) as i32)).min(gold / 4 / 25 * 25);
     if asked >= 25 {
-        ai.send(
+        ai.order(
             game,
             Command::Diplomacy(DiplomacyCommand::Propose {
                 from: me,
@@ -528,7 +532,7 @@ fn gift(
     }
     if game.roll(3) == 1 {
         if let Some(ProposalKind::Exchange { give, .. }) = spell_swap(game, me, human) {
-            ai.send(
+            ai.order(
                 game,
                 Command::Diplomacy(DiplomacyCommand::GiveSpell {
                     from: me,
@@ -543,7 +547,7 @@ fn gift(
     let gold = game.player(me).map_or(0, |p| p.treasury().gold.floor());
     if gold >= 200 {
         let amount = 25 * (1 + game.roll(4) as i32);
-        ai.send(
+        ai.order(
             game,
             Command::Diplomacy(DiplomacyCommand::GiveGold {
                 from: me,
@@ -668,15 +672,17 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                 .flatten()
         });
         if let Some(kind) = kind {
-            let made = ai.send(
-                game,
-                Command::Diplomacy(DiplomacyCommand::Propose {
-                    from: me,
-                    to: other,
-                    kind,
-                }),
-                events,
-            );
+            let made = ai
+                .send(
+                    game,
+                    Command::Diplomacy(DiplomacyCommand::Propose {
+                        from: me,
+                        to: other,
+                        kind,
+                    }),
+                    events,
+                )
+                .is_ok();
             if made {
                 events.extend(crate::answer_proposals(game, other));
             }
@@ -693,7 +699,7 @@ pub(crate) fn negotiate(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
                     && game.have_met(me, t)
             });
             if let Some(enemy) = enemy {
-                ai.send(
+                ai.order(
                     game,
                     Command::Diplomacy(DiplomacyCommand::DeclareWar {
                         player: me,

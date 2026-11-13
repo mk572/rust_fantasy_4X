@@ -90,7 +90,7 @@ pub(crate) fn run(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             score(&view, at, from)
         };
         if game.roll(100) as i32 <= wanted {
-            ai.send(game, Command::RazeCity { player: me, city }, events);
+            ai.order(game, Command::RazeCity { player: me, city }, events);
         }
     }
 }

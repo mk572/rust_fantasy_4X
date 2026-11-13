@@ -32,7 +32,7 @@ pub fn taxes(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
     }
     let rate = chosen.or(best.map(|(_, r)| r)).unwrap_or(1);
-    ai.send(game, Command::SetTaxRate { player: me, rate }, events);
+    ai.order(game, Command::SetTaxRate { player: me, rate }, events);
 }
 
 /// How many ships the wizard wants. A landing on a big army needs a fleet: one ship per twelve
@@ -134,7 +134,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             // An outpost builds nothing: housing is what makes it grow into a city.
             if size == 0 {
                 if current != Some(ProductionItem::Housing) {
-                    ai.send(
+                    ai.order(
                         game,
                         Command::SetProduction {
                             city,
@@ -197,7 +197,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         };
         let wanted = game.autobuild_of(city).map(|a| a.plan);
         if wanted != Some(plan) {
-            ai.send(
+            ai.order(
                 game,
                 Command::SetAutoBuild {
                     city,
@@ -208,7 +208,7 @@ pub fn cities(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         }
         if let Some(item) = port_item {
             if game.economy().city_production(city).item != Some(item) {
-                ai.send(game, Command::SetProduction { city, item }, events);
+                ai.order(game, Command::SetProduction { city, item }, events);
             }
         }
     }
@@ -429,7 +429,7 @@ fn spend_gold(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     for (_, cost, city) in wanted {
         let gold = PlayerView::new(game, me).treasury().gold;
         if gold - cost >= RESERVE {
-            ai.send(game, Command::BuyProduction { city }, events);
+            ai.order(game, Command::BuyProduction { city }, events);
         }
     }
 }
