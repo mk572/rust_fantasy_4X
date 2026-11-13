@@ -446,7 +446,7 @@ This batch mixes balance changes, map-generation rules, diplomacy, strategic com
 
 Keep encounter creature budgets separate from treasure budgets and reward selection. That allows Community Patch balance reversals to be represented without rewriting generation. Model map constraints as explicit parameters or named algorithms, not scattered constants.
 
-Relevant code/design: [mapgen.rs](../crates/f4x-core/src/map/mapgen.rs), [map-layers.md](map-layers.md), [game-settings.md](game-settings.md).
+Relevant code/design: [mapgen.rs](../crates/f4x-newgame/src/mapgen.rs), [map-layers.md](map-layers.md), [game-settings.md](game-settings.md).
 
 Tests: fixed-seed generation for each size preset; land/continent caps; tower/node/shore spacing; enough starting-city sites on low-land maps; encounter adjacency; treasure category exhaustion and difficulty scaling.
 
