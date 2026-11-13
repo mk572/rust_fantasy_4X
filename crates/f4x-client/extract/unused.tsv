@@ -101,3 +101,4 @@ figure16	0	23	art/figure16
 backgrnd	20	20	city_screen/button_cancel
 backgrnd	21	21	city_screen/button_ok_small
 combat	0	110	art/combat
+reload	25	25	credits/background
