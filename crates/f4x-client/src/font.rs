@@ -241,7 +241,19 @@ fn plain_scale(font: &bm::BmFont, size: f32) -> f32 {
 /// Draw `text` in the plain font, as `macroquad::draw_text` did: `(x, baseline)` in window
 /// pixels, `size` the height of a line, `color` the ink.
 pub(crate) fn plain_text(text: impl AsRef<str>, x: f32, baseline: f32, size: f32, color: Color) {
-    let font = shared_font(PLAIN_STYLE);
+    plain_text_in(PLAIN_STYLE, text, x, baseline, size, color);
+}
+
+/// [`plain_text`] in font style `style` (5 is the headline face; the console reads better in 4).
+pub(crate) fn plain_text_in(
+    style: usize,
+    text: impl AsRef<str>,
+    x: f32,
+    baseline: f32,
+    size: f32,
+    color: Color,
+) {
+    let font = shared_font(style);
     let params = bm::TextParams {
         scale: plain_scale(&font, size),
         ink: bm::Ink::Tint(color),
@@ -252,7 +264,12 @@ pub(crate) fn plain_text(text: impl AsRef<str>, x: f32, baseline: f32, size: f32
 
 /// Width and height of `text` in the plain font, in window pixels.
 pub(crate) fn plain_size(text: &str, size: f32) -> (f32, f32) {
-    let font = shared_font(PLAIN_STYLE);
+    plain_size_in(PLAIN_STYLE, text, size)
+}
+
+/// [`plain_size`] in font style `style`.
+pub(crate) fn plain_size_in(style: usize, text: &str, size: f32) -> (f32, f32) {
+    let font = shared_font(style);
     let scale = plain_scale(&font, size);
     (font.measure_text(text, scale).width, font.base * scale)
 }

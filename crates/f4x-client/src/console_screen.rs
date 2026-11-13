@@ -11,6 +11,10 @@ use crate::view::{App, Screen, HUMAN};
 
 const MAX_LINES: usize = 500;
 
+/// The console's font style: 4, the small blackletter, reads better in long lines than the
+/// headline face 5.
+const FONT: usize = 4;
+
 pub(crate) struct ConsoleUi {
     console: Console,
     input: String,
@@ -78,7 +82,9 @@ impl App {
 
 /// `line` cut into rows that fit in `width` pixels at `size`, at spaces where it can.
 fn wrap_line(line: &str, width: f32, size: f32) -> Vec<String> {
-    wrap_by(line, |text| crate::font::plain_size(text, size).0 <= width)
+    wrap_by(line, |text| {
+        crate::font::plain_size_in(FONT, text, size).0 <= width
+    })
 }
 
 /// `line` cut into rows of which `fits` accepts each, at spaces where it can.
@@ -206,11 +212,12 @@ impl Page for ConsolePage {
         let skip = furthest - app.console.scroll;
         let mut y = 28.0;
         for (row, color) in shown.iter().skip(skip).take(rows) {
-            crate::font::plain_text(row, 16.0, y, size, *color);
+            crate::font::plain_text_in(FONT, row, 16.0, y, size, *color);
             y += size * 1.15;
         }
         if app.console.scroll > 0 {
-            crate::font::plain_text(
+            crate::font::plain_text_in(
+                FONT,
                 "scrolled up: PageDown or End for the newest lines",
                 w - 470.0,
                 h - 44.0,
@@ -228,14 +235,16 @@ impl Page for ConsolePage {
         } else {
             " "
         };
-        crate::font::plain_text(
+        crate::font::plain_text_in(
+            FONT,
             format!("{prompt} {}{blink}", app.console.input),
             16.0,
             h - 22.0,
             size,
             color,
         );
-        crate::font::plain_text(
+        crate::font::plain_text_in(
+            FONT,
             "` / Esc: back   PageUp / PageDown / wheel: scroll",
             w - 440.0,
             h - 22.0,
