@@ -1,8 +1,8 @@
 //! The advisors: the original's `Advisor_Screen` in `AdvsrScr.c`. The Info button
 //! (and F1 to F9) opens a list box, "Select An Advisor", that leads to the Surveyor,
-//! Cartographer, Apprentice, History, Astrologer, Chancellor, Tax Collector, Grand Vizier and
+//! Cartographer, Apprentice, History, Diplomat, Chancellor, Tax Collector, Grand Vizier and
 //! Mirror. The list box is the original's `Selection_Box` (`GENDRAW.c`), also used by the Tax
-//! Collector. History and Astrologer are screens of their own here.
+//! Collector. History and the Diplomat (the Diplomacy list, which replaces the original's Astrologer) are screens of their own here.
 
 use crate::font::{rgb, Ink, Style};
 use crate::font_ramp;
@@ -87,7 +87,7 @@ const ADVISORS: &[&str] = &[
     "advisor.cartographer",
     "advisor.apprentice",
     "advisor.history",
-    "advisor.astrologer",
+    "advisor.diplomat",
     "advisor.chancellor",
     "advisor.tax_collector",
     "advisor.grand_vizier",
@@ -137,7 +137,7 @@ impl App {
                 );
             }
             3 => self.open_page(Screen::History, crate::advisor_screen::HistoryPage),
-            4 => self.open_page(Screen::Astrologer, crate::advisor_screen::AstrologerPage),
+            4 => self.open_diplomacy_list(),
             5 => self.open_chancellor_advisor(),
             6 => self.open_tax_collector(),
             7 => self.toggle_grand_vizier(),
@@ -441,7 +441,7 @@ mod tests {
         app.open_advisor(3);
         assert!(matches!(app.screen, Screen::History));
         app.open_advisor(4);
-        assert!(matches!(app.screen, Screen::Astrologer));
+        assert!(matches!(app.screen, Screen::DiplomacyList));
         app.open_advisor(6);
         assert!(app.modals.has(kind::SELECTION), "the Tax Collector's list");
         app.modals.remove(kind::SELECTION);

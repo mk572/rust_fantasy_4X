@@ -154,11 +154,11 @@ impl App {
 
     /// A place as a word: "1st", "2nd".
     pub(crate) fn rank_text(&self, place: usize) -> String {
-        let key = format!("diplomacy.rank_{place}");
-        if self.texts.has(&key) {
-            self.text(&key)
-        } else {
-            self.text_with("diplomacy.rank_other", &Args::new().count("n", place))
+        match place {
+            1 => self.text("diplomacy.rank_1"),
+            2 => self.text("diplomacy.rank_2"),
+            3 => self.text("diplomacy.rank_3"),
+            n => self.text_with("diplomacy.rank_other", &Args::new().count("n", n)),
         }
     }
 

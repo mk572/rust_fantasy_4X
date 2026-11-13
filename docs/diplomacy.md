@@ -43,7 +43,7 @@ a neutral city of a race met.
 `diplomacy_list_screen.rs` is the overview: one scrolling list of the contacts met (rival wizards, then
 the neutral races under a heading), keys F11 and R. Each row shows the relation as the word of `relation_key`
 (red up to Restless, yellow up to Relaxed, green above; never the number) and the treaty with the
-human, then the contact's place by army strength, magic power and spell research ("1st", "2nd"; the Astrologer's three scores, counted among the wizards known and the player; a tie shares the better place; a neutral race has no magic or research and shows "-"). A neutral race is listed by its people ("Barbarians"), the talk and the panel keep "Neutral Barbarians". The treaty is: War, Wizard Pact, Alliance, "Peace" when there is no treaty but the contact has promised not to
+human, then the contact's place by army strength, magic power and spell research ("1st", "2nd"; the three scores of the original's Astrologer, whose screen this replaces (F5 is the Diplomat now), counted among the wizards known and the player; a tie shares the better place; a neutral race has no magic or research and shows "-"). A neutral race is listed by its people ("Barbarians"), the talk and the panel keep "Neutral Barbarians". The treaty is: War, Wizard Pact, Alliance, "Peace" when there is no treaty but the contact has promised not to
 attack (`peace_duration` of the contact towards the human is above 0), else No Treaty. Only contacts
 met are listed, so it tells no more than the map did; the last line counts the wizards not met. A click
 opens the talk (`diplomacy_screen.rs`), which returns to the list on leaving (`DiploUi::back`; the talk

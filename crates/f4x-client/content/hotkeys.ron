@@ -20,7 +20,7 @@
 
     // The screens.
     "magic": ["M"],
-    "diplomacy": ["F11", "R"],
+    "diplomacy": ["F5", "F11", "R"],
     "spellbook": ["S"],
     "army_list": ["A"],
     "advisors": ["I"],
@@ -28,7 +28,6 @@
     "cartographer": ["F2"],
     "apprentice": ["F3"],
     "history": ["F4"],
-    "astrologer": ["F5"],
     "chancellor": ["F6"],
     "tax_collector": ["F7"],
     "grand_vizier": ["F8"],

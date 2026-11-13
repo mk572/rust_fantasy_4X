@@ -63,8 +63,6 @@ pub enum Screen {
     Cartographer,
     /// "History Of Wizards Power" (F4).
     History,
-    /// "Current Status Of Wizards" (F5).
-    Astrologer,
     /// The game has ended: result and score.
     GameOver,
     /// The text console (backquote key).
@@ -1726,7 +1724,6 @@ impl App {
             Screen::Options => self.page_frame(input),
             Screen::Cartographer => self.page_frame(input),
             Screen::History => self.page_frame(input),
-            Screen::Astrologer => self.page_frame(input),
             Screen::Settings => self.page_frame(input),
             Screen::GameSettings => self.page_frame(input),
             Screen::MainMenu => {
@@ -2232,7 +2229,6 @@ impl App {
             ("cartographer", 1),
             ("apprentice", 2),
             ("history", 3),
-            ("astrologer", 4),
             ("chancellor", 5),
             ("tax_collector", 6),
             ("grand_vizier", 7),

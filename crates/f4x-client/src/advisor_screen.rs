@@ -1,6 +1,7 @@
-//! The Historian and Astrologer screens: `Powergraph_Screen` and `Status_Screen` in
-//! `AdvsrScr.c`. Both are full pictures from `reload.lbx` (entry 0 and 1) with the wizards'
-//! figures drawn over them; Esc or a click leaves.
+//! The Historian (`Powergraph_Screen` in `AdvsrScr.c`) and the Cartographer: full pictures from
+//! `reload.lbx` with the map or the wizards' figures drawn over them; Esc or a click leaves. The
+//! original's Astrologer (`Status_Screen`, the bars of army, magic and research) is gone: its place
+//! in the advisor list, F5, is the Diplomat, the Diplomacy list (`diplomacy_list_screen.rs`).
 //!
 //! Tests: none, because it only draws and needs a window.
 
@@ -39,9 +40,6 @@ const MONTHS: &[&str] = &[
     "advisor.november",
     "advisor.december",
 ];
-
-/// Where the Astrologer's picture is drawn.
-const STATUS_AT: (f32, f32) = (20.0, 11.0);
 
 impl App {
     /// The wizards the player knows of, and the player: the ones the two screens list.
@@ -177,81 +175,6 @@ impl Page for HistoryPage {
                 10.0,
                 23.0 + row as f32 * 9.0,
             );
-        }
-        app.leave_on_click_or_escape(input);
-    }
-}
-
-/// "Current Status Of Wizards": bars of army strength, magic power and spell research.
-pub(crate) struct AstrologerPage;
-
-impl Page for AstrologerPage {
-    fn frame(&mut self, app: &mut App, input: &Input) {
-        clear_background(BLACK);
-        let lay = Layout::new();
-        let view = (lay.origin.x, lay.origin.y, lay.scale);
-        let (sx, sy) = STATUS_AT;
-        if app.draw_pic(&lay, "reload", 1, 0, sx, sy).is_none() {
-            let r = lay.rect((sx, sy, 277.0, 181.0));
-            draw_rectangle(r.x, r.y, r.w, r.h, Color::new(0.08, 0.07, 0.06, 1.0));
-        }
-        app.draw_styled(
-            view,
-            &Style::inked(4, Ink::Set(font_ramp::GOLD_TEXT))
-                .shadow()
-                .edge(EDGE)
-                .center(),
-            &app.text("advisor.status_title"),
-            sx + 138.0,
-            sy + 10.0,
-        );
-        let rows = [
-            app.text("advisor.army_strength"),
-            app.text("advisor.magic_power"),
-            app.text("advisor.spell_research"),
-        ];
-        for (i, text) in rows.iter().enumerate() {
-            app.draw_styled(
-                view,
-                &Style::sh_set(2, 3).edge(EDGE).center(),
-                text,
-                sx + 138.0,
-                sy + 23.0 + 49.0 * i as f32,
-            );
-        }
-
-        let table = app.game.astrology_table();
-        let wizards = app.known_wizards();
-        for (row, &id) in wizards.iter().enumerate() {
-            let Some(&(_, a, _)) = table.iter().find(|(p, ..)| *p == id) else {
-                continue;
-            };
-            let Some((name, banner)) = app.game.wizard(id).map(|w| (w.name(), w.banner())) else {
-                continue;
-            };
-            let colour = app.art.banner_color(banner);
-            for (section, score) in [a.strength, a.power, a.research].into_iter().enumerate() {
-                let y = sy + 35.0 + 49.0 * section as f32 + row as f32 * 7.0;
-                app.draw_styled(
-                    view,
-                    &Style::inked(0, Ink::Set(font_ramp::GOLD_TEXT))
-                        .shadow()
-                        .edge(EDGE),
-                    &name,
-                    sx + 14.0,
-                    y,
-                );
-                let bar = lay.rect((sx + 64.0, y + 1.0, score.clamp(0, 200) as f32 + 1.0, 2.0));
-                draw_rectangle(bar.x, bar.y, bar.w, bar.h, colour);
-                let shade = lay.rect((sx + 64.0, y + 3.0, score.clamp(0, 200) as f32 + 1.0, 1.0));
-                draw_rectangle(
-                    shade.x,
-                    shade.y,
-                    shade.w,
-                    shade.h,
-                    Color::new(0.0, 0.0, 0.0, 0.5),
-                );
-            }
         }
         app.leave_on_click_or_escape(input);
     }

@@ -26,7 +26,6 @@ pub(crate) const ACTIONS: &[&str] = &[
     "cartographer",
     "apprentice",
     "history",
-    "astrologer",
     "chancellor",
     "tax_collector",
     "grand_vizier",

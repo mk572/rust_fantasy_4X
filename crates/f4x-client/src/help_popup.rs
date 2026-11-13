@@ -112,7 +112,7 @@ impl App {
             Screen::Wizard => 7,
             Screen::Cartographer => 8,
             Screen::History => 9,
-            Screen::Astrologer => 10,
+            Screen::DiplomacyList => 10,
             Screen::EnemyCity => 14,
             Screen::Outpost => 17,
             Screen::UnitSheet => 13,
