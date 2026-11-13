@@ -689,8 +689,33 @@ impl<'a> Economy<'a> {
             .min(self.content.rules.config.max_city_size)
     }
 
-    /// Citizens needed on farms so the city feeds itself (all of them if it cannot).
+    /// Citizens needed on farms so the city feeds itself (all of them if it cannot). The food of
+    /// a city never falls with another farmer (`city_economy_with`: the farmers' food is
+    /// `compute_half` of a rate times their number, the farmers capped by the citizens who are
+    /// not rebels), so the smallest number is found by halving; the economy is worked out about
+    /// five times and not once for each farmer from none up. A test holds it to the linear search.
     pub fn city_min_farmers(&self, city: hecs::Entity) -> u32 {
+        let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);
+        let feeds = |f: u32| {
+            self.city_economy_with(city, f)
+                .is_some_and(|e| e.food >= HalfInt::from_int(figures as i32))
+        };
+        // The smallest `f` in `0..=figures` that feeds the city, `figures` when none does.
+        let (mut low, mut high) = (0, figures);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if feeds(mid) {
+                high = mid;
+            } else {
+                low = mid + 1;
+            }
+        }
+        low
+    }
+
+    /// The linear search `city_min_farmers` replaced, for the test.
+    #[cfg(test)]
+    pub(crate) fn city_min_farmers_linear(&self, city: hecs::Entity) -> u32 {
         let figures = self.world.get::<&Population>(city).map_or(0, |p| p.figures);
         (0..=figures)
             .find(|&f| {

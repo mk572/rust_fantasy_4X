@@ -258,3 +258,45 @@ fn the_kept_budget_follows_a_completed_item_as_the_budget_does() -> f4x_def::tes
     assert_eq!(game.kept_budget(player, city), game.budget(player));
     Ok(())
 }
+
+/// The halving search for a city's smallest feeding number of farmers finds what the linear
+/// search found, in every city of new games of several seeds, at each population from one to the
+/// largest a city grows to.
+#[test]
+fn the_minimum_farmers_by_halving_are_those_of_the_linear_search() -> f4x_def::testdir::TestResult {
+    use crate::city::economy::Population;
+    use crate::game::setup::{new_game, NewGame};
+    let content = crate::game::testutil::shipped();
+    let mut checked = 0;
+    for seed in [3, 7, 11] {
+        let mut game = new_game(
+            &content,
+            &NewGame {
+                seed,
+                all_ai: true,
+                ..NewGame::with_wizards(3)
+            },
+        )?;
+        let cities: Vec<_> = game
+            .economy()
+            .cities()
+            .into_iter()
+            .map(|(e, ..)| e)
+            .collect();
+        let largest = content.rules.config.max_city_size;
+        for city in cities {
+            for figures in 0..=largest {
+                game.world
+                    .insert_one(city, Population { figures, tens: 0 })?;
+                assert_eq!(
+                    game.economy().city_min_farmers(city),
+                    game.economy().city_min_farmers_linear(city),
+                    "seed {seed}, a city of {figures}"
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 100, "{checked}");
+    Ok(())
+}
