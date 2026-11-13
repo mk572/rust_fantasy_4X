@@ -182,6 +182,39 @@ pub fn to_rgba_glass(pixels: &[u8], palette: &[u8], glass: &[[u8; 4]]) -> Vec<u8
     out
 }
 
+/// The colour the original's selection box shows for a glass index (232 on) in its frame pieces
+/// (`resource.lbx` 5, 6, 8, 9 and 10). Over the screen the frame is not a tint but dark indigo
+/// stone: the white blocks darken it by their percent (40 to 70), the coloured ones lighten it a
+/// little. Measured against the original's own screenshot (flat patches of the frame, medians
+/// of each block's pixels); the blocks the pieces do not use are interpolated.
+pub fn stone_glass_colour(index: u8) -> [u8; 3] {
+    match index {
+        233 => [10, 8, 17],
+        234 | 251 => [15, 12, 31],
+        235 | 249 => [23, 19, 42],
+        236 | 247 => [32, 27, 55],
+        248 => [28, 23, 51],
+        250 => [19, 16, 35],
+        252 => [30, 26, 40],
+        253 => [8, 6, 14],
+        241 | 246 => [35, 36, 64],
+        242 | 245 => [39, 40, 71],
+        244 => [47, 48, 79],
+        _ => [36, 30, 64],
+    }
+}
+
+/// [`to_rgba`] for the selection box's frame pieces: the glass indexes (232 on) are the opaque
+/// indigo of [`stone_glass_colour`], not a tint of what lies under.
+pub fn to_rgba_stone(pixels: &[u8], palette: &[u8]) -> Vec<u8> {
+    let mut out = to_rgba(pixels, palette);
+    for (k, &i) in pixels.iter().enumerate().filter(|(_, &i)| i >= GLASS_FIRST) {
+        let [r, g, b] = stone_glass_colour(i);
+        out[k * 4..k * 4 + 4].copy_from_slice(&[r, g, b, 255]);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -247,5 +280,14 @@ mod tests {
         let rgba = to_rgba(&[0, 1], &[0, 0, 0, 63, 0, 32]);
         assert_eq!(&rgba[..4], &[0, 0, 0, 0]);
         assert_eq!(&rgba[4..], &[255, 0, 130, 255]);
+    }
+
+    #[test]
+    fn the_selection_boxs_glass_is_opaque_indigo() {
+        let pal = vec![0u8; 768];
+        let rgba = to_rgba_stone(&[0, 250, 235], &pal);
+        assert_eq!(&rgba[..4], &[0, 0, 0, 0], "index 0 stays transparent");
+        assert_eq!(&rgba[4..8], &[19, 16, 35, 255]);
+        assert_eq!(&rgba[8..12], &[23, 19, 42, 255]);
     }
 }

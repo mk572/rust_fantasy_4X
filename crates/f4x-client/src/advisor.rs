@@ -70,9 +70,6 @@ const TOP: usize = 7;
 const RIGHT: usize = 8;
 const BOTTOM: usize = 9;
 const BOTTOM_RIGHT: usize = 10;
-/// What the frame's glass pieces lie on: the dark blue of the top piece, so the sides and the bottom
-/// show as marble of the same stone and not the map (or the brown of the buttons) through them.
-const FILL: Color = Color::new(0.16, 0.15, 0.27, 1.0);
 const BUTTONS: usize = 12;
 const BUTTON_ENDS: usize = 22;
 const ROW_HEIGHT: f32 = 14.0;
@@ -298,10 +295,6 @@ impl App {
             ui::hit(row, true, input).hovered()
         });
 
-        // The frame's side and bottom pieces are glass (the original's tint colours): on the map they
-        // would show it through, so the box is first filled with the stone's dark blue.
-        let r = lay.rect((x1 + 1.0, y1 + 1.0, width - 2.0, height - 2.0));
-        draw_rectangle(r.x, r.y, r.w, r.h, FILL);
         // The top, the bottom and the row buttons are wider than any box: they are cut at the
         // frame's inner edge, so nothing of them shows through the frame's own pieces.
         let inner = (
