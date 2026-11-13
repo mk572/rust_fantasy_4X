@@ -632,19 +632,29 @@ impl Page for MagicUi {
         self.magic_text(app, &lay, view);
         self.magic_enchantments(app, &lay, view, !modal, input);
 
-        // The Alchemy and OK buttons (drawn while a box is open, but not clickable).
+        // The Alchemy and OK buttons (drawn while a box is open, but not clickable). They sit two
+        // pixels right and down of the original's code positions (232, 181) and (291, 181), where the
+        // background picture's recess for them is (the recess is the original's, measured).
         let alchemy = app.panel_button(
             &lay,
             Panel::BlueAlchemy,
             "magic.alchemy",
-            (232.0, 181.0),
+            (234.0, 183.0),
+            input,
+        );
+        // The Diplomacy button (ours, task 489) stands left of Alchemy, in the same blue stone.
+        let diplomacy = app.panel_button(
+            &lay,
+            Panel::BlueAlchemy,
+            "magic.diplomacy",
+            (174.0, 183.0),
             input,
         );
         let ok = app.panel_button(
             &lay,
             Panel::BlueOk,
             "ui.button_ok_mixed",
-            (291.0, 181.0),
+            (292.0, 183.0),
             input,
         );
         if alchemy && !modal {
@@ -655,6 +665,10 @@ impl Page for MagicUi {
         }
         if ok && !modal {
             app.screen = Screen::Map;
+        }
+        if (diplomacy || input.key_pressed(KeyCode::D)) && !modal {
+            app.open_diplomacy_list();
+            return;
         }
         if self.alchemy.is_some() {
             self.alchemy_popup(app, &lay, view, input);

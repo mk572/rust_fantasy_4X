@@ -389,4 +389,4 @@ longer in `assets-local/`. `scripts/unused_art.py` lists candidates from a trace
 client reads (`F4X_TRACE_ART=FILE`); it also works with packs, because the trace is written where a
 picture is asked for. A trace over every screenshot flag and a battle with each spell's effect (13 November
 2026) left 692 candidates, nearly all drawn by computed index (spell effects, cityscape buildings, walls,
-the intro): not proof. Only `cmbtwall` (64 pictures, no code loads them) was moved. `make_app.sh` copies `assets-local` only, so the app leaves them out.
+the intro): not proof. Only `cmbtwall` (64 pictures, no code loads them) was moved. A picture the code picks by a condition is not seen by a trace that takes one branch: the Alchemy popup's right arrow (`magic` 55, drawn when the exchange runs power to gold) was moved by mistake and put back (13 November 2026), so check the code (`grep` the screen's source for the entry number) before moving a picture. `make_app.sh` copies `assets-local` only, so the app leaves them out.

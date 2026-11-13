@@ -43,7 +43,6 @@ magic	14	14	magic_screen/button_ok
 magic	52	52	alchemy/background
 magic	53	53	alchemy/button_cancel
 magic	54	54	alchemy/button_ok
-magic	55	55	alchemy/button_arrow_right
 magic	59	59	alchemy/power_to_gold
 main	1	1	main_screen/button_game
 main	2	2	main_screen/button_spells
