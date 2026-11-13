@@ -784,7 +784,7 @@ immunity** protects against Terror. The other differences listed there are kept 
   and roam, settle in empty stands and attack the cities they find; the monsters that win a city
   vanish, as the original's message says, and the lair choice has no bias to the human's plane (the
   original rerolls towards it). A city a raiding city conquers is its own, not a new independent city
-  (item 33's design is still planned). Both are on at every level.
+  (task P33's design is not built as written: the race players play instead). Both are on at every level.
 
 ## 37. The three event switches the original never reads (tasks 269 to 271, 276 to 278)
 
