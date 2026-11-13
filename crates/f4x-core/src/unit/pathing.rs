@@ -3,14 +3,13 @@
 //! Tests: in unit/movement/tests.rs (`paths_go_around_water_...`, `a_square_has_eight_neighbours_...`, `a_walker_reaches_...`, `a_path_takes_as_many_turns_...`).
 
 pub(crate) mod grid;
+#[cfg(test)]
+mod obeys;
 
 use f4x_def::half_int::HalfInt;
-use std::cmp::Reverse;
-use std::collections::BinaryHeap;
 
 use crate::fast::FastSet;
 
-use crate::city::economy::Economy;
 use crate::game::Game;
 use crate::map::Position;
 use crate::unit::movement::FULL_MOVE;
@@ -33,97 +32,6 @@ impl ReachSignature {
     pub fn at(&self) -> Position {
         self.at
     }
-}
-
-/// The tables of one search, kept between searches: a search is the best known cost of each
-/// square of the plane and where it came from, and a flag whether the square stops the walk.
-/// A square's entry is only valid when its stamp is the search's own, so nothing is cleared
-/// between two searches (the plane is a few thousand squares; two hash maps made and grown for
-/// each search cost more than the search).
-#[derive(Default)]
-struct Scratch {
-    stamp: u32,
-    best_stamp: Vec<u32>,
-    best: Vec<HalfInt>,
-    came: Vec<u32>,
-    stop_stamp: Vec<u32>,
-    stop: Vec<bool>,
-}
-
-/// The `came` of a square nothing led to (the start).
-const NO_SQUARE: u32 = u32::MAX;
-
-impl Scratch {
-    fn begin(&mut self, squares: usize) {
-        if self.best_stamp.len() != squares {
-            *self = Scratch {
-                best_stamp: vec![0; squares],
-                best: vec![HalfInt::ZERO; squares],
-                came: vec![0; squares],
-                stop_stamp: vec![0; squares],
-                stop: vec![false; squares],
-                stamp: 0,
-            };
-        }
-        self.stamp = self.stamp.wrapping_add(1);
-        if self.stamp == 0 {
-            self.best_stamp.fill(0);
-            self.stop_stamp.fill(0);
-            self.stamp = 1;
-        }
-    }
-
-    /// The cost found so far to reach the square; the greatest when none has been.
-    fn best(&self, i: usize) -> HalfInt {
-        if self.best_stamp[i] == self.stamp {
-            self.best[i]
-        } else {
-            HalfInt::MAX
-        }
-    }
-
-    fn set_best(&mut self, i: usize, cost: HalfInt) {
-        self.best_stamp[i] = self.stamp;
-        self.best[i] = cost;
-    }
-
-    /// The square the best way to this one came from (an index), if it was set in this search.
-    fn came(&self, i: usize) -> Option<u32> {
-        (self.best_stamp[i] == self.stamp && self.came[i] != NO_SQUARE).then(|| self.came[i])
-    }
-
-    fn set_came(&mut self, i: usize, from: u32) {
-        self.came[i] = from;
-    }
-
-    /// Whether the square stops the walk, asked of `work` the first time in a search.
-    fn blocked(&mut self, i: usize, work: impl FnOnce() -> bool) -> bool {
-        if self.stop_stamp[i] != self.stamp {
-            self.stop[i] = work();
-            self.stop_stamp[i] = self.stamp;
-        }
-        self.stop[i]
-    }
-}
-
-thread_local! {
-    static SCRATCH: std::cell::RefCell<Scratch> = std::cell::RefCell::new(Scratch::default());
-}
-
-/// Run a search with the tables for a plane of `squares` squares: the thread's own, or fresh
-/// ones when a search is already running on this thread.
-fn with_scratch<R>(squares: usize, search: impl FnOnce(&mut Scratch) -> R) -> R {
-    SCRATCH.with(|cell| match cell.try_borrow_mut() {
-        Ok(mut sc) => {
-            sc.begin(squares);
-            search(&mut sc)
-        }
-        Err(_) => {
-            let mut sc = Scratch::default();
-            sc.begin(squares);
-            search(&mut sc)
-        }
-    })
 }
 
 /// The squares round one, row by row from the north west (the map wraps east and west, and
@@ -180,24 +88,18 @@ pub(crate) fn neighbours(game: &Game, p: Position) -> Vec<Position> {
     ring(game, p).collect()
 }
 
-/// The least a walk between two squares costs: half a move for each square (a road step).
-fn estimate(width: u32, a: Position, b: Position) -> HalfInt {
-    let dx = a.x.abs_diff(b.x);
-    HalfInt::from_raw(dx.min(width - dx).max(a.y.abs_diff(b.y)) as i32)
-}
-
 impl Game {
     /// Cheapest path for the stack from where it stands to `to` on the same plane,
     /// excluding the start tile. Hostile tiles other than the destination are avoided.
     /// Returns `None` if there is no way there.
     pub fn find_path(&self, units: &[hecs::Entity], to: Position) -> Option<Vec<Position>> {
-        let path = self.checked_grid_path(units, to, false)?;
+        let path = self.grid_path(units, to, false)?;
         // A step into a square that has no room for the stack fails, and the order is lost at its
         // edge for ever: when the path crosses one, search again without such squares. Looking at
         // the squares of the path is cheap; the set of all full squares is not, and only a path
         // like that needs it.
         if self.path_crosses_full_square(units, &path, to) {
-            return self.checked_grid_path(units, to, true);
+            return self.grid_path(units, to, true);
         }
         Some(path)
     }
@@ -223,123 +125,18 @@ impl Game {
         count.iter().any(|&(_, n)| n > room)
     }
 
-    /// The search of `find_path`, with the squares that are full for the stack left out or not.
-    fn search_path_squares(
-        &self,
-        units: &[hecs::Entity],
-        to: Position,
-        avoid_full: bool,
-    ) -> Option<Vec<Position>> {
-        let first = *units.first()?;
-        let start = self.units().unit_position(first)?;
-        let owner = self.units().unit_owner(first)?;
-        let width = self.map.as_ref()?.width();
-        let height = self.map.as_ref()?.height();
-        if start.plane != to.plane || start == to {
-            return None;
-        }
-        let flies = self.economy().stack_traits(units);
-        let economy = self.economy();
-        let room = economy.ship_room_squares(owner);
-        let economy = economy.with_ship_room(owner, &room);
-        let profiles = Economy::distinct_step_profiles(economy.step_profiles(units)?);
-        let step_cost = |from: Position, next: Position| -> Option<HalfInt> {
-            economy.stack_step_cost(&profiles, from, next, flies)
-        };
-        // Which squares stop the walk (hostile units or city, a guarded site), worked out once
-        // for every square the search looks at.
-        let hostile = economy.hostile_squares(owner);
-        let stops = |next: Position| -> bool {
-            hostile.contains(&next)
-                || (owner != crate::player::MONSTERS
-                    && economy.lair_at(next).is_some_and(|l| !l.guards.is_empty()))
-        };
-        // Squares the stack cannot enter for want of room (its own units fill them): a path
-        // through one stalls at its edge for ever.
-        let full = if avoid_full {
-            economy.full_squares(units.len())
-        } else {
-            Default::default()
-        };
-        let at = |p: Position| p.y as usize * width as usize + p.x as usize;
-        let square = |i: u32| Position {
-            plane: start.plane,
-            x: i % width,
-            y: i / width,
-        };
-
-        with_scratch(width as usize * height as usize, |sc| {
-            let mut open = BinaryHeap::new();
-            sc.set_best(at(start), HalfInt::ZERO);
-            sc.set_came(at(start), NO_SQUARE);
-            open.push(Reverse((
-                estimate(width, start, to),
-                HalfInt::ZERO,
-                start.x,
-                start.y,
-            )));
-            while let Some(Reverse((_, cost, x, y))) = open.pop() {
-                let here = Position {
-                    plane: start.plane,
-                    x,
-                    y,
-                };
-                if here == to {
-                    let mut path = vec![here];
-                    let mut now = here;
-                    while let Some(prev) = sc.came(at(now)) {
-                        let prev = square(prev);
-                        if prev == start {
-                            break;
-                        }
-                        path.push(prev);
-                        now = prev;
-                    }
-                    path.reverse();
-                    return Some(path);
-                }
-                if cost > sc.best(at(here)) {
-                    continue;
-                }
-                for next in ring(self, here) {
-                    // Hostile squares and guarded sites stop the stack: go round unless it is
-                    // the destination.
-                    if (next != to && sc.blocked(at(next), || stops(next))) || full.contains(&next)
-                    {
-                        continue;
-                    }
-                    let Some(step) = step_cost(here, next) else {
-                        continue;
-                    };
-                    let total = cost + step;
-                    if total < sc.best(at(next)) {
-                        sc.set_best(at(next), total);
-                        sc.set_came(at(next), at(here) as u32);
-                        open.push(Reverse((
-                            total + estimate(width, next, to),
-                            total,
-                            next.x,
-                            next.y,
-                        )));
-                    }
-                }
-            }
-            None
-        })
-    }
-
     /// Every square on the stack's plane that it can walk to from where it stands (the squares
     /// `find_path` would find a way to), the start included: one search instead of one per
     /// target. Hostile squares and guarded sites are not entered.
     pub fn reachable_squares(&self, units: &[hecs::Entity]) -> FastSet<Position> {
-        self.checked_grid_walk(units, &[]).0
+        self.grid_walk(units, &[]).0
     }
 
     /// Whether the stack can walk to any of `targets` (the answer of [`Game::reachable_squares`]
     /// for them, but the search stops at the first one it reaches; the start does not count
     /// unless it is among the targets).
     pub fn reaches_any(&self, units: &[hecs::Entity], targets: &[Position]) -> bool {
-        !targets.is_empty() && self.checked_grid_reaches_any(units, targets)
+        !targets.is_empty() && self.grid_reaches_any(units, targets)
     }
 
     /// Like [`Game::reaches_any`], but when no target can be reached it gives every square the
@@ -349,7 +146,7 @@ impl Game {
         units: &[hecs::Entity],
         targets: &[Position],
     ) -> Option<FastSet<Position>> {
-        let (seen, found) = self.checked_grid_walk(units, targets);
+        let (seen, found) = self.grid_walk(units, targets);
         (!found).then_some(seen)
     }
 
@@ -369,81 +166,6 @@ impl Game {
             profiles,
             traits: economy.stack_traits(units),
         })
-    }
-
-    /// The search of `reachable_squares`: every square it can walk to, and whether one of
-    /// `targets` was among them (it then stops there; with no targets it goes on to the end).
-    fn walk_squares(
-        &self,
-        units: &[hecs::Entity],
-        targets: &[Position],
-    ) -> (FastSet<Position>, bool) {
-        let mut seen = FastSet::default();
-        let mut found = false;
-        let (Some(&first), Some(map)) = (units.first(), self.map.as_ref()) else {
-            return (seen, found);
-        };
-        let (width, height) = (map.width(), map.height());
-        let (Some(start), Some(owner)) = (
-            self.units().unit_position(first),
-            self.units().unit_owner(first),
-        ) else {
-            return (seen, found);
-        };
-        let flies = self.economy().stack_traits(units);
-        let economy = self.economy();
-        let room = economy.ship_room_squares(owner);
-        let economy = economy.with_ship_room(owner, &room);
-        let Some(profiles) = economy.step_profiles(units) else {
-            return (seen, found);
-        };
-        let profiles = Economy::distinct_step_profiles(profiles);
-        let step_cost = |from: Position, next: Position| -> Option<HalfInt> {
-            economy.stack_step_cost(&profiles, from, next, flies)
-        };
-        // Which squares stop the walk, worked out once for every square the search looks at.
-        let hostile = economy.hostile_squares(owner);
-        let stops = |next: Position| -> bool {
-            hostile.contains(&next)
-                || (owner != crate::player::MONSTERS
-                    && economy.lair_at(next).is_some_and(|l| !l.guards.is_empty()))
-        };
-
-        let at = |p: Position| p.y as usize * width as usize + p.x as usize;
-        with_scratch(width as usize * height as usize, |sc| {
-            let mut open = BinaryHeap::new();
-            sc.set_best(at(start), HalfInt::ZERO);
-            open.push(Reverse((HalfInt::ZERO, start.x, start.y)));
-            while let Some(Reverse((cost, x, y))) = open.pop() {
-                let here = Position {
-                    plane: start.plane,
-                    x,
-                    y,
-                };
-                if cost > sc.best(at(here)) {
-                    continue;
-                }
-                seen.insert(here);
-                if targets.contains(&here) {
-                    found = true;
-                    break;
-                }
-                for next in ring(self, here) {
-                    if sc.blocked(at(next), || stops(next)) {
-                        continue;
-                    }
-                    let Some(step) = step_cost(here, next) else {
-                        continue;
-                    };
-                    let total = cost + step;
-                    if total < sc.best(at(next)) {
-                        sc.set_best(at(next), total);
-                        open.push(Reverse((total, next.x, next.y)));
-                    }
-                }
-            }
-        });
-        (seen, found)
     }
 
     /// Turns the stack needs for `path` at its slowest mover's full allowance. Land units that
@@ -498,178 +220,6 @@ impl Game {
     }
 }
 
-/// The searches as they were before they used flat arrays (hash maps and a vector of
-/// neighbours): the reference the tests hold the new ones to, on real maps.
-#[cfg(test)]
-mod reference {
-    use super::*;
-    use crate::fast::FastMap;
-
-    type SquareMap<V> = FastMap<Position, V>;
-
-    impl Game {
-        pub(super) fn reference_find_path(
-            &self,
-            units: &[hecs::Entity],
-            to: Position,
-        ) -> Option<Vec<Position>> {
-            let first = *units.first()?;
-            let start = self.units().unit_position(first)?;
-            let owner = self.units().unit_owner(first)?;
-            let width = self.map.as_ref()?.width();
-            if start.plane != to.plane || start == to {
-                return None;
-            }
-            let flies = self.economy().stack_traits(units);
-            let economy = self.economy();
-            let room = economy.ship_room_squares(owner);
-            let economy = economy.with_ship_room(owner, &room);
-            let profiles = economy.step_profiles(units)?;
-            let step_cost = |from: Position, next: Position| -> Option<HalfInt> {
-                economy.stack_step_cost(&profiles, from, next, flies)
-            };
-            // Which squares stop the walk (hostile units or city, a guarded site), worked out once
-            // for every square the search looks at.
-            let hostile = economy.hostile_squares(owner);
-            let mut stops: SquareMap<bool> = SquareMap::default();
-            let mut blocked = |next: Position| -> bool {
-                *stops.entry(next).or_insert_with(|| {
-                    hostile.contains(&next)
-                        || (owner != crate::player::MONSTERS
-                            && economy.lair_at(next).is_some_and(|l| !l.guards.is_empty()))
-                })
-            };
-
-            let mut best: SquareMap<HalfInt> = SquareMap::default();
-            let mut came: SquareMap<Position> = SquareMap::default();
-            let mut open = BinaryHeap::new();
-            best.insert(start, HalfInt::ZERO);
-            open.push(Reverse((
-                estimate(width, start, to),
-                HalfInt::ZERO,
-                start.x,
-                start.y,
-            )));
-            while let Some(Reverse((_, cost, x, y))) = open.pop() {
-                let here = Position {
-                    plane: start.plane,
-                    x,
-                    y,
-                };
-                if here == to {
-                    let mut path = vec![here];
-                    let mut at = here;
-                    while let Some(&prev) = came.get(&at) {
-                        if prev == start {
-                            break;
-                        }
-                        path.push(prev);
-                        at = prev;
-                    }
-                    path.reverse();
-                    return Some(path);
-                }
-                if cost > *best.get(&here).unwrap_or(&HalfInt::MAX) {
-                    continue;
-                }
-                for next in neighbours(self, here) {
-                    // Hostile squares and guarded sites stop the stack: go round unless it is the
-                    // destination.
-                    if next != to && blocked(next) {
-                        continue;
-                    }
-                    let Some(step) = step_cost(here, next) else {
-                        continue;
-                    };
-                    let total = cost + step;
-                    if total < *best.get(&next).unwrap_or(&HalfInt::MAX) {
-                        best.insert(next, total);
-                        came.insert(next, here);
-                        open.push(Reverse((
-                            total + estimate(width, next, to),
-                            total,
-                            next.x,
-                            next.y,
-                        )));
-                    }
-                }
-            }
-            None
-        }
-
-        pub(super) fn reference_walk(
-            &self,
-            units: &[hecs::Entity],
-            targets: &[Position],
-        ) -> (FastSet<Position>, bool) {
-            let mut seen = FastSet::default();
-            let mut found = false;
-            let (Some(&first), true) = (units.first(), self.map.is_some()) else {
-                return (seen, found);
-            };
-            let (Some(start), Some(owner)) = (
-                self.units().unit_position(first),
-                self.units().unit_owner(first),
-            ) else {
-                return (seen, found);
-            };
-            let flies = self.economy().stack_traits(units);
-            let economy = self.economy();
-            let room = economy.ship_room_squares(owner);
-            let economy = economy.with_ship_room(owner, &room);
-            let Some(profiles) = economy.step_profiles(units) else {
-                return (seen, found);
-            };
-            let step_cost = |from: Position, next: Position| -> Option<HalfInt> {
-                economy.stack_step_cost(&profiles, from, next, flies)
-            };
-            // Which squares stop the walk, worked out once for every square the search looks at.
-            let hostile = economy.hostile_squares(owner);
-            let mut stops: SquareMap<bool> = SquareMap::default();
-            let mut blocked = |next: Position| -> bool {
-                *stops.entry(next).or_insert_with(|| {
-                    hostile.contains(&next)
-                        || (owner != crate::player::MONSTERS
-                            && economy.lair_at(next).is_some_and(|l| !l.guards.is_empty()))
-                })
-            };
-            let mut best: SquareMap<HalfInt> = SquareMap::default();
-            let mut open = BinaryHeap::new();
-            best.insert(start, HalfInt::ZERO);
-            open.push(Reverse((HalfInt::ZERO, start.x, start.y)));
-            while let Some(Reverse((cost, x, y))) = open.pop() {
-                let here = Position {
-                    plane: start.plane,
-                    x,
-                    y,
-                };
-                if cost > *best.get(&here).unwrap_or(&HalfInt::MAX) {
-                    continue;
-                }
-                seen.insert(here);
-                if targets.contains(&here) {
-                    found = true;
-                    break;
-                }
-                for next in neighbours(self, here) {
-                    if blocked(next) {
-                        continue;
-                    }
-                    let Some(step) = step_cost(here, next) else {
-                        continue;
-                    };
-                    let total = cost + step;
-                    if total < *best.get(&next).unwrap_or(&HalfInt::MAX) {
-                        best.insert(next, total);
-                        open.push(Reverse((total, next.x, next.y)));
-                    }
-                }
-            }
-            (seen, found)
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::game::setup::{new_game, NewGame};
@@ -677,10 +227,13 @@ mod tests {
     use crate::map::Position;
     use f4x_def::testdir::TestResult;
 
-    /// The searches give what they gave before they used flat arrays, on the real maps of a
-    /// few seeds: the same paths, the same reachable sets, for several stacks and goals.
+    /// The searches over the grid obey the rules on the real maps of a few seeds, for several
+    /// stacks and goals: every step of a path is one the movement rule allows and no path goes
+    /// through a hostile square or a guarded site (`obeys.rs`); a walk reaches a square exactly
+    /// when a path leads there; a walk of one target and `reaches_any` agree; a walk with no
+    /// target goes over every square any walk reaches.
     #[test]
-    fn the_searches_match_the_reference_on_real_maps() -> TestResult {
+    fn the_searches_match_the_movement_rule_on_real_maps() -> TestResult {
         let content = shipped();
         for seed in [3u64, 11, 25] {
             let game = new_game(
@@ -725,40 +278,32 @@ mod tests {
                     .map(|(x, y)| plane(x, y, start))
                     .collect();
                 for &goal in &goals {
-                    let path = game.find_path(stack, goal);
-                    let reference = game.reference_find_path(stack, goal);
+                    let path = game.grid_path(stack, goal, false);
                     assert_eq!(
-                        path.is_some(),
-                        reference.is_some(),
-                        "seed {seed}: a path from {start:?} to {goal:?}"
+                        game.searches_disagree(stack, goal),
+                        None,
+                        "seed {seed}: from {start:?} to {goal:?}"
                     );
-                    // Equal ways may differ; the grid's costs no more.
-                    if let (Some(new), Some(old)) = (&path, &reference) {
-                        assert!(
-                            game.path_cost(stack, new) <= game.path_cost(stack, old),
-                            "seed {seed}: path from {start:?} to {goal:?}"
-                        );
-                    }
                     found += usize::from(path.is_some());
                 }
-                assert_eq!(
-                    game.grid_walk(stack, &[]),
-                    game.reference_walk(stack, &[]),
-                    "seed {seed}: reach of {start:?}"
+                let (reach, _) = game.grid_walk(stack, &[]);
+                assert!(
+                    reach.contains(&start),
+                    "seed {seed}: {start:?} is not reached"
                 );
                 for targets in goals.chunks(7).take(6) {
-                    let (new, old) = (
-                        game.grid_walk(stack, targets),
-                        game.reference_walk(stack, targets),
-                    );
+                    let (seen, found_one) = game.grid_walk(stack, targets);
                     let what = format!("seed {seed}: reach of {start:?} with targets {targets:?}");
-                    assert_eq!(new.1, old.1, "{what}");
-                    // A walk that stops at a target has gone over the squares that came before
-                    // it, which equal ways put in either order.
-                    if !new.1 {
-                        assert_eq!(new.0, old.0, "{what}");
+                    assert_eq!(game.grid_reaches_any(stack, targets), found_one, "{what}");
+                    // Whatever a walk with targets went over, the walk to the end goes over.
+                    assert!(seen.is_subset(&reach), "{what}");
+                    if !found_one {
+                        assert_eq!(seen, reach, "{what}");
+                        assert!(
+                            targets.iter().all(|t| *t == start || !reach.contains(t)),
+                            "{what}"
+                        );
                     }
-                    assert_eq!(game.grid_reaches_any(stack, targets), old.1, "{what}");
                 }
             }
             assert!(found > 50, "seed {seed}: only {found} paths found");

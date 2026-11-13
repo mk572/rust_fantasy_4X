@@ -102,12 +102,6 @@ pub(crate) struct CachedGrid {
     room: FastSet<Position>,
 }
 
-/// Set `F4X_CHECK_GRID` to search the old way as well and compare (slow).
-fn checking() -> bool {
-    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *ON.get_or_init(|| std::env::var_os("F4X_CHECK_GRID").is_some())
-}
-
 impl Game {
     /// The grid of a stack on the plane it stands on, at the pace of its slowest unit: the cost
     /// of a step is the worst of its units' costs, and a square one cannot enter is closed to the
@@ -288,85 +282,6 @@ impl Game {
         with_searcher(|searcher| {
             searcher.reaches_any(&grid, start.y * width + start.x, &targets, stops)
         })
-    }
-
-    /// What the stack pays for a path from where it stands, in half moves; `None` when a step is
-    /// one the rules refuse.
-    pub(super) fn path_cost(&self, units: &[hecs::Entity], path: &[Position]) -> Option<u32> {
-        let first = *units.first()?;
-        let mut at = self.units().unit_position(first)?;
-        let owner = self.units().unit_owner(first)?;
-        let traits = self.economy().stack_traits(units);
-        let economy = self.economy();
-        let room = economy.ship_room_squares(owner);
-        let economy = economy.with_ship_room(owner, &room);
-        let profiles = Economy::distinct_step_profiles(economy.step_profiles(units)?);
-        let mut sum = 0;
-        for &next in path {
-            sum += economy.stack_step_cost(&profiles, at, next, traits)?.raw() as u32;
-            at = next;
-        }
-        Some(sum)
-    }
-
-    /// [`Game::grid_path`], and with `F4X_CHECK_GRID` the old search over the squares as well:
-    /// both must find a path or neither, and the grid's must cost no more (the old search guesses
-    /// a road step at half a move even where enchanted roads make it free).
-    pub(super) fn checked_grid_path(
-        &self,
-        units: &[hecs::Entity],
-        to: Position,
-        avoid_full: bool,
-    ) -> Option<Vec<Position>> {
-        let path = self.grid_path(units, to, avoid_full);
-        if checking() {
-            let old = self.search_path_squares(units, to, avoid_full);
-            assert_eq!(old.is_some(), path.is_some(), "a path to {to:?}");
-            if let (Some(old), Some(new)) = (&old, &path) {
-                let (old_cost, new_cost) = (self.path_cost(units, old), self.path_cost(units, new));
-                assert!(
-                    new_cost.is_some() && new_cost <= old_cost,
-                    "the path to {to:?} costs {new_cost:?} over the grid and {old_cost:?} over the squares"
-                );
-            }
-        }
-        path
-    }
-
-    /// [`Game::grid_walk`], and with `F4X_CHECK_GRID` the old walk as well: the same squares.
-    pub(super) fn checked_grid_walk(
-        &self,
-        units: &[hecs::Entity],
-        targets: &[Position],
-    ) -> (FastSet<Position>, bool) {
-        let walked = self.grid_walk(units, targets);
-        if checking() {
-            let old = self.walk_squares(units, targets);
-            assert_eq!(old.1, walked.1, "a walk with targets {targets:?}");
-            // A walk that stops at a target has gone over the squares that came before it, which
-            // equal ways put in either order.
-            if !walked.1 {
-                assert_eq!(old.0, walked.0, "a walk with targets {targets:?}");
-            }
-        }
-        walked
-    }
-
-    /// [`Game::grid_reaches_any`], and with `F4X_CHECK_GRID` the old walk as well.
-    pub(super) fn checked_grid_reaches_any(
-        &self,
-        units: &[hecs::Entity],
-        targets: &[Position],
-    ) -> bool {
-        let reached = self.grid_reaches_any(units, targets);
-        if checking() {
-            assert_eq!(
-                self.walk_squares(units, targets).1,
-                reached,
-                "reaching {targets:?}"
-            );
-        }
-        reached
     }
 }
 
@@ -557,9 +472,9 @@ mod tests {
     }
 
     #[test]
-    fn the_path_over_the_grid_costs_what_the_search_over_the_squares_costs() -> TestResult {
+    fn paths_and_walks_over_the_grid_obey_the_movement_rule() -> TestResult {
         let content = shipped();
-        let (mut found, mut cheaper) = (0, 0);
+        let mut found = 0;
         for (seed, diagonal) in [(3u64, false), (11, true)] {
             let mut game = new_game(
                 &content,
@@ -620,44 +535,27 @@ mod tests {
                 for y in (0..height).step_by(3) {
                     for x in (0..width).step_by(4) {
                         let to = Position { x, y, ..start };
-                        let old = game.search_path_squares(stack, to, false);
                         let new = game.grid_path(stack, to, false);
                         assert_eq!(
-                            old.is_some(),
-                            new.is_some(),
-                            "seed {seed}: a path to {to:?}"
+                            game.searches_disagree(stack, to),
+                            None,
+                            "seed {seed}: to {to:?}"
                         );
-                        let (Some(old), Some(new)) = (old, new) else {
-                            continue;
-                        };
-                        let (old_cost, new_cost) = (
-                            game.path_cost(stack, &old)
-                                .ok_or("an old path step is refused")?,
-                            game.path_cost(stack, &new)
-                                .ok_or("a new path step is refused")?,
-                        );
-                        // The search over the squares guesses a road step at half a move even
-                        // where the roads are enchanted, so it may be a little dear there.
-                        assert!(
-                            new_cost <= old_cost,
-                            "seed {seed}: to {to:?} {new_cost} against {old_cost}"
-                        );
-                        found += 1;
-                        cheaper += usize::from(new_cost < old_cost);
-                        assert_eq!(new.last(), Some(&to));
+                        if new.is_some() {
+                            found += 1;
+                        }
                     }
                 }
             }
         }
         assert!(found > 200, "only {found} paths found");
-        println!("{found} paths, {cheaper} cheaper over the grid");
         Ok(())
     }
 
     /// Run with `--release -- --ignored --nocapture`.
     #[test]
     #[ignore = "a timing, not a check"]
-    fn timing_of_making_a_grid_and_of_the_two_searches() -> TestResult {
+    fn timing_of_making_a_grid_and_of_the_search() -> TestResult {
         use std::time::Instant;
         let content = shipped();
         let mut game = new_game(
@@ -700,11 +598,6 @@ mod tests {
         time("a grid for the stack, 50 times", &mut || {
             for _ in 0..50 {
                 assert!(game.stack_grid(&stack).is_some());
-            }
-        });
-        time("search over the squares, 300 goals", &mut || {
-            for &g in &goals {
-                let _ = game.search_path_squares(&stack, g, false);
             }
         });
         time("grid made and searched, 300 goals", &mut || {
