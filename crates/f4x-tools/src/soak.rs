@@ -395,6 +395,9 @@ pub fn game(
     let started = Instant::now();
     let mut last_line = started;
     let mut tally = Tally::new(&game);
+    for line in profile_lines(&game) {
+        println!("{tag}: {line}");
+    }
     // Rounds that ended with a battle still open (nothing may be: every battle is fought out
     // inside the round), and the first such turn.
     let (mut open_rounds, mut first_open) = (0usize, None::<u32>);
@@ -557,6 +560,9 @@ pub fn game(
         dropped.join(", ")
     );
     println!("{tag}: mana {}", mana_line(&game, &tally));
+    for line in neutral_lines(&game, &tally) {
+        println!("{tag}: {line}");
+    }
     if opts.casts {
         println!("{tag}: casts: {}", casts_line(tally.casts()));
     }
@@ -721,6 +727,85 @@ fn city_lines(game: &Game) {
 }
 
 /// Mana spent over the game and left at the end, per wizard, e.g. `p0 spent 5200 left 80`.
+/// One line per wizard about what was rolled and picked for it: the race of its capital, the plane
+/// it started on, its personality and objective, its books and its retorts.
+pub(crate) fn profile_lines(game: &Game) -> Vec<String> {
+    let rules = &game.content().rules;
+    game.player_ids()
+        .into_iter()
+        .filter(|&p| game.is_wizard(p))
+        .filter_map(|p| {
+            let w = game.wizard(p)?;
+            let race = w
+                .capital_race()
+                .map_or("none".to_string(), |r| rules.races.get(r).id.clone());
+            let books = w
+                .books()
+                .iter()
+                .filter(|(_, &n)| n > 0)
+                .map(|(&r, n)| format!("{} {n}", rules.realms.get(r).id))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let retorts = w
+                .retorts()
+                .iter()
+                .map(|&r| rules.retorts.get(r).id.clone())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let plane = w
+                .fortress()
+                .map_or("none".to_string(), |at| format!("{:?}", at.plane));
+            Some(format!(
+                "profile p{}: race {race}; started on {plane}; personality {:?}; objective {}; books [{books}]; retorts [{retorts}]",
+                p.0,
+                w.personality(),
+                w.objective().map_or("none".to_string(), |o| format!("{o:?}")),
+            ))
+        })
+        .collect()
+}
+
+/// One line for the neutral players (the races' cities and the monsters): what they hold at the end
+/// and what happened to them over the game. The monsters' slot also takes whatever has no number.
+fn neutral_lines(game: &Game, tally: &Tally) -> Vec<String> {
+    let rules = &game.content().rules;
+    let mut ids: Vec<PlayerId> = game
+        .player_ids()
+        .into_iter()
+        .filter(|&p| game.is_neutral_player(p))
+        .collect();
+    ids.push(f4x_core::player::MONSTERS);
+    let parts: Vec<String> = ids
+        .into_iter()
+        .map(|p| {
+            let name = if p == f4x_core::player::MONSTERS {
+                "monsters".to_string()
+            } else {
+                game.race_of_player(p)
+                    .map_or(format!("p{}", p.0), |r| rules.races.get(r).id.clone())
+            };
+            let m = tally.of(p);
+            let cities = game
+                .economy()
+                .cities()
+                .iter()
+                .filter(|(_, c, _)| c.owner == p)
+                .count();
+            let units = game.units().player_units(p).len();
+            format!(
+                "{name} {cities}c/{units}u (founded {}, lost {}, taken {}, battles won {} lost {}, units lost {})",
+                m.cities_founded,
+                m.cities_lost,
+                m.cities_captured,
+                m.battles_won,
+                m.battles_lost,
+                m.units_lost
+            )
+        })
+        .collect();
+    vec![format!("neutrals: {}", parts.join("; "))]
+}
+
 fn mana_line(game: &Game, tally: &Tally) -> String {
     let (spent, left) = tally.mana();
     game.player_ids()
@@ -879,6 +964,44 @@ const DIPLOMACY_ROWS: usize = 16;
 mod tests {
     use super::*;
     use f4x_def::testdir::TestResult;
+
+    #[test]
+    fn the_profile_and_neutral_lines_name_each_wizard_and_the_neutral_races() -> TestResult {
+        let content = crate::testutil::shipped();
+        let game = new_game(
+            content,
+            &NewGame {
+                seed: 3,
+                all_ai: true,
+                ..NewGame::with_wizards(3)
+            },
+        )?;
+        let profiles = profile_lines(&game);
+        assert_eq!(profiles.len(), 3, "{profiles:?}");
+        for (k, line) in profiles.iter().enumerate() {
+            assert!(line.starts_with(&format!("profile p{k}:")), "{line}");
+            for part in [
+                "race ",
+                "started on ",
+                "personality ",
+                "objective ",
+                "books [",
+                "retorts [",
+            ] {
+                assert!(line.contains(part), "{part}: {line}");
+            }
+            assert!(
+                line.contains("started on Arcanus") || line.contains("started on Myrror"),
+                "{line}"
+            );
+        }
+        let tally = Tally::new(&game);
+        let neutrals = neutral_lines(&game, &tally);
+        assert_eq!(neutrals.len(), 1);
+        assert!(neutrals[0].contains("monsters "), "{neutrals:?}");
+        assert!(neutrals[0].contains("beastmen "), "{neutrals:?}");
+        Ok(())
+    }
 
     fn parse(line: &[&str]) -> Result<Options, String> {
         let args: Vec<String> = line.iter().map(|s| s.to_string()).collect();

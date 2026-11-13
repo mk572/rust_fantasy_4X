@@ -288,12 +288,17 @@ pub struct Tally {
 
 impl Tally {
     pub fn new(game: &Game) -> Self {
+        // The neutral players of the races are made when their first city turns neutral, so
+        // leave a slot for each of them: they must not be counted with the monsters.
+        let races = f4x_core::player::race_player::FIRST_RACE_PLAYER as usize
+            + game.content().rules.races.iter().count();
         let count = game
             .player_ids()
             .into_iter()
             .map(|p| usize::from(p.0) + 1)
             .max()
-            .unwrap_or(0);
+            .unwrap_or(0)
+            .max(races);
         let mut tally = Self {
             players: vec![Metrics::default(); count + 1],
             ships_at_start: vec![0; count + 1],

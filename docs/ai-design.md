@@ -354,6 +354,11 @@ mana, spells, research, casting, power split and explored squares. The table bel
 as steps land; "ended" is games with a winner out of 8. `--casts` adds, per game and over all games,
 how often each spell was cast and the map spells nobody cast.
 
+Every game also prints, at its start, a `profile pN:` line per wizard (the race of its capital, the
+plane it started on, the rolled personality and objective, books and retorts), and, at its end, a
+`neutrals:` line with the cities and units each neutral race and the monsters hold, and what
+happened to them over the game (cities founded, lost and taken, battles won and lost, units lost).
+
 | Build | Ended of 8 (400 turns) | End turns | Battles (all seeds) | Note |
 |---|---|---|---|---|
 | baseline (before this work) | 0 | none | 0, 0, 8, 1, 5, 159, 4, 35 | wizards never meet in most seeds |
