@@ -13,7 +13,6 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | --- | --- | --- |
 | 1 | Movement | Faster movement along rivers |
 | 2 | Options | Spell of Return setting: off, player only, all wizards |
-| 3 | Options | More NPC wizards (the base game has up to four opponents) |
 | 4 | Content | Rules changes and new items from the community patch and the Caster of Magic expansion |
 | 5 | Platform | Modding support |
 | 6 | Client | Upscaled graphics |
@@ -78,13 +77,6 @@ new-game setting with three values: **off** (banishment is final: the wizard is 
 wizards** (as in the original). Store it in the game settings saved with the game (new field,
 `serde(default)` = all wizards), check it in `capture_city` where banishment is decided, and
 mention it in the new-game screen (T10, T75).
-
-**3. More NPC wizards.** The base game allows one to four opponents (T10). Make the count a
-setting beyond four: more wizard names, portraits and banner colours (the client's
-`player_color` palette), larger default maps and more starting positions so wizards do not crowd
-each other (spread by minimum distance rather than a fixed table), a check that `PlayerId` (a
-`u8`) and the fog and save layouts cope, and a diplomacy screen that scales (T63, T75). Balance
-note: AI cost grows with wizard count, so measure turn time first (T65).
 
 **4. Community patch and Caster of Magic content.** Collect the rule changes of the community
 patch (its files are in `reference/mom-classic/Master of Magic Community Patch/`) and of the

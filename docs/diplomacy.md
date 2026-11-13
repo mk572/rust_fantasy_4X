@@ -354,7 +354,7 @@ New module `crates/f4x-core/src/diplomacy/mod.rs` (and `diplomacy/` submodules i
 `Game`, saved and loaded with the game (`game/save.rs`).
 
 **9.1 State.** `Diplomacy` in `Game`: a vector of `Relation` records indexed by ordered pair
-(`PlayerId` is a `u8`; PLANNED item 3 wants more than four rivals, so size it by the number of
+(`PlayerId` is a `u8`; there can be more than four rivals, task P3, so it is sized by the number of
 players, not a constant 6), plus per-player `Personality` and `Objective` (task 64). Content-
 defined tables (personality mod, message tables) in `rules.ron` where the numbers are data.
 

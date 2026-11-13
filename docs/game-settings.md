@@ -690,7 +690,7 @@ Rules for the screen:
 2. **Groups are fixed, fields are not**; the screen is built from a `&[Row]` table, so a new field
    needs no new layout code. Each row says whether it counts for Custom (a level fills it in) or is
    an extra.
-3. **Candidates already named** in other docs: more than four opponents (`PLANNED.md` 3); starting
+3. **Candidates already named** in other docs: more than four opponents (done, task P3 in `TASKS-DONE.md`); starting
    fame and the capital's size (4.2); per-event on/off (4.5); ruleset switches such as the
    community patch's rule changes (`PLANNED.md` 4: each patch rule is a setting, default original);
    the undo setting (task 90); stack limits above nine ([`large-stacks.md`](large-stacks.md)); a
