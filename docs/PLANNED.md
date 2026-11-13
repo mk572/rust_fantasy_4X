@@ -42,7 +42,7 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 36 | Meta | Multiplayer: scope and design (to be discussed) |
 | 37 | AI | Record the battle AI's orders for replays |
 | 38 | Rules | Casting mod: half the casting distance penalty, a Channeler that costs one pick, Lo Pan's fifth sorcery book back |
-| 40 | Rules | Life and death nodes, and a setting that lifts the ban on combining life and death books |
+| 40 | Rules | Life and death nodes |
 | 41 | Content | Free sounds: effects for events that have none, and replacements for the original's sound and music |
 | 42 | Map | Mines, lumber camps and hunter's lodges on the map |
 | 43 | Client | Proper windowing support: boxes and screens as windowed layers instead of one shared pane |
@@ -435,9 +435,10 @@ real data for each change (the cost at 0, 5, 10, 15, 20 and 25 squares, the crea
 pick count with the Channeler, Lo Pan's books and picks), and an entry in `divergences.md` for
 each change.
 
-**40. Life and death nodes; life and death books together.** Two changes that belong together: the base game has
-magic nodes for sorcery, nature and chaos only, and a wizard cannot hold life and death books at once. Both are
-options of the game setup (`docs/game-settings.md`), off by default so the base game stays as it is.
+**40. Life and death nodes.** The base game has magic nodes for sorcery, nature and chaos only. Life and death
+nodes are an option of the game setup (`docs/game-settings.md`), off by default so the base game stays as it is.
+(The setting that lifts the ban on holding life and death books together is task 451 in `TASKS.md`, not part of this
+item.)
 - **Life nodes and death nodes**, built like the other three: a node is a terrain feature entity (`feature/`, `Node`
   with its realm; `crates/f4x-def/content/features.ron`) on a base terrain of its own (`TerrainClass` gains `LifeNode` and
   `DeathNode` beside `SorceryNode`, `NatureNode` and `ChaosNode`, with food, production and movement values in
@@ -461,19 +462,9 @@ options of the game setup (`docs/game-settings.md`), off by default so the base 
     `crates/f4x-client/content/text/en/`, and the node colour the client draws on the minimap and the surveyor.
   - **AI:** the scripted AI's targets and the learned AI's observation of nodes include the new realms; saves list
     nodes by realm already, but old saves with only three realms still load.
-- **Setting: allow life and death together.** A game setting (`game-settings.md`, with the other rules switches) that
-  removes the limitation: today the new-wizard screen drops the opposite realm's books when one picks a book (life
-  against death, `newgame_picks.rs`), the custom wizard cannot take both, the computer wizards are made without both,
-  and `Consolidate_Spell_Book_Realms` (`docs/game-settings.md`) turns the opposed pairs into one realm by a coin
-  flip for a computer wizard. With the setting on, all four stop: one may pick books of both realms (the pick cost and
-  the total of 12 books stay), computer wizards may roll both, and nothing merges them. A few rules assume the
-  opposition and are checked: a wizard with both realms is the target of both realms' resistance and protection
-  spells (Death magic's Bless and Curses cancel, Holy Arms and its opposite), the Life-and-Death retort pairs
-  (Infernal Power against Divine Power, Life Force against Death Mastery), the mascot realm of the notice boxes
-  (`event_popup.rs`, which picks the realm with most books), and the save check that rejects an opposed pair if there is one.
-- **Tests:** a game with the setting off is unchanged (the base tests stay green); with it on, the setup accepts both
-  realms, map generation places all five node realms over many seeds, a wizard owning each node gets its bonus, and
-  Meld with Node works on a life and a death node; a soak shows no crash.
+- **Tests:** a game with the setting off is unchanged (the base tests stay green); with it on, map generation places
+  all five node realms over many seeds, a wizard owning each node gets its bonus, and Meld with Node works on a life
+  and a death node; a soak shows no crash.
 
 Needs: the node entity work (`feature/node.rs`, done), the game-settings screen (`docs/game-settings.md`), and the art
 tools if the node pictures are recoloured (`docs/extract-art.md`). It touches the AI's node targets (task 339), so do it
