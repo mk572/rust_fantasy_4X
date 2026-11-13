@@ -34,7 +34,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 367 | Low | AI | Overland spells the AI never casts: what is left is research by what the enemy casts |
 | 370 | Low | AI | Battle AI: retreat, sally, weigh a lair before attacking it |
 | 373 | Low | Battle | Ship graphics for sea battles (isometric decks and hulls in place of plain brown squares) |
-| 386 | Low | Client | Magic screen: scroll the enemy wizard portraits |
 | 411 | Medium | Core | Floating Island as a plain summoning, as in the original |
 | 416 | Medium | Client | Button extras to decide: hotkey label, disabled-reason tooltip |
 | 417 | Low | Client | Align the console to the look of the UI |
@@ -148,8 +147,6 @@ deck. The LPC ship pack ("[LPC] Ship" by bluecarrot16, OGA-BY 3.0+ or CC-BY 3.0+
 settle: draw our own pixel art, reproject the pack's tiles to the diamond grid, or find an isometric
 set (check its licence and credit it in a `CREDITS.md` that is in the repository once art is used). Keep the deck cells as the rules' truth; only
 the drawing changes. *Needs:* nothing.
-
-**386. Magic screen: scroll the enemy wizard portraits.** The Magic screen shows four rivals' gems and portraits only (`take(4)`), so with more than five wizards (ten colours are playable, task 381) the others cannot be reached. Let the player scroll through the enemy wizard portraits (arrows or the mouse wheel, in the original's style where it has one, else our own), so that every rival can be selected for diplomacy and its details. Split from task 381, 25 October 2026.
 
 **411. Floating Island as a plain summoning, as in the original.** In the original the Floating Island spell is a summoning like the others: its spell record is category 0 (summoning) and its first parameter is the unit it creates (`SPELLDAT.LBX`; `tests/original/spells.tsv`). Ours runs a custom hook (`Effect::Custom("floating_island")`, `Game::floating_island` in `spell/special.rs`) that spawns the unit `floating_island`, and the content test `every_spell_has_the_originals_...` has an exception for it. Change the spell to `Summon(unit: "floating_island", count: 1)` as War Bears is, keep the target check (a water square with no enemy and room, `check_floating_island`) where the summoning checks its target, delete the custom hook and the exception in the test, and keep the tests of the island as a ship (`unit/transport.rs`). Check in ReMoM what the original does with the target (`Cast_Floating_Island`-like code in `OverSpel.c`) so the placement rule stays the original's.
 
