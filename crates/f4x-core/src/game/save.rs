@@ -229,19 +229,47 @@ pub struct FogSave {
     pub players: Vec<(u8, Bits, Bits)>,
 }
 
-/// Bytes written as one hex string (`"00ff10"`); a list of numbers, as saves of before wrote
-/// them, still reads.
+/// Bytes written as text: hex digits for plain bytes (`00ff10`) and `hh*n` for a byte that repeats
+/// three times or more (`00*300`), the parts apart by a space: `"00ff10 00*300 ff*12"`. The text
+/// of the first version of this layout (hex only) and a list of numbers, as older saves wrote
+/// them, still read.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Bits(pub Vec<u8>);
 
 impl Serialize for Bits {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let mut text = String::with_capacity(self.0.len() * 2);
-        for b in &self.0 {
-            text.push_str(&format!("{b:02x}"));
+        let mut parts: Vec<String> = Vec::new();
+        let mut plain = String::new();
+        let mut i = 0;
+        while i < self.0.len() {
+            let b = self.0[i];
+            let run = self.0[i..].iter().take_while(|&&x| x == b).count();
+            if run >= 3 {
+                if !plain.is_empty() {
+                    parts.push(std::mem::take(&mut plain));
+                }
+                parts.push(format!("{b:02x}*{run}"));
+                i += run;
+            } else {
+                plain.push_str(&format!("{b:02x}"));
+                i += 1;
+            }
         }
-        s.serialize_str(&text)
+        if !plain.is_empty() {
+            parts.push(plain);
+        }
+        s.serialize_str(&parts.join(" "))
     }
+}
+
+fn hex_bytes(text: &str) -> Option<Vec<u8>> {
+    if !text.len().is_multiple_of(2) || !text.is_ascii() {
+        return None;
+    }
+    (0..text.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&text[i..i + 2], 16).ok())
+        .collect()
 }
 
 impl<'de> Deserialize<'de> for Bits {
@@ -250,18 +278,26 @@ impl<'de> Deserialize<'de> for Bits {
         impl<'de> serde::de::Visitor<'de> for V {
             type Value = Bits;
             fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str("a hex string or a list of bytes")
+                f.write_str("a text of hex bytes and runs, or a list of bytes")
             }
             fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Bits, E> {
-                if !text.len().is_multiple_of(2) || !text.is_ascii() {
-                    return Err(E::custom("a hex string of whole bytes"));
+                let mut bytes = Vec::new();
+                for part in text.split_whitespace() {
+                    if let Some((hex, count)) = part.split_once('*') {
+                        let byte = hex_bytes(hex).filter(|b| b.len() == 1);
+                        let count = count.parse::<usize>().ok().filter(|&n| n <= 1 << 24);
+                        let (Some(byte), Some(count)) = (byte, count) else {
+                            return Err(E::custom(format!("a run like 00*300, not {part:?}")));
+                        };
+                        bytes.resize(bytes.len() + count, byte[0]);
+                    } else {
+                        let Some(more) = hex_bytes(part) else {
+                            return Err(E::custom(format!("whole bytes in hex, not {part:?}")));
+                        };
+                        bytes.extend(more);
+                    }
                 }
-                (0..text.len())
-                    .step_by(2)
-                    .map(|i| u8::from_str_radix(&text[i..i + 2], 16))
-                    .collect::<Result<Vec<u8>, _>>()
-                    .map(Bits)
-                    .map_err(E::custom)
+                Ok(Bits(bytes))
             }
             fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<Bits, A::Error> {
                 let mut bytes = Vec::new();

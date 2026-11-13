@@ -923,16 +923,34 @@ fn an_older_save_with_a_player_for_each_neutral_city_is_read_as_one_player_for_e
 }
 
 #[test]
-fn explored_flags_are_written_as_a_hex_string_and_a_list_of_numbers_still_reads() {
+fn explored_flags_are_written_as_runs_and_older_forms_still_read() {
     use crate::game::save::Bits;
-    let bits = Bits(vec![0, 255, 16, 7]);
+    let bits = Bits(vec![0, 255, 16, 7, 0, 0, 0, 0, 5, 255, 255]);
     let text = ron::to_string(&bits).unwrap();
-    assert_eq!(text, "\"00ff1007\"");
+    assert_eq!(text, "\"00ff1007 00*4 05ffff\"");
     assert_eq!(ron::from_str::<Bits>(&text).unwrap(), bits);
-    // The old layout: one number for each byte.
-    assert_eq!(ron::from_str::<Bits>("[0, 255, 16, 7]").unwrap(), bits);
-    // Whole bytes only, and only hex digits.
-    assert!(ron::from_str::<Bits>("\"00f\"").is_err());
-    assert!(ron::from_str::<Bits>("\"zz\"").is_err());
-    assert!(ron::from_str::<Bits>("[256]").is_err());
+    // Runs of three or more only; an empty list is an empty text.
+    assert_eq!(ron::to_string(&Bits(vec![9, 9, 1])).unwrap(), "\"090901\"");
+    assert_eq!(ron::to_string(&Bits(vec![])).unwrap(), "\"\"");
+    assert_eq!(ron::from_str::<Bits>("\"\"").unwrap(), Bits(vec![]));
+    // The older forms: plain hex, and one number for each byte.
+    assert_eq!(
+        ron::from_str::<Bits>("\"00ff1007\"").unwrap(),
+        Bits(vec![0, 255, 16, 7])
+    );
+    assert_eq!(
+        ron::from_str::<Bits>("[0, 255, 16, 7]").unwrap(),
+        Bits(vec![0, 255, 16, 7])
+    );
+    // Refused: half a byte, a non-digit, a bad run, a number over 255.
+    for bad in [
+        "\"00f\"",
+        "\"zz\"",
+        "\"00*x\"",
+        "\"0000*3\"",
+        "\"00*99999999999\"",
+        "[256]",
+    ] {
+        assert!(ron::from_str::<Bits>(bad).is_err(), "{bad}");
+    }
 }
