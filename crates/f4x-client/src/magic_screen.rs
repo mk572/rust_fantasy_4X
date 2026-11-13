@@ -434,51 +434,95 @@ impl MagicUi {
 
     /// The four headings over the staves and the enchantment list. The background picture has them
     /// in English; the lettering is covered with the bar's own brown and drawn from the keys, in the
-    /// blackletter, in the colour each had.
+    /// blackletter, as the original had it: its colour, a light edge on the top and left and a dark
+    /// one on the bottom and right (measured from the picture).
     fn magic_headings(&self, app: &mut App, lay: &Layout, view: (f32, f32, f32)) {
-        // The bars, their middle, the key and the lettering's colour (read from the original).
-        const BARS: [(f32, f32, &str, (u8, u8, u8)); 4] = [
-            (13.0, 45.0, "magic.heading_mana", (190, 125, 20)),
-            (60.0, 45.0, "magic.heading_research", (56, 142, 56)),
-            (107.0, 45.0, "magic.heading_skill", (211, 28, 0)),
-            (172.0, 134.0, "magic.heading_enchantments", (85, 125, 166)),
+        /// A bar: where it starts, its width, the key, the font style, the left edge of the
+        /// lettering, the width the original's lettering had and its colour.
+        struct Bar(f32, f32, &'static str, usize, f32, f32, (u8, u8, u8), usize);
+        const BARS: [Bar; 4] = [
+            Bar(
+                13.0,
+                45.0,
+                "magic.heading_mana",
+                4,
+                20.0,
+                31.0,
+                (190, 125, 20),
+                5,
+            ),
+            Bar(
+                60.0,
+                45.0,
+                "magic.heading_research",
+                3,
+                61.0,
+                43.0,
+                (56, 142, 56),
+                0,
+            ),
+            Bar(
+                107.0,
+                45.0,
+                "magic.heading_skill",
+                4,
+                117.0,
+                24.0,
+                (211, 28, 0),
+                5,
+            ),
+            Bar(
+                172.0,
+                134.0,
+                "magic.heading_enchantments",
+                4,
+                172.0,
+                133.0,
+                (85, 125, 166),
+                5,
+            ),
         ];
-        let brown = |row: usize| {
-            if row == 0 {
-                Color::from_rgba(105, 73, 36, 255)
-            } else {
-                Color::from_rgba(97, 69, 36, 255)
-            }
+        // The bar's brown, row by row (the lettering sits on rows 69 to 75, its shadow on 76).
+        let brown = |row: usize| match row {
+            0 => Color::from_rgba(105, 73, 36, 255),
+            8 => Color::from_rgba(93, 65, 36, 255),
+            _ => Color::from_rgba(97, 69, 36, 255),
         };
-        for (x, w, key, (r, g, b)) in BARS {
-            for row in 0..8 {
+        for Bar(x, w, key, font, left, wanted, (r, g, b), keep) in BARS {
+            for row in 0..9 {
                 let at = lay.rect((x, 68.0 + row as f32, w, 1.0));
                 draw_rectangle(at.x, at.y, at.w, at.h, brown(row));
             }
-            let style = Style::flat(4, Color::from_rgba(r, g, b, 255))
+            let style = Style::flat(font, Color::from_rgba(r, g, b, 255))
                 .shadow()
                 .edge(Color::from_rgba(73, 56, 36, 255))
-                .center();
+                .align(crate::frame::Align::Left);
+            let light = Style::flat(font, Color::from_rgba(142, 97, 36, 255))
+                .align(crate::frame::Align::Left);
             let text = app.text(key);
-            let width = app.art.text_width(4, &text);
-            let letters = text.chars().count() as f32;
-            if width <= w - 2.0 || letters < 2.0 {
-                app.draw_styled(view, &style, &text, x + w / 2.0, 67.0);
+            let width = app.art.text_width(font, &text);
+            if width <= wanted + 1.0 {
+                app.draw_styled(view, &light, &text, left - 1.0, 67.0);
+                app.draw_styled(view, &style, &text, left, 68.0);
                 continue;
             }
-            // Too wide for its bar (Research): close the letters up until the word fits.
-            let tight = ((width - (w - 2.0)) / (letters - 1.0)).ceil();
-            let mut at = x + 1.0;
-            for letter in text.chars() {
+            // Wider than the original's word: close up one pixel at a few of the gaps, spread
+            // along the word and never in its first `keep` gaps (Overland's first letters were not closed up in the original), until it is as wide.
+            let letters: Vec<char> = text.chars().collect();
+            let gaps = letters.len().saturating_sub(1);
+            let first = keep.min(gaps);
+            let cuts = ((width - wanted).ceil().max(0.0) as usize).min(gaps - first);
+            let mut at = left;
+            for (i, letter) in letters.iter().enumerate() {
                 let one = letter.to_string();
-                app.draw_styled(
-                    view,
-                    &style.align(crate::frame::Align::Left),
-                    &one,
-                    at,
-                    67.0,
-                );
-                at += app.art.text_width(4, &one) - tight;
+                app.draw_styled(view, &light, &one, at - 1.0, 67.0);
+                app.draw_styled(view, &style, &one, at, 68.0);
+                at += app.art.text_width(font, &one);
+                let gap = i.saturating_sub(first);
+                let room = gaps - first;
+                if i >= first && cuts > 0 && (gap * cuts) / room != ((gap + 1) * cuts) / room {
+                    at -= 1.0;
+                }
             }
         }
     }

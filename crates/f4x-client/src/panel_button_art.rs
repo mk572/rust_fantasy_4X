@@ -136,7 +136,7 @@ fn sheen_label(app: &mut App, panel: Panel, sheen: &[u8], label: &str, size: Vec
             } else if ink(x - 1, y - 1) {
                 EMBOSS_DARK
             } else if ink(x + 1, y + 1) {
-                EMBOSS_LIGHT
+                emboss_light(panel)
             } else {
                 continue;
             };
@@ -152,6 +152,16 @@ fn sheen_label(app: &mut App, panel: Panel, sheen: &[u8], label: &str, size: Vec
 /// and to the left.
 const EMBOSS_DARK: Color = Color::new(0.08, 0.06, 0.1, 0.8);
 const EMBOSS_LIGHT: Color = Color::new(0.85, 0.85, 0.95, 0.35);
+/// The blue buttons of the magic screen (Diplomacy, Alchemy, Ok): a darker light edge, so the
+/// letters read better against the stone.
+const EMBOSS_LIGHT_BLUE: Color = Color::new(0.6, 0.62, 0.78, 0.35);
+
+fn emboss_light(panel: Panel) -> Color {
+    match panel {
+        Panel::BlueAlchemy | Panel::BlueOk => EMBOSS_LIGHT_BLUE,
+        _ => EMBOSS_LIGHT,
+    }
+}
 
 impl App {
     /// The button with its top left at `at`, labelled by the text key `key`; it moves a pixel while
