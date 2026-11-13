@@ -394,3 +394,9 @@ backgrnd	42	42	shared	icon_gold
 # (entries 0 to 4 the original's five, 5 to 9 the new colours) and `scripts/make_banner_colours.py` the rest.
 banner_flags	0	9	new_game
 backgrnd	73	73	shared	icon_gold_upkeep
+
+# The unit statistics popup's small pictures (`unitview.lbx`): the stat, bonus and resource
+# icons (5 to 27, 35 to 49); 28 to 34 are filed above. The ability icons (`special.lbx`, the
+# first 34 entries of `special2.lbx`) are `ability_NNN` here too (`Placer::place_used`).
+unitview	5	27	unit_statistics
+unitview	35	49	unit_statistics

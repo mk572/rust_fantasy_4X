@@ -133,10 +133,10 @@ impl Placer {
         // `SPECIAL2.LBX`, filed by the picture index of the original's `special_seg` (the
         // second file continues at 111). The rest of `SPECIAL2.LBX` is not an icon.
         match lbx {
-            "special" => return Some(format!("art/unit_ability/{entry:03}")),
+            "special" => return Some(format!("screens/unit_statistics/ability_{entry:03}")),
             "special2" if entry < ABILITY_ICONS_IN_SPECIAL2 => {
                 return Some(format!(
-                    "art/unit_ability/{:03}",
+                    "screens/unit_statistics/ability_{:03}",
                     entry + SPECIAL2_FIRST_ICON
                 ));
             }
@@ -403,15 +403,15 @@ mod tests {
         );
         assert_eq!(
             p.place("special", 5).as_deref(),
-            Some("art/unit_ability/005")
+            Some("screens/unit_statistics/ability_005")
         );
         assert_eq!(
             p.place("special2", 0).as_deref(),
-            Some("art/unit_ability/111")
+            Some("screens/unit_statistics/ability_111")
         );
         assert_eq!(
             p.place("special2", 33).as_deref(),
-            Some("art/unit_ability/144")
+            Some("screens/unit_statistics/ability_144")
         );
         assert_eq!(p.place("special2", 34), None);
         Ok(())
