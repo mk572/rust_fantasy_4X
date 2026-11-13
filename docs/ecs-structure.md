@@ -1,6 +1,6 @@
 # How game state is stored (and how that differs from the original)
 
-**Version: 0.0.6** (`Cargo.toml`). Saves and replays of another version of the game are refused (section 3.9).
+**Version: 0.0.7** (`Cargo.toml`). Saves and replays of another version of the game are refused (section 3.9).
 
 The original game keeps its world in fixed-size arrays of packed records and refers to
 things by array index. This project keeps it as entities with components, typed ids into
@@ -335,7 +335,7 @@ it has no city and no unit, as the table says.
   and `PlayerId`s are written as values. Everything that has a number in the content is written by that number (version 4): spells (the enchantments of units, cities and wizards, a hero's spells, an item's charges), item powers, prefab items, abilities, units, realms, races, buildings and retorts. The content files refer to each other by number only (`UnitDef.race`, `BuildingDef.races` and `requires`, `RaceDef.units`, the realm of a spell, an item power or a wizard's books, the spells, abilities and units of an effect rule, a hero template, the spell library of `rules_settings.ron`): the loader reads numbers and resolves no name, and a number that is no definition of its kind is a validation error. The `id` of an entry is a readable alias for the author and for the console; nothing in the game looks a definition up by it (`Registry` finds a definition by `id_numbered(n)` or `by_num(n)`; the console and the client's own tables match an alias with a small helper over `Registry::iter`). Code that has to name one definition writes its number with the alias beside it (`UnitId::new(169) /* demon */`, `spells.id_numbered(54) /* spell_lock */`, `Ability::new(24) /* flying */`) and `scripts/check_id_aliases.py` checks the alias; a rule that applies to many definitions is a tag on them in the data (`hireable` on a unit, the `gate` hook (argument `earth` or `astral`) and the `heroism` hook on their spells, `realm` and `holy` on a feature), not a constant in the code. Display names live only in the client (`crates/f4x-lang/content/text/<lang>/name/`, by number). The enchantments are `SpellId`s (`BattleUnit.enchantments`, the city and unit spell components, `has_global(player, SpellId)`); the Warp Creature variants are a `WarpKind` on the battle unit. The numbers of `abilities.ron` and the other tables are frozen (a saved game and the name tables depend on them; a new entry takes the next free number). A replay writes a spell as its number too.
   The map layers (terrain, minerals, roads, rivers, lakes, corruption) and the fog are written as grids; nodes, lairs, towers and volcanoes are feature entities.
 - A battle in progress is the `battle` field (`battle/save.rs`).
-- **Versions.** The first line of a save is `// f4x save, version 4, game 0.0.6, checksum <hex>`. The
+- **Versions.** The first line of a save is `// f4x save, version 4, game 0.0.7, checksum <hex>`. The
   loader reads the `version` and `game_version` fields before the rest and refuses a file of
   another layout, or a game version outside `OLDEST_COMPATIBLE_VERSION..=GAME_VERSION` (`save.rs`), with a plain message ("saved by 0.0.1, this is 0.0.4 (it reads saves from 0.0.2 to 0.0.3)"); a replay
   is checked the same way, through the snapshot it starts from.

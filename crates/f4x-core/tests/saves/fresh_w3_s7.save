@@ -1,7 +1,7 @@
-// f4x save, version 4, game 0.0.6, checksum 678feeb96ed848b3
+// f4x save, version 4, game 0.0.7, checksum 31d7f53bbca421f8
 (
     version: 4,
-    game_version: "0.0.6",
+    game_version: "0.0.7",
     seed: 7,
     draws: 242,
     turn: 1,
