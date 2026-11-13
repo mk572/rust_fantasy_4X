@@ -154,6 +154,12 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
                 let view = PlayerView::new(game, me);
                 units.iter().map(|&u| view.serial_of(u)).collect()
             };
+            // A party next to a city of its own is home: the raid is over. (A full city lets
+            // nobody in, and a party sent into it waits at its gate for ever: task 515.)
+            if distance(&PlayerView::new(game, me), pos, home).is_some_and(|d| d <= 1) {
+                ai.raiders.retain(|s| !serials.contains(s));
+                continue;
+            }
             // A party that cannot find its way home (cut off by guarded ground or the sea) gives
             // up the raid and is left to the army's rules.
             let reachable = PlayerView::new(game, me).can_reach(&units, home);

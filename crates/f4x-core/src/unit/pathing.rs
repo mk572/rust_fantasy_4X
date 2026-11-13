@@ -177,6 +177,45 @@ impl Game {
     /// excluding the start tile. Hostile tiles other than the destination are avoided.
     /// Returns `None` if there is no way there.
     pub fn find_path(&self, units: &[hecs::Entity], to: Position) -> Option<Vec<Position>> {
+        let path = self.search_path(units, to, false)?;
+        // A step into a square that has no room for the stack fails, and the order is lost at its
+        // edge for ever: when the path crosses one, search again without such squares. Looking at
+        // the squares of the path is cheap; the set of all full squares is not, and only a path
+        // like that needs it.
+        if self.path_crosses_full_square(units, &path, to) {
+            return self.search_path(units, to, true);
+        }
+        Some(path)
+    }
+
+    /// Whether a square of `path` other than the destination is full for the stack.
+    fn path_crosses_full_square(
+        &self,
+        units: &[hecs::Entity],
+        path: &[Position],
+        to: Position,
+    ) -> bool {
+        let room = self.max_tile().saturating_sub(units.len());
+        let mut count: Vec<(Position, usize)> =
+            path.iter().filter(|&&p| p != to).map(|&p| (p, 0)).collect();
+        if count.is_empty() {
+            return false;
+        }
+        for (_, (_, at)) in self.world.query::<(&crate::unit::Unit, &Position)>().iter() {
+            if let Some((_, n)) = count.iter_mut().find(|(p, _)| p == at) {
+                *n += 1;
+            }
+        }
+        count.iter().any(|&(_, n)| n > room)
+    }
+
+    /// The search of `find_path`, with the squares that are full for the stack left out or not.
+    fn search_path(
+        &self,
+        units: &[hecs::Entity],
+        to: Position,
+        avoid_full: bool,
+    ) -> Option<Vec<Position>> {
         let first = *units.first()?;
         let start = self.units().unit_position(first)?;
         let owner = self.units().unit_owner(first)?;
@@ -200,6 +239,13 @@ impl Game {
             hostile.contains(&next)
                 || (owner != crate::player::MONSTERS
                     && economy.lair_at(next).is_some_and(|l| !l.guards.is_empty()))
+        };
+        // Squares the stack cannot enter for want of room (its own units fill them): a path
+        // through one stalls at its edge for ever.
+        let full = if avoid_full {
+            economy.full_squares(units.len())
+        } else {
+            Default::default()
         };
         let at = |p: Position| p.y as usize * width as usize + p.x as usize;
         let square = |i: u32| Position {
@@ -244,7 +290,8 @@ impl Game {
                 for next in ring(self, here) {
                     // Hostile squares and guarded sites stop the stack: go round unless it is
                     // the destination.
-                    if next != to && sc.blocked(at(next), || stops(next)) {
+                    if (next != to && sc.blocked(at(next), || stops(next))) || full.contains(&next)
+                    {
                         continue;
                     }
                     let Some(step) = step_cost(here, next) else {
@@ -332,6 +379,7 @@ impl Game {
                 || (owner != crate::player::MONSTERS
                     && economy.lair_at(next).is_some_and(|l| !l.guards.is_empty()))
         };
+
         let at = |p: Position| p.y as usize * width as usize + p.x as usize;
         with_scratch(width as usize * height as usize, |sc| {
             let mut open = BinaryHeap::new();

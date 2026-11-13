@@ -362,6 +362,22 @@ impl Economy<'_> {
         (!defenders.is_empty() || hostile_city).then_some(defenders)
     }
 
+    /// Every square a stack of `stack` units cannot enter because units already stand there up to
+    /// the limit of a square (`StackFull`): one pass over the units, for a search that asks about
+    /// many squares. A path through such a square fails at the step into it.
+    pub fn full_squares(&self, stack: usize) -> crate::fast::FastSet<Position> {
+        let room = self.max_tile.saturating_sub(stack);
+        let mut count: crate::fast::FastMap<Position, usize> = Default::default();
+        for (_, (_, p)) in self.world.query::<(&crate::unit::Unit, &Position)>().iter() {
+            *count.entry(*p).or_default() += 1;
+        }
+        count
+            .into_iter()
+            .filter(|&(_, n)| n > room)
+            .map(|(p, _)| p)
+            .collect()
+    }
+
     /// Every square where [`Self::hostile_at`] would find something for `mover`: one pass over the
     /// units and cities, for a search that asks about many squares.
     pub fn hostile_squares(&self, mover: PlayerId) -> std::rc::Rc<crate::fast::FastSet<Position>> {

@@ -273,6 +273,30 @@ fn a_tile_holds_twenty_units() {
 }
 
 #[test]
+fn a_path_goes_round_a_square_that_has_no_room_for_the_stack() -> TestResult {
+    let mut g = world();
+    for _ in 0..g.max_tile() {
+        unit(&mut g, P0, 107 /* high_men_cavalry */, at(2, 1));
+    }
+    let mover = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 1));
+    let path = g.find_path(&[mover], at(4, 1)).ok_or("no path")?;
+    assert!(
+        !path.contains(&at(2, 1)),
+        "through the full square: {path:?}"
+    );
+    // The stack is not stopped at the edge of the full square: the order moves it.
+    let events = g.apply(Command::GoTo {
+        units: vec![mover],
+        to: at(4, 1),
+    });
+    assert!(
+        events.iter().any(|e| matches!(e, Event::UnitsMoved { .. })),
+        "{events:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn the_setting_lowers_the_units_a_tile_holds() {
     let mut g = world();
     g.settings.rules.max_tile = 12;
