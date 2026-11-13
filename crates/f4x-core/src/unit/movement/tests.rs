@@ -318,6 +318,28 @@ fn a_path_goes_round_a_square_that_has_no_room_for_the_stack() -> TestResult {
 }
 
 #[test]
+fn a_full_square_is_avoided_only_when_the_path_goes_through_it() -> TestResult {
+    let mut g = world();
+    let mover = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 1));
+    let free = g.find_path(&[mover], at(4, 1)).ok_or("no path")?;
+    // A full square off the route changes nothing: the path is the one found with room everywhere.
+    let off_route = at(2, 3);
+    assert!(!free.contains(&off_route), "{free:?}");
+    for _ in 0..g.max_tile() {
+        unit(&mut g, P0, 107 /* high_men_cavalry */, off_route);
+    }
+    assert_eq!(g.find_path(&[mover], at(4, 1)), Some(free));
+    // A full destination is still where the path ends: the stack is refused at the last step,
+    // which tells the player why, and no way round is looked for.
+    for _ in 0..g.max_tile() {
+        unit(&mut g, P0, 107 /* high_men_cavalry */, at(4, 1));
+    }
+    let path = g.find_path(&[mover], at(4, 1)).ok_or("no path")?;
+    assert_eq!(path.last(), Some(&at(4, 1)));
+    Ok(())
+}
+
+#[test]
 fn an_order_stopped_by_a_refused_step_says_why() -> TestResult {
     let mut g = world();
     let mover = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 1));
