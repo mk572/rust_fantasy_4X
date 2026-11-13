@@ -47,13 +47,8 @@ impl Game {
             events.extend(self.run_growth(player));
         }
         let stopper = self.time_stopper();
-        let mut units: Vec<_> = self
-            .units()
-            .all_units()
-            .into_iter()
-            .filter(|&u| self.units().unit_owner(u) == Some(player))
-            .collect();
-        self.sort_by_serial(&mut units);
+        // The player's own units, oldest first (not every unit of the game, sorted).
+        let units = self.units().player_units(player);
         for unit in units {
             // A unit in stasis cannot move, nor can any unit but the Time Stop wizard's.
             let moves = if self.unit_in_stasis(unit) || stopper.is_some_and(|s| s != player) {
@@ -174,15 +169,12 @@ impl Game {
 
     /// The player's cities in a fixed order.
     fn player_cities(&self, player: PlayerId) -> Vec<hecs::Entity> {
-        let mut cities: Vec<_> = self
-            .economy()
-            .cities()
+        // Oldest first, by the serial numbers: what `cities_of` gives.
+        self.economy()
+            .cities_of(player)
             .into_iter()
-            .map(|(e, ..)| e)
-            .filter(|&e| self.economy().city_owner(e) == Some(player))
-            .collect();
-        self.sort_by_serial(&mut cities);
-        cities
+            .map(|(e, _)| e)
+            .collect()
     }
 
     /// Round end, once per round after the last player: durations and world-wide processes run
