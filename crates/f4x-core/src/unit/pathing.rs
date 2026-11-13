@@ -2,6 +2,8 @@
 //!
 //! Tests: in unit/movement/tests.rs (`paths_go_around_water_...`, `a_square_has_eight_neighbours_...`, `a_walker_reaches_...`, `a_path_takes_as_many_turns_...`).
 
+mod grid;
+
 use f4x_def::half_int::HalfInt;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;

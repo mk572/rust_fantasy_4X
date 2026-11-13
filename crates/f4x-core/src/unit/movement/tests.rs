@@ -143,8 +143,8 @@ fn abilities_change_costs() {
     );
     assert_eq!(
         cost(&g, ghost, at(6, 2), at(7, 2)),
-        Err(MoveError::Impassable),
-        "but not on water"
+        Ok(HalfInt::from_raw(1)),
+        "and half a move on water too"
     );
     let scout = unit(&mut g, P0, 103 /* high_elf_pegasai */, at(1, 2));
     assert_eq!(
@@ -167,6 +167,27 @@ fn boats_stay_on_water() {
     assert_eq!(
         cost(&g, boat, at(8, 2), at(9, 2)),
         Err(MoveError::Impassable)
+    );
+}
+
+#[test]
+fn a_ship_with_wraith_form_crosses_land_for_half_a_move() {
+    let mut g = world();
+    let boat = unit(&mut g, P0, 38 /* warship */, at(7, 2));
+    g.grant_temp_ability(
+        crate::rules::exec::Target::Unit(boat),
+        Ability::new(49),
+        None,
+    );
+    assert_eq!(
+        cost(&g, boat, at(8, 2), at(9, 2)),
+        Ok(HalfInt::from_raw(1)),
+        "onto land"
+    );
+    assert_eq!(
+        cost(&g, boat, at(7, 2), at(8, 2)),
+        Ok(HalfInt::from_raw(1)),
+        "and on water"
     );
 }
 

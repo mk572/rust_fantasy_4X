@@ -73,7 +73,7 @@ pub enum Entry {
 
 pub(crate) const FULL_MOVE: HalfInt = HalfInt::from_int(1);
 /// What a step along a road costs.
-const ROAD_MOVE: HalfInt = HalfInt::from_raw(1);
+pub(crate) const ROAD_MOVE: HalfInt = HalfInt::from_raw(1);
 
 pub(crate) fn adjacent(width: u32, a: Position, b: Position) -> bool {
     if a.plane != b.plane || a == b {
@@ -98,6 +98,15 @@ pub struct StackTraits {
     pub sea_lift: bool,
 }
 
+/// What it costs to enter a square: see [`Economy::step_entry`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StepEntry {
+    /// The cost whatever the road.
+    Flat(HalfInt),
+    /// The cost of land; a road between the squares replaces it.
+    Land(HalfInt),
+}
+
 /// A unit's side of a step's cost: see [`Economy::step_profile`].
 pub struct StepProfile<'a> {
     /// The unit's owner, looked up once for the many steps a search costs.
@@ -111,7 +120,7 @@ pub struct StepProfile<'a> {
 /// The abilities a step's cost depends on, read off the unit's list once per search.
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct StepFlags {
-    road_walker: bool,
+    non_corporeal: bool,
     flier: bool,
     water_walker: bool,
     pathfinder: bool,
@@ -123,7 +132,7 @@ impl StepFlags {
     fn of(abilities: &[Ability]) -> Self {
         let has = |n: u16| abilities.contains(&Ability::new(n));
         Self {
-            road_walker: has(49),
+            non_corporeal: has(49),
             flier: has(24),
             water_walker: has(71),
             pathfinder: has(50),
@@ -240,6 +249,41 @@ impl Economy<'_> {
         to: Position,
         traits: StackTraits,
     ) -> Result<HalfInt, MoveError> {
+        let terrain_cost = match self.step_entry(profile, to, traits)? {
+            StepEntry::Flat(cost) => return Ok(cost),
+            StepEntry::Land(cost) => cost,
+        };
+        let Some(map) = self.map else {
+            return Err(MoveError::NoMap);
+        };
+        let from_road = map.plane(from.plane).has_road(from.x as i32, from.y as i32);
+        if !(from_road && map.plane(to.plane).has_road(to.x as i32, to.y as i32)) {
+            return Ok(terrain_cost);
+        }
+        // Roads halve the cost; enchanted roads (all roads on Myrror) make it nothing. The
+        // abilities that cap a cost cap it at one move at most, so a road step is not touched.
+        let magic = |p: Position| {
+            p.plane == Plane::Myrror
+                || map
+                    .plane(p.plane)
+                    .has_enchanted_road(p.x as i32, p.y as i32)
+        };
+        Ok(if magic(from) && magic(to) {
+            HalfInt::ZERO
+        } else {
+            ROAD_MOVE
+        })
+    }
+
+    /// What it costs the unit to enter `to`, apart from where it comes from: a flat cost that no
+    /// road changes, or the cost of land (with the abilities that cap it), which a road between
+    /// the squares replaces.
+    pub(crate) fn step_entry(
+        &self,
+        profile: &StepProfile,
+        to: Position,
+        traits: StackTraits,
+    ) -> Result<StepEntry, MoveError> {
         let stack_flies = traits.flies;
         let map = self.map.ok_or(MoveError::NoMap)?;
         let grid = map.plane(to.plane);
@@ -256,15 +300,17 @@ impl Economy<'_> {
             .ok_or(MoveError::OffMap)?;
         let is_water = terrain.class == TerrainClass::Ocean;
 
-        if flags.road_walker && !is_water {
-            return Ok(ROAD_MOVE);
+        // Half a move onto any square, water too (a ship with Wraith Form crosses land), and no
+        // road helps or hinders it.
+        if flags.non_corporeal {
+            return Ok(StepEntry::Flat(ROAD_MOVE));
         }
         if stack_flies
             || def.movement == MovementType::Flying
             || flags.flier
             || (is_water && flags.water_walker)
         {
-            return Ok(FULL_MOVE);
+            return Ok(StepEntry::Flat(FULL_MOVE));
         }
         match def.movement {
             MovementType::Sailing => {
@@ -274,21 +320,21 @@ impl Economy<'_> {
                         .city_at(to)
                         .is_some_and(|c| self.city_owner(c) == owner)
                 {
-                    Ok(FULL_MOVE)
+                    Ok(StepEntry::Flat(FULL_MOVE))
                 } else {
                     Err(MoveError::Impassable)
                 };
             }
-            MovementType::Swimming if is_water => return Ok(FULL_MOVE),
+            MovementType::Swimming if is_water => return Ok(StepEntry::Flat(FULL_MOVE)),
             _ => {}
         }
         if is_water {
             // Land units ride a ship in their stack for nothing, or board one at the target.
             if traits.sea_lift {
-                return Ok(HalfInt::ZERO);
+                return Ok(StepEntry::Flat(HalfInt::ZERO));
             }
             return if owner.is_some_and(|o| self.ship_room_at(to, o)) {
-                Ok(FULL_MOVE)
+                Ok(StepEntry::Flat(FULL_MOVE))
             } else {
                 Err(MoveError::Impassable)
             };
@@ -297,21 +343,6 @@ impl Economy<'_> {
             return Err(MoveError::Impassable);
         }
         let mut cost = HalfInt::from_int(i32::from(terrain.move_cost).max(1));
-        let from_road = map.plane(from.plane).has_road(from.x as i32, from.y as i32);
-        if from_road && grid.has_road(to.x as i32, to.y as i32) {
-            // Roads halve the cost; enchanted roads (all roads on Myrror) make it nothing.
-            let magic = |p: Position| {
-                p.plane == Plane::Myrror
-                    || map
-                        .plane(p.plane)
-                        .has_enchanted_road(p.x as i32, p.y as i32)
-            };
-            cost = if magic(from) && magic(to) {
-                HalfInt::ZERO
-            } else {
-                ROAD_MOVE
-            };
-        }
         if flags.pathfinder || traits.pathfinding {
             cost = cost.min(ROAD_MOVE);
         }
@@ -323,7 +354,7 @@ impl Economy<'_> {
         {
             cost = cost.min(FULL_MOVE);
         }
-        Ok(cost)
+        Ok(StepEntry::Land(cost))
     }
 
     /// The unit of the stack that carries it through the air (Wind Walking), if any.

@@ -83,7 +83,7 @@ Rejection reasons are typed: `FoundCity(FoundCityError)`, `Move(MoveError)`,
 
 | Mover | Cost |
 |---|---|
-| Non-corporeal, onto land | 1 |
+| Non-corporeal (a ship made so too), onto any tile, water included | 1 |
 | Flying, or in a stack carried by a wind-walker | 2 on any tile, water included |
 | Sailing | 2 on ocean or on a city of its owner; otherwise impossible |
 | Swimming | 2 on ocean; on land as walking |

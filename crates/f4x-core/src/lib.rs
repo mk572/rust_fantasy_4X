@@ -15,6 +15,7 @@ pub mod hero;
 pub mod hook;
 pub mod item;
 pub mod map;
+pub mod path_grid;
 pub mod player;
 pub mod rules;
 pub mod spell;
