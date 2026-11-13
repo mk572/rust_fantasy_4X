@@ -123,11 +123,16 @@ impl Game {
             .ok_or(TargetError::CircleFull)
     }
 
-    pub(crate) fn word_of_recall(&mut self, caster: crate::player::PlayerId, unit: hecs::Entity) {
-        if let Ok(to) = self.recall_destination(caster, unit) {
-            let _ = self.world.insert_one(unit, to);
-            self.explore(caster, to, crate::map::fog::sight_for(1));
-        }
+    /// Send the unit to the summoning circle, or say why it cannot go (nothing is changed then).
+    pub(crate) fn word_of_recall(
+        &mut self,
+        caster: crate::player::PlayerId,
+        unit: hecs::Entity,
+    ) -> Result<(), TargetError> {
+        let to = self.recall_destination(caster, unit)?;
+        let _ = self.world.insert_one(unit, to);
+        self.explore(caster, to, crate::map::fog::sight_for(1));
+        Ok(())
     }
 
     /// Where Plane Shift would take the stack `unit` stands in, or why it cannot go:
@@ -378,6 +383,62 @@ mod tests {
             47, /* word_of_recall */
             Target::Unit(far)
         )));
+        Ok(())
+    }
+
+    #[test]
+    fn a_word_of_recall_that_fails_when_it_comes_to_it_returns_its_mana_and_says_why() -> TestResult
+    {
+        let mut g = world();
+        let home = at(Plane::Myrror, 9, 9);
+        g.wizard_mut(P0)
+            .ok_or("wizard_mut is missing")?
+            .put(Some(crate::wizard::fortress::SummonAt(home)));
+        let far_square = at(Plane::Arcanus, 1, 1);
+        let far = walker(&mut g, far_square);
+        // The circle is full by the time the spell resolves.
+        for _ in 0..crate::unit::MAX_TILE_LIMIT {
+            walker(&mut g, home);
+        }
+        let spell = g
+            .content
+            .rules
+            .spells
+            .id_numbered(47 /* word_of_recall */)
+            .ok_or("no word_of_recall")?;
+        let before = g.player(P0).ok_or("no player")?.treasury().mana;
+        let paid = g.casting_cost_with_extra(P0, spell, 0);
+        g.treasury_mut(P0).ok_or("no treasury")?.mana -= paid;
+        let events = g.resolve_cast(P0, spell, Some(Target::Unit(far)));
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                Event::SpellFailed {
+                    reason: crate::spell::target_error::TargetError::CircleFull,
+                    refunded,
+                    ..
+                } if *refunded == paid
+            )),
+            "{events:?}"
+        );
+        assert_eq!(g.player(P0).ok_or("no player")?.treasury().mana, before);
+        assert_eq!(g.units().unit_position(far), Some(far_square));
+        // No circle at all is told apart from a full one.
+        g.wizard_mut(P0)
+            .ok_or("wizard_mut is missing")?
+            .put(None::<crate::wizard::fortress::SummonAt>);
+        g.treasury_mut(P0).ok_or("no treasury")?.mana -= paid;
+        let events = g.resolve_cast(P0, spell, Some(Target::Unit(far)));
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                Event::SpellFailed {
+                    reason: crate::spell::target_error::TargetError::NoCircle,
+                    ..
+                }
+            )),
+            "{events:?}"
+        );
         Ok(())
     }
 

@@ -245,7 +245,12 @@ impl EffectHost for GameHost<'_> {
                 .any(|a| a == crate::spell::special::RECALL_ANYONE)
         {
             if let Target::Unit(unit) = who {
-                self.game.word_of_recall(ctx.owner, unit);
+                // `resolve_cast` checked the circle just before: a failure here is a bug.
+                let sent = self.game.word_of_recall(ctx.owner, unit);
+                debug_assert!(
+                    sent.is_ok(),
+                    "Word of Recall failed after its check: {sent:?}"
+                );
             }
         }
         if hook == crate::spell::special::PLANE_SHIFT {
@@ -910,17 +915,22 @@ impl Game {
                 counter,
             }];
         }
-        // Plane Shift is checked again when it comes to it: the square it leads to can have
-        // been taken since the spell was chosen. Then it fails and its mana comes back.
-        if let (true, Some(Target::Unit(unit))) = (
-            self.content
-                .rules
-                .spells
-                .get(spell)
-                .has_hook(crate::spell::special::PLANE_SHIFT),
-            target,
-        ) {
-            if let Err(reason) = self.plane_shift_destination(unit) {
+        // Plane Shift and Word of Recall are checked again when it comes to it: the square or
+        // the summoning circle they lead to can have been taken since the spell was chosen.
+        // Then the spell fails and its mana comes back.
+        if let Some(Target::Unit(unit)) = target {
+            let rules = self.content.rules.spells.get(spell);
+            let late = if rules.has_hook(crate::spell::special::PLANE_SHIFT) {
+                self.plane_shift_destination(unit).err()
+            } else if rules.has_hook_arg(
+                crate::spell::special::RECALL,
+                crate::spell::special::RECALL_ANYONE,
+            ) {
+                self.recall_destination(player, unit).err()
+            } else {
+                None
+            };
+            if let Some(reason) = late {
                 let refunded = self.casting_cost_with_extra(player, spell, extra);
                 if let Some(t) = self.treasury_mut(player) {
                     t.mana += refunded;
