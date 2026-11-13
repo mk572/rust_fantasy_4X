@@ -6,7 +6,9 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use f4x_extract::{art, audio, font_tool, refile, screens, spell_art, unit_art, wizard_art};
+use f4x_extract::{
+    art, audio, font_tool, pack_build, refile, screens, spell_art, unit_art, wizard_art,
+};
 
 /// The units', spells' and wizards' pictures.
 type TableSet = (
@@ -16,10 +18,16 @@ type TableSet = (
 );
 
 const USAGE: &str = "usage:
-  f4x-extract art <game-dir> [out-dir]    decode the original game's pictures to PNG
-                                          (default out: assets-local/art)
+  f4x-extract art <game-dir> [out-dir] [--loose]
+                                          decode the original game's pictures, into sprite packs (--loose:
+                                          leave them as PNG files; default out: assets-local/art)
   f4x-extract audio <game-dir> [out-dir]  the original's effects as OGG (needs oggenc or ffmpeg), its music
                                           as XMI (default out: assets-local/audio)
+  f4x-extract pack [root] [--keep]        put the loose pictures under root (default: assets-local) into
+                                          sprite packs, one per folder (units by race), and write packs.tsv;
+                                          --keep leaves the loose files
+  f4x-extract unpack [root]               the reverse: every pack back to loose PNG files, for the scripts
+                                          that make or change pictures (pack again afterwards)
   f4x-extract refile [out-dir]            move already extracted pictures to where `art` would put them
                                           now (default: assets-local/art)
   f4x-extract font-chars | font-coverage | font-bmfont
@@ -36,13 +44,15 @@ fn main() -> ExitCode {
     let result = match args.first().map(String::as_str) {
         Some("art") => match args.get(1) {
             Some(game) => tables().and_then(|(units, spells, wizards)| {
-                art::extract(
-                    &PathBuf::from(game),
-                    &dir(2, "assets-local/art"),
-                    &units,
-                    &spells,
-                    &wizards,
-                )
+                let out = dir(2, "assets-local/art");
+                art::extract(&PathBuf::from(game), &out, &units, &spells, &wizards)?;
+                if args.iter().any(|a| a == "--loose") {
+                    return Ok(());
+                }
+                let root = out.parent().unwrap_or(Path::new("."));
+                let r = pack_build::pack_tree(root, Path::new("crates/f4x-def/content"), false)?;
+                println!("{} sprite packs ({} pictures)", r.packs, r.pictures);
+                Ok(())
             }),
             None => Err(USAGE.to_string()),
         },
@@ -50,6 +60,27 @@ fn main() -> ExitCode {
             Some(game) => audio::extract(&PathBuf::from(game), &dir(2, "assets-local/audio")),
             None => Err(USAGE.to_string()),
         },
+        Some("pack") => {
+            let root = args
+                .iter()
+                .skip(1)
+                .find(|a| !a.starts_with("--"))
+                .map_or_else(|| PathBuf::from("assets-local"), PathBuf::from);
+            let keep = args.iter().any(|a| a == "--keep");
+            pack_build::pack_tree(&root, Path::new("crates/f4x-def/content"), keep).map(|r| {
+                println!(
+                    "{} packs, {} pictures, {} KB of PNG files became {} KB",
+                    r.packs,
+                    r.pictures,
+                    r.bytes_before / 1024,
+                    r.bytes_after / 1024
+                );
+            })
+        }
+        Some("unpack") => {
+            let root = dir(1, "assets-local");
+            pack_build::unpack_tree(&root).map(|n| println!("{n} pictures written as files"))
+        }
         Some("refile") => tables().and_then(|(units, spells, wizards)| {
             let placer = screens::Placer::new(screens::rules()?, &units, &spells, &wizards);
             let moved = refile::refile(&dir(1, "assets-local/art"), &placer)?;

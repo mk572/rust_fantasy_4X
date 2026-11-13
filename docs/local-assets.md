@@ -32,6 +32,36 @@ unit art to `assets-local/art/units/<unit id>/` and a spell's pictures to `asset
 `map/tiles/types.tsv` mapping terrain type -> tile, `map/tiles/sheet.png` overview).
 Format code: `crates/f4x-tools/src/{lbx,image,art}.rs`. Palettes, fonts, banner recolouring and where each file is used: [`extract-art.md`](extract-art.md).
 
+### Sprite packs
+
+`f4x-extract art` ends by packing the pictures under `art/` (`--loose` leaves them as PNG files).
+A pack is one file for one folder: a table of picture names and rectangles, then one or more PNG
+sheets of at most 2048 x 2048 pixels (`crates/f4x-client/extract/src/pack.rs` has the layout). A unit's
+66 pictures are one sheet. Where they go:
+
+- a unit folder `art/units/<unit>/` becomes `art/units/<race>/<unit>.pack`, so `art/units/high_elf/high_elf_spearmen.pack`
+  holds every picture of the High Elf Spearmen. The race is the unit's race in `units.ron`; a unit without
+  one goes to `hero/`, `ship/` (trireme, galley, warship) or `fantastic/` (summoned creatures, the catapult);
+- any other folder `art/<folder>/` goes to `art/<folder>.pack` beside it (`art/spells/fire_bolt.pack`,
+  `art/map/tiles/arcanus/shore.pack`);
+- `packs.tsv` in `assets-local/` lists each folder and its pack. The client reads it at start and opens a
+  pack when a picture of its folder is first asked for; a picture no pack has is read from the loose file, so
+  a mixed tree works. The names the game asks for do not change.
+
+Not packed: `screens/` (each picture is large already), `art/fonts/`, and `neutral/`, `palette-swap/`, `shots/`
+(working files of scripts and the author, never read by the client).
+
+```
+f4x-extract pack [assets-local] [--keep]   pack every loose folder (a loose file replaces the same name in its pack)
+f4x-extract unpack [assets-local]          every pack back to PNG files, for the scripts below
+```
+
+Scripts that make or change pictures (`make_banner_colours.py`, `make_spell_art.py`, `make_banner_flags.py`,
+`palette_swap.py`, `grey_neutral.py`) and `f4x-extract refile` work on loose files: `unpack`, run the script,
+`pack` again. Every pack is read back and compared pixel for pixel before a loose file is deleted. Measured
+on 13 November 2026: `art/` went from 19,414 files (108 MB on disk) to 407 files (22 MB); the packs hold
+21,809 pictures in 13 MB. `screens/` is still 3,815 loose files (35 MB).
+
 ## Sound and music: `assets-local/audio/`
 
 ```

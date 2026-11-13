@@ -6,7 +6,7 @@
 //! client does not link `png` or `fontdue`.
 //!
 //! Tests: in the modules that have logic apart from files (`art`, `audio`, `image`, `lbx`,
-//! `refile`, `screens`, `sound`, `spell_art`).
+//! `pack`, `pack_build`, `refile`, `screens`, `sound`, `spell_art`).
 
 #[cfg(feature = "extract")]
 pub mod accent;
@@ -26,6 +26,9 @@ pub mod image;
 pub mod lbx;
 #[cfg(feature = "extract")]
 pub mod map_art;
+pub mod pack;
+#[cfg(feature = "extract")]
+pub mod pack_build;
 #[cfg(feature = "extract")]
 pub mod refile;
 #[cfg(feature = "extract")]

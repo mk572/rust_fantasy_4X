@@ -72,6 +72,7 @@ mod newgame_picks;
 mod offer_prompt;
 mod options_screen;
 mod outpost_screen;
+mod pack_set;
 mod page;
 mod page_turn;
 mod panel_button_art;

@@ -386,4 +386,7 @@ place under `assets-unused/` beside `assets-local/` (git-ignored like it), and `
 (`../assets-unused/screens/...`; the client would still find one it asks for). They stay for
 reference and as the sources of `scripts/button_text_free.py`, which looks there when a picture is no
 longer in `assets-local/`. `scripts/unused_art.py` lists candidates from a trace of the pictures the
-client reads (`F4X_TRACE_ART=FILE`). `make_app.sh` copies `assets-local` only, so the app leaves them out.
+client reads (`F4X_TRACE_ART=FILE`); it also works with packs, because the trace is written where a
+picture is asked for. A trace over every screenshot flag and a battle with each spell's effect (13 November
+2026) left 692 candidates, nearly all drawn by computed index (spell effects, cityscape buildings, walls,
+the intro): not proof. Only `cmbtwall` (64 pictures, no code loads them) was moved. `make_app.sh` copies `assets-local` only, so the app leaves them out.

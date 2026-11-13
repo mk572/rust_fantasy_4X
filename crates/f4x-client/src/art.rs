@@ -536,9 +536,8 @@ impl Art {
     pub fn river_overlay(&mut self, terrain_type: usize) -> Option<&Texture2D> {
         if !self.river_overlays.contains_key(&terrain_type) {
             let tex = self.type_tiles.get(terrain_type).and_then(|&tile| {
-                let bytes =
-                    std::fs::read(self.dir.join(self.tile_path(terrain_type, tile))).ok()?;
-                let mut img = Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()?;
+                let mut img =
+                    read_image_at_one_scale(&self.dir, &self.tile_path(terrain_type, tile))?;
                 for px in img.bytes.as_chunks_mut::<4>().0.iter_mut() {
                     let water = i32::from(px[2]) > i32::from(px[0]) + 40
                         && i32::from(px[2]) > i32::from(px[1]) + 25;
@@ -980,9 +979,23 @@ fn read_image(dir: &Path, relative: &Path) -> Option<Image> {
             return Some(image);
         }
     }
-    let bytes = std::fs::read(dir.join(relative)).ok()?;
-    let image = Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()?;
+    let image = match crate::pack_set::read(dir, relative) {
+        Some(image) => image,
+        None => {
+            let bytes = std::fs::read(dir.join(relative)).ok()?;
+            Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()?
+        }
+    };
     Some(enlarged(image, usize::from(scale)))
+}
+
+/// A picture as it is stored, from a sprite pack or else the loose file, at the original's size.
+fn read_image_at_one_scale(dir: &Path, relative: &Path) -> Option<Image> {
+    if let Some(image) = crate::pack_set::read(dir, relative) {
+        return Some(image);
+    }
+    let bytes = std::fs::read(dir.join(relative)).ok()?;
+    Image::from_file_with_format(&bytes, Some(ImageFormat::Png)).ok()
 }
 
 /// With `F4X_TRACE_ART=FILE` in the environment, every picture file the game reads is appended to

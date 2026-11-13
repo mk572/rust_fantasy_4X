@@ -76,7 +76,8 @@ Where the growth comes from:
    the largest item (70% of the total), and the only one that would change the picture if shrunk.
    Levers, if wanted: a lower OGG quality or mono, another codec (only what `quad-snd` can decode: not checked), or play the notes live from a bundled synthesiser (a software MT-32 or a General MIDI
    soundfont, which needs a licence check, see `docs/installer-design.md`).
-2. **Pictures are one file per frame.** The `.LBX` stores paletted frames (not measured how compact); we write each
+2. **Pictures were one file per frame; the art is now in sprite packs** (task 471, 13 November 2026: `art/` 19,414 files
+   and 108 MB on disk became 407 files and 22 MB; `docs/local-assets.md`). What follows is the measurement before. The `.LBX` stores paletted frames (not measured how compact); we wrote each
    frame as its own 8-bit RGBA PNG (checked: `figure_2_03.png`, 28 x 30, RGBA). Roughly 25,000 files that
    average 1 to 6 KB. The real bytes are 57 MB, but a file takes whole 4 KB blocks on disk, so `du` reports
    139 MB for the same files. An archive or a few sprite sheets would remove that overhead; the gain is about

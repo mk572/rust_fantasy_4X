@@ -51,6 +51,7 @@ cp -R crates/f4x-client/content "$app/Contents/Resources/crates/f4x-client/conte
 [ -d content-local ] && cp -R content-local "$app/Contents/Resources/content-local"
 [ -d assets-local/art ] && cp -R assets-local/art "$app/Contents/Resources/assets-local/art"
 [ -f assets-local/index.tsv ] && cp assets-local/index.tsv "$app/Contents/Resources/assets-local/index.tsv"
+[ -f assets-local/packs.tsv ] && cp assets-local/packs.tsv "$app/Contents/Resources/assets-local/packs.tsv"
 [ -d assets-local/screens ] && cp -R assets-local/screens "$app/Contents/Resources/assets-local/screens"
 [ -d assets-local/audio ] && cp -R assets-local/audio "$app/Contents/Resources/assets-local/audio"
 

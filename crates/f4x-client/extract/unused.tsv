@@ -96,3 +96,4 @@ vortex	2	2	main_menu/button_hall_of_fame
 vortex	3	3	main_menu/button_quit
 vortex	4	4	main_menu/button_new_game
 vortex	5	5	main_menu/button_load_game
+cmbtwall	0	63	combat/cmbtwall_unknown

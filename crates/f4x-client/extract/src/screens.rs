@@ -108,13 +108,16 @@ impl Placer {
 
     /// Where a picture goes, relative to `assets-local/` and without the frame suffix
     /// (`<place>_<frame>.png`), or `None` to leave it in `art/<lbx>/`. A picture of `unused.tsv`
-    /// goes to the same place in `assets-unused/`, beside `assets-local/`.
+    /// goes to the same place in `assets-unused/`, beside `assets-local/` (`art/<lbx>/NNN` when it
+    /// has none).
     pub fn place(&self, lbx: &str, entry: usize) -> Option<String> {
-        let place = self.place_used(lbx, entry)?;
+        let place = self.place_used(lbx, entry);
         if self.unused.iter().any(|(l, e)| l == lbx && *e == entry) {
+            // One that has no place of its own stays under its file's name, as `art/<lbx>/NNN`.
+            let place = place.unwrap_or_else(|| format!("art/{lbx}/{entry:03}"));
             return Some(format!("{UNUSED_FOLDER}/{place}"));
         }
-        Some(place)
+        place
     }
 
     fn place_used(&self, lbx: &str, entry: usize) -> Option<String> {
@@ -334,7 +337,7 @@ mod tests {
         for (lbx, entry) in list {
             let place = p.place(&lbx, entry).unwrap_or_default();
             assert!(
-                place.starts_with("../assets-unused/screens/"),
+                place.starts_with("../assets-unused/"),
                 "{lbx} {entry}: {place}"
             );
         }
