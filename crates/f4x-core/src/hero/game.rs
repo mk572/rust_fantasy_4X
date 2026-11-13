@@ -204,7 +204,11 @@ impl Game {
         self.world.spawn((serial, hero, state, Experience(xp)))
     }
 
-    /// A random hero type the wizard can be offered or summon (`Pick_Random_Hero`).
+    /// A random hero type the wizard can be offered or summon (`Pick_Random_Hero`). `None` has
+    /// one meaning: the draws (10, or 100 for a free hero) found nobody who is free, within the
+    /// wizard's fame and with the books the hero needs. That is a chance outcome of the original's
+    /// rule, not a fault: the callers offer nothing (`player/offer.rs`) or leave the prisoner out
+    /// (`feature/lair.rs`, where `SiteCleared` says `prisoner: false`).
     pub fn pick_hero(&mut self, player: PlayerId, zero_cost: bool, class: Class) -> Option<usize> {
         let standing = self.units().hero_standing(player);
         let states = self.units().hero_states();
