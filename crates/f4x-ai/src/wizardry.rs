@@ -958,7 +958,8 @@ fn upkeep_ok(view: &PlayerView, def: &SpellDef) -> bool {
 
 /// Resurrection: the original weighs it highest when the wizard has a free place for a hero and
 /// one lies dead. The last of the raisable heroes is raised (`ai_resurrection_pick`); a cast that
-/// is paid over turns picks its hero when it is done (`resolve_paid`). Returns whether it began.
+/// is paid over turns picks its hero when it is done (`resolve_paid`). Returns whether it began: a
+/// cast the game refuses is not begun, and the wizard goes on to its other spells.
 fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
     let me = ai.player;
     let kind = {
@@ -996,8 +997,7 @@ fn resurrect(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) -> bool {
         spell,
         target: Some(Target::Hero(kind)),
     };
-    ai.order(game, command, events);
-    true
+    ai.send(game, command, events).is_ok()
 }
 
 fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
@@ -1013,6 +1013,7 @@ fn cast(ai: &Ai, game: &mut Game, events: &mut Vec<Event>) {
             .is_some_and(|c| matches!(kind(view.spell(c.spell)), Kind::Summon | Kind::SummonHero))
     };
     if summoning {
+        // Whether the room is made does not matter here (the cast is already begun); the next turn tries again.
         crate::garrison::make_room(ai, game, events);
     }
     let choice: Option<(SpellId, Option<Target>)> = {
@@ -1335,6 +1336,29 @@ mod tests {
         ] {
             assert_eq!(kind_of(id)?, Kind::Other, "{id}");
         }
+        Ok(())
+    }
+
+    #[test]
+    fn a_banished_wizard_does_not_begin_resurrection_and_so_goes_on_to_other_spells() -> TestResult
+    {
+        let mut g = fresh_game()?;
+        let ai = Ai::new(P1);
+        let resurrection = f4x_def::rules::SpellId::new(133) /* resurrection */;
+        treasury(&mut g, P1)?.mana = f4x_def::half_int::HalfInt::from_int(5_000);
+        let hero = g.hire_hero(P1, 1).map_err(|e| format!("{e:?}"))?;
+        g.cheat_slay_unit(hero);
+        g.cheat_learn_spell(P1, resurrection);
+        g.wizard_mut(P1)
+            .ok_or("player 1 is a wizard")?
+            .put(Some(f4x_core::wizard::fortress::Banishment { by: None }));
+        let mut events = Vec::new();
+        assert!(!resurrect(&ai, &mut g, &mut events), "{events:?}");
+        assert!(g
+            .wizard(P1)
+            .ok_or("player 1 is a wizard")?
+            .casting()
+            .is_none());
         Ok(())
     }
 

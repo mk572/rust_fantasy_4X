@@ -562,7 +562,8 @@ fn gift(
 /// How a wizard answers a threat of the human (`Threaten to Attack`, `docs/diplomacy.md` section 4):
 /// `hidden + relation + mood + threat + Random(100) + Random(100)`; below 0 it declares war; 0 to
 /// 89 it refuses; 90 to 199 it pays `25 * (2..9)` gold (at most what it has) and yields; 200 or
-/// more it gives a spell instead and yields. Returns whether the wizard yields.
+/// more it gives a spell instead and yields. Returns whether the wizard yields: a payment or gift
+/// the game refuses (a banished wizard gives nothing) is a refusal.
 fn answer_threat(game: &mut Game, judge: PlayerId, asker: PlayerId) -> bool {
     let stance = game
         .diplomacy
@@ -582,7 +583,12 @@ fn answer_threat(game: &mut Game, judge: PlayerId, asker: PlayerId) -> bool {
     };
     let score =
         stance.hidden + relation + mood + threat + game.roll(100) as i32 + game.roll(100) as i32;
+    // A gift the game refuses (a banished wizard gives nothing) is not a yield: the wizard
+    // refuses, and no payment is claimed that did not happen.
+    let given = |events: Vec<Event>| !events.iter().any(|e| matches!(e, Event::Rejected(_)));
     if score < 0 {
+        // The war may be refused as well (a banished wizard starts none); either way the answer
+        // to the threat is no.
         game.apply(Command::Diplomacy(DiplomacyCommand::DeclareWar {
             player: judge,
             on: asker,
@@ -593,27 +599,24 @@ fn answer_threat(game: &mut Game, judge: PlayerId, asker: PlayerId) -> bool {
     } else if score < 200 {
         let gold = game.player(judge).map_or(0, |p| p.treasury().gold.floor());
         let pay = (25 * (2 + game.roll(8) as i32)).min(gold / 25 * 25);
-        if pay > 0 {
-            game.apply(Command::Diplomacy(DiplomacyCommand::GiveGold {
+        pay <= 0
+            || given(game.apply(Command::Diplomacy(DiplomacyCommand::GiveGold {
                 from: judge,
                 to: asker,
                 amount: pay,
-            }));
-        }
-        true
+            })))
     } else {
         let spell = spell_swap(game, judge, asker).and_then(|k| match k {
             ProposalKind::Exchange { give, .. } => Some(give),
             _ => None,
         });
-        if let Some(spell) = spell {
-            game.apply(Command::Diplomacy(DiplomacyCommand::GiveSpell {
+        spell.is_none_or(|spell| {
+            given(game.apply(Command::Diplomacy(DiplomacyCommand::GiveSpell {
                 from: judge,
                 to: asker,
                 spell,
-            }));
-        }
-        true
+            })))
+        })
     }
 }
 
@@ -1113,6 +1116,40 @@ mod tests {
             outcomes.insert((g.treaty(HUMAN, AI) == Treaty::War, paid));
         }
         assert!(outcomes.len() >= 2, "{outcomes:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_banished_wizard_cannot_pay_and_so_does_not_yield_to_a_threat() -> TestResult {
+        let mut paid_by_the_free_wizard = 0;
+        for seed in 0..80u64 {
+            let rich = |g: &mut Game| -> TestResult {
+                g.treasury_mut(AI).ok_or("the AI has a treasury")?.gold =
+                    f4x_def::half_int::HalfInt::from_int(500);
+                Ok(())
+            };
+            // The same seed, the same dice: the wizard that is not banished pays.
+            let mut free = game_seeded(seed);
+            rich(&mut free)?;
+            let pays = answer_threat(&mut free, AI, HUMAN)
+                && free.player(AI).ok_or("the AI exists")?.treasury().gold < 500;
+            let mut g = game_seeded(seed);
+            rich(&mut g)?;
+            g.wizard_mut(AI)
+                .ok_or("the AI is a wizard")?
+                .put(Some(f4x_core::wizard::fortress::Banishment { by: None }));
+            let yields = answer_threat(&mut g, AI, HUMAN);
+            assert_eq!(
+                g.player(AI).ok_or("the AI exists")?.treasury().gold,
+                500,
+                "seed {seed}"
+            );
+            if pays {
+                paid_by_the_free_wizard += 1;
+                assert!(!yields, "seed {seed}: yielded without paying");
+            }
+        }
+        assert!(paid_by_the_free_wizard > 0, "no seed made the wizard pay");
         Ok(())
     }
 
