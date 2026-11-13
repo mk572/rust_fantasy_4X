@@ -492,6 +492,7 @@ original task numbers. Newest work is merged in ascending order by number.
 | P34 | Rules | (done) Larger tiles: up to 20 units on a square (was planned item 34) |
 | P35 | Content | (skipped) Palette-swap wizards: variants of the 14 ready-made wizards (was planned item 35) |
 | P47 | Meta | (done) Game settings, stage 3: the advanced screen and the easy custom settings (was planned item 47) |
+| P48 | Meta | (done) Game settings, stage 4: no Myrror, hardcore mode, larger stacks and other hard settings (was planned item 48) |
 
 ## Descriptions
 
@@ -1196,3 +1197,9 @@ new-game setting with three values: **off** (banishment is final: the wizard is 
 wizards** (as in the original). Store it in the game settings saved with the game (new field,
 `serde(default)` = all wizards), check it in `capture_city` where banishment is decided, and
 mention it in the new-game screen (T10, T75).
+
+**P48. (done) Game settings, stage 4.** Closed on 14 November 2026 at the user's request: everything in it is covered elsewhere, except the check of a raised city size cap, which moved into task 590. Where each part went: **no Myrror** is task 588; **hardcore mode** is planned item 8 (still open in `PLANNED.md`); **larger unit stacks** are done as far as the square goes (task P34, `max_tile`), a lower army limit is task 589, and a larger battle side is still only the design of `large-stacks.md`; **a raised city size cap** is task 590 (the setting, with the checks the item named: growth tables, art for larger cities, balance); **more than four opponents** is task P3; **per-event switches** are in section 6 of `game-settings.md` and the existing event settings (`random_events`, `frequency`, task 592). The item's text:
+
+**48. Game settings, stage 4: no Myrror, hardcore mode, larger stacks and other hard settings.** Stage 4 of `game-settings.md`. No Myrror (section 4.9: one plane, no Myrran wizards, Planar Travel, Plane Shift or Planar Seal) and hardcore mode (4.10 and `PLANNED.md` item 8: no undo, permanent death, one constantly updated save file). Larger unit stacks are designed in [`large-stacks.md`](large-stacks.md); a raised city size cap needs its own check (growth tables, art for larger cities, balance); more than four opponents and per-event switches are listed in section 6. Each gets its own task before it starts. Needs item 47.
+
+(Moved here from the task list, formerly task 249: it goes beyond the base game.)
