@@ -146,3 +146,24 @@ fn citizens_spawn_and_reveal_work_in_the_override_mode() {
     assert!(rival < after, "only the asked wizard sees it all");
     assert!(c.execute(&mut g, &format!("build {n} barracks")).ok);
 }
+
+#[test]
+fn contact_meets_the_other_wizards_in_the_override_mode_only() {
+    let (mut g, mut c) = (game(), console());
+    assert!(
+        !c.execute(&mut g, "contact").ok,
+        "a cheat needs the override mode"
+    );
+    c.execute(&mut g, "mode override");
+    let rivals: Vec<PlayerId> = g.wizards().into_iter().filter(|&w| w != HUMAN).collect();
+    assert!(!rivals.is_empty());
+    let r = c.execute(&mut g, &format!("contact {}", rivals[0].0));
+    assert!(r.ok, "{}", r.text());
+    assert!(g.have_met(HUMAN, rivals[0]));
+    let r = c.execute(&mut g, "contact");
+    assert!(r.ok, "{}", r.text());
+    for w in rivals {
+        assert!(g.have_met(HUMAN, w));
+    }
+    assert!(!c.execute(&mut g, "contact 99").ok);
+}

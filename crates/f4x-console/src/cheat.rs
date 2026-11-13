@@ -37,6 +37,7 @@ pub const TABLE: &[CommandDef] = &[
     cheat!("citizens", "citizens <city> <n>", "Set a city's citizens.", citizens),
     cheat!("learn", "learn <spell> [player]", "Teach a wizard a spell.", learn),
     cheat!("reveal", "reveal [player]", "Explore the whole map for a player.", reveal),
+    cheat!("contact", "contact [player]", "Meet a wizard (or, with no argument, every wizard) as the acting player, as if their cities or units had come into view.", contact),
     cheat!("event", "event <name> [player]", "Make a random event happen to a wizard now (great_meteor, gift, plague, good_moon, ...); the vetoes apply, except the wait until turn 150.", event),
     cheat!("offer", "offer <hero|mercenaries|item> [player]", "Make a wizard the offer now, whatever the chance (it still needs a free slot, turn 30 or gold).", offer),
     cheat!("eliminate", "eliminate <player>", "Defeat a wizard on the spot (their cities turn neutral).", eliminate),
@@ -272,6 +273,49 @@ fn reveal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let id = player_arg(ctx, a, 0)?;
     ctx.game.cheat_reveal(id);
     ctx.say("map revealed");
+    Ok(())
+}
+
+fn contact(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
+    let me = ctx.session.player;
+    let others = match a.get(0) {
+        Some(p) => {
+            let id = parse_player(p)?;
+            ctx.game
+                .player_entity(id)
+                .ok_or_else(|| ConsoleError::NoSuch(format!("player {}", id.0)))?;
+            vec![id]
+        }
+        None => ctx
+            .game
+            .wizards()
+            .into_iter()
+            .filter(|&w| w != me)
+            .collect(),
+    };
+    let (mut first, mut already, mut refused) = (0, 0, 0);
+    for id in others {
+        if ctx.game.make_contact(me, id) {
+            first += 1;
+        } else if ctx.game.have_met(me, id) {
+            already += 1;
+        } else {
+            refused += 1;
+        }
+    }
+    if first + already == 0 {
+        return Err(ConsoleError::Refused(
+            "no wizard to meet (only wizards that take part in diplomacy can be met)".into(),
+        ));
+    }
+    ctx.say(format!(
+        "met {first} wizard(s) for the first time, {already} already met{}",
+        if refused > 0 {
+            format!(", {refused} cannot be met")
+        } else {
+            String::new()
+        }
+    ));
     Ok(())
 }
 

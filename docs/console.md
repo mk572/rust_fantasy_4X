@@ -125,7 +125,7 @@ They run only in the override mode: a console with `Access::Full` (the client's)
 | Cities: found, buildings, citizens | `newcity <x,y[,plane]> <name> [player] [race=<id>] [pop=<n>]`, `build <city> <building>`, `citizens <city> <n>` |
 | A wizard's fortress | `fortress <x,y[,plane]> [name] [race=<id>] [player=<n>]` |
 | Terrain, spells, fog | `terrain <x,y[,plane]> <terrain-id>`, `learn <spell> [player]`, `reveal [player]` |
-| Events, offers | `event <name> [player]`, `offer <kind>` |
+| Events, offers, meeting wizards | `event <name> [player]`, `offer <kind>`, `contact [player]` (meet one wizard, or all) |
 | End the game, play as another wizard | `eliminate <player>`, `win <player>`, `as <player>` |
 | The log | `history` lists every override used |
 
