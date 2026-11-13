@@ -15,7 +15,7 @@ the table shows the defaults.
 | F2 | Advisor: Cartographer | done (N flips the plane, a click moves the map there, C or Esc close) |
 | F3 | Advisor: Apprentice | done |
 | F4 | Advisor: History | done |
-| F5 | Advisor: Astrologer | **replaced** by the Diplomat: the Diplomacy list (task 489), which shows the Astrologer's army, magic and research as places; F11 and R open it too |
+| F5 | Advisor: Astrologer | **replaced** by the Diplomat: the Diplomacy list (task 489), which shows the Astrologer's army, magic and research as places; R opens it too |
 | F6 | Advisor: Chancellor | done (the last turn's scroll) |
 | F7 | Advisor: Tax Collector | done (a list box; click a rate) |
 | F8 | Advisor: Grand Vizier | off at once; on after a Y or N question |
@@ -26,7 +26,7 @@ the table shows the defaults.
 | S | Spells button (the spell book) | done |
 | A | Armies button (army list) | done (task 138) |
 | M | Magic button | done |
-| F11, R | (none) | **extra**: the Diplomacy list, as F5 |
+| R | (none) | **extra**: the Diplomacy list, as F5 |
 | I | Info button (the advisor menu) | done (also the Info button) |
 | P | Plane button: show the other plane | done (shifts the selected units first, if they can) |
 | (none) | Cities button (no key) | not yet |
