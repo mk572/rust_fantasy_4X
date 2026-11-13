@@ -1,4 +1,4 @@
-# City auto-builder (PLANNED item 7)
+# City auto-builder (task P7)
 
 The design the project owner agreed, with every weight. Numbers marked *(tune)* are first
 guesses to adjust in play; they are constants and one table at the top of

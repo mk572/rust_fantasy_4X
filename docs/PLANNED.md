@@ -16,7 +16,6 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 4 | Content | Rules changes and new items from the community patch and the Caster of Magic expansion |
 | 5 | Platform | Modding support |
 | 6 | Client | Upscaled graphics |
-| 7 | City | Smarter city autobuilder |
 | 8 | Options | Hardcore mode |
 | 9 | Client | Battle success hint |
 | 10 | Client | Font and TrueType support |
@@ -24,7 +23,6 @@ Related tasks in `TASKS.md` are given as `T<number>`.
 | 12 | Content | Replacement art |
 | 13 | Client | Different settlement icons by race |
 | 14 | Client | Fortress art by magic type |
-| 15 | Tools | Console for game commands (first version done) |
 | 16 | Tools | Map editor |
 | 17 | Meta | MCP server for remote control |
 | 18 | Meta | Hot seat multiplayer |
@@ -106,15 +104,6 @@ client setting that prefers it when present, with the same file naming so the ex
 works. The output of upscaling original art is still original-derived and stays out of the
 repository; the repository can only ship tools. Also check tile seams and shore blending
 (the autotile table, T4) at the new size, and let the UI scale independently.
-
-**7. Smarter city autobuilder.** The basic autobuild (T16) picks the next sensible building.
-Improve it: weigh the city's needs (food deficit, unrest, gold, production, defence), the
-buildings' upkeep against the city's income, the race's strengths, what the neighbours already
-provide, the wizard's strategy (retorts, books) and the game stage; avoid buildings that are
-about to be obsolete; let the player set priorities or a build profile (growth, production,
-research, defence); and share the evaluation with the AI's city production (T65) so both use
-one scoring function, tested on fixed city situations. **Design agreed and built in
-stages 1 to 4:** [`auto-builder.md`](auto-builder.md) (AI sides and the event prompt remain).
 
 **8. Hardcore mode.** A new-game option for one-life play, bundling three rules: **no undo** (the
 undo of orders, task 90, is off for the whole game); **permanent death** (a banished wizard is
@@ -203,12 +192,6 @@ city list. Needs art (item 12 for anything not from the original), a fortress sp
 the content data keyed by realm with the original's tower as the default, and a modding hook
 so a mod can add looks for its own realms (item 5). Closely related to the banners and
 settlement icons by race (item 13).
-
-**15. Console for game commands.** First version done: see `docs/console.md` (legal and override commands, the override log, one `Console::execute` hook for the client, the headless runner and future front ends). Still to do from the plan: setting features and lairs, clearing lairs, triggering events, disabling overrides in hardcore mode (item 8). The original plan: a text console in the client (and the headless tools) that runs
-cheat and debugging commands through the same `Command` path as play where possible: change a
-square's terrain or feature, add units, buildings and cities, set gold, mana or research, reveal the
-map, clear a lair, trigger events. Commands that bypass the rules go through one `debug` command
-family that is logged (and disabled in hardcore mode, item 8) so saves and replays stay honest.
 
 **16. Map editor.** Edit terrain, rivers, roads, features, nodes, towers, lair guards and treasure,
 start positions and fortress sites, and save a map file that a new game can load instead of
