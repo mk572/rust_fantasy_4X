@@ -571,15 +571,12 @@ impl Game {
         &mut self,
         player: PlayerId,
         from: crate::item::armory::Spot,
-    ) -> Option<Vec<Event>> {
-        use crate::item::armory::{ItemSpot, Spot};
-        let spot = match from {
-            Spot::Vault(i) => ItemSpot::Vault(i),
-            Spot::Award(i) => ItemSpot::Award(i),
-        };
-        let item = self.remove_item_at(player, spot)?;
+    ) -> Result<Vec<Event>, crate::item::armory::ItemError> {
+        let item = self.take_item_to_sell(player, from)?;
         let price = item.anvil_mana();
-        self.treasury_mut(player)?.gold += price;
+        if let Some(treasury) = self.treasury_mut(player) {
+            treasury.gold += price;
+        }
         let shown = item.clone();
         let plane_of = |g: &Game, p: PlayerId| g.summon_point(p).map(|at| at.plane);
         let mine = plane_of(self, player);
@@ -599,7 +596,7 @@ impl Game {
             gold: price,
         }];
         events.extend(self.offer_resale(item, price, player, queue));
-        Some(events)
+        Ok(events)
     }
 
     /// Offer a resold item to the next wizard of `queue` who can pay for it; with nobody left it

@@ -346,17 +346,34 @@ impl Game {
         self.place_item(player, entity)
     }
 
-    /// The anvil: destroy the item in a vault slot or on the award list for half its value in
-    /// mana. Returns the mana gained.
-    pub fn scrap_item(&mut self, player: PlayerId, from: Spot) -> Option<i32> {
+    /// Take an item out of a vault or award slot to be scrapped or sold. Everything that can
+    /// refuse is checked before anything is changed, so a refusal leaves the item where it is:
+    /// [`ItemError::NoSuchPlace`] for a wizard that does not exist (it has no treasury to pay
+    /// into), [`ItemError::Empty`] for a slot with no item.
+    pub(crate) fn take_item_to_sell(
+        &mut self,
+        player: PlayerId,
+        from: Spot,
+    ) -> Result<Item, ItemError> {
         let spot = match from {
             Spot::Vault(i) => ItemSpot::Vault(i),
             Spot::Award(i) => ItemSpot::Award(i),
         };
-        let item = self.remove_item_at(player, spot)?;
+        if self.treasury_mut(player).is_none() {
+            return Err(ItemError::NoSuchPlace);
+        }
+        self.remove_item_at(player, spot).ok_or(ItemError::Empty)
+    }
+
+    /// The anvil: destroy the item in a vault slot or on the award list for half its value in
+    /// mana. Returns the mana gained, or why not (the item stays where it was).
+    pub fn scrap_item(&mut self, player: PlayerId, from: Spot) -> Result<i32, ItemError> {
+        let item = self.take_item_to_sell(player, from)?;
         let mana = item.anvil_mana();
-        self.treasury_mut(player)?.mana += mana;
-        Some(mana)
+        if let Some(treasury) = self.treasury_mut(player) {
+            treasury.mana += mana;
+        }
+        Ok(mana)
     }
 }
 
@@ -447,7 +464,7 @@ mod tests {
         assert_eq!(armory.items().count(), 10);
         assert!(armory.awards.is_empty());
         // A slot that is emptied is filled first.
-        assert!(g.scrap_item(P0, Spot::Vault(3)).is_some());
+        assert!(g.scrap_item(P0, Spot::Vault(3)).is_ok());
         assert_eq!(
             g.give_item(P0, item("again", ItemKind::Misc)),
             Placed::Vault(3)
@@ -465,9 +482,71 @@ mod tests {
         let mut staff = item("Staff", ItemKind::Staff);
         staff.cost = 900;
         g.give_item(P0, staff);
-        assert_eq!(g.scrap_item(P0, Spot::Vault(0)), Some(450));
+        assert_eq!(g.scrap_item(P0, Spot::Vault(0)), Ok(450));
         assert_eq!(g.tr(0).mana, 550);
-        assert_eq!(g.scrap_item(P0, Spot::Vault(0)), None);
+        assert_eq!(
+            g.scrap_item(P0, Spot::Vault(0)),
+            Err(ItemError::Empty),
+            "an empty slot says so"
+        );
+    }
+
+    #[test]
+    fn a_scrap_that_cannot_be_paid_leaves_the_item_where_it_is() {
+        let mut g = world();
+        g.give_item(P0, item("Staff", ItemKind::Staff));
+        // A wizard that does not exist has no treasury to pay into: nothing is taken.
+        assert_eq!(
+            g.scrap_item(PlayerId(77), Spot::Vault(0)),
+            Err(ItemError::NoSuchPlace)
+        );
+        assert_eq!(g.items().armory(P0).items().count(), 1);
+        // An award slot that is not there is empty.
+        assert_eq!(g.scrap_item(P0, Spot::Award(5)), Err(ItemError::Empty));
+        assert_eq!(g.items().armory(P0).items().count(), 1);
+    }
+
+    #[test]
+    fn a_sale_that_cannot_be_paid_leaves_the_item_where_it_is() {
+        let mut g = world();
+        g.give_item(P0, item("Staff", ItemKind::Staff));
+        assert_eq!(
+            g.sell_item(PlayerId(77), Spot::Vault(0)).err(),
+            Some(ItemError::NoSuchPlace)
+        );
+        assert_eq!(g.items().armory(P0).items().count(), 1);
+        assert_eq!(
+            g.sell_item(P0, Spot::Vault(4)).err(),
+            Some(ItemError::Empty)
+        );
+    }
+
+    #[test]
+    fn the_scrap_command_names_the_reason_it_refused() {
+        use crate::game::{Command, Event, Rejection};
+        let mut g = world();
+        let events = g.apply(Command::ScrapItem {
+            player: P0,
+            from: Spot::Vault(0),
+        });
+        assert!(
+            matches!(
+                events.as_slice(),
+                [Event::Rejected(Rejection::Item(ItemError::Empty))]
+            ),
+            "{events:?}"
+        );
+        let events = g.apply(Command::ScrapItem {
+            player: PlayerId(77),
+            from: Spot::Vault(0),
+        });
+        assert!(
+            matches!(
+                events.as_slice(),
+                [Event::Rejected(Rejection::Item(ItemError::NoSuchPlace))]
+            ),
+            "{events:?}"
+        );
     }
 
     #[test]

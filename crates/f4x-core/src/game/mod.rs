@@ -25,7 +25,7 @@ pub mod view;
 mod tests;
 
 use crate::rules::Ability;
-use crate::{battle, city, diplomacy, game, item, map, player, threat, unit, wizard, world_event};
+use crate::{battle, city, diplomacy, game, map, player, threat, unit, wizard, world_event};
 use f4x_def::content;
 use f4x_def::half_int::HalfInt;
 use rand::RngCore;
@@ -595,10 +595,8 @@ impl Game {
                 Err(e) => vec![Event::Rejected(Rejection::Craft(e))],
             },
             Command::ScrapItem { player, from } => match self.scrap_item(player, from) {
-                Some(_) => Vec::new(),
-                None => vec![Event::Rejected(Rejection::Item(
-                    item::armory::ItemError::Empty,
-                ))],
+                Ok(_) => Vec::new(),
+                Err(e) => vec![Event::Rejected(Rejection::Item(e))],
             },
             Command::AcceptOffer {
                 player,
@@ -611,13 +609,9 @@ impl Game {
                 Ok(events) => events,
                 Err(e) => vec![Event::Rejected(Rejection::Offer(e))],
             },
-            Command::SellItem { player, from } => {
-                self.sell_item(player, from).unwrap_or_else(|| {
-                    vec![Event::Rejected(Rejection::Item(
-                        item::armory::ItemError::Empty,
-                    ))]
-                })
-            }
+            Command::SellItem { player, from } => self
+                .sell_item(player, from)
+                .unwrap_or_else(|e| vec![Event::Rejected(Rejection::Item(e))]),
             Command::SettleOutpost { unit, name } => self.settle_outpost(unit, name),
             Command::SetProduction { city, item } => match self.set_production(city, item) {
                 Ok(()) => Vec::new(),
