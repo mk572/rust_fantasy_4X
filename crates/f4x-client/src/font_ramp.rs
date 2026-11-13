@@ -157,8 +157,16 @@ pub(crate) const MENU_WORD: usize = 90;
 pub(crate) const MENU_WORD_HOVER: usize = 91;
 /// the army list's Items and Ok: gold, darker towards the bottom.
 pub(crate) const PANEL_WORD: usize = 92;
+/// the selection box's title, the gold on top (Selection_Box_Draw: COL_ListSel_Shadows).
+pub(crate) const SELECT_TITLE: usize = 93;
+/// the selection box's title, the dark copy a pixel to the lower right (COL_ListSel_Titles).
+pub(crate) const SELECT_TITLE_SHADOW: usize = 94;
+/// the selection box's rows: the alias colour 53 on the black set 1 (Set_Alias_Color(53)).
+pub(crate) const SELECT_ITEM: usize = 95;
+/// the selection box's row under the mouse (Set_Alias_Color(182)).
+pub(crate) const SELECT_ITEM_HOVER: usize = 96;
 /// How many ramps there are; the atlases of styles 0 to 5 stack 16 + this many colour sets.
-pub(crate) const COUNT: usize = 77;
+pub(crate) const COUNT: usize = 81;
 
 /// The colour set of one palette colour on its own (`FLATS` in the script); a colour not
 /// listed there panics: add it to `FLATS` and run the script again.

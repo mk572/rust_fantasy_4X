@@ -67,6 +67,10 @@ LATE = [
     ("MENU_WORD", None, [0, 178, 177, 176, 176], "the start menu's words: gold, light on top (its `vortex` pictures)"),
     ("MENU_WORD_HOVER", None, [0, 182, 180, 178, 178], "the start menu's word under the mouse: the same gold, darker"),
     ("PANEL_WORD", None, [0, 180, 180, 179, 178], "the army list's Items and Ok: gold, darker towards the bottom"),
+    ("SELECT_TITLE", None, [20, 178, 179, 180, 180], "the selection box's title, the gold on top (Selection_Box_Draw: COL_ListSel_Shadows)"),
+    ("SELECT_TITLE_SHADOW", ("resource", 7), [102, 251, 251, 251, 251], "the selection box's title, the dark copy a pixel to the lower right (COL_ListSel_Titles)"),
+    ("SELECT_ITEM", None, [53, 1], "the selection box's rows: the alias colour 53 on the black set 1 (Set_Alias_Color(53))"),
+    ("SELECT_ITEM_HOVER", None, [182, 1], "the selection box's row under the mouse (Set_Alias_Color(182))"),
 ]
 
 

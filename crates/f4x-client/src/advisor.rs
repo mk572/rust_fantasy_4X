@@ -4,7 +4,8 @@
 //! Mirror. The list box is the original's `Selection_Box` (`GENDRAW.c`), also used by the Tax
 //! Collector. History and Astrologer are screens of their own here.
 
-use crate::font::Style;
+use crate::font::{rgb, Ink, Style};
+use crate::font_ramp;
 use crate::input::Input;
 use crate::text::Args;
 use crate::ui;
@@ -62,21 +63,21 @@ impl Modal for VizierAsk {
 }
 
 /// The pieces of the box in `resource.lbx`: left, top, right, bottom, bottom left, bottom
-/// right, the brown fill under them, then the row buttons (frame 0 plain, 1 lit) and their 2-pixel right ends.
+/// right, then the row buttons (frame 0 plain, 1 lit) and their 2-pixel right ends.
 const LEFT: usize = 5;
 const BOTTOM_LEFT: usize = 6;
 const TOP: usize = 7;
 const RIGHT: usize = 8;
 const BOTTOM: usize = 9;
 const BOTTOM_RIGHT: usize = 10;
-const FILL: usize = 11;
+/// What the frame's glass pieces lie on: the dark blue of the top piece, so the sides and the bottom
+/// show as marble of the same stone and not the map (or the brown of the buttons) through them.
+const FILL: Color = Color::new(0.16, 0.15, 0.27, 1.0);
 const BUTTONS: usize = 12;
 const BUTTON_ENDS: usize = 22;
 const ROW_HEIGHT: f32 = 14.0;
 const TOP_HEIGHT: f32 = 18.0;
 const BOTTOM_HEIGHT: f32 = 14.0;
-const FILL_WIDTH: f32 = 16.0;
-const FILL_HEIGHT: f32 = 153.0;
 const SIDE_WIDTH: f32 = 16.0;
 const RIGHT_WIDTH: f32 = 18.0;
 
@@ -297,20 +298,10 @@ impl App {
             ui::hit(row, true, input).hovered()
         });
 
-        // The frame's pieces tint what is under them (the original's glass colours): the box is
-        // first filled with the brown strip of `resource.lbx` (two pixels short of the edge, where the
-        // frame has no marble), so the map does not shine through.
-        self.clipped((x1 + 2.0, y1 + 2.0, width - 4.0, height - 4.0), |app| {
-            let mut y = y1;
-            while y < y1 + height {
-                let mut x = x1;
-                while x < x1 + width {
-                    app.draw_pic(&lay, "resource", FILL, 0, x, y);
-                    x += FILL_WIDTH;
-                }
-                y += FILL_HEIGHT;
-            }
-        });
+        // The frame's side and bottom pieces are glass (the original's tint colours): on the map they
+        // would show it through, so the box is first filled with the stone's dark blue.
+        let r = lay.rect((x1 + 1.0, y1 + 1.0, width - 2.0, height - 2.0));
+        draw_rectangle(r.x, r.y, r.w, r.h, FILL);
         // The top, the bottom and the row buttons are wider than any box: they are cut at the
         // frame's inner edge, so nothing of them shows through the frame's own pieces.
         let inner = (
@@ -363,33 +354,39 @@ impl App {
             );
         });
 
+        // The title is two copies, the dark one a pixel to the lower right of the gold one; a row
+        // is dark red with a gold shadow, lit it is gold with a brighter shadow
+        // (`Selection_Box_Draw`: the colours are palette entries 53, 182 and 178).
         let mid = (x1 + x2) / 2.0;
-        let shadow = Color::new(0.0, 0.0, 0.0, 1.0);
         self.draw_styled(
             view,
-            &Style::nearest(4, shadow).center(),
+            &Style::inked(4, Ink::Set(font_ramp::SELECT_TITLE_SHADOW)).center(),
             &sel.title,
             mid + 1.0,
             y1 + 5.0,
         );
         self.draw_styled(
             view,
-            &Style::nearest(4, Color::new(0.95, 0.85, 0.5, 1.0)).center(),
+            &Style::inked(4, Ink::Set(font_ramp::SELECT_TITLE)).center(),
             &sel.title,
             mid,
             y1 + 4.0,
         );
         for (i, row) in sel.rows.iter().enumerate() {
             let y = y1 + TOP_HEIGHT + ROW_HEIGHT * i as f32 + 2.0;
-            let colour = if hover == Some(i) {
-                Color::new(1.0, 0.95, 0.75, 1.0)
+            let style = if hover == Some(i) {
+                Style::inked(4, Ink::Set(font_ramp::SELECT_ITEM_HOVER))
+                    .shadow()
+                    .edge(rgb(239, 166, 36))
             } else {
-                Color::new(0.8, 0.62, 0.3, 1.0)
+                Style::inked(4, Ink::Set(font_ramp::SELECT_ITEM))
+                    .shadow()
+                    .edge(rgb(166, 109, 28))
             };
             let x = x1 + SIDE_WIDTH + 4.0;
-            self.draw_styled(view, &Style::nearest(4, colour), &row.left, x, y);
+            self.draw_styled(view, &style, &row.left, x, y);
             if !row.right.is_empty() {
-                self.draw_styled(view, &Style::nearest(4, colour), &row.right, x + row.tab, y);
+                self.draw_styled(view, &style, &row.right, x + row.tab, y);
             }
         }
 
