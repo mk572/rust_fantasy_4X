@@ -289,14 +289,21 @@ impl Hotkeys {
         Ok(Hotkeys { keys })
     }
 
-    /// The shipped keys, then the `hotkeys.ron` of each folder (the player's own), skipping the
-    /// ones that are not there.
+    /// The shipped keys, then the `hotkeys.ron` of each folder (the player's own). A folder with
+    /// no such file is skipped; a file that is there and cannot be read or understood is an error
+    /// naming the file (the caller goes on with the shipped keys and says so).
     pub fn load(folders: &[&Path]) -> Result<Hotkeys, String> {
         let mut texts = vec![SHIPPED.to_string()];
         for folder in folders {
-            if let Ok(text) = std::fs::read_to_string(folder.join("hotkeys.ron")) {
-                texts.push(text);
-            }
+            let path = folder.join("hotkeys.ron");
+            let text = match std::fs::read_to_string(&path) {
+                Ok(text) => text,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(e) => return Err(format!("{}: {e}", path.display())),
+            };
+            // Alone on top of the shipped keys, so that the error names this file.
+            Self::from_layers(&[SHIPPED, &text]).map_err(|e| format!("{}: {e}", path.display()))?;
+            texts.push(text);
         }
         let layers: Vec<&str> = texts.iter().map(String::as_str).collect();
         Self::from_layers(&layers)
@@ -374,7 +381,37 @@ pub(crate) fn fill_keys(text: &str, hotkeys: &Hotkeys) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use f4x_def::testdir::TestResult;
+    use f4x_def::testdir::{TestDir, TestResult};
+
+    #[test]
+    fn a_folder_without_a_hotkeys_file_leaves_the_shipped_keys() -> TestResult {
+        let dir = TestDir::new("hotkeys-none");
+        let keys = Hotkeys::load(&[&dir])?;
+        assert_eq!(keys.keys, Hotkeys::load(&[])?.keys);
+        Ok(())
+    }
+
+    #[test]
+    fn a_broken_hotkeys_file_is_an_error_that_names_the_file() -> TestResult {
+        let dir = TestDir::new("hotkeys-broken");
+        std::fs::write(dir.join("hotkeys.ron"), "{ this is not ron")?;
+        let why = Hotkeys::load(&[&dir]).err().ok_or("a broken file loaded")?;
+        assert!(why.contains("hotkeys.ron"), "{why}");
+        assert!(why.contains(&dir.display().to_string()), "{why}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_hotkeys_file_that_cannot_be_read_is_an_error_not_a_skip() -> TestResult {
+        let dir = TestDir::new("hotkeys-unreadable");
+        // A folder where the file should be: it is there, and it cannot be read.
+        std::fs::create_dir(dir.join("hotkeys.ron"))?;
+        let why = Hotkeys::load(&[&dir])
+            .err()
+            .ok_or("an unreadable file loaded")?;
+        assert!(why.contains("hotkeys.ron"), "{why}");
+        Ok(())
+    }
 
     #[test]
     fn a_chord_is_parsed_and_shown() -> TestResult {

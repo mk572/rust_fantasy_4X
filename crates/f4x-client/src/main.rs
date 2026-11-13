@@ -706,7 +706,11 @@ async fn main() {
     app.help = help;
     match hotkeys::Hotkeys::load(&[Path::new("saves")]) {
         Ok(keys) => app.hotkeys = keys,
-        Err(e) => eprintln!("{e}; the shipped keys are used"),
+        Err(e) => {
+            eprintln!("{e}; the shipped keys are used");
+            let line = app.text_with("log.hotkeys_failed", &text::Args::new().text("why", e));
+            app.log.push(line);
+        }
     }
     if !options.mute && options.shot.is_none() {
         app.audio = audio::Audio::scan(&options.audio, tables.sounds);

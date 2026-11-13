@@ -237,6 +237,78 @@ pub fn gem_entry(gem: usize, banner: u8) -> Option<usize> {
     }
 }
 
+/// The text of a table of the extracted art. A table that is not there is empty (the art has
+/// not been extracted, or not that part: the defaults go on); one that is there and cannot be
+/// read is said on the console with its path.
+fn table(path: &Path) -> String {
+    match read_table(path) {
+        Ok(text) => text,
+        Err(why) => {
+            eprintln!("{why}");
+            String::new()
+        }
+    }
+}
+
+fn read_table(path: &Path) -> Result<String, String> {
+    match std::fs::read_to_string(path) {
+        Ok(text) => Ok(text),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(e) => Err(format!("{}: {e}", path.display())),
+    }
+}
+
+fn say_bad_lines(path: &Path, lines: &[usize]) {
+    for n in lines {
+        eprintln!("{}:{n}: line not understood, skipped", path.display());
+    }
+}
+
+/// `table<TAB>mask<TAB>tile` lines into the five tables of 256 masks, and the numbers of the
+/// lines that are not understood (a blank line or a `#` comment is not one).
+fn parse_autotile(text: &str) -> (Vec<Vec<usize>>, Vec<usize>) {
+    let mut autotile = vec![vec![0usize; 256]; 5];
+    let mut bad = Vec::new();
+    for (n, line) in text.lines().enumerate() {
+        if line.trim().is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let mut f = line.split('\t').map(|v| v.trim().parse::<usize>().ok());
+        match (f.next(), f.next(), f.next()) {
+            (Some(Some(table)), Some(Some(mask)), Some(Some(t))) if table < 5 && mask < 256 => {
+                autotile[table][mask] = t;
+            }
+            _ => bad.push(n + 1),
+        }
+    }
+    (autotile, bad)
+}
+
+/// `index<TAB>name<TAB>five shades as r,g,b`: the five shades of each banner, and the numbers
+/// of the lines that are not understood.
+fn parse_banners(text: &str) -> (Vec<[Color; 5]>, Vec<usize>) {
+    let mut banners = Vec::new();
+    let mut bad = Vec::new();
+    for (n, line) in text.lines().enumerate() {
+        if line.trim().is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let shades: Vec<Color> = line
+            .split('\t')
+            .skip(2)
+            .filter_map(|c| {
+                let v: Vec<f32> = c.split(',').filter_map(|n| n.parse().ok()).collect();
+                (v.len() == 3).then(|| Color::new(v[0] / 255.0, v[1] / 255.0, v[2] / 255.0, 1.0))
+            })
+            .collect();
+        match <[Color; 5]>::try_from(shades) {
+            Ok(five) => banners.push(five),
+            Err(_) => bad.push(n + 1),
+        }
+    }
+    (banners, bad)
+}
+
 impl Art {
     pub fn load(
         dir: PathBuf,
@@ -245,7 +317,7 @@ impl Art {
         wizards: Vec<WizardArt>,
         icons: IconArt,
     ) -> Self {
-        let types = std::fs::read_to_string(dir.join("map/tiles/types.tsv")).unwrap_or_default();
+        let types = table(&dir.join("map/tiles/types.tsv"));
         let type_tiles = types
             .lines()
             .filter_map(|l| l.split('\t').nth(1)?.parse().ok())
@@ -259,42 +331,14 @@ impl Art {
             .lines()
             .map(|l| l.split('\t').nth(2).is_some_and(|v| v.trim() == "1"))
             .collect();
-        let mut autotile = vec![vec![0usize; 256]; 5];
-        if let Ok(text) = std::fs::read_to_string(dir.join("map/tiles/autotile.tsv")) {
-            for line in text.lines() {
-                let mut f = line.split('\t').map(|v| v.parse::<usize>().ok());
-                if let (Some(Some(table)), Some(Some(mask)), Some(Some(t))) =
-                    (f.next(), f.next(), f.next())
-                {
-                    if table < 5 && mask < 256 {
-                        autotile[table][mask] = t;
-                    }
-                }
-            }
-        }
-        let mut banners = Vec::new();
-        if let Ok(text) = std::fs::read_to_string(dir.join("map/banners.tsv")) {
-            for line in text.lines().filter(|l| !l.starts_with('#')) {
-                let shades: Vec<Color> = line
-                    .split('\t')
-                    .skip(2)
-                    .filter_map(|c| {
-                        let v: Vec<f32> = c.split(',').filter_map(|n| n.parse().ok()).collect();
-                        (v.len() == 3)
-                            .then(|| Color::new(v[0] / 255.0, v[1] / 255.0, v[2] / 255.0, 1.0))
-                    })
-                    .collect();
-                if let Ok(five) = <[Color; 5]>::try_from(shades) {
-                    banners.push(five);
-                }
-            }
-        }
-        let minimap = MinimapColours::parse(
-            &std::fs::read_to_string(dir.join("map/tiles/minimap.tsv")).unwrap_or_default(),
-        );
-        let placed = parse_placed(
-            &std::fs::read_to_string(dir.with_file_name("index.tsv")).unwrap_or_default(),
-        );
+        let autotile_file = dir.join("map/tiles/autotile.tsv");
+        let (autotile, bad) = parse_autotile(&table(&autotile_file));
+        say_bad_lines(&autotile_file, &bad);
+        let banners_file = dir.join("map/banners.tsv");
+        let (banners, bad) = parse_banners(&table(&banners_file));
+        say_bad_lines(&banners_file, &bad);
+        let minimap = MinimapColours::parse(&table(&dir.join("map/tiles/minimap.tsv")));
+        let placed = parse_placed(&table(&dir.with_file_name("index.tsv")));
         Self {
             dir,
             placed,
@@ -1068,6 +1112,40 @@ mod banner_tests {
         assert_eq!(gem_entry(0, 5), Some(100));
         assert_eq!(gem_entry(65, 9), Some(169));
         assert_eq!(gem_entry(0, f4x_core::player::NEUTRAL_BANNER), None);
+    }
+}
+
+#[cfg(test)]
+mod table_tests {
+    use super::*;
+    use f4x_def::testdir::{TestDir, TestResult};
+
+    #[test]
+    fn a_table_that_is_not_there_is_empty_and_one_that_cannot_be_read_is_an_error() -> TestResult {
+        let dir = TestDir::new("art-table");
+        assert_eq!(read_table(&dir.join("nothing.tsv"))?, "");
+        std::fs::create_dir(dir.join("folder.tsv"))?;
+        let why = read_table(&dir.join("folder.tsv"))
+            .err()
+            .ok_or("read a folder")?;
+        assert!(why.contains("folder.tsv"), "{why}");
+        Ok(())
+    }
+
+    #[test]
+    fn the_autotile_lines_that_are_not_understood_are_numbered() {
+        let (tables, bad) = parse_autotile("# header\n0\t1\t31\n\n0\tx\t3\n4\t255\t9\n7\t1\t1\n");
+        assert_eq!(tables[0][1], 31);
+        assert_eq!(tables[4][255], 9);
+        assert_eq!(bad, vec![4, 6]);
+    }
+
+    #[test]
+    fn a_banner_needs_five_shades() {
+        let good = "0\tblue\t1,2,3\t1,2,3\t1,2,3\t1,2,3\t1,2,3";
+        let (banners, bad) = parse_banners(&format!("# header\n{good}\n1\tgreen\t1,2,3\n"));
+        assert_eq!(banners.len(), 1);
+        assert_eq!(bad, vec![3]);
     }
 }
 
