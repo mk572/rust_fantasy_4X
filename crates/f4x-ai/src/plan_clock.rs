@@ -13,6 +13,14 @@ use crate::Ai;
 /// Turns a plan may stand before it is dropped.
 pub const PLAN_TIMEOUT_TURNS: u32 = 100;
 
+/// Turns a settler may take to reach the site it chose and found its city (it needs far less
+/// than a campaign: a few dozen squares on foot).
+pub const SETTLER_TIMEOUT_TURNS: u32 = 30;
+
+/// Turns a scout may walk to one target before the target is given up (a scout that finds new
+/// squares gets new targets and so a new clock).
+pub const SCOUT_TIMEOUT_TURNS: u32 = 50;
+
 /// Turns a dropped target stays on the AI's list of failures before it may be tried again.
 const FORGIVE_TURNS: u32 = 3 * PLAN_TIMEOUT_TURNS;
 
@@ -27,15 +35,39 @@ pub enum PlanKind {
     Colony,
     /// A unit out on a raid of a tower, node, encounter site or neutral city.
     Raid,
+    /// A settler on its way to the site it chose (key: the settler and the site).
+    Settler,
+    /// A scout on its way to a target (key: the scout and the target).
+    Scout,
+    /// The search for the rest of the world by ship (and the fighters it puts ashore).
+    SeaScout,
+    /// The scout on its way to an open tower, to change plane.
+    Planar,
 }
 
+// The march of a campaign stack has no kind of its own: its target is the campaign's, which has
+// its clock, and `military.rs` calls the stack back every `MARCH_TURNS` and sends it out again.
+
 impl PlanKind {
-    pub const ALL: [PlanKind; 4] = [
+    pub const ALL: [PlanKind; 8] = [
         PlanKind::Campaign,
         PlanKind::Landing,
         PlanKind::Colony,
         PlanKind::Raid,
+        PlanKind::Settler,
+        PlanKind::Scout,
+        PlanKind::SeaScout,
+        PlanKind::Planar,
     ];
+
+    /// Turns a plan of this kind may stand.
+    pub fn timeout(self) -> u32 {
+        match self {
+            PlanKind::Settler => SETTLER_TIMEOUT_TURNS,
+            PlanKind::Scout => SCOUT_TIMEOUT_TURNS,
+            _ => PLAN_TIMEOUT_TURNS,
+        }
+    }
 
     pub fn name(self) -> &'static str {
         match self {
@@ -43,6 +75,10 @@ impl PlanKind {
             PlanKind::Landing => "landing",
             PlanKind::Colony => "colony",
             PlanKind::Raid => "raid",
+            PlanKind::Settler => "settler",
+            PlanKind::Scout => "scout",
+            PlanKind::SeaScout => "sea scout",
+            PlanKind::Planar => "planar",
         }
     }
 
@@ -51,18 +87,30 @@ impl PlanKind {
     }
 }
 
-/// What a plan is about, to tell a new plan from the one that stands: a square, or a unit's number.
-type Key = u64;
+/// What a plan is about, to tell a new plan from the one that stands: a square, a unit's number,
+/// or a unit and a square (a new target of the unit is a new plan).
+type Key = (u64, u64);
 
 fn square(p: Position) -> Key {
-    (p.plane as u64) << 48 | u64::from(p.y) << 24 | u64::from(p.x)
+    (
+        0,
+        (p.plane as u64) << 48 | u64::from(p.y) << 24 | u64::from(p.x),
+    )
+}
+
+fn unit(s: crate::Serial) -> Key {
+    (s.0, 0)
+}
+
+fn unit_going(s: crate::Serial, to: Position) -> Key {
+    (s.0, square(to).1)
 }
 
 /// When each standing plan began, and how many the clock has dropped.
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct PlanClock {
     started: Vec<(PlanKind, Key, u32)>,
-    dropped: [u32; 4],
+    dropped: Vec<u32>,
     /// The turn the failure lists were last forgiven.
     #[serde(default)]
     forgiven: u32,
@@ -81,7 +129,7 @@ impl PlanClock {
                 .iter()
                 .find(|(k, q, _)| *k == kind && *q == key)
             {
-                Some(&(_, _, since)) if now.saturating_sub(since) >= PLAN_TIMEOUT_TURNS => {
+                Some(&(_, _, since)) if now.saturating_sub(since) >= kind.timeout() => {
                     expired.push(key);
                 }
                 Some(_) => {}
@@ -90,6 +138,9 @@ impl PlanClock {
         }
         for key in &expired {
             self.started.retain(|(k, q, _)| !(*k == kind && q == key));
+            if self.dropped.len() <= kind.slot() {
+                self.dropped.resize(PlanKind::ALL.len(), 0);
+            }
             self.dropped[kind.slot()] += 1;
         }
         expired
@@ -99,24 +150,40 @@ impl PlanClock {
     /// again at the next turn's tick.
     pub(crate) fn restart_raiders(&mut self, party: &[crate::Serial]) {
         self.started
-            .retain(|(k, key, _)| !(*k == PlanKind::Raid && party.iter().any(|s| s.0 == *key)));
+            .retain(|(k, key, _)| !(*k == PlanKind::Raid && party.iter().any(|s| s.0 == key.0)));
     }
 
     /// How many plans of `kind` the clock has dropped.
     pub fn dropped(&self, kind: PlanKind) -> u32 {
-        self.dropped[kind.slot()]
+        self.dropped.get(kind.slot()).copied().unwrap_or(0)
     }
 }
 
+/// What the AI has to undo in the game after a drop: the units whose orders are cleared (they
+/// would walk on to the target given up), and whether the ships on the sea scouting are called
+/// back.
+#[derive(Debug, Default)]
+pub(crate) struct Dropped {
+    pub release: Vec<crate::Serial>,
+    pub sea: bool,
+}
+
 impl Ai {
-    /// Drop every plan that has stood for [`PLAN_TIMEOUT_TURNS`]; its target goes on the list of
-    /// failures, to be tried again later, and the AI chooses anew. Called at the start of a turn.
-    pub(crate) fn drop_stale_plans(&mut self, turn: u32) {
+    /// Drop every plan that has stood for its time ([`PLAN_TIMEOUT_TURNS`], or less for a settler
+    /// and a scout); its target goes on the list of failures, to be tried again later, and the AI
+    /// chooses anew. Called at the start of a turn.
+    pub(crate) fn drop_stale_plans(&mut self, turn: u32) -> Dropped {
+        let mut out = Dropped::default();
         let mut clock = std::mem::take(&mut self.clock);
         if turn.saturating_sub(clock.forgiven) >= FORGIVE_TURNS {
             clock.forgiven = turn;
             self.naval_bad.clear();
             self.colony_bad.clear();
+            self.bad_sites.clear();
+            self.bad_scout_targets.clear();
+            if std::mem::take(&mut self.sea_gave_up) {
+                self.sea_done = false;
+            }
         }
         let campaign: Vec<Key> = self.campaign.map(square).into_iter().collect();
         for key in clock.tick(PlanKind::Campaign, turn, &campaign) {
@@ -143,11 +210,72 @@ impl Ai {
                 self.colony_bad.push(c.land);
             }
         }
-        let raiders: Vec<Key> = self.raiders.iter().map(|s| s.0).collect();
+        let raiders: Vec<Key> = self.raiders.iter().map(|&s| unit(s)).collect();
         for key in clock.tick(PlanKind::Raid, turn, &raiders) {
-            self.raiders.retain(|s| s.0 != key);
+            self.raiders.retain(|s| s.0 != key.0);
+        }
+        let settlers: Vec<Key> = self
+            .settler_targets
+            .iter()
+            .map(|(&s, &p)| unit_going(s, p))
+            .collect();
+        for key in clock.tick(PlanKind::Settler, turn, &settlers) {
+            let found = self
+                .settler_targets
+                .iter()
+                .find(|(&s, &p)| unit_going(s, p) == key)
+                .map(|(&s, &p)| (s, p));
+            if let Some((serial, site)) = found {
+                self.settler_targets.remove(&serial);
+                self.settler_last.remove(&serial);
+                self.bad_sites.push(site);
+                out.release.push(serial);
+            }
+        }
+        let scouts: Vec<Key> = self
+            .scout_targets
+            .iter()
+            .map(|(&s, &p)| unit_going(s, p))
+            .collect();
+        for key in clock.tick(PlanKind::Scout, turn, &scouts) {
+            let found = self
+                .scout_targets
+                .iter()
+                .find(|(&s, &p)| unit_going(s, p) == key)
+                .map(|(&s, &p)| (s, p));
+            if let Some((serial, target)) = found {
+                self.scout_targets.remove(&serial);
+                self.scout_last.remove(&serial);
+                self.bad_scout_targets.push(target);
+                out.release.push(serial);
+            }
+        }
+        let sea: Vec<Key> = if self.sea_scouting {
+            vec![(0, 0)]
+        } else {
+            vec![]
+        };
+        if !clock.tick(PlanKind::SeaScout, turn, &sea).is_empty() {
+            self.sea_scouting = false;
+            self.sea_done = true;
+            self.sea_gave_up = true;
+            self.sea_port = None;
+            self.sea_party.clear();
+            out.sea = true;
+        }
+        let planar: Vec<Key> = self.planar.map(unit).into_iter().collect();
+        for key in clock.tick(PlanKind::Planar, turn, &planar) {
+            if let Some(serial) = self.planar.filter(|&s| unit(s) == key) {
+                self.planar = None;
+                self.scouts.retain(|&s| s != serial);
+                if let Some(tower) = self.planar_tower.take() {
+                    self.bad_scout_targets.push(tower);
+                }
+                out.release.push(serial);
+            }
         }
         self.clock = clock;
+        out
     }
 
     /// How many plans of each kind the clock has dropped, for the soak's summary.
@@ -251,6 +379,104 @@ mod tests {
         ai.drop_stale_plans(10 + PLAN_TIMEOUT_TURNS);
         assert_eq!(ai.raiders, vec![fresh]);
         assert_eq!(ai.clock.dropped(PlanKind::Raid), 1);
+    }
+
+    #[test]
+    fn a_campaign_dropped_also_ends_its_march() {
+        let (mut ai, turn) = ai_at(10);
+        ai.campaign = Some(at(9, 9));
+        ai.march_target = Some(at(9, 9));
+        ai.marching = vec![crate::Serial(7)];
+        ai.drop_stale_plans(turn);
+        ai.drop_stale_plans(turn + PLAN_TIMEOUT_TURNS);
+        assert!(ai.marching.is_empty() && ai.march_target.is_none());
+    }
+
+    #[test]
+    fn a_settler_that_does_not_get_there_gives_its_site_up_and_is_released() {
+        let (mut ai, turn) = ai_at(10);
+        let s = crate::Serial(5);
+        ai.settler_targets.insert(s, at(9, 9));
+        ai.settler_last.insert(s, at(1, 1));
+        ai.drop_stale_plans(turn);
+        let early = ai.drop_stale_plans(turn + SETTLER_TIMEOUT_TURNS - 1);
+        assert!(early.release.is_empty() && ai.settler_targets.contains_key(&s));
+        let out = ai.drop_stale_plans(turn + SETTLER_TIMEOUT_TURNS);
+        assert_eq!(out.release, vec![s]);
+        assert!(ai.settler_targets.is_empty() && ai.settler_last.is_empty());
+        assert_eq!(ai.bad_sites, vec![at(9, 9)]);
+        assert_eq!(ai.clock.dropped(PlanKind::Settler), 1);
+    }
+
+    #[test]
+    fn a_settler_that_keeps_getting_new_sites_is_never_dropped() {
+        let (mut ai, turn) = ai_at(10);
+        let s = crate::Serial(5);
+        for t in 0..3 * SETTLER_TIMEOUT_TURNS {
+            // A new site every twenty turns: each is a new plan with its own clock.
+            ai.settler_targets.insert(s, at(2 + t / 20, 2));
+            let out = ai.drop_stale_plans(turn + t);
+            assert!(out.release.is_empty(), "turn {t}");
+        }
+        assert_eq!(ai.clock.dropped(PlanKind::Settler), 0);
+    }
+
+    #[test]
+    fn a_scout_walking_to_one_target_too_long_gives_it_up_but_one_with_new_targets_does_not() {
+        let (mut ai, turn) = ai_at(10);
+        let (walker, finder) = (crate::Serial(1), crate::Serial(2));
+        ai.scout_targets.insert(walker, at(9, 9));
+        let mut released = Vec::new();
+        for t in 0..=SCOUT_TIMEOUT_TURNS {
+            ai.scout_targets.insert(finder, at(2 + t / 10, 3));
+            released.extend(ai.drop_stale_plans(turn + t).release);
+        }
+        assert_eq!(released, vec![walker]);
+        assert_eq!(ai.bad_scout_targets, vec![at(9, 9)]);
+        assert!(ai.scout_targets.contains_key(&finder));
+        assert_eq!(ai.clock.dropped(PlanKind::Scout), 1);
+    }
+
+    #[test]
+    fn a_sea_scouting_that_never_ends_is_called_off_and_tried_again_later() {
+        let (mut ai, turn) = ai_at(10);
+        ai.sea_scouting = true;
+        ai.sea_port = Some(at(1, 1));
+        ai.sea_party = vec![crate::Serial(3)];
+        ai.drop_stale_plans(turn);
+        assert!(!ai.drop_stale_plans(turn + PLAN_TIMEOUT_TURNS - 1).sea);
+        assert!(ai.drop_stale_plans(turn + PLAN_TIMEOUT_TURNS).sea);
+        assert!(
+            !ai.sea_scouting && ai.sea_done && ai.sea_port.is_none() && ai.sea_party.is_empty()
+        );
+        assert_eq!(ai.clock.dropped(PlanKind::SeaScout), 1);
+        // The failure lists are forgiven after a while, and with them this.
+        ai.drop_stale_plans(turn + PLAN_TIMEOUT_TURNS + FORGIVE_TURNS);
+        assert!(!ai.sea_done);
+    }
+
+    #[test]
+    fn a_sea_scouting_that_found_nothing_stays_over_when_the_lists_are_forgiven() {
+        let (mut ai, turn) = ai_at(10);
+        ai.sea_done = true;
+        ai.drop_stale_plans(turn);
+        ai.drop_stale_plans(turn + FORGIVE_TURNS);
+        assert!(ai.sea_done);
+    }
+
+    #[test]
+    fn a_planar_scout_that_never_reaches_the_tower_is_let_go_and_the_tower_set_aside() {
+        let (mut ai, turn) = ai_at(10);
+        let s = crate::Serial(4);
+        ai.planar = Some(s);
+        ai.planar_tower = Some(at(5, 5));
+        ai.scouts = vec![s];
+        ai.drop_stale_plans(turn);
+        let out = ai.drop_stale_plans(turn + PLAN_TIMEOUT_TURNS);
+        assert_eq!(out.release, vec![s]);
+        assert!(ai.planar.is_none() && ai.scouts.is_empty());
+        assert_eq!(ai.bad_scout_targets, vec![at(5, 5)]);
+        assert_eq!(ai.clock.dropped(PlanKind::Planar), 1);
     }
 
     #[test]

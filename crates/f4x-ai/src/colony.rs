@@ -227,7 +227,7 @@ pub fn run(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
 }
 
 /// The sea scout is called off: the ship has a settler to carry.
-fn release_scouts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
+pub(crate) fn release_scouts(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
     let me = ai.player;
     let ships: Vec<hecs::Entity> = {
         let view = PlayerView::new(game, me);

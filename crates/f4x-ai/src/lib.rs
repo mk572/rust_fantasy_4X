@@ -102,6 +102,13 @@ pub struct Ai {
     sea_done: bool,
     /// The fighters a sea scout carries to put ashore on land nobody holds (`scout.rs`).
     sea_party: Vec<Serial>,
+    /// The sea scouting was ended by the plan clock (`plan_clock.rs`), not by finding nothing:
+    /// it is tried again when the failure lists are forgiven.
+    #[serde(default)]
+    sea_gave_up: bool,
+    /// The open tower the planar scout is bound for, to be set aside when it does not get there.
+    #[serde(default)]
+    planar_tower: Option<Position>,
     /// The scout on its way to an open tower, to change plane (`scout.rs`).
     planar: Option<Serial>,
     /// The open tower an army crosses by to reach a rival's city on the other plane (`military.rs`).
@@ -223,6 +230,8 @@ impl Ai {
             sea_scouting: false,
             sea_done: false,
             sea_party: Vec::new(),
+            sea_gave_up: false,
+            planar_tower: None,
             planar: None,
             crossing: None,
             colony: None,
@@ -320,7 +329,22 @@ impl Ai {
                 return events;
             }
         }
-        self.drop_stale_plans(game.turn);
+        let dropped = self.drop_stale_plans(game.turn);
+        if dropped.sea {
+            colony::release_scouts(self, game, &mut events);
+        }
+        if !dropped.release.is_empty() {
+            let units: Vec<hecs::Entity> = {
+                let view = PlayerView::new(game, self.player);
+                view.my_units()
+                    .into_iter()
+                    .filter(|&u| dropped.release.contains(&view.serial_of(u)))
+                    .collect()
+            };
+            if !units.is_empty() {
+                self.order(game, Command::ClearOrders { units }, &mut events);
+            }
+        }
         diplomacy::answer(self, game, &mut events);
         diplomacy::quarrel(self, game, &mut events);
         diplomacy::negotiate(self, game, &mut events);

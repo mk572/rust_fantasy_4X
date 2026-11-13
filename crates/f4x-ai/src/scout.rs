@@ -308,7 +308,9 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
         let tower = view
             .towers()
             .into_iter()
-            .filter(|&(p, intact)| !intact && worth_crossing(&view, p))
+            .filter(|&(p, intact)| {
+                !intact && !ai.bad_scout_targets.contains(&p) && worth_crossing(&view, p)
+            })
             .map(|(p, _)| p)
             .min_by_key(|&p| (p.plane as u8, p.y, p.x));
         let Some(tower) = tower else {
@@ -329,6 +331,7 @@ fn planar_scout(ai: &mut Ai, game: &mut Game, events: &mut Vec<Event>) {
             };
             let serial = PlayerView::new(game, me).serial_of(u);
             ai.planar = Some(serial);
+            ai.planar_tower = Some(tower);
             if !ai.scouts.contains(&serial) {
                 ai.scouts.push(serial);
             }
