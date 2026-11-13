@@ -258,10 +258,16 @@ impl Game {
 
     /// Whether a city could be founded at `pos` right now.
     pub fn can_found_city(&self, pos: map::Position) -> Result<(), city::FoundCityError> {
-        // The cities' squares are read where they stand, in the order `city_positions` gives
-        // them, without a list (the check stops at the first that is in the way).
-        let mut cities = self.world.query::<(&city::City, &map::Position)>();
-        city::check_site(&self.economy(), pos, cities.iter().map(|(_, (_, at))| *at))
+        // The cities are read only when the ground and the features allow a city: the AI asks
+        // about many squares, most of them water or blocked, and a query costs more than the
+        // check.
+        city::check_site(&self.economy(), pos, || {
+            self.world
+                .query::<(&city::City, &map::Position)>()
+                .iter()
+                .map(|(_, (_, at))| *at)
+                .collect()
+        })
     }
 
     /// Let `player` see the tiles within `sight` (squares) of `at`.

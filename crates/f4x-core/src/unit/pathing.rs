@@ -21,6 +21,18 @@ pub struct ReachSignature {
     traits: crate::unit::movement::StackTraits,
 }
 
+impl ReachSignature {
+    /// Whether the two stacks move alike (the same units, the same traits), wherever they stand.
+    pub fn moves_like(&self, other: &Self) -> bool {
+        self.profiles == other.profiles && self.traits == other.traits
+    }
+
+    /// The square the stack stands on.
+    pub fn at(&self) -> Position {
+        self.at
+    }
+}
+
 /// The tables of one search, kept between searches: a search is the best known cost of each
 /// square of the plane and where it came from, and a flag whether the square stops the walk.
 /// A square's entry is only valid when its stamp is the search's own, so nothing is cleared
@@ -326,6 +338,17 @@ impl Game {
     /// unless it is among the targets).
     pub fn reaches_any(&self, units: &[hecs::Entity], targets: &[Position]) -> bool {
         !targets.is_empty() && self.walk(units, targets).1
+    }
+
+    /// Like [`Game::reaches_any`], but when no target can be reached it gives every square the
+    /// stack can walk to (the whole region the search ran over; `None` when a target is found).
+    pub fn unreached_region(
+        &self,
+        units: &[hecs::Entity],
+        targets: &[Position],
+    ) -> Option<FastSet<Position>> {
+        let (seen, found) = self.walk(units, targets);
+        (!found).then_some(seen)
     }
 
     /// What decides which squares a stack can walk to: where it stands, the definition and

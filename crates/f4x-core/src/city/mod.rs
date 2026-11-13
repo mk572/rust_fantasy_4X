@@ -59,12 +59,20 @@ impl FoundCityError {
     }
 }
 
-/// Check the map-level rules for founding a city; `existing` are current city positions.
+/// Check the map-level rules for founding a city; `existing` are current city positions. It is
+/// called when the ground and the features are fine (see [`check_site_ground`]), so a caller
+/// reads the cities only then.
 pub fn check_site(
     economy: &economy::Economy,
     pos: Position,
-    existing: impl IntoIterator<Item = Position>,
+    existing: impl FnOnce() -> Vec<Position>,
 ) -> Result<(), FoundCityError> {
+    check_site_ground(economy, pos)?;
+    check_site_spacing(economy, pos, existing())
+}
+
+/// The part of [`check_site`] that needs no city: the terrain, the features and the lair.
+fn check_site_ground(economy: &economy::Economy, pos: Position) -> Result<(), FoundCityError> {
     let content = economy.content;
     let map = economy.map.ok_or(FoundCityError::NoMap)?;
     let grid = map.plane(pos.plane);
@@ -90,6 +98,19 @@ pub fn check_site(
     if blocked {
         return Err(FoundCityError::BlockedByFeature);
     }
+    Ok(())
+}
+
+/// The part of [`check_site`] that needs the cities: no city on the square or too close.
+fn check_site_spacing(
+    economy: &economy::Economy,
+    pos: Position,
+    existing: Vec<Position>,
+) -> Result<(), FoundCityError> {
+    let (content, grid) = (
+        economy.content,
+        economy.map.ok_or(FoundCityError::NoMap)?.plane(pos.plane),
+    );
     for other in existing.into_iter().filter(|o| o.plane == pos.plane) {
         match grid.chebyshev((other.x, other.y), (pos.x, pos.y)) {
             0 => return Err(FoundCityError::CityAlreadyHere),

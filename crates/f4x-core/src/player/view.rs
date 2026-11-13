@@ -615,6 +615,16 @@ impl<'a> PlayerView<'a> {
         self.game.reaches_any(units, targets)
     }
 
+    /// The squares the stack can walk to when it reaches none of `targets` (`None` when it
+    /// reaches one): see `Game::unreached_region`.
+    pub fn unreached_region(
+        &self,
+        units: &[hecs::Entity],
+        targets: &[Position],
+    ) -> Option<crate::fast::FastSet<Position>> {
+        self.game.unreached_region(units, targets)
+    }
+
     /// What decides the squares a stack can walk to: stacks with an equal signature reach the
     /// same squares, so a caller can search once for them all.
     pub fn reach_signature(

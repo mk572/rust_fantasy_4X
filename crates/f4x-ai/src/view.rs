@@ -259,6 +259,30 @@ mod tests {
     }
 
     #[test]
+    fn the_region_of_a_failed_search_is_what_the_stack_can_walk_to() {
+        let mut g = game(COAST_CITY, 8 /* high_men */);
+        let spears = spawn(&mut g, P0, city(), 104 /* high_men_spearmen */, 2);
+        let galley = spawn(&mut g, P0, city(), 36 /* galley */, 1)[0];
+        let view = PlayerView::new(&g, P0);
+        let squares = [
+            at(INLAND_CITY.0, INLAND_CITY.1),
+            at(0, 0),
+            at(5, 5),
+            at(8, 8),
+        ];
+        for stack in [&spears[..1], &spears[..], &[galley][..]] {
+            for &to in &squares {
+                let region = view.unreached_region(stack, &[to]);
+                assert_eq!(region.is_none(), view.reaches_any(stack, &[to]), "{to:?}");
+                if let Some(region) = region {
+                    assert_eq!(region, view.reachable(stack), "{to:?}");
+                    assert!(!region.contains(&to));
+                }
+            }
+        }
+    }
+
+    #[test]
     fn five_hundred_units_on_a_few_squares_cost_a_few_searches() {
         let mut g = game(COAST_CITY, 8 /* high_men */);
         let squares = [

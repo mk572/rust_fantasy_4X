@@ -8,6 +8,7 @@ use f4x_core::game::{Command, Event, Game};
 use f4x_core::map::Position;
 use f4x_core::player::view::PlayerView;
 use f4x_core::player::PlayerId;
+use f4x_core::unit::pathing::ReachSignature;
 
 use crate::view::{
     distance, fighting_strength, garrison_wanted, is_fighter, stack_strength, unit_strength,
@@ -855,6 +856,13 @@ enum March {
 
 /// Troops that came ashore (they can walk to the target, which the rest cannot) march on the city
 /// when together they are strong enough for what is expected there.
+/// Set `F4X_CHECK_REACH` to make the search for every unit anyway and compare it with the
+/// answer from the region of an earlier search that found nothing (slow).
+fn check_regions() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("F4X_CHECK_REACH").is_some())
+}
+
 fn march_landed(
     ai: &mut Ai,
     game: &mut Game,
@@ -869,11 +877,14 @@ fn march_landed(
             .into_iter()
             .filter(|&s| view.hostile_at(s).is_none())
             .collect();
-        // One search for each unit finds every square it can walk to, instead of one path
-        // search for each square next to the target.
         // Units of one kind on one square walk to the same places: one search (that stops at the
-        // first square next to the target it finds) serves them all.
+        // first square next to the target it finds) serves them all. A search that finds none
+        // has run over the whole region the unit can walk to, and a unit of the same kind
+        // standing anywhere in that region cannot reach one either (the squares it can walk to
+        // are the same, as every step costs the same both ways): the second search is not made.
         let mut known: std::collections::HashMap<_, bool> = std::collections::HashMap::new();
+        let mut regions: Vec<(ReachSignature, f4x_core::fast::FastSet<Position>)> = Vec::new();
+        let check = check_regions();
         let landed: Vec<hecs::Entity> = free
             .iter()
             .copied()
@@ -885,15 +896,44 @@ fn march_landed(
                 let Some(at) = view.unit_position(u) else {
                     return false;
                 };
-                let search = |view: &PlayerView| {
-                    let squares: Vec<Position> =
-                        open.iter().copied().filter(|&s| s != at).collect();
-                    view.reaches_any(&[u], &squares)
-                };
-                match view.reach_signature(&[u]) {
-                    Some(key) => *known.entry(key).or_insert_with(|| search(&view)),
-                    None => search(&view),
+                let squares: Vec<Position> = open.iter().copied().filter(|&s| s != at).collect();
+                if squares.is_empty() {
+                    return false;
                 }
+                let Some(key) = view.reach_signature(&[u]) else {
+                    return view.reaches_any(&[u], &squares);
+                };
+                let in_region = regions
+                    .iter()
+                    .any(|(sig, region)| sig.moves_like(&key) && region.contains(&key.at()));
+                if in_region && !check {
+                    return false;
+                }
+                let known_key = key.clone();
+                let reached = *known.entry(key.clone()).or_insert_with(|| {
+                    match view.unreached_region(&[u], &squares) {
+                        Some(region) => {
+                            // A unit that stands on a square next to the target left it out of
+                            // its targets, and the region then holds a target for the others.
+                            if !open.contains(&at) {
+                                regions.push((key.clone(), region));
+                            }
+                            false
+                        }
+                        None => true,
+                    }
+                });
+                if in_region && reached {
+                    let from = regions
+                        .iter()
+                        .find(|(sig, region)| sig.moves_like(&known_key) && region.contains(&known_key.at()))
+                        .map(|(sig, r)| (sig.at(), r.len()));
+                    panic!(
+                        "a unit in the region of a failed search reached the target: unit {:?} target {target:?} region from {from:?} open {open:?}",
+                        known_key.at()
+                    );
+                }
+                reached
             })
             .collect();
         let force = stack_strength(&view, &landed);
