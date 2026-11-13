@@ -127,7 +127,7 @@ impl Placer {
         // `MONSTER.LBX` holds the pictures the summon scene shows, one for each summoned creature
         // (entry = unit number - the Magic Spirit's), the heroes and the sword.
         if lbx == "monster" {
-            return Some(format!("art/summoning/{entry:03}"));
+            return Some(format!("screens/wizlab/summon_figure_{entry:03}"));
         }
         // The 16x16 ability icons of the unit sheet: `SPECIAL.LBX` and the first 34 entries of
         // `SPECIAL2.LBX`, filed by the picture index of the original's `special_seg` (the
@@ -386,7 +386,10 @@ mod tests {
             &crate::spell_art::parse_spell_art("(shared: [], spells: {})")?,
             &[],
         );
-        assert_eq!(p.place("monster", 10).as_deref(), Some("art/summoning/010"));
+        assert_eq!(
+            p.place("monster", 10).as_deref(),
+            Some("screens/wizlab/summon_figure_010")
+        );
         Ok(())
     }
 

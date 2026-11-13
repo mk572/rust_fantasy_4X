@@ -374,3 +374,12 @@ resource	34	34	infoscreen	scroll_top
 resource	35	35	infoscreen	scroll_bottom
 resource	36	36	infoscreen	scroll_locked_up
 resource	37	37	infoscreen	scroll_locked_down
+
+# The summoning scene (`Summon_Animation`, summon_scene.rs): the frame, the flame behind and the one in
+# front of the summoned creature (each also in the six realm colours, `_summon_N`), the six palettes
+# (61 grey, 62 to 66 the realms). The creature's own picture is `monster.lbx`, filed as
+# `summon_figure_NNN` by `Placer::place_used`; the caster is the wizard's `summon` picture.
+spellscr	9	9	wizlab	summon_frame
+spellscr	10	10	wizlab	summon_flame_back
+spellscr	11	11	wizlab	summon_flame_front
+spellscr	61	66	wizlab
