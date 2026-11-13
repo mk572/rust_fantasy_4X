@@ -518,12 +518,16 @@ fn obstacles_shape_where_units_can_go() {
 // ---- joining the game ------------------------------------------------------------------
 
 fn game() -> Game {
+    game_seeded(5)
+}
+
+fn game_seeded(seed: u64) -> Game {
     let c = shipped();
     let grass = c
         .terrains
         .id_numbered(num::terrain::GRASSLAND)
         .expect("id_of succeeds");
-    let mut g = Game::new(5);
+    let mut g = Game::new(seed);
     g.content = c;
     g.map = Some(Map::new(Grid::new(20, 10, grass), Grid::new(20, 10, grass)));
     for id in [A, D] {
@@ -2587,6 +2591,26 @@ mod fields {
             .count();
         assert!(bolts <= 5, "{bolts}");
         assert_eq!(b.units[0].hit_points(), b.units[0].max_hit_points());
+    }
+
+    #[test]
+    fn call_lightning_strikes_a_unit_under_wraith_form() {
+        let mut b = pair(
+            of(Side::Attacker, None, (3, 5)),
+            of(Side::Defender, None, (17, 5)),
+        );
+        b.units[1].defense = 0;
+        b.units[1].hits = 100;
+        b.units[1].abilities.push(Ability::new(49));
+        b.units[1].abilities.push(Ability::new(72));
+        b.units[1].put_enchantment(SpellId::new(181));
+        b.raise_field(Side::Attacker, Field::CallLightning, spell());
+        let events = end_turns(&mut b, 8);
+        let struck = events
+            .iter()
+            .filter(|e| matches!(e, BattleEvent::SpellDamaged { unit: 1, dealt, .. } if *dealt > 0))
+            .count();
+        assert!(struck > 0, "no bolt hurt the unit under Wraith Form");
     }
 
     #[test]
@@ -5938,5 +5962,176 @@ fn neither_spell_takes_a_unit_that_is_still_alive() -> TestResult {
         .unit(living)
         .ok_or("no unit")?
         .is_active());
+    Ok(())
+}
+
+/// Wraith Form's two abilities (non-corporeal, weapon immunity) on half of the enemy units, for
+/// `spell` cast over the battlefield: the units that have them and the others, with what the
+/// spell did to each (a unit hurt or slain, or one reported immune).
+fn cast_over_wraiths(
+    spell: u16,
+    victim: u16,
+    seed: u64,
+) -> Result<Vec<(bool, bool, bool)>, String> {
+    let mut g = game_seeded(seed);
+    g.treasury_mut(A).ok_or("treasury_mut is missing")?.mana =
+        f4x_def::half_int::HalfInt::from_int(2000);
+    g.init_wizard(
+        A,
+        &[
+            (RealmId::new(2 /* chaos */), 5),
+            (RealmId::new(3 /* life */), 5),
+            (RealmId::new(4 /* death */), 5),
+        ],
+        &[],
+        None,
+    )
+    .map_err(|e| format!("{e:?}"))?;
+    let id = g
+        .content
+        .rules
+        .spells
+        .id_numbered(spell)
+        .ok_or("the spell is not in the content")?;
+    {
+        let mut m = g.wizard_mut(A).ok_or("wizard_mut is missing")?;
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .researchable
+            .remove(&id);
+        m.get_mut::<crate::wizard::sheet::Candidates>()
+            .0
+            .retain(|c| *c != id);
+        m.get_mut::<crate::wizard::sheet::KnownSpells>()
+            .known
+            .insert(id);
+    }
+    let walker = g
+        .content
+        .rules
+        .units
+        .id_numbered(107)
+        .ok_or("high_men_cavalry is not in the content")?;
+    let victim = g
+        .content
+        .rules
+        .units
+        .id_numbered(victim)
+        .ok_or("the victim is not in the content")?;
+    let ours = g.spawn_unit(A, at(4, 4), walker);
+    let theirs: Vec<_> = (0..9)
+        .map(|i| {
+            let unit = g.spawn_unit(D, at(5, 4), victim);
+            if i % 2 == 0 {
+                for ability in [49, 72] {
+                    g.grant_temp_ability(
+                        crate::rules::exec::Target::Unit(unit),
+                        crate::rules::Ability::new(ability),
+                        None,
+                    );
+                }
+            }
+            unit
+        })
+        .collect();
+    g.apply(Command::BeginBattle {
+        attackers: vec![ours],
+        defenders: theirs,
+    });
+    g.battle
+        .as_mut()
+        .ok_or("as_mut is missing")?
+        .battle
+        .set_caster(
+            Side::Attacker,
+            crate::battle::BattleCaster::new(2000, 2000, 10),
+        );
+    let events = g
+        .battle_command(BattleCommand::Cast {
+            spell: id,
+            aim: SpellAim::None,
+            mana: 0,
+        })
+        .map_err(|e| format!("{e:?}"))?;
+    let events: Vec<BattleEvent> = events
+        .into_iter()
+        .filter_map(|e| match e {
+            Event::Battle(b) => Some(b),
+            _ => None,
+        })
+        .collect();
+    let battle = g.battle().ok_or("battle is missing")?;
+    let units = battle
+        .units
+        .iter()
+        .filter(|u| u.side == Side::Defender)
+        .map(|u| {
+            // A unit an immunity stops still gets a report, of damage that is nothing.
+            let hit = |e: &BattleEvent| match e {
+                BattleEvent::SpellDamaged {
+                    unit, dealt, kills, ..
+                } => *unit == u.id && (*dealt > 0 || *kills > 0),
+                BattleEvent::SpellSlew { unit, kills } => *unit == u.id && *kills > 0,
+                _ => false,
+            };
+            let immune =
+                |e: &BattleEvent| matches!(e, BattleEvent::SpellImmune { unit } if *unit == u.id);
+            (
+                u.has(crate::rules::Ability::new(49)) && u.has(crate::rules::Ability::new(72)),
+                events.iter().any(hit),
+                events.iter().any(immune),
+            )
+        })
+        .collect();
+    Ok(units)
+}
+
+#[test]
+fn wraith_form_is_no_shelter_from_flame_strike_death_spell_and_holy_word() -> TestResult {
+    // The wiki lists these as bugs of the original (fixed in its patches): a unit under Wraith
+    // Form was immune to them. Holy Word needs a creature of death or chaos.
+    let content = shipped();
+    let death = RealmId::new(4 /* death */);
+    let undead = content
+        .rules
+        .units
+        .defs()
+        .iter()
+        .find(|d| {
+            d.kind == crate::rules::UnitKind::Summoned
+                && d.realm == Some(death)
+                && !d.abilities.contains(&crate::rules::Ability::new(49))
+        })
+        .ok_or("the shipped rules have no summoned creature of death that is not non-corporeal")?
+        .num;
+    for (spell, victim) in [
+        (109 /* flame_strike */, 107 /* high_men_cavalry */),
+        (194 /* death_spell */, 107),
+        (150 /* holy_word */, undead),
+    ] {
+        // A battle holds nine units to a side: look at several, for the dice.
+        let mut units = Vec::new();
+        for seed in 0..8 {
+            units.extend(cast_over_wraiths(spell, victim, seed)?);
+        }
+        let (wraiths, others): (Vec<_>, Vec<_>) = units.into_iter().partition(|u| u.0);
+        assert_eq!(
+            (wraiths.len(), others.len()),
+            (40, 32),
+            "spell {spell}: units with and without Wraith Form"
+        );
+        assert!(
+            wraiths.iter().all(|&(_, _, immune)| !immune),
+            "spell {spell}: a unit with Wraith Form was reported immune"
+        );
+        let touched = |units: &[(bool, bool, bool)]| units.iter().filter(|u| u.1).count();
+        assert!(
+            touched(&wraiths) > 0,
+            "spell {spell}: no unit with Wraith Form was touched"
+        );
+        assert!(
+            touched(&others) > 0,
+            "spell {spell}: no other unit was touched either"
+        );
+    }
     Ok(())
 }
