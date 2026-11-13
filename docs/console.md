@@ -113,13 +113,31 @@ A line is split on spaces; double quotes keep a name together. Battle squares ar
 Pure view actions (camera, zoom, screens, selection, help pages) have no command: the queries
 give the same information.
 
-### Override commands (taken out for now)
+### Override commands (cheats)
 
-The cheat commands (`give`, `spawn`, `kill`, `restore`, `teleport`, `undead`, `fortress`, `newcity`,
-`build`, `terrain`, `learn`, `reveal`, `event`, `offer`, `eliminate`, `win`, `as`), the override
-mode, the override log commands (`history`) and the bypass of ownership and fog are removed from
-the console. The code, its tests and a patch to wire it back in are in
-`reference/console-cheat/` (see its `README.md`).
+They run only in the override mode: a console with `Access::Full` (the client's) types `mode override`; a
+`Play` or `ReadOnly` console is refused. The prompt of the client's console then reads `[OVERRIDE]>`.
+
+| What | Command |
+|---|---|
+| Gold, mana, fame | `give <gold\|mana\|fame> <amount> [player]` |
+| Units: create, remove, heal, undead, move, enchant | `spawn <unit> <x,y[,plane]> [player]`, `kill <units>`, `restore <units>`, `undead <units>`, `teleport <units> <x,y[,plane]>`, `enchant <units> <spell> [player]` |
+| Cities: found, buildings, citizens | `newcity <x,y[,plane]> <name> [player] [race=<id>] [pop=<n>]`, `build <city> <building>`, `citizens <city> <n>` |
+| A wizard's fortress | `fortress <x,y[,plane]> [name] [race=<id>] [player=<n>]` |
+| Terrain, spells, fog | `terrain <x,y[,plane]> <terrain-id>`, `learn <spell> [player]`, `reveal [player]` |
+| Events, offers | `event <name> [player]`, `offer <kind>` |
+| End the game, play as another wizard | `eliminate <player>`, `win <player>`, `as <player>` |
+| The log | `history` lists every override used |
+
+In override mode the ownership checks of the legal commands are off (an override console may order another
+wizard's units) and queries see everything.
+
+**A cheated game stays marked.** Switching the mode on writes `mode override` to the game's override log,
+and every override command after it; the log is saved, so the mark survives save and load
+(`Game::cheated()`, true when the log is not empty). Going back to `mode legal` does not clear it. When a
+cheated game ends, the score is **not entered in the Hall of Fame** and the game log says so
+(`end.hall_cheated`). Debug mutators called from tests or the client's debug screens do not write the
+log, only the console and `cheat_event` do.
 
 ## 5. Hooks for other front ends
 

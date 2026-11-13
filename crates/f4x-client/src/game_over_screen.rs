@@ -230,6 +230,12 @@ impl App {
     /// Put the score in the table kept at `path`; a table that cannot be written is told in the
     /// log (the score is then lost, which the player should know).
     fn keep_score(&mut self, path: &std::path::Path, entry: Entry) {
+        // A game that used the cheat mode never enters the table (the log is saved with the game).
+        if self.game.cheated() {
+            let line = self.text("end.hall_cheated");
+            self.log.push(line);
+            return;
+        }
         // A table that cannot be read is not taken for empty: the score would be written over it.
         let mut table = match hall_of_fame::load(path) {
             Ok(table) => table,
@@ -292,6 +298,27 @@ mod tests {
         app.keep_score(&ok, entry);
         assert_eq!(app.log.len(), before);
         assert_eq!(hall_of_fame::load(&ok)?.len(), 1);
+        std::fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
+
+    #[test]
+    fn a_game_that_used_the_cheat_mode_does_not_enter_the_hall_of_fame(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let dir = std::env::temp_dir().join(format!("f4x-hall-cheat-{}", std::process::id()));
+        std::fs::create_dir_all(&dir)?;
+        let path = dir.join("hall_of_fame.txt");
+        let mut app = App::for_test();
+        app.game.record_override("mode override");
+        let entry = Entry {
+            name: "Merlin".into(),
+            race: "High Men".into(),
+            score: 100,
+        };
+        app.keep_score(&path, entry);
+        let line = app.log.last().ok_or("nothing was logged")?.to_string();
+        assert!(line.contains("cheat mode"), "{line}");
+        assert!(!path.exists(), "the table was written");
         std::fs::remove_dir_all(&dir)?;
         Ok(())
     }

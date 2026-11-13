@@ -5,9 +5,9 @@
 //!
 //! * **query** commands only read the game;
 //! * **legal** commands are what a player may do in normal play, and go through the same
-//!   `Command` path as the client, with ownership checked.
-//!
-//! The cheat (override) commands are not part of the console; `reference/console-cheat/` has them.
+//!   `Command` path as the client, with ownership checked;
+//! * **override** commands are cheats (spawn units, remove players, set gold). They run only
+//!   in [`Mode::Override`], and every use is written to the game's saved override log.
 //!
 //! The table ([`commands`]) and [`Console::execute`] are the only hooks a front end needs: the
 //! client's console, the headless runner, an AI player, an MCP server or a remote client all
@@ -16,6 +16,7 @@
 //! Tests: in `tests.rs`, on the shipped content.
 
 pub mod args;
+mod cheat;
 pub mod describe;
 mod legal;
 mod meta;
@@ -36,6 +37,8 @@ pub enum Kind {
     Query,
     /// Something a player may do in normal play.
     Legal,
+    /// Cheating: changes the game in ways the rules never allow.
+    Override,
 }
 
 /// What the console accepts right now; the user switches it with `mode`, within the limit set
@@ -46,6 +49,8 @@ pub enum Mode {
     ReadOnly,
     /// Queries and legal commands.
     Legal,
+    /// Everything, including override commands (cheats).
+    Override,
 }
 
 impl Mode {
@@ -53,6 +58,7 @@ impl Mode {
         match self {
             Mode::ReadOnly => "readonly",
             Mode::Legal => "legal",
+            Mode::Override => "override",
         }
     }
 
@@ -61,6 +67,7 @@ impl Mode {
         match word {
             "readonly" | "read-only" => Some(Mode::ReadOnly),
             "legal" => Some(Mode::Legal),
+            "override" => Some(Mode::Override),
             _ => None,
         }
     }
@@ -73,7 +80,7 @@ pub enum Access {
     ReadOnly,
     /// Queries and legal commands (an AI player, a networked player, hardcore mode).
     Play,
-    /// Everything a console can do, including replacing the game (`new`, `load`).
+    /// Everything, if the mode is switched to override.
     Full,
 }
 
@@ -138,6 +145,8 @@ pub struct Ctx<'a> {
     pub session: &'a mut Session,
     pub out: Vec<String>,
     pub events: Vec<Event>,
+    /// A legal command was run on something that is not the player's (override mode only).
+    pub bypassed: bool,
 }
 
 type Run = fn(&mut Ctx, &Args) -> Result<(), ConsoleError>;
@@ -175,7 +184,13 @@ pub struct Console {
 /// All commands, in the order `help` lists them.
 pub fn commands() -> Vec<&'static CommandDef> {
     let mut all: Vec<&'static CommandDef> = Vec::new();
-    for table in [meta::TABLE, query::TABLE, legal::TABLE, talk::TABLE] {
+    for table in [
+        meta::TABLE,
+        query::TABLE,
+        legal::TABLE,
+        talk::TABLE,
+        cheat::TABLE,
+    ] {
         all.extend(table.iter());
     }
     all
@@ -224,6 +239,13 @@ impl Console {
                 "read-only mode: switch with `mode legal` to change the game".into(),
             )),
             Kind::Legal => Ok(()),
+            Kind::Override if s.access < Access::Full => Err(ConsoleError::NotAllowed(
+                "override commands are not available to this console".into(),
+            )),
+            Kind::Override if s.mode != Mode::Override => Err(ConsoleError::NotAllowed(
+                "override command: switch on override mode first (`mode override`)".into(),
+            )),
+            Kind::Override => Ok(()),
         }
     }
 
@@ -264,14 +286,20 @@ impl Console {
             session: &mut self.session,
             out: Vec::new(),
             events: Vec::new(),
+            bypassed: false,
         };
         let result = (def.run)(&mut ctx, &Args { words: rest });
-        let (mut out, events) = (ctx.out, ctx.events);
+        let (mut out, events, bypassed) = (ctx.out, ctx.events, ctx.bypassed);
         if result.is_ok() && out.is_empty() && def.kind != Kind::Query {
             out.push("ok".into());
         }
         match result {
-            Ok(()) => Ok((out, events)),
+            Ok(()) => {
+                if def.kind == Kind::Override || bypassed {
+                    game.record_override(line.trim());
+                }
+                Ok((out, events))
+            }
             Err(e) => Err((out, events, e)),
         }
     }
@@ -280,6 +308,11 @@ impl Console {
 impl Ctx<'_> {
     pub fn say(&mut self, line: impl Into<String>) {
         self.out.push(line.into());
+    }
+
+    /// Whether the console may act on things of any owner.
+    pub fn overriding(&self) -> bool {
+        self.session.mode == Mode::Override
     }
 
     /// Carry out a game command as the console's player, print what happened and follow up

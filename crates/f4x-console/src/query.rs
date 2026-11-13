@@ -140,8 +140,11 @@ pub const TABLE: &[CommandDef] = &[
 ];
 
 impl Ctx<'_> {
-    /// Can the console's player see this square?
+    /// Can the console's player see this square? (Override mode sees everything.)
     fn sees(&self, p: Position) -> bool {
+        if self.overriding() {
+            return true;
+        }
         let Some(map) = self.game.map() else {
             return false;
         };
@@ -157,7 +160,7 @@ impl Ctx<'_> {
     }
 
     fn explored(&self, p: Position) -> bool {
-        self.game.is_explored(self.session.player, p)
+        self.overriding() || self.game.is_explored(self.session.player, p)
     }
 }
 
@@ -224,6 +227,10 @@ fn status(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             over.kind,
             over.turn
         ));
+    }
+    let n = ctx.game.override_log().len();
+    if n > 0 {
+        ctx.say(format!("override commands used in this game: {n}"));
     }
     Ok(())
 }
@@ -313,7 +320,8 @@ fn units(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 .units()
                 .unit_position(u)
                 .is_some_and(|p| ctx.sees(p))
-                && ctx.game.economy().unit_visible_to(u, me));
+                && ctx.game.economy().unit_visible_to(u, me))
+            || ctx.overriding();
         if visible {
             let line = unit_line(ctx, u);
             ctx.say(line);
@@ -336,6 +344,7 @@ fn unit(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         .ok_or(ConsoleError::NoSuch("unit".into()))?;
     if ctx.game.units().unit_owner(u) != Some(me)
         && !(ctx.sees(at) && ctx.game.economy().unit_visible_to(u, me))
+        && !ctx.overriding()
     {
         return Err(ConsoleError::NoSuch(format!(
             "unit {}",
@@ -387,7 +396,7 @@ fn cities(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     let me = ctx.session.player;
     let mut rows = Vec::new();
     for (e, c, p) in ctx.game.economy().cities() {
-        if c.owner == me || (all && ctx.sees(p)) {
+        if c.owner == me || (all && ctx.sees(p)) || ctx.overriding() && all {
             let pop = ctx.game.economy().citizens(e);
             rows.push((
                 ctx.game.serial_of(e),
@@ -421,7 +430,7 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         .find(|(e, ..)| *e == c)
         .map(|(_, _, p)| p)
         .ok_or(ConsoleError::NoSuch("city".into()))?;
-    if owner != Some(ctx.session.player) && !ctx.sees(at) {
+    if owner != Some(ctx.session.player) && !ctx.sees(at) && !ctx.overriding() {
         return Err(ConsoleError::NoSuch(format!(
             "city {}",
             a.get(0).unwrap_or("")
@@ -433,7 +442,7 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         owner.map_or(0, |o| o.0),
         describe::pos(at)
     ));
-    if owner != Some(ctx.session.player) {
+    if owner != Some(ctx.session.player) && !ctx.overriding() {
         return Ok(()); // a rival's city: only what shows from outside
     }
     if let Some(eco) = ctx.game.economy().city_economy(c) {
@@ -489,7 +498,7 @@ fn city(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
 fn options(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
     use f4x_core::city::production::ProductionItem;
     let c = city_by_serial(ctx.game, a.int(0, "city number")? as u64)?;
-    if ctx.game.economy().city_owner(c) != Some(ctx.session.player) {
+    if ctx.game.economy().city_owner(c) != Some(ctx.session.player) && !ctx.overriding() {
         return Err(ConsoleError::NotAllowed("not your city".into()));
     }
     let rules = &ctx.game.content().rules;
@@ -554,7 +563,7 @@ fn tile(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         let mut here = ctx.game.units().units_at(p);
         ctx.game.sort_by_serial(&mut here);
         for u in here {
-            if ctx.game.economy().unit_visible_to(u, ctx.session.player) {
+            if ctx.game.economy().unit_visible_to(u, ctx.session.player) || ctx.overriding() {
                 let line = unit_line(ctx, u);
                 ctx.say(format!("  {line}"));
             }
@@ -711,8 +720,9 @@ fn battle(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
             .iter()
             // What the session's side cannot see (an invisible enemy) is not listed.
             .filter(|u| {
-                b.side_of(ctx.session.player)
-                    .is_none_or(|side| b.seen_by(side, u.id))
+                ctx.overriding()
+                    || b.side_of(ctx.session.player)
+                        .is_none_or(|side| b.seen_by(side, u.id))
             })
             .map(|u| {
                 format!(
@@ -735,7 +745,7 @@ fn blegal(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         .game
         .battle()
         .ok_or_else(|| ConsoleError::NoSuch("battle in progress".into()))?;
-    if b.player_of(b.active) != ctx.session.player {
+    if b.player_of(b.active) != ctx.session.player && !ctx.overriding() {
         return Err(ConsoleError::NotAllowed(
             "it is not your side's turn".into(),
         ));

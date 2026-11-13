@@ -22,15 +22,22 @@ pub const TABLE: &[CommandDef] = &[
         name: "commands",
         kind: Kind::Query,
         usage: "commands",
-        help: "One line per command: name, kind (query, legal) and usage, tab separated.",
+        help: "One line per command: name, kind (query, legal, override) and usage, tab separated.",
         run: list,
     },
     CommandDef {
         name: "mode",
         kind: Kind::Query,
-        usage: "mode [readonly|legal]",
-        help: "Show or set the mode. In readonly mode only queries run; legal allows normal play.",
+        usage: "mode [readonly|legal|override]",
+        help: "Show or set the mode. In readonly mode only queries run; legal allows normal play; override also allows cheats, and switching it on is written to the game's override log.",
         run: mode,
+    },
+    CommandDef {
+        name: "history",
+        kind: Kind::Query,
+        usage: "history",
+        help: "The override commands used in this game.",
+        run: history,
     },
     CommandDef {
         name: "settings",
@@ -94,6 +101,10 @@ fn help(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
                 "A legal command plays the game; it needs the mode `legal` (see `mode`)."
                     .to_string()
             }
+            Kind::Override => {
+                "An override command is a cheat; it needs the mode `override` (see `mode`), and every use is logged in the game."
+                    .to_string()
+            }
         });
         return Ok(());
     }
@@ -121,6 +132,7 @@ pub fn kind_name(k: Kind) -> &'static str {
     match k {
         Kind::Query => "query",
         Kind::Legal => "legal",
+        Kind::Override => "override",
     }
 }
 
@@ -141,12 +153,14 @@ fn mode(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
         ctx.say(format!("mode {}", ctx.session.mode.name()));
         return Ok(());
     };
-    let wanted = Mode::parse(word)
-        .ok_or_else(|| ConsoleError::Usage(format!("mode is readonly or legal, not {word:?}")))?;
+    let wanted = Mode::parse(word).ok_or_else(|| {
+        ConsoleError::Usage(format!("mode is readonly, legal or override, not {word:?}"))
+    })?;
     // Going down is always allowed; going up is limited by the console's access.
     let needed = match wanted {
         Mode::ReadOnly => crate::Access::ReadOnly,
         Mode::Legal => crate::Access::Play,
+        Mode::Override => crate::Access::Full,
     };
     if ctx.session.access < needed {
         return Err(ConsoleError::NotAllowed(format!(
@@ -154,11 +168,26 @@ fn mode(ctx: &mut Ctx, a: &Args) -> Result<(), ConsoleError> {
             wanted.name()
         )));
     }
+    if wanted == Mode::Override && ctx.session.mode != Mode::Override {
+        ctx.game.record_override("mode override");
+    }
     ctx.session.mode = wanted;
     ctx.say(match wanted {
         Mode::ReadOnly => "mode readonly: only queries run".to_string(),
         Mode::Legal => "mode legal".to_string(),
+        Mode::Override => "mode override: cheats are on, logged in the game, and this game no longer enters the Hall of Fame".to_string(),
     });
+    Ok(())
+}
+
+fn history(ctx: &mut Ctx, _: &Args) -> Result<(), ConsoleError> {
+    let log: Vec<String> = ctx.game.override_log().to_vec();
+    if log.is_empty() {
+        ctx.say("no override commands used");
+    }
+    for l in log {
+        ctx.say(l);
+    }
     Ok(())
 }
 

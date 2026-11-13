@@ -1,15 +1,31 @@
-//! Override mutators: things the rules never allow a player to do, for debug screens and tests.
-//! The console's override commands are out (`reference/console-cheat/`).
+//! Override mutators: things the rules never allow a player to do. The console's override
+//! commands (`docs/console.md`) and the debug screens call these; every console use is written to
+//! the game's override log, which is saved, so a game that was tampered with can be told apart.
 //!
 //! Tests: below.
 
 use crate::map::{Position, TerrainId};
 use crate::player::PlayerId;
 
+use crate::city::economy::Buildings;
 use crate::game::{Event, Game};
-use crate::rules::SpellId;
+use crate::rules::{BuildingId, SpellId};
+
+const MONSTERS: PlayerId = PlayerId(u8::MAX);
 
 impl Game {
+    /// Note that an override command changed the game.
+    pub fn record_override(&mut self, line: &str) {
+        self.override_log
+            .push(format!("turn {}: {line}", self.turn));
+    }
+
+    /// Whether the game ever used the console's cheat mode (switching it on is logged, and the log
+    /// is saved with the game): such a game does not go in the Hall of Fame.
+    pub fn cheated(&self) -> bool {
+        !self.override_log.is_empty()
+    }
+
     /// Override commands that changed this game, oldest first.
     pub fn override_log(&self) -> &[String] {
         &self.override_log
@@ -27,6 +43,41 @@ impl Game {
         let there = self.world.contains(unit);
         self.remove_unit(unit, crate::hero::Fate::Slain);
         there
+    }
+
+    /// Put a lasting spell on a unit at no cost, as if `caster` had cast it.
+    pub fn cheat_enchant_unit(
+        &mut self,
+        unit: hecs::Entity,
+        spell: SpellId,
+        caster: PlayerId,
+    ) -> bool {
+        if !self.world.contains(unit) {
+            return false;
+        }
+        self.attach_enchantment(crate::rules::exec::Target::Unit(unit), spell, caster);
+        true
+    }
+
+    /// Set a city's citizens (the whole number; the fraction is kept).
+    pub fn cheat_set_citizens(&mut self, city: hecs::Entity, citizens: u32) -> bool {
+        match self
+            .world
+            .get::<&mut crate::city::economy::Population>(city)
+        {
+            Ok(mut p) => {
+                p.figures = citizens;
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Heal a unit completely and give it all its moves back.
+    pub fn cheat_restore_unit(&mut self, unit: hecs::Entity) {
+        let moves = self.units().unit_max_moves(unit);
+        let _ = self.world.insert_one(unit, crate::unit::Hurt(0));
+        let _ = self.world.insert_one(unit, crate::unit::MovesLeft(moves));
     }
 
     /// Put a unit on a square, wherever it stands and whatever is there.
@@ -118,6 +169,22 @@ impl Game {
         true
     }
 
+    /// Give a city a building at no cost and without its requirements.
+    pub fn cheat_add_building(&mut self, city: hecs::Entity, building: BuildingId) -> bool {
+        if self.economy().city_owner(city).is_none() {
+            return false;
+        }
+        let mut list = self
+            .world
+            .get::<&Buildings>(city)
+            .map(|b| b.0.clone())
+            .unwrap_or_default();
+        if !list.contains(&building) {
+            list.push(building);
+        }
+        self.world.insert_one(city, Buildings(list)).is_ok()
+    }
+
     /// Teach a wizard a spell.
     pub fn cheat_learn_spell(&mut self, player: PlayerId, spell: SpellId) -> bool {
         let Some(mut w) = self.wizard_mut(player) else {
@@ -132,6 +199,36 @@ impl Game {
     /// Defeat a wizard now, as if `winner` had beaten them (for tests and the console).
     pub fn cheat_defeat_player(&mut self, loser: PlayerId, winner: PlayerId) -> Vec<Event> {
         self.defeat(loser, winner)
+    }
+
+    /// Reveal both planes to a player.
+    pub fn cheat_reveal(&mut self, player: PlayerId) {
+        let Some(map) = self.map.as_ref() else {
+            return;
+        };
+        let (w, h) = (map.width(), map.height());
+        for plane in crate::map::Plane::all() {
+            let centre = Position {
+                plane,
+                x: w / 2,
+                y: h / 2,
+            };
+            self.fog.explore_block(player, centre, w, h);
+        }
+    }
+
+    /// Defeat a wizard on the spot: their cities turn neutral and the usual aftermath
+    /// follows, ending the game if that leaves one wizard (or the human is the one).
+    pub fn cheat_eliminate(&mut self, player: PlayerId, by: PlayerId) -> Vec<Event> {
+        if !self.has_player(player) || self.player(player).is_none_or(|p| p.is_defeated()) {
+            return Vec::new();
+        }
+        for (city, c, _) in self.economy().cities() {
+            if c.owner == player {
+                self.set_owner(city, MONSTERS);
+            }
+        }
+        self.defeat(player, by)
     }
 }
 

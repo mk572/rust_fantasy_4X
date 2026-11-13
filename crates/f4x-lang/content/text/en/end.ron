@@ -11,6 +11,7 @@
     "end.log": "{title} {reason}",
     "end.hall_read_failed": "The Hall of Fame could not be read, so your score is not entered: {why}",
     "end.hall_save_failed": "The Hall of Fame could not be saved: {why}",
+    "end.hall_cheated": "This game used the console's cheat mode, so your score is not entered in the Hall of Fame.",
     // The victory speech, a line every fifteen steps of the scene.
     "end.win_1": "Having conquered both the",
     "end.win_2": "world of Arcanus and Myrror,",

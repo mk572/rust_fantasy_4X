@@ -52,7 +52,7 @@ Game                                   (game/mod.rs; the owner and the orchestra
 ├── game_over: Option<GameOver>        set once the game has ended; every later command is refused
 ├── next_serial                        the counter behind `Serial` (section 5)
 ├── events, item_awards                random events going on; items that fell to wizards from slain heroes
-├── override_log                       the debug cheat mutators that changed the game (the console cheats are out, see `reference/console-cheat/`)
+├── override_log                       the console's override (cheat) commands that changed the game, saved; a game with entries is `cheated` and does not enter the Hall of Fame
 ├── battle_brains                      the learned players of battles
 └── undo_stack                         snapshots for undoing a command (game/undo.rs)
 ```
@@ -82,7 +82,7 @@ The fields of `Game` (`world`, `map`, `fog`, `content`, `player_index`) are priv
 other crates ask the game through its queries (`units()`, `economy()`, the handles `player(id)` and `wizard(id)`, and `game/access.rs`:
 `content()`, `map()`, `player_ids()`, `is_explored`, `city_buildings`...), play through
 `Game::apply`, and set a game up by hand (tests, scenarios, tools) through the setters of
-`game/access.rs` and the `cheat_*` mutators of `game/cheat.rs`, which only debug screens and tests use. An AI wizard reads through a `PlayerView` (`player/view.rs`): its own things, the cities of
+`game/access.rs` and the `cheat_*` mutators of `game/cheat.rs`, which the console's override commands, debug screens and tests use. An AI wizard reads through a `PlayerView` (`player/view.rs`): its own things, the cities of
 others on squares it has explored and the units on squares it sees, so it cannot know more than a
 human player. Tests of other crates may read a component with the hidden
 `Game::component::<T>`.

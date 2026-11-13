@@ -65,7 +65,7 @@ fn the_table_is_well_formed() {
         );
         assert!(!c.help.is_empty());
     }
-    for kind in [Kind::Query, Kind::Legal] {
+    for kind in [Kind::Query, Kind::Legal, Kind::Override] {
         assert!(all.iter().any(|c| c.kind == kind));
     }
 }
@@ -3697,3 +3697,5 @@ fn the_new_command_takes_a_map_size() {
     let r = c.execute(&mut game, "new 3 map=200x200");
     assert!(r.error.is_some());
 }
+
+mod cheat;

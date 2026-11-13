@@ -324,7 +324,7 @@ mod tests {
         );
         assert_eq!(
             p.place("cmbtwall", 1).as_deref(),
-            Some("screens/combat/cmbtwall_unknown/cmbtwall_001")
+            Some("../assets-unused/screens/combat/cmbtwall_unknown/cmbtwall_001")
         );
         Ok(())
     }
