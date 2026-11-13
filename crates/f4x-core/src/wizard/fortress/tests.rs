@@ -372,6 +372,40 @@ fn a_fortress_city_cannot_be_destroyed() -> TestResult {
 }
 
 #[test]
+fn a_city_without_a_square_is_refused_not_reported_at_a_made_up_square() -> TestResult {
+    let mut g = world();
+    place(&mut g, P0, at(5, 5));
+    let town = city(&mut g, P0, at(15, 5));
+    g.world.remove_one::<Position>(town)?;
+    assert_eq!(g.destroy_city(town), Err(FortressError::NotYourCity));
+    Ok(())
+}
+
+#[test]
+fn a_city_that_must_go_goes_even_when_it_cannot_be_destroyed_by_the_book() -> TestResult {
+    let mut g = world();
+    let capital = place(&mut g, P0, at(5, 5));
+    let town = city(&mut g, P0, at(15, 5));
+    let town2 = city(&mut g, P0, at(10, 9));
+    // The fortress city survives with a citizen and no event.
+    g.world.get::<&mut Population>(capital)?.figures = 0;
+    assert_eq!(g.remove_city(capital), Vec::new());
+    assert_eq!(g.world.get::<&Population>(capital)?.figures, 1);
+    // A city that has no owner is removed all the same, so no ghost stays.
+    g.world.remove_one::<crate::player::Owner>(town)?;
+    assert_eq!(
+        g.remove_city(town),
+        vec![Event::CityDestroyed { pos: at(15, 5) }]
+    );
+    assert!(g.economy().city_at(at(15, 5)).is_none());
+    // A city with no square is removed too, with nothing to name.
+    g.world.remove_one::<Position>(town2)?;
+    assert_eq!(g.remove_city(town2), Vec::new());
+    assert!(g.world.get::<&Population>(town2).is_err(), "no ghost");
+    Ok(())
+}
+
+#[test]
 fn saves_keep_the_fortress_and_reject_a_misplaced_one() -> TestResult {
     let mut g = world();
     g.set_human(Some(P0));

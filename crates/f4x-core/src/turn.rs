@@ -228,9 +228,7 @@ impl Game {
                     events.push(Event::CityGrew { city, figures: 1 });
                 }
                 crate::city::growth::OutpostTurn::Lost => {
-                    if let Ok(lost) = self.destroy_city(city) {
-                        events.extend(lost);
-                    }
+                    events.extend(self.remove_city(city));
                 }
                 crate::city::growth::OutpostTurn::Stays => {}
             }

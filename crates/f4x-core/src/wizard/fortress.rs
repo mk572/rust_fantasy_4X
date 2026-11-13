@@ -26,7 +26,7 @@ pub enum FortressError {
     /// The wizard already has a fortress, or was defeated.
     NotAllowed,
     Found(FoundCityError),
-    /// The city does not exist or belongs to someone else.
+    /// The city does not exist, has no owner or no square, or belongs to someone else.
     NotYourCity,
     /// The spell only works while banished (or only while not banished).
     WrongState,
@@ -515,6 +515,26 @@ impl Game {
         events
     }
 
+    /// A city that the rules have decided is gone (an outpost that is lost, a city taken with no
+    /// citizens, one a monster horde razes): [`Game::destroy_city`], and what to do when it
+    /// says no. A wizard's fortress city survives with a citizen, as in the original, so no
+    /// event. A city that has no owner or no square cannot be destroyed by the book and is
+    /// removed all the same, so that none is left standing as a ghost; the event is there when
+    /// it had a square to name.
+    pub(crate) fn remove_city(&mut self, city: hecs::Entity) -> Vec<Event> {
+        match self.destroy_city(city) {
+            Ok(events) => events,
+            Err(FortressError::CannotDestroyFortress) => Vec::new(),
+            Err(_) => {
+                let pos = self.world.get::<&Position>(city).map(|p| *p).ok();
+                self.despawn_with_spells(city);
+                pos.map(|pos| Event::CityDestroyed { pos })
+                    .into_iter()
+                    .collect()
+            }
+        }
+    }
+
     /// Raze a city. A fortress city cannot be destroyed: it survives with at least one
     /// citizen, as in the original.
     pub fn destroy_city(&mut self, city: hecs::Entity) -> Result<Vec<Event>, FortressError> {
@@ -528,18 +548,18 @@ impl Game {
             }
             return Err(FortressError::CannotDestroyFortress);
         }
-        let pos = self.world.get::<&Position>(city).map(|p| *p).ok();
+        // A city with no square cannot be reported or taken off the map by its square: refused
+        // here, so no event ever names a made-up square.
+        let pos = self
+            .world
+            .get::<&Position>(city)
+            .map(|p| *p)
+            .map_err(|_| FortressError::NotYourCity)?;
         self.despawn_with_spells(city);
-        if let (Some(pos), Some(mut w)) = (pos, self.wizard_mut(owner)) {
+        if let Some(mut w) = self.wizard_mut(owner) {
             circle_lost_to_destruction(&mut w, pos);
         }
-        let mut events = vec![Event::CityDestroyed {
-            pos: pos.unwrap_or(Position {
-                plane: crate::map::Plane::Arcanus,
-                x: 0,
-                y: 0,
-            }),
-        }];
+        let mut events = vec![Event::CityDestroyed { pos }];
         if self.economy().city_count(owner) == 0 {
             events.extend(self.defeat(owner, owner));
         }

@@ -315,13 +315,7 @@ impl Game {
         for &m in monsters {
             self.despawn_with_spells(m);
         }
-        let mut events = match self.destroy_city(city) {
-            Ok(e) => e,
-            Err(_) => {
-                self.despawn_with_spells(city);
-                vec![Event::CityDestroyed { pos }]
-            }
-        };
+        let mut events = self.remove_city(city);
         self.spawn_feature(Placement {
             at: pos,
             feature,

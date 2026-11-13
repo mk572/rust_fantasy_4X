@@ -175,11 +175,7 @@ impl Game {
         if citizens == 0 {
             // An outpost is destroyed, not held.
             let mut events = self.capture_city(city, winner);
-            if let Ok(e) = self.destroy_city(city) {
-                events.extend(e);
-            } else {
-                self.despawn_with_spells(city);
-            }
+            events.extend(self.remove_city(city));
             return events;
         }
         self.city_taken_relations(winner, loser);
@@ -275,22 +271,13 @@ impl Game {
             .get::<&Buildings>(city)
             .map(|b| razing_loot(b.0.iter().map(|&b| rules.buildings.get(b).cost)))
             .unwrap_or(0);
-        let pos: Option<Position> = self.world.get::<&Position>(city).map(|p| *p).ok();
         let fame_lost = razing_fame_loss(size);
         self.add_fame(player, -fame_lost);
         if let Some(t) = self.treasury_mut(player) {
             t.gold += loot;
         }
         let mut events = Vec::new();
-        match self.destroy_city(city) {
-            Ok(e) => events.extend(e),
-            Err(_) => {
-                self.despawn_with_spells(city);
-                if let Some(pos) = pos {
-                    events.push(Event::CityDestroyed { pos });
-                }
-            }
-        }
+        events.extend(self.remove_city(city));
         events.push(Event::CityRazed {
             player,
             gold: loot,
