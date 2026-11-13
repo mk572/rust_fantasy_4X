@@ -571,6 +571,11 @@ impl App {
                     ))
                 }
                 Event::Rejected(why) => Some(self.text(why.key())),
+                // Only the human's own orders are reported: the computer players' are theirs.
+                Event::OrderFailed { player, why, .. } if player == HUMAN => Some(self.text_with(
+                    "log.order_failed",
+                    &Args::new().text("reason", self.text(why.key())),
+                )),
                 Event::ItemMade { player, .. } => {
                     self.item_pool_pending |= player == HUMAN;
                     None

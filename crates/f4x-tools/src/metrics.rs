@@ -582,6 +582,10 @@ impl Tally {
                         m.treaties_broken += 1;
                     })
                 }
+                // A standing order that stopped on a refused step counts as a refused order.
+                Event::OrderFailed { player, .. } => {
+                    self.bump(*player, |m| m.refused_orders += 1);
+                }
                 Event::Rejected(_) => {
                     if let Some(p) = source {
                         self.bump(p, |m| m.refused_orders += 1);

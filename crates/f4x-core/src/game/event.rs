@@ -457,6 +457,16 @@ pub enum Event {
         from: map::Position,
         to: map::Position,
     },
+    /// A standing order (`Order::GoTo`) stopped before its end because a step was refused (the
+    /// square filled up, the ground changed); the order is gone and the units stand where they
+    /// are. Running out of moves is not a failure: the order goes on next turn.
+    OrderFailed {
+        player: player::PlayerId,
+        units: Vec<hecs::Entity>,
+        at: map::Position,
+        to: map::Position,
+        why: unit::movement::MoveError,
+    },
     /// Moving into hostile units or a hostile city: the attack is for the combat layer.
     AttackRequested {
         attackers: Vec<hecs::Entity>,

@@ -171,3 +171,7 @@ did not see it: it changed an item in one city of one of three games. When a cac
 equality check, put the check on the read path (every hit), run it on the late-game snapshots of
 2 and 5 wizards and on new games, and take the reference to be the version without the cache (a
 temporary build that always works the value out afresh), not the previous commit.
+
+## A rejected step must be reported, not dropped (task 515)
+
+`follow_orders` ended a standing `GoTo` on any refused step with `path.clear()`, no event: a stack that walked into a square full of its own units waited at its edge for hundreds of turns, and the AI's raiders, marked as busy, never came home. The fault showed only as plans that never ended, in no log. A step's failure is now `Event::OrderFailed` (units, squares, reason), counted by the soak as a refused order and kept in the refused-order log; running out of moves is still silent because the order goes on. The first soak with it showed about 960 refused orders in one game (task 545). When code stops a multi-step order, it returns the reason as an event or error; a silent `clear()` hides the bug for as long as nobody looks at the symptom.

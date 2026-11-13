@@ -297,6 +297,45 @@ fn a_path_goes_round_a_square_that_has_no_room_for_the_stack() -> TestResult {
 }
 
 #[test]
+fn an_order_stopped_by_a_refused_step_says_why() -> TestResult {
+    let mut g = world();
+    let mover = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 1));
+    // The path was planned when the square had room; it filled up since.
+    g.world
+        .insert_one(mover, crate::unit::Order::GoTo(vec![at(2, 1), at(3, 1)]))?;
+    for _ in 0..g.max_tile() {
+        unit(&mut g, P0, 107 /* high_men_cavalry */, at(2, 1));
+    }
+    let events = g.follow_orders(&[mover]);
+    assert_eq!(
+        events,
+        vec![Event::OrderFailed {
+            player: P0,
+            units: vec![mover],
+            at: at(1, 1),
+            to: at(2, 1),
+            why: MoveError::StackFull,
+        }]
+    );
+    assert!(g.world.get::<&crate::unit::Order>(mover).is_err());
+    // Running out of moves is no failure: the order stays for the next turn.
+    let mut g = world();
+    let mover = unit(&mut g, P0, 107 /* high_men_cavalry */, at(1, 1));
+    g.world.insert_one(
+        mover,
+        crate::unit::Order::GoTo(vec![at(2, 1), at(3, 1), at(4, 1)]),
+    )?;
+    let events = g.follow_orders(&[mover]);
+    assert!(
+        !events
+            .iter()
+            .any(|e| matches!(e, Event::OrderFailed { .. })),
+        "{events:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn the_setting_lowers_the_units_a_tile_holds() {
     let mut g = world();
     g.settings.rules.max_tile = 12;

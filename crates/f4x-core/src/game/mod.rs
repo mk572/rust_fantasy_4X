@@ -858,7 +858,17 @@ impl Game {
                         path.clear();
                     }
                     Err(unit::movement::MoveError::NoMovesLeft) => break,
-                    Err(_) => {
+                    Err(why) => {
+                        // The order is over, and the caller is told why.
+                        if let Some(player) = self.units().unit_owner(group[0]) {
+                            events.push(Event::OrderFailed {
+                                player,
+                                units: group.clone(),
+                                at: from,
+                                to: next,
+                                why,
+                            });
+                        }
                         path.clear();
                     }
                 }

@@ -379,6 +379,18 @@ impl Ai {
         let ok = !out.iter().any(|e| matches!(e, Event::Rejected(_)));
         if let Some(command) = kept {
             for e in &out {
+                // A standing order that stopped on a refused step is a refusal too.
+                if let Event::OrderFailed { why, player, .. } = e {
+                    if *player == self.player {
+                        self.refusals.borrow_mut().push(Refusal {
+                            turn: game.turn,
+                            player: self.player,
+                            source: format!("{}:{}", at.file(), at.line()),
+                            command: command.clone(),
+                            reason: format!("OrderFailed {why:?}"),
+                        });
+                    }
+                }
                 if let Event::Rejected(reason) = e {
                     self.refusals.borrow_mut().push(Refusal {
                         turn: game.turn,
