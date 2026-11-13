@@ -90,7 +90,6 @@ Finished tasks are moved to [`TASKS-DONE.md`](TASKS-DONE.md) with
 | 544 | Low | Perf | Memory and allocation, and the 382 leads still open: `Content` shared with `Arc`, per-call rebuilds, battle-AI lists (split from task 445) |
 | 545 | Medium | AI | Orders the game cancels on a full square: about 960 refused orders in one 3-wizard game, `StackFull` and `NoRoom` on the AI's `GoTo` (colony.rs:280, military.rs:797, assault.rs:96) |
 | 546 | Medium | Quality | Silent error audit: find the functions that return a bool or nothing where several things can fail, give them a failure value with the reason, and improve their callers |
-| 550 | Low | Spells | `spawn_volcano` returns `Option` with one cause (no such player) and `terraform.rs:201` drops it; Earth-lore volcano silently missing; make it a typed error the cast handles |
 | 551 | Low | Spells | `shake_city` (earthquake) skips its whole effect when the city has no position and reports nothing lost; decide bug-class versus rule, handle it, test |
 | 552 | Medium | Cities | `destroy_building` answers `bool`: tell why it refused (not built, needed by another building) and let the callers (sale, conquest, spells) act on it |
 | 553 | Low | Heroes | `pick_hero` returns `Option<usize>`: read `kind::pick`, say which of the causes (none free, none affordable, ...) is meant, and make the offer and summon callers use it |
@@ -342,8 +341,6 @@ and make invalidation explicit and testable so the client never displays stale i
 - Not looked at yet: the 84 `continue;` in `f4x-ai` after a refused command (each needs reading in step 3, with the `Rejected` logs of the soak), and the 109 `unwrap_or_default()`.
 **Each finding above has its own task, for the complete fix (cause, error, callers, tests, player text where it applies): 547 `scrap_item`, 548 Word of Recall, 549 `destroy_city` in the outpost turn, 550 volcano, 551 earthquake, 552 `destroy_building`, 553 `pick_hero`, 554 `insert_one` (about 150 hits), 555 `Ai::send`, 556 AI helpers, 557 client dropped results, 558 files read silently, 559 the part not yet read.** This task is closed when they are (steps 2 to 4 are done there).
 Not part of this: the reasons a rule refuses a player's command (`Rejection`) are already typed; the audit is for what is below and around them. *Needs:* nothing. Related: tasks 515, 541, 545.
-
-**550. Volcano that is not raised.** From the audit of task 546 (`feature/entity.rs:351`, caller `spell/terraform.rs:201`, `self.spawn_volcano(owner, at);`). The `Option` is dropped; the event `VolcanoRaised` is pushed anyway a few lines below, so a volcano that was not made is announced. Fix: push the event only on success, and let an unknown player be an error that reaches the log (a bug-class case). Test: a cast whose owner has no player entity. *Needs:* nothing. Related: task 546.
 
 **551. Earthquake on a city without a position.** From the audit of task 546 (`spell/wizard.rs:292`, `if let Ok(at) = at`). Read the whole function first: if a city always has a position, the `if let` should become a hard failure (`debug_assert!`/logged error) instead of a quiet `(0, 0)` result; if there is a legitimate case, say which and test it. *Needs:* nothing. Related: task 546, task 554 (the same class).
 

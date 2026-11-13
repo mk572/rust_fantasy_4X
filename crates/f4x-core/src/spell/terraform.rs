@@ -151,6 +151,12 @@ impl Game {
         rng: &mut dyn RngCore,
         armageddon: bool,
     ) -> Vec<Event> {
+        // Everything that can refuse is looked at before the map is touched: a volcano of a
+        // player that does not exist, or on a plane with no mountains in the content, changes
+        // nothing and is not announced.
+        if self.player_entity(owner).is_none() {
+            return Vec::new();
+        }
         let Some(mountains) = self
             .content
             .terrains
@@ -198,7 +204,11 @@ impl Game {
             grid.set(at.x, at.y, mountains);
             grid.set_mineral(at.x, at.y, mineral);
         }
-        self.spawn_volcano(owner, at);
+        let raised = self.spawn_volcano(owner, at);
+        debug_assert!(
+            raised.is_some(),
+            "the owner was looked at before the map changed"
+        );
         for ship in ships {
             self.remove_unit(ship, crate::hero::Fate::Slain);
         }
@@ -535,6 +545,22 @@ mod tests {
                 .any(|e| matches!(e, Event::BuildingsCollapsed { .. })),
             left < ids.len()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn a_volcano_of_a_player_that_does_not_exist_changes_nothing_and_is_not_announced() -> TestResult
+    {
+        let mut g = world();
+        let before = g.economy().terrain_class_at(at(4, 4));
+        let mut rng = rand_pcg::Pcg64Mcg::new(1);
+        let events = g.raise_volcano(PlayerId(9), at(4, 4), &mut rng);
+        assert_eq!(events, Vec::new());
+        assert_eq!(g.economy().terrain_class_at(at(4, 4)), before);
+        assert_eq!(g.economy().volcano_at(at(4, 4)), None);
+        let events = g.armageddon_volcano(PlayerId(9), at(4, 4), &mut rng);
+        assert_eq!(events, Vec::new());
+        assert_eq!(g.economy().volcano_at(at(4, 4)), None);
         Ok(())
     }
 
