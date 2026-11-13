@@ -202,24 +202,17 @@ impl Page for GameOverPage {
             || input.mouse_pressed(MouseButton::Left);
         if leave {
             // The score goes in the table once, then the table is shown.
-            let mut table = hall_of_fame::load(std::path::Path::new(hall_of_fame::FILE));
             let race = race.map_or_else(String::new, |r| {
                 app.names
                     .race(app.game.content().rules.races.get(r).num)
                     .to_string()
             });
-            if hall_of_fame::insert(
-                &mut table,
-                Entry {
-                    name,
-                    race,
-                    score: total,
-                },
-            )
-            .is_some()
-            {
-                let _ = hall_of_fame::save(std::path::Path::new(hall_of_fame::FILE), &table);
-            }
+            let entry = Entry {
+                name,
+                race,
+                score: total,
+            };
+            app.keep_score(std::path::Path::new(hall_of_fame::FILE), entry);
             // The log keeps who won and how.
             let winner = app.wizard_arg(Args::new(), "winner", over.winner);
             let (title, reason) = headline(app.texts(), over.winner == HUMAN, over.kind, winner);
@@ -233,9 +226,57 @@ impl Page for GameOverPage {
     }
 }
 
+impl App {
+    /// Put the score in the table kept at `path`; a table that cannot be written is told in the
+    /// log (the score is then lost, which the player should know).
+    fn keep_score(&mut self, path: &std::path::Path, entry: Entry) {
+        let mut table = hall_of_fame::load(path);
+        if hall_of_fame::insert(&mut table, entry).is_none() {
+            return;
+        }
+        if let Err(e) = hall_of_fame::save(path, &table) {
+            let line = self.text_with(
+                "end.hall_save_failed",
+                &Args::new().text("why", e.to_string()),
+            );
+            self.log.push(line);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_hall_of_fame_that_cannot_be_written_is_told_in_the_log(
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let dir = std::env::temp_dir().join(format!("f4x-hall-{}", std::process::id()));
+        std::fs::create_dir_all(&dir)?;
+        // A file where the table's folder should be: the write cannot succeed.
+        let blocker = dir.join("saves");
+        std::fs::write(&blocker, "not a folder")?;
+        let mut app = App::for_test();
+        let entry = Entry {
+            name: "Merlin".into(),
+            race: "High Men".into(),
+            score: 100,
+        };
+        app.keep_score(&blocker.join("hall_of_fame.txt"), entry.clone());
+        let line = app.log.last().ok_or("nothing was logged")?.to_string();
+        assert!(
+            line.starts_with("The Hall of Fame could not be saved"),
+            "{line}"
+        );
+        // A table that can be written says nothing.
+        let ok = dir.join("ok").join("hall_of_fame.txt");
+        let before = app.log.len();
+        app.keep_score(&ok, entry);
+        assert_eq!(app.log.len(), before);
+        assert_eq!(hall_of_fame::load(&ok).len(), 1);
+        std::fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
 
     #[test]
     fn the_bar_grows_a_pixel_for_forty_points_up_to_two_hundred() {

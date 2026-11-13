@@ -1465,11 +1465,17 @@ impl App {
             // No one defends in person here: the computer fights the attacks on the human.
             while self.turn_events.is_some() {
                 while let Some(attack) = self.next_defence() {
-                    let _ = self.game.apply(Command::AutoResolve {
+                    let events = self.game.apply(Command::AutoResolve {
                         mana_budget: None,
                         attackers: attack.attackers,
                         defenders: attack.defenders,
                     });
+                    // A smoke test or screenshot run: an attack the game will not resolve is a
+                    // bug to stop at (the panic shows the refusal), not one to play on from.
+                    assert!(
+                        !events.iter().any(|e| matches!(e, Event::Rejected(_))),
+                        "{events:?}"
+                    );
                 }
                 self.resume_turn();
             }

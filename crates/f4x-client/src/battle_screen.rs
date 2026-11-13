@@ -752,9 +752,15 @@ impl App {
             return;
         };
         if let Some(at) = self.game.units().unit_position(first) {
-            if let Err(e) = self.game.spawn_hero(HUMAN, at, 0) {
-                eprintln!("cannot bring in a hero: {e:?}");
-            }
+            self.spawn_test_hero(at);
+        }
+    }
+
+    /// For screenshots: the first hero joins the human's army at `at`. A hero that cannot come
+    /// (not free) is said on the console, as the other screenshot setups do.
+    pub(crate) fn spawn_test_hero(&mut self, at: f4x_core::map::Position) {
+        if let Err(e) = self.game.spawn_hero(HUMAN, at, 0) {
+            eprintln!("cannot bring in a hero: {e:?}");
         }
     }
 

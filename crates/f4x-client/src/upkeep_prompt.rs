@@ -456,7 +456,7 @@ impl App {
         for u in troops.iter().cycle().take(6) {
             self.game.spawn_unit(HUMAN, at, *u);
         }
-        let _ = self.game.spawn_hero(HUMAN, at, 0);
+        self.spawn_test_hero(at);
         if let Some(t) = self.game.treasury_mut(HUMAN) {
             t.gold = f4x_def::half_int::HalfInt::ZERO;
             t.mana = f4x_def::half_int::HalfInt::ZERO;

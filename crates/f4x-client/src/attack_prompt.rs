@@ -560,13 +560,9 @@ mod tests {
         assert!(app.turn_events.is_some(), "the round waits for the answer");
         assert_eq!(app.game.turn, round, "the round has not ended");
 
-        // The player leaves it to the computer: the fight runs and the box goes.
+        // The player answers: the box goes. (The fight itself is not run here: the two stacks
+        // of this test world are not next to each other, and the game refuses a battle then.)
         app.modals.remove(kind::ATTACK);
-        let _ = app.game.apply(Command::AutoResolve {
-            mana_budget: None,
-            attackers: pending.attackers,
-            defenders: pending.defenders,
-        });
         app.resume_turn();
         assert!(!app.modals.has(kind::ATTACK));
         assert!(app.defences.is_empty());
